@@ -48,4 +48,56 @@ public class ScriptCameraTests
         // arrives past the end of the last segment (count <= seg + 2), the eye trailing the point
         Assert.InRange(cam.Eye.Z, 16f, 20f);
     }
+    /// <summary>
+    /// The view is drawn between the last two ticks' placements. A cut has nothing to blend from, also when the op stays the
+    /// same: t04's intro cuts camObjObj to camObjObj between the speakers, and the frame between the two placements showed
+    /// the camera halfway across, 11 to 36 m from either (#140). The same op with the same arguments, as a travelling
+    /// shot is re-issued every frame, still blends.
+    /// </summary>
+    [Fact]
+    public void ACutToANewPlacementOfTheSameOpIsNotBlended()
+    {
+        var cam = new ScriptCamera((x, z) => 0f);
+        var a = new Entity("a", [], 1, 0) { StaticPosition = new(0, 0, 0) };
+        var b = new Entity("b", [], 1, 0) { StaticPosition = new(30, 0, 20) };
+        var who = new Entity("who", [], 1, 0) { StaticPosition = new(10, 0, 10) };
+        cam.Push();
+        for (int i = 0; i < 3; i++) { cam.Set("camObjObj", [0, 0, 300, -500, 0], [a, null, null, null, who], null); cam.Update(0.05f); }
+        Assert.Equal(cam.Eye, cam.PrevEye);
+        cam.Set("camObjObj", [0, 0, 300, -500, 0], [b, null, null, null, who], null);
+        cam.Update(0.05f);
+        Assert.Equal(new Vector3(30, 3, 15), cam.Eye);
+        Assert.Equal(cam.Eye, cam.PrevEye);
+        Assert.Equal(cam.LookAt, cam.PrevLookAt);
+        // other arguments to the same op are a cut too
+        cam.Set("camObjObj", [0, 200, 300, -500, 0], [b, null, null, null, who], null);
+        cam.Update(0.05f);
+        Assert.Equal(cam.Eye, cam.PrevEye);
+
+        // the object moving under the same placement is not a cut: that blends
+        b.StaticPosition = new(31, 0, 20);
+        cam.Set("camObjObj", [0, 200, 300, -500, 0], [b, null, null, null, who], null);
+        cam.Update(0.05f);
+        Assert.Equal(1f, (cam.Eye - cam.PrevEye).Length(), 3);
+    }
+
+    [Fact]
+    public void AReissuedTravellingShotStillBlends()
+    {
+        var cam = new ScriptCamera((x, z) => 0f);
+        cam.Push();
+        var path = new List<Vector3> { new(0, 0, 0), new(0, 0, 100), new(0, 0, 200) };
+        for (int i = 0; i < 10; i++)
+        {
+            cam.Set("camTransObj", [0, 300, 1550, 0], [null, null, null, null], path);
+            cam.Update(0.05f);
+        }
+        Assert.True(cam.Eye.Z - cam.PrevEye.Z > 0.3f);
+        // a new path for the same op starts at its first point: a cut
+        var other = new List<Vector3> { new(500, 0, 0), new(500, 0, 100) };
+        cam.Set("camTransObj", [0, 300, 1550, 0], [null, null, null, null], other);
+        cam.Update(0.05f);
+        Assert.Equal(500f, cam.Eye.X, 3);
+        Assert.Equal(cam.Eye, cam.PrevEye);
+    }
 }

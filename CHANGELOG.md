@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A cut-scene's cut from one shot to the next no longer shows a frame from somewhere in between: the camera drawn between two moments of the game took a cut between two placements of the same kind (the camera turning from one speaker to the other, as in the first and fourth Trip missions' openings) for a move and showed it halfway across. A cut now starts the new shot at once; the travelling shots still glide (#140).
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
