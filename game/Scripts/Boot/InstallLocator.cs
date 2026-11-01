@@ -10,6 +10,7 @@ namespace I76.Game.Boot;
 ///   --screenshot PATH  --quit-after FRAMES   --seed N
 ///   --drive [car.vcf]  --hold-throttle
 ///   --skip-movies   --movie NAME.smk
+///   --dev   the Developer panel (teleport, repair, state store / restore, time; docs/dev-hooks.md)
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
 ///   --host-listen [--arena m05] [--port 7676] [--rate 20|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
@@ -62,6 +63,8 @@ public sealed class LaunchOptions
     public bool NoMusic { get; set; }
     /// <summary>--skip-movies: no intro or credits at startup, no briefing movies in missions.</summary>
     public bool SkipMovies { get; set; }
+    /// <summary>--dev: the Developer panel for this run (Ctrl+F2 in a mission, and the escape menu's Developer row; docs/dev-hooks.md).</summary>
+    public bool Dev { get; set; }
     /// <summary>--movie NAME: play that movie from smk/ first (then the menu, or quit with --quit-after).</summary>
     public string? Movie { get; set; }
     /// <summary>--modern-physics: the player's car on the optional modern physics (docs/modern-physics.md), whatever the setting says.</summary>
@@ -246,6 +249,7 @@ public sealed class LaunchOptions
                 case "--chase": o.Chase = true; break;
                 case "--melee": o.Melee = true; break;
                 case "--skip-movies": o.SkipMovies = true; break;
+                case "--dev": o.Dev = true; break;
                 case "--movie": o.Movie = Next(); break;
                 case "--modern-physics": o.ModernPhysics = true; break;
                 case "--connect": o.Connect = Next(); break;

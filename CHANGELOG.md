@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- A Developer panel for testing, off for players: with `--dev`, `I76_DEV=1` or `developer_tools=true` in the settings file, Ctrl+F2 in a single-player mission (or the escape menu's Developer row) opens it over the paused game. Teleport to the mission's named places or to coordinates, repair and refill the car, God mode, bring the nearest car, store and restore the whole simulation (the restored run goes on tick for tick as the stored one did), freeze, step and slow the ticks, and a status line with the tick, its substeps and the fps (docs/dev-hooks.md).
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
