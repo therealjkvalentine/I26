@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The 1997 look's machine gun tracers are a line one pixel wide, as the original draws them, instead of a small box, covering the front 65 % of the round's last step; a cannon round's tube spans its whole last step. Neither is cut to 4 m any more, so fast rounds keep their full length, and neither reaches back past the muzzle. The modern look is unchanged.
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.

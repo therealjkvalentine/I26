@@ -24,4 +24,23 @@ public class TracerLengthTests
         // a round well on its way keeps its full bar
         Assert.Equal(4f, TracerLength.Bar(step, TracerLength.Flown(50f, step, 0.5f)));
     }
+
+    [Theory]
+    [InlineData(200f, 102f / 2048)]   // a 7.62 round at 20 Hz: 9.96 m a step
+    [InlineData(200f, 1f / 60)]       // the same at 60 Hz
+    [InlineData(400f, 102f / 2048)]   // a fast round: 19.9 m a step, past the old 4 m cap
+    public void The1997CannonTubeSpansTheStepAndTheMachineGunLineItsFront65Percent(float speed, float tick)
+    {
+        float step = speed * tick, flown = TracerLength.Flown(100f, step, 0.5f);
+        Assert.Equal(step, TracerLength.Tube(step, flown), 4);
+        Assert.Equal(step * 0.65f, TracerLength.Line(step, flown), 4);
+    }
+
+    [Fact]
+    public void The1997CannonTubeAndMachineGunLineReachNoFurtherBackThanTheMuzzle()
+    {
+        float step = 200f * 102 / 2048, flown = TracerLength.Flown(step * 0.25f, step, 1f);
+        Assert.Equal(flown, TracerLength.Tube(step, flown), 5);
+        Assert.Equal(flown, TracerLength.Line(step, flown), 5);
+    }
 }

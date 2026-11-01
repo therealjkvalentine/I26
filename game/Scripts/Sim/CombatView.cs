@@ -145,7 +145,7 @@ public partial class CombatView : Node3D
     private readonly List<(Node3D Node, double Until, double Start, float Size)> _flashes = [];
     private StandardMaterial3D _tracer = null!, _missile = null!, _flash = null!;
     private BoxMesh _box = null!;
-    private ArrayMesh _shell = null!;
+    private ArrayMesh _shell = null!, _line = null!;
     private StandardMaterial3D? _shellMat;
     private bool _shellMatTried;
     private SphereMesh _ball = null!;
@@ -158,6 +158,7 @@ public partial class CombatView : Node3D
         _flash = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color(1f, 0.6f, 0.15f, 0.8f) };
         _box = new BoxMesh { Size = new Vector3(0.06f, 0.06f, 1f) };
         _shell = ShellMesh();
+        _line = LineMesh();
         _ball = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 12, Rings = 6 };
         _fx = new ModernFx { Name = "Fx" };
         AddChild(_fx);
@@ -292,6 +293,17 @@ public partial class CombatView : Node3D
         arrays[(int)Mesh.ArrayType.Index] = idx.ToArray();
         var m = new ArrayMesh();
         m.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        return m;
+    }
+
+    /// <summary>The 1997 look's machine gun round (tracer style 2): a line one pixel wide from z = -0.5 (head) to +0.5.</summary>
+    private static ArrayMesh LineMesh()
+    {
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = new[] { new Vector3(0, 0, -0.5f), new Vector3(0, 0, 0.5f) };
+        var m = new ArrayMesh();
+        m.AddSurfaceFromArrays(Mesh.PrimitiveType.Lines, arrays);
         return m;
     }
 
@@ -814,11 +826,16 @@ public partial class CombatView : Node3D
             body.Visible = model is null && (!modern || rocket);
             if (!body.Visible) continue;
             var shellMat = r.Kind == 6 && !rocket ? ShellMaterial() : null;
-            body.Mesh = shellMat is not null ? _shell : _box;
+            bool line = r.Kind == 1;
+            body.Mesh = shellMat is not null ? _shell : line ? _line : _box;
             body.MaterialOverride = rocket ? _missile : shellMat ?? (TracerColor(r) is { } lc ? TracerMaterial(lc) : _tracer);
-            // no longer than the round has flown: a new round's bar reached up to 4 m back from the muzzle, through the gun
-            // and out of a turret turned to the side, so the shot seemed to leave from the turret's base
-            float len = rocket ? 1.2f : I76.Formats.Assembly.TracerLength.Bar(step.Length(), flown);
+            // the cannon's tube spans the last step and the machine gun's line its front 65 %, neither capped; no longer than
+            // the round has flown: a new round's bar reached back from the muzzle, through the gun and out of a turret turned
+            // to the side, so the shot seemed to leave from the turret's base
+            float len = rocket ? 1.2f
+                : r.Kind == 6 ? I76.Formats.Assembly.TracerLength.Tube(step.Length(), flown)
+                : line ? I76.Formats.Assembly.TracerLength.Line(step.Length(), flown)
+                : I76.Formats.Assembly.TracerLength.Bar(step.Length(), flown);
             var up = MathF.Abs(dir.Y) > 0.99f ? Vector3.Right : Vector3.Up;
             var wide = shellMat is not null ? 1f : r.Kind == 6 ? 2.5f : 1f;
             var basis = Basis.LookingAt(dir, up) * Basis.FromScale(new Vector3(rocket ? 2.5f : wide, rocket ? 2.5f : wide, len));
