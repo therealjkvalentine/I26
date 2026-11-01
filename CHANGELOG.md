@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Cars no longer drop and bob on their springs as a mission starts: a newly placed car's wheels start from the ground under them, as the original's do, so a car at rest stands still from its first moment (#141). The same goes for a melee's cars, a respawn and a co-op seat's car.
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
