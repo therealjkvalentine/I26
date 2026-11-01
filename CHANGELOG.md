@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Mission music goes back to track 2 after track 14, as the original's does, instead of going on into tracks 15 to 17. A mission whose own track is 15 or later (Interstate '76's M09) still plays it once, then 2 to 14; the next track still follows without a gap (#128).
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
