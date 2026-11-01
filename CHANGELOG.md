@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The modern look's target health bar has the original's size and place, scaled with the window: up to 30 by 4 pixels at 640x480 (90 by 12 at 1440 pixels high), just over the box, shorter as the car is hurt, instead of a thin bar at least 60 pixels wide at every resolution. Its colours are unchanged.
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
