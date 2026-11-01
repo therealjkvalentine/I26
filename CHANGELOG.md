@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Taurus's car corners as the original's does: the car the mission names as Taurus (Interstate '76's missions 1 to 3 and the others he drives in) now takes the original's load-based cornering whatever the play options say, which sets how hard he can corner and the speeds he plans for the turns, and, outside network games, when his car comes to rest on its roof it is put back on its wheels instead of destroyed (which could fail the mission).
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
