@@ -65,6 +65,7 @@ public partial class DamageSmoke : Node3D
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
+    private double _clock;   // game seconds the modern smoke has run: the clumping's clock (not the wall clock, which runs on through a pause and a slow capture)
     // The billows go out in depth slabs, one MultiMeshInstance3D each. Godot sorts transparent draws (the lamps' glare, the
     // tyre smoke) by instance, not by puff, and one instance for all the smoke sorted as a block: a flare behind the smoke was
     // drawn over it, one in front under it. Each slab's custom AABB is a small box at its mean puff, so it sorts at its own depth.
@@ -275,6 +276,7 @@ public partial class DamageSmoke : Node3D
     private void ProcessModern(double delta)
     {
         double dt = Math.Min(delta, 0.25);
+        _clock += dt;
         _matM.SetShaderParameter("scene_light", SceneLight);
         foreach (var (v, car) in Cars)
         {
@@ -287,7 +289,7 @@ public partial class DamageSmoke : Node3D
             float L = st.Level;
             float rate = (L < 1 ? Mathf.Lerp(16f, 30f, L) : Mathf.Lerp(30f, 70f, L - 1)) * RateMul;   // half the puffs, 1.3x the size, denser: the same look for half the fill
             // the stream comes in clumps, not a band: the rate swells and ebbs, more deeply for black
-            double tt = Time.GetTicksMsec() / 1000.0 + car.GetInstanceId() % 97;
+            double tt = _clock + car.GetInstanceId() % 97;
             float clump = 1f + Mathf.Clamp(L - 0.5f, 0f, 1f) * 0.9f * (float)(Math.Sin(tt * 2.9) * Math.Sin(tt * 1.3 + 1));
             // a moving car lays its puffs by distance driven (the drawn path), so the trail is a stream at any speed and
             // frame rate; the time rate keeps a parked car smoking
