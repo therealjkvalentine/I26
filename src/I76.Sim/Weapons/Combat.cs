@@ -101,8 +101,15 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         if (RadarTarget.GetValueOrDefault(me) is null) return;
         if (!RadarCamera.Remove(me)) RadarCamera.Add(me);
     }
-    /// <summary>Read as the difficulty: the player's round damage ×2.0 / ×1.0 / ×0.75.</summary>
+    /// <summary>
+    /// Play Options' Difficulty Level: 0 Wimp, 1 Champion, 2 Badass, any other value read as Champion. The original scales
+    /// the player's rounds and flame by ×2.0 / ×1.0 / ×0.75, never the .45, and only off the network (<see cref="DifficultyFactor"/>).
+    /// The game sets it from the settings at each mission start and when the Esc menu closes.
+    /// </summary>
     public int Difficulty { get; set; } = 1;
+    /// <summary>The difficulty's damage factor on what <paramref name="shooter"/> fires (<see cref="Difficulty"/>; the .45 is the caller's test).</summary>
+    public float DifficultyFactor(Vehicle shooter) =>
+        NetworkGame || !World.IsHuman(shooter) ? 1f : Difficulty switch { 0 => 2f, 2 => 0.75f, _ => 1f };
     public bool UnlimitedAmmo { get; set; }
     /// <summary>
     /// The Nitro Pack's rules where its weapon code differs from the base game's: the Chemical Mortar kills the driver
@@ -241,6 +248,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public bool MeleeActive { get; set; }
     /// <summary>A network session. E may pick team 0 only then; every car's radar fills its own arcs.</summary>
     public bool NetSession { get; set; }
+    /// <summary>A network game of either kind: a network melee (<see cref="NetSession"/>) or online co-op (<see cref="SimWorld.Coop"/>).</summary>
+    public bool NetworkGame => NetSession || World.Coop;
     /// <summary>
     /// A network melee without team play: every car is its own side for the radar's T and E. Everyone there is on
     /// team 0 (the humans and the AI fill alike), and the team test alone made no car a candidate for anyone.
@@ -1364,7 +1373,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         _ => 1,
     };
 
-    private float PlayerMult(Round r) => !World.IsHuman(r.Shooter) || r.Kind == 0x12 ? 1f : Difficulty switch { 0 => 2f, 2 => 0.75f, _ => 1f };
+    private float PlayerMult(Round r) => r.Kind == 0x12 ? 1f : DifficultyFactor(r.Shooter);
 
     /// <summary>Trunc(damage·mult) split by integer division over the set channels.</summary>
     public DamagePacket RoundPacket(Round r)

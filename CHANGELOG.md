@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Play Options' Difficulty Level now does something: off the network, your weapons do double damage at Wimp and three quarters at Badass (Champion unchanged; the .45 the same at every level), as in the original. Until now every setting played as Champion. A change in the Esc menu takes effect when you resume. The setting starts at Wimp, as the original's shipped settings do, so check it if your weapons now seem strong. Network games, melee and co-op, ignore it for everyone, as the original's network games did.
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
