@@ -908,7 +908,7 @@ public partial class Main : Node3D
             SetupPlayerCar(node, vehicle, carDef, setup.Combat, handguns: true);
         }
         if (_car is null) { _status += "\nno drivable car"; return; }
-        var damageView = new DamageView { Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Name = "Damage" };
+        var damageView = new DamageView { Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Alpha = () => _sim?.Alpha ?? 1f, Name = "Damage" };
         AddChild(damageView);
         _damageView = damageView;
         if (_car is { } warm) damageView.Prewarm(warm);

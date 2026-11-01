@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The 1997 look's damage smoke no longer flickers over the sky in the cockpit view when your own car is smoking, worst at speed. Puffs were placed from where the car is drawn between two sim ticks and then drawn where the sim had them, so at 30 fps on the 20 Hz sim they jumped back and forth by up to a tick's travel past the eye; and puffs right by the eye were drawn, filling the screen for a frame. Puffs now leave the car where the sim has it and are drawn between ticks as the cars are, and, as in the original, none nearer the eye than 1 m (both looks).
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
