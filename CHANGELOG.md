@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Cancel on the Save Bookmark form opened from the garage, field salvage or the screen after a mission now goes back to that screen, as the original's does, instead of to the Options Menu. Opened from the Options Menu it still returns there, and Escape still goes to the Options Menu.
+
 ## 0.11.0 (31 October 2026)
 
 Network games use protocol 21: 0.11.0 does not play with 0.10.0 or earlier, so everyone in a game needs 0.11.0.
