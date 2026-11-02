@@ -246,6 +246,33 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
     protected override int Record => 12;
     protected override string Action => "Load";
 
+    /// <summary>The port's All Scenes, beside the scroll-up arrow (the base game only: Nitro has no trip).</summary>
+    protected override void Build()
+    {
+        base.Build();
+        if (!Shell.Install.IsNitro) Add(250, 158, "All Scenes", AllScenes, Small);
+    }
+
+    /// <summary>One bookmark per mission of the trip, in that mission's stock car; asks first, since it makes many files, and leaves a bookmark of the same scene and name alone.</summary>
+    private void AllScenes() => Shell.Modal(new ConfirmPopup
+    {
+        Lines = ["Make a bookmark for every scene", "of the trip, each in its own car?"],
+        Answer = yes =>
+        {
+            if (!yes) { Redraw(); return; }
+            var marks = Bookmarks.Load();
+            var vfs = Shell.Vfs;
+            var (made, had) = SceneBookmarks.Generate(marks, n => SceneBookmarks.NameOf(Shell.Install, n), n =>
+            {
+                var car = I76.Sim.Trip.TripCar.FromVcf(vfs.Read(SceneBookmarks.CarFile(n)), c => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, c));
+                return I76.Sim.Trip.TripInventory.FromCar(car, Shell.Parts, vfs).Save();
+            }, Bookmarks.WriteCar);
+            marks.Save();
+            var text = $"{made} bookmark{(made == 1 ? "" : "s")} made." + (had > 0 ? $" {had} already were." : "");
+            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = text, Closed = () => Shell.Overlay(new LoadBookmarkScreen { FromMainMenu = FromMainMenu }) });
+        },
+    });
+
     protected override (int, string) Header() =>
         Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
 
