@@ -758,6 +758,7 @@ public partial class Main : Node3D
     }
 
     private bool _extInstruments = true;
+    private int _skippedTick = int.MinValue;
 
     /// <summary>The audio levels on their buses: Music, SFX and Voice, level 1 off, 8 as recorded, 2 dB a step.</summary>
     public static void ApplyAudio(I76.Game.Shell.ShellSettings s)
@@ -774,6 +775,7 @@ public partial class Main : Node3D
         if (!Enumerable.Range(0, AudioServer.GetBusEffectCount(0)).Any(e => AudioServer.GetBusEffect(0, e) is AudioEffectHardLimiter))
             AudioServer.AddBusEffect(0, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f, Release = 0.1f }, 0);
         I76.Game.Net.CbVoice.Active?.ApplyMic(s.CbMic);
+        AudioServer.SetBusMute(0, LaunchOptions.Muted);   // --mute
         Bus("Music", s.Audio[0]);
         Bus("SFX", s.Audio[1]);
         Bus("Voice", s.Audio[2]);
@@ -2904,6 +2906,12 @@ public partial class Main : Node3D
         if (!_switchFrameLogged) { _switchFrameLogged = true; I76.Game.Editor.SwitchTimer.Mark(I76.Game.Editor.EditorSession.Playtest ? "playtest: first interactive frame" : "editor: first interactive frame", true); }
         // I76_PLAYTEST_RETURN=N (capture): F5 is pressed N frames after a playtest opened
         if (I76.Game.Editor.EditorSession.Playtest && _sim is not null && _debugReturn > 0 && ++_playFrames == _debugReturn) Input.ParseInputEvent(new InputEventKey { Keycode = Key.F5, PhysicalKeycode = Key.F5, Pressed = true });
+        // --skip-cutscenes: Esc's skip, once per script tick while the script asks for it
+        if (_opt.SkipCutscenes && _net is null && _sim is not null && !_ended && SkipPolled && _sim.Script!.Host.FsmTick != _skippedTick)
+        {
+            _skippedTick = _sim.Script.Host.FsmTick;
+            _sim.SkipLatch = true;
+        }
         PumpModernBuild();
         if (!_horizonEyeSet) SetHorizonEye();
         _animClock += delta;
