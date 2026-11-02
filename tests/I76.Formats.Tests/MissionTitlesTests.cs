@@ -64,4 +64,35 @@ public class MissionTitlesTests
         Assert.Equal(Enumerable.Range(1, 19).Select(i => $"p{i:00}").Append("b01").Order().ToList(), stems.Order().ToList());
         Assert.Equal("A New Hope", list.First(m => m.Stem == "p01").Title);
     }
+
+    [InstallFact]
+    public void ACopyOfAStoryMissionIsKnownAndAnArenaOrEditedScriptIsNot()
+    {
+        var install = TestInstall.Install;
+        // packs for the original put T01-T17 and the scenarios in addon as .lvl under other names (coop01.lvl, auto01.lvl)
+        var dir = Path.Combine(Path.GetTempPath(), "i26-coopcopy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string Copy(string stem, string name)
+            {
+                var to = Path.Combine(dir, name);
+                File.Copy(install.Resolve("miss16", stem + ".msn")!, to);
+                return to;
+            }
+            Assert.True(MissionTitles.IsCoopCopy(install, Copy("t05", "coop05.lvl")));
+            Assert.True(MissionTitles.IsCoopCopy(install, Copy("s03", "auto01.lvl")));
+            Assert.False(MissionTitles.IsCoopCopy(install, Copy("m01", "crater.lvl")));
+            // one byte of the script changed: a map of the player's own, kept
+            var edited = Copy("t05", "mine.lvl");
+            var m = new MissionFile(edited);
+            var b = File.ReadAllBytes(edited);
+            int at = b.AsSpan().IndexOf(m.FsmPayload().AsSpan()[..64]);
+            Assert.True(at > 0);
+            b[at + m.FsmPayload().Length - 1] ^= 1;
+            File.WriteAllBytes(edited, b);
+            Assert.False(MissionTitles.IsCoopCopy(install, edited));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }
