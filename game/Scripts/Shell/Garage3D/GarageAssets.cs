@@ -20,8 +20,8 @@ public sealed class GarageAssets
     /// <summary>The assets of this shell's install (rebuilt when the install changes, as a switch of game does).</summary>
     public static GarageAssets For(Shell shell)
     {
-        if (_held is { } h && h.Vfs == shell.Vfs) return h;
-        return _held = new GarageAssets(shell.Vfs);
+        if (_held is { } h && h.Vfs == shell.Vfs) { h.Textures.Hd = !shell.Faithful; return h; }
+        return _held = new GarageAssets(shell.Vfs) { Textures = { Hd = !shell.Faithful } };
     }
 
     public static void Forget() => _held = null;

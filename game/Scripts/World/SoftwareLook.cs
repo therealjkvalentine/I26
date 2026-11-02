@@ -64,7 +64,7 @@ public partial class SoftwareLook : Node
         _palette = new Palette(pd);
         PaletteName = pal;
         _lum = (ws?.Luminance is { Length: > 0 } l ? vfs.TryRead(l) : null) ?? (fallbackLum is null ? null : vfs.TryRead(fallbackLum));
-        var textures = new I76.Game.Assets.TextureFactory(resolver, _palette);
+        var textures = new I76.Game.Assets.TextureFactory(resolver, _palette) { Hd = false };
         if (ws?.Sky is { Length: > 0 } sky && resolver.FindByStem(sky) is { } sm && textures.Get(sm) is { } st) { _sky = st.Texture; SkyName = sky; }
         if (ws?.Ground is { Length: >= 8 } g && resolver.FindByStem(g[..4] + '2' + g[5..]) is { } gm && textures.Get(gm) is { } gt) { _ground = gt.Texture; GroundName = gm; }
         // the lookup off the main thread (64³ nearest searches, ~70 M distance sums)
