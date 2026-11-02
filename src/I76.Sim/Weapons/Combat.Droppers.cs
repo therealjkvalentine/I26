@@ -344,9 +344,11 @@ public sealed partial class Combat
         if (_cosmetic) return;
         if (victim is not null && Damage is { } sink && r.Ord.Mask != 0) sink.Apply(victim, RoundPacket(r), Local(victim, at), node);
         int cls = ImpactClass(victim, node);
+        if (cls < 0) return;
         var fx = r.Ord.ImpactXdf[cls];
-        Events.Add(new Impact(fx, r.Ord.ImpactWav[cls], at, victim, r.Kind, at, default, dir));
-        if (fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) && effects(fx) is { } e)
+        var e = ImpactEffect(fx);
+        Events.Add(new Impact(fx, e is null ? "" : r.Ord.ImpactWav[cls], at, victim, r.Kind, at, default, dir));
+        if (e is not null)
         {
             Events.Add(new Explosion(e, at));
             if (e.SplashDamage != 0) Splash(at, e.SplashRadius, e.SplashDamage, r.Shooter);
