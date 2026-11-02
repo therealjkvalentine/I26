@@ -23,7 +23,13 @@ public static class DrawDistance
     /// The setting in a look: the player's choice, or with none made (no key in the settings file) the look's default,
     /// Original in the 1997 look (the original's clip and horizon panels), Far in the modern one.
     /// </summary>
-    public static int Resolve(int? choice, bool look1997) => choice is { } c ? Parse(c) : look1997 ? Original : Far;
+    public static int Resolve(int? choice, bool look1997) => I76.Formats.Shell.LookChoice.Resolve(choice, look1997);
+
+    /// <summary>
+    /// A stored draw_distance as a choice, by the settings file's version: 0.11.0's Save wrote the key on every save (Far, the
+    /// only default then), so a Far from a file older than version 12 is no choice and the look's default applies.
+    /// </summary>
+    public static int? FromFile(int? raw, int settingsVersion) => raw is null || (Parse(raw) == Far && settingsVersion < 12) ? null : Parse(raw);
 
     /// <summary>The camera's far plane for a setting.</summary>
     public static float CameraFar(int setting) => setting == Original ? OriginalClip : FarClip;

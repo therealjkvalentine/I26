@@ -5,7 +5,7 @@ namespace I76.Game.Shell;
 /// <summary>
 /// The Original Recipe pad (the Esc menu's and the shell's Options Menu's): every choice the port offers between the
 /// original's behaviour and an updated one, each a row of the original's first and the update after, bound to the same
-/// ShellSettings field as wherever else the setting has a row. Three rows follow the look until the player chooses
+/// ShellSettings field as wherever else the setting has a row. Four rows follow the look until the player chooses
 /// (Original in the 1997 look, the update in the modern one): the value shown is the one in effect. docs/deviations.md
 /// has a row for each update.
 /// </summary>
@@ -33,8 +33,8 @@ public static class OriginalRecipe
         new(label, names, (s, _) => Math.Clamp(get(s), 0, names.Length - 1), (s, _, v) => set(s, v), (from, to) => set(to, get(from)), s => set(s, 0));
 
     private static Row Look(string label, string[] names, Func<ShellSettings, int?> get, Action<ShellSettings, int?> set) =>
-        new(label, names, (s, look) => I76.Game.Sim.OriginalBehavior.Resolve(get(s), look),
-            (s, look, v) => { if (v != I76.Game.Sim.OriginalBehavior.Resolve(get(s), look)) set(s, v); },
+        new(label, names, (s, look) => I76.Formats.Shell.LookChoice.Resolve(get(s), look),
+            (s, look, v) => set(s, I76.Formats.Shell.LookChoice.Choose(get(s), look, v)),
             (from, to) => set(to, get(from)), s => set(s, null));
 
     /// <summary>The rows, in the pad's order: the simulation's first, then the views', the sound's and the pad's.</summary>
@@ -43,9 +43,7 @@ public static class OriginalRecipe
         Plain("Physics", PhysicsNames, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0),
         Plain("Live Ordnance", OrdnanceNames, s => s.OrdnanceLimit, (s, v) => s.OrdnanceLimit = v),
         Plain("Melee A.I.", ShellSettings.MeleeAiNames, s => (int)s.MeleeAi, (s, v) => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)v),
-        new("Draw Distance", I76.Formats.Imaging.DrawDistance.Names, (s, look) => I76.Formats.Imaging.DrawDistance.Resolve(s.DrawDistanceChoice, look),
-            (s, look, v) => { if (v != I76.Formats.Imaging.DrawDistance.Resolve(s.DrawDistanceChoice, look)) s.DrawDistanceChoice = v; },
-            (from, to) => to.DrawDistanceChoice = from.DrawDistanceChoice, s => s.DrawDistanceChoice = null),
+        Look("Draw Distance", I76.Formats.Imaging.DrawDistance.Names, s => s.DrawDistanceChoice, (s, v) => s.DrawDistanceChoice = v),
         Plain("Field of View", I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v),
         Look("Rear Mirror Range", MirrorRangeNames, s => s.MirrorRangeChoice, (s, v) => s.MirrorRangeChoice = v),
         Plain("Sky Drift", SkyDriftNames, s => s.SkyDrift, (s, v) => s.SkyDrift = v),

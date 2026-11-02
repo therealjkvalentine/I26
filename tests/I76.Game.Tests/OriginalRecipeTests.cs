@@ -101,4 +101,22 @@ public class OriginalRecipeTests
         PlayOptionsCombat.Apply(new ShellSettings(), c);
         Assert.False(c.UnlimitedOrdnance);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AGraphicDetailVisitThatChangesNothingStoresNoDrawDistance(bool look1997)
+    {
+        // the Esc pad's and the shell sheet's Done write the value shown back: it must not pin the look's default
+        var s = new ShellSettings { Look1997 = look1997 };
+        s.DrawDistance = s.DrawDistance;
+        Assert.Null(s.DrawDistanceChoice);
+        var row = Row("Draw Distance");
+        row.Set(s, look1997, row.Get(s, look1997));
+        Assert.Null(s.DrawDistanceChoice);
+        s.DrawDistance = 1 - s.DrawDistance;
+        Assert.Equal(look1997 ? 1 : 0, s.DrawDistanceChoice);
+        s.Look1997 = !look1997;                 // a choice made outlives the look
+        Assert.Equal(look1997 ? 1 : 0, s.DrawDistance);
+    }
 }

@@ -11,7 +11,7 @@ public static class OriginalBehavior
     public const int Original = 0, Updated = 1;
 
     /// <summary>A choice that follows the look until the player makes one: Original in the 1997 look, the update in the modern one.</summary>
-    public static int Resolve(int? choice, bool look1997) => choice is { } c ? (c == Original ? Original : Updated) : look1997 ? Original : Updated;
+    public static int Resolve(int? choice, bool look1997) => I76.Formats.Shell.LookChoice.Resolve(choice, look1997);
 
     /// <summary>The player's choices (null: follow the look).</summary>
     public static int? MirrorRange, BrakeLamps, MgTracers;

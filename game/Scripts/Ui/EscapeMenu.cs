@@ -307,8 +307,8 @@ public sealed partial class EscapeMenu : Control
             Scrolling(9, Cycle, "Crash Blur", 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's plants on the next free row
             Scrolling(10, Cycle, "Vegetation", 3, offLowHigh, s => s.Vegetation, (s, v) => s.Vegetation = v, apply: () => Live?.Invoke(Settings)),
-            // and how far the world is drawn (either look), live
-            Scrolling(11, Cycle, "Draw Distance", 2, I76.Formats.Imaging.DrawDistance.Names, s => s.DrawDistance, (s, v) => s.DrawDistance = v, apply: () => Live?.Invoke(Settings)),
+            // and how far the world is drawn (either look), live: Original Recipe's row, which keeps following the look unless changed
+            RecipeRow(OriginalRecipe.Rows.Single(r => r.Label == "Draw Distance"), 11),
             // and the mouse orbiting the chase view, live
             Scrolling(12, Cycle, "Mouse Camera", I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: () => Live?.Invoke(Settings)),
             // and the hidden mouse kept inside the window, live
