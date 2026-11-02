@@ -6,16 +6,16 @@ namespace I76.Game.World;
 /// <summary>
 /// Graphic Detail's Map Edge (the port's own, modern look only). A level's boundary is its heightfield's own outer tiles:
 /// most missions are bowls whose rim rises 100-170 m to a cliff band along the last tiles, and the modern look's ring
-/// (HorizonTerrain) carries on from the rim's height. Off (the original's, marked) draws that as it is. On draws the walls,
+/// (HorizonTerrain) carries on from the rim's height. Off (the original's) draws that as it is. On draws the walls,
 /// and the plateau behind them, down at the plain of their foot (EdgeWalls: the ground no car reaches that is joined to the
 /// map's edge; the terrain's vertex shader holds it to the foot grid, the ring beyond starts from the plain), so the ground
-/// runs on level to the ring's ranges. Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the
+/// runs on level to the ring's ranges (On is marked as the port's). Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the
 /// simulation are unchanged, and the playable interior away from the edge is untouched.
 /// </summary>
 public static class MapEdge
 {
     public const int Off = 0, On = 1;
-    public static readonly string[] Names = ["Off" + I76.Game.Shell.ShellSettings.OriginalMark, "On"];
+    public static readonly string[] Names = ["Off", "On" + I76.Game.Shell.ShellSettings.PortMark];
 
     /// <summary>
     /// shell.cfg's [port] map_edge: "on" or "off"; a number is the four-value row's (0 Plain, 1 Haze, 2 Fade Out, 3 Hide), whose

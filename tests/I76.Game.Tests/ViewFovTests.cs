@@ -15,7 +15,7 @@ public class ViewFovTests
     public void TheTableIsMonitorThenSixtyToOneHundredTenByFive()
     {
         Assert.Equal(ViewFov.Names.Length, ViewFov.Across.Length);
-        Assert.Equal("Monitor", ViewFov.Names[ViewFov.Monitor]);
+        Assert.Equal("Monitor" + I76.Game.Shell.ShellSettings.PortMark, ViewFov.Names[ViewFov.Monitor]);
         Assert.Equal(0, ViewFov.Across[ViewFov.Monitor]);
         for (int d = 60, i = 1; d <= 110; d += 5, i++)
         {
@@ -23,9 +23,9 @@ public class ViewFovTests
             Assert.StartsWith(d.ToString(), ViewFov.Names[i]);
         }
         Assert.Equal(12, ViewFov.Across.Length);
-        // the original's 90 is marked as the original's value, as every pad row marks it
+        // the original's 90 is the one value unmarked: every pad row marks the values the original does not have
         Assert.Equal(90, ViewFov.Across[ViewFov.Original]);
-        Assert.Equal("90" + I76.Game.Shell.ShellSettings.OriginalMark, ViewFov.Names[ViewFov.Original]);
+        Assert.Equal("90", ViewFov.Names[ViewFov.Original]);
     }
 
     [Fact]
