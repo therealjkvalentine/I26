@@ -175,21 +175,25 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
         var (a, b) = (bots[0], bots[1]);
         host.TakeEvents();
         Kill(host, a.Player.Car, b.Player.Car);
-        Assert.Equal((1, 1, 0, 0), (a.Player.Kills, b.Player.Deaths, a.Player.Car.Handicap, b.Player.Car.Handicap));
-        // b comes back (5 s and a moment), and goes again: two net kills over the table's average takes a to -1, b to +1
+        // one net kill over the table's average takes a to -1, b to +1, said to everyone
+        Assert.Equal((1, 1, -1, 1), (a.Player.Kills, b.Player.Deaths, a.Player.Car.Handicap, b.Player.Car.Handicap));
+        var said = host.TakeEvents().OfType<ChatEvent>().Where(c => c.From < 0).Select(c => c.Text).ToList();
+        Assert.Contains(Handicaps.Announce(a.Name, -1), said);
+        Assert.Contains(Handicaps.Announce(b.Name, 1), said);
+        // b comes back (5 s and a moment), and goes again: two net kills over, a -2 and b +2, the others still 0
         for (int k = 0; k < 20 * 12 && b.Player.Destroyed; k++) host.Step();
         Assert.False(b.Player.Destroyed);
         host.TakeEvents();
         Kill(host, a.Player.Car, b.Player.Car);
-        Assert.Equal((-1, 1, 0, 0), (a.Player.Car.Handicap, b.Player.Car.Handicap, bots[2].Player.Car.Handicap, bots[3].Player.Car.Handicap));
-        var said = host.TakeEvents().OfType<ChatEvent>().Where(c => c.From < 0).Select(c => c.Text).ToList();
-        Assert.Contains(Handicaps.Announce(a.Name, -1), said);
-        Assert.Contains(Handicaps.Announce(b.Name, 1), said);
+        Assert.Equal((-2, 2, 0, 0), (a.Player.Car.Handicap, b.Player.Car.Handicap, bots[2].Player.Car.Handicap, bots[3].Player.Car.Handicap));
+        said = host.TakeEvents().OfType<ChatEvent>().Where(c => c.From < 0).Select(c => c.Text).ToList();
+        Assert.Contains(Handicaps.Announce(a.Name, -2), said);
+        Assert.Contains(Handicaps.Announce(b.Name, 2), said);
         var rows = host.Scoreboard().Players;
-        Assert.Equal((-1, 1), (rows.Single(r => r.Slot == a.Slot).Handicap, rows.Single(r => r.Slot == b.Slot).Handicap));
+        Assert.Equal((-2, 2), (rows.Single(r => r.Slot == a.Slot).Handicap, rows.Single(r => r.Slot == b.Slot).Handicap));
         // the host cannot set a level by hand in an Auto game
         Assert.Equal("this game's handicaps are automatic", host.SetHandicap(a.Slot, 2));
-        Assert.Equal(-1, host.HandicapOf(a.Slot));
+        Assert.Equal(-2, host.HandicapOf(a.Slot));
         // a successor host restores the standings and the levels with the game
         var state = host.Session.Snapshot();
         var fresh = new MeleeHost(o);

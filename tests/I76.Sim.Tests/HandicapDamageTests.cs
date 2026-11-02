@@ -12,8 +12,9 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// A network game's handicaps (docs/multiplayer.md "Handicaps"): the shooter's level scales what its rounds deal, by the table
-/// (+5 ×2.2 … −5 ×0.3), truncated as the round's damage always is; level 0 is today's damage exactly; the level stays with the
-/// car through a respawn and is saved with it.
+/// (−5 ×0.2 … +5 ×5, +n the inverse of −n), truncated as the round's damage always is, and the target's level scales what it takes
+/// by the inverse, held to ×⅓..×3; rams and the .45's shot too; level 0 is today's damage exactly; the level stays with the car
+/// through a respawn and is saved with it.
 /// </summary>
 public class HandicapDamageTests
 {
@@ -64,31 +65,77 @@ public class HandicapDamageTests
     }
 
     [Theory]
-    [InlineData(3, 72)]      // 45 × 1.6
-    [InlineData(2, 63)]      // 45 × 1.4
-    [InlineData(1, 54)]      // 45 × 1.2
-    [InlineData(0, 45)]
-    [InlineData(-1, 38)]     // 45 × 0.85 = 38.25, truncated
-    [InlineData(-2, 31)]     // 45 × 0.7 = 31.5
-    [InlineData(-3, 24)]     // 45 × 0.55 = 24.75
-    public void TheShootersLevelScalesItsRound(int level, int taken)
+    [InlineData(5, 225, 15)]     // 45 × 5; 45 × ⅓ (the inverse, 0.2, held to ⅓)
+    [InlineData(3, 112, 18)]     // 45 × 2.5 = 112.5; 45 × 0.4
+    [InlineData(2, 81, 24)]      // 45 × 1.82; 45 × 0.55 = 24.75
+    [InlineData(1, 60, 33)]      // 45 × 1.33; 45 × 0.75 = 33.75
+    [InlineData(0, 45, 45)]
+    [InlineData(-1, 33, 60)]
+    [InlineData(-2, 24, 81)]
+    [InlineData(-3, 18, 112)]
+    [InlineData(-5, 9, 135)]     // 45 × 0.2; 45 × 3 (the inverse, 5, held to 3)
+    public void TheShootersLevelScalesItsRoundAndTheTargetsWhatItTakes(int level, int dealt, int taken)
     {
         var r = Melee();
         r.A.Handicap = level;
-        Assert.Equal(taken, ArmourTaken(r, r.A, r.B, Cannon));
-        // the target's own level changes nothing it takes
+        Assert.Equal(dealt, ArmourTaken(r, r.A, r.B, Cannon));
         var q = Melee();
         q.B.Handicap = level;
-        Assert.Equal(45, ArmourTaken(q, q.A, q.B, Cannon));
+        Assert.Equal(taken, ArmourTaken(q, q.A, q.B, Cannon));
+    }
+
+    /// <summary>A ram is scaled as the rammer's rounds are, and by what the rammed car takes: no way round the level.</summary>
+    [Fact]
+    public void ARamIsScaledByBothLevels()
+    {
+        int Ram(int rammer, int rammed)
+        {
+            var r = Melee();
+            (r.A.Handicap, r.B.Handicap) = (rammer, rammed);
+            r.A.Vel = new Vector3(0, 0, -30);
+            for (int z = 0; z < 4; z++) r.B.Health!.Chassis[z] = 500;
+            int before = r.B.Health!.Chassis[0];
+            r.Damage.CarContact(r.B, r.A, new Contact { N = Vector3.UnitZ, C = Front });
+            return before - r.B.Health.Chassis[0];
+        }
+        int even = Ram(0, 0);
+        Assert.True(even > 20, $"{even}");
+        Assert.Equal((int)(even * Handicaps.Factor(-5)), Ram(-5, 0));
+        Assert.Equal((int)(even * 3f), Ram(0, -5));
+        Assert.Equal((int)((int)(even * Handicaps.Factor(-2)) * Handicaps.Taken(2)), Ram(-2, 2));
+    }
+
+    /// <summary>The .45 on a healthy car deals 5 points whatever the round: a level scales those too (a −5 leader's shot 1, on a −5 leader ×3).</summary>
+    [Theory]
+    [InlineData(0, 0, 6)]       // the 5 points through the armour step
+    [InlineData(-5, 0, 1)]      // 5 × 0.2
+    [InlineData(0, -5, 18)]     // 15
+    [InlineData(5, -5, 90)]     // 5 × 5 × 3 = 75
+    public void TheHandgunsShotIsScaledByBothLevels(int shooter, int target, int taken)
+    {
+        var r = Melee();
+        (r.A.Handicap, r.B.Handicap) = (shooter, target);
+        int before = r.B.Health!.Armour[0];
+        r.Damage.VehicleSlot(r.B, r.Combat.RoundPacket(Shot(r.A, Armory.HandgunDef(1))), Front);
+        Assert.Equal(taken, before - r.B.Health.Armour[0]);
     }
 
     [Fact]
     public void TheTableIsTheDocumentedOne()
     {
-        Assert.Equal([0.3f, 0.4f, 0.55f, 0.7f, 0.85f, 1f, 1.2f, 1.4f, 1.6f, 1.9f, 2.2f], Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Factor));
-        Assert.Equal(2.2f, Handicaps.Factor(9));        // clamped
-        Assert.Equal(0.3f, Handicaps.Factor(-9));
+        float[] down = [0.2f, 0.3f, 0.4f, 0.55f, 0.75f];
+        Assert.Equal([.. down, 1f, .. down.Reverse().Select(f => 1f / f)], Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Factor), new Near());
+        Assert.Equal([3f, 3f, 1f / 0.4f, 1f / 0.55f, 1f / 0.75f, 1f, 0.75f, 0.55f, 0.4f, 1f / 3, 1f / 3],
+            Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Taken), new Near());
+        Assert.Equal(5f, Handicaps.Factor(9), 4);        // clamped
+        Assert.Equal(0.2f, Handicaps.Factor(-9));
         Assert.Equal(["-5", "-4", "-3", "-2", "-1", "0", "+1", "+2", "+3", "+4", "+5"], Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Label));
+    }
+
+    private sealed class Near : IEqualityComparer<float>
+    {
+        public bool Equals(float a, float b) => System.Math.Abs(a - b) < 1e-5f;
+        public int GetHashCode(float f) => 0;
     }
 
     /// <summary>Level 0 is today's packet, channel for channel, for every stock handgun and the cannon.</summary>

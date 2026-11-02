@@ -73,11 +73,12 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         Assert.All(auto.Said.Where(s => s.EndsWith("-1") || s.EndsWith("-2") || s.EndsWith("-3")), s => Assert.StartsWith("1:", s));
         Assert.All(auto.Said.Where(s => s.Contains(":+")), s => Assert.False(s.StartsWith("1:")));
         Assert.All(auto.Levels, l => Assert.InRange(l, -3, 3));
-        // pinned: the numbers of this seed (a change here is a change of the rule or of the bots' game)
+        // pinned: the numbers of this seed (a change here is a change of the rule or of the bots' game; re-pinned for a level a
+        // net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game)
         Assert.Equal(auto.Said, Play(install, HandicapMode.Auto, Minutes).Said);
-        Assert.Equal([4, 6, 0, 0, 1, 1], auto.Kills);
-        Assert.Equal([-2, -2, 0, 1, 1, 0], auto.Levels);
-        Assert.Equal(["1:-1", "3:+1", "1:-1", "1:-2", "5:+1", "1:-2"], auto.Said);
-        Assert.Equal([4, 4, 3, 1, 0, 0], off.Kills);
+        Assert.Equal([2, 1, 0, 1, 0, 0], auto.Kills);
+        Assert.Equal([-1, 0, 0, 2, 0, 0], auto.Levels);
+        Assert.Equal(["1:-1", "3:+1", "1:-1", "1:0", "1:-1", "3:+2", "1:0"], auto.Said);
+        Assert.Equal([1, 3, 1, 0, 0, 0], off.Kills);
     }
 }

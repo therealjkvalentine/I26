@@ -317,16 +317,22 @@ says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags b
 join accept carries it (`JoinAccept.Handicaps`, a bool after `Cb`).
 
 With it on, the host gives each player a level from −5 to +5 (0 none; ±4 and ±5 came with Auto, which needed the reach). A level
-scales the damage that player's rounds deal, and nothing else (no speed, armour or handling, so the clients' prediction is untouched):
+scales the damage that player deals and, inversely, the damage the player takes from other cars, and nothing else (no speed, armour
+or handling):
 
 | Level | −5 | −4 | −3 | −2 | −1 | 0 | +1 | +2 | +3 | +4 | +5 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Damage | ×0.3 | ×0.4 | ×0.55 | ×0.7 | ×0.85 | ×1 | ×1.2 | ×1.4 | ×1.6 | ×1.9 | ×2.2 |
+| Damage dealt | ×0.2 | ×0.3 | ×0.4 | ×0.55 | ×0.75 | ×1 | ×1.33 | ×1.82 | ×2.5 | ×3.33 | ×5 |
+| Damage taken | ×3 | ×3 | ×2.5 | ×1.82 | ×1.33 | ×1 | ×0.75 | ×0.55 | ×0.4 | ×⅓ | ×⅓ |
 
-(`Handicaps.Factor`, a static table in the sim.) The combat applies it where a round's packet is built (`Combat.RoundPacket`, before
-the truncation and the split over the channels, after the difficulty factor, which is 1 online), to the splash of the round's
-impact and to the flamer's stream and its splash; level 0 is the original's damage exactly. A wreck's explosion and rams are not
-scaled. The level is the car's (`Vehicle.Handicap`): `MeleeGame.Rebuild` keeps it through a respawn, it is saved with the car
+(`Handicaps.Factor` and `Handicaps.Taken`, static in the sim: +n deals the inverse of −n, so a level and its mirror cancel in a duel;
+what a car takes is the inverse of what it deals, held to ×3..×⅓.) The dealt factor is applied where a round's packet is built
+(`Combat.RoundPacket`, before the truncation and the split over the channels, after the difficulty factor, which is 1 online), to the
+splash of the round's impact, to the flamer's stream and its splash, to a ram (`DamageModel.CarContact`) and to the .45's 5-point shot
+on a healthy car, so neither is a way round the level; the taken factor in the damage model on every packet another car sends
+(`DamageModel.VehicleSlot`, its fraction carried to the next packet so a flame's one-point ticks still count). Level 0 is the
+original's damage exactly. A wreck's explosion, the terrain and falls are not scaled. The clients' own-car prediction does not know
+the levels (they are not in the snapshot): a scaled ram on one's own car is corrected by the server's state as any other hit. The level is the car's (`Vehicle.Handicap`): `MeleeGame.Rebuild` keeps it through a respawn, it is saved with the car
 (savestate format 16) and so survives a host migration, a new round carries it for the players who carry on, and a joiner's car
 starts at 0 (a co-op seat's car may have had another player's). In a melee bots can have one too; in co-op only the humans have
 seats.
@@ -356,23 +362,23 @@ The rule (`MeleeRules.AutoHandicaps`, `MeleeGame.AutoHandicapFrame`, the constan
 - A player's **standing** is their kills minus deaths as the scoreboard counts them (`MeleePlayer.Form`), **against the table's
   average** (humans and bots; the AI fill is not at the table, so a kill of a fill car counts for the killer alone and raises the
   average a little for everyone). A table that scores alike stays at 0 however many kills it has.
-- Every **1.5** net kills over the average is a level: −1 at 1.5, −2 at 3, −3 at 4.5, −4 at 6, −5 at 7.5 (`AutoStep` = 1.5); the same
-  under the average gives +1 to +5. A level is **given back** only once the standing has fallen a kill and a half short of the line
-  it was taken at, which is the line below (`AutoBand` = 1.5: −2 taken at 3 is kept to 1.5, −1 to 0), so one kill and one death in a
-  row never flip a level twice, and a player is never pushed past even: the leader's level comes off as the field catches up.
+- Every net kill over the average is a level: −1 at 1, −2 at 2 … −5 at 5 (`AutoStep` = 1); the same under the average gives +1 to
+  +5. A level is **given back** only once the standing has fallen a kill short of the line it was taken at, which is the line below
+  (`AutoBand` = 1: −2 taken at 2 is kept to 1, −1 to 0), so each kill or death moves a level one step at most, and a player is never
+  pushed past even: the leader's level comes off as the field catches up.
 - **One step a tick** at most, however far a standing has moved (a joiner's starts at 0), and never past ±5 (`AutoCap`, the table's
   reach).
 - The standing does not fade with time: a lead stands until the field catches up (the stated aim is the count at the end; a fading
   standing would reward hiding and tie the rule to the game's pace; over ten bot-minutes a fade of 3 or 10 minutes a net kill changed
   nothing measurable).
-- Each move is said to everyone as a console line, "*** Taurus is now −1 (damage x0.85)" (`Handicaps.Announce`, through the game's
+- Each move is said to everyone as a console line, "*** Taurus is now −1 (deals x0.75, takes x1.33)" (`Handicaps.Announce`, through the game's
   message hook, so the dedicated server logs it too), and the scoreboard shows the level by the name exactly as a manual level. The
   first time the host's score window opens the feed says the rule in a line. Nothing is hidden.
 - Nothing moves once the game has a winner or the time is up (the end's blow-ups are not standings), in a race or CTF (the kills
   column counts laps or captures), or in co-op. The host's keys and `i26-server`'s `handicap` are refused in an Auto game ("this
   game's handicaps are automatic").
 
-The level is applied exactly as a manual one (damage dealt only, the table above; nothing else changes), and a successor host restores
+The level is applied exactly as a manual one (damage dealt and taken, the table above; nothing else changes), and a successor host restores
 the standings with the game (savestate format 17: the rule in the build's melee rules, `Form` on each melee player).
 
 Why this rule and not "−1 a kill, +1 a death": an absolute count saturates after three events and flips every event, and a table that
@@ -382,17 +388,23 @@ and caps (Smash's handicap, Go's stones, golf's caps, touring-car success ballas
 director), a lever on outcomes rather than inputs (no speed, aim or handling), group-relative standing, and full disclosure, which the
 player studies find raises the experience of both the helped and the unhelped (Baldwin et al. 2016, Depping et al. 2016).
 
-Measured with `i76 melee-sim` (six bots on m05 in the same car, two strong, two middling, two weak: AI tiers 1, 3 and 5 and the
-damage they land ×1.5, ×1 and ×0.6, the harness's test-only skill knob; four AI fill cars for kills to be had; ten seeds, Off against
-Auto; the per-seed tables are in the commit that added the rule). Twenty minutes: the spread of kills (most minus fewest) 12.3 → 7.7,
-its standard deviation 4.7 → 2.7, the leader 13.0 → 8.9, the runner-up 10.0 → 6.8, the median 3.8 → 4.7, the last 0.7 → 1.2, the
-leader's margin over the runner-up 3.0 → 2.1 and over the median 9.2 → 4.2, a strong bot first in 10 of 10 seeds, 16 level moves a
-game. Ten minutes: 6.6 → 5.7, 2.5 → 2.1, the margin over the runner-up 1.5 either way, 10 of 10. The old setting (a step of 2, the
-cap ±3) gave 9.4 / 3.2 / margin 3.0 over twenty minutes with the order lost once; a step of 1 moved levels 25 times a game for no gain;
-a standing of kills alone lost the order (2 of 5). The margin over the middle of the table does not reach 1–2 with damage dealt alone:
-at −5 a ×1.5 bot still lands 0.45 of a middling one's damage but drives and fires better, and the weak bots fire seldom whatever their
-rounds do; closing it would take the damage taken as well (the weak dying slower), or the respawn delay. The test
-`AutoHandicapSimTests` pins one five-minute case.
+Measured with `i76 melee-sim` (six bots on m05 in the same car, AI tiers 1, 1, 3, 3, 5, 5; a strength per bot, a factor on the damage
+it lands, the harness's test-only skill knob; no AI fill; ten game-minutes, seeds 1 to 24; "strongest first" counts the games whose
+most kills went to a bot of the highest strength). The aim, the owner's: the best still win, but by a kill or two, no blowouts.
+
+| Strengths | Rule | Leader | Runner-up | Leader's margin | Spread | Strongest first | Level moves |
+|---|---|---|---|---|---|---|---|
+| 3, 1, 1, 1, 1, 1 | Off | 12.4 | 4.1 | 8.3 | 12.4 | 18/24 | 0 |
+| | Auto, dealt only, a level per 1.5 | 7.1 | 3.8 | 3.3 | 7.0 | 17/24 | 11 |
+| | Auto, dealt and taken, a level per 1 | 6.2 | 4.2 | 2.0 | 5.8 | 20/24 | 27 |
+| 2, 2, 1, 1, 0.5, 0.5 | Off | 8.8 | 4.6 | 4.2 | 8.8 | 19/24 | 0 |
+| | Auto, dealt only, a level per 1.5 | 6.8 | 4.4 | 2.4 | 6.8 | 18/24 | 10 |
+| | Auto, dealt and taken, a level per 1 | 5.6 | 3.8 | 1.9 | 5.4 | 18/24 | 20 |
+
+Tried on the way (twelve seeds): a bottom of ×0.1 with the same ×3 cap, or with a ×5 cap, narrowed the margin to 1.3–2.1 but gave the
+strongest bot fewer wins (8–9 of 12). The levels do move more (20–27 a game, each said in the
+feed). A strong player can still lead at −5 (a bot of strength 3 ended 11 kills to 4 there once): the rule narrows the margin, it
+does not make a lead impossible. The test `AutoHandicapSimTests` pins one five-minute case.
 
 ### Many players
 
