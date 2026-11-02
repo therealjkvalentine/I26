@@ -127,6 +127,7 @@ public sealed class OptionsScreen : OverlayScreen
             Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
             Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
             Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
+            Add(202, 234, "Original Recipe", () => Shell.Overlay(new OriginalRecipeScreen()));
             Add(202, 280, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
             if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Add(202, 303, "Switch Game", () => Shell.SwitchGame());
             Add(202, 326, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
@@ -137,6 +138,8 @@ public sealed class OptionsScreen : OverlayScreen
         Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
         Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
         Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
+        // the port's own, on the free line under it: the Esc menu's Original Recipe pad as a sheet
+        Add(202, 234, "Original Recipe", () => Shell.Overlay(new OriginalRecipeScreen()));
         Add(202, 280, "Load Bookmark", () => Shell.Overlay(new LoadBookmarkScreen()));
         if (inTrip) Add(202, 303, "Save Bookmark", () => Shell.Overlay(new SaveBookmarkScreen()));
         Add(202, 349, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
@@ -348,6 +351,36 @@ public sealed class PlayOptionsScreen : OverlayScreen
             Lines = ["You have chosen an option which", "will not allow you to advance in", "the trip. Do you wish to continue?"],
             Answer = yes => { if (yes) { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); } else Redraw(); },
         });
+    }
+}
+
+/// <summary>
+/// The port's Original Recipe (OriginalRecipe) on the Play Options sheet, record 10: a row a line, a click on it steps its
+/// value (the original's first); Reset, Done and Cancel at the foot. The rows that follow the look show the shell's look's value.
+/// </summary>
+public sealed class OriginalRecipeScreen : OverlayScreen
+{
+    protected override int Record => 10;
+    private readonly ShellSettings _saved = new();
+
+    protected override void Build()
+    {
+        var s = Shell.Settings;
+        bool look = Shell.Faithful;
+        foreach (var r in OriginalRecipe.Rows) r.Copy(s, _saved);
+        // the sheet's check boxes wiped: every row here is a value
+        for (int k = 0; k < 14; k++) Frame.CopyBackground(300, 116 + 23 * k, 22, 18, 200, 116 + 23 * k);
+        for (int k = 0; k < OriginalRecipe.Rows.Length; k++)
+        {
+            var r = OriginalRecipe.Rows[k];
+            int y = 116 + 23 * k;
+            Add(222, y, r.Label, null);
+            Add(205, y + 1, () => "", () => r.Set(s, look, (r.Get(s, look) + 1) % r.Names.Length), Small, w: 300, h: 12);
+            Add(398, y + 2, () => r.Names[r.Get(s, look)], null);
+        }
+        Add(246, 438, "Reset", () => OriginalRecipe.ResetAll(s), Small);
+        Add(350, 438, "Done", () => { s.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
+        Add(402, 438, "Cancel", () => { foreach (var r in OriginalRecipe.Rows) r.Copy(_saved, s); Shell.Overlay(new OptionsScreen()); }, Small);
     }
 }
 

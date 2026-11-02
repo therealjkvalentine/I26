@@ -106,4 +106,21 @@ public class MissionMusicTests
     [InlineData("Retail", MissionMusic.Policy.Retail1997)]
     [InlineData("x", MissionMusic.Policy.Disc)]
     public void ThePolicyComesFromTheEnvironment(string? v, MissionMusic.Policy p) => Assert.Equal(p, MissionMusic.PolicyFromEnvironment(v));
+
+    /// <summary>Original Recipe's Music Tracks, All: on through the disc's last track, then track 2, at once.</summary>
+    [Fact]
+    public void AllTracksGoesOnThrough17()
+    {
+        var m = new MissionMusic(17, MissionMusic.Policy.AllTracks);
+        Assert.Equal([13, 14, 15, 16, 17, 2, 3], Walk(m, 13, 7));
+        Assert.Equal(0, m.Wait(17, 25));
+    }
+
+    [Theory]
+    [InlineData(null, false, MissionMusic.Policy.Disc)]
+    [InlineData(null, true, MissionMusic.Policy.AllTracks)]
+    [InlineData("retail", true, MissionMusic.Policy.Retail1997)]
+    [InlineData("gog", false, MissionMusic.Policy.Gog)]
+    public void TheHookWinsOverTheSetting(string? env, bool all, MissionMusic.Policy expected) =>
+        Assert.Equal(expected, MissionMusic.For(env, all));
 }

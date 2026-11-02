@@ -11,6 +11,9 @@ public sealed class DeathOrbit
     /// <summary>Degrees a step.</summary>
     public const float StepDegrees = 8f;
 
+    /// <summary>The port's earlier orbit, Original Recipe's Smooth: a steady 0.35 rad (20 degrees) a second, on the render delta.</summary>
+    public const float SmoothRadiansPerSecond = 0.35f;
+
     private float _acc;
 
     /// <summary>The yaw, radians.</summary>
@@ -28,4 +31,7 @@ public sealed class DeathOrbit
         Yaw += n * StepDegrees * (MathF.PI / 180f);
         return n;
     }
+
+    /// <summary>Smooth's turn: <paramref name="dt"/> seconds at <see cref="SmoothRadiansPerSecond"/>, no steps.</summary>
+    public void AdvanceSmooth(float dt) { Yaw += SmoothRadiansPerSecond * dt; _acc = 0; }
 }

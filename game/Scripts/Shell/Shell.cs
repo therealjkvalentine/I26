@@ -807,6 +807,7 @@ public partial class Shell : CanvasLayer
             // capture hook: "overlay:controls@frame" opens the Control Configuration over the screen
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
+            if (kind == "overlay" && arg == "recipe") Overlay(new OriginalRecipeScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());
             if (kind == "type") _typed.Append(arg);
             // capture hook: "keyev:Semicolon,58,shift@frame" a key press as the window delivers it (keycode, Unicode, modifiers; Unicode 0 for none)
@@ -1266,6 +1267,25 @@ public sealed class ShellSettings
     public bool NetNames { get; set; } = true;
     /// <summary>The port's own: the map editor plays the game's soundtrack while you edit (the editor's MUSIC button; shell.cfg [port] editor_music, written only when off).</summary>
     public bool EditorMusic { get; set; } = true;
+    /// <summary>
+    /// The port's own, the Original Recipe pad (OriginalRecipe): the rear-view mirror's far clip (I76.Game.Sim.OriginalBehavior:
+    /// 0 Original, the original's 100 m; 1 Full, the whole view; shell.cfg [port] mirror_range). Null until the player chooses:
+    /// it follows the look, Original in the 1997 look and Full in the modern one.
+    /// </summary>
+    public int? MirrorRangeChoice { get; set; }
+    /// <summary>The port's own (Original Recipe): the brake lamps, 0 Original (lit only while braking), 1 Held (0.15 s after); null follows the look ([port] brake_lamps).</summary>
+    public int? BrakeLampChoice { get; set; }
+    /// <summary>The port's own (Original Recipe): a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
+    public int? MgTracerChoice { get; set; }
+    /// <summary>The port's own (Original Recipe): the 1997 sky's clouds, 0 Original (twice as fast with the full mirror up), 1 Steady ([port] sky_drift, written when not original).</summary>
+    public int SkyDrift { get; set; }
+    /// <summary>The port's own (Original Recipe): the death orbit, 0 Original (8 degrees a tick), 1 Smooth (20 degrees a second) ([port] death_orbit, written when not original).</summary>
+    public int DeathOrbit { get; set; }
+    /// <summary>The port's own (Original Recipe): mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
+    public int MusicTracks { get; set; }
+    /// <summary>The port's own (Original Recipe): live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
+    public int OrdnanceLimit { get; set; }
+
     /// <summary>The port's own, kept out of the menus: [port] seed fixes every mission's rand seed, as --seed does (absent: the clock's, as the original).</summary>
     public uint? Seed { get; set; }
     /// <summary>The port's own, kept out of the menus: [port] telemetry, the telemetry feed's targets as I76_TELEMETRY_UDP takes them, and [port] telemetry_format (docs/dev-hooks.md). Absent: no feed.</summary>
@@ -1378,6 +1398,15 @@ public sealed class ShellSettings
         s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 90));
         s.NetNames = (bool)c.GetValue("port", "net_names", true);
         s.EditorMusic = (bool)c.GetValue("port", "editor_music", true);
+        // no version step: absent, the original's (the look's for the three that follow it)
+        s.MirrorRangeChoice = OriginalRecipe.ReadChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames);
+        s.BrakeLampChoice = OriginalRecipe.ReadChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames);
+        s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
+        s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 0;
+        s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
+        s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
+        s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
+
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
         // no version step: absent, it is off (players never see the panel)
@@ -1464,6 +1493,14 @@ public sealed class ShellSettings
         if (FieldOfView != 0) c.SetValue("port", "fov", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
+        OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
+        OriginalRecipe.WriteChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames, BrakeLampChoice);
+        OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
+        OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 0 ? null : SkyDrift);
+        OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
+        OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
+        OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
+
         if (LogFile) c.SetValue("port", "log_file", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         c.Save(Path);

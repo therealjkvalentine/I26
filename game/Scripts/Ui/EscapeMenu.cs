@@ -12,7 +12,7 @@ public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpo
 /// The engine's own 2D menu, the "Spanner's Cafe" order pad:
 /// Esc in a mission opens the Options Menu over the frozen last frame; its
 /// pads (Abort Mission, Play Options, Graphic Detail, Audio Control, the
-/// exit confirmation, the cheater warning) edit the settings block the
+/// exit confirmation, the cheater warning; the port's Original Recipe) edit the settings block the
 /// shell shares (I76PLYR.DEF, here user://shell.cfg). The mission-end menu
 /// (failed, or won with cheats) is the same machinery. Everything is placed
 /// in pad coordinates of the 296x425 art, centred as the original's 1:1 blit
@@ -46,6 +46,8 @@ public sealed partial class EscapeMenu : Control
         public Screen? Parent;
         public bool EscIgnored;
         public required string Art;
+        /// <summary>The port's own pad on another pad's art: its title printed over the art's (null keeps the art's).</summary>
+        public string? Title;
         public List<Item> Items = [];
         public int Order;
         /// <summary>The scrolling rows' first pad row, how many show at once, and how far they are scrolled (in rows).</summary>
@@ -85,7 +87,7 @@ public sealed partial class EscapeMenu : Control
 
     public ShellSettings Settings { get; private set; } = null!;
     private ShellSettings _snap = null!;
-    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!;
+    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!, _recipe = null!;
     private Screen _screen = null!;
     private MenuOutcome _exitYes;
     private readonly Dictionary<string, ImageTexture?> _art = [];
@@ -177,6 +179,7 @@ public sealed partial class EscapeMenu : Control
         _play = new Screen { Key = "play", Art = "plyopt1", Parent = _main };
         _graphics = new Screen { Key = "graphics", Art = "grxdet1", Parent = _main };
         _audio = new Screen { Key = "audio", Art = "audcon1", Parent = _main };
+        _recipe = new Screen { Key = "recipe", Art = "grxdet1", Parent = _main, Title = "Original Recipe" };
         _cheater = new Screen { Key = "cheater", Art = "plyopt1", EscIgnored = true };
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
 
@@ -186,6 +189,7 @@ public sealed partial class EscapeMenu : Control
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Control Configuration", 6, OpenControls, "$7.65"),
+            Action("Original Recipe", 7, () => Switch(_recipe), "$1.97"),
             CancelButton("Resume"),
         ] : [
             Action("Abort Mission", 1, () => Switch(_abort), "$6.78"),
@@ -194,6 +198,8 @@ public sealed partial class EscapeMenu : Control
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             // the port's own, on the free ruled line (row 6) under Audio Control: the Options Menu's Control Configuration, over the paused game
             Action("Control Configuration", 6, OpenControls, "$7.65"),
+            // and on row 7 the port's Original Recipe: every choice between the original's behaviour and an update
+            Action("Original Recipe", 7, () => Switch(_recipe), "$1.97"),
             CancelButton("Exit"),
         ];
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or the setting): the next free line, row 8
@@ -317,6 +323,13 @@ public sealed partial class EscapeMenu : Control
             CancelButton(),
         ];
 
+        // Original Recipe (OriginalRecipe): the original's behaviour or the port's update, row by row, live; Reset is the original's
+        // everywhere (the look's for the rows that follow it). The simulation's rows take effect when the menu closes, offline only
+        for (int k = 0; k < OriginalRecipe.Rows.Length; k++) _recipe.Items.Add(RecipeRow(OriginalRecipe.Rows[k], k + 1));
+        _recipe.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { OriginalRecipe.ResetAll(Settings); Live?.Invoke(Settings); Switch(_recipe); } } });
+        _recipe.Items.Add(DoneButton());
+        _recipe.Items.Add(CancelButton());
+
         Item Level(string label, int row, int n, int at, bool live) =>
             Setting(Slider | Min1, label, row, n, null, s => Math.Clamp((int)s.Audio[at], 1, n - 1), (s, v) => s.Audio[at] = (byte)v, live,
                 apply: () => Live?.Invoke(Settings), changed: () => LevelPreview.Play(this, Vfs, at));   // the preview on a change only, not on Cancel's restore (msg 9)
@@ -368,10 +381,26 @@ public sealed partial class EscapeMenu : Control
         if (Mission.Length >= 3 && "tmnsp".Contains(char.ToLowerInvariant(Mission[0])) && int.TryParse(Mission.AsSpan(1, 2), out int no))
         {
             if (no != _orderMission) { _orderMission = no; _orderBase = new Random().Next(0x8000) % 992 + (no + 900) * 1000; }
-            Screen?[] order = [_main, null, _abort, _play, _graphics, _audio, _exit];
+            Screen?[] order = [_main, null, _abort, _play, _graphics, _audio, _exit, _recipe];
             for (int k = 0; k < order.Length; k++) if (order[k] is { } sc) sc.Order = _orderBase + k;
         }
     }
+
+    /// <summary>An Original Recipe row on pad row <paramref name="pair"/> (from row 7 in the scrolling part): msg 6 shows the value in effect in this look, 7 sets it live, 8 commits, 9 restores.</summary>
+    private Item RecipeRow(OriginalRecipe.Row row, int pair) => new()
+    {
+        Flags = Cycle, Label = row.Label, Pair = pair, N = row.Names.Length, Names = row.Names, Scrolls = pair >= Screen.FirstRow,
+        Cb = (it, m) =>
+        {
+            switch (m)
+            {
+                case 6: it.Value = row.Get(Settings, Faithful); break;
+                case 7: row.Set(Settings, Faithful, it.Value); Live?.Invoke(Settings); break;
+                case 8: row.Set(Settings, Faithful, it.Value); row.Copy(Settings, _snap); break;
+                case 9: row.Copy(_snap, Settings); it.Value = row.Get(Settings, Faithful); Live?.Invoke(Settings); break;
+            }
+        },
+    };
 
     /// <summary>Reset: the default profile, then the pad again (msg 6 reloads every value).</summary>
     private void ResetGraphics()
@@ -809,9 +838,26 @@ public sealed partial class EscapeMenu : Control
         _hdPad = hd is not null;
         if (hd is { } h) DrawTextureRectRegion(h.Tex, new Rect2(At(0, 0), new Vector2(PadW, PadH) * _s), h.Src);
         else if (Art(_screen.Art) is { } bg) DrawTextureRect(bg, new Rect2(At(0, 0), new Vector2(PadW, PadH) * _s), false);
+        if (_screen.Title is { } title) DrawTitle(title);
         if (_screen.Order > 0) Print(_arial, 16, 226, 60, $"{_screen.Order / 1000:00000}-{_screen.Order % 1000:000}");
         for (int i = 0; i < _screen.Items.Count; i++) DrawItem(_screen.Items[i], i == _screen.Selected);
         DrawScrollMark();
+    }
+
+    /// <summary>
+    /// A title over the art's own, right of the cup: the header's paper (sampled above SPANNER'S CAFE) laid over the old one, the
+    /// new one in Arial Bold, centred, in the header's grey.
+    /// </summary>
+    private void DrawTitle(string title)
+    {
+        var paper = Color.Color8(232, 222, 190);
+        if (Indices(_screen.Art) is { } px && px.Stride * 4 + 140 < px.Indices.Length) { var (r, g, b) = Palette[px.Indices[3 * px.Stride + 140]]; paper = Color.Color8(r, g, b); }
+        const float x0 = 72, x1 = 293, y0 = 23, y1 = 55;
+        DrawRect(new Rect2(At(x0, y0), new Vector2(x1 - x0, y1 - y0) * _s), paper);
+        int size = Size(_arial, 30);
+        float w = _arial.GetStringSize(title, HorizontalAlignment.Left, -1, size).X;
+        var at = At((x0 + x1) / 2, y0 + 1) + new Vector2(-w / 2, _arial.GetAscent(size));
+        DrawString(_arial, at, title, HorizontalAlignment.Left, -1, size, Color.Color8(64, 64, 64));
     }
 
     /// <summary>The port's scrolling rows: a thin track down the pad's left edge with a thumb, and an arrow at an end where there is more.</summary>

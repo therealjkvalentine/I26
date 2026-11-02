@@ -980,7 +980,7 @@ public partial class CarNode : Node3D
         // throttle tick by tick, which strobed them (a held brake looks the same); the 1997 look follows the throttle, as the original
         ulong nowMs = Time.GetTicksMsec();
         if (Sim.Throttle < -0.2f) _brakeSeenMs = nowMs;
-        bool braking = rearOk && I76.Formats.Assembly.LampSupport.BrakeLit(Sim.Throttle, _brakeSeenMs != 0 ? nowMs - _brakeSeenMs : null, Modern);
+        bool braking = rearOk && I76.Formats.Assembly.LampSupport.BrakeLit(Sim.Throttle, _brakeSeenMs != 0 ? nowMs - _brakeSeenMs : null, OriginalBehavior.BrakeHold(!Modern));
         // the modern look's upturned wreck lies on the ground, not on the sim's taller roof (the 1997 look keeps the original's)
         if (_body is not null)
             _body.Position = Wrecked && Modern ? new Vector3(0, _wreckGap * Mathf.Max(0, -rows.Up.Y), 0) : Vector3.Zero;

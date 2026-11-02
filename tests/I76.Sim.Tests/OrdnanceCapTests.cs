@@ -28,7 +28,7 @@ public class OrdnanceCapTests
     private static readonly Transform Ident = new([1, 0, 0, 0, 1, 0, 0, 0, 1], [0, 0, 0]);
 
     /// <summary>One dropper on a still car, fired until <paramref name="drops"/> rounds have left it (inside the dropper's own 2 s); the rounds live 1000 s.</summary>
-    private static (Combat C, Round First) Lay(uint kind, bool network, int drops, float speed = 0, float rate = 60)
+    private static (Combat C, Round First) Lay(uint kind, bool network, int drops, float speed = 0, float rate = 60, bool unlimited = false)
     {
         var world = new SimWorld(new Flat(), new CrtRand(3));
         var car = new Vehicle { Speed = speed };
@@ -46,7 +46,7 @@ public class OrdnanceCapTests
         var a = new Armory();
         a.Weapons.Add(w); a.LoadOrder.Add(w); a.Selected = 0;
         car.Armory = a;
-        var c = new Combat(world, _ => null) { NetSession = network };
+        var c = new Combat(world, _ => null) { NetSession = network, UnlimitedOrdnance = unlimited };
         Round? first = null;
         int n = 0;
         for (int f = 0; n < drops && f < 100000; f++)
@@ -96,5 +96,22 @@ public class OrdnanceCapTests
     {
         var (c, _) = Lay(0x11, false, 200, speed: 30);
         Assert.Equal(160, c.Rounds.Count(r => r.Kind == 0x11));
+    }
+
+    /// <summary>Original Recipe's Live Ordnance, Unlimited: no cap offline; a network game keeps the original's.</summary>
+    [Fact]
+    public void UnlimitedKeepsEveryDropOffline()
+    {
+        var (c, first) = Lay(0x11, false, 200, speed: 30, unlimited: true);
+        Assert.Equal(200, c.Rounds.Count(r => r.Kind == 0x11));
+        Assert.Contains(first, c.Rounds);
+    }
+
+    [Fact]
+    public void UnlimitedIsNotForANetworkGame()
+    {
+        var (c, first) = Lay(0xf, true, 45, unlimited: true);
+        Assert.Equal(40, c.Rounds.Count(r => r.Kind == 0xf));
+        Assert.DoesNotContain(first, c.Rounds);
     }
 }

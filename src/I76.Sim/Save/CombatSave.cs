@@ -20,6 +20,7 @@ public sealed partial class Combat
                 nameof(Flames), nameof(FlameHoldEnabled), nameof(Clusters), nameof(UserRadarSetting), nameof(UserRadarDark))
             .Structural("the mission build's world, effects, damage sink and sides", nameof(World), "effects", nameof(Damage), nameof(Team), nameof(IsBot), nameof(FreeForAll))
             .Structural("the install's rules, set by the mission build", nameof(NitroRules))
+            .Structural("rules of the session, set from the settings at each mission start and when the Esc menu closes (offline only)", nameof(UnlimitedOrdnance))
             .Transient("the host's hook", nameof(HandgunShot))
             .Transient("a per-frame output for the sounds, rebuilt by every frame's aims", nameof(LockTone), nameof(LockedOn))
             .Transient("a network client's own predicted rounds and their hook: drawn only, never in a server's or a single player's state", nameof(PredictedRounds), nameof(PredictedShot))

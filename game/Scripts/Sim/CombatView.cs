@@ -786,6 +786,8 @@ public partial class CombatView : Node3D
             var dirSim = step.LengthSquared() > 1e-8f ? System.Numerics.Vector3.Normalize(step) : r.Rot.Forward;
             var head = G(headSim);
             var dir = Coords.ToGodot(dirSim);
+            // Original Recipe's MG Tracers, Original: a machine gun's round is the original's one-pixel line in the modern look too
+            bool lineMg = r.Kind == 1 && OriginalBehavior.LineTracers(!modern);
             // how far it has come from the muzzle by this frame: neither look draws it further back than that
             float flown = I76.Formats.Assembly.TracerLength.Flown(r.Travelled, step.Length(), alpha);
             // the round's own model, posed as the sim has it (mines lie flat once they settle)
@@ -808,7 +810,7 @@ public partial class CombatView : Node3D
                 mi.CastShadow = slick || ball ? GeometryInstance3D.ShadowCastingSetting.Off : GeometryInstance3D.ShadowCastingSetting.On;
                 if (slick && draped is null) mi.Position += Vector3.Up * SlickLift;
             }
-            if (modern && streak is not null && !IsDropped(r.Kind) && r.Kind != 0x15 && !(r.Kind == 0x16 && r.Settled))
+            if (modern && streak is not null && !lineMg && !IsDropped(r.Kind) && r.Kind != 0x15 && !(r.Kind == 0x16 && r.Settled))
             {
                 var look = StreakLook(r.Kind);
                 if (TracerColor(r) is { } tc) look.Tint = tc;
@@ -835,8 +837,8 @@ public partial class CombatView : Node3D
                 _smoking.Add(r);
             }
             if (body is null) continue;
-            // the round itself: a bar along its flight (in the modern look only rockets keep a body)
-            body.Visible = model is null && (!modern || rocket);
+            // the round itself: a bar along its flight (in the modern look only rockets keep a body, and the guns' line with MG Tracers Original)
+            body.Visible = model is null && (!modern || rocket || lineMg);
             if (!body.Visible) continue;
             var shellMat = r.Kind == 6 && !rocket ? ShellMaterial() : null;
             bool line = r.Kind == 1;

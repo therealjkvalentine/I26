@@ -5,7 +5,7 @@ namespace I76.Game.Boot;
 
 /// <summary>
 /// The Play Options the combat reads, applied at each mission start, over a checkpoint's restored copies and when the Esc menu
-/// closes (Main.ApplyPlayOptions): the cheats (Unlim. Ammo / Armor / Chas. Rein.) and the Difficulty Level. Engine-free, so the
+/// closes (Main.ApplyPlayOptions): the cheats (Unlim. Ammo / Armor / Chas. Rein.), the Difficulty Level and Original Recipe's Live Ordnance. Engine-free, so the
 /// game tests can call it.
 /// </summary>
 public static class PlayOptionsCombat
@@ -22,5 +22,7 @@ public static class PlayOptionsCombat
         }
         // the shell's value as the original's byte; the network rule is the combat's own (Combat.DifficultyFactor)
         c.Difficulty = s.Difficulty;
+        // Original Recipe's rule of the simulation: offline only, a network game keeps the original's
+        c.UnlimitedOrdnance = s.OrdnanceLimit != 0 && !c.NetworkGame;
     }
 }
