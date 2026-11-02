@@ -146,6 +146,11 @@ public sealed record ServerOptions
     /// voice and the clients do not open a microphone. On by default; listed in <see cref="SessionInfo.Cb"/> and carried in <see cref="JoinAccept.Cb"/>.
     /// </summary>
     public bool AllowCb { get; init; } = true;
+    /// <summary>
+    /// A co-op game's Co-op Damage (the host form's, i26-server's --coop-damage; docs/deviations.md): the humans' cars take this
+    /// times the damage (<see cref="CoopSetup.DamageFactors"/>). 1, the original's, by default; a melee ignores it.
+    /// </summary>
+    public float CoopDamage { get; init; } = 1f;
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
