@@ -139,6 +139,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 
 | Variable | Kind | What it does |
 |---|---|---|
+| `--music-extra FOLDER\|off`, `I76_MUSIC_EXTRA`, `I76_MUSIC_EXTRA_EVERY` | test | The player's own songs in the mission music (`ExtraMusic`): the folder (default `music-extra` in the user folder), and N, one song start in N (1 to 20, default 3). Log lines `music-extra: N songs` and `music: track T (your own song)`. |
 | `I76_END_MISSION` | test | `win@frame` or `fail@frame`: end the mission as the script would (on a network co-op listen host, the server's mission: every player gets the end). |
 | `I76_SCRIPT_MOVIE` | test | `name.smk@frame`: ask for that movie as a script's playMovie does (T05's `Ang05f01.smk`, T06's `ang06f01.smk`), the game paused under it; needs `I76_SHOT_MOVIES=1`. |
 | `I76_CHECKPOINTS` | test | `1`: Checkpoints on for the run, whatever the setting (docs/savestate.md). |

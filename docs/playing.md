@@ -135,3 +135,8 @@ Without `--mission` the game plays the intro and opening credits (Esc, Space, En
 the original front end; `--skip-movies` leaves them out. Useful options (after `--` when run through Godot):
 `--install DIR`, `--mission a01`, `--drive [car.vcf]`, `--melee`, `--1997`, `--cockpit`, `--windowed` (Godot's, before the `--`).
 
+**Your own music.** Songs you own (.mp3 or .ogg) in a folder `music-extra` in the user folder (`%LOCALAPPDATA%/I26` on Windows),
+or in the folder `--music-extra FOLDER` names, are mixed into the mission music: one song start in three plays one of them, in
+shuffled order, in place of the disc track, and the disc's tracks go on after it. `I76_MUSIC_EXTRA_EVERY=N` (1 to 20) changes the
+three; `--music-extra off` turns it off for a run. The menus' music is not touched. Nothing is shipped with the port.
+
