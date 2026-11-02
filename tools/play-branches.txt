@@ -119,6 +119,7 @@ feat/coop-damage-factor
 feat/coop-joiner-matches-speed
 feat/bot-skill-from-difficulty
 feat/net-handicaps                    # host rule Handicaps, per-player damage levels -3..+3
+feat/net-auto-handicap                # stacked on feat/net-handicaps: Off / Manual / Auto, levels from the standing, +-5 table
 feat/field-of-view-row
 feat/resolution-row
 feat/update-check
