@@ -37,6 +37,65 @@ public class InputTraceTests
     }
 
     [Fact]
+    public void TheHeaderNamesWhatElseReachesTheSimAndAReplaySaysWhatDiffers()
+    {
+        var t = new InputTrace
+        {
+            Mission = "t01", Seed = 7, Build = "0.11.0 play", Install = 0x00c0ffee12345678UL, Options = 0x1c, Difficulty = 2, ModernPhysics = true, Ai = "script",
+        };
+        var line = t.HeaderLine();
+        Assert.Contains("build=0.11.0_play install=00c0ffee12345678 options=0x1c difficulty=2 physics=modern ai=script", line);
+        var back = RoundTrip(t);
+        Assert.Equal(("0.11.0_play", 0x00c0ffee12345678UL, 0x1c, 2, true, "script"), (back.Build, back.Install!.Value, back.Options!.Value, back.Difficulty!.Value, back.ModernPhysics!.Value, back.Ai));
+        Assert.Empty(back.Differences(t));
+        var now = new InputTrace { Mission = "t01", Seed = 7, Build = "0.11.0 play", Install = 0x00c0ffee12345678UL, Options = 0x1c, Difficulty = 1, ModernPhysics = false, Ai = "script" };
+        Assert.Equal(["Difficulty 2 (now 1)", "physics modern (now original)"], back.Differences(now));
+        // an older recording names none of them: nothing to compare, nothing said
+        var old = InputTrace.Read(new StringReader("# I76_INPUT 1 mission=t01 car= seed=7 rate=20\ntick,buttons,commands,steer,throttle,hash\n0,0x0,0x0,0,0,\n"));
+        Assert.Null(old.Build);
+        Assert.Empty(old.Differences(now));
+    }
+
+    [Fact]
+    public void ADeveloperPanelActionIsARowOfItsOwnThatAReplayKnows()
+    {
+        var t = new InputTrace { Mission = "t01" };
+        t.Add(default); t.Add(default); t.Add(default);
+        t.Dev.Add((2, "restored tick 300"));
+        var w = new StringWriter();
+        t.Write(w);
+        var lines = w.ToString().Replace("\r", "").Split('\n');
+        Assert.Equal("# dev restored tick 2", lines[4]);   // before tick 2's row
+        Assert.StartsWith("2,", lines[5]);
+        var back = InputTrace.Read(new StringReader(w.ToString()));
+        Assert.Equal([(2, "restored")], back.Dev);
+        Assert.Equal(3, back.Count);
+    }
+
+    /// <summary>A recording is flushed row by row: a run killed mid-mission leaves every tick it ran in the file.</summary>
+    [Fact]
+    public void TheWriterFlushesEachRow()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"i26-trace-{Guid.NewGuid():N}.csv");
+        try
+        {
+            var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            var writer = new InputTraceWriter(new StreamWriter(stream));
+            writer.Start(new InputTrace { Mission = "t01" });
+            writer.Tick(0, new CarInput { Buttons = CarButtons.Fire }, 0xabcUL);
+            writer.Dev(1, "teleported to (0, 0, 0)");
+            string ReadNow() { using var r = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)); return r.ReadToEnd(); }
+            var text = ReadNow();     // the writer still open, nothing disposed
+            var trace = InputTrace.Read(new StringReader(text));
+            Assert.Equal(1, trace.Count);
+            Assert.Equal(CarButtons.Fire, trace.At(0).Buttons);
+            Assert.Equal([(1, "teleported")], trace.Dev);
+            writer.Dispose();
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void TheCsvIsAHeaderAColumnLineAndARowATick()
     {
         var t = new InputTrace { Mission = "t01", Seed = 7 };

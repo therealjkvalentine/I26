@@ -21,6 +21,15 @@ public sealed class InputTrace
     public uint Seed = 1;
     public int Rate = SimRate.Default.Label;
     public IReadOnlyList<string>? Melee;
+    // what else reaches the sim at the start, where the recorder knew it (null: not recorded): the build, the install's identity
+    // (SessionBuild.InstallIdentity), the Play Options flags and Difficulty Level, Modern Physics, the AI's mode (--ai)
+    public string? Build;
+    public ulong? Install;
+    public int? Options, Difficulty;
+    public bool? ModernPhysics;
+    public string? Ai;
+    /// <summary>The Developer panel's actions during the recording ("# dev" rows): a change no input made, so a replay leaves the recording there.</summary>
+    public List<(int Tick, string Action)> Dev { get; } = [];
     public List<CarInput> Inputs { get; } = [];
     /// <summary>The state hash after each tick, where it was recorded.</summary>
     public List<ulong?> Hashes { get; } = [];
@@ -34,12 +43,46 @@ public sealed class InputTrace
 
     public void Add(CarInput input, ulong? hash = null) { Inputs.Add(input); Hashes.Add(hash); }
 
-    /// <summary>The first line: <c># I76_INPUT 1 mission=t01 car=x.vcf seed=N rate=20 [melee=a.vcf+b.vcf]</c>.</summary>
+    /// <summary>
+    /// The first line: <c># I76_INPUT 1 mission=t01 car=x.vcf seed=N rate=20 [melee=a.vcf+b.vcf] [build=V] [install=HEX] [options=0xN]
+    /// [difficulty=N] [physics=original|modern] [ai=MODE]</c>; a field not known is left out, and a reader skips a field it does not know.
+    /// </summary>
     public string HeaderLine()
     {
-        var s = $"# {Magic} {Version} mission={Mission ?? ""} car={Car ?? ""} seed={Seed.ToString(CultureInfo.InvariantCulture)} rate={Rate.ToString(CultureInfo.InvariantCulture)}";
-        return Melee is { Count: > 0 } m ? s + " melee=" + string.Join('+', m) : s;
+        var s = new System.Text.StringBuilder($"# {Magic} {Version} mission={Mission ?? ""} car={Car ?? ""} seed={Seed.ToString(CultureInfo.InvariantCulture)} rate={Rate.ToString(CultureInfo.InvariantCulture)}");
+        if (Melee is { Count: > 0 } m) s.Append(" melee=").Append(string.Join('+', m));
+        if (Build is { Length: > 0 } b) s.Append(" build=").Append(Word(b));
+        if (Install is { } i) s.Append(" install=").Append(i.ToString("x16", CultureInfo.InvariantCulture));
+        if (Options is { } o) s.Append(" options=0x").Append(o.ToString("x", CultureInfo.InvariantCulture));
+        if (Difficulty is { } d) s.Append(" difficulty=").Append(d.ToString(CultureInfo.InvariantCulture));
+        if (ModernPhysics is { } mp) s.Append(" physics=").Append(mp ? "modern" : "original");
+        if (Ai is { Length: > 0 } ai) s.Append(" ai=").Append(Word(ai));
+        return s.ToString();
     }
+
+    private static string Word(string s) => s.Trim().Replace(' ', '_');
+
+    /// <summary>
+    /// What differs between the run a recording was made in and this one (<paramref name="now"/>), field by field, where both name it:
+    /// a replay under any of these runs another game from tick 0.
+    /// </summary>
+    public IEnumerable<string> Differences(InputTrace now)
+    {
+        static bool Same(string? a, string? b) => string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
+        if (!Same(Mission, now.Mission)) yield return $"mission {Mission} (now {now.Mission})";
+        if (!Same(Car, now.Car)) yield return $"car {Car ?? "(the mission's)"} (now {now.Car ?? "(the mission's)"})";
+        if (!Same(string.Join('+', Melee ?? []), string.Join('+', now.Melee ?? []))) yield return $"melee {string.Join(", ", Melee ?? [])} (now {string.Join(", ", now.Melee ?? [])})";
+        if (Build is not null && now.Build is not null && !Same(Word(Build), Word(now.Build))) yield return $"build {Build} (now {now.Build})";
+        if (Install is { } i && now.Install is { } ni && i != ni) yield return $"install {i:x16} (now {ni:x16})";
+        if (Options is { } o && now.Options is { } no && o != no) yield return $"Play Options 0x{o:x} (now 0x{no:x})";
+        if (Difficulty is { } d && now.Difficulty is { } nd && d != nd) yield return $"Difficulty {d} (now {nd})";
+        if (ModernPhysics is { } p && now.ModernPhysics is { } np && p != np) yield return $"physics {(p ? "modern" : "original")} (now {(np ? "modern" : "original")})";
+        if (Ai is not null && now.Ai is not null && !Same(Word(Ai), Word(now.Ai))) yield return $"ai {Ai} (now {now.Ai})";
+    }
+
+    /// <summary>A Developer panel action's row before tick <paramref name="tick"/>: <c># dev restore tick 300</c> (a comment to an older reader).</summary>
+    public static string DevRow(int tick, string action) =>
+        string.Create(CultureInfo.InvariantCulture, $"# dev {Word(action.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "action")} tick {tick}");
 
     public static string Row(int tick, CarInput i, ulong? hash) => string.Create(CultureInfo.InvariantCulture,
         $"{tick},0x{(uint)i.Buttons:x},0x{(uint)i.Commands:x},{i.Steer},{i.Throttle},{(hash is { } h ? h.ToString("x16") : "")}");
@@ -49,7 +92,13 @@ public sealed class InputTrace
     {
         w.WriteLine(HeaderLine());
         w.WriteLine(Columns);
-        for (int t = 0; t < Inputs.Count; t++) w.WriteLine(Row(t, Inputs[t], Hashes[t]));
+        int dev = 0;
+        for (int t = 0; t < Inputs.Count; t++)
+        {
+            for (; dev < Dev.Count && Dev[dev].Tick <= t; dev++) w.WriteLine(DevRow(Dev[dev].Tick, Dev[dev].Action));
+            w.WriteLine(Row(t, Inputs[t], Hashes[t]));
+        }
+        for (; dev < Dev.Count; dev++) w.WriteLine(DevRow(Dev[dev].Tick, Dev[dev].Action));
     }
 
     public static InputTrace Read(TextReader r)
@@ -69,10 +118,22 @@ public sealed class InputTrace
                 case "seed": trace.Seed = uint.Parse(v, CultureInfo.InvariantCulture); break;
                 case "rate": trace.Rate = int.Parse(v, CultureInfo.InvariantCulture); break;
                 case "melee": trace.Melee = v.Split('+', StringSplitOptions.RemoveEmptyEntries); break;
+                case "build": trace.Build = v; break;
+                case "install": trace.Install = ulong.TryParse(v, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong id) ? id : null; break;
+                case "options": trace.Options = (int)ParseUInt(v); break;
+                case "difficulty": trace.Difficulty = int.Parse(v, CultureInfo.InvariantCulture); break;
+                case "physics": trace.ModernPhysics = v == "modern"; break;
+                case "ai": trace.Ai = v; break;
             }
         }
         while ((line = r.ReadLine()) is not null)
         {
+            if (line.StartsWith("# dev ", StringComparison.Ordinal))
+            {
+                var d = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (d.Length >= 5 && d[3] == "tick" && int.TryParse(d[4], CultureInfo.InvariantCulture, out int at)) trace.Dev.Add((at, d[2]));
+                continue;
+            }
             if (line.Length == 0 || line.StartsWith('#') || line.StartsWith("tick", StringComparison.Ordinal)) continue;
             var f = line.Split(',');
             if (f.Length < 5) throw new InvalidDataException($"input trace row: {line}");
@@ -94,6 +155,31 @@ public sealed class InputTrace
     private static uint ParseUInt(string s) => s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
         ? uint.Parse(s.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture)
         : uint.Parse(s, CultureInfo.InvariantCulture);
+}
+
+/// <summary>
+/// A recording written as it runs (I76_INPUT_RECORD): the header, the column line, then a row each tick and a "# dev" row for
+/// each Developer panel action, each flushed as written, so a run that crashes or is killed leaves its trace up to that tick.
+/// </summary>
+public sealed class InputTraceWriter(TextWriter w) : IDisposable
+{
+    private bool _started;
+
+    /// <summary>The header and the column line (once, before the first row).</summary>
+    public void Start(InputTrace header)
+    {
+        if (_started) return;
+        _started = true;
+        w.WriteLine(header.HeaderLine());
+        w.WriteLine(InputTrace.Columns);
+        w.Flush();
+    }
+
+    public void Tick(int tick, CarInput input, ulong? hash) { w.WriteLine(InputTrace.Row(tick, input, hash)); w.Flush(); }
+
+    public void Dev(int tick, string action) { w.WriteLine(InputTrace.DevRow(tick, action)); w.Flush(); }
+
+    public void Dispose() => w.Dispose();
 }
 
 /// <summary>

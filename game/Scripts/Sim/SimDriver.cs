@@ -104,8 +104,29 @@ public partial class SimDriver : Node
     public string? RecordPath { get; set; }
     /// <summary>I76_MOTION_CSV: a row a tick of the player's motion (MotionTrace) to this file.</summary>
     public string? MotionPath { get; set; }
-    private System.IO.StreamWriter? _recordOut, _motionOut;
+    private InputTraceWriter? _recordOut;
+    private System.IO.StreamWriter? _motionOut;
     private bool _replayDiverged, _replayEnded;
+
+    /// <summary>The recording's file, opened with its header the first time (each row is flushed: a crash keeps the trace).</summary>
+    private InputTraceWriter? RecordOut()
+    {
+        if (_recordOut is null && Recording is { } header && RecordPath is { } path)
+        {
+            _recordOut = new InputTraceWriter(new System.IO.StreamWriter(path));
+            _recordOut.Start(header);
+        }
+        return _recordOut;
+    }
+
+    /// <summary>
+    /// A Developer panel action that changed the game outside the input (a teleport, a restore, a repair...): a "# dev" row in the
+    /// recording before the next tick, so its replay is known to leave the recording there.
+    /// </summary>
+    public void DevMark(string action)
+    {
+        if (Recording is not null) RecordOut()?.Dev(Session.Ticks, action);
+    }
 
     /// <summary>The input traces' part of a tick: what ran is written, and a replay's hash is checked.</summary>
     private void TraceTick(int tick, CarInput input)
@@ -114,13 +135,7 @@ public partial class SimDriver : Node
         ulong? hash = Recording is not null || Replay?.HashAt(tick) is not null ? Session.StateHash() : null;
         if (Recording is not null && RecordPath is not null)
         {
-            if (_recordOut is null)
-            {
-                _recordOut = new System.IO.StreamWriter(RecordPath);
-                _recordOut.WriteLine(Recording.HeaderLine());
-                _recordOut.WriteLine(InputTrace.Columns);
-            }
-            _recordOut.WriteLine(InputTrace.Row(tick, input, hash));
+            RecordOut()?.Tick(tick, input, hash);
         }
         if (Replay is { } rp)
         {
@@ -451,10 +466,11 @@ public partial class SimDriver : Node
     }
 
     /// <summary>One tick of the session and what the game does after each: force feedback, impacts, sounds, the debug lines.</summary>
-    private void RunTick()
+    private void RunTick(bool keys = true)
     {
         int shots = Combat?.Events.Count ?? 0;
         var sampled = Sample();
+        if (!keys) sampled = default;   // sampled and dropped all the same, so nothing is left latched
         int tick = Session.Ticks;
         if (Replay is { } replay) sampled = replay.At(tick);   // the keys are still sampled (and dropped) so nothing is left latched
         using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
@@ -485,11 +501,14 @@ public partial class SimDriver : Node
     /// <summary>The Developer panel's time scale: ticks per wall-clock second over the rate's. The ticks themselves are the same at any scale.</summary>
     public double DevTimeScale { get; set; } = 1;
 
-    /// <summary>The Developer panel's Step: one tick now (frozen or paused), the cars drawn at its end.</summary>
+    /// <summary>
+    /// The Developer panel's Step: one tick now (frozen or paused), the cars drawn at its end. No keys: the panel has the keyboard, and
+    /// what is typed into its fields is not driving (a replay's input still drives).
+    /// </summary>
     public void DevStep()
     {
         if (Remote is not null || !_started) return;
-        RunTick();
+        RunTick(keys: false);
         _acc = 0;
         Alpha = 1;
         foreach (var c in Cars) c.Place(1, Origin());
