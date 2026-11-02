@@ -322,6 +322,19 @@ public sealed class ShellFrame
     /// <summary>A picture the text layer draws into a box at the window's resolution (the modern look), kept as a glyph is.</summary>
     public void Picture(Rect2I box, Texture2D picture) => Claim(new HdGlyph { Picture = picture, Box = box });
 
+    /// <summary>Every glyph that reaches into the rectangle is taken off whole (a slip laid over words hides them, not only the part under it).</summary>
+    public void Uncover(Rect2I r)
+    {
+        foreach (var g in _glyphs.ToList())
+        {
+            if (g is null || !g.Box.Intersects(r)) continue;
+            var box = g.Box.Intersection(new Rect2I(0, 0, W, H));
+            for (int y = box.Position.Y; y < box.End.Y; y++)
+                for (int x = box.Position.X; x < box.End.X; x++)
+                    if (_owner[y * W + x] == g.Id + 1) Take(y * W + x, 1);
+        }
+    }
+
     /// <summary>Whether strings and pictures go to the text layer (the modern look) rather than into the pixels.</summary>
     public bool Modern => HdFonts is not null;
 

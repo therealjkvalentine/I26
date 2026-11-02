@@ -1270,11 +1270,12 @@ comes back to the roster with its notice and the book, as before.
   - MAX SCORE with its box and ⊟ ⊞ (1000–100000 in steps of 1000, 20000 to start; the score counts only when its box is ticked);
   - the stepped rules on ruled blanks, a click steps each: TURRETS (One, Unlim.), IGNITION (Free, Lock), RATE, HCP (Off, Manual,
     Auto) and PASS (the password prompt);
-  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE;
-- the arena's sketch (the port's, `ArenaSketch`), centred between the car's views: the arena from above, its floor as paper,
+  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE; the pointer resting
+  half a second on a rule shows a line on what it does, on a slip of the form's paper by the pointer (`RuleHelp`);
+- the arena's sketch (the port's, `ArenaSketch`), between the car's views (its left edge by DRIVER:'s): the arena from above, its floor as paper,
   a band of the ground that rises round it hatched with an inked edge, the roads as lines, each start point an x, built from
-  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small at the space's
-  lower left ("1.5 x 1.0 km"; the starts are not counted, they are no limit on the players);
+  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small at its lower right, as a
+  map's legend ("1.5 x 1.0 km"; the starts are not counted, they are no limit on the players);
 - the car: MAKE / MODEL, VARIANT and CONFIGURE CHASSIS, as on the instant
   melee form;
 - BROADCAST GAME: CHOOSE A TEAM first with team play, then the launch: a

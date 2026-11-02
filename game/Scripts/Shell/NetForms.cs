@@ -452,10 +452,114 @@ public sealed partial class MeleeScreen
         string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
         if (ArenaSketches.Of(Shell.Install, stem, SketchSize.X, SketchSize.Y) is not { } s) return;
         var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
-        int cx = SketchSpace.Position.X + SketchSpace.Size.X / 2, cy = SketchSpace.Position.Y + SketchSpace.Size.Y / 2;
-        ArenaSketches.Draw(Frame, stem, s, cx - (x0 + x1 + 1) / 2, cy - (y0 + y1 + 1) / 2);
+        // its drawn left edge a few px in from DRIVER:'s (x 227), its middle a little below the space's
+        int left = SketchLeft - x0, top = SketchSpace.Position.Y + SketchSpace.Size.Y / 2 + SketchDrop - (y0 + y1 + 1) / 2;
+        ArenaSketches.Draw(Frame, stem, s, left, top);
+        // the span as a map's legend, in the sketch's lower right corner
         PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
-        PrintedType.Draw(Frame, Shell.Db, SketchSpace.Position.X + 3, SketchSpace.End.Y, s.SizeText, SizeCap, HandInk, PrintedType.Face.Hand);
+        int w = (int)MathF.Ceiling(PrintedType.Measure(Shell.Db, s.SizeText, SizeCap, PrintedType.Face.Hand));
+        // right-aligned on the sketch's right edge, on its foot; moved right (then down) off any line it would sit on
+        int nx = x1 + 1 - w, ny = y1 + 1;
+        bool Clear(int ax, int ay)
+        {
+            for (int yy = ay - SizeCap - 1; yy <= ay + 1; yy++)
+                for (int xx = ax - 2; xx <= ax + w + 1; xx++)
+                    if (s.Inked(xx, yy)) return false;
+            return true;
+        }
+        for (int k = 0; k < 40 && !Clear(nx, ny); k++) { if (k < 30) nx += 2; else ny += 2; }
+        PrintedType.Draw(Frame, Shell.Db, left + nx, top + ny, s.SizeText, SizeCap, HandInk, PrintedType.Face.Hand);
+    }
+
+    private const int SketchLeft = 231, SketchDrop = 8;
+
+    // ---- the options box's hover help (the port's): a pointer resting half a second on a rule shows a line on what it does
+
+    /// <summary>What each rule of the base host form does, by hotspot id (-1 the BOTS label), in a line on a paper slip.</summary>
+    private static readonly Dictionary<int, string> RuleHelp = new()
+    {
+        [-1] = "Cars the server drives in the free seats",
+        [29] = "Fewer bots", [30] = "More bots (up to the free seats)",
+        [31] = "How well the bots drive: Easy, Normal or Hard",
+        [34] = "Choose each bot's car (Random unless chosen)",
+        [16] = "Players pick a team; no score on teammates",
+        [17] = "You let in or turn away each player who asks",
+        [26] = "Players without this custom map may download it",
+        [28] = "The hidden cars and weapons are allowed",
+        [36] = "Players may set their car upright (reset key)",
+        [37] = "Players may talk on the CB (push to talk)",
+        [18] = "Ticked: the game ends when a score reaches this",
+        [20] = "Lower the score that ends the game", [21] = "Raise the score that ends the game",
+        [35] = "One: one roof turret a car. Unlim.: any number",
+        [39] = "Free: engines may be switched off. Lock: never",
+        [33] = "Simulation steps a second, the same for all",
+        [43] = "Damage handicaps: Off, Manual (you set) or Auto",
+        [27] = "A password joiners must give: click to set",
+        [40] = "Extra enemy cars for each player past the first",
+        [41] = "Damage the players' cars take (x1 the original)",
+        [42] = "On: a respawn joins at a moving teammate's speed",
+    };
+    /// <summary>The BOTS label's own help area (the line's buttons have theirs).</summary>
+    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, 356, 371);
+    private int _tipHover = int.MinValue, _tip = int.MinValue;
+    private double _tipWait;
+    private Vector2I _tipAt;
+
+    /// <summary>The rule under the pointer that has help, or int.MinValue.</summary>
+    private int TipAt(Vector2I p)
+    {
+        if (!Hosting || Nitro) return int.MinValue;
+        int id = HitId(p);
+        if (id >= 0 && RuleHelp.ContainsKey(id)) return id;
+        var r = BotsLabel;
+        return !_coopBase && r.X0 < p.X && p.X < r.X1 && r.Y0 < p.Y && p.Y < r.Y1 ? -1 : int.MinValue;
+    }
+
+    /// <summary>Half a second on one rule shows its help; moving off takes it away. Called every tick of the form.</summary>
+    private void TipTick()
+    {
+        int at = TipAt(Shell.Mouse);
+        if (at != _tipHover)
+        {
+            _tipHover = at;
+            _tipWait = 0;
+            if (_tip != int.MinValue) { _tip = int.MinValue; Draw(); }
+            return;
+        }
+        if (at == int.MinValue || _tip != int.MinValue) return;
+        _tipWait += Shell.Delta;
+        if (_tipWait < 0.5) return;
+        _tip = at;
+        _tipAt = Shell.Mouse;
+        Draw();
+    }
+
+    /// <summary>
+    /// The help as a slip of the form's paper (a blank part of the same art) with a rule round it, the line in the box's
+    /// handwriting, below and right of the pointer (above it near the sheet's foot), kept on the screen.
+    /// </summary>
+    private void DrawTip()
+    {
+        if (_tip == int.MinValue || !RuleHelp.TryGetValue(_tip, out var text) || _art is not { } art) return;
+        var hand = Shell.Db.Font(0x44);
+        int w = hand.Measure(text) + 10, h = hand.Height + 6;
+        int x = Math.Clamp(_tipAt.X + 6, 2, ShellFrame.W - w - 2), y = _tipAt.Y + 14;
+        if (y + h > ShellFrame.H - 2) y = _tipAt.Y - h - 6;
+        Frame.Uncover(new Rect2I(x, y, w, h));
+        // the blank paper (206 px wide) mirrored back and forth for a longer slip, so no seam shows
+        for (int r = 0; r < h; r++)
+            for (int c = 0; c < w; c++)
+            {
+                int m = c % 400, sc = m < 200 ? m : 399 - m;
+                Frame.Pixel(x + c, y + r, art[(BlankPaper.Y + r) * ShellFrame.W + BlankPaper.X + sc]);
+            }
+        byte rule = Frame.Nearest(LabelInk);
+        Frame.Fill(x, y, w, 1, rule); Frame.Fill(x, y + h - 1, w, 1, rule);
+        Frame.Fill(x, y, 1, h, rule); Frame.Fill(x + w - 1, y, 1, h, rule);
+        var ink = new byte[256];
+        byte handInk = Frame.Nearest(HandInk);
+        for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
+        Frame.Text(hand, x + 5, y + 3, text, ink);
     }
 
     /// <summary>The span's capitals: 7 px, under the box's handwriting's 9, still clear at 640x480.</summary>

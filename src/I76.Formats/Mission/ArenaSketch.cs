@@ -263,12 +263,20 @@ public sealed class ArenaSketch
 
     private (int X0, int Y0, int X1, int Y1)? _ink;
     private bool _inkKnown;
+    private byte[]? _drawn;
+
+    /// <summary>Whether the sketch inks the box's pixel (x, y) (the 1997 look's drawing, alpha 40 and up): a note set by it keeps off the lines.</summary>
+    public bool Inked(int x, int y)
+    {
+        _drawn ??= Render(1, aliased: true);
+        return x >= 0 && y >= 0 && x < BoxWidth && y < BoxHeight && _drawn[(y * BoxWidth + x) * 4 + 3] >= 40;
+    }
 
     /// <summary>The box's rows and columns the sketch inks (the 1997 look's drawing, alpha 40 and up), inclusive; null when it inks none. The form centres these in its space.</summary>
     public (int X0, int Y0, int X1, int Y1)? InkBounds()
     {
         if (_inkKnown) return _ink;
-        var px = Render(1, aliased: true);
+        var px = _drawn ??= Render(1, aliased: true);
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
         for (int i = 0; i < px.Length / 4; i++)
             if (px[i * 4 + 3] >= 40)
