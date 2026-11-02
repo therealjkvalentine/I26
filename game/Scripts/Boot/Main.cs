@@ -233,7 +233,9 @@ public partial class Main : Node3D
             GetTree().Quit(1);
             return;
         }
-        FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());   // Max FPS and VSync, from the first frame
+        var first = I76.Game.Shell.ShellSettings.Load();
+        FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
+        I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
         if (ShaderSmoke.Requested) { SetProcess(false); AddChild(new ShaderSmoke()); return; }
         SwitchProbe.Install(GetTree());
         // --from-installer: the game data out of a GOG offline installer first, then this scene again on it
@@ -692,6 +694,7 @@ public partial class Main : Node3D
         _antialias = s.Graphics[0x8];
         MouseCamera.Apply(s);
         FrameLimiter.Apply(s);
+        I76.Sim.Views.ViewFov.Apply(s.FieldOfView);
         _vegetation = s.Vegetation;
         _drawDistance = DrawDistanceHook(s.DrawDistance);
         ApplyDrawDistance();

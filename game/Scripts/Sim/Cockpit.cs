@@ -157,7 +157,7 @@ public partial class Cockpit : Node
         _state = 2;
         if (Node3D.Rtc1 is { } r1) r1.Visible = !on;
         if (Node3D.Rtc6 is { } r6) r6.Visible = on;
-        if (!on && Node3D.CockpitCamera is { } cam) { cam.Basis = Basis.FromEuler(new Vector3(-_pitch, 0, 0), EulerOrder.Yxz); cam.Fov = 73.74f; }
+        if (!on && Node3D.CockpitCamera is { } cam) { cam.Basis = Basis.FromEuler(new Vector3(-_pitch, 0, 0), EulerOrder.Yxz); cam.Fov = I76.Sim.Views.ViewFov.Main; }
     }
 
     /// <summary>The glance in mode 2, per frame (a sim tick; 30 a second on the original's reference machine): yaw in integer degrees; pitch and roll stay 0.</summary>
@@ -300,7 +300,7 @@ public partial class Cockpit : Node
         {
             // game yaw is to the right and Godot's Z is mirrored: a right turn is a negative Y rotation here
             cam.Basis = Sway(dt) * Basis.FromEuler(new Vector3(-_pitch, -_yaw, _roll), EulerOrder.Yxz);   // the Z mirror negates pitch and yaw, not roll
-            cam.Fov = 73.74f;
+            cam.Fov = I76.Sim.Views.ViewFov.Main;
         }
         // arms rise past ±58° / 53° to the side windows (the handguns): the sim moves them with the next tick
         _wantArm[0] = _state == 4 && _yaw > 1.0123f;

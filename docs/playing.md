@@ -77,6 +77,8 @@ map whose terrain file is missing is still listed, as in the original, but choos
 with a note naming the file. Interstate '82 maps (`.msa`)
 are for another game and are not listed.
 
+**Field of view.** Graphic Detail's **Field of View** row (Original, 80, 100, 110) sets how wide the main 3D views look, in degrees across a 4:3 view (the original's is 90, and a wider window shows more to the sides at any choice); it applies at once to the outside views and the cockpit's 3D view. The binoculars, the mirror and the radar keep their own framing.
+
 ### Controls
 
 Controls follow the original's keys, as set in Options > Control Configuration (which edits keys, the mouse
