@@ -517,10 +517,10 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public void FallKill(Vehicle v) => Destroy(v);
 
     /// <summary>The surface's damage per second, carried fractionally, one rand() per call for the zone.</summary>
-    public void Rough(Vehicle v, float dt)
+    public void Rough(Vehicle v, int surface, float dt)
     {
         if (IsDead(v) || v.Health is not { } d) return;
-        float amount = World.Ground.Surface(v.Surface).Damage * dt;
+        float amount = World.Ground.Surface(surface).Damage * dt;
         d.RoughCarry += amount;
         int n = (int)d.RoughCarry;
         d.RoughCarry -= n;

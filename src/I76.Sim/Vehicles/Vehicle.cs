@@ -235,8 +235,8 @@ public interface IStepDamage
     void Landing(Vehicle v, Vector3 impactVel, Vector3 n);
     /// <summary>When the car lands more than 35 below where it was last grounded.</summary>
     void FallKill(Vehicle v);
-    /// <summary>Rough terrain on a fast grounded substep.</summary>
-    void Rough(Vehicle v, float dt);
+    /// <summary>Rough terrain on a fast grounded substep, on <paramref name="surface"/>: the one probed the substep before.</summary>
+    void Rough(Vehicle v, int surface, float dt);
     /// <summary>A car met a scenery collider this frame.</summary>
     void StaticContact(Vehicle v, Collision.StaticObject o, Contact rec);
 }
