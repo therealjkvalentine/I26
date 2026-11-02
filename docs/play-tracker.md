@@ -128,4 +128,10 @@ in the sibling worktree folder) keep their own commit messages; the rest carry a
 - Known test moves documented by their branches: T01 diner dice and T01Follow (timer rounding, brake stop), T14 checkpoint
   re-seeded (turn speed, friendly-fire scan), T06 creepers wait rule (T02 probe). Pre-existing Windows failures: the
   snapshot corpus stack overflow in the test host, symlink and path tests, network flakes under load.
-- Test status after integration: see the last sync's report in the commit message of the latest "Integration" commit.
+- Test status, 2026-11-02, `play` with all 123 branches, two machines, against origin/master's own failure lists (64
+  names on the desktop, 42 on the laptop): Editor 216/216 and Game 145/145 on both; Formats 5 (desktop) / 4 (laptop)
+  failures, all pre-existing; Sim 32 / 31 failures and Net 15 failures (laptop), all pre-existing except two:
+  CoopFormationTests.AnAiDrivingIntoAHumanIsNotThatHumansRam (with fix/taurus-load-cornering the rear-end contact is
+  credited to the lead car: an attribution question for the original, not re-pinned) and T01FollowTests at 30 Hz (the
+  test's driver gets stuck 7 m behind Taurus after the timer rounding moved the scene; no number to re-pin). The snapshot
+  corpus tests overflow the Windows test host's stack on master too.
