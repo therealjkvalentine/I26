@@ -195,7 +195,7 @@ stacked ones and the integration branch are section I, after H.
 | order | branch | what it changes | evidence | screenshots | status |
 |---|---|---|---|---|---|
 | C2 | perf/interop-garbage | the cars' drop-shadow casters are found once, a shadow's node is told only what changed, the smoke layer keeps its uniform set (frame profiler: gc0_per_100) | frame profiles: process step T01 2.08 -> 1.77 ms, T05 3.04 -> 2.38 (GTX 1650 Ti), T01 3.85 -> 2.84 (GTX 1080 Ti); finalizer thread 6.3 -> 3.0 % of samples; captures bit-identical | - | merged |
-| C | fix/cockpit-gauge-dials-too-dark | the 3D cockpit's gauge needles drawn as painted (prelit), like the dash, both looks; deviations row "Cockpit gauge needles" | spec: needle.geo is four untextured faces in one colour, lit through the object light in the original; local: Game CockpitNeedleTests | `_scratch/r3-fixes-shell/shots/03-needles-after-{day,night}-{modern,1997}.png` | merged |
+| C | fix/cockpit-gauge-dials-too-dark | the 3D cockpit's dials black under their lettering (an opaque face draws its keyed texels in index 255's colour, not the bleed), the cockpit art read at its full-size level, nearest; the needles in the palette colour the original's flat-face lookup gives (entry 160 on T01), lit, turned off-centre with the reading side 0.69 of the length; its earlier "Cockpit gauge needles" deviations row gone | original (86Box, retail 1.0, software renderer, 640x480, T01 by day, n 1 boot): every needle pixel a shade of entry 160; the pivot 0.70/0.71 (speedometer) and 0.66/0.70 (tachometer); the speedometer face's pixels darker than 32/255 68 % original, 33 % before, 61 % (1997) / 64 % (modern) now; local: Game CockpitNeedleTests 4 | `_scratch/r3-needle-2/` (captures beside the emulator's) | merged (6a01da1, pass 4) |
 | D | feat/hd-world-textures | the modern look draws a player's upscaled texture from user://tex-world/ (or a pack zip's tex-world/) in a texture's place, 2x/4x/8x; the 1997 look keeps the originals; nothing ships | local: Formats HdTextureTests, Game CockpitPanelsBlitTests | `_scratch/r3-upscale-v1/shots/{front,cockpit}-{original,hd}-1280x960.png` | merged |
 | D | feat/hd-texture-tool | `--export-textures DIR` and tools/upscale-textures.py (the 4xTextures_GTAV_rgt-s_dither model, CC-BY-4.0, named in the pack) make such a pack from the player's own install | local: 6,563 PNGs exported from a base install; the lab's pack stays outside the repository | as above | merged |
 | I1 | fix/turret-aim-moving-carrier | a turret aims at the predictor's point from the barrel; nothing taken off for the carrier's own travel; the AI gun gate and friendly scan test the round as it flies here | original (measured 2026-11-02, see below): rounds never inherit the carrier's velocity and the original's turrets hit from a moving carrier; local: TurretLeadTests 188/200 hits at 20 m/s (was 1) | `_scratch/r3-sim-fixes/shots/turret-chase-{modern,1997}.png` | merged; CheckpointTests (T14) moves, see known failures |
@@ -207,6 +207,9 @@ stacked ones and the integration branch are section I, after H.
 | I7 | fix/1997-tracers-two-pixels | 1997 look: the MG tracer line one pixel per 480 rows of the 3D view (two at 1080p, four at most), a screen-space quad | original: a one-pixel line at 640x480; local: TracerLengthTests (owner report: a hair's breadth) | `_scratch/r3-fixes-shell/shots/04-tracers-1997-{1280x960,1920x1080}.png` | merged |
 | I8 | feat/map-edge-hide | Map Edge gains Hide: the walls and the plateau behind them drawn down at the plain of their foot (EdgeWalls in Formats, the terrain's vertex shader, the ring from the plain); Original (Plain*) stays the default | ux; local: EdgeWallsTests; measured over the 114 stock and Nitro maps (terrace steps 5-40 m, plateaus 400 m deep) | `_scratch/r3-map-walls/shots/{m01,t05start,t05se}-{original,haze,hide}.png` | merged |
 | I9 | fix/round3-integration | the integrator's hand fixes beyond the conflict hunks (listed below) | local: Game tests 206/206 | `_scratch/r3-integration/shots/esc-graphic-detail-end-{modern,1997}.png` | merged |
+| I10 | feat/hd-textures-row | Graphic Detail's HD Textures row (Esc pad and the main menu's sheet, shown when a pack is found): Off\* the game's own world, car and cockpit textures, On the pack's upscales, live; HD Menu Art stays its own row | ux; local: HdTexturesSettingTests | `_scratch/r3-hd-row/shots/{esc,shell}-gd-{modern,1997}.png`, `t01-{cockpit,chase}-{on,off}.png` | merged |
+| I11 | feat/saves-tools-to-dev-panel | Load Bookmark is the original's sheet plus Delete; Import Saves and All Scenes move to a Developer panel on the main menu (with `developer=true`) | ux (the owner's notes: keep the menus simple); local: BookmarkDeletePlaceTests | `_scratch/r3-saves-declutter/shots/0{1..5}-*.png` | merged |
+| I12 | fix/round3-integration-2 | the integrator's hand fixes of pass 4 (below): the cockpit sampler after the dials, the network handguns row, the .45 and Q in playing.md | local: Game CockpitSamplingTests | - | merged |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -221,6 +224,28 @@ Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166
   from a moving carrier (second order).
 - Trip mission 5's cliff (the owner's note): no bug. The fall rule is faithful: a drop of over 35 m kills, as the
   original's does.
+
+Pass 4 (2026-11-02 evening): the dials branch's new tip and the two stacked branches merged by sync-play (incremental;
+rerere replayed the resolutions of a scratch pass of the same merges, the trees identical), then fix/round3-integration-2.
+- The dash finding: the dial faces of the z* dash art are index 255, the colour key, but the dash's faces do not honour
+  the key; the original draws those texels in index 255's colour (black on T01). The loader's bleed under keyed texels
+  (for filtering) had greyed them, and a mipmapped read greyed the lettering too. The dials branch draws the keyed texels
+  of an opaque cockpit face in the key's colour and reads the art at its full-size level, nearest. Keyed opaque faces
+  outside the cockpit still show the bleed (the 1997 look's world objects may share the cause): open.
+- Hand resolution, dials over fix/cockpit-art-bilinear and the HD textures (conflict hunks, rerere keeps them):
+  object.gdshaderinc keeps the bilinear branch's name (albedo_cockpit) and edge clamp with the dials branch's sampling,
+  `filter_nearest_mipmap` and `textureLod(albedo_cockpit, tuv, 0.0)` in every look (Software included: the dials were
+  measured on the original's software renderer); MaterialLibrary sets albedo_cockpit and the dials' key_fill;
+  TextureFactory's served entry (original or upscale) carries KeyColour from the original's first keyed texel (a
+  helper, since the HD branch builds entries through Prepare); CHANGELOG drops the bilinear line and the old needle line
+  for the dials' one. The bilinear branch's scope was the cockpit sampler alone, so nothing of its smoothing remains:
+  the owner's "slanted blocks" report (dash looked down at on a large window) is answered by the measurement, to be
+  looked at again in the next playtest.
+- fix/round3-integration-2: CockpitSamplingTests pin the point sampling; the unused i76_point_clamped macro goes; the
+  In-car view row says full-size and point-sampled with the key's colour on the dials; the Network melee in game row
+  gives every human's car its .45s, as docs/multiplayer.md does, whose stale "later phases" handgun line goes;
+  docs/playing.md says what Q picks (15 degrees of the nose, radar range, else cleared) and how the .45 finishes a
+  crippled car (a side glance held 0.5 s, then fire; under a third straight to a critical part).
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
@@ -272,6 +297,13 @@ too, and passes without it; the desktop baseline was run without that variable. 
 Net 417/434, Game 206/206, Formats 881/915 (30 skipped); outside the laptop's baseline the three Sim ones above, the
 AutoHandicapSim test, and BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink (the laptop-load flake of pass 1, in the
 desktop baseline, passing on the desktop).
+
+Test status, pass 4 (`play` at f83e4a0): desktop (I76_INSTALL and I76_NITRO_INSTALL set) Game 214/214, Sim 952/985;
+outside the desktop baseline only the known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam,
+T01FollowTests at 30 Hz, CaltropTests with the Nitro install set). Laptop: Sim 951/983, Net 417/434, Game 214/214,
+Formats 881/915 (30 skipped), Editor 216/216; outside the laptop's baseline the three Sim ones and
+AutoHandicapSimTests' six bots, all known. No new failure. Versions unchanged: snapshot 24, protocol 24, shell.cfg 13
+(no pass-4 branch bumps any; hd_textures, when absent, follows hd_menu_art).
 
 ## Withdrawn or answered (not offered as fixes)
 
