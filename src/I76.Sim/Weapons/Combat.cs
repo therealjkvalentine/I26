@@ -632,7 +632,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         {
             // the EZK: two rand()%1000 against 3500 x skill; then the time the target's line passes the muzzle line at a
             // fixed 500 (the muzzle row flipped when it points away from the target), kept only within 0..0.2 s, where
-            // the target must be within 20 of the shooter's point on the ground plane. No sight or friendly test.
+            // the target, put there by the predictor (t + 0.09 s), must be within 20 of the shooter's point at t on the
+            // ground plane. No sight or friendly test.
             if (Rand.Next() % 1000 + Rand.Next() % 1000 > p3 * 3500) return false;
             var sp = shooter.Pos.ToVector3();
             var sv = (Vector3.Dot(f, tc - sp) < 0 ? -f : f) * 500f;
@@ -640,7 +641,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             float rr = rv.LengthSquared();
             float t = rr < 0.01f ? 1e7f : Vector3.Dot(sp - tc, rv) / rr;
             if (t < 0 || t > 0.2f) return false;
-            var d = sp + sv * t - (tc + tvel * t);
+            var at = tv is null ? tc : TargetPredictor.Predict(tv, t) + (tc - tv.Pos.ToVector3());
+            var d = sp + sv * t - at;
             return d.X * d.X + d.Z * d.Z < 400;
         }
         if (def.Class == 3)
