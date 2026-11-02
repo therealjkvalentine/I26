@@ -99,3 +99,12 @@ Every `I76_*` hook is listed in [docs/dev-hooks.md](docs/dev-hooks.md). Check a 
 - **Godot scene reloads re-run `_Ready`:** one-per-process things (the boot splash overlay) need a static guard.
 - **Coordinates:** game axes are mirrored in Z against Godot's (`Coords.ToGodot`); radar, cameras and turrets have
   each been bitten by it. Test directions with a contact placed clearly ahead-right.
+
+## The play fork
+
+This checkout is the private integration fork: `play` is upstream plus every topic branch in `tools/play-branches.txt`;
+`play-meta` carries the fork's bookkeeping. New here? [docs/play-setup.md](docs/play-setup.md) gets a developer from
+nothing to a running playtest build on Windows or macOS and explains how a branch travels to upstream;
+[docs/play-tracker.md](docs/play-tracker.md) is the ranked list of every change with its evidence and PR order;
+`tools/sync-play.ps1` rebuilds `play`. Never commit to `play` directly, never push to upstream, and keep every commit
+public-safe.
