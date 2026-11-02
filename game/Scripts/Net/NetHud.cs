@@ -111,6 +111,7 @@ public partial class NetHud : CanvasLayer
         if (e is not InputEventKey { Pressed: true } k) return;
         if (!_chat.Active)
         {
+            if (HandicapKey(k)) { GetViewport().SetInputAsHandled(); return; }
             if (!k.Echo && k.CtrlPressed && k.Keycode is Key.Pagedown or Key.Pageup)
             {
                 _boardPage = Math.Max(0, _boardPage + (k.Keycode == Key.Pagedown ? 1 : -1));
@@ -316,7 +317,7 @@ public partial class NetHud : CanvasLayer
     {
         if (Client.Accept is not { } a) return null;
         return new ScoreContext(a.Kind, a.TeamPlay, a.Slot, Server is not null, modern || a.TeamPlay ? ScoreOrder.Ranked : ScoreOrder.Slot,
-            modern ? ScoreTable.ModernRows : ScoreTable.ClassicRows) { HostSlot = Server is not null ? a.Slot : _hostSlot };
+            modern ? ScoreTable.ModernRows : ScoreTable.ClassicRows) { HostSlot = Server is not null ? a.Slot : _hostSlot, HandicapPick = HostHandicaps ? _handicapPick : -1 };
     }
 
     /// <summary>The players' window as the look in use draws it (table, paged): the page clamped to the pages there are.</summary>
@@ -414,6 +415,7 @@ public partial class NetHud : CanvasLayer
         if (players) { f.Board = PlayersPage(); _boardSeen = true; }
         f.ScoresKey = KeyLabel(Controls.Binding("show_player_scores"));
         f.ScoresHint = !_boardSeen && _t < 90;
+        HandicapBoard(f.Board is not null);
         // the other keys are listed in the standings, not over the game (players found the HUD too busy)
         f.ChatKey = GameKeys.KeyOf((int)GameKey.ChatToAll) ?? "Backspace";
         f.NewCarKey = GameKeys.KeyOf((int)GameKey.SelfDestruct) ?? "Ctrl+Delete";

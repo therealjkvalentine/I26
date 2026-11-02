@@ -10,6 +10,8 @@ public sealed record ScoreContext(MeleeKind Kind, bool TeamPlay, int MySlot, boo
 {
     /// <summary>The player whose machine runs the game, when this machine knows it (its own, or one a migration named); -1 when not.</summary>
     public int HostSlot { get; init; } = -1;
+    /// <summary>The player the listen host's handicap keys step (docs/multiplayer.md "Handicaps"), shown with the level in brackets; -1 for none.</summary>
+    public int HandicapPick { get; init; } = -1;
 }
 
 public enum ScoreLineKind { Player, Team }
@@ -126,7 +128,7 @@ public static class ScoreTable
             }
             bool own = p.Slot == c.MySlot;
             string mark = c.Host ? (own ? "H" : $"{numbered.FindIndex(n => n.Slot == p.Slot) + 1}") : own ? ">" : "";
-            lines.Add(new ScoreLine(ScoreLineKind.Player, p.Name, p.Team, p.Score, p.Kills, p.Deaths)
+            lines.Add(new ScoreLine(ScoreLineKind.Player, HandicapName(p, c), p.Team, p.Score, p.Kills, p.Deaths)
             {
                 Slot = p.Slot, Mark = mark, Rank = rank[p.Slot], Ping = p.Ping, Alive = p.Alive, Me = own,
                 IsHost = c.Host ? own : p.Slot == c.HostSlot, Pinned = own && pinned,
@@ -134,6 +136,16 @@ public static class ScoreTable
         }
         int first = paged.Count == 0 ? 0 : page * per + 1, last = Math.Min(paged.Count, (page + 1) * per);
         return new ScoreView(lines, page, pages, first, last, paged.Count, numbered);
+    }
+
+    /// <summary>
+    /// A player's name with the host's handicap (docs/multiplayer.md "Handicaps"): "Name (+2)" when the player has one, and the
+    /// host's picked player's "Name [+2]" (also "[0]"), the brackets of the keys that step it.
+    /// </summary>
+    public static string HandicapName(PlayerRow p, ScoreContext c)
+    {
+        string level = I76.Sim.Missions.Handicaps.Label(p.Handicap);
+        return p.Slot == c.HandicapPick ? $"{p.Name} [{level}]" : p.Handicap != 0 ? $"{p.Name} ({level})" : p.Name;
     }
 
     /// <summary>The column titles for the kind: a race's "Laps" and CTF's "Captures" in the score's place, with no kills column (the Nitro Pack's windows).</summary>

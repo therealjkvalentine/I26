@@ -160,7 +160,7 @@ public sealed partial class Combat
                         if (!_cosmetic && fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) && effects(fx) is { } e)
                         {
                             Events.Add(new Explosion(e, pos));
-                            if (e.SplashDamage != 0) Splash(pos, e.SplashRadius, e.SplashDamage, v);
+                            if (e.SplashDamage != 0) Splash(pos, e.SplashRadius, e.SplashDamage * HandicapFactor(v), v);
                         }
                         met = true;
                     }
@@ -190,7 +190,7 @@ public sealed partial class Combat
         var d = p - start;
         if (d.LengthSquared() < 1e-12f) return false;
         float mult = !World.IsHuman(f.Owner) ? 1f : Difficulty switch { 0 => 2f, 2 => 0.75f, _ => 1f };
-        int ch = (int)(f.Damage * mult * dt);
+        int ch = (int)(f.Damage * mult * HandicapFactor(f.Owner) * dt);
         if (ch == 0) ch = 1;
         bool any = false;
         DamagePacket Packet()
@@ -349,7 +349,7 @@ public sealed partial class Combat
         if (fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) && effects(fx) is { } e)
         {
             Events.Add(new Explosion(e, at));
-            if (e.SplashDamage != 0) Splash(at, e.SplashRadius, e.SplashDamage, r.Shooter);
+            if (e.SplashDamage != 0) Splash(at, e.SplashRadius, e.SplashDamage * HandicapFactor(r.Shooter), r.Shooter);
         }
     }
 

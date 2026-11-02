@@ -1370,13 +1370,16 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public DamagePacket RoundPacket(Round r)
     {
         var p = new DamagePacket { Attacker = r.Shooter, Mask = (ushort)r.Ord.Mask, Kind = I76.Sim.Damage.DamageKind.Round };
-        int dmg = (int)(r.Damage * PlayerMult(r));
+        int dmg = (int)(r.Damage * PlayerMult(r) * HandicapFactor(r.Shooter));
         int bits = System.Numerics.BitOperations.PopCount(r.Ord.Mask & 0xf);
         if (bits > 0) for (int c = 0; c < 4; c++) if ((r.Ord.Mask & (1u << c)) != 0) p.Ch[c] = dmg / bits;
         if (r.Kind == 0x12) p.Flags |= 0x1;
         if (r.Kind == 0x16) p.Flags |= 0x10;
         return p;
     }
+
+    /// <summary>The host's handicap on what <paramref name="shooter"/> fires (the port's; <see cref="Missions.Handicaps"/>): 1 at level 0, the original's.</summary>
+    private static float HandicapFactor(Vehicle shooter) => shooter.Handicap == 0 ? 1f : Missions.Handicaps.Factor(shooter.Handicap);
 
     /// <param name="bomblet">A cluster bomb's bomblet going off: the impact alone, no more bomblets.</param>
     private void OnHit(Round r, object? victim, Vector3 at, Vector3 n, Vector3 dir, int node = -1, bool bomblet = false)
@@ -1393,7 +1396,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         if (fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) && effects(fx) is { } e)
         {
             Events.Add(new Explosion(e, place));
-            if (e.SplashDamage != 0) Splash(place, e.SplashRadius, e.SplashDamage, r.Shooter);
+            if (e.SplashDamage != 0) Splash(place, e.SplashRadius, e.SplashDamage * HandicapFactor(r.Shooter), r.Shooter);
         }
         // A cluster bomb's landing schedules its bomblets after its own impact
         if (r.Kind == 5 && !bomblet) ScheduleBomblets(r, at);

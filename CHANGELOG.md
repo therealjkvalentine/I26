@@ -22,6 +22,8 @@
 - Police sirens wail as in the original: once a mission turns a police car's siren on, it keeps sounding until the mission turns it off or the car is wrecked, instead of playing once, and the trip's and the scenarios' own police cars sound the siren rather than a short car horn, as on the 1997 CD. A Sheriff that honks at a car in its way turns its siren on too.
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
+Network games use protocol 22: this version does not play with 0.11.0 or earlier.
+- A network game's host can turn on Handicaps (the host form's Hcp, HANDICAPS in the Nitro and co-op game options, or --handicaps for the dedicated server) and give each player a level from -3 to +3 from the score window (Shift+1..9 picks a player, Shift+[ and Shift+] set the level): it scales the damage that player's weapons deal, from x0.55 to x1.6, and everyone sees it by the name on the scoreboard; the game list shows "Handicaps on".
 
 ## 0.11.0 (31 October 2026)
 

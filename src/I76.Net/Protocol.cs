@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 21;
+    public const ushort Version = 22;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -344,7 +344,12 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         Coop?.Write(w);
         // protocol 20: the CB radio is on in this game (the host's CB Radio option)
         w.Bool(Cb);
+        // protocol 22: the host gives players handicaps in this game (the host's Handicaps option)
+        w.Bool(Handicaps);
     }
+
+    /// <summary>The host's Handicaps rule (protocol 22; docs/multiplayer.md "Handicaps"): the scoreboard's rows carry each player's level.</summary>
+    public bool Handicaps { get; init; }
 
     /// <summary>The CB radio is allowed in this game (the host form's CB Radio, i26-server's --no-cb turns it off); off, the server relays no voice and the client neither sends nor opens the microphone.</summary>
     public bool Cb { get; init; } = true;
@@ -380,7 +385,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         if (kind > MeleeKind.Ctf || goal > MeleeGoal.Kills) throw new WireException($"melee kind {kind} goal {goal}");
         var coop = r.Bool() ? CoopInfo.Read(ref r) : null;
         bool cb = r.Bool();
-        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb };
+        bool handicaps = r.Bool();
+        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, Handicaps = handicaps };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>
@@ -463,13 +469,17 @@ public sealed record InputMessage(uint Tick, IReadOnlyList<CarInput> Inputs, uin
 }
 
 /// <summary>One player's line on the scoreboard.</summary>
-public sealed record PlayerRow(byte Slot, string Name, byte Team, int Score, int Kills, int Deaths, ushort Ping, int CarSerial, bool Alive);
+public sealed record PlayerRow(byte Slot, string Name, byte Team, int Score, int Kills, int Deaths, ushort Ping, int CarSerial, bool Alive)
+{
+    /// <summary>The host's handicap on the player, −3..+3 (protocol 22; <see cref="I76.Sim.Missions.Handicaps"/>), 0 for none.</summary>
+    public sbyte Handicap { get; init; }
+}
 
 /// <summary>
 /// Everyone's score and ping (once a second), and the time and score left. On the wire (protocol 13) a delta against the
 /// board last sent to that client (the reliable ordered channel brings every one in order): a flags byte (1: in full,
 /// the client starts from nothing), then each row that changed as its slot, a mask of the fields that follow (name,
-/// team, score, kills, deaths, ping, car, alive) and those fields, then the slots that left. A ping goes when it moved
+/// team, score, kills, deaths, ping, car, alive; protocol 22 makes it a VarU with 256 for the handicap) and those fields, then the slots that left. A ping goes when it moved
 /// <see cref="PingStep"/> ms or more. 64 players' board was 1.5 KB a second to each client; a delta is a few bytes a row
 /// that changed.
 /// </summary>
@@ -489,16 +499,17 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         foreach (var p in Players)
         {
             var was = full ? null : sent!.GetValueOrDefault(p.Slot);
-            int m = was is null ? 0xff
+            int m = was is null ? 0xff | (p.Handicap != 0 ? 256 : 0)
                 : (p.Name != was.Name ? 1 : 0) | (p.Team != was.Team ? 2 : 0) | (p.Score != was.Score ? 4 : 0) | (p.Kills != was.Kills ? 8 : 0)
-                  | (p.Deaths != was.Deaths ? 16 : 0) | (Math.Abs(p.Ping - was.Ping) >= PingStep ? 32 : 0) | (p.CarSerial != was.CarSerial ? 64 : 0) | (p.Alive != was.Alive ? 128 : 0);
+                  | (p.Deaths != was.Deaths ? 16 : 0) | (Math.Abs(p.Ping - was.Ping) >= PingStep ? 32 : 0) | (p.CarSerial != was.CarSerial ? 64 : 0) | (p.Alive != was.Alive ? 128 : 0)
+                  | (p.Handicap != was.Handicap ? 256 : 0);
             if (m != 0) rows.Add((p, m));
         }
         w.VarU((uint)rows.Count);
         foreach (var (p, m) in rows)
         {
             w.U8(p.Slot);
-            w.U8((byte)m);
+            w.VarU((uint)m);
             if ((m & 1) != 0) w.Str(p.Name);
             if ((m & 2) != 0) w.U8(p.Team);
             if ((m & 4) != 0) w.VarI(p.Score);
@@ -507,6 +518,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
             if ((m & 32) != 0) w.U16(p.Ping);
             if ((m & 64) != 0) w.VarU((uint)p.CarSerial);
             if ((m & 128) != 0) w.Bool(p.Alive);
+            if ((m & 256) != 0) w.I8(p.Handicap);
         }
         var gone = full ? [] : sent!.Keys.Where(k => !Players.Any(p => p.Slot == k)).ToList();
         w.VarU((uint)gone.Count);
@@ -529,7 +541,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         for (int i = 0; i < n; i++)
         {
             byte slot = r.U8();
-            int m = r.U8();
+            int m = (int)r.VarU();
             var p = board.GetValueOrDefault(slot) ?? new PlayerRow(slot, "", 0, 0, 0, 0, 0, 0, false);
             if ((m & 1) != 0) p = p with { Name = r.Str() };
             if ((m & 2) != 0) p = p with { Team = r.U8() };
@@ -539,6 +551,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
             if ((m & 32) != 0) p = p with { Ping = r.U16() };
             if ((m & 64) != 0) p = p with { CarSerial = (int)r.VarU() };
             if ((m & 128) != 0) p = p with { Alive = r.Bool() };
+            if ((m & 256) != 0) p = p with { Handicap = (sbyte)System.Math.Clamp((int)r.I8(), I76.Sim.Missions.Handicaps.Min, I76.Sim.Missions.Handicaps.Max) };
             board[slot] = p;
         }
         n = JoinAccept.Count(ref r, 256);

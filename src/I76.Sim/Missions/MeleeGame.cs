@@ -722,9 +722,11 @@ public sealed partial class MeleeGame
         int id = v.NetId, gen = v.NetGeneration;
         var oldArmory = v.Armory;
         var paint = v.Paint;       // a respray is the player's, not the car file's: it stays through a rebuild
+        int handicap = v.Handicap;   // so is the host's handicap
         fresh.Armory?.InheritLinks(oldArmory);       // the player's links stay through a respawn
         Session.FieldCopy.Into(fresh, v);
         (v.NetId, v.NetGeneration, v.Paint) = (id, gen, paint);
+        v.Handicap = handicap;
         v.Arms = new CrewArms();
         if (!v.IsHeli && v.Build is { } b) v.Health = Damage.VehicleDamage.Create(v, b, isPlayer, rand, network);
     }

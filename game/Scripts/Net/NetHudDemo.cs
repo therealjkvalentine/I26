@@ -76,6 +76,12 @@ public sealed class NetHudDemo
             int[] caps = [3, 1, 2, 0];
             for (int i = 0; i < rows.Count; i++) rows[i] = rows[i] with { Kills = caps[rows[i].Team - 1] };
         }
+        // the host's handicaps (docs/multiplayer.md "Handicaps"): a few players with a level, the host's pick on the fourth row
+        if (Has("handicaps"))
+        {
+            int[] levels = [-2, 0, 0, 1, 3, 0, -1];
+            for (int i = 0; i < rows.Count; i++) rows[i] = rows[i] with { Handicap = (sbyte)levels[i % levels.Length] };
+        }
         f.MyTeam = rows[Math.Min(2, rows.Count - 1)].Team;
         f.MySlot = Math.Min(2, rows.Count - 1);
         string Name(int slot) => rows[slot % rows.Count].Name;
@@ -99,7 +105,7 @@ public sealed class NetHudDemo
         }
         f.ScoresHint = Has("hint");
         var ctx = new ScoreContext(kind, teamPlay, f.MySlot, host, Classic && !teamPlay ? ScoreOrder.Slot : ScoreOrder.Ranked, Classic ? ScoreTable.ClassicRows : ScoreTable.ModernRows)
-            { HostSlot = host ? f.MySlot : 0 };
+            { HostSlot = host ? f.MySlot : 0, HandicapPick = host && Has("handicaps") ? Math.Min(3, rows.Count - 1) : -1 };
         if (Has("board") || Has("teams")) f.Board = ScoreTable.Players(rows, ctx, Has("page2") ? 1 : 0, f.TeamName);
         // the feed: a burst of kills and joins, some about this player
         var feed = new HudFeed();

@@ -322,8 +322,12 @@ public sealed partial class MeleeScreen
         Frame.Text(_font, 15, 421, $"Unlim. turrets: {(_turrets ? "On" : "Off")}");
         Frame.Text(_font, 15, 449, $"Hidden: {(Shell.Settings.HiddenContent ? "On" : "Off")}");
         // (and the Car Reset's, the reset-upright key, on a line of its own under them)
-        Frame.Text(_font, 15, 463, $"Car reset: {(Shell.Settings.CarReset ? "On" : "Off")}");
-        Frame.Text(_font, 152, 463, $"CB: {(Shell.Settings.CbRadio ? "On" : "Off")}");
+        // (and the Handicaps' between them, docs/multiplayer.md "Handicaps": the words shortened, the CB's at the line's end)
+        string reset = $"Reset {(Shell.Settings.CarReset ? "On" : "Off")}", hcap = $"Hcp {(Shell.Settings.Handicaps ? "On" : "Off")}", cb = $"CB {(Shell.Settings.CbRadio ? "On" : "Off")}";
+        int gap = Math.Max(2, (198 - _font.Measure(reset) - _font.Measure(hcap) - _font.Measure(cb)) / 2);
+        Frame.Text(_font, 15, 463, reset);
+        Frame.Text(_font, 15 + _font.Measure(reset) + gap, 463, hcap);
+        Frame.Text(_font, 213 - _font.Measure(cb), 463, cb);
         Frame.Text(_font, 122, 449, $"Rate {_rate}Hz");
     }
 
@@ -355,6 +359,13 @@ public sealed partial class MeleeScreen
     private void ToggleCb()
     {
         Shell.Settings.CbRadio = !Shell.Settings.CbRadio;
+        Shell.Settings.Save();
+    }
+
+    /// <summary>The host form's Handicaps (the port's; docs/multiplayer.md "Handicaps"): whether the host may give the game's players handicaps from the score window.</summary>
+    private void ToggleHandicaps()
+    {
+        Shell.Settings.Handicaps = !Shell.Settings.Handicaps;
         Shell.Settings.Save();
     }
 
@@ -525,9 +536,12 @@ public sealed partial class MeleeScreen
         _turretsWas = _turrets;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio);
         int wasRate = _rate;
+        _handicapsWas = Shell.Settings.Handicaps;
         var wasCars = new List<string>(_botCars);
         OptionsPopupWith(was, wasRate, wasCars);
     }
+
+    private bool _handicapsWas;
 
     private bool _turretsWas;
 
@@ -550,6 +564,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.HiddenContent != was.Item8) ToggleHidden();
                     if (Shell.Settings.CarReset != was.Item9) ToggleCarReset();
                     if (Shell.Settings.CbRadio != was.Item10) ToggleCb();
+                    if (Shell.Settings.Handicaps != _handicapsWas) ToggleHandicaps();
                 }
                 Draw();
             },
@@ -591,6 +606,7 @@ public sealed partial class MeleeScreen
                 new("UNLIM. TURRETS", false, _turrets, "", _ => SetTurrets(!_turrets)),
                 new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()),
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
+                new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()),
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
             ];
@@ -619,6 +635,8 @@ public sealed partial class MeleeScreen
         rows.Add(new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()));
         // the port's: the CB radio, push-to-talk voice chat, the host's decision (on by default)
         rows.Add(new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()));
+        // the port's: the host may give players handicaps from the score window (docs/multiplayer.md "Handicaps"; off by default)
+        rows.Add(new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()));
         // the port's: players the server drives (docs/multiplayer.md "Bots"), up to the free seats, and how well
         rows.Add(new("BOTS:", true, false, $"{Math.Min(_bots, MaxBots):00}", d => _bots = Math.Clamp(Math.Min(_bots, MaxBots) + d, 0, MaxBots)));
         rows.Add(new("BOT SKILL:", true, false, _botSkill.ToString(), d => _botSkill = (I76.Sim.Missions.BotSkill)(((int)_botSkill + d + 3) % 3)));
@@ -678,6 +696,7 @@ public sealed partial class MeleeScreen
             case 28 when Hosting: ToggleHidden(); return true;
             case 36 when Hosting: ToggleCarReset(); return true;
             case 37 when Hosting: ToggleCb(); return true;
+            case 40 when Hosting: ToggleHandicaps(); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -723,6 +742,7 @@ public sealed partial class MeleeScreen
                     Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio,
                     Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
                     Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar,
+                    Handicaps = Shell.Settings.Handicaps,
                 },
             });
         }
@@ -739,6 +759,7 @@ public sealed partial class MeleeScreen
         if (g.Turrets) parts.Add("Unlimited turrets");
         if (!g.CarReset) parts.Add("No car reset");
         if (!g.Cb) parts.Add("CB radio off");
+        if (g.Handicaps) parts.Add("Handicaps on");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
 
@@ -757,6 +778,7 @@ public sealed partial class MeleeScreen
         if (g.Turrets) rows.Add("Unlim. turrets allowed");
         if (!g.CarReset) rows.Add("No car reset");
         if (!g.Cb) rows.Add("CB radio off");
+        if (g.Handicaps) rows.Add("Handicaps on");
         return rows;
     }
 

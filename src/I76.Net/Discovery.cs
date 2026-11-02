@@ -33,6 +33,9 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
     /// <summary>The arena is a custom map (its hash is known): a player without it downloads it on joining if <see cref="MapShared"/>.</summary>
     public bool CustomMap => MapHash is { Length: 32 };
 
+    /// <summary>The host gives players handicaps in this game (protocol 22; the restrictions' flags byte's 8, which an older reader never looks at).</summary>
+    public bool Handicaps { get; init; }
+
     public void Write(NetWriter w)
     {
         w.Str(Discovery.InfoMagic);
@@ -57,9 +60,9 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
         // the game has a password (protocol 12), appended the same way; the password itself is never sent
         t.Bool(Locked);
         // WEAPON RESTRICTIONS and Hidden Weapons & Cars (protocol 12), appended the same way: flags (1 hidden content allowed,
-        // 2 every weapon restricted, 4 several turrets allowed: an older reader never looks at that bit), then the (class, tier) pairs, tier −1 the whole class
+        // 2 every weapon restricted, 4 several turrets allowed, 8 handicaps: an older reader never looks at those bits), then the (class, tier) pairs, tier −1 the whole class
         var rs = Restricted;
-        t.U8((byte)((Hidden ? 1 : 0) | (rs.All ? 2 : 0) | (Turrets ? 4 : 0)));
+        t.U8((byte)((Hidden ? 1 : 0) | (rs.All ? 2 : 0) | (Turrets ? 4 : 0) | (Handicaps ? 8 : 0)));
         var pairs = rs.All ? [] : rs.Pairs.Take(I76.Sim.Trip.WeaponRestrictions.MaxPairs).ToList();
         t.U8((byte)pairs.Count);
         foreach (var (c, tier) in pairs) { t.I8((sbyte)c); t.I16((short)tier); }
@@ -106,7 +109,7 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
             byte[]? hash = null; bool shared = false; uint size = 0;
             if (r.Remaining >= 1 && r.U8() == 32) { hash = r.Bytes(32).ToArray(); shared = r.Bool(); size = r.VarU(); }
             bool locked = r.Remaining >= 1 && r.Bool();
-            bool hidden = false, turrets = false;
+            bool hidden = false, turrets = false, handicaps = false;
             var restricted = I76.Sim.Trip.WeaponRestrictions.None;
             if (r.Remaining >= 2)
             {
@@ -115,7 +118,7 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
                 if (n > I76.Sim.Trip.WeaponRestrictions.MaxPairs) return null;
                 var pairs = new List<(int, int)>();
                 for (int i = 0; i < n; i++) { int c = r.I8(); int t = r.I16(); pairs.Add((c, t)); }
-                hidden = (flags & 1) != 0; turrets = (flags & 4) != 0;
+                hidden = (flags & 1) != 0; turrets = (flags & 4) != 0; handicaps = (flags & 8) != 0;
                 restricted = I76.Sim.Trip.WeaponRestrictions.Normalize((flags & 2) != 0, pairs);
             }
             bool coop = r.Remaining >= 1 && r.Bool();
@@ -125,7 +128,7 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
             bool carReset = r.Remaining >= 1 && r.Bool();
             bool cb = r.Remaining < 1 || r.Bool();
             return new SessionInfo(id, version, name, arena, players, max, team, invite, score, limit, over, drivers, kind, goal, value, teams, hash, shared, size, locked,
-                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb);
+                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb) { Handicaps = handicaps };
         }
         catch (WireException) { return null; }
         catch (IndexOutOfRangeException) { return null; }

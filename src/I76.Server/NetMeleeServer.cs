@@ -362,6 +362,12 @@ public sealed partial class NetMeleeServer : IDisposable
     /// <summary>Boots the player in this slot (the listen host's BOOT keys).</summary>
     public string? Kick(int slot) => Kick(slot.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
+    /// <summary>The host sets a player's handicap (the listen host's score window keys; <see cref="MeleeHost.SetHandicap"/>): null when done, else why not.</summary>
+    public string? SetHandicap(int slot, int level) { lock (_lock) return Host.SetHandicap(slot, level); }
+
+    /// <summary>The handicap of the player in <paramref name="slot"/> as the host has it.</summary>
+    public int HandicapOf(int slot) { lock (_lock) return Host.HandicapOf(slot); }
+
     private void Seat(NetPeer peer, JoinRequest j)
     {
         // a co-op game that has not started gathers its players in the lobby first (NetMeleeServer.Lobby.cs)
@@ -372,10 +378,14 @@ public sealed partial class NetMeleeServer : IDisposable
     private Seat SeatIn(NetPeer peer, JoinRequest j)
     {
         var s = Host.Join(j.Name, j.Car, j.Team, peer, j.Config, j.Paint);
+        // a player carried into the next round keeps the host's handicap
+        if (_carriedHandicap.Remove(peer.Id, out int level)) Host.SetHandicap(s.Slot, level);
         _byPeer[peer.Id] = s;
         _joined[peer.Id] = j;
         return s;
     }
+
+    private readonly Dictionary<int, int> _carriedHandicap = [];
 
     private void SendAccept(NetPeer peer, Seat s)
     {
@@ -583,6 +593,7 @@ public sealed partial class NetMeleeServer : IDisposable
             var j = _joined.GetValueOrDefault(peer.Id) ?? new JoinRequest(Protocol.Version, s.Name, s.Actor.CarFile, (byte)s.Actor.Team, []);
             // the team it had (CTF may have dealt it one), not the one it first asked for
             j = j with { Team = (byte)s.Actor.Team, Paint = s.Actor.Car.Paint?.ToBytes() };
+            if (s.Actor.Car.Handicap != 0) _carriedHandicap[peer.Id] = s.Actor.Car.Handicap;
             _msg.Clear();
             _msg.U8((byte)MsgType.NextRound);
             _msg.Str(next.Arena);
