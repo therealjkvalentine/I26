@@ -38,6 +38,7 @@ public sealed class MeleeMode : IHostMode
         {
             Network = true, TeamPlay = _o.TeamPlay || _o.Kind == MeleeKind.Ctf, MaxScore = _o.MaxScore, TimeLimit = _o.TimeLimit, RespawnDelay = _o.RespawnDelay,
             Kind = _o.Kind, Goal = _o.Goal, GoalValue = _o.GoalValue, CtfTeams = Math.Clamp(_o.CtfTeams, 2, 4),
+            AutoHandicaps = _o.Handicaps == HandicapMode.Auto,
         };
         Setup = MissionSetup.Build(c.Vfs, c.World, c.Asm, rand: new CrtRand(unchecked((uint)_o.Seed)), melee: roster, meleeRules: rules, seed: _o.Seed);
         Game = Setup.Melee!;

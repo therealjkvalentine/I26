@@ -12,7 +12,7 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// A network game's handicaps (docs/multiplayer.md "Handicaps"): the shooter's level scales what its rounds deal, by the table
-/// (+3 ×1.6 … −3 ×0.55), truncated as the round's damage always is; level 0 is today's damage exactly; the level stays with the
+/// (+5 ×2.2 … −5 ×0.3), truncated as the round's damage always is; level 0 is today's damage exactly; the level stays with the
 /// car through a respawn and is saved with it.
 /// </summary>
 public class HandicapDamageTests
@@ -85,10 +85,10 @@ public class HandicapDamageTests
     [Fact]
     public void TheTableIsTheDocumentedOne()
     {
-        Assert.Equal([0.55f, 0.7f, 0.85f, 1f, 1.2f, 1.4f, 1.6f], Enumerable.Range(Handicaps.Min, 7).Select(Handicaps.Factor));
-        Assert.Equal(1.6f, Handicaps.Factor(9));        // clamped
-        Assert.Equal(0.55f, Handicaps.Factor(-9));
-        Assert.Equal(["-3", "-2", "-1", "0", "+1", "+2", "+3"], Enumerable.Range(Handicaps.Min, 7).Select(Handicaps.Label));
+        Assert.Equal([0.3f, 0.4f, 0.55f, 0.7f, 0.85f, 1f, 1.2f, 1.4f, 1.6f, 1.9f, 2.2f], Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Factor));
+        Assert.Equal(2.2f, Handicaps.Factor(9));        // clamped
+        Assert.Equal(0.3f, Handicaps.Factor(-9));
+        Assert.Equal(["-5", "-4", "-3", "-2", "-1", "0", "+1", "+2", "+3", "+4", "+5"], Enumerable.Range(Handicaps.Min, 11).Select(Handicaps.Label));
     }
 
     /// <summary>Level 0 is today's packet, channel for channel, for every stock handgun and the cannon.</summary>

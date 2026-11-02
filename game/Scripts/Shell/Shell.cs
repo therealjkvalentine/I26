@@ -71,8 +71,8 @@ public sealed record NetLaunch(int Mode)
     public bool CarReset { get; init; } = true;
     /// <summary>Hosting: the CB radio (voice chat) is on in the game (the form's CB Radio; on).</summary>
     public bool Cb { get; init; } = true;
-    /// <summary>Hosting: the host may give players handicaps from the score window (the form's Handicaps; off).</summary>
-    public bool Handicaps { get; init; }
+    /// <summary>Hosting: the Handicaps rule (the form's Hcp; off): Manual, the host sets each player's level from the score window; Auto, the game sets them from the standings.</summary>
+    public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
     /// <summary>Hosting: the form's Bots, players the server drives (up to the free seats), and how well.</summary>
     public int Bots { get; init; }
     public I76.Sim.Missions.BotSkill BotSkill { get; init; } = I76.Sim.Missions.BotSkill.Normal;
@@ -1158,8 +1158,8 @@ public sealed class ShellSettings
     public bool CarReset { get; set; } = true;
     /// <summary>The port's own: a hosted game has the CB radio on (the host form's CB Radio; shell.cfg [port] cb_radio, written only when off).</summary>
     public bool CbRadio { get; set; } = true;
-    /// <summary>The port's own: a hosted game lets the host give players handicaps (the host form's Handicaps; shell.cfg [port] handicaps, written only when on).</summary>
-    public bool Handicaps { get; set; }
+    /// <summary>The port's own: a hosted game's Handicaps rule (the host form's Hcp; shell.cfg [port] handicaps, "manual" or "auto", written only when on; an older file's true is manual).</summary>
+    public I76.Sim.Missions.HandicapMode Handicaps { get; set; }
     /// <summary>The port's own: CB Voice (Play Options, second page; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
     public bool CbVoice { get; set; } = true;
     /// <summary>The port's own: the microphone CB Voice uses (shell.cfg [port] cb_mic; Play Options steps through the sound system's list). Empty is the system default.</summary>
@@ -1253,7 +1253,10 @@ public sealed class ShellSettings
         s.ShareMaps = (bool)c.GetValue("port", "share_maps", true);
         s.CarReset = (bool)c.GetValue("port", "car_reset", true);
         s.CbRadio = (bool)c.GetValue("port", "cb_radio", true);
-        s.Handicaps = (bool)c.GetValue("port", "handicaps", false);
+        var hcp = c.GetValue("port", "handicaps", false);
+        s.Handicaps = hcp.VariantType == Variant.Type.Bool ? ((bool)hcp ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off)
+            : hcp.VariantType == Variant.Type.String && (string)hcp == "auto" ? I76.Sim.Missions.HandicapMode.Auto
+            : hcp.VariantType == Variant.Type.String && (string)hcp == "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
         s.CbMic = (string)c.GetValue("port", "cb_mic", "");
         // no version step: absent, it is off, the stock game
@@ -1316,7 +1319,7 @@ public sealed class ShellSettings
         if (!ShareMaps) c.SetValue("port", "share_maps", false);
         if (!CarReset) c.SetValue("port", "car_reset", false);
         if (!CbRadio) c.SetValue("port", "cb_radio", false);
-        if (Handicaps) c.SetValue("port", "handicaps", true);
+        if (Handicaps != I76.Sim.Missions.HandicapMode.Off) c.SetValue("port", "handicaps", Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "auto" : "manual");
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
         if (CbMic.Length > 0) c.SetValue("port", "cb_mic", CbMic);
         if (HiddenContent) c.SetValue("port", "hidden_content", true);

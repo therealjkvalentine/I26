@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Network games use protocol 23: this version does not play with 0.11.0 or earlier.
+
 ### New
 - Map editor: switching between the editor and its playtest is much faster. Coming back to the editor is instant (it was a 2 to 3 second reload) because the editor is kept aside while you play, and going into the playtest takes about 1 second (1.6 s on the big T01 map in the modern look) instead of 2 to 3 (and more on a slow machine). An edit you make always shows in the playtest.
 - Map editor: a playtest (F5, the PLAYTEST button) drops your car under the mouse cursor, on the ground, a road or a bridge's deck, facing the way the camera looks; with the cursor on the sky, off the map, on water, on a cliff or in a building, or off the 3D view, it goes where it used to, at the camera's pivot, and says why.
@@ -24,6 +26,7 @@
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
 Network games use protocol 22: this version does not play with 0.11.0 or earlier.
 - A network game's host can turn on Handicaps (the host form's Hcp, HANDICAPS in the Nitro and co-op game options, or --handicaps for the dedicated server) and give each player a level from -3 to +3 from the score window (Shift+1..9 picks a player, Shift+[ and Shift+] set the level): it scales the damage that player's weapons deal, from x0.55 to x1.6, and everyone sees it by the name on the scoreboard; the game list shows "Handicaps on".
+- Handicaps can be Auto (the host form's Hcp, HANDICAPS in the Nitro game options, or --handicaps auto): in a melee the game sets each player's level from the standings, every 1.5 kills (net of deaths) over the table's average costs a level and under it gives one, one step at a time, given back as the field catches up; the levels now reach -5 to +5 (x0.3 to x2.2), by hand too; every change is said in everyone's feed and shown on the scoreboard, so a family of mixed skill plays toward the same number of kills with nobody told their level.
 
 ## 0.11.0 (31 October 2026)
 

@@ -19,7 +19,7 @@ public sealed partial class MeleeGame
             .Structural("the arena's points, from the mission file", nameof(Spawns), nameof(Regens), nameof(TeamSpawns), nameof(Checkpoints))
             .Structural("the mission build's world, host, rand stream and car factory, and the session's roster and rules",
                 nameof(World), nameof(Host), nameof(Rand), nameof(Build), nameof(Roster), nameof(PlayerCar), nameof(Rules), nameof(Explode))
-            .Transient("the host's hooks", nameof(Message), nameof(LapCounted), nameof(Spawned), nameof(Removed), nameof(PlayerRenewed), nameof(Landed))
+            .Transient("the host's hooks", nameof(Message), nameof(LapCounted), nameof(HandicapChanged), nameof(Spawned), nameof(Removed), nameof(PlayerRenewed), nameof(Landed))
             .Derived("the map's ramps and what they do to the bots' cars, flown again from the map and the cars (a pure function of them)", nameof(_jumps), nameof(_jumpDt))
             .Structural("the host's switch for bots on ramps", nameof(BotsJump))
             .Transient("the ramp search's counters, for logs and tests, and its once-a-frame limit", nameof(Plans), nameof(PlanMilliseconds), nameof(JumpsCommitted), nameof(JumpsGivenUp), nameof(_plansThisFrame));
@@ -27,7 +27,8 @@ public sealed partial class MeleeGame
             .Saved(nameof(MeleePlayer.Brain))
             .Saved(nameof(MeleePlayer.Car), nameof(MeleePlayer.Entity), nameof(MeleePlayer.CarFile), nameof(MeleePlayer.Name), nameof(MeleePlayer.Score),
                 nameof(MeleePlayer.Kills), nameof(MeleePlayer.Deaths), nameof(MeleePlayer.Destroyed), nameof(MeleePlayer.RespawnAt), nameof(MeleePlayer.RegenAt),
-                nameof(MeleePlayer.OffPad), nameof(MeleePlayer.Death), nameof(MeleePlayer.BotSkill), nameof(MeleePlayer.BotSlot), nameof(MeleePlayer.NextCar), nameof(MeleePlayer.CarEpoch), nameof(MeleePlayer.RespawnWanted), nameof(MeleePlayer.Paint));
+                nameof(MeleePlayer.OffPad), nameof(MeleePlayer.Death), nameof(MeleePlayer.BotSkill), nameof(MeleePlayer.BotSlot), nameof(MeleePlayer.NextCar), nameof(MeleePlayer.CarEpoch), nameof(MeleePlayer.RespawnWanted), nameof(MeleePlayer.Paint), nameof(MeleePlayer.Form))
+            .Derived("kills minus deaths as of the last frame, which Form has taken in", nameof(MeleePlayer.FormKd));
         a.For<CtfGame>()
             .Saved(nameof(CtfGame.Flags), nameof(CtfGame.TeamCaptures))
             .Transient("the host's hooks", nameof(CtfGame.Message), nameof(CtfGame.Captured));
@@ -48,6 +49,7 @@ public sealed partial class MeleeGame
         {
             w.Car(p.Car); w.Ent(p.Entity); w.Str(p.CarFile); w.Str(p.Name); w.Int(p.Score); w.Int(p.Kills); w.Int(p.Deaths); w.Bool(p.Destroyed);
             w.NF32(p.RespawnAt); w.F32(p.RegenAt); w.Bool(p.OffPad); w.Int((int)p.Death); w.Str(p.NextCar); w.Int(p.CarEpoch); w.Bool(p.RespawnWanted); w.Int(p.BotSkill); w.Int(p.BotSlot); w.Bytes(p.Paint?.ToBytes() ?? []);
+            w.F32(p.Form);   // format 17
             w.Bool(p.Brain is not null); p.Brain?.Save(w);
         }
         w.Int(Winner is null ? -1 : Players.IndexOf(Winner));
@@ -81,8 +83,9 @@ public sealed partial class MeleeGame
             bool destroyed = r.Bool(); var respawnAt = r.NF32(); float regenAt = r.F32(); bool offPad = r.Bool();
             var death = (DeathCredit)r.Int(); var next = r.Str(); int epoch = r.Int(); bool wanted = r.Bool(); int skill = r.Int(), botSlot = r.Int();
             var paint = I76.Formats.Imaging.CarPaint.FromBytes(r.Bytes());
+            float form = r.F32();
             var p = new MeleePlayer { Car = car, Entity = ent, CarFile = file, Name = name, BotSkill = skill, BotSlot = botSlot, Paint = paint };
-            p.Score = score; p.Kills = kills; p.Deaths = deaths; p.Destroyed = destroyed; p.RespawnAt = respawnAt; p.RegenAt = regenAt; p.OffPad = offPad;
+            p.Score = score; p.Kills = kills; p.Deaths = deaths; p.Form = form; p.FormKd = kills - deaths; p.Destroyed = destroyed; p.RespawnAt = respawnAt; p.RegenAt = regenAt; p.OffPad = offPad;
             p.Death = death; p.NextCar = next; p.CarEpoch = epoch; p.RespawnWanted = wanted;
             if (r.Bool()) p.Brain = BotBrain.Load(r);
             Players.Add(p);

@@ -105,7 +105,7 @@ public sealed class NetHudDemo
         }
         f.ScoresHint = Has("hint");
         var ctx = new ScoreContext(kind, teamPlay, f.MySlot, host, Classic && !teamPlay ? ScoreOrder.Slot : ScoreOrder.Ranked, Classic ? ScoreTable.ClassicRows : ScoreTable.ModernRows)
-            { HostSlot = host ? f.MySlot : 0, HandicapPick = host && Has("handicaps") ? Math.Min(3, rows.Count - 1) : -1 };
+            { HostSlot = host ? f.MySlot : 0, HandicapPick = host && Has("handicaps") && !Has("auto") ? Math.Min(3, rows.Count - 1) : -1 };
         if (Has("board") || Has("teams")) f.Board = ScoreTable.Players(rows, ctx, Has("page2") ? 1 : 0, f.TeamName);
         // the feed: a burst of kills and joins, some about this player
         var feed = new HudFeed();
@@ -122,6 +122,12 @@ public sealed class NetHudDemo
         if (Has("dead") || Has("ready"))
             Add(new FeedEntry(FeedKind.Kill, Kill(f.MySlot, 1), at + 5) { Who = Name(1), What = Name(f.MySlot), WhoTeam = Team(1), WhatTeam = Team(f.MySlot), OnMe = true });
         Add(new FeedEntry(FeedKind.Leave, NetLines.Leave(false, Name(7)), at + 5.5) { Who = Name(7), WhoTeam = Team(7) });
+        // Auto handicap's lines (docs/multiplayer.md "Auto handicap"): the levels the game set, said to everyone
+        if (Has("auto"))
+        {
+            Add(new FeedEntry(FeedKind.Notice, I76.Sim.Missions.Handicaps.Announce(Name(0), -2), at + 2));
+            Add(new FeedEntry(FeedKind.Notice, I76.Sim.Missions.Handicaps.Announce(Name(4), 3), at + 4.2));
+        }
 
         if (Has("chat") || Has("typing"))
         {

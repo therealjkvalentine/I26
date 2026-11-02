@@ -329,7 +329,7 @@ public sealed class Vehicle
     public int NetId;
     /// <summary>Bumped each time the car is renewed in place (a regen pad, a respawn): its state jumps.</summary>
     public int NetGeneration;
-    /// <summary>The host's handicap on this car's driver, −3..+3 (the port's; <see cref="Missions.Handicaps"/>): scales the damage its rounds and flame deal. 0, the original's, outside a network game with handicaps.</summary>
+    /// <summary>The host's handicap on this car's driver, −5..+5 (the port's; <see cref="Missions.Handicaps"/>): scales the damage its rounds and flame deal. 0, the original's, outside a network game with handicaps.</summary>
     public int Handicap;
     /// <summary>A helicopter's block (object type 9): it flies (HeliStep) instead of driving. Null for a car.</summary>
     public HeliState? Heli;

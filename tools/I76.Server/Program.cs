@@ -15,7 +15,8 @@ using I76.Server;
 //                                 mortars, missiles, flames, droppers), a .gdf (gchades, tdumb) or class:tier; a join whose car
 //                                 carries one is refused, naming them. Hidden weapons are named the same way (gchades, gscherub...).
 //       [--turrets]               Unlim. Turrets: cars may carry several turrets, each on a roof mount (off: a joining car with a second one is refused, a bot loses the extras).
-//       [--handicaps]             Handicaps: the console's handicap SLOT LEVEL gives a player a level, -3..+3, that scales their rounds' damage (off by default).
+//       [--handicaps [auto]]      Handicaps: the console's handicap SLOT LEVEL gives a player a level, -3..+3, that scales their rounds' damage (off by default);
+//                                 auto: the game sets the levels from the standings instead (docs/multiplayer.md "Auto handicap").
 //       [--no-cb]                 the CB radio (voice chat) is off in this game: no voice is relayed and the clients do not open a microphone (on by default).
 //       [--no-car-reset]          the reset-upright key (U) does not work in this game (on by default, as the original's F12 trick worked online).
 //       [--hidden]                Hidden Weapons & Cars: the complete hidden models and weapons may play (off: a car with any is refused).
@@ -60,7 +61,7 @@ string? Arg(string name) => a.IndexOf(name) is >= 0 and var i && i + 1 < a.Count
 int IntArg(string name, int d) => Arg(name) is { } s ? int.Parse(s, CultureInfo.InvariantCulture) : d;
 if (a.Contains("--help") || a.Contains("-h"))
 {
-    Console.WriteLine("i26-server [--install DIR] [--game i76|nitro] [--coop MISSION] [--arena m05] [--port 7676] [--max 32] [--autostart] [--start-when N] [--ai N] [--teams] [--max-score S] [--time-limit SECONDS] [--name NAME] [--kind combat|race|ctf] [--goal laps|captures|points|kills] [--goal-value N|unlimited] [--ctf-teams 2-4] [--rate 20|25|28|30|40|60] [--upload MBIT] [--seed N] [--password WORD] [--restrict a,b,c] [--hidden] [--handicaps] [--bot-car N=MODEL[:VARIANT]]... [--bot-cars-file PATH] [--invite-only] [--rotate a,b,c] [--once] [--round-pause 15] [--anet HOST[:PORT]]... [--share-maps|--no-share-maps] [--no-car-reset] [--no-cb] [--map-max-mb 16] [--map-rate 256]");
+    Console.WriteLine("i26-server [--install DIR] [--game i76|nitro] [--coop MISSION] [--arena m05] [--port 7676] [--max 32] [--autostart] [--start-when N] [--ai N] [--teams] [--max-score S] [--time-limit SECONDS] [--name NAME] [--kind combat|race|ctf] [--goal laps|captures|points|kills] [--goal-value N|unlimited] [--ctf-teams 2-4] [--rate 20|25|28|30|40|60] [--upload MBIT] [--seed N] [--password WORD] [--restrict a,b,c] [--hidden] [--handicaps [auto]] [--bot-car N=MODEL[:VARIANT]]... [--bot-cars-file PATH] [--invite-only] [--rotate a,b,c] [--once] [--round-pause 15] [--anet HOST[:PORT]]... [--share-maps|--no-share-maps] [--no-car-reset] [--no-cb] [--map-max-mb 16] [--map-rate 256]");
     return 0;
 }
 // testing: only the headless players, joining a game on this machine (a listen server's: --bots-to PORT --bots N)
@@ -155,7 +156,7 @@ var o = new ServerOptions
     Restrictions = restrictions,
     AllowHidden = a.Contains("--hidden"),
     AllowTurrets = a.Contains("--turrets"),
-    Handicaps = a.Contains("--handicaps"),
+    Handicaps = !a.Contains("--handicaps") ? I76.Sim.Missions.HandicapMode.Off : Arg("--handicaps") == "auto" ? I76.Sim.Missions.HandicapMode.Auto : I76.Sim.Missions.HandicapMode.Manual,
     AllowCarReset = !a.Contains("--no-car-reset"),
     AllowCb = !a.Contains("--no-cb"),
     InviteOnly = a.Contains("--invite-only"),
@@ -246,7 +247,7 @@ bool Command(string t)
             server.Chat(arg);
             return true;
         case "help" when t.StartsWith('/') || arg.Length == 0 && parts.Length == 1:
-            Log("commands: kick NAME|SLOT, handicap SLOT LEVEL (-3..+3, with --handicaps), cbmute NAME / cbunmute NAME (a player's CB voice, for everyone), start (a co-op lobby), players, y / n / s (an invite-only join), say TEXT; any other line is chat");
+            Log("commands: kick NAME|SLOT, handicap SLOT LEVEL (-3..+3, with --handicaps; not auto), cbmute NAME / cbunmute NAME (a player's CB voice, for everyone), start (a co-op lobby), players, y / n / s (an invite-only join), say TEXT; any other line is chat");
             return true;
     }
     if (t.StartsWith('/')) { Log($"unknown command {t}; /help lists them"); return true; }
