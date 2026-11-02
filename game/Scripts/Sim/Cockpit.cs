@@ -835,7 +835,7 @@ public partial class Cockpit : Node
         var surfaces = Enumerable.Range(0, mesh.GetSurfaceCount()).Where(i => mesh.SurfaceGetMaterial(i) is { } m && made.Contains(m)).ToList();
         if (surfaces.Count == 0) return;
         _mirrorView = new SubViewport { Size = new Vector2I(1024, 256), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled, Name = "Mirror" };
-        _mirrorCam = new Camera3D { Fov = 30, KeepAspect = Camera3D.KeepAspectEnum.Width, Near = 0.1f, Far = 20000, Current = true };
+        _mirrorCam = new Camera3D { Fov = MirrorCameraSettings.FovDegrees, KeepAspect = Camera3D.KeepAspectEnum.Width, Near = 0.1f, Far = MirrorCameraSettings.FarMetres, Current = true };
         _mirrorView.AddChild(_mirrorCam);
         SmokeLayer.MirrorCamera = _mirrorCam;
         AddChild(_mirrorView);
