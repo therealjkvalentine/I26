@@ -210,6 +210,12 @@ stacked ones and the integration branch are section I, after H.
 | I10 | feat/hd-textures-row | Graphic Detail's HD Textures row (Esc pad and the main menu's sheet, shown when a pack is found): Off\* the game's own world, car and cockpit textures, On the pack's upscales, live; HD Menu Art stays its own row | ux; local: HdTexturesSettingTests | `_scratch/r3-hd-row/shots/{esc,shell}-gd-{modern,1997}.png`, `t01-{cockpit,chase}-{on,off}.png` | merged |
 | I11 | feat/saves-tools-to-dev-panel | Load Bookmark is the original's sheet plus Delete; Import Saves and All Scenes move to a Developer panel on the main menu (with `developer=true`) | ux (the owner's notes: keep the menus simple); local: BookmarkDeletePlaceTests | `_scratch/r3-saves-declutter/shots/0{1..5}-*.png` | merged |
 | I12 | fix/round3-integration-2 | the integrator's hand fixes of pass 4 (below): the cockpit sampler after the dials, the network handguns row, the .45 and Q in playing.md | local: Game CockpitSamplingTests | - | merged |
+| I13 | fix/held-keys-stale-modifier | a modifier the engine still holds is let go when a later key or mouse event's flags say it is up (Controls.Observe), so held keys no longer act on the press only after macOS keeps a release (Ctrl+F2 to the menu bar); scripted keys carry the script's modifiers | local: Formats StaleModifiersTests 3; on Windows a lost Control release crept at 0.5 throttle before, 47.9 by frame 420 after; not observed on a Mac | - | merged |
+| I14 | fix/shell-music-no-title-tracks | the 3D garage keeps the menu track, as the original's CONFIGURE CHASSIS does; the boombox only with `[port] garage_radio=on`, mission tracks only (I76 2-14, Nitro all but 10 and 4) | spec (the shell loops its menu track on every screen); local: Formats ShellMusicTests 4 | - | merged |
+| I15 | feat/net-esc-self-destruct | the network Esc menu's row 2 is Self Destruct (new car), the original's Replay there (Ctrl+Del's flag), asked yes/no, greyed while dead or once decided; Leave / Exit questions say what they do | spec; local: Net EscapeMenuSelfDestructTests 5 | `_scratch/r3-mp-esc/shots/` | merged |
+| I16 | feat/net-auto-handicap-2 | auto handicap: a level per net kill over the table's average (band 1); dealt x0.75..x0.2 at -1..-5, +n the inverse to x5; taken 1/factor held to x1/3..x3; rams by the rammer's factor, the .45's 5 points by both | ux (the port's rule); melee-sim m05 six bots, seeds 1-24: leader margin 8.3 (off) / 3.3 (old auto) / 2.0 (new); local: Sim AutoHandicapTests, HandicapDamageTests, Net HandicapTests, AutoHandicapSimTests re-pinned | - | merged; AutoHandicapSimTests passes again |
+| I17 | fix/hd-pack-glass-and-key | under an HD pack the window, material-table, paint-mask and material-map analyses read the original's texels (an entry's Base) and sample their maps by UV: glass sees through again, no cyan rim | local: Formats CarMaterialTableTests (5939 glass texels on the 128x128 grid, 340 at 512x512); M01 side captures with and without the pack | `_scratch/r3-pack-fixes/` | merged |
+| I18 | perf/hd-pack-load | packs are 2x BC7 .dds (the cockpit's z* art 4x) uploaded as stored, decompressed only where the CPU paints; a model's upscales read and decoded together on all cores; tools/upscale-textures.py writes DDS (etcpak), `--from` repacks an older pack | local: T01 mission build 9.0 s no pack, 9.8 s with the 2x BC7 pack (was 13.4-18.0 s with the 4x PNG pack); the pack 588 MB on disk (1.29 GB as 4x PNG); Formats HdTextureTests | `_scratch/r3-pack-fixes/` | merged |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -246,6 +252,29 @@ rerere replayed the resolutions of a scratch pass of the same merges, the trees 
   gives every human's car its .45s, as docs/multiplayer.md does, whose stale "later phases" handgun line goes;
   docs/playing.md says what Q picks (15 degrees of the nose, radar range, else cleared) and how the .45 finishes a
   crippled car (a side glance held 0.5 s, then fire; under a third straight to a critical part).
+
+Pass 5 (2026-11-02 night): the six branches above merged by sync-play (incremental; rerere replayed the resolutions of a
+scratch pass of the same merges in the same order, the trees identical). No code conflict: the HD branches sit on
+feat/hd-textures-row already and the two network branches on fix/round3-integration-2, so HdTextures.cs, TextureFactory,
+MaterialLibrary, NetHud, EscapeMenu and Handicaps merged without a hunk.
+- CHANGELOG.md: union at each merge (garage music, the two network lines under New, the two HD lines under Fixed);
+  perf/hd-pack-load's own copy of the glass line kept once.
+- docs/deviations.md: the network Esc row ("Escape menu in a network game") put before "Settings without a row", whose
+  text is the garage-music branch's (garage_radio in the key list), not the Esc branch's older copy of it.
+- Seen, not changed: in feat/net-auto-handicap-2 the HandicapTaken helper's summary sits under IncomingFactor's, which
+  is left without its own (a doc-comment slip in DamageModel.cs, no behaviour); for the next integration branch.
+- Self Destruct counts a death like Ctrl+Del, so it moves the auto handicap's net kills as the key does.
+- HD pack numbers (T01 --drive --chase, seed 7, mission build from the hitch line, a shared loaded machine): 9.0 s without
+  a pack, 9.8 s with the 2x BC7 pack; the pack 588 MB on disk.
+
+Versions after pass 5: snapshot 24, protocol 24, shell.cfg 13, unchanged (garage_radio is written only when on);
+WireTests' TheProtocolIs24 holds.
+
+Test status, pass 5 (`play` at d1b9c17, before the play-meta merge): desktop (I76_INSTALL and I76_NITRO_INSTALL set)
+Game 214/214, Sim 959/992, Net 424/439; outside the desktop baseline only the known four (CheckpointTests T14,
+CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the Nitro install set). Laptop: Sim
+958/990, Net 424/439, Game 214/214, Formats 889/924 (30 skipped), Editor 216/216; outside the laptop's baseline the three
+known Sim ones. AutoHandicapSimTests leaves the known list (re-pinned by feat/net-auto-handicap-2). No new failure.
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
