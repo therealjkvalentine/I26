@@ -68,6 +68,8 @@ public interface IFsmHost
     void StartCar(object o);
     void SetLights(object o, bool on);
     void SetSiren(object o, bool on);
+    /// <summary>setUserRadar: the player's radar on (non-zero) or off; a value other than the last one toggles it.</summary>
+    void SetUserRadar(int on) { }
     void TriggerGate(object o);
     void Camera(string op, IReadOnlyList<int> args, IReadOnlyList<object?> objects, IReadOnlyList<Vector3>? path);
     bool CameraArrived();

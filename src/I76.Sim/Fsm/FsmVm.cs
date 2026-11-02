@@ -689,9 +689,7 @@ public sealed partial class FsmVm
             case "setartillery": foreach (var o in All(t, 0)) h.SetArtillery(o, V(t, 1)); break;
             case "setartilleryrate": foreach (var o in All(t, 0)) h.SetArtilleryRate(o, V(t, 1)); break;
             case "salvage": { if (S(t, 0) is { } s) h.Salvage(s); break; }
-            case "setuserradar":
-                Warn($"FSM: {name} not yet handled here");
-                break;
+            case "setuserradar": h.SetUserRadar(V(t, 0)); break;
             default:
                 h.Log($"FSM: unknown prototype {name}");
                 break;

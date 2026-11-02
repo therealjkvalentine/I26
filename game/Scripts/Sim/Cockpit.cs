@@ -589,7 +589,8 @@ public partial class Cockpit : Node
     /// <summary>Extra radar blips with their own colour: CTF's flags (class 0x5b, in the team's colour), each as a sim position and a colour. The vehicles' rule of range applies.</summary>
     public Func<IEnumerable<(System.Numerics.Vector3 Pos, Color Colour)>>? Blips { get; set; }
     public int RadarRange => Combat?.RadarRange.GetValueOrDefault(Car, 1) ?? 1;   // 0: 100 m, 1: 600 m: the sim's radar (R flips it)
-    public bool RadarOn { get; set; } = true;  // radar +0xc bit 0
+    /// <summary>Radar +0xc bit 0: on, unless a script's setUserRadar has darkened the player's radar.</summary>
+    public bool RadarOn => Combat is null || !(Combat.UserRadarDark && Car == Combat.World.Player);
 
     private void Radar()
     {
