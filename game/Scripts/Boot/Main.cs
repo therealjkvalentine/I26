@@ -899,7 +899,7 @@ public partial class Main : Node3D
         // "hit-me[:N[:zone]]": the player's car hit for N in a zone, default the rear)
         if (world.Player is { } driven) session.AddDriver(driven);
         if (session.Options.DebugHooks) session.DebugBoom = System.Environment.GetEnvironmentVariable("I76_BOOM");
-        _sim = new SimDriver { Session = session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio, CameraSubject = () => _tv?.Subject };
+        _sim = new SimDriver { Session = session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio };
         // the sim ticks before Main reads the script camera, so a cut-scene owns the very first frame
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;

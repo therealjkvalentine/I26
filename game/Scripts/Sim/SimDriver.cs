@@ -70,8 +70,6 @@ public partial class SimDriver : Node
     private bool _started;
     /// <summary>The eye is in the player's car (its arms are live), and which arm the glance raises by crew channel (1 right, 2 left).</summary>
     public Func<bool>? InCockpit { get; set; }
-    /// <summary>The camera's object when it is not the player's car (F11's round), for the 600 m voice cull.</summary>
-    public Func<Vector3?>? CameraSubject { get; set; }
     public Func<int, bool>? ArmWanted { get; set; }
     /// <summary>The debug fly camera is current: its keys (WASDQE) are not commands.</summary>
     public Func<bool>? FlyCameraActive { get; set; }
@@ -162,7 +160,7 @@ public partial class SimDriver : Node
 
     public override void _EnterTree()
     {
-        Voice3D.Followed = () => CameraSubject?.Invoke() ?? (Player is { } p && IsInstanceValid(p) && p.IsInsideTree() ? p.GlobalPosition : null);
+        Voice3D.Followed = () => Player is { } p && IsInstanceValid(p) && p.IsInsideTree() ? p.GlobalPosition : null;
         Voice3D.PlayerCar = () => Player is { } p && IsInstanceValid(p) ? p : null;
         Voice3D.InCockpit = () => InCockpit?.Invoke() == true;
         SimClock.Rate = Session.Rate;
