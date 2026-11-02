@@ -608,12 +608,4 @@ void fragment() {
 	vec3 bn = normalize(n - (grad - dot(grad, n) * n));
 	vec3 world_n = vec3(bn.x, bn.y, -bn.z);
 	NORMAL = normalize((VIEW_MATRIX * vec4(world_n, 0.0)).xyz);
-
-	// Map Edge: the ground near the map's edge hazed toward the sky's horizon with distance (map_edge.gdshaderinc)
-	float edge_f = i76_edge_haze.x > 0.0 ? map_edge_amount(map_edge_band(g_pos.xz), dist) : 0.0;
-	if (edge_f > 0.0) {
-		ALBEDO *= 1.0 - edge_f;
-		SPECULAR *= 1.0 - edge_f;
-		EMISSION = mix(EMISSION, map_edge_color(normalize((INV_VIEW_MATRIX * vec4(VERTEX, 0.0)).xyz)), edge_f);
-	}
 }

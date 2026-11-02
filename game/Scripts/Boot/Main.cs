@@ -2035,29 +2035,19 @@ public partial class Main : Node3D
         ApplyMapEdge();
     }
 
-    /// <summary>I76_MAP_EDGE=0|1|2|3, a capture hook: Original, Haze, Fade Out or Hide whatever the settings say.</summary>
-    private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? MapEdge.Parse(me) : setting;
-    private int _mapEdge = MapEdge.Original;
+    /// <summary>I76_MAP_EDGE=0|1, a capture hook: Off or On whatever the settings say.</summary>
+    private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? (me == 1 ? MapEdge.On : MapEdge.Off) : setting;
+    private int _mapEdge = MapEdge.Off;
 
     /// <summary>
-    /// Map Edge on the modern look's terrain and ring (MapEdge, map_edge.gdshaderinc): the haze's strength and reach, in the
-    /// ring's own horizon colour and sun glow, or Hide's clamp to the walls' foot grid; off in the 1997 look, at Original,
-    /// and with no ring (no edge grid then).
+    /// Map Edge on the modern look's terrain and ring (MapEdge, map_edge.gdshaderinc): On clamps the ground to the walls'
+    /// foot grid; off in the 1997 look, at Off, and with no ring (no foot grid then).
     /// </summary>
     private void ApplyMapEdge()
     {
-        bool on = !_mode1997 && _mapEdge != MapEdge.Original && _horizon is { HasEdgeGrid: true };
-        // amount at full haze, band inside the edge, clear air and reach (m): Haze leaves the walls' and the ranges' shapes
-        // as pale silhouettes; Fade Out takes them into the horizon colour from nearer; Hide hazes nothing
-        var haze = !on || _mapEdge == MapEdge.Hide ? Vector4.Zero : _mapEdge == MapEdge.FadeOut ? new Vector4(1f, 900f, 100f, 420f) : new Vector4(0.6f, 900f, 150f, 550f);
-        RenderingServer.GlobalShaderParameterSet("i76_edge_haze", haze);
-        RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on && _mapEdge == MapEdge.Hide ? 1f : 0f);
+        bool on = !_mode1997 && _mapEdge == MapEdge.On && _horizon is { HasEdgeWalls: true };
+        RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on ? 1f : 0f);
         MissionBuilder.Trace($"map edge: {MapEdge.Names[_mapEdge]}, {(on ? "on" : "off")}");
-        if (!on) return;
-        var m = _horizon!.Material;
-        var c = m.GetShaderParameter("horizon_color").AsColor().SrgbToLinear();   // a source_color there, a plain vec4 here
-        RenderingServer.GlobalShaderParameterSet("i76_edge_color", new Vector4(c.R, c.G, c.B, m.GetShaderParameter("light_strength").AsSingle()));
-        RenderingServer.GlobalShaderParameterSet("i76_edge_sun", m.GetShaderParameter("sprite_dir").AsVector3());
     }
 
     /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>

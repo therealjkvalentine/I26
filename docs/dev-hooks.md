@@ -245,8 +245,8 @@ the car's `VehicleFlags` in hex).
 | `I76_HORIZON_PANELS` | tuning | `1`: the sky's horizon panels instead of 3D distant terrain. |
 | `I76_HORIZON_TINT` | debug | `1`: the 3D distant terrain drawn flat magenta, to see where it shows (it must never show over the map's own ground). |
 | `I76_HORIZON_MASK` | debug | `0`: the distant terrain drawn over the map's tiles as it was before the floor grid (HorizonTerrain.FloorGrid), for before captures. |
-| `I76_MAP_EDGE` | capture | `0`, `1`, `2`, `3`: Graphic Detail's Map Edge (Original, Haze, Fade Out, Hide) for this run whatever the settings say. |
-| `I76_MAP_EDGE_RIDGES` | capture | `0`: Map Edge's Hide also hides the ridges between two drivable regions (EdgeWalls keeps them: drivable ground lies on both sides), for comparison. |
+| `I76_MAP_EDGE` | capture | `0`, `1`: Graphic Detail's Map Edge (Off, On) for this run whatever the settings say. |
+| `I76_MAP_EDGE_RIDGES` | capture | `0`: Map Edge's On also hides the ridges between two drivable regions (EdgeWalls keeps them: drivable ground lies on both sides), for comparison. |
 | `I76_BAKE_CACHE` | tuning | `0`: no bake cache: road layers, ground materials and terrain surfaces are made afresh and not kept (`user://cache/terrain/`, keyed by their inputs, 1 GB at most). |
 | `I76_GROUND_MATERIALS` | tuning | `0`: procedural ground only (and a painted ground without the asphalt scan). |
 | `I76_GROUND_PAINT` | tuning | `0`: a painted ground (M15's parking lot, GroundMarkings) drawn as fitted noise like a natural one. |

@@ -104,7 +104,7 @@ are for another game and are not listed.
 
 **Unlim. Ordnance.** Play Options' second page, beside Unlim. Turrets: the original keeps at most 160 live rounds of a kind (40 online for mines, caltrops, Blox and fire drops) and removes the oldest past that; on, there is no cap, so a long oil or fire trail stays whole. Single-player games only: a network game keeps the original's cap for everyone.
 
-**The original's value.** On a pad, a row's value says what it is, and the original game's value is marked with `*`: Force Feedback's Pad\*, Melee A.I.'s Normal\*, Map Edge's Plain\*, HD Textures' Off\*. A row without a mark (1997 Mode, Vegetation, ...) has no original's value to mark, or its original's value is plain Off.
+**The original's value.** On a pad, a row's value says what it is, and the original game's value is marked with `*`: Force Feedback's Pad\*, Melee A.I.'s Normal\*, Map Edge's Off\*, HD Textures' Off\*. A row without a mark (1997 Mode, Vegetation, ...) has no original's value to mark, or its original's value is plain Off.
 
 ### Settings without a row
 
