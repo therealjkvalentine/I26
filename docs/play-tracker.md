@@ -186,6 +186,93 @@ Net --filter Wire|Handicap|Discovery 54/55 (RestrictionTests.ARefusedJoinGetsNoS
 Laptop: Sim 947/978, Net 419/434; 36 failures, 2 not in the laptop baseline, the two known ones
 (CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz); the two network-timing tests of pass 1 passed.
 
+## I. Round 3 (2026-11-02 afternoon): the playtest's answers
+
+Merged into `play` on 2026-11-02 by sync-play (incremental; rerere replayed the hand resolutions recorded in a scratch
+pass of the same merges, in the same order). The four master-based branches sit in C2, C and D of the manifest; the eight
+stacked ones and the integration branch are section I, after H.
+
+| order | branch | what it changes | evidence | screenshots | status |
+|---|---|---|---|---|---|
+| C2 | perf/interop-garbage | the cars' drop-shadow casters are found once, a shadow's node is told only what changed, the smoke layer keeps its uniform set (frame profiler: gc0_per_100) | frame profiles: process step T01 2.08 -> 1.77 ms, T05 3.04 -> 2.38 (GTX 1650 Ti), T01 3.85 -> 2.84 (GTX 1080 Ti); finalizer thread 6.3 -> 3.0 % of samples; captures bit-identical | - | merged |
+| C | fix/cockpit-gauge-dials-too-dark | the 3D cockpit's gauge needles drawn as painted (prelit), like the dash, both looks; deviations row "Cockpit gauge needles" | spec: needle.geo is four untextured faces in one colour, lit through the object light in the original; local: Game CockpitNeedleTests | `_scratch/r3-fixes-shell/shots/03-needles-after-{day,night}-{modern,1997}.png` | merged |
+| D | feat/hd-world-textures | the modern look draws a player's upscaled texture from user://tex-world/ (or a pack zip's tex-world/) in a texture's place, 2x/4x/8x; the 1997 look keeps the originals; nothing ships | local: Formats HdTextureTests, Game CockpitPanelsBlitTests | `_scratch/r3-upscale-v1/shots/{front,cockpit}-{original,hd}-1280x960.png` | merged |
+| D | feat/hd-texture-tool | `--export-textures DIR` and tools/upscale-textures.py (the 4xTextures_GTAV_rgt-s_dither model, CC-BY-4.0, named in the pack) make such a pack from the player's own install | local: 6,563 PNGs exported from a base install; the lab's pack stays outside the repository | as above | merged |
+| I1 | fix/turret-aim-moving-carrier | a turret aims at the predictor's point from the barrel; nothing taken off for the carrier's own travel; the AI gun gate and friendly scan test the round as it flies here | original (measured 2026-11-02, see below): rounds never inherit the carrier's velocity and the original's turrets hit from a moving carrier; local: TurretLeadTests 188/200 hits at 20 m/s (was 1) | `_scratch/r3-sim-fixes/shots/turret-chase-{modern,1997}.png` | merged; CheckpointTests (T14) moves, see known failures |
+| I2 | feat/original-recipe-folded | the Original Recipe pad folded away: Unlim. Ordnance a Play Options row, Rumble into Force Feedback (Off / Pad* / Pad Enhanced / Wheel), Draw Distance no row anywhere, the rest `[port]` keys with a "Settings without a row" table in docs/playing.md; Sky Drift steady by default (deviations row updated: we differ on purpose); the original's value marked `*` (ShellSettings.OriginalMark); settings version 13 | ux (the owner's notes: keep the menus simple); local: SettingsWithoutARowTests | `_scratch/r3-menus-fold/shots/{esc,shell}-*.png` | merged |
+| I3 | fix/graphic-detail-scrollbar | Graphic Detail scrolls as one list (the original's six rows and the port's) on the pad's fourteen lines; the bar at the right edge after the values | local (owner report) | `_scratch/r3-menus-polish/shots/scrollbar/*.png` | merged |
+| I4 | feat/field-of-view-in-graphic-detail | Field of View on the Esc pad too; Monitor (the original's height, the width from the window) the default, 60..110 exact degrees across the window, 90* the original's; `[port] fov` in degrees across the window | ux; local: ViewFovTests | `_scratch/r3-menus-polish/shots/fov/*.png` | merged |
+| I5 | feat/developer-menu-entry | `developer=true` in shell.cfg (developer_tools read too); the Developer entry at the bottom of the Esc Options Menu; Ctrl+` as well as Ctrl+F2 (Mac keyboards, the Godot editor) | local: DeveloperFlagTests | `_scratch/r3-menus-polish/shots/dev-entry/*.png` | merged |
+| I6 | fix/delete-bookmark-from-parts-form-1997 | Save Bookmark (the salvage form's and garage's sheet) has Delete too | local (owner report): BookmarkDeletePlaceTests | `_scratch/r3-fixes-shell/shots/01-save-bookmark-delete-from-salvage-{modern,1997}.png` | merged |
+| I7 | fix/1997-tracers-two-pixels | 1997 look: the MG tracer line one pixel per 480 rows of the 3D view (two at 1080p, four at most), a screen-space quad | original: a one-pixel line at 640x480; local: TracerLengthTests (owner report: a hair's breadth) | `_scratch/r3-fixes-shell/shots/04-tracers-1997-{1280x960,1920x1080}.png` | merged |
+| I8 | feat/map-edge-hide | Map Edge gains Hide: the walls and the plateau behind them drawn down at the plain of their foot (EdgeWalls in Formats, the terrain's vertex shader, the ring from the plain); Original (Plain*) stays the default | ux; local: EdgeWallsTests; measured over the 114 stock and Nitro maps (terrace steps 5-40 m, plateaus 400 m deep) | `_scratch/r3-map-walls/shots/{m01,t05start,t05se}-{original,haze,hide}.png` | merged |
+| I9 | fix/round3-integration | the integrator's hand fixes beyond the conflict hunks (listed below) | local: Game tests 206/206 | `_scratch/r3-integration/shots/esc-graphic-detail-end-{modern,1997}.png` | merged |
+
+Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
+- Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
+  the barrel (n 114, excess median -0.02 m/s; 168-176 if inherited), the velocity field written to 20 m/s with the pose
+  held changes nothing (n 56), an AI car's forward 200 m/s gun at 12-17 m/s reads 199.96-200.05 and its rearward gun
+  199.5-200.04 (n 21 / 19, 4 boots), rockets +3.6-3.9 m/s whatever the speed (the speed field's half-step ease, no
+  carrier term). Spawn stays as it is.
+- The original's turrets hit from a moving carrier: the player's .50 cal turret 19/19 at rest and 37/37 driving past at
+  21-23 m/s (miss 0.1-0.7 m, median 0.2; an aim that took the carrier's velocity off would miss by 5 m), T11's
+  helicopters 195/229 (85 %, median 48 m/s) and 43/45 (96 %), a T14 police car 15/24 at 2.6-17 m/s (n 24, the target
+  jostled). So fix/turret-aim-moving-carrier is faithful, not an improvement. Not covered: the lead on a moving target
+  from a moving carrier (second order).
+- Trip mission 5's cliff (the owner's note): no bug. The fall rule is faithful: a drop of over 35 m kills, as the
+  original's does.
+
+Open after round 3:
+- The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
+  Mac's input.map and a repro.
+- Map walls: Original (Plain*) stays the default; Hide is a choice, not the default.
+- CheckpointTests (T14) fails with the turret aim fix: the cops' turrets now hit Taurus and the checkpoint race no longer
+  plays out as the test pinned it. A consequence of a faithful fix: left failing and listed below; the test needs a
+  different mission or car (a follow-up lane).
+
+Hand fixes in round 3 (each a conflict-hunk resolution rerere keeps, unless said to be in fix/round3-integration):
+- CHANGELOG.md: the union kept lines the fold replaced (the draw-distance-after-a-visit fix, the Original Recipe pad) at
+  every later merge; fix/round3-integration takes them out and puts the Unreleased section back to one New and one
+  Fixed part (the two master-based fixes were under New).
+- docs/deviations.md: the union duplicated rows the fold had reworded (Play Options rows, Instant Melee's computer cars,
+  Escape menu and mission-end menu, In-car view lighting): the fold's wording kept, the dev entry's Hotkeys row and the
+  texture, needle and tracer rows added; the Map boundary walls row is the Hide branch's text with Plain\* as the default.
+- EscapeMenu.cs: fix/graphic-detail-scrollbar (built before the fold) re-added the Recipe pad and the Draw Distance row:
+  ours (the fold) in all three hunks, its FirstRow / VisibleRows, Shown and bar drawing merged by git. Field of View is
+  Esc row 11 after Vegetation (Mouse Camera to Map Edge move down one; no Draw Distance row), ResetGraphics puts it to
+  Monitor and leaves DrawDistanceChoice alone; the Developer entry's row is computed from the pad's last entry (theirs);
+  Map Edge's row takes MapEdge.Names.Length with the comment naming Plain as the original's.
+- Overlays.cs: Field of View keeps the fold's slot 16 with the FOV lane's comment (Update Check 17, Hood Finish 18,
+  Render Scale 19, Map Edge 20).
+- MapEdge.cs / MapEdgeTests.cs: `Original, Haze, FadeOut, Hide` with Names `Plain*`, Haze, Fade Out, Hide; Parse(3) is
+  Hide, Parse(4) Original.
+- tests/I76.Game.Tests/OriginalRecipeTests.cs: the fold renamed it to SettingsWithoutARowTests.cs while the FOV lane
+  edited the old file (its "Original first" exemption); the modify/delete conflict leaves the old copy in the tree and
+  sync-play adds it, so fix/round3-integration deletes it (it tests a pad that no longer exists).
+- fix/round3-integration besides: "90 (1997)" is "90*" in ViewFov.Names, the deviations row, playing.md and the
+  changelog, and SettingsWithoutARowTests' marker test covers ViewFov.Names; `developer` in the "Settings without a row"
+  table; the Esc pad's Graphic Detail gets Render Scale (row 16, before Map Edge, live, Reset to 100 %) as the shell's
+  sheet has it; the sheet's Map Edge comment names Hide.
+- The merge order the script took differs from the manifest's for the master-based ones (dials before interop-garbage):
+  harmless, both touch only the changelog in common.
+
+Versions on `play` after round 3: snapshot 24, protocol 24, unchanged (no round-3 branch bumps either); WireTests pins
+24 / 24 (`TheProtocolIs24`), SnapshotHeader.CurrentVersion 24, Protocol.Version 24. shell.cfg version 13 (the fold).
+
+Test status, round 3 (`play` at a96407c, the tree the final play-meta merge carries): desktop (I76_INSTALL and
+I76_NITRO_INSTALL set) Game 206/206, Sim 952/985, Formats 894/915 (16 skipped), Net 416/434; against the desktop
+baseline the new failures are CheckpointTests.ARetryFromTheObjectivesCheckpointIsTheStateItWasTakenIn (T14: the cops'
+turrets now hit Taurus, see above), the two known ones (CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30
+Hz), AutoHandicapSimTests.SixBotsOfMixedSkillForFiveMinutesWithTheRuleOffAndOn (Net: its kills and levels were pinned
+to play's bot game in pass 2; the bots' turrets hit now, so auto kills read 1,2,0,2,0,... against the pinned 5,2,1,0,0,0;
+a consequence of the faithful fix, to re-pin once the rule's assertions are checked on the new game), and
+CaltropTests.ACarOverADroppedCaltropBlowsThatTyre, which is not round 3's: it fails whenever I76_NITRO_INSTALL is set
+(the Nitro layer's caltrop ordnance names a "null" impact effect, so the impact carries no sound) on play before round 3
+too, and passes without it; the desktop baseline was run without that variable. Laptop (play at a96407c): Sim 951/983,
+Net 417/434, Game 206/206, Formats 881/915 (30 skipped); outside the laptop's baseline the three Sim ones above, the
+AutoHandicapSim test, and BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink (the laptop-load flake of pass 1, in the
+desktop baseline, passing on the desktop).
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
