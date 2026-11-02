@@ -363,6 +363,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>The glass a texture got when its material was made (null: none, or not made yet).</summary>
     /// <summary>Graphic Detail's Car Interiors, for every car's glass at once (the shaders' global i76_car_interiors).</summary>
+    /// <summary>Graphic Detail's Hood Finish: Matte (true) takes the cockpit hood's clear coat and sheen off in the modern look (the shaders' global i76_hood_matte).</summary>
+    public static void ApplyHoodMatte(bool on) => RenderingServer.GlobalShaderParameterSet("i76_hood_matte", on);
+
     public static void ApplyCarInteriors(bool on) => RenderingServer.GlobalShaderParameterSet("i76_car_interiors", on);
 
     /// <summary>A debug key (Ctrl+F8, in a mission and in the 3D garage): every car's material map and glass off, the all-over clear coat back, to compare; returns the new state.</summary>

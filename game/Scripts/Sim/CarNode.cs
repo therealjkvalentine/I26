@@ -205,6 +205,7 @@ public partial class CarNode : Node3D
         if (mesh is null || mesh.GetSurfaceCount() == 0) { _hood?.QueueFree(); _hood = null; return; }
         if (_hood is null) { _hood = new MeshInstance3D { Name = "Hood", Layers = CockpitLayer }; _cockpit.AddChild(_hood); }
         _hood.Mesh = mesh;
+        _hood.SetInstanceShaderParameter("hood_surface", 1f);
         if (Paint is not null) ApplyPaint(_hood);
     }
 

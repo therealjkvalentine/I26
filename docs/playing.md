@@ -77,6 +77,8 @@ map whose terrain file is missing is still listed, as in the original, but choos
 with a note naming the file. Interstate '82 maps (`.msa`)
 are for another game and are not listed.
 
+**Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
+
 ### Controls
 
 Controls follow the original's keys, as set in Options > Control Configuration (which edits keys, the mouse
