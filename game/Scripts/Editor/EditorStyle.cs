@@ -17,6 +17,12 @@ public static class EditorStyle
 
     public static StyleBoxFlat Panel(float s) => Flat(HudStyle.Panel, 10, s, HudStyle.Edge, 14);
 
+    /// <summary>
+    /// The height of the tool column's scrolling box: all of it when it fits, else what is left between the top bar's 70 and the status
+    /// bar's 44 (with a 10 gap) less the panel's margins, and never under 100 (scaled by s).
+    /// </summary>
+    public static float ColumnHeight(float content, float viewport, float s) => Math.Min(content, Math.Max(100 * s, viewport - (70 + 44 + 10 + 2 * 14) * s));
+
     public static void Title(Label l, float size)
     {
         l.AddThemeFontOverride("font", HudStyle.Title);
