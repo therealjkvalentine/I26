@@ -69,6 +69,8 @@ public sealed record NetLaunch(int Mode)
     public bool ShareMaps { get; init; } = true;
     /// <summary>Hosting: players may reset their car upright (the form's Car Reset; on, as the original's F12 trick worked online).</summary>
     public bool CarReset { get; init; } = true;
+    /// <summary>Hosting: nobody switches their engine off in the game (the form's IGN. LOCK; off).</summary>
+    public bool IgnitionStaysOn { get; init; }
     /// <summary>Hosting: the CB radio (voice chat) is on in the game (the form's CB Radio; on).</summary>
     public bool Cb { get; init; } = true;
     /// <summary>Hosting: the form's Bots, players the server drives (up to the free seats), and how well.</summary>
@@ -1154,6 +1156,8 @@ public sealed class ShellSettings
     public bool ShareMaps { get; set; } = true;
     /// <summary>The port's own: a hosted game lets its players reset their car upright (the host form's Car Reset; on).</summary>
     public bool CarReset { get; set; } = true;
+    /// <summary>The port's own: a hosted game keeps every engine on, the ignition key never switching one off (the host form's IGN. LOCK; shell.cfg [port] ignition_stays_on, written only when on).</summary>
+    public bool IgnitionStaysOn { get; set; }
     /// <summary>The port's own: a hosted game has the CB radio on (the host form's CB Radio; shell.cfg [port] cb_radio, written only when off).</summary>
     public bool CbRadio { get; set; } = true;
     /// <summary>The port's own: CB Voice (Play Options, second page; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
@@ -1248,6 +1252,7 @@ public sealed class ShellSettings
         s.MapDownloads = Math.Clamp((int)c.GetValue("port", "map_downloads", 0), 0, 2);
         s.ShareMaps = (bool)c.GetValue("port", "share_maps", true);
         s.CarReset = (bool)c.GetValue("port", "car_reset", true);
+        s.IgnitionStaysOn = (bool)c.GetValue("port", "ignition_stays_on", false);
         s.CbRadio = (bool)c.GetValue("port", "cb_radio", true);
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
         s.CbMic = (string)c.GetValue("port", "cb_mic", "");
@@ -1310,6 +1315,7 @@ public sealed class ShellSettings
         if (MapDownloads != 0) c.SetValue("port", "map_downloads", MapDownloads);
         if (!ShareMaps) c.SetValue("port", "share_maps", false);
         if (!CarReset) c.SetValue("port", "car_reset", false);
+        if (IgnitionStaysOn) c.SetValue("port", "ignition_stays_on", true);
         if (!CbRadio) c.SetValue("port", "cb_radio", false);
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
         if (CbMic.Length > 0) c.SetValue("port", "cb_mic", CbMic);

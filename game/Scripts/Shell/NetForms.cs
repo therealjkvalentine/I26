@@ -319,7 +319,9 @@ public sealed partial class MeleeScreen
         }
         Frame.Text(_font, _coopBase ? 15 : 152, 435, $"Pass: {(_password.Length > 0 ? "*" : "-")}");
         // ("Hidden: On", the box's name shortened to leave the line's end for the rate)
-        Frame.Text(_font, 15, 421, $"Unlim. turrets: {(_turrets ? "On" : "Off")}");
+        Frame.Text(_font, 15, 421, $"Turrets: {(_turrets ? "Unlim." : "One")}");
+        // the ignition lock (#108): Lock, nobody switches their engine off
+        Frame.Text(_font, 140, 421, $"Ign: {(Shell.Settings.IgnitionStaysOn ? "Lock" : "Free")}");
         Frame.Text(_font, 15, 449, $"Hidden: {(Shell.Settings.HiddenContent ? "On" : "Off")}");
         // (and the Car Reset's, the reset-upright key, on a line of its own under them)
         Frame.Text(_font, 15, 463, $"Car reset: {(Shell.Settings.CarReset ? "On" : "Off")}");
@@ -362,6 +364,13 @@ public sealed partial class MeleeScreen
     private void ToggleCarReset()
     {
         Shell.Settings.CarReset = !Shell.Settings.CarReset;
+        Shell.Settings.Save();
+    }
+
+    /// <summary>The host form's ignition lock (the port's, #108): nobody in the game switches their engine off (the ignition key only starts one).</summary>
+    private void ToggleIgnition()
+    {
+        Shell.Settings.IgnitionStaysOn = !Shell.Settings.IgnitionStaysOn;
         Shell.Settings.Save();
     }
 
@@ -523,13 +532,14 @@ public sealed partial class MeleeScreen
     private void OptionsPopup()
     {
         _turretsWas = _turrets;
+        _ignitionWas = Shell.Settings.IgnitionStaysOn;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio);
         int wasRate = _rate;
         var wasCars = new List<string>(_botCars);
         OptionsPopupWith(was, wasRate, wasCars);
     }
 
-    private bool _turretsWas;
+    private bool _turretsWas, _ignitionWas;
 
     private void OptionsPopupWith((bool, int, int, bool, int, I76.Sim.Missions.BotSkill, bool, bool, bool, bool) was, int wasRate, List<string> wasCars)
     {
@@ -549,6 +559,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.ShareMaps != was.Item7) { Shell.Settings.ShareMaps = was.Item7; Shell.Settings.Save(); }
                     if (Shell.Settings.HiddenContent != was.Item8) ToggleHidden();
                     if (Shell.Settings.CarReset != was.Item9) ToggleCarReset();
+                    if (Shell.Settings.IgnitionStaysOn != _ignitionWas) ToggleIgnition();
                     if (Shell.Settings.CbRadio != was.Item10) ToggleCb();
                 }
                 Draw();
@@ -590,6 +601,7 @@ public sealed partial class MeleeScreen
                 new("HIDDEN WPNS & CARS", false, Shell.Settings.HiddenContent, "", _ => ToggleHidden()),
                 new("UNLIM. TURRETS", false, _turrets, "", _ => SetTurrets(!_turrets)),
                 new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()),
+                new("IGNITION STAYS ON", false, Shell.Settings.IgnitionStaysOn, "", _ => ToggleIgnition()),
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
@@ -617,6 +629,8 @@ public sealed partial class MeleeScreen
         rows.Add(new("UNLIM. TURRETS", false, _turrets, "", _ => SetTurrets(!_turrets)));
         // the port's: the reset-upright key (X) works in the game, the host's decision (on: the original's F12 trick worked online)
         rows.Add(new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()));
+        // the port's: nobody switches their engine off (no hiding from turrets with it off), the host's decision (off by default)
+        rows.Add(new("IGNITION STAYS ON", false, Shell.Settings.IgnitionStaysOn, "", _ => ToggleIgnition()));
         // the port's: the CB radio, push-to-talk voice chat, the host's decision (on by default)
         rows.Add(new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()));
         // the port's: players the server drives (docs/multiplayer.md "Bots"), up to the free seats, and how well
@@ -677,6 +691,7 @@ public sealed partial class MeleeScreen
             case 26: Shell.Settings.ShareMaps = !Shell.Settings.ShareMaps; Shell.Settings.Save(); return true;
             case 28 when Hosting: ToggleHidden(); return true;
             case 36 when Hosting: ToggleCarReset(); return true;
+            case 39 when Hosting: ToggleIgnition(); return true;
             case 37 when Hosting: ToggleCb(); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
@@ -720,7 +735,7 @@ public sealed partial class MeleeScreen
                     TeamPlay = !Coop && (_teamPlay || (Nitro && Types[_kind].Kind == I76.Sim.Missions.MeleeKind.Ctf)), InviteOnly = _inviteOnly,
                     MaxScore = _scoreOn && !Nitro && !Coop ? _maxScore : 0, Team = team, ShareMaps = Shell.Settings.ShareMaps, Password = _password,
                     Kind = Nitro && !Coop ? Types[_kind].Kind : null, Goal = NitroGoal.Goal, GoalValue = NitroGoal.Value, Minutes = NitroGoal.Minutes, CtfTeams = Types[_kind].Teams,
-                    Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio,
+                    Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio, IgnitionStaysOn = Shell.Settings.IgnitionStaysOn,
                     Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
                     Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar,
                 },
@@ -738,6 +753,7 @@ public sealed partial class MeleeScreen
         if (g.Hidden) parts.Add("Hidden weapons & cars allowed");
         if (g.Turrets) parts.Add("Unlimited turrets");
         if (!g.CarReset) parts.Add("No car reset");
+        if (g.IgnitionStaysOn) parts.Add("Ignition stays on");
         if (!g.Cb) parts.Add("CB radio off");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
@@ -756,6 +772,7 @@ public sealed partial class MeleeScreen
         if (g.Hidden) rows.Add("Hidden cars allowed");
         if (g.Turrets) rows.Add("Unlim. turrets allowed");
         if (!g.CarReset) rows.Add("No car reset");
+        if (g.IgnitionStaysOn) rows.Add("Ignition stays on");
         if (!g.Cb) rows.Add("CB radio off");
         return rows;
     }

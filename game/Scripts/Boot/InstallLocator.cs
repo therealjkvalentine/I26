@@ -121,6 +121,8 @@ public sealed class LaunchOptions
     public bool? ShareMaps { get; set; }
     /// <summary>--car-reset / --no-car-reset: whether a listen server lets its players reset their car upright (null: the setting).</summary>
     public bool? CarReset { get; set; }
+    /// <summary>--no-ignition-off / --ignition-off: whether a listen server keeps every engine on (the ignition key never switches one off; null: the setting).</summary>
+    public bool? IgnitionStaysOn { get; set; }
     /// <summary>--cb / --no-cb: whether a listen server has the CB radio on (null: the setting).</summary>
     public bool? Cb { get; set; }
     /// <summary>--map-downloads ask|always|never: a host's custom map this install lacks (null: the setting).</summary>
@@ -293,6 +295,8 @@ public sealed class LaunchOptions
                 case "--no-share-maps": o.ShareMaps = false; break;
                 case "--car-reset": o.CarReset = true; break;
                 case "--no-car-reset": o.CarReset = false; break;
+                case "--no-ignition-off": o.IgnitionStaysOn = true; break;
+                case "--ignition-off": o.IgnitionStaysOn = false; break;
                 case "--cb": o.Cb = true; break;
                 case "--no-cb": o.Cb = false; break;
                 case "--map-downloads":
