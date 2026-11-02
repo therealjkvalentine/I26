@@ -23,6 +23,7 @@
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
 - The crashed plane in the Nitro Pack's P18 can be hit: cars bounce off its fuselage and rounds strike it, as in the original, instead of passing through.
+- With Modern Physics on, the player's car meets that plane's fuselage too; it drove through it.
 
 ## 0.11.0 (31 October 2026)
 
