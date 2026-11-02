@@ -22,6 +22,7 @@
 - Police sirens wail as in the original: once a mission turns a police car's siren on, it keeps sounding until the mission turns it off or the car is wrecked, instead of playing once, and the trip's and the scenarios' own police cars sound the siren rather than a short car horn, as on the 1997 CD. A Sheriff that honks at a car in its way turns its siren on too.
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
+- Field salvage takes a wreck's specials as the original does: every fitted special, even a burnt-out one, at the condition the original gives it; and a T16 tank or the howitzer gives nothing after its own big gun (the original stops at the part it has no salvage tier for), where it used to give its other weapons and specials too.
 
 ## 0.11.0 (31 October 2026)
 
