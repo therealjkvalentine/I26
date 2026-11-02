@@ -31,20 +31,21 @@ public class TapHoldTests
     private static PadRules ARule() => PadRules.Parse("taphold joystick1 Button1 weapon_fire special1\n");
 
     [Fact]
-    public void AReleaseUnder400MsIsATap()
+    public void AReleaseUnder200MsIsATap()
     {
-        var r = Run(ARule(), "special1", (0, false), (16, true), (200, true), (399, true), (415, false), (500, false));
+        Assert.Equal(200, PadRules.TapHold.HoldMs);
+        var r = Run(ARule(), "special1", (0, false), (16, true), (100, true), (215, true), (231, false), (300, false));
         Assert.Equal(["weapon_fire"], r.Single(x => x.Pulses.Length > 0).Pulses);
-        Assert.Equal(415, r.Single(x => x.Pulses.Length > 0).Ms);              // on the release, not the press
+        Assert.Equal(231, r.Single(x => x.Pulses.Length > 0).Ms);              // on the release, not the press
         Assert.DoesNotContain(r, x => x.Holds);
     }
 
     [Fact]
-    public void AHoldPast400MsPressesAndHoldsTheSecondCommandAndNeverTaps()
+    public void AHoldPast200MsPressesAndHoldsTheSecondCommandAndNeverTaps()
     {
-        var r = Run(ARule(), "special1", (0, true), (300, true), (399, true), (400, true), (800, true), (1200, false), (1300, false));
+        var r = Run(ARule(), "special1", (0, true), (150, true), (199, true), (200, true), (600, true), (1000, false), (1100, false));
         Assert.Equal(["special1"], r.Single(x => x.Pulses.Length > 0).Pulses);
-        Assert.Equal(400, r.Single(x => x.Pulses.Length > 0).Ms);              // exactly at 400 ms is a hold
+        Assert.Equal(200, r.Single(x => x.Pulses.Length > 0).Ms);              // exactly at 200 ms is a hold
         Assert.Equal([false, false, false, true, true, false, false], r.Select(x => x.Holds));
         Assert.DoesNotContain(r, x => x.Pulses.Contains("weapon_fire"));
     }
@@ -52,8 +53,39 @@ public class TapHoldTests
     [Fact]
     public void EachPressIsTimedOnItsOwn()
     {
-        var r = Run(ARule(), "special1", (0, true), (100, false), (150, true), (560, true), (600, false), (700, true), (750, false));
+        var r = Run(ARule(), "special1", (0, true), (100, false), (150, true), (360, true), (400, false), (500, true), (550, false));
         Assert.Equal(["weapon_fire", "special1", "weapon_fire"], r.SelectMany(x => x.Pulses));
+    }
+
+    /// <summary>Frames (ms, A, the shift held): every pulse and hold the rule gives.</summary>
+    private static (string Pulses, bool Held) Shifted(params (long Ms, bool A, bool Shift)[] frames)
+    {
+        var rules = ARule();
+        var src = new Pads();
+        var bank = new JoystickBank(src);
+        var pulses = new List<string>();
+        bool held = false;
+        foreach (var (ms, a, shift) in frames)
+        {
+            src.List[0] = new PadRaw(0, 0, 0, 0, 0, 0, a ? 1UL << PadButton.A : 0);
+            bank.Poll(true);
+            rules.Update(new PadRules.Frame(bank, ms, Shifted: shift));
+            pulses.AddRange(rules.Pulses);
+            held |= rules.Held("special1");
+        }
+        return (string.Join(",", pulses), held);
+    }
+
+    [Fact]
+    public void APressWithTheShiftIsTheShiftLayersAndDoesNeither()
+    {
+        // LB+A: input.map's shifted chord fires; the rule neither taps nor holds, however long
+        Assert.Equal(("", false), Shifted((0, true, true), (100, true, true), (600, true, true), (700, false, true)));
+        Assert.Equal(("", false), Shifted((0, true, true), (100, true, false), (600, true, false), (700, false, false)));   // the shift let go first
+        // A, then the shift joins before 200 ms: the chord's too
+        Assert.Equal(("", false), Shifted((0, true, false), (100, true, true), (150, false, true)));
+        // the shift alone, then A: the rule as ever
+        Assert.Equal(("weapon_fire", false), Shifted((0, false, true), (50, false, false), (60, true, false), (120, false, false)));
     }
 
     [Fact]

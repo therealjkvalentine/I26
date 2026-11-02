@@ -68,7 +68,7 @@ public static class Controls
         if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } if (_seen > was && _table is not null) { _table = WithDevicePresets(_table); _axes = new AxisControls(_table.Blocks); } }
         if (_table?.Rules is { IsEmpty: false } rules)
         {
-            rules.Update(new PadRules.Frame(Pads, (long)Time.GetTicksMsec(), LookingBack?.Invoke() == true));
+            rules.Update(new PadRules.Frame(Pads, (long)Time.GetTicksMsec(), LookingBack?.Invoke() == true, PadRules.ShiftHeld(_table, Pads), PadRules.DownOf(_table, Pads, TermLive)));
             if (Held?.Invoke() != true) foreach (var c in rules.Pulses) Pulse(c);
         }
     }

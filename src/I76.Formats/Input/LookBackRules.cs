@@ -24,7 +24,8 @@ public sealed partial class PadRules
 
     /// <summary>
     /// While the head looks back, a pad input gives a command of its own instead of its bindings: the look stick's click drops the
-    /// dropper. The input keeps its bindings otherwise. Line: <c>lookbackinput joystick1 Button10 hardpoint4_fire</c>.
+    /// dropper. The input keeps its bindings otherwise, and with the shift held (its shifted command, input.map's chord). Line:
+    /// <c>lookbackinput joystick1 Button10 hardpoint4_fire</c>.
     /// </summary>
     public sealed class LookBackInput(InputTerm input, string command) : Rule
     {
@@ -39,7 +40,7 @@ public sealed partial class PadRules
         public override void Update(in Frame f, Output o)
         {
             bool held = f.Bank.Held(JoystickBank.DeviceOf(Input.Device), Input.Channel);
-            if (f.LookingBack)
+            if (f.LookingBack && !f.Shifted)
             {
                 o.Mask(Input);
                 if (held) { o.Hold(Command); if (!_was) o.Pulse(Command); }
@@ -50,7 +51,8 @@ public sealed partial class PadRules
 
     /// <summary>
     /// With a stick pulled back past half its travel, one command's inputs give another: the handbrake button toggles reverse (a
-    /// three-point turn without letting go of the stick). Line: <c>pulledback joystick1 Down/Up e_brake reverse_direction</c>.
+    /// three-point turn without letting go of the stick). Which it is is decided when the command's input goes down and kept until it is
+    /// let go: a handbrake held before the stick comes back keeps holding. Line: <c>pulledback joystick1 Down/Up e_brake reverse_direction</c>.
     /// </summary>
     public sealed class PulledBack(InputTerm axis, string from, string to) : Rule
     {
@@ -64,10 +66,17 @@ public sealed partial class PadRules
         public static Rule? Parse(string[] w) =>
             w.Length == 5 && JoystickBank.DeviceOf(w[1]) >= 0 && VirtualStick.AnalogId(w[2]) >= 0 ? new PulledBack(new InputTerm(true, w[1], w[2]), w[3], w[4]) : null;
 
+        private bool _down, _redirect;
+
         public override void Update(in Frame f, Output o)
         {
             // back is + on the stick's Y (a pad's left stick down, a flight stick pulled towards the player)
-            if (f.Bank.Analog(JoystickBank.DeviceOf(Axis.Device), Axis.Channel) > Past) o.Redirect(From, To);
+            bool back = f.Bank.Analog(JoystickBank.DeviceOf(Axis.Device), Axis.Channel) > Past;
+            bool down = f.Down?.Invoke(From) == true;
+            // latched at the press: the stick moving while the button is held changes nothing until it is let go
+            if (!down || !_down) _redirect = back;
+            _down = down;
+            if (_redirect) o.Redirect(From, To);
         }
     }
 
