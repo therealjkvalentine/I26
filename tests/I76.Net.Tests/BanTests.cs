@@ -79,13 +79,24 @@ public class BanTests
         using var c = Connect(server, "Carol");
         Pump(() => c.State == ClientState.Joined, c);
         Assert.Equal(ClientState.Joined, c.State);
-        // a name not in the game is banned by name alone
-        Assert.Null(server.Ban("Dave"));
-        Assert.Equal("Ban: Dave is banned already", server.Ban("dave"));
+        // a name that matches nobody is refused, a typo naming who it may have been; name: bans a name not in the game
+        Assert.StartsWith("Ban: nobody in the game is called \"Dave\"", server.Ban("Dave"));
+        Assert.Contains("(Carol?)", server.Ban("cxrol"));
+        Assert.Equal(["Bob"], server.Banned);
+        Assert.Null(server.Ban("name:Dave"));
+        Assert.Equal("Ban: Dave is banned already", server.Ban("name:dave"));
         Assert.Null(server.Unban("bob"));
         Assert.StartsWith("Unban: nobody banned", server.Unban("bob"));
         using var b3 = Connect(server, "Bob");
         Pump(() => b3.State == ClientState.Joined, b3);
         Assert.Equal(ClientState.Joined, b3.State);
+    }
+
+    [Fact] public void ABanOfNobodyNamesWhoItMayHaveMeant()
+    {
+        string[] names = ["Jade", "Jaws", "Groove Champion"];
+        Assert.Equal("Ban: nobody in the game is called \"jde\" (Jade or Jaws?); /ban name:jde bans the name alone", NetMeleeServer.NoSuchPlayer("jde", names));
+        Assert.Equal("Ban: nobody in the game is called \"ja\" (Jade or Jaws?); /ban name:ja bans the name alone", NetMeleeServer.NoSuchPlayer("ja", names));
+        Assert.Equal("Ban: nobody in the game is called \"zzz\"; /ban name:zzz bans the name alone", NetMeleeServer.NoSuchPlayer("zzz", names));
     }
 }
