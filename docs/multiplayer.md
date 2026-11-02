@@ -1199,7 +1199,7 @@ godot-mono --path game -- --connect HOST:PORT [--name N] [--car X.vcf] [--team T
 
 - The server chooses the arena and answers with the car it actually built.
   A car file it does not have becomes its default car, the Piranha.
-- Esc opens the menu (Leave Game, Exit Game, Graphic Detail, Audio Control, Control Configuration, Resume); the game runs on under it and the car is held neutral. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
+- Esc opens the menu (Leave Game, Self Destruct (new car), Exit Game, Graphic Detail, Audio Control, Control Configuration, Resume); the game runs on under it and the car is held neutral. Self Destruct sends Ctrl+Del's command (in the original, the network menu's Replay item): a death with no killer, -500 to a floor of 0, then Space for a new car; greyed while dead and once the game is decided. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
   map and notepad are off, because they would pause the game.
 
 ### A listen server
