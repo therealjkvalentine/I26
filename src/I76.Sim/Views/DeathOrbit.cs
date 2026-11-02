@@ -1,0 +1,31 @@
+namespace I76.Sim.Views;
+
+/// <summary>
+/// The orbit round a dead car, and the network end of match's round the winner's. The original's only automatic orbit
+/// (the end of a network match) forces the track yaw delta to 8 and its orbit view adds it in degrees once per call, a
+/// frame; here once per sim tick, as the other per-frame camera rules, so it turns 160 degrees a second at 20 Hz. The
+/// single-player death camera is not in our reading of the original; it takes the same rate, by analogy.
+/// </summary>
+public sealed class DeathOrbit
+{
+    /// <summary>Degrees a step.</summary>
+    public const float StepDegrees = 8f;
+
+    private float _acc;
+
+    /// <summary>The yaw, radians.</summary>
+    public float Yaw;
+
+    /// <summary>Starts the orbit at a yaw (radians), no step pending.</summary>
+    public void Start(float yaw) { Yaw = yaw; _acc = 0; }
+
+    /// <summary>Advances by the ticks of <paramref name="tick"/> seconds that <paramref name="dt"/> completes (at most 4 at once); returns them.</summary>
+    public int Advance(float dt, float tick)
+    {
+        _acc = MathF.Min(_acc + dt, 4 * tick);
+        int n = 0;
+        for (; _acc >= tick; _acc -= tick) n++;
+        Yaw += n * StepDegrees * (MathF.PI / 180f);
+        return n;
+    }
+}
