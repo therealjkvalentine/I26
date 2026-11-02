@@ -156,6 +156,17 @@ public sealed partial class MissionSetup
         return n => map.GetValueOrDefault(n);
     }
 
+    /// <summary>Each SGEO node's sphere, by name: its centre (+0x40, part space) and radius (+0x4c).</summary>
+    private static Func<string, (System.Numerics.Vector3 Centre, float Radius)?> NodeSpheres(AssetVfs vfs, string? sdf)
+    {
+        var map = new Dictionary<string, (System.Numerics.Vector3, float)>(StringComparer.OrdinalIgnoreCase);
+        if (sdf is not null && sdf.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(sdf) is { } d
+            && new Formats.Bwd2.Bwd2File(d) is var f && f.First("SGEO") is { } g)
+            for (int r = g.PayloadOffset + 4; r + 0x78 <= g.PayloadOffset + g.PayloadSize; r += 0x78)
+                map.TryAdd(Formats.Bin.CStr(f.Data, r, 8), (new(Formats.Bin.F32(f.Data, r + 0x40), Formats.Bin.F32(f.Data, r + 0x44), Formats.Bin.F32(f.Data, r + 0x48)), Formats.Bin.F32(f.Data, r + 0x4c)));
+        return n => map.TryGetValue(n, out var s) ? s : null;
+    }
+
     /// <summary>
     /// Each SGEO node's own type, by name; 0 for a root, whose type
     /// holds the placement's type instead (the original reads a bridge's root as 0xc).
@@ -228,7 +239,7 @@ public sealed partial class MissionSetup
             if (asm.Assemble(p.Definition) is { } m && statics.Add(p.Object.Name, type, p.Object.Rotation, at8(p), m,
                     classes.TryGetValue(p.Definition, out var nc) ? nc : classes[p.Definition] = NodeClasses(vfs, p.Definition),
                     types.TryGetValue(p.Definition, out var nt) ? nt : types[p.Definition] = NodeTypes(vfs, p.Definition),
-                    nodeIndex, (i, b) => nodes[i].Base ??= b) is { } so)
+                    nodeIndex, (i, b) => nodes[i].Base ??= b, NodeSpheres(vfs, p.Definition)) is { } so)
             {
                 staticOf[p] = so;
                 so.Nodes.AddRange(nodes);

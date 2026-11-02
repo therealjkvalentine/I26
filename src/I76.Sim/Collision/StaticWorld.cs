@@ -132,7 +132,7 @@ public sealed partial class StaticObject
     public Vector3? Marker { get; set; }
     /// <summary>The session's stable id: the collider's place in the static world, from 1 (0 until a session assigns it).</summary>
     public int NetId;
-    /// <summary>Type 4's collider: a sphere about Centre (0.75 × the bounding radius).</summary>
+    /// <summary>Type 4's sphere about Centre (0.75 × the bounding radius): the spawn spacing's, and the collider of one made without parts (<see cref="StaticWorld.AddBox"/>).</summary>
     public float SphereRadius;
     /// <summary>The collider record's radius (rec[4]): the farthest vertex from <see cref="Centre"/>, in 3D. A splash reaches what it touches.</summary>
     public float BoundRadius;
@@ -289,6 +289,8 @@ public sealed partial class StaticObject
 
     /// <summary>Class 0x2000 nodes: a box each, in the node's own frame.</summary>
     public List<NodeBox> Boxes { get; } = [];
+    /// <summary>Type 4's parts: a sphere each (class 0x5000, the default, 0.75 × the part's SGEO radius; 0x4000, × 1).</summary>
+    public List<NodeSphere> Spheres { get; } = [];
     /// <summary>Type 0xc: the first type-0xd node (the deck) in the node walk, for the bridge tree.</summary>
     public NodeFrame? Deck { get; set; }
 }
@@ -301,6 +303,13 @@ public sealed record NodeBox(Rows Rot, Vector3 Origin, Vector3 Min, Vector3 Max,
 {
     public Vector3 Centre => Origin + Rot.ToWorld((Min + Max) * 0.5f);
     /// <summary>The structure node it belongs to, or −1 for the root.</summary>
+    public int Node { get; init; } = -1;
+}
+
+/// <summary>A class-0x4000 (radius x 1) or 0x5000 (x 0.75) node's collider: its SGEO sphere, placed in the world.</summary>
+public sealed record NodeSphere(Vector3 Centre, float Radius)
+{
+    /// <summary>The structure node it belongs to, or -1 for the root.</summary>
     public int Node { get; init; } = -1;
 }
 
@@ -337,9 +346,9 @@ public sealed class StaticWorld
     /// default; 0x1000 nodes do not collide.
     /// </summary>
     public StaticObject? Add(string name, uint type, float[] engineRotation, Vector3 position, AssembledModel model, Func<string, uint>? nodeClass = null, Func<string, uint>? nodeType = null,
-        Func<string, int>? nodeIndex = null, Action<int, Vector3>? nodeBase = null)
+        Func<string, int>? nodeIndex = null, Action<int, Vector3>? nodeBase = null, Func<string, (Vector3 Centre, float Radius)?>? nodeSphere = null)
     {
-        if (Build(name, type, engineRotation, position, model, nodeClass, nodeType, nodeIndex, nodeBase) is not { } o) return null;
+        if (Build(name, type, engineRotation, position, model, nodeClass, nodeType, nodeIndex, nodeBase, nodeSphere) is not { } o) return null;
         Objects.Add(o);
         return o;
     }
@@ -353,8 +362,9 @@ public sealed class StaticWorld
     /// </summary>
     /// <param name="nodeIndex">A part's structure node (<see cref="StaticObject.Nodes"/>) by part name, −1 for none: its polygons and boxes carry it.</param>
     /// <param name="nodeBase">Told each node's <see cref="StructureNode.Base"/>, from its part's geometry.</param>
+    /// <param name="nodeSphere">A part's SGEO sphere (centre in part space, radius), for its class-0x4000 / 0x5000 collider; null takes the geometry's bounds.</param>
     public static StaticObject? Build(string name, uint type, float[] engineRotation, Vector3 position, AssembledModel model, Func<string, uint>? nodeClass = null, Func<string, uint>? nodeType = null,
-        Func<string, int>? nodeIndex = null, Action<int, Vector3>? nodeBase = null)
+        Func<string, int>? nodeIndex = null, Action<int, Vector3>? nodeBase = null, Func<string, (Vector3 Centre, float Radius)?>? nodeSphere = null)
     {
         if (!Collides(type)) return null;
         var place = Affine.FromEngine(engineRotation, position);
@@ -383,6 +393,13 @@ public sealed class StaticWorld
             uint cls = nodeClass?.Invoke(part.NodeName) ?? 0;
             if (cls == 0) cls = DefaultClass(type);
             if (cls == 0x1000) continue;
+            if (type == 4 && cls is 0x4000 or 0x5000)
+            {
+                // a breakable: each part its own sphere, its SGEO centre and radius x 0.75 (0x5000) or 1.0 (0x4000)
+                var (sc, sr) = nodeSphere?.Invoke(part.NodeName) ?? BoundSphere(g.Vertices);
+                o.Spheres.Add(new NodeSphere(place.Apply(part.ToModel.Apply(sc)), sr * (cls == 0x4000 ? 1f : 0.75f)) { Node = node });
+                continue;
+            }
             if (cls == 0x2000 && type != 4)
             {
                 var rot = Frame();
@@ -415,11 +432,17 @@ public sealed class StaticWorld
         if (all.Count == 0) return null;
         var min = all.Aggregate(Vector3.Min); var max = all.Aggregate(Vector3.Max);
         o.Centre = (min + max) * 0.5f;
-        // class 0x5000 (type 4, signs): a sphere of 0.75 × the node's bounding radius (C1)
+        // type 4: 0.75 × the whole object's bounding radius, for the spawn spacing (its parts collide by their own spheres)
         o.BoundRadius = all.Max(p => Vector3.Distance(p, o.Centre));
         o.SphereRadius = 0.75f * o.BoundRadius;
         o.Radius = all.Max(p => new Vector2(p.X - o.Centre.X, p.Z - o.Centre.Z).Length());
         return o;
+    }
+
+    private static (Vector3, float) BoundSphere(Vector3[] v)
+    {
+        var c = (v.Aggregate(Vector3.Min) + v.Aggregate(Vector3.Max)) * 0.5f;
+        return (c, v.Max(p => Vector3.Distance(p, c)));
     }
 
     /// <summary>An axis-aligned box collider (tests, and objects without a model).</summary>
