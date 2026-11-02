@@ -693,6 +693,9 @@ public partial class Main : Node3D
     {
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(s.CarInteriors);
         I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(s.HoodMatte);
+        // HD Textures: the modern look's textures swapped in place, as a flip of the look does (the 1997 look keeps the originals)
+        I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
+        _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         if (_modernEnv is not null) { _modernEnv.AdjustmentEnabled = true; _modernEnv.AdjustmentBrightness = ModernBrightness(s.Graphics[0xc]); }
         if (_env1997 is not null)
         {

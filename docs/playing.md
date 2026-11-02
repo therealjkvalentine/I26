@@ -90,13 +90,15 @@ are for another game and are not listed.
 
 **Field of view.** Graphic Detail's **Field of View** row (on the Esc menu's pad and the main menu's) sets how wide the main 3D views look. **Monitor**, the default and the recommended choice, keeps the original's height (73.7 degrees) and takes the width from your window's shape: a 4:3 window shows exactly the original's 90 degrees across, a 16:9 window about 106, so a wide screen sees more to the sides than the original did. The numbers are exact degrees across the window whatever its shape, 60 to 110 in steps of 5; **90\*** is the original's width (the pads mark the original game's value with `*`), which in a wide window means less height than the original had. A choice applies at once to the outside views and the cockpit's 3D view; the binoculars, the mirror and the radar keep their own framing. In shell.cfg it is `[port] fov` in degrees across the window (absent for Monitor).
 
+**HD textures.** With a texture pack in the user folder's `tex-world/` (or an art pack zip's `tex-world/` folder; the README says how to make one from your own install), Graphic Detail's **HD Textures** row (on the Esc menu's pad and the main menu's, shown only when a pack is found) draws its upscaled world, car and cockpit textures in the modern look (On, the default) or the install's own (Off\*, the original's). A change swaps the textures in place; the cockpit's damage panel keeps its scale until the next mission. The 1997 look always draws the originals. HD Menu Art is the menu pictures' own row. In shell.cfg it is `[port] hd_textures`; a file from before the row takes HD Menu Art's value.
+
 **Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
 
 **Unlim. Ordnance.** Play Options' second page, beside Unlim. Turrets: the original keeps at most 160 live rounds of a kind (40 online for mines, caltrops, Blox and fire drops) and removes the oldest past that; on, there is no cap, so a long oil or fire trail stays whole. Single-player games only: a network game keeps the original's cap for everyone.
 
-**The original's value.** On a pad, a row's value says what it is, and the original game's value is marked with `*`: Force Feedback's Pad\*, Melee A.I.'s Normal\*, Map Edge's Plain\*. A row without a mark (1997 Mode, Vegetation, ...) has no original's value to mark, or its original's value is plain Off.
+**The original's value.** On a pad, a row's value says what it is, and the original game's value is marked with `*`: Force Feedback's Pad\*, Melee A.I.'s Normal\*, Map Edge's Plain\*, HD Textures' Off\*. A row without a mark (1997 Mode, Vegetation, ...) has no original's value to mark, or its original's value is plain Off.
 
 ### Settings without a row
 

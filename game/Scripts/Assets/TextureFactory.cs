@@ -9,15 +9,15 @@ namespace I76.Game.Assets;
 /// data. Index 255 always becomes alpha 0; whether a material honours the
 /// key is the material's decision (the key is per draw type).
 /// In the modern look a member with an upscale in the player's pack (HdTextures) is served at the upscale's size
-/// with the original's key under it; the 1997 look is served the originals, and a flip of the look swaps the
-/// pictures of the textures already made (SetMode1997).
+/// with the original's key under it, unless the HD Textures row is off; the 1997 look is served the originals, and a
+/// flip of the look or of the row swaps the pictures of the textures already made (SetMode1997, SetHd).
 /// </summary>
 public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 {
     /// <param name="KeyColour">What index 255 decodes to (its palette colour): a face that does not honour the key draws that, not the bled colour under it.</param>
     public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba, Color KeyColour = default);
 
-    /// <summary>Whether upscales are served (the modern look); off, every member is the original.</summary>
+    /// <summary>Whether upscales are served (the modern look with HD Textures on); off, every member is the original. Set before the first texture; after, SetHd.</summary>
     public bool Hd { get; set; } = true;
 
     private readonly Dictionary<string, RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
@@ -87,15 +87,19 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         return default;
     }
 
-    /// <summary>The look's pictures on the textures made so far: the originals in the 1997 look, the upscales in the modern.</summary>
-    public void SetMode1997(bool on)
+    /// <summary>The look's pictures on the textures made so far: the originals in the 1997 look, the modern look's per the HD Textures row.</summary>
+    public void SetMode1997(bool on) => SetHd(!on && HdTextures.Enabled);
+
+    /// <summary>Serve the upscales or the originals, swapping the pictures of the textures made so far.</summary>
+    public void SetHd(bool on)
     {
-        Hd = !on;
+        if (on == Hd) return;
+        Hd = on;
         foreach (var (member, e) in _cache)
         {
             if (e is null || HdOf(member) is not { } h) continue;
             if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Prepare(h).Img, Prepare(Original(member)!).Img);
-            e.Texture.SetImage(on ? pair.Faithful : pair.Modern);
+            e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
         }
     }
 

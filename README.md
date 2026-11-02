@@ -43,7 +43,7 @@ repository: `tools/upscale-textures.py` makes them on your own machine from your
 `pip install torch spandrel numpy pillow`, and run `python3 tools/upscale-textures.py SRC_DIR`. It downloads the model
 4xTextures_GTAV_rgt-s_dither (Philip Hofmann, CC-BY-4.0) once, takes about half a second a texture on a graphics card
 and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. The 1997 look
-keeps the originals; Graphic Detail's HD Menu Art row switches the upscales off.
+keeps the originals; Graphic Detail's HD Textures row (shown when a pack is found) switches the upscales off and on.
 
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).

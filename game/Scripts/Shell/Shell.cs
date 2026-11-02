@@ -1126,6 +1126,8 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look (Graphic Detail); on unless the player turned it off.</summary>
     public bool HdMenuArt { get; set; } = true;
+    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures in the modern look (Graphic Detail's HD Textures, shown with a pack; HdTextures). On unless the player turned it off.</summary>
+    public bool HdTextures { get; set; } = true;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
@@ -1333,6 +1335,8 @@ public sealed class ShellSettings
         s.ModernPhysics = (bool)c.GetValue("port", "modern_physics", false);
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = version < 4 || (bool)c.GetValue("port", "hd_menu_art", true);
+        // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
+        s.HdTextures = I76.Game.Assets.HdTextures.FromFile(c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt);
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1438,6 +1442,7 @@ public sealed class ShellSettings
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         HdAssets.Enabled = s.HdMenuArt;
+        I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
         return s;
     }
 
@@ -1474,6 +1479,7 @@ public sealed class ShellSettings
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);
         if (DeveloperTools) c.SetValue("port", "developer", true);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
+        c.SetValue("port", "hd_textures", HdTextures);
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
