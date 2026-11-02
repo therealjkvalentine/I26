@@ -22,6 +22,7 @@
 - Police sirens wail as in the original: once a mission turns a police car's siren on, it keeps sounding until the mission turns it off or the car is wrecked, instead of playing once, and the trip's and the scenarios' own police cars sound the siren rather than a short car horn, as on the 1997 CD. A Sheriff that honks at a car in its way turns its siren on too.
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
+- In a network game a quick tap of Tab (or the pad's Back) locks the standings open until the next tap or Esc: the mouse pointer appears, the wheel turns the pages, the pad's d-pad moves a cursor, and the host can boot a driver by clicking their row twice (#107).
 
 ## 0.11.0 (31 October 2026)
 
