@@ -155,6 +155,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
     protected override int Record => 10;
     private int _savedFlags;
     private bool _savedAutoReverse, _savedModern, _savedForce, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
+    private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private int _savedRate, _savedDownloads;
     /// <summary>0 the sheet, 1 its second page (the port's rows past the sheet's fourteen lines: Unlim. Turrets), a click on More / Back turns it.</summary>
     public int Page { get; init; }
@@ -188,6 +189,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedTurrets = s.UnlimTurrets;
         _savedCb = s.CbVoice;
         _savedUpdate = s.UpdateCheck;
+        _savedMeleeAi = s.MeleeAi;
         // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
         // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
@@ -243,13 +245,17 @@ public sealed class PlayOptionsScreen : OverlayScreen
         // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
         Add(222, 139, "CB Voice", null);
         Add(205, 140, () => Check(s.CbVoice), () => s.CbVoice = !s.CbVoice, Small, w: 200, h: 12);
-        // Check for Updates: whether the next start asks GitHub if a newer release exists (a line under the version says so)
-        Frame.CopyBackground(200, 139, 22, 18, 200, 162);
-        Add(222, 162, "Check for Updates", null);
-        Add(205, 163, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
+        // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
+        Add(222, 162, "Melee A.I.", null);
+        Add(205, 163, () => "", () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length), Small, w: 300, h: 12);
+        Add(398, 164, () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)], null);
         Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+        // Check for Updates (upstream's row, under the port's own): whether the next start asks GitHub if a newer release exists (a line under the version says so)
+        Frame.CopyBackground(200, 139, 22, 18, 200, 300);
+        Add(222, 300, "Check for Updates", null);
+        Add(205, 301, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
     }
 
     /// <summary>The sound system's input devices after the current one (the default, then each in the list, then the default again).</summary>
@@ -272,6 +278,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         var s = Shell.Settings;
         var f = _first ?? this;
         s.CbVoice = f._savedCb; s.UpdateCheck = f._savedUpdate;
+        s.MeleeAi = f._savedMeleeAi;
         s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.Checkpoints = f._savedCheckpoints;
         s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());

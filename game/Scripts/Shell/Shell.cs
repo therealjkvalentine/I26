@@ -1176,6 +1176,12 @@ public sealed class ShellSettings
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
     public bool CoopOwnCar { get; set; } = true;
+    /// <summary>
+    /// The port's own: Play Options' Melee A.I. (second page; shell.cfg [port] melee_ai, written only when not Original): the skill an
+    /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
+    /// </summary>
+    public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
+    public static readonly string[] MeleeAiNames = ["Original", "Difficulty", "Easy", "Hard"];
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
@@ -1256,6 +1262,8 @@ public sealed class ShellSettings
         s.UnlimTurrets = (bool)c.GetValue("port", "unlim_turrets", false) || System.Environment.GetEnvironmentVariable("I76_UNLIM_TURRETS") == "1";
         s.UpdateCheck = (bool)c.GetValue("port", "update_check", true);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
+        // no version step: absent, the original's opening skill
+        s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
@@ -1317,6 +1325,7 @@ public sealed class ShellSettings
         if (UnlimTurrets) c.SetValue("port", "unlim_turrets", true);
         if (!UpdateCheck) c.SetValue("port", "update_check", false);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
+        if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);

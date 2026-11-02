@@ -141,6 +141,38 @@ public sealed partial class MeleeGame
     /// <summary>The AI tier of a bot's skill setting: the original's setSkill index, 1 the best driver and shot, 5 the worst (the AI block's default).</summary>
     public static int SkillTier(BotSkill skill) => skill switch { BotSkill.Easy => 4, BotSkill.Hard => 1, _ => 3 };
 
+    /// <summary>
+    /// Play Options' Difficulty Level as a bot skill: Wimp (0) easy, Champ (1) normal, Badass (2) hard; any other value reads
+    /// as Champ, as the original's own reader of the setting does.
+    /// </summary>
+    public static BotSkill SkillOfDifficulty(int difficulty) => difficulty switch { 0 => BotSkill.Easy, 2 => BotSkill.Hard, _ => BotSkill.Normal };
+
+    /// <summary>
+    /// The skill step an Instant Melee's opponents open at (<see cref="OpenAt"/>) for Play Options' Melee A.I.: the original's 3,
+    /// the Difficulty Level's tier, or the one the player chose.
+    /// </summary>
+    public static int OpeningStep(MeleeAiSkill choice, int difficulty) => choice switch
+    {
+        MeleeAiSkill.Difficulty => SkillTier(SkillOfDifficulty(difficulty)),
+        MeleeAiSkill.Easy => SkillTier(BotSkill.Easy),
+        MeleeAiSkill.Hard => SkillTier(BotSkill.Hard),
+        _ => OriginalOpeningStep,
+    };
+
+    /// <summary>The original's opening skill step for the melee opponents (the start-up's setAllAggression(3)).</summary>
+    public const int OriginalOpeningStep = 3;
+
+    /// <summary>
+    /// A single player's melee opens at skill step <paramref name="step"/> (1 the best, 5 the worst) instead of the original's 3
+    /// (the port's: Play Options' Melee A.I., docs/deviations.md); each wave is still one step better, down to 1. Before <see cref="Start"/>.
+    /// </summary>
+    public void OpenAt(int step)
+    {
+        if (_started) throw new InvalidOperationException("the melee has started");
+        if (Rules.Network) throw new InvalidOperationException("a network melee's computer cars keep the original's skill");
+        Aggression = System.Math.Clamp(step, 1, 5);
+    }
+
     /// <summary>A bot of this tier: the AI's skill and its aggression row (as <see cref="SetAggression"/>), and an attacker cap as a player's.</summary>
     private void SetBotSkill(MeleePlayer p)
     {
@@ -560,6 +592,13 @@ public sealed partial class MeleeGame
 
 /// <summary>How good a bot is at driving and shooting: the host form's Easy, Normal and Hard (<see cref="MeleeGame.SkillTier"/>).</summary>
 public enum BotSkill : byte { Easy, Normal, Hard }
+
+/// <summary>
+/// Play Options' Melee A.I. (the port's; docs/deviations.md): the skill an Instant Melee's opponents open at. Original is the
+/// original's (step 3, the normal tier); Difficulty follows the Difficulty Level (<see cref="MeleeGame.SkillOfDifficulty"/>);
+/// Easy and Hard are the player's own choice.
+/// </summary>
+public enum MeleeAiSkill : byte { Original, Difficulty, Easy, Hard }
 
 /// <summary>How a bot's name is marked: the driver's name (<c>I76.Formats.Shell.MeleeDrivers.Names</c>, the melee form's 53) and " (bot)".</summary>
 public static class BotNames
