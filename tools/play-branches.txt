@@ -188,3 +188,7 @@ feat/net-esc-self-destruct            # stacked on play: Self Destruct (new car)
 feat/net-auto-handicap-2              # stacked on play: a level per net kill over the average, x0.2..x5 dealt, taken 1/factor capped x1/3..x3, rams and the .45 scaled
 fix/hd-pack-glass-and-key             # stacked on play: the window / paint / material analyses read the original's texels under an HD pack (glass, no cyan rim)
 perf/hd-pack-load                     # after hd-pack-glass-and-key: 2x BC7 .dds packs (cockpit 4x) uploaded as stored, a model's upscales decoded in parallel; the script writes DDS, --from repacks
+fix/hd-cockpit-panels                 # stacked on play: under an HD pack the mirror frame, radar marks and panels drawn right and redrawn when HD Textures or the look flips; the tool scales the cockpit's lettering and mirror frame in their own colours
+fix/hd-dream-grey                     # stacked on play: the dream's grey palette applied to the pack's upscales of the entries it greys
+feat/host-form-redesign               # stacked on play: the host form's options one box in the form's paper and lines; an arena sketch with its starts, count and size
+fix/round3-integration-3              # stacked on play, last of I: the handicap helper's and IncomingFactor's summaries each on its member
