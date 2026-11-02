@@ -84,7 +84,7 @@ public partial class ExtInstruments : Control
         bool show = InCockpit() && pit is not null && !pit.Ghost && !pit.LookingAway && pit.MirrorFace is not null;
         _mirror!.Visible = show;
         if (!show) return;
-        var (view, art) = pit!.MirrorFace!.Value;
+        var (view, art, edge, fill) = pit!.MirrorFace!.Value;
         float k = GetViewportRect().Size.Y / 480f;
         _mirror.Position = new Vector2((GetViewportRect().Size.X - 640 * k) / 2 + 465 * k, 125 * k);
         _mirror.Size = new Vector2(175, 55) * k;
@@ -93,6 +93,9 @@ public partial class ExtInstruments : Control
         _mirrorMat.SetShaderParameter("view", view);
         _mirrorMat.SetShaderParameter("view_nearest", view);
         _mirrorMat.SetShaderParameter("faithful", pit.Faithful);
+        _mirrorMat.SetShaderParameter("edge", edge);
+        _mirrorMat.SetShaderParameter("fill", fill);
+        _mirrorMat.SetShaderParameter("smooth_edge", edge is not null && fill is not null);
     }
 
     public override void _Draw()

@@ -153,13 +153,16 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         Copy(l.Texture, sheet, sx, l.Label.Y, l.Label.W + 1, l.Label.H + 1, t, a.Label.X, a.Label.Y);
     }
 
-    /// <summary>The vertical twin, a T.w × T.h window at sy = T.y + round((B.y − T.y)·frac) (sy == T.y reads B.y). The rolling digits.</summary>
-    public void VWindow(string dst, string anchor, string top, string bottom, float frac)
+    /// <summary>
+    /// The vertical twin, a T.w × T.h window at sy = T.y + round((B.y − T.y)·frac) (sy == T.y reads B.y), copied to the
+    /// anchor moved <paramref name="dx"/> pixels across. The rolling digits.
+    /// </summary>
+    public void VWindow(string dst, string anchor, string top, string bottom, float frac, int dx = 0)
     {
         if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return;
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * frac + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
-        Copy(tp.Texture, sheet, tp.Label.X, sy, tp.Label.W, tp.Label.H, t, a.Label.X, a.Label.Y);
+        Copy(tp.Texture, sheet, tp.Label.X, sy, tp.Label.W, tp.Label.H, t, a.Label.X + dx, a.Label.Y);
     }
 
     private void Copy(string sheetName, Image sheet, int sx, int sy, int w, int h, Target t, int dx, int dy)
