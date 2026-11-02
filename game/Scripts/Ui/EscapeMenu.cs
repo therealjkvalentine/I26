@@ -298,7 +298,7 @@ public sealed partial class EscapeMenu : Control
             G(Cycle, "Rear Mirror", 3, 3, offLowHigh, 0xd),
             G(Cycle, "Shadow Detail", 4, 3, offLowHigh, 0x6),
             G(Cycle, "Terrain Detail", 5, 2, ["Low", "High"], 0x2),
-            G(Cycle, "Anti-Aliasing", 6, 3, ["Off", "2x", "4x"], 0x8),
+            G(Cycle, "Anti-Aliasing", 6, I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8),   // the shell's list, 8x too
             // the port's own, on the free row 7: the 1997 look, off, the original's 3D card or its software renderer, applied on resume (as F2)
             Scrolling(7, Cycle, "1997 Mode", 3, ["Off", "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false),
             // and on row 8: the modern look's palette grade (SoftwareLook), live
