@@ -1,0 +1,135 @@
+# The patch stack, in merge order (= the order to offer upstream). One branch a line; # starts a comment.
+# tools/sync-play.ps1 rebuilds `play` from origin/master + play-meta + these. See docs/play-tracker.md.
+
+# A. reported upstream
+fix/wheel-suspension-prime            # #141 spawn bob
+fix/siren-gpw-loop                    # #48 #51 siren loops as its file says
+fix/script-camera-cuts                # #140 same-op camera cut
+fix/script-camera-arrived-flag        # camIsArrived cleared on every placing call
+fix/mission-music-wrap                # #128
+fix/smoke-sky-flicker                 # cockpit smoke flicker (owner report)
+fix/macos-entitlements-der            # PR #144 open
+fix/macos-mic-opened-on-first-cb      # supersedes fix/macos-mic-prompt-on-first-cb (docs only, not merged)
+fix/middle-wheel-suspension           # #124 six-wheelers
+fix/predicted-shots-of-jammable-weapon  # MP-B1
+fix/own-shots-counter-at-respawn      # MP-B3
+fix/net-ping-low-percentile           # MP-B2
+fix/escape-menu-right-click-reconfigure  # #106
+fix/first-garage-load-prewarm         # #143
+fix/load-card-audio-hiccup            # #142
+fix/first-explosion-stutter           # #116
+feat/regen-pad-hold-readout           # #102 (readout only; the rule is the original's)
+
+# B. measured against the original (retail 1.0, emulated Pentium)
+fix/taurus-load-cornering
+fix/difficulty-damage
+fix/ai-turn-speed-at-spawn
+fix/ai-avoid-scripted-lead-car        # T02 opening
+fix/fsm-timer-rounds-to-nearest
+fix/rocket-catchup-eases-by-frame
+fix/brake-stop-keeps-accel-one-tick
+fix/mirror-fov-and-far-clip
+fix/sky-scroll-counts-mirror-pass
+fix/engine-loop-pitch-formula
+fix/ordnance-live-cap
+fix/ai-avoid-probe-left-track
+
+# C. kit or spec evidence
+fix/1997-tracers
+fix/modern-target-health-bar
+fix/bookmark-cancel-returns
+fix/map-voice-line-on-sfx-bus
+fix/radar-sweep-and-pings
+fix/1997-road-light-no-depth-fade
+fix/1997-road-texture-sampling
+fix/dash-mirror-slot-position
+fix/overview-zoom-per-tick
+fix/hood-view-shows-own-car
+fix/brake-lamp-hold-row
+fix/round-start-offset-only-with-spread
+fix/trigger-repress-click
+fix/unlimited-ammo-ai-keeps-firing
+fix/burst-rearm-after-batched-shot
+fix/ai-ezk-mortar-fires
+fix/rounds-hit-signs-and-posts
+fix/ai-sight-line-and-structures
+fix/splash-damage-no-isshot
+fix/turret-slew-online-and-elevation
+fix/zero-length-hit-zone
+fix/rough-terrain-damage-surface
+fix/cb-queue-with-voice-off
+fix/gpw-volume-field
+fix/silent-dropper-hit-sounds
+fix/sound-cull-from-player-car
+fix/sfx-voice-slider-curve
+fix/ai-back-away-terrain-height
+fix/ai-avoid-chooser-order
+fix/ai-target-predictor-arc
+fix/ai-dropper-and-mortar-gates       # stacked on the predictor
+fix/ai-attacker-slot-cap-zero
+fix/ai-friendly-fire-scan
+fix/ezk-mortar-uses-predictor        # stacked on the EZK gate and the predictor
+fix/explosion-template-by-key
+fix/heated-seats-ammo
+fix/death-camera-orbit-rate
+fix/contact-order-statics-last
+fix/emplacement-placements-grounded
+fix/ramp-rails-not-drive-on
+fix/sphere-part-colliders
+fix/modern-physics-sphere-parts       # stacked on sphere-part-colliders
+fix/breakables-per-part-spheres
+fix/ai-predictor-clearance
+fix/blown-tyre-pull-scripted-drive
+fix/fatal-landing-ends-substep
+fix/network-heli-lift-at-init
+fix/trip-cheat-marker
+fix/mission-default-car
+fix/salvage-specials-amount
+fix/set-user-radar
+fix/start-engine-pulse
+fix/is-shot-two-frames
+fix/teleport-path-node-terrain-y
+fix/tactic-skid-modulus
+fix/movie-skip-deviation-row
+fix/end-of-match-brake
+fix/network-deviation-rows
+
+# D. features, each behind an option
+feat/head-tracking-opentrack
+feat/original-save-reader
+feat/import-original-saves-ui         # stacked on the reader
+feat/bookmark-per-mission
+feat/wheel-force-feedback-windows
+feat/rumble-strength-and-events
+feat/net-scoreboard-sticky-with-kick
+feat/net-ban-list
+feat/net-return-to-server-list
+feat/host-rule-ignition-stays-on
+feat/coop-enemy-scaling
+feat/coop-damage-factor
+feat/coop-joiner-matches-speed
+feat/bot-skill-from-difficulty
+feat/field-of-view-row
+feat/resolution-row
+feat/update-check
+feat/hood-matte-option
+fix/modern-mg-tracers-look
+feat/render-scale-row
+fix/1997-look-draw-distance-default
+feat/ghost-cockpit-toggle
+feat/skip-cutscenes-and-mute-switches
+feat/voices-overlay-folder
+feat/extra-music-folder
+feat/steam-deck-support
+feat/pad-shift-layer
+feat/tap-or-hold-binding
+feat/look-back-context-bindings
+feat/device-presets-by-name
+feat/second-device-together
+feat/input-record-and-replay
+feat/telemetry-udp-out
+feat/controls-key-sheet
+feat/dev-menu
+
+# E. last: the clock
+feat/sim-rate-24
