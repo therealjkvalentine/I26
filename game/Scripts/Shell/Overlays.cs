@@ -404,7 +404,7 @@ public sealed class GraphicsScreen : OverlayScreen
     private I76.Game.Boot.RendererChoice _savedRenderer;
     private string _savedRes = "";
     private int _savedFov;
-    private bool _savedHood;
+    private int _savedHood;
     private int _savedScale;
     private bool _savedVSync, _savedConfine, _savedLog, _saved3D, _savedInteriors, _savedReturn, _savedZoomReset;
     // only the settings this port honours: resolution, draw distance and most detail levels of the 1997 renderer are gone
@@ -544,7 +544,7 @@ public sealed class GraphicsScreen : OverlayScreen
         _savedZoomReset = Shell.Settings.ZoomReset;
         _savedRes = Shell.Settings.Resolution;
         _savedFov = Shell.Settings.FieldOfView;
-        _savedHood = Shell.Settings.HoodMatte;
+        _savedHood = Shell.Settings.HoodFinish;
         _savedScale = Shell.Settings.RenderScale;
         for (int k = 0; k < Rows.Length; k++)
         {
@@ -603,17 +603,16 @@ public sealed class GraphicsScreen : OverlayScreen
         });
         // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
         Row(16, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
-        // the modern look's cockpit hood: Glossy (the car's clear coat) or Matte, live
-        Row(18, "Hood Finish", () => st.HoodMatte ? "Matte" : "Glossy", () => { st.HoodMatte = !st.HoodMatte; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(st.HoodMatte); });
+        // the modern look's car paint and cockpit hood: Matte, Satin (the default) or Gloss (the full clear coat), live
+        Row(18, "Hood Finish", () => I76.Sim.Views.PaintFinish.Names[Math.Clamp(st.HoodFinish, 0, I76.Sim.Views.PaintFinish.Names.Length - 1)], () => { st.HoodFinish = (st.HoodFinish + 1) % I76.Sim.Views.PaintFinish.Names.Length; I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(st.HoodFinish); });
         // the 3D view supersampled at 100, 150 or 200 % of the window, live (the HUD and menus are not scaled)
         Row(19, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
         // the modern look's boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them)
         Row(20, "Map Edge", () => I76.Game.World.MapEdge.Names[st.MapEdge], () => st.MapEdge = (st.MapEdge + 1) % I76.Game.World.MapEdge.Names.Length);
         // the texture pack's upscaled world, car and cockpit textures in the modern look (Off*, the original's, or On; only when a pack is found), live
         Row(21, "HD Textures", () => I76.Game.Assets.HdTextures.Names[st.HdTextures ? 1 : 0], () => ApplyHdTextures(!st.HdTextures), I76.Game.Assets.HdTextures.Installed);
-        Add(288, 438, "Reset", () => { ApplyHdTextures(true); Shell.Settings.RenderScale = I76.Game.Boot.RenderScale.Default; I76.Game.Boot.RenderScale.Apply(Shell.Settings); Shell.Settings.HoodMatte = false; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(false); Shell.Settings.FieldOfView = 0; I76.Sim.Views.ViewFov.Apply(0); Shell.Settings.Resolution = ""; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.MapEdge = I76.Game.World.MapEdge.Off; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
+        Add(288, 438, "Reset", () => { Shell.Settings.RenderScale = I76.Game.Boot.RenderScale.Default; I76.Game.Boot.RenderScale.Apply(Shell.Settings); Shell.Settings.HoodFinish = I76.Sim.Views.PaintFinish.Default; I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(I76.Sim.Views.PaintFinish.Default); Shell.Settings.FieldOfView = 0; I76.Sim.Views.ViewFov.Apply(0); Shell.Settings.Resolution = ""; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); ApplyHdTextures(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.MapEdge = I76.Game.World.MapEdge.Off; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
         Add(350, 438, "Done", () => { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
-        Add(402, 438, "Cancel", () => { Array.Copy(_saved, g, 16); Apply(_savedHd); Shell.Settings.Look1997 = _savedLook; Shell.Settings.SoftwareRenderer = _savedSoftware; Shell.Settings.PaletteGrade = _savedGrade; Shell.Settings.CrashBlur = _savedBlur; Shell.Settings.Vegetation = _savedVeg; Shell.Settings.MapEdge = _savedEdge; Shell.Settings.MouseCamera = _savedMouse; Shell.Settings.KeepMouseInWindow = _savedConfine; Shell.Settings.LogFile = _savedLog; Shell.Settings.Renderer = _savedRenderer; Shell.Settings.Garage3D = _saved3D; Shell.Settings.CarInteriors = _savedInteriors; Shell.Settings.CameraReturn = _savedReturn; Shell.Settings.ZoomReset = _savedZoomReset; Shell.Settings.Resolution = _savedRes; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.FieldOfView = _savedFov; I76.Sim.Views.ViewFov.Apply(_savedFov); Shell.Settings.HoodMatte = _savedHood; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(_savedHood); Shell.Settings.RenderScale = _savedScale; I76.Game.Boot.RenderScale.Apply(Shell.Settings); ApplyHdTextures(_savedHdTextures); I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(_savedInteriors); Shell.Settings.MaxFps = _savedMaxFps; Shell.Settings.VSync = _savedVSync; I76.Game.FrameLimiter.Apply(Shell.Settings); Shell.Overlay(new OptionsScreen()); }, Small);
     }
 }
 

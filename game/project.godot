@@ -59,9 +59,9 @@ i76_car_interiors={
 "value": true
 }
 
-i76_hood_matte={
-"type": "bool",
-"value": false
+i76_paint_finish={
+"type": "int",
+"value": 1
 }
 
 i76_mode_1997={
