@@ -32,40 +32,27 @@ public sealed partial class MeleeScreen : ShellScreen
         [0] = (31, 216, 150, 270), [1] = (9, 27, 128, 144), [2] = (9, 27, 250, 268), [3] = (610, 621, 400, 415), [4] = (437, 449, 419, 434),
         [5] = (456, 616, 422, 435), [6] = (229, 369, 453, 471), [7] = (12, 165, 44, 58), [8] = (150, 166, 288, 303), [9] = (198, 213, 288, 303),
         [10] = (9, 215, 335, 454), [11] = (31, 216, 150, 270), [12] = (9, 27, 128, 144), [13] = (9, 27, 250, 268), [14] = (173, 213, 46, 57),
-        [15] = (489, 630, 453, 471), [16] = (84, 97, 380, 392), [17] = (185, 199, 380, 392), [18] = (84, 98, 402, 414),
-        [20] = (104, 117, 399, 412), [21] = (192, 206, 399, 412), [22] = (173, 213, 306, 317),
-        // the port's: the base host form's SHARE MAPS line, on the parchment under the options box (docs/multiplayer.md "Custom maps")
-        [26] = (10, 148, 434, 448),
-        // the password line beside it (protocol 12)
-        [27] = (149, 215, 434, 448),
-        // the base host form's HIDDEN WPNS & CARS line under them
-        [28] = (10, 116, 449, 462),
-        // the port's: UNLIM. TURRETS on the free line above SHARE MAPS (docs/multiplayer.md)
-        [35] = (10, 136, 419, 433),
-        // and the ignition lock beside it (#108)
-        [39] = (137, 215, 419, 433),
-        // the port's: the base host form's BOTS line, between NO. DRIVERS and the options: fewer, more, and the skill (docs/multiplayer.md "Bots")
-        [29] = (53, 67, 356, 370), [30] = (90, 104, 356, 370), [31] = (105, 165, 356, 370),
-        // and its A.I. CARS (BotCarsPopup), at the line's right end
-        [34] = (167, 215, 356, 370),
-        // the port's: the host's simulation rate, a click steps it, at the Hidden Wpns line's right end
-        [33] = (120, 215, 449, 462),
-        // and the Car Reset's (the reset-upright key's), on the line under them
-        [36] = (10, 86, 463, 477),
-        // and the CB Radio's (the voice chat), beside it
-        [37] = (151, 215, 463, 477),
-        // and the Handicaps' between them (docs/multiplayer.md "Handicaps")
-        [43] = (87, 150, 463, 477),
+        [15] = (489, 630, 453, 471),
+        // the base host form's options box (the port's layout, NetForms.cs HostBox): one box from NO. DRIVERS' foot to the sheet's,
+        // its first line the port's Bots, then the switches as check boxes in two columns, MAX SCORE, and the stepped rules on ruled blanks.
+        // TEAM PLAY, INVITE ONLY, MAX SCORE's box and its ⊟ ⊞ are the original's hotspots 16, 17, 18, 20 and 21, moved with their rows
+        [16] = (12, 102, 373, 387), [17] = (109, 212, 373, 387), [18] = (12, 102, 421, 436),
+        [20] = (111, 123, 422, 435), [21] = (199, 211, 422, 435), [22] = (173, 213, 306, 317),
+        // the port's: SHARE MAPS (docs/multiplayer.md "Custom maps") and HIDDEN CARS (Hidden Weapons & Cars) under them
+        [26] = (12, 102, 387, 401), [28] = (109, 212, 387, 401),
+        // and CAR RESET (the reset-upright key) and CB RADIO (the voice chat)
+        [36] = (12, 102, 401, 415), [37] = (109, 212, 401, 415),
+        // the stepped rules: TURRETS (unlimited roof turrets) and IGNITION (its lock, #108); RATE (the simulation's), HCP (docs/multiplayer.md "Handicaps") and PASS (protocol 12)
+        [35] = (12, 118, 437, 451), [39] = (119, 214, 437, 451),
+        [33] = (12, 89, 452, 467), [43] = (89, 169, 452, 467), [27] = (169, 214, 452, 467),
+        // the port's: BOTS (docs/multiplayer.md "Bots"): fewer, more, the skill, and A.I. CARS (BotCarsPopup) at the line's right end
+        [29] = (48, 61, 357, 370), [30] = (79, 92, 357, 370), [31] = (93, 168, 356, 371), [34] = (169, 215, 356, 371),
         // the port's: the base host form's game type, the button on the AREA OF PLAY bar's right end (RENAME's look): Melee or Co-op (a co-op game's story missions, docs/multiplayer.md "Co-op over the network")
         [32] = (173, 213, 78, 89),
         // the port's: the internet roster's CONNECT TO SERVER, under the games' list: the address book again, for another server's games (#122)
         [38] = (31, 196, 290, 305),
-        // the port's: the base host form's co-op Bots line, Co-op Scaling's part of it (docs/deviations.md)
-        [40] = (10, 76, 356, 370),
-        // the port's: the base host form's co-op Bots line, Co-op Damage's part of it (docs/deviations.md)
-        [41] = (78, 152, 356, 370),
-        // the port's: the base host form's co-op Bots line, Rolling Start's part of it (docs/deviations.md)
-        [42] = (153, 215, 356, 370),
+        // the port's: the co-op form's first line in the box, in place of BOTS: Co-op Scaling, Co-op Damage and Rolling Start (docs/deviations.md)
+        [40] = (12, 85, 356, 371), [41] = (85, 152, 356, 371), [42] = (152, 214, 356, 371),
         // the Nitro host form's WEAPON RESTRICTIONS (its own rectangle is NitroHost's)
         [24] = (31, 193, 310, 326),
     };
@@ -82,7 +69,13 @@ public sealed partial class MeleeScreen : ShellScreen
         _ => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15],
     };
     private (int X0, int X1, int Y0, int Y1) ModeBtn => Hot[32];
+    /// <summary>The co-op form's switches, two rows of the box without TEAM PLAY and SHARE MAPS: INVITE ONLY and HIDDEN CARS, CAR RESET and CB RADIO.</summary>
+    private static readonly Dictionary<int, (int X0, int X1, int Y0, int Y1)> CoopHot = new()
+    {
+        [17] = (12, 102, 373, 387), [28] = (109, 212, 373, 387), [36] = (12, 102, 387, 401), [37] = (109, 212, 387, 401),
+    };
     private (int X0, int X1, int Y0, int Y1) Rect(int id) =>
+        !Nitro && Hosting && _coopBase && CoopHot.TryGetValue(id, out var c) ? c :
         // Nitro's instant melee table is the base one's but for the driver box, 11..170: the MAKE / MODEL and VARIANT arrows are only the arrows
         Nitro && !Hosting && id == 7 ? Hot[7] with { X0 = 11, X1 = 170 } :
         Nitro && Hosting && NitroHost.TryGetValue(id, out var r) ? r : Hosting && id is 8 or 9 ? Hot[id] with { Y0 = 338, Y1 = 353 } : Hot[id];
@@ -204,6 +197,8 @@ public sealed partial class MeleeScreen : ShellScreen
     public override void Repaint()
     {
         _modeBtnBaked = false;
+        _boxBaked = 0;
+        _art = null;
         _serverBtnBaked = false;
         if (Nitro && Mode == 0) Frame.LoadBackground(Shell.Db.BackgroundNative(20), 24, 20);   // base 24's art, byte for byte
         else Frame.LoadBackground(Shell.Db, Mode switch { 0 => 24, 1 => 25, 3 or 4 => 19, _ => 18 });
@@ -243,6 +238,8 @@ public sealed partial class MeleeScreen : ShellScreen
             Frame.Text(_font, 292, 421, "the story's own");
         }
         else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
+        // the arena's sketch between the car's views, over them (the base host form's; the port's)
+        if (Hosting && !Nitro) DrawArenaSketch();
     }
 
     /// <summary>The car panel the melee and scenario forms share: the blueprint views, the weapons, the make and model, the variant.</summary>

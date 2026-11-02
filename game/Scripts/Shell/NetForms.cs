@@ -321,74 +321,168 @@ public sealed partial class MeleeScreen
         Frame.Fill(x, y + 4, 7, 6, ink);            // the body
     }
 
-    /// <summary>The game name, NO. DRIVERS, the boxes' X marks and MAX SCORE.</summary>
+    // ---- the base host form's options box (the port's layout; docs/multiplayer.md "The host form") ----
+    // The original's box (TEAM PLAY, INVITE ONLY, MAX SCORE) is drawn again taller: its top is NO. DRIVERS' foot rule, its
+    // foot a rule of its own over the sheet's bottom margin, and inside it the paper of a blank part of the same art (under
+    // the side view), so the grain goes on. Its rows: BOTS (the co-op form: Foes, Dmg, Roll), the switches as check boxes
+    // of TEAM PLAY's own, MAX SCORE, then the stepped rules as printed labels and handwritten values on ruled blanks. The
+    // boxes, steppers, rules and the A.I. CARS button are pieces of the record's own art; the labels are set in Arial.
+
+    /// <summary>The box's foot rule (2 px, the original box's own), the blank paper copied into it, and its rows' baselines.</summary>
+    private const int BoxFoot = 473;
+    private static readonly (int X, int Y) BlankPaper = (356, 298);
+    private static readonly int[] BoxRow = [368, 385, 399, 413, 433, 448, 463];
+    /// <summary>The check boxes' columns: the labels' x and the box's (TEAM PLAY's own, 11 x 11 at 87, 381 in the art).</summary>
+    private const int LabelA = 15, CheckA = 90, LabelB = 112, CheckB = 200;
+    /// <summary>The arena sketch's box: mockup B's place moved down and left by the art's spacing between its stacked boxes (15 px, NO. DRIVERS' foot rule to the options box's top).</summary>
+    private static readonly Rect2I SketchBox = new(217, 196, 200, 120);
+    private static readonly Color LabelInk = Color.Color8(108, 90, 58), ButtonInk = Color.Color8(88, 72, 44);
+    private const int LabelCap = 8, ButtonCap = 5;
+    /// <summary>The stepped rules: the label and where it goes, the row, and the blank's run (from the label's Arial width and the widest value).</summary>
+    private static readonly (int Id, string Label, int X, int Row, int Blank0, int Blank1)[] Stepped =
+    [
+        (35, "TURRETS:", 15, 5, 72, 113), (39, "IGNITION:", 124, 5, 179, 213),
+        (33, "RATE:", 15, 6, 49, 87), (43, "HCP:", 92, 6, 120, 167), (27, "PASS:", 172, 6, 205, 213),
+    ];
+    private static readonly (int Id, string Label, int X, int Blank0, int Blank1)[] CoopLine =
+        [(40, "FOES:", 15, 50, 75), (41, "DMG:", 87, 118, 142), (42, "ROLL:", 154, 188, 213)];
+
+    private int _boxBaked;
+    private byte[]? _art;
+
+    /// <summary>The ids in the options box, melee and co-op (the rest of <see cref="Live"/> is the form's other parts).</summary>
+    private static readonly int[] MeleeBox = [16, 17, 18, 20, 21, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36, 37, 39, 43], CoopBox = [17, 27, 28, 33, 35, 36, 37, 39, 40, 41, 42, 43];
+
+    /// <summary>The base host form's hotspots in the options box, by id (the layout's tests: inside the box, none over another).</summary>
+    public static IReadOnlyDictionary<int, (int X0, int X1, int Y0, int Y1)> HostBoxHotspots(bool coop) =>
+        (coop ? CoopBox : MeleeBox).ToDictionary(id => id, id => coop && CoopHot.TryGetValue(id, out var c) ? c : Hot[id]);
+
+    /// <summary>The options box's inside (between its rules), in shell pixels: x0, x1, y0, y1 inclusive.</summary>
+    public static (int X0, int X1, int Y0, int Y1) HostBoxInside => (10, 215, 356, BoxFoot - 1);
+
+    /// <summary>The box's art for the form's kind (melee 1, co-op 2), once per background load and kind: the paper, the rules, the boxes, the steppers.</summary>
+    private void BakeBox()
+    {
+        int kind = _coopBase ? 2 : 1;
+        if (_boxBaked == kind) return;
+        _boxBaked = kind;
+        var art = _art ??= Frame.CleanCopy();
+        // the paper, then the box's edges: the left and right rules run on down, the foot is the original box's own
+        Frame.CopyBackground(BlankPaper.X, BlankPaper.Y, 206, BoxFoot - 356, 10, 356);
+        Frame.PasteBackground(art, 10, 425, 206, 2, 10, BoxFoot);
+        Frame.PasteBackground(art, 8, 372, 2, 13, 8, 356);
+        Frame.PasteBackground(art, 8, 372, 2, BoxFoot + 2 - 427, 8, 427);
+        Frame.PasteBackground(art, 216, 380, 2, BoxFoot + 2 - 444, 216, 444);
+        // TEAM PLAY's box (its ring only: the paper inside stays the new paper), NO. DRIVERS' minus and plus, MAX SCORE's rule
+        void Check(int x, int row) => Frame.PasteBackground(art, 87, 381, 11, 11, x, BoxRow[row] - 10, (c, r) => c is 0 or 10 || r is 0 or 10);
+        void Minus(int x, int row) => Frame.PasteBackground(art, 155, 341, 10, 10, x, BoxRow[row] - 9);
+        void Plus(int x, int row) => Frame.PasteBackground(art, 201, 341, 10, 10, x, BoxRow[row] - 9);
+        void Blank(int x0, int x1, int row) => Frame.PasteBackground(art, 104, 413, x1 - x0 + 1, 1, x0, BoxRow[row] + 2);
+        int rows = _coopBase ? 2 : 3;
+        for (int r = 1; r <= rows; r++) { Check(CheckA, r); Check(CheckB, r); }
+        if (_coopBase) foreach (var c in CoopLine) Blank(c.Blank0, c.Blank1, 0);
+        else
+        {
+            Minus(50, 0); Plus(81, 0);
+            BakeButton(171, BoxRow[0] - 10, 43);
+            Check(CheckA, 4); Minus(112, 4); Plus(200, 4); Blank(125, 197, 4);
+        }
+        foreach (var t in Stepped) Blank(t.Blank0, t.Blank1, t.Row);
+    }
+
+    /// <summary>The game name, NO. DRIVERS, and the options box: its labels, X marks and values.</summary>
     private void DrawHost()
     {
         Frame.Text(_font, 11, 305, AddressBookPopup.Fit(_font, _gameName + (_naming ? "_" : ""), 160));
         Frame.Text(_font, 172, 338, $"{_drivers:00}");
-        if (_inviteOnly) Frame.Text(_font, 185, 380, "X");
+        BakeBox();
         // the bar's right end switches the game type (the Nitro form's GAME TYPE row is its own)
         DrawModeButton();
-        // (y 356: the line's feet stay off the options box's top rule, y 368)
+        var hand = Shell.Db.Font(0x44);
+        void Label(int x, int row, string t) => PrintedType.Draw(Frame, Shell.Db, x, BoxRow[row], t, LabelCap, LabelInk);
+        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t);
+        void Switch(bool colB, int row, string t, bool on)
+        {
+            Label(colB ? LabelB : LabelA, row, t);
+            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X");
+        }
         if (_coopBase)
         {
-            // the options box's team play and score limit mean nothing in a story mission: the free Bots line has the co-op rules
-            Frame.Text(_font, 15, 356, $"Foes: {CoopScaleText}");
-            Frame.Text(_font, 80, 356, $"Dmg {CoopDamageText}");
-            Frame.Text(_font, 155, 356, $"Roll: {(Shell.Settings.CoopRollingStart ? "On" : "Off")}");
+            // a story mission has no team play, score limit, Bots or custom map: the first line has the co-op rules
+            string[] v = [CoopScaleText, CoopDamageText, Shell.Settings.CoopRollingStart ? "On" : "Off"];
+            for (int i = 0; i < CoopLine.Length; i++) { Label(CoopLine[i].X, 0, CoopLine[i].Label); Value(CoopLine[i].Blank0 + 1, 0, v[i]); }
+            Switch(false, 1, "INVITE ONLY", _inviteOnly);
+            Switch(true, 1, "HIDDEN CARS", Shell.Settings.HiddenContent);
+            Switch(false, 2, "CAR RESET", Shell.Settings.CarReset);
+            Switch(true, 2, "CB RADIO", Shell.Settings.CbRadio);
         }
         else
         {
-            if (_teamPlay) Frame.Text(_font, 84, 380, "X");
-            if (_scoreOn) Frame.Text(_font, 84, 402, "X");
-            Frame.Text(_font, 126, 400, _maxScore.ToString());
-            Frame.Text(_font, 15, 356, "Bots");
-            Frame.Text(_font, 56, 356, "-");
-            Frame.Text(_font, 68, 356, $"{Math.Min(_bots, MaxBots):00}");
-            Frame.Text(_font, 92, 356, "+");
-            Frame.Text(_font, 106, 356, _botSkill.ToString());
-            // (the A.I. CARS button, at the line's right end)
-            Frame.Text(_font, 215 - _font.Measure("Cars"), 356, "Cars");
-            Frame.Text(_font, 15, 435, $"Share maps: {(Shell.Settings.ShareMaps ? "On" : "Off")}");
+            Label(15, 0, "BOTS");
+            Value(63, 0, $"{Math.Min(_bots, MaxBots):00}");
+            Value(98, 0, _botSkill.ToString());
+            PrintedType.Draw(Frame, Shell.Db, 192, BoxRow[0] - 2, "A.I. CARS", ButtonCap, ButtonInk, bold: true, centre: true);
+            Switch(false, 1, "TEAM PLAY", _teamPlay);
+            Switch(true, 1, "INVITE ONLY", _inviteOnly);
+            Switch(false, 2, "SHARE MAPS", Shell.Settings.ShareMaps);
+            Switch(true, 2, "HIDDEN CARS", Shell.Settings.HiddenContent);
+            Switch(false, 3, "CAR RESET", Shell.Settings.CarReset);
+            Switch(true, 3, "CB RADIO", Shell.Settings.CbRadio);
+            Switch(false, 4, "MAX SCORE", _scoreOn);
+            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString());
         }
-        Frame.Text(_font, _coopBase ? 15 : 152, 435, $"Pass: {(_password.Length > 0 ? "*" : "-")}");
-        // ("Hidden: On", the box's name shortened to leave the line's end for the rate)
-        Frame.Text(_font, 15, 421, $"Turrets: {(_turrets ? "Unlim." : "One")}");
-        // the ignition lock (#108): Lock, nobody switches their engine off
-        Frame.Text(_font, 140, 421, $"Ign: {(Shell.Settings.IgnitionStaysOn ? "Lock" : "Free")}");
-        Frame.Text(_font, 15, 449, $"Hidden: {(Shell.Settings.HiddenContent ? "On" : "Off")}");
-        // (and the Car Reset's, the reset-upright key, on a line of its own under them)
-        // (and the Handicaps' between them, docs/multiplayer.md "Handicaps": the words shortened, the CB's at the line's end)
-        string reset = $"Reset {(Shell.Settings.CarReset ? "On" : "Off")}", hcap = $"Hcp {HandicapWord(Shell.Settings.Handicaps)}", cb = $"CB {(Shell.Settings.CbRadio ? "On" : "Off")}";
-        int gap = Math.Max(2, (198 - _font.Measure(reset) - _font.Measure(hcap) - _font.Measure(cb)) / 2);
-        Frame.Text(_font, 15, 463, reset);
-        Frame.Text(_font, 15 + _font.Measure(reset) + gap, 463, hcap);
-        Frame.Text(_font, 213 - _font.Measure(cb), 463, cb);
-        Frame.Text(_font, 122, 449, $"Rate {_rate}Hz");
+        string[] stepped = [_turrets ? "Unlim." : "One", Shell.Settings.IgnitionStaysOn ? "Lock" : "Free", $"{_rate} Hz",
+            HandicapWord(Shell.Settings.Handicaps), _password.Length > 0 ? "*" : "-"];
+        for (int i = 0; i < Stepped.Length; i++) { Label(Stepped[i].X, Stepped[i].Row, Stepped[i].Label); Value(Stepped[i].Blank0 + 1, Stepped[i].Row, stepped[i]); }
     }
 
     /// <summary>
-    /// The game type button at the AREA OF PLAY bar's right end (the port's): LOCAL DRIVER's RENAME button, its edges and a plain column of
-    /// it stretched, with the type it hosts in the shell's label font. A click or A switches it: Melee, Co-op.
+    /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), and under it the start count and the
+    /// span, "17 starts · 1.0 x 1.0 km", in the small handwriting, centred.
+    /// </summary>
+    private void DrawArenaSketch()
+    {
+        if (ListCount == 0) return;
+        string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
+        if (ArenaSketches.Of(Shell.Install, stem, SketchBox.Size.X, SketchBox.Size.Y) is not { } s) return;
+        ArenaSketches.Draw(Frame, stem, s, SketchBox.Position.X, SketchBox.Position.Y);
+        var hand = Shell.Db.Font(0x44);
+        const int gap = 10;
+        string a = s.StartsText, b = s.SizeText;
+        int x = SketchBox.Position.X + SketchBox.Size.X / 2 - (hand.Measure(a) + gap + hand.Measure(b)) / 2, top = SketchBox.End.Y + 1;
+        Frame.Text(hand, x, top, a);
+        // the dot between them is the hand's full stop, raised to the middle of the capitals
+        Frame.Text(hand, x + hand.Measure(a) + (gap - hand.Measure(".")) / 2, top - 4, ".");
+        Frame.Text(hand, x + hand.Measure(a) + gap, top, b);
+    }
+
+    /// <summary>
+    /// A button of RENAME's look (LOCAL DRIVER's, 41 x 12 at 173, 46): its edges and a plain column of it stretched to w, into
+    /// the background at (x0, y0).
+    /// </summary>
+    private void BakeButton(int x0, int y0, int w)
+    {
+        const int sx = 173, sy = 46, sw = 41, h = 12, edge = 3;
+        for (int tx = 0; tx < w; tx++)
+            Frame.CopyBackground(sx + (tx < edge ? tx : tx >= w - edge ? sw - (w - tx) : edge - 1), sy, 1, h, x0 + tx, y0);
+    }
+
+    /// <summary>
+    /// The game type button at the AREA OF PLAY bar's right end (the port's): a RENAME button with the type it hosts lettered
+    /// at RENAME's size. A click or A switches it: Melee, Co-op.
     /// </summary>
     private bool _modeBtnBaked;
     private void DrawModeButton()
     {
-        const int sx = 173, sy = 46, sw = 41, h = 12, edge = 3;
         var (x0, x1, y0, _) = (ModeBtn.X0, ModeBtn.X1, ModeBtn.Y0, 0);
         int w = x1 - x0 + 1;
         if (!_modeBtnBaked)
         {
             _modeBtnBaked = true;
-            for (int tx = 0; tx < w; tx++)
-                Frame.CopyBackground(sx + (tx < edge ? tx : tx >= w - edge ? sw - (w - tx) : edge - 1), sy, 1, h, x0 + tx, y0);
+            BakeButton(x0, y0, w);
         }
-        var f = Shell.Db.Font(0x47);
-        string t = _coopBase ? "CO-OP" : "MELEE";
-        var ink = ShellFrame.DefaultInk;
-        int tx0 = x0 + (w - f.Measure(t)) / 2, ty0 = y0 + (h - f.Height) / 2 + 1;
-        Frame.Text(f, tx0, ty0, t, ink);
-        Frame.Text(f, tx0 + 1, ty0, t, ink);
+        // RENAME's capitals: 5 px, their foot 8 below the button's top
+        PrintedType.Draw(Frame, Shell.Db, x0 + w / 2f, y0 + 8, _coopBase ? "CO-OP" : "MELEE", ButtonCap, ButtonInk, bold: true, centre: true);
     }
 
     /// <summary>The host form's CB Radio (the port's): whether the game's players may talk to each other on the CB (push-to-talk voice chat).</summary>
