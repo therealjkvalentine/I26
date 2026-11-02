@@ -498,6 +498,8 @@ public partial class Main : Node3D
         // a network game runs on under its menu (the server does not wait); the player's own input is held back instead (SimDriver.InputHeld)
         if (_net is null) GetTree().Paused = true;
         if (GetNodeOrNull<AudioStreamPlayer>("Music") is { } music) music.ProcessMode = ProcessModeEnum.Always;
+        // the original flushes the CB queue when the menu opens with the Voice level off
+        if (VoiceLevel < 2 && _net is null) _script?.Host.Cb.Kill();
         var mission = _opt.Mission ?? "";
         // no Reconfigure without a trip to go back to, with salvage management off, or in t01, t13 and t17
         bool four = _launch is not { Kind: I76.Game.Shell.GameKind.Trip } || mission.StartsWith("a01", System.StringComparison.OrdinalIgnoreCase)
@@ -760,6 +762,9 @@ public partial class Main : Node3D
     private bool _extInstruments = true;
 
     /// <summary>The audio levels on their buses: Music, SFX and Voice, level 1 off, 8 as recorded, 2 dB a step.</summary>
+    /// <summary>The Voice level last applied (8 until audio is set).</summary>
+    public static int VoiceLevel { get; private set; } = 8;
+
     public static void ApplyAudio(I76.Game.Shell.ShellSettings s)
     {
         void Bus(string name, int level)
@@ -777,6 +782,7 @@ public partial class Main : Node3D
         Bus("Music", s.Audio[0]);
         Bus("SFX", s.Audio[1]);
         Bus("Voice", s.Audio[2]);
+        VoiceLevel = s.Audio[2];
     }
 
     private void EndMission(bool won)
@@ -892,6 +898,8 @@ public partial class Main : Node3D
         var ground = setup.Ground;
         var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
         _script = setup.Script;
+        // Voice Level 0 or 1: the original queues no CB line, so scripts do not wait on silent ones (a network game keeps its radio on)
+        if (_script is not null && _net is null) _script.Host.Cb.Enabled = () => VoiceLevel >= 2;
         if (_script is not null) _script.Host.Movie += name => MissionMovie(new GameInstall(_opt.Install!), name);
         _objectives = setup.ObjectiveText;
         // the player drives the session's one car; I76_BOOM=tick[,effect]: an explosion 15 m ahead of the player at that tick, for captures

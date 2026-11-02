@@ -28,6 +28,9 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
     public double NowMs { get; set; }
     /// <summary>stopCB: every later line is ignored for the rest of the mission.</summary>
     public bool Stopped { get; private set; }
+    /// <summary>The player's Voice level allows lines (level 2 or more). With it off the original queues nothing, so a script's
+    /// isCBEmpty is true at once. Null (a headless run, a network host) leaves the radio on.</summary>
+    public Func<bool>? Enabled { get; set; }
     public bool Empty => _q.Count == 0;
     public Line? Current => _q.Count > 0 && _q[0].StartedMs >= 0 ? _q[0] : null;
     public IReadOnlyList<Line> Queue => _q;
@@ -40,6 +43,7 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
         if (Stopped) return;
         if (name == StopName) { Stopped = true; return; }
         if (speaker is not null && speakerDead(speaker)) return;
+        if (Enabled is { } on && !on()) return;
         if (_q.Count > 0)
         {
             var head = _q[0];

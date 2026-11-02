@@ -200,7 +200,8 @@ public sealed partial class CbRadio
         a.For<CbRadio>()
             .Saved(nameof(_q), nameof(NowMs), nameof(Stopped))
             .Structural("the sound lengths and the speakers' deaths, linked by the mission build", "lengthSeconds", "speakerDead")
-            .Transient("the host's hooks", nameof(Started), nameof(Cut));
+            .Transient("the host's hooks", nameof(Started), nameof(Cut))
+            .Transient("the Voice level hook, set by the single-player game", nameof(Enabled));
         a.For<Line>().Saved(nameof(Line.Name), nameof(Line.Speaker), nameof(Line.Priority), nameof(Line.QueuedMs), nameof(Line.StartedMs), nameof(Line.Length));
     }
 
