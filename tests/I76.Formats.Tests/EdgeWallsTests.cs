@@ -88,12 +88,17 @@ public class EdgeWallsTests
         Assert.Equal(0f, tex[(40 * T + 40) * 2 + 1]);
     }
 
+    // a ridge across the middle from wall to wall (about z 63.5): a hill rising 8 m a sample (58°: no car climbs it, but no
+    // cliff) to 72 m, or a fence of the walls' kind, 70 m flat over z 58..69 with 50 m steps on both sides
+    private static double Hill(int x, int z) => Math.Max(Height(x, z), Math.Abs(z - 63.5) < 7 ? 76 - 8 * Math.Abs(z - 63.5) : 0);
+    private static double Fence(int x, int z) => z is >= 58 and <= 69 ? 70 : Height(x, z);
+    private static readonly System.Numerics.Vector2[] BothSides = [new(64.5f, 40.5f), new(64.5f, 90.5f)];
+
     [Fact]
     public void ARidgeBetweenTwoDrivableRegionsStaysThoughItJoinsTheWalls()
     {
-        // the same plate and ring, and a ridge at 70 m across the middle (z 58..69) from wall to wall; cars on both sides
-        var tiles = Tile((x, z) => z is >= 58 and <= 69 ? 70 : Height(x, z));
-        var surf = new TerrainSurface(tiles, [new System.Numerics.Vector2(64.5f, 40.5f), new System.Numerics.Vector2(64.5f, 90.5f)]);
+        var tiles = Tile(Hill);
+        var surf = new TerrainSurface(tiles, BothSides);
         var walls = EdgeWalls.Build(tiles, surf)!;
         bool Hidden(int x, int z) => walls.Hidden[z * T + x];
         Assert.True(surf.Open(64, 40) && surf.Open(64, 90));
@@ -102,13 +107,46 @@ public class EdgeWallsTests
         Assert.False(Hidden(90, 68));   // and its north face
         Assert.True(Hidden(10, 64));    // the wall it joins is still hidden
         Assert.True(Hidden(64, 10));
-        Assert.Equal(70, walls.Ground(64 * 5, 63 * 5, 70), 3);
+        Assert.Equal(0, walls.ThinCount);   // a hill, not a fence
+        Assert.Equal(72, walls.Ground(64 * 5, 63 * 5, 72), 3);
         // the wall beside the ridge's end rises to it on a ramp (the clamp fades in over Ramp samples from kept outer ground);
         // the south wall, further than that from the ridge, is at the plate's level
         Assert.InRange(walls.Ground(10 * 5, 64 * 5, 70), 25, 65);
         Assert.Equal(20, walls.Ground(64 * 5, 8 * 5, 70), 3);
         Assert.Equal(1f, walls.Mask[8 * T + 64]);
         Assert.InRange(walls.Mask[64 * T + 10], 0.05, 0.95);
+    }
+
+    [Fact]
+    public void AThinFenceBetweenTwoDrivableRegionsGoesWithTheWalls()
+    {
+        // 60 m across with 50 m cliffs on both sides and its top 50 m over the drivable ground: the terraces' kind of barrier
+        var tiles = Tile(Fence);
+        var surf = new TerrainSurface(tiles, BothSides);
+        var walls = EdgeWalls.Build(tiles, surf)!;
+        bool Hidden(int x, int z) => walls.Hidden[z * T + x];
+        Assert.True(Hidden(64, 63));
+        Assert.True(walls.Thin![63 * T + 64]);
+        Assert.True(walls.ThinCount > 0);
+        Assert.False(walls.Ridge[63 * T + 64]);
+        Assert.Equal(20, walls.Ground(64 * 5, 63 * 5, 70), 3);   // drawn down at the plate's level
+        Assert.False(Hidden(64, 40));
+        // without the rule it is kept as a ridge, as before
+        var kept = EdgeWalls.Build(tiles, surf, thinBarriers: false)!;
+        Assert.False(kept.Hidden[63 * T + 64]);
+        Assert.Null(kept.Thin);
+    }
+
+    [Fact]
+    public void AWideFenceStays()
+    {
+        // the same fence 300 m across (z 34..93): wider than ThinAcross from one drivable side to the other
+        var tiles = Tile((x, z) => z is >= 34 and <= 93 ? 70 : Height(x, z));
+        var surf = new TerrainSurface(tiles, [new System.Numerics.Vector2(64.5f, 28.5f), new System.Numerics.Vector2(64.5f, 99.5f)]);
+        var walls = EdgeWalls.Build(tiles, surf)!;
+        Assert.True(surf.Open(64, 28) && surf.Open(64, 99));
+        Assert.False(walls.Hidden[63 * T + 64]);
+        Assert.Equal(0, walls.ThinCount);
     }
 
     [Fact]

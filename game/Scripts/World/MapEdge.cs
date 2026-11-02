@@ -37,8 +37,8 @@ public static class MapEdge
     /// <summary>
     /// On's walls of a mission (<see cref="EdgeWalls"/>) from the surface the modern look draws, made on the first call and
     /// kept with the world; null for a map too big for one surface (it has no ring either). I76_MAP_EDGE_RIDGES=0 hides the
-    /// ridges between drivable regions as well, for comparison.
+    /// ridges between drivable regions as well, and I76_MAP_EDGE_THIN=0 keeps the thin barriers among them, for comparison.
     /// </summary>
     public static EdgeWalls? WallsFor(MissionWorld world, Func<ITerrainSurface> surface) =>
-        _walls.GetValue(world, w => new Lazy<EdgeWalls?>(() => w.Terrain.Huge ? null : EdgeWalls.Build(w.Terrain, surface(), keepRidges: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_RIDGES") != "0"))).Value;
+        _walls.GetValue(world, w => new Lazy<EdgeWalls?>(() => w.Terrain.Huge ? null : EdgeWalls.Build(w.Terrain, surface(), keepRidges: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_RIDGES") != "0", thinBarriers: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_THIN") != "0"))).Value;
 }
