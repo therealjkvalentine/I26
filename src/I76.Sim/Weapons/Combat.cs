@@ -611,7 +611,11 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         {
             if (Rand.Next() % 1000 + Rand.Next() % 1000 + Rand.Next() % 1000 > p3 * 6000) return false;
             float speed = def.Ordnance?.TerminalSpeed ?? def.Speed;
-            var wv = shooter.Vel + f * speed;
+            // the original's gate and friendly scan test a round at the muzzle speed plus the shooter's velocity; the
+            // rounds here leave at the muzzle speed along the barrel alone (docs/deviations.md, "Rounds' launch
+            // velocity"), and the scan tests that: with the shooter's velocity added, a turret car's rounds at a target
+            // beside a friend were cleared by the car's own travel over the flight and went through the friend
+            var wv = f * speed;
             float miss = Miss(m, tc, tvel, wv, p4, out float t);
             if (t < 0 || t >= 4f) return false;
             float tol = 20;
@@ -771,13 +775,16 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 // from the gun node's origin (the original composes it up to the world), which the aim does not move
                 var muzzle = v.Pos.ToVector3() + v.Rot.ToWorld(w.TurretPivot ?? w.MuzzlePos);
                 // a vehicle: the target predictor (time + 0.09 s, along its turning circle) at the closest-approach time
-                // of a round leaving along the barrel's present line at the aim speed plus the carrier's velocity, less
-                // the carrier's own travel over that time; a structure: its aim point, still (the non-vehicle case)
+                // of a round leaving along the barrel's present line at the aim speed plus the carrier's velocity; the
+                // predicted point is aimed at as it is, from the barrel: the original takes nothing off it for the
+                // carrier's own travel, and with it taken off a turret on a moving car shot behind whatever it aimed
+                // at, by the car's travel over the lead (its own speed x about 0.3 s at 50 m), and never hit a car
+                // driving alongside; a structure: its aim point, still (the non-vehicle case)
                 Vector3 aim;
                 if (t is Vehicle tv)
                 {
                     float time = TurretLeadTime(muzzle, v.Rot.ToWorld(w.MuzzleRot.Forward) * w.Def.Speed + v.Vel, tv.Pos.ToVector3(), tv.Vel);
-                    aim = TargetPredictor.Predict(tv, time) + new Vector3(0, 0.8f, 0) - v.Vel * (time + TargetPredictor.Lead) - muzzle;
+                    aim = TargetPredictor.Predict(tv, time) + new Vector3(0, 0.8f, 0) - muzzle;
                 }
                 else aim = CentreOf(t) - muzzle;
                 var local = w.BaseRot.ToLocal(v.Rot.ToLocal(aim));

@@ -83,4 +83,58 @@ public class TurretLeadTests
         Assert.Equal(MathF.Atan2(arc.X, arc.Z), w.AimYaw, 0.005f);
         Assert.True(MathF.Abs(MathF.Atan2(line.X, line.Z) - w.AimYaw) > 0.02f, $"aim {w.AimYaw} on the straight line");
     }
+
+    private static string? Dir => Environment.GetEnvironmentVariable("I76_INSTALL") is { Length: > 0 } d && Directory.Exists(d) ? d : null;
+
+    private sealed class Sink : IDamageSink
+    {
+        public void Apply(object victim, DamagePacket p, Vector3 hitLocal) { }
+    }
+
+    /// <summary>
+    /// A 7.62 turret car at speed hits a car driving alongside, ahead to its right at the same speed, and a still one it
+    /// drives past: the aim point is the predictor's, from the barrel, with nothing taken off for the carrier's own
+    /// travel (the rounds leave at the muzzle speed along the barrel alone, so that subtraction put every round behind
+    /// the target by the car's travel over the lead: 1 hit in 200 at 20 m/s). The cars glide at a set velocity; 200
+    /// rounds over 10 s at 20 Hz, 188 of them on target when both stand still.
+    /// </summary>
+    [Theory]
+    [InlineData(20f, 20f, 160)]
+    [InlineData(30f, 30f, 160)]
+    [InlineData(20f, 0f, 150)]
+    [InlineData(0f, 0f, 180)]
+    public void ATurretOnAMovingCarHitsTheCarAlongside(float carrierSpeed, float targetSpeed, int atLeast)
+    {
+        if (Dir is null) return;
+        var vfs = new I76.Formats.Vfs.AssetVfs(new I76.Formats.Vfs.GameInstall(Dir));
+        var world = new SimWorld(new Flat(), new CrtRand(1));
+        var shooter = VehicleFactory.Create(vfs, "vfcoupe2.vcf");
+        var target = VehicleFactory.Create(vfs, "vppirna1.vcf");
+        target.Pos = new Double3(25, 0, 35);
+        shooter.Flags |= VehicleFlags.EngineOn; target.Flags |= VehicleFlags.EngineOn;
+        world.Vehicles.Add(shooter); world.Vehicles.Add(target);
+        world.Player = shooter;
+        var a = shooter.Armory!;
+        int ti = a.Weapons.FindIndex(w => w.Style == 3 && w.Def.Kind == 1);
+        var turret = a.Weapons[ti];
+        Assert.Equal("7.62 Turret", turret.Def.Name);
+        var c = new Combat(world, n => vfs.TryRead(n) is { } d ? EffectDef.Read(n, d) : null) { Damage = new Sink() };
+        c.RadarTarget[shooter] = target;
+        var keys = new bool[5]; keys[ti] = true;
+        int shots = 0, hits = 0;
+        for (int f = 0; f < 200; f++)
+        {
+            shooter.Vel = new Vector3(0, 0, carrierSpeed); shooter.Speed = carrierSpeed;
+            target.Vel = new Vector3(0, 0, targetSpeed); target.Speed = targetSpeed;
+            shooter.Pos = new Double3(0, 0, shooter.Pos.Z + carrierSpeed * Dt);
+            target.Pos = new Double3(25, 0, target.Pos.Z + targetSpeed * Dt);
+            a.PlayerTriggers(false, keys);
+            c.Frame(Dt);
+            shots += c.Events.OfType<ShotFired>().Count(e => e.Weapon == turret);
+            hits += c.Events.OfType<Impact>().Count(i => i.Victim == target);
+            c.Events.Clear();
+        }
+        Assert.Equal(200, shots);
+        Assert.True(hits >= atLeast, $"{hits} of {shots} rounds hit at {carrierSpeed} / {targetSpeed} m/s");
+    }
 }
