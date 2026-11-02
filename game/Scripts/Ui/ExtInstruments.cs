@@ -75,17 +75,17 @@ public partial class ExtInstruments : Control
     {
         if (!Visible) return;
         QueueRedraw();
-        // slot 7, the mirror (hud on, so the 2D dash only), at (465, 125), not while the head is turned. The original's
-        // 175x55 clip ran off the 640 frame's right edge and cut the bezel; here the whole 256x64 art is drawn, moved
-        // left until its right end is on the frame (x 384)
+        // slot 7, the mirror (hud on, so the 2D dash only), at (465, 125), not while the head is turned: the art's top left
+        // 175x55, as the original's clip cuts it (its 256x64 art would run off the 640 frame's right edge)
         var pit = Pit();
         bool show = InCockpit() && pit is not null && !pit.LookingAway && pit.MirrorFace is not null;
         _mirror!.Visible = show;
         if (!show) return;
         var (view, art) = pit!.MirrorFace!.Value;
         float k = GetViewportRect().Size.Y / 480f;
-        _mirror.Position = new Vector2((GetViewportRect().Size.X - 640 * k) / 2 + (640 - 256) * k, 125 * k);
-        _mirror.Size = new Vector2(256, 64) * k;
+        _mirror.Position = new Vector2((GetViewportRect().Size.X - 640 * k) / 2 + 465 * k, 125 * k);
+        _mirror.Size = new Vector2(175, 55) * k;
+        _mirrorMat!.SetShaderParameter("clip", new Vector2(175, 55));
         _mirrorMat!.SetShaderParameter("art", art);
         _mirrorMat.SetShaderParameter("view", view);
         _mirrorMat.SetShaderParameter("view_nearest", view);

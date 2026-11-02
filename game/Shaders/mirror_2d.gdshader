@@ -1,13 +1,13 @@
 // The rear-view mirror on the 2D dash (slot 7): the same face as the 3D cockpit's
-// (cockpit_mirror.gdshader), the view behind shown through the transparent pixels of the mirror's own art, here as the whole
-// art, 256x64, bezel and all (the art's rows are stored bottom-up).
+// (cockpit_mirror.gdshader), the view behind shown through the transparent pixels of the mirror's own art, here as the original's
+// slot cuts it: the art's top left 175x55 of 256x64 (the art's rows are stored bottom-up).
 shader_type canvas_item;
 
 uniform sampler2D art : source_color, filter_nearest;
 uniform sampler2D view : source_color, filter_linear;
 uniform sampler2D view_nearest : source_color, filter_nearest;
 uniform bool faithful = false;
-uniform vec2 clip = vec2(256.0, 64.0);
+uniform vec2 clip = vec2(175.0, 55.0);
 uniform vec2 art_size = vec2(256.0, 64.0);
 
 void fragment() {

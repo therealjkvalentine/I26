@@ -191,7 +191,13 @@ public class HudTests
         Assert.Equal(3, HudLayout.TopInstruments(1920, 1080, false).Length);
         var all = HudLayout.TopInstruments(1920, 1080, true);
         Assert.Equal(4, all.Length);
-        Assert.Equal(189 * 2.25f, HudLayout.UnderAll(all, 0, 0), 2);
+        Assert.Equal(180 * 2.25f, HudLayout.UnderAll(all, 0, 0), 2);
+        // the 2D dash's mirror is the original's slot 7: 175x55 at (465,125) of the 640x480 frame, ending on the frame's right edge
+        Assert.Equal(465 * 2.25f + 240, all[3].X, 2);
+        Assert.Equal(125 * 2.25f, all[3].Y, 2);
+        Assert.Equal(175 * 2.25f, all[3].W, 2);
+        Assert.Equal(55 * 2.25f, all[3].H, 2);
+        Assert.Equal(640 * 2.25f + 240, all[3].Right, 2);
         // the radar's foot at 1080 lines: 119 of 480 lines
         Assert.Equal(119 * 2.25f, HudLayout.TopInstruments(1920, 1080, false)[0].Bottom, 2);
     }
