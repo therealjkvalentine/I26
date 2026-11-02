@@ -29,6 +29,15 @@ public sealed class JoystickScreen : OverlayScreen
     private const string Title = "JOYSTICK CONFIGURATION";
     private static readonly string[] SlotText = ["", "RESTORE DEFAULTS", "DONE", "CANCEL"];
     private static readonly string[] AxisItems = ["Accelerate / Brake", "Steer", "Look left / right", "Look up / down", "Invert this axis"];
+    /// <summary>An axis's further items: a command past half its travel one way or the other (PadRules.AxisThreshold).</summary>
+    private static readonly string[] ThresholdItems = ["Pushed + : a command...", "Pushed - : a command..."];
+    /// <summary>The commands a threshold holds while past (the rest it presses once a push).</summary>
+    private static readonly HashSet<string> HeldCommands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "e_brake", "weapon_fire", "hardpoint1_fire", "hardpoint2_fire", "hardpoint3_fire", "hardpoint4_fire", "hardpoint5_fire", "HONK_HORN",
+        "pilot_glance_up", "pilot_glance_down", "pilot_glance_left", "pilot_glance_right", "pilot_glance_target", "throttle_up", "throttle_down", "steer_left", "steer_right",
+    };
+    private static string CommandName(string command) => Array.FindIndex(Controls.Commands, c => c.Equals(command, StringComparison.OrdinalIgnoreCase)) is var i && Entries.Contains(i) ? NameOf(i) : command;
     private static readonly string[] AxisRows = ["throttle", "steer", "track_yaw_delta", "track_pitch_delta"];
     private static readonly int[] Entries = [.. ControlsScreen.LeftRows, .. ControlsScreen.RightRows];
     private static string NameOf(int entry) => ControlsScreen.Names[Array.IndexOf(Entries, entry)].Text;
@@ -88,6 +97,8 @@ public sealed class JoystickScreen : OverlayScreen
             foreach (var row in AxisRows)
                 if (_map.AxisOf(row) is { } t && GenericStick.AxisNumber(t.Channel) == n)
                     o.Add(AxisItems[Array.IndexOf(AxisRows, row)] + (BindingTable.IsInverted(row, t) ? " (inverted)" : ""));
+            foreach (var th in Thresholds(channel))
+                o.Add(FormattableString.Invariant($"{(th.Positive ? '+' : '-')}{th.Engage * 100:0}% {CommandName(th.Command)}"));
             return [.. o];
         }
         int id = VirtualStick.DiscreteId(channel);
@@ -95,6 +106,17 @@ public sealed class JoystickScreen : OverlayScreen
             foreach (var b in _map.Of(Controls.Commands[entry]))
                 if (BindingTable.IsPad(b) && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == id) { o.Add(NameOf(entry)); break; }
         return [.. o.Distinct()];
+    }
+
+    /// <summary>The threshold rules on an axis of joystick1 (either way).</summary>
+    private IEnumerable<PadRules.AxisThreshold> Thresholds(string channel) =>
+        _map.Rules.Rules.OfType<PadRules.AxisThreshold>().Where(t => t.Axis.Device.Equals("joystick1", StringComparison.OrdinalIgnoreCase) && GenericStick.AxisNumber(t.Axis.Channel) == GenericStick.AxisNumber(channel) && GenericStick.AxisNumber(channel) > 0);
+
+    /// <summary>An input off every command, and an axis's threshold rules with it.</summary>
+    private void Clear(string channel)
+    {
+        _map.ClearInput(channel);
+        foreach (var t in Thresholds(channel).ToList()) _map.Rules.Remove(t);
     }
 
     private static bool IsAxisName(string channel) => VirtualStick.AnalogNames.Any(a => a.Equals(channel, StringComparison.OrdinalIgnoreCase));
@@ -132,6 +154,8 @@ public sealed class JoystickScreen : OverlayScreen
             if (IsAxisName(ch)) { if (GenericStick.AxisNumber(ch) is > 0 and var n) axes.Add(n); }
             else if (VirtualStick.DiscreteId(ch) is >= 0 and var id) { if (id >= VirtualStick.ButtonCount) hats.Add(VirtualStick.HatNames[id - VirtualStick.ButtonCount]); else buttons.Add(id); }
         }
+        foreach (var th in _map.Rules.Rules.OfType<PadRules.AxisThreshold>())
+            if (th.Axis.Device.Equals("joystick1", StringComparison.OrdinalIgnoreCase) && GenericStick.AxisNumber(th.Axis.Channel) is > 0 and var tn) axes.Add(tn);
         const int LeftRoom = ControllerScreen.LeftRule - 29 - 3, RightRoom = 620 - ControllerScreen.Inset - 2 - 476 - 3;
         void Add(string channel, bool left, bool live)
         {
@@ -178,6 +202,13 @@ public sealed class JoystickScreen : OverlayScreen
         int mid = (ControllerScreen.LeftRule + ControllerScreen.RightRule) / 2;
         void Center(string s, int row) => Frame.Text(_f, mid - _f.Measure(s) / 2, ControllerScreen.RowY(row) + 3, s, ShellFrame.OverlayInk);
         string[] notice = Controls.HasPad ? ["Move an axis or press a button", "to find it, then click it to choose", "what it does"] : ["No joystick connected"];
+        // the device and, for a known one, its preset (what Restore Defaults loads)
+        if (Controls.HasPad)
+        {
+            var name = Controls.DeviceName(0);
+            if (name.Length > 0) Center(name.Length > 40 ? name[..40] : name, 13);
+            Center(Controls.PresetOf(0) is { } preset ? $"Preset: {preset.Name}" : "Preset: generic stick", 14);
+        }
         for (int k = 0; k < notice.Length; k++) Center(notice[k], k);
         if (Controls.HasPad)
         {
@@ -220,7 +251,7 @@ public sealed class JoystickScreen : OverlayScreen
         _sel = channel;
         bool axis = IsAxisName(channel);
         var items = new List<string> { "(none)" };
-        if (axis) items.AddRange(AxisItems);
+        if (axis) items.AddRange([.. AxisItems, .. ThresholdItems]);
         else foreach (var n in Entries) items.Add(NameOf(n));
         var s = Shell.Db.Bank(0x24)[16];
         int w = s?.Width ?? 172, h = s?.Height ?? 235;
@@ -231,10 +262,37 @@ public sealed class JoystickScreen : OverlayScreen
             PadPicks = false,
             Picked = i =>
             {
-                if (i == 0) _map.ClearInput(channel);
+                if (axis && i > AxisItems.Length) { ThresholdList(channel, i == AxisItems.Length + 1); return; }
+                if (i == 0) Clear(channel);
                 else if (axis && i == AxisItems.Length) _map.InvertAxis(GenericStick.AxisNumber(channel));
                 else if (axis && i > 0) _map.AssignAxis(AxisRows[i - 1], "joystick1", channel);
                 else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", channel);
+                Redraw();
+            },
+        });
+    }
+
+    /// <summary>
+    /// A command for the axis pushed one way past half its travel (letting go under a third): held while past for a command that is held (the
+    /// e-brake, fire, a hardpoint...), else pressed once a push. The axis keeps what else it does.
+    /// </summary>
+    private void ThresholdList(string channel, bool positive)
+    {
+        var s = Shell.Db.Bank(0x24)[16];
+        int w = s?.Width ?? 172, h = s?.Height ?? 235;
+        Shell.Modal(new ListPopup
+        {
+            Sprite = 16, X = 320 - w / 2, Y = 240 - h / 2, TextX = 0x16, TextY = 0x30, Visible = 9, Items = [.. Entries.Select(n => (positive ? "+ " : "- ") + NameOf(n))], Font = _f,
+            Up = (18, 36, 12, 25), Down = (18, 36, 204, 217), List = (16, 214, 47, 198), Cancel = (88, 159, 209, 225),
+            PadPicks = false,
+            Picked = i =>
+            {
+                if (i >= 0)
+                {
+                    var cmd = Controls.Commands[Entries[i]];
+                    var mode = HeldCommands.Contains(cmd) ? PadRules.AxisThreshold.Mode.Level : PadRules.AxisThreshold.Mode.Edge;
+                    _map.Rules.Add(new PadRules.AxisThreshold(new InputTerm(true, "joystick1", channel), positive, 0.5f, 0.33f, mode, cmd));
+                }
                 Redraw();
             },
         });
@@ -291,9 +349,9 @@ public sealed class JoystickScreen : OverlayScreen
             if (k is Key.Up or Key.Left) Step(-1);
             else if (k is Key.Down or Key.Right) Step(1);
             else if (k is Key.Enter or Key.Space or Key.KpEnter) { if (_sel is not null) { Open(_sel); return; } }
-            else if (k is Key.Delete or Key.Backspace) { if (_sel is not null) { _map.ClearInput(_sel); Redraw(); } }
+            else if (k is Key.Delete or Key.Backspace) { if (_sel is not null) { Clear(_sel); Redraw(); } }
         }
-        if (Shell.RightClicked && RowAt(Shell.Mouse) is { } r) { _sel = r.Channel; _map.ClearInput(r.Channel); Shell.Sound(82); Redraw(); return; }
+        if (Shell.RightClicked && RowAt(Shell.Mouse) is { } r) { _sel = r.Channel; Clear(r.Channel); Shell.Sound(82); Redraw(); return; }
         // the marks follow the stick: redrawn when a row lights or goes out
         Layout();
         if (Live() != _lastLive) Redraw();

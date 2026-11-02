@@ -65,8 +65,27 @@ public static class Controls
         if (!force && f == _polled) return;
         _polled = f;
         using (Hitch.Time(Hitch.Phase.Input)) Pads.Poll(Focused());
-        if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } }
+        if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } if (_seen > was && _table is not null) { _table = WithDevicePresets(_table); _axes = new AxisControls(_table.Blocks); } }
+        if (_table?.Rules is { IsEmpty: false } rules)
+        {
+            rules.Update(new PadRules.Frame(Pads, (long)Time.GetTicksMsec(), LookingBack?.Invoke() == true));
+            if (Held?.Invoke() != true) foreach (var c in rules.Pulses) Pulse(c);
+        }
     }
+
+    /// <summary>Whether the head looks back now (the game's cockpit sets it): the look-back rules' context (<see cref="PadRules"/>).</summary>
+    public static Func<bool>? LookingBack { get; set; }
+
+    /// <summary>A rule's press of a command arrives as an action event through Godot's input, so every reader of <see cref="Pressed"/> sees it as a key's.</summary>
+    private const string PulsePrefix = "i26_rule:";
+
+    private static void Pulse(string command)
+    {
+        // dispatched as any event is, the action registered or not (measured on Godot 4.7.2)
+        Godot.Input.ParseInputEvent(new InputEventAction { Action = PulsePrefix + command, Pressed = true });
+    }
+
+    private const string RulesPath = "user://input.rules";
 
     private static int _seen;
 
@@ -202,12 +221,16 @@ public static class Controls
         else if (Pads.Count > 0) t = Defaults();    // the shell copies JOYSTICK.MAP over a missing input.map when a stick is present
         else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd();
         else t = Defaults().Migrate(Install("input.def"));
+        // the port's bindings beside the file (PadRules), before a pad side is chosen: a map with rules has a pad binding
+        if (Godot.FileAccess.FileExists(RulesPath)) t.Rules = PadRules.Parse(Godot.FileAccess.GetFileAsString(RulesPath));
         // a map with no pad blocks at all (saved by the original screen, an older version, or the install's) still lets a pad play:
         // the preset's pad side, in memory only (the keys stay as saved, nothing is written)
         t.AddPadSideIfNone(PadDefaults);
         // a stick plugged in over a map the gamepad preset made (a gamepad's Throttle, triggers and right stick mean nothing on it): the stick's, in memory
-        if (PrimaryIsGeneric && t.PadSideIs(PadPreset.Build(KeyBase()))) t.ResetSide(GenericPreset.Build(KeyBase()), true);
-        t = t.WithScoreboardOnTab();
+        if (PrimaryIsGeneric && t.PadSideIs(PadPreset.Build(KeyBase()))) t.ResetSide(PadDefaults(), true);
+        // a known wheel or stick over a map the generic stick's preset made (before the device presets): its own, in memory
+        if (PresetOf(0) is not null && t.Rules.IsEmpty && t.PadSideIs(GenericPreset.Build(KeyBase()))) t.ResetSide(PadDefaults(), true);
+        t = WithDevicePresets(t.WithScoreboardOnTab());
         _axes = new AxisControls(t.Blocks);
         return t;
     }
@@ -260,7 +283,40 @@ public static class Controls
     }
 
     /// <summary>The pad preset, whether or not a pad is connected: what the controller screen's Restore loads.</summary>
-    public static BindingTable PadDefaults() => PrimaryIsGeneric ? GenericPreset.Build(KeyBase()) : PadPreset.Build(KeyBase());
+    public static BindingTable PadDefaults() =>
+        !PrimaryIsGeneric ? PadPreset.Build(KeyBase()) : PresetOf(0) is { } p ? DevicePresets.Apply(KeyBase(), p, "joystick1", Pads.Count == 1) : GenericPreset.Build(KeyBase());
+
+    /// <summary>The device preset of joystick N+1 (a known wheel or stick with no standard layout), or null.</summary>
+    public static DevicePresets.Preset? PresetOf(int index)
+    {
+        Refresh();
+        return Pads.IsGeneric(index) && PadSource is GodotPads ? DevicePresets.Match(GodotPads.Info(index)) : null;
+    }
+
+    /// <summary>What joystick N+1 is called by the platform ("" for none).</summary>
+    public static string DeviceName(int index) => PadSource is GodotPads ? GodotPads.Info(index).Name : "";
+
+    private static readonly HashSet<string> Announced = [];
+
+    /// <summary>
+    /// The known wheels and sticks after the first that the bindings have nothing on (no block, no rule) get their preset, in memory (nothing is
+    /// written until Done): the second device of a wheel and a stick together. Joystick1's comes with the pad defaults. Each match is logged once.
+    /// </summary>
+    private static BindingTable WithDevicePresets(BindingTable t)
+    {
+        for (int i = 0; i < Pads.Count; i++)
+        {
+            if (PresetOf(i) is not { } p) continue;
+            string dev = $"joystick{i + 1}";
+            bool applied = i > 0 && DevicePresets.Unbound(t, dev);
+            if (applied) t = DevicePresets.Apply(t, p, dev, false);
+            var d = GodotPads.Info(i);
+            bool inUse = applied || i == 0 && t.PadSideIs(PadDefaults());
+            if (Announced.Add($"{dev} {p.Name} {inUse}"))
+                GD.Print($"[controls] {dev} \"{d.Name}\" ({d.Vendor:x4}:{d.Product:x4}) is a {p.Name}: {(inUse ? "its preset is in use" : "the saved bindings are kept")}");
+        }
+        return t;
+    }
 
     /// <summary>The first device is a flight stick or the like (no standard gamepad layout): its preset is the stick's, not the pad's (docs/joystick.md).</summary>
     public static bool PrimaryIsGeneric { get { Refresh(); return Pads.IsGeneric(0); } }
@@ -286,8 +342,10 @@ public static class Controls
     {
         var text = edited.WithTwins(GlanceTwins).ToText(Install("input.def"));
         using (var f = Godot.FileAccess.Open(UserPath, Godot.FileAccess.ModeFlags.Write)) f?.StoreString(text);
+        using (var f = Godot.FileAccess.Open(RulesPath, Godot.FileAccess.ModeFlags.Write)) f?.StoreString(edited.Rules.ToText());
         // in use as the file has it (input.def's blocks verbatim), as the next run reads it
         _table = BindingTable.Parse(text).WithScoreboardOnTab();
+        _table.Rules = edited.Rules.Clone();
         _axes = new AxisControls(_table.Blocks);
     }
 
@@ -324,9 +382,7 @@ public static class Controls
     {
         if (Held?.Invoke() == true) return false;
         Refresh();
-        foreach (var b in Table.Of(command))
-            if (InputChord.Holds(b.Terms, Pads, TermLive)) return true;
-        return false;
+        return Table.Rules.Holds(Table, command, Pads, TermLive);
     }
 
     /// <summary>The term, as it stands while this event happens (Shift and Control by the event's own flags).</summary>
@@ -351,11 +407,13 @@ public static class Controls
     /// <summary>Whether the event is the command's input going down: a "+" term of one of its blocks, the rest of the chord holding.</summary>
     public static bool Pressed(InputEvent e, string command)
     {
-        if (Held?.Invoke() == true || Suspended && e is not InputEventJoypadButton) return false;
+        if (Held?.Invoke() == true || Suspended && e is not (InputEventJoypadButton or InputEventAction)) return false;
+        if (e is InputEventAction { Pressed: true } act)
+            return Table.Rules.Sources(command).Any(c => act.Action.ToString() == PulsePrefix + c);
         if (e is InputEventJoypadButton) Refresh(force: true);
-        foreach (var b in Table.Of(command))
+        foreach (var b in Table.Rules.Sources(command).SelectMany(c => Table.Of(c)))
         {
-            if (b.Terms.Length == 0 || InputChord.IsDead(b.Terms[^1], Pads)) continue;
+            if (b.Terms.Length == 0 || InputChord.IsDead(b.Terms[^1], Pads) || Table.Rules.Masks(b)) continue;
             for (int i = 0; i < b.Terms.Length; i++)
             {
                 if (!b.Terms[i].Plus || !Goes(e, b.Terms[i])) continue;
