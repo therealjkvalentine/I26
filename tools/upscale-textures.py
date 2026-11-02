@@ -15,7 +15,9 @@ writes textures beside a pack.json.
 
 What it writes: world and car textures at twice the original's size (the model's 4x brought down: 4x is not visible at the
 distances they are drawn from, and costs four times the memory and load time), the cockpit's own art (z*) at the model's 4x,
-which is drawn near full screen. Each as a BC7 .dds with its mipmaps, keyed (alpha 0 or 255) and with colour bled under the key,
+which is drawn near full screen; the cockpit's lettering and frames that are pixel art (--pixel: the weapon and special
+labels, the ammunition digits, the mirror's frame) not through the model but smoothed in their own colours (pixel_scale), as
+the model recolours thin strokes and leaves stair steps. Each as a BC7 .dds with its mipmaps, keyed (alpha 0 or 255) and with colour bled under the key,
 in the texture's stored row order (SRC_DIR/bottom-up.txt), so the game sends it to the GPU as it is; a PNG where etcpak is
 missing or the size is not a multiple of 4. The output folder is the game's own (Windows %APPDATA%/I26/tex-world, Linux
 ~/.local/share/I26/tex-world, macOS ~/Library/Application Support/I26/tex-world) unless --out says otherwise; a texture already
@@ -71,6 +73,26 @@ def upscale(model, device, torch, im):
     A = np.array(Image.fromarray(a).resize((a.shape[1] * s, a.shape[0] * s), Image.BILINEAR))
     return np.dstack([(y * 255 + 0.5).astype(np.uint8), np.where(A >= 128, 255, 0).astype(np.uint8)])
 
+def pixel_scale(im, s=4):
+    """Pixel art at s x in its own colours: a bicubic enlargement, then each texel takes the closest of the 3 x 3 original
+    texels around it (alpha counted), so diagonals and corners come out rounded with no colour the art does not have."""
+    h, w = im.shape[:2]
+    sm = np.array(Image.fromarray(im, "RGBA").resize((w * s, h * s), Image.BICUBIC)).astype(np.int32)
+    pad = np.pad(im, ((1, 1), (1, 1), (0, 0)), mode="edge").astype(np.int32)
+    oy, ox = np.mgrid[0:h * s, 0:w * s] // s
+    best = bd = None
+    for dy in (0, -1, 1):
+        for dx in (0, -1, 1):
+            c = pad[oy + 1 + dy, ox + 1 + dx]
+            d = ((c - sm) ** 2).sum(axis=2)
+            if best is None: best, bd = c, d            # the texel's own colour first: it wins ties
+            else:
+                m = d < bd; best = np.where(m[..., None], c, best); bd = np.where(m, d, bd)
+    return best.astype(np.uint8)
+
+def matches(stem, globs):
+    return any(fnmatch.fnmatch(stem, g.strip().lower()) for g in globs.split(",") if g.strip())
+
 def finish(big, ow, oh, scale):
     """The model's RGBA (upright) at `scale` times the original (ow x oh): colour Lanczos, alpha box and cut at one half, then the
     colour bled under the key all the way (the mipmaps average it in)."""
@@ -106,19 +128,22 @@ def write_dds(path, rgba, etcpak):
 
 def one(job, run_model=None):
     """One texture into the pack; (name, whether it was written)."""
-    n, src, out_dir, frm, max_size, scale, full, flip, dds = job
+    n, src, out_dir, frm, max_size, scale, full, pixel, flip, dds = job
     stem = n[:-4].lower()
     if any(os.path.exists(os.path.join(out_dir, stem + e)) for e in (".dds", ".png")): return n, False
     im = np.array(Image.open(os.path.join(src, n)).convert("RGBA"))
     oh, ow = im.shape[:2]
-    if max(ow, oh) > max_size: return n, False
-    if frm:
+    pix = matches(stem, pixel)
+    if max(ow, oh) > max_size and not pix: return n, False
+    if pix:
+        big = pixel_scale(im, 4)
+    elif frm:
         p = os.path.join(frm, stem + ".png")
         if not os.path.exists(p): return n, False
         big = np.array(Image.open(p).convert("RGBA"))
     else:
         big = run_model(im)
-    scale = min(4 if fnmatch.fnmatch(stem, full.lower()) else scale, big.shape[1] // ow)
+    scale = min(4 if matches(stem, full) else scale, big.shape[1] // ow)
     px = finish(big, ow, oh, scale)
     out = os.path.join(out_dir, stem)
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
@@ -138,7 +163,9 @@ def main():
     ap.add_argument("--only", default="*", help="a glob of texture names to do, e.g. 'pp11*' for one car")
     ap.add_argument("--max-size", type=int, default=512, help="skip textures wider or taller than this (the ground sheets)")
     ap.add_argument("--scale", type=int, default=2, choices=(2, 4), help="the world and car textures' size over the original (default 2)")
-    ap.add_argument("--full", default="z*", help="a glob of textures kept at the model's 4x (default z*: the cockpit's own art)")
+    ap.add_argument("--full", default="z*", help="globs (comma-separated) of textures kept at the model's 4x (default z*: the cockpit's own art)")
+    ap.add_argument("--pixel", default="zdue*,zdse*,znbe*,zmir*", help="globs of pixel art scaled 4x in its own colours instead of by the model, whatever"
+                    " their size (default: the weapon and special labels, the ammunition digits, the mirror's frames)")
     ap.add_argument("--format", default="dds", choices=("dds", "png"), help="dds (BC7 with mipmaps, needs etcpak) or png")
     args = ap.parse_args()
     etcpak = None
@@ -157,7 +184,7 @@ def main():
         print(f"model {MODEL} x{model.scale} on {device} ({ATTRIBUTION})")
     names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and fnmatch.fnmatch(n.lower(), args.only.lower()))
     os.makedirs(args.out, exist_ok=True)
-    jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, n[:-4].lower() in bottom_up, etcpak is not None) for n in names]
+    jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, args.pixel, n[:-4].lower() in bottom_up, etcpak is not None) for n in names]
     done = skipped = 0; t0 = time.time()
     def tick(i, n, ok):
         nonlocal done, skipped
@@ -174,7 +201,7 @@ def main():
     with open(os.path.join(args.out, "pack.json"), "w") as f:
         json.dump({"name": "Upscaled textures (own machine)", "version": "2", "date": time.strftime("%Y-%m-%d"),
                    "model": MODEL, "model_license": "CC-BY-4.0", "attribution": ATTRIBUTION,
-                   "scale": args.scale, "full_scale": args.full, "format": "dds-bc7" if etcpak else "png"}, f, indent=2)
+                   "scale": args.scale, "full_scale": args.full, "pixel": args.pixel, "format": "dds-bc7" if etcpak else "png"}, f, indent=2)
     with open(os.path.join(args.out, "ATTRIBUTION.txt"), "w") as f: f.write(ATTRIBUTION + "\n")
     print(f"\n{done} written, {skipped} skipped, in {args.out}")
 

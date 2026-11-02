@@ -12,7 +12,8 @@ namespace I76.Game.Sim;
 /// 0) in a sprite leaves the panel showing through. The layout's anchors
 /// and rectangles are the originals' pixels; a panel or a sheet served
 /// upscaled (TextureFactory.Scale) is worked at its own scale, the sheet's
-/// texels mapped nearest onto the panel's where the two differ.
+/// texels mapped nearest onto the panel's where the two differ. When what is served changes (the HD Textures row,
+/// a flip of the look) Reload makes every panel again at the new scale, in the same textures.
 /// </summary>
 public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.TextureResolver resolver, Assets.TextureFactory textures, Assets.MaterialLibrary materials)
 {
@@ -59,6 +60,23 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
 
     /// <summary>A loaded texture's texels per original pixel.</summary>
     private int ScaleOf(string tex) => _scales.GetValueOrDefault(tex, 1);
+
+    /// <summary>
+    /// Makes the panels and sheets again from what the factory now serves (the originals or a pack's upscales): each live
+    /// texture keeps its identity (the materials and the 2D dash hold it) and takes the new size, blank until redrawn.
+    /// </summary>
+    public void Reload()
+    {
+        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear();
+        foreach (var (dst, t) in _targets)
+        {
+            if (t is null || Load(dst) is not { } img) continue;
+            var bytes = img.GetData();
+            t.Base = img; t.Work = (Image)img.Duplicate(); t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone();
+            t.W = img.GetWidth(); t.H = img.GetHeight(); t.S = ScaleOf(dst); t.Dirty = false;
+            t.Texture.SetImage(t.Work);
+        }
+    }
 
     private Target? TargetOf(string dst)
     {
@@ -156,14 +174,15 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         return b;
     }
 
-    /// <summary>Stamps a sprite into a given image (a copy of the <paramref name="dst"/> texture, at its scale) at an anchor of the layout's dst block (the radar's current frame).</summary>
-    public void StampInto(Image img, string dst, string sprite, string anchor)
+    /// <summary>
+    /// Stamps a sprite into a given image at an anchor of the layout's dst block (the radar's current frame, a picture
+    /// of its own: zrad.map is only the layout's name for it), the image at <paramref name="ds"/> texels a pixel.
+    /// </summary>
+    public void StampInto(Image img, int ds, string dst, string sprite, string anchor)
     {
         if (layout.FindIn(dst, anchor) is not { } a || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return;
         var r = s.Label;
         var d = img.GetData();
-        // the image's own scale: it is a frame of the dst's family, the layout's anchors the dst's original pixels
-        int ds = Member(dst) is { } m && textures.GetRgba(m) is { } served ? System.Math.Max(1, img.GetWidth() * textures.Scale(m) / served.Width) : 1;
         Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, d, img.GetWidth(), img.GetHeight(), ds, a.X, a.Y, keyed: true);
         img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, d);
     }

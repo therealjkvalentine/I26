@@ -44,6 +44,9 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <summary>Whether upscales are served (the modern look with HD Textures on); off, every member is the original. Set before the first texture; after, SetHd.</summary>
     public bool Hd { get; set; } = true;
 
+    /// <summary>After SetHd swaps what is served: art made from GetRgba (the cockpit's panels, radar frames, wheel) is made again.</summary>
+    public event System.Action? Swapped;
+
     private readonly Dictionary<string, RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HdPic?> _hd = new(StringComparer.OrdinalIgnoreCase);
 
@@ -174,6 +177,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
             if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Picture(h), Prepare(Bled(member)!).Img);
             e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
         }
+        Swapped?.Invoke();
     }
 
     /// <summary>What index 255 decodes to in the original (its first keyed texel's colour, before any bleed).</summary>

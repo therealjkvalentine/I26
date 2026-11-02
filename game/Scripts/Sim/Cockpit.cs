@@ -49,10 +49,23 @@ public partial class Cockpit : Node
 
     /// <summary>The radar's current frame, as the 2D panel shows it (rows bottom-up), or null before the first sweep.</summary>
     public Texture2D? RadarTexture => _radarTex;
-    /// <summary>The radar frames' texels per original pixel (an upscaled pack).</summary>
-    public int RadarScale => _radarMember is { } m ? Textures.Scale(m) : 1;
+    /// <summary>The radar's current picture's texels per original pixel (a pack's upscaled frames; the weapon camera's is 1).</summary>
+    public int RadarScale { get; private set; } = 1;
+    /// <summary>The original radar frame's width, which the scope's and the layout's pixels count in.</summary>
+    private int _radarBaseW = 256;
 
     public override void _Ready()
+    {
+        LoadArt();
+        _rng = new System.Random();
+        HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
+        SetupMirror();
+        Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
+        Textures.Swapped += ArtSwapped;
+    }
+
+    /// <summary>The frames the cockpit swaps in (wheel, arms, radar), from what the factory serves: the originals or a pack's upscales.</summary>
+    private void LoadArt()
     {
         // a pack's upscales of the frames below, decoded together on worker threads
         Textures.Prefetch(new[] { ("zswls{0}{1:00}", 36), ("zhr45{0}{1:00}", 6), ("zhl45{0}{1:00}", 6), ("zsr45{0}{1:00}", 3), ("zsl45{0}{1:00}", 3) }
@@ -70,15 +83,35 @@ public partial class Cockpit : Node
             _radarB[i] = Image("zradb" + i.ToString("000"));
         }
         _radarMember = Resolver.FindByStem("zradf000");
-        _radarMask = Image("zradmask");
+        if (_radarMember is not null && Textures.GetOriginalRgba(_radarMember) is { } r0) _radarBaseW = r0.Width;
+        // the weapon camera is composed at the original's 256x128 under the original's mask
+        _radarMask = Resolver.FindByStem("zradmask") is { } rm && Textures.GetOriginalRgba(rm) is { } mo ? Godot.Image.CreateFromData(mo.Width, mo.Height, false, Godot.Image.Format.Rgba8, mo.Rgba) : null;
         if (Resolver.FindByStem("zradmask") is { } mm && Resolver.Load(mm) is { } mt && mt.Width == 256) _radarClear = I76.Sim.Weapons.RadarScope.WeaponCameraClear(mt.Indices);
-        _rng = new System.Random();
-        HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
-        SetupMirror();
-        Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
     }
 
-    public override void _ExitTree() => Controls.LookingBack = null;
+    /// <summary>
+    /// The HD Textures row or a flip of the look changed what the factory serves: the panels, the radar's and the wheel's
+    /// frames are made again at its scale (the 1997 look always the originals) and everything is redrawn. The mirror's art is
+    /// the factory's own texture, swapped in place.
+    /// </summary>
+    private void ArtSwapped()
+    {
+        Panels.Reload();
+        LoadArt();
+        ResetPanels();
+        _repaintWeapons = _repaintSpecials = _radarRedraw = true;
+        _wheelShown = -1;
+        _armShown[0] = _armShown[1] = (-1, -1);
+    }
+
+    /// <summary>The weapons and specials panels redraw on their next update whatever moved (their rows and housings kept).</summary>
+    private bool _repaintWeapons, _repaintSpecials;
+
+    public override void _ExitTree()
+    {
+        Controls.LookingBack = null;
+        Textures.Swapped -= ArtSwapped;
+    }
 
     /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
     public bool LookingBack => Active && (_state >= 6 || _pose == FreeLook.Pose.Rear);
@@ -507,7 +540,8 @@ public partial class Cockpit : Node
             if (on != row.On || diode != row.Diode) { row.On = on; row.Diode = diode; dirty = true; }
             if (Roll(row.Digits, w.Ammo, force)) dirty = true;
         }
-        if (!dirty) return;
+        if (!dirty && !_repaintWeapons) return;
+        _repaintWeapons = false;
         Panels.Clear("zbk_.map");
         for (int i = 0; i < ws.Count; i++)
         {
@@ -562,7 +596,8 @@ public partial class Cockpit : Node
             if (on != row.On || diode != row.Diode) { row.On = on; row.Diode = diode; dirty = true; }
             if (Roll(row.Digits, s?.Charges ?? 0, force)) dirty = true;
         }
-        if (!dirty) return;
+        if (!dirty && !_repaintSpecials) return;
+        _repaintSpecials = false;
         Panels.Clear("zbks_.map");
         for (int i = 0; i < 3; i++)
         {
@@ -623,6 +658,7 @@ public partial class Cockpit : Node
     private readonly Image?[] _radarF = new Image?[31], _radarB = new Image?[31];
     private string? _radarMember;
     private int _radarCur, _radarPrev;
+    private bool _radarRedraw;
     private double _radarNext, _t;
     private readonly Dictionary<Vehicle, double> _sweptAt = [];
     /// <summary>The 256-colour palette the panels' bitmaps use (the radar's blip colours are indices into it).</summary>
@@ -652,13 +688,16 @@ public partial class Cockpit : Node
         }
         else
         {
-            if (_t < _radarNext) return;
+            if (_t < _radarNext && !_radarRedraw) return;
             _radarPrev = _radarCur;
             while (_radarNext < _t) { _radarNext += 0.2; _radarCur = I76.Sim.Weapons.RadarScope.NextSweep(_radarCur); }
             frame = _radarF[_radarCur];
         }
         if (frame is null) return;
+        _radarRedraw = false;
         var img = (Image)frame.Duplicate();
+        // the frames' texels per original pixel (a pack's upscale): the layout's anchors and the scope's are the original's pixels
+        int k = System.Math.Max(1, img.GetWidth() / _radarBaseW);
         // a newly picked target's byte is 0 (the target pick and the GOG build's E/Q: the one it replaces goes back to 0x69)
         if (locked != _radarPicked)
         {
@@ -668,7 +707,7 @@ public partial class Cockpit : Node
         }
         if (has)
         {
-            Panels.StampInto(img, "zrad.map", RadarRange == 0 ? "range_1" : "range_3", "range_pos");
+            Panels.StampInto(img, k, "zrad.map", RadarRange == 0 ? "range_1" : "range_3", "range_pos");
             float R = RadarRange == 0 ? 100 : 600;
             bool any = false, pinged = false;
             foreach (var v in Combat.World.Vehicles)
@@ -678,28 +717,36 @@ public partial class Cockpit : Node
                 if (I76.Sim.Weapons.RadarScope.Project(Car.Rot, Car.Pos.ToVector3(), v.Pos.ToVector3(), R) is not var (nx, nz)) continue;
                 bool inWedge = locked is null && I76.Sim.Weapons.RadarScope.InPingWedge(_radarPrev, _radarCur, nx, nz);
                 if (inWedge) { if (!pinged) { Sound("cradar.wav"); pinged = true; } _sweptAt[v] = _t; }   // every pass pings; blips in one step share the sound
-                int px = System.Math.Clamp((int)(99 + 51 * nx), 0, img.GetWidth() - 2);
-                int py = System.Math.Clamp((int)(65 + 51 * nz), 0, img.GetHeight() - 2);   // a raw bitmap row: bottom-up, as the image stores it
+                // a raw bitmap row: bottom-up, as the image stores it
                 // no team colours: palette index 0x69 when listed, 0 as the sweep passes or it is picked, +3 a second back to
                 // 0x69; the target 0xff, which the 1997 CD build never writes (its target fades as the others do)
                 bool soft = I76.Game.World.SoftwareLook.Active;
                 int ci = !soft && Combat.RadarTarget.GetValueOrDefault(Car) == v ? 0xff
                     : _sweptAt.TryGetValue(v, out var st) ? System.Math.Min(0x69, (int)(3 * (_t - st))) : 0x69;
-                img.FillRect(new Rect2I(px, py, 2, 2), soft ? SoftwareBlip(ci) : BlipColour(ci));
+                img.FillRect(BlipRect(nx, nz, 2, img.GetWidth(), img.GetHeight(), k), soft ? SoftwareBlip(ci) : BlipColour(ci));
             }
             if (Blips is { } blips)
                 foreach (var (fp, fc) in blips())
                 {
                     if (I76.Sim.Weapons.RadarScope.Project(Car.Rot, Car.Pos.ToVector3(), fp, R) is not var (nx, nz)) continue;
-                    int px = System.Math.Clamp((int)(99 + 51 * nx), 0, img.GetWidth() - 3);
-                    int py = System.Math.Clamp((int)(65 + 51 * nz), 0, img.GetHeight() - 3);
-                    img.FillRect(new Rect2I(px, py, 3, 3), fc);
+                    img.FillRect(BlipRect(nx, nz, 3, img.GetWidth(), img.GetHeight(), k), fc);
                 }
             if (any && !_ledAny) Sound("cgrowl.wav");
             _ledAny = any;
-            Panels.StampInto(img, "zrad.map", any ? "radled_1" : "radled_2", "led_pos");
+            Panels.StampInto(img, k, "zrad.map", any ? "radled_1" : "radled_2", "led_pos");
         }
         UploadRadar(img);
+    }
+
+    /// <summary>
+    /// A blip's square on a radar frame of w x h texels at k texels a pixel: size x size of the original's pixels at
+    /// (99 + 51 x, 65 + 51 z), the scope's centre and radius in the original frame's pixels, kept inside the frame.
+    /// </summary>
+    public static Rect2I BlipRect(float nx, float nz, int size, int w, int h, int k)
+    {
+        int px = System.Math.Clamp((int)(99 + 51 * nx), 0, w / k - size);
+        int py = System.Math.Clamp((int)(65 + 51 * nz), 0, h / k - size);
+        return new Rect2I(px * k, py * k, size * k, size * k);
     }
 
     private Vehicle? _radarPicked;
@@ -723,8 +770,11 @@ public partial class Cockpit : Node
 
     private void UploadRadar(Image img)
     {
-        _radarTex ??= ImageTexture.CreateFromImage(img);
-        _radarTex.Update(img);
+        // a frame of another size (the art made again at another scale) is a new picture in the same texture
+        RadarScale = System.Math.Max(1, img.GetWidth() / _radarBaseW);
+        if (_radarTex is null) _radarTex = ImageTexture.CreateFromImage(img);
+        else if (_radarTex.GetSize() != img.GetSize()) _radarTex.SetImage(img);
+        else _radarTex.Update(img);
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() >= 15 && !_radarDumped) { img.SavePng(System.IO.Path.Combine(dir, "radar.png")); _radarDumped = true; }
         if (!_radarBound) { Materials.OverrideTexture(_radarMember!, _radarTex); _radarBound = true; }
     }
