@@ -87,7 +87,9 @@ with a note naming the file. Interstate '82 maps (`.msa`)
 are for another game and are not listed.
 
 **Resolution.** Graphic Detail's **Resolution** row steps through Desktop (the game's borderless fullscreen at the desktop's size, as it starts) and the common window sizes that fit the screen; a size is a centred window, applied at once with no restart, and is kept for the next start. Alt+Enter still toggles fullscreen. A `--windowed`, `--fullscreen` or `--resolution` on the command line decides that start. Exclusive fullscreen is not offered.
-**Field of view.** Graphic Detail's **Field of View** row (on the Esc menu's pad and the main menu's) sets how wide the main 3D views look. **Monitor**, the default and the recommended choice, keeps the original's height (73.7 degrees) and takes the width from your window's shape: a 4:3 window shows exactly the original's 90 degrees across, a 16:9 window about 106, so a wide screen sees more to the sides than the original did. The numbers are exact degrees across the window whatever its shape, 60 to 110 in steps of 5; **90 (1997)** is the original's width, which in a wide window means less height than the original had. A choice applies at once to the outside views and the cockpit's 3D view; the binoculars, the mirror and the radar keep their own framing. In shell.cfg it is `[port] fov` in degrees across the window (absent for Monitor).
+
+**Field of view.** Graphic Detail's **Field of View** row (on the Esc menu's pad and the main menu's) sets how wide the main 3D views look. **Monitor**, the default and the recommended choice, keeps the original's height (73.7 degrees) and takes the width from your window's shape: a 4:3 window shows exactly the original's 90 degrees across, a 16:9 window about 106, so a wide screen sees more to the sides than the original did. The numbers are exact degrees across the window whatever its shape, 60 to 110 in steps of 5; **90\*** is the original's width (the pads mark the original game's value with `*`), which in a wide window means less height than the original had. A choice applies at once to the outside views and the cockpit's 3D view; the binoculars, the mirror and the radar keep their own framing. In shell.cfg it is `[port] fov` in degrees across the window (absent for Monitor).
+
 **Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
@@ -115,10 +117,11 @@ has its default, and a key the game writes itself is left as you set it. The ori
 | `ordnance_limit` | `original`\*, `unlimited` | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`\*, `true` | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`\*, `enhanced` | `original` | Force Feedback's Pad\* or Pad Enhanced; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
+| `developer` | `false`\*, `true` | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it. The older name `developer_tools` is read too. Single player only. |
 
 The four that follow the look are the original's in the 1997 look and the modern look's own otherwise until the key is in
 the file; a key set by hand holds in both looks. Keys that change the simulation (`melee_ai`, `ordnance_limit`,
-`modern_physics`) are for single-player games: a network game runs on the host's rules and keeps the original's; the drawing
+`modern_physics`) and `developer` are for single-player games: a network game runs on the host's rules and keeps the original's; the drawing
 keys are each player's own, online too. The hooks for a run (`I76_*`, [docs/dev-hooks.md](dev-hooks.md)) win over the file.
 
 ### Controls

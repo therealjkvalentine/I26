@@ -10,9 +10,9 @@ namespace I76.Sim.Views;
 /// </summary>
 public static class ViewFov
 {
-    /// <summary>Degrees across the window per choice; 0 is Monitor (no fixed width), then 60 to 110 by 5 with the original's 90 among them.</summary>
+    /// <summary>Degrees across the window per choice; 0 is Monitor (no fixed width), then 60 to 110 by 5 with the original's 90 among them (marked * in <see cref="Names"/>, the pads' mark for the original's value).</summary>
     public static readonly int[] Across = [0, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110];
-    public static readonly string[] Names = ["Monitor", "60", "65", "70", "75", "80", "85", "90 (1997)", "95", "100", "105", "110"];
+    public static readonly string[] Names = ["Monitor", "60", "65", "70", "75", "80", "85", "90*", "95", "100", "105", "110"];
     public const int Monitor = 0;
     /// <summary>The original's: 90 across, which is choice 7.</summary>
     public static readonly int Original = System.Array.IndexOf(Across, 90);

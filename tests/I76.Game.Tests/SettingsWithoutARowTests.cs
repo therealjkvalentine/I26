@@ -122,7 +122,7 @@ public class SettingsWithoutARowTests
     public void EveryRowWithTheOriginalsValueMarksItOnce()
     {
         Assert.Equal("*", ShellSettings.OriginalMark);
-        foreach (var names in new[] { ShellSettings.ForceFeedbackNames, ShellSettings.MeleeAiNames, I76.Game.World.MapEdge.Names })
+        foreach (var names in new[] { ShellSettings.ForceFeedbackNames, ShellSettings.MeleeAiNames, I76.Game.World.MapEdge.Names, I76.Sim.Views.ViewFov.Names })
         {
             Assert.Single(names, n => n.EndsWith(ShellSettings.OriginalMark, System.StringComparison.Ordinal));
             Assert.DoesNotContain("Original", names);
