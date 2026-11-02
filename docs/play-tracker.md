@@ -216,6 +216,10 @@ stacked ones and the integration branch are section I, after H.
 | I16 | feat/net-auto-handicap-2 | auto handicap: a level per net kill over the table's average (band 1); dealt x0.75..x0.2 at -1..-5, +n the inverse to x5; taken 1/factor held to x1/3..x3; rams by the rammer's factor, the .45's 5 points by both | ux (the port's rule); melee-sim m05 six bots, seeds 1-24: leader margin 8.3 (off) / 3.3 (old auto) / 2.0 (new); local: Sim AutoHandicapTests, HandicapDamageTests, Net HandicapTests, AutoHandicapSimTests re-pinned | - | merged; AutoHandicapSimTests passes again |
 | I17 | fix/hd-pack-glass-and-key | under an HD pack the window, material-table, paint-mask and material-map analyses read the original's texels (an entry's Base) and sample their maps by UV: glass sees through again, no cyan rim | local: Formats CarMaterialTableTests (5939 glass texels on the 128x128 grid, 340 at 512x512); M01 side captures with and without the pack | `_scratch/r3-pack-fixes/` | merged |
 | I18 | perf/hd-pack-load | packs are 2x BC7 .dds (the cockpit's z* art 4x) uploaded as stored, decompressed only where the CPU paints; a model's upscales read and decoded together on all cores; tools/upscale-textures.py writes DDS (etcpak), `--from` repacks an older pack | local: T01 mission build 9.0 s no pack, 9.8 s with the 2x BC7 pack (was 13.4-18.0 s with the 4x PNG pack); the pack 588 MB on disk (1.29 GB as 4x PNG); Formats HdTextureTests | `_scratch/r3-pack-fixes/` | merged |
+| I19 | fix/hd-cockpit-panels | under an HD pack: the mirror's surround dropped within 0.1 of its corner colour (no cream box); the radar's blips, contact LED and range lamp at the frame's own scale; TextureFactory.Swapped after SetHd reloads the panels, radar frames, wheel and arms at the new scale (the HD Textures row and the look flip live, the 1997 look always the originals); the tool's `--pixel` scales the labels, ammunition digits and mirror frames 4x without the model, in their own colours (zdue now in the pack) | owner's playtest (five cockpit faults with the 2x BC7 pack); local: Game RadarBlipTests 3, Formats HdTexture 5; the radar sweep "slow and backwards" not reproduced (same 30 frames, 0.2 s step, clockwise, with and without the pack) | `_scratch/r3-hd-cockpit/shots/` | merged; the lab pack's eight regenerated files copied to both playtest machines |
+| I20 | fix/hd-dream-grey | the dream (T04) grey again with a pack: the entries the mission's palette greys and t01.act colours are found once (HdTexture.Greyed) and an upscale over them takes the mission's grey by luminance, blended between the original's greyed texels (HdTexture.Recolour); road and cars keep their colour, as in the original | spec (t04.act differs from t01.act in 32 entries, the ground and sky ramps); local: Formats HdTextureGreyTests 3; T04 greys 30 entries, T12 7, M15 16, P10 17, T06/T07 2 | `_scratch/r3-hd-cockpit/` (T04 with and without the pack, 1997) | merged |
+| I21 | feat/host-form-redesign | the network host form's options one box under NO. DRIVERS in the form's paper and lines (check boxes for the on/off rules, ruled blanks for Max Score, Turrets, Ignition, Rate, Hcp, Pass); an arena sketch from above with its starts, count and size (ArenaSketch in Formats), a band of high ground hatched round the floor | ux; local: Formats ArenaSketchTests 11, Game HostFormLayoutTests 2 | `_scratch/r3-host-form/shots/` | merged (stacked on fd1ad8e; no hunk against pass 5's network branches beyond the changelog) |
+| I22 | fix/round3-integration-3 | the integrator's pass-6 fix: DamageModel's HandicapTaken and IncomingFactor each under their own summary (pass 5's note) | - | - | merged |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -275,6 +279,31 @@ Game 214/214, Sim 959/992, Net 424/439; outside the desktop baseline only the kn
 CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the Nitro install set). Laptop: Sim
 958/990, Net 424/439, Game 214/214, Formats 889/924 (30 skipped), Editor 216/216; outside the laptop's baseline the three
 known Sim ones. AutoHandicapSimTests leaves the known list (re-pinned by feat/net-auto-handicap-2). No new failure.
+
+Pass 6 (2026-11-02 night): the three branches above and fix/round3-integration-3 merged by sync-play (incremental; the
+trees identical to a scratch pass of the same merges). Upstream moved meanwhile (origin/master 32988ae, ten commits past
+0.11.0: map editor, memory, car materials, macOS signing); play stays on 5192e29 until a `-Rebuild`, and the two stack
+branches not checked out in a worktree (fix/round3-integration, fix/hd-pack-glass-and-key) did not rebase onto it and
+were merged as they stand (no ref moved).
+- TextureFactory.cs: fix/hd-cockpit-panels' `Swapped` event and fix/hd-dream-grey's `PackPalette` (with `_greyed`) added
+  at the same place: both kept, Swapped first (a conflict hunk rerere keeps). Both work on the served HdPic, so a greyed
+  upscale is what the panels reload after a swap.
+- CHANGELOG.md: union at each merge (the HD cockpit and dream lines under Fixed, the host form under New after the
+  network Esc and auto handicap lines).
+- feat/host-form-redesign (base fd1ad8e): its files and pass 5's network and shell changes do not overlap outside
+  CHANGELOG.md, docs/deviations.md and docs/multiplayer.md, which merged by git; the Hcp blank steps the same Off / Manual /
+  Auto mode the auto handicap reads.
+- The installed HD pack on both playtest machines: the eight files fix/hd-cockpit-panels' tool regenerates (zdse,
+  zdse320, zdue (new), zdue320, zmiri101, zmiro101, znbe, znbe320) copied over the user folder's tex-world.
+
+Versions after pass 6: snapshot 24, protocol 24, shell.cfg 13, unchanged (no pass-6 branch bumps any).
+
+Test status, pass 6 (`play` at b0b771b, before the play-meta merge): desktop (I76_INSTALL and I76_NITRO_INSTALL set)
+Game 220/220, Sim 959/992, Net 421/439; outside the desktop baseline only the known four (CheckpointTests T14,
+CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the Nitro install set); Net's three
+more failures than pass 5 are all in the desktop baseline (network flakes under load). Laptop: Sim 958/990, Net 424/439,
+Game 220/220, Formats 903/938 (30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No
+new failure.
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
