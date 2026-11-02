@@ -98,8 +98,6 @@ fix/tactic-skid-modulus
 fix/movie-skip-deviation-row
 fix/end-of-match-brake
 fix/network-deviation-rows
-fix/ai-dropper-gate-straight-line     # stacked on play: corrections from the original measured 2026-11-02
-fix/turret-lead-predictor-delay       # stacked on play: corrections from the original measured 2026-11-02
 
 # C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
 perf/horizon-early-z
@@ -151,3 +149,7 @@ feat/original-behavior-pad            # stacked on play, last: the Original Reci
 
 # E. last: the clock
 feat/sim-rate-24
+
+# G. stacked on play, last: corrections from the original measured 2026-11-02 (merge after everything above)
+fix/ai-dropper-gate-straight-line     # stacked on play: corrections from the original measured 2026-11-02
+fix/turret-lead-predictor-delay       # stacked on play: corrections from the original measured 2026-11-02
