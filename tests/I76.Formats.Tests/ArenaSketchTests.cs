@@ -23,7 +23,6 @@ public class ArenaSketchTests
         Assert.Equal(4, s.Starts);
         Assert.Equal(290, s.Width, 1);
         Assert.Equal(290, s.Depth, 1);
-        Assert.Equal("4 starts", s.StartsText);
         Assert.Equal("0.3 x 0.3 km", s.SizeText);
     }
 
@@ -37,8 +36,8 @@ public class ArenaSketchTests
         int A(int x, int y) => px[(y * W + x) * 4 + 3];
         // the region is square in samples, widened to the box's 5:3: the floor's centre (sample 64, 64) is the box's
         Assert.Equal(0, A(W / 2, H / 2));
-        // a start: the x's crossing; the region spans 290 * 1.32 / 5 + 30 = 106.6 samples top to bottom, centred on 64
-        float d = 290f / 5 * 1.32f + 30, w = d * W / H;
+        // a start: the x's crossing; the region spans 290 / 5 * 1.4 + 40 = 121.2 samples top to bottom, centred on 64
+        float d = 290f / 5 * 1.4f + 40, w = d * W / H;
         int StartX(float sx) => (int)((sx / 5 - (64 - w / 2)) / w * W);
         int StartY(float sz) => (int)(((64 + d / 2) - sz / 5) / d * H);
         Assert.True(A(StartX(250), StartY(250)) > 200);
@@ -72,14 +71,19 @@ public class ArenaSketchTests
     }
 
     [Fact]
-    public void InkBottomIsTheLowestDrawnRow()
+    public void InkBoundsAreTheDrawnExtent()
     {
         var s = Sketch();
         var px = s.Render(1, aliased: true);
-        int b = s.InkBottom();
-        Assert.InRange(b, 60, 119);
-        Assert.Contains(Enumerable.Range(0, 200), x => px[(b * 200 + x) * 4 + 3] >= 40);
-        for (int y = b + 1; y < 120; y++) Assert.DoesNotContain(Enumerable.Range(0, 200), x => px[(y * 200 + x) * 4 + 3] >= 40);
+        var (x0, y0, x1, y1) = s.InkBounds()!.Value;
+        bool Ink(int x, int y) => px[(y * 200 + x) * 4 + 3] >= 40;
+        Assert.Contains(Enumerable.Range(0, 200), x => Ink(x, y1));
+        Assert.Contains(Enumerable.Range(0, 200), x => Ink(x, y0));
+        Assert.Contains(Enumerable.Range(0, 120), y => Ink(x0, y));
+        Assert.Contains(Enumerable.Range(0, 120), y => Ink(x1, y));
+        for (int y = y1 + 1; y < 120; y++) Assert.DoesNotContain(Enumerable.Range(0, 200), x => Ink(x, y));
+        // a square arena in a 5:3 box: its ink is about centred across it
+        Assert.InRange((x0 + x1) / 2, 95, 105);
     }
 
     [Fact]

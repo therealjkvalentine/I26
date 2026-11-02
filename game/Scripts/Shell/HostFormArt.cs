@@ -10,55 +10,69 @@ namespace I76.Game.Shell;
 /// buttons): Arial at the cap height asked, the art's own TEAM PLAY being Helvetica at 8 px caps. The modern look draws
 /// them at the window's resolution, anti-aliased (a picture glyph on the text layer); the 1997 look into the frame's
 /// pixels, the labels hard-edged as the shell's own fonts are, a button's small bold letters mixed into the palette as
-/// the art's RENAME is. Without the face, the shell's sans (font 0x47).
+/// the art's RENAME is; small notes in the install's Lee. Without the face, the shell's sans (font 0x47).
 /// </summary>
 public static class PrintedType
 {
-    private static Font? _regular, _bold, _regular1997, _bold1997;
-    private static readonly Dictionary<(string, int, bool, Color), (ImageTexture Tex, float W)?> Pictures = [];
-    private static readonly Dictionary<(string, int, bool), (byte[] A, int W, int H)?> Pixels = [];
-    private static readonly Dictionary<bool, int> CapAt200 = [];
+    /// <summary>The faces: the labels' Arial, the buttons' Arial Bold, and the form's handwriting (the install's Lee) for small notes.</summary>
+    public enum Face { Label, Button, Hand }
+    /// <summary>The install's Lee_____.ttf, for <see cref="Face.Hand"/>.</summary>
+    public static string? LeePath { get; set; }
+    private static readonly Dictionary<(Face, bool), Font?> Faces = [];
+    private static readonly Dictionary<(string, int, Face, Color), (ImageTexture Tex, float W)?> Pictures = [];
+    private static readonly Dictionary<(string, int, Face), (byte[] A, int W, int H)?> Pixels = [];
+    private static readonly Dictionary<Face, int> CapAt200 = [];
 
-    private static Font? Face(bool bold, bool modern)
+    private static Font? FontOf(Face face, bool modern)
     {
-        if (modern) return bold ? _bold ??= HdAssets.Arial(true, TextServer.FontAntialiasing.Gray, TextServer.Hinting.None)
-                                : _regular ??= HdAssets.Arial(false, TextServer.FontAntialiasing.Gray, TextServer.Hinting.None);
-        // the 1997 look: the labels from the face's own hinted one-bit rendering, a button's from its grey one (mixed below)
-        return bold ? _bold1997 ??= HdAssets.Arial(true, TextServer.FontAntialiasing.Gray, TextServer.Hinting.Normal)
-                    : _regular1997 ??= HdAssets.Arial(false, TextServer.FontAntialiasing.None, TextServer.Hinting.Normal);
+        if (Faces.TryGetValue((face, modern), out var f)) return f;
+        // the 1997 look: the labels from the face's own hinted one-bit rendering, a button's and the hand's from their grey one
+        var aa = modern || face != Face.Label ? TextServer.FontAntialiasing.Gray : TextServer.FontAntialiasing.None;
+        var hinting = modern ? TextServer.Hinting.None : TextServer.Hinting.Normal;
+        if (face == Face.Hand)
+        {
+            if (LeePath is null) return null;
+            var lee = new FontFile { Antialiasing = aa, Hinting = hinting, SubpixelPositioning = TextServer.SubpixelPositioning.Disabled };
+            f = lee.LoadDynamicFont(LeePath) == Error.Ok ? lee : null;
+        }
+        else f = HdAssets.Arial(face == Face.Button, aa, hinting);
+        return Faces[(face, modern)] = f;
     }
 
     /// <summary>The face's capital H at the raster size, in px (the scale of everything else).</summary>
-    private static int CapHeight(bool bold)
+    private static int CapHeight(Face face)
     {
-        if (CapAt200.TryGetValue(bold, out int h)) return h;
-        return CapAt200[bold] = Face(bold, true) is { } f && ShellGlyphs.Raster(f, "H") is { } r ? r.H : 143;
+        if (CapAt200.TryGetValue(face, out int h)) return h;
+        return CapAt200[face] = FontOf(face, true) is { } f && ShellGlyphs.Raster(f, "H") is { } r ? r.H : 143;
     }
 
     /// <summary>How wide the words are, in shell pixels, in either look (the layout is the same in both).</summary>
-    public static float Measure(ShellDatabase db, string text, int cap, bool bold = false)
+    public static float Measure(ShellDatabase db, string text, int cap, Face face = Face.Label)
     {
-        if (Face(bold, true) is not { } f || ShellGlyphs.Raster(f, text) is not { } r) return db.Font(0x47).Measure(text);
-        return r.W * (float)cap / CapHeight(bold);
+        if (FontOf(face, true) is not { } f || ShellGlyphs.Raster(f, text) is not { } r) return db.Font(0x47).Measure(text);
+        return r.W * (float)cap / CapHeight(face);
     }
 
+    public static float Draw(ShellFrame frame, ShellDatabase db, float x, int baseline, string text, int cap, Color ink, bool bold = false, bool centre = false) =>
+        Draw(frame, db, x, baseline, text, cap, ink, bold ? Face.Button : Face.Label, centre);
+
     /// <summary>
-    /// The words with their capitals' foot on the row above <paramref name="baseline"/> (caps from baseline − cap to
+    /// The words with their foot on the row above <paramref name="baseline"/> (capitals from baseline − cap to
     /// baseline − 1), left-aligned at x or centred on it. Returns their width.
     /// </summary>
-    public static float Draw(ShellFrame frame, ShellDatabase db, float x, int baseline, string text, int cap, Color ink, bool bold = false, bool centre = false)
+    public static float Draw(ShellFrame frame, ShellDatabase db, float x, int baseline, string text, int cap, Color ink, Face face, bool centre = false)
     {
         bool modern = frame.Modern;
-        if (Face(bold, true) is null) return Fallback(frame, db, x, baseline, text, ink, centre);
-        float w = Measure(db, text, cap, bold);
+        if (FontOf(face, true) is null) return Fallback(frame, db, x, baseline, text, ink, centre);
+        float w = Measure(db, text, cap, face);
         if (centre) x -= w / 2;
         if (modern)
         {
-            if (Picture(text, cap, bold, ink) is not { } p) return w;
+            if (Picture(text, cap, face, ink) is not { } p) return w;
             frame.Picture(new Rect2I((int)MathF.Round(x), baseline - cap, (int)MathF.Ceiling(p.W), cap), p.Tex);
             return w;
         }
-        if (Raster1997(text, cap, bold) is not { } r) return w;
+        if (Raster1997(text, cap, face) is not { } r) return w;
         // centred words keep their middle where the measured width put it
         int x0 = centre ? (int)MathF.Round(x + w / 2 - r.W / 2f) : (int)MathF.Round(x), y0 = baseline - r.H;
         byte solid = frame.Nearest(ink);
@@ -67,14 +81,15 @@ public static class PrintedType
             for (int xx = 0; xx < r.W; xx++)
             {
                 int a = r.A[yy * r.W + xx];
-                if (!bold) { if (a >= 128) frame.Pixel(x0 + xx, y0 + yy, solid); continue; }
+                // the labels hard-edged, as the shell's own fonts; a button's small bold letters and the hand's small note mixed into the paper
+                if (face == Face.Label) { if (a >= 128) frame.Pixel(x0 + xx, y0 + yy, solid); continue; }
                 if (a < 40) continue;
                 byte under = frame.At(x0 + xx, y0 + yy), q = (byte)(a * 4 / 255);
                 if (!mixed.TryGetValue((under, q), out byte v))
                 {
                     var pal = frame.Palette;
                     var paper = Color.Color8(pal[under * 3], pal[under * 3 + 1], pal[under * 3 + 2]);
-                    mixed[(under, q)] = v = frame.Nearest(paper.Lerp(ink, Math.Min(1f, q / 4f + 0.125f)));
+                    mixed[(under, q)] = v = frame.Nearest(paper.Lerp(ink, Math.Min(1f, q / 4f + (face == Face.Hand ? 0.5f : 0.125f))));
                 }
                 frame.Pixel(x0 + xx, y0 + yy, v);
             }
@@ -93,40 +108,42 @@ public static class PrintedType
     }
 
     /// <summary>The words as a picture at <see cref="ShellGlyphs.Scale"/> texels a shell pixel, in the ink, and their width in shell pixels.</summary>
-    private static (ImageTexture Tex, float W)? Picture(string text, int cap, bool bold, Color ink)
+    private static (ImageTexture Tex, float W)? Picture(string text, int cap, Face face, Color ink)
     {
-        if (Pictures.TryGetValue((text, cap, bold, ink), out var p)) return p;
+        if (Pictures.TryGetValue((text, cap, face, ink), out var p)) return p;
         (ImageTexture, float)? made = null;
-        if (Face(bold, true) is { } f && ShellGlyphs.Raster(f, text) is { } r)
+        if (FontOf(face, true) is { } f && ShellGlyphs.Raster(f, text) is { } r)
         {
             const int S = ShellGlyphs.Scale;
-            float k = (float)cap * S / CapHeight(bold);
+            float k = (float)cap * S / CapHeight(face);
             int tw = Math.Max(1, (int)MathF.Round(r.W * k)), th = Math.Max(1, (int)MathF.Round(r.H * k));
             var cov = Image.CreateFromData(r.W, r.H, false, Image.Format.L8, r.A);
             cov.Resize(tw, th, Image.Interpolation.Lanczos);
             var a = cov.GetData();
-            float w = r.W * (float)cap / CapHeight(bold);
+            float w = r.W * (float)cap / CapHeight(face);
             int cw = (int)MathF.Ceiling(w) * S, ch = cap * S;
             var rgba = new byte[cw * ch * 4];
-            for (int y = 0; y < Math.Min(th, ch); y++)
+            // the ink's foot on the box's foot (words lower than a capital sit on the line)
+            int dy = ch - th;
+            for (int y = Math.Max(0, -dy); y < th && y + dy < ch; y++)
                 for (int x = 0; x < Math.Min(tw, cw); x++)
                 {
-                    int o = (y * cw + x) * 4;
+                    int o = ((y + dy) * cw + x) * 4;
                     (rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]) = ((byte)ink.R8, (byte)ink.G8, (byte)ink.B8, a[y * tw + x]);
                 }
             var img = Image.CreateFromData(cw, ch, false, Image.Format.Rgba8, rgba);
             img.GenerateMipmaps();
             made = (ImageTexture.CreateFromImage(img), w);
         }
-        return Pictures[(text, cap, bold, ink)] = made;
+        return Pictures[(text, cap, face, ink)] = made;
     }
 
     /// <summary>The words at the 640x480 frame's own size: the face at the pixel size whose capital H is cap px.</summary>
-    private static (byte[] A, int W, int H)? Raster1997(string text, int cap, bool bold)
+    private static (byte[] A, int W, int H)? Raster1997(string text, int cap, Face face)
     {
-        if (Pixels.TryGetValue((text, cap, bold), out var r)) return r;
-        int size = Math.Max(4, (int)MathF.Round(cap * 200f / CapHeight(bold)));
-        return Pixels[(text, cap, bold)] = Face(bold, false) is { } f ? ShellGlyphs.Raster(f, text, size) : null;
+        if (Pixels.TryGetValue((text, cap, face), out var r)) return r;
+        int size = Math.Max(4, (int)MathF.Round(cap * 200f / CapHeight(face)));
+        return Pixels[(text, cap, face)] = FontOf(face, false) is { } f ? ShellGlyphs.Raster(f, text, size) : null;
     }
 }
 

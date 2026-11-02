@@ -37,8 +37,7 @@ public sealed class ArenaSketch
         (Starts, Width, Depth) = (starts.Length, width, depth);
     }
 
-    /// <summary>"17 starts" and "1.0 x 1.0 km", the lines the form writes under the sketch.</summary>
-    public string StartsText => Starts == 1 ? "1 start" : $"{Starts} starts";
+    /// <summary>"1.0 x 1.0 km", the note the form writes by the sketch.</summary>
     public string SizeText => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Width / 1000f:0.0} x {Depth / 1000f:0.0} km");
 
     /// <summary>A mission's sketch for a box of boxW x boxH shell pixels; null when it has no placements on its terrain.</summary>
@@ -76,8 +75,8 @@ public sealed class ArenaSketch
         if (all.Count == 0 || boxW <= 0 || boxH <= 0) return null;
         float ax = all.Min(p => p.X), az = all.Min(p => p.Y), bx = all.Max(p => p.X), bz = all.Max(p => p.Y);
         int gw = boxW * Cells, gh = boxH * Cells;
-        // the region: the points' span and a third again, plus 30 samples, widened to the box's shape
-        float cx = (ax + bx) / 2, cz = (az + bz) / 2, w = (bx - ax) * 1.32f + 30, d = (bz - az) * 1.32f + 30;
+        // the region: the points' span and two fifths again, plus 40 samples (room for the hatched band), widened to the box's shape
+        float cx = (ax + bx) / 2, cz = (az + bz) / 2, w = (bx - ax) * 1.4f + 40, d = (bz - az) * 1.4f + 40;
         if (w / d < (float)gw / gh) w = d * gw / gh;
         else d = w * gh / gw;
         float gx = cx - w / 2, gz = cz - d / 2;
@@ -96,12 +95,12 @@ public sealed class ArenaSketch
         if (min == float.MaxValue) min = 0;
         for (int i = 0; i < g.Length; i++) if (missing[i]) g[i] = min;
 
-        // the floor: up to 7 above the starts' upper quartile; what rises higher is the arena's edge
+        // the floor: up to FloorRise above the starts' upper quartile; what rises higher is the arena's edge
         Vector2 ToGrid(Vector2 p) => new((p.X / S - gx) / w, (gz + d - p.Y / S) / d);
         var st = starts.Select(ToGrid).ToArray();
         var sh = st.Select(u => g[Math.Clamp((int)(u.Y * gh), 0, gh - 1) * gw + Math.Clamp((int)(u.X * gw), 0, gw - 1)]).ToList();
         if (sh.Count == 0) sh = [.. points.Select(ToGrid).Select(u => g[Math.Clamp((int)(u.Y * gh), 0, gh - 1) * gw + Math.Clamp((int)(u.X * gw), 0, gw - 1)])];
-        float level = Percentile(sh, 0.75f) + 7f;
+        float level = Percentile(sh, 0.75f) + FloorRise;
         var blurred = Blur(g, gw, gh, 1.0f);
         var m = new float[g.Length];
         for (int i = 0; i < m.Length; i++) m[i] = blurred[i] > level ? 1 : 0;
@@ -112,8 +111,12 @@ public sealed class ArenaSketch
         return new ArenaSketch(boxW, boxH, soft, st, rd, (bx - ax) * S, (bz - az) * S);
     }
 
-    /// <summary>The hatched band's width beside the floor, in grid cells (8 shell pixels), and how far its outer edge wanders either way.</summary>
-    public const float BandCells = 16f, BandWander = 0.35f;
+    /// <summary>The hatched band's width beside the floor, in grid cells (6 shell pixels), and how far its outer edge wanders either way.</summary>
+    public const float BandCells = 12f, BandWander = 0.35f;
+    /// <summary>High ground this near the box's edge (grid cells, 10 shell pixels; wandering as the band does) is left as paper too.</summary>
+    public const float EdgeCells = 20f;
+    /// <summary>The floor: up to this much above the starts' upper quartile (world units); the slopes up to it are drivable ground, not hatched.</summary>
+    public const float FloorRise = 10f;
 
     /// <summary>
     /// The high ground beyond a band round the floor is left as paper where it runs out to the box's edge, the band's outer
@@ -162,7 +165,9 @@ public sealed class ArenaSketch
                 float fx = (float)(x % Knot) / Knot, fy = (float)(y % Knot) / Knot;
                 fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
                 float a = Hash(kx, ky) + (Hash(kx + 1, ky) - Hash(kx, ky)) * fx, b = Hash(kx, ky + 1) + (Hash(kx + 1, ky + 1) - Hash(kx, ky + 1)) * fx;
-                far[i] = d[i] > BandCells * (1 + BandWander * (a + (b - a) * fy)) * 3;
+                float wander = 1 + BandWander * (a + (b - a) * fy);
+                // beyond the band, or near the box's edge (the sketch closes before it, never cut straight by it)
+                far[i] = d[i] > BandCells * wander * 3 || Math.Min(Math.Min(x, w - 1 - x), Math.Min(y, h - 1 - y)) < EdgeCells * wander;
             }
         // what goes is the far ground the box's edge reaches: high ground the floor encloses (a mesa, a wall between two roads) stays whole
         var o = (float[])m.Clone();
@@ -256,16 +261,23 @@ public sealed class ArenaSketch
         return o;
     }
 
-    private int? _inkBottom;
+    private (int X0, int Y0, int X1, int Y1)? _ink;
+    private bool _inkKnown;
 
-    /// <summary>The lowest row of the box the sketch inks (the 1997 look's drawing, alpha 40 and up), -1 when it inks none: the line under it sits just below.</summary>
-    public int InkBottom()
+    /// <summary>The box's rows and columns the sketch inks (the 1997 look's drawing, alpha 40 and up), inclusive; null when it inks none. The form centres these in its space.</summary>
+    public (int X0, int Y0, int X1, int Y1)? InkBounds()
     {
-        if (_inkBottom is { } b) return b;
+        if (_inkKnown) return _ink;
         var px = Render(1, aliased: true);
-        int bottom = -1;
-        for (int i = 3; i < px.Length; i += 4) if (px[i] >= 40) bottom = Math.Max(bottom, i / 4 / BoxWidth);
-        return (_inkBottom = bottom).Value;
+        int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
+        for (int i = 0; i < px.Length / 4; i++)
+            if (px[i * 4 + 3] >= 40)
+            {
+                int x = i % BoxWidth, y = i / BoxWidth;
+                x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y);
+            }
+        _inkKnown = true;
+        return _ink = x1 < 0 ? null : (x0, y0, x1, y1);
     }
 
     /// <summary>

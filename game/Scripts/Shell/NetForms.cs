@@ -334,9 +334,11 @@ public sealed partial class MeleeScreen
     private static readonly int[] BoxRow = [368, 385, 399, 413, 433, 448, 463];
     /// <summary>The check boxes' columns: the labels' x and the box's (TEAM PLAY's own, 11 x 11 at 87, 381 in the art).</summary>
     private const int LabelA = 15, CheckA = 90, LabelB = 112, CheckB = 200;
-    /// <summary>The arena sketch's box: mockup B's place moved down and left by the art's spacing between its stacked boxes (15 px, NO. DRIVERS' foot rule to the options box's top).</summary>
-    private static readonly Rect2I SketchBox = new(217, 196, 200, 120);
-    private static readonly Color LabelInk = Color.Color8(108, 90, 58), ButtonInk = Color.Color8(88, 72, 44);
+    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the front view's foot to the side view's roof.</summary>
+    private static readonly Vector2I SketchSize = new(200, 120);
+    private static readonly Rect2I SketchSpace = new(219, 183, 237, 122);
+    /// <summary>The labels in about the ink of the form's rules (they are thinner); the box's handwriting a little darker than those, lighter than the hand elsewhere.</summary>
+    private static readonly Color LabelInk = Color.Color8(76, 64, 42), ButtonInk = Color.Color8(88, 72, 44), HandInk = Color.Color8(60, 50, 32);
     private const int LabelCap = 8, ButtonCap = 5;
     /// <summary>The stepped rules: the label and where it goes, the row, and the blank's run (from the label's Arial width and the widest value).</summary>
     private static readonly (int Id, string Label, int X, int Row, int Blank0, int Blank1)[] Stepped =
@@ -399,12 +401,15 @@ public sealed partial class MeleeScreen
         // the bar's right end switches the game type (the Nitro form's GAME TYPE row is its own)
         DrawModeButton();
         var hand = Shell.Db.Font(0x44);
+        var ink = new byte[256];
+        byte handInk = Frame.Nearest(HandInk);
+        for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
         void Label(int x, int row, string t) => PrintedType.Draw(Frame, Shell.Db, x, BoxRow[row], t, LabelCap, LabelInk);
-        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t);
+        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t, ink);
         void Switch(bool colB, int row, string t, bool on)
         {
             Label(colB ? LabelB : LabelA, row, t);
-            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X");
+            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X", ink);
         }
         if (_coopBase)
         {
@@ -429,7 +434,7 @@ public sealed partial class MeleeScreen
             Switch(false, 3, "CAR RESET", Shell.Settings.CarReset);
             Switch(true, 3, "CB RADIO", Shell.Settings.CbRadio);
             Switch(false, 4, "MAX SCORE", _scoreOn);
-            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString());
+            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString(), ink);
         }
         string[] stepped = [_turrets ? "Unlim." : "One", Shell.Settings.IgnitionStaysOn ? "Lock" : "Free", $"{_rate} Hz",
             HandicapWord(Shell.Settings.Handicaps), _password.Length > 0 ? "*" : "-"];
@@ -437,26 +442,24 @@ public sealed partial class MeleeScreen
     }
 
     /// <summary>
-    /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), and under it the start count and the
-    /// span, "17 starts · 1.0 x 1.0 km", in the small handwriting, centred, just below the sketch's lowest ink.
+    /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), its ink centred in the space between
+    /// the car's views, and its span ("1.5 x 1.0 km") small in the form's hand at the space's lower left. The x marks are the
+    /// start points; their count is no limit on the players, so it is not written.
     /// </summary>
     private void DrawArenaSketch()
     {
         if (ListCount == 0) return;
         string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
-        if (ArenaSketches.Of(Shell.Install, stem, SketchBox.Size.X, SketchBox.Size.Y) is not { } s) return;
-        ArenaSketches.Draw(Frame, stem, s, SketchBox.Position.X, SketchBox.Position.Y);
-        var hand = Shell.Db.Font(0x44);
-        const int gap = 10;
-        string a = s.StartsText, b = s.SizeText;
-        // tight under the lowest inked row: 3 px of paper, then the capitals (the hand's cell has 2 rows over them)
-        int ink = s.InkBottom() < 0 ? SketchBox.Size.Y - 1 : s.InkBottom();
-        int x = SketchBox.Position.X + SketchBox.Size.X / 2 - (hand.Measure(a) + gap + hand.Measure(b)) / 2, top = SketchBox.Position.Y + ink + 2;
-        Frame.Text(hand, x, top, a);
-        // the dot between them is the hand's full stop, raised to the middle of the capitals
-        Frame.Text(hand, x + hand.Measure(a) + (gap - hand.Measure(".")) / 2, top - 4, ".");
-        Frame.Text(hand, x + hand.Measure(a) + gap, top, b);
+        if (ArenaSketches.Of(Shell.Install, stem, SketchSize.X, SketchSize.Y) is not { } s) return;
+        var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
+        int cx = SketchSpace.Position.X + SketchSpace.Size.X / 2, cy = SketchSpace.Position.Y + SketchSpace.Size.Y / 2;
+        ArenaSketches.Draw(Frame, stem, s, cx - (x0 + x1 + 1) / 2, cy - (y0 + y1 + 1) / 2);
+        PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
+        PrintedType.Draw(Frame, Shell.Db, SketchSpace.Position.X + 3, SketchSpace.End.Y, s.SizeText, SizeCap, HandInk, PrintedType.Face.Hand);
     }
+
+    /// <summary>The span's capitals: 7 px, under the box's handwriting's 9, still clear at 640x480.</summary>
+    private const int SizeCap = 7;
 
     /// <summary>
     /// A button of RENAME's look (LOCAL DRIVER's, 41 x 12 at 173, 46): its edges and a plain column of it stretched to w, into
