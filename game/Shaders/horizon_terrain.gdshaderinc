@@ -75,6 +75,8 @@ vec3 noised(vec2 x) {
 }
 
 void vertex() {
+	// Map Edge's Hide: the ring made for the walls' plain (HorizonTerrain.Compute: UV2.y is the height under Hide less this one)
+	VERTEX.y += UV2.y * i76_edge_hide;
 	g_pos = vec3(VERTEX.x, VERTEX.y, -VERTEX.z);
 	g_nrm = vec3(NORMAL.x, NORMAL.y, -NORMAL.z);
 	v_data = COLOR;
@@ -103,15 +105,15 @@ void fragment() {
 	{
 		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
 		if (!(tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0)) discard;
-		vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
-		if (!(g_pos.y > fl.r && fl.g > 0.5)) discard;
+		vec3 fl = textureLod(map_floor, tuv, 0.0).rgb;
+		if (!(g_pos.y > mix(fl.r, fl.b, i76_edge_hide) && fl.g > 0.5)) discard;
 	}
 #else
 	if (map_extent.x > 0.0) {
 		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
 		if (tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0) {
-			vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
-			if (g_pos.y > fl.r) discard;
+			vec3 fl = textureLod(map_floor, tuv, 0.0).rgb;
+			if (g_pos.y > mix(fl.r, fl.b, i76_edge_hide)) discard;
 		}
 	}
 #endif

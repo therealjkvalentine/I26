@@ -248,6 +248,18 @@ i76_edge_sun={
 "type": "vec3",
 "value": Vector3(0, 1, 0)
 }
+i76_edge_foot={
+"type": "sampler2D",
+"value": ""
+}
+i76_edge_foot_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+i76_edge_hide={
+"type": "float",
+"value": 0.0
+}
 
 [importer_defaults]
 

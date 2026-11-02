@@ -2027,21 +2027,24 @@ public partial class Main : Node3D
         ApplyMapEdge();
     }
 
-    /// <summary>I76_MAP_EDGE=0|1|2, a capture hook: Original, Haze or Fade Out whatever the settings say.</summary>
+    /// <summary>I76_MAP_EDGE=0|1|2|3, a capture hook: Original, Haze, Fade Out or Hide whatever the settings say.</summary>
     private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? MapEdge.Parse(me) : setting;
     private int _mapEdge = MapEdge.Original;
 
     /// <summary>
     /// Map Edge on the modern look's terrain and ring (MapEdge, map_edge.gdshaderinc): the haze's strength and reach, in the
-    /// ring's own horizon colour and sun glow; off in the 1997 look, at Original, and with no ring (no edge grid then).
+    /// ring's own horizon colour and sun glow, or Hide's clamp to the walls' foot grid; off in the 1997 look, at Original,
+    /// and with no ring (no edge grid then).
     /// </summary>
     private void ApplyMapEdge()
     {
         bool on = !_mode1997 && _mapEdge != MapEdge.Original && _horizon is { HasEdgeGrid: true };
         // amount at full haze, band inside the edge, clear air and reach (m): Haze leaves the walls' and the ranges' shapes
-        // as pale silhouettes; Fade Out takes them into the horizon colour from nearer
-        var haze = !on ? Vector4.Zero : _mapEdge == MapEdge.FadeOut ? new Vector4(1f, 900f, 100f, 420f) : new Vector4(0.6f, 900f, 150f, 550f);
+        // as pale silhouettes; Fade Out takes them into the horizon colour from nearer; Hide hazes nothing
+        var haze = !on || _mapEdge == MapEdge.Hide ? Vector4.Zero : _mapEdge == MapEdge.FadeOut ? new Vector4(1f, 900f, 100f, 420f) : new Vector4(0.6f, 900f, 150f, 550f);
         RenderingServer.GlobalShaderParameterSet("i76_edge_haze", haze);
+        RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on && _mapEdge == MapEdge.Hide ? 1f : 0f);
+        MissionBuilder.Trace($"map edge: {MapEdge.Names[_mapEdge]}, {(on ? "on" : "off")}");
         if (!on) return;
         var m = _horizon!.Material;
         var c = m.GetShaderParameter("horizon_color").AsColor().SrgbToLinear();   // a source_color there, a plain vec4 here

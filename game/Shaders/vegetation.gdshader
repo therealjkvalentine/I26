@@ -31,6 +31,7 @@ uniform bool rolling = false;
 // the cars' positions (World/CabClip.cs: x, y, z, and the radius a plant is parted from), 16 at most
 global uniform int i76_car_count;
 global uniform sampler2D i76_cars : filter_nearest;
+#include "res://Shaders/map_edge.gdshaderinc"
 // how much of the sun's light the baked occlusion takes away too (all of the sky's)
 uniform float ao_light = 0.6;
 // a thin blade is kept at least this many pixels wide; as it is widened, its tuft's other blades thin out to keep the tuft's mass
@@ -49,6 +50,11 @@ void vertex() {
 	COLOR = CUSTOM1;
 #endif
 	vec3 origin = MODEL_MATRIX[3].xyz;
+	// Map Edge's Hide: a plant on ground drawn down to the plain (map_edge.gdshaderinc) is not drawn (collapsed to its root)
+	if (i76_edge_hide > 0.0) {
+		float up;
+		if (origin.y - map_edge_hide_y(vec2(origin.x, -origin.z), origin.y, up) > 0.5) { VERTEX = vec3(0.0); }
+	}
 	v_fade = 1.0 - smoothstep(fade_start, fade_end, distance(origin, MAIN_CAM_INV_VIEW_MATRIX[3].xyz));
 	vec2 dh = origin.xz - MAIN_CAM_INV_VIEW_MATRIX[3].xz;
 	float gd = length(dh);
