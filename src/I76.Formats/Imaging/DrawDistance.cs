@@ -19,6 +19,12 @@ public static class DrawDistance
     /// <summary>A stored value as a setting: anything unknown or missing is Far, the default.</summary>
     public static int Parse(int? raw) => raw is Original ? Original : Far;
 
+    /// <summary>
+    /// The setting in a look: the player's choice, or with none made (no key in the settings file) the look's default,
+    /// Original in the 1997 look (the original's clip and horizon panels), Far in the modern one.
+    /// </summary>
+    public static int Resolve(int? choice, bool look1997) => choice is { } c ? Parse(c) : look1997 ? Original : Far;
+
     /// <summary>The camera's far plane for a setting.</summary>
     public static float CameraFar(int setting) => setting == Original ? OriginalClip : FarClip;
 
