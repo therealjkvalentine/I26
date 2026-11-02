@@ -233,7 +233,9 @@ public partial class Main : Node3D
             GetTree().Quit(1);
             return;
         }
-        FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());   // Max FPS and VSync, from the first frame
+        var first = I76.Game.Shell.ShellSettings.Load();
+        FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
+        RenderScale.Apply(first);
         if (ShaderSmoke.Requested) { SetProcess(false); AddChild(new ShaderSmoke()); return; }
         SwitchProbe.Install(GetTree());
         // --from-installer: the game data out of a GOG offline installer first, then this scene again on it
@@ -692,6 +694,7 @@ public partial class Main : Node3D
         _antialias = s.Graphics[0x8];
         MouseCamera.Apply(s);
         FrameLimiter.Apply(s);
+        RenderScale.Apply(s);
         _vegetation = s.Vegetation;
         _drawDistance = DrawDistanceHook(s.DrawDistance);
         ApplyDrawDistance();
@@ -716,7 +719,7 @@ public partial class Main : Node3D
         UpdateDrops();
         _modernEnv.SsaoEnabled = _shadowDetail > 1 && !RenderBackend.Compatibility;   // Compatibility has no SSAO
         if (_builder?.Terrain is { } t) t.FinestLevel = _terrainDetail > 0 ? 0 : 1;
-        GetViewport().Msaa3D = _antialias switch { 0 => Viewport.Msaa.Disabled, 1 => Viewport.Msaa.Msaa2X, _ => Viewport.Msaa.Msaa4X };
+        GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
         RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
         UpdateVegetation();
     }
