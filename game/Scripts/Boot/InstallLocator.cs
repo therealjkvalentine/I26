@@ -94,7 +94,7 @@ public sealed class LaunchOptions
     }
     /// <summary>--voices LANG|FOLDER (or I76_VOICES): the folder of voice files that override the install's by name (VoiceOverlay).</summary>
     public string? Voices { get; set; }
-    /// <summary>--dev: the Developer panel for this run (Ctrl+F2 in a mission, and the escape menu's Developer row; docs/dev-hooks.md).</summary>
+    /// <summary>--dev: the Developer panel for this run (Ctrl+F2 or Ctrl+` in a mission, and the escape menu's Developer row; docs/dev-hooks.md).</summary>
     public bool Dev { get; set; }
     /// <summary>--movie NAME: play that movie from smk/ first (then the menu, or quit with --quit-after).</summary>
     public string? Movie { get; set; }

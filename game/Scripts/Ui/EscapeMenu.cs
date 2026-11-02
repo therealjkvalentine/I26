@@ -200,8 +200,9 @@ public sealed partial class EscapeMenu : Control
             Action("Control Configuration", 6, OpenControls, "$7.65"),
             CancelButton("Exit"),
         ];
-        // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or the setting): the next free line, row 7
-        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", 7, () => Close(MenuOutcome.Developer)));
+        // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
+        // list, the free line under its last entry
+        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", _main.Items.Max(i => i.Pair is >= 1 and <= 14 ? i.Pair : 0) + 1, () => Close(MenuOutcome.Developer)));
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
