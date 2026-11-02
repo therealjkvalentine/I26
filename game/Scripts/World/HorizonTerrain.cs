@@ -180,6 +180,21 @@ public partial class HorizonTerrain : Node3D
     public const float FloorMargin = 3f;
     private float[]? _floor;
     private bool[]? _rim;
+    // Map Edge's grid (MapEdge.Distance), made into the global i76_edge_dist in Finish
+    private float[]? _edge;
+    private float _edgeX0, _edgeZ0, _edgeTexel;
+    private int _edgeW, _edgeH;
+    /// <summary>Finish has set Map Edge's distance grid (the shader globals i76_edge_dist and i76_edge_rect) for this map.</summary>
+    public bool HasEdgeGrid { get; private set; }
+    // the ring whose grid the globals hold: a scene without one (the map editor) must not read another map's
+    private static HorizonTerrain? _edgeOwner;
+
+    public override void _ExitTree()
+    {
+        if (_edgeOwner != this) return;
+        _edgeOwner = null;
+        RenderingServer.GlobalShaderParameterSet("i76_edge_rect", Vector4.Zero);
+    }
 
 
 
@@ -355,6 +370,7 @@ public partial class HorizonTerrain : Node3D
         _holes = holes.ToArray();
         _bounds = (c0 * tileW - _centre.X, r0 * tileW - _centre.Y, (c1 + 1) * tileW - _centre.X, (r1 + 1) * tileW - _centre.Y);
         _floor = FloorGrid(world, TerrainNode.SurfaceFor(world), _tiles, _bounds, _centre, out _rim);
+        _edge = MapEdge.Distance(world.Terrain, out _edgeX0, out _edgeZ0, out _edgeW, out _edgeH, out _edgeTexel);
         float farCorner = _tiles.Max(t => MathF.Max(MathF.Max(Len(t.Item1, t.Item2), Len(t.Item3, t.Item2)), MathF.Max(Len(t.Item1, t.Item4), Len(t.Item3, t.Item4))));
 
         // the rim: along each bearing, the last ground inside the map, as high as the wall tops just inside it
@@ -658,6 +674,15 @@ public partial class HorizonTerrain : Node3D
         m.SetShaderParameter("map_origin", new Vector2(fx0, fz0));
         m.SetShaderParameter("map_extent", System.Environment.GetEnvironmentVariable("I76_HORIZON_MASK") == "0" ? Vector2.Zero : new Vector2(fw * FloorTexel, fh * FloorTexel));   // I76_HORIZON_MASK=0: as it was, for before captures
         _floor = null; _rim = null;
+        if (_edge is { } edge)
+        {
+            var edgeImg = Image.CreateFromData(_edgeW, _edgeH, false, Image.Format.Rf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(edge.AsSpan()).ToArray());
+            RenderingServer.GlobalShaderParameterSet("i76_edge_dist", ImageTexture.CreateFromImage(edgeImg));
+            RenderingServer.GlobalShaderParameterSet("i76_edge_rect", new Vector4(_edgeX0, _edgeZ0, _edgeW * _edgeTexel, _edgeH * _edgeTexel));
+            HasEdgeGrid = true;
+            _edgeOwner = this;
+            _edge = null;
+        }
         // the work, not the wait between Compute and Finish
         BuildMs = _tArrays + _sw!.ElapsedMilliseconds - _finishFrom;
         Timing = $"heights {_tHeights} ms, shadows {_tShadow - _tHeights} ms, arrays {_tArrays - _tShadow} ms, meshes {BuildMs - _tArrays} ms";

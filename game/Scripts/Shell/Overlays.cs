@@ -351,7 +351,7 @@ public sealed class GraphicsScreen : OverlayScreen
     private byte[] _saved = [];
     private bool _savedHd, _savedLook, _savedSoftware, _savedGrade;
     private int _savedBlur;
-    private int _savedVeg, _savedDraw, _savedMouse, _savedMaxFps;
+    private int _savedVeg, _savedDraw, _savedEdge, _savedMouse, _savedMaxFps;
     private I76.Game.Boot.RendererChoice _savedRenderer;
     private bool _savedVSync, _savedConfine, _savedLog, _saved3D, _savedInteriors, _savedReturn, _savedZoomReset;
     // only the settings this port honours: resolution, draw distance and most detail levels of the 1997 renderer are gone
@@ -472,6 +472,7 @@ public sealed class GraphicsScreen : OverlayScreen
         _savedBlur = Shell.Settings.CrashBlur;
         _savedVeg = Shell.Settings.Vegetation;
         _savedDraw = Shell.Settings.DrawDistance;
+        _savedEdge = Shell.Settings.MapEdge;
         _savedMouse = Shell.Settings.MouseCamera;
         _savedMaxFps = Shell.Settings.MaxFps;
         _savedVSync = Shell.Settings.VSync;
@@ -530,9 +531,11 @@ public sealed class GraphicsScreen : OverlayScreen
                 : new[] { I76.Game.Boot.RendererChoice.Auto, I76.Game.Boot.RendererChoice.Vulkan, I76.Game.Boot.RendererChoice.OpenGL };
             st.Renderer = all[(Math.Max(0, Array.IndexOf(all, st.Renderer)) + 1) % all.Length];
         });
-        Add(288, 438, "Reset", () => { Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.DrawDistance = I76.Formats.Imaging.DrawDistance.Far; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
+        // the modern look's boundary walls: Original (as they are), Haze or Fade Out (the 1997 look keeps them)
+        Row(16, "Map Edge", () => I76.Game.World.MapEdge.Names[st.MapEdge], () => st.MapEdge = (st.MapEdge + 1) % I76.Game.World.MapEdge.Names.Length);
+        Add(288, 438, "Reset", () => { Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.DrawDistance = I76.Formats.Imaging.DrawDistance.Far; Shell.Settings.MapEdge = I76.Game.World.MapEdge.Original; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
         Add(350, 438, "Done", () => { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
-        Add(402, 438, "Cancel", () => { Array.Copy(_saved, g, 16); Apply(_savedHd); Shell.Settings.Look1997 = _savedLook; Shell.Settings.SoftwareRenderer = _savedSoftware; Shell.Settings.PaletteGrade = _savedGrade; Shell.Settings.CrashBlur = _savedBlur; Shell.Settings.Vegetation = _savedVeg; Shell.Settings.DrawDistance = _savedDraw; Shell.Settings.MouseCamera = _savedMouse; Shell.Settings.KeepMouseInWindow = _savedConfine; Shell.Settings.LogFile = _savedLog; Shell.Settings.Renderer = _savedRenderer; Shell.Settings.Garage3D = _saved3D; Shell.Settings.CarInteriors = _savedInteriors; Shell.Settings.CameraReturn = _savedReturn; Shell.Settings.ZoomReset = _savedZoomReset; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(_savedInteriors); Shell.Settings.MaxFps = _savedMaxFps; Shell.Settings.VSync = _savedVSync; I76.Game.FrameLimiter.Apply(Shell.Settings); Shell.Overlay(new OptionsScreen()); }, Small);
+        Add(402, 438, "Cancel", () => { Array.Copy(_saved, g, 16); Apply(_savedHd); Shell.Settings.Look1997 = _savedLook; Shell.Settings.SoftwareRenderer = _savedSoftware; Shell.Settings.PaletteGrade = _savedGrade; Shell.Settings.CrashBlur = _savedBlur; Shell.Settings.Vegetation = _savedVeg; Shell.Settings.DrawDistance = _savedDraw; Shell.Settings.MapEdge = _savedEdge; Shell.Settings.MouseCamera = _savedMouse; Shell.Settings.KeepMouseInWindow = _savedConfine; Shell.Settings.LogFile = _savedLog; Shell.Settings.Renderer = _savedRenderer; Shell.Settings.Garage3D = _saved3D; Shell.Settings.CarInteriors = _savedInteriors; Shell.Settings.CameraReturn = _savedReturn; Shell.Settings.ZoomReset = _savedZoomReset; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(_savedInteriors); Shell.Settings.MaxFps = _savedMaxFps; Shell.Settings.VSync = _savedVSync; I76.Game.FrameLimiter.Apply(Shell.Settings); Shell.Overlay(new OptionsScreen()); }, Small);
     }
 }
 

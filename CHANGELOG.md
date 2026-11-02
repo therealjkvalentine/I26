@@ -22,6 +22,7 @@
 - Police sirens wail as in the original: once a mission turns a police car's siren on, it keeps sounding until the mission turns it off or the car is wrecked, instead of playing once, and the trip's and the scenarios' own police cars sound the siren rather than a short car horn, as on the 1997 CD. A Sheriff that honks at a car in its way turns its siren on too.
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
+- Graphic Detail has a Map Edge row for the modern look: Original draws the sheer walls round the outside of a level as they are; Haze softens them and the mountains beyond into a light distance haze, and Fade Out fades them into the horizon, so the edge of the map reads as far land instead of a wall. Only the look changes: the walls still stop the car where they did.
 
 ## 0.11.0 (31 October 2026)
 

@@ -312,6 +312,8 @@ public sealed partial class EscapeMenu : Control
             // and the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             Scrolling(14, Cycle, "Max FPS", I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: () => Live?.Invoke(Settings)),
             Scrolling(15, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
+            // and the modern look's boundary walls: as they are, hazed, or faded into the horizon (the 1997 look keeps them), live
+            Scrolling(16, Cycle, "Map Edge", 3, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
             DoneButton(),
             CancelButton(),
@@ -383,6 +385,7 @@ public sealed partial class EscapeMenu : Control
         Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On;
         Settings.Vegetation = 1;
         Settings.DrawDistance = I76.Formats.Imaging.DrawDistance.Far;
+        Settings.MapEdge = I76.Game.World.MapEdge.Original;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;
         Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited;

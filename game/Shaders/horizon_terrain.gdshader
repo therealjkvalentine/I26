@@ -31,6 +31,7 @@ uniform float haze_start = 2000.0;   // metres of clear air
 uniform float haze_reach = 13000.0;  // then 1 - exp(-(d/reach)^2): 63% this far past the clear air
 uniform float far_clip = 20000.0;    // wholly sky by here
 uniform float haze_floor = 0.0;      // air this much hazier from the start (night)
+#include "res://Shaders/map_edge.gdshaderinc"
 
 // The original's panels stand on a ring whose foot is 10.2 x the eye's game height below the eye, so over
 // high ground they sink below the horizon. The ring's base is put on the cone from the reference eye (over the map's
@@ -159,6 +160,8 @@ void fragment() {
 	float t = max(dist - haze_start, 0.0) / haze_reach;
 	float f = clamp(1.0 - (1.0 - haze_floor) * exp(-t * t), 0.0, 1.0);
 	f = max(f, smoothstep(far_clip * 0.75, far_clip * 0.98, dist));
+	// Map Edge: the ring is all past the edge, hazed by distance from the eye alone (map_edge.gdshaderinc)
+	if (i76_edge_haze.x > 0.0) f = max(f, map_edge_amount(1.0, dist));
 
 	if (debug_tint > 0.0) { albedo = vec3(1.0, 0.0, 1.0); f = 0.0; }
 	ALBEDO = albedo * (1.0 - f);
