@@ -208,6 +208,38 @@ public sealed partial class MeleeScreen
         else if (_address is null && _anet is null) Say($"\"{AddressBookPopup.Fit(_font, e.Address, 150)}\" is no address.");
     }
 
+    /// <summary>
+    /// The internet roster's CONNECT TO SERVER (the port's, #122): the address book again; a server picked lists its games here,
+    /// CANCEL keeps the list as it was (the book's CANCEL on entry still goes back to the main menu).
+    /// </summary>
+    private void OtherServer() =>
+        Shell.Modal(new AddressBookPopup { Font = _font, Picked = e => { if (e is null) Draw(); else OnAddress(e); } });
+
+    /// <summary>
+    /// The CONNECT TO SERVER button under the games' list (the port's): CONFIGURE CHASSIS's edges and a plain column of it stretched,
+    /// with its words in the shell's label font, as the host form's game type button is made.
+    /// </summary>
+    private void DrawServerButton()
+    {
+        const int sx = 457, sy = 421, sw = 162, edge = 3;
+        var (x0, x1, y0, y1) = Hot[38];
+        int w = x1 - x0 + 1, h = y1 - y0 + 1;
+        if (!_serverBtnBaked)
+        {
+            _serverBtnBaked = true;
+            for (int tx = 0; tx < w; tx++)
+                Frame.CopyBackground(sx + (tx < edge ? tx : tx >= w - edge ? sw - (w - tx) : edge), sy, 1, h, x0 + tx, y0);
+        }
+        var f = Shell.Db.Font(0x47);
+        const string t = "CONNECT TO SERVER";
+        var ink = ShellFrame.DefaultInk;
+        int tx0 = x0 + (w - f.Measure(t)) / 2, ty0 = y0 + (h - f.Height) / 2 + 1;
+        Frame.Text(f, tx0, ty0, t, ink);
+        Frame.Text(f, tx0 + 1, ty0, t, ink);
+    }
+
+    private bool _serverBtnBaked;
+
     /// <summary>The roster's search: asked every second, the answers taken every frame, the list redrawn when it changes.</summary>
     private void PollGames(bool draw = true)
     {
@@ -636,6 +668,7 @@ public sealed partial class MeleeScreen
         {
             case 6 when Hosting: Broadcast(); return true;
             case 6: JoinGame(); return true;
+            case 38 when Mode == 8: OtherServer(); return true;
             case 8 when Hosting: _drivers = Math.Max(1, _drivers - 1); _bots = Math.Min(_bots, MaxBots); return true;
             case 9 when Hosting: _drivers = Math.Min(MaxSeats, _drivers + 1); return true;
             case 32 when Hosting: SetCoopBase(!_coopBase); return true;
