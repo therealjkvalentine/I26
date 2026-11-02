@@ -21,9 +21,11 @@ public abstract class Part
 }
 
 /// <summary>Wheel (0x1e): grip (nominal 1.0, never loaded) and rolling follow its health.</summary>
-public sealed class WheelPart(Wheel w, int hp) : Part
+public sealed class WheelPart(Wheel w, int hp, Vehicle? car = null) : Part
 {
     public Wheel Wheel { get; } = w;
+    /// <summary>The car the wheel is on, whose turn speed a hit recomputes.</summary>
+    public Vehicle? Car { get; } = car;
     public override int Hp { get; set; } = hp;
     public override int Max { get; set; } = hp;
     public float GripNominal = 1f;
@@ -34,11 +36,12 @@ public sealed class WheelPart(Wheel w, int hp) : Part
         for (int i = 0; i < 4; i++)
         {
             if (!Set(p, i)) continue;
-            if (Hp < p.Ch[i]) { p.Ch[i] -= Hp; Hp = 0; Wheel.Grip = 0.5f; Wheel.Rolling = 2f; return true; }
+            if (Hp < p.Ch[i]) { p.Ch[i] -= Hp; Hp = 0; Wheel.Grip = 0.5f; Wheel.Rolling = 2f; Car?.RecomputeTurnSpeed(); return true; }
             Hp -= p.Ch[i]; p.Ch[i] = 0;
         }
         Wheel.Grip = MathF.Max((float)Hp / Max * GripNominal, 0.5f);
         Wheel.Rolling = (2f - RollingNominal) * ((float)(Max - Hp) / Max) + RollingNominal;
+        Car?.RecomputeTurnSpeed();   // the wheel's damage handler stores the AI's turn speed again
         return false;
     }
 

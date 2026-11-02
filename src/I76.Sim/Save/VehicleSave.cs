@@ -22,7 +22,7 @@ public static class VehicleSave
                 nameof(Vehicle.DriveState), nameof(Vehicle.Flags), nameof(Vehicle.Surface), nameof(Vehicle.GroundNormal), nameof(Vehicle.NormalLoad),
                 nameof(Vehicle.HeightAboveGround), nameof(Vehicle.GroundHeight), nameof(Vehicle.Rec), nameof(Vehicle.Armory), nameof(Vehicle.Health),
                 nameof(Vehicle.Timer), nameof(Vehicle.Wreck), nameof(Vehicle.Arms), nameof(Vehicle.NetId), nameof(Vehicle.NetGeneration),
-                nameof(Vehicle.Heli), nameof(Vehicle.Emplacement), nameof(Vehicle.Paint))
+                nameof(Vehicle.Heli), nameof(Vehicle.Emplacement), nameof(Vehicle.Paint), nameof(Vehicle.TurnSpeed))
             .Structural(files, nameof(Vehicle.EngineNumber), nameof(Vehicle.Ignition), nameof(Vehicle.HornLoops), nameof(Vehicle.BoxX), nameof(Vehicle.BoxY), nameof(Vehicle.BoxZ),
                 nameof(Vehicle.Build), nameof(Vehicle.Loadout), nameof(Vehicle.ObjectClass), nameof(Vehicle.Definition));
         a.For<VehicleParams>().Saved(nameof(VehicleParams.Mass), nameof(VehicleParams.DriveScale), nameof(VehicleParams.SteerGain), nameof(VehicleParams.PivotForward),
@@ -59,7 +59,7 @@ public static class VehicleSave
             .Structural("its car, and whether it was built with the player's rules", nameof(VehicleDamage.V), nameof(VehicleDamage.IsPlayer), nameof(VehicleDamage.Network));
         a.For<Part>().Saved(nameof(Part.Detached));
         a.For<WheelPart>().Saved(nameof(WheelPart.Hp), nameof(WheelPart.Max), nameof(WheelPart.GripNominal), nameof(WheelPart.RollingNominal))
-            .Structural("the car's own wheel", nameof(WheelPart.Wheel));
+            .Structural("the car's own wheel and the car", nameof(WheelPart.Wheel), nameof(WheelPart.Car));
         a.For<ChassisPart>().Saved(nameof(ChassisPart.Hp), nameof(ChassisPart.Max));
         a.For<EnginePart>().Saved(nameof(EnginePart.Hp), nameof(EnginePart.Max)).Structural("the car's engine and its floor by the player's rules", "e", "floor");
         a.For<BrakePart>().Saved(nameof(BrakePart.Hp), nameof(BrakePart.Max), nameof(BrakePart.Nominal)).Structural("the car's parameters", "P");
@@ -122,7 +122,7 @@ public static class VehicleSave
         w.F32(v.Steer); w.F32(v.Throttle); w.F32(v.Gear); w.Int(v.Handbrake); w.Int(v.Unk_0xf4); w.Int(v.StartEngineKey); w.Int(v.DriveState);
         w.U32((uint)v.Flags); w.Int(v.Surface); w.V3(v.GroundNormal); w.F32(v.NormalLoad); w.F32(v.HeightAboveGround); w.F32(v.GroundHeight);
         WriteContact(w, v.Rec);
-        w.F32(v.Timer); w.Bool(v.Wreck); w.Int(v.NetGeneration);
+        w.F32(v.Timer); w.Bool(v.Wreck); w.Int(v.NetGeneration); w.F32(v.TurnSpeed);
         var p = v.P;
         w.F32(p.Mass); w.F32(p.DriveScale); w.F32(p.SteerGain); w.F32(p.PivotForward); w.F32(p.Drag); w.F32(p.EngineScale);
         w.F32(p.YawRateLimit); w.F32(p.RideOffset); w.F32(p.ChassisGrip); w.F32(p.BrakeStrength); w.F32(p.Wheelbase); w.F32(p.Track);
@@ -158,7 +158,7 @@ public static class VehicleSave
         v.Steer = r.F32(); v.Throttle = r.F32(); v.Gear = r.F32(); v.Handbrake = r.Int(); v.Unk_0xf4 = r.Int(); v.StartEngineKey = r.Int(); v.DriveState = r.Int();
         v.Flags = (VehicleFlags)r.U32(); v.Surface = r.Int(); v.GroundNormal = r.V3(); v.NormalLoad = r.F32(); v.HeightAboveGround = r.F32(); v.GroundHeight = r.F32();
         v.Rec = ReadContact(r);
-        v.Timer = r.F32(); v.Wreck = r.Bool(); v.NetGeneration = r.Int();
+        v.Timer = r.F32(); v.Wreck = r.Bool(); v.NetGeneration = r.Int(); v.TurnSpeed = r.F32();
         var p = v.P;
         p.Mass = r.F32(); p.DriveScale = r.F32(); p.SteerGain = r.F32(); p.PivotForward = r.F32(); p.Drag = r.F32(); p.EngineScale = r.F32();
         p.YawRateLimit = r.F32(); p.RideOffset = r.F32(); p.ChassisGrip = r.F32(); p.BrakeStrength = r.F32(); p.Wheelbase = r.F32(); p.Track = r.F32();
