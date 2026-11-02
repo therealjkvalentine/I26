@@ -367,6 +367,6 @@ public sealed class PredictDamage(DamageModel? model) : IStepDamage, IHeliDamage
     public void TerrainImpact(Vehicle v, Vector3 relVel, Vector3 n, Vector3 cLocal) { }
     public void Landing(Vehicle v, Vector3 impactVel, Vector3 n) { }
     public void FallKill(Vehicle v) { }
-    public void Rough(Vehicle v, float dt) { }
+    public void Rough(Vehicle v, int surface, float dt) { }
     public void StaticContact(Vehicle v, I76.Sim.Collision.StaticObject o, Contact rec) { }
 }
