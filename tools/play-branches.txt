@@ -178,3 +178,4 @@ feat/developer-menu-entry             # stacked on play: developer=true in shell
 fix/delete-bookmark-from-parts-form-1997  # stacked on play: Save Bookmark has Delete too (the trip's salvage form and garage)
 fix/1997-tracers-two-pixels           # stacked on play: 1997 MG tracers one pixel per 480 rows of the 3D view, four at most
 feat/map-edge-hide                    # stacked on play: Map Edge gains Hide (the walls and the plateau behind them drawn down at their foot)
+fix/round3-integration                # stacked on play, last of I: the 90* mark everywhere, developer in the settings table, Render Scale on the Esc pad, the changelog in order, the stale OriginalRecipeTests gone
