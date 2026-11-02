@@ -35,6 +35,9 @@ public sealed class TerrainGround(TerrainTiles tiles, Surface[] surfaces) : IGro
     public const float Scale = 0.2f;        // world -> sample
     public const double Bias = 0.5;         // the add-magic rounding in the range check
 
+    /// <summary>The heightfield's tiles (read only: the Developer panel's landmarks scan them).</summary>
+    public TerrainTiles Tiles => tiles;
+
     public static Surface[] ReadSurfaces(WorldSettings w)
     {
         var s = new Surface[8];
