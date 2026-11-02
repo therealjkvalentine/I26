@@ -63,6 +63,18 @@ physical 12+.
 An SDL mapping is not needed and is not added; a user who wants a stick treated as a standard gamepad can still give Godot one with
 `SDL_GAMECONTROLLERCONFIG`, and then it is a game pad here.
 
+## A wheel and a stick together
+
+Every device Godot lists is read (`JoystickBank`, joystick1, joystick2, ... in `GodotPads`' order: the game pads first, then the rest), and
+input.map's `joystickN` terms already named any of them, so a wheel (joystick1) steering on its pedals with a flight stick (joystick2) for the
+buttons plays from one map. What was missing was editing the second device: the Joystick Configuration screen now edits one device at a time,
+and with two or more devices without a standard layout a row in its middle (or Tab) steps to the next (`Device 2 of 2: joystick2`). Its rows,
+its list's choices, Delete, Invert and Restore Defaults are that device's: a button given a command replaces the command's binding on that
+device only (a wheel's button and a stick's can both fire), clearing or inverting an axis leaves the other device's axis of the same number,
+and Restore puts joystick1's preset back on joystick1 and leaves a second device with nothing (it has no preset of its own here). A game pad as
+joystick1 with a stick beside it: the pad keeps the Controller screen, and the stick's buttons are bound from Control Configuration's capture
+(right-click, then the button: `joystick2 ButtonN`). Tests: `tests/I76.Formats.Tests/TwoDeviceTests.cs`. Not verified on two real devices.
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that
@@ -95,6 +107,6 @@ the same steer sign a game pad's left stick gives).
 
 Verified: Godot lists and reads an unmapped Linux device raw; the port finds it, applies the preset, shows the screen, and the car
 accelerates and steers from the stick. Not verified: the switch on real hardware (it is tested with the events Godot would send, `GenericJoystickTests`), Windows (DirectInput numbering, hat), real hardware, force feedback on a
-generic device (not offered), more than one stick.
+generic device (not offered), more than one stick (edited one at a time, below).
 
 A way to have both would be to read the hat apart from Godot (on Windows `joyGetPosEx`'s POV against its buttons, on Linux evdev), matched to Godot's device; not done, nothing here to test it on.

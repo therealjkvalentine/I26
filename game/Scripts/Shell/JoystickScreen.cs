@@ -10,7 +10,8 @@ namespace I76.Game.Shell;
 /// buttons it has, so the lists grow as inputs are used: move an axis or press a button and its row appears, is marked while it is held and is
 /// selected. A click on a row (or Enter) opens the shell's list of what it can do; an axis can also be inverted. The dead zone is one
 /// setting for the stick. It edits only the joystick blocks of its own copy of the bindings; Done hands the copy to Control Configuration, Cancel
-/// and Esc hand back what it was given. Drawn in the shell's pixels in both looks, on the controller sheet's paper and rules.
+/// and Esc hand back what it was given. Drawn in the shell's pixels in both looks, on the controller sheet's paper and rules. With more than one
+/// such device (a wheel and a stick together) a row in the middle (or Tab) steps through them, and the lists, the edits and Restore are that device's.
 /// </summary>
 public sealed class JoystickScreen : OverlayScreen
 {
@@ -25,6 +26,11 @@ public sealed class JoystickScreen : OverlayScreen
     private uint _lastButtons;
     private byte _lastHat;
     private string _lastLive = "";
+    /// <summary>The device edited: an index into <see cref="Controls.GenericDevices"/> (0 when there is one).</summary>
+    private int _dev;
+    private int DeviceIndex => Controls.GenericDevices is { Count: > 0 } g ? g[Math.Min(_dev, g.Count - 1)] : 0;
+    /// <summary>The device's name in input.map: joystickN.</summary>
+    private string Dev => $"joystick{DeviceIndex + 1}";
 
     private const string Title = "JOYSTICK CONFIGURATION";
     private static readonly string[] SlotText = ["", "RESTORE DEFAULTS", "DONE", "CANCEL"];
@@ -59,10 +65,30 @@ public sealed class JoystickScreen : OverlayScreen
         }, _f, w: 290, h: ControllerScreen.RowH - 4);
         // row 4: whether buttons 12 to 15 are the hat (Godot cannot tell them apart)
         Add(175, ControllerScreen.RowY(4) + 3, () => "", () => { if (GodotPads.HatsKnown()) return; Shell.Sound(82); GodotPads.HatOnButtons = !GodotPads.HatOnButtons; }, _f, w: 290, h: ControllerScreen.RowH - 4);
+        // row 13: the device edited, with two or more
+        Add(175, ControllerScreen.RowY(13) + 3, () => "", NextDevice, _f, w: 290, h: ControllerScreen.RowH - 4);
         var slots = ControllerScreen.Slots;
-        Add(slots[1].Position.X, slots[1].Position.Y, () => "", () => { Shell.Sound(82); _map.ResetSide(Controls.PadDefaults(), true); }, w: slots[1].Size.X, h: slots[1].Size.Y);
+        Add(slots[1].Position.X, slots[1].Position.Y, () => "", Restore, w: slots[1].Size.X, h: slots[1].Size.Y);
         Add(slots[2].Position.X, slots[2].Position.Y, () => "", Done, w: slots[2].Size.X, h: slots[2].Size.Y);
         Add(slots[3].Position.X, slots[3].Position.Y, () => "", Back, w: slots[3].Size.X, h: slots[3].Size.Y);
+    }
+
+    /// <summary>The next device, with more than one: its rows from scratch.</summary>
+    private void NextDevice()
+    {
+        if (Controls.GenericDevices.Count < 2) return;
+        Shell.Sound(82);
+        _dev = (_dev + 1) % Controls.GenericDevices.Count;
+        _axes.Clear(); _buttons.Clear(); _hats.Clear(); Array.Clear(_axisHeld); _lastButtons = 0; _lastHat = 0; _sel = null;
+        Redraw();
+    }
+
+    /// <summary>Restore Defaults: joystick1's preset on joystick1 (the other devices kept); a second device has none and is cleared.</summary>
+    private void Restore()
+    {
+        Shell.Sound(82);
+        _map.ResetDevice(DeviceIndex == 0 ? Controls.PadDefaults() : new BindingTable(), Dev);
+        Redraw();
     }
 
     private void Back() => Shell.Overlay(new ControlsScreen(_given));
@@ -86,14 +112,14 @@ public sealed class JoystickScreen : OverlayScreen
         if (GenericStick.AxisNumber(channel) is > 0 and var n && IsAxisName(channel))
         {
             foreach (var row in AxisRows)
-                if (_map.AxisOf(row) is { } t && GenericStick.AxisNumber(t.Channel) == n)
+                if (_map.AxisOf(row) is { } t && GenericStick.AxisNumber(t.Channel) == n && t.Device.Equals(Dev, StringComparison.OrdinalIgnoreCase))
                     o.Add(AxisItems[Array.IndexOf(AxisRows, row)] + (BindingTable.IsInverted(row, t) ? " (inverted)" : ""));
             return [.. o];
         }
         int id = VirtualStick.DiscreteId(channel);
         foreach (var entry in Entries)
             foreach (var b in _map.Of(Controls.Commands[entry]))
-                if (BindingTable.IsPad(b) && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == id) { o.Add(NameOf(entry)); break; }
+                if (BindingTable.IsPad(b) && b.Terms[0].Device.Equals(Dev, StringComparison.OrdinalIgnoreCase) && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == id) { o.Add(NameOf(entry)); break; }
         return [.. o.Distinct()];
     }
 
@@ -126,7 +152,7 @@ public sealed class JoystickScreen : OverlayScreen
         var axes = new SortedSet<int>([1, 2, .. _axes]);
         var buttons = new SortedSet<int>([0, 1, 2, 3, .. _buttons]);
         var hats = new HashSet<string>(_hats);
-        foreach (var b in _map.Blocks.Where(BindingTable.IsPad))
+        foreach (var b in _map.Blocks.Where(b => BindingTable.IsPad(b) && b.Terms[0].Device.Equals(Dev, StringComparison.OrdinalIgnoreCase)))
         {
             if (b.Terms[0].Channel is not { } ch) continue;
             if (IsAxisName(ch)) { if (GenericStick.AxisNumber(ch) is > 0 and var n) axes.Add(n); }
@@ -154,7 +180,7 @@ public sealed class JoystickScreen : OverlayScreen
         }
     }
 
-    private string Live() => string.Join(",", _rows.Where(r => r.Live).Select(r => r.Channel)) + "|" + _sel + "|" + (int)(GodotPads.DeadZone * 100) + GodotPads.HatOnButtons + GodotPads.HatsKnown();
+    private string Live() => string.Join(",", _rows.Where(r => r.Live).Select(r => r.Channel)) + "|" + _sel + "|" + (int)(GodotPads.DeadZone * 100) + GodotPads.HatOnButtons + GodotPads.HatsKnown() + Dev + Controls.GenericDevices.Count;
 
     protected override void DrawExtra()
     {
@@ -186,6 +212,8 @@ public sealed class JoystickScreen : OverlayScreen
             // the dead zone and the hat switch (items) are rows 3 and 4; below them, what the rest is for
             string[] help = ["Axis 1 and 2 are the stick: forward", "accelerates, sideways steers. A throttle", "lever or a twist is bound the same way;", "Invert turns an axis the other way.", "", "Right-click or Delete clears the", "selected input. Esc cancels."];
             for (int k = 0; k < help.Length; k++) Center(help[k], 5 + k);
+            var g = Controls.GenericDevices;
+            if (g.Count > 1) Center($"Device {Math.Min(_dev, g.Count - 1) + 1} of {g.Count}: {Dev}  (click or Tab: next)", 13);
         }
         byte marker = Frame.Nearest(ControllerScreen.Marker), pencil = Frame.Nearest(ControllerScreen.RedPencil);
         foreach (var r in _rows)
@@ -210,7 +238,7 @@ public sealed class JoystickScreen : OverlayScreen
 
     // ---- editing ----------------------------------------------------------------------------------------
 
-    internal PadRaw ReadPad() => Controls.Focused() && Controls.PadSource.Read() is { Count: > 0 } l ? l[0] : default;
+    internal PadRaw ReadPad() => Controls.Focused() && Controls.PadSource.Read() is { } l && DeviceIndex < l.Count ? l[DeviceIndex] : default;
 
     private Row? RowAt(Vector2I m) => _rows.FirstOrDefault(r => r.Rect.HasPoint(m));
 
@@ -231,10 +259,10 @@ public sealed class JoystickScreen : OverlayScreen
             PadPicks = false,
             Picked = i =>
             {
-                if (i == 0) _map.ClearInput(channel);
-                else if (axis && i == AxisItems.Length) _map.InvertAxis(GenericStick.AxisNumber(channel));
-                else if (axis && i > 0) _map.AssignAxis(AxisRows[i - 1], "joystick1", channel);
-                else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", channel);
+                if (i == 0) _map.ClearInputOn(Dev, channel);
+                else if (axis && i == AxisItems.Length) _map.InvertAxis(GenericStick.AxisNumber(channel), Dev);
+                else if (axis && i > 0) _map.AssignAxis(AxisRows[i - 1], Dev, channel);
+                else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], Dev, channel);
                 Redraw();
             },
         });
@@ -291,9 +319,10 @@ public sealed class JoystickScreen : OverlayScreen
             if (k is Key.Up or Key.Left) Step(-1);
             else if (k is Key.Down or Key.Right) Step(1);
             else if (k is Key.Enter or Key.Space or Key.KpEnter) { if (_sel is not null) { Open(_sel); return; } }
-            else if (k is Key.Delete or Key.Backspace) { if (_sel is not null) { _map.ClearInput(_sel); Redraw(); } }
+            else if (k is Key.Delete or Key.Backspace) { if (_sel is not null) { _map.ClearInputOn(Dev, _sel); Redraw(); } }
+            else if (k is Key.Tab) NextDevice();
         }
-        if (Shell.RightClicked && RowAt(Shell.Mouse) is { } r) { _sel = r.Channel; _map.ClearInput(r.Channel); Shell.Sound(82); Redraw(); return; }
+        if (Shell.RightClicked && RowAt(Shell.Mouse) is { } r) { _sel = r.Channel; _map.ClearInputOn(Dev, r.Channel); Shell.Sound(82); Redraw(); return; }
         // the marks follow the stick: redrawn when a row lights or goes out
         Layout();
         if (Live() != _lastLive) Redraw();

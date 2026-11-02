@@ -193,11 +193,30 @@ public sealed class BindingTable
         }
         var axis = command.ToLowerInvariant() switch { "throttle_up" or "throttle_down" => "throttle", "steer_left" or "steer_right" => "steer", _ => null };
         if (pad && axis is not null && AxisOf(axis) is not null) Clear(axis);
-        Set(command, [.. Of(command).Where(b => IsPad(b) != pad), NewBlock(command, device, channel)]);
+        // a pad input replaces the command's blocks on that pad only: a wheel's button and a stick's can both fire
+        Set(command, [.. Of(command).Where(b => IsPad(b) != pad || pad && !OnDevice(b, device)), NewBlock(command, device, channel)]);
     }
 
     /// <summary>Takes a command's blocks on one side away (the other side stays).</summary>
     public void ClearOn(string command, bool pad) => Set(command, [.. Of(command).Where(b => IsPad(b) != pad)]);
+
+    private static bool OnDevice(InputBlock b, string device) => b.Terms.Length > 0 && b.Terms[0].Device.Equals(device, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>One device's input (a button, a hat direction or an axis) off every command that has it; the other devices' same input stays.</summary>
+    public void ClearInputOn(string device, string channel)
+    {
+        string want = Norm(new InputTerm(true, device, channel));
+        foreach (var c in _order.ToList())
+            if (_by[c].Any(b => IsPad(b) && OnDevice(b, device) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))
+                Set(c, [.. _by[c].Where(b => !(IsPad(b) && OnDevice(b, device) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))]);
+    }
+
+    /// <summary>One device's blocks back to a default table's blocks on that device (none: the device has no binding); every other block stays.</summary>
+    public void ResetDevice(BindingTable defaults, string device)
+    {
+        foreach (var c in _order.Concat(defaults._order).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            Set(c, [.. Of(c).Where(b => !(IsPad(b) && OnDevice(b, device))), .. defaults.Of(c).Where(b => IsPad(b) && OnDevice(b, device))]);
+    }
 
     /// <summary>A pad input (a button, a hat direction or an axis, on any pad) off every command that has it.</summary>
     public void ClearInput(string channel)
@@ -233,15 +252,16 @@ public sealed class BindingTable
     }
 
     /// <summary>The axis row (throttle, steer, track_yaw_delta, track_pitch_delta) a raw axis feeds, or null. The stick's two have two names ("Left/Right" is "Axis1"); both are the axis.</summary>
-    public string? RowOfAxis(int axisNumber) => AxisControls.Rows.FirstOrDefault(r => AxisOf(r) is { } t && GenericStick.AxisNumber(t.Channel) == axisNumber);
+    public string? RowOfAxis(int axisNumber, string? device = null) =>
+        AxisControls.Rows.FirstOrDefault(r => AxisOf(r) is { } t && GenericStick.AxisNumber(t.Channel) == axisNumber && (device is null || t.Device.Equals(device, StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>Whether an axis row's sign is the opposite of the one the port gives it when it is assigned ("-" on every row but the camera's pitch).</summary>
     public static bool IsInverted(string row, InputTerm t) => t.Plus != row.Equals("track_pitch_delta", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The raw axis the other way round: its row's sign flipped. False when no axis row has it.</summary>
-    public bool InvertAxis(int axisNumber)
+    public bool InvertAxis(int axisNumber, string? device = null)
     {
-        if (RowOfAxis(axisNumber) is not { } row || AxisOf(row) is not { } t) return false;
+        if (RowOfAxis(axisNumber, device) is not { } row || AxisOf(row) is not { } t) return false;
         Set(row, [.. Of(row).Where(b => !IsPad(b)), new InputBlock(row, [t with { Plus = !t.Plus }])]);
         return true;
     }
