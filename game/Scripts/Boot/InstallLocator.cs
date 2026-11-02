@@ -10,6 +10,7 @@ namespace I76.Game.Boot;
 ///   --screenshot PATH  --quit-after FRAMES   --seed N
 ///   --drive [car.vcf]  --hold-throttle
 ///   --skip-movies   --movie NAME.smk
+///   --voices LANG|FOLDER   voice files from voices/LANG in the user folder (or that folder) override the install's by name; off without it
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
 ///   --host-listen [--arena m05] [--port 7676] [--rate 20|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
@@ -62,6 +63,8 @@ public sealed class LaunchOptions
     public bool NoMusic { get; set; }
     /// <summary>--skip-movies: no intro or credits at startup, no briefing movies in missions.</summary>
     public bool SkipMovies { get; set; }
+    /// <summary>--voices LANG|FOLDER (or I76_VOICES): the folder of voice files that override the install's by name (VoiceOverlay).</summary>
+    public string? Voices { get; set; }
     /// <summary>--movie NAME: play that movie from smk/ first (then the menu, or quit with --quit-after).</summary>
     public string? Movie { get; set; }
     /// <summary>--modern-physics: the player's car on the optional modern physics (docs/modern-physics.md), whatever the setting says.</summary>
@@ -302,6 +305,7 @@ public sealed class LaunchOptions
                         ? md : throw new ArgumentException("--map-downloads is ask, always or never");
                     break;
                 }
+                case "--voices": o.Voices = Next(); break;
                 case "--seed": o.Seed = uint.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture); break;
             }
         }
@@ -337,6 +341,7 @@ public sealed class LaunchOptions
             try { o.Mission = new I76.Formats.Vfs.GameInstall(o.Install).DefaultMission(); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
+        I76.Formats.Vfs.VoiceOverlay.Folder = I76.Formats.Vfs.VoiceOverlay.Resolve(o.Voices ?? System.Environment.GetEnvironmentVariable("I76_VOICES"), LocalRoot());
         return o;
     }
 }
