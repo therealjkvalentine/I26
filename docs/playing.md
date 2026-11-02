@@ -162,6 +162,8 @@ and a pad).
 | Game menu | Esc |
 | 1997 look on or off | F12 |
 
+Targets and the .45: Q targets only a car within 15 degrees of the nose inside radar range, and clears the target when none is there; the driver's .45 out of the window is the finisher on a crippled car (hold a side glance, Left or Right, 0.5 s for the arm to come up, then fire; on a car under a third it goes straight to a critical part).
+
 A printable sheet of your own bindings: `dotnet run --project tools/I76.Cli -- keysheet [input.map] [out.html]` (without a file, the input.map
 the game saved, else the install's; open the page in a browser and print it).
 

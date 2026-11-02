@@ -2589,8 +2589,6 @@ Room`, a servers file `127.0.0.1 localhost`, an empty apps file).
   (the HD look falls back to the originals), the original's in-game roster
   and scoreboard in place of the overlay, and a STAND BY... wait (bank 36
   sprite 18) for a join that takes long.
-- **Handguns in a network melee.** The server gives no car its driver's
-  handguns, so the cockpit's raised arm has nothing to fire.
 - **Chat text is not checked beyond control characters.** Invalid UTF-8
   arrives as replacement characters.
 - **`World.Player` on a server** stays null. A client's mirror sets it to
