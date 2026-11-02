@@ -133,11 +133,22 @@ offering upstream; the stacked branches (on `play`) go up only after what they s
 | R14 | fix/ai-dropper-gate-straight-line | the AI's dropper gate predicts a pursuer on a straight line at its arrival time again: dropped on at any speed | original: measured 2026-11-02 (retail 1.0, emulated Pentium, 2 boots) | stacked on play; C |
 | R15 | fix/turret-lead-predictor-delay | a turret leads through the target predictor: closest-approach time at the aim speed + 0.09 s, along the turning circle | original: measured 2026-11-02 (retail 1.0, emulated Pentium, 2 boots) | stacked on play; C |
 | R16 | fix/cockpit-art-bilinear | the 3D cockpit's z* art sampled bilinear on the 3D card and in the modern look (Software unchanged): the dash looked down at is no longer blocks | local: CockpitSamplingTests 3 (owner report) | after A |
+| R17 | feat/net-auto-handicap | Handicaps Off / Manual / Auto: Auto sets each player's level from the standing (a level per 1.5 net kills over the table's average, -5..+5, one step a tick, a dead band), said in the feed; the accept carries the mode as a byte | local: AutoHandicapTests (Sim), HandicapTests and AutoHandicapSimTests (Net); melee-sim over ten seeds: spread 12.3 -> 7.7 kills | stacked on feat/net-handicaps (merged against it) |
+| R18 | fix/look-choice-rows | one LookChoice helper; a look-following choice is stored only when its value changes; shell.cfg version 12 drops the draw_distance Far 0.11.0 wrote on every save | local (design review) | stacked on play |
+| R19 | fix/coop-damage-remainder | Co-op Damage below x1 carries the fraction per car and channel, so small hits (flame) still add up | local (design review) | stacked on play |
+| R20 | fix/pad-rules-shift-tap-latch | pad rules: the shift wins over tap/hold, a 200 ms tap, the handbrake latch | local (design review) | stacked on play |
+| R21 | fix/esc-aa-row-names | the Esc menu's Anti-Aliasing row lists 8x as the main menu's does | local (design review) | stacked on play |
+| R22 | fix/scoreboard-host-guards | a double-click on the locked board asks before booting; /ban refuses unknown names; picks by slot order | local (design review) | stacked on play |
+| R23 | fix/input-trace-header-and-flush | input recordings start with a header (build, install, options) and flush every row; developer actions marked | local (design review) | stacked on play |
+| R24 | fix/telemetry-rate-and-time | telemetry capped at 60 packets a second, with monotonic time | local (design review) | stacked on play |
+| R25 | fix/2d-reticle-follows-fov | the 2D dash's gunsight is projected through the chosen Field of View | local (design review) | stacked on play |
 
-Versions on `play`: snapshot 22 (21 the host's handicap on each car, appended after the AI turn speed; 22 each weapon's
-file in a car's make-up), protocol 23 (feat/net-handicaps on top of the ignition rule's 22: the accept ends ignition
-byte, then handicaps byte, read and written in that order; the listing carries Handicaps as flag bit 8). WireTests pins
-23 / 22 (`TheProtocolIs23`); the handicap comments and docs/multiplayer.md say protocol 23, CHANGELOG's network line too.
+Versions on `play` (pass 2): snapshot 24 (21 the host's handicap on each car, appended after the AI turn speed; 22 each
+weapon's file in a car's make-up; 23 Auto handicap, `MeleeRules.AutoHandicaps` after the ignition lock and
+`MeleePlayer.Form`; 24 Co-op Damage's carry per car and channel), protocol 24 (22 the ignition lock, 23 Handicaps, 24
+the Handicaps mode: the accept ends with the ignition byte, then the mode byte 0/1/2; the listing's flags byte has 8 for
+on and 16 for Auto). WireTests pins 24 / 24 (`TheProtocolIs24`); CHANGELOG's network line and docs/multiplayer.md
+follow.
 
 Hand fixes in round 2 (outside conflict hunks or beyond either side):
 - Bookmarks.cs: one LoadBookmarkScreen.Build (feat/delete-bookmarks added a second): Import Saves keeps the place left of
@@ -153,6 +164,13 @@ Hand fixes in round 2 (outside conflict hunks or beyond either side):
   `play` (7c3988f, same tree as 6ff52d7): merged with that commit as the merge base (`git merge-recursive 7c3988f --
   HEAD <branch>`, MERGE_HEAD set), so only their own commit is merged; their history brings the earlier play's
   commits along.
+- feat/net-auto-handicap (pass 2): merged against feat/net-handicaps (54dd5cc) as its base. Host hot id 43 steps Hcp
+  through Off/Manual/Auto (co-op: Off/Manual); the co-op rows keep CO-OP DAMAGE beside HANDICAPS:. The handicaps doc
+  comments and docs/multiplayer.md say 23 for the rule and 24 for the mode. AutoHandicapSimTests' pinned numbers
+  re-pinned to play's game (the rule's assertions unchanged and passing; the bots' game differs on play by the other
+  sim fixes): off kills 4,1,1,0,0,0; auto kills 5,2,1,0,0,0, levels -3,0,0,1,0,1, moves 1:-1 1:-2 3:+1 1:-3 5:+1.
+- docs/deviations.md (in the merge of fix/look-choice-rows): the stale second "View distance" row (Far the default) and
+  the stale second "Vehicle lamps" row (the port's 0.15 s always) removed; the current rows stay.
 - Note, not fixed (a follow-up lane): the Esc Graphic Detail pad's Done and Cancel write the resolved draw distance,
   which pins DrawDistanceChoice on any visit.
 
@@ -162,6 +180,11 @@ fix/cockpit-art-bilinear, which touches only game/): Sim 936/967, Net 411/429; 3
 baseline: the two known ones (CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz) and two network-timing
 tests, BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink and PredictionTests.ThePredictedCarAgreesWithTheServersOverALaggyLink,
 which pass on the desktop on a re-run (flakes under the laptop's load, not re-pinned).
+
+Test status, pass 2 (`play` at 5c03c59, round 2 plus auto handicap and section H): desktop Game 183/183, Editor 216/216,
+Net --filter Wire|Handicap|Discovery 54/55 (RestrictionTests.ARefusedJoinGetsNoSeatOverTheWire, desktop baseline).
+Laptop: Sim 947/978, Net 419/434; 36 failures, 2 not in the laptop baseline, the two known ones
+(CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz); the two network-timing tests of pass 1 passed.
 
 ## Withdrawn or answered (not offered as fixes)
 
