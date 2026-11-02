@@ -98,9 +98,11 @@ fix/tactic-skid-modulus
 fix/movie-skip-deviation-row
 fix/end-of-match-brake
 fix/network-deviation-rows
+fix/cockpit-gauge-dials-too-dark      # the 3D cockpit's gauge needles drawn as painted, like the dash (owner report; deviations row)
 
 # C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
 perf/horizon-early-z
+perf/interop-garbage                  # drop-shadow casters found once, shadow nodes told only what changed, the smoke layer keeps its uniforms
 
 # D. features, each behind an option
 feat/head-tracking-opentrack
@@ -142,6 +144,8 @@ feat/second-device-together
 feat/input-record-and-replay
 feat/telemetry-udp-out
 feat/controls-key-sheet
+feat/hd-world-textures                # the player's upscaled textures from user://tex-world/ (modern look)
+feat/hd-texture-tool                  # after hd-world-textures: --export-textures and tools/upscale-textures.py
 feat/dev-menu
 feat/dev-menu-mission-picker          # stacked on play: Scene picker in the Developer panel
 feat/dev-menu-landmarks               # stacked on play: generated landmarks + kept places
@@ -164,3 +168,13 @@ fix/scoreboard-host-guards            # double-click asks; /ban refuses unknown 
 fix/input-trace-header-and-flush      # header with build/install/options; flush per row; dev actions marked
 fix/telemetry-rate-and-time           # 60 packets/s cap; monotonic time
 fix/2d-reticle-follows-fov            # the 2D reticle projected through the chosen FOV
+
+# I. round 3 (2026-11-02 afternoon): the playtest's answers, merge after H
+fix/turret-aim-moving-carrier         # stacked on play: a turret aims from the barrel, nothing taken off for the carrier's travel (measured faithful: rounds never inherit the carrier's velocity)
+feat/original-recipe-folded           # stacked on play: the Original Recipe pad folded into Play Options / Graphic Detail rows and [port] keys, the original's value marked *
+fix/graphic-detail-scrollbar          # stacked on play: Graphic Detail scrolls as one list, the bar at the pad's right edge
+feat/field-of-view-in-graphic-detail  # stacked on play: Field of View on the Esc pad too; Monitor the default, 60..110 across the window, 90* the original's
+feat/developer-menu-entry             # stacked on play: developer=true in shell.cfg; the panel at the bottom of the Esc Options Menu; Ctrl+`
+fix/delete-bookmark-from-parts-form-1997  # stacked on play: Save Bookmark has Delete too (the trip's salvage form and garage)
+fix/1997-tracers-two-pixels           # stacked on play: 1997 MG tracers one pixel per 480 rows of the 3D view, four at most
+feat/map-edge-hide                    # stacked on play: Map Edge gains Hide (the walls and the plateau behind them drawn down at their foot)

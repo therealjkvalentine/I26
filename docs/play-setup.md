@@ -43,7 +43,7 @@ cd game && dotnet build && cd ..
 The `_console.exe` shows the log; the other one does not. Useful game options after the `--`: `--1997` (the original's
 look), `--dev` (the Developer panel: Ctrl+F2 or the Escape menu), `--melee --mission m01`, `--skip-movies`,
 `--screenshot out.png --quit-after 300`. The full list is at the top of `game/Scripts/Boot/InstallLocator.cs`.
-User data (settings, bookmarks) lives in `%APPDATA%\Godot\app_userdata\I26`; to test with a scratch copy set `APPDATA`
+User data (settings, bookmarks) lives in `%APPDATA%\I26` (the project sets its own user folder name); to test with a scratch copy set `APPDATA`
 to an empty folder for that run.
 
 ## macOS quick start (Apple silicon or Intel)
@@ -61,12 +61,12 @@ Godot_mono.app/Contents/MacOS/Godot --path game -- --install "$HOME/Games/Inters
 Godot's .NET edition finds the runtime through `DOTNET_ROOT` and `PATH`; a double-clickable `.command` file that exports
 the two variables and then runs the last command is the simplest launcher. The signed, exported app is a separate
 matter (upstream's macOS notes and PR #144); for playtesting, the editor binary running the project is enough.
-User data lives in `~/Library/Application Support/Godot/app_userdata/I26`.
+User data lives in `~/Library/Application Support/I26`.
 
 ## Linux
 
 Upstream's Nix flake has everything (`nix develop`); otherwise the .NET 8 SDK, the Godot 4.7.2 mono zip and the same
-commands as macOS. `tools/shot.sh` (off-screen captures) and `tools/frame-profile.sh` are Linux-only.
+commands as macOS; user data lives in `~/.local/share/I26`. `tools/shot.sh` (off-screen captures) and `tools/frame-profile.sh` are Linux-only.
 
 ## Tests
 
