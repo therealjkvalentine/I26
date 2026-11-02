@@ -35,7 +35,8 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         if (_paints.TryGetValue(model.Definition, out var p)) return p;
         var members = model.Parts.SelectMany(part => part.Mesh.Faces)
             .Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
-            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps)).OfType<string>();
+            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps)).OfType<string>().ToList();
+        materials.Prefetch(members);
         return _paints[model.Definition] = materials.PaintOf(members);
     }
 
@@ -107,8 +108,13 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// <param name="oneSided1997">the cut-out and translucent faces drawn from the front only in the 1997 look (MaterialLibrary.ForTexture)</param>
     /// <param name="frameOf">a face texture's .TMT entry: a damaged car's zones (CarNode.TexFrame, DamageTextures); entry 0 without it</param>
     public ArrayMesh? Build(AssembledModel model, bool wheels = true, Func<ModelPart, bool>? include = null, System.Numerics.Vector3 origin = default,
-        Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null) =>
-        Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf);
+        Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null)
+    {
+        // a pack's upscales of the model's textures, decoded together on worker threads rather than one by one as its faces ask
+        materials.Prefetch(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
+            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
+        return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf);
+    }
 
     private ArrayMesh? Build(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,

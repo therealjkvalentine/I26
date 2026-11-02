@@ -48,18 +48,28 @@ public static class HdTextures
     }
 
     /// <summary>The member's upscale decoded to RGBA8 (rows top-down), or null for none or one that does not decode (whatever the switch: the factory decides what it serves).</summary>
-    public static Image? Load(string member)
+    public static Image? Load(string member) => Read(member) is { } f ? Decode(f.Name, f.Bytes) : null;
+
+    /// <summary>The member's upscale file as stored, or null for none (from one thread unless <see cref="ReadAnywhere"/>).</summary>
+    /// <summary>Whether <see cref="Read"/> may run on worker threads (a folder; a zip is read from one).</summary>
+    public static bool ReadAnywhere => Source?.ThreadSafe == true;
+
+    public static (string Name, byte[] Bytes)? Read(string member)
     {
         if (Source is not { } s) return null;
         foreach (var rel in HdTexture.Candidates(member))
-        {
-            if (s.Read(rel) is not { } b) continue;
-            var img = new Image();
-            var err = rel.EndsWith(".png") ? img.LoadPngFromBuffer(b) : rel.EndsWith(".webp") ? img.LoadWebpFromBuffer(b) : img.LoadJpgFromBuffer(b);
-            if (err != Error.Ok || img.IsEmpty()) { GD.PushWarning($"HD texture {rel}: does not decode"); return null; }
-            img.Convert(Image.Format.Rgba8);
-            return img;
-        }
+            if (s.Read(rel) is { } b) return (rel, b);
         return null;
+    }
+
+    /// <summary>A file of <see cref="Read"/> decoded to RGBA8 (a .dds kept as stored), or null; touches no renderer, so it may run on a worker thread.</summary>
+    public static Image? Decode(string rel, byte[] b)
+    {
+        var img = new Image();
+        var err = rel.EndsWith(".dds") ? img.LoadDdsFromBuffer(b) : rel.EndsWith(".png") ? img.LoadPngFromBuffer(b) : rel.EndsWith(".webp") ? img.LoadWebpFromBuffer(b) : img.LoadJpgFromBuffer(b);
+        if (err != Error.Ok || img.IsEmpty()) { GD.PushWarning($"HD texture {rel}: does not decode"); return null; }
+        // a .dds stays as stored (block-compressed, its mipmaps, the texture's row order) for the GPU
+        if (!img.IsCompressed()) img.Convert(Image.Format.Rgba8);
+        return img;
     }
 }

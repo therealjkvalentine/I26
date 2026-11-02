@@ -385,6 +385,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         {
             SkyTexture = sky.Texture;
             var img = sky.Texture.GetImage();
+            if (img.IsCompressed()) img.Decompress();   // a pack's .dds
             Palette = MeasureSky(img);
             img.Resize(1, 1, Image.Interpolation.Lanczos);
             SkyAverage = img.GetPixel(0, 0);
@@ -424,6 +425,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var roadNames = I76.Formats.Assembly.Roads.TextureList(vfs.TryRead, world.Mission.Name);
         var flat = RoadRaster.Flatten(pieces);
         var roadTex = new Dictionary<int, RoadRaster.Tex?>();
+        textures.Prefetch(roadNames.Select(n => resolver.FindByStem(n)).OfType<string>(), rgba: true);
         RoadRaster.Tex? RoadTex(int i)
         {
             if (!roadTex.TryGetValue(i, out var t))
@@ -439,6 +441,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             GroundNoise.NoiseTexture();
             yield return null;
             var gimg = ground?.GetImage();
+            if (gimg is not null && gimg.IsCompressed()) gimg.Decompress();
             // a painted ground (M15's parking lot): asphalt with the texture's own layout instead, the shader's lot variant (GroundPaint)
             var paint = gimg is null ? null : GroundPaint.Find(gimg);
             painted = paint is not null;

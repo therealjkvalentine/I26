@@ -73,6 +73,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>A texture member's Godot texture (null if it does not load).</summary>
     public Texture2D? TextureOf(string member) => textures.Get(member)?.Texture;
 
+    /// <summary>Decodes a pack's upscales of these texture members together, ahead of their materials (TextureFactory.Prefetch).</summary>
+    public void Prefetch(IEnumerable<string> members) => textures.Prefetch(members);
+
     private int _strips;
 
     /// <summary>

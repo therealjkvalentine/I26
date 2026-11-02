@@ -35,6 +35,8 @@ public abstract class HdSource : IDisposable
     public HdPackInfo? Info { get; protected set; }
     public abstract bool Exists(string rel);
     public abstract byte[]? Read(string rel);
+    /// <summary>Read may be called from several threads at once.</summary>
+    public virtual bool ThreadSafe => false;
     public virtual void Dispose() { }
 
     protected static string Norm(string rel) => rel.Replace('\\', '/').TrimStart('/').ToLowerInvariant();
@@ -44,19 +46,24 @@ public abstract class HdSource : IDisposable
 public sealed class HdDirSource : HdSource
 {
     private readonly string _dir;
-    private readonly Lazy<int> _count;
+    // the folder's files, listed once (a mission asks for hundreds of names that are not there)
+    private readonly Lazy<HashSet<string>> _names;
     public HdDirSource(string dir)
     {
         _dir = dir;
-        _count = new(() => Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Count() : 0);
+        _names = new(() => Directory.Exists(dir)
+            ? Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(dir, f).Replace(Path.DirectorySeparatorChar, '/')).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [], System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
         var p = Path.Combine(dir, "pack.json");
         if (File.Exists(p)) Info = HdPackInfo.Parse(File.ReadAllBytes(p));
     }
     public override string Origin => _dir;
-    public override int Count => _count.Value;
+    public override int Count => _names.Value.Count;
     private string P(string rel) => Path.Combine(_dir, rel.Replace('/', Path.DirectorySeparatorChar));
-    public override bool Exists(string rel) => File.Exists(P(rel));
-    public override byte[]? Read(string rel) { var p = P(rel); return File.Exists(p) ? File.ReadAllBytes(p) : null; }
+    public override bool Exists(string rel) => _names.Value.Contains(rel);
+    public override byte[]? Read(string rel) { if (!Exists(rel)) return null; try { return File.ReadAllBytes(P(rel)); } catch (IOException) { return null; } }
+    /// <summary>Plain files: read from any thread.</summary>
+    public override bool ThreadSafe => true;
 }
 
 /// <summary>A pack file: a zip whose tex-menu/ folder is the layout (or another root, tex-world/ for the world textures), read in place.</summary>

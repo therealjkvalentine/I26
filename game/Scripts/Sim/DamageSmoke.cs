@@ -166,6 +166,7 @@ public partial class DamageSmoke : Node3D
         cell = default;
         if (Builder.Resolver is not { } res || Builder.Textures is not { } tf) return null;
         Image? img = null;
+        tf.Prefetch(Enumerable.Range(0, 36).Select(j => res.FindByStem($"{Kinds[j / 12]}_{j % 12 / 4 + 1}0{j % 4 + 1}")).OfType<string>(), rgba: true);
         for (int k = 0; k < 3; k++)
             for (int i = 0; i < 12; i++)
             {
