@@ -130,6 +130,7 @@ public partial class NetHudClassic : Control
             if (f.Connection is { } cn) sb.Append(cn).Append('\n');
             if (f.Debug is { } dbg) sb.Append(dbg).Append('\n');
         }
+        if (f.RegenHold is { } rh) sb.Append(rh).Append('\n');
         // the CB radio: the console's style, a line for each station on the air
         if (f.CbMuted) sb.Append("CB: you are muted by the host\n");
         if (f.CbTx) sb.Append("CB: you are transmitting\n");

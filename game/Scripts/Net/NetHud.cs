@@ -54,6 +54,8 @@ public partial class NetHud : CanvasLayer
     private double _t;
     private int _boardPage;
     private double? _deadAt;
+    /// <summary>The own car's regen pad hold, replayed here for the readout (from the join: the server spawned the car then).</summary>
+    private readonly RegenPadClock _regen = new(0);
     private (string? Name, int Team, bool Self)? _killer;
     private IReadOnlyList<(byte Slot, int Score)>? _final;
     private NetHudFrame.EndInfo? _end;
@@ -98,6 +100,7 @@ public partial class NetHud : CanvasLayer
         });
         World.News += OnNews;
         World.Renewed += (m, respawn) => { if (m == World.Own && respawn) { _deadAt = null; _reconfigured = null; _killer = null; } };
+        World.Renewed += (m, _) => { if (m == World.Own) _regen.Renewed(_t); };
     }
 
     private bool IsModern => Modern?.Invoke() ?? true;
@@ -427,6 +430,10 @@ public partial class NetHud : CanvasLayer
             f.CbKey = Controls.Binding("POETRY") is { Length: > 0 } pk && pk != BindingTable.None ? pk : "C";
             f.CbHint = true;
         }
+        // the regen pad's hold, while the own car stands on a pad that will not regenerate it yet
+        if (!f.Coop && _deadAt is null && !Decided && World.Setup.Melee is { Regens.Count: > 0 } mg && World.Own is { } own
+            && _regen.Update(_t, MeleeGame.OnRegenPad(mg.Regens, own.Pos.ToVector3())) is { } hold)
+            f.RegenHold = RegenPadClock.Words(hold);
         f.ChatOpen = _chat.Active;
         f.ChatText = _chat.Text;
         // the host's prompts: a boot asked about first, else the join waiting longest

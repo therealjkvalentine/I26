@@ -28,6 +28,8 @@ public sealed class NetHudFrame
     /// <summary>The connection's state when it is not simply joined ("Migrating", "Disconnected: ...").</summary>
     public string? Connection;
     public string? HostStatus;
+    /// <summary>The own car is on a regen pad that will not regenerate it yet: how long, or that it must drive off first (I26's readout).</summary>
+    public string? RegenHold;
     public string? Debug;
     /// <summary>The standings while their key is held: the players' page, grouped under their teams' totals in team play.</summary>
     public ScoreView? Board;

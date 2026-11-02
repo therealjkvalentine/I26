@@ -261,7 +261,8 @@ public partial class NetHudModern : Control
     }
 
     /// <summary>
-    /// The strip: the connection when it is not whole and, until the standings have been opened once, the key that opens them.
+    /// The strip: the connection when it is not whole, a regen pad's hold while the car stands on one and, until the standings have
+    /// been opened once, the key that opens them.
     /// Everything else (the time left, one's place and count, a race's lap, CTF's flags, the mode, the goal, the ping, the host's
     /// status, the other keys) is in the standings: players found the HUD too busy with them always up.
     /// Returns its width (0 when empty); draws its contents only when <paramref name="draw"/> (the caller lays the panel under them).
@@ -284,6 +285,11 @@ public partial class NetHudModern : Control
             Gap();
             string s = cn.Length > 44 ? cn[..43] + "…" : cn;
             T(s, small, HudStyle.Danger);
+        }
+        if (f.RegenHold is { } rh)
+        {
+            Gap();
+            T(rh.ToUpperInvariant(), small, HudStyle.Amber);
         }
         if (f.ScoresHint)
         {
