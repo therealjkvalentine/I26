@@ -153,3 +153,13 @@ feat/sim-rate-24
 # G. stacked on play, last: corrections from the original measured 2026-11-02 (merge after everything above)
 fix/ai-dropper-gate-straight-line     # stacked on play: corrections from the original measured 2026-11-02
 fix/turret-lead-predictor-delay       # stacked on play: corrections from the original measured 2026-11-02
+
+# H. stacked on play: follow-ups from the design review (2026-11-02), merge after G
+fix/look-choice-rows                  # one LookChoice helper; a choice stored only on change; shell.cfg 12 drops an old draw_distance
+fix/coop-damage-remainder             # the fraction carried per car and channel (snapshot 23)
+fix/pad-rules-shift-tap-latch         # shift wins over tap/hold; 200 ms tap; handbrake latch
+fix/esc-aa-row-names                  # Esc Anti-Aliasing row lists 8x too
+fix/scoreboard-host-guards            # double-click asks; /ban refuses unknown names; picks by slot order
+fix/input-trace-header-and-flush      # header with build/install/options; flush per row; dev actions marked
+fix/telemetry-rate-and-time           # 60 packets/s cap; monotonic time
+fix/2d-reticle-follows-fov            # the 2D reticle projected through the chosen FOV
