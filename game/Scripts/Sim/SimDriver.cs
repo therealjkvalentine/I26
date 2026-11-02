@@ -96,6 +96,51 @@ public partial class SimDriver : Node
     private readonly int _holdHardpoint = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HOLD_HARDPOINT"), out int hk) && hk is >= 1 and <= 5 ? hk : 0;
     private bool _hooked;
     private readonly DriveTest? _test = DriveTest.FromEnvironment();
+
+    /// <summary>I76_INPUT: a recorded run (InputTrace) drives the player's car from tick 0 instead of the keys and the pad.</summary>
+    public InputTrace? Replay { get; set; }
+    /// <summary>I76_INPUT_RECORD: the header of the recording this run writes (the input and state hash of every tick) to <see cref="RecordPath"/>.</summary>
+    public InputTrace? Recording { get; set; }
+    public string? RecordPath { get; set; }
+    /// <summary>I76_MOTION_CSV: a row a tick of the player's motion (MotionTrace) to this file.</summary>
+    public string? MotionPath { get; set; }
+    private System.IO.StreamWriter? _recordOut, _motionOut;
+    private bool _replayDiverged, _replayEnded;
+
+    /// <summary>The input traces' part of a tick: what ran is written, and a replay's hash is checked.</summary>
+    private void TraceTick(int tick, CarInput input)
+    {
+        if (Recording is null && Replay is null && MotionPath is null) return;
+        ulong? hash = Recording is not null || Replay?.HashAt(tick) is not null ? Session.StateHash() : null;
+        if (Recording is not null && RecordPath is not null)
+        {
+            if (_recordOut is null)
+            {
+                _recordOut = new System.IO.StreamWriter(RecordPath);
+                _recordOut.WriteLine(Recording.HeaderLine());
+                _recordOut.WriteLine(InputTrace.Columns);
+            }
+            _recordOut.WriteLine(InputTrace.Row(tick, input, hash));
+        }
+        if (Replay is { } rp)
+        {
+            if (!_replayDiverged && rp.HashAt(tick) is { } want && want != hash)
+            {
+                _replayDiverged = true;
+                GD.PrintErr($"input replay: tick {tick} state hash {hash:x16}, recorded {want:x16}: the run has left the recording");
+            }
+            if (!_replayEnded && tick == rp.Count - 1)
+            {
+                _replayEnded = true;
+                GD.Print($"input replay: the recording's {rp.Count} ticks played{(_replayDiverged ? "" : ", every state hash equal")}");
+            }
+        }
+        if (MotionPath is not null && Player?.Sim is { } mp)
+        {
+            if (_motionOut is null) { _motionOut = new System.IO.StreamWriter(MotionPath); _motionOut.WriteLine(MotionTrace.Columns); }
+            _motionOut.WriteLine(MotionTrace.Row(tick, (tick + 1) * Tick, mp));
+        }
+    }
     private readonly Dictionary<I76.Sim.Vehicles.Vehicle, CarNode> _byVehicle = [];
 
     /// <summary>
@@ -169,7 +214,7 @@ public partial class SimDriver : Node
         SimClock.Ticks = () => Ticks;
     }
 
-    public override void _ExitTree() { Voice3D.Followed = null; Voice3D.PlayerCar = null; Voice3D.InCockpit = null; if (SimClock.Ticks is not null) SimClock.Ticks = null; }
+    public override void _ExitTree() { _recordOut?.Dispose(); _recordOut = null; _motionOut?.Dispose(); _motionOut = null; Voice3D.Followed = null; Voice3D.PlayerCar = null; Voice3D.InCockpit = null; if (SimClock.Ticks is not null) SimClock.Ticks = null; }
 
     public override void _Ready()
     {
@@ -245,7 +290,7 @@ public partial class SimDriver : Node
     /// </summary>
     public CarInput? LiveDriving()
     {
-        if (_test is { Drives: true } || Session.Cutscene || Remote is not null) return null;
+        if (_test is { Drives: true } || Session.Cutscene || Remote is not null || Replay is not null) return null;
         var input = DrivingKeys();
         if (_arSwapped && input.Has(CarButtons.Analog)) input.Throttle = (short)System.Math.Clamp(-input.Throttle, -32767, 32767);
         else if (_arSwapped)
@@ -394,7 +439,10 @@ public partial class SimDriver : Node
         {
             int shots = Combat?.Events.Count ?? 0;
             var sampled = Sample();
+            int tick = Session.Ticks;
+            if (Replay is { } replay) sampled = replay.At(tick);   // the keys are still sampled (and dropped) so nothing is left latched
             using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
+            TraceTick(tick, sampled);
             ForceFeedback.Tick(Combat?.Events, shots, Tick);   // the block the original filled at the frame's end
             if (_debugPlayer)
                 foreach (var (_, hn, ht, hnorm, hs) in World.Step.ObjectHits) GD.Print($"  hit {hn} type {ht} n {hnorm.X:0.00},{hnorm.Y:0.00},{hnorm.Z:0.00} at speed {hs:0.0}");
