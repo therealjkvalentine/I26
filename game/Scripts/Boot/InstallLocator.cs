@@ -8,6 +8,7 @@ namespace I76.Game.Boot;
 ///   --install DIR   --mission NAME   --1997
 ///   --cam x,y,z,yaw,pitch   (game units and degrees)
 ///   --screenshot PATH  --quit-after FRAMES   --seed N
+///   --export-textures DIR [--palette t01.act]   every texture as a PNG for tools/upscale-textures.py, then quit
 ///   --drive [car.vcf]  --hold-throttle
 ///   --skip-movies   --movie NAME.smk
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
@@ -43,6 +44,9 @@ public sealed class LaunchOptions
     public bool Mode1997 { get; set; }
     public float[]? Cam { get; set; }
     public string? Screenshot { get; set; }
+    /// <summary>--export-textures DIR: write every texture as a PNG (TextureExport) and quit; --palette NAME colours the .map and .vqm ones.</summary>
+    public string? ExportTextures { get; set; }
+    public string Palette { get; set; } = "t01.act";
     public int QuitAfter { get; set; }
     /// <summary>--drive [car.vcf]: spawn a drivable car (default: the mission's player car or the Piranha).</summary>
     public string? Drive { get; set; }
@@ -236,6 +240,8 @@ public sealed class LaunchOptions
                 case "--1997": o.Mode1997 = true; break;
                 case "--cam": o.Cam = Next().Split(',').Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray(); break;
                 case "--screenshot": o.Screenshot = Next(); break;
+                case "--export-textures": o.ExportTextures = Next(); break;
+                case "--palette": o.Palette = Next(); break;
                 case "--quit-after": o.QuitAfter = int.Parse(Next()); break;
                 case "--drive": o.Drive = i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[++i] : ""; break;
                 case "--hold-throttle": o.HoldThrottle = true; break;

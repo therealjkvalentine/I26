@@ -33,6 +33,18 @@ Alternatively, place the `setup_interstate_76_*.exe` offline backup installers i
 
 On Linux, ensure Microsoft core fonts are installed for Impact and Arial.
 
+# HD textures (optional)
+
+The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world/`
+(`%APPDATA%I26	ex-world` on Windows, `~/.local/share/I26/tex-world` on Linux, `~/Library/Application Support/I26/tex-world`
+on macOS), named after the texture (`pp11ftf1.png`) at 2x, 4x or 8x. None ships with I26, and no game art is in this
+repository: `tools/upscale-textures.py` makes them on your own machine from your own install. Export the textures
+(`i26 -- --install DIR --export-textures SRC_DIR`, which quits when done), install Python 3.10+ with
+`pip install torch spandrel numpy pillow`, and run `python3 tools/upscale-textures.py SRC_DIR`. It downloads the model
+4xTextures_GTAV_rgt-s_dither (Philip Hofmann, CC-BY-4.0) once, takes about half a second a texture on a graphics card
+and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. The 1997 look
+keeps the originals; Graphic Detail's HD Menu Art row switches the upscales off.
+
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).
 

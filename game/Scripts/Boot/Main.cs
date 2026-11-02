@@ -265,6 +265,7 @@ public partial class Main : Node3D
         _lookSaved = I76.Game.Shell.ShellSettings.Load().Look1997;
         _opt.Mode1997 |= _lookSaved;
         if (_opt.Install is not null) I76.Game.Editor.EditorSession.Install = new GameInstall(_opt.Install);
+        if (_opt.ExportTextures is { } exportDir && _opt.Install is not null) { TextureExport.Run(new GameInstall(_opt.Install), exportDir, _opt.Palette); GetTree().Quit(); return; }
         // I76_EDITOR=<mission>: the map editor on that mission (docs/dev-hooks.md); the shell's Map Editor entry does the same through EditorSession
         if (!I76.Game.Editor.EditorSession.EnvTaken && System.Environment.GetEnvironmentVariable("I76_EDITOR") is { Length: > 0 } editorMission)
         {
@@ -2886,6 +2887,7 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
         FrameLimiter.Pace();
         UpdateMouseCapture();
         if (_sim?.World.Player is { } ptp && OS.GetEnvironment("I76_PLAYTEST_LOG") is { Length: > 0 } && ++_ptFrames % 20 == 0)
