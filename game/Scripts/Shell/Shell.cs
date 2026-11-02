@@ -807,7 +807,6 @@ public partial class Shell : CanvasLayer
             // capture hook: "overlay:controls@frame" opens the Control Configuration over the screen
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
-            if (kind == "overlay" && arg == "recipe") Overlay(new OriginalRecipeScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());
             if (kind == "type") _typed.Append(arg);
             // capture hook: "keyev:Semicolon,58,shift@frame" a key press as the window delivers it (keycode, Unicode, modifiers; Unicode 0 for none)
@@ -1137,14 +1136,28 @@ public sealed class ShellSettings
     public int FfbStrength { get; set; } = 100;
     /// <summary>The port's own: part of the force-feedback wheel's name, to pick it among several; empty, the first. Only in the file.</summary>
     public string FfbDevice { get; set; } = "";
-    /// <summary>Play Options' Force Feedback row: 0 Off, 1 Pad, 2 Wheel (Wheel read as Pad where there is no DirectInput).</summary>
+    /// <summary>
+    /// Play Options' Force Feedback row: 0 Off, 1 Pad (the original's effects on the pad's motors), 2 Pad Enhanced (and the port's pulses,
+    /// <see cref="RumbleMode"/>), 3 Wheel (read as Pad where there is no DirectInput). The three fields under it are the file's keys.
+    /// </summary>
     public int ForceFeedbackMode
     {
-        get => !ForceFeedback ? 0 : ForceFeedbackWheel && I76.Game.DirectInputForce.Supported ? 2 : 1;
-        set { ForceFeedback = value != 0; ForceFeedbackWheel = value == 2; }
+        get => !ForceFeedback ? 0 : ForceFeedbackWheel && I76.Game.DirectInputForce.Supported ? 3 : RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 2 : 1;
+        set
+        {
+            ForceFeedback = value != 0;
+            ForceFeedbackWheel = value == 3;
+            RumbleMode = value == 2 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original;
+        }
     }
-    public static readonly string[] ForceFeedbackNames = ["Off", "Pad", "Wheel"];
-    /// <summary>The port's own: Play Options' Rumble (second page): Original (the game's own effects), Enhanced (and pulses for the events they do not cover) or Off ([port] rumble, written when not original).</summary>
+    /// <summary>The row's values; the mark is the original's (<see cref="OriginalMark"/>).</summary>
+    public static readonly string[] ForceFeedbackNames = ["Off", "Pad" + OriginalMark, "Pad Enhanced", "Wheel"];
+    /// <summary>
+    /// What marks the original game's value on a pad's row (docs/playing.md): the shell's bitmap fonts and the pads' handwriting have no
+    /// italics or second face, and the value columns are too narrow for a word, so one glyph, explained once in the docs.
+    /// </summary>
+    public const string OriginalMark = "*";
+    /// <summary>The port's own: the pad's events, Original (the game's own effects) or Enhanced (and pulses for the events they do not cover): Force Feedback's Pad Enhanced ([port] rumble, written when enhanced; a file's "off", from the Rumble row of a build before the fold, reads as Force Feedback Off unless a wheel was chosen).</summary>
     public I76.Formats.Input.RumbleMode RumbleMode { get; set; }
     /// <summary>The port's own: Play Options' Rumble Strength, percent on every level sent to the pad (25 to 150; [port] rumble_strength, written when not 100).</summary>
     public int RumbleStrength { get; set; } = I76.Formats.Input.RumbleStrength.Default;
@@ -1185,11 +1198,9 @@ public sealed class ShellSettings
     /// <summary>The port's own: the modern look's procedural plants (Graphic Detail; 0 Off, 1 Low, 2 High; docs/modern-vegetation.md). Low unless the player chose.</summary>
     public int Vegetation { get; set; } = 1;
     /// <summary>
-    /// The port's own: Graphic Detail's Draw Distance (I76.Formats.Imaging.DrawDistance: 0 Original, the 600 m clip; 1 Far, to 20 km).
-    /// Until the player chooses it follows the look: Original in the 1997 look, Far in the modern one.
+    /// The port's own, without a row: how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
+    /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
-    public int DrawDistance { get => I76.Formats.Imaging.DrawDistance.Resolve(DrawDistanceChoice, Look1997); set => DrawDistanceChoice = I76.Formats.Shell.LookChoice.Choose(DrawDistanceChoice, Look1997, value); }
-    /// <summary>The player's Draw Distance, or null while none was chosen (the file has no key; Reset clears it).</summary>
     public int? DrawDistanceChoice { get; set; }
     /// <summary>The port's own: Graphic Detail's Map Edge, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Original, as they are; 1 Haze; 2 Fade Out). Original unless the player chose.</summary>
     public int MapEdge { get; set; } = I76.Game.World.MapEdge.Original;
@@ -1252,7 +1263,8 @@ public sealed class ShellSettings
     /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
     /// </summary>
     public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
-    public static readonly string[] MeleeAiNames = ["Original", "Difficulty", "Easy", "Hard"];
+    /// <summary>The row's values: the original's opening step is the bots' Normal tier (MeleeGame.OriginalOpeningStep).</summary>
+    public static readonly string[] MeleeAiNames = ["Normal" + OriginalMark, "Difficulty", "Easy", "Hard"];
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
@@ -1268,22 +1280,25 @@ public sealed class ShellSettings
     /// <summary>The port's own: the map editor plays the game's soundtrack while you edit (the editor's MUSIC button; shell.cfg [port] editor_music, written only when off).</summary>
     public bool EditorMusic { get; set; } = true;
     /// <summary>
-    /// The port's own, the Original Recipe pad (OriginalRecipe): the rear-view mirror's far clip (I76.Game.Sim.OriginalBehavior:
-    /// 0 Original, the original's 100 m; 1 Full, the whole view; shell.cfg [port] mirror_range). Null until the player chooses:
+    /// The port's own, without a row (OriginalRecipe, the words): the rear-view mirror's far clip (I76.Game.Sim.OriginalBehavior:
+    /// 0 Original, the original's 100 m; 1 Full, the whole view; shell.cfg [port] mirror_range). Null while the file has no key:
     /// it follows the look, Original in the 1997 look and Full in the modern one.
     /// </summary>
     public int? MirrorRangeChoice { get; set; }
-    /// <summary>The port's own (Original Recipe): the brake lamps, 0 Original (lit only while braking), 1 Held (0.15 s after); null follows the look ([port] brake_lamps).</summary>
+    /// <summary>The port's own, without a row: the brake lamps, 0 Original (lit only while braking), 1 Held (0.15 s after); null follows the look ([port] brake_lamps).</summary>
     public int? BrakeLampChoice { get; set; }
-    /// <summary>The port's own (Original Recipe): a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
+    /// <summary>The port's own, without a row: a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
     public int? MgTracerChoice { get; set; }
-    /// <summary>The port's own (Original Recipe): the 1997 sky's clouds, 0 Original (twice as fast with the full mirror up), 1 Steady ([port] sky_drift, written when not original).</summary>
-    public int SkyDrift { get; set; }
-    /// <summary>The port's own (Original Recipe): the death orbit, 0 Original (8 degrees a tick), 1 Smooth (20 degrees a second) ([port] death_orbit, written when not original).</summary>
+    /// <summary>
+    /// The port's own, without a row: the 1997 sky's clouds, 0 Original (a second step a tick with the full mirror up, as the original's, which
+    /// drifts them twice as fast then), 1 Steady, the default in both looks ([port] sky_drift, written when original; docs/deviations.md "Sky scroll").
+    /// </summary>
+    public int SkyDrift { get; set; } = 1;
+    /// <summary>The port's own, without a row: the death orbit, 0 Original (8 degrees a tick), 1 Smooth (20 degrees a second) ([port] death_orbit, written when not original).</summary>
     public int DeathOrbit { get; set; }
-    /// <summary>The port's own (Original Recipe): mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
+    /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
-    /// <summary>The port's own (Original Recipe): live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
+    /// <summary>The port's own: Play Options' Unlim. Ordnance (second page), live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
     public int OrdnanceLimit { get; set; }
 
     /// <summary>The port's own, kept out of the menus: [port] seed fixes every mission's rand seed, as --seed does (absent: the clock's, as the original).</summary>
@@ -1325,8 +1340,10 @@ public sealed class ShellSettings
         s.ForceFeedbackWheel = (bool)c.GetValue("port", "ffb_wheel", false);
         s.FfbStrength = Math.Clamp((int)c.GetValue("port", "ffb_strength", 100), 0, 100);
         s.FfbDevice = (string)c.GetValue("port", "ffb_device", "");
-        // no version step: absent, the game's own effects at full strength
+        // no version step: absent, the game's own effects at full strength. Before version 13 a Rumble row of its own could be Off with
+        // Force Feedback on: that is Force Feedback Off now, unless the wheel was chosen (the pad was silent under a wheel anyway)
         s.RumbleMode = Enum.TryParse<I76.Formats.Input.RumbleMode>((string)c.GetValue("port", "rumble", "original"), true, out var rm) ? rm : I76.Formats.Input.RumbleMode.Original;
+        if (s.RumbleMode == I76.Formats.Input.RumbleMode.Off) { s.RumbleMode = I76.Formats.Input.RumbleMode.Original; if (!s.ForceFeedbackWheel) s.ForceFeedback = false; }
         s.RumbleStrength = I76.Formats.Input.RumbleStrength.Clamp((int)c.GetValue("port", "rumble_strength", I76.Formats.Input.RumbleStrength.Default));
         // version 8 added the simulation rate: older files have none, so it is the default (20)
         s.SimRate = version < 8 ? I76.Sim.Session.SimRate.Default.Label : I76.Sim.Session.SimRate.FromLabel((int)c.GetValue("port", "sim_rate", I76.Sim.Session.SimRate.Default.Label)).Label;
@@ -1401,11 +1418,12 @@ public sealed class ShellSettings
         s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 90));
         s.NetNames = (bool)c.GetValue("port", "net_names", true);
         s.EditorMusic = (bool)c.GetValue("port", "editor_music", true);
-        // no version step: absent, the original's (the look's for the three that follow it)
+        // the settings without a row (docs/playing.md). No version step: absent, the original's (the look's for the three that follow it),
+        // but the sky's drift, Steady: version 13 made that the default, and the key was only ever written for Steady before it
         s.MirrorRangeChoice = OriginalRecipe.ReadChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames);
         s.BrakeLampChoice = OriginalRecipe.ReadChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames);
         s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
-        s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 0;
+        s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
@@ -1422,7 +1440,8 @@ public sealed class ShellSettings
     public void Save()
     {
         var c = new ConfigFile();
-        c.SetValue("shell", "version", 12);
+        // version 13: the sky's drift is Steady unless the file says original, and the Rumble row is folded into Force Feedback (the keys are the same)
+        c.SetValue("shell", "version", 13);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
         c.SetValue("port", "map_edge", MapEdge);
@@ -1499,7 +1518,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
         OriginalRecipe.WriteChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames, BrakeLampChoice);
         OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
-        OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 0 ? null : SkyDrift);
+        OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);

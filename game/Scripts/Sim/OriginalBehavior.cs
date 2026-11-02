@@ -1,10 +1,10 @@
 namespace I76.Game.Sim;
 
 /// <summary>
-/// The Original Recipe pad's drawing-side choices (I76.Game.Shell.OriginalRecipe), applied with the graphics settings
-/// (Main.ApplyGraphics): the mirror's far clip, the brake lamps' hold, the modern look's machine gun rounds, the 1997 sky's
-/// drift and the death orbit's turn. Engine-free. The simulation's own (the AI's dropper gate, the live ordnance cap) are the
-/// combat's (PlayOptionsCombat).
+/// The drawing-side settings without a row (shell.cfg's [port] keys, docs/playing.md; the words are I76.Game.Shell.OriginalRecipe's),
+/// applied with the graphics settings (Main.ApplyGraphics): the mirror's far clip, the brake lamps' hold, the modern look's
+/// machine gun rounds, the 1997 sky's drift and the death orbit's turn. Engine-free. The simulation's own (the live ordnance
+/// cap, Play Options' Unlim. Ordnance) is the combat's (PlayOptionsCombat).
 /// </summary>
 public static class OriginalBehavior
 {
@@ -15,7 +15,8 @@ public static class OriginalBehavior
 
     /// <summary>The player's choices (null: follow the look).</summary>
     public static int? MirrorRange, BrakeLamps, MgTracers;
-    public static bool SteadySky, SmoothOrbit;
+    /// <summary>The sky steps once a tick whatever the mirror does (the default; [port] sky_drift=original gives the original's second step), and the orbit's smooth turn.</summary>
+    public static bool SteadySky = true, SmoothOrbit;
 
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {

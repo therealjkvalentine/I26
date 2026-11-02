@@ -923,7 +923,7 @@ public partial class Cockpit : Node
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & 0xFFFFF;
         _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : null;
-        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // Original Recipe's Rear Mirror Range: the original's 100 m, or Full
+        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full
     }
 
     private void Mirror()

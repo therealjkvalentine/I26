@@ -133,7 +133,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public float DifficultyFactor(Vehicle shooter) =>
         NetworkGame || !World.IsHuman(shooter) ? 1f : Difficulty switch { 0 => 2f, 2 => 0.75f, _ => 1f };
     public bool UnlimitedAmmo { get; set; }
-    /// <summary>The Original Recipe pad's Live Ordnance, Unlimited: no cap on the live rounds of a kind (<see cref="Cap"/>). Off, the original's; never in a network game.</summary>
+    /// <summary>Play Options' Unlim. Ordnance: no cap on the live rounds of a kind (<see cref="Cap"/>). Off, the original's; never in a network game.</summary>
     public bool UnlimitedOrdnance { get; set; }
     /// <summary>
     /// The Nitro Pack's rules where its weapon code differs from the base game's: the Chemical Mortar kills the driver

@@ -98,7 +98,7 @@ public class OrdnanceCapTests
         Assert.Equal(160, c.Rounds.Count(r => r.Kind == 0x11));
     }
 
-    /// <summary>Original Recipe's Live Ordnance, Unlimited: no cap offline; a network game keeps the original's.</summary>
+    /// <summary>Play Options' Unlim. Ordnance: no cap offline; a network game keeps the original's.</summary>
     [Fact]
     public void UnlimitedKeepsEveryDropOffline()
     {

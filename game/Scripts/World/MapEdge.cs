@@ -5,7 +5,7 @@ namespace I76.Game.World;
 /// <summary>
 /// Graphic Detail's Map Edge (the port's own, modern look only). A level's boundary is its heightfield's own outer tiles:
 /// most missions are bowls whose rim rises 100-170 m to a cliff band along the last tiles, and the modern look's ring
-/// (HorizonTerrain) carries on from the rim's height. Original draws that as it is. Haze lays a distance haze, toward the
+/// (HorizonTerrain) carries on from the rim's height. Original (Plain on the pads, marked as the original's) draws that as it is. Haze lays a distance haze, toward the
 /// modern sky's horizon colour, over the ground in a band inside the edge and over the ring beyond it, so the walls and
 /// the ranges past them read as far land; Fade Out takes them wholly into that colour, the boundary dissolving into the
 /// sky's horizon. Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the simulation are unchanged,
@@ -14,7 +14,7 @@ namespace I76.Game.World;
 public static class MapEdge
 {
     public const int Original = 0, Haze = 1, FadeOut = 2;
-    public static readonly string[] Names = ["Original", "Haze", "Fade Out"];
+    public static readonly string[] Names = ["Plain" + I76.Game.Shell.ShellSettings.OriginalMark, "Haze", "Fade Out"];
 
     /// <summary>shell.cfg's [port] map_edge: absent or out of range, Original.</summary>
     public static int Parse(int? value) => value is >= Original and <= FadeOut ? value.Value : Original;

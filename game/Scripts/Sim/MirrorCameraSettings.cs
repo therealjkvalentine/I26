@@ -9,7 +9,7 @@ public static class MirrorCameraSettings
 {
     public const float MinFov = 45f, MaxFov = 135f;
     public const float FovDegrees = 45f, FarMetres = 100f;
-    /// <summary>The Original Recipe pad's Full: the far clip the original asked for, the whole map (OriginalBehavior.MirrorFar).</summary>
+    /// <summary>[port] mirror_range=full: the far clip the original asked for, the whole map (OriginalBehavior.MirrorFar).</summary>
     public const float FullFarMetres = 20000f;
 
     /// <summary>The field of view the camera set-up ends up with for a requested one.</summary>
