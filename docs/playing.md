@@ -117,8 +117,9 @@ skip. `flflat`, `frflat`, `blflat` and `brflat` blow one of your tyres. `wiggleb
 on or off. `freelance` and `thirdnostril` do nothing, in the original too. None of them marks you as a cheater.
 
 **Game pads.** A pad is the original's joystick 1: the left stick steers, the right trigger accelerates and the
-left brakes, the right stick swings the camera (and is a head look in the car), A and RB fire, B cycles, X and Y
-target, the D-pad links, reverses and changes target. Start opens the game menu and, in a network game, holding Back (View) shows the standings; bind Start or Back to a
+left brakes, the right stick swings the camera (and is a head look in the car), A fires, RB is the handbrake, B cycles, X and Y
+target, the D-pad links, reverses and changes target. LB is a shift: held, A fires the rear hardpoint (3), B the dropper (4), X and Y
+hardpoints 1 and 2, L3 and R3 specials 1 and 2, and the D-pad is binoculars (up), radar range (down) and the gears (left down, right up). Start opens the game menu and, in a network game, holding Back (View) shows the standings; bind Start or Back to a
 command on the Controller screen and they do only that command instead. The pad also drives every menu
 (D-pad or left stick to move, A to click, B and Start to go back); A, B or Start skips a movie, and B or Start a
 skippable cut-scene, as Esc does. Everything is rebindable on the Controller

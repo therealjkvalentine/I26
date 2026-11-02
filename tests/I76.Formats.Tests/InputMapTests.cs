@@ -176,32 +176,36 @@ public class InputMapTests
         Assert.Equal("Button1", t.Text("weapon_fire"));
         Assert.Equal("Button2", t.Text("weapon_cycle"));
         Assert.Equal("Space", t.Of("weapon_fire")[0].Terms[0].Channel);       // the keyboard still fires
-        Assert.Single(t.Of("weapon_fire")[^1].Terms);                          // no cross-exclusion
-        foreach (var (cmd, ch) in new[] { ("e_brake", "Button5"), ("SHOW_MAP", "Button7"), ("HONK_HORN", "Button9"), ("toggle_cmbt_view", "Button10"), ("TARGET_NEAREST_ENEMY", "Button3"), ("frontal_target", "Button4") })
+        // no cross-exclusion, only the shift's (A has a second command)
+        Assert.Equal([new InputTerm(true, "joystick1", "Button1"), new InputTerm(false, "joystick1", "Button5")], t.Of("weapon_fire")[^1].Terms);
+        foreach (var (cmd, ch) in new[] { ("e_brake", "Button6"), ("SHOW_MAP", "Button7"), ("HONK_HORN", "Button9"), ("toggle_cmbt_view", "Button10"), ("TARGET_NEAREST_ENEMY", "Button3"), ("frontal_target", "Button4") })
             Assert.Equal(ch, t.Text(cmd));
         var again = BindingTable.Parse(t.ToText());
         Assert.Equal(t.Blocks.Count(), again.Blocks.Count());
     }
 
     [Fact]
-    public void ThePresetsRightStickIsTheCameraRbFiresAndTheDpadNoLongerGlances()
+    public void ThePresetsRightStickIsTheCameraAFiresAndTheDpadNoLongerGlances()
     {
         var t = PadPreset.Build("weapon_fire {\n   + keyboard Space\n}\npilot_glance_left {\n   + keyboard GreyLeftArrow\n}\n");
         // the right stick on the chase camera's axis rows: "-" on yaw (right looks right), "+" on pitch (up looks up)
         Assert.Equal(new InputTerm(false, "joystick1", "Rudder"), t.AxisOf("track_yaw_delta"));
         Assert.Equal(new InputTerm(true, "joystick1", "5thAxis"), t.AxisOf("track_pitch_delta"));
-        // A and RB both fire; reverse is on the D-pad's down
-        Assert.Equal(["Button6", "Button1"], t.Of("weapon_fire").Where(BindingTable.IsPad).Select(b => b.Terms[0].Channel));
+        // A fires (RB is the e-brake, LB the shift); reverse is on the D-pad's down
+        Assert.Equal(["Button1"], t.Of("weapon_fire").Where(BindingTable.IsPad).Select(b => b.Terms[0].Channel));
         Assert.Equal("HatDown", t.ShownOn("reverse_direction", true)!.Channel);
         Assert.Equal("HatUp", t.ShownOn("weapon_link", true)!.Channel);
         Assert.Equal("HatLeft", t.ShownOn("RESET_TARGET", true)!.Channel);
         Assert.Equal("HatRight", t.ShownOn("NEXT_TARGET", true)!.Channel);
-        // no glance or track key on the pad: the stick does it, and nothing is on two commands but Fire
+        // no glance or track key on the pad: the stick does it, and nothing is on two commands in a layer
         foreach (var c in new[] { "pilot_glance_up", "pilot_glance_down", "pilot_glance_left", "pilot_glance_right", "track_yaw_plus", "track_yaw_minus", "track_pitch_plus", "track_pitch_minus" })
             Assert.Null(t.ShownOn(c, true));
         Assert.Equal("GreyLeftArrow", t.KeyText("pilot_glance_left"));
-        var pad = t.Blocks.Where(BindingTable.IsPad).Select(b => b.Terms[0].Channel.ToLowerInvariant()).ToList();
-        Assert.Equal(pad.Count, pad.Distinct().Count());
+        foreach (var layer in new[] { false, true })
+        {
+            var pad = t.PadLayer(layer).Select(b => b.Terms[0].Channel.ToLowerInvariant()).ToList();
+            Assert.Equal(pad.Count, pad.Distinct().Count());
+        }
         // saved with the shell's twins, the track keys stay the keyboard's
         var saved = BindingTable.Parse(t.WithTwins([("pilot_glance_left", ["track_yaw_minus", "overview_x_minus"])]).ToText());
         Assert.Equal("GreyLeftArrow", saved.KeyText("track_yaw_minus"));
@@ -245,7 +249,7 @@ public class InputMapTests
         t.Assign("weapon_fire", "keyboard", "Q");
         Assert.Equal("Q", t.KeyText("weapon_fire"));
         Assert.Equal("Button1", t.ShownOn("weapon_fire", true)!.Channel);
-        Assert.Equal(3, t.Of("weapon_fire").Count);         // Q, RB and A
+        Assert.Equal(2, t.Of("weapon_fire").Count);         // Q and A
         t.Assign("weapon_fire", "joystick1", "Button4");
         Assert.Equal("Q", t.KeyText("weapon_fire"));
         Assert.Equal("Button4", t.ShownOn("weapon_fire", true)!.Channel);
@@ -292,8 +296,10 @@ public class InputMapTests
     public void ClearingAPadInputTakesItOffEveryCommandAndLeavesTheKeys()
     {
         var t = PadPreset.Build("weapon_fire {\n   + keyboard Space\n}\n");
+        t.Assign("weapon_fire", "joystick1", "Button6");
         t.ClearInput("Button1");
         Assert.Equal("Button6", t.ShownOn("weapon_fire", true)!.Channel);     // RB fires still
+        Assert.Null(t.ShownOn("hardpoint3_fire", true));                      // A's second command went with it
         t.ClearInput("Button6");
         Assert.Null(t.ShownOn("weapon_fire", true));
         Assert.Equal("Space", t.KeyText("weapon_fire"));

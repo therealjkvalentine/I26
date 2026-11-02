@@ -22,6 +22,7 @@
 - Police sirens wail as in the original: once a mission turns a police car's siren on, it keeps sounding until the mission turns it off or the car is wrecked, instead of playing once, and the trip's and the scenarios' own police cars sound the siren rather than a short car horn, as on the 1997 CD. A Sheriff that honks at a car in its way turns its siren on too.
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
+- A pad button can be a shift: held, the pad's other buttons and D-pad do a second command each (Controller screen, a button's list: Shift; hold it or press Tab to see and set the second commands). The pad's defaults have LB as the shift, with the hardpoints on the face buttons, specials 1 and 2 on the stick clicks and binoculars, radar range and the gears on the D-pad; the handbrake moves to RB.
 
 ## 0.11.0 (31 October 2026)
 

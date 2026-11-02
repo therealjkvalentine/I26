@@ -206,10 +206,34 @@ public static class Controls
         // the preset's pad side, in memory only (the keys stay as saved, nothing is written)
         t.AddPadSideIfNone(PadDefaults);
         // a stick plugged in over a map the gamepad preset made (a gamepad's Throttle, triggers and right stick mean nothing on it): the stick's, in memory
-        if (PrimaryIsGeneric && t.PadSideIs(PadPreset.Build(KeyBase()))) t.ResetSide(GenericPreset.Build(KeyBase()), true);
+        if (PrimaryIsGeneric && (t.PadSideIs(PadPreset.Build(KeyBase())) || t.PadSideIs(PadPreset.BuildUnshifted(KeyBase())))) t.ResetSide(GenericPreset.Build(KeyBase()), true);
         t = t.WithScoreboardOnTab();
+        t.Shift = ShiftKept(t);
         _axes = new AxisControls(t.Blocks);
         return t;
+    }
+
+    private const string PadCfg = "user://joystick.cfg";
+
+    /// <summary>
+    /// The pad's shift button (<see cref="BindingTable.Shift"/>), kept in user://joystick.cfg section "pad", key "shift" ("joystick1 Button5",
+    /// "" for none): input.map holds the layer as chords, which the original reads too, but has no place to say which button is the shift.
+    /// With no key kept, the map's own (the preset's) or the one its chords imply.
+    /// </summary>
+    private static InputTerm? ShiftKept(BindingTable t)
+    {
+        var cf = new ConfigFile();
+        if (cf.Load(PadCfg) != Error.Ok || !cf.HasSectionKey("pad", "shift")) return t.Shift ?? t.DeriveShift();
+        var v = cf.GetValue("pad", "shift").AsString();
+        return v.IndexOf(' ') is > 0 and var sp && JoystickBank.DeviceOf(v[..sp]) >= 0 && VirtualStick.DiscreteId(v[(sp + 1)..]) >= 0 ? new InputTerm(true, v[..sp], v[(sp + 1)..]) : null;
+    }
+
+    private static void KeepShift(InputTerm? shift)
+    {
+        var cf = new ConfigFile();
+        cf.Load(PadCfg);
+        cf.SetValue("pad", "shift", shift is { } s ? $"{s.Device} {s.Channel}" : "");
+        cf.Save(PadCfg);
     }
 
     /// <summary>The backup of the player's input.map taken before reverse left Tab (the scoreboard's key); its presence also means the move was done, once.</summary>
@@ -286,8 +310,10 @@ public static class Controls
     {
         var text = edited.WithTwins(GlanceTwins).ToText(Install("input.def"));
         using (var f = Godot.FileAccess.Open(UserPath, Godot.FileAccess.ModeFlags.Write)) f?.StoreString(text);
+        KeepShift(edited.Shift);
         // in use as the file has it (input.def's blocks verbatim), as the next run reads it
         _table = BindingTable.Parse(text).WithScoreboardOnTab();
+        _table.Shift = edited.Shift;
         _axes = new AxisControls(_table.Blocks);
     }
 
@@ -324,9 +350,7 @@ public static class Controls
     {
         if (Held?.Invoke() == true) return false;
         Refresh();
-        foreach (var b in Table.Of(command))
-            if (InputChord.Holds(b.Terms, Pads, TermLive)) return true;
-        return false;
+        return Table.Holds(command, Pads, TermLive);
     }
 
     /// <summary>The term, as it stands while this event happens (Shift and Control by the event's own flags).</summary>

@@ -63,6 +63,40 @@ physical 12+.
 An SDL mapping is not needed and is not added; a user who wants a stick treated as a standard gamepad can still give Godot one with
 `SDL_GAMECONTROLLERCONFIG`, and then it is a game pad here.
 
+## The pad's shift layer
+
+One pad button (or a hat direction) can be a shift (`BindingTable.Shift`): while it is held, every other button and hat direction that has a
+second command does that command instead; one without a second command keeps its first; the shift alone does nothing (it loses any command
+of its own when it becomes the shift). The axes are not layered. The layer is written into input.map as the original's own chords, so the
+original reads the file to the same effect: the second command's block is the input `+` and the shift `+`, and the first command's block of an
+input that has a second also has the shift `-`:
+
+```
+hardpoint3_fire {
+   + joystick1  Button1
+	+ joystick1	Button5
+}
+weapon_fire {
+   + joystick1  Button1
+	- joystick1	Button5
+}
+```
+
+input.map has no place to say which button is the shift, so that is kept in `user://joystick.cfg`, section `pad`, key `shift` (`joystick1
+Button5`, empty for none), written with the map; with no key there (the preset in memory, a file from elsewhere) the shift is the one
+pad button that is the `+` second term of chords on that pad's buttons (`DeriveShift`). Pressing the shift while an input is already held
+starts that input's second command, as the chord does in the original.
+
+The pad preset has LB as the shift (its e-brake is on RB now, which used to fire as A does), after the remapper layer that players used
+over the original: with LB held A fires hardpoint 3 (the rear gun on most cars) and B hardpoint 4 (the dropper), X and Y hardpoints 1 and 2,
+L3 and R3 specials 1 and 2, the D-pad up binoculars, down radar range, left and right the gears; RB, Back, Start and the sticks are the same with
+it held. A map saved from the preset before the shift (`PadPreset.BuildUnshifted`) is still known as the game pad's.
+
+The Controller screen: a button's list ends with *Shift (hold for second commands)*. With a shift, holding it on the pad (or Tab, or a click on
+the shift's own row) shows the second commands; an input without one shows its first in brackets. Picking in that view sets the second
+command, *(none)*, Delete or right-click clears it, and clearing the shift itself takes the layer away. Tests:
+`tests/I76.Formats.Tests/PadShiftTests.cs`.
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that
