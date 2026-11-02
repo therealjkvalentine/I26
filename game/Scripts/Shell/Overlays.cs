@@ -156,6 +156,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
     private int _savedFlags;
     private bool _savedAutoReverse, _savedModern, _savedForce, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
     private int _savedRate, _savedDownloads;
+    private I76.Game.HeadTrackMode _savedHead;
+    private float _savedHeadSens;
     /// <summary>0 the sheet, 1 its second page (the port's rows past the sheet's fourteen lines: Unlim. Turrets), a click on More / Back turns it.</summary>
     public int Page { get; init; }
     private static PlayOptionsScreen? _first;       // the first page's snapshot, which Cancel restores from either page
@@ -188,6 +190,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedTurrets = s.UnlimTurrets;
         _savedCb = s.CbVoice;
         _savedUpdate = s.UpdateCheck;
+        _savedHead = s.HeadTrack;
+        _savedHeadSens = s.HeadTrackSensitivity;
         // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
         // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
@@ -243,13 +247,27 @@ public sealed class PlayOptionsScreen : OverlayScreen
         // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
         Add(222, 139, "CB Voice", null);
         Add(205, 140, () => Check(s.CbVoice), () => s.CbVoice = !s.CbVoice, Small, w: 200, h: 12);
-        // Check for Updates: whether the next start asks GitHub if a newer release exists (a line under the version says so)
-        Frame.CopyBackground(200, 139, 22, 18, 200, 162);
-        Add(222, 162, "Check for Updates", null);
-        Add(205, 163, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
+        // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
+        Add(222, 162, "Head Tracking", null);
+        Add(205, 163, () => "", () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3), Small, w: 300, h: 12);
+        Add(398, 164, () => s.HeadTrack.ToString(), null);
+        Add(222, 185, "Head Track Sens.", null);
+        Add(205, 186, () => "", () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity), Small, w: 300, h: 12);
+        Add(398, 187, () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture), null);
         Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+        // Check for Updates (upstream's row, under the port's own): whether the next start asks GitHub if a newer release exists (a line under the version says so)
+        Frame.CopyBackground(200, 139, 22, 18, 200, 300);
+        Add(222, 300, "Check for Updates", null);
+        Add(205, 301, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
+    }
+
+    private static float NextSensitivity(float now)
+    {
+        var o = I76.Game.HeadLook.Sensitivities;
+        int i = Array.FindIndex(o, v => v > now + 0.01f);
+        return o[i < 0 ? 0 : i];
     }
 
     /// <summary>The sound system's input devices after the current one (the default, then each in the list, then the default again).</summary>
@@ -272,6 +290,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         var s = Shell.Settings;
         var f = _first ?? this;
         s.CbVoice = f._savedCb; s.UpdateCheck = f._savedUpdate;
+        s.HeadTrack = f._savedHead; s.HeadTrackSensitivity = f._savedHeadSens;
         s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.Checkpoints = f._savedCheckpoints;
         s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
@@ -292,6 +311,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
 
     private void Done()
     {
+        I76.Game.HeadTracker.Apply(Shell.Settings);
         if ((Shell.Settings.PlayOptions & 0x1c) == 0) { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); return; }
         Shell.Modal(new ConfirmPopup
         {

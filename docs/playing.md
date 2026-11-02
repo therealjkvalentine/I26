@@ -124,6 +124,16 @@ command on the Controller screen and they do only that command instead. The pad 
 skippable cut-scene, as Esc does. Everything is rebindable on the Controller
 screen (Control Configuration > Calibrate).
 
+**Head tracking.** [opentrack](https://github.com/opentrack/opentrack) (a webcam, a phone, a TrackIR-style clip) can turn
+your head in the car. In opentrack set Output to **UDP over network**, its settings to **127.0.0.1** port **4242**, and press
+Start; then set Play Options > More > Head Tracking to **Analog** (the view follows your head) or **Digital** (turning past a
+threshold glances left, right or down at the dash, as the glance keys do). Head Track Sens. multiplies the angle (3: a 25° head
+turn looks 75° round; the reach is the pad's free look, 80° each side). The glance keys and the pad's right stick win while held;
+when opentrack stops the view eases back ahead. If the view turns the wrong way, invert that axis in opentrack's Options > Output.
+Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
+`head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
+`head_track_position` (true moves the eye with your head, up to 10 cm; off).
+
 **Joysticks.** A flight stick, wheel or any other USB device that is not a game pad is found too (it is joystick 1 when
 there is no game pad). Out of the box the stick steers sideways and accelerates (forward) or brakes (back), the trigger
 fires, buttons 2 to 10 cycle, target, brake, link, map, horn, view and reverse, and the hat looks. Calibrate opens the
