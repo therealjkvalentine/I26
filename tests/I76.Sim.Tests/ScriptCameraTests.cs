@@ -32,6 +32,28 @@ public class ScriptCameraTests
     }
 
     [Fact]
+    public void ANonArrivingPathCallClearsCamIsArrived()
+    {
+        // the original clears the flag on every call that places the camera: a script that arrives and starts another
+        // path without asking camIsArrived reads false on its next test
+        var cam = new ScriptCamera((x, z) => 0f);
+        cam.Push();
+        var a = new List<Vector3> { new(0, 0, 0), new(0, 0, 10) };
+        var b = new List<Vector3> { new(50, 0, 0), new(50, 0, 100) };
+        bool held = false;
+        for (int i = 0; i < 200 && !held; i++)
+        {
+            cam.Set("camTransObj", [0, 300, 1550, 0], [null, null, null, null], a);
+            cam.Update(0.036f);
+            held = cam.Eye.Z > 5 && cam.PrevEye == cam.Eye;   // the arriving call places nothing
+        }
+        Assert.True(held);
+        cam.Set("camTransObj", [0, 300, 1550, 0], [null, null, null, null], b);
+        cam.Update(0.036f);
+        Assert.False(cam.ConsumeArrived());
+    }
+
+    [Fact]
     public void ItArrivesOnTheLastSegmentAndHolds()
     {
         var cam = new ScriptCamera((x, z) => 0f);
