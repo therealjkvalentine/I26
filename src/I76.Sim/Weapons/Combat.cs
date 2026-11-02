@@ -1268,11 +1268,14 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             foreach (var o in hs.World.Objects)
             {
                 if (!o.Solid || (o.Vehicle is { } ov && ov == r.Shooter && ShooterExcluded(r))) continue;
-                if (o.Centre.X + o.Radius < minX || o.Centre.X - o.Radius > maxX || o.Centre.Z + o.Radius < minZ || o.Centre.Z - o.Radius > maxZ) continue;
+                float reach = MathF.Max(o.Radius, o.SphereRadius);
+                if (o.Centre.X + reach < minX || o.Centre.X - reach > maxX || o.Centre.Z + reach < minZ || o.Centre.Z - reach > maxZ) continue;
                 // Names the node it met: the round's packet goes to that node (measured in the original game)
                 var (t, poly) = StaticWorld.RayMesh(o.Polys, p0, d, 1f);
                 if (poly is not null && t < best) { best = t; victim = o; normal = poly.N; node = poly.Node; }
                 if (StaticWorld.RayBoxes(o.Boxes, p0, d, 1f) is { } bh && bh.T < best) { best = bh.T; victim = o; normal = bh.N; node = bh.Box.Node; }
+                // a sign or post stops the round on its sphere; its own slot knocks it off for an explosive one
+                if (o.Type == 4 && StaticWorld.RaySphere(o.Centre, o.SphereRadius, p0, d, 1f) is { } sh && sh.T < best) { best = sh.T; victim = o; normal = sh.N; node = -1; }
             }
         }
         Vector3 at;
