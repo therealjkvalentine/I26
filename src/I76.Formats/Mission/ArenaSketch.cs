@@ -106,9 +106,81 @@ public sealed class ArenaSketch
         var m = new float[g.Length];
         for (int i = 0; i < m.Length; i++) m[i] = blurred[i] > level ? 1 : 0;
         m = Dilate(Erode(m, gw, gh), gw, gh);
+        m = Band(m, gw, gh);
         var soft = Blur(m, gw, gh, 0.7f);
         var rd = roads.Select(r => r.Select(ToGrid).ToArray()).Where(r => r.Length > 1).ToList();
         return new ArenaSketch(boxW, boxH, soft, st, rd, (bx - ax) * S, (bz - az) * S);
+    }
+
+    /// <summary>The hatched band's width beside the floor, in grid cells (8 shell pixels), and how far its outer edge wanders either way.</summary>
+    public const float BandCells = 16f, BandWander = 0.35f;
+
+    /// <summary>
+    /// The high ground beyond a band round the floor is left as paper where it runs out to the box's edge, the band's outer
+    /// edge wandering as a hand would draw it (a smooth noise of fixed seed on its width): an arena ringed by high ground as
+    /// far as the box reaches (Jorczak's Peak) reads as a shape on the paper, not a hatched rectangle. High ground the floor
+    /// encloses stays whole. With no floor at all the high ground is left as it is.
+    /// </summary>
+    internal static float[] Band(float[] m, int w, int h)
+    {
+        // chamfer distance (3-4) from the floor
+        const int Far = int.MaxValue / 2;
+        var d = new int[m.Length];
+        bool floor = false;
+        for (int i = 0; i < m.Length; i++) { d[i] = m[i] > 0.5f ? Far : 0; floor |= d[i] == 0; }
+        if (!floor) return m;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = y * w + x, v = d[i];
+                if (x > 0) v = Math.Min(v, d[i - 1] + 3);
+                if (y > 0) v = Math.Min(v, d[i - w] + 3);
+                if (x > 0 && y > 0) v = Math.Min(v, d[i - w - 1] + 4);
+                if (x + 1 < w && y > 0) v = Math.Min(v, d[i - w + 1] + 4);
+                d[i] = v;
+            }
+        for (int y = h - 1; y >= 0; y--)
+            for (int x = w - 1; x >= 0; x--)
+            {
+                int i = y * w + x, v = d[i];
+                if (x + 1 < w) v = Math.Min(v, d[i + 1] + 3);
+                if (y + 1 < h) v = Math.Min(v, d[i + w] + 3);
+                if (x + 1 < w && y + 1 < h) v = Math.Min(v, d[i + w + 1] + 4);
+                if (x > 0 && y + 1 < h) v = Math.Min(v, d[i + w - 1] + 4);
+                d[i] = v;
+            }
+        // value noise on a 24-cell lattice, smoothstepped between its knots
+        const int Knot = 24;
+        static float Hash(int a, int b) { uint u = (uint)(a * 73856093 ^ b * 19349663 ^ 76); u ^= u >> 13; u *= 0x5bd1e995; u ^= u >> 15; return (u & 0xffff) / 65535f * 2 - 1; }
+        var far = new bool[m.Length];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = y * w + x;
+                if (m[i] <= 0.5f) continue;
+                int kx = x / Knot, ky = y / Knot;
+                float fx = (float)(x % Knot) / Knot, fy = (float)(y % Knot) / Knot;
+                fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+                float a = Hash(kx, ky) + (Hash(kx + 1, ky) - Hash(kx, ky)) * fx, b = Hash(kx, ky + 1) + (Hash(kx + 1, ky + 1) - Hash(kx, ky + 1)) * fx;
+                far[i] = d[i] > BandCells * (1 + BandWander * (a + (b - a) * fy)) * 3;
+            }
+        // what goes is the far ground the box's edge reaches: high ground the floor encloses (a mesa, a wall between two roads) stays whole
+        var o = (float[])m.Clone();
+        var stack = new Stack<int>();
+        for (int x = 0; x < w; x++) { stack.Push(x); stack.Push((h - 1) * w + x); }
+        for (int y = 0; y < h; y++) { stack.Push(y * w); stack.Push(y * w + w - 1); }
+        while (stack.Count > 0)
+        {
+            int i = stack.Pop();
+            if (!far[i] || o[i] == 0) continue;
+            o[i] = 0;
+            int x = i % w, y = i / w;
+            if (x > 0) stack.Push(i - 1);
+            if (x + 1 < w) stack.Push(i + 1);
+            if (y > 0) stack.Push(i - w);
+            if (y + 1 < h) stack.Push(i + w);
+        }
+        return o;
     }
 
     private static float? Bilinear(Func<int, int, int?> height, float sx, float sz)

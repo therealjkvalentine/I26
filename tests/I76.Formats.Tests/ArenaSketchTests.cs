@@ -42,8 +42,8 @@ public class ArenaSketchTests
         int StartX(float sx) => (int)((sx / 5 - (64 - w / 2)) / w * W);
         int StartY(float sz) => (int)(((64 + d / 2) - sz / 5) / d * H);
         Assert.True(A(StartX(250), StartY(250)) > 200);
-        // the high ground beside the floor (sample 25, 64) is hatched: some ink within a hatch pitch of it
-        int hx = (int)((25 - (64 - w / 2)) / w * W), hy = H / 2;
+        // the high ground just beside the floor (sample 30, 64; the band reaches about 7 samples out here) is hatched: ink within a hatch pitch
+        int hx = (int)((30 - (64 - w / 2)) / w * W), hy = H / 2;
         Assert.Contains(Enumerable.Range(0, 6), i => A(hx + i, hy) > 0);
         // no frame: the ground fades out before the box's edge, its corners stay paper
         Assert.Equal(0, A(0, 0));
@@ -80,6 +80,25 @@ public class ArenaSketchTests
         Assert.InRange(b, 60, 119);
         Assert.Contains(Enumerable.Range(0, 200), x => px[(b * 200 + x) * 4 + 3] >= 40);
         for (int y = b + 1; y < 120; y++) Assert.DoesNotContain(Enumerable.Range(0, 200), x => px[(y * 200 + x) * 4 + 3] >= 40);
+    }
+
+    [Fact]
+    public void HighGroundIsHatchedOnlyInABandBesideTheFloor()
+    {
+        // a floor in the middle of a 200 x 120 grid, high ground everywhere else: the far corners are left as paper
+        int w = 200, h = 120;
+        var m = new float[w * h];
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) m[y * w + x] = x is >= 80 and < 120 && y is >= 40 and < 80 ? 0 : 1;
+        var b = ArenaSketch.Band(m, w, h);
+        Assert.Equal(1, b[60 * w + 78]);                     // right beside the floor
+        Assert.Equal(0, b[0]);                               // far away
+        Assert.Equal(0, b[60 * w + 100]);                    // the floor stays floor
+        Assert.All(Enumerable.Range(0, b.Length), i => Assert.True(b[i] <= m[i]));
+        // a wide block of high ground inside a ring of floor stays hatched whole, its middle too
+        for (int y = 10; y < 110; y++) for (int x = 10; x < 190; x++) m[y * w + x] = x is >= 15 and < 185 && y is >= 15 and < 105 ? 1 : 0;
+        Assert.Equal(1, ArenaSketch.Band(m, w, h)[60 * w + 100]);
+        // no floor at all: nothing to measure from, the mask as it was
+        Assert.Equal(Enumerable.Repeat(1f, 10), ArenaSketch.Band(Enumerable.Repeat(1f, 10).ToArray(), 5, 2));
     }
 
     [Fact]
