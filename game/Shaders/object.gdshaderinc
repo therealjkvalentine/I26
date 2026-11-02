@@ -24,7 +24,7 @@ global uniform sampler2D i76_night_lights : filter_nearest;
 #include "res://Shaders/software.gdshaderinc"
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic;
-uniform sampler2D albedo_nearest : source_color, filter_nearest_mipmap, repeat_disable;   // the cockpit art, pixels kept; clamped, so a face edge sampled a hair past 1.0 (MSAA) never wraps to the far row (the steering wheel quad drew its rim as a 1px line)
+uniform sampler2D albedo_cockpit : source_color, filter_linear_mipmap, repeat_disable;   // the cockpit art, bilinear as the 3D card drew it (point-sampled by the Software renderer); clamped, so a face edge sampled a hair past 1.0 (MSAA) never wraps to the far row (the steering wheel quad drew its rim as a 1px line)
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform bool use_texture = false;
 uniform bool alpha_key = false;
@@ -492,9 +492,9 @@ void fragment() {
 	}
 #endif
 #ifdef FAITHFUL
-	vec4 c = use_texture ? i76_tex(prelit ? texture(albedo_nearest, tuv) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : albedo_color;
+	vec4 c = use_texture ? i76_tex(prelit ? (i76_software ? i76_point_clamped(albedo_cockpit, tuv) : texture(albedo_cockpit, tuv)) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : albedo_color;
 #else
-	vec4 c = use_texture ? (prelit ? texture(albedo_nearest, tuv) : texture(albedo_tex, tuv)) : albedo_color;
+	vec4 c = use_texture ? (prelit ? texture(albedo_cockpit, tuv) : texture(albedo_tex, tuv)) : albedo_color;
 #endif
 	// a respray: the scheme's paint texels (the mask) take the car's own colours; pf_metal / pf_matte the finish where they did
 	float pf_metal = 0.0;
