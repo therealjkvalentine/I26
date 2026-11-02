@@ -1733,14 +1733,14 @@ public partial class Main : Node3D
     /// </summary>
     private void SetHorizonEye()
     {
-        if (_horizonEyeSet || _horizon?.Material is not { } m || _builder?.World is not { } world) return;
+        if (_horizonEyeSet || _horizon?.Material is null || _builder?.World is not { } world) return;
         _horizonEyeSet = true;
         var (low, eyeY) = I76.Formats.Assembly.HorizonEdge.Ring(world);   // one height for the map (HorizonEdge.Ring)
-        m.SetShaderParameter("ref_eye", new Vector3(0, eyeY, 0));
-        m.SetShaderParameter("sink_low", low);
+        _horizon.Set("ref_eye", new Vector3(0, eyeY, 0));
+        _horizon.Set("sink_low", low);
         float footK = -I76.Formats.Mission.Lighting.HorizonFoot(1f) / I76.Formats.Mission.HorizonList.Radius;
-        m.SetShaderParameter("foot_k", footK);
-        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") m.SetShaderParameter("debug_tint", 1f);
+        _horizon.Set("foot_k", footK);
+        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") _horizon.Set("debug_tint", 1f);
         _horizon.FitCullBounds(eyeY, footK, low);   // the sunk ring's own bounds, or chunks are culled that are in view
         if (System.Environment.GetEnvironmentVariable("I76_HORIZON_DEBUG") == "1") GD.Print($"horizon: ring sunk for an eye at game height {eyeY:0.0} (the map's average ground + 3)");
     }
@@ -1754,9 +1754,9 @@ public partial class Main : Node3D
         _horizonEyeSet = false;
         SetHorizonEye();
         foreach (var p in new[] { "horizon_color", "sprite_dir", "light_strength" })
-            _horizon.Material.SetShaderParameter(p, sky.GetShaderParameter(p));
+            _horizon.Set(p, sky.GetShaderParameter(p));
         // night air: the dark rock shows as silhouettes against the sky, as the night panels drew it
-        if (!light.IsDay) _horizon.Material.SetShaderParameter("haze_reach", 20000f);
+        if (!light.IsDay) _horizon.Set("haze_reach", 20000f);
         // out of view, but still in the sky's light: the ring is lit by it as the panels' scene was (sky_modern.gdshaderinc)
         sky.SetShaderParameter("horizon_light", sky.GetShaderParameter("has_horizon"));
         sky.SetShaderParameter("has_horizon", false);

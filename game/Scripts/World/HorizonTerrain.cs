@@ -255,7 +255,20 @@ public partial class HorizonTerrain : Node3D
     public string Timing { get; private set; } = "";
     public float InnerRadius { get; private set; }
     public float OuterRadius { get; private set; }
+    /// <summary>The ring's material (horizon_terrain.gdshader). Set parameters through <see cref="Set"/>, which sets <see cref="RimMaterial"/> too.</summary>
     public ShaderMaterial Material { get; private set; } = null!;
+    /// <summary>
+    /// The rim pass (horizon_rim.gdshader) on the cells over a tile's outermost texels (meshes of their own): the backstop pushed
+    /// behind the terrain's edge, the only pass that writes depth, so the ring itself is culled early where the ground hides it.
+    /// </summary>
+    public ShaderMaterial RimMaterial { get; private set; } = null!;
+
+    /// <summary>A shader parameter on both passes.</summary>
+    public void Set(string name, Variant value)
+    {
+        Material.SetShaderParameter(name, value);
+        RimMaterial.SetShaderParameter(name, value);
+    }
 
     /// <summary>Angular resolution: vertices round each ring.</summary>
     public int Segments { get; set; } = 1024;
@@ -278,7 +291,7 @@ public partial class HorizonTerrain : Node3D
         Finish();
     }
 
-    private readonly List<(string Name, Godot.Collections.Array Arrays)> _pending = [];
+    private readonly List<(string Name, Godot.Collections.Array Arrays, bool Rim)> _pending = [];
     private Profile? _profile;
     private Color _ground;
     private float _farCorner;
@@ -489,6 +502,24 @@ public partial class HorizonTerrain : Node3D
         _profile = profile; _ground = ground; _farCorner = farCorner;
         const int sector = 64, band = 48;
         int count = 0;
+        // the rim pass (horizon_rim.gdshader) draws the cells over a tile's outermost texels alone: a triangle is in its mesh when
+        // its footprint, a texel wider each way, holds a rim texel of the floor grid
+        var (bx0, bz0, bx1, bz1) = _bounds;
+        int fw = (int)MathF.Ceiling((bx1 - bx0) / FloorTexel), fh = (int)MathF.Ceiling((bz1 - bz0) / FloorTexel);
+        var rimTexels = _rim ?? [];
+        bool OnRim(Vector3 a, Vector3 b, Vector3 c)
+        {
+            if (rimTexels.Length == 0) return false;
+            // the game frame's z is -VERTEX.z
+            float xa = MathF.Min(a.X, MathF.Min(b.X, c.X)), xb = MathF.Max(a.X, MathF.Max(b.X, c.X));
+            float za = -MathF.Max(a.Z, MathF.Max(b.Z, c.Z)), zb = -MathF.Min(a.Z, MathF.Min(b.Z, c.Z));
+            int i0 = Math.Max(0, (int)MathF.Floor((xa - bx0) / FloorTexel) - 1), i1 = Math.Min(fw - 1, (int)MathF.Floor((xb - bx0) / FloorTexel) + 1);
+            int j0 = Math.Max(0, (int)MathF.Floor((za - bz0) / FloorTexel) - 1), j1 = Math.Min(fh - 1, (int)MathF.Floor((zb - bz0) / FloorTexel) + 1);
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                    if (rimTexels[j * fw + i]) return true;
+            return false;
+        }
         Vector3 P(int j, int i)
         {
             i = (i % n + n) % n;
@@ -526,6 +557,7 @@ public partial class HorizonTerrain : Node3D
                         uv2[k] = new Vector2(hgt[g] - _base, 0);
                     }
                 var idx = new int[(cols - 1) * (rws - 1) * 6];
+                var rimIdx = new List<int>();
                 int w = 0;
                 // which winding faces up (Godot's front face is clockwise seen from the front)
                 var t0 = v[0]; var t1 = v[cols]; var t2 = v[1];
@@ -536,16 +568,22 @@ public partial class HorizonTerrain : Node3D
                         int a = j * cols + i, b = a + 1, c = a + cols, d = c + 1;
                         if (!flip) { idx[w++] = a; idx[w++] = c; idx[w++] = b; idx[w++] = b; idx[w++] = c; idx[w++] = d; }
                         else { idx[w++] = a; idx[w++] = b; idx[w++] = c; idx[w++] = b; idx[w++] = d; idx[w++] = c; }
+                        if (OnRim(v[a], v[b], v[c]) || OnRim(v[b], v[c], v[d])) rimIdx.AddRange(idx.AsSpan(w - 6, 6));
                     }
-                var arrays = new Godot.Collections.Array();
-                arrays.Resize((int)Mesh.ArrayType.Max);
-                arrays[(int)Mesh.ArrayType.Vertex] = v;
-                arrays[(int)Mesh.ArrayType.Normal] = nr;
-                arrays[(int)Mesh.ArrayType.Color] = col;
-                arrays[(int)Mesh.ArrayType.TexUV] = uv;
-                arrays[(int)Mesh.ArrayType.TexUV2] = uv2;
-                arrays[(int)Mesh.ArrayType.Index] = idx;
-                _pending.Add(($"horizon_{j0}_{i0}", arrays));
+                Godot.Collections.Array Arrays(int[] index)
+                {
+                    var arrays = new Godot.Collections.Array();
+                    arrays.Resize((int)Mesh.ArrayType.Max);
+                    arrays[(int)Mesh.ArrayType.Vertex] = v;
+                    arrays[(int)Mesh.ArrayType.Normal] = nr;
+                    arrays[(int)Mesh.ArrayType.Color] = col;
+                    arrays[(int)Mesh.ArrayType.TexUV] = uv;
+                    arrays[(int)Mesh.ArrayType.TexUV2] = uv2;
+                    arrays[(int)Mesh.ArrayType.Index] = index;
+                    return arrays;
+                }
+                _pending.Add(($"horizon_{j0}_{i0}", Arrays(idx), false));
+                if (rimIdx.Count > 0) _pending.Add(($"horizon_{j0}_{i0}_rim", Arrays([.. rimIdx]), true));
                 count += v.Length;
             }
         }
@@ -559,7 +597,7 @@ public partial class HorizonTerrain : Node3D
         if (MissionBuilder.HashOn)
         {
             using var hh = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
-            foreach (var (_, arr) in _pending)
+            foreach (var (_, arr, _) in _pending)
                 foreach (var v in arr)
                     switch (v.Obj)
                     {
@@ -612,16 +650,20 @@ public partial class HorizonTerrain : Node3D
     {
         if (_profile is null) return 0;
         if (_finishFrom < 0) _finishFrom = _sw!.ElapsedMilliseconds;   // (Compute may have finished a while before)
-        Material ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/horizon_terrain.gdshader") };
+        if (Material is null)
+        {
+            RimMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/horizon_rim.gdshader") };
+            Material = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/horizon_terrain.gdshader") };
+        }
         for (int k = 0; k < max && _pending.Count > 0; k++)
         {
-            var (name, arrays) = _pending[0];
+            var (name, arrays, rim) = _pending[0];
             _pending.RemoveAt(0);
             var mesh = new ArrayMesh();
             mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
             AddChild(new MeshInstance3D
             {
-                Mesh = mesh, MaterialOverride = Material, Name = name, Layers = TerrainNode.TerrainLayer,
+                Mesh = mesh, MaterialOverride = rim ? RimMaterial : Material, Name = name, Layers = TerrainNode.TerrainLayer,
                 // it receives the map's shadows but casts none: its own come from the march above (cast into the
                 // shadow map too, its coarse cells would shadow themselves in blotches)
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
@@ -634,15 +676,14 @@ public partial class HorizonTerrain : Node3D
         // the colours: rock by bearing from the panels, the ground's own colour near the map
         var rockImg = Image.CreateEmpty(profile.Columns, 1, false, Image.Format.Rgba8);
         for (int c = 0; c < profile.Columns; c++) rockImg.SetPixel(c, 0, profile.Rock[c]);
-        var m = Material;
-        m.SetShaderParameter("rock_by_bearing", ImageTexture.CreateFromImage(rockImg));
-        m.SetShaderParameter("rock_light", profile.RockLight);
-        m.SetShaderParameter("rock_dark", profile.RockDark);
-        m.SetShaderParameter("scrub_color", profile.Scrub);
-        m.SetShaderParameter("ground_color", ground);
-        m.SetShaderParameter("snow", profile.Snow);
-        m.SetShaderParameter("base_height", _base);
-        m.SetShaderParameter("map_radius", farCorner);
+        Set("rock_by_bearing", ImageTexture.CreateFromImage(rockImg));
+        Set("rock_light", profile.RockLight);
+        Set("rock_dark", profile.RockDark);
+        Set("scrub_color", profile.Scrub);
+        Set("ground_color", ground);
+        Set("snow", profile.Snow);
+        Set("base_height", _base);
+        Set("map_radius", farCorner);
         // inside the map the ring is a backstop under the terrain (no skirt hides a grazing view under its edge), and must never
         // show above it: its polar cells (~100 m across out at the map's far edge) straddle the edge, and a cell's outside corner
         // at a wall's height drew a slab through the playable ground. The shader draws a fragment over a tile only if it is under
@@ -654,9 +695,9 @@ public partial class HorizonTerrain : Node3D
         var both = new float[floor.Length * 2];
         for (int k = 0; k < floor.Length; k++) { both[2 * k] = floor[k]; both[2 * k + 1] = rimTexels.Length > k && rimTexels[k] ? 1f : 0f; }
         var floorImg = Image.CreateFromData(fw, fh, false, Image.Format.Rgf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(both.AsSpan()).ToArray());
-        m.SetShaderParameter("map_floor", ImageTexture.CreateFromImage(floorImg));
-        m.SetShaderParameter("map_origin", new Vector2(fx0, fz0));
-        m.SetShaderParameter("map_extent", System.Environment.GetEnvironmentVariable("I76_HORIZON_MASK") == "0" ? Vector2.Zero : new Vector2(fw * FloorTexel, fh * FloorTexel));   // I76_HORIZON_MASK=0: as it was, for before captures
+        Set("map_floor", ImageTexture.CreateFromImage(floorImg));
+        Set("map_origin", new Vector2(fx0, fz0));
+        Set("map_extent", System.Environment.GetEnvironmentVariable("I76_HORIZON_MASK") == "0" ? Vector2.Zero : new Vector2(fw * FloorTexel, fh * FloorTexel));   // I76_HORIZON_MASK=0: as it was, for before captures
         _floor = null; _rim = null;
         // the work, not the wait between Compute and Finish
         BuildMs = _tArrays + _sw!.ElapsedMilliseconds - _finishFrom;
