@@ -408,32 +408,33 @@ public sealed class GraphicsScreen : OverlayScreen
     private int _savedScale;
     private bool _savedVSync, _savedConfine, _savedLog, _saved3D, _savedInteriors, _savedReturn, _savedZoomReset;
     // only the settings this port honours: resolution, draw distance and most detail levels of the 1997 renderer are gone
-    private static readonly (int Y, string Label, int Byte, string[] Values)[] Rows =
+    private static readonly (string Label, int Byte, string[] Values)[] Rows =
     [
-        (118, "Monitor Brightness", 0xc, ["0.00", "1.00", "2.00", "3.00", "4.00", "5.00", "6.00", "7.00", "8.00", "9.00", "10.00"]),
-        (141, "Ext. Instrum. Disp", 0xe, ["Off", "On"]),
-        (164, "Rear Mirror", 0xd, ["Off", "Low", "High"]),
+        ("Monitor Brightness", 0xc, ["0.00", "1.00", "2.00", "3.00", "4.00", "5.00", "6.00", "7.00", "8.00", "9.00", "10.00"]),
+        ("Ext. Instrum. Disp", 0xe, ["Off", "On"]),
+        ("Rear Mirror", 0xd, ["Off", "Low", "High"]),
         // the modern look's cost (Main.ApplyModernQuality); the first two are the original's own rows and bytes
-        (187, "Shadow Detail", 0x6, ["Off", "Low", "High"]),
-        (210, "Terrain Detail", 0x2, ["Low", "High"]),
-        (233, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing),
+        ("Shadow Detail", 0x6, ["Off", "Low", "High"]),
+        ("Terrain Detail", 0x2, ["Low", "High"]),
+        ("Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing),
     ];
 
     private void Apply(bool on) { Shell.Settings.HdMenuArt = on; HdAssets.Enabled = on; }
 
-    // the port's own rows scroll in the sheet's free space under the original's: eight rows show of thirteen, on the original's 23 px line
-    private const int ListY = 256, LineH = 23, Shown = 8;
+    // the sheet's rows, the original's six and the port's after them, scroll as one list on its fourteen 23 px lines
+    private const int ListY = 118, LineH = 23, Shown = 14;
     private int _scroll;
     private readonly List<(Item It, int Slot, int Dy)> _list = [];
 
     private int Slots => _list.Count == 0 ? 0 : _list.Max(l => l.Slot) + 1;
     private int MaxScroll => Math.Max(0, Slots - Shown);
 
-    /// <summary>One of the scrolling rows: its label and its value (a click on the value is <paramref name="click"/>), in list slot <paramref name="slot"/>.</summary>
+    /// <summary>One of the port's rows: its label and its value (a click on the value is <paramref name="click"/>), in list slot <paramref name="slot"/> after the original's rows.</summary>
     private void Row(int slot, string label, Func<string> value, Action click)
     {
         // the menu-art row (slot 0) is there only when an art pack is installed; without one the rest move up a line
         if (!HdAssets.Installed) { if (slot == 0) return; slot--; }
+        slot += Rows.Length;
         _list.Add((Add(200, ListY, label, null), slot, 0));
         _list.Add((Add(397, ListY, value, click), slot, 0));
     }
@@ -499,11 +500,11 @@ public sealed class GraphicsScreen : OverlayScreen
         return true;
     }
 
-    /// <summary>The list's scroll mark, in the sheet's ink: a thin track in the gap before the value column with a thumb, and an arrow at an end where there is more.</summary>
+    /// <summary>The list's scroll mark, in the sheet's ink: a thin track down the sheet's right edge, after the value column, with a thumb for the rows shown, and an arrow at an end where there is more.</summary>
     protected override void DrawExtra()
     {
         if (MaxScroll == 0) return;
-        const int x = 386, top = ListY + 6, h = LineH * Shown - 18;
+        const int x = 464, top = ListY + 6, h = LineH * Shown - 18;
         int thumb = Math.Max(10, h * Shown / Slots), at = top + (h - thumb) * _scroll / MaxScroll;
         Frame.Fill(x + 2, top, 1, h, 200);
         Frame.Fill(x, at, 5, thumb, 200);
@@ -539,15 +540,16 @@ public sealed class GraphicsScreen : OverlayScreen
         _savedFov = Shell.Settings.FieldOfView;
         _savedHood = Shell.Settings.HoodMatte;
         _savedScale = Shell.Settings.RenderScale;
-        foreach (var (y, label, b, values) in Rows)
+        for (int k = 0; k < Rows.Length; k++)
         {
-            Add(200, y, label, null);
-            Add(397, y, () => values[Math.Min(g[b], values.Length - 1)], () => g[b] = (byte)((g[b] + 1) % values.Length));
+            var (label, b, values) = Rows[k];
+            _list.Add((Add(200, ListY, label, null), k, 0));
+            _list.Add((Add(397, ListY, () => values[Math.Min(g[b], values.Length - 1)], () => g[b] = (byte)((g[b] + 1) % values.Length)), k, 0));
         }
         var st = Shell.Settings;
         // the port's own rows, one to a line: the menu art pack's (only when one is installed), with the pack's name beside it
         Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" : "Off", () => Apply(!st.HdMenuArt));
-        if (HdAssets.Installed) _list.Add((Add(318, ListY + 3, () => HdAssets.Label ?? "", null, Small), 0, 3));
+        if (HdAssets.Installed) _list.Add((Add(318, ListY + 3, () => HdAssets.Label ?? "", null, Small), Rows.Length, 3));
         Row(1, "Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => { st.KeepMouseInWindow = !st.KeepMouseInWindow; I76.Game.MouseCamera.Confine = st.KeepMouseInWindow; });
         // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
         // from the next start or mission), with the modern look's palette grade (SoftwareLook) after it
