@@ -438,7 +438,7 @@ public sealed partial class MeleeScreen
 
     /// <summary>
     /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), and under it the start count and the
-    /// span, "17 starts · 1.0 x 1.0 km", in the small handwriting, centred.
+    /// span, "17 starts · 1.0 x 1.0 km", in the small handwriting, centred, just below the sketch's lowest ink.
     /// </summary>
     private void DrawArenaSketch()
     {
@@ -449,7 +449,9 @@ public sealed partial class MeleeScreen
         var hand = Shell.Db.Font(0x44);
         const int gap = 10;
         string a = s.StartsText, b = s.SizeText;
-        int x = SketchBox.Position.X + SketchBox.Size.X / 2 - (hand.Measure(a) + gap + hand.Measure(b)) / 2, top = SketchBox.End.Y + 1;
+        // tight under the lowest inked row: 3 px of paper, then the capitals (the hand's cell has 2 rows over them)
+        int ink = s.InkBottom() < 0 ? SketchBox.Size.Y - 1 : s.InkBottom();
+        int x = SketchBox.Position.X + SketchBox.Size.X / 2 - (hand.Measure(a) + gap + hand.Measure(b)) / 2, top = SketchBox.Position.Y + ink + 2;
         Frame.Text(hand, x, top, a);
         // the dot between them is the hand's full stop, raised to the middle of the capitals
         Frame.Text(hand, x + hand.Measure(a) + (gap - hand.Measure(".")) / 2, top - 4, ".");

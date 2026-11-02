@@ -72,6 +72,17 @@ public class ArenaSketchTests
     }
 
     [Fact]
+    public void InkBottomIsTheLowestDrawnRow()
+    {
+        var s = Sketch();
+        var px = s.Render(1, aliased: true);
+        int b = s.InkBottom();
+        Assert.InRange(b, 60, 119);
+        Assert.Contains(Enumerable.Range(0, 200), x => px[(b * 200 + x) * 4 + 3] >= 40);
+        for (int y = b + 1; y < 120; y++) Assert.DoesNotContain(Enumerable.Range(0, 200), x => px[(y * 200 + x) * 4 + 3] >= 40);
+    }
+
+    [Fact]
     public void NoPlacementsNoSketch() => Assert.Null(ArenaSketch.Build(Height, [], [], [], 200, 120));
 
     /// <summary>The stock arenas' starts and spans, as the lab's own reading of the same files gave them.</summary>

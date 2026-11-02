@@ -184,6 +184,18 @@ public sealed class ArenaSketch
         return o;
     }
 
+    private int? _inkBottom;
+
+    /// <summary>The lowest row of the box the sketch inks (the 1997 look's drawing, alpha 40 and up), -1 when it inks none: the line under it sits just below.</summary>
+    public int InkBottom()
+    {
+        if (_inkBottom is { } b) return b;
+        var px = Render(1, aliased: true);
+        int bottom = -1;
+        for (int i = 3; i < px.Length; i += 4) if (px[i] >= 40) bottom = Math.Max(bottom, i / 4 / BoxWidth);
+        return (_inkBottom = bottom).Value;
+    }
+
     /// <summary>
     /// The sketch as straight-alpha RGBA, scale pixels per shell pixel of the box. Aliased: every pixel all ink or none
     /// (the 1997 look's frame, where the ink is mixed into the palette by the caller), the hatching wider apart.
