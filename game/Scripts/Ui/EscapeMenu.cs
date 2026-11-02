@@ -254,16 +254,10 @@ public sealed partial class EscapeMenu : Control
                 else if (m == 9) { Settings.Checkpoints = _snap.Checkpoints; it.Value = Settings.Checkpoints ? 1 : 0; }
             },
         });
-        _play.Items.Add(new Item
-        {
-            Flags = Check, Label = "Force Feedback", Pair = 30, N = 2,
-            Cb = (it, m) =>
-            {
-                if (m == 6) it.Value = Settings.ForceFeedback ? 1 : 0;
-                else if (m == 8) { Settings.ForceFeedback = it.Value != 0; _snap.ForceFeedback = Settings.ForceFeedback; I76.Game.ForceFeedback.Enabled = Settings.ForceFeedback; }
-                else if (m == 9) { Settings.ForceFeedback = _snap.ForceFeedback; it.Value = Settings.ForceFeedback ? 1 : 0; I76.Game.ForceFeedback.Enabled = Settings.ForceFeedback; }
-            },
-        });
+        // Force Feedback: Off, Pad, Wheel (Windows only), live
+        int ffModes = I76.Game.DirectInputForce.Supported ? 3 : 2;
+        _play.Items.Add(Setting(Cycle, "Force Feedback", 10, ffModes, ShellSettings.ForceFeedbackNames[..ffModes], st => st.ForceFeedbackMode, (st, v) => st.ForceFeedbackMode = v,
+            apply: ApplyForce, applyDone: ApplyForce));
         _play.Items.Add(new Item
         {
             Flags = Check, Label = "Auto Reverse", Pair = 25, N = 2,
@@ -411,6 +405,13 @@ public sealed partial class EscapeMenu : Control
     }
 
     // ---- flow ------------------------------------------------------------------------------------
+
+    /// <summary>Force Feedback changed in the pad: the pad's rumble, the wheel or nothing at once (the wheel opened or released).</summary>
+    private void ApplyForce()
+    {
+        I76.Game.ForceFeedback.UseWheel = Settings.ForceFeedbackWheel;
+        I76.Game.ForceFeedback.Enabled = Settings.ForceFeedback;
+    }
 
     /// <summary>The menu screen switch: every item told msg 6, the selection kept; null closes the menu (resume).</summary>
     private void Switch(Screen? s)

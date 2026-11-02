@@ -649,6 +649,9 @@ public partial class Main : Node3D
     private void ApplyPlayOptions(I76.Game.Shell.ShellSettings s)
     {
         if (_sim is not null) _sim.AutoReverse = s.AutoReverse;
+        I76.Game.ForceFeedback.WheelName = s.FfbDevice;
+        I76.Game.ForceFeedback.Strength = s.FfbStrength;
+        I76.Game.ForceFeedback.UseWheel = s.ForceFeedbackWheel;
         I76.Game.ForceFeedback.Enabled = s.ForceFeedback;
         I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended;
         // Modern Physics, flipped from Play Options as by F7 (EnableModern keeps a network session on the original's)

@@ -154,7 +154,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
 {
     protected override int Record => 10;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedForce, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
+    private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
+    private int _savedStrength;
     private int _savedRate, _savedDownloads;
     /// <summary>0 the sheet, 1 its second page (the port's rows past the sheet's fourteen lines: Unlim. Turrets), a click on More / Back turns it.</summary>
     public int Page { get; init; }
@@ -181,6 +182,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedAutoReverse = s.AutoReverse;
         _savedModern = s.ModernPhysics;
         _savedForce = s.ForceFeedback;
+        _savedWheel = s.ForceFeedbackWheel;
+        _savedStrength = s.FfbStrength;
         _savedCheckpoints = s.Checkpoints;
         _savedRate = s.SimRate;
         _savedDownloads = s.MapDownloads;
@@ -191,7 +194,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
         // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
-        foreach (int y in nitro ? new[] { 116, 162, 208, 254 } : new[] { 116, 162, 208, 254, 346 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
+        foreach (int y in new[] { 116, 162, 208, 254 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
         // Nitro's table has three rows: Arcade Phys. (222,139), Unlim. Wiper Fluid (222,185), Difficulty (222,323);
         // the salvage-management and cheat rows are the base game's
         foreach (var (y, label, bit) in Rows)
@@ -216,7 +219,12 @@ public sealed class PlayOptionsScreen : OverlayScreen
         Add(398, 302, () => $"{s.SimRate} Hz", null);
         // Nitro's Difficulty sits on 323, where the base game puts Checkpoints; there Checkpoints take the free line at 208
         Toggle(nitro ? 208 : 323, "Checkpoints", () => s.Checkpoints, () => s.Checkpoints = !s.Checkpoints);            // docs/savestate.md
-        Toggle(nitro ? 231 : 346, "Force Feedback", () => s.ForceFeedback, () => s.ForceFeedback = !s.ForceFeedback);   // the pad's rumble
+        // Force Feedback: Off, the pad's rumble, or a wheel (DirectInput, Windows only: elsewhere the click skips it); a click steps
+        int fy = nitro ? 231 : 346;
+        if (nitro) Frame.CopyBackground(300, fy, 22, 18, 200, fy);     // the sheet's own box on that line: a value row has none
+        Add(222, fy, "Force Feedback", null);
+        Add(205, fy + 1, () => "", () => s.ForceFeedbackMode = (s.ForceFeedbackMode + 1) % (I76.Game.DirectInputForce.Supported ? 3 : 2), Small, w: 300, h: 12);
+        Add(398, fy + 2, () => ShellSettings.ForceFeedbackNames[s.ForceFeedbackMode], null);
         Toggle(nitro ? 254 : 369, "Auto Reverse", () => s.AutoReverse, () => s.AutoReverse = !s.AutoReverse);
         // Map Downloads (docs/multiplayer.md "Custom maps"): a network host's map this game lacks is asked about, always
         // downloaded or never; a click steps
@@ -243,13 +251,17 @@ public sealed class PlayOptionsScreen : OverlayScreen
         // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
         Add(222, 139, "CB Voice", null);
         Add(205, 140, () => Check(s.CbVoice), () => s.CbVoice = !s.CbVoice, Small, w: 200, h: 12);
-        // Check for Updates: whether the next start asks GitHub if a newer release exists (a line under the version says so)
-        Frame.CopyBackground(200, 139, 22, 18, 200, 162);
-        Add(222, 162, "Check for Updates", null);
-        Add(205, 163, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
+        // the force-feedback wheel's strength (its device gain): a click steps 10 %, past 100 back to 0
+        Add(222, 162, "Wheel Strength", null);
+        Add(205, 163, () => "", () => s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10), Small, w: 300, h: 12);
+        Add(398, 164, () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only", null);
         Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+        // Check for Updates (upstream's row, under the port's own): whether the next start asks GitHub if a newer release exists (a line under the version says so)
+        Frame.CopyBackground(200, 139, 22, 18, 200, 300);
+        Add(222, 300, "Check for Updates", null);
+        Add(205, 301, () => Check(s.UpdateCheck), () => s.UpdateCheck = !s.UpdateCheck, Small, w: 200, h: 12);
     }
 
     /// <summary>The sound system's input devices after the current one (the default, then each in the list, then the default again).</summary>
@@ -272,7 +284,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         var s = Shell.Settings;
         var f = _first ?? this;
         s.CbVoice = f._savedCb; s.UpdateCheck = f._savedUpdate;
-        s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.Checkpoints = f._savedCheckpoints;
+        s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.ForceFeedbackWheel = f._savedWheel; s.FfbStrength = f._savedStrength; s.Checkpoints = f._savedCheckpoints;
         s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
     }
