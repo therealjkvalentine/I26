@@ -3045,6 +3045,8 @@ public partial class Main : Node3D
         if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
         FrameLimiter.Pace();
         UpdateMouseCapture();
+        // the window's shape, for Field of View's Monitor and degree choices (the 3D view is scaled uniformly, so its shape is the window's)
+        if (GetViewport().GetVisibleRect().Size is { X: > 0, Y: > 0 } vs) I76.Sim.Views.ViewFov.Aspect = vs.X / vs.Y;
         if (_sim?.World.Player is { } ptp && OS.GetEnvironment("I76_PLAYTEST_LOG") is { Length: > 0 } && ++_ptFrames % 20 == 0)
             GD.Print($"playtest car: frame {_ptFrames} at {ptp.Pos.X:0.0}, {ptp.Pos.Z:0.0} speed {ptp.Vel.Length():0.0}");
         if (_installerOnly || _opt.Install is null)

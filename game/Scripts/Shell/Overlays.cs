@@ -595,7 +595,7 @@ public sealed class GraphicsScreen : OverlayScreen
             st.Resolution = n is { } z ? I76.Game.Boot.WindowSizes.Format(z.W, z.H) : "";
             I76.Game.Boot.WindowApplier.Apply(st);
         });
-        // the main 3D views' field of view, degrees across a 4:3 view (the original's is 90); the 2D dash, mirror and binoculars keep their own, live
+        // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
         Row(16, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
         // the modern look's cockpit hood: Glossy (the car's clear coat) or Matte, live
         Row(18, "Hood Finish", () => st.HoodMatte ? "Matte" : "Glossy", () => { st.HoodMatte = !st.HoodMatte; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(st.HoodMatte); });
