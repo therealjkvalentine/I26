@@ -208,6 +208,43 @@ public partial class CombatEffectsTests(Xunit.Abstractions.ITestOutputHelper out
     }
 
     /// <summary>
+    /// The Fire-Dropper held down while driving, online: the server keeps at most 40 drops live (the original's network
+    /// cap for the droppers but oil), the forty-first removing the first laid, and the client's view holds the same 40.
+    /// </summary>
+    [Fact]
+    public void OnlineFireDropsStopAtFortyTheOldestGoing()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 3 });
+        var seat = host.Join("a", "s01cg01.vcf", 0);
+        var c = Connect(host, seat, HostTests.Mirror("m01"));
+        var rig = new Rig(host, late: 3);
+        rig.Clients.Add(c);
+        var key = Key(seat.Player.Car, w => w.Def.Kind == 0x11);
+        var dropper = seat.Player.Car.Armory!.Weapons.First(w => w.Def.Kind == 0x11);
+        for (int i = 0; i < 10; i++) rig.Tick(_ => default);
+        Round? first = null;
+        int laid = 0, most = 0, ticks = 0;
+        var seen = new HashSet<Round>();
+        while (laid < 45 && ticks++ < 400)
+        {
+            dropper.Ammo = 1000;
+            seat.Player.Car.Speed = 20; seat.Player.Car.Vel = seat.Player.Car.Rot.Forward * 20;
+            rig.Tick(_ => new CarInput { Buttons = key });
+            foreach (var r in host.Setup.Combat.Rounds.Where(r => r.Kind == 0x11)) if (seen.Add(r)) { laid++; first ??= r; }
+            most = Math.Max(most, host.Setup.Combat.Rounds.Count(r => r.Kind == 0x11));
+        }
+        output.WriteLine($"{laid} drops seen in {ticks} ticks, most live {most}");
+        Assert.True(laid >= 45);
+        Assert.Equal(40, most);
+        Assert.DoesNotContain(first!, host.Setup.Combat.Rounds);
+        for (int i = 0; i < 6; i++) rig.Tick(_ => default);
+        Assert.Equal(40, host.Setup.Combat.Rounds.Count(r => r.Kind == 0x11));
+        Assert.Equal(40, c.Combat.Rounds.Count(r => r.Kind == 0x11));
+        Assert.DoesNotContain(c.Combat.Rounds, r => r.NetId == first!.NetId);
+    }
+
+    /// <summary>
     /// The oil slick held down while driving: the drops the own car's view holds (the server's, with the predicted ones
     /// until the server's reach it) never fall short of what the server holds, and all of them stay for the drop's life.
     /// </summary>
