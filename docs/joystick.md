@@ -63,6 +63,24 @@ physical 12+.
 An SDL mapping is not needed and is not added; a user who wants a stick treated as a standard gamepad can still give Godot one with
 `SDL_GAMECONTROLLERCONFIG`, and then it is a game pad here.
 
+## Bindings beyond input.map
+
+input.map gives an input (or a chord) one command, and the original's file has no form for anything else. The port's further bindings
+(`PadRules`, `src/I76.Formats/Input/PadRules.cs`) are kept beside it in `user://input.rules`, so the original still reads input.map as it
+was: one rule a line, its kind first, `#` a comment; a line of a kind the version does not know is kept as it is. They travel with the
+bindings (Control Configuration's Done writes both, Cancel drops both, Restore pad defaults takes the preset's), and an input has one
+binding: a rule that takes a button loses it when the button is given a command or cleared, and takes the button's input.map blocks off.
+Each frame (`Controls`, as the pads are read) the rules see the sticks, the time and whether the head looks back, and say which commands
+they hold, which they press once, which commands stand for others and which inputs they take over for the frame; a press arrives as an
+action event through Godot's input (`i26_rule:<command>`), so every reader of a command's press (the car's commands, the map, the views)
+takes it as a key's, and a held command is asked as the bindings' are.
+
+**Tap / hold** (`taphold joystick1 Button1 weapon_fire special1`): one button, two commands. Let go before 400 ms (a tap), it presses the
+first command once, on the release; held to 400 ms it presses the second then and holds it until let go, and the tap never comes. The rule
+is that of a pad layout players used over the original (A: a tap one shot, a hold the nitrous). On the Controller screen a button's list
+ends with *Tap / hold...*, which asks the tap's command and then the hold's; the row then reads *Tap: ...* and *Hold: ...*. Tests:
+`tests/I76.Formats.Tests/TapHoldTests.cs` (timings either side of 400 ms, one press after another, the file, the button's other bindings).
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that

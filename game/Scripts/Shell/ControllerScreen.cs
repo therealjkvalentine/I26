@@ -239,6 +239,8 @@ public sealed class ControllerScreen : OverlayScreen
 
     private static readonly int[] Entries = [.. ControlsScreen.LeftRows, .. ControlsScreen.RightRows];
     private static string NameOf(int entry) => ControlsScreen.Names[Array.IndexOf(Entries, entry)].Text;
+    /// <summary>A command's name on the sheet: its Control Configuration row's, else the command itself.</summary>
+    private static string CommandName(string command) => Array.FindIndex(Controls.Commands, c => c.Equals(command, StringComparison.OrdinalIgnoreCase)) is var i && Entries.Contains(i) ? NameOf(i) : command;
 
     /// <summary>What an axis can do: the throttle, the steer, or the camera (the chase camera's track rows; the free look in the car).</summary>
     private static readonly string[] AxisItems = ["Accelerate / Brake", "Steer", "Camera / Look"];
@@ -257,6 +259,8 @@ public sealed class ControllerScreen : OverlayScreen
             }
             return [.. lines.Distinct()];
         }
+        if (_map.Rules.On(new InputTerm(true, "joystick1", e.Channel)) is PadRules.TapHold th)
+            return [$"Tap: {CommandName(th.Tap)}", $"Hold: {CommandName(th.Hold)}"];
         foreach (var entry in Entries)
         {
             var cmd = Controls.Commands[entry];
@@ -508,10 +512,27 @@ public sealed class ControllerScreen : OverlayScreen
     {
         Shell.Sound(82);
         _sel = Array.IndexOf(Walk, e.Key);
-        ShowPad = false;      // the list is a sprite over the sheet's middle: the drawing would show through it
         var items = new List<string> { "(none)" };
         if (e.Axis) items.AddRange(AxisItems);
         else foreach (var n in Entries) items.Add(NameOf(n));
+        if (!e.Axis) items.Add(TapHoldItem);
+        List(items, byPad, i =>
+        {
+            if (!e.Axis && i == Entries.Length + 1) { TapHoldLists(e, byPad); return; }
+            if (i == 0) _map.ClearInput(e.Channel);
+            else if (i > 0 && e.Axis) _map.AssignAxis(i switch { 1 => "throttle", 2 => "steer", _ => IsY(e.Channel) ? "track_pitch_delta" : "track_yaw_delta" }, "joystick1", e.Channel);
+            else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);
+            Redraw();
+        });
+    }
+
+    /// <summary>A button's list's last entry: one command on a tap, another on a hold (<see cref="PadRules.TapHold"/>).</summary>
+    private const string TapHoldItem = "Tap / hold...";
+
+    /// <summary>The shell's list over the sheet; a pick (or Cancel, -1) hands the drawing back.</summary>
+    private void List(List<string> items, bool byPad, Action<int> picked)
+    {
+        ShowPad = false;      // the list is a sprite over the sheet's middle: the drawing would show through it
         var s = Shell.Db.Bank(0x24)[16];
         int w = s?.Width ?? 172, h = s?.Height ?? 235;
         Shell.Modal(new ListPopup
@@ -523,11 +544,26 @@ public sealed class ControllerScreen : OverlayScreen
             {
                 _menu.Settle();      // the A that picked (or the B that cancelled) does nothing here when the list closes
                 ShowPad = true;
-                if (i == 0) _map.ClearInput(e.Channel);
-                else if (i > 0 && e.Axis) _map.AssignAxis(i switch { 1 => "throttle", 2 => "steer", _ => IsY(e.Channel) ? "track_pitch_delta" : "track_yaw_delta" }, "joystick1", e.Channel);
-                else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);
-                Redraw();
+                picked(i);
             },
+        });
+    }
+
+    /// <summary>Tap / hold: the tap's command, then the hold's, each from the commands' list; the button's other bindings go.</summary>
+    private void TapHoldLists(El e, bool byPad)
+    {
+        List([.. Entries.Select(n => "Tap: " + NameOf(n))], byPad, tap =>
+        {
+            if (tap < 0) { Redraw(); return; }
+            List([.. Entries.Select(n => "Hold: " + NameOf(n))], byPad, hold =>
+            {
+                if (hold >= 0)
+                {
+                    _map.ClearInput(e.Channel);
+                    _map.Rules.Add(new PadRules.TapHold(new InputTerm(true, "joystick1", e.Channel), Controls.Commands[Entries[tap]], Controls.Commands[Entries[hold]]));
+                }
+                Redraw();
+            });
         });
     }
 
