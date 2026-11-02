@@ -41,4 +41,28 @@ public class ViewFovTests
         finally { ViewFov.Apply(0); }
         Assert.Equal(73.74f, ViewFov.Main);
     }
+
+    /// <summary>
+    /// The 2D dash's forward reticle sits where the gun line (level with the car, the head 13 degrees up from it at rest) projects:
+    /// at the original's view 74 px under the centre, and with another Field of View where that view puts the same direction.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void TheDashReticleFollowsTheFieldOfView(int choice)
+    {
+        float vertical = choice == 0 ? ViewFov.OriginalVertical : ViewFov.Vertical(ViewFov.OriginalVertical, choice);
+        double Focal(float v) => 240 / Math.Tan(v * Math.PI / 360);
+        double drop = Math.Tan(13 * Math.PI / 180);
+        float y0 = (float)(240 + Focal(ViewFov.OriginalVertical) * drop);
+        Assert.InRange(y0, 313f, 315f);                              // the original's sprite: centre 316 (300 + 16), the gun 2 px under the eye line
+        var (x, y) = ViewFov.ScreenPoint(320, y0, vertical);
+        Assert.Equal(320f, x, 3);
+        Assert.Equal(240 + Focal(vertical) * drop, y, 2);
+        // a wider view lifts it toward the centre: 110 across 4:3 puts it 22 px higher, 80 lower
+        if (choice == 3) Assert.InRange(y0 - y, 21f, 24f);
+        if (choice == 1) Assert.True(y > y0);
+    }
 }

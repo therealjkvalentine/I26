@@ -231,14 +231,20 @@ public partial class Cockpit : Node
     /// an arm is raised or busy and the head has turned to its window (yaw beyond 88° right or -83° left), else the forward gunsight at
     /// (306, 300) with both arms idle and the head within 4° of straight ahead. Not in the binoculars.
     /// </summary>
-    public (Texture2D Tex, int X, int Y)? Reticle()
+    public (Texture2D Tex, float X, float Y)? Reticle()
     {
         if (Binoculars) return null;
         _reticle ??= Image("zretc_1") is { } img ? ImageTexture.CreateFromImage(img) : null;
         if (_reticle is null) return null;
         bool Up(int ch) => Car.Arms[ch].Busy || Car.Arms.Ready(ch);
-        if ((Up(1) && _yaw > 1.5359f) || (Up(2) && _yaw < -1.4486f)) return (_reticle, 300, 240);
-        if (Car.Arms.Idle(1) && Car.Arms.Idle(2) && MathF.Abs(_yaw) < 0.0698f) return (_reticle, 306, 300);
+        // the original's places, for its own view; with another Field of View the gun line projects elsewhere, so the sprite's centre moves with it
+        (Texture2D, float, float) At(int x, int y)
+        {
+            var (cx, cy) = I76.Sim.Views.ViewFov.ScreenPoint(x + 16, y + 16, I76.Sim.Views.ViewFov.Main);
+            return (_reticle, cx - 16, cy - 16);
+        }
+        if ((Up(1) && _yaw > 1.5359f) || (Up(2) && _yaw < -1.4486f)) return At(300, 240);
+        if (Car.Arms.Idle(1) && Car.Arms.Idle(2) && MathF.Abs(_yaw) < 0.0698f) return At(306, 300);
         return null;
     }
 

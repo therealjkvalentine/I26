@@ -30,4 +30,15 @@ public static class ViewFov
 
     /// <summary>The main views' vertical field of view in force.</summary>
     public static float Main => Choice == 0 ? OriginalVertical : Vertical(OriginalVertical, Choice);
+
+    /// <summary>
+    /// A point of the 640x480 screen placed for the original's view (the 2D dash's gun reticles) where the same direction lands
+    /// with the vertical field of view <paramref name="vertical"/> (degrees): its offset from the centre scaled by the ratio of the
+    /// two focal lengths. The view keeps its height (Hor+), so one scale serves both axes.
+    /// </summary>
+    public static (float X, float Y) ScreenPoint(float x, float y, float vertical)
+    {
+        double r = System.Math.Tan(OriginalVertical * System.Math.PI / 360) / System.Math.Tan(vertical * System.Math.PI / 360);
+        return ((float)(320 + (x - 320) * r), (float)(240 + (y - 240) * r));
+    }
 }
