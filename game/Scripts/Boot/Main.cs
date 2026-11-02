@@ -635,7 +635,7 @@ public partial class Main : Node3D
                 GetTree().ReloadCurrentScene();
                 break;
             case MenuOutcome.Abort when _net is not null:
-                BackFromNetwork(NetRows(), null);   // Leave Game: the tree's exit says goodbye (a host's closes the game for the others)
+                BackFromNetwork(NetRows(), null);   // Leave Match: the tree's exit says goodbye (a host's closes the game for the others)
                 break;
             case MenuOutcome.Abort:
                 EndMission(false);

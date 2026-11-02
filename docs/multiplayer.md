@@ -886,7 +886,7 @@ from the server.
   then drawn from the snapshots too (the script drives it; the prediction goes on underneath and takes over again), and
   the network HUD gives way to the scene. **Skip** is the host's alone: the server keeps it only from the host's seat
   (the listen host's, the one that took over, else the lowest: `InputQueue.AllowSkip`), and the game says the same
-  (`NetHud.CanSkip`): there Esc (pad B) skips, on every other player's game it opens the menu (Leave Game, Exit Game) in a
+  (`NetHud.CanSkip`): there Esc (pad B) skips, on every other player's game it opens the menu (Leave Match, Exit I76) in a
   cut-scene as at any other time.
   A **personal** camera scene (above) rides in the same tail (protocol 19) as a list of (seat, camera): every client gets the
   list, shows its own seat's when the story's camera is not on, and marks the view personal (`ScriptCamera.Personal`), so its
@@ -910,7 +910,7 @@ from the server.
 - **Sirens** (`SirenEvent`; the script's `setSiren` or a police car's honk, the entity's, not in the car state). Lights are the cars' flags, in
   the snapshots already.
 - **The end** (`MissionEndEvent`): won or failed and the failure's line; each client's game ends as single player's (the
-  outro on a win; the end menu with the line, Leave Game and Exit Game, on a failure). The game over follows 5 s later;
+  outro on a win; the end menu with the line, Leave Match and Exit I76, on a failure). The game over follows 5 s later;
   there are no rounds, and a host leaving after the end does not hand the game on. Everyone leaving ends it too.
 - **Deaths and respawns.** A human's death is a `KillEvent` (the feed's line) and its respawn after `RespawnDelay` a
   `RenewedEvent` (the car rebuilt in place); being put back from the map's edge is a `***` line. The HUD's death card
@@ -1211,7 +1211,7 @@ godot-mono --path game -- --connect HOST:PORT [--name N] [--car X.vcf] [--team T
 
 - The server chooses the arena and answers with the car it actually built.
   A car file it does not have becomes its default car, the Piranha.
-- Esc opens the menu (Leave Game, Self Destruct (new car), Exit Game, Graphic Detail, Audio Control, Control Configuration, Resume); the game runs on under it and the car is held neutral. Self Destruct sends Ctrl+Del's command (in the original, the network menu's Replay item): a death with no killer, -500 to a floor of 0, then Space for a new car; greyed while dead and once the game is decided. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
+- Esc opens the menu (Leave Match, Self Destruct (new car), Exit I76, Graphic Detail, Audio Control, Control Configuration, Resume); the game runs on under it and the car is held neutral. Self Destruct sends Ctrl+Del's command (in the original, the network menu's Replay item): a death with no killer, -500 to a floor of 0, then Space for a new car; greyed while dead and once the game is decided. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
   map and notepad are off, because they would pause the game.
 
 ### A listen server

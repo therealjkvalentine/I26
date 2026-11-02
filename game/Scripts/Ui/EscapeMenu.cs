@@ -73,7 +73,7 @@ public sealed partial class EscapeMenu : Control
     /// <summary>The 4-item Abort pad / 5-item end menu: no shell trip to go back to, No Salv. Manag., or t01/t13/t17.</summary>
     public required bool NoReconfigure { get; init; }
     public bool Faithful { get; init; }
-    /// <summary>A network melee: the game runs on under it, so there is no Play Options (the cheats) and no replay; Leave Game goes back to the shell.</summary>
+    /// <summary>A network melee: the game runs on under it, so there is no Play Options (the cheats) and no replay; Leave Match goes back to the shell.</summary>
     public bool Net { get; init; }
     /// <summary>The menu closed with this outcome; the settings are saved by then.</summary>
     public required Action<MenuOutcome> Closed { get; init; }
@@ -189,12 +189,12 @@ public sealed partial class EscapeMenu : Control
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
 
         _main.Items = Net ? [
-            Action("Leave Game", 1, () => AskExit(_main, MenuOutcome.Abort, LeaveLine)),
+            Action(I76.Net.Hud.NetMenu.Leave, 1, () => AskExit(_main, MenuOutcome.Abort, LeaveLine)),
             // the free row between them: in a network game the original's Replay item sets the self-destruct flag (Ctrl+Del's),
             // the car blown up and the player back in a new one; here under a label that says so
             new Item { Flags = Act, Label = "Self Destruct (new car)", Pair = 2, N = 1, Refused = SelfDestructRefused,
                 Cb = (_, m) => { if (m == 4) AskExit(_main, MenuOutcome.SelfDestruct, "Blow up your own car? (a death, -500 points)"); } },
-            Action("Exit Game", 3, () => AskExit(_main, MenuOutcome.Exit, QuitLine)),
+            Action(I76.Net.Hud.NetMenu.Exit, 3, () => AskExit(_main, MenuOutcome.Exit, QuitLine)),
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Control Configuration", 6, OpenControls, "$7.65"),
@@ -366,8 +366,8 @@ public sealed partial class EscapeMenu : Control
             // a network co-op mission's end: nothing to replay or reconfigure here, the host's game is over for everyone
             _end.Items = [
                 Text(netEnd.Message, 47),
-                Action("Leave Game", 10, () => AskExit(_end, MenuOutcome.Abort, LeaveLine)),
-                Action("Exit Game", 11, () => AskExit(_end, MenuOutcome.Exit, QuitLine)),
+                Action(I76.Net.Hud.NetMenu.Leave, 10, () => AskExit(_end, MenuOutcome.Abort, LeaveLine)),
+                Action(I76.Net.Hud.NetMenu.Exit, 11, () => AskExit(_end, MenuOutcome.Exit, QuitLine)),
             ];
             _end.Selected = 1;
         }
@@ -431,7 +431,7 @@ public sealed partial class EscapeMenu : Control
 
     private const string SweetheartLine = "Are you gonna leave me, Sweetheart?";
     /// <summary>The network game's own questions (the port's): leaving the game is not quitting the program.</summary>
-    private const string LeaveLine = "Leave this game (back to the menus)?", QuitLine = "Quit the program (back to the desktop)?";
+    private const string LeaveLine = I76.Net.Hud.NetMenu.LeaveQuestion, QuitLine = I76.Net.Hud.NetMenu.ExitQuestion;
 
     private void AskExit(Screen from, MenuOutcome yes, string? question = null)
     {
