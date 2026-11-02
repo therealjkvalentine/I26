@@ -23,6 +23,7 @@ fix/editor-tool-column-scroll         # #146 map editor tool column scrolls
 fix/mouse-in-window-menus             # #147 Keep Mouse In Window honoured in the menus
 fix/gate-fence-grounding              # #137 fences and tyre walls centred on their line between posts
 fix/1997-effect-sprites-upright       # #105 effect cards upright, foot at the origin (1997 look)
+fix/cockpit-art-bilinear              # dash and gauges smooth when looked down at (owner report)
 
 # B. measured against the original (retail 1.0, emulated Pentium)
 fix/taurus-load-cornering
@@ -97,6 +98,8 @@ fix/tactic-skid-modulus
 fix/movie-skip-deviation-row
 fix/end-of-match-brake
 fix/network-deviation-rows
+fix/ai-dropper-gate-straight-line     # stacked on play: corrections from the original measured 2026-11-02
+fix/turret-lead-predictor-delay       # stacked on play: corrections from the original measured 2026-11-02
 
 # C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
 perf/horizon-early-z

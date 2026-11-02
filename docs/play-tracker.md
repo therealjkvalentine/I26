@@ -110,12 +110,69 @@ in the sibling worktree folder) keep their own commit messages; the rest carry a
 |---|---|---|---|---|
 | 124 | feat/sim-rate-24 | Simulation Rate offers 24 Hz (85/2048 s), the original's step under a 20 fps cap on Windows NT | kit / Windows capture: about 24 steps/s; the bounce tempo gap 28 vs 24 substeps/s | none (an option, raised last) |
 
+## F. Round 2 (2026-11-02)
+
+Merged into `play` on 2026-11-02 in this order (the first five by sync-play, the rest by hand). PR order is the order of
+offering upstream; the stacked branches (on `play`) go up only after what they stack on.
+
+| order | branch | what it changes | evidence | PR order |
+|---|---|---|---|---|
+| R1 | fix/editor-tool-column-scroll | the map editor's tool column scrolls when it is taller than the window (#146) | local: Game tests (6 new), editor captures | after A |
+| R2 | fix/gate-fence-grounding | fences and tyre walls stand centred on their line between the posts (#137) | local: Formats tests, captures | after A |
+| R3 | fix/1997-effect-sprites-upright | 1997 look: effect cards stand upright with their foot at the origin (#105) | local: Formats tests (EffectQuad, FireballCard) | after A |
+| R4 | perf/horizon-early-z | the modern look's mountain ring is shaded only where it shows (depth pre-pass, rim pass split into horizon_terrain.gdshaderinc) | frame profiles: a fifth to a third of the GPU time back (GTX 1080 Ti, GTX 1650 Ti) | C2 |
+| R5 | feat/delete-bookmarks | Load Bookmark has Delete (yes/no notice) | local: Game tests (2 new), captures | D |
+| R6 | fix/mouse-in-window-menus | Keep Mouse In Window holds the pointer in the menus too (#147) | local (issue report) | after A |
+| R7 | feat/net-handicaps | host rule Handicaps: a level -3..+3 per player scales their damage (x0.55..x1.6); listing flag, accept byte, scoreboard VarU | local: HandicapTests (Net), HandicapDamageTests (Sim) | D, after the ignition rule |
+| R8 | perf/render-scale-down | Render Scale 50/67/75/85 % with FSR 1.0 (amended: no mip bias of our own, the engine adds log2(scale) itself) | frame profiles: T01 10.5 -> 7.6 ms at 75 % (GTX 1080 Ti), 14.1 -> 9.7 (GTX 1650 Ti) | stacked on play, after the render scale row |
+| R9 | feat/map-edge-treatment | Graphic Detail Map Edge: Original / Haze / Fade Out for the modern look's boundary walls | local: MapEdgeTests; t05 Fade Out capture after the merge, no rim sliver | D |
+| R10 | feat/dev-menu-mission-picker | Developer panel: Scene row (any mission, any car), started at once | local | stacked on play, after feat/dev-menu |
+| R11 | feat/dev-menu-landmarks | Developer panel Teleport: generated landmarks and kept places | local | stacked on play, after R10 |
+| R12 | feat/dev-menu-loadout | Developer panel Loadout: swap a mount's weapon live, Refill (snapshot: each weapon's file in the car's make-up) | local: DevLoadoutTests | stacked on play, after R11 |
+| R13 | feat/original-behavior-pad | Original Recipe pad: 12 rows (Physics, Live Ordnance, Melee A.I., Draw Distance, Field of View, Rear Mirror Range, Sky Drift, Brake Lamps, MG Tracers, Death Orbit, Music Tracks, Rumble). Amended before merging: the AI Droppers row, `[port] ai_droppers`, `Combat.StraightDropGate`, its test and deviations row removed | local: OriginalRecipe 11/11, Sim AiDrop/OrdnanceCap/SnapshotGuard 19/19 | stacked on play, last of D |
+| R14 | fix/ai-dropper-gate-straight-line | the AI's dropper gate predicts a pursuer on a straight line at its arrival time again: dropped on at any speed | original: measured 2026-11-02 (retail 1.0, emulated Pentium, 2 boots) | stacked on play; C |
+| R15 | fix/turret-lead-predictor-delay | a turret leads through the target predictor: closest-approach time at the aim speed + 0.09 s, along the turning circle | original: measured 2026-11-02 (retail 1.0, emulated Pentium, 2 boots) | stacked on play; C |
+| R16 | fix/cockpit-art-bilinear | the 3D cockpit's z* art sampled bilinear on the 3D card and in the modern look (Software unchanged): the dash looked down at is no longer blocks | local: CockpitSamplingTests 3 (owner report) | after A |
+
+Versions on `play`: snapshot 22 (21 the host's handicap on each car, appended after the AI turn speed; 22 each weapon's
+file in a car's make-up), protocol 23 (feat/net-handicaps on top of the ignition rule's 22: the accept ends ignition
+byte, then handicaps byte, read and written in that order; the listing carries Handicaps as flag bit 8). WireTests pins
+23 / 22 (`TheProtocolIs23`); the handicap comments and docs/multiplayer.md say protocol 23, CHANGELOG's network line too.
+
+Hand fixes in round 2 (outside conflict hunks or beyond either side):
+- Bookmarks.cs: one LoadBookmarkScreen.Build (feat/delete-bookmarks added a second): Import Saves keeps the place left of
+  Load, Delete goes after All Scenes on the top line (left of Load in Nitro, which has neither).
+- feat/net-handicaps: host hot id 43 for Hcp (40-42 are play's co-op Scaling, Damage and Rolling Start), in Hot and
+  both Live lists; Discovery/MeleeHost/JoinAccept carry IgnitionStaysOn and Handicaps together; FlameTouch applies
+  Difficulty's factor and the handicap; server --help and the console's command list keep both; VehicleSave writes
+  TurnSpeed then Handicap (every older field in place).
+- feat/map-edge-treatment: Map Edge is Graphic Detail row 21 in the shell sheet (16-20 taken), row 16 in the Esc pad;
+  Reset/Cancel use play's `int? DrawDistanceChoice`; its haze lines went into horizon_terrain.gdshaderinc (after
+  perf/horizon-early-z's split) outside the HORIZON_RIM_PASS block, so both passes get them.
+- Stacked branches (perf/render-scale-down, the three Developer panel branches, the pad) were built on an earlier
+  `play` (7c3988f, same tree as 6ff52d7): merged with that commit as the merge base (`git merge-recursive 7c3988f --
+  HEAD <branch>`, MERGE_HEAD set), so only their own commit is merged; their history brings the earlier play's
+  commits along.
+- Note, not fixed (a follow-up lane): the Esc Graphic Detail pad's Done and Cancel write the resolved draw distance,
+  which pins DrawDistanceChoice on any visit.
+
+Test status, 2026-11-02, `play` with round 2: desktop Game 167/167, Editor 216/216, Net --filter Wire|Handicap|Discovery
+51/52 (RestrictionTests.ARefusedJoinGetsNoSeatOverTheWire, in the desktop baseline). Laptop (play at 7fadc78, before
+fix/cockpit-art-bilinear, which touches only game/): Sim 936/967, Net 411/429; 38 failures, 4 not in the laptop
+baseline: the two known ones (CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz) and two network-timing
+tests, BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink and PredictionTests.ThePredictedCarAgreesWithTheServersOverALaggyLink,
+which pass on the desktop on a re-run (flakes under the laptop's load, not re-pinned).
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
 - "AI flees later on the kit because of a kit fix": at engine 20 % both settings flee alike; the real gap was the turn speed.
 - #114 tanker, #113 bus texture, #85 cockpit shadow, #101 pad surface (confirmed in the retail game), #102 regen hold (confirmed), #72/#121 helicopter reverse spin, #111 far creepers, #137 placements: the original's own behaviour; answer with the spec.
 - Chase camera pitch (visual pair V5), hpLesser on a building, the jammer sound, the night LOBJ lights, the heli-dies-on-contact row: the spec does not settle them yet.
+- Round 2 sweeps (2026-11-02): #132 #120 #131 #126 #115 #71 #119 #123 #69 #127 #19 are fixed upstream already (closable);
+  #112 #84 #85 #57 are the original's own behaviour (answer with the spec); #136: the overpass road servers need TLS 1.3,
+  which Windows 10 cannot do (no fix here); #133 AMD/Vulkan 1997 look: not reproducible here, suggest D3D12 as the default
+  on AMD; #130 #118 #99 need a repro.
 
 ## Integration notes (play only)
 
