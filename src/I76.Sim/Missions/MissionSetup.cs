@@ -387,7 +387,7 @@ public sealed partial class MissionSetup
                     if (seat > 0) VehicleFactory.AddDriverHandguns(vfs, vcf, v);
                     if (night) v.Flags |= VehicleFlags.Lights;
                     return v;
-                }) { Paths = coopPaths };
+                }) { Paths = coopPaths, RollingStart = coop.RollingStart };
             }
             ms = new MissionScript(program, host, rand, seed, nitroDriver, i76Lines);
         }

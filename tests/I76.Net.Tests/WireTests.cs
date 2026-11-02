@@ -15,7 +15,7 @@ public class WireTests
     public void TheProtocolIs21()
     {
         Assert.Equal(21, Protocol.Version);
-        Assert.Equal(15, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        Assert.Equal(16, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
     [Fact]

@@ -660,6 +660,12 @@ else the first living human), rebuilt in place as a network melee's reconfigured
 driver's handguns kept and loaded, the engine started, `NetGeneration` up, the driver's keys at rest). With nobody
 alive it waits: the script then sees the group dead. Seats' deaths and timers are saved.
 
+The fresh car (a respawn's or a joiner's) stands still. **Co-op Rolling Start** (`CoopSetup.RollingStart`, the port's: the host
+form's Rolling Start, `--coop-rolling-start`) gives it the teammate's speed when the teammate is driving along: on the ground,
+1 m/s or faster (`ScriptHost.RollingMinSpeed`), not reversing and no more than 15 degrees between its way and its heading
+(`RollingMaxSlip`); the car faces as the teammate does and goes along that heading at the teammate's speed over the ground
+(`ScriptHost.Rolling`). Otherwise it stands still as before. It is part of the savestate's build.
+
 ### Cut-scenes and the controls
 
 A cut-scene (the script holding the camera) drives the lead; every driver's keys are held as the one player's were

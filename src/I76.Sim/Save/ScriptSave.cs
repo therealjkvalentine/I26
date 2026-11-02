@@ -77,7 +77,8 @@ public sealed partial class ScriptHost
             .Transient("the host's hooks", nameof(Logged), nameof(Movie), nameof(CarStarted), nameof(Salvaged));
         a.For<CoopGroup>()
             .Saved(nameof(CoopGroup.Seats), nameof(CoopGroup.LeadMoved), nameof(CoopGroup.WasCutscene))
-            .Structural("the build's seats and car builder, and the mission's paths the formation keeps off", nameof(CoopGroup.RespawnDelay), nameof(CoopGroup.Build), nameof(CoopGroup.Paths))
+            .Structural("the build's seats and car builder, and the mission's paths the formation keeps off", nameof(CoopGroup.RespawnDelay), nameof(CoopGroup.Build), nameof(CoopGroup.Paths),
+                nameof(CoopGroup.RollingStart))
             .Transient("the host's hooks", nameof(CoopGroup.Happened));
         a.For<CoopSeat>()
             .Saved(nameof(CoopSeat.RespawnAt), nameof(CoopSeat.Deaths), nameof(CoopSeat.Present))
