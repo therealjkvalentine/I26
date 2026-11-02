@@ -43,4 +43,21 @@ public class CockpitNeedleTests
         var pal = new Palette(vfs.Read(palette));
         Assert.Equal(((byte)r, (byte)g, (byte)b), SoftwarePalette.FlatColour(pal, f.R, f.G, f.B));
     }
+
+    /// <summary>
+    /// The needle turned about its middle, as long on the tail side as on the reading side. In the original the reading
+    /// side is about 0.69 of it (I76.Formats.Assembly.CockpitNeedle): 74 mm of the 107 mm strip against 33.
+    /// </summary>
+    [InstallFact]
+    public void TheNeedleTurnsWithTheReadingSideLonger()
+    {
+        var vfs = new AssetVfs(new GameInstall(TestInstall.Dir!));
+        var geo = GeoMesh.Parse(vfs.Read("needle.geo"));
+        float shift = I76.Formats.Assembly.CockpitNeedle.Shift(geo);
+        float reading = geo.Vertices.Max(v => v.Z) + shift, tail = -(geo.Vertices.Min(v => v.Z) + shift);
+        Assert.Equal(0.0204f, shift, 0.0005f);
+        Assert.Equal(0.0741f, reading, 0.0005f);
+        Assert.Equal(0.0333f, tail, 0.0005f);
+        Assert.Equal(0.69f, reading / (reading + tail), 0.005f);
+    }
 }
