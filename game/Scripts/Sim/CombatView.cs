@@ -332,12 +332,14 @@ public partial class CombatView : Node3D
     }
 
     /// <summary>The streak's look by ordnance kind: colour, length behind the head, half-width, brightness.</summary>
+    private const float GunStreak = 10f;   // the guns' look length, the marker for "a gun's round" (the drawn length follows the step)
+
     private static (Color Tint, float Length, float Width, float Energy) StreakLook(uint kind) => kind switch
     {
         6 => (new Color(1f, 0.5f, 0.15f), 7f, 0.6f, 2.0f),                       // cannons: a short fat bolt (the original's tube against the guns' one-pixel line)
         2 or 3 or 8 or 0x14 => (new Color(1f, 0.42f, 0.1f), 3.5f, 0.5f, 2.2f),   // rocket exhaust
         4 or 5 or 7 or 0x16 => (new Color(1f, 0.7f, 0.35f), 1.2f, 0.3f, 1.4f),   // mortar shells
-        _ => (new Color(1f, 0.68f, 0.25f), 10f, 0.12f, 1.3f),                    // machine guns, the .45
+        _ => (new Color(1f, 0.68f, 0.25f), GunStreak, 0.16f, 2.2f),              // machine guns, the .45: a short bright core (see the streak's length)
     };
 
     /// <summary>
@@ -791,9 +793,13 @@ public partial class CombatView : Node3D
             {
                 var look = StreakLook(r.Kind);
                 if (TracerColor(r) is { } tc) look.Tint = tc;
-                var tail = head - dir * I76.Formats.Assembly.TracerLength.Streak(look.Length, flown);
+                // a machine gun's round is a short bright core with a quick tail over the last step, as the 1997 look's bar is the step
+                // (a third of it, 1.5 to 5 m), not the fixed ten metre beam; the other ordnance keeps its look
+                bool gun = StreakLook(r.Kind).Length == GunStreak;
+                float streakLen = gun ? System.Math.Clamp(step.Length() * 0.3f, 1.5f, 5f) : look.Length;
+                var tail = head - dir * I76.Formats.Assembly.TracerLength.Streak(streakLen, flown);
                 streak.Visible = true;
-                ModernFx.SetTracer(streak, tail, head, look.Tint, look.Width, look.Energy);
+                ModernFx.SetTracer(streak, tail, head, look.Tint, look.Width, look.Energy, gun ? 4f : 2f);
             }
             else if (streak is not null) streak.Visible = false;
             if (modern && r.Kind == 0x15)

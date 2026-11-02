@@ -10,6 +10,7 @@ instance uniform vec3 head;
 instance uniform vec4 tint : source_color = vec4(1.0, 0.75, 0.35, 1.0);
 instance uniform float width = 0.08;
 instance uniform float energy = 6.0;
+instance uniform float tail_fall = 2.0;   // how fast the tail fades from the head: 2 a long glow, higher a short bright core with a quick tail (machine guns)
 
 varying float across;
 
@@ -37,5 +38,5 @@ void fragment() {
 	float along = smoothstep(0.0, 0.9, UV.x);
 	float headglow = (1.0 + 1.5 * smoothstep(0.8, 1.0, UV.x)) * (1.0 - smoothstep(0.95, 1.0, UV.x));   // bright to the head, then a soft end
 	vec3 hot = vec3(1.0, 0.97, 0.88) * core * 1.6;
-	ALBEDO = (hot + tint.rgb * halo) * energy * along * along * headglow;
+	ALBEDO = (hot + tint.rgb * halo) * energy * pow(along, tail_fall) * headglow;
 }
