@@ -191,13 +191,13 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
         F47 = Shell.Db.Font(0x47);
         for (int k = 0; k < 3; k++) _strokes[k] = Shell.Db.Bank(0x21 + k);
         LoadCar(Melee.Model, Melee.Variant);
-        _stage = new GarageStage { Assets = _assets, Name = "Garage3D", MusicInstalls = MusicInstalls(), MusicLevel = Shell.Settings.Audio[0] };
+        _stage = new GarageStage { Assets = _assets, Name = "Garage3D", MusicInstalls = Shell.Settings.GarageRadio ? MusicInstalls() : null, MusicLevel = Shell.Settings.Audio[0] };
         Shell.AddLayer(_stage, underFrame: true);
         _swatches = new SwatchLayer { Name = "Swatches" };
         Shell.AddLayerOverFrame(_swatches);
         RaiseSprites();
         _stage.SetLook(Faithful);
-        SilenceOtherMusic();
+        if (_stage.Radio is not null) SilenceOtherMusic();   // without the radio the menu track goes on, as in the original's form
         ShowCar(_m.Snapshot(), force: true);
         _stage.Focus(HookFocus() ?? GarageViews.Overview(_stage.Car!, Faithful));
         _built = true;

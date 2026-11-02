@@ -5,7 +5,8 @@ namespace I76.Game.Shell.Garage3D;
 
 /// <summary>
 /// The garage's music: a boombox on the workbench playing the soundtrack of the installed game (and of the other game, when this machine has
-/// both), a random track after another. It is a 3D voice in the bay, so it pans and fades as the camera goes round, and goes through a bus
+/// both), a random track after another, of the missions' tracks only (<see cref="I76.Formats.Audio.ShellMusic.RadioTracks"/>: never the menu's,
+/// the credits', the title's or the ending's). Off unless shell.cfg [port] garage_radio=on: the original's menu track goes on instead. It is a 3D voice in the bay, so it pans and fades as the camera goes round, and goes through a bus
 /// of its own, <see cref="BusName"/>, that makes it a speaker in a concrete room: a high-pass at 150 Hz and a low-pass at 6.5 kHz (a small
 /// speaker), then a reverb (room 0.55, damping 0.4, wet 0.3, dry 0.85, spread 1, a 20 ms pre-delay). The bus follows the Music level of Audio
 /// Control (off below 2, 2 dB a step round 8, as the missions' Music bus does).
@@ -31,7 +32,7 @@ public sealed partial class GarageRadio : Node3D
     public override void _Ready()
     {
         foreach (var install in Installs)
-            for (int t = 2; t <= I76.Game.Assets.CdMusic.LastTrack(install); t++)
+            foreach (int t in I76.Formats.Audio.ShellMusic.RadioTracks(I76.Game.Assets.CdMusic.LastTrack(install), install.IsNitro))
                 if (I76.Game.Assets.CdMusic.Path(install, t) is { } file) _tracks.Add((file, t, install.IsNitro ? "nitro" : "i76"));
         if (_tracks.Count == 0) return;
         EnsureBus();
