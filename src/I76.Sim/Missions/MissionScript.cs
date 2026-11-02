@@ -103,6 +103,7 @@ public sealed partial class MissionScript
         {
             Host.CoopFrame();
             Vm?.Tick();
+            Host.ExtrasFrame();
         }
         // The emplacements' fire pass, right after the FSM and before the weapons
         if (Combat is { } c) Vehicles.Emplacements.Frame(c.World, c, Melee?.Rules.Network == true);
