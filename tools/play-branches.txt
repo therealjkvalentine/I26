@@ -19,6 +19,10 @@ fix/first-garage-load-prewarm         # #143
 fix/load-card-audio-hiccup            # #142
 fix/first-explosion-stutter           # #116
 feat/regen-pad-hold-readout           # #102 (readout only; the rule is the original's)
+fix/editor-tool-column-scroll         # #146 map editor tool column scrolls
+fix/mouse-in-window-menus             # #147 Keep Mouse In Window honoured in the menus
+fix/gate-fence-grounding              # #137 fences and tyre walls centred on their line between posts
+fix/1997-effect-sprites-upright       # #105 effect cards upright, foot at the origin (1997 look)
 
 # B. measured against the original (retail 1.0, emulated Pentium)
 fix/taurus-load-cornering
@@ -94,11 +98,15 @@ fix/movie-skip-deviation-row
 fix/end-of-match-brake
 fix/network-deviation-rows
 
+# C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
+perf/horizon-early-z
+
 # D. features, each behind an option
 feat/head-tracking-opentrack
 feat/original-save-reader
 feat/import-original-saves-ui         # stacked on the reader
 feat/bookmark-per-mission
+feat/delete-bookmarks                 # Load Bookmark: Delete with a yes/no notice
 feat/wheel-force-feedback-windows
 feat/rumble-strength-and-events
 feat/net-scoreboard-sticky-with-kick
@@ -109,13 +117,16 @@ feat/coop-enemy-scaling
 feat/coop-damage-factor
 feat/coop-joiner-matches-speed
 feat/bot-skill-from-difficulty
+feat/net-handicaps                    # host rule Handicaps, per-player damage levels -3..+3
 feat/field-of-view-row
 feat/resolution-row
 feat/update-check
 feat/hood-matte-option
 fix/modern-mg-tracers-look
 feat/render-scale-row
+perf/render-scale-down                # stacked on the render scale row: 50..200 %
 fix/1997-look-draw-distance-default
+feat/map-edge-treatment               # Graphic Detail: Map Edge Original / Haze / Fade Out (modern look)
 feat/ghost-cockpit-toggle
 feat/skip-cutscenes-and-mute-switches
 feat/voices-overlay-folder
@@ -130,6 +141,10 @@ feat/input-record-and-replay
 feat/telemetry-udp-out
 feat/controls-key-sheet
 feat/dev-menu
+feat/dev-menu-mission-picker          # stacked on play: Scene picker in the Developer panel
+feat/dev-menu-landmarks               # stacked on play: generated landmarks + kept places
+feat/dev-menu-loadout                 # stacked on play: live weapon loadout (snapshot 21)
+feat/original-behavior-pad            # stacked on play, last: the Original Recipe pad
 
 # E. last: the clock
 feat/sim-rate-24
