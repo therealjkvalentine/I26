@@ -104,12 +104,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         {
             case Vehicle v:
                 VehicleSlot(v, p, hitLocal);
-                if (p.Attacker is Vehicle a && a != v) Record(v, a, p.Kind, p.Mask);
+                // a blast goes straight to the class slot in the original: it records no attacker (kill credit is the packet's)
+                if (p.Attacker is Vehicle a && a != v && p.Kind != DamageKind.Explosion) Record(v, a, p.Kind, p.Mask);
                 break;
             case StaticObject { Vehicle: { } gun }:
                 // a hit on any node of an emplacement maps to its root: the type-8 damage slot
                 EmplacementSlot(gun, p);
-                if (p.Attacker is Vehicle ga && ga != gun) Record(gun, ga, p.Kind, p.Mask);
+                if (p.Attacker is Vehicle ga && ga != gun && p.Kind != DamageKind.Explosion) Record(gun, ga, p.Kind, p.Mask);
                 break;
             case StaticObject sign when sign.Type == 4 && node < 0 || sign.SignNode(node):
                 // Sends a type-4 root or node to the sign's own slot, which knocks off the
