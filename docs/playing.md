@@ -135,3 +135,31 @@ Without `--mission` the game plays the intro and opening credits (Esc, Space, En
 the original front end; `--skip-movies` leaves them out. Useful options (after `--` when run through Godot):
 `--install DIR`, `--mission a01`, `--drive [car.vcf]`, `--melee`, `--1997`, `--cockpit`, `--windowed` (Godot's, before the `--`).
 
+
+### Steam Deck
+
+I26 runs on a Steam Deck as the Linux build. What is written here comes from the notes of a Deck test of the same games and
+the checklist for I26's own; whatever has not been run on a Deck with I26 yet says **to be confirmed**.
+
+1. **Install.** Unpack `i26-<version>-linux.zip` in Desktop Mode (for example into `~/i26`) and give it the game as under
+   *Installing and starting* above (a GOG installer next to `i26.x86_64`, or a game folder copied in). In Steam choose
+   *Add a Non-Steam Game* and pick `i26.x86_64`; a game folder somewhere else goes into the launch options as
+   `-- --install /path/to/Interstate76`. `tools/deck/add-to-steam.py` does the same from a terminal (with Steam shut down), makes a plain library tile
+   and offers the controller layout below; see `tools/deck/README.txt`. No Proton: this is the native build (the Windows build under Proton
+   also starts from a non-Steam entry with Proton forced, but is not what is described here).
+2. **Pad.** In Game Mode Steam Input presents the Deck's controls as an Xbox-style pad (the test notes saw it as a virtual
+   Xbox 360 pad). I26's default pad map should apply as written under *Game pads* above (left stick steers, triggers accelerate and brake, A and RB fire, B cycles, ...) and the
+   Controller screen should rebind it; both are to be confirmed on a Deck. The layout in `tools/deck/` keeps the pad as an
+   Xbox pad and adds hardpoints 1 to 5 on the left trackpad as a radial menu, the right trackpad as the menu pointer (press to click),
+   and on the back grips L4 the emergency brake and R4, L5 and R5 Use Special 1, 2 and 3.
+3. **Picture.** The Deck's panel is 1280x800. The game draws 16:9 (the project's 1280x720 base) and the front end keeps the
+   original's 4:3 frame, so some bars are expected; to be confirmed on a Deck.
+4. **Rumble.** The Deck's own controls are wired, so the rate limit that keeps a Bluetooth pad's rumble from stalling the game has little to do there. Whether Steam turns
+   I26's rumble into the Deck's haptics is to be confirmed; Steam's rumble intensity is set in the game's controller settings.
+   Do not switch Steam Input off for the entry, or the pad is not presented to the game.
+5. **Text entry** (a bookmark's name, the multiplayer name): Steam's on-screen keyboard comes up with Steam + X. I26 does not open it by itself (to be confirmed).
+6. **Docked to a TV.** In Game Mode Steam gives a game 1280x800 when docked unless the entry's *Properties > General > Game Resolution* is
+   set to Native or to 1920x1080; with the default the picture is scaled onto a 16:9 TV with bars (observed with the original
+   game under Steam's compositor; to be confirmed with I26). A TV that looks too dark: Graphic Detail's **Monitor Brightness** row. If the picture is
+   wrong or the game does not start, Graphic Detail's **Renderer** row (Vulkan, OpenGL) takes effect at the next start;
+   Vulkan is expected on the Deck (to be confirmed).
