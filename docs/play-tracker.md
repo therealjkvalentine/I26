@@ -2,89 +2,130 @@
 
 The private list behind the `play` branch: every change this fork carries ahead of upstream, what it changes, the evidence
 it rests on, and the order to offer it upstream as pull requests. Lives on `play-meta` (merged into `play`) only; never on
-a topic branch. `tools/play-branches.txt` is the machine-readable merge order; `tools/sync-play.ps1` rebuilds `play`.
+a topic branch. `tools/play-branches.txt` is the machine-readable merge order; `tools/sync-play.ps1` rebuilds `play`
+(incremental by default, `-Rebuild` after upstream moves).
 
-Evidence classes: **original** = measured in the 1997 retail game (emulated Pentium) or read exactly from its own data;
-**kit** = measured on the original executable under the patch kit (a proxy; keys named where they matter); **spec** =
-code read against the project's own notes of the original, not run; **local** = an artefact of the port, checked in the
-port itself; **ux** = the original has no such behaviour to match. PR state: none / open #n / merged / withdrawn.
+Evidence classes: **original** = measured in the 1997 retail game (emulated Pentium 166) or read exactly from its own
+data; **kit** = measured on the original executable under the owner's patch kit (a proxy; its keys named where they
+matter); **spec** = code read against the project's own notes of the original, not run; **local** = an artefact of the
+port, checked in the port itself; **ux** = the original has no such behaviour to match (a feature; behind an option with a
+deviations row). PR state: none / open #n / merged / withdrawn.
 
 Ranking: bugs players reported upstream first; then measured fidelity gaps with original-game evidence; then gaps with
-kit or spec evidence; then features (each behind an option with a deviations row); the simulation clock last, raised as
-an option when the rest has landed. One or two PRs open at a time; the next on the same area waits for a reply.
+kit or spec evidence; then features; the simulation clock last, raised as an option when the rest has landed. One or two
+PRs open at a time; the next on the same area waits for a reply. Branches made by other sessions (the first fourteen,
+in the sibling worktree folder) keep their own commit messages; the rest carry a "Checked:" paragraph.
 
 ## A. Reported upstream
 
 | order | branch | what it changes | evidence | PR |
 |---|---|---|---|---|
-| 1 | fix/wheel-suspension-prime | a placed car's wheels start from the ground under them: no drop and bob at mission start, respawn, melee join (#141) | original: stationary car travel exactly 0 from the first substep in T01/T08/T16; kit n=2 within 2.5 cm; I26 stock dips 8 cm, bounces 16 cm, ~0.7 s | none |
-| 2 | fix/siren-gpw-loop | a police siren loops as its sound file's play mode says; the on-edge is counted when the voice starts (#48, #51) | original data: 26 stock sound files are loop mode; kit event trace: T10's one-shot horn file plays once, so the file's mode is the rule; the ".45 kill plays the siren" half is the original's own behaviour (answer, no fix) | none |
-| 3 | fix/script-camera-cuts | a cut to another placement of the same camera op is a cut, not a blended move (#140) | local: headless t01 1 / t04 6 blended cuts -> 0; live 1997-look capture 3 frames -> 1 | none |
-| 4 | fix/mission-music-wrap | mission music goes 2..14 again after 14 (#128) | original: the exe's own CD requests n=2: 3..14 then 2..14 | none |
-| 5 | fix/smoke-sky-flicker | 1997 damage smoke no longer flickers over the sky in the cockpit; modern clumping on game time | local: 61 frame pairs, sky change 26.3 % -> 0.31 % (= no smoke); owner report (Mac) | none |
-| 6 | fix/macos-entitlements-der | macOS: re-sign with rcodesign; bundle check wants Apple's DER entitlements | original n/a; checked on the Mac: shipped 0.11.0 fails spawn (163), branch launches | open #144 |
-| 7 | fix/macos-mic-prompt-on-first-cb | docs: the microphone permission is asked at start on macOS | local (owner report) | none; upgrade to a code fix (open the input lazily) todo |
-| 8 | todo | #124 six-wheelers' middle pair gets suspension (the sim never steps it) | spec: the original runs the suspension step on the middle pair with transfer 0 | none |
-| 9 | todo | #106 right-click in Control Configuration dead in a session (needs a live repro) | local | none |
-| 10 | todo | #95 smoke seen through terrain; #118 bridge deck underside; #142 audio hiccup after the loading card; #143 first garage load; #116 first-explosion stutter | local; each needs a repro first | none |
+| 1 | fix/wheel-suspension-prime | a placed car's wheels start from the ground under them: no drop and bob at mission start, respawn, melee join (#141) | original: stationary car travel exactly 0 from the first substep in T01/T08/T16; kit n=2 within 2.5 cm | none |
+| 2 | fix/siren-gpw-loop | a police siren loops as its sound file's play mode says (#48, #51) | original data: 26 stock files are loop mode; kit event trace confirms the one-shot case; the ".45 kill plays the siren" half is the original's own behaviour (answer, no fix) | none |
+| 3 | fix/script-camera-cuts | a cut to another placement of the same camera op is a cut, not a blended move (#140) | local: headless t01 1 / t04 6 blended cuts -> 0; live 1997-look capture | none |
+| 4 | fix/script-camera-arrived-flag | camIsArrived is cleared by every placing camera call | spec (no stock effect) | with 3 |
+| 5 | fix/mission-music-wrap | mission music goes 2..14 again after 14 (#128) | original: the exe's own CD requests n=2 | none |
+| 6 | fix/smoke-sky-flicker | 1997 damage smoke no longer flickers over the sky in the cockpit; modern clumping on game time | local: sky change 26.3 % -> 0.31 % over 61 frame pairs (owner report) | none |
+| 7 | fix/macos-entitlements-der | macOS: re-sign with rcodesign; bundle check wants Apple's DER entitlements | checked on a Mac: shipped 0.11.0 fails to spawn, the branch launches | open #144 |
+| 8 | fix/macos-mic-opened-on-first-cb | the microphone is opened at the first CB press on macOS, so the permission prompt comes then (supersedes the docs-only fix/macos-mic-prompt-on-first-cb, not merged) | local (owner report); unverified on a Mac | none |
+| 9 | fix/middle-wheel-suspension | six-wheelers' middle pair gets its own suspension (#124; the tank has no middle pair, its sinking is the body's pose) | spec | none |
+| 10 | fix/predicted-shots-of-jammable-weapon | online, a weapon under 70 % no longer draws shots that are then taken back | local measured: 62 % of such shots were taken back | none |
+| 11 | fix/own-shots-counter-at-respawn | the debug shots counter no longer jumps at a respawn | local | with 10 |
+| 12 | fix/net-ping-low-percentile | the shown ping is the lowest of the recent samples, not the transport's inflated one | local measured: 60 ms link at 10 % loss showed 155-624 ms | none |
+| 13 | fix/escape-menu-right-click-reconfigure | right-click rebinding works in a network game's Esc menu (#106) | local: the fly camera grabbed the press; live repro | none |
+| 14 | fix/first-garage-load-prewarm | the 3D garage is pre-warmed from the idle menu (#143) | local measured: first entry 1.2 s -> 0.25 s | none |
+| 15 | fix/load-card-audio-hiccup | the carried menu music plays through the loading card's pause (#142) | local measured: 0.7 s of silence -> 0 (n=3) | none |
+| 16 | fix/first-explosion-stutter | the first building blast's sprite look is made behind the loading card (#116) | local measured: 122-134 ms -> 21-42 ms | none |
+| 17 | feat/regen-pad-hold-readout | the net HUD shows the regen pad's 30 s hold (#102; the rule is the original's, confirmed in the retail exe) | original (rule) + ux (readout) | none |
+| - | todo | #95 smoke through terrain and #118 bridge underside did not reproduce; #84 hood deform, #133 AMD Vulkan, #99/#105/#112/#123 renderer items untouched | - | - |
 
 ## B. Measured against the original (retail 1.0 on an emulated Pentium 166)
 
 | order | branch | what it changes | evidence | PR |
 |---|---|---|---|---|
-| 11 | fix/taurus-load-cornering | Taurus's car takes load-based cornering as the original sets it at load | kit: t02 race with the player parked 94.8 s; I26 100.5 s; with the flag 95.3 s; AI replay on the kit's world throttle 0.40 -> 0.63 vs 0.65 | none |
-| 12 | fix/difficulty-damage | Difficulty Level reaches the combat: player rounds x2.0 Wimp / x0.75 Badass offline, x1 online | kit: damage per round Champ 25.3, Badass 18.0 (n=2); spec factors 2.0/1.0/0.75; I26 25 at every setting | none |
-| 13 | (lane) fix/ai-turn-speed-at-spawn | the AI's turn speed is computed at spawn (divisor at its default) and on wheel damage, not from the live car | original: 13 AI cars 12.52198 m/s, player 13.71714, zero spread over 2 boots; I26 13.09 / 14.36 | none |
-| 14 | (lane) fix/ai-avoid-scripted-lead-car | T02's opening: the scripted player car no longer backs away from Taurus ahead | original: camera released 13.9-14.0 s after the second frame (2 boots); kit 13.96; I26 20.17 | none |
-| 15 | (lane) fix/fsm-timer-rounds-to-nearest | script timers round the start time to the nearest second | original exe bytes exact; kit 6 runs match rounding, truncation wrong in 5 of 6 | none |
-| 16 | (lane) fix/rocket-catchup-eases-by-frame | a burst's rockets all leave at the frame's eased speed | original: 13 rockets, 2 boots, residual <= 0.003 m/s | none |
-| 17 | (lane) fix/brake-stop-keeps-accel-one-tick | the nose settles the tick after a braking stop, not on it | original: 34 stops, 2 boots: 0.53 +- 0.13 deg the next frame | none |
-| 18 | (lane) fix/mirror-fov-and-far-clip | rear mirror 45 deg across, 100 m far clip (both looks) | original: 43 +- 1.5 deg measured, nothing past ~100 m; static exact | none |
-| 19 | (lane) fix/sky-scroll-counts-mirror-pass | 1997 look: clouds drift twice as fast with the full cockpit mirror | original: 2.000 sky calls a frame with the mirror on, 1.000 off (4 boots) | none |
-| 20 | (lane) fix/engine-loop-pitch-formula | engine loop pitch follows the original's frequency formula | original: formula read exactly from the retail exe; I26 a placeholder about 7 semitones low at idle | none |
-| 21 | (lane) fix/ordnance-live-cap | at most 160 live rounds per kind, 40 online for droppers, oldest evicted | kit (same bytes as retail): cap field 160/40, live plateau 41 online; I26 190 | none |
-| 22 | (lane) fix/ai-avoid-probe-left-track | the avoidance no-go probe reads the left track | spec, a vanilla trace exists | none |
+| 18 | fix/taurus-load-cornering | Taurus's car takes load-based cornering as the original sets it at load | kit: t02 race 94.8 s vs I26 100.5 s, with the flag 95.3 s | none |
+| 19 | fix/difficulty-damage | Difficulty Level reaches the combat: player rounds x2.0 Wimp / x0.75 Badass offline, x1 online | kit: damage per round Champ 25.3, Badass 18.0 (n=2); spec factors | none |
+| 20 | fix/ai-turn-speed-at-spawn | the AI's turn speed is computed at spawn with the default divisor and on wheel damage, not from the live car | original: 13 AI cars 12.52198 m/s, zero spread over 2 boots; I26 13.09 / 14.36 | none |
+| 21 | fix/ai-avoid-scripted-lead-car | the blocked-ahead probe sweeps the car's origin against the other cars' boxes: T02's opening no longer backs away from Taurus | original: camera released 13.9-14.0 s (2 boots); I26 20.17 -> 13.65 s | none |
+| 22 | fix/fsm-timer-rounds-to-nearest | script timers round the start time to the nearest second | original exe bytes exact; kit 6 runs | none |
+| 23 | fix/rocket-catchup-eases-by-frame | a burst's rockets all leave at the frame's eased speed | original: 13 rockets, 2 boots, residual <= 0.003 m/s | none |
+| 24 | fix/brake-stop-keeps-accel-one-tick | the nose settles the tick after a braking stop, not on it | original: 34 stops, 2 boots | none |
+| 25 | fix/mirror-fov-and-far-clip | rear mirror 45 deg across, 100 m far clip (both looks) | original: 43 +- 1.5 deg measured, nothing past ~100 m; static exact | none |
+| 26 | fix/sky-scroll-counts-mirror-pass | 1997 look: clouds drift twice as fast with the full cockpit mirror | original: 2.000 sky calls a frame with the mirror on, 1.000 off (4 boots) | none |
+| 27 | fix/engine-loop-pitch-formula | engine loop pitch follows the original's frequency formula | original: formula read exactly from the retail exe; I26 a placeholder ~7 semitones low at idle | none |
+| 28 | fix/ordnance-live-cap | at most 160 live rounds per kind, 40 online for droppers, oldest evicted | kit (same bytes as retail): cap fields, live plateau 41 online | none |
+| 29 | fix/ai-avoid-probe-left-track | the avoidance no-go probe reads the left track | spec; a vanilla trace exists | none |
 
 ## C. Kit or spec evidence (code read against the original's rules)
 
 | order | branch | what it changes | evidence | PR |
 |---|---|---|---|---|
-| 23 | fix/1997-tracers | 1997 look: MG tracers a one-pixel line over the front 65 % of the step, cannon the whole step, no cap | kit: same-pose pairs match the branch's look | none |
-| 24 | fix/modern-target-health-bar | modern look: the target bar has the original's 30 x sqrt(hp) geometry | spec | none |
-| 25 | fix/bookmark-cancel-returns | Save Bookmark's Cancel returns to the screen that opened it | ux (the original's flow is not recorded) | none |
-| 26 | (lane) fix/map-voice-line-on-sfx-bus | the map's line follows the SFX slider | kit event trace n=3 | none |
-| 27 | (lane) fix/radar-sweep-and-pings | 30-frame sweep, LED/growl to 600 m, ping per sweep | exe bytes / spec | none |
-| 28 | (lane) fix/1997-road-light-no-depth-fade | 1997 roads lit without the depth fade | spec | none |
-| 29 | (lane) weapon fire loop: fix/round-start-offset-only-with-spread, fix/trigger-repress-click, fix/unlimited-ammo-ai-keeps-firing, fix/burst-rearm-after-batched-shot | details of the fire timer and round spawn | code vs the original's code | none |
-| 30 | (lane) damage and ordnance rules: fix/ai-ezk-mortar-fires, fix/rounds-hit-signs-and-posts, fix/ai-sight-line-and-structures, fix/explosion-template-by-key, fix/hplesser-structure-part-pool, fix/splash-damage-no-isshot, fix/turret-slew-online-and-elevation, fix/zero-length-hit-zone, fix/rough-terrain-damage-surface | | spec | none |
-| 31 | (lane) sound: fix/cb-queue-with-voice-off, fix/gpw-volume-field, fix/silent-dropper-hit-sounds, fix/sound-cull-from-player-car, fix/sfx-voice-slider-curve | | spec; eimarx measured | none |
-| 32 | (lane) fix/ai-back-away-terrain-height, fix/dash-mirror-slot-position, fix/overview-zoom-per-tick, fix/hood-view-shows-own-car, fix/script-camera-arrived-flag, fix/brake-lamp-hold-row, fix/1997-road-texture-sampling | | spec / kit pairs | none |
-| 33 | todo | physics and collision: ramp rails drive-on, sphere-part colliders, AI predictor clearance, blown-tyre pull gate, fatal landing ends the substep, breakables per part, network helicopter lift, contact order statics last, class 8/9 placements grounded | spec | none |
-| 34 | todo | AI droppers and mortar: the target predictor's +0.09 s and arc; AI mortar release | spec | none |
-| 35 | todo | missions and trip: cheats marker on trip wins, default car without a shell car, salvage specials amount, setUserRadar, start_engine pulse; small audit items (isShot two frames, teleport terrain y, tactic_skid modulus) | spec | none |
-| 36 | todo | network: own shots of a jammable weapon not drawn ahead (MP-B1), ping shown as a low percentile (MP-B2), the shots counter at respawn (MP-B3), end-of-match brake (MP-F2), remote health in three steps (MP-F3, deviations line), co-op bonus (deviations line) | local measured / spec | none |
+| 30 | fix/1997-tracers | 1997 look: MG tracers a one-pixel line over the front 65 % of the step, cannon the whole step, no cap | kit: same-pose pairs match | none |
+| 31 | fix/modern-target-health-bar | modern look: the target bar has the original's 30 x sqrt(hp) geometry | spec | none |
+| 32 | fix/bookmark-cancel-returns | Save Bookmark's Cancel returns to the screen that opened it | ux (the original's flow is not recorded) | none |
+| 33 | fix/map-voice-line-on-sfx-bus | the map's line follows the SFX slider | kit event trace n=3 | none |
+| 34 | fix/radar-sweep-and-pings | 30-frame sweep, LED/growl to 600 m, ping per sweep | exe bytes / spec | none |
+| 35-36 | fix/1997-road-light-no-depth-fade, fix/1997-road-texture-sampling | 1997 roads lit without the depth fade; bilinear without mips | spec; kit pairs | none |
+| 37 | fix/dash-mirror-slot-position | the 2D dash mirror in the original's slot, cropped | kit pairs | none |
+| 38 | fix/overview-zoom-per-tick | F10 zoom steps per tick | spec | none |
+| 39 | fix/hood-view-shows-own-car | F6 hides the player's own car as the original does | spec | none |
+| 40 | fix/brake-lamp-hold-row | the 150 ms brake-lamp hold is modern-look only; row amended | spec | none |
+| 41-44 | fix/round-start-offset-only-with-spread, fix/trigger-repress-click, fix/unlimited-ammo-ai-keeps-firing, fix/burst-rearm-after-batched-shot (test only) | fire-timer and round-spawn details | code vs the original's code | none |
+| 45 | fix/ai-ezk-mortar-fires | the EZK mortar gets its AI fire gate | spec | none |
+| 46 | fix/rounds-hit-signs-and-posts | rounds stop at signs and posts; a direct explosive knocks them off | spec | none |
+| 47 | fix/ai-sight-line-and-structures | the AI's line of fire runs centre to centre at +1.5 m and through structures | spec | none |
+| 48-51 | fix/splash-damage-no-isshot, fix/turret-slew-online-and-elevation, fix/zero-length-hit-zone, fix/rough-terrain-damage-surface | damage and turret details | spec | none |
+| 52-56 | fix/cb-queue-with-voice-off, fix/gpw-volume-field, fix/silent-dropper-hit-sounds, fix/sound-cull-from-player-car, fix/sfx-voice-slider-curve | sound rules | spec; eimarx measured | none |
+| 57-58 | fix/ai-back-away-terrain-height, fix/ai-avoid-chooser-order | back_away reads the terrain; the chooser's order and fallbacks | spec | none |
+| 59-61 | fix/ai-target-predictor-arc, fix/ai-dropper-and-mortar-gates (stacked), fix/ezk-mortar-uses-predictor (stacked) | the target predictor's rows, gear term and +0.09 s; droppers and mortars use it | spec (the right-turn case is the original's own) | none |
+| 62-63 | fix/ai-attacker-slot-cap-zero, fix/ai-friendly-fire-scan | slot and friendly-fire details | spec | none |
+| 64-65 | fix/explosion-template-by-key, fix/heated-seats-ammo | first registration of an effect key wins; Heated Seats x1.1 ammo | spec (T05 pump 85 m, S07 stations 25 m) | none |
+| 66 | fix/death-camera-orbit-rate | death and end-of-match orbit 8 deg per tick | spec (end orbit); death by analogy | none |
+| 67-77 | fix/contact-order-statics-last, fix/emplacement-placements-grounded, fix/ramp-rails-not-drive-on, fix/sphere-part-colliders, fix/modern-physics-sphere-parts (stacked), fix/breakables-per-part-spheres, fix/ai-predictor-clearance, fix/blown-tyre-pull-scripted-drive, fix/fatal-landing-ends-substep, fix/network-heli-lift-at-init | physics and collision rules | spec (T11 gun -1.97 m measured on the install) | none |
+| 78-86 | fix/trip-cheat-marker, fix/mission-default-car, fix/salvage-specials-amount, fix/set-user-radar, fix/start-engine-pulse (test only), fix/is-shot-two-frames, fix/teleport-path-node-terrain-y, fix/tactic-skid-modulus, fix/movie-skip-deviation-row | mission, trip and script rules | spec | none |
+| 87-88 | fix/end-of-match-brake, fix/network-deviation-rows | the winner's 10 s brake; two deviation rows | spec (exe read) | none |
 
 ## D. Features (each off by default behind an option, with a deviations row)
 
-| order | branch | what it changes | evidence | PR |
-|---|---|---|---|---|
-| 37 | (lane) feat/head-tracking-opentrack | head look from opentrack's UDP output; glance overrides; 150 ms ease-back | ux | none |
-| 38 | (lane) feat/original-save-reader, feat/import-original-saves-ui | import the original game's saves as bookmarks and a trip car | original data (byte-exact format) | none |
-| 39 | todo | wheel force feedback on Windows (DirectInput sink for the original's effects; strength and pavement scale) | ux | none |
-| 40 | todo | pad rumble: enhanced events and strength | ux | none |
-| 41 | todo | multiplayer additive: sticky scoreboard with kick (#107), ban list (#117), return to the server picker (#122), host rule "ignition stays on" (#108), co-op scaling / damage factor / joiner matches speed, bot skill from Difficulty | ux / requests | none |
-| 42 | todo | options: field of view row, resolution row (#81), render scale and 8x MSAA, update check off by default (#138), matte hood, modern tracers, original cursors | ux / requests | none |
-| 43 | todo | a bookmark for every mission; German voices overlay; extra music shuffle; telemetry UDP out; input record/replay; --skip-cutscenes / --mute; key sheet; Deck layout | ux | none |
-| 44 | feat/dev-menu | a Developer panel off for players (--dev, I76_DEV=1): teleport, repair, God mode, store/restore, step | ux | none |
+| order | branch | what it changes | PR |
+|---|---|---|---|
+| 89 | feat/head-tracking-opentrack | head look from opentrack's UDP output; glance overrides; 150 ms ease-back | none |
+| 90-91 | feat/original-save-reader, feat/import-original-saves-ui (stacked) | import the original game's saves as bookmarks and a trip car (18 real saves checked) | none |
+| 92 | feat/bookmark-per-mission | "All Scenes": a bookmark per mission with its stock car | none |
+| 93 | feat/wheel-force-feedback-windows | the original's effects on a DirectInput wheel or stick (untested on hardware) | none |
+| 94 | feat/rumble-strength-and-events | Rumble Original / Enhanced / Off and a strength | none |
+| 95-98 | feat/net-scoreboard-sticky-with-kick, feat/net-ban-list, feat/net-return-to-server-list, feat/host-rule-ignition-stays-on (protocol 22) | #107, #117, #122, #108 | none |
+| 99-102 | feat/coop-enemy-scaling, feat/coop-damage-factor, feat/coop-joiner-matches-speed, feat/bot-skill-from-difficulty | co-op host options; melee AI from Difficulty | none |
+| 103-108 | feat/field-of-view-row, feat/resolution-row (#81), feat/update-check (#138), feat/hood-matte-option, fix/modern-mg-tracers-look, feat/render-scale-row | Graphic Detail rows and the modern tracer look | none |
+| 109-110 | fix/1997-look-draw-distance-default, feat/ghost-cockpit-toggle | Original clip under the 1997 look on a fresh install; the `]` ghost cockpit | none |
+| 111-113 | feat/skip-cutscenes-and-mute-switches, feat/voices-overlay-folder, feat/extra-music-folder | unattended switches; a voice overlay folder; the player's own music | none |
+| 114 | feat/steam-deck-support | playing.md section, a Steam Input layout, add-to-steam script | none |
+| 115-119 | feat/pad-shift-layer, feat/tap-or-hold-binding, feat/look-back-context-bindings, feat/device-presets-by-name, feat/second-device-together | pad shift layer; tap/hold; look-back context; wheel and stick presets; two devices | none |
+| 120-122 | feat/input-record-and-replay, feat/telemetry-udp-out, feat/controls-key-sheet | tick-exact input replay; telemetry packets (own, OutSim, OutGauge); a printable key sheet | none |
+| 123 | feat/dev-menu | a Developer panel off for players | none |
 
 ## E. Last: the clock
 
 | order | branch | what it changes | evidence | PR |
 |---|---|---|---|---|
-| 45 | feat/sim-rate-24 | Simulation Rate offers 24 Hz (85/2048 s), the original's step under a 20 fps cap on Windows NT | kit / Windows capture: frames 46.9 / 2 x 31.25 ms, about 24 steps/s; the bounce tempo gap 28 vs 24 substeps/s | none (raise as an option, obliquely, after the rest) |
+| 124 | feat/sim-rate-24 | Simulation Rate offers 24 Hz (85/2048 s), the original's step under a 20 fps cap on Windows NT | kit / Windows capture: about 24 steps/s; the bounce tempo gap 28 vs 24 substeps/s | none (an option, raised last) |
 
-## Withdrawn (not offered)
+## Withdrawn or answered (not offered as fixes)
 
-- "I26 turns 3-5 % more": a harness artefact (the brake phase's throttle left on); in lockstep at 1/24 s I26 matches the kit to 0.1 %.
-- "AI flees later on the kit because of a kit fix": at engine 20 % both settings flee alike; the real gap is the turn speed (row 13).
-- #114 tanker, #113 bus texture, #85 cockpit shadow, #101 pad surface, #102 regen hold, #72/#121 helicopter reverse spin, #111 far creepers: the original's own behaviour (answer with the spec; an option only if asked).
+- "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
+- "AI flees later on the kit because of a kit fix": at engine 20 % both settings flee alike; the real gap was the turn speed.
+- #114 tanker, #113 bus texture, #85 cockpit shadow, #101 pad surface (confirmed in the retail game), #102 regen hold (confirmed), #72/#121 helicopter reverse spin, #111 far creepers, #137 placements: the original's own behaviour; answer with the spec.
+- Chase camera pitch (visual pair V5), hpLesser on a building, the jammer sound, the night LOBJ lights, the heli-dies-on-contact row: the spec does not settle them yet.
+
+## Integration notes (play only)
+
+- Snapshot format: the topics bump CurrentVersion from 15 each (turn speed, user radar, teleport ground, the three co-op
+  options, the ignition rule); on `play` it is 20 with every addition saved; WireTests pins 20 and protocol 22.
+- Hand fixes made on `play` outside conflict hunks (redo after a `-Rebuild`): one Load Bookmark `Build` for the import and
+  All Scenes buttons, both using the renamed `Direct` flag; the Rough(v, surface, dt) stub in FatalLandingTests;
+  `ForceFeedback.PadStrength`; `CheatMarker.Mark()` for the dev menu; Graphic Detail rows renumbered 17-20; co-op host
+  hot ids 40-42; the AiSightLine test's cars on another team.
+- Known test moves documented by their branches: T01 diner dice and T01Follow (timer rounding, brake stop), T14 checkpoint
+  re-seeded (turn speed, friendly-fire scan), T06 creepers wait rule (T02 probe). Pre-existing Windows failures: the
+  snapshot corpus stack overflow in the test host, symlink and path tests, network flakes under load.
+- Test status after integration: see the last sync's report in the commit message of the latest "Integration" commit.
