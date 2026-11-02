@@ -67,7 +67,13 @@ public partial class Cockpit : Node
         if (Resolver.FindByStem("zradmask") is { } mm && Resolver.Load(mm) is { } mt && mt.Width == 256) _radarClear = I76.Sim.Weapons.RadarScope.WeaponCameraClear(mt.Indices);
         _rng = new System.Random();
         SetupMirror();
+        Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
     }
+
+    public override void _ExitTree() => Controls.LookingBack = null;
+
+    /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
+    public bool LookingBack => Active && (_state >= 6 || _pose == FreeLook.Pose.Rear);
 
     private (string? Member, ImageTexture?[] Tex) Frames(string pattern, int n)
     {

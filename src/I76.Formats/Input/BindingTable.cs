@@ -22,7 +22,10 @@ public sealed class BindingTable
         return t;
     }
 
-    public BindingTable Clone() => FromBlocks(Blocks);
+    public BindingTable Clone() { var t = FromBlocks(Blocks); t.Rules = Rules.Clone(); return t; }
+
+    /// <summary>The port's bindings beside the file's blocks, which input.map cannot hold (<see cref="PadRules"/>).</summary>
+    public PadRules Rules { get; set; } = new();
 
     private void Add(InputBlock b)
     {
@@ -193,6 +196,7 @@ public sealed class BindingTable
         }
         var axis = command.ToLowerInvariant() switch { "throttle_up" or "throttle_down" => "throttle", "steer_left" or "steer_right" => "steer", _ => null };
         if (pad && axis is not null && AxisOf(axis) is not null) Clear(axis);
+        if (pad) Rules.RemoveInput(want);
         Set(command, [.. Of(command).Where(b => IsPad(b) != pad), NewBlock(command, device, channel)]);
     }
 
@@ -202,6 +206,7 @@ public sealed class BindingTable
     /// <summary>A pad input (a button, a hat direction or an axis, on any pad) off every command that has it.</summary>
     public void ClearInput(string channel)
     {
+        Rules.RemoveInput(new InputTerm(true, "joystick1", channel));
         string want = Norm(new InputTerm(true, "joystick1", channel));
         foreach (var c in _order.ToList())
             if (_by[c].Any(b => IsPad(b) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))
@@ -216,6 +221,7 @@ public sealed class BindingTable
     {
         foreach (var c in _order.Concat(defaults._order).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
             Set(c, [.. Of(c).Where(b => IsPad(b) != pad), .. defaults.Of(c).Where(b => IsPad(b) == pad)]);
+        if (pad) Rules = defaults.Rules.Clone();
     }
 
     /// <summary>
@@ -262,7 +268,7 @@ public sealed class BindingTable
     /// <summary>As above, the defaults built (from disk, perhaps) only when there is no pad block to keep.</summary>
     public bool AddPadSideIfNone(Func<BindingTable> defaults)
     {
-        if (Blocks.Any(IsPad)) return false;
+        if (Blocks.Any(IsPad) || !Rules.IsEmpty) return false;
         ResetSide(defaults(), true);
         return true;
     }

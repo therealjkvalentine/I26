@@ -63,6 +63,28 @@ physical 12+.
 An SDL mapping is not needed and is not added; a user who wants a stick treated as a standard gamepad can still give Godot one with
 `SDL_GAMECONTROLLERCONFIG`, and then it is a game pad here.
 
+## Bindings beyond input.map
+
+input.map gives an input (or a chord) one command, and the original's file has no form for anything else. The port's further bindings
+(`PadRules`, `src/I76.Formats/Input/PadRules.cs`) are kept beside it in `user://input.rules`, so the original still reads input.map as it
+was: one rule a line, its kind first, `#` a comment; a line of a kind the version does not know is kept as it is. They travel with the
+bindings (Control Configuration's Done writes both, Cancel drops both, Restore pad defaults takes the preset's), and an input has one
+binding: a rule that takes a button loses it when the button is given a command or cleared, and takes the button's input.map blocks off.
+Each frame (`Controls`, as the pads are read) the rules see the sticks, the time and whether the head looks back, and say which commands
+they hold, which they press once, which commands stand for others and which inputs they take over for the frame; a press arrives as an
+action event through Godot's input (`i26_rule:<command>`), so every reader of a command's press (the car's commands, the map, the views)
+takes it as a key's, and a held command is asked as the bindings' are.
+
+**Look back** (context bindings, after the rules of a pad layout players used over the original; off by default). The head looks back when
+the rear glance is held or the look stick is pushed round to the rear (`Cockpit.LookingBack`, in the car only). `lookback weapon_fire
+hardpoint3_fire`: while looking back every input of fire (a key, A, RB) fires hardpoint 3, the rear gun on most cars, and not the selected
+weapon. `lookbackinput joystick1 Button10 hardpoint4_fire`: while looking back R3, the look stick's click, drops hardpoint 4 (the dropper)
+instead of its own command, and keeps its command otherwise. `pulledback joystick1 Down/Up e_brake reverse_direction`: with the left stick
+pulled back past half its travel the handbrake's press toggles reverse instead (a three-point turn without letting go of the stick); the
+choice is made at the press. On the Controller screen the look stick's list has *Look back: rear gun on/off* (the first two together) and
+the left stick's Y *Back + e-brake reverse on/off*; their rows say so. The remapper's L3-as-nitrous half of the last rule has no I26
+command to map onto and is left out. Tests: `tests/I76.Formats.Tests/LookBackRulesTests.cs`.
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that

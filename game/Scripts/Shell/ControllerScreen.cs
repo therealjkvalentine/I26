@@ -240,6 +240,9 @@ public sealed class ControllerScreen : OverlayScreen
     private static readonly int[] Entries = [.. ControlsScreen.LeftRows, .. ControlsScreen.RightRows];
     private static string NameOf(int entry) => ControlsScreen.Names[Array.IndexOf(Entries, entry)].Text;
 
+    private bool LookBackOn => PadRules.LookBackPair().All(_map.Rules.Has);
+    private bool StickBackOn => _map.Rules.Has(PadRules.StickBackReverse());
+
     /// <summary>What an axis can do: the throttle, the steer, or the camera (the chase camera's track rows; the free look in the car).</summary>
     private static readonly string[] AxisItems = ["Accelerate / Brake", "Steer", "Camera / Look"];
     private static bool IsY(string channel) => channel.Equals("Down/Up", StringComparison.OrdinalIgnoreCase) || channel.Equals("5thAxis", StringComparison.OrdinalIgnoreCase);
@@ -247,6 +250,9 @@ public sealed class ControllerScreen : OverlayScreen
     private string[] Describe(El e)
     {
         var lines = new List<string>();
+        // the look-back rules (PadRules): on the look stick and the left stick's Y, where they are switched
+        if (e.Key == "RSX" && LookBackOn) lines.Add("Back: rear gun, dropper");
+        if (e.Key == "LSY" && StickBackOn) lines.Add("Back + e-brake: reverse");
         if (e.Axis)
         {
             foreach (var row in AxisControls.Rows)
@@ -263,6 +269,7 @@ public sealed class ControllerScreen : OverlayScreen
             foreach (var b in _map.Of(cmd))
                 if (BindingTable.IsPad(b) && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == VirtualStick.DiscreteId(e.Channel)) { lines.Add(NameOf(entry)); break; }
         }
+        if (e.Key == "R3" && LookBackOn) lines.Add("(back: dropper)");
         return [.. lines.Distinct()];
     }
 
@@ -512,6 +519,10 @@ public sealed class ControllerScreen : OverlayScreen
         var items = new List<string> { "(none)" };
         if (e.Axis) items.AddRange(AxisItems);
         else foreach (var n in Entries) items.Add(NameOf(n));
+        // the look-back rules, switched from the stick they are keyed on
+        string? rule = e.Key is "RSX" or "RSY" ? (LookBackOn ? "Look back: rear gun off" : "Look back: rear gun on")
+            : e.Key == "LSY" ? (StickBackOn ? "Back + e-brake reverse off" : "Back + e-brake reverse on") : null;
+        if (rule is not null) items.Add(rule);
         var s = Shell.Db.Bank(0x24)[16];
         int w = s?.Width ?? 172, h = s?.Height ?? 235;
         Shell.Modal(new ListPopup
@@ -523,7 +534,8 @@ public sealed class ControllerScreen : OverlayScreen
             {
                 _menu.Settle();      // the A that picked (or the B that cancelled) does nothing here when the list closes
                 ShowPad = true;
-                if (i == 0) _map.ClearInput(e.Channel);
+                if (rule is not null && i == items.Count - 1) { if (e.Key == "LSY") _map.Rules.Toggle(PadRules.StickBackReverse()); else _map.Rules.Toggle(PadRules.LookBackPair()); }
+                else if (i == 0) _map.ClearInput(e.Channel);
                 else if (i > 0 && e.Axis) _map.AssignAxis(i switch { 1 => "throttle", 2 => "steer", _ => IsY(e.Channel) ? "track_pitch_delta" : "track_yaw_delta" }, "joystick1", e.Channel);
                 else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);
                 Redraw();
