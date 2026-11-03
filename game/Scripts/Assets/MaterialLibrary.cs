@@ -50,6 +50,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
         if (ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit) is not ShaderMaterial first)
             return _cache[key] = ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit);
         var mat = (ShaderMaterial)first.Duplicate();
+        // the frames' keys differ: frame 0's smooth outline is not theirs
+        mat.SetShaderParameter("smooth_key", false);
         var tex = frames.Select(f => textures.Get(f)?.Texture).OfType<Texture2D>().ToArray();
         if (tex.Length == frames.Length) _animated.Add((mat, tex, fps, mat.GetShaderParameter("albedo_cockpit").VariantType != Variant.Type.Nil));
         return _cache[key] = mat;
@@ -76,6 +78,26 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>Decodes a pack's upscales of these texture members together, ahead of their materials (TextureFactory.Prefetch).</summary>
     public void Prefetch(IEnumerable<string> members) => textures.Prefetch(members);
 
+    /// <summary>Makes the smooth outlines of these cut-out faces' textures together on worker threads (TextureFactory.PrefetchKeyEdges); the modern look only.</summary>
+    public void PrefetchKeyEdges(IEnumerable<string> members)
+    {
+        if (!Mode1997) textures.PrefetchKeyEdges(members);
+    }
+
+    /// <summary>
+    /// The modern look's smooth cut-out edges: a keyed material's outline from its texture's smooth outline (TextureFactory.KeyEdge,
+    /// KeyEdge in I76.Formats) rather than its texels' alpha; given when the material is made in the modern look, or when the
+    /// look turns modern. The 1997 look's shaders key the texels as the original did.
+    /// </summary>
+    private readonly List<(ShaderMaterial Mat, string Member)> _smoothKeyPending = [];
+
+    private void SmoothKey(ShaderMaterial mat, string member)
+    {
+        if (textures.KeyEdge(member) is not { } edge) return;
+        mat.SetShaderParameter("key_edge", edge);
+        mat.SetShaderParameter("smooth_key", true);
+    }
+
     private int _strips;
 
     /// <summary>
@@ -86,6 +108,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
     {
         if (shared is not ShaderMaterial s) return null;
         var copy = (ShaderMaterial)s.Duplicate();
+        // a strip's frames have their own keys: frame 0's smooth outline is not theirs
+        copy.SetShaderParameter("smooth_key", false);
         _cache[$"strip|{_strips++}"] = copy;
         return copy;
     }
@@ -123,6 +147,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
     {
         Mode1997 = on;
         textures.SetMode1997(on);
+        if (!on)
+        {
+            foreach (var (mat, member) in _smoothKeyPending) SmoothKey(mat, member);
+            _smoothKeyPending.Clear();
+        }
         foreach (var m in _cache.Values.OfType<ShaderMaterial>())
             m.Shader = _oneSided1997.TryGetValue(m, out var pair) ? (on ? pair.Faithful : pair.Modern) : Swap(m.Shader, on);
     }
@@ -167,6 +196,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
             mat.SetShaderParameter("alpha_key", keyed);
             // a wheel's face (WA<dd><ll><dd>): a disc filling its square, in the modern look edged by a true circle
             mat.SetShaderParameter("round_key", keyed && IsWheelFace(member));
+            if (keyed && !IsWheelFace(member) && modern == Both)
+            {
+                if (Mode1997) _smoothKeyPending.Add((mat, member));
+                else SmoothKey(mat, member);
+            }
         }
         else mat.SetShaderParameter("albedo_color", Colors.Magenta);
         if (unlit) mat.SetShaderParameter("unlit_1997", true);

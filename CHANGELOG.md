@@ -5,6 +5,7 @@
 Network games use protocol 26: this version does not play with 0.11.0 or earlier.
 
 ### New
+- In the modern look cut-out textures have smooth edges instead of the pixel staircase: road signs, fences, gates, plants and the cockpit's keyed art (the rear-view mirror and the compass too) are traced as straight lines and even curves with their corners kept; the 1997 look keeps the original's pixels.
 - A Show FPS switch (shell.cfg `[port]` `dev_fps`, also in the Developer panel's Settings) puts the frame rate over the game in the top left corner (`FPS 64`, the average over the last second).
 - The network forms show which build each game is on: the host form shows your own build id, the server list the host's, and when a game, or a player joining yours, is on a different build, a one-line notice says so to everyone ("Skeeter is on a different build (abc1234; the host def5678) - update to play together"); the join still goes ahead when the network protocol matches.
 - A new file in the user folder, build-rules.cfg, picks between the original's builds where they play differently: `turret_slew` and `ai_tactics` follow the 1998 build GOG sells by default, and `1997` gives the March 1997 CD release's slower turrets and its AI that always fights as a gunner from off road; each key's comment says what each build does and how that was measured.

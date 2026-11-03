@@ -188,6 +188,55 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         return new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
     }
 
+    private readonly Dictionary<string, byte[]?> _edgeField = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ImageTexture?> _edges = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The smooth outline's texels per original pixel: four for the cockpit's art (drawn large), two for the rest.</summary>
+    public static int KeyEdgeScale(string member)
+    {
+        string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
+        return stem.StartsWith('z') || stem.StartsWith('Z') ? 4 : 2;
+    }
+
+    /// <summary>
+    /// The modern look's smooth outline of a keyed texture (KeyEdge: the original's key as curves, staircases straightened and
+    /// corners kept) as a signed distance field, R8 at KeyEdgeScale texels a pixel with its mipmaps, 128 on the edge; null for
+    /// a texture with nothing keyed. From the original's key whatever is served: a pack carries the original's key.
+    /// </summary>
+    public ImageTexture? KeyEdge(string member)
+    {
+        if (_edges.TryGetValue(member, out var t)) return t;
+        PrefetchKeyEdges([member]);
+        t = null;
+        if (_edgeField[member] is { } f && Original(member) is { } o)
+        {
+            int s = KeyEdgeScale(member);
+            var img = Image.CreateFromData(o.Width * s, o.Height * s, false, Image.Format.R8, f);
+            img.GenerateMipmaps();
+            t = ImageTexture.CreateFromImage(img);
+        }
+        _edgeField.Remove(member);
+        return _edges[member] = t;
+    }
+
+    /// <summary>Makes the smooth outlines of the keyed members not made yet on worker threads (each a few ms; nothing touches the renderer).</summary>
+    public void PrefetchKeyEdges(IEnumerable<string> members)
+    {
+        var todo = new List<(string Member, bool[] Mask, int W, int H)>();
+        foreach (var m in members.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (_edges.ContainsKey(m) || _edgeField.ContainsKey(m)) continue;
+            if (Original(m) is not { } o) { _edgeField[m] = null; continue; }
+            var mask = I76.Formats.Imaging.KeyEdge.Opaque(o.Rgba, o.Width, o.Height);
+            if (System.Array.IndexOf(mask, false) < 0) { _edgeField[m] = null; continue; }
+            todo.Add((m, mask, o.Width, o.Height));
+        }
+        if (todo.Count == 0) return;
+        var made = new byte[todo.Count][];
+        System.Threading.Tasks.Parallel.For(0, todo.Count, i => made[i] = I76.Formats.Imaging.KeyEdge.Field(todo[i].Mask, todo[i].W, todo[i].H, KeyEdgeScale(todo[i].Member)));
+        for (int i = 0; i < todo.Count; i++) _edgeField[todo[i].Member] = made[i];
+    }
+
     /// <summary>The look's pictures on the textures made so far: the originals in the 1997 look, the modern look's per the HD Textures row.</summary>
     public void SetMode1997(bool on) => SetHd(!on && HdTextures.Enabled);
 

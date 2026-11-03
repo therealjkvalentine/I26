@@ -478,7 +478,7 @@ public partial class Cockpit : Node
 
     /// <summary>
     /// The modern look's smooth compass outline (MirrorEdge.KeyField, KeyFill): the art keys everything round its housing, a
-    /// staircase a few screen pixels a step along the diagonal shoulders. The field from the original art, the fill from the
+    /// staircase a few screen pixels a step along the diagonal shoulders; its keyed texels inside the outline take the housing's colours. The field from the original art, the fill from the
     /// art served (the originals or a pack's upscale); the 3D compass's materials (object.gdshaderinc) and the 2D dash's slot
     /// (ExtInstruments) cut along it. The 1997 look's shaders key the art's own pixels.
     /// </summary>
@@ -502,6 +502,7 @@ public partial class Cockpit : Node
         {
             m.SetShaderParameter("key_edge", _compassEdge);
             m.SetShaderParameter("key_edge_fill", _compassFill);
+            m.SetShaderParameter("smooth_key_fill", true);
             m.SetShaderParameter("smooth_key", true);
         }
     }

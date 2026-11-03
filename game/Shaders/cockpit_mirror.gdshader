@@ -4,7 +4,7 @@
 // as the original shows it. The view is mirrored left-right,
 // and turned to the art's bottom-up row order. Pre-lit like the rest of the
 // cockpit: no light reaches it. The modern look cuts the frame's outline and the glass smooth (MirrorEdge: edge holds
-// the blurred masks, fill the art with its frame colours spread), blended over what is behind; the 1997 look keys the
+// the masks' smooth outlines as distance fields, fill the art with its frame colours spread), blended over what is behind; the 1997 look keys the
 // art's own pixels.
 shader_type spatial;
 render_mode unshaded, cull_back, depth_draw_always;
