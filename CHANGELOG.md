@@ -144,6 +144,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Look-back bindings for a pad (Controller screen, off until switched on): looking back in the cockpit, fire shoots the rear gun (hardpoint 3) and R3 drops the dropper (hardpoint 4); and with the left stick pulled back, the handbrake button toggles reverse.
 - A Thrustmaster T300RS wheel and a CH Fighterstick are recognised and get their own layouts out of the box (named on the Joystick Configuration screen, then rebindable as usual); with the stick beside a wheel it is the gearbox (back the handbrake, forward reverse, sideways the gears). Any stick axis can now give a command when pushed past half its travel (Joystick Configuration, an axis's list).
 - A wheel and a flight stick can be set up together: Joystick Configuration steps between them (Tab, or the device row) and binds each on its own, so the wheel's button and the stick's trigger can both fire.
+- For bug reports and comparisons: `I76_INPUT_RECORD=file` records a mission's driving tick by tick and `I76_INPUT=file` plays it back exactly, on the same seed and tick rate, saying where the replay first differs; `I76_MOTION_CSV=file` writes the car's motion a tick at a time. The headless `i76 run` does both with `--record`, `--replay` and `--motion`.
 
 ## 0.11.0 (31 October 2026)
 

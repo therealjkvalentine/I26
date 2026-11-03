@@ -847,6 +847,14 @@ public partial class Main : Node3D
         else Back();
     }
 
+    /// <summary>An input recording (I76_INPUT), or null with the reason printed when it cannot be read.</summary>
+    private static I76.Sim.Session.InputTrace? LoadReplay(string path)
+    {
+        try { using var r = System.IO.File.OpenText(path); return I76.Sim.Session.InputTrace.Read(r); }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.FormatException or System.UnauthorizedAccessException)
+        { GD.PrintErr($"input replay {path}: not read: {ex.Message}"); return null; }
+    }
+
     /// <summary>
     /// The mission made drivable (MissionSetup): every placed car simulated,
     /// the player's at its placement (or the requested car), and the mission
@@ -867,9 +875,11 @@ public partial class Main : Node3D
             AssetVfs.Addon[swap[0]] = System.Text.Encoding.Latin1.GetBytes(text);
         }
         var w = _builder!.World!;
+        // I76_INPUT=file: a recorded run replayed from the mission's start, on its seed and rate (not a checkpoint's retry)
+        var replay = _retry is null && System.Environment.GetEnvironmentVariable("I76_INPUT") is { Length: > 0 } replayPath ? LoadReplay(replayPath) : null;
         // srand(time(NULL)) at each mission's start, as the original (RandSeed); --seed N or [port] seed fixes it
-        uint randSeed = I76.Sim.Rng.RandSeed.Pick(_opt.FixedSeed);
-        GD.Print($"mission {_opt.Mission}: rand seed {randSeed}{(_opt.FixedSeed is null ? " (clock)" : "")}");
+        uint randSeed = replay?.Seed ?? I76.Sim.Rng.RandSeed.Pick(_opt.FixedSeed);
+        GD.Print($"mission {_opt.Mission}: rand seed {randSeed}{(replay is not null ? " (the input replay's)" : _opt.FixedSeed is null ? " (clock)" : "")}");
         System.Collections.Generic.List<string>? roster = _launch is { Kind: I76.Game.Shell.GameKind.AutoMelee } ml ? ml.Opponents.Select(o => o.Car).ToList()
             // I76_MELEE_OPPONENTS=a.vcf,b.vcf: --melee with those opponents, for captures of a fight
             : _opt.Melee ? [.. (System.Environment.GetEnvironmentVariable("I76_MELEE_OPPONENTS") ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries)] : null;
@@ -881,7 +891,8 @@ public partial class Main : Node3D
         var world = setup.World;
         var session = new I76.Sim.Session.SimSession(setup, I76.Sim.Session.SessionOptions.SinglePlayer,
             // the setting applies from this mission start; a checkpoint's retry runs at the checkpoint's rate
-            _retry is { } retryOf ? I76.Sim.Save.SnapshotHeader.Read(retryOf.Snapshot).Rate : I76.Sim.Session.SimRate.FromLabel(I76.Game.Shell.ShellSettings.Load().SimRate))
+            _retry is { } retryOf ? I76.Sim.Save.SnapshotHeader.Read(retryOf.Snapshot).Rate
+            : I76.Sim.Session.SimRate.FromLabel(replay?.Rate ?? I76.Game.Shell.ShellSettings.Load().SimRate))
         {
             // what the mission was built from, which its snapshots carry and a restore checks (docs/savestate.md)
             Build = new I76.Sim.Save.SessionBuild
@@ -918,6 +929,27 @@ public partial class Main : Node3D
         // the sim ticks before Main reads the script camera, so a cut-scene owns the very first frame
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;
+        _sim.Replay = replay;
+        if (replay is not null)
+        {
+            string mission = (_opt.Mission ?? "").ToLowerInvariant();
+            if ((replay.Mission ?? "") != mission || !string.Equals(replay.Car ?? "", requested ?? "", System.StringComparison.OrdinalIgnoreCase)
+                || !string.Join('+', replay.Melee ?? []).Equals(string.Join('+', roster ?? []), System.StringComparison.OrdinalIgnoreCase))
+                GD.PrintErr($"input replay: recorded in {replay.Mission} with car {replay.Car ?? "(the mission's)"}{(replay.Melee is { Count: > 0 } rm ? " against " + string.Join(", ", rm) : "")}; this is {mission} with {(string.IsNullOrEmpty(requested) ? "(the mission's)" : requested)}: it will not follow the recording");
+            GD.Print($"input replay: {replay.Count} ticks, seed {replay.Seed}, {replay.Rate} Hz");
+        }
+        // I76_INPUT_RECORD=file: every tick's input of the player, and the state hash after it (docs/dev-hooks.md, "Input traces")
+        if (_retry is null && System.Environment.GetEnvironmentVariable("I76_INPUT_RECORD") is { Length: > 0 } recordPath)
+        {
+            _sim.RecordPath = recordPath;
+            _sim.Recording = new I76.Sim.Session.InputTrace
+            {
+                Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
+                Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
+            };
+        }
+        // I76_MOTION_CSV=file: a row a tick of the player's motion
+        if (System.Environment.GetEnvironmentVariable("I76_MOTION_CSV") is { Length: > 0 } motionPath) _sim.MotionPath = motionPath;
         AddChild(_sim);
         AddChild(new PausedClock { Owner = this, Name = "PausedClock" });
         var playSettings = I76.Game.Shell.ShellSettings.Load();

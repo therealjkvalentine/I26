@@ -11,15 +11,24 @@ namespace I76.Cli;
 /// (a SimSession), nobody at the wheel, printing what the script does.
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
+///           [--record FILE] [--replay FILE] [--motion FILE]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
+/// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
+/// from such a file, with its car, seed, rate and roster, checks each tick's hash and says where it first differs;
+/// --motion writes a row a tick of the player's motion (MotionTrace).
 /// </summary>
 public static class MissionRun
 {
     public static int Run(GameInstall install, List<string> args)
     {
         string mission = args[1];
-        float seconds = args.Count > 2 && !args[2].StartsWith("--") ? float.Parse(args[2], CultureInfo.InvariantCulture) : 120;
+        int rpi = args.IndexOf("--replay");
+        InputTrace? replay = null;
+        if (rpi >= 0) using (var rt = File.OpenText(args[rpi + 1])) replay = InputTrace.Read(rt);
+        if (replay?.Mission is { } rm && !rm.Equals(mission, StringComparison.OrdinalIgnoreCase)) { Console.WriteLine($"replay: recorded in {rm}, not {mission}"); return 1; }
+        bool timed = args.Count > 2 && !args[2].StartsWith("--");
+        float seconds = timed ? float.Parse(args[2], CultureInfo.InvariantCulture) : 120;
         int ki = args.IndexOf("--skip-at");
         float skipAt = ki >= 0 ? float.Parse(args[ki + 1], CultureInfo.InvariantCulture) : float.MaxValue;
         var vfs = new AssetVfs(install);
@@ -28,17 +37,24 @@ public static class MissionRun
         var w = new MissionWorld(vfs, asm, msnPath);
         // --melee CAR,CAR...: the arena as an instant melee with that roster (the player in its first car)
         int mi = args.IndexOf("--melee");
-        var roster = mi >= 0 ? args[mi + 1].Split(',').ToList() : null;
+        var roster = replay is not null ? replay.Melee?.ToList() : mi >= 0 ? args[mi + 1].Split(',').ToList() : null;
         // --car X.vcf: the player's car as a scenario or trip gives it (on the placement flagged as the player)
         int ci = args.IndexOf("--car");
-        var car = ci >= 0 ? args[ci + 1] : roster is null ? null : "valepre1.vcf";
-        int sdi = args.IndexOf("--seed");   // --seed N: the rand stream's start (the game takes the clock)
-        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: sdi >= 0 ? new I76.Sim.Rng.CrtRand(uint.Parse(args[sdi + 1])) : null);
+        var car = replay is not null ? replay.Car : ci >= 0 ? args[ci + 1] : roster is null ? null : "valepre1.vcf";
+        int sdi = args.IndexOf("--seed");   // --seed N: the rand stream's start (the game takes the clock; here 1 without it)
+        uint seed = replay?.Seed ?? (sdi >= 0 ? uint.Parse(args[sdi + 1]) : 1);
+        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed));
         setup.Melee?.Start();
         if (setup.Script is not { } script) { Console.WriteLine("no script"); return 1; }
         int ri = args.IndexOf("--rate");   // --rate HZ: 20 (default), 24, 25, 28, 30, 40 or 60
-        var session = new SimSession(setup, rate: ri >= 0 ? SimRate.FromLabel(int.Parse(args[ri + 1])) : null);
+        var session = new SimSession(setup, rate: replay is not null ? SimRate.FromLabel(replay.Rate) : ri >= 0 ? SimRate.FromLabel(int.Parse(args[ri + 1])) : null);
         float Tick = session.TickSeconds;
+        int rci = args.IndexOf("--record");
+        var record = rci >= 0 ? new InputTrace { Mission = mission.ToLowerInvariant(), Car = car, Seed = seed, Rate = session.Rate.Label, Melee = roster } : null;
+        int moi = args.IndexOf("--motion");
+        using var motion = moi >= 0 ? new StreamWriter(args[moi + 1]) : null;
+        motion?.WriteLine(MotionTrace.Columns);
+        int diverged = -1, compared = 0;
         // --player-at X,Z[,YAW][@S][;X,Z,YAW@S...]: the player's car moved there before the first tick, or at mission second S
         // (game units, degrees from +Z toward +X); further stops at their own seconds
         int pai = args.IndexOf("--player-at");
@@ -115,7 +131,7 @@ public static class MissionRun
         bool ignited = false;
         bool cam = false;
         int depth = 0;
-        int frames = (int)(seconds / Tick);
+        int frames = replay is not null && !timed ? replay.Count : (int)(seconds / Tick);
         for (int f = 0; f < frames; f++)
         {
             for (int hk = hurts.Count - 1; hk >= 0; hk--)
@@ -185,7 +201,20 @@ public static class MissionRun
                 input.Steer = (short)(System.Math.Clamp(-err * 1.5f, -1f, 1f) * 32767);
                 input.Throttle = (short)(thr * 32767);
             }
+            int tick = session.Ticks;
+            if (replay is not null) input = replay.At(tick);
             session.Tick([input]);
+            if (record is not null || replay is not null)
+            {
+                ulong hash = session.StateHash();
+                record?.Add(input, hash);
+                if (replay?.HashAt(tick) is { } want)
+                {
+                    compared++;
+                    if (want != hash && diverged < 0) { diverged = tick; Console.WriteLine($"{T()} replay: tick {tick} state hash {hash:x16}, recorded {want:x16}"); }
+                }
+            }
+            if (motion is not null && setup.World.Player is { } mp) motion.WriteLine(MotionTrace.Row(tick, (tick + 1) * Tick, mp));
             shots += setup.Combat.Events.Count(e => e is I76.Sim.Weapons.ShotFired);
             foreach (var sf in setup.Combat.Events.OfType<I76.Sim.Weapons.ShotFired>()) shotsBy[sf.Shooter] = shotsBy.GetValueOrDefault(sf.Shooter) + 1;
             if (Environment.GetEnvironmentVariable("I76_RUN_SHOTS") is not null)
@@ -238,9 +267,16 @@ public static class MissionRun
                 break;
             }
         }
+        if (record is not null)
+        {
+            using (var rw = new StreamWriter(args[rci + 1])) record.Write(rw);
+            Console.WriteLine($"record: {record.Count} ticks to {args[rci + 1]}, last state hash {record.HashAt(record.Count - 1):x16}");
+        }
+        if (replay is not null)
+            Console.WriteLine(diverged < 0 ? $"replay: {compared} ticks compared, every state hash equal; last {session.StateHash():x16}" : $"replay: diverged at tick {diverged} of {compared} compared");
         var pl = setup.World.Player!;
         Console.WriteLine($"{T()} end: player at {pl.Pos.X:0},{pl.Pos.Z:0} speed {pl.Speed:0.0} flags 0x{(uint)pl.Flags:x} order {setup.Entities.FirstOrDefault(e => e.Vehicle == pl)?.Order}; {Describe(h.Objectives)}; {script.Vm?.Threads.Count(t => t.Finished) ?? 0} threads finished");
-        return 0;
+        return diverged < 0 ? 0 : 2;
     }
 
     /// <summary>Distance (xz) from the car to the polyline of its current waypoints, or -1.</summary>

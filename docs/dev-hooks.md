@@ -177,9 +177,37 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_RUN_STRUCT=NAME[,NAME]` | debug | `i76 run`: each change to the root or node HP of the structures whose name contains a NAME, with the impacts that tick; their health on the periodic lines. `--destroy NAME@S[;...]` destroys the first structure of a name at mission second S, as the script's `destroy` does. |
 | `I76_RUN_HEAL=NAME[,NAME]` | debug | `i76 run`: refill the armour and chassis of the cars whose name contains a NAME every tick. `--hurt` picks the first live car of a name. |
 | `I76_RUN_GLUE=RIGHT,AHEAD` | debug | `i76 run` (T03): keep the player's car pinned at that offset in Taurus's frame, moving as he does. |
-| `I76_MOTION`, `I76_INPUT`, `I76_MOTION_CSV` | test | Formats of motion traces and input spans, shared with the maintainers' original-game tooling. |
+| `I76_INPUT_RECORD=FILE` | test | Record the player's input of every tick from the mission's start, with the state hash after it, and the mission, car, rand seed and tick rate (Input traces, below). Not in a network game or a checkpoint's retry. `i76 run ... --record FILE` does the same headless. |
+| `I76_INPUT=FILE` | test | Replay a recording: the mission starts on its seed and rate and the player's car is driven by it from tick 0, tick for tick, instead of the keys and the pad (after its last tick, by nothing); the first tick whose state hash differs from the recorded one is printed (`input replay:`), and the end. Start the same mission with the same car (`--mission M [--drive CAR.vcf]`, `--melee` with the same `I76_MELEE_OPPONENTS`): a mismatch is printed. `i76 run M --replay FILE` replays headless, exit code 2 on a difference. |
+| `I76_MOTION_CSV=FILE` | test | A row a tick of the player's motion (Input traces, below); `i76 run ... --motion FILE` headless. |
 | (`i76 airtime`, `i76 ground`) | test | `i76 airtime MISSION "x,z x,z ..." [--speed S] [--rate HZ] [--seconds N]`: the player's car alone driven round a route, a row a tick with its airborne flag; `i76 ground MISSION FILE.csv` adds the ground under each row's x,y,z. |
 | `I76_NATIVE` | debug | `1`: `i76 bg` reads a Nitro database by its own record numbers. |
+
+### Input traces
+
+`I76_INPUT_RECORD` / `I76_INPUT` (and `i76 run --record` / `--replay`) write and read a CSV file: a header line, a column
+line, then one row a tick, starting at tick 0 (the mission's first):
+
+```
+# I76_INPUT 1 mission=m01 car=valepre1.vcf seed=1730412345 rate=20 melee=vppirna1.vcf+vcgcour1.vcf
+tick,buttons,commands,steer,throttle,hash
+0,0x1,0x0,0,0,3f0c9a1e5b7d2c44
+1,0x21,0x10,0,0,9b2e04d17a3c5f80
+```
+
+`car` is empty for the mission's own car; `melee` is present for an instant melee only. `buttons` and `commands` are
+`CarButtons` and `CarCommands` (`src/I76.Sim/Session/CarInput.cs`) in hex (decimal is read too); `steer` and `throttle`
+the analog positions (±32767, read only with the Analog button); `hash` the session's state hash after the tick (the
+snapshot's, docs/savestate.md), empty if not recorded. A missing tick replays as nothing held. The sim is deterministic,
+so a recording replayed by the same build runs the same game: the hashes say where it does not. A recording replays
+where it was made: the game's mission (built at the world origin it uses, with single player's options) and `i76 run`'s
+are not the same build of the scene. In the game the replay is exact with the classic physics; Modern Physics' own steps
+follow the frames, not the ticks. Hashing costs a snapshot a tick.
+
+`I76_MOTION_CSV` columns: `tick,t,x,y,z,heading,pitch,roll,vx,vy,vz,speed,pitch_rate,yaw_rate,roll_rate,ax,ay,az,steer,throttle,gear,rpm,flags`,
+after each tick, in the game's axes and units (x right, y up, z forward; `t` seconds at the tick's end; angles in radians,
+heading from +z toward +x, pitch nose up, roll from the right side's rise; `gear` the engine's gear, 0 reverse; `flags`
+the car's `VehicleFlags` in hex).
 
 ## Rendering and performance (A/B switches, none set in play)
 
