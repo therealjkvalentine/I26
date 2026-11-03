@@ -334,9 +334,11 @@ public sealed partial class MeleeScreen
     private static readonly int[] BoxRow = [368, 385, 399, 413, 433, 448, 463];
     /// <summary>The check boxes' columns: the labels' x and the box's (TEAM PLAY's own, 11 x 11 at 87, 381 in the art).</summary>
     private const int LabelA = 15, CheckA = 90, LabelB = 112, CheckB = 200;
-    /// <summary>The arena sketch's box: mockup B's place moved down and left by the art's spacing between its stacked boxes (15 px, NO. DRIVERS' foot rule to the options box's top).</summary>
-    private static readonly Rect2I SketchBox = new(217, 196, 200, 120);
-    private static readonly Color LabelInk = Color.Color8(108, 90, 58), ButtonInk = Color.Color8(88, 72, 44);
+    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the front view's foot to the side view's roof.</summary>
+    private static readonly Vector2I SketchSize = new(200, 120);
+    private static readonly Rect2I SketchSpace = new(219, 183, 237, 122);
+    /// <summary>The labels in about the ink of the form's rules (they are thinner); the box's handwriting a little darker than those, lighter than the hand elsewhere.</summary>
+    private static readonly Color LabelInk = Color.Color8(76, 64, 42), ButtonInk = Color.Color8(88, 72, 44), HandInk = Color.Color8(60, 50, 32);
     private const int LabelCap = 8, ButtonCap = 5;
     /// <summary>The stepped rules: the label and where it goes, the row, and the blank's run (from the label's Arial width and the widest value).</summary>
     private static readonly (int Id, string Label, int X, int Row, int Blank0, int Blank1)[] Stepped =
@@ -399,12 +401,15 @@ public sealed partial class MeleeScreen
         // the bar's right end switches the game type (the Nitro form's GAME TYPE row is its own)
         DrawModeButton();
         var hand = Shell.Db.Font(0x44);
+        var ink = new byte[256];
+        byte handInk = Frame.Nearest(HandInk);
+        for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
         void Label(int x, int row, string t) => PrintedType.Draw(Frame, Shell.Db, x, BoxRow[row], t, LabelCap, LabelInk);
-        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t);
+        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t, ink);
         void Switch(bool colB, int row, string t, bool on)
         {
             Label(colB ? LabelB : LabelA, row, t);
-            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X");
+            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X", ink);
         }
         if (_coopBase)
         {
@@ -429,7 +434,7 @@ public sealed partial class MeleeScreen
             Switch(false, 3, "CAR RESET", Shell.Settings.CarReset);
             Switch(true, 3, "CB RADIO", Shell.Settings.CbRadio);
             Switch(false, 4, "MAX SCORE", _scoreOn);
-            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString());
+            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString(), ink);
         }
         string[] stepped = [_turrets ? "Unlim." : "One", Shell.Settings.IgnitionStaysOn ? "Lock" : "Free", $"{_rate} Hz",
             HandicapWord(Shell.Settings.Handicaps), _password.Length > 0 ? "*" : "-"];
@@ -437,26 +442,161 @@ public sealed partial class MeleeScreen
     }
 
     /// <summary>
-    /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), and under it the start count and the
-    /// span, "17 starts · 1.0 x 1.0 km", in the small handwriting, centred, just below the sketch's lowest ink.
+    /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), its ink centred in the space between
+    /// the car's views, and its span ("1.5 x 1.0 km") small in the form's hand at the space's lower left. The x marks are the
+    /// start points; their count is no limit on the players, so it is not written.
     /// </summary>
     private void DrawArenaSketch()
     {
         if (ListCount == 0) return;
         string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
-        if (ArenaSketches.Of(Shell.Install, stem, SketchBox.Size.X, SketchBox.Size.Y) is not { } s) return;
-        ArenaSketches.Draw(Frame, stem, s, SketchBox.Position.X, SketchBox.Position.Y);
-        var hand = Shell.Db.Font(0x44);
-        const int gap = 10;
-        string a = s.StartsText, b = s.SizeText;
-        // tight under the lowest inked row: 3 px of paper, then the capitals (the hand's cell has 2 rows over them)
-        int ink = s.InkBottom() < 0 ? SketchBox.Size.Y - 1 : s.InkBottom();
-        int x = SketchBox.Position.X + SketchBox.Size.X / 2 - (hand.Measure(a) + gap + hand.Measure(b)) / 2, top = SketchBox.Position.Y + ink + 2;
-        Frame.Text(hand, x, top, a);
-        // the dot between them is the hand's full stop, raised to the middle of the capitals
-        Frame.Text(hand, x + hand.Measure(a) + (gap - hand.Measure(".")) / 2, top - 4, ".");
-        Frame.Text(hand, x + hand.Measure(a) + gap, top, b);
+        if (ArenaSketches.Of(Shell.Install, stem, SketchSize.X, SketchSize.Y) is not { } s) return;
+        var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
+        PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
+        int w = (int)MathF.Ceiling(PrintedType.Measure(Shell.Db, s.SizeText, SizeCap, PrintedType.Face.Hand));
+        // the span as a map's legend: right-aligned on the sketch's right edge, on its foot; moved right (then down) off any line it would sit on
+        int nx = x1 + 1 - w, ny = y1 + 1;
+        bool Clear(int ax, int ay)
+        {
+            for (int yy = ay - SizeCap - 1; yy <= ay + 1; yy++)
+                for (int xx = ax - 2; xx <= ax + w + 1; xx++)
+                    if (s.Inked(xx, yy)) return false;
+            return true;
+        }
+        for (int k = 0; k < 40 && !Clear(nx, ny); k++) { if (k < 30) nx += 2; else ny += 2; }
+        // the scrap: the sketch's and the legend's extent with a margin of paper
+        int sx0 = Math.Min(x0, nx) - ScrapPad, sy0 = Math.Min(y0, ny - SizeCap) - ScrapPad, sx1 = Math.Max(x1 + 1, nx + w) + ScrapPad, sy1 = Math.Max(y1 + 1, ny + 1) + ScrapPad;
+        var scrap = new Rect2I(sx0, sy0, sx1 - sx0, sy1 - sy0);
+        // laid in the space: inside its margins, a small one centred across them, a large one from their left (DRIVER:'s x),
+        // its middle a little below the space's
+        int room = SketchMargin.Size.X, left = SketchMargin.Position.X + Math.Max(0, (room - scrap.Size.X) / 2);
+        int mid = SketchMargin.Position.Y + SketchMargin.Size.Y / 2 + SketchDrop;
+        int bx = left - sx0, by = mid - scrap.Size.Y / 2 - sy0;
+        if (_art is { } art) ArenaSketches.DrawScrap(Frame, art, BlankPaper, stem, s, bx, by, scrap, s.SizeText, nx, ny, SizeCap, HandInk);
     }
+
+    /// <summary>
+    /// Where the sketch's scrap goes: from DRIVER:'s x (227) across the width of the sketch box, and from the front view's
+    /// foot to the side view's roof less a few px; and how far below the middle of that it sits. The scrap's paper reaches
+    /// ScrapPad past the drawing.
+    /// </summary>
+    private static readonly Rect2I SketchMargin = new(227, 188, 210, 112);
+    private const int SketchDrop = 12, ScrapPad = 5;
+
+    /// <summary>
+    /// The AREA OF PLAY list's scroll bar (the port's; Graphic Detail's look): a faint track down the list's right edge inside
+    /// its box and a thumb in the labels' ink for the rows shown, following the arrows and the wheel. Only when the list scrolls.
+    /// </summary>
+    private void DrawListBar()
+    {
+        int total = ListCount;
+        if (total <= Rows) return;
+        const int x = 211, top = 149, h = Rows * Row - 4;
+        int th = Math.Max(6, h * Rows / total), max = total - Rows, at = top + (h - th) * Math.Clamp(_scroll, 0, max) / max;
+        var pal = Frame.Palette;
+        var faint = new Dictionary<byte, byte>();
+        for (int y = top; y < top + h; y++)
+        {
+            byte under = Frame.At(x + 1, y);
+            if (!faint.TryGetValue(under, out byte v))
+                faint[under] = v = Frame.Nearest(Color.Color8(pal[under * 3], pal[under * 3 + 1], pal[under * 3 + 2]).Lerp(LabelInk, 0.35f));
+            Frame.Pixel(x + 1, y, v);
+        }
+        Frame.Fill(x, at, 3, th, Frame.Nearest(LabelInk));
+    }
+
+
+    // ---- the options box's hover help (the port's): a pointer resting half a second on a rule shows a line on what it does
+
+    /// <summary>What each rule of the base host form does, by hotspot id (-1 the BOTS label), in a line on a paper slip.</summary>
+    private static readonly Dictionary<int, string> RuleHelp = new()
+    {
+        [-1] = "Cars the server drives in the free seats",
+        [29] = "Fewer bots", [30] = "More bots (up to the free seats)",
+        [31] = "How well the bots drive: Easy, Normal or Hard",
+        [34] = "Choose each bot's car (Random unless chosen)",
+        [16] = "Players pick a team; no score on teammates",
+        [17] = "You let in or turn away each player who asks",
+        [26] = "Players without this custom map may download it",
+        [28] = "The hidden cars and weapons are allowed",
+        [36] = "Players may set their car upright (reset key)",
+        [37] = "Players may talk on the CB (push to talk)",
+        [18] = "Ticked: the game ends when a score reaches this",
+        [20] = "Lower the score that ends the game", [21] = "Raise the score that ends the game",
+        [35] = "One: one roof turret a car. Unlim.: any number",
+        [39] = "Free: engines may be switched off. Lock: never",
+        [33] = "Simulation steps a second, the same for all",
+        [43] = "Damage handicaps: Off, Manual (you set) or Auto",
+        [27] = "A password joiners must give: click to set",
+        [40] = "Extra enemy cars for each player past the first",
+        [41] = "Damage the players' cars take (x1 the original)",
+        [42] = "On: a respawn joins at a moving teammate's speed",
+    };
+    /// <summary>The BOTS label's own help area (the line's buttons have theirs).</summary>
+    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, 356, 371);
+    private int _tipHover = int.MinValue, _tip = int.MinValue;
+    private double _tipWait;
+    private Vector2I _tipAt;
+
+    /// <summary>The rule under the pointer that has help, or int.MinValue.</summary>
+    private int TipAt(Vector2I p)
+    {
+        if (!Hosting || Nitro) return int.MinValue;
+        int id = HitId(p);
+        if (id >= 0 && RuleHelp.ContainsKey(id)) return id;
+        var r = BotsLabel;
+        return !_coopBase && r.X0 < p.X && p.X < r.X1 && r.Y0 < p.Y && p.Y < r.Y1 ? -1 : int.MinValue;
+    }
+
+    /// <summary>Half a second on one rule shows its help; moving off takes it away. Called every tick of the form.</summary>
+    private void TipTick()
+    {
+        int at = TipAt(Shell.Mouse);
+        if (at != _tipHover)
+        {
+            _tipHover = at;
+            _tipWait = 0;
+            if (_tip != int.MinValue) { _tip = int.MinValue; Draw(); }
+            return;
+        }
+        if (at == int.MinValue || _tip != int.MinValue) return;
+        _tipWait += Shell.Delta;
+        if (_tipWait < 0.5) return;
+        _tip = at;
+        _tipAt = Shell.Mouse;
+        Draw();
+    }
+
+    /// <summary>
+    /// The help as a slip of the form's paper (a blank part of the same art) with a rule round it, the line in the box's
+    /// handwriting, below and right of the pointer (above it near the sheet's foot), kept on the screen.
+    /// </summary>
+    private void DrawTip()
+    {
+        if (_tip == int.MinValue || !RuleHelp.TryGetValue(_tip, out var text) || _art is not { } art) return;
+        var hand = Shell.Db.Font(0x44);
+        int w = hand.Measure(text) + 10, h = hand.Height + 6;
+        int x = Math.Clamp(_tipAt.X + 6, 2, ShellFrame.W - w - 2), y = _tipAt.Y + 14;
+        if (y + h > ShellFrame.H - 2) y = _tipAt.Y - h - 6;
+        Frame.Uncover(new Rect2I(x, y, w, h));
+        // the blank paper (206 px wide) mirrored back and forth for a longer slip, so no seam shows
+        for (int r = 0; r < h; r++)
+            for (int c = 0; c < w; c++)
+            {
+                int m = c % 400, sc = m < 200 ? m : 399 - m;
+                Frame.Pixel(x + c, y + r, art[(BlankPaper.Y + r) * ShellFrame.W + BlankPaper.X + sc]);
+            }
+        byte rule = Frame.Nearest(LabelInk);
+        Frame.Fill(x, y, w, 1, rule); Frame.Fill(x, y + h - 1, w, 1, rule);
+        Frame.Fill(x, y, 1, h, rule); Frame.Fill(x + w - 1, y, 1, h, rule);
+        var ink = new byte[256];
+        byte handInk = Frame.Nearest(HandInk);
+        for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
+        Frame.Text(hand, x + 5, y + 3, text, ink);
+    }
+
+    /// <summary>The span's capitals: 7 px, under the box's handwriting's 9, still clear at 640x480.</summary>
+    private const int SizeCap = 7;
 
     /// <summary>
     /// A button of RENAME's look (LOCAL DRIVER's, 41 x 12 at 173, 46): its edges and a plain column of it stretched to w, into

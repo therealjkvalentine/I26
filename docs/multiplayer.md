@@ -1256,7 +1256,7 @@ comes back to the roster with its notice and the book, as before.
 
 **The host form** (the original's modes 3 and 4):
 - LOCAL DRIVER (RENAME), the area of play (the 15 arenas, as the instant
-  melee lists them), GAME NAME (the area's name until RENAME gives it one; left
+  melee lists them; the port's scroll bar down the list's right edge, Graphic Detail's look), GAME NAME (the area's name until RENAME gives it one; left
   empty it is the area's again);
 - NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
   what the wire, the screens and i26-server take): the server's seats (below, "Bandwidth"). The form has no room for a note on the upload a
@@ -1270,10 +1270,14 @@ comes back to the roster with its notice and the book, as before.
   - MAX SCORE with its box and ⊟ ⊞ (1000–100000 in steps of 1000, 20000 to start; the score counts only when its box is ticked);
   - the stepped rules on ruled blanks, a click steps each: TURRETS (One, Unlim.), IGNITION (Free, Lock), RATE, HCP (Off, Manual,
     Auto) and PASS (the password prompt);
-  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE;
-- the arena's sketch (the port's, `ArenaSketch`), between the car's views: the arena from above, its floor as paper, the ground
-  that rises above it hatched with an inked edge, the roads as lines, each start point an x, built from the terrain and the
-  mission's placements when the area is picked; under it the start count and the span ("17 starts · 1.0 x 1.0 km");
+  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE; the pointer resting
+  half a second on a rule shows a line on what it does, on a slip of the form's paper by the pointer (`RuleHelp`);
+- the arena's sketch (the port's, `ArenaSketch`), between the car's views, on a scrap of the form's paper lightened, its
+  edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
+  the space (a small one centred, a large one from DRIVER:'s x): the arena from above, its floor as paper,
+  a band of the ground that rises round it hatched with an inked edge, the roads as lines, each start point an x, built from
+  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small at its lower right, as a
+  map's legend ("1.5 x 1.0 km"; the starts are not counted, they are no limit on the players);
 - the car: MAKE / MODEL, VARIANT and CONFIGURE CHASSIS, as on the instant
   melee form;
 - BROADCAST GAME: CHOOSE A TEAM first with team play, then the launch: a
