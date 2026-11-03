@@ -229,3 +229,4 @@ fix/round3-integration-6              # stacked on play, last of I: lighting_cal
 feat/dev-fps-overlay                  # stacked on play: [port] dev_fps on the Developer panel's Settings draws the average frame rate over the last second, top left
 fix/net-melee-music-tracks            # stacked on play: an arena asking for a shell's track starts on the next mission track; Nitro's sequence passes over its menu and credits tracks
 feat/build-id-in-lobby                # stacked on play: the network forms show each game's build; a joiner on another build is let in with a notice (protocol 26)
+fix/round3-integration-7              # stacked on play, last of I: the build-id notice's example and tests take a character's name
