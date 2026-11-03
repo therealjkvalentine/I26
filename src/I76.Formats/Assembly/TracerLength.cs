@@ -23,6 +23,12 @@ public static class TracerLength
     /// </summary>
     public static float Line(float step, float flown) => System.MathF.Min(step * LineShare, flown);
 
+    /// <summary>
+    /// How wide the 1997 look's machine gun line is drawn, in pixels: the original's one pixel of a 480-row screen, one more
+    /// for every 480 rows of the 3D view (rounded: 1 to 719 rows, 2 at 960 and 1080, 3 at 1440), no more than four.
+    /// </summary>
+    public static int PixelWidth(int rows) => System.Math.Clamp((int)System.Math.Round(rows / 480.0, System.MidpointRounding.AwayFromZero), 1, 4);
+
     /// <summary>The 1997 look's bar for the other rounds: the last step's length, 0.5 to 4 m, but no longer than the round has flown.</summary>
     public static float Bar(float step, float flown) => System.MathF.Min(System.MathF.Min(System.MathF.Max(step, 0.5f), 4f), flown);
 

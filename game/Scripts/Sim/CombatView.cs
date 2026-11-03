@@ -146,6 +146,8 @@ public partial class CombatView : Node3D
     private StandardMaterial3D _tracer = null!, _missile = null!, _flash = null!;
     private BoxMesh _box = null!;
     private ArrayMesh _shell = null!, _line = null!;
+    private Shader _lineShader = null!;
+    private int _linePx = 1;
     private StandardMaterial3D? _shellMat;
     private bool _shellMatTried;
     private SphereMesh _ball = null!;
@@ -159,6 +161,7 @@ public partial class CombatView : Node3D
         _box = new BoxMesh { Size = new Vector3(0.06f, 0.06f, 1f) };
         _shell = ShellMesh();
         _line = LineMesh();
+        _lineShader = GD.Load<Shader>("res://Shaders/tracer_line_1997.gdshader");
         _ball = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 12, Rings = 6 };
         _fx = new ModernFx { Name = "Fx" };
         AddChild(_fx);
@@ -296,16 +299,24 @@ public partial class CombatView : Node3D
         return m;
     }
 
-    /// <summary>The 1997 look's machine gun round (tracer style 2): a line one pixel wide from z = -0.5 (head) to +0.5.</summary>
+    /// <summary>
+    /// The 1997 look's machine gun round (tracer style 2): the original's one-pixel line from z = -0.5 (head) to +0.5, as a
+    /// quad a unit across that tracer_line_1997.gdshader narrows to <see cref="I76.Formats.Assembly.TracerLength.PixelWidth"/>
+    /// pixels on the screen (one per 480 rows of the 3D view: the engine's line primitive is one pixel at any size).
+    /// </summary>
     private static ArrayMesh LineMesh()
     {
         var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
-        arrays[(int)Mesh.ArrayType.Vertex] = new[] { new Vector3(0, 0, -0.5f), new Vector3(0, 0, 0.5f) };
+        arrays[(int)Mesh.ArrayType.Vertex] = new[] { new Vector3(-0.5f, 0, -0.5f), new Vector3(0.5f, 0, -0.5f), new Vector3(0.5f, 0, 0.5f), new Vector3(-0.5f, 0, 0.5f) };
+        arrays[(int)Mesh.ArrayType.Index] = new[] { 0, 1, 2, 0, 2, 3 };
         var m = new ArrayMesh();
-        m.AddSurfaceFromArrays(Mesh.PrimitiveType.Lines, arrays);
+        m.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
         return m;
     }
+
+    /// <summary>The rows the 3D view is drawn at: the window's, times Graphic Detail's Render Scale.</summary>
+    private int RenderRows() => GetViewport() is { } vp ? (int)MathF.Round(vp.GetVisibleRect().Size.Y * vp.Scaling3DScale) : 480;
 
     /// <summary>MCANNON.MAP as the cannon round's material (null when the install lacks it: the plain bar stands in).</summary>
     private StandardMaterial3D? ShellMaterial()
@@ -334,12 +345,18 @@ public partial class CombatView : Node3D
         return Color.Color8(c.R, c.G, c.B);
     }
 
-    private readonly Dictionary<uint, StandardMaterial3D> _tracerMats = [];
-    private StandardMaterial3D TracerMaterial(Color c)
+    /// <summary>The line's material per colour (the default is the plain tracer's), at the width the 3D view's rows call for.</summary>
+    private readonly Dictionary<uint, ShaderMaterial> _lineMats = [];
+    private ShaderMaterial LineMaterial(Color? tint)
     {
+        var c = tint ?? new Color(1f, 0.85f, 0.4f);
         uint key = c.ToRgba32();
-        if (!_tracerMats.TryGetValue(key, out var m))
-            _tracerMats[key] = m = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = c };
+        if (!_lineMats.TryGetValue(key, out var m))
+        {
+            _lineMats[key] = m = new ShaderMaterial { Shader = _lineShader };
+            m.SetShaderParameter("color", c);
+            m.SetShaderParameter("px", _linePx);
+        }
         return m;
     }
 
@@ -744,6 +761,9 @@ public partial class CombatView : Node3D
         }
         bool modern = IsModern;
         if (modern != _wasModern) SwitchLook(modern);
+        // the machine gun line's width follows the 3D view's rows (the window, the render scale, the look switching the size)
+        int px = I76.Formats.Assembly.TracerLength.PixelWidth(RenderRows());
+        if (px != _linePx) { _linePx = px; foreach (var lm in _lineMats.Values) lm.SetShaderParameter("px", px); }
         float serverAlpha = Alpha?.Invoke() ?? 1f, predictedAlpha = PredictedAlpha?.Invoke() ?? serverAlpha;
         float alpha = serverAlpha;
         _contrails.Frame(rounds, serverAlpha, modern, predictedFrom, predictedAlpha);
@@ -843,7 +863,7 @@ public partial class CombatView : Node3D
             var shellMat = r.Kind == 6 && !rocket ? ShellMaterial() : null;
             bool line = r.Kind == 1;
             body.Mesh = shellMat is not null ? _shell : line ? _line : _box;
-            body.MaterialOverride = rocket ? _missile : shellMat ?? (TracerColor(r) is { } lc ? TracerMaterial(lc) : _tracer);
+            body.MaterialOverride = rocket ? _missile : shellMat ?? (line ? LineMaterial(TracerColor(r)) : (Material)_tracer);
             // the cannon's tube spans the last step and the machine gun's line its front 65 %, neither capped; no longer than
             // the round has flown: a new round's bar reached back from the muzzle, through the gun and out of a turret turned
             // to the side, so the shot seemed to leave from the turret's base

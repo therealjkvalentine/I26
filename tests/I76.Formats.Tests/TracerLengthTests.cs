@@ -43,4 +43,15 @@ public class TracerLengthTests
         Assert.Equal(flown, TracerLength.Tube(step, flown), 5);
         Assert.Equal(flown, TracerLength.Line(step, flown), 5);
     }
+    [Theory]
+    [InlineData(480, 1)]    // the original's screen: its one-pixel line
+    [InlineData(600, 1)]
+    [InlineData(719, 1)]
+    [InlineData(720, 2)]    // 1.5 rounds up
+    [InlineData(960, 2)]
+    [InlineData(1080, 2)]
+    [InlineData(1440, 3)]
+    [InlineData(2160, 4)]   // 4.5, capped
+    [InlineData(4320, 4)]
+    public void The1997MachineGunLineIsOnePixelPer480RowsAtMostFour(int rows, int px) => Assert.Equal(px, TracerLength.PixelWidth(rows));
 }
