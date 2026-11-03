@@ -56,6 +56,7 @@
 - An AI car watches for no-go ground (cliff feet, map edges) along its left side, as the original's does, instead of along its centre line, so it swerves away from a no-go strip at the same moment the original's car does.
 - The 1997 look's machine gun tracers are a line one pixel wide, as the original draws them, instead of a small box, covering the front 65 % of the round's last step; a cannon round's tube spans its whole last step. Neither is cut to 4 m any more, so fast rounds keep their full length, and neither reaches back past the muzzle. The modern look is unchanged.
 - The modern look's target health bar has the original's size and place, scaled with the window: up to 30 by 4 pixels at 640x480 (90 by 12 at 1440 pixels high), just over the box, shorter as the car is hurt, instead of a thin bar at least 60 pixels wide at every resolution. Its colours are unchanged.
+- Cancel on the Save Bookmark form opened from the garage, field salvage or the screen after a mission now goes back to that screen, as the original's does, instead of to the Options Menu. Opened from the Options Menu it still returns there, and Escape still goes to the Options Menu.
 
 ## 0.11.0 (31 October 2026)
 
