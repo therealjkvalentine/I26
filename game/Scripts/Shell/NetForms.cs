@@ -358,8 +358,12 @@ public sealed partial class MeleeScreen
         Frame.Text(_font, 140, 421, $"Ign: {(Shell.Settings.IgnitionStaysOn ? "Lock" : "Free")}");
         Frame.Text(_font, 15, 449, $"Hidden: {(Shell.Settings.HiddenContent ? "On" : "Off")}");
         // (and the Car Reset's, the reset-upright key, on a line of its own under them)
-        Frame.Text(_font, 15, 463, $"Car reset: {(Shell.Settings.CarReset ? "On" : "Off")}");
-        Frame.Text(_font, 152, 463, $"CB: {(Shell.Settings.CbRadio ? "On" : "Off")}");
+        // (and the Handicaps' between them, docs/multiplayer.md "Handicaps": the words shortened, the CB's at the line's end)
+        string reset = $"Reset {(Shell.Settings.CarReset ? "On" : "Off")}", hcap = $"Hcp {(Shell.Settings.Handicaps ? "On" : "Off")}", cb = $"CB {(Shell.Settings.CbRadio ? "On" : "Off")}";
+        int gap = Math.Max(2, (198 - _font.Measure(reset) - _font.Measure(hcap) - _font.Measure(cb)) / 2);
+        Frame.Text(_font, 15, 463, reset);
+        Frame.Text(_font, 15 + _font.Measure(reset) + gap, 463, hcap);
+        Frame.Text(_font, 213 - _font.Measure(cb), 463, cb);
         Frame.Text(_font, 122, 449, $"Rate {_rate}Hz");
     }
 
@@ -419,6 +423,13 @@ public sealed partial class MeleeScreen
     private void ToggleRollingStart()
     {
         Shell.Settings.CoopRollingStart = !Shell.Settings.CoopRollingStart;
+        Shell.Settings.Save();
+    }
+
+    /// <summary>The host form's Handicaps (the port's; docs/multiplayer.md "Handicaps"): whether the host may give the game's players handicaps from the score window.</summary>
+    private void ToggleHandicaps()
+    {
+        Shell.Settings.Handicaps = !Shell.Settings.Handicaps;
         Shell.Settings.Save();
     }
 
@@ -600,11 +611,12 @@ public sealed partial class MeleeScreen
         _rollingWas = Shell.Settings.CoopRollingStart;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio);
         int wasRate = _rate;
+        _handicapsWas = Shell.Settings.Handicaps;
         var wasCars = new List<string>(_botCars);
         OptionsPopupWith(was, wasRate, wasCars);
     }
 
-    private bool _turretsWas, _ignitionWas;
+    private bool _turretsWas, _ignitionWas, _handicapsWas;
     private int _coopScaleWas;
     private float _coopDamageWas;
     private bool _rollingWas;
@@ -632,6 +644,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.CoopScale != _coopScaleWas) { Shell.Settings.CoopScale = _coopScaleWas; Shell.Settings.Save(); }
                     if (Shell.Settings.CoopDamage != _coopDamageWas) { Shell.Settings.CoopDamage = _coopDamageWas; Shell.Settings.Save(); }
                     if (Shell.Settings.CoopRollingStart != _rollingWas) ToggleRollingStart();
+                    if (Shell.Settings.Handicaps != _handicapsWas) ToggleHandicaps();
                 }
                 Draw();
             },
@@ -678,6 +691,7 @@ public sealed partial class MeleeScreen
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
                 // the port's: the players' cars take more or less damage (docs/deviations.md)
                 new("CO-OP DAMAGE:", true, false, CoopDamageText, StepCoopDamage),
+                new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()),
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
                 // the port's: a respawn or joiner at a moving teammate's speed (docs/deviations.md)
@@ -710,6 +724,8 @@ public sealed partial class MeleeScreen
         rows.Add(new("IGNITION STAYS ON", false, Shell.Settings.IgnitionStaysOn, "", _ => ToggleIgnition()));
         // the port's: the CB radio, push-to-talk voice chat, the host's decision (on by default)
         rows.Add(new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()));
+        // the port's: the host may give players handicaps from the score window (docs/multiplayer.md "Handicaps"; off by default)
+        rows.Add(new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()));
         // the port's: players the server drives (docs/multiplayer.md "Bots"), up to the free seats, and how well
         rows.Add(new("BOTS:", true, false, $"{Math.Min(_bots, MaxBots):00}", d => _bots = Math.Clamp(Math.Min(_bots, MaxBots) + d, 0, MaxBots)));
         rows.Add(new("BOT SKILL:", true, false, _botSkill.ToString(), d => _botSkill = (I76.Sim.Missions.BotSkill)(((int)_botSkill + d + 3) % 3)));
@@ -774,6 +790,7 @@ public sealed partial class MeleeScreen
             case 40 when Hosting: StepCoopScale(1); return true;
             case 41 when Hosting: StepCoopDamage(1); return true;
             case 42 when Hosting: ToggleRollingStart(); return true;
+            case 43 when Hosting: ToggleHandicaps(); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -820,6 +837,7 @@ public sealed partial class MeleeScreen
                     Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
                     Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar, CoopScale = Coop ? Shell.Settings.CoopScale : 0, CoopDamage = Coop ? Shell.Settings.CoopDamage : 1f,
                     CoopRollingStart = Coop && Shell.Settings.CoopRollingStart,
+                    Handicaps = Shell.Settings.Handicaps,
                 },
             });
         }
@@ -837,6 +855,7 @@ public sealed partial class MeleeScreen
         if (!g.CarReset) parts.Add("No car reset");
         if (g.IgnitionStaysOn) parts.Add("Ignition stays on");
         if (!g.Cb) parts.Add("CB radio off");
+        if (g.Handicaps) parts.Add("Handicaps on");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
 
@@ -856,6 +875,7 @@ public sealed partial class MeleeScreen
         if (!g.CarReset) rows.Add("No car reset");
         if (g.IgnitionStaysOn) rows.Add("Ignition stays on");
         if (!g.Cb) rows.Add("CB radio off");
+        if (g.Handicaps) rows.Add("Handicaps on");
         return rows;
     }
 

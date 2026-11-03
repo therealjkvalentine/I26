@@ -71,6 +71,7 @@ public partial class Main
                 ShareMaps = _opt.ShareMaps ?? I76.Game.Shell.ShellSettings.Load().ShareMaps,
                 AllowHidden = _opt.Hidden ?? I76.Game.Shell.ShellSettings.Load().HiddenContent,
                 AllowTurrets = _opt.Turrets ?? I76.Game.Shell.MeleeSetup.Load().HostTurrets,
+                Handicaps = _opt.Handicaps ?? I76.Game.Shell.ShellSettings.Load().Handicaps,
                 AllowCarReset = _opt.CarReset ?? I76.Game.Shell.ShellSettings.Load().CarReset,
                 AllowCb = _opt.Cb ?? I76.Game.Shell.ShellSettings.Load().CbRadio,
                 IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
@@ -436,6 +437,7 @@ public partial class Main
         _opt.Restrict = n.Restrictions.IsEmpty ? null : n.Restrictions.ToSpec();
         _opt.Hidden = n.Hidden;
         _opt.Turrets = n.Turrets;
+        _opt.Handicaps = n.Handicaps;
         _opt.CarReset = n.CarReset;
         _opt.IgnitionStaysOn = n.IgnitionStaysOn;
         _opt.Cb = n.Cb;

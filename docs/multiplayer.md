@@ -305,6 +305,38 @@ saved in the snapshot (the VTAB entry and the melee players; savestate format 13
 it too. A bot seat takes the paint `ServerOptions.PaintOfCar` gives for its chosen car (the game supplies it from the saved variant's sidecar). A co-op
 seat's car keeps its player's paint through the mission's respawns.
 
+### Handicaps (protocol 22)
+
+I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
+form's `Hcp` on the line under the options (between the car reset's and the CB's), HANDICAPS in the Nitro and co-op forms' game
+options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
+says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
+join accept carries it (`JoinAccept.Handicaps`, a bool after `Cb`).
+
+With it on, the host gives each player a level from −3 to +3 (0 none). A level scales the damage that player's rounds deal, and
+nothing else (no speed, armour or handling, so the clients' prediction is untouched):
+
+| Level | −3 | −2 | −1 | 0 | +1 | +2 | +3 |
+|---|---|---|---|---|---|---|---|
+| Damage | ×0.55 | ×0.7 | ×0.85 | ×1 | ×1.2 | ×1.4 | ×1.6 |
+
+(`Handicaps.Factor`, a static table in the sim.) The combat applies it where a round's packet is built (`Combat.RoundPacket`, before
+the truncation and the split over the channels, after the difficulty factor, which is 1 online), to the splash of the round's
+impact and to the flamer's stream and its splash; level 0 is the original's damage exactly. A wreck's explosion and rams are not
+scaled. The level is the car's (`Vehicle.Handicap`): `MeleeGame.Rebuild` keeps it through a respawn, it is saved with the car
+(savestate format 16) and so survives a host migration, a new round carries it for the players who carry on, and a joiner's car
+starts at 0 (a co-op seat's car may have had another player's). In a melee bots can have one too; in co-op only the humans have
+seats.
+
+The listen host sets it from the score window while it is up: **Shift+1..9** picks the n-th numbered row (the rows BOOT_n numbers),
+**Shift+[** lowers and **Shift+]** raises that player's level (`NetHud.HandicapKey` → `NetMeleeServer.SetHandicap`); the first
+time the window opens the feed says so, and each change is said with its factor. `i26-server`'s console: `handicap SLOT LEVEL`.
+Only the host's server sets a level: a client has no message for it, and a game without the rule refuses the host too.
+
+Everyone sees the levels on the scoreboard: `PlayerRow.Handicap` rides in the scoreboard message, whose row field mask becomes a
+VarU with 256 for the level (an sbyte); the score window shows "Name (+2)" by the name (`ScoreTable.HandicapName`), and on the
+host's machine the picked player's level in brackets, "Name [0]". Protocol 22.
+
 ### Many players
 
 A game takes up to `Protocol.MaxSeats` (64) players. Arenas have 8–17 spawn points, so the spawn rule has a case the original never
@@ -1364,7 +1396,7 @@ compact:
 | snapshot | server → client | unreliable | server tick, the last client tick applied (the ack), the slack (protocol 13: the client's inputs left waiting after the tick took one, −1 when it found none), the baseline (protocol 13: how many ticks back the snapshot it is written against is, 0 for a full one), the recipient's own car, its motion at full precision (protocol 13, `OwnMotion`) or two bytes confirming the client's own prediction of it (header bit 4), the motion's slow part when it changed and its weapons' fire control (protocol 13, `OwnFire`), as byte deltas; then the cars and the rounds in flight that the snapshot's budget carries, each an entry of what changed since the baseline; then the CTF flags and the flame streams (protocol 13), then a byte of what follows of a mission's script (protocol 15: 1 the gates off their places, each structure, node and how far along; 2 the script camera while it holds the view, its eye and what it looks at or its basis; protocol 19: 4 the seats' personal cameras, each a seat byte and a camera; a melee's is 0) (below, "Delta snapshots", "The snapshot budget") |
 | snapshot piece | server → client | unreliable | a snapshot too big for one datagram, in pieces (LiteNetLib fragments only reliable messages); one lost piece loses that snapshot. Since the snapshot budget only when a snapshot's essential entries alone do not fit (a full snapshot's head, a burst of removals): none in the load tests up to 64 players |
 | events | server → client | reliable ordered | one tick's events, stamped with the tick: to each client those it is sent (below, "Events at scale"), effect and sound names by number once sent (protocol 13, `NameTable`: 0 and the string the first time, both ends adding it, then its number + 1) |
-| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left) |
+| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left); protocol 22: the mask is a VarU, 256 the host's handicap (an sbyte; "Handicaps") |
 | next round | server → client | reliable ordered | a new round on this connection (protocol 12): the arena; a map offer or the join accept follows (above, "Rounds") |
 | chat, leave | client → server | reliable | |
 | host candidate, successor | both | reliable | host migration (protocol 13, above "Host migration"): whether a client can take over and its addresses at home; who takes over, where, and the seat's token |

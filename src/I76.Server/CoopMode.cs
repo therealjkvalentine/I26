@@ -346,7 +346,7 @@ public sealed class CoopMode : IHostMode
     }
 
     public IEnumerable<PlayerRow> Board() =>
-        _host.Seats.Select(s => new PlayerRow((byte)s.Slot, s.Name, 0, 0, 0, s.Actor.Deaths, (ushort)Math.Clamp(s.Rtt, 0, 65535), s.CarSerial, !s.Actor.Destroyed));
+        _host.Seats.Select(s => new PlayerRow((byte)s.Slot, s.Name, 0, 0, 0, s.Actor.Deaths, (ushort)Math.Clamp(s.Rtt, 0, 65535), s.CarSerial, !s.Actor.Destroyed) { Handicap = (sbyte)s.Actor.Car.Handicap });
 
     public List<FlagState> Flags() => [];
 

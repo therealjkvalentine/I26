@@ -269,9 +269,9 @@ public sealed class MeleeMode : IHostMode
 
     public IEnumerable<PlayerRow> Board() =>
         _host.Seats.Select(s => new PlayerRow((byte)s.Slot, s.Name, (byte)s.Actor.Team, s.Actor.Score, s.Actor.Kills, s.Actor.Deaths,
-            (ushort)Math.Clamp(s.Rtt, 0, 65535), s.CarSerial, !s.Actor.Destroyed))
+            (ushort)Math.Clamp(s.Rtt, 0, 65535), s.CarSerial, !s.Actor.Destroyed) { Handicap = (sbyte)s.Actor.Car.Handicap })
             .Concat(_bots.Select(b => new PlayerRow((byte)b.Slot, b.Name, (byte)b.Player.Team, b.Player.Score, b.Player.Kills, b.Player.Deaths,
-                0, b.CarSerial, !b.Player.Destroyed)));
+                0, b.CarSerial, !b.Player.Destroyed) { Handicap = (sbyte)b.Player.Car.Handicap }));
 
     public List<FlagState> Flags() =>
         Game.Ctf is { } c ? [.. c.Flags.Select(f => new FlagState((byte)f.Team, (byte)f.State, f.Pos.ToVector3(), f.Carrier is { } p ? p.Car.NetId & 0xffffff : 0))] : [];

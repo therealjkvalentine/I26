@@ -22,7 +22,7 @@ public static class VehicleSave
                 nameof(Vehicle.DriveState), nameof(Vehicle.Flags), nameof(Vehicle.Surface), nameof(Vehicle.GroundNormal), nameof(Vehicle.NormalLoad),
                 nameof(Vehicle.HeightAboveGround), nameof(Vehicle.GroundHeight), nameof(Vehicle.Rec), nameof(Vehicle.Armory), nameof(Vehicle.Health),
                 nameof(Vehicle.Timer), nameof(Vehicle.Wreck), nameof(Vehicle.Arms), nameof(Vehicle.NetId), nameof(Vehicle.NetGeneration),
-                nameof(Vehicle.Heli), nameof(Vehicle.Emplacement), nameof(Vehicle.Paint), nameof(Vehicle.TurnSpeed))
+                nameof(Vehicle.Heli), nameof(Vehicle.Emplacement), nameof(Vehicle.Paint), nameof(Vehicle.TurnSpeed), nameof(Vehicle.Handicap))
             .Structural(files, nameof(Vehicle.EngineNumber), nameof(Vehicle.Ignition), nameof(Vehicle.HornLoops), nameof(Vehicle.BoxX), nameof(Vehicle.BoxY), nameof(Vehicle.BoxZ),
                 nameof(Vehicle.Build), nameof(Vehicle.Loadout), nameof(Vehicle.ObjectClass), nameof(Vehicle.Definition));
         a.For<VehicleParams>().Saved(nameof(VehicleParams.Mass), nameof(VehicleParams.DriveScale), nameof(VehicleParams.SteerGain), nameof(VehicleParams.PivotForward),
@@ -123,6 +123,7 @@ public static class VehicleSave
         w.U32((uint)v.Flags); w.Int(v.Surface); w.V3(v.GroundNormal); w.F32(v.NormalLoad); w.F32(v.HeightAboveGround); w.F32(v.GroundHeight);
         WriteContact(w, v.Rec);
         w.F32(v.Timer); w.Bool(v.Wreck); w.Int(v.NetGeneration); w.F32(v.TurnSpeed);
+        w.Int(v.Handicap);   // format 21
         var p = v.P;
         w.F32(p.Mass); w.F32(p.DriveScale); w.F32(p.SteerGain); w.F32(p.PivotForward); w.F32(p.Drag); w.F32(p.EngineScale);
         w.F32(p.YawRateLimit); w.F32(p.RideOffset); w.F32(p.ChassisGrip); w.F32(p.BrakeStrength); w.F32(p.Wheelbase); w.F32(p.Track);
@@ -159,6 +160,7 @@ public static class VehicleSave
         v.Flags = (VehicleFlags)r.U32(); v.Surface = r.Int(); v.GroundNormal = r.V3(); v.NormalLoad = r.F32(); v.HeightAboveGround = r.F32(); v.GroundHeight = r.F32();
         v.Rec = ReadContact(r);
         v.Timer = r.F32(); v.Wreck = r.Bool(); v.NetGeneration = r.Int(); v.TurnSpeed = r.F32();
+        v.Handicap = r.Int();
         var p = v.P;
         p.Mass = r.F32(); p.DriveScale = r.F32(); p.SteerGain = r.F32(); p.PivotForward = r.F32(); p.Drag = r.F32(); p.EngineScale = r.F32();
         p.YawRateLimit = r.F32(); p.RideOffset = r.F32(); p.ChassisGrip = r.F32(); p.BrakeStrength = r.F32(); p.Wheelbase = r.F32(); p.Track = r.F32();
