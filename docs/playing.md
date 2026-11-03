@@ -142,6 +142,10 @@ when opentrack stops the view eases back ahead. If the view turns the wrong way,
 Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
 `head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
 `head_track_position` (true moves the eye with your head, up to 10 cm; off).
+**Rumble.** A pad's rumble follows the game's own force-feedback effects (Play Options' Force Feedback row). On Play Options' second
+page the Rumble row steps Original (those effects only, the default), Enhanced (and short pulses for a nitrous kick, the handbrake,
+gear changes, the starter, each kind of weapon's shot and a light engine growl) and Off; Rumble Strength sets 25 to 150 % on
+every level. Both apply when a mission starts.
 
 **Joysticks.** A flight stick, wheel or any other USB device that is not a game pad is found too (it is joystick 1 when
 there is no game pad). Out of the box the stick steers sideways and accelerates (forward) or brakes (back), the trigger

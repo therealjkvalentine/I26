@@ -103,6 +103,25 @@ public partial class ForceFeedback : Node
         if (_instance is null || !GodotObject.IsInstanceValid(_instance)) return;
         DirectInputForce.Open(DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle), WheelName, _strength, _instance.GetTree());
     }
+    /// <summary>Play Options' Rumble row (ShellSettings.RumbleMode): Off is no rumble at all, Enhanced adds <see cref="EnhancedRumble"/>'s pulses to the game's own effects.</summary>
+    public static RumbleMode Mode
+    {
+        get => _mode;
+        set
+        {
+            _mode = value;
+            if (value != RumbleMode.Enhanced) _instance?._enhanced.Reset();
+            if (value == RumbleMode.Off) _instance?.Silence();
+        }
+    }
+    private static RumbleMode _mode = RumbleMode.Original;
+    /// <summary>Play Options' Rumble Strength, percent (ShellSettings.RumbleStrength): on every level sent to the pad.</summary>
+    public static int PadStrength
+    {
+        get => _padStrength;
+        set { _padStrength = RumbleStrength.Clamp(value); if (_instance is { } i) i._mix.Strength = RumbleStrength.Factor(_padStrength); }
+    }
+    private static int _padStrength = RumbleStrength.Default;
     /// <summary>True while something is over the game that does not pause it (a network game's escape menu, the map and notepad, the game over): nothing plays.</summary>
     public static Func<bool>? Held { get; set; }
     private static ForceFeedback? _instance;
@@ -114,19 +133,22 @@ public partial class ForceFeedback : Node
     private float _hitDegrees;
     private RumbleEngine _engine = null!;
     private ThrottledRumble _throttle = null!;
+    private RumbleMix _mix = null!;
+    private readonly EnhancedRumble _enhanced = new();
+    private readonly RumbleEvents _events = new();
     private ForceModel _model = null!;
     private readonly ForceFrame _frame = new();
     private readonly List<(int Channel, int Amount)> _hits = [];
     private Armory? _arm;
     private int _selected = -1, _group;
 
-    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && (WheelLive || Controls.HasPad);
+    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && (WheelLive || (Controls.HasPad && Mode != RumbleMode.Off));
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;     // it is the one that notices the pause
         _instance = this;
-        _engine = new RumbleEngine(_throttle = new ThrottledRumble(new GodotRumble(), () => Time.GetTicksMsec() / 1000.0));
+        _engine = new RumbleEngine(_mix = new RumbleMix(_throttle = new ThrottledRumble(new GodotRumble(), () => Time.GetTicksMsec() / 1000.0)) { Strength = RumbleStrength.Factor(PadStrength) });
         _model = new ForceModel(FrcLibrary.Load(Read), _engine) { Wheel = _wheel };
         Reopen();
     }
@@ -142,6 +164,8 @@ public partial class ForceFeedback : Node
     {
         _model?.StopAll();
         _hits.Clear();
+        _enhanced.Reset();
+        _mix?.SetExtra(0, 0);
         GodotRumble.StopNow();
         DirectInputForce.Shared?.StopAll();
     }
@@ -158,8 +182,8 @@ public partial class ForceFeedback : Node
     {
         _throttle.Pump();
         // the pause (+0x08 cleared): DISFFC_STOPALL, and the DLL forgets what was playing
-        bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !(WheelLive || Controls.HasPad);
-        if (quiet) { _model.StopAll(); _hits.Clear(); }
+        bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !(WheelLive || (Controls.HasPad && Mode != RumbleMode.Off));
+        if (quiet) { _model.StopAll(); _hits.Clear(); _enhanced.Reset(); _mix.SetExtra(0, 0); }
         if (quiet && !_quiet) DirectInputForce.Shared?.StopAll();
         _quiet = quiet;
     }
@@ -231,5 +255,25 @@ public partial class ForceFeedback : Node
         if (DirectInputForce.Shared is { Status: DirectInputForce.State.Ready } wheel) me._wheel.Axes = wheel.Axes;
         me._model.Frame(f, dt);
         if (WheelLive) DirectInputForce.Shared?.Post(me._wheel);
+        if (Mode == RumbleMode.Enhanced) me.StepEnhanced(f, dt);
+    }
+
+    /// <summary>The Enhanced pulses for this tick: the car's nitro, handbrake, gear and starter, the shots of the frame, the engine's rpm.</summary>
+    private void StepEnhanced(ForceFrame f, double dt)
+    {
+        var e = _events;
+        e.Clear();
+        if (Player?.Invoke() is { } v)
+        {
+            e.EngineOn = f.EngineOn;
+            e.Cranking = f.Cranking;
+            e.Nitro = (v.Flags & VehicleFlags.TurboDrive) != 0;
+            e.Handbrake = v.Handbrake > 0;
+            e.Gear = v.Engine.Gear;
+            e.Rpm = f.Rpm;
+            e.Shots.AddRange(f.Shots);
+        }
+        var (w, s) = _enhanced.Step(e, dt);
+        _mix.SetExtra(w, s);
     }
 }

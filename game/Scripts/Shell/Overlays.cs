@@ -154,6 +154,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
 {
     protected override int Record => 10;
     private int _savedFlags;
+    private I76.Formats.Input.RumbleMode _savedRumble;
+    private int _savedRumbleStrength;
     private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
     private int _savedStrength;
     private int _savedRate, _savedDownloads;
@@ -195,6 +197,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedUpdate = s.UpdateCheck;
         _savedHead = s.HeadTrack;
         _savedHeadSens = s.HeadTrackSensitivity;
+        _savedRumble = s.RumbleMode;
+        _savedRumbleStrength = s.RumbleStrength;
         // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
         // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
@@ -266,6 +270,13 @@ public sealed class PlayOptionsScreen : OverlayScreen
         Add(222, 208, "Wheel Strength", null);
         Add(205, 209, () => "", () => s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10), Small, w: 300, h: 12);
         Add(398, 210, () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only", null);
+        // Rumble (docs/playing.md): the game's own effects, with the port's pulses added, or off; and the strength of every level
+        Add(222, 231, "Rumble", null);
+        Add(205, 232, () => "", () => s.RumbleMode = (I76.Formats.Input.RumbleMode)(((int)s.RumbleMode + 1) % 3), Small, w: 300, h: 12);
+        Add(398, 233, () => s.RumbleMode.ToString(), null);
+        Add(222, 254, "Rumble Strength", null);
+        Add(205, 255, () => "", () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength), Small, w: 300, h: 12);
+        Add(398, 256, () => s.RumbleStrength + " %", null);
         Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
@@ -303,7 +314,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         var f = _first ?? this;
         s.CbVoice = f._savedCb; s.UpdateCheck = f._savedUpdate;
         s.HeadTrack = f._savedHead; s.HeadTrackSensitivity = f._savedHeadSens;
-        s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.ForceFeedbackWheel = f._savedWheel; s.FfbStrength = f._savedStrength; s.Checkpoints = f._savedCheckpoints;
+        s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.ForceFeedbackWheel = f._savedWheel; s.FfbStrength = f._savedStrength; s.RumbleMode = f._savedRumble; s.RumbleStrength = f._savedRumbleStrength; s.Checkpoints = f._savedCheckpoints;
         s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
     }
