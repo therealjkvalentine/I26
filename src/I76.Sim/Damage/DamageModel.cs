@@ -80,10 +80,10 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// </summary>
     public float CoopDamageFactor { get; set; } = 1f;
 
-    /// <summary>The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car, else 1.</summary>
     /// <summary>A network handicap on what <paramref name="v"/> takes from another car (the port's; <see cref="Missions.Handicaps.Taken"/>): 1 at level 0.</summary>
     private static float HandicapTaken(Vehicle v, DamagePacket p) => v.Handicap != 0 && p.Attacker is Vehicle a && a != v ? Missions.Handicaps.Taken(v.Handicap) : 1f;
 
+    /// <summary>The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car, else 1.</summary>
     private float IncomingFactor(Vehicle v) => CoopDamageFactor != 1f && World.Coop && World.IsHuman(v) ? CoopDamageFactor : 1f;
 
     /// <summary>
