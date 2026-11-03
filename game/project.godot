@@ -223,6 +223,22 @@ i76_sward_tint={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+i76_ground_tint={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+i76_object_tint={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+i76_object_sky={
+"type": "float",
+"value": 1.0
+}
+i76_prelit_gain={
+"type": "float",
+"value": 1.0
+}
 i76_brush={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)

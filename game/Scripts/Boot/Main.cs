@@ -704,6 +704,7 @@ public partial class Main : Node3D
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         if (_modernEnv is not null) { _modernEnv.AdjustmentEnabled = true; _modernEnv.AdjustmentBrightness = ModernBrightness(s.Graphics[0xc]); }
+        if (_lightingCalibration != s.LightingCalibration) { _lightingCalibration = s.LightingCalibration; ApplyLightingCalibration(); }
         if (_env1997 is not null)
         {
             _env1997.AdjustmentEnabled = true;
@@ -1742,6 +1743,7 @@ public partial class Main : Node3D
     /// <summary>The mission's sky texture on the engine's dome, in both modes; modern fogs toward its average colour.</summary>
     private void ApplySky()
     {
+        _lightingCalibration = I76.Game.Shell.ShellSettings.Load().LightingCalibration;   // the calibration is solved here, before ApplyGraphics
         if (_builder?.SkyTexture is not { } tex) return;
         var mat = _sky1997 = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_dome.gdshader") };
         mat.SetShaderParameter("clouds", tex);
@@ -1776,6 +1778,7 @@ public partial class Main : Node3D
         // the modern sky's clouds move (TIME), so its radiance (ambient light and reflections) is redone all the
         // time: Incremental spreads each redo over a few frames (0.45 ms a frame less than Realtime's every frame);
         // the sky itself is drawn every frame either way. I76_SKY_REALTIME=1 for the old way.
+        SolveLightingCalibration(light, modernSky);
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
         AddSkyFog(modernSky);
@@ -1784,6 +1787,90 @@ public partial class Main : Node3D
         // no ambient: the 1997 shaders carry the engine's own light, and light() adds only the sun's shadow
         _env1997.AmbientLightSource = Environment.AmbientSource.Disabled;
         _env1997.ReflectedLightSource = Environment.ReflectionSource.Disabled;
+    }
+
+    private bool _lightingCalibration = true;
+    private I76.Formats.Imaging.LightingCalibration.Result _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
+    private float _ambientEnergy, _skyGain;
+    private ShaderMaterial? _calibratedSky;
+
+    /// <summary>
+    /// The modern look's lighting calibration (LightingCalibration, [port] lighting_calibration): the exposure, the ground's
+    /// tint, the objects' share of the sky light and their tint that show this mission, over its own map and on a car's faces,
+    /// as the 1997 look lights it, from its ground texture, light ramp, sun and sky. The modern light is the sun's
+    /// (energy·colour on the normal) and the sky's, taken as its energy times the mean of the sky's zenith, horizon and cloud
+    /// colours (linear) from above the horizon and the horizon panels' foot (what the radiance map holds there) from below.
+    /// By day only: a night's light is the cars' and the moon's (left as tuned).
+    /// </summary>
+    private void SolveLightingCalibration(I76.Formats.Mission.LightPreset light, ShaderMaterial sky)
+    {
+        _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
+        _calibratedSky = sky;
+        _ambientEnergy = _modernEnv.AmbientLightEnergy;
+        _skyGain = (float)sky.GetShaderParameter("sky_gain").AsDouble();
+        if (!_lightingCalibration || !light.IsDay || _builder?.World is not { } world
+            || _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLightingCalibration(); return; }
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (img.IsCompressed()) img.Decompress();
+        img.Convert(Image.Format.Rgb8);
+        img.Resize(8, 8, Image.Interpolation.Lanczos);
+        static I76.Formats.Imaging.LightingCalibration.Rgb Lin(Color c, float k) { var x = c.SrgbToLinear(); return new(x.R * k, x.G * k, x.B * k); }
+        float gain = _skyGain * _ambientEnergy / 3;
+        var skyUp = Lin(sky.GetShaderParameter("zenith_color").AsColor(), gain) + Lin(sky.GetShaderParameter("horizon_color").AsColor(), gain)
+            + Lin(sky.GetShaderParameter("cloud_color").AsColor(), gain);
+        var skyDown = Lin(HorizonFoot() ?? sky.GetShaderParameter("horizon_color").AsColor() * 0.8f, _horizonFootFound ? _ambientEnergy : _skyGain * _ambientEnergy);
+        var sun = Lin(_sun.LightColor, _sun.LightEnergy);
+        var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, sun, skyUp);
+        var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, LumaBytes(), light.Intensity, light.Ambient, sun, skyUp, skyDown);
+        var c = _calibration = I76.Formats.Imaging.LightingCalibration.Solve(img.GetData(), ground, objects);
+        GD.Print($"lighting calibration: {ground.Count} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
+            + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms");
+        ApplyLightingCalibration();
+    }
+
+    private bool _horizonFootFound;
+
+    /// <summary>The horizon panels' foot row (sRGB, by coverage), which the sky's radiance map carries on below the horizon; null without panels.</summary>
+    private Color? HorizonFoot()
+    {
+        _horizonFootFound = false;
+        if (_builder?.Horizon is not { } hz) return null;
+        double r = 0, g = 0, b = 0, a = 0;
+        int n = 0;
+        for (int i = 0; i < hz.GetLayers(); i++)
+        {
+            if (hz.GetLayerData(i) is not { } im) continue;
+            if (im.IsCompressed()) im.Decompress();
+            int y = (int)(0.002f * im.GetHeight());
+            for (int x = 0; x < im.GetWidth(); x++)
+            {
+                var p = im.GetPixel(x, y);
+                r += p.R * p.A; g += p.G * p.A; b += p.B * p.A; a += p.A; n++;
+            }
+        }
+        if (a <= 0) return null;
+        _horizonFootFound = true;
+        return new Color((float)(r / a), (float)(g / a), (float)(b / a));
+    }
+
+    /// <summary>
+    /// The calibration in the modern look, or none ([port] lighting_calibration=off). The sky is not lit: it takes half the
+    /// exposure's change (in log), which keeps the measured skies (T01, T05, M01, T10) near the 1997 dome's lightness; the
+    /// ambient energy undoes the sky's change, so the light it gives is what the solve took.
+    /// </summary>
+    private void ApplyLightingCalibration()
+    {
+        var c = _lightingCalibration ? _calibration : I76.Formats.Imaging.LightingCalibration.Result.None;
+        float skyGain = 1f / Mathf.Sqrt((float)c.Exposure);
+        if (_modernEnv is not null)
+        {
+            _modernEnv.TonemapExposure = (float)c.Exposure;
+            if (_calibratedSky is not null) { _calibratedSky.SetShaderParameter("sky_gain", _skyGain * skyGain); _modernEnv.AmbientLightEnergy = _ambientEnergy / skyGain; }
+        }
+        RenderingServer.GlobalShaderParameterSet("i76_ground_tint", new Vector3((float)c.GroundTint.R, (float)c.GroundTint.G, (float)c.GroundTint.B));
+        RenderingServer.GlobalShaderParameterSet("i76_object_tint", new Vector3((float)c.ObjectTint.R, (float)c.ObjectTint.G, (float)c.ObjectTint.B));
+        RenderingServer.GlobalShaderParameterSet("i76_prelit_gain", 1f / (float)c.Exposure);
+        RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
     }
 
     /// <summary>
@@ -2457,6 +2544,10 @@ public partial class Main : Node3D
         MouseCamera.Active = false;
         MouseCamera.WheelView = null;
         ReleaseCursor();
+        // the calibration's globals outlive the scene: the shell's garage draws its cars with the same shader
+        _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
+        _calibratedSky = null;
+        ApplyLightingCalibration();
     }
 
     private static void ToggleFullscreen() =>

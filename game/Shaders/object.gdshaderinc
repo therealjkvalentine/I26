@@ -92,6 +92,13 @@ global uniform bool i76_car_materials;   // Ctrl+F8 (a debug key): off, every ca
 global uniform bool i76_car_interiors;   // Graphic Detail's Car Interiors: the proxy cabin and driver behind the glass (off: the glass alone)
 global uniform int i76_paint_finish;   // Graphic Detail's Hood Finish (PaintFinish): 0 Matte, 1 Satin, 2 Gloss, the cars' paint and the cockpit's hood (hood_surface)
 instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
+// the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): lit faces take i76_object_sky
+// of the sky's light (through their occlusion: ambient and reflections, not the sun) and their colours times i76_object_tint,
+// so they show the 1997 look's light; the cockpit's painted art is times i76_prelit_gain, the inverse of the calibration's
+// exposure, so it shows as painted. All 1 with [port] lighting_calibration=off
+global uniform vec3 i76_object_tint;
+global uniform float i76_object_sky;
+global uniform float i76_prelit_gain;
 uniform bool has_glass = false;    // with car_paint: glass_tex marks the window texels (CarMaterialTable's glass, MaterialLibrary.GlassOf)
 uniform sampler2D glass_tex : source_color, hint_default_black, filter_linear_mipmap;   // rgb the glass's own colour (blurred), a the soft mask
 uniform sampler2D glass_body : source_color, hint_default_black, filter_linear_mipmap;   // the body's colour round the window, past its trim (MaterialLibrary.BodyColour)
@@ -537,7 +544,7 @@ void fragment() {
 	float glass_w = 0.0;   // the car's window texels (the paint's finish leaves them as glass)
 	if (prelit) {
 		ALBEDO = vec3(0.0);
-		EMISSION = c.rgb;
+		EMISSION = c.rgb * i76_prelit_gain;
 		ROUGHNESS = 1.0;
 		SPECULAR = 0.0;
 	} else if (car_paint) {
@@ -702,6 +709,7 @@ void fragment() {
 		CLEARCOAT = CLEARCOAT * (1.0 - wreck.x);
 		EMISSION = g;
 	}
+	if (!prelit) { ALBEDO *= i76_object_tint; AO = i76_object_sky; }
 #endif
 #ifdef TRANSLUCENT
 	ALPHA = opacity;

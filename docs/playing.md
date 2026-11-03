@@ -128,7 +128,9 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `effects_size` | `25` to `150` | `100` | The modern look's weapon effects, in percent of their drawn size: the rounds' streaks, the sparks and dust where they strike, muzzle flashes, rocket trails, smoke puffs (damage, wreck, chemical cloud) and the explosion and fireball flipbooks. The 1997 look draws the original's sprites and is not affected. |
 | `effects_brightness` | `25` to `150` | `100` | The same effects' glow, in percent: the streaks, sparks, flashes, the fire in the explosions and under the wreck smoke, and the brief lights at muzzles, impacts and blasts. |
 | `effects_opacity` | `25` to `150` | `100` | The same effects' opacity, in percent: lower lets more of the scene through the dust, smoke and fire. |
-| `vegetation_density` | `10` to `150` | `60` | The modern look's scattered plants (grass, shrubs, cacti), in percent of what Graphic Detail's Vegetation level (Low or High) places: lower thins them to a subset of the same plants. The map's own objects (its trees, bushes and buildings) and the 1997 look are not affected. |
+
+| `lighting_calibration` | `on`, `off` | `on` | The modern look's lighting calibrated by day against the 1997 look's: each mission's exposure and ground colour set so the ground shows the 1997 look's colour and brightness, the cars' and buildings' sky light and colour so they do too, and the sky following halfway (`on`); or the modern look's own lighting as it was (`off`). The earlier `look_colour_match` key is read when this one is absent. The 1997 look is not affected. |
+
 | `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`, `enhanced`\* | `original` | Force Feedback's Pad or Pad Enhanced\*; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
