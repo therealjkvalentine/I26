@@ -6,7 +6,8 @@ namespace I76.Game.Sim;
 /// art's two masks (not surround, glass), blurred (a Gaussian, <see cref="Sigma"/> original pixels) and sampled at four
 /// texels a pixel: the shader cuts each at 0.5 over one screen pixel, a smooth antialiased curve. Fill is the art served
 /// (the original or a pack's upscale) with the frame's colours spread into the surround and the glass, so the soft edge
-/// takes the frame's colour. The 1997 look keeps the art's own pixels.
+/// takes the frame's colour. KeyField and KeyFill do the same for a keyed panel's outline (the compass). The 1997 look keeps
+/// the art's own pixels.
 /// </summary>
 public static class MirrorEdge
 {
@@ -115,9 +116,37 @@ public static class MirrorEdge
     public static byte[] Fill(byte[] rgba, int w, int h, int scale)
     {
         var corner = new[] { rgba[0], rgba[1], rgba[2] };
-        var o = (byte[])rgba.Clone();
         var known = new bool[w * h];
         for (int i = 0; i < w * h; i++) known[i] = rgba[i * 4 + 3] >= 128 && !Surround(rgba, i * 4, corner);
+        return Spread(rgba, w, h, scale, known);
+    }
+
+    /// <summary>
+    /// A keyed panel's outline (the compass, whose art keys everything round it): its opaque mask (alpha 0.5 and over)
+    /// blurred and sampled at FieldScale as <see cref="Field"/>'s, an R8 picture (w·4 × h·4, the art's row order). 128 is the edge.
+    /// </summary>
+    public static byte[] KeyField(byte[] rgba, int w, int h, float sigma = Sigma)
+    {
+        var solid = new float[w * h];
+        for (int i = 0; i < w * h; i++) solid[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0;
+        var a = Blur(solid, w, h, sigma);
+        var o = new byte[a.Length];
+        for (int i = 0; i < a.Length; i++) o[i] = (byte)System.Math.Clamp((int)(a[i] * 255f + 0.5f), 0, 255);
+        return o;
+    }
+
+    /// <summary>A keyed panel's served art with its opaque texels' colours spread into the keyed ones round them, opaque: the soft edge's colour.</summary>
+    public static byte[] KeyFill(byte[] rgba, int w, int h, int scale)
+    {
+        var known = new bool[w * h];
+        for (int i = 0; i < w * h; i++) known[i] = rgba[i * 4 + 3] >= 128;
+        return Spread(rgba, w, h, scale, known);
+    }
+
+    /// <summary>The <paramref name="known"/> texels' colours spread a texel a pass into the rest, three original pixels' reach; all opaque.</summary>
+    private static byte[] Spread(byte[] rgba, int w, int h, int scale, bool[] known)
+    {
+        var o = (byte[])rgba.Clone();
         var next = new bool[w * h];
         for (int pass = 0; pass < 3 * scale; pass++)
         {

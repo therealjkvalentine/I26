@@ -50,6 +50,10 @@ public partial class ExtInstruments : Control
 
     private ColorRect? _mirror;
     private ShaderMaterial? _mirrorMat;
+    /// <summary>The compass in the modern look, cut along its smooth outline (Cockpit.CompassEdge); drawn in place of its slot.</summary>
+    private ColorRect? _compass;
+    private ShaderMaterial? _compassMat;
+    private const string CompassPanel = "zcm_.map";
 
     /// <summary>In draw order; a null panel is the radar's current frame.</summary>
     private static readonly (string? Panel, int X, int Y, int W, int H)[] Slots =
@@ -72,12 +76,16 @@ public partial class ExtInstruments : Control
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/mirror_2d.gdshader") };
         _mirror = new ColorRect { Name = "Mirror", Material = _mirrorMat, MouseFilter = MouseFilterEnum.Ignore, Visible = false };
         AddChild(_mirror);
+        _compassMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/panel_edge_2d.gdshader") };
+        _compass = new ColorRect { Name = "Compass", Material = _compassMat, MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+        AddChild(_compass);
     }
 
     public override void _Process(double delta)
     {
         if (!Visible) return;
         QueueRedraw();
+        Compass();
         // slot 7, the mirror (hud on, so the 2D dash only), at (465, 125), not while the head is turned: the art's top left
         // 175x55, as the original's clip cuts it (its 256x64 art would run off the 640 frame's right edge)
         var pit = Pit();
@@ -98,6 +106,27 @@ public partial class ExtInstruments : Control
         _mirrorMat.SetShaderParameter("smooth_edge", edge is not null && fill is not null);
     }
 
+    /// <summary>The compass's slot (2) in the modern look, while its panel is drawn: the shader's rect over it.</summary>
+    private void Compass()
+    {
+        var pit = Pit();
+        var tex = pit?.Panels.Texture(CompassPanel);
+        bool show = pit is not null && tex is not null && !pit.Faithful && pit.CompassEdge is not null && !(InCockpit() && pit.LookingAway);
+        _compass!.Visible = show;
+        if (!show) return;
+        var (edge, fill) = pit!.CompassEdge!.Value;
+        var (_, x, y, w, h) = Slots[2];
+        float k = GetViewportRect().Size.Y / 480f;
+        int s = pit.Panels.Scale(CompassPanel);
+        _compass.Position = new Vector2((GetViewportRect().Size.X - 640 * k) / 2 + x * k, y * k);
+        _compass.Size = new Vector2(w, h) * k;
+        _compassMat!.SetShaderParameter("art", tex);
+        _compassMat.SetShaderParameter("edge", edge);
+        _compassMat.SetShaderParameter("fill", fill);
+        _compassMat.SetShaderParameter("clip", new Vector2(w, h));
+        _compassMat.SetShaderParameter("art_size", new Vector2(tex!.GetWidth(), tex.GetHeight()) / s);
+    }
+
     public override void _Draw()
     {
         if (Pit() is not { } pit) return;
@@ -112,6 +141,7 @@ public partial class ExtInstruments : Control
             if (dash && pit.LookingAway) break;   // The nine panels wait for the head to come forward
             // a panel not drawn into yet is the original's empty descriptor: its slot is skipped
             if ((panel is null ? pit.RadarTexture : pit.Panels.Texture(panel)) is not { } tex) continue;
+            if (panel == CompassPanel && _compass!.Visible) continue;   // the modern look's smooth one (Compass)
             // the slot is the original's pixels; a panel served upscaled (s texels a pixel) is read at its scale
             int th = tex.GetHeight(), s = panel is null ? pit.RadarScale : pit.Panels.Scale(panel);
             // y flipped about the slot: local row 0 (stored row th − h·s, the picture's row h − 1) lands at the slot's foot
