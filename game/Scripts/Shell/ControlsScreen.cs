@@ -52,6 +52,19 @@ public class ControlsScreen : OverlayScreen
     internal static readonly int[] LeftRows = [1, 2, .. Enumerable.Range(4, 17)];
     internal static readonly int[] RightRows = [.. Enumerable.Range(21, 19)];
 
+    /// <summary>The port's own commands, which the art has no row for: on the left's spare ruled rows, under Reset Car Upright.</summary>
+    internal static readonly (int Entry, string Name)[] PortRows =
+        [(Array.IndexOf(Controls.Commands, PistolKeys.Left), "Pistol Left"), (Array.IndexOf(Controls.Commands, PistolKeys.Right), "Pistol Right")];
+
+    /// <summary>Every command with a row, the art's in order and then the port's: what the pad screens' lists offer.</summary>
+    internal static readonly int[] Entries = [.. LeftRows, .. RightRows, .. PortRows.Select(p => p.Entry)];
+
+    /// <summary>A row's name: the art's (<see cref="Names"/>) or the port's.</summary>
+    internal static string NameOf(int entry) => Array.IndexOf(Entries, entry) is var i && i < Names.Length ? Names[i].Text : PortRows[i - Names.Length].Name;
+
+    /// <summary>The left's spare ruled rows: the hint, then the port's game keys (<see cref="RightGameKeys"/> on), then <see cref="PortRows"/>.</summary>
+    private static int PortRowAt(int k) => LeftRows.Length + HintName.Length + (GameKeyMap.Rebindable.Length - RightGameKeys) + k;
+
     /// <summary>Record 16's painted command names and their ink boxes (x, y, w, h).</summary>
     internal static readonly (string Text, int X, int Y, int W, int H)[] Names =
     [
@@ -87,7 +100,8 @@ public class ControlsScreen : OverlayScreen
 
     // the cells' room for text, inside the art's column rules (names x 35..177, bindings 177..312 and 475..612), a margin short of the rule
     internal const int NameW = 132, LeftBindW = 118, RightBindW = 122;
-    internal static readonly string[] HintName = ["Left-click:", "Right-click:"], HintDo = ["choose from list", "press a key"];
+    // one row of hint (a left click's list is plain to see), so the port's rows fit under it
+    internal static readonly string[] HintName = ["Right-click:"], HintDo = ["press a key"];
 
     /// <summary>The text cut to a cell: the spaces round a slash dropped first, then the end replaced by dots. (The original lets a long name run on over the rule.)</summary>
     internal string Fit(string s, int max)
@@ -102,7 +116,7 @@ public class ControlsScreen : OverlayScreen
     protected override void DrawExtra()
     {
         // the port's hint on the first two empty ruled rows, one piece to a cell: the right click is the original's only way to bind by pressing the input
-        for (int k = 0; k < 2; k++)
+        for (int k = 0; k < HintName.Length; k++)
         {
             int y = 47 + (LeftRows.Length + k) * RowH;
             Frame.Text(_f, 40, y, Fit(HintName[k], NameW), ShellFrame.OverlayInk);
@@ -119,9 +133,16 @@ public class ControlsScreen : OverlayScreen
         string Key(int id) => _keys.GetValueOrDefault(id, "");
         for (int k = RightGameKeys; k < GameKeyMap.Rebindable.Length; k++)
         {
-            int y = 47 + (LeftRows.Length + 2 + k - RightGameKeys) * RowH;
+            int y = 47 + (LeftRows.Length + HintName.Length + k - RightGameKeys) * RowH;
             Frame.Text(_f, 40, y, Fit(GameKeyMap.Rebindable[k].Label, NameW), ShellFrame.OverlayInk);
             Frame.Text(_f, 190, y, Fit(Key(GameKeyMap.Rebindable[k].Id), LeftBindW), ShellFrame.OverlayInk);
+        }
+        // the port's commands (the pistol keys) on the rows after them
+        for (int k = 0; k < PortRows.Length; k++)
+        {
+            int y = 47 + PortRowAt(k) * RowH;
+            Frame.Text(_f, 40, y, Fit(PortRows[k].Name, NameW), ShellFrame.OverlayInk);
+            Frame.Text(_f, 190, y, Fit(Binding(PortRows[k].Entry), LeftBindW), ShellFrame.OverlayInk);
         }
         if (Shell.Upscaled)
             foreach (var (text, x, y, w, h) in Names) Frame.Caption(new Rect2I(x, y, w, h), text, 213);
@@ -138,7 +159,8 @@ public class ControlsScreen : OverlayScreen
         if (30 < m.X && m.X < 312 && k < LeftRows.Length) return LeftRows[k];
         if (330 < m.X && m.X < 612 && k < RightRows.Length) return RightRows[k];
         if (330 < m.X && m.X < 612 && k - RightRows.Length is >= 0 and var g && g < RightGameKeys) return GameEntry + g;
-        if (30 < m.X && m.X < 312 && k - LeftRows.Length - 2 is >= 0 and var lg && RightGameKeys + lg < GameKeyMap.Rebindable.Length) return GameEntry + RightGameKeys + lg;
+        if (30 < m.X && m.X < 312 && k - LeftRows.Length - HintName.Length is >= 0 and var lg && RightGameKeys + lg < GameKeyMap.Rebindable.Length) return GameEntry + RightGameKeys + lg;
+        if (30 < m.X && m.X < 312 && k - PortRowAt(0) is >= 0 and var pr && pr < PortRows.Length) return PortRows[pr].Entry;
         return -1;
     }
 

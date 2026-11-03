@@ -139,6 +139,24 @@ public sealed class BindingTable
         return t;
     }
 
+    /// <summary>
+    /// The port's pistol keys (<see cref="PistolKeys"/>) on , and . as further blocks, each only when its command has no block yet and no
+    /// keyboard block of another command has that key (the original's maps put the gears there, so they keep them). Applied to the
+    /// install's files in code, as <see cref="WithWasd"/>; a saved map is never changed.
+    /// </summary>
+    public BindingTable WithPistolKeys()
+    {
+        var t = Clone();
+        foreach (var (cmd, _, key) in PistolKeys.Pairs)
+        {
+            if (t.Of(cmd).Count > 0) continue;
+            var want = new InputTerm(true, "keyboard", key);
+            if (t.Blocks.Any(b => !IsPad(b) && b.Terms.Any(x => x.Plus && Same(x, want)))) continue;
+            t.Set(cmd, NewBlock(cmd, "keyboard", key));
+        }
+        return t;
+    }
+
     /// <summary>The key manual reverse sits on now that Tab is the scoreboard: X, beside Z (the handbrake) and in the same place on QWERTY, QWERTZ and AZERTY.</summary>
     public const string ReverseKey = "X";
 

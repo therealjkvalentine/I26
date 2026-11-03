@@ -145,6 +145,7 @@ and a pad).
 |---|---|
 | Drive | W/A/S/D or keypad 8/4/2/6 |
 | Shift gears / reverse | `,` and `.` / X |
+| Pistol out of the left / right window | hold Pistol Left / Pistol Right (no key by default where `,` and `.` are the gears; bind them in Control Configuration) |
 | Engine on or off / e-brake | I / Z |
 | Fire / cycle weapon | Space / Enter |
 | Hardpoints / specials | 1-5 / 6-8 |
@@ -166,7 +167,7 @@ and a pad).
 | Game menu | Esc |
 | 1997 look on or off | F12 |
 
-Targets and the .45: Q targets only a car within 15 degrees of the nose inside radar range, and clears the target when none is there; the driver's .45 out of the window is the finisher on a crippled car (hold a side glance, Left or Right, 0.5 s for the arm to come up, then fire; on a car under a third it goes straight to a critical part).
+Targets and the .45: Q targets only a car within 15 degrees of the nose inside radar range, and clears the target when none is there; the driver's .45 out of the window is the finisher on a crippled car (hold a side glance, Left or Right, 0.5 s for the arm to come up, then fire; on a car under a third it goes straight to a critical part). The port's Pistol Left and Pistol Right keys do both at once: held in the cockpit, the head turns to that window and the .45 fires as soon as the arm is up (the same 0.5 s), three shots a second, never the hardpoints; let go, the head comes back. Their default keys are `,` and `.` where your map leaves those free. To move the outside instruments' `[` and the ghost cockpit's `]` (to put other commands there), `gamekeys.cfg` in the user folder takes `[keys]` `93="-"` and `12="="` (any key, as Control Configuration writes the game keys there).
 
 A printable sheet of your own bindings: `dotnet run --project tools/I76.Cli -- keysheet [input.map] [out.html]` (without a file, the input.map
 the game saved, else the install's; open the page in a browser and print it).

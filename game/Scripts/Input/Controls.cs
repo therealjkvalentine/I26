@@ -26,6 +26,8 @@ public static class Controls
         "pilot_glance_down", "pilot_glance_left", "pilot_glance_right", "pilot_glance_up", "pilot_glance_target",
         "weapon_fire", "weapon_cycle", "weapon_link", "hardpoint1_fire", "hardpoint2_fire", "hardpoint3_fire", "hardpoint4_fire",
         "hardpoint5_fire", "special1", "special2", "special3", "POETRY", "toggle_cmbt_view", "reverse_direction",
+        // the port's own, with no row in the art (ControlsScreen.PortRows)
+        PistolKeys.Left, PistolKeys.Right,
     ];
 
     /// <summary>What an unbound command shows.</summary>
@@ -219,7 +221,7 @@ public static class Controls
             t = MoveReverseOffTab(t, user);
         }
         else if (Pads.Count > 0) t = Defaults();    // the shell copies JOYSTICK.MAP over a missing input.map when a stick is present
-        else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd();
+        else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd().WithPistolKeys();
         else t = Defaults().Migrate(Install("input.def"));
         // the port's bindings beside the file (PadRules), before a pad side is chosen: a map with rules has a pad binding
         if (Godot.FileAccess.FileExists(RulesPath)) t.Rules = PadRules.Parse(Godot.FileAccess.GetFileAsString(RulesPath));
@@ -300,7 +302,7 @@ public static class Controls
     {
         if (_keyBase is null || _keyBaseDir != InstallDir)
         {
-            _keyBase = (Install("KEYBOARD.MAP") is { } kb ? BindingTable.Parse(kb) : new BindingTable()).WithWasd().WithReverseOffTab(out _);
+            _keyBase = (Install("KEYBOARD.MAP") is { } kb ? BindingTable.Parse(kb) : new BindingTable()).WithWasd().WithReverseOffTab(out _).WithPistolKeys();
             _keyBaseDir = InstallDir;
         }
         return _keyBase.Clone();

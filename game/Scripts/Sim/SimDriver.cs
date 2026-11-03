@@ -354,6 +354,8 @@ public partial class SimDriver : Node
             b |= CarButtons.Cockpit;
             if (ArmWanted?.Invoke(1) == true) b |= CarButtons.RaiseRightArm;
             if (ArmWanted?.Invoke(2) == true) b |= CarButtons.RaiseLeftArm;
+            // the port's pistol keys: the cockpit holds their glance; the sim fires the raised arm's .45 with them
+            if (Controls.Down(I76.Formats.Input.PistolKeys.Left) || Controls.Down(I76.Formats.Input.PistolKeys.Right)) b |= CarButtons.Pistol;
         }
         // the stick: the throttle and steer rows are the pad's axes unless a driving key is held,
         // when the keys have both; with no stick bound the keys alone are read

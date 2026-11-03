@@ -66,4 +66,54 @@ public class HandgunSessionTests(Xunit.Abstractions.ITestOutputHelper log)
         Assert.NotNull(killed);
         Assert.True(killed!.DriverKilled);
     }
+
+    /// <summary>
+    /// The port's Pistol Left key held (the cockpit sends its glance's arm and the pistol bit, no fire key) with a car in the red
+    /// abeam the left window: the left .45 fires once its arm is up, half a second after the key (the original's raise, five
+    /// frames of a tenth), never before, the hardpoints and the right gun stay silent, and the driver is killed.
+    /// </summary>
+    [Fact]
+    public void HoldingPistolLeftFiresTheLeftHandgunOnceTheArmIsUp()
+    {
+        if (InstallDir is null) return;
+        var install = new GameInstall(InstallDir);
+        var vfs = new AssetVfs(install);
+        var asm = new ModelAssembler(vfs);
+        var w = new MissionWorld(vfs, asm, install.Resolve("miss16", "m01.msn")!);
+        var setup = MissionSetup.Build(vfs, w, asm, "vppirna1.vcf", melee: ["vppirna1.vcf"], seed: 7);
+        setup.Melee?.Start();
+        var s = new SimSession(setup);
+        var me = setup.World.Player!;
+        s.AddDriver(me);
+        me.Armory!.AddHandguns(new Bwd2File(vfs.TryRead("vppirnha.vdf")!), true, true);
+        var gun = me.Armory.Handguns[1]!;
+        var ammo = me.Armory.Weapons.Select(x => x.Ammo).ToArray();
+        var shots = new List<(int Tick, int Channel)>();
+        int tick = 0;
+        setup.Combat.HandgunShot = (v, ch) => { if (v == me) shots.Add((tick, ch)); };
+        var foe = setup.World.Vehicles.First(v => v != me && !v.IsEmplacement);
+        foe.Health!.Brake!.Hp = foe.Health.Brake.Max / 2;
+        const int Held = 10;   // the key goes down on this tick
+        VehicleKilled? killed = null;
+        for (; tick < 600 && killed is null; tick++)
+        {
+            // held abeam of the left window, 10 m out
+            var p = me.Pos.ToVector3() + me.Rot.ToWorld(gun.MuzzlePos) + me.Rot.ToWorld(gun.BaseRot.Forward) * 10f;
+            foe.Pos = new I76.Sim.Math.Double3(p.X, tick == 0 ? setup.World.Ground.BareHeight(p.X, p.Z) + 0.5 : foe.Pos.Y, p.Z);
+            foe.Vel = default; foe.Speed = 0;
+            var held = tick >= Held ? CarButtons.RaiseLeftArm | CarButtons.Pistol : 0;
+            s.Tick([new CarInput { Buttons = CarButtons.Cockpit | held }]);
+            killed = setup.Damage.Events.OfType<VehicleKilled>().FirstOrDefault(k => k.Vehicle == foe);
+            setup.Damage.Events.Clear();
+            setup.Combat.Events.Clear();
+        }
+        Assert.NotEmpty(shots);
+        float first = (shots[0].Tick - Held + 1) * s.TickSeconds;
+        log.WriteLine($"first shot {first:0.000} s after the key, {shots.Count} shots, driver killed at tick {tick}");
+        Assert.All(shots, x => Assert.Equal(2, x.Channel));
+        Assert.InRange(first, 0.5f - s.TickSeconds / 2, 0.5f + s.TickSeconds / 2);   // 0.498 s at 20 Hz: the tenth tick from the key
+        Assert.Equal(ammo, me.Armory.Weapons.Select(x => x.Ammo));
+        Assert.NotNull(killed);
+        Assert.True(killed!.DriverKilled);
+    }
 }

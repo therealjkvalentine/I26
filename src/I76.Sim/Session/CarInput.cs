@@ -29,6 +29,11 @@ public enum CarButtons : uint
     RaiseLeftArm = 1 << 14,
     /// <summary>Steer and throttle are analog positions (<see cref="CarInput.Steer"/>, <see cref="CarInput.Throttle"/>), not the key ramps.</summary>
     Analog = 1 << 15,
+    /// <summary>
+    /// The port's Pistol Left / Right key held (it also holds that glance): a raised, still arm's handgun fires as with the fire key;
+    /// the hardpoints never take it (protocol 25).
+    /// </summary>
+    Pistol = 1 << 16,
 }
 
 /// <summary>One-off commands, each applied once at the start of the tick it is sent with.</summary>
