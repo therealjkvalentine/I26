@@ -977,6 +977,10 @@ public partial class Main : Node3D
         }
         // I76_MOTION_CSV=file: a row a tick of the player's motion
         if (System.Environment.GetEnvironmentVariable("I76_MOTION_CSV") is { Length: > 0 } motionPath) _sim.MotionPath = motionPath;
+        // the Developer panel's Signals record from the start, so the panel shows the seconds before it opened
+        I76.Game.Ui.DevSignals.Reset();
+        I76.Game.Ui.DevSignals.Watching = DevOn;
+        ShowSignals();
         AddChild(_sim);
         AddChild(new PausedClock { Owner = this, Name = "PausedClock" });
         var playSettings = I76.Game.Shell.ShellSettings.Load();
