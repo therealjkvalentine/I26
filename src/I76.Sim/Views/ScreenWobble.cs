@@ -78,7 +78,9 @@ public sealed class ScreenWobble
 public static class CrashBlurMode
 {
     public const int Off = 0, On = 1;
-    public static readonly string[] Names = ["Off", "On"];
+    /// <summary>The row's values: On is the original's; turning it off is the port's, marked as the pads mark it.</summary>
+    public static readonly string[] Names = ["Off*", "On"];
+    private static readonly string[] Words = ["off", "on"];
 
     /// <summary>Parse the cfg word: off is off; on, the old "auto" and anything unknown are on.</summary>
     public static int Parse(string? s) => (s ?? "").Trim().ToLowerInvariant() switch
@@ -87,7 +89,7 @@ public static class CrashBlurMode
         _ => On,
     };
 
-    public static string Word(int mode) => Names[System.Math.Clamp(mode, 0, 1)].ToLowerInvariant();
+    public static string Word(int mode) => Words[System.Math.Clamp(mode, 0, 1)];
 
     public static bool Resolve(int mode) => mode == On;
 }

@@ -299,6 +299,8 @@ public sealed partial class EscapeMenu : Control
         Item G(int flags, string label, int row, int n, string[]? names, int at) =>
             Scrolling(row, flags, label, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: () => Live?.Invoke(Settings));
         string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
+        // the port's values marked where the row offers the original's (ShellSettings.PortMark): the modern look, its plants
+        string mark = ShellSettings.PortMark;
         _graphics.Items = [
             G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 1, 11, null, 0xc),
             G(Cycle, "Ext. Instrum. Disp.", 2, 2, offOn, 0xe),
@@ -307,13 +309,13 @@ public sealed partial class EscapeMenu : Control
             G(Cycle, "Terrain Detail", 5, 2, ["Low", "High"], 0x2),
             G(Cycle, "Anti-Aliasing", 6, I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8),   // the shell's list, 8x too
             // the port's own, on the free row 7: the 1997 look, off, the original's 3D card or its software renderer, applied on resume (as F2)
-            Scrolling(7, Cycle, "1997 Mode", 3, ["Off", "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false),
+            Scrolling(7, Cycle, "1997 Mode", 3, ["Off" + mark, "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false),
             // and on row 8: the modern look's palette grade (SoftwareLook), live
             Scrolling(8, Cycle, "Palette Grade", 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: () => Live?.Invoke(Settings)),
             // the software renderer's double image on a big cockpit hit (the original's in the 1997 look, smooth in the modern look), live
             Scrolling(9, Cycle, "Crash Blur", 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's plants on the next free row
-            Scrolling(10, Cycle, "Vegetation", 3, offLowHigh, s => s.Vegetation, (s, v) => s.Vegetation = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(10, Cycle, "Vegetation", 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: () => Live?.Invoke(Settings)),
             // and the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             Scrolling(11, Cycle, "Field of View", I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: () => Live?.Invoke(Settings)),
             // and the mouse orbiting the chase view, live

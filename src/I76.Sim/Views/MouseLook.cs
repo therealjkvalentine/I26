@@ -7,8 +7,8 @@ namespace I76.Sim.Views;
 /// </summary>
 public static class MouseLook
 {
-    /// <summary>Off, then three speeds; the setting's levels.</summary>
-    public static readonly string[] Names = ["Off", "Slow", "Normal", "Fast"];
+    /// <summary>Off (the original's: no mouse orbit), then three speeds, the port's, marked as the pads mark it; the setting's levels.</summary>
+    public static readonly string[] Names = ["Off", "Slow*", "Normal*", "Fast*"];
     public const int Off = 0, Normal = 2;
 
     /// <summary>Radians of orbit per mouse count at a level (Normal is about 0.17 degrees a count).</summary>

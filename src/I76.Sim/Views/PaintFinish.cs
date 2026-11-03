@@ -8,7 +8,9 @@ namespace I76.Sim.Views;
 public static class PaintFinish
 {
     public const int Matte = 0, Satin = 1, Gloss = 2;
-    public static readonly string[] Names = ["Matte", "Satin", "Gloss"];
+    /// <summary>The row's values: Matte is the original's look (its hood and paint reflect nothing); the shine is the port's, marked as the pads mark it.</summary>
+    public static readonly string[] Names = ["Matte", "Satin*", "Gloss*"];
+    private static readonly string[] Words = ["matte", "satin", "gloss"];
     public const int Default = Satin;
 
     /// <summary>The cfg word ([port] hood_finish); absent or unknown, the old hood_matte key's Matte, else the default.</summary>
@@ -20,5 +22,5 @@ public static class PaintFinish
         _ => legacyMatte ? Matte : Default,
     };
 
-    public static string Word(int finish) => Names[System.Math.Clamp(finish, 0, Names.Length - 1)].ToLowerInvariant();
+    public static string Word(int finish) => Words[System.Math.Clamp(finish, 0, Words.Length - 1)];
 }
