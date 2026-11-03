@@ -176,7 +176,8 @@ public partial class ChaseCamera : Camera3D
         var off = Position - centreG;
         float r = Mathf.Lerp(new Vector2(off.X, off.Z).Length(), d * 1.3f, k * 0.5f);
         float y = Mathf.Lerp(off.Y, d * 0.6f, k * 0.5f);
-        Position = centreG + new Vector3(Mathf.Sin(_orbit.Yaw) * r, y, Mathf.Cos(_orbit.Yaw) * r);
+        float yaw = _orbit.Drawn;   // between its steps: a held step turned 8 degrees on one display frame in two or three
+        Position = centreG + new Vector3(Mathf.Sin(yaw) * r, y, Mathf.Cos(yaw) * r);
         LookAt(centreG, Vector3.Up);
     }
 
