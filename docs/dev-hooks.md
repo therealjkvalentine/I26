@@ -191,13 +191,21 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 line, then one row a tick, starting at tick 0 (the mission's first):
 
 ```
-# I76_INPUT 1 mission=m01 car=valepre1.vcf seed=1730412345 rate=20 melee=vppirna1.vcf+vcgcour1.vcf
+# I76_INPUT 1 mission=m01 car=valepre1.vcf seed=1730412345 rate=20 melee=vppirna1.vcf+vcgcour1.vcf build=0.11.0 install=00c0ffee12345678 options=0x0 difficulty=1 physics=original ai=script
 tick,buttons,commands,steer,throttle,hash
 0,0x1,0x0,0,0,3f0c9a1e5b7d2c44
 1,0x21,0x10,0,0,9b2e04d17a3c5f80
+# dev teleported tick 2
+2,0x0,0x0,0,0,77a0c3d2e1f40b19
 ```
 
-`car` is empty for the mission's own car; `melee` is present for an instant melee only. `buttons` and `commands` are
+`car` is empty for the mission's own car; `melee` is present for an instant melee only. The game's recordings also name
+what else reaches the sim at the start: `build` (the version), `install` (the install's identity, as a snapshot's),
+`options` and `difficulty` (Play Options' flags and Difficulty Level), `physics` (Modern Physics) and `ai` (`--ai`); a
+replay prints each of them that differs from the run it is in (`input replay: recorded under ...`), and a field a
+recording lacks (an older one, `i76 run`'s) is not compared. A Developer panel action that changes the game (a teleport,
+a restore, a repair, a swap, God mode) writes a `# dev ACTION tick N` row before tick N: a replay says the recording
+cannot be followed past it. Each row is flushed as it is written, so a run that crashes keeps its trace. `buttons` and `commands` are
 `CarButtons` and `CarCommands` (`src/I76.Sim/Session/CarInput.cs`) in hex (decimal is read too); `steer` and `throttle`
 the analog positions (±32767, read only with the Analog button); `hash` the session's state hash after the tick (the
 snapshot's, docs/savestate.md), empty if not recorded. A missing tick replays as nothing held. The sim is deterministic,
@@ -269,7 +277,7 @@ or Esc closes it. The game stays paused while it is open.
 | Car | Repair & refill: armour, chassis, every part and what its damage lowered, the tyres, every weapon (handguns too) and its ammunition, the specials' charges, with no rand() drawn. God mode: Play Options' Unlim. Ammo, Armor and Chas. Rein. together, kept over the options. Bring nearest car: the nearest other living car 30 m ahead, facing the player, its AI and orders kept |
 | Loadout | each of the car's weapon mounts (hardpoint, its facing or roof / dropper, from the body's file) with the weapon on it, and a choice of every weapon the garage lets onto that mount (`ChassisRules.WeaponSlot` / `WeaponsFor`: a dropper only on a dropper mount, a turret only on a roof mount, the shell's banned weapons left out). Apply swaps the changed ones live (`DevTools.SwapWeapon`, between ticks): the new weapon whole and loaded on the same mount, in the same WEPN and damage slot, the car's mass changed by the weights' difference. An empty mount stays empty (that would change the car's make-up). The car is still drawn with its old guns; the weapons panel shows the new ones. A snapshot names each weapon, so one taken after a swap restores only into that loadout: a checkpoint's retry after a swap rebuilds the car from its file, is refused and starts the mission over. Refill ammo & specials: every weapon's ammunition and the specials' charges, nothing repaired |
 | State | Store: the whole session's snapshot (docs/savestate.md), kept in memory for the run (a Replay of the same mission can still restore it), with the car's weapons. Restore: the stored weapons back on their mounts first, then written back into the running session; the views re-sync as a checkpoint's retry does (car nodes made or dropped, every car's damage look, the trip's salvage). A structure destroyed after the store stays drawn destroyed although the sim's is whole again |
-| Time | Freeze (no ticks; the cameras still move, Ctrl+F5 flies), Step 1 / Step 10 ticks, and a speed x0.1 to x4 (the ticks are the same at any speed; only their pace against the clock changes) |
+| Time | Freeze (no ticks; the cameras still move, Ctrl+F5 flies), Step 1 / Step 10 ticks (with no keys held: what is typed into the panel does not drive; a replay still does), and a speed x0.1 to x4 (the ticks are the same at any speed; only their pace against the clock changes) |
 
 The generated landmarks (`src/I76.Sim/Session/DevLandmarks.cs`, read from the mission's terrain and structures when the
 panel first opens; nothing of a map is written down): **start** (where the player's car was placed), **highest ground**

@@ -49,7 +49,8 @@ public partial class Main : IDevHost
 
     private string Cheat(string line)
     {
-        _cheated = true;
+        I76.Game.Shell.CheatMarker.Mark();
+        _sim?.DevMark(line);   // a recording made through it cannot be replayed past here
         return line;
     }
 

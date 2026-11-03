@@ -942,23 +942,28 @@ public partial class Main : Node3D
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;
         _sim.Replay = replay;
+        // this run as an input trace's header: what a recording names, and what a replay is checked against
+        var traceSettings = I76.Game.Shell.ShellSettings.Load();
+        var thisRun = new I76.Sim.Session.InputTrace
+        {
+            Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
+            Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
+            Build = I76.Game.Boot.BuildInfo.Version, Install = session.Build.Install, Options = traceSettings.PlayOptions, Difficulty = traceSettings.Difficulty,
+            ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai,
+        };
         if (replay is not null)
         {
-            string mission = (_opt.Mission ?? "").ToLowerInvariant();
-            if ((replay.Mission ?? "") != mission || !string.Equals(replay.Car ?? "", requested ?? "", System.StringComparison.OrdinalIgnoreCase)
-                || !string.Join('+', replay.Melee ?? []).Equals(string.Join('+', roster ?? []), System.StringComparison.OrdinalIgnoreCase))
-                GD.PrintErr($"input replay: recorded in {replay.Mission} with car {replay.Car ?? "(the mission's)"}{(replay.Melee is { Count: > 0 } rm ? " against " + string.Join(", ", rm) : "")}; this is {mission} with {(string.IsNullOrEmpty(requested) ? "(the mission's)" : requested)}: it will not follow the recording");
+            if (replay.Differences(thisRun).ToList() is { Count: > 0 } diff)
+                GD.PrintErr($"input replay: recorded under {string.Join("; ", diff)}: it will not follow the recording");
+            if (replay.Dev.Count > 0)
+                GD.PrintErr($"input replay: the recording has a Developer panel {replay.Dev[0].Action} before tick {replay.Dev[0].Tick}: it cannot be followed past it");
             GD.Print($"input replay: {replay.Count} ticks, seed {replay.Seed}, {replay.Rate} Hz");
         }
         // I76_INPUT_RECORD=file: every tick's input of the player, and the state hash after it (docs/dev-hooks.md, "Input traces")
         if (_retry is null && System.Environment.GetEnvironmentVariable("I76_INPUT_RECORD") is { Length: > 0 } recordPath)
         {
             _sim.RecordPath = recordPath;
-            _sim.Recording = new I76.Sim.Session.InputTrace
-            {
-                Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
-                Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
-            };
+            _sim.Recording = thisRun;
         }
         // I76_MOTION_CSV=file: a row a tick of the player's motion
         if (System.Environment.GetEnvironmentVariable("I76_MOTION_CSV") is { Length: > 0 } motionPath) _sim.MotionPath = motionPath;
