@@ -660,6 +660,10 @@ public partial class Main : Node3D
     private void ApplyPlayOptions(I76.Game.Shell.ShellSettings s)
     {
         if (_sim is not null) _sim.AutoReverse = s.AutoReverse;
+        // Original Recipe's Music Tracks, from the next track on
+        if (_musicSeq is not null && _musicInstall is not null)
+            _musicSeq = new I76.Formats.Audio.MissionMusic(I76.Game.Assets.CdMusic.LastTrack(_musicInstall),
+                I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), s.MusicTracks != 0));
         I76.Game.ForceFeedback.WheelName = s.FfbDevice;
         I76.Game.ForceFeedback.Strength = s.FfbStrength;
         I76.Game.ForceFeedback.UseWheel = s.ForceFeedbackWheel;
@@ -695,6 +699,7 @@ public partial class Main : Node3D
             _env1997.AdjustmentBrightness = 1f;
             _env1997.AdjustmentColorCorrection = CardCurve(s.Graphics[0xc]);
         }
+        I76.Game.Sim.OriginalBehavior.Apply(s);   // before the mirror: its far clip is one of them
         if (_pit is not null) _pit.MirrorSetting = s.Graphics[0xd];
         _extInstruments = s.Graphics[0xe] != 0;
         _shadowDetail = s.Graphics[0x6];
@@ -1592,14 +1597,14 @@ public partial class Main : Node3D
     /// The mission's CD track (WRLD +0x00, verbatim: a01 asks MCI for track 7), which the GOG install ships as music/N.mp3,
     /// four of them out of disc order (CdMusic). It is made here but starts in <see cref="StartMissionMusic"/>: the original
     /// calls the music start after the load and the briefing (the original's start-up), not while the card is up. What follows
-    /// it is MissionMusic's (on to the next track at once, back to track 2 after the last; I76_MUSIC_SEQUENCE=retail or gog for the originals' 60 s poll).
+    /// it is MissionMusic's (on to the next track at once through track 14, then track 2; Original Recipe's Music Tracks All on through the disc's last; I76_MUSIC_SEQUENCE=retail or gog for the originals' 60 s poll).
     /// </summary>
     private void PlayMusic(GameInstall install, I76.Formats.Mission.WorldSettings? s)
     {
         if (s is null) return;
         if (GetNodeOrNull("Music") is not null) { _status += _musicNote; return; }
         _musicSeq = new I76.Formats.Audio.MissionMusic(I76.Game.Assets.CdMusic.LastTrack(install),
-            I76.Formats.Audio.MissionMusic.PolicyFromEnvironment(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE")));
+            I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), I76.Game.Shell.ShellSettings.Load().MusicTracks != 0));
         _musicTrack = _musicSeq.First((int)s.CdTrack);
         if (I76.Game.Assets.CdMusic.Path(install, _musicTrack) is null) return;
         ApplyAudio(I76.Game.Shell.ShellSettings.Load());
@@ -2088,7 +2093,8 @@ public partial class Main : Node3D
     private void UpdateSkyScroll(float delta)
     {
         if (!_mode1997 || _sky1997 is null) { _skyExtra = 0; return; }
-        int steps = I76.Sim.Views.SkyScroll.StepsPerTick(_car?.CockpitCamera?.Current == true, _pit?.HasMirror == true, _pit?.MirrorMode ?? 0);
+        // Original Recipe's Sky Drift, Steady: one step a tick whatever the mirror does
+        int steps = I76.Game.Sim.OriginalBehavior.SteadySky ? 1 : I76.Sim.Views.SkyScroll.StepsPerTick(_car?.CockpitCamera?.Current == true, _pit?.HasMirror == true, _pit?.MirrorMode ?? 0);
         _skyExtra += (steps - 1) * I76.Game.Sim.SimClock.SkyScrollPerSecond * delta;
         _sky1997.SetShaderParameter("scroll_extra", _skyExtra);
     }

@@ -28,6 +28,8 @@ public sealed class MissionMusic
         Gog,
         /// <summary>The default: the 1997 sequence without the poller's wait: on to the next track through track 14, then back to track 2, at once.</summary>
         Disc,
+        /// <summary>Original Recipe's Music Tracks, All: a CD deck on repeat, on through the disc's last track (15 to 17 too), then track 2, at once.</summary>
+        AllTracks,
     }
 
     private readonly int _last;
@@ -53,6 +55,7 @@ public sealed class MissionMusic
     public bool Continues(int ended) => Mode switch
     {
         Policy.Disc or Policy.Retail1997 => ended >= FallbackTrack && ended + 1 < _rangeEnd && ended + 1 <= _last,
+        Policy.AllTracks => ended >= FallbackTrack && ended < _last,
         _ => false,
     };
 
@@ -66,7 +69,7 @@ public sealed class MissionMusic
     /// </summary>
     public double Wait(int ended, double sinceStart)
     {
-        if (Mode == Policy.Disc || Continues(ended)) return 0;
+        if (Mode is Policy.Disc or Policy.AllTracks || Continues(ended)) return 0;
         double into = sinceStart - Math.Floor(sinceStart / PollSeconds) * PollSeconds;
         return into < 1e-9 ? 0 : PollSeconds - into;
     }
@@ -75,4 +78,8 @@ public sealed class MissionMusic
     public static Policy PolicyFromEnvironment(string? value) =>
         string.Equals(value, "retail", StringComparison.OrdinalIgnoreCase) ? Policy.Retail1997 :
         string.Equals(value, "gog", StringComparison.OrdinalIgnoreCase) ? Policy.Gog : Policy.Disc;
+
+    /// <summary>The policy for a mission: I76_MUSIC_SEQUENCE's when it names one, else the setting's (Music Tracks: Original, or All).</summary>
+    public static Policy For(string? environment, bool allTracks) =>
+        PolicyFromEnvironment(environment) is var p && p != Policy.Disc ? p : allTracks ? Policy.AllTracks : Policy.Disc;
 }

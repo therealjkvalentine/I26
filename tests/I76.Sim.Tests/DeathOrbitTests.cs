@@ -32,4 +32,14 @@ public class DeathOrbitTests
         Assert.Equal(4, o.Advance(2f, 102f / 2048));
         Assert.Equal(1f + 32f * MathF.PI / 180f, o.Yaw, 5);
     }
+
+    /// <summary>Original Recipe's Death Orbit, Smooth: 0.35 rad a second on the render delta, whatever the tick.</summary>
+    [Fact]
+    public void SmoothTurnsTwentyDegreesASecond()
+    {
+        var o = new DeathOrbit();
+        o.Start(0);
+        for (int i = 0; i < 144; i++) o.AdvanceSmooth(1f / 144);
+        Assert.Equal(0.35f, o.Yaw, 4);
+    }
 }

@@ -168,7 +168,9 @@ public partial class ChaseCamera : Camera3D
             _orbit.Start(Mathf.Atan2(from.X, from.Z));
             _orbiting = true;
         }
-        _orbit.Advance(dt, I76.Game.Sim.SimClock.Tick);
+        // Original Recipe's Death Orbit, Smooth: the port's earlier steady 20 degrees a second
+        if (I76.Game.Sim.OriginalBehavior.SmoothOrbit) _orbit.AdvanceSmooth(dt);
+        else _orbit.Advance(dt, I76.Game.Sim.SimClock.Tick);
         float d = MathF.Min(_zoom * Radius, 150f);
         // the angle is the orbit's; only the distance and the height ease in (easing the position cut inside the circle)
         var off = Position - centreG;

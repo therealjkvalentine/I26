@@ -90,6 +90,8 @@ are for another game and are not listed.
 **Field of view.** Graphic Detail's **Field of View** row (Original, 80, 100, 110) sets how wide the main 3D views look, in degrees across a 4:3 view (the original's is 90, and a wider window shows more to the sides at any choice); it applies at once to the outside views and the cockpit's 3D view. The binoculars, the mirror and the radar keep their own framing.
 **Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
 
+**Original Recipe.** The Esc menu's Options Menu (row 7) and the main Options Menu have an Original Recipe pad: every place where I26 offers something other than the original game's behaviour, one row each, Original first. Physics, Live Ordnance, Melee A.I., Draw Distance, Field of View, Rear Mirror Range, Sky Drift, Brake Lamps, MG Tracers, Death Orbit, Music Tracks and Rumble; the same settings as their rows on the other pads. All start at the original's, except that Draw Distance, Rear Mirror Range, Brake Lamps and MG Tracers follow the look until you choose (the original's in the 1997 look, the update in the modern one; Reset goes back to following). Live Ordnance takes effect when you resume and only in single-player games; network games keep the original's.
+
 ### Controls
 
 Controls follow the original's keys, as set in Options > Control Configuration (which edits keys, the mouse
