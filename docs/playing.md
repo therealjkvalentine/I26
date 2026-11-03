@@ -129,7 +129,7 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `effects_brightness` | `25` to `150` | `100` | The same effects' glow, in percent: the streaks, sparks, flashes, the fire in the explosions and under the wreck smoke, and the brief lights at muzzles, impacts and blasts. |
 | `effects_opacity` | `25` to `150` | `100` | The same effects' opacity, in percent: lower lets more of the scene through the dust, smoke and fire. |
 
-| `look_colour_match` | `on`, `off` | `on` | The modern look's colours: each mission's exposure and ground colour set by day so the ground shows the 1997 look's colour and brightness, and the sky follows halfway (`on`), or the modern look's own lighting as it was (`off`). The 1997 look is not affected. |
+| `lighting_calibration` | `on`, `off` | `on` | The modern look's lighting calibrated by day against the 1997 look's: each mission's exposure and ground colour set so the ground shows the 1997 look's colour and brightness, the cars' and buildings' sky light and colour so they do too, and the sky following halfway (`on`); or the modern look's own lighting as it was (`off`). The earlier `look_colour_match` key is read when this one is absent. The 1997 look is not affected. |
 
 | `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |

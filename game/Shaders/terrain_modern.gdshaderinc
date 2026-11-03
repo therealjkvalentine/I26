@@ -148,8 +148,8 @@ global uniform vec4 i76_sward_rect;
 global uniform vec4 i76_sward_tint;
 uniform float sward_cover = 0.3;       // how far a closed sward shifts the ground toward dry grass (the ground stays dominant)
 uniform float sward_keep_lum = 0.6;    // how much of the ground's own lightness the shift keeps (the land's identity)
-// the modern look's colour match (Main.SolveLookColour, LookColourMatch): the natural ground's colours times this, so the sunlit
-// ground shows the 1997 look's colour; (1, 1, 1) with [port] look_colour_match=off
+// the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): the natural ground's colours
+// times this, so the sunlit ground shows the 1997 look's colour; (1, 1, 1) with [port] lighting_calibration=off
 global uniform vec3 i76_ground_tint;
 
 #endif

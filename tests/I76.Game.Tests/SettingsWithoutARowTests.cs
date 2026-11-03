@@ -139,4 +139,19 @@ public class SettingsWithoutARowTests
         }
         Assert.Equal("Normal", ShellSettings.MeleeAiNames[(int)I76.Sim.Missions.MeleeAiSkill.Original]);
     }
+
+    /// <summary>[port] lighting_calibration, on unless off; a file from before it keeps its look_colour_match=off.</summary>
+    [Theory]
+    [InlineData(null, null, true)]
+    [InlineData("off", null, false)]
+    [InlineData(" Off ", null, false)]
+    [InlineData("on", null, true)]
+    [InlineData(null, "off", false)]
+    [InlineData("on", "off", true)]
+    [InlineData("off", "on", false)]
+    public void TheLightingCalibrationKeyReadsTheEarlierColourMatchKey(string? word, string? earlier, bool on)
+    {
+        Assert.Equal(on, ShellSettings.LightingCalibrationOn(word, earlier));
+        Assert.True(new ShellSettings().LightingCalibration);
+    }
 }
