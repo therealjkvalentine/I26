@@ -78,6 +78,7 @@
 - Driving over an oil slick, a gblox hit and the fire dropper's car hit are silent again, as in the original, which plays a weapon's impact sound only when its effect exists; a round that strikes an object of a class with no impact pair shows and sounds nothing.
 - Sounds are dropped or admitted by their distance from your car, as in the original, also while the camera follows a shell (F11) or another subject, instead of from what the camera follows.
 - The Effects and Voice sliders in Audio Control follow the original's volume curve (4 dB per halving) instead of 2 dB a step: the middle levels are louder and the lowest ones quieter than before; level 8 is unchanged.
+- An AI car backing away stops when the ground under it rises or falls 3 m, as the original's does (backing off a bridge deck over a gully), instead of when the car itself climbs or drops 3 m (up a ramp or a structure, or in the air).
 
 ## 0.11.0 (31 October 2026)
 
