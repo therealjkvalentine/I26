@@ -127,6 +127,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - In the modern look a machine gun's rounds are short, bright bolts with a fading tail, the length of their last step, where they were a thin ten-metre beam that read as a laser.
 - Two command-line switches for unattended runs: `--skip-cutscenes` (a mission's skippable camera scenes are skipped as if Esc were pressed) and `--mute` (all sound off).
 - Steam Deck: a section in docs/playing.md and a Steam Input layout and Add-to-Steam script in `tools/deck` (left trackpad radial for hardpoints 1 to 5, right trackpad as the menu pointer, grips for the emergency brake and the specials). Not yet tried on a Deck, so the notes say what is still to be confirmed.
+- Online co-op has a Co-op Damage option on the host form: the players' cars take half, three quarters or one and a half times the damage (normal by default), to make a story mission easier or harder for a group.
 
 ## 0.11.0 (31 October 2026)
 

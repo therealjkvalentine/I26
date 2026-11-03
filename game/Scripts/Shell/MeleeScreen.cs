@@ -60,6 +60,8 @@ public sealed partial class MeleeScreen : ShellScreen
         [38] = (31, 196, 290, 305),
         // the port's: the base host form's co-op Bots line, Co-op Scaling's part of it (docs/deviations.md)
         [40] = (10, 76, 356, 370),
+        // the port's: the base host form's co-op Bots line, Co-op Damage's part of it (docs/deviations.md)
+        [41] = (78, 152, 356, 370),
         // the Nitro host form's WEAPON RESTRICTIONS (its own rectangle is NitroHost's)
         [24] = (31, 193, 310, 326),
     };
@@ -70,7 +72,7 @@ public sealed partial class MeleeScreen : ShellScreen
         1 => [0, 1, 2, 3, 4, 5, 6, 7, 14, 15],
         3 or 4 when Nitro => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 22, 23, 24, 25, 27],
         // a co-op game has no team play, score limit, Bots or custom map to share: the box's rows that are left are INVITE ONLY and the password
-        3 or 4 when _coopBase => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 17, 22, 27, 28, 32, 33, 35, 36, 37, 39, 40],
+        3 or 4 when _coopBase => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 17, 22, 27, 28, 32, 33, 35, 36, 37, 39, 40, 41],
         3 or 4 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39],
         8 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 38],
         _ => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15],

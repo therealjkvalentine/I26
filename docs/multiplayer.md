@@ -815,6 +815,10 @@ from the server.
   successor builds the mission from the options (`ServerOptions.Coop`), restores, and replays the host's inputs; the seats'
   names come from the migration extras (`IHostMode.Restore(drivers, names)`).
 - **Listing.** A co-op game is listed with its mission as the arena (`SessionInfo.Coop`; the anet tag's kind bits 3).
+- **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the host form's, i26-server's and `--host-listen`'s
+  `--coop-damage 0.5|0.75|1|1.5`): the humans' cars take that times every damage (`DamageModel.CoopDamageFactor`, each channel
+  truncated); x1 by default. It is the server's alone (the clients take damage from the server) and part of the savestate's build,
+  so a successor builds it again from the options. Not listed in the game's info.
 - **Not done yet:** the trip campaign.
 
 ### Each player's car
