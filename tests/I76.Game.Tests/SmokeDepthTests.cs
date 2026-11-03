@@ -50,4 +50,14 @@ public class SmokeDepthTests
         var reversed = new Projection(new Vector4(1, 0, 0, 0), new Vector4(0, -1, 0, 0), new Vector4(0, 0, -0.5f, 0), new Vector4(0, 0, 0.5f, 1));
         Assert.True(SmokeDepth.NearerIsLarger(reversed * persp));
     }
+
+    [Theory]
+    [InlineData(RenderingServer.ViewportMsaa.Disabled, 1)]
+    [InlineData(RenderingServer.ViewportMsaa.Msaa2X, 2)]
+    [InlineData(RenderingServer.ViewportMsaa.Msaa4X, 4)]
+    [InlineData(RenderingServer.ViewportMsaa.Msaa8X, 8)]
+    public void WithMsaaTheLayerReadsEverySampleOfTheDepth(RenderingServer.ViewportMsaa msaa, int samples)
+    {
+        Assert.Equal(samples, SmokeDepth.Samples(msaa));
+    }
 }
