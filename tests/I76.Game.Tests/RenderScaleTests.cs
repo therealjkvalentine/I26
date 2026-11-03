@@ -42,4 +42,14 @@ public class RenderScaleTests
     }
 
     [Fact] public void EightXIsFourXWhereTheRendererHasNoEightX() => Assert.Equal(Viewport.Msaa.Msaa4X, RenderScale.Msaa(3, true));
+
+    /// <summary>The Esc menu's Anti-Aliasing row offers the shell's list: with three names an 8x chosen in the shell showed blank and stepped to 2x.</summary>
+    [Fact] public void TheEscRowHasTheShellsList()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "game", "Scripts", "Ui", "EscapeMenu.cs"))) dir = Path.GetDirectoryName(dir);
+        Assert.NotNull(dir);
+        var row = File.ReadAllLines(Path.Combine(dir!, "game", "Scripts", "Ui", "EscapeMenu.cs")).Single(l => l.Contains("\"Anti-Aliasing\""));
+        Assert.Contains("RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing", row);
+    }
 }
