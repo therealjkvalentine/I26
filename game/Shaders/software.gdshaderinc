@@ -30,6 +30,8 @@ ivec2 i76_point_px(vec2 uv, ivec2 size, int level) {
 #endif
 #define I76_LEVEL(S, UV_) i76_point_level(UV_, textureSize(S, 0), I76_MIPS(S))
 #define i76_point(S, UV_) texelFetch(S, i76_point_px(UV_, textureSize(S, 0), I76_LEVEL(S, UV_)), I76_LEVEL(S, UV_))
+// the same, held at the texture's edge instead of wrapping (the cockpit's art: a face's edge sampled a hair past 1.0)
+#define i76_point_clamped(S, UV_) texelFetch(S, i76_point_px(clamp(UV_, vec2(0.0), vec2(0.99999)), textureSize(S, 0), I76_LEVEL(S, UV_)), I76_LEVEL(S, UV_))
 
 // a shade (a, b) applied to an sRGB colour
 vec3 i76_shade(vec3 srgb, vec2 ab) { return srgb * ab.x + vec3(ab.y); }
