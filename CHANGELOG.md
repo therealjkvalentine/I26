@@ -46,6 +46,7 @@
 - Play Options' Difficulty Level now does something: off the network, your weapons do double damage at Wimp and three quarters at Badass (Champion unchanged; the .45 the same at every level), as in the original. Until now every setting played as Champion. A change in the Esc menu takes effect when you resume. The setting starts at Wimp, as the original's shipped settings do, so check it if your weapons now seem strong. Network games, melee and co-op, ignore it for everyone, as the original's network games did.
 - AI cars take hard turns, slow manoeuvres and searches at the original's speed (12.5 m/s for most cars) instead of 5 to 15 % faster: the turn speed is set when the car appears and changes only when a wheel is shot, as in the original.
 - An AI-driven car no longer brakes into reverse and turns round behind a car just ahead of it on the same road, as the original's does not (its way-ahead check runs from the car's own origin on the ground and passes under a car's box, which starts above the ground). In T02's opening your car now follows Taurus to the road and the camera is handed back about six seconds sooner, as in the original.
+- A mission script's timed waits now last as long as the original's: its timer starts at the nearest whole second instead of the one before, so a scene such as the opening of T01 no longer ends up to a second early.
 
 ## 0.11.0 (31 October 2026)
 
