@@ -35,6 +35,7 @@
 - The ping in the network score window and on the HUD shows the link's round trip when packets are lost, instead of jumping to several times it (a 60 ms link with 10 % loss read 155 ms, up to 624).
 - In a network game, a right click on a row of the Control Configuration (opened from the Esc menu) waits for a key again, as it does on the main menu, instead of grabbing the mouse pointer and doing nothing (#106).
 - The first visit to the 3D garage after starting the game (or after a mission) opens about as quickly as the later ones: the garage and the melee form's car are made ahead while the main menu stands, and the garage room's textures are made once a run instead of on every visit (#143).
+- The first building or bridge blown up in a mission no longer stutters for a tenth of a second in the 1997 look (or in the modern look without the explosion flipbooks): the explosions' looks are made behind the loading card (#116).
 
 ## 0.11.0 (31 October 2026)
 
