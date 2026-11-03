@@ -93,6 +93,7 @@ Network games use protocol 26: this version does not play with 0.11.0 or earlier
 - I26 tells you when a newer release is out: at start-up it quietly checks GitHub and shows "version X available" under the version in the corner of the game chooser and the main menu (click it to open the release page). Play Options (second page) has a Check for Updates row to turn it off (#138).
 
 ### Fixed
+- The bass shaker is half as strong again at the same LFE Level (100 % is now what 150 % was, and 200 % twice that); its own limiter now comes after the level, so no setting clips it.
 - Melee and network games no longer play the menu's music: an arena that asks for the menu's track (M09; on the Nitro Pack, arenas asking for its menu's or credits' track) starts on the next mission track, and the Nitro Pack's mission music passes over those two tracks as I76's stops at track 14.
 - The modern cockpit's weapon and special labels are whiter and crisper: the letters are pure white on a lit plate and near white on an unlit one, with a sharp edge and a darker emboss shadow instead of a pinkish blur into the red tape.
 - In the modern look the burning wrecks by the road (T05, T15 and others) are on fire and smoking from as far away as the 1997 look shows them, 600 m, instead of coming into view bare and catching light only within 150 m.

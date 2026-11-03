@@ -37,6 +37,13 @@ public static class AudioOutputs
     public const float DefaultCrossover = 90f;
     public static float ClampCrossover(float hz) => float.IsFinite(hz) ? Math.Clamp(hz, 40f, 160f) : DefaultCrossover;
 
+    /// <summary>
+    /// The shaker signal's gain at an LFE Level, before the synth's limiter: 1.5 at 100 % (a playtest on a 2.1 rig found the
+    /// signal at 1.0 too faint, and 200 % of that not too much), 3 at 200 %. Inside the limiter, so no level clips or reaches
+    /// the Master bus's limiter on the shaker's own.
+    /// </summary>
+    public static float ShakerGain(int percent) => 1.5f * Math.Clamp(percent, 0, 200) / 100f;
+
     /// <summary>2.1's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
     public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
 }
@@ -123,8 +130,8 @@ public sealed class TactileEvents
 /// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
 /// force model's road strengths) and speed, rougher with a flat tyre. Transients: a decaying sine per shot by weapon class, per
 /// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
-/// shaker's <see cref="Eq"/> at its frequency. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz) and a soft
-/// limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
+/// shaker's <see cref="Eq"/> at its frequency. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
+/// Level's <see cref="Gain"/> and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
 /// </summary>
 public sealed class TactileSynth
 {
@@ -218,6 +225,9 @@ public sealed class TactileSynth
     }
     private float _lowPassHz = HighHz;
 
+    /// <summary>The LFE Level's gain (<see cref="AudioOutputs.ShakerGain"/>), applied before the limiter.</summary>
+    public float Gain { get; set; } = 1f;
+
     /// <summary>The largest sample of the last <see cref="Fill"/> (after the limiter).</summary>
     public float Peak { get; private set; }
 
@@ -288,7 +298,7 @@ public sealed class TactileSynth
                 t.Level *= MathF.Exp(-t.Fall * dt);
                 if ((t.Left -= dt) <= 0) _thumps.RemoveAt(v);
             }
-            float y = Ceiling * MathF.Tanh(_lp.Run(_hp.Run(x)) / Ceiling);
+            float y = Ceiling * MathF.Tanh(Gain * _lp.Run(_hp.Run(x)) / Ceiling);
             dst[i] = y;
             peak = Math.Max(peak, Math.Abs(y));
         }

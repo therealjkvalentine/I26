@@ -96,6 +96,34 @@ public class TactileSynthTests
     }
 
     [Fact]
+    public void The_lfe_level_is_half_as_strong_again_inside_the_limiter()
+    {
+        Assert.Equal(1.5f, AudioOutputs.ShakerGain(100));
+        Assert.Equal(3f, AudioOutputs.ShakerGain(200));
+        Assert.Equal(0f, AudioOutputs.ShakerGain(0));
+        float Engine(float gain)
+        {
+            var s = new TactileSynth { Gain = gain };
+            s.Step(new TactileEvents { EngineOn = true, Rpm = 600 });
+            Run(s, 0.5);
+            return Amplitude(Run(s, 1.0), TactileSynth.EngineHz(600));
+        }
+        Assert.InRange(Engine(AudioOutputs.ShakerGain(100)) / Engine(1f), 1.45f, 1.5f);   // the idle's 0.08: barely limited
+        // 200 %: everything at once, for a second of new hits each tick, stays under the ceiling
+        var p = new TactileSynth { Gain = AudioOutputs.ShakerGain(200) };
+        float peak = 0;
+        for (int tick = 0; tick < 20; tick++)
+        {
+            var e = new TactileEvents { EngineOn = true, Rpm = 5000, Surface = 6, Mph = 120, FlatTyres = 4 };
+            for (int i = 0; i < 4; i++) { e.Hits.Add((1, 200)); e.Hits.Add((3, 200)); e.Blasts.Add(0f); e.Shots.Add(new WeaponShot(i, 2, 1, 1)); }
+            p.Step(e);
+            foreach (var v in Run(p, 0.05)) peak = Math.Max(peak, Math.Abs(v));
+        }
+        Assert.True(peak > 0.84f);
+        Assert.True(peak <= TactileSynth.Ceiling);
+    }
+
+    [Fact]
     public void Hits_take_the_dll_strengths_and_blasts_end_at_their_range()
     {
         Assert.Equal(0.35f, TactileSynth.HitThump(1, 0)!.Value.Level, 3);
