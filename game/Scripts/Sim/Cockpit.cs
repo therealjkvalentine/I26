@@ -66,6 +66,7 @@ public partial class Cockpit : Node
         _radarMask = Image("zradmask");
         if (Resolver.FindByStem("zradmask") is { } mm && Resolver.Load(mm) is { } mt && mt.Width == 256) _radarClear = I76.Sim.Weapons.RadarScope.WeaponCameraClear(mt.Indices);
         _rng = new System.Random();
+        HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
         SetupMirror();
     }
 
@@ -102,6 +103,7 @@ public partial class Cockpit : Node
         if (shown && !_wasShown) ResetPanels();
         _wasShown = shown;
         if (pit) Head(dt);
+        else HeadTracker.Step(dt, true);   // out of the car the tracker stands aside (and its timeout runs on)
         if (shown)
         {
             Gear();
@@ -200,8 +202,13 @@ public partial class Cockpit : Node
     private FreeLook.Pose _pose;
     private bool _freeLooking;
 
-    /// <summary>A glance key held, or the look stick pushed hard into its pose.</summary>
-    private bool Glance(string command, FreeLook.Pose pose) => Controls.Down(command) || _pose == pose;
+    /// <summary>A glance key held, the look stick pushed hard into its pose, or the head tracker's digital mode turned past it.</summary>
+    private bool Glance(string command, FreeLook.Pose pose) => Controls.Down(command) || _pose == pose
+        || pose switch { FreeLook.Pose.Left => _tracked.Left, FreeLook.Pose.Right => _tracked.Right, FreeLook.Pose.Dash => _tracked.Down, _ => false };
+
+    // the head tracker (HeadLook): digital's glances this frame, and the head as drawn (the glance machine's blended with analog's)
+    private (bool Left, bool Right, bool Down) _tracked;
+    private float _viewYaw, _viewPitch = -13 * Mathf.Pi / 180, _viewRoll;
 
     // ---- the 2D dash (dash3d == 0): what Hud draws over the driver's view ----
 
@@ -231,13 +238,18 @@ public partial class Cockpit : Node
     public (Texture2D View, Texture2D Art)? MirrorFace => _mirrorView is not null && _mirrorMode != 0 && _mirrorArt is not null ? (_mirrorView.GetTexture(), _mirrorArt) : null;
 
     /// <summary>The pilot's glance as it stands (yaw, pitch down-positive, roll; radians): what the F6 view reads.</summary>
-    public (float Yaw, float Pitch, float Roll) HeadAngles => (_yaw, _pitch, _roll);
+    public (float Yaw, float Pitch, float Roll) HeadAngles => (_viewYaw, _viewPitch, _viewRoll);
 
     private void Head(float dt)
     {
         var (sx, sy) = Controls.LookStick;
         _pose = _look.Update(sx, sy);
         _freeLooking = false;
+        // a glance key or the look stick wins over the head tracker while held
+        bool own = Controls.Down("pilot_glance_left") || Controls.Down("pilot_glance_right") || Controls.Down("pilot_glance_up") || Controls.Down("pilot_glance_down")
+            || Controls.Down("pilot_glance_target") || _pose != FreeLook.Pose.Free || FreeLook.Head(sx, sy) is not null;
+        var track = HeadTracker.Step(dt, own || Binoculars || !I76.Formats.Input.DashToggle.FreeLookAllowed(Node3D.Dash3D));
+        _tracked = HeadTracker.Look.Glances(own);
         if (Binoculars) { BinoHead(dt); return; }
         bool l = Glance("pilot_glance_left", FreeLook.Pose.Left);
         bool r = Glance("pilot_glance_right", FreeLook.Pose.Right);
@@ -296,10 +308,17 @@ public partial class Cockpit : Node
         if (MathF.Abs(dy) >= 0.005f) _yaw += k * dy;
         _pitch = k <= 0.95f && MathF.Abs(pitchT - _pitch) >= 0.005f ? _pitch + k * (pitchT - _pitch) : pitchT;
         _roll = k <= 0.95f && MathF.Abs(rollT - _roll) >= 0.005f ? _roll + k * (rollT - _roll) : rollT;
+        // the head tracker's analog head, followed as it comes (the tracker smooths it) and blended over the glance machine's
+        float w = track.Weight, d2r = Mathf.Pi / 180;
+        _viewYaw = _yaw + w * Mathf.Wrap(track.Yaw * d2r - _yaw, -Mathf.Pi, Mathf.Pi);
+        _viewPitch = _pitch + w * (track.Pitch * d2r - _pitch);
+        _viewRoll = _roll + w * (track.Roll * d2r - _roll);
+        if (w > 0.5f && (MathF.Abs(track.Yaw) > 15 || MathF.Abs(track.Pitch - FreeLook.Rest) > 10)) _freeLooking = true;
         if (Node3D.CockpitCamera is { } cam)
         {
             // game yaw is to the right and Godot's Z is mirrored: a right turn is a negative Y rotation here
-            cam.Basis = Sway(dt) * Basis.FromEuler(new Vector3(-_pitch, -_yaw, _roll), EulerOrder.Yxz);   // the Z mirror negates pitch and yaw, not roll
+            cam.Basis = Sway(dt) * Basis.FromEuler(new Vector3(-_viewPitch, -_viewYaw, _viewRoll), EulerOrder.Yxz);   // the Z mirror negates pitch and yaw, not roll
+            cam.Position = Node3D.Eye + new Vector3(track.Offset.X, track.Offset.Y, -track.Offset.Z);
             cam.Fov = 73.74f;
         }
         // arms rise past ±58° / 53° to the side windows (the handguns): the sim moves them with the next tick
@@ -339,10 +358,12 @@ public partial class Cockpit : Node
         if (MathF.Abs(dy) >= 0.005f) _yaw += k * dy;
         _pitch = k <= 0.95f && MathF.Abs(pitchT - _pitch) >= 0.005f ? _pitch + k * (pitchT - _pitch) : pitchT;
         _roll = 0;
+        (_viewYaw, _viewPitch, _viewRoll) = (_yaw, _pitch, 0);
         _wantArm[0] = _wantArm[1] = false;
         if (Node3D.CockpitCamera is { } cam)
         {
             cam.Basis = Sway(dt) * Basis.FromEuler(new Vector3(-_pitch, -_yaw, 0), EulerOrder.Yxz);
+            cam.Position = Node3D.Eye;
             // 8x: tan(h/2) = 1/8 across, so 0.75/8 down on 4:3 (10.71 degrees)
             cam.Fov = Mathf.RadToDeg(2 * MathF.Atan(0.75f / CameraZoom));
         }

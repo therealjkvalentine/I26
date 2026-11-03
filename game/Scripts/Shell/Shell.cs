@@ -1173,6 +1173,19 @@ public sealed class ShellSettings
     public bool UnlimTurrets { get; set; }
     /// <summary>The port's own: Check for Updates (Play Options, second page; shell.cfg [port] update_check, written only when off). On: each start asks GitHub, once, whether a newer release exists and says so under the version in the corner.</summary>
     public bool UpdateCheck { get; set; } = true;
+    /// <summary>
+    /// The port's own: Head Tracking (Play Options, second page; shell.cfg [port] head_track = analog / digital, written only when
+    /// not off): opentrack's "UDP over network" output turns the head in the car (<see cref="I76.Game.HeadLook"/>). Off, as the original.
+    /// </summary>
+    public I76.Game.HeadTrackMode HeadTrack { get; set; }
+    /// <summary>Head tracking's sensitivity, the tracked angle's multiplier (Play Options, second page; [port] head_track_sensitivity, written only when not 3).</summary>
+    public float HeadTrackSensitivity { get; set; } = I76.Game.HeadLook.DefaultSensitivity;
+    /// <summary>The UDP port opentrack sends to ([port] head_track_port, written only when not 4242; kept out of the menus).</summary>
+    public int HeadTrackPort { get; set; } = I76.Game.HeadLook.DefaultPort;
+    /// <summary>The address head tracking listens on ([port] head_track_bind, written only when not 127.0.0.1; 0.0.0.0 takes a tracker on another machine).</summary>
+    public string HeadTrackBind { get; set; } = "127.0.0.1";
+    /// <summary>The tracked x, y, z move the eye up to 10 cm each way ([port] head_track_position, written only when on; off).</summary>
+    public bool HeadTrackPosition { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>
     public bool LogFile { get; set; }
     /// <summary>The port's own: Graphic Detail's Renderer (Auto, Vulkan, D3D12, OpenGL; shell.cfg [port] renderer, written only when not Auto). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.StartupSettings"/>).</summary>
@@ -1258,6 +1271,12 @@ public sealed class ShellSettings
         s.HiddenContent = (bool)c.GetValue("port", "hidden_content", false);
         s.UnlimTurrets = (bool)c.GetValue("port", "unlim_turrets", false) || System.Environment.GetEnvironmentVariable("I76_UNLIM_TURRETS") == "1";
         s.UpdateCheck = (bool)c.GetValue("port", "update_check", true);
+        // no version step: absent, head tracking is off at its defaults
+        s.HeadTrack = Enum.TryParse<I76.Game.HeadTrackMode>((string)c.GetValue("port", "head_track", "off"), true, out var ht) ? ht : I76.Game.HeadTrackMode.Off;
+        s.HeadTrackSensitivity = Math.Clamp((float)(double)c.GetValue("port", "head_track_sensitivity", (double)I76.Game.HeadLook.DefaultSensitivity), 0.1f, 10f);
+        s.HeadTrackPort = Math.Clamp((int)c.GetValue("port", "head_track_port", I76.Game.HeadLook.DefaultPort), 1, 65535);
+        s.HeadTrackBind = (string)c.GetValue("port", "head_track_bind", "127.0.0.1");
+        s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
@@ -1319,6 +1338,11 @@ public sealed class ShellSettings
         if (HiddenContent) c.SetValue("port", "hidden_content", true);
         if (UnlimTurrets) c.SetValue("port", "unlim_turrets", true);
         if (!UpdateCheck) c.SetValue("port", "update_check", false);
+        if (HeadTrack != I76.Game.HeadTrackMode.Off) c.SetValue("port", "head_track", HeadTrack.ToString().ToLowerInvariant());
+        if (HeadTrackSensitivity != I76.Game.HeadLook.DefaultSensitivity) c.SetValue("port", "head_track_sensitivity", (double)HeadTrackSensitivity);
+        if (HeadTrackPort != I76.Game.HeadLook.DefaultPort) c.SetValue("port", "head_track_port", HeadTrackPort);
+        if (HeadTrackBind != "127.0.0.1") c.SetValue("port", "head_track_bind", HeadTrackBind);
+        if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
