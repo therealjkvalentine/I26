@@ -311,6 +311,37 @@ public sealed partial class MeleeScreen
         }
     }
 
+    /// <summary>
+    /// The build id (the port's; docs/multiplayer.md "Wire"): this one's over the form's top left, and on the roster the
+    /// highlighted game's under the list, with a notice in red when it is another build (the join still goes ahead).
+    /// </summary>
+    private void DrawBuild()
+    {
+        PrintedType.Draw(Frame, Shell.Db, 14, 16, $"BUILD {BuildId.Shown(BuildId.Current)}", SizeCap, LabelInk);
+        if (Mode is not (7 or 8) || _games.Count == 0) return;
+        var g = _games[Math.Clamp(_game, 0, _games.Count - 1)].Info;
+        int y = Nitro ? 300 : 286;
+        PrintedType.Draw(Frame, Shell.Db, 14, y, $"HOST BUILD {BuildId.Shown(g.Build)}", SizeCap, LabelInk);
+        if (!BuildId.Differs(g.Build, BuildId.Current)) return;
+        var red = Color.Color8(150, 36, 22);
+        foreach (var line in Wrap(BuildId.GameNotice(g.Build), 196, SizeCap)) PrintedType.Draw(Frame, Shell.Db, 14, y += 14, line, SizeCap, red);
+    }
+
+    /// <summary>Words to lines of at most <paramref name="width"/> pixels of the labels' Arial.</summary>
+    private List<string> Wrap(string text, int width, int cap)
+    {
+        var lines = new List<string>();
+        string cur = "";
+        foreach (var word in text.Split(' '))
+        {
+            string next = cur.Length == 0 ? word : cur + " " + word;
+            if (cur.Length > 0 && PrintedType.Measure(Shell.Db, next, cap) > width) { lines.Add(cur); cur = word; }
+            else cur = next;
+        }
+        if (cur.Length > 0) lines.Add(cur);
+        return lines;
+    }
+
     /// <summary>A small padlock (7 x 11) in the form's ink: a game with a password.</summary>
     private void DrawLock(int x, int y)
     {
@@ -1099,6 +1130,7 @@ public sealed partial class MeleeScreen
         if (g.IgnitionStaysOn) parts.Add("Ignition stays on");
         if (!g.Cb) parts.Add("CB radio off");
         if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) parts.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
+        if (BuildId.Differs(g.Build, BuildId.Current)) parts.Add($"Build {BuildId.Shown(g.Build)}, not yours ({BuildId.Current})");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
 
@@ -1119,6 +1151,7 @@ public sealed partial class MeleeScreen
         if (g.IgnitionStaysOn) rows.Add("Ignition stays on");
         if (!g.Cb) rows.Add("CB radio off");
         if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) rows.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
+        if (BuildId.Differs(g.Build, BuildId.Current)) rows.Add($"Build {BuildId.Shown(g.Build)}");
         return rows;
     }
 

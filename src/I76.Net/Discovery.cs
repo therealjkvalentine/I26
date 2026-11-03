@@ -36,6 +36,9 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
     /// <summary>The host's Handicaps rule in this game (protocol 23, Auto since 24; the restrictions' flags byte's 8 for on and 16 for Auto, which an older reader never looks at).</summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
 
+    /// <summary>The host's build (<see cref="BuildId"/>, protocol 26; empty when it does not say): the roster shows it, and a notice when it is not this one's.</summary>
+    public string Build { get; init; } = "";
+
     public void Write(NetWriter w)
     {
         w.Str(Discovery.InfoMagic);
@@ -78,6 +81,8 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
         t.Bool(Cb);
         // the engine stays on in this game (protocol 22, the host's ignition lock), appended the same way; an older host says nothing: no
         t.Bool(IgnitionStaysOn);
+        // the host's build (protocol 26), appended the same way; an older host says nothing: not known
+        t.Str(Build);
         var shown = Shown(AnswerBytes - w.Length - 1 - t.Length);
         w.U8((byte)shown.Count);
         foreach (var d in shown) { w.Str(Clip(d.Name, Protocol.MaxName)); w.Str(Clip(d.Car, 32)); w.U8(d.Team); }
@@ -132,8 +137,9 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
             bool carReset = r.Remaining >= 1 && r.Bool();
             bool cb = r.Remaining < 1 || r.Bool();
             bool ignition = r.Remaining >= 1 && r.Bool();
+            string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
             return new SessionInfo(id, version, name, arena, players, max, team, invite, score, limit, over, drivers, kind, goal, value, teams, hash, shared, size, locked,
-                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb, IgnitionStaysOn: ignition) { Handicaps = handicaps };
+                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb, IgnitionStaysOn: ignition) { Handicaps = handicaps, Build = build };
         }
         catch (WireException) { return null; }
         catch (IndexOutOfRangeException) { return null; }

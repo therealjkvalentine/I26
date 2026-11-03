@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 25;
+    public const ushort Version = 26;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -254,7 +254,12 @@ public sealed record JoinRequest(ushort Version, string Name, string Car, byte T
         else w.U8(0);
         // protocol 17, appended: the car's paint (CarPaint.ToBytes; empty for the factory paint)
         w.BlobU16(Paint ?? []);
+        // protocol 26, appended: the joiner's build (BuildId; empty when it cannot tell)
+        w.Str(Build);
     }
+
+    /// <summary>The joiner's build (<see cref="BuildId"/>, protocol 26): the server tells everyone when it is not the host's.</summary>
+    public string Build { get; init; } = "";
 
     /// <summary>A player coming back to its seat after the host left (host migration): the slot and the seat's token, which the host gave it.</summary>
     public (byte Slot, ulong Token)? Rejoin { get; init; }
@@ -269,6 +274,7 @@ public sealed record JoinRequest(ushort Version, string Name, string Car, byte T
         var j = new JoinRequest(version, name, car, team, config, r.Remaining > 0 ? r.Str() : "");
         if (r.Remaining > 0 && r.U8() == 1 && r.Remaining >= 9) j = j with { Rejoin = (r.U8(), r.U32() | (ulong)r.U32() << 32) };
         if (r.Remaining >= 2) j = j with { Paint = r.BlobU16() is { Length: > 0 } p ? p : null };
+        if (r.Remaining >= 1) j = j with { Build = r.Str() };
         return j;
     }
 }
@@ -350,7 +356,12 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         w.Bool(IgnitionStaysOn);
         // protocol 23: the host gives players handicaps in this game (the host's Handicaps option); protocol 24: the rule's mode (Off, Manual, Auto)
         w.U8((byte)Handicaps);
+        // protocol 26: the host's build, for the joiner's own different-build notice (the server's line comes while it loads)
+        w.Str(Build);
     }
+
+    /// <summary>The host's build (<see cref="BuildId"/>, protocol 26; empty when it cannot tell).</summary>
+    public string Build { get; init; } = "";
 
     /// <summary>The host's rule that nobody switches their engine off (protocol 22; the host form's IGN. LOCK, i26-server's --no-ignition-off).</summary>
     public bool IgnitionStaysOn { get; init; }
@@ -395,7 +406,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         bool ignition = r.Bool();
         var handicaps = (I76.Sim.Missions.HandicapMode)r.U8();
         if (handicaps > I76.Sim.Missions.HandicapMode.Auto) throw new WireException($"handicaps {handicaps}");
-        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps };
+        string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
+        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps, Build = build };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>

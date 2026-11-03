@@ -793,6 +793,9 @@ public partial class Main
             Won = () => _netWinOrbit = true, Modern = () => !_mode1997, Cutscene = () => accept.Coop is not null && _scriptCam?.Current == true,
             CanChat = () => !_inMenu && _menu is null && _picture is null && !_loading && _reconfig is null, HostStatus = () => _net?.Server?.AnetStatus,
         });
+        // the server's different-build line came while this one loaded, before the feed was up: the joiner's own, from the accept
+        if (_net.Server is null && I76.Net.BuildId.Differs(accept.Build, I76.Net.BuildId.Current))
+            _netHud.SayOnce(I76.Net.BuildId.JoinNotice(_opt.PlayerName ?? System.Environment.UserName, I76.Net.BuildId.Current, accept.Build));
         _status += accept.Coop is { } cs ? $"\nnetwork co-op {accept.Arena}: seat {cs.Seat}, slot {accept.Slot}, {accept.Car}, {mirror.Cars.Count} cars; Ctrl+F10 leaves"
             : $"\nnetwork melee: slot {accept.Slot}, {accept.Car}, {mirror.Cars.Count} cars; Ctrl+F10 leaves";
     }

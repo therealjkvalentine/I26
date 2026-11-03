@@ -213,8 +213,9 @@ public sealed partial class MeleeScreen : ShellScreen
         int x0 = Mode == 1 ? 40 : 34;
         Frame.Text(_font, 12, 45, _slots[0].Name + (_renaming ? "_" : ""));
         Frame.Text(_font, 288, 58, name);
-        if (Mode is 7 or 8) DrawGames();
+        if (Mode is 7 or 8) { DrawGames(); DrawBuild(); }
         if (Mode == 8) DrawServerButton();
+        else if (Mode == 7) { }     // the roster's rows are the games (DrawGames), not the arenas
         else if (ListCount == 0) Frame.Text(_font, x0, 109, "No arenas");
         else
         {
@@ -223,6 +224,7 @@ public sealed partial class MeleeScreen : ShellScreen
         }
         if (Nitro && Hosting) DrawNitroHost();
         else if (Hosting) DrawHost();
+        if (Hosting) DrawBuild();
         if (Mode == 1 && Victory.Lightest(MeleeData.Scenarios[Area].Msn) is { } best && best.Model >= 0 && best.Model < _data.Models.Count)
             Frame.Text(_font, 16, 308, _data.Models[best.Model].MakeModel);     // after the art's "Lightest car to win:"
         if (Mode == 0)

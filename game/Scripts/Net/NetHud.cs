@@ -299,6 +299,12 @@ public partial class NetHud : CanvasLayer
     public const double FeedWindow = HudFeed.Window;
 
     /// <summary>A console line of the server's or the port's own (no parts): the "***" lines, the reconfigure answers.</summary>
+    /// <summary>A console line, unless the feed has it already (the joiner's different-build notice: its own and the server's).</summary>
+    public void SayOnce(string s)
+    {
+        if (!_feed.Lines.Any(f => f.Text == s)) Say(s);
+    }
+
     public void Say(string s, FeedKind kind = FeedKind.Notice)
     {
         GD.Print($"[melee] {s}");
@@ -347,7 +353,7 @@ public partial class NetHud : CanvasLayer
             case RenewedEvent r when r.Car == World.OwnSerial && !r.Respawn: Say("regenerated  +400", FeedKind.Own); break;
             case ChatEvent c when c.From < 0 && c.Text.StartsWith("***"):
                 // the console's lines (flags, the time limit, a migration's new host)
-                Say(c.Text);
+                SayOnce(c.Text);
                 if (Client.Scores?.Players.FirstOrDefault(p => c.Text == NetLines.NewHost(p.Name)) is { } h) _hostSlot = h.Slot;
                 else if (c.Text == NetLines.NewHost(null)) _hostSlot = mySlot;
                 break;

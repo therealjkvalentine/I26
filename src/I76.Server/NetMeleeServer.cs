@@ -377,7 +377,11 @@ public sealed partial class NetMeleeServer : IDisposable
     {
         // a co-op game that has not started gathers its players in the lobby first (NetMeleeServer.Lobby.cs)
         if (_lobbyOpen) { LobbyJoin(peer, j); return; }
-        SendAccept(peer, SeatIn(peer, j));
+        bool first = !_joined.ContainsKey(peer.Id);
+        var s = SeatIn(peer, j);
+        SendAccept(peer, s);
+        // a joiner on another build than the host's: everyone hears it once (not again each round)
+        if (first && BuildId.Differs(j.Build, BuildId.Current)) Host.Chat(null, BuildId.JoinNotice(s.Name, j.Build, BuildId.Current));
     }
 
     private Seat SeatIn(NetPeer peer, JoinRequest j)
