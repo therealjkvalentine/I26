@@ -20,4 +20,13 @@ public class PaintFinishTests
     {
         for (int f = 0; f < PaintFinish.Names.Length; f++) Assert.Equal(f, PaintFinish.Parse(PaintFinish.Word(f)));
     }
+
+    /// <summary>The row marks the port's shine (the pads' *); the cfg words stay plain.</summary>
+    [Fact]
+    public void TheRowMarksTheShineAndTheFileKeepsPlainWords()
+    {
+        Assert.Equal(["Matte", "Satin*", "Gloss*"], PaintFinish.Names);
+        Assert.Equal("satin", PaintFinish.Word(PaintFinish.Satin));
+        Assert.Equal("gloss", PaintFinish.Word(PaintFinish.Gloss));
+    }
 }

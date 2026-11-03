@@ -28,6 +28,8 @@ public abstract class OverlayScreen : ShellScreen
         public bool Repeats;
         /// <summary>Scrolled out of view: not drawn, not hit, not focusable.</summary>
         public bool Hidden;
+        /// <summary>The right edge a text may reach (the value column before the scroll bar): a longer one moves left to end there.</summary>
+        public int Right = -1;
         public bool Hit(Vector2I m) => Click is not null && !Hidden && X <= m.X && m.X < X + W && Y <= m.Y && m.Y < Y + H;
     }
 
@@ -65,7 +67,8 @@ public abstract class OverlayScreen : ShellScreen
             var s = it.Text();
             if (it.W < 0) it.W = Math.Max(1, f.Measure(s.TrimStart('~')));
             if (it.H < 0) it.H = f.Height;
-            Frame.Text(f, it.X, it.Y, s, ShellFrame.OverlayInk);
+            int x = it.Right > 0 ? Math.Min(it.X, it.Right - f.Measure(s.TrimStart('~'))) : it.X;
+            Frame.Text(f, x, it.Y, s, ShellFrame.OverlayInk);
         }
         DrawExtra();
     }
@@ -270,14 +273,14 @@ public sealed class PlayOptionsScreen : OverlayScreen
         // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
         Add(222, 185, "Head Tracking", null);
         Add(205, 186, () => "", () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3), Small, w: 300, h: 12);
-        Add(398, 187, () => s.HeadTrack.ToString(), null);
+        Add(398, 187, () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark, null);
         Add(222, 208, "Head Track Sens.", null);
         Add(205, 209, () => "", () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity), Small, w: 300, h: 12);
         Add(398, 210, () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture), null);
         // Rumble Strength (docs/playing.md): the strength of every level sent to the pad (the pad's events are Force Feedback's)
         Add(222, 231, "Rumble Strength", null);
         Add(205, 232, () => "", () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength), Small, w: 300, h: 12);
-        Add(398, 233, () => s.RumbleStrength + " %", null);
+        Add(398, 233, () => s.RumbleStrength + (s.RumbleStrength == I76.Formats.Input.RumbleStrength.Default ? " %" : " %" + ShellSettings.PortMark), null);
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
         Add(222, 277, "Melee A.I.", null);
         Add(205, 278, () => "", () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length), Small, w: 300, h: 12);
@@ -441,7 +444,10 @@ public sealed class GraphicsScreen : OverlayScreen
         if (!shown) { _rowsLeftOut++; return; }
         slot += Rows.Length - _rowsLeftOut;
         _list.Add((Add(200, ListY, label, null), slot, 0));
-        _list.Add((Add(397, ListY, value, click), slot, 0));
+        // a long value ("Monitor*") ends short of the scroll bar (DrawExtra, x 464; its arrows reach a pixel left of it)
+        var v = Add(397, ListY, value, click);
+        v.Right = 461;
+        _list.Add((v, slot, 0));
     }
 
     private void Reposition()
@@ -554,12 +560,12 @@ public sealed class GraphicsScreen : OverlayScreen
         }
         var st = Shell.Settings;
         // the port's own rows, one to a line: the menu art pack's (only when one is installed), with the pack's name beside it
-        Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" : "Off", () => Apply(!st.HdMenuArt), HdAssets.Installed);
+        Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" + ShellSettings.PortMark : "Off", () => Apply(!st.HdMenuArt), HdAssets.Installed);
         if (HdAssets.Installed) _list.Add((Add(318, ListY + 3, () => HdAssets.Label ?? "", null, Small), Rows.Length, 3));
         Row(1, "Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => { st.KeepMouseInWindow = !st.KeepMouseInWindow; I76.Game.MouseCamera.Confine = st.KeepMouseInWindow; });
         // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
         // from the next start or mission), with the modern look's palette grade (SoftwareLook) after it
-        string[] modes = ["Off", "3D Card", "Software"];
+        string[] modes = ["Off" + ShellSettings.PortMark, "3D Card", "Software"];
         Row(2, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
         {
             int m = ((!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1) + 1) % 3;
@@ -569,7 +575,7 @@ public sealed class GraphicsScreen : OverlayScreen
         // the software renderer's double image on a big cockpit hit: Auto, Off, On
         Row(4, "Crash Blur", () => I76.Sim.Views.CrashBlurMode.Names[Math.Clamp(st.CrashBlur, 0, 1)], () => st.CrashBlur = 1 - Math.Clamp(st.CrashBlur, 0, 1));
         // the modern look's plants (docs/modern-vegetation.md)
-        string[] veg = ["Off", "Low", "High"];
+        string[] veg = ["Off", "Low" + ShellSettings.PortMark, "High" + ShellSettings.PortMark];
         Row(5, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
         // the mouse orbiting the chase view: Off, Slow, Normal, Fast (Invert Y is shell.cfg's [port] mouse_invert_y)
         Row(6, "Mouse Camera", () => I76.Sim.Views.MouseLook.Names[Math.Clamp(st.MouseCamera, 0, 3)], () => st.MouseCamera = (st.MouseCamera + 1) % I76.Sim.Views.MouseLook.Names.Length);
@@ -579,7 +585,7 @@ public sealed class GraphicsScreen : OverlayScreen
         // the log file: Godot reads it only at start, so a change shows from the next start (docs/dev-hooks.md: --log forces it for a run)
         Row(9, "Log (restart)", () => st.LogFile ? "On" : "Off", () => st.LogFile = !st.LogFile);
         // CONFIGURE CHASSIS as the 3D garage (on) or the original's 2D form (off)
-        Row(10, "3D Garage", () => st.Garage3D ? "On" : "Off", () => st.Garage3D = !st.Garage3D);
+        Row(10, "3D Garage", () => st.Garage3D ? "On" + ShellSettings.PortMark : "Off", () => st.Garage3D = !st.Garage3D);
         // the modern look's cabin and driver behind a car's windows (off: plain reflective glass), live
         Row(11, "Car Interiors", () => st.CarInteriors ? "On" : "Off", () => { st.CarInteriors = !st.CarInteriors; I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors); });
         // the chase view easing back behind the car after the mouse or stick rests, live

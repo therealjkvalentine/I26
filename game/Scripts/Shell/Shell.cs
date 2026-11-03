@@ -1175,10 +1175,13 @@ public sealed class ShellSettings
             RumbleMode = value == 2 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original;
         }
     }
-    /// <summary>The row's values; Pad Enhanced, the port's own, is marked (<see cref="PortMark"/>).</summary>
-    public static readonly string[] ForceFeedbackNames = ["Off", "Pad", "Pad Enhanced" + PortMark, "Wheel"];
     /// <summary>
-    /// What marks the original game's value on a pad's row (docs/playing.md): the shell's bitmap fonts and the pads' handwriting have no
+    /// The row's values; Pad Enhanced and Wheel are marked as the port's (<see cref="PortMark"/>): the original drove a force-feedback
+    /// stick from its effect table (Pad plays that table), never a wheel, whose one axis takes the effects as the port adapts them.
+    /// </summary>
+    public static readonly string[] ForceFeedbackNames = ["Off", "Pad", "Pad Enhanced" + PortMark, "Wheel" + PortMark];
+    /// <summary>
+    /// What marks a value the original game does not have, on every pad row that offers the original's (docs/playing.md): the shell's bitmap fonts and the pads' handwriting have no
     /// italics or second face, and the value columns are too narrow for a word, so one glyph, explained once in the docs.
     /// </summary>
     public const string PortMark = "*";

@@ -94,11 +94,11 @@ public class SettingsWithoutARowTests
         Assert.False(c.UnlimitedOrdnance);
     }
 
-    /// <summary>Force Feedback's four values over the file's three keys: Off, Pad (the original's effects), Pad Enhanced (the port's pulses too), Wheel.</summary>
+    /// <summary>Force Feedback's four values over the file's three keys: Off, Pad (the original's effects), Pad Enhanced (the port's pulses too), Wheel (the port's: the original drove a stick).</summary>
     [Fact]
     public void ForceFeedbackFoldsThePadsEventsAndTheWheelIntoOneRow()
     {
-        Assert.Equal(["Off", "Pad", "Pad Enhanced*", "Wheel"], ShellSettings.ForceFeedbackNames);
+        Assert.Equal(["Off", "Pad", "Pad Enhanced*", "Wheel*"], ShellSettings.ForceFeedbackNames);
         var s = new ShellSettings();
         Assert.Equal(1, s.ForceFeedbackMode);                  // on, the pad, the game's own effects: the default
         s.ForceFeedbackMode = 2;
@@ -124,11 +124,15 @@ public class SettingsWithoutARowTests
         Assert.Equal("*", ShellSettings.PortMark);
         foreach (var (names, originals) in new[]
         {
-            (ShellSettings.ForceFeedbackNames, new[] { "Off", "Pad", "Wheel" }),
+            (ShellSettings.ForceFeedbackNames, new[] { "Off", "Pad" }),
             (ShellSettings.MeleeAiNames, ["Normal"]),
             (I76.Game.World.MapEdge.Names, ["Off"]),
             (I76.Game.Assets.HdTextures.Names, ["Off"]),
             (I76.Sim.Views.ViewFov.Names, ["90"]),
+            (I76.Sim.Views.PaintFinish.Names, ["Matte"]),
+            (I76.Game.Boot.RenderScale.Names, ["100%"]),
+            (I76.Sim.Views.CrashBlurMode.Names, ["On"]),
+            (I76.Sim.Views.MouseLook.Names, ["Off"]),
         })
         {
             Assert.Equal(originals, names.Where(n => !n.EndsWith(ShellSettings.PortMark, System.StringComparison.Ordinal)));

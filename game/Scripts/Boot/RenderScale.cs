@@ -14,7 +14,8 @@ public static class RenderScale
 {
     /// <summary>Percent, per choice, in the row's order; <see cref="Default"/> is 100.</summary>
     public static readonly int[] Percents = [50, 67, 75, 85, 100, 150, 200];
-    public static readonly string[] Names = ["50%", "67%", "75%", "85%", "100%", "150%", "200%"];
+    /// <summary>The row's values: 100 % is the original's (the view drawn at the window's own size); the rest are marked as the port's.</summary>
+    public static readonly string[] Names = ["50%*", "67%*", "75%*", "85%*", "100%", "150%*", "200%*"];
     public static readonly int Default = System.Array.IndexOf(Percents, 100);
 
     /// <summary>The choice for a shell.cfg [port] render_scale value (percent); anything not offered is 100.</summary>
