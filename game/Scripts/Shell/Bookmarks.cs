@@ -170,17 +170,16 @@ public abstract class BookmarkScreen : OverlayScreen
     protected virtual void Pick(int row) => Picked = row;
 
     /// <summary>
-    /// Where Delete goes on the sheet (both looks share the art): beside the scroll-up arrow, where Load Bookmark's All
-    /// Scenes stands, after it on Load Bookmark; in Nitro (no trip, no All Scenes) left of Load, drawn the same way (to the
-    /// right of Cancel it would run off the sheet).
+    /// Where Delete goes on the sheet (both looks share the art), Save and Load Bookmark alike: beside the scroll-up arrow;
+    /// in Nitro left of Load, drawn the same way (to the right of Cancel it would run off the sheet).
     /// </summary>
-    public static (int X, int Y) DeletePlace(bool load, bool nitro, Func<string, int> measure) =>
-        nitro ? (328 - 25 - measure("Delete"), 420) : load ? (250 + measure("All Scenes") + 25, 158) : (250, 158);
+    public static (int X, int Y) DeletePlace(bool nitro, Func<string, int> measure) =>
+        nitro ? (328 - 25 - measure("Delete"), 420) : (250, 158);
 
     /// <summary>The Delete button, where <see cref="DeletePlace"/> puts it.</summary>
-    protected void AddDelete(bool load)
+    protected void AddDelete()
     {
-        var (x, y) = DeletePlace(load, Shell.Install.IsNitro, Small.Measure);
+        var (x, y) = DeletePlace(Shell.Install.IsNitro, Small.Measure);
         Add(x, y, "Delete", Delete, Small);
     }
 
@@ -245,7 +244,7 @@ public sealed class SaveBookmarkScreen : BookmarkScreen
     {
         base.Build();
         Add(183, 127, () => "", () => _editing = true, w: 271, h: 23);      // the name field, 32 characters
-        AddDelete(load: false);
+        AddDelete();
     }
 
     protected override (int, string) Header() => (Shell.Trip.Mission, _name + (_editing ? "_" : ""));
@@ -314,38 +313,14 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
     protected override string? EmptyText => "(No Games available)";
 
     /// <summary>
-    /// The port's Import Saves, between the scroll-down arrow and Load: the original's own bookmarks from the install; and
-    /// All Scenes, beside the scroll-up arrow (the base game only: Nitro has no trip). Delete follows All Scenes (left of
-    /// Load in Nitro), as on Save Bookmark.
+    /// The original's sheet plus the port's Delete. The port's Import Saves and All Scenes are on the shell's Developer
+    /// panel (<see cref="ShellDevPanel"/>).
     /// </summary>
     protected override void Build()
     {
         base.Build();
-        AddDelete(load: true);
-        if (Shell.Install.IsNitro) return;
-        Add(230, 420, "Import Saves", () => Shell.Overlay(new ImportSavesScreen { Direct = Direct }), Small);
-        Add(250, 158, "All Scenes", AllScenes, Small);
+        AddDelete();
     }
-
-    /// <summary>One bookmark per mission of the trip, in that mission's stock car; asks first, since it makes many files, and leaves a bookmark of the same scene and name alone.</summary>
-    private void AllScenes() => Shell.Modal(new ConfirmPopup
-    {
-        Lines = ["Make a bookmark for every scene", "of the trip, each in its own car?"],
-        Answer = yes =>
-        {
-            if (!yes) { Redraw(); return; }
-            var marks = Bookmarks.Load();
-            var vfs = Shell.Vfs;
-            var (made, had) = SceneBookmarks.Generate(marks, n => SceneBookmarks.NameOf(Shell.Install, n), n =>
-            {
-                var car = I76.Sim.Trip.TripCar.FromVcf(vfs.Read(SceneBookmarks.CarFile(n)), c => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, c));
-                return I76.Sim.Trip.TripInventory.FromCar(car, Shell.Parts, vfs).Save();
-            }, Bookmarks.WriteCar);
-            marks.Save();
-            var text = $"{made} bookmark{(made == 1 ? "" : "s")} made." + (had > 0 ? $" {had} already were." : "");
-            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = text, Closed = () => Shell.Overlay(new LoadBookmarkScreen { Direct = Direct }) });
-        },
-    });
 
     protected override (int, string) Header() =>
         Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
@@ -368,7 +343,7 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
 }
 
 /// <summary>
-/// The port's Import Saves (from Load Bookmark): the original game's bookmarks (savegame.dir and its saveNNN.cmp files in
+/// The port's Import Saves (from the shell's Developer panel): the original game's bookmarks (savegame.dir and its saveNNN.cmp files in
 /// the install, or in its VirtualStore copy on Windows) listed as the Load board lists them; Import makes an I26
 /// bookmark of each (<see cref="OriginalSaveImport"/>), leaving out one already imported, and goes back to Load Bookmark.
 /// The original's files are only read.

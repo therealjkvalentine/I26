@@ -58,16 +58,22 @@ location between runs; an old `[install]` entry in `settings.cfg` is ignored.
 `%APPDATA%\I26\` on Windows. Delete it to start from scratch. The first run copies
 the settings and saves of the older "Interstate '76 (Godot)" folder if there is one.
 
-**Update check.** At every start I26 asks GitHub (one request, nothing about you or your machine is sent) whether a newer release exists and, if so, shows "version X available" under the version in the corner of the chooser and the main menu; click it to open the release page. Options > Play Options (second page) > Check for Updates turns it off, and then nothing is requested. A build run from source never asks.
+**Bringing in saves.** Load Bookmark is the original's sheet plus a Delete button. Two tools for bringing bookmarks in are
+on the Developer panel of the main menu instead (Ctrl+F2 or Ctrl+` there, with `developer=true` under `[port]` in
+shell.cfg or `--dev`; Interstate '76 only, the Nitro Pack has no trip):
 
-**Saves of the original game.** Load Bookmark has an Import Saves button: it lists the bookmarks the original game
-saved in its folder (`savegame.dir` and the `saveNNN.cmp` files; on Windows also their copy in
-`%LOCALAPPDATA%\VirtualStore` when the game sits under Program Files), as the original's Load board lists them, and
-Import turns each into an I26 bookmark with the same name and scene. The car comes with it: the body, paint, armour
-and chassis, every part fitted, in the van, in the repair order or left in Field Salvage, each in the condition it
-was saved in. A part is fitted only where the original's garage would show it fitted, and weapons past the
-garage's eleventh go to Field Salvage, as the original does on loading. Importing again skips the bookmarks
-already imported. The original's files are only read.
+- **Import Saves** lists the bookmarks the original game saved in its folder (`savegame.dir` and the `saveNNN.cmp`
+  files; on Windows also their copy in `%LOCALAPPDATA%\VirtualStore` when the game sits under Program Files), as the
+  original's Load board lists them, and Import turns each into an I26 bookmark with the same name and scene. The car
+  comes with it: the body, paint, armour and chassis, every part fitted, in the van, in the repair order or left in
+  Field Salvage, each in the condition it was saved in. A part is fitted only where the original's garage would show it
+  fitted, and weapons past the garage's eleventh go to Field Salvage, as the original does on loading. Importing again
+  skips the bookmarks already imported. The original's files are only read.
+- **All Scenes** makes a bookmark for every scene of the trip, "Scene N. <the mission's title>", each at the start of
+  its scene in that mission's own stock car, so a fresh install can start any scene without a save. It asks first and
+  never overwrites a bookmark of the same name.
+
+Both end on Load Bookmark with the new bookmarks listed.
 
 **Log file.** Off by default, so it cannot grow. For a bug report, start the game once with `--log` (or the environment
 variable `I76_LOG=1`) and attach `logs/godot.log` from the user folder (the last three runs' logs are kept as
@@ -119,7 +125,7 @@ has its default, and a key the game writes itself is left as you set it. The ori
 | `ordnance_limit` | `original`\*, `unlimited` | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`\*, `true` | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`\*, `enhanced` | `original` | Force Feedback's Pad\* or Pad Enhanced; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
-| `developer` | `false`\*, `true` | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it. The older name `developer_tools` is read too. Single player only. |
+| `developer` | `false`\*, `true` | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
 
 The four that follow the look are the original's in the 1997 look and the modern look's own otherwise until the key is in
 the file; a key set by hand holds in both looks. Keys that change the simulation (`melee_ai`, `ordnance_limit`,

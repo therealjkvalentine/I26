@@ -1,7 +1,7 @@
 namespace I76.Game.Shell;
 
 /// <summary>
-/// The port's "All Scenes" (from Load Bookmark): one bookmark per mission of the trip, each at the start of its scene in that
+/// The port's "All Scenes" (from the shell's Developer panel): one bookmark per mission of the trip, each at the start of its scene in that
 /// mission's own stock car (vppt%02d.vcf, the car the trip gives the player there), so a fresh install can start any scene
 /// without having played up to it. Pure (the caller supplies the names and the car texts), so the tests run it.
 /// </summary>
