@@ -15,7 +15,11 @@ namespace I76.Formats.Imaging;
 /// calibration solves, per mission, the exposure that gives the ground, averaged over the map's own cells, the 1997
 /// ground's luminance and a tint per channel of its colours that gives its colour; then for objects (cars, buildings),
 /// at that exposure, the share of the sky light that makes their faces turned from the sun as much darker than the whole
-/// as the 1997 look's are, and a tint per channel of their colours that gives them the 1997 look's colour.
+/// as the 1997 look's are, and a tint per channel of their colours that gives them the 1997 look's colour. The modern
+/// look's frame is shown through the card's curve by default (<see cref="ToneCurve.Card"/>): Filmic's curve, per channel,
+/// steepens the darks (a local slope up to 1.14 in log-log) and flattens the brights (0.5 to 0.6), where the card's ramp
+/// is 0.77 throughout, so a colour whose channels sit at different levels changed hue and chroma with its lightness
+/// (a car's paint redder and more chromatic in shade, a dusk sky's orange clouds paled toward lilac).
 /// </summary>
 public static class LightingCalibration
 {
@@ -58,6 +62,44 @@ public static class LightingCalibration
     public const double MinExposure = 0.25, MaxExposure = 2.0, MinTint = 0.5, MaxTint = 2.0, MinSky = 0.1, MaxSky = 1.0;
 
     public static double ToLinear(double s) => s <= 0.04045 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+
+    public static double ToSrgb(double l) => l <= 0.0031308 ? l * 12.92 : 1.055 * Math.Pow(l, 1 / 2.4) - 0.055;
+
+    /// <summary>The modern look's tone curve: Godot's Filmic, or the 3D card's (the 1997 look's display, with a shoulder over its top).</summary>
+    public enum ToneCurve { Filmic, Card }
+
+    /// <summary>
+    /// The card curve's shoulder: scene light (after the exposure) up to <see cref="Knee"/> as it is, above it eased into 1 by
+    /// <see cref="Headroom"/>, so a highlight rolls off as Filmic's does where the 1997 look clips. Below the knee the curve is
+    /// the 1997 look's display exactly (all of the 1997 frame's colours but its near whites).
+    /// </summary>
+    public const double Knee = 0.8, Headroom = 2.0;
+
+    public static double Shoulder(double v) => v <= Knee ? v : Knee + (1 - Knee) * Math.Tanh((v - Knee) / (1 - Knee));
+
+    /// <summary>The card curve: scene light (linear, exposed) shown as the 1997 look shows a colour, its sRGB value through the Glide ramp; linear.</summary>
+    public static double CardTone(double v) => ToLinear(Card(ToSrgb(Shoulder(Math.Max(v, 0)))));
+
+    /// <summary>What the modern look shows (linear) for scene light <paramref name="v"/> after the exposure, through <paramref name="curve"/>.</summary>
+    public static double Display(double v, ToneCurve curve) => curve == ToneCurve.Card ? CardTone(v) : Filmic(v);
+
+    /// <summary>
+    /// The card curve as Godot applies it: a linear tonemap at the exposure over <see cref="Headroom"/>, then the frame's sRGB
+    /// value u (0..1) looked up in a table of <paramref name="n"/> entries (the colour correction): the shoulder over
+    /// Headroom·linear(u), Monitor Brightness's palette curve for <paramref name="level"/> (the identity at 3) and the Glide
+    /// ramp, as the 1997 look's table (MonitorBrightness.CardCurve) is; sRGB, 0..1.
+    /// </summary>
+    public static double[] CardToneTable(int n, int level)
+    {
+        double k = 1 / MonitorBrightness.PaletteGamma(level);
+        var t = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            double s = ToSrgb(Shoulder(Headroom * ToLinear(i / (double)(n - 1))));
+            t[i] = Card(Math.Pow(Math.Clamp(s, 0, 1), k));
+        }
+        return t;
+    }
 
     /// <summary>Godot's Filmic tonemap (Hable's curve with an exposure bias of 2, white 1), clipped at 1.</summary>
     public static double Filmic(double x)
@@ -150,9 +192,9 @@ public static class LightingCalibration
         return new(s[0] / m, s[1] / m, s[2] / m);
     }
 
-    /// <summary>The modern look's surfaces (linear, displayed): the texels' colours tinted, lit by each cell (the sky light at its share), exposed and tonemapped, the mean.</summary>
-    public static Rgb Modern(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> cells, double exposure, Rgb tint, double sky = 1)
-        => Modern(Linear(texels), cells, exposure, tint, sky);
+    /// <summary>The modern look's surfaces (linear, displayed): the texels' colours tinted, lit by each cell (the sky light at its share), exposed and shown through <paramref name="curve"/>, the mean.</summary>
+    public static Rgb Modern(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> cells, double exposure, Rgb tint, double sky = 1, ToneCurve curve = ToneCurve.Filmic)
+        => Modern(Linear(texels), cells, exposure, tint, sky, curve);
 
     private static double[] Linear(ReadOnlySpan<byte> texels)
     {
@@ -161,8 +203,9 @@ public static class LightingCalibration
         return lin;
     }
 
-    private static Rgb Modern(double[] lin, IEnumerable<Cell> cells, double exposure, Rgb tint, double sky)
+    private static Rgb Modern(double[] lin, IEnumerable<Cell> cells, double exposure, Rgb tint, double sky, ToneCurve curve)
     {
+        Func<double, double> show = curve == ToneCurve.Card ? CardTone : Filmic;
         double[] s = new double[3];
         int n = lin.Length / 3;
         double m = 0;
@@ -171,7 +214,7 @@ public static class LightingCalibration
             var l = cell.Light(sky);
             double kr = exposure * tint.R * l.R, kg = exposure * tint.G * l.G, kb = exposure * tint.B * l.B;
             double sr = 0, sg = 0, sb = 0;
-            for (int i = 0; i < n; i++) { sr += Filmic(kr * lin[3 * i]); sg += Filmic(kg * lin[3 * i + 1]); sb += Filmic(kb * lin[3 * i + 2]); }
+            for (int i = 0; i < n; i++) { sr += show(kr * lin[3 * i]); sg += show(kg * lin[3 * i + 1]); sb += show(kb * lin[3 * i + 2]); }
             s[0] += cell.Count * sr; s[1] += cell.Count * sg; s[2] += cell.Count * sb;
             m += n * cell.Count;
         }
@@ -190,34 +233,35 @@ public static class LightingCalibration
     /// then its tint per channel. The objects, at that exposure: the share of the sky light that makes their faces turned
     /// from the sun as much darker than the whole of them as the 1997 look's are (luminance, untinted), then their tint per
     /// channel. Within the bounds above. With no ground cells, none; with no object cells (or none turned from the sun) the
-    /// objects keep the whole sky light. The texels are the ground's, and stand for the objects' too (the mission's own colours).
+    /// objects keep the whole sky light. The texels are the ground's, and stand for the objects' too (the mission's own colours;
+    /// through the card curve, near a power, a tint acts alike on every colour). The modern look shown through <paramref name="curve"/>.
     /// </summary>
-    public static Result Solve(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects)
+    public static Result Solve(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, ToneCurve curve = ToneCurve.Filmic)
     {
         var one = new Rgb(1, 1, 1);
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
         var tx = Linear(texels);
         var target = Target(texels, ground);
-        double exposure = Bisect(e => Modern(tx, ground, e, one, 1).Luminance, target.Luminance, MinExposure, MaxExposure);
-        var groundTint = Tint(tx, target, ground, exposure, 1);
+        double exposure = Bisect(e => Modern(tx, ground, e, one, 1, curve).Luminance, target.Luminance, MinExposure, MaxExposure);
+        var groundTint = Tint(tx, target, ground, exposure, 1, curve);
         double sky = 1;
         var shade = objects.Where(c => c.Shade).ToList();
         if (shade.Count > 0 && shade.Count < objects.Count)
         {
             double want = Target(texels, shade).Luminance / Math.Max(Target(texels, objects).Luminance, 1e-9);
-            sky = Bisect(k => Modern(tx, shade, exposure, one, k).Luminance / Math.Max(Modern(tx, objects, exposure, one, k).Luminance, 1e-9), want, MinSky, MaxSky);
+            sky = Bisect(k => Modern(tx, shade, exposure, one, k, curve).Luminance / Math.Max(Modern(tx, objects, exposure, one, k, curve).Luminance, 1e-9), want, MinSky, MaxSky);
         }
-        var objectTint = objects.Count > 0 ? Tint(tx, Target(texels, objects), objects, exposure, sky) : one;
+        var objectTint = objects.Count > 0 ? Tint(tx, Target(texels, objects), objects, exposure, sky, curve) : one;
         return new(exposure, sky, groundTint, objectTint);
     }
 
-    private static Rgb Tint(double[] tx, Rgb target, IReadOnlyList<Cell> cells, double exposure, double sky)
+    private static Rgb Tint(double[] tx, Rgb target, IReadOnlyList<Cell> cells, double exposure, double sky, ToneCurve curve)
     {
         var t = new double[3];
         for (int c = 0; c < 3; c++)
         {
             int ch = c;
-            t[c] = Bisect(k => Modern(tx, cells, exposure, new Rgb(ch == 0 ? k : 1, ch == 1 ? k : 1, ch == 2 ? k : 1), sky)[ch], target[c], MinTint, MaxTint);
+            t[c] = Bisect(k => Modern(tx, cells, exposure, new Rgb(ch == 0 ? k : 1, ch == 1 ? k : 1, ch == 2 ? k : 1), sky, curve)[ch], target[c], MinTint, MaxTint);
         }
         return new(t[0], t[1], t[2]);
     }

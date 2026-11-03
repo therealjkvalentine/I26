@@ -25,6 +25,7 @@ uniform float map_radius = 2000.0;
 
 // the modern sky's horizon (Main.ApplySky copies them from the sky material)
 uniform vec3 horizon_color : source_color = vec3(0.7, 0.75, 0.8);
+uniform float haze_gain = 1.0;   // the sky's gain over its colours (sky_gain), so the haze meets the sky behind it
 uniform vec3 sprite_dir = vec3(0.0, 1.0, 0.0);   // Godot frame, toward the light
 uniform float light_strength = 1.0;
 uniform float haze_start = 2000.0;   // metres of clear air
@@ -178,7 +179,7 @@ void fragment() {
 
 	if (debug_tint > 0.0) { albedo = vec3(1.0, 0.0, 1.0); f = 0.0; }
 	ALBEDO = albedo * (1.0 - f);
-	EMISSION = haze_col * f;
+	EMISSION = haze_col * haze_gain * f;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 	vec3 nw = vec3(nb.x, nb.y, -nb.z);   // game -> Godot
