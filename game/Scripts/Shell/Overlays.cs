@@ -398,7 +398,7 @@ public sealed class GraphicsScreen : OverlayScreen
 {
     protected override int Record => 9;
     private byte[] _saved = [];
-    private bool _savedHd, _savedLook, _savedSoftware, _savedGrade;
+    private bool _savedHd, _savedHdTextures, _savedLook, _savedSoftware, _savedGrade;
     private int _savedBlur;
     private int _savedVeg, _savedEdge, _savedMouse, _savedMaxFps;
     private I76.Game.Boot.RendererChoice _savedRenderer;
@@ -420,6 +420,7 @@ public sealed class GraphicsScreen : OverlayScreen
     ];
 
     private void Apply(bool on) { Shell.Settings.HdMenuArt = on; HdAssets.Enabled = on; }
+    private void ApplyHdTextures(bool on) { Shell.Settings.HdTextures = on; I76.Game.Assets.HdTextures.Enabled = on; }
 
     // the sheet's rows, the original's six and the port's after them, scroll as one list on its fourteen 23 px lines
     private const int ListY = 118, LineH = 23, Shown = 14;
@@ -429,12 +430,16 @@ public sealed class GraphicsScreen : OverlayScreen
     private int Slots => _list.Count == 0 ? 0 : _list.Max(l => l.Slot) + 1;
     private int MaxScroll => Math.Max(0, Slots - Shown);
 
-    /// <summary>One of the port's rows: its label and its value (a click on the value is <paramref name="click"/>), in list slot <paramref name="slot"/> after the original's rows.</summary>
-    private void Row(int slot, string label, Func<string> value, Action click)
+    private int _rowsLeftOut;
+
+    /// <summary>
+    /// One of the port's rows: its label and its value (a click on the value is <paramref name="click"/>), in list slot <paramref name="slot"/> after the original's rows.
+    /// A row not <paramref name="shown"/> (the HD rows without their pack) is left out and the rows after it move up a line.
+    /// </summary>
+    private void Row(int slot, string label, Func<string> value, Action click, bool shown = true)
     {
-        // the menu-art row (slot 0) is there only when an art pack is installed; without one the rest move up a line
-        if (!HdAssets.Installed) { if (slot == 0) return; slot--; }
-        slot += Rows.Length;
+        if (!shown) { _rowsLeftOut++; return; }
+        slot += Rows.Length - _rowsLeftOut;
         _list.Add((Add(200, ListY, label, null), slot, 0));
         _list.Add((Add(397, ListY, value, click), slot, 0));
     }
@@ -520,6 +525,7 @@ public sealed class GraphicsScreen : OverlayScreen
         var g = Shell.Settings.Graphics;
         _saved = (byte[])g.Clone();
         _savedHd = Shell.Settings.HdMenuArt;
+        _savedHdTextures = Shell.Settings.HdTextures;
         _savedLook = Shell.Settings.Look1997;
         _savedSoftware = Shell.Settings.SoftwareRenderer;
         _savedGrade = Shell.Settings.PaletteGrade;
@@ -548,7 +554,7 @@ public sealed class GraphicsScreen : OverlayScreen
         }
         var st = Shell.Settings;
         // the port's own rows, one to a line: the menu art pack's (only when one is installed), with the pack's name beside it
-        Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" : "Off", () => Apply(!st.HdMenuArt));
+        Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" : "Off", () => Apply(!st.HdMenuArt), HdAssets.Installed);
         if (HdAssets.Installed) _list.Add((Add(318, ListY + 3, () => HdAssets.Label ?? "", null, Small), Rows.Length, 3));
         Row(1, "Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => { st.KeepMouseInWindow = !st.KeepMouseInWindow; I76.Game.MouseCamera.Confine = st.KeepMouseInWindow; });
         // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
@@ -603,9 +609,11 @@ public sealed class GraphicsScreen : OverlayScreen
         Row(19, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
         // the modern look's boundary walls: Plain (as they are, the original's), Haze, Fade Out or Hide (the 1997 look keeps them)
         Row(20, "Map Edge", () => I76.Game.World.MapEdge.Names[st.MapEdge], () => st.MapEdge = (st.MapEdge + 1) % I76.Game.World.MapEdge.Names.Length);
-        Add(288, 438, "Reset", () => { Shell.Settings.RenderScale = I76.Game.Boot.RenderScale.Default; I76.Game.Boot.RenderScale.Apply(Shell.Settings); Shell.Settings.HoodMatte = false; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(false); Shell.Settings.FieldOfView = 0; I76.Sim.Views.ViewFov.Apply(0); Shell.Settings.Resolution = ""; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.MapEdge = I76.Game.World.MapEdge.Original; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
+        // the texture pack's upscaled world, car and cockpit textures in the modern look (Off*, the original's, or On; only when a pack is found), live
+        Row(21, "HD Textures", () => I76.Game.Assets.HdTextures.Names[st.HdTextures ? 1 : 0], () => ApplyHdTextures(!st.HdTextures), I76.Game.Assets.HdTextures.Installed);
+        Add(288, 438, "Reset", () => { ApplyHdTextures(true); Shell.Settings.RenderScale = I76.Game.Boot.RenderScale.Default; I76.Game.Boot.RenderScale.Apply(Shell.Settings); Shell.Settings.HoodMatte = false; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(false); Shell.Settings.FieldOfView = 0; I76.Sim.Views.ViewFov.Apply(0); Shell.Settings.Resolution = ""; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal; Shell.Settings.KeepMouseInWindow = false; Shell.Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited; Shell.Settings.VSync = true; I76.Game.FrameLimiter.Apply(Shell.Settings); Array.Copy(ShellSettings.DefaultGraphics, g, 16); Apply(true); Shell.Settings.Look1997 = false; Shell.Settings.SoftwareRenderer = false; Shell.Settings.PaletteGrade = false; Shell.Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On; Shell.Settings.Vegetation = 1; Shell.Settings.MapEdge = I76.Game.World.MapEdge.Original; Shell.Settings.Garage3D = true; Shell.Settings.CarInteriors = true; Shell.Settings.CameraReturn = true; Shell.Settings.ZoomReset = true; I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(true); }, Small);
         Add(350, 438, "Done", () => { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
-        Add(402, 438, "Cancel", () => { Array.Copy(_saved, g, 16); Apply(_savedHd); Shell.Settings.Look1997 = _savedLook; Shell.Settings.SoftwareRenderer = _savedSoftware; Shell.Settings.PaletteGrade = _savedGrade; Shell.Settings.CrashBlur = _savedBlur; Shell.Settings.Vegetation = _savedVeg; Shell.Settings.MapEdge = _savedEdge; Shell.Settings.MouseCamera = _savedMouse; Shell.Settings.KeepMouseInWindow = _savedConfine; Shell.Settings.LogFile = _savedLog; Shell.Settings.Renderer = _savedRenderer; Shell.Settings.Garage3D = _saved3D; Shell.Settings.CarInteriors = _savedInteriors; Shell.Settings.CameraReturn = _savedReturn; Shell.Settings.ZoomReset = _savedZoomReset; Shell.Settings.Resolution = _savedRes; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.FieldOfView = _savedFov; I76.Sim.Views.ViewFov.Apply(_savedFov); Shell.Settings.HoodMatte = _savedHood; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(_savedHood); Shell.Settings.RenderScale = _savedScale; I76.Game.Boot.RenderScale.Apply(Shell.Settings); I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(_savedInteriors); Shell.Settings.MaxFps = _savedMaxFps; Shell.Settings.VSync = _savedVSync; I76.Game.FrameLimiter.Apply(Shell.Settings); Shell.Overlay(new OptionsScreen()); }, Small);
+        Add(402, 438, "Cancel", () => { Array.Copy(_saved, g, 16); Apply(_savedHd); Shell.Settings.Look1997 = _savedLook; Shell.Settings.SoftwareRenderer = _savedSoftware; Shell.Settings.PaletteGrade = _savedGrade; Shell.Settings.CrashBlur = _savedBlur; Shell.Settings.Vegetation = _savedVeg; Shell.Settings.MapEdge = _savedEdge; Shell.Settings.MouseCamera = _savedMouse; Shell.Settings.KeepMouseInWindow = _savedConfine; Shell.Settings.LogFile = _savedLog; Shell.Settings.Renderer = _savedRenderer; Shell.Settings.Garage3D = _saved3D; Shell.Settings.CarInteriors = _savedInteriors; Shell.Settings.CameraReturn = _savedReturn; Shell.Settings.ZoomReset = _savedZoomReset; Shell.Settings.Resolution = _savedRes; I76.Game.Boot.WindowApplier.Apply(Shell.Settings); Shell.Settings.FieldOfView = _savedFov; I76.Sim.Views.ViewFov.Apply(_savedFov); Shell.Settings.HoodMatte = _savedHood; I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(_savedHood); Shell.Settings.RenderScale = _savedScale; I76.Game.Boot.RenderScale.Apply(Shell.Settings); ApplyHdTextures(_savedHdTextures); I76.Game.MouseCamera.Apply(Shell.Settings); I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(_savedInteriors); Shell.Settings.MaxFps = _savedMaxFps; Shell.Settings.VSync = _savedVSync; I76.Game.FrameLimiter.Apply(Shell.Settings); Shell.Overlay(new OptionsScreen()); }, Small);
     }
 }
 

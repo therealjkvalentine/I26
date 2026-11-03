@@ -8,15 +8,28 @@ namespace I76.Game.Assets;
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a power-of-two
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
 /// user://tex-world/ (a folder), then the newest i76-hd-*.zip next to the executable or in user:// that has a
-/// tex-world/ folder (read in place). The HD Menu Art setting switches them off with the menu art; the 1997 look
-/// never asks (TextureFactory.Hd).
+/// tex-world/ folder (read in place). Graphic Detail's HD Textures row switches them off (Enabled); the 1997 look
+/// never draws them (TextureFactory.Hd).
 /// </summary>
 public static class HdTextures
 {
     private static HdSource? _source;
     private static bool _probed;
 
+    /// <summary>The player's switch (ShellSettings.HdTextures): the modern look draws the pack's upscales.</summary>
+    public static bool Enabled { get; set; } = true;
+    /// <summary>The row's values; the original draws the textures it ships (<see cref="I76.Game.Shell.ShellSettings.OriginalMark"/>).</summary>
+    public static readonly string[] Names = ["Off" + I76.Game.Shell.ShellSettings.OriginalMark, "On"];
+
+    /// <summary>
+    /// shell.cfg's [port] hd_textures. Absent (a file from before the row, when HD Menu Art switched these too), it follows
+    /// hd_menu_art, so a player who had turned the menu art off keeps the textures off.
+    /// </summary>
+    public static bool FromFile(bool? hdTextures, bool hdMenuArt) => hdTextures ?? hdMenuArt;
+
     public static HdSource? Source { get { Probe(); return _source; } }
+    /// <summary>A pack was found (Graphic Detail shows the HD Textures row only then).</summary>
+    public static bool Installed => Source is not null;
 
     private static void Probe()
     {
@@ -34,10 +47,10 @@ public static class HdTextures
         GD.Print(_source is null ? "HD textures: none (no I76_TEX_DIR/world, user://tex-world/ or i76-hd-*.zip with tex-world/)" : $"HD textures: {_source.Origin} ({_source.Count} files)");
     }
 
-    /// <summary>The member's upscale decoded to RGBA8 (rows top-down), or null for none or one that does not decode.</summary>
+    /// <summary>The member's upscale decoded to RGBA8 (rows top-down), or null for none or one that does not decode (whatever the switch: the factory decides what it serves).</summary>
     public static Image? Load(string member)
     {
-        if (!I76.Game.Shell.HdAssets.Enabled || Source is not { } s) return null;
+        if (Source is not { } s) return null;
         foreach (var rel in HdTexture.Candidates(member))
         {
             if (s.Read(rel) is not { } b) continue;

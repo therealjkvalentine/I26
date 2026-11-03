@@ -295,7 +295,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// textures and level-of-detail meshes are left for <see cref="ModernSteps"/>, which runs them in the background.
     /// </summary>
     public bool DeferModern { get; set; }
-    /// <summary>The look the mission starts in: the 1997 look is served the original textures, never a pack's upscales (TextureFactory.Hd).</summary>
+    /// <summary>The look the mission starts in: the 1997 look is served the original textures, never a pack's upscales (TextureFactory.Hd; the modern look's per HdTextures.Enabled).</summary>
     public bool Look1997 { get; set; }
     /// <summary>The modern terrain is built and attached (always, unless <see cref="DeferModern"/> and <see cref="ModernSteps"/> has not finished).</summary>
     public bool ModernReady { get; private set; } = true;
@@ -330,7 +330,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         else Notes.Add($"palette {world.PaletteName} not found");
 
         var resolver = Resolver = new TextureResolver(vfs);
-        var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 };
+        var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 && HdTextures.Enabled };
         var materials = Materials = new MaterialLibrary(textures);
         Meshes = new MeshBuilder(resolver, materials);
         _carParts = null;

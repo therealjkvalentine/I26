@@ -323,6 +323,11 @@ public sealed partial class EscapeMenu : Control
             DoneButton(),
             CancelButton(),
         ];
+        // and the texture pack's upscaled world, car and cockpit textures in the modern look (Off*, the original's, or On), swapped in place, live;
+        // the row is there only when a pack is found (HdTextures), as the shell's
+        if (I76.Game.Assets.HdTextures.Installed)
+            _graphics.Items.Insert(_graphics.Items.FindIndex(i => i.Label == "Reset"), Scrolling(18, Cycle, "HD Textures", 2, I76.Game.Assets.HdTextures.Names,
+                s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, apply: () => Live?.Invoke(Settings)));
 
         Item Level(string label, int row, int n, int at, bool live) =>
             Setting(Slider | Min1, label, row, n, null, s => Math.Clamp((int)s.Audio[at], 1, n - 1), (s, v) => s.Audio[at] = (byte)v, live,
@@ -392,6 +397,7 @@ public sealed partial class EscapeMenu : Control
         Settings.FieldOfView = I76.Sim.Views.ViewFov.Monitor;
         Settings.RenderScale = I76.Game.Boot.RenderScale.Default;
         Settings.MapEdge = I76.Game.World.MapEdge.Original;
+        Settings.HdTextures = true;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;
         Settings.MaxFps = I76.Sim.Views.FrameLimit.Unlimited;
