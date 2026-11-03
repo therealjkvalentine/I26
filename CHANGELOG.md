@@ -94,6 +94,7 @@
 - The crashed plane in the Nitro Pack's P18 can be hit: cars bounce off its fuselage and rounds strike it, as in the original, instead of passing through.
 - With Modern Physics on, the player's car meets that plane's fuselage too; it drove through it.
 - Signs and other knock-off objects made of several pieces are knocked off by touching one of their pieces, as in the original, not by coming near the middle of the whole object (a car can pass between the posts of a wide sign).
+- A computer car weighing up its moves in mid-air reads the same height above the ground as in the original, so a small hop ends when it would there.
 
 ## 0.11.0 (31 October 2026)
 
