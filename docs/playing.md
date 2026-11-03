@@ -139,10 +139,20 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `crossover` | `40` to `160` (Hz) | `90` | The top of the shaker signal, and in Output 2.1 the corner under which the effects' bass is boosted. Set it to your sub's or shaker amplifier's crossover. |
 
 | `developer` | `false`, `true`\* | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
+| `turret_slew` (in `build-rules.cfg`) | `1998`, `1997` | `1998` | How fast a turret turns toward its target (car turrets, gun emplacements, helicopters; yours and the AI's). `1998`, the build GOG sells (Gold 1.2, i76.exe md5 9a232dcc; the Nitro Pack's the same): 1.7 rad/s (a helicopter's 6.8) times 0.75 + 0.25 of the turret's health, so a half-dead turret turns at 88 %. `1997`, the March 1997 CD release (retail 1.0, md5 6cc509ad): 1.5 rad/s (6.0) times the health itself, 12 % slower whole and half speed at half health. Read in both builds' code. Here, a car's 7.62 turret on a car circling it 25 m off at 25 m/s hits with 77 % / 75 % of its rounds (whole / half health) at `1998`, 75 % / 7 % at `1997`. Single player only. |
+| `ai_tactics` (in `build-rules.cfg`) | `1998`, `1997` | `1998` | How an attacking AI car picks its tactic. `1998`: a draw from the tactics table weighted by the car's aggression, a candidate whose conditions fail struck. `1997`: always dirt_gunner (guns from off road), never a road tactic; measured in that build (T14, n = 7), the lead cop circles an idle player 10 to 90 m off, mostly out of sight, and fires 3 to 19 rounds in its first 20 s, then a few a minute, where under the 1998 draw it patrols the road in view and fires steadily. Single player only. |
+
+The original shipped as several builds, and a few rules differ between them in a way a player feels. Those keys live in their own
+file, `build-rules.cfg` beside `shell.cfg`, written at the first mission start with each key's facts in comments directly above
+it (what each build does and how that is known); the game never rewrites it, only adds the block of a key it lacks. The default is
+the 1998 build's, the one GOG sells; `1997` picks the March 1997 CD release's rule. Checked and the same in every build, so no key:
+a turret's lead, the AI droppers' gate, ram credit, the radar's sweep, the cockpit needles, the flamer and the physics, the T05 jump
+included. The player's damage factor is Play Options' Difficulty Level: the 1997 build has none, which is Champion; the 1998 build
+deals x2.0 / x1.0 / x0.75 with your rounds and flame at Wimp / Champion / Badass, Wimp a fresh install's.
 
 The four that follow the look are the original's in the 1997 look and the modern look's own otherwise until the key is in
 the file; a key set by hand holds in both looks. Keys that change the simulation (`melee_ai`, `ordnance_limit`,
-`modern_physics`) and `developer` are for single-player games: a network game runs on the host's rules and keeps the original's; the drawing
+`modern_physics`, `turret_slew`, `ai_tactics`) and `developer` are for single-player games: a network game runs on the host's rules and keeps the original's; the drawing
 keys are each player's own, online too. The hooks for a run (`I76_*`, [docs/dev-hooks.md](dev-hooks.md)) win over the file.
 
 ### Controls

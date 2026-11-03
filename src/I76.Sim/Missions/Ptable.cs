@@ -20,7 +20,7 @@ namespace I76.Sim.Missions;
 /// </summary>
 public sealed partial class Ptable
 {
-    public const int TacticsInit = 0, DirtCircle = 15, DoSearch = 22, FollowPath = 23, DoEvadeSearch = 24, Evade = 25, DoRace = 26, Race = 27,
+    public const int TacticsInit = 0, DirtGunner = 6, DirtCircle = 15, DoSearch = 22, FollowPath = 23, DoEvadeSearch = 24, Evade = 25, DoRace = 26, Race = 27,
         FollowLeader = 30, Sit = 31, Guard = 32, Hide = 33;
 
     private delegate void Handler(Entity e, Entity? target);
@@ -139,10 +139,12 @@ public sealed partial class Ptable
     /// ChooseTactic: a weighted draw over rule r of state s
     /// in the aggression row, one rand() per attempt; a candidate whose
     /// preconditions fail is struck and the draw repeats (at most 18 tries);
-    /// dirt_circle when nothing is left.
+    /// dirt_circle when nothing is left. The 1997 CD build's chooser is a stub: dirt_gunner for every choice, the first one
+    /// included, with no draw and no precondition (<see cref="ScriptHost.TacticStub1997"/>).
     /// </summary>
     public int ChooseTactic(Entity e, Entity? target, int s, int r)
     {
+        if (host.TacticStub1997) return DirtGunner;
         int agg = e.Aggression;
         if (agg is < 0 or > 4) { host.Log("calc_sum - agg out of bounds"); agg = System.Math.Clamp(agg, 0, 4); }
         var R = S[s].Rules[r].Data;

@@ -72,6 +72,7 @@ public sealed partial class ScriptHost
             .Structural("the mission build's world, player entity and wiring", nameof(World), nameof(Player), nameof(Roads), nameof(Combat), nameof(Damage), nameof(BuiltEntities))
             .Structural("the session's skip latch, linked by the session", nameof(SkipKey))
             .Structural("the AI tactics table, read from the install's executable by the mission build", nameof(Tactics))
+            .Structural("a rule of the session, set from the settings at each mission start and when the Esc menu closes (offline only)", nameof(TacticStub1997))
             .Structural("a network melee's bot rules, set by its game at its start", nameof(HoldFire), nameof(HoldWeapon))
             .Derived("each car's entity, from the entities and their removal", nameof(_byVehicle))
             .Transient("the host's hooks", nameof(Logged), nameof(Movie), nameof(CarStarted), nameof(Salvaged));

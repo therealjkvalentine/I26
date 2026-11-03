@@ -682,6 +682,8 @@ public partial class Main : Node3D
         if (_modernSetup is not null && s.ModernPhysics != (_modern?.Enabled == true)) EnableModern(s.ModernPhysics);
         // the cheats (Unlim. Ammo / Armor / Chas. Rein.) and the Difficulty Level
         if (_sim?.Combat is { } c) PlayOptionsCombat.Apply(s, c);
+        // the rules that differ between the original's builds, user://build-rules.cfg (the 1998 build's by default)
+        if (_sim?.Combat is { } bc) I76.Game.Shell.BuildRules.Load().Apply(bc, _sim.Script?.Host);
         // the Developer panel's God mode outlasts the options applied again (DevTools.SetGodMode)
         if (_devGod && _sim?.Session is { } gs) I76.Sim.Session.DevTools.SetGodMode(gs, true);
         if (_sim?.World.Player is { } p)
