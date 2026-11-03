@@ -61,7 +61,7 @@ public partial class DamageSmoke : Node3D
     private int _liveM;
     // game axes (x, up, z), m/s: light and the same everywhere, the wind the plants sway in and the tumbleweeds roll before
     private static readonly Vector3 Wind = new(I76.Formats.Vegetation.Wind.Direction.X * I76.Formats.Vegetation.Wind.Breeze, 0f, I76.Formats.Vegetation.Wind.Direction.Y * I76.Formats.Vegetation.Wind.Breeze);
-    private struct MPuff { public bool Live; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift; }
+    private struct MPuff { public bool Live, Far; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift; }
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
@@ -331,7 +331,7 @@ public partial class DamageSmoke : Node3D
 
     private readonly Dictionary<int, double> _staticCarry = [];
     private StaticFire?[] _fires = [];
-    private const float FireReach = StaticFire.Reach, SmokeReach = 250f;
+    private const float FireReach = StaticFire.Reach, SmokeReach = SmokeWindow.WreckFar;
     private const int FireLights = 3;
     private const float EmberReach = 60f;
 
@@ -411,13 +411,14 @@ public partial class DamageSmoke : Node3D
         if (_ready) { SmokeLayer.Submit(this, _layerBuf, 0, System.Numerics.Vector3.One); HideBillows(); _mm.VisibleInstanceCount = 0; }   // and what was handed to the layer, which would show for one more frame
     }
 
+    /// <summary>A burning wreck's puff (a scenery wreck's, a dead car's): drawn as far as the wreck's own fire, not the cars' trails' 150 m.</summary>
     private void SpawnModern(System.Numerics.Vector3 at, System.Numerics.Vector3 vel, float level, float back, float lift)
     {
         var j = new System.Numerics.Vector3((float)_rng.NextDouble() - 0.5f, 0.3f * (float)_rng.NextDouble(), (float)_rng.NextDouble() - 0.5f);
-        EmitModern(at + j, vel, level, back, lift);
+        EmitModern(at + j, vel, level, back, lift, far: true);
     }
 
-    private void EmitModern(System.Numerics.Vector3 g, System.Numerics.Vector3 vel, float level, float back, float lift)
+    private void EmitModern(System.Numerics.Vector3 g, System.Numerics.Vector3 vel, float level, float back, float lift, bool far = false)
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble(), r4 = (float)_rng.NextDouble(), r5 = (float)_rng.NextDouble();
         float dens = (level < 1 ? Mathf.Lerp(0.3f, 0.6f, level) : Mathf.Lerp(0.6f, 0.5f, level - 1)) * 1.4f;
@@ -428,7 +429,7 @@ public partial class DamageSmoke : Node3D
         // only a little of the car's velocity: the rest it leaves behind. Spawned along the frame's travel
         p = new MPuff
         {
-            Live = true, X = g.X - vel.X * back, Y = g.Y, Z = g.Z - vel.Z * back,
+            Live = true, Far = far, X = g.X - vel.X * back, Y = g.Y, Z = g.Z - vel.Z * back,
             Vx = vel.X * 0.15f + (r4 - 0.5f) * 0.8f, Vy = (1.2f + r5) * lift, Vz = vel.Z * 0.15f + (r5 - 0.5f) * 0.8f,
             Life = 2f + 2f * r1 * r4 + 1.2f * r2 * (level / 2f), End = (1.6f + 2.6f * r2 * r2 + 0.6f * r4) * sizeMul, Dens = dens, Lift = lift,
             Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3,
@@ -460,7 +461,7 @@ public partial class DamageSmoke : Node3D
             if (!p.Live) continue;
             var gp = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float depth = -ct.Basis.Z.Dot(gp - ct.Origin);
-            if (!SmokeWindow.Drawn(depth, cam.Near, 150)) continue;
+            if (!SmokeWindow.Drawn(depth, cam.Near, p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar)) continue;
             _keyM[cnt] = -depth; _idxM[cnt++] = i;   // ascending -depth: far to near
         }
         Array.Sort(_keyM, _idxM, 0, cnt);
@@ -588,6 +589,15 @@ public static class SmokeWindow
 {
     /// <summary>The original's near plane: no puff is drawn nearer the eye than this (metres of view depth).</summary>
     public const float Near = 1f;
+
+    /// <summary>The modern look's far limit for a car's trail (the original's sprites stop at 60 m).</summary>
+    public const float ModernTrailFar = 150f;
+
+    /// <summary>
+    /// A burning wreck's smoke and fire, modern look: the original's are sprite planes in the wreck's model, drawn as far as the
+    /// model is, out to its 600 m clip; so the modern fire and smoke start at that distance and are drawn to it.
+    /// </summary>
+    public const float WreckFar = I76.Formats.Imaging.DrawDistance.OriginalClip;
 
     /// <summary>Whether a puff at <paramref name="depth"/> (view depth, metres) is drawn: from the original's 1 m, or the camera's own near plane if that is further, out to <paramref name="far"/>.</summary>
     public static bool Drawn(float depth, float cameraNear, float far) => depth >= Math.Max(cameraNear, Near) && depth <= far;
