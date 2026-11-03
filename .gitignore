@@ -30,6 +30,7 @@ goldens/
 *.msn
 *.wdf
 *.vdf
+!tools/deck/*.vdf
 *.vcf
 *.sdf
 *.gdf
