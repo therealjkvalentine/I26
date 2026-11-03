@@ -79,6 +79,7 @@
 - Sounds are dropped or admitted by their distance from your car, as in the original, also while the camera follows a shell (F11) or another subject, instead of from what the camera follows.
 - The Effects and Voice sliders in Audio Control follow the original's volume curve (4 dB per halving) instead of 2 dB a step: the middle levels are louder and the lowest ones quieter than before; level 8 is unchanged.
 - An AI car backing away stops when the ground under it rises or falls 3 m, as the original's does (backing off a bridge deck over a gully), instead of when the car itself climbs or drops 3 m (up a ramp or a structure, or in the air).
+- An AI car dodging an obstacle picks its way round as the original's does: with its wheel straight it tries a little to the left first, and when no way is clear it turns at full lock instead of holding its steer and running into the obstacle.
 
 ## 0.11.0 (31 October 2026)
 
