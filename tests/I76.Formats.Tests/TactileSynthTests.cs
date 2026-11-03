@@ -122,4 +122,121 @@ public class TactileSynthTests
         Run(s, 0.3);
         Assert.True(s.Peak < 0.002f);
     }
+    [Fact]
+    public void The_eq_curve_interpolates_in_log_frequency_and_holds_its_ends()
+    {
+        var eq = TactileEq.Parse("40:0, 20:6, 80:-6, junk, 60:x")!;
+        Assert.Equal(3, eq.Count);
+        Assert.Equal(6f, eq.Db(10f), 3);                       // held below the first point
+        Assert.Equal(-6f, eq.Db(200f), 3);                     // and above the last
+        Assert.Equal(3f, eq.Db(MathF.Sqrt(20f * 40f)), 3);    // half way in log frequency, not at 30 Hz
+        Assert.Equal(-3f, eq.Db(MathF.Sqrt(40f * 80f)), 3);
+        Assert.Equal(2f, eq.Gain(20f), 2);                     // +6 dB
+        Assert.Equal(TactileEq.MaxDb, TactileEq.Parse("30:20")!.Db(30f));   // capped
+        Assert.Null(TactileEq.Parse(""));
+        Assert.Null(TactileEq.Parse("off"));
+    }
+
+    [Fact]
+    public void The_eq_acts_on_each_tone_at_its_frequency()
+    {
+        float Out(float hz, string? eq)
+        {
+            var s = new TactileSynth { Eq = TactileEq.Parse(eq) };
+            s.Add(new TactileSynth.Thump(hz, 0.05f, 10000f));   // well under the limiter
+            return Amplitude(Run(s, 1.0).AsSpan(Rate / 2), hz);
+        }
+        // a sweep of tones through a curve that cuts 35 Hz by 6 dB and lifts 20 Hz by 4
+        const string curve = "20:4, 35:-6, 60:0";
+        foreach (float hz in new[] { 20f, 25f, 35f, 45f, 60f, 80f })
+        {
+            float db = 20 * MathF.Log10(Out(hz, curve) / Out(hz, null));
+            Assert.InRange(db, TactileEq.Parse(curve)!.Db(hz) - 0.1f, TactileEq.Parse(curve)!.Db(hz) + 0.1f);
+        }
+        // the engine's sine too
+        var e = new TactileSynth { Eq = TactileEq.Parse("25:-6") };
+        e.Step(new TactileEvents { EngineOn = true, Rpm = 600 });
+        Assert.InRange(Amplitude(Run(e, 1.0).AsSpan(Rate / 2), 25f) / TactileSynth.EngineLevel(true, 600), 0.45f, 0.51f);
+    }
+
+    [Fact]
+    public void The_eq_shapes_the_road_bed_by_its_curve()
+    {
+        // the same noise with and without the curve: the ratio of their spectra, third-octave bands, against the curve
+        const string curve = "20:4, 35:-6, 60:0, 80:3";
+        float[] Bed(string? eq)
+        {
+            var s = new TactileSynth { Eq = TactileEq.Parse(eq) };
+            s.Step(new TactileEvents { Surface = 6, Mph = 30 });     // a low bed, under the limiter
+            return Run(s, 8.0)[Rate..];
+        }
+        float[] flat = Bed(null), shaped = Bed(curve);
+        float Band(float[] x, float hz)
+        {
+            double sum = 0;
+            for (float f = hz * 0.95f; f <= hz * 1.05f; f += 0.5f) { float a = Amplitude(x, f); sum += a * a; }
+            return (float)sum;
+        }
+        var c = TactileEq.Parse(curve)!;
+        foreach (float hz in new[] { 25f, 31.5f, 40f, 50f, 63f })
+            Assert.InRange(10 * MathF.Log10(Band(shaped, hz) / Band(flat, hz)), c.Db(hz) - 1f, c.Db(hz) + 1f);
+    }
+
+    [Fact]
+    public void Explosions_fall_off_as_the_air_then_the_ground_carry_them()
+    {
+        float L(float m) => TactileSynth.BlastThump(m)!.Value.Level;
+        Assert.Equal(0.7f, L(0f), 3);
+        Assert.Equal(0.7f, L(TactileSynth.BlastNear), 3);
+        Assert.Equal(L(30f) / 2, L(60f), 3);                    // 1/r to the knee
+        Assert.Equal(L(250f) / 2, L(1000f), 3);                 // 1/sqrt(r) past it
+        Assert.InRange(20 * MathF.Log10(L(1999f) / L(0f)), -31f, -29f);   // 30 dB under a blast at the car, at 2 km
+        Assert.Null(TactileSynth.BlastThump(TactileSynth.BlastRange));
+        // far ones lower and longer
+        Assert.Equal(TactileSynth.BlastHz, TactileSynth.BlastThump(100f)!.Value.Hz);
+        Assert.True(TactileSynth.BlastThump(1500f)!.Value.Hz < 20f && TactileSynth.BlastThump(1500f)!.Value.Seconds > 1f);
+        // a blast at 1 km is still felt over the 15 Hz high-pass, and at 150 m where the old cut was it is no longer zero
+        var s = new TactileSynth();
+        s.Step(new TactileEvents { Blasts = { 1000f } });
+        Run(s, 0.1);
+        Assert.InRange(s.Peak, 0.5f * L(1000f), 1.1f * L(1000f));
+        Assert.True(L(150f) > 0.05f);
+    }
+
+    [Fact]
+    public void A_full_bank_drops_its_quietest_thump()
+    {
+        var s = new TactileSynth();
+        for (int i = 0; i < 8; i++) s.Add(new TactileSynth.Thump(30f, 0.5f, 10f));
+        s.Add(new TactileSynth.Thump(30f, 0.01f, 10f));   // a far blast: no room, not added
+        s.Add(new TactileSynth.Thump(30f, 0.9f, 10f));    // a hit: replaces one
+        Run(s, 0.05);
+        Assert.True(s.Peak > 0.84f);
+    }
+
+    [Fact]
+    public void The_low_pass_follows_the_crossover()
+    {
+        float Through(float hz, float corner)
+        {
+            var s = new TactileSynth { LowPassHz = corner };
+            s.Add(new TactileSynth.Thump(hz, 0.4f, 10000f));
+            return Amplitude(Run(s, 1.0).AsSpan(Rate / 2), hz) / 0.4f;
+        }
+        Assert.InRange(Through(60f, 60f), 0.66f, 0.76f);     // -3 dB at the corner
+        Assert.InRange(Through(60f, 120f), 0.9f, 1.05f);
+    }
+
+    [Fact]
+    public void Output_and_level_keys_read_back()
+    {
+        foreach (AudioOutput o in Enum.GetValues<AudioOutput>()) Assert.Equal(o, AudioOutputs.Parse(AudioOutputs.Key(o)));
+        Assert.Equal(AudioOutput.Stereo, AudioOutputs.Parse("quad"));
+        Assert.False(AudioOutputs.Tactile(AudioOutput.Headphones));
+        Assert.True(AudioOutputs.Tactile(AudioOutput.Sub21));
+        Assert.Equal(125, AudioOutputs.ClampLevel(130));
+        Assert.Equal(200, AudioOutputs.ClampLevel(999));
+        Assert.Equal(2f, AudioOutputs.BassBoost(100));
+        Assert.Equal(90f, AudioOutputs.ClampCrossover(float.NaN));
+    }
 }

@@ -1,7 +1,97 @@
 namespace I76.Formats.Input;
 
-/// <summary>shell.cfg [port] tactile: a bass shaker's signal on the LFE channel of a 3.1, 5.1 or 7.1 output (lfe), or none (off, the default).</summary>
-public enum TactileMode { Off, Lfe }
+/// <summary>
+/// Audio Control's Output ([port] output): what the port does with the device the system gives it (Godot takes the device's
+/// channel count; the game cannot choose it). Stereo and Headphones play as the original does (nothing headphone-specific: they
+/// are the same); 2.1 adds the bass-shaker signal and a boost of the effects' bass under the crossover to both channels, for a
+/// sub or shaker fed from the stereo output; 5.1 and 7.1 put the shaker signal on the LFE channel alone (the same path: the LFE
+/// of whatever surround layout the device has; nothing on a stereo device).
+/// </summary>
+public enum AudioOutput { Stereo, Headphones, Sub21, Surround51, Surround71 }
+
+public static class AudioOutputs
+{
+    /// <summary>The rows' values: Headphones is "Phones", the word being wider than the pads' value column.</summary>
+    public static readonly string[] Names = ["Stereo", "Phones", "2.1", "5.1", "7.1"];
+    private static readonly string[] Keys = ["stereo", "headphones", "2.1", "5.1", "7.1"];
+
+    public static string Key(AudioOutput o) => Keys[(int)o];
+
+    /// <summary>A [port] output value; anything else is Stereo.</summary>
+    public static AudioOutput Parse(string? key)
+    {
+        int i = Array.IndexOf(Keys, key?.Trim().ToLowerInvariant());
+        return i < 0 ? AudioOutput.Stereo : (AudioOutput)i;
+    }
+
+    /// <summary>The shaker signal plays: on both channels (2.1) or on the LFE (5.1, 7.1).</summary>
+    public static bool Tactile(AudioOutput o) => o is AudioOutput.Sub21 or AudioOutput.Surround51 or AudioOutput.Surround71;
+
+    /// <summary>Audio Control's LFE Level: 0 to 200 % in steps of 25, 100 the default.</summary>
+    public static readonly int[] Levels = [0, 25, 50, 75, 100, 125, 150, 175, 200];
+    public static readonly string[] LevelNames = Levels.Select(l => $"{l} %").ToArray();
+    public const int DefaultLevel = 100;
+    public static int ClampLevel(int percent) => Levels.MinBy(l => Math.Abs(l - percent));
+
+    /// <summary>[port] crossover: the top of the shaker signal and of 2.1's bass boost, 40 to 160 Hz (90 by default).</summary>
+    public const float DefaultCrossover = 90f;
+    public static float ClampCrossover(float hz) => float.IsFinite(hz) ? Math.Clamp(hz, 40f, 160f) : DefaultCrossover;
+
+    /// <summary>2.1's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
+    public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
+}
+
+/// <summary>
+/// [port] tactile_eq: a shaker's correction curve, "hz:db" points ("20:3.6, 35:-3.5, 60:0"), interpolated in log frequency
+/// (feel is ratio-based: 20 to 25 Hz is a bigger step than 60 to 65), held flat past the ends, each point within ±12 dB.
+/// Applied to the shaker signal alone: each of the synth's tones at its own frequency, the road bed's noise through a filter bank.
+/// </summary>
+public sealed class TactileEq
+{
+    public const float MaxDb = 12f;
+    private readonly float[] _hz, _db;
+
+    public TactileEq(IEnumerable<(float Hz, float Db)> points)
+    {
+        var p = points.Where(q => q.Hz > 0 && float.IsFinite(q.Hz) && float.IsFinite(q.Db)).OrderBy(q => q.Hz).ToArray();
+        _hz = p.Select(q => q.Hz).ToArray();
+        _db = p.Select(q => Math.Clamp(q.Db, -MaxDb, MaxDb)).ToArray();
+    }
+
+    public int Count => _hz.Length;
+
+    /// <summary>The curve from its config text, or null when it has no point (empty, "off" or unreadable).</summary>
+    public static TactileEq? Parse(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var num = System.Globalization.NumberStyles.Float;
+        var pts = new List<(float, float)>();
+        foreach (var part in text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var kv = part.Split(':', StringSplitOptions.TrimEntries);
+            if (kv.Length == 2 && float.TryParse(kv[0], num, inv, out float hz) && float.TryParse(kv[1], num, inv, out float db))
+                pts.Add((hz, db));
+        }
+        var eq = new TactileEq(pts);
+        return eq.Count == 0 ? null : eq;
+    }
+
+    /// <summary>The curve's gain at <paramref name="hz"/>, in dB.</summary>
+    public float Db(float hz)
+    {
+        if (_hz.Length == 0) return 0f;
+        if (!(hz > _hz[0])) return _db[0];
+        if (hz >= _hz[^1]) return _db[^1];
+        int k = 0;
+        while (_hz[k + 1] < hz) k++;
+        float u = MathF.Log(hz / _hz[k]) / MathF.Log(_hz[k + 1] / _hz[k]);
+        return _db[k] + (_db[k + 1] - _db[k]) * u;
+    }
+
+    /// <summary>The curve's gain at <paramref name="hz"/>, as an amplitude factor.</summary>
+    public float Gain(float hz) => MathF.Pow(10f, Db(hz) / 20f);
+}
 
 /// <summary>What <see cref="TactileSynth"/> reads each tick from the player's car.</summary>
 public sealed class TactileEvents
@@ -32,9 +122,9 @@ public sealed class TactileEvents
 /// The port's bass-shaker signal (the original has none): sines and a noise bed between 20 and 90 Hz. Continuous: the engine,
 /// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
 /// force model's road strengths) and speed, rougher with a flat tyre. Transients: a decaying sine per shot by weapon class, per
-/// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>. Then a 15 Hz
-/// high-pass, a 90 Hz low-pass and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once
-/// a sim tick, its samples made a block at a time.
+/// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
+/// shaker's <see cref="Eq"/> at its frequency. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz) and a soft
+/// limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
 /// </summary>
 public sealed class TactileSynth
 {
@@ -42,8 +132,18 @@ public sealed class TactileSynth
     public const float LowHz = 15f, HighHz = 90f;
     /// <summary>The limiter's top: under the Master bus's -1 dB limiter, so that one never acts on the shaker.</summary>
     public const float Ceiling = 0.85f;
-    public const float BlastRange = 150f;
+    /// <summary>
+    /// The explosions' falloff: full within <see cref="BlastNear"/>; then the air blast's 1/r (spherical spreading) to
+    /// <see cref="BlastKnee"/>; past it the ground's 1/sqrt(r) (a wave along the surface spreads over a ring, not a sphere) out
+    /// to <see cref="BlastRange"/>, where it is 30 dB under a blast at the car: faint, but over a quiet engine still felt. No
+    /// terrain cut: a 20 Hz wave is 17 m long and bends round hills, and the ground carries it under them.
+    /// </summary>
+    public const float BlastNear = 15f, BlastKnee = 120f, BlastRange = 2000f;
+    /// <summary>A blast at the car: 25 Hz, 0.5 s; at <see cref="BlastRange"/> a lower, longer roll (the ground and air lose the top first).</summary>
+    public const float BlastHz = 25f, BlastFarHz = 18f, BlastSeconds = 0.5f, BlastFarSeconds = 1.2f;
     public const float CrankHz = 24f, CrankLevel = 0.2f;
+    /// <summary>The road bed's centre.</summary>
+    public const float RoadHz = 50f;
     private const int MaxThumps = 8;
 
     /// <summary>A decaying sine: <see cref="Level"/> at its start, -40 dB after <see cref="Seconds"/>, then gone.</summary>
@@ -82,12 +182,15 @@ public sealed class TactileSynth
         _ => null,
     };
 
-    /// <summary>An explosion seen from the car: falling with the square of the distance's share of <see cref="BlastRange"/>, none past it.</summary>
+    /// <summary>An explosion seen from the car, by the falloff of <see cref="BlastRange"/>; none at or past it.</summary>
     public static Thump? BlastThump(float metres)
     {
         if (!(metres < BlastRange)) return null;
-        float t = 1f - Math.Max(metres, 0f) / BlastRange;
-        return new Thump(25f, 0.7f * t * t, 0.5f);
+        float r = Math.Max(metres, BlastNear);
+        float level = r <= BlastKnee ? BlastNear / r : BlastNear / BlastKnee * MathF.Sqrt(BlastKnee / r);
+        // past the knee the roll lowers and lengthens with the log of the distance
+        float far = r <= BlastKnee ? 0f : MathF.Log(r / BlastKnee) / MathF.Log(BlastRange / BlastKnee);
+        return new Thump(BlastHz + (BlastFarHz - BlastHz) * far, 0.7f * level, BlastSeconds + (BlastFarSeconds - BlastSeconds) * far);
     }
 
     private sealed class Voice { public float Hz, Level, Fall, Left; public double Phase; }
@@ -96,7 +199,24 @@ public sealed class TactileSynth
     private double _engPhase;
     private uint _noise = 0x9E3779B9u;
     private Biquad _roadBand, _hp, _lp;
+    private Biquad[] _roadEq = [];
+    private TactileEq? _roadEqFor;
+    /// <summary>The road bed's correction: a third-octave bank (ISO centres) whose gains are trimmed until each centre reads the curve.</summary>
+    private static readonly float[] EqCentres = [16f, 20f, 25f, 31.5f, 40f, 50f, 63f, 80f, 100f, 125f];
     private int _rate;
+
+    /// <summary>The shaker's correction curve ([port] tactile_eq), or none.</summary>
+    public TactileEq? Eq { get => _eq; set { _eq = value; _rate = 0; } }
+    private TactileEq? _eq;
+    private float EqGain(float hz) => Eq?.Gain(hz) ?? 1f;
+
+    /// <summary>The low-pass corner ([port] crossover, 90 Hz by default).</summary>
+    public float LowPassHz
+    {
+        get => _lowPassHz;
+        set { if (value != _lowPassHz) { _lowPassHz = value; _rate = 0; } }
+    }
+    private float _lowPassHz = HighHz;
 
     /// <summary>The largest sample of the last <see cref="Fill"/> (after the limiter).</summary>
     public float Peak { get; private set; }
@@ -105,19 +225,26 @@ public sealed class TactileSynth
     public void Step(TactileEvents e)
     {
         _engHz = e.Cranking ? CrankHz : EngineHz(e.Rpm);
-        _engTarget = e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm);
+        _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz);
         _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres);
         foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t);
         foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t);
         foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t);
     }
 
-    /// <summary>A transient; past <see cref="MaxThumps"/> playing, the oldest goes.</summary>
+    /// <summary>A transient, through the <see cref="Eq"/>; past <see cref="MaxThumps"/> playing, the quietest goes (a far blast before a near hit).</summary>
     public void Add(Thump t)
     {
         if (t.Level <= 0 || t.Seconds <= 0) return;
-        if (_thumps.Count >= MaxThumps) _thumps.RemoveAt(0);
-        _thumps.Add(new Voice { Hz = t.Hz, Level = t.Level, Fall = MathF.Log(100f) / t.Seconds, Left = t.Seconds });
+        float level = t.Level * EqGain(t.Hz);
+        if (_thumps.Count >= MaxThumps)
+        {
+            int q = 0;
+            for (int i = 1; i < _thumps.Count; i++) if (_thumps[i].Level < _thumps[q].Level) q = i;
+            if (_thumps[q].Level >= level) return;
+            _thumps.RemoveAt(q);
+        }
+        _thumps.Add(new Voice { Hz = t.Hz, Level = level, Fall = MathF.Log(100f) / t.Seconds, Left = t.Seconds });
     }
 
     /// <summary>Everything silent (the pause, a menu over the game): the transients stop, the beds fade out over 30 ms.</summary>
@@ -133,9 +260,10 @@ public sealed class TactileSynth
         if (rate != _rate)
         {
             _rate = rate;
-            _roadBand = Biquad.BandPass(50f, 0.7f, rate);
+            _roadBand = Biquad.BandPass(RoadHz, 0.7f, rate);
             _hp = Biquad.HighPass(LowHz, rate);
-            _lp = Biquad.LowPass(HighHz, rate);
+            _lp = Biquad.LowPass(_lowPassHz, rate);
+            _roadEq = _eq is null ? [] : RoadEq(_eq, rate);
         }
         float dt = 1f / rate;
         float glide = 1f - MathF.Exp(-dt / 0.03f);   // 30 ms: a tick's step without a click
@@ -149,7 +277,9 @@ public sealed class TactileSynth
             float x = _eng * (float)Math.Sin(_engPhase);
             _noise ^= _noise << 13; _noise ^= _noise >> 17; _noise ^= _noise << 5;
             // the filters leave white noise of ±1 at about 0.025 rms: ×28 is the 0.71 rms of a sine at the bed's level
-            x += _road * 28f * _roadBand.Run(_noise / 2147483648f - 1f);
+            float bed = _roadBand.Run(_noise / 2147483648f - 1f);
+            for (int k = 0; k < _roadEq.Length; k++) bed = _roadEq[k].Run(bed);
+            x += _road * 28f * bed;
             for (int v = _thumps.Count - 1; v >= 0; v--)
             {
                 var t = _thumps[v];
@@ -163,6 +293,31 @@ public sealed class TactileSynth
             peak = Math.Max(peak, Math.Abs(y));
         }
         Peak = peak;
+    }
+
+    /// <summary>
+    /// The road bed's noise through <paramref name="eq"/>: the tones take the curve at their own frequency, a noise band needs a
+    /// filter. Peaking sections at third-octave centres overlap, so their gains are trimmed four times by what the cascade reads
+    /// at each centre; the result follows the curve within about half a dB at the centres.
+    /// </summary>
+    private static Biquad[] RoadEq(TactileEq eq, int rate)
+    {
+        int n = EqCentres.Length;
+        var target = EqCentres.Select(eq.Db).ToArray();
+        var gain = (float[])target.Clone();
+        var bank = new Biquad[n];
+        for (int pass = 0; pass < 5; pass++)
+        {
+            for (int i = 0; i < n; i++) bank[i] = Biquad.Peaking(EqCentres[i], 4.32f, gain[i], rate);
+            if (pass == 4) break;
+            for (int i = 0; i < n; i++)
+            {
+                float at = 0;
+                foreach (var b in bank) at += b.Db(EqCentres[i], rate);
+                gain[i] += target[i] - at;
+            }
+        }
+        return bank;
     }
 
     /// <summary>A second-order section (the audio EQ cookbook's), direct form I.</summary>
@@ -189,6 +344,22 @@ public sealed class TactileSynth
         {
             float w = 2 * MathF.PI * hz / rate, c = MathF.Cos(w), al = MathF.Sin(w) / (2 * q);
             return Make(al, 0, -al, 1 + al, -2 * c, 1 - al);
+        }
+
+        public static Biquad Peaking(float hz, float q, float db, int rate)
+        {
+            float a = MathF.Pow(10f, db / 40f), w = 2 * MathF.PI * hz / rate, c = MathF.Cos(w), al = MathF.Sin(w) / (2 * q);
+            return Make(1 + al * a, -2 * c, 1 - al * a, 1 + al / a, -2 * c, 1 - al / a);
+        }
+
+        /// <summary>The section's gain at <paramref name="hz"/>, dB.</summary>
+        public readonly float Db(float hz, int rate)
+        {
+            double w = 2 * Math.PI * hz / rate;
+            var z1 = System.Numerics.Complex.FromPolarCoordinates(1, -w);
+            var z2 = z1 * z1;
+            var h = (_b0 + _b1 * z1 + _b2 * z2) / (1 + _a1 * z1 + _a2 * z2);
+            return (float)(20 * Math.Log10(h.Magnitude));
         }
 
         public float Run(float x)

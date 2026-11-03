@@ -359,6 +359,8 @@ public sealed class AudioScreen : OverlayScreen
     protected override int Record => 7;
     private byte[] _saved = [];
     private string _savedMic = "";
+    private I76.Formats.Input.AudioOutput _savedOutput;
+    private int _savedLfe;
     // Number Of Channels (+0x53, 347) is gone: it capped the sound hardware's voices, and this port plays every sound
     private static readonly (int Y, string Label, int Boxes)[] Rows = [(140, "Music Level", 10), (209, "Sfx Level", 10), (278, "Voice Level", 10)];
 
@@ -367,6 +369,8 @@ public sealed class AudioScreen : OverlayScreen
         var s = Shell.Settings;
         _saved = (byte[])s.Audio.Clone();
         _savedMic = s.CbMic;
+        _savedOutput = s.Output;
+        _savedLfe = s.LfeLevel;
         for (int r = 0; r < Rows.Length; r++)
         {
             int row = r;
@@ -383,9 +387,24 @@ public sealed class AudioScreen : OverlayScreen
         Frame.CopyBackground(200, 324, 150, 18, 200, 371);      // (the sheet's unused check boxes on that line, wiped)
         Add(204, 347, "CB Microphone", null);
         Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18);
+        // the port's: what the output carries (2.1, 5.1 and 7.1 add the bass shaker's signal) and that signal's level, live; a click steps each
+        // in the dotted box under the sheet's rows, its two unused check boxes wiped
+        Frame.CopyBackground(250, 403, 22, 20, 202, 403);
+        Frame.CopyBackground(250, 403, 22, 20, 330, 403);
+        var levels = I76.Formats.Input.AudioOutputs.Levels;
+        Add(204, 395, "Output", null);
+        Add(400, 395, () => I76.Formats.Input.AudioOutputs.Names[(int)s.Output],
+            () => { s.Output = (I76.Formats.Input.AudioOutput)(((int)s.Output + 1) % I76.Formats.Input.AudioOutputs.Names.Length); I76.Game.Boot.Main.ApplyOutput(s); });
+        Add(204, 414, "LFE Level", null);
+        Add(400, 414, () => $"{s.LfeLevel} %",
+            () => { s.LfeLevel = levels[(Math.Max(0, Array.IndexOf(levels, s.LfeLevel)) + 1) % levels.Length]; I76.Game.Boot.Main.ApplyOutput(s); });
         Add(350, 438, "Done", () => { s.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
         // Cancel puts the four bytes back but resets only the music live (as written)
-        Add(402, 438, "Cancel", () => { Array.Copy(_saved, s.Audio, 4); s.CbMic = _savedMic; Apply(0); Shell.Overlay(new OptionsScreen()); }, Small);
+        Add(402, 438, "Cancel", () =>
+        {
+            Array.Copy(_saved, s.Audio, 4); s.CbMic = _savedMic; s.Output = _savedOutput; s.LfeLevel = _savedLfe;
+            I76.Game.Boot.Main.ApplyOutput(s); Apply(0); Shell.Overlay(new OptionsScreen());
+        }, Small);
     }
 
     // the music level is live; the SFX and voice levels reach their buses and play their preview (cammo.wav for the SFX level, croger.wav for the voice level)

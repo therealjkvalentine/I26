@@ -344,6 +344,13 @@ public sealed partial class EscapeMenu : Control
             Level("Music Level", 2, 11, 0, true),
             Level("SFX Level", 5, 11, 1, true),
             Level("Voice Level", 8, 11, 2, true),
+            // the port's own, on the pad's last two rows: what the output carries (2.1, 5.1 and 7.1 add the bass shaker's signal) and
+            // the shaker signal's level, live (the shell's Audio Control has the same two)
+            Setting(Cycle, "Output", 13, I76.Formats.Input.AudioOutputs.Names.Length, I76.Formats.Input.AudioOutputs.Names,
+                s => (int)s.Output, (s, v) => s.Output = (I76.Formats.Input.AudioOutput)v, apply: () => Live?.Invoke(Settings)),
+            Setting(Cycle, "LFE Level", 14, I76.Formats.Input.AudioOutputs.Levels.Length, I76.Formats.Input.AudioOutputs.LevelNames,
+                s => Math.Max(0, Array.IndexOf(I76.Formats.Input.AudioOutputs.Levels, s.LfeLevel)), (s, v) => s.LfeLevel = I76.Formats.Input.AudioOutputs.Levels[v],
+                apply: () => Live?.Invoke(Settings)),
             DoneButton(),
             CancelButton(),
         ];

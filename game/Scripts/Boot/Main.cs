@@ -677,7 +677,6 @@ public partial class Main : Node3D
         I76.Game.ForceFeedback.Mode = s.RumbleMode;
         I76.Game.ForceFeedback.Strength = s.RumbleStrength;
         I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended;
-        I76.Game.BassShaker.Mode = s.Tactile;
         I76.Game.BassShaker.Held = I76.Game.ForceFeedback.Held;
         // Modern Physics, flipped from Play Options as by F7 (EnableModern keeps a network session on the original's)
         if (_modernSetup is not null && s.ModernPhysics != (_modern?.Enabled == true)) EnableModern(s.ModernPhysics);
@@ -819,6 +818,26 @@ public partial class Main : Node3D
         Bus("SFX", s.Audio[1], true);
         Bus("Voice", s.Audio[2], true);
         VoiceLevel = s.Audio[2];
+        ApplyOutput(s);
+    }
+
+    /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover), live.</summary>
+    public static void ApplyOutput(I76.Game.Shell.ShellSettings s)
+    {
+        // Output and LFE Level: the shaker signal (BassShaker); in 2.1 the effects' bass under the crossover boosted by the level's
+        // share once more. Godot's low shelf gives the square of its gain well below the corner and the gain itself at it (measured:
+        // gain 2 is 4.0x at 20 Hz, 2.0x at the corner, 1.0x at 1 kHz), so it takes the factor's square root
+        var output = s.Output;
+        float crossover = I76.Formats.Input.AudioOutputs.ClampCrossover(s.Crossover);
+        I76.Game.BassShaker.Apply(output, s.LfeLevel, I76.Formats.Input.TactileEq.Parse(s.TactileEq), crossover);
+        int sfx = AudioServer.GetBusIndex("SFX");
+        if (sfx < 0) return;
+        int shelf = Enumerable.Range(0, AudioServer.GetBusEffectCount(sfx)).FirstOrDefault(e => AudioServer.GetBusEffect(sfx, e) is AudioEffectLowShelfFilter, -1);
+        if (shelf < 0) { AudioServer.AddBusEffect(sfx, new AudioEffectLowShelfFilter()); shelf = AudioServer.GetBusEffectCount(sfx) - 1; }
+        var low = (AudioEffectLowShelfFilter)AudioServer.GetBusEffect(sfx, shelf);
+        low.CutoffHz = crossover;
+        low.Gain = MathF.Sqrt(I76.Formats.Input.AudioOutputs.BassBoost(s.LfeLevel));
+        AudioServer.SetBusEffectEnabled(sfx, shelf, output == I76.Formats.Input.AudioOutput.Sub21 && s.LfeLevel > 0);
     }
 
     private void EndMission(bool won)

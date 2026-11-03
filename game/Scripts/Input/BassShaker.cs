@@ -7,23 +7,52 @@ using I76.Sim.Weapons;
 namespace I76.Game;
 
 /// <summary>
-/// The port's bass-shaker output (shell.cfg [port] tactile=lfe; the original has none): <see cref="TactileSynth"/>'s signal from
-/// the player's car on the LFE channel alone, for a shaker on an amplifier's or receiver's sub output. Godot's buses carry the
-/// output as stereo pairs (front, centre and LFE, rear, side): a player with the centre mix target writes the centre/LFE pair,
-/// its frame's right half the LFE, so the frames go out as (0, s) on a bus of their own ("Tactile", into Master). With a stereo
-/// output there is no LFE pair (the right half would land on the right speaker): nothing plays. Godot's 3D panner also sends
-/// every positional sound to the LFE at full level, so the shaker feels the game's sounds under the synth; no effect a script
-/// can add reaches one channel of a pair, so that stays. Presentation only.
+/// The port's bass-shaker output (Audio Control's Output 2.1, 5.1 or 7.1; the original has none): <see cref="TactileSynth"/>'s
+/// signal from the player's car on a bus of its own ("Tactile", into Master; its volume is the LFE Level). In 5.1 and 7.1 it is
+/// on the LFE channel alone, for a shaker on an amplifier's or receiver's sub output: Godot's buses carry the output as stereo
+/// pairs (front, centre and LFE, rear, side), a player with the centre mix target writes the centre/LFE pair, its frame's right
+/// half the LFE, so the frames go out as (0, s). With a stereo device there is no LFE pair (the right half would land on the
+/// right speaker): nothing plays. Godot's 3D panner also sends every positional sound to the LFE at full level, so the shaker
+/// feels the game's sounds under the synth; no effect a script can add reaches one channel of a pair, so that stays. In 2.1 the
+/// frames go out as (s, s) on the front pair, for a sub or shaker fed from the stereo output below its own crossover (the
+/// effects' own bass is boosted there too: <see cref="I76.Game.Boot.Main.ApplyAudio"/>). Presentation only.
 /// </summary>
 public partial class BassShaker : Node
 {
-    public static TactileMode Mode { get; set; }
+    /// <summary>Audio Control's Output.</summary>
+    public static AudioOutput Output { get; private set; }
     /// <summary>True while something is over the game that does not pause it (as <see cref="ForceFeedback.Held"/>).</summary>
     public static Func<bool>? Held { get; set; }
     public const string BusName = "Tactile";
     private static BassShaker? _instance;
 
     public Func<Vehicle?>? Player { get; set; }
+
+    private static TactileEq? _eq;
+    private static float _crossover = AudioOutputs.DefaultCrossover;
+
+    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the Tactile bus's volume), [port] tactile_eq and crossover: live.</summary>
+    public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover)
+    {
+        Output = output;
+        _eq = eq;
+        _crossover = crossover;
+        int bus = TactileBus();
+        AudioServer.SetBusMute(bus, levelPercent <= 0);
+        AudioServer.SetBusVolumeDb(bus, levelPercent <= 0 ? -80f : 20f * MathF.Log10(levelPercent / 100f));
+        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; }
+    }
+
+    private static int TactileBus()
+    {
+        int bus = AudioServer.GetBusIndex(BusName);
+        if (bus < 0) { AudioServer.AddBus(); bus = AudioServer.BusCount - 1; AudioServer.SetBusName(bus, BusName); AudioServer.SetBusSend(bus, "Master"); }
+        return bus;
+    }
+
+    /// <summary>The output the shaker plays on now (2.1, or 5.1/7.1 with an LFE channel), or null for none.</summary>
+    private static bool? Playing => !AudioOutputs.Tactile(Output) ? null : Output == AudioOutput.Sub21 ? true : HasLfe ? false : null;
+    private bool _stereoPair;
 
     private readonly TactileSynth _synth = new();
     private readonly TactileEvents _events = new();
@@ -48,9 +77,10 @@ public partial class BassShaker : Node
                 AudioServer.SpeakerMode.Surround71 => "7.1",
                 _ => "stereo",
             };
-            if (!HasLfe) return $"bass shaker: {speakers} output, no LFE channel: silent";
+            if (Playing is null) return $"bass shaker: {speakers} output, no LFE channel: silent";
             float peak = _instance?._out is null ? 0 : _instance._synth.Peak;
-            return $"bass shaker: LFE of {speakers}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}";
+            string to = Playing == true ? $"both channels of {speakers} (2.1), under {_crossover:0} Hz" : $"LFE of {speakers}";
+            return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}";
         }
     }
 
@@ -66,15 +96,18 @@ public partial class BassShaker : Node
         if (_instance == this) _instance = null;
     }
 
-    private void Open()
+    private void Open(bool stereoPair)
     {
-        int bus = AudioServer.GetBusIndex(BusName);
-        if (bus < 0) { AudioServer.AddBus(); bus = AudioServer.BusCount - 1; AudioServer.SetBusName(bus, BusName); AudioServer.SetBusSend(bus, "Master"); }
+        TactileBus();
+        _stereoPair = stereoPair;
+        _synth.Eq = _eq;
+        _synth.LowPassHz = _crossover;
         float rate = AudioServer.GetMixRate();
         // 50 ms of queue: a 60 fps frame fills it with room to spare, and a hit is felt within about three frames
         var gen = new AudioStreamGenerator { MixRate = rate, BufferLength = 0.05f };
-        // the centre target sends the frame's right half to the LFE at full level whatever VolumeDb says: the level is the synth's
-        _out = new AudioStreamPlayer { Name = "BassShaker", Stream = gen, Bus = BusName, MixTarget = AudioStreamPlayer.MixTargetEnum.Center, ProcessMode = ProcessModeEnum.Always };
+        // the centre target sends the frame's right half to the LFE at full level whatever VolumeDb says: the level is the synth's and the bus's
+        _out = new AudioStreamPlayer { Name = "BassShaker", Stream = gen, Bus = BusName, ProcessMode = ProcessModeEnum.Always,
+            MixTarget = stereoPair ? AudioStreamPlayer.MixTargetEnum.Stereo : AudioStreamPlayer.MixTargetEnum.Center };
         AddChild(_out);
         _out.Play();
         _playback = (AudioStreamGeneratorPlayback)_out.GetStreamPlayback();
@@ -91,16 +124,16 @@ public partial class BassShaker : Node
 
     public override void _Process(double delta)
     {
-        bool want = Mode == TactileMode.Lfe && HasLfe;
-        if (want && _out is null) Open();
-        else if (!want && _out is not null) Close();
+        bool? want = Playing;
+        if (_out is not null && want != _stereoPair) Close();
+        if (want is { } pair && _out is null) Open(pair);
         if (_playback is null) return;
         if (GetTree().Paused || Held?.Invoke() == true) { _synth.Reset(); _hits.Clear(); }
         int n = _playback.GetFramesAvailable();
         if (n <= 0) return;
         if (_block.Length < n) { _block = new float[n]; _frames = new Vector2[n]; }
         _synth.Fill(_block.AsSpan(0, n), (int)AudioServer.GetMixRate());
-        for (int i = 0; i < n; i++) _frames[i] = new Vector2(0, _block[i]);
+        for (int i = 0; i < n; i++) _frames[i] = new Vector2(_stereoPair ? _block[i] : 0, _block[i]);
         _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
     }
 
