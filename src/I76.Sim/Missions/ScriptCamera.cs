@@ -144,6 +144,7 @@ public sealed partial class ScriptCamera
                 FollowPath(dt, 0, A(1), O(2));
                 break;
             case "camposdir":
+                _arrived = false;   // a path camera that never arrives: it clears camIsArrived each call
                 if (_path is { Count: > 0 }) Eye = AtHeight(_path[0], A(1));
                 Basis = Rows.Euler(Angle(A(2)), Angle(A(4)), Angle(A(3)));
                 break;
@@ -230,6 +231,7 @@ public sealed partial class ScriptCamera
             if (f < 0) f += 1;
             Segment(p, (float)f, _seg + 1);
         }
+        _arrived = false;   // a call that places the camera clears camIsArrived, as the original's does
         Eye = AtHeight(new Vector3(_cam.X, 0, _cam.Y), h);
         LookAt = at?.Position;
         if (MathF.Abs(_target.X - _cam.X) >= 0.005f) _cam.X += 0.3f * (_target.X - _cam.X);
