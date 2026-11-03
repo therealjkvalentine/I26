@@ -254,6 +254,10 @@ stacked ones and the integration branch are section I, after H.
 | I53 | feat/modern-lighting-calibration | the modern look's lighting calibrated by day against the 1997 look's (exposure, ground and object tints solved per mission, the sky halfway); `[port] lighting_calibration` on\* / off, an earlier `look_colour_match` read; contains feat/modern-look-colour-match (b20aef9, the ground-only first step, not merged separately) | local: Formats LightingCalibrationTests 8, Game SettingsWithoutARowTests (key migration 7); captures T01, T05, M01, T10 | branch's captures | merged (4d447a4) |
 | I54 | feat/build-version-rules | user://build-rules.cfg (written by the game, commented with each build's value) picks the 1997 CD or the 1998 build's turret slew and AI tactic choice, the 1998 (GOG) build's by default; structural session rules, no snapshot or protocol bump | original (the two builds measured); local: Sim TurretSlewTests, TacticChooserBuildTests, Game BuildRulesTests 7 | - | merged (e2cf5d9) |
 | I55 | fix/round3-integration-6 | the integrator's pass-9 fix: lighting_calibration (off / on\*) and crossover (40\*/60\*/80\*/90/120\*/160\* Hz) on the Developer panel's Settings, live; tactile_eq a curve set by hand only (DevSettings.HandSetOnly, the table test allows it); playing.md marks lighting_calibration's on | local: Game 289/289 (the table test fails on play without it) | - | merged (c992a4f) |
+| I56 | feat/dev-fps-overlay | `[port] dev_fps` (false / true\*, no row; the Developer panel's Settings, live) draws the frame rate in the window's top left corner, `FPS 64`: the average over the last second, updated twice a second; both looks | ux; local: Game FrameStatsTests, the Settings table test | - | merged (f76de3d) |
+| I57 | fix/net-melee-music-tracks | a melee, Instant or network, asking for a shell's track (I76's M09: 15, the menu's) starts on the next mission track; Nitro's default sequence passes over its menu (10) and credits (4) tracks; `I76_MUSIC_SEQUENCE=retail/gog` and `music_tracks=all` unchanged; the stale duplicate of the music deviations row removed | WRLD tracks read from every mission of both installs; local: Formats MissionMusicTests | - | merged (3000ef8) |
+| I58 | feat/build-id-in-lobby | the host form shows this build's id, the roster the host's (red when it differs), and a joiner on another build is let in with a one-line notice to everyone; the id from the SDK's source revision or, in a git archive, an export-subst placeholder; `I76_BUILD_ID`; protocol 26 (join request, accept, session list) | ux (family games on several machines); local: Net BuildIdTests 6, WireTests | - | merged (d6f0a7c) |
+| I59 | fix/round3-integration-7 | the integrator's pass-10 fix: the build-id notice's changelog example and BuildIdTests take a character's name (Skeeter) for the joining player instead of a real first name | local: Net BuildId 6/6 | - | merged (0ceb444) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -450,6 +454,30 @@ the Mac (VERSION.txt "play d791df7 deployed 2026-11-03T12:27Z", built and import
 Both user folders' shell.cfg backed up as shell.cfg.before-pass9 and given, under [port], `output="2.1"` and the owner's
 `tactile_eq` curve (the shaker rig's measured response, boosts capped at +4 dB); no other key touched; build-rules.cfg
 left to the game.
+
+Pass 10 (2026-11-03): rows I56-I58 merged by sync-play (incremental, `-NoRebase`, play kept on 0.11.0), then
+fix/round3-integration-7. All three based on play 913a5dc. Only CHANGELOG.md conflicted (build-id against dev-fps under
+New: union). The docs/playing.md table (dev_fps after crossover), the Developer panel's Settings list, Protocol.cs and
+WireTests (26) and the music deviations row merged by git with no hand fix.
+- The integration branch was first made on a scratch merge chain; merged into play it conflicted with play's own
+  build-id merge and the union brought the old changelog line back. It was rebuilt on play's own merges (28fcfdd, not
+  yet pushed), so it merges cleanly; the scratch commits were never pushed.
+- feat/build-id-in-lobby's own commit message keeps the first name the branch used as its example (a topic commit, not
+  rewritten); the tree no longer has it.
+
+Versions after pass 10: snapshot 24, protocol 26 (feat/build-id-in-lobby; WireTests' TheProtocolIs26), shell.cfg 13
+(dev_fps written only when on).
+
+Test status, pass 10 (`play` 29226fa): desktop (I76_INSTALL and I76_NITRO_INSTALL set) Game 293/293, Sim 990/1023, Net
+431/446; outside the desktop baseline only the known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam,
+T01FollowTests at 30 Hz, CaltropTests with the Nitro install set). Laptop: Sim 989/1021, Net 431/446, Game 293/293,
+Formats 954/988 (30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No new failure.
+
+Deployed by deploy-family.sh, one run: `play` 29226fa to the laptop (VERSION.txt "play 29226fa deployed
+2026-11-03T18:35Z"; smoke T01 --drive renders, net 26; `_scratch/deploy/smoke10-laptop.png`), the owner's Mac
+("...T18:35Z", built and imported there), and both family Macs ("...T18:36Z" each, woken by Wake-on-LAN, the build sent
+in md5-checked chunks, built and imported there, their repo's play fast-forwarded to 29226fa). No game run on a Mac; no
+user-folder changes.
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
