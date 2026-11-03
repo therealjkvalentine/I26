@@ -150,6 +150,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Graphic Detail has a Map Edge row for the modern look: Original draws the sheer walls round the outside of a level as they are; Haze softens them and the mountains beyond into a light distance haze, and Fade Out fades them into the horizon, so the edge of the map reads as far land instead of a wall. Only the look changes: the walls still stop the car where they did.
 - The Developer panel has a Scene row: any mission the install offers (the trip's, the melee maps, the Nitro Pack's in that game) in this car, the mission's own or any car file, started at once as `--mission X --drive car` would, the panel still on.
 - The Developer panel's Teleport list has places of its own for every mission: the start, the highest and the lowest ground you can drive to (read from the map, so the top of the hill in Trip mission 5 rather than a canyon wall), the map's centre and each bridge, ramp and tower; and you can keep the car's place under a name for that mission (Keep), listed first from then on, and forget it again.
+- The Developer panel has a Loadout section: each of your car's weapon mounts with a choice of every weapon the garage allows there, swapped in live and fully loaded with Apply, and a Refill that loads every weapon and special without repairing anything.
 
 ## 0.11.0 (31 October 2026)
 
