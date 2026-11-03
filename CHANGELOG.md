@@ -109,6 +109,7 @@
 - The cockpit's 3D gauge needles are the original's dark red, lit like the rest of the car, instead of hot pink: a flat-coloured face takes the mission palette's colour, as the original's does. The dash art is untouched.
 - The cockpit's 3D gauges look like the original's: the dial faces are black again instead of a grey smear, the lettering is sharp, and the needles turn off-centre so the long end shows the reading, in the original's dark red rather than hot pink. The dash art is untouched.
 - The (C), (V) and (R) in the garage's part lists are bold and a little larger in the modern look, so they read at a glance.
+- Smoother in the modern look: the distant mountain ring cost a fifth to a quarter of every frame's GPU time, because its shader wrote its own depth and so was shaded in full under the whole map before the ground covered it. It is now shaded only where it shows (the few cells that back up a tile's edge keep their own pass); the picture is the same.
 
 ## 0.11.0 (31 October 2026)
 
