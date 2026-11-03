@@ -51,6 +51,7 @@
 - A car braking to a halt keeps its nose down for the frame it stops on and lifts it on the next, as the original's does, instead of the nose jumping up on the stop frame itself.
 - The rear-view mirror shows 45 degrees across and draws nothing past 100 m, as the original's does, instead of a narrower 30 degree view that reached the far horizon.
 - In the 1997 look the clouds drift twice as fast while the cockpit's rear-view mirror is in full mode, as the original's do, instead of at the same speed with the mirror on and off.
+- Engines now sound at the original's pitch: the loop idles about 7 semitones higher than before and rises more gently with the revs, as the original's does.
 
 ## 0.11.0 (31 October 2026)
 
