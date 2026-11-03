@@ -81,6 +81,9 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public float CoopDamageFactor { get; set; } = 1f;
 
     /// <summary>The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car, else 1.</summary>
+    /// <summary>A network handicap on what <paramref name="v"/> takes from another car (the port's; <see cref="Missions.Handicaps.Taken"/>): 1 at level 0.</summary>
+    private static float HandicapTaken(Vehicle v, DamagePacket p) => v.Handicap != 0 && p.Attacker is Vehicle a && a != v ? Missions.Handicaps.Taken(v.Handicap) : 1f;
+
     private float IncomingFactor(Vehicle v) => CoopDamageFactor != 1f && World.Coop && World.IsHuman(v) ? CoopDamageFactor : 1f;
 
     /// <summary>
@@ -155,7 +158,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// <summary>The vehicle damage slot (class slot [10]). pkt null: straight to the death check (the vehicle death routine's call).</summary>
     public void VehicleSlot(Vehicle v, DamagePacket? p, Vector3 hitLocal)
     {
-        if (p is not null && IncomingFactor(v) is var f && f != 1f) p = Scaled(p, f, v.Health?.CoopCarry);
+        if (p is not null && IncomingFactor(v) * HandicapTaken(v, p) is var f && f != 1f) p = Scaled(p, f, v.Health?.CoopCarry);
         if (p is not null) Damaging?.Invoke(v, p);
         if (v.Heli is { } heli) { HeliSlot(v, heli, p); return; }
         if (v.Emplacement is not null) { if (p is not null) EmplacementSlot(v, p); return; }
@@ -165,7 +168,8 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         if (p is not null)
         {
             var (zone, sub) = VehicleDamage.Zones(hitLocal);
-            if ((p.Flags & 1) != 0 && d.HealthPercent() > 33f) { p.Mask = 1; p.Ch[0] = 5; }
+            // the .45 on a healthy car: 5 points whatever the round; a network handicap scales it both ways, so the shot is no way round the level
+            if ((p.Flags & 1) != 0 && d.HealthPercent() > 33f) { p.Mask = 1; p.Ch[0] = p.Attacker is Vehicle ha && ha != v && (ha.Handicap | v.Handicap) != 0 ? (int)(5 * Missions.Handicaps.Factor(ha.Handicap) * Missions.Handicaps.Taken(v.Handicap)) : 5; }
             int rem = (p.Flags & 0x10) == 0 ? ArmourStep(d, zone, p) : VehicleDamage.Remaining(p);
             bool killed = false, driver = false;
             while (rem != 0 && !killed)
@@ -595,6 +599,8 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     {
         if (self.Wreck || other.Wreck) return;
         var p = Impact(other, other.P.Mass, KVehicle, rec.N, other.Vel - self.Vel);
+        // a network handicap scales a ram as it does the rammer's rounds (what self takes is scaled in VehicleSlot)
+        if (other.Handicap != 0) p = Scaled(p, Missions.Handicaps.Factor(other.Handicap), null);
         VehicleSlot(self, p, rec.C);
         if (AiRammedHuman(self, other, rec)) return;
         Record(self, other, DamageKind.Collision, 8);

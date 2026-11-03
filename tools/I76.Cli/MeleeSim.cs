@@ -20,7 +20,7 @@ namespace I76.Cli;
 /// </summary>
 public static class MeleeSim
 {
-    private sealed record Result(string Mode, int Seed, string[] Names, int[] Tiers, int[] Kills, int[] Deaths, int[] Levels, int Changes, int Events);
+    private sealed record Result(string Mode, int Seed, string[] Names, int[] Tiers, float[] Strengths, int[] Kills, int[] Deaths, int[] Levels, int Changes, int Events);
 
     public static int Run(GameInstall install, List<string> argv)
     {
@@ -85,7 +85,7 @@ public static class MeleeSim
         host.Setup.Damage.KilledBy += (_, _) => events++;
         int ticks = (int)(minutes * 60 / host.Session.TickSeconds);
         for (int t = 0; t < ticks && !host.Over; t++) host.Step();
-        return new Result(mode.ToString(), seed, [.. bots.Select(b => b.Name)], tiers, [.. bots.Select(b => b.Player.Kills)], [.. bots.Select(b => b.Player.Deaths)],
+        return new Result(mode.ToString(), seed, [.. bots.Select(b => b.Name)], tiers, [.. Enumerable.Range(0, bots.Count).Select(k => k < strengths.Length ? strengths[k] : 1f)], [.. bots.Select(b => b.Player.Kills)], [.. bots.Select(b => b.Player.Deaths)],
             [.. bots.Select(b => b.Player.Car.Handicap)], changes, events);
     }
 
@@ -109,16 +109,22 @@ public static class MeleeSim
     /// <summary>The leader's kills over the runner-up's.</summary>
     private static int Margin(Result r) { var s = Sorted(r); return s[0] - s[1]; }
     private static double Median(Result r) { var s = Sorted(r); int n = s.Length; return n % 2 == 1 ? s[n / 2] : (s[n / 2 - 1] + s[n / 2]) / 2.0; }
-    /// <summary>The bot with the most kills is one of the best tier (ties count).</summary>
-    private static bool StrongFirst(Result r) { int best = r.Tiers.Min(), top = r.Kills.Max(); return Enumerable.Range(0, r.Tiers.Length).Any(i => r.Tiers[i] == best && r.Kills[i] == top); }
+    /// <summary>The strongest bots: the highest strength, of those the best tier.</summary>
+    private static int[] Strongest(Result r)
+    {
+        float s = r.Strengths.Max();
+        int best = Enumerable.Range(0, r.Tiers.Length).Where(i => r.Strengths[i] == s).Min(i => r.Tiers[i]);
+        return [.. Enumerable.Range(0, r.Tiers.Length).Where(i => r.Strengths[i] == s && r.Tiers[i] == best)];
+    }
+    /// <summary>The bot with the most kills is one of the strongest (ties count).</summary>
+    private static bool StrongFirst(Result r) { int top = r.Kills.Max(); return Strongest(r).Any(i => r.Kills[i] == top); }
     private static int Spread(Result r) => r.Kills.Max() - r.Kills.Min();
     private static double Sd(Result r) { double m = r.Kills.Average(); return Math.Sqrt(r.Kills.Average(k => (k - m) * (k - m))); }
-    /// <summary>The mean rank (1 the most kills) of the best-tier bots.</summary>
+    /// <summary>The mean rank (1 the most kills) of the strongest bots.</summary>
     private static double StrongRank(Result r)
     {
-        int best = r.Tiers.Min();
         var order = r.Kills.Select((k, i) => (k, i)).OrderByDescending(x => x.k).Select(x => x.i).ToList();
-        return Enumerable.Range(0, r.Tiers.Length).Where(i => r.Tiers[i] == best).Average(i => order.IndexOf(i) + 1);
+        return Strongest(r).Average(i => order.IndexOf(i) + 1);
     }
     private static string Line(Result r) =>
         $"{r.Mode,-6} seed {r.Seed}: " + string.Join("  ", r.Names.Select((n, k) => $"{Short(n)}(t{r.Tiers[k]}) {r.Kills[k]}k/{r.Deaths[k]}d {Handicaps.Label(r.Levels[k])}"))

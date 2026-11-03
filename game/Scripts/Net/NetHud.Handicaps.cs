@@ -55,7 +55,7 @@ public partial class NetHud
         if (!shown || _handicapHintSaid || Server is not { } s || s.Options.Handicaps == HandicapMode.Off) return;
         _handicapHintSaid = true;
         Say(s.Options.Handicaps == HandicapMode.Auto
-            ? $"Auto handicap: every {Handicaps.AutoStep.ToString(System.Globalization.CultureInfo.InvariantCulture)} kills (net of deaths) over the table's average cost a level, under it give one"
+            ? "Auto handicap: each kill (net of deaths) over the table's average costs a level, less damage dealt and more taken; each under it gives one"
             : "Handicaps: Shift+1..9 picks a player, Shift+[ and Shift+] set the level", FeedKind.Own);
     }
 }
