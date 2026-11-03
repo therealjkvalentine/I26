@@ -304,7 +304,14 @@ public class NetBotTests(ITestOutputHelper output)
         if (HostTests.InstallDir is not { } install) return;
         var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m05", Ai = 2, Bots = 2, MaxPlayers = 8 });
         var human = host.Join("Taurus", "vppirna1.vcf", 0);
-        Play(host, 5);
+        // the human's armour and chassis topped up every tick: whom the fill attacks is the test, not whether the human outlives the fight
+        // (the network game has no Unlim. Armor)
+        Play(host, 5, () =>
+        {
+            if (human.Player.Car.Health is { } d) { d.ArmourMax.CopyTo(d.Armour, 0); d.ChassisMax.CopyTo(d.Chassis, 0); }
+            return false;
+        });
+        Assert.False(I76.Sim.Damage.DamageModel.IsDead(human.Player.Car));
         var fill = host.Setup.Script!.Host.Entities.Where(e => e.Name.StartsWith("nvcl") && !e.Removed).ToList();
         Assert.Equal(2, fill.Count);
         Assert.All(fill, e => Assert.Same(human.Player.Entity, e.OrderTarget));

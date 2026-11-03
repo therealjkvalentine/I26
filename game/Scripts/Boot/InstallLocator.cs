@@ -21,6 +21,7 @@ namespace I76.Game.Boot;
 ///   --coop-scale 0-3   (with --host-listen --coop: each enemy car gets a copy per player past the first, up to that many; else the host form's Co-op Scaling)
 ///   --coop-damage 0.5|0.75|1|1.5   (with --host-listen --coop: the players' cars take that times the damage; else the host form's Co-op Damage)
 ///   --coop-rolling-start   (with --host-listen --coop: a respawn or joiner comes in at a moving teammate's speed; else the host form's Rolling Start)
+///   --no-ignition-off | --ignition-off   (with --host-listen: every engine stays on, the ignition key never switches one off; else the setting)
 ///   --password WORD   (with --host-listen: the game needs it; with --connect or --join-anet: the one to join with; never saved)
 ///   --restrict a,b,c   (with --host-listen: WEAPON RESTRICTIONS, as i26-server's: all, slugs, mortars, missiles, flames, droppers, a .gdf, class:tier)
 ///   --turrets  (with --host-listen: cars may carry several roof turrets; else the host form's setting)

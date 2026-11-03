@@ -675,7 +675,7 @@ public partial class Main : Node3D
         I76.Game.ForceFeedback.UseWheel = s.ForceFeedbackWheel;
         I76.Game.ForceFeedback.Enabled = s.ForceFeedback;
         I76.Game.ForceFeedback.Mode = s.RumbleMode;
-        I76.Game.ForceFeedback.Strength = s.RumbleStrength;
+        I76.Game.ForceFeedback.PadStrength = s.RumbleStrength;
         I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended;
         I76.Game.BassShaker.Held = I76.Game.ForceFeedback.Held;
         // Modern Physics, flipped from Play Options as by F7 (EnableModern keeps a network session on the original's)

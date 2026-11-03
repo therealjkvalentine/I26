@@ -119,6 +119,8 @@ public static class DevicePresets
         var keep = table.Blocks.Where(b => !(BindingTable.IsPad(b) && b.Terms[0].Device.Equals(device, StringComparison.OrdinalIgnoreCase)));
         var t = BindingTable.FromBlocks([.. keep, .. blocks]);
         t.Rules = table.Rules.Clone();
+        // a pad shift on another device stays (one on this device went with its blocks)
+        if (table.Shift is { } sh && !sh.Device.Equals(device, StringComparison.OrdinalIgnoreCase)) t.Shift = sh;
         foreach (var r in t.Rules.Rules.Where(r => r.Inputs.Any(i => i.Device.Equals(device, StringComparison.OrdinalIgnoreCase))).ToList()) t.Rules.Remove(r);
         foreach (var r in rules) t.Rules.Add(r);
         return t;

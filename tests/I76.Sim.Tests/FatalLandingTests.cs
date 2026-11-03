@@ -34,7 +34,7 @@ public class FatalLandingTests
             v.Vel.Y = 6;
         }
         public void FallKill(Vehicle v) { }
-        public void Rough(Vehicle v, float dt) { Roughs++; rand.Next(); }
+        public void Rough(Vehicle v, int surface, float dt) { Roughs++; rand.Next(); }
         public void StaticContact(Vehicle v, StaticObject o, Contact rec) { }
     }
 
