@@ -225,3 +225,4 @@ fix/map-edge-roads-and-1997           # stacked on play: Map Edge On in the 1997
 fix/map-edge-placed-objects           # after map-edge-roads-and-1997: On never draws down ground the mission puts something on (T05's helicopters)
 feat/modern-lighting-calibration      # stacked on play (contains feat/modern-look-colour-match, not listed): the modern look's lighting calibrated against the 1997 look's; [port] lighting_calibration
 feat/build-version-rules              # stacked on play: user://build-rules.cfg picks the 1997 or 1998 build's turret slew and AI tactic choice, 1998 by default
+fix/round3-integration-6              # stacked on play, last of I: lighting_calibration and crossover on the Developer panel's Settings, tactile_eq set by hand only; lighting_calibration's on marked
