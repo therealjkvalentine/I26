@@ -31,6 +31,7 @@
 - On macOS the microphone permission is asked at the first press of the CB key, not when the game starts.
 - The six-wheeled trucks (the Marx trucks and the milk tankers) ride their middle wheels on their own suspension over bumps and crests, as the original's do, instead of drawing them halfway between the front and rear wheels. The tank has no middle wheels: its road wheels belong to the body, so this does not change how deep they sit (#124).
 - Online, a damaged weapon (under 70 %) no longer shows tracers, flashes and sounds of shots that never happened: its jams are the server's, so its shots now show as the server fires them.
+- The `I76_NET_DEBUG` shots line no longer counts every shot of the last life as taken back at each respawn.
 
 ## 0.11.0 (31 October 2026)
 
