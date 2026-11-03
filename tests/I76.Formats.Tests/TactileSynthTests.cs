@@ -70,6 +70,51 @@ public class TactileSynthTests
     }
 
     [Fact]
+    public void The_road_follows_the_springs_and_not_the_engine()
+    {
+        float Bed(TactileEvents e, int ticks = 1, Action<TactileEvents, int>? each = null)
+        {
+            var s = new TactileSynth();
+            float rms = 0;
+            for (int t = 0; t < ticks; t++)
+            {
+                each?.Invoke(e, t);
+                s.Step(e);
+                rms = Rms(Run(s, 0.25).AsSpan(Rate / 10));
+            }
+            return rms;
+        }
+        // the engine off, rolling on a paved road: felt, and less than on a dirt road
+        float paved = Bed(new TactileEvents { Surface = 3, Mph = 40 });
+        Assert.True(paved > 0.01f);
+        Assert.True(paved < Bed(new TactileEvents { Surface = 4, Mph = 40 }));
+        Assert.True(TactileSynth.RoadLevel(3, 40, 0) < TactileSynth.RoadLevel(4, 40, 0));
+
+        // the load: the mean deflection of the four corners; a turn's (two compressed, two extended) adds to the bed
+        Assert.Equal(0.35f, TactileSynth.LoadOf([0.5f, -0.5f, 0.2f, -0.2f]), 4);
+        Assert.Equal(1f, TactileSynth.LoadOf([3f, -3f, 1f, 1f]));
+        float flat = TactileSynth.RoadLevel(3, 40, 0, 0f, 0f);
+        Assert.Equal(TactileSynth.RoadLevel(3, 40, 0), flat);
+        Assert.Equal(flat * 1.8f + TactileSynth.LoadGain * 0.8f, TactileSynth.RoadLevel(3, 40, 0, 0.8f, 0f), 5);
+        var turn = new TactileEvents { Surface = 3, Mph = 40 };
+        turn.Travel[0] = turn.Travel[2] = 0.8f; turn.Travel[1] = turn.Travel[3] = -0.8f;
+        Assert.True(Bed(turn) > 1.5f * paved);
+        // standing, loaded (braked to a stop on a slope): the load alone; in the air nothing, however the springs hang
+        Assert.Equal(TactileSynth.LoadGain * 0.5f, TactileSynth.RoadLevel(3, 0, 0, 0.5f, 0f), 5);
+        Assert.Equal(0f, TactileSynth.RoadLevel(9, 60, 0, 1f, 40f));
+
+        // the springs' rate, in limits a second: the full jolt at JoltFull, so the tick rate does not change what a bump is worth
+        Assert.Equal(TactileSynth.JoltGain, TactileSynth.RoadLevel(3, 0, 0, 0f, TactileSynth.JoltFull), 5);
+        // standing on the ground, the corners swinging ±0.02 of their limit each tick
+        float Bumps(float tick) => Bed(new TactileEvents { Surface = 3, TickSeconds = tick }, 6, (e, t) => Array.Fill(e.Travel, t % 2 == 0 ? 0.02f : -0.02f));
+        float still = Bed(new TactileEvents { Surface = 3 }, 6, (e, _) => Array.Fill(e.Travel, 0.02f));
+        Assert.True(Bumps(102f / 2048f) > 4f * still);
+        Assert.InRange(Bumps(1f / 60f) / Bumps(1f / 30f), 1.8f, 2.1f);   // the same swing twice as often: twice the rate
+        // everything at once stays under the bed's top
+        Assert.Equal(TactileSynth.RoadMax, TactileSynth.RoadLevel(6, 120, 4, 1f, 100f));
+    }
+
+    [Fact]
     public void Sources_outside_20_to_90_hz_are_cut()
     {
         float Through(float hz)

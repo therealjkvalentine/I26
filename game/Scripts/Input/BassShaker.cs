@@ -158,8 +158,8 @@ public partial class BassShaker : Node
             if (p.Ch[ch] != 0) me._hits.Add((ch, p.Ch[ch]));
     }
 
-    /// <summary>One sim tick has run: the player's car, its shots among <paramref name="events"/> from <paramref name="from"/> on, the explosions, the hits queued since.</summary>
-    public static void Tick(IReadOnlyList<CombatEvent>? events, int from)
+    /// <summary>One sim tick of <paramref name="dt"/> seconds has run: the player's car, its shots among <paramref name="events"/> from <paramref name="from"/> on, the explosions, the hits queued since.</summary>
+    public static void Tick(IReadOnlyList<CombatEvent>? events, int from, float dt)
     {
         if (_instance is not { _out: not null } me || me.GetTree().Paused || Held?.Invoke() == true) return;
         var e = me._events;
@@ -172,11 +172,18 @@ public partial class BassShaker : Node
             e.EngineOn = (flags & VehicleFlags.EngineOn) != 0;
             e.Cranking = (flags & VehicleFlags.Started) != 0;
             e.Rpm = v.Engine.Rpm;
-            float mph = v.Engine.Speedo;
-            e.Mph = MathF.Min(mph, 165f);
-            // the force block's surface: the car's + 1 while the speedometer reads, 9 in the air
-            e.Surface = (flags & VehicleFlags.Airborne) != 0 ? 9 : mph > 0 ? v.Surface + 1 : 0;
+            // the car's own speed, not the speedometer's (which follows the engine): the road is felt with the engine off too
+            e.Mph = MathF.Min(v.Vel.Length() * 2.2369363f, 165f);
+            e.Surface = (flags & VehicleFlags.Airborne) != 0 ? 9 : v.Surface + 1;
             e.FlatTyres = (v.FrontRight.Blown ? 1 : 0) + (v.FrontLeft.Blown ? 1 : 0) + (v.RearRight.Blown ? 1 : 0) + (v.RearLeft.Blown ? 1 : 0);
+            // each corner's travel over its limit (a negative rest reverses the limits: the span is the larger's size)
+            int k = 0;
+            foreach (var w in v.Wheels)
+            {
+                float span = MathF.Max(MathF.Abs(w.TravelMax), MathF.Abs(w.TravelMin));
+                e.Travel[k++] = span > 1e-4f ? Math.Clamp(w.Travel / span, -1f, 1f) : 0f;
+            }
+            e.TickSeconds = dt;
             if (events is not null)
             {
                 var at = v.Pos.ToVector3();

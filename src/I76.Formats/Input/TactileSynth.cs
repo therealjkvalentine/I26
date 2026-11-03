@@ -125,10 +125,15 @@ public sealed class TactileEq
 public sealed class TactileEvents
 {
     public bool EngineOn, Cranking;
+    /// <summary>The engine's rpm, and the car's own speed (mph, from its velocity: the engine need not run).</summary>
     public float Rpm, Mph;
-    /// <summary>The surface as the force block has it: the car's + 1 while moving, 0 standing, 9 in the air.</summary>
+    /// <summary>The surface: the car's + 1 on the ground, 0 for none, 9 in the air.</summary>
     public int Surface;
     public int FlatTyres;
+    /// <summary>Each corner wheel's suspension travel over its limit (−1 to 1, 0 at rest): the springs' load, cornering and braking included.</summary>
+    public readonly float[] Travel = new float[4];
+    /// <summary>The sim tick's length, seconds: the travel's rate is per second whatever the rate setting.</summary>
+    public float TickSeconds = 102f / 2048f;
     public readonly List<WeaponShot> Shots = [];
     /// <summary>The player's damage packets: channel (0 ballistic, 1 explosive, 2 fire, 3 impact) and amount.</summary>
     public readonly List<(int Channel, int Amount)> Hits = [];
@@ -140,6 +145,7 @@ public sealed class TactileEvents
         EngineOn = Cranking = false;
         Rpm = Mph = 0;
         Surface = FlatTyres = 0;
+        Array.Clear(Travel);
         Shots.Clear();
         Hits.Clear();
         Blasts.Clear();
@@ -149,7 +155,8 @@ public sealed class TactileEvents
 /// <summary>
 /// The port's bass-shaker signal (the original has none): sines and a noise bed between 20 and 90 Hz. Continuous: the engine,
 /// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
-/// force model's road strengths) and speed, rougher with a flat tyre. Transients: a decaying sine per shot by weapon class, per
+/// force model's road strengths) and the car's speed, rougher with a flat tyre, stronger with the springs' load (a turn, a stop)
+/// and their movement (bumps), engine or no engine. Transients: a decaying sine per shot by weapon class, per
 /// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
 /// shaker's <see cref="Eq"/> at its frequency. Each source takes its <see cref="Weights"/> share. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
 /// Level's <see cref="Gain"/> and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
@@ -181,12 +188,41 @@ public sealed class TactileSynth
     public static float EngineHz(float rpm) => 25f + 20f * RpmShare(rpm);
     public static float EngineLevel(bool on, float rpm) => on ? 0.08f + 0.10f * RpmShare(rpm) : 0f;
 
-    /// <summary>The road bed: none standing or in the air, up to 0.3 on the roughest surface at 80 mph and over; each flat tyre adds a third.</summary>
+    /// <summary>The road bed: none standing or in the air, up to 0.3 on the roughest surface at 80 mph and over (a paved road 15/40 of that); each flat tyre adds a third.</summary>
     public static float RoadLevel(int surface, float mph, int flats)
     {
-        if (surface <= 0 || surface >= ForceModel.RoadGain.Length) return 0f;
+        if (!OnGround(surface)) return 0f;
         float l = 0.3f * ForceModel.RoadGain[surface] / 40f * Math.Clamp(mph / 80f, 0f, 1f);
         return l * (1f + Math.Clamp(flats, 0, 4) / 3f);
+    }
+
+    private static bool OnGround(int surface) => surface > 0 && surface < ForceModel.RoadGain.Length - 1;
+
+    /// <summary>
+    /// The springs' load on the road bed: the mean deflection of the four corners over their limit, 0 to 1. The vehicle model's
+    /// weight transfer (the acceleration along and across the car) drives each spring, so a hard turn or a stop loads the bed:
+    /// the bed grows by the load's share and gains <see cref="LoadGain"/> at full load, so a turn is felt on any surface.
+    /// </summary>
+    public const float LoadGain = 0.12f;
+    /// <summary>The springs' movement on the road bed: the corners' mean travel rate, limits a second; <see cref="JoltGain"/> at <see cref="JoltFull"/> and over (a bump, a kerb, a landing).</summary>
+    public const float JoltGain = 0.2f, JoltFull = 4f;
+    /// <summary>The bed's top, everything together: under a lone hit's thump.</summary>
+    public const float RoadMax = 0.5f;
+
+    public static float LoadOf(ReadOnlySpan<float> travel)
+    {
+        float sum = 0;
+        foreach (var t in travel) sum += Math.Min(Math.Abs(t), 1f);
+        return travel.Length == 0 ? 0f : sum / travel.Length;
+    }
+
+    /// <summary>The road bed from the surface, the car's speed, flats, the springs' load (0 to 1) and their rate (limits a second).</summary>
+    public static float RoadLevel(int surface, float mph, int flats, float load, float jolt)
+    {
+        if (!OnGround(surface)) return 0f;
+        load = Math.Clamp(load, 0f, 1f);
+        float l = RoadLevel(surface, mph, flats) * (1f + load) + LoadGain * load + JoltGain * Math.Clamp(jolt / JoltFull, 0f, 1f);
+        return Math.Min(l, RoadMax);
     }
 
     /// <summary>A shot by weapon class (1 machine guns, 2 cannons, 3 mortars, 4 rockets and missiles, 5 flame weapons, 6 droppers); none for any other.</summary>
@@ -224,6 +260,8 @@ public sealed class TactileSynth
     private sealed class Voice { public float Hz, Level, Fall, Left; public double Phase; }
     private readonly List<Voice> _thumps = [];
     private float _engHz = EngineHz(0), _engTarget, _roadTarget, _eng, _road;
+    private readonly float[] _travel = new float[4];
+    private bool _travelSeen;
     private double _engPhase;
     private uint _noise = 0x9E3779B9u;
     private Biquad _roadBand, _hp, _lp;
@@ -267,7 +305,17 @@ public sealed class TactileSynth
     {
         _engHz = e.Cranking ? CrankHz : EngineHz(e.Rpm);
         _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz) * W(TactileSource.Engine);
-        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres) * W(TactileSource.Road);
+        // the springs' rate from the last tick's travel; the first tick (or the first back on the ground) has none
+        float jolt = 0;
+        bool ground = OnGround(e.Surface);
+        if (ground && _travelSeen && e.TickSeconds > 0)
+        {
+            for (int i = 0; i < 4; i++) jolt += Math.Abs(e.Travel[i] - _travel[i]);
+            jolt /= 4 * e.TickSeconds;
+        }
+        Array.Copy(e.Travel, _travel, 4);
+        _travelSeen = ground;
+        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt) * W(TactileSource.Road);
         foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots));
         foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t, W(TactileSource.Hits));
         foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
@@ -295,6 +343,7 @@ public sealed class TactileSynth
     {
         _engTarget = _roadTarget = 0;
         _thumps.Clear();
+        _travelSeen = false;
     }
 
     /// <summary>The next <paramref name="dst"/>.Length samples at <paramref name="rate"/> Hz.</summary>
