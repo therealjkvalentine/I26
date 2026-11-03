@@ -17,7 +17,7 @@ public sealed partial class Combat
         a.For<Combat>()
             .Saved(nameof(Rounds), nameof(Events), nameof(RadarTarget), nameof(StructureTarget), nameof(RadarRange), nameof(RadarCamera), nameof(Difficulty), nameof(UnlimitedAmmo),
                 nameof(Unmodelled), nameof(MeleeActive), nameof(NetSession), nameof(_nextTimer), nameof(_arcs), nameof(RemoteSim), nameof(FrameDt),
-                nameof(Flames), nameof(FlameHoldEnabled), nameof(Clusters))
+                nameof(Flames), nameof(FlameHoldEnabled), nameof(Clusters), nameof(UserRadarSetting), nameof(UserRadarDark))
             .Structural("the mission build's world, effects, damage sink and sides", nameof(World), "effects", nameof(Damage), nameof(Team), nameof(IsBot), nameof(FreeForAll))
             .Structural("the install's rules, set by the mission build", nameof(NitroRules))
             .Transient("the host's hook", nameof(HandgunShot))
@@ -46,6 +46,7 @@ public sealed partial class Combat
     internal void Save(SaveWriter w, bool events = true)
     {
         w.Int(Difficulty); w.Bool(UnlimitedAmmo); w.Bool(MeleeActive); w.Bool(NetSession); w.Bool(RemoteSim); w.F32(FrameDt); w.Bool(FlameHoldEnabled);
+        w.Int(UserRadarSetting); w.Bool(UserRadarDark);
         w.VarU((ulong)Unmodelled.Count); foreach (uint k in Unmodelled.Order()) w.U32(k);
         w.VarU((ulong)RadarTarget.Count); foreach (var (k, v) in ById(RadarTarget)) { w.Car(k); w.Car(v); }
         w.VarU((ulong)StructureTarget.Count); foreach (var (k, v) in ById(StructureTarget)) { w.Car(k); w.Obj(v); }
@@ -95,6 +96,7 @@ public sealed partial class Combat
     internal void Load(SaveReader r)
     {
         Difficulty = r.Int(); UnlimitedAmmo = r.Bool(); MeleeActive = r.Bool(); NetSession = r.Bool(); RemoteSim = r.Bool(); FrameDt = r.F32(); FlameHoldEnabled = r.Bool();
+        UserRadarSetting = r.Int(); UserRadarDark = r.Bool();
         Unmodelled.Clear(); for (int k = r.Count(); k > 0; k--) Unmodelled.Add(r.U32());
         RadarTarget.Clear(); for (int k = r.Count(); k > 0; k--) RadarTarget[r.Car()!] = r.Car();
         StructureTarget.Clear(); for (int k = r.Count(); k > 0; k--) StructureTarget[r.Car()!] = r.Obj() as StaticObject ?? throw r.Mismatch("a structure target that is not a structure");

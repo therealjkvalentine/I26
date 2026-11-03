@@ -91,6 +91,27 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public Dictionary<Vehicle, int> RadarRange { get; } = [];
     /// <summary>The radar camera's flag per vehicle; W flips it, only with a target selected.</summary>
     public HashSet<Vehicle> RadarCamera { get; } = [];
+    /// <summary>
+    /// setUserRadar's last value (the original's cache, 1 at start): a different value toggles the player's radar.
+    /// </summary>
+    public int UserRadarSetting = 1;
+    /// <summary>
+    /// The player's radar is dark: blank (no contacts, no target, the face's off frame) for the rest of the mission.
+    /// The original's toggle clears the radar's on bit as it disables it and only clears the disable bit as it enables
+    /// it, so its first use leaves the radar off whatever comes after.
+    /// </summary>
+    public bool UserRadarDark;
+
+    /// <summary>setUserRadar: a value other than the last one toggles the player's radar; the first toggle darkens it.</summary>
+    public void SetUserRadar(int on)
+    {
+        if (on == UserRadarSetting || World.Player is not { } p) return;
+        UserRadarSetting = on;
+        UserRadarDark = true;
+        RadarTarget[p] = null;
+        RadarCamera.Remove(p);
+    }
+
     /// <summary>radar_range_reset: the range field back to 1, the long (600 m) range.</summary>
     public void ResetRadarRange(Vehicle me) => RadarRange[me] = 1;
 
@@ -314,10 +335,11 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
 
     /// <summary>
     /// A radar is blank (no list, no target) while its owner jams, or any
-    /// live car within 600 m does. The per-arc targets are computed before this and are not touched.
+    /// live car within 600 m does, and the player's once setUserRadar has darkened it. The per-arc targets are computed before this and are not touched.
     /// </summary>
     public bool RadarBlank(Vehicle me)
     {
+        if (UserRadarDark && me == World.Player) return true;
         if (IsJamming(me)) return true;
         foreach (var v in World.Vehicles)
             if (IsJamming(v) && IsContact(me, v)) return true;

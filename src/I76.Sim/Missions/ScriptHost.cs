@@ -297,6 +297,7 @@ public sealed partial class ScriptHost : IFsmHost
         if (e.Vehicle is { } v) v.Flags = on ? v.Flags | VehicleFlags.Lights : v.Flags & ~VehicleFlags.Lights;
     }
     public void SetSiren(object o, bool on) => E(o).Siren = on;
+    public void SetUserRadar(int on) => Combat?.SetUserRadar(on);
     /// <summary>triggerGate (opcode 63): the object's first type-7 node starts sliding.</summary>
     public void TriggerGate(object o)
     {
