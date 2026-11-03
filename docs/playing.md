@@ -123,6 +123,9 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `music_tracks` | `original`, `all`\* | `original` | Mission music plays the disc's tracks 2 to 14 in turn, as the original; `all` goes on into the title and ending tracks (15 to 17) before track 2. |
 | `garage_radio` | `off`, `on`\* | `off` | The 3D garage: the menu track goes on, as in the original's CONFIGURE CHASSIS; `on` plays a boombox on the bench instead, a random mission track after another (I76's 2 to 14, the Nitro Pack's but its menu and credits tracks; never the title or ending). |
 | `melee_ai` | `0`, `1`\*, `2`\*, `3`\* | `0` | Play Options' Melee A.I. (second page) as a number: the opening skill of an Instant Melee's computer cars, Normal (the original's), the Difficulty Level's, Easy, Hard. Single player only. |
+| `effects_size` | `25` to `150` | `100` | The modern look's weapon effects, in percent of their drawn size: the rounds' streaks, the sparks and dust where they strike, muzzle flashes, rocket trails, smoke puffs (damage, wreck, chemical cloud) and the explosion and fireball flipbooks. The 1997 look draws the original's sprites and is not affected. |
+| `effects_brightness` | `25` to `150` | `100` | The same effects' glow, in percent: the streaks, sparks, flashes, the fire in the explosions and under the wreck smoke, and the brief lights at muzzles, impacts and blasts. |
+| `effects_opacity` | `25` to `150` | `100` | The same effects' opacity, in percent: lower lets more of the scene through the dust, smoke and fire. |
 | `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`, `enhanced`\* | `original` | Force Feedback's Pad or Pad Enhanced\*; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |

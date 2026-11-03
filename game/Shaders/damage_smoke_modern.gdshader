@@ -19,6 +19,10 @@ uniform vec3 tint = vec3(1.0);   // the chemical cloud's green (ChemClouds); whi
 // angle (0: a point light), colour times energy and attenuation; the layer's own pass does the same lighting in GLSL
 uniform vec4 lights[48];
 uniform int light_count = 0;
+// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
+global uniform float i76_fx_size;
+global uniform float i76_fx_bright;
+global uniform float i76_fx_alpha;
 varying vec4 v_c;
 varying vec3 v_lit;
 
@@ -46,7 +50,7 @@ uniform sampler2D noise_tex : repeat_enable, filter_linear;
 void vertex() {
 	v_c = INSTANCE_CUSTOM;
 	v_lit = light_count > 0 ? scatter(MODEL_MATRIX[3].xyz, INV_VIEW_MATRIX[3].xyz) : vec3(0.0);
-	float sc = length(MODEL_MATRIX[0].xyz);
+	float sc = length(MODEL_MATRIX[0].xyz) * i76_fx_size;
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0] * sc, INV_VIEW_MATRIX[1] * sc, INV_VIEW_MATRIX[2] * sc, MODEL_MATRIX[3]);
 }
 
@@ -82,7 +86,7 @@ void fragment() {
 	// in the cockpit the puffs by the eye thin out: the engine's smoke comes up over the hood close to the camera and a
 	// 2 to 4 m puff there fills the windscreen (the original's 0.8 m quads showed over the hood and no more)
 	if (i76_cab_half.x > 0.0) a *= smoothstep(1.5, 5.0, -VERTEX.z);
-	a = a_cap * (1.0 - exp(-a / a_cap));
+	a = a_cap * (1.0 - exp(-a * i76_fx_alpha / a_cap));
 	ALBEDO = col * a;
 	ALPHA = a;
 }

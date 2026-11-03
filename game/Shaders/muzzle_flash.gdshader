@@ -18,12 +18,18 @@ uniform vec3 hot : source_color = vec3(1.0, 0.96, 0.82);
 uniform vec3 warm : source_color = vec3(1.0, 0.62, 0.18);
 uniform vec3 ember : source_color = vec3(0.85, 0.22, 0.04);
 
+// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
+global uniform float i76_fx_size;
+global uniform float i76_fx_bright;
+global uniform float i76_fx_alpha;
+
 varying float star;
 
 void vertex() {
 	star = COLOR.r;
 	// the tongue shoots out a little further as it burns
 	if (star < 0.5) VERTEX.z *= mix(0.75, 1.15, sqrt(age));
+	VERTEX *= i76_fx_size;
 }
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -71,5 +77,5 @@ void fragment() {
 	float d = texture(depth_tex, SCREEN_UV).r;
 	vec4 sv = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, i76_ndc_depth(d), 1.0);
 	heat *= clamp((-sv.z / sv.w + VERTEX.z) / 0.25, 0.0, 1.0);
-	ALBEDO = ramp(heat * (0.6 + 0.4 * life)) * heat * energy * life;
+	ALBEDO = ramp(heat * (0.6 + 0.4 * life)) * heat * energy * life * i76_fx_bright * i76_fx_alpha;
 }

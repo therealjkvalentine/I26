@@ -64,6 +64,21 @@ i76_paint_finish={
 "value": 1
 }
 
+i76_fx_size={
+"type": "float",
+"value": 1.0
+}
+
+i76_fx_bright={
+"type": "float",
+"value": 1.0
+}
+
+i76_fx_alpha={
+"type": "float",
+"value": 1.0
+}
+
 i76_mode_1997={
 "type": "bool",
 "value": false

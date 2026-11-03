@@ -19,6 +19,11 @@ uniform float soft_distance = 1.5;
 // the cab clip cuts smoke away inside the player's cab; a blast is not smoke: a hit on the player's own car is seen from the cockpit
 uniform bool clip_cab = true;
 
+// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
+global uniform float i76_fx_size;
+global uniform float i76_fx_bright;
+global uniform float i76_fx_alpha;
+
 instance uniform float frame = 0.0;
 instance uniform float opacity = 1.0;
 instance uniform float spin = 0.0;
@@ -27,7 +32,7 @@ instance uniform vec3 tint : source_color = vec3(1.0);
 void vertex() {
 	float c = cos(spin), s = sin(spin);
 	VERTEX.xy = mat2(vec2(c, s), vec2(-s, c)) * VERTEX.xy;
-	float sc = length(MODEL_MATRIX[0].xyz);
+	float sc = length(MODEL_MATRIX[0].xyz) * i76_fx_size;
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0] * sc, INV_VIEW_MATRIX[1] * sc, INV_VIEW_MATRIX[2] * sc, MODEL_MATRIX[3]);
 }
 
@@ -49,12 +54,12 @@ void fragment() {
 
 	vec3 col = c.rgb * tint;
 	float fire = smoothstep(0.35, 0.85, max(col.r, max(col.g, col.b)));
-	col *= mix(scene_light, 1.0, fire);
+	col *= mix(scene_light, 1.0, fire) * mix(1.0, i76_fx_bright, fire);
 	if (additive) {
-		ALBEDO = col * opacity * soft;
+		ALBEDO = col * opacity * soft * i76_fx_bright * i76_fx_alpha;
 		ALPHA = 0.0;
 	} else {
-		float a = c.a * opacity * soft;
+		float a = min(c.a * opacity * soft * i76_fx_alpha, 1.0);
 		ALBEDO = col * a;
 		ALPHA = a;
 	}
