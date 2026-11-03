@@ -105,3 +105,14 @@ Copy three things: the Godot 4.7.2 mono folder (or `.app`), the built `game/` fo
 `Godot --path game -- --install <that machine's install>`. No install, no user data and no fetched asset leaves the
 repository; the receiving machine supplies its own game copy. An exported release (`tools/release.sh`) is the proper
 distribution; it needs the export templates of exactly 4.7.2.
+
+## Online resources
+
+Links worth keeping for later; none of their files belong in this repository (community uploads, no stated licence,
+and the logo is the game's trademark), so anything taken from them stays in a player's own user folder.
+
+- SteamGridDB, Interstate '76: clean icons and a high-resolution logo (a possible title-screen logo in a player's HD
+  menu-art pack, and app icons for local shortcuts): https://www.steamgriddb.com/game/5247794/icons
+- The Local Ditch fan site (strategy, car design, weapons, multiplayer folklore): https://localditch.com/interstate-76/
+- OpenModelDB (upscaling models; the texture pack uses 4xTextures_GTAV_rgt-s_dither, CC-BY-4.0):
+  https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither
