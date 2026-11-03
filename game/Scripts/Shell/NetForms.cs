@@ -335,6 +335,7 @@ public sealed partial class MeleeScreen
             // the options box's team play and score limit mean nothing in a story mission: the free Bots line has the co-op rules
             Frame.Text(_font, 15, 356, $"Foes: {CoopScaleText}");
             Frame.Text(_font, 80, 356, $"Dmg {CoopDamageText}");
+            Frame.Text(_font, 155, 356, $"Roll: {(Shell.Settings.CoopRollingStart ? "On" : "Off")}");
         }
         else
         {
@@ -413,6 +414,13 @@ public sealed partial class MeleeScreen
     }
 
     private string CoopDamageText => $"x{Shell.Settings.CoopDamage.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}";
+
+    /// <summary>The host form's Co-op Rolling Start (the port's; docs/deviations.md): a respawn or joiner comes in at a moving teammate's speed.</summary>
+    private void ToggleRollingStart()
+    {
+        Shell.Settings.CoopRollingStart = !Shell.Settings.CoopRollingStart;
+        Shell.Settings.Save();
+    }
 
     /// <summary>The host form's Car Reset (the port's): whether the game's players may press the reset-upright key (X) to put their car back on the terrain, upright and still.</summary>
     private void ToggleCarReset()
@@ -589,6 +597,7 @@ public sealed partial class MeleeScreen
         _ignitionWas = Shell.Settings.IgnitionStaysOn;
         _coopScaleWas = Shell.Settings.CoopScale;
         _coopDamageWas = Shell.Settings.CoopDamage;
+        _rollingWas = Shell.Settings.CoopRollingStart;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio);
         int wasRate = _rate;
         var wasCars = new List<string>(_botCars);
@@ -598,6 +607,7 @@ public sealed partial class MeleeScreen
     private bool _turretsWas, _ignitionWas;
     private int _coopScaleWas;
     private float _coopDamageWas;
+    private bool _rollingWas;
 
     private void OptionsPopupWith((bool, int, int, bool, int, I76.Sim.Missions.BotSkill, bool, bool, bool, bool) was, int wasRate, List<string> wasCars)
     {
@@ -621,6 +631,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.CbRadio != was.Item10) ToggleCb();
                     if (Shell.Settings.CoopScale != _coopScaleWas) { Shell.Settings.CoopScale = _coopScaleWas; Shell.Settings.Save(); }
                     if (Shell.Settings.CoopDamage != _coopDamageWas) { Shell.Settings.CoopDamage = _coopDamageWas; Shell.Settings.Save(); }
+                    if (Shell.Settings.CoopRollingStart != _rollingWas) ToggleRollingStart();
                 }
                 Draw();
             },
@@ -669,6 +680,8 @@ public sealed partial class MeleeScreen
                 new("CO-OP DAMAGE:", true, false, CoopDamageText, StepCoopDamage),
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
+                // the port's: a respawn or joiner at a moving teammate's speed (docs/deviations.md)
+                new("ROLLING START", false, Shell.Settings.CoopRollingStart, "", _ => ToggleRollingStart()),
             ];
         var limits = LimitsOf(Types[_kind].Kind);
         var l = limits[_limit];
@@ -760,6 +773,7 @@ public sealed partial class MeleeScreen
             case 37 when Hosting: ToggleCb(); return true;
             case 40 when Hosting: StepCoopScale(1); return true;
             case 41 when Hosting: StepCoopDamage(1); return true;
+            case 42 when Hosting: ToggleRollingStart(); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -805,6 +819,7 @@ public sealed partial class MeleeScreen
                     Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio, IgnitionStaysOn = Shell.Settings.IgnitionStaysOn,
                     Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
                     Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar, CoopScale = Coop ? Shell.Settings.CoopScale : 0, CoopDamage = Coop ? Shell.Settings.CoopDamage : 1f,
+                    CoopRollingStart = Coop && Shell.Settings.CoopRollingStart,
                 },
             });
         }

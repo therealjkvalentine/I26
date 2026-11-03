@@ -162,6 +162,11 @@ public sealed record ServerOptions
     /// times the damage (<see cref="CoopSetup.DamageFactors"/>). 1, the original's, by default; a melee ignores it.
     /// </summary>
     public float CoopDamage { get; init; } = 1f;
+    /// <summary>
+    /// A co-op game's Co-op Rolling Start (the host form's, i26-server's --coop-rolling-start; docs/deviations.md): a respawn or a
+    /// joiner beside a teammate driving along comes in at the teammate's speed and heading. Off by default; a melee ignores it.
+    /// </summary>
+    public bool CoopRollingStart { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
