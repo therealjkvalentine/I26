@@ -98,6 +98,7 @@
 - A flat front tyre no longer tugs at your car's steering while a cut-scene drives it, as in the original.
 - A car killed by a hard landing is dead from that moment, as in the original: the rest of that physics step no longer runs on it and can no longer undo the death it just took.
 - In a network game a helicopter rises from its spawn point at once, as in the original, instead of sitting on the ground until its pilot opens the throttle.
+- Unlim. Ammo, Armor or Chas. Rein. turned on in the shell's Play Options now makes you a cheater as in the original: a win in that mission, and every later one until you pick Turn off Cheater Options, gets "Not too bad for a cheater" instead of the salvage and the next scene. Before, only the in-mission menu marked it, and starting another mission forgot it.
 
 ## 0.11.0 (31 October 2026)
 
