@@ -15,7 +15,7 @@ uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 // DamageSmoke's baked tiling fbm (R, G: two fields; 8 cells to a tile)
 uniform sampler2D noise_tex : repeat_enable, filter_linear;
 uniform float soft_distance = 0.6;
-uniform float reach = 130.0;          // gone at this distance, fading over its last fifth
+uniform float reach = 600.0;          // gone at this distance, fading over its last fifth
 uniform float scene_light = 1.0;      // the mission's light: the soot darker at night, the halo stronger
 
 varying vec2 v_size;

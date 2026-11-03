@@ -17,8 +17,8 @@ public partial class StaticFire : Node3D
     private readonly OmniLight3D _light;
     private readonly float _phase = GD.Randf() * 100f, _k;
 
-    /// <summary>Beyond this the fire is hidden (DamageSmoke); the shader fades it out over the last fifth.</summary>
-    public const float Reach = 130f;
+    /// <summary>Beyond this the fire is hidden (DamageSmoke); the shader fades it out over the last fifth. The original's flame planes are drawn as far as the wreck (<see cref="SmokeWindow.WreckFar"/>).</summary>
+    public const float Reach = SmokeWindow.WreckFar;
 
     public StaticFire(float height, float width)
     {
