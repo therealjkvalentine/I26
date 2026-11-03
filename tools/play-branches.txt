@@ -3,12 +3,12 @@
 
 # A. reported upstream
 fix/wheel-suspension-prime            # #141 spawn bob
-fix/siren-gpw-loop                    # #48 #51 siren loops as its file says
+# dropped 2026-11-03, absorbed by upstream 2ddb2d4 (same GAS0 mode rule, the siren on any car): fix/siren-gpw-loop
 fix/script-camera-cuts                # #140 same-op camera cut
 fix/script-camera-arrived-flag        # camIsArrived cleared on every placing call
 fix/mission-music-wrap                # #128
 fix/smoke-sky-flicker                 # cockpit smoke flicker (owner report)
-fix/macos-entitlements-der            # PR #144 open
+# dropped 2026-11-03, absorbed by upstream 32988ae (PR #144 landed as upstream's own commit): fix/macos-entitlements-der
 fix/macos-mic-opened-on-first-cb      # supersedes fix/macos-mic-prompt-on-first-cb (docs only, not merged)
 fix/middle-wheel-suspension           # #124 six-wheelers
 fix/predicted-shots-of-jammable-weapon  # MP-B1
@@ -16,7 +16,7 @@ fix/own-shots-counter-at-respawn      # MP-B3
 fix/net-ping-low-percentile           # MP-B2
 fix/escape-menu-right-click-reconfigure  # #106
 fix/first-garage-load-prewarm         # #143
-fix/load-card-audio-hiccup            # #142
+# dropped 2026-11-03, absorbed by upstream 01228e7 (#142, the same ProcessMode line): fix/load-card-audio-hiccup
 fix/first-explosion-stutter           # #116
 feat/regen-pad-hold-readout           # #102 (readout only; the rule is the original's)
 fix/editor-tool-column-scroll         # #146 map editor tool column scrolls
@@ -125,7 +125,7 @@ feat/net-handicaps                    # host rule Handicaps, per-player damage l
 feat/net-auto-handicap                # stacked on feat/net-handicaps: Off / Manual / Auto, levels from the standing, +-5 table
 feat/field-of-view-row
 feat/resolution-row
-feat/update-check
+# dropped 2026-11-03, absorbed by upstream 356eddb (#138: the same update_check key, on by default, Play Options p2): feat/update-check
 feat/hood-matte-option
 fix/modern-mg-tracers-look
 feat/render-scale-row
