@@ -138,6 +138,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - A Developer panel for testing, off for players: with `--dev`, `I76_DEV=1` or `developer_tools=true` in the settings file, Ctrl+F2 in a single-player mission (or the escape menu's Developer row) opens it over the paused game. Teleport to the mission's named places or to coordinates, repair and refill the car, God mode, bring the nearest car, store and restore the whole simulation (the restored run goes on tick for tick as the stored one did), freeze, step and slow the ticks, and a status line with the tick, its substeps and the fps (docs/dev-hooks.md).
 - A pad button can be a shift: held, the pad's other buttons and D-pad do a second command each (Controller screen, a button's list: Shift; hold it or press Tab to see and set the second commands). The pad's defaults have LB as the shift, with the hardpoints on the face buttons, specials 1 and 2 on the stick clicks and binoculars, radar range and the gears on the D-pad; the handbrake moves to RB.
 - A printable sheet of your controls: `i76 keysheet [input.map] [out.html]` writes your bindings as one page, a table per group (driving, weapons, targets and radar, views, the rest), with every key, mouse button and pad input of each command.
+- Draw Distance starts at Original in the 1997 look, the original's 600 m view with its horizon panels, and at Far in the modern look, until you choose one in Graphic Detail; a Draw Distance you chose is kept.
 
 ## 0.11.0 (31 October 2026)
 

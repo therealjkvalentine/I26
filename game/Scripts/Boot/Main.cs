@@ -429,7 +429,7 @@ public partial class Main : Node3D
         AddDropShadows();
         MissionBuilder.Trace("drop shadows");
         var loaded = I76.Game.Shell.ShellSettings.Load();
-        _drawDistance = DrawDistanceHook(loaded.DrawDistance);
+        _drawChoice = loaded.DrawDistanceChoice;
         _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
         SetMode1997(_opt.Mode1997);
         MissionBuilder.Trace("look set");
@@ -700,7 +700,7 @@ public partial class Main : Node3D
         I76.Sim.Views.ViewFov.Apply(s.FieldOfView);
         RenderScale.Apply(s);
         _vegetation = s.Vegetation;
-        _drawDistance = DrawDistanceHook(s.DrawDistance);
+        _drawChoice = s.DrawDistanceChoice;
         ApplyDrawDistance();
         ApplyModernQuality();
         ApplySoftware(s);   // MainSoftware.cs
@@ -1977,9 +1977,11 @@ public partial class Main : Node3D
     }
 
     /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>
-    private static int DrawDistanceHook(int setting) => int.TryParse(OS.GetEnvironment("I76_DRAW_DISTANCE"), out int dd) ? I76.Formats.Imaging.DrawDistance.Parse(dd) : setting;
+    private static readonly int? DrawDistanceHook = int.TryParse(OS.GetEnvironment("I76_DRAW_DISTANCE"), out int dd) ? I76.Formats.Imaging.DrawDistance.Parse(dd) : null;
 
-    private int _drawDistance = I76.Formats.Imaging.DrawDistance.Far;
+    /// <summary>The player's Draw Distance, null for the look's default (which follows the look as it flips).</summary>
+    private int? _drawChoice;
+    private int _drawDistance => DrawDistanceHook ?? I76.Formats.Imaging.DrawDistance.Resolve(_drawChoice, _mode1997);
 
     /// <summary>
     /// The modern look's distance fog (sky_fog.gdshader). The original never

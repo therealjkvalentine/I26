@@ -20,6 +20,16 @@ public class DrawDistanceTests
     public void AChosenValueRoundTrips(int setting) => Assert.Equal(setting, DrawDistance.Parse(setting));
 
     [Fact]
+    public void WithNoChoiceTheLookDecides()
+    {
+        Assert.Equal(DrawDistance.Original, DrawDistance.Resolve(null, look1997: true));   // the original's 600 m clip and panels
+        Assert.Equal(DrawDistance.Far, DrawDistance.Resolve(null, look1997: false));
+        // a saved choice stands in either look
+        Assert.Equal(DrawDistance.Far, DrawDistance.Resolve(DrawDistance.Far, look1997: true));
+        Assert.Equal(DrawDistance.Original, DrawDistance.Resolve(DrawDistance.Original, look1997: false));
+    }
+
+    [Fact]
     public void OriginalClipsAtTheEnginesSixHundred()
     {
         Assert.Equal(600f, DrawDistance.CameraFar(DrawDistance.Original));
