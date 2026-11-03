@@ -966,9 +966,28 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             Kind = k, Shooter = shooter, Def = def, Ord = ord, Pos = pos, PrevPos = pos, Rot = rot,
             LocalVel = new Vector3(0, 0, v0), Life = def.Life == 0 ? 5f : def.Life, Count = count, Damage = w.Damage, Target = target,
         };
-        (_cosmetic ? PredictedRounds : Rounds).Add(r);
+        var rounds = _cosmetic ? PredictedRounds : Rounds;
+        rounds.Add(r);
+        Cap(rounds, k);
         // the catch-up step moves the round by the sub-frame time but eases a rocket by the whole frame, as the original does
         if (dtPre != 0) { r.Life -= dtPre; Step(r, dtPre, frameDt); }
+    }
+
+    /// <summary>
+    /// The original pools each ordnance id's live rounds: 160, or 40 in a network game for ids 0xe..0x11 (caltrops,
+    /// mines, Blox, fire drops; oil keeps 160). A spawn that takes the id past its cap removes its oldest round.
+    /// </summary>
+    private void Cap(List<Round> rounds, uint kind)
+    {
+        int cap = NetSession && kind is >= 0xe and <= 0x11 ? 40 : 160;
+        int n = 0, oldest = -1;
+        for (int i = 0; i < rounds.Count; i++)
+        {
+            if (rounds[i].Kind != kind) continue;
+            if (oldest < 0) oldest = i;
+            n++;
+        }
+        if (n > cap) rounds.RemoveAt(oldest);
     }
 
     private static Rows LookAlong(Vector3 d, Rows fallback)

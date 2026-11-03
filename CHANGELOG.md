@@ -52,6 +52,7 @@
 - The rear-view mirror shows 45 degrees across and draws nothing past 100 m, as the original's does, instead of a narrower 30 degree view that reached the far horizon.
 - In the 1997 look the clouds drift twice as fast while the cockpit's rear-view mirror is in full mode, as the original's do, instead of at the same speed with the mirror on and off.
 - Engines now sound at the original's pitch: the loop idles about 7 semitones higher than before and rises more gently with the revs, as the original's does.
+- Mines, caltrops, Blox and fire drops no longer pile up without end in a network game: as in the original, at most 40 of each lie live at once and the oldest goes when another is laid (160 of each kind of round offline, and for oil online too).
 
 ## 0.11.0 (31 October 2026)
 
