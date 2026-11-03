@@ -29,8 +29,8 @@ public class BuildIdTests
 
     [Fact] public void TheNoticesWords()
     {
-        Assert.Equal("*** Michael is on a different build (abc1234; the host def5678) - update to play together",
-            BuildId.JoinNotice("Michael", "abc1234", "def5678"));
+        Assert.Equal("*** Skeeter is on a different build (abc1234; the host def5678) - update to play together",
+            BuildId.JoinNotice("Skeeter", "abc1234", "def5678"));
         Assert.Equal("Host is on a different build (def5678) - update to play together", BuildId.GameNotice("def5678"));
         Assert.Equal("unknown", BuildId.Shown(""));
         Assert.True(BuildId.JoinNotice(new string('M', Protocol.MaxName), "abc1234", "def5678").Length <= Protocol.MaxChat);
@@ -39,12 +39,12 @@ public class BuildIdTests
     [Fact] public void TheJoinRequestAndTheSessionAnswerCarryTheBuild()
     {
         var w = new NetWriter();
-        new JoinRequest(Protocol.Version, "Michael", "vppirna1.vcf", 0, []) { Build = "abc1234" }.Write(w);
+        new JoinRequest(Protocol.Version, "Skeeter", "vppirna1.vcf", 0, []) { Build = "abc1234" }.Write(w);
         var r = new NetReader(w.ToArray());
         Assert.Equal("abc1234", JoinRequest.Read(ref r).Build);
 
         var s = new NetWriter();
-        new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [new SessionDriver("Michael", "vppirna1.vcf", 0)]) { Build = "def5678" }.Write(s);
+        new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [new SessionDriver("Skeeter", "vppirna1.vcf", 0)]) { Build = "def5678" }.Write(s);
         Assert.Equal("def5678", SessionInfo.TryRead(s.ToArray())!.Build);
 
         var a = new NetWriter();
@@ -73,8 +73,8 @@ public class BuildIdTests
         using var a = new MeleeClient();
         a.Connect("127.0.0.1", server.Port, "Alice", "vppirna1.vcf");
         using var m = new MeleeClient { Build = BuildId.Current == "0000001" ? "0000002" : "0000001" };
-        m.Connect("127.0.0.1", server.Port, "Michael", "vppirna1.vcf");
-        bool Told(MeleeClient c) => c.Events.SelectMany(x => x.Events).OfType<ChatEvent>().Any(e => e.From < 0 && e.Text.StartsWith("*** Michael is on a different build ("));
+        m.Connect("127.0.0.1", server.Port, "Skeeter", "vppirna1.vcf");
+        bool Told(MeleeClient c) => c.Events.SelectMany(x => x.Events).OfType<ChatEvent>().Any(e => e.From < 0 && e.Text.StartsWith("*** Skeeter is on a different build ("));
         for (int t = 0; t < 500 && !(Told(a) && Told(m)); t++) { a.Poll(); m.Poll(); Thread.Sleep(10); }
         Assert.Equal(ClientState.Joined, m.State);
         if (BuildId.Current.Length == 0) return;    // a build that cannot tell its own differs from none
