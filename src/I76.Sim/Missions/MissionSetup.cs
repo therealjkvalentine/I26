@@ -488,7 +488,7 @@ public sealed partial class MissionSetup
             var host = ms.Host;
             host.Damage = damage;
             damage.Killed += v => { if (host.Of(v) is { } e) host.Died(e); };
-            if (game is not null) { damage.KilledBy += game.Credit; game.Explode = damage.Destroy; }
+            if (game is not null) { damage.KilledBy += game.Credit; game.Explode = v => damage.Destroy(v); }
             damage.Recorded += (victim, attacker, kind, mask) =>
             {
                 if (host.Of(victim) is not { } ve || host.Of(attacker) is not { } ae) return;

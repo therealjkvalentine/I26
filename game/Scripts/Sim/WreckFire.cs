@@ -27,6 +27,10 @@ public partial class WreckFire : Node3D
     public required CarNode Car { get; init; }
     /// <summary>The mission's light for the smoke: 1 by day, lower at night (as ModernFx's).</summary>
     public float SceneLight { get; init; } = 1f;
+    /// <summary>The death's look (DeathVariety): where along the body the fire burns (−1 rear … 1 front), its size, and the seconds before it catches (a driver's death: smoke first, the body charring as it takes).</summary>
+    public float At { get; init; }
+    public float Size { get; init; } = 1f;
+    public float Delay { get; init; }
 
     // the burn-down, in seconds since the death
     public const float FlamesFull = 10, FlamesOut = 40, HeatOut = 75, SmokeThin = 45, SmokeGone = 240;
@@ -69,11 +73,14 @@ public partial class WreckFire : Node3D
         _centre = b.GetCenter();
         _width = Mathf.Clamp(b.Size.X, 1f, 4f);
         _length = Mathf.Clamp(b.Size.Z, 2f, 12f);
-        var box = new Vector3(_width * 0.32f, 0.12f, _length * 0.32f);
+        // the car's forward is game +z, Godot −z in the car's frame (Coords.ToGodot)
+        _centre.Z -= At * b.Size.Z * 0.35f;
+        _age = -Delay;
+        var box = new Vector3(_width * 0.32f * Mathf.Min(Size, 1.15f), 0.12f, _length * (At == 0 ? 0.32f : 0.16f));
         float topY = b.Size.Y * 0.15f;
-        _flames = Emitter(Shared.FlameProc, Shared.FlameMesh, 30, 0.85, box, topY);
+        _flames = Emitter(Shared.FlameProc, Shared.FlameMesh, (int)(30 * Size), 0.85, box, topY);
         _smoke = Emitter(Shared.SmokeProc, Shared.SmokeMesh, 36, 8.0, box * 0.8f, topY + 0.5f);
-        _embers = Emitter(Shared.EmberProc, Shared.EmberMesh, 14, 1.8, box, topY + 0.2f);
+        _embers = Emitter(Shared.EmberProc, Shared.EmberMesh, (int)(14 * Size), 1.8, box, topY + 0.2f);
         _smoke.SetInstanceShaderParameter("scene_light", SceneLight);
         _light = new OmniLight3D
         {
@@ -124,9 +131,12 @@ public partial class WreckFire : Node3D
     {
         bool modern = !IsInstanceValid(Car) || Car.Modern;
         bool carGone = _gone >= 0;
-        float flames = carGone ? 0 : Flames(_age), heat = carGone ? 0 : HeldHeat ?? Heat(_age), smoke = carGone ? 0 : Smoke(_age);
+        // a delayed fire: smoke for the second half of the wait, then flames, heat and char taking over three seconds
+        float kindle = _age < 0 ? 0 : Delay > 0 ? Mathf.Clamp((float)_age / 3f, 0, 1) : 1;
+        float flames = carGone ? 0 : Flames(System.Math.Max(_age, 0)) * kindle, heat = carGone ? 0 : (HeldHeat ?? Heat(System.Math.Max(_age, 0))) * kindle;
+        float smoke = carGone ? 0 : _age < 0 ? (_age > -Delay * 0.5 ? 0.3f : 0) : Smoke(_age);
         if (_detached) return;
-        if (!carGone) Car.SetBurn(1f, heat);
+        if (!carGone) Car.SetBurn(kindle, heat);
         if (modern != _wasModern)
         {
             _wasModern = modern;
@@ -147,7 +157,7 @@ public partial class WreckFire : Node3D
         // a fire's flicker: three unrelated sines, never quite repeating; dimmer, steadier embers after the flames
         float t = (float)_age * 1f + _phase;
         float flick = 0.72f + 0.12f * Mathf.Sin(t * 13.1f) + 0.09f * Mathf.Sin(t * 7.3f + 1.3f) + 0.07f * Mathf.Sin(t * 23.7f + 4.1f);
-        _light.LightEnergy = flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f));
+        _light.LightEnergy = (flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f))) * Size;
         _light.OmniRange = 6f + 5f * flames;
         _light.Visible = modern && _light.LightEnergy > 0.02f;
         // the smoke in the air has drifted off: done

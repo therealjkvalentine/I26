@@ -11,7 +11,19 @@ namespace I76.Sim.Damage;
 public enum DamageKind { Collision, Round, Explosion, Flame, Terrain }
 
 public abstract record DamageEvent;
-public sealed record VehicleKilled(Vehicle Vehicle, bool DriverKilled) : DamageEvent;
+/// <summary>
+/// A vehicle died. <paramref name="Cause"/> is what killed it and <paramref name="Seed"/> a number drawn for the death from
+/// the sim's state without touching its rand() (<see cref="DamageModel.DeathSeed"/>): the modern look's death varies by
+/// both, the same on every machine. The original's death is the same whatever the cause.
+/// </summary>
+public sealed record VehicleKilled(Vehicle Vehicle, bool DriverKilled, DeathCause Cause = DeathCause.Destroyed, ushort Seed = 0) : DamageEvent;
+
+/// <summary>
+/// What killed a car: the component whose kill roll ended it (the wheels, engine, suspension, brakes, a weapon, a special),
+/// the driver (the .45, Nitro's chemical cloud), the 35 m fall, a rollover, the self-destruct key, or anything else that
+/// destroys it outright (a script, a departing network player).
+/// </summary>
+public enum DeathCause : byte { Destroyed, Wheel, Engine, Suspension, Brakes, Weapon, Special, Driver, Fall, Rollover, SelfDestruct }
 public sealed record VehicleWrecked(Vehicle Vehicle) : DamageEvent;
 public sealed record TyreBlown(Vehicle Vehicle, int Slot) : DamageEvent;
 public sealed record PartFlung(Vehicle Vehicle, int Slot, Vector3 Velocity) : DamageEvent;
@@ -156,7 +168,9 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     private void Record(Vehicle victim, Vehicle attacker, DamageKind kind, int mask) => Recorded?.Invoke(victim, attacker, kind, mask);
 
     /// <summary>The vehicle damage slot (class slot [10]). pkt null: straight to the death check (the vehicle death routine's call).</summary>
-    public void VehicleSlot(Vehicle v, DamagePacket? p, Vector3 hitLocal)
+    public void VehicleSlot(Vehicle v, DamagePacket? p, Vector3 hitLocal) => VehicleSlot(v, p, hitLocal, DeathCause.Destroyed);
+
+    private void VehicleSlot(Vehicle v, DamagePacket? p, Vector3 hitLocal, DeathCause cause)
     {
         if (p is not null && IncomingFactor(v) * HandicapTaken(v, p) is var f && f != 1f) p = Scaled(p, f, v.Health?.CoopCarry);
         if (p is not null) Damaging?.Invoke(v, p);
@@ -172,9 +186,10 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
             if ((p.Flags & 1) != 0 && d.HealthPercent() > 33f) { p.Mask = 1; p.Ch[0] = p.Attacker is Vehicle ha && ha != v && (ha.Handicap | v.Handicap) != 0 ? (int)(5 * Missions.Handicaps.Factor(ha.Handicap) * Missions.Handicaps.Taken(v.Handicap)) : 5; }
             int rem = (p.Flags & 0x10) == 0 ? ArmourStep(d, zone, p) : VehicleDamage.Remaining(p);
             bool killed = false, driver = false;
+            int picked = -1;
             while (rem != 0 && !killed)
             {
-                rem = d.ComponentLoop(sub, p, true, d.HealthPercent(), Rand, out int picked, out killed, out driver, Combat.NitroRules);
+                rem = d.ComponentLoop(sub, p, true, d.HealthPercent(), Rand, out picked, out killed, out driver, Combat.NitroRules);
                 if (picked is >= 0 and < 6 && d.Slots[picked] is WheelPart wp)
                 {
                     float r = wp.Max == 0 ? 0 : (float)wp.Hp / wp.Max;
@@ -182,22 +197,47 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
                 }
             }
             if (killed) v.Flags |= driver ? (VehicleFlags)0x4020 : VehicleFlags.Dead;
+            if (killed) cause = driver ? DeathCause.Driver : CauseOf(picked);
             if (!deadAtEntry) Events.Add(new ZoneDamaged(v, zone, d.ZoneLevel(zone)));
             if (!deadAtEntry && IsDead(v)) KilledBy?.Invoke(v, p.Attacker);
         }
         if (!IsDead(v) || deadAtEntry && p is not null) return;
-        if (((uint)v.Flags & 0x4000) == 0) Die(v, true);
+        if (((uint)v.Flags & 0x4000) == 0) Die(v, true, cause);
         else
         {
             v.Timer = 10f;
             v.Flags |= (VehicleFlags)0x80008000;
-            Events.Add(new VehicleKilled(v, true));
+            Events.Add(new VehicleKilled(v, true, DeathCause.Driver, DeathSeed(v)));
             Killed?.Invoke(v);
             Salvageable?.Invoke(v);
         }
     }
 
     // ---- death ----
+
+    /// <summary>The cause of a kill roll on damage slot <paramref name="slot"/>.</summary>
+    public static DeathCause CauseOf(int slot) => slot switch
+    {
+        >= 0 and < 6 => DeathCause.Wheel,
+        6 => DeathCause.Driver,
+        7 => DeathCause.Engine,
+        8 => DeathCause.Suspension,
+        9 => DeathCause.Brakes,
+        >= 10 and < 17 => DeathCause.Weapon,
+        >= 17 and < 20 => DeathCause.Special,
+        _ => DeathCause.Destroyed,
+    };
+
+    /// <summary>
+    /// A number for a death, from the rand() state and the car's place in the world, mixed: the sim's own, so a replay and every
+    /// machine of a network game get the same one, and drawn without calling rand(), whose order is the original's.
+    /// </summary>
+    public ushort DeathSeed(Vehicle v)
+    {
+        uint x = Rand.Seed ^ (uint)(World.Vehicles.IndexOf(v) + 1) * 0x9e3779b9u;
+        x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+        return (ushort)x;
+    }
 
     private static readonly Vector3[] KickTable =
     [
@@ -212,7 +252,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// splash lands at once), the kick, every tyre blown and, for an AI car,
     /// the component wipe; then, every call, one effect roll.
     /// </summary>
-    public void Die(Vehicle v, bool init)
+    public void Die(Vehicle v, bool init, DeathCause cause = DeathCause.Destroyed)
     {
         var pos = v.Pos.ToVector3();
         var d = v.Health;
@@ -223,7 +263,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
             v.Flags &= ~(VehicleFlags)0x40;
             v.Throttle = 0; v.Steer = 0;
             World.Ai.Remove(v);
-            Events.Add(new VehicleKilled(v, false));
+            Events.Add(new VehicleKilled(v, false, cause, DeathSeed(v)));
             Killed?.Invoke(v);
             Combat.Explode("x1_carx1", pos, v);
             float a = (U() - -1f) * 2f, b = U() - -1f;
@@ -299,14 +339,14 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         }
     }
 
-    /// <summary>The FSM's destroy, the 35 m fall, the rollover. A helicopter: the helicopter's kill.</summary>
-    public void Destroy(Vehicle v)
+    /// <summary>The FSM's destroy, the 35 m fall, the rollover, the self-destruct key. A helicopter: the helicopter's kill.</summary>
+    public void Destroy(Vehicle v, DeathCause cause = DeathCause.Destroyed)
     {
         if (((uint)v.Flags & 0x8020) != 0) return;
         if (v.IsHeli) { ShootDown(v); if (IsDead(v)) KilledBy?.Invoke(v, null); return; }
         if (v.IsEmplacement) return;   // handles types 1 and 9 only: destroy does nothing to a gun
         v.Flags |= VehicleFlags.Dead;
-        VehicleSlot(v, null, Vector3.Zero);
+        VehicleSlot(v, null, Vector3.Zero, cause);
         // a destruction with no killer: the network game books it ("*** %s has been killed", −500)
         KilledBy?.Invoke(v, null);
     }
@@ -546,7 +586,9 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public void Landing(Vehicle v, Vector3 impactVel, Vector3 n) =>
         VehicleSlot(v, Impact(null, v.P.Mass, KOther, n, impactVel), new Vector3(0, -0.2f, 0));
 
-    public void FallKill(Vehicle v) => Destroy(v);
+    public void FallKill(Vehicle v) => Destroy(v, DeathCause.Fall);
+
+    public void RollKill(Vehicle v) => Destroy(v, DeathCause.Rollover);
 
     /// <summary>The surface's damage per second, carried fractionally, one rand() per call for the zone.</summary>
     public void Rough(Vehicle v, int surface, float dt)

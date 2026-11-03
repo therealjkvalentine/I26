@@ -38,7 +38,7 @@ public abstract record NetEvent
             EventKind.Explosion => new ExplosionEvent(r.Name(), r.Vec()),
             EventKind.Click => new ClickEvent((int)r.VarU(), r.Name()),
             EventKind.ZoneDamaged => new ZoneEvent((int)r.VarU(), r.U8(), r.U8()),
-            EventKind.Killed => new KilledEvent((int)r.VarU(), r.Bool()),
+            EventKind.Killed => new KilledEvent((int)r.VarU(), r.Bool(), r.U8(), r.U16()),
             EventKind.Wrecked => new WreckedEvent((int)r.VarU()),
             EventKind.TyreBlown => new TyreEvent((int)r.VarU(), r.U8()),
             EventKind.PartFlung => new FlungEvent((int)r.VarU(), r.U8(), r.HalfVec()),
@@ -103,10 +103,11 @@ public sealed record ZoneEvent(int Car, byte Zone, byte Level) : NetEvent
     protected override void Body(NetWriter w) { w.VarU((uint)Car); w.U8(Zone); w.U8(Level); }
 }
 
-public sealed record KilledEvent(int Car, bool DriverKilled) : NetEvent
+/// <summary>A car died: <see cref="I76.Sim.Damage.VehicleKilled"/>'s cause and seed travel with it, so every machine draws the same death.</summary>
+public sealed record KilledEvent(int Car, bool DriverKilled, byte Cause = 0, ushort Seed = 0) : NetEvent
 {
     public override EventKind Kind => EventKind.Killed;
-    protected override void Body(NetWriter w) { w.VarU((uint)Car); w.Bool(DriverKilled); }
+    protected override void Body(NetWriter w) { w.VarU((uint)Car); w.Bool(DriverKilled); w.U8(Cause); w.U16(Seed); }
 }
 
 public sealed record WreckedEvent(int Car) : NetEvent

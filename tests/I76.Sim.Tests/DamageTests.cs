@@ -194,6 +194,7 @@ public class DamageTests(Xunit.Abstractions.ITestOutputHelper log)
         Assert.Equal(0x4020u, (uint)target.Flags & 0x4020u);
         var k = Assert.Single(damage.Events.OfType<VehicleKilled>());
         Assert.True(k.DriverKilled);
+        Assert.Equal(DeathCause.Driver, k.Cause);
         Assert.DoesNotContain(combat.Events, e => e is Explosion x && x.Effect.File.StartsWith("x1_car", StringComparison.OrdinalIgnoreCase));   // no car blast
         Assert.StartsWith("vhorn", VehicleFactory.HornSound(vfs, target.EngineNumber));
     }

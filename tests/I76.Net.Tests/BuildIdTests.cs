@@ -60,7 +60,7 @@ public class BuildIdTests
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, []).Write(s);
         var bytes = s.ToArray();
         Assert.Equal("", SessionInfo.TryRead(bytes[..^1])!.Build);     // the empty string's length byte gone: a protocol 25 answer
-        Assert.Equal(26, Protocol.Version);
+        Assert.Equal(27, Protocol.Version);
     }
 
     /// <summary>A joiner on another build is let in, and every player hears it once.</summary>

@@ -35,6 +35,8 @@ public partial class CombatView : Node3D
     private readonly Dictionary<I76.Formats.Bwd2.GizmoDef, Mesh?> _ordnance = [];
     private readonly List<MeshInstance3D> _models = [];
     private ModernFx _fx = null!;
+    /// <summary>The modern look's effects, for the views that add their own (DamageView's deaths).</summary>
+    public ModernFx? Fx => _fx;
     private Contrails _contrails = null!;
     private readonly List<MeshInstance3D> _streaks = [];
     private RocketSmoke _smoke = null!;

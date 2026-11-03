@@ -314,6 +314,7 @@ public partial class CarNode : Node3D
         Wrecked = on;
         _rearLevel = -1;
         if (on) return;
+        WreckPose = Transform3D.Identity;
         _flung.Clear();
         Apply();
         SetBurn(0, 0);
@@ -333,6 +334,9 @@ public partial class CarNode : Node3D
     }
 
     private Vector2 _burn;
+
+    /// <summary>The modern look's burnt body set down on the car (DeathVariety's sag: dropped and tilted); the identity until then.</summary>
+    public Transform3D WreckPose { get; set; } = Transform3D.Identity;
 
     /// <summary>
     /// The car's custom paint (a respray, object.gdshaderinc's <c>paint_a</c> and <c>paint_b</c>): per car, on its own meshes, so cars of one
@@ -989,7 +993,7 @@ public partial class CarNode : Node3D
         bool braking = rearOk && I76.Formats.Assembly.LampSupport.BrakeLit(Sim.Throttle, _brakeSeenMs != 0 ? nowMs - _brakeSeenMs : null, OriginalBehavior.BrakeHold(!Modern));
         // the modern look's upturned wreck lies on the ground, not on the sim's taller roof (the 1997 look keeps the original's)
         if (_body is not null)
-            _body.Position = Wrecked && Modern ? new Vector3(0, _wreckGap * Mathf.Max(0, -rows.Up.Y), 0) : Vector3.Zero;
+            _body.Transform = Wrecked && Modern ? WreckPose.TranslatedLocal(new Vector3(0, _wreckGap * Mathf.Max(0, -rows.Up.Y), 0)) : Transform3D.Identity;
         bool shown = (_body?.Visible ?? true) && !Wrecked;
         bool lit = (Sim.Flags & VehicleFlags.Lights) != 0 && frontOk;
         // The brake lamp's lit faces (BLGT) show while braking; the tail lamp (TLGT) is the headlamps' child

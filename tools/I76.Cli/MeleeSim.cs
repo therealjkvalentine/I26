@@ -1,6 +1,7 @@
 using System.Globalization;
 using I76.Formats.Vfs;
 using I76.Server;
+using I76.Sim.Damage;
 using I76.Sim.Missions;
 using I76.Sim.Vehicles;
 using I76.Sim.Weapons;
@@ -20,6 +21,9 @@ namespace I76.Cli;
 /// </summary>
 public static class MeleeSim
 {
+    /// <summary>Deaths over every game, by cause and the wheels thrown.</summary>
+    private static readonly Dictionary<(DeathCause Cause, int Wheels), int> DeathTally = [];
+
     private sealed record Result(string Mode, int Seed, string[] Names, int[] Tiers, float[] Strengths, int[] Kills, int[] Deaths, int[] Levels, int Changes, int Events);
 
     public static int Run(GameInstall install, List<string> argv)
@@ -56,6 +60,17 @@ public static class MeleeSim
             Console.WriteLine($"| {mode} | mean | " + string.Join(" | ", Enumerable.Range(0, tiers.Length).Select(k => $"{rs.Average(r => r.Kills[k]):0.0}"))
                 + $" | {rs.Average(r => Spread(r)):0.0} | {rs.Average(r => Sd(r)):0.00} | {rs.Average(r => Sorted(r)[0]):0.0} | {rs.Average(r => Sorted(r)[1]):0.0} | {rs.Average(Median):0.0} | {rs.Average(r => r.Kills.Min()):0.0} | {rs.Average(Margin):0.0} | {rs.Average(r => StrongRank(r)):0.0} | {rs.Count(StrongFirst)}/{rs.Count} | {rs.Average(r => r.Changes):0.0} |");
         }
+        int all = DeathTally.Values.Sum();
+        Console.WriteLine();
+        Console.WriteLine($"deaths: {all}");
+        Console.WriteLine("| cause | deaths | share | wheels thrown 0 / 1 / 2 / 3+ |");
+        Console.WriteLine("|---|---|---|---|");
+        foreach (var g in DeathTally.GroupBy(kv => kv.Key.Cause).OrderByDescending(g => g.Sum(kv => kv.Value)))
+        {
+            int n = g.Sum(kv => kv.Value);
+            int W(int w) => g.Where(kv => w < 3 ? kv.Key.Wheels == w : kv.Key.Wheels >= 3).Sum(kv => kv.Value);
+            Console.WriteLine($"| {g.Key} | {n} | {100.0 * n / Math.Max(1, all):0.0} % | {W(0)} / {W(1)} / {W(2)} / {W(3)} |");
+        }
         return 0;
     }
 
@@ -83,8 +98,26 @@ public static class MeleeSim
         int changes = 0, events = 0;
         host.Game.HandicapChanged += _ => changes++;
         host.Setup.Damage.KilledBy += (_, _) => events++;
+        // each death's cause, and how many wheels the dying car threw (the most detached at once while its timer ran)
+        var dying = new Dictionary<Vehicle, (DeathCause Cause, int Wheels)>();
+        void Close(Vehicle v) { if (dying.Remove(v, out var d)) lock (DeathTally) DeathTally[(d.Cause, d.Wheels)] = DeathTally.GetValueOrDefault((d.Cause, d.Wheels)) + 1; }
+        host.Setup.Damage.Killed += v =>
+        {
+            Close(v);
+            if (host.Setup.Damage.Events.LastOrDefault(e => e is VehicleKilled k && k.Vehicle == v) is VehicleKilled k) dying[v] = (k.Cause, 0);
+        };
         int ticks = (int)(minutes * 60 / host.Session.TickSeconds);
-        for (int t = 0; t < ticks && !host.Over; t++) host.Step();
+        for (int t = 0; t < ticks && !host.Over; t++)
+        {
+            host.Step();
+            foreach (var v in dying.Keys.ToList())
+            {
+                if (((uint)v.Flags & 0x8000) == 0) { Close(v); continue; }
+                int n = v.Health is { } h ? Enumerable.Range(0, 6).Count(i => h.Slots[i] is { Detached: true }) : 0;
+                if (n > dying[v].Wheels) dying[v] = dying[v] with { Wheels = n };
+            }
+        }
+        foreach (var v in dying.Keys.ToList()) Close(v);
         return new Result(mode.ToString(), seed, [.. bots.Select(b => b.Name)], tiers, [.. Enumerable.Range(0, bots.Count).Select(k => k < strengths.Length ? strengths[k] : 1f)], [.. bots.Select(b => b.Player.Kills)], [.. bots.Select(b => b.Player.Deaths)],
             [.. bots.Select(b => b.Player.Car.Handicap)], changes, events);
     }

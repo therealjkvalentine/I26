@@ -12,10 +12,10 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs26()
+    public void TheProtocolIs27()
     {
-        Assert.Equal(26, Protocol.Version);
-        Assert.Equal(24, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        Assert.Equal(27, Protocol.Version);
+        Assert.Equal(25, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
     /// <summary>The host's ignition lock (protocol 22): the join accept's last byte and the listing's; an older listing without it reads as off.</summary>
@@ -221,7 +221,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(26, Protocol.Version);
+        Assert.Equal(27, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -262,7 +262,7 @@ public class WireTests
         NetEvent[] evs =
         [
             new ShotEvent(4, 1, new(1, 2, 3), Vector3.UnitZ), new ImpactEvent("xbulc1.xdf", "wmgr1.wav", new(5, 6, 7), 1, 6, new(1, 1, 1), Vector3.UnitY, -Vector3.UnitZ),
-            new ExplosionEvent("xcarx1.xdf", new(9, 9, 9)), new ZoneEvent(4, 3, 2), new KilledEvent(4, true), new SpawnEvent(new CarInfo(9, "a.vcf", -1, 0, "x")),
+            new ExplosionEvent("xcarx1.xdf", new(9, 9, 9)), new ZoneEvent(4, 3, 2), new KilledEvent(4, true, 9, 0xbeef), new SpawnEvent(new CarInfo(9, "a.vcf", -1, 0, "x")),
             new RemoveEvent(9), new ScoreEvent(1, 1500, 2, 1), new KillEvent(4, 5, 1066), new RenewedEvent(4, true), new ChatEvent(-1, "hello"),
             new GameOverEvent([(1, 5000), (0, 200)], 15), new MisfireEvent(4, 2), new SoundEvent(4, "vland.wav"), new StructureEvent(77, [0x0b], [-1, 2]), new SignEvent(78, Vector3.One),
         ];

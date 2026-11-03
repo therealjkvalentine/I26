@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Network games use protocol 26: this version does not play with 0.11.0 or earlier.
+Network games use protocol 27: this version does not play with 0.11.0 or earlier.
 
 ### New
 - Graphic Detail no longer scrolls: the sheet keeps the original's six rows and, under them, four entries, Display, World, Car & Cockpit and Effects, each a page of the port's own rows on the same sheet with a Back (Esc goes back too); Done and Cancel on any page save or put back everything, and Reset puts back the page's own rows (the sheet's: the original's). The Esc menu's Graphic Detail has the same four pages as pads of their own, each with its own Done, Cancel and Reset. Display: Resolution, VSync, Max FPS, Render Scale, Renderer, Log. World: Vegetation, Map Edge. Car & Cockpit: Field of View, Hood Finish, Car Interiors, Mouse Camera, Mouse In Window, Camera Return, View Zoom Reset, 3D Garage. Effects: 1997 Mode, Palette Grade, Crash Blur.
@@ -11,6 +11,7 @@ Network games use protocol 26: this version does not play with 0.11.0 or earlier
 - The bass shaker's road rumble follows the car's own speed, so it no longer fades with the engine off, is lighter on paved roads than on dirt, and grows with the load on the springs, so a hard turn, a stop and the bumps are felt.
 - The movies' sound no longer comes out brighter than the game's: their top octave, which the game's 11 kHz sounds do not have, is turned down up to 6 dB, and the effects get a dB more bass and a dB less presence; shell.cfg's `[port]` `movie_eq` and `game_eq` (two shelves as `hz:db` points, or `off` for the sound as recorded) set or undo either.
 - In the modern look cut-out textures have smooth edges instead of the pixel staircase: road signs, fences, gates, plants and the cockpit's keyed art (the rear-view mirror and the compass too) are traced as straight lines and even curves with their corners kept; the 1997 look keeps the original's pixels.
+- In the modern look a car dies differently by what killed it: a dead engine blows a fireball out of the hood, a weapon's ammunition cooks off, a killed driver's car catches fire a few seconds later, a fall throws up dust, and so on; usually one of the wheels it throws flies burning, sometimes none or two or more, the same on every machine of a network game (`[port] death_variety=off` for one death for all, as the original's).
 - A Show FPS switch (shell.cfg `[port]` `dev_fps`, also in the Developer panel's Settings) puts the frame rate over the game in the top left corner (`FPS 64`, the average over the last second).
 - The network forms show which build each game is on: the host form shows your own build id, the server list the host's, and when a game, or a player joining yours, is on a different build, a one-line notice says so to everyone ("Skeeter is on a different build (abc1234; the host def5678) - update to play together"); the join still goes ahead when the network protocol matches.
 - A new file in the user folder, build-rules.cfg, picks between the original's builds where they play differently: `turret_slew` and `ai_tactics` follow the 1998 build GOG sells by default, and `1997` gives the March 1997 CD release's slower turrets and its AI that always fights as a gunner from off road; each key's comment says what each build does and how that was measured.

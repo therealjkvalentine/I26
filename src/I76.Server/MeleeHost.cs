@@ -836,7 +836,7 @@ public sealed partial class MeleeHost : IModeHost
             switch (e)
             {
                 case ZoneDamaged z: _pending.Add(new ZoneEvent(Id(z.Vehicle), (byte)z.Zone, (byte)z.Level)); break;
-                case VehicleKilled k: _pending.Add(new KilledEvent(Id(k.Vehicle), k.DriverKilled)); break;
+                case VehicleKilled k: _pending.Add(new KilledEvent(Id(k.Vehicle), k.DriverKilled, (byte)k.Cause, k.Seed)); break;
                 case VehicleWrecked w: _pending.Add(new WreckedEvent(Id(w.Vehicle))); break;
                 case TyreBlown t: _pending.Add(new TyreEvent(Id(t.Vehicle), (byte)t.Slot)); break;
                 case PartFlung f: _pending.Add(new FlungEvent(Id(f.Vehicle), (byte)f.Slot, f.Velocity)); break;

@@ -24,7 +24,13 @@ public partial class DamageView : Node3D
     public I76.Sim.Terrain.IGround? Ground { get; init; }
     /// <summary>How far the frame is between sim ticks (SimDriver.Alpha), for the 1997 damage smoke; unset: at the last tick.</summary>
     public Func<float>? Alpha { get; init; }
+    /// <summary>The modern look's effects (CombatView's), for the deaths' own blasts (DeathVariety).</summary>
+    public Func<ModernFx?>? Fx { get; init; }
     private readonly List<(RigidBody3D Body, double Until)> _debris = [];
+    /// <summary>Each dying car's plan (DeathVariety) and how many wheels it has thrown so far, until it is renewed.</summary>
+    private readonly Dictionary<CarNode, (DeathVariety.Plan Plan, int Thrown)> _deaths = [];
+    /// <summary>The deaths' blasts still to go off: when, on which car.</summary>
+    private readonly List<(double At, CarNode Car, I76.Sim.Vehicles.Vehicle Vehicle, DeathVariety.Blast Blast)> _blasts = [];
     /// <summary>The modern look's fire on each burning wreck (WreckFire), until it has burnt out or the car is renewed.</summary>
     private readonly Dictionary<CarNode, WreckFire> _fires = [];
 
@@ -32,15 +38,92 @@ public partial class DamageView : Node3D
     private float SceneLight => Mathf.Clamp(Builder.Light.Intensity * 1.5f, 0.25f, 1f);
 
     /// <summary>A wreck starts burning (the modern look; hidden in 1997's): flames, smoke, the charred body's glow.</summary>
-    private void Burn(CarNode car)
+    private void Burn(CarNode car, DeathVariety.Plan? plan = null)
     {
         if (_fires.Remove(car, out var old)) { old.Detach(); old.QueueFree(); }
         if (!WreckFire.Enabled) return;
-        var f = new WreckFire { Car = car, SceneLight = SceneLight, Name = $"Fire_{car.Name}" };
+        var f = new WreckFire { Car = car, SceneLight = SceneLight, Name = $"Fire_{car.Name}", At = plan?.FireAt ?? 0, Size = plan?.FireSize ?? 1, Delay = plan?.FireDelay ?? 0 };
         AddChild(f);
         _fires[car] = f;
         GD.Print($"wreck fire: {car.Name} burning");
     }
+    /// <summary>A death's plan set going: the body's sag, the panels thrown, its blasts queued.</summary>
+    private void Stage(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
+    {
+        if (plan.Sag != 0 || plan.Pitch != 0 || plan.Roll != 0)
+            car.WreckPose = new Transform3D(Basis.FromEuler(new Vector3(plan.Pitch, 0, plan.Roll)), new Vector3(0, -plan.Sag, 0));
+        var half = car.BodyBounds.Size * 0.5f;
+        for (int i = 0; i < plan.Panels; i++)
+        {
+            // a panel off the body (the hood, a door, a boot lid): flat, charred, thrown up and out, spinning
+            float side = i % 2 == 0 ? 1 : -1;
+            var local = new System.Numerics.Vector3(side * half.X * 0.3f * i, half.Y * 1.6f, plan.PanelAt * half.Z);
+            var vel = v.Rot.ToWorld(new System.Numerics.Vector3(side * (1.5f + i * 1.5f), 9f + i * 1.5f, plan.PanelAt * 3f)) + v.Vel * 0.5f;
+            var body = new RigidBody3D { Position = G(v.Pos.ToVector3() + v.Rot.ToWorld(local)), LinearVelocity = Coords.ToGodot(vel), AngularVelocity = new Vector3(6 * side, 2, 4) };
+            body.AddChild(new MeshInstance3D { Mesh = _panel, MaterialOverride = _chunkMat });
+            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = _panel.Size } });
+            AddChild(body);
+            _debris.Add((body, _t + 8));
+        }
+        foreach (var b in plan.Blasts)
+            if (b.Delay <= 0) Go(car, v, b);
+            else _blasts.Add((_t + b.Delay, car, v, b));
+    }
+
+    /// <summary>One of a death's blasts, where it is on the car now.</summary>
+    private void Go(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Blast b)
+    {
+        if (Fx?.Invoke() is not { HasExplosions: true } fx) return;
+        var half = car.BodyBounds.Size * 0.5f;
+        var at = G(v.Pos.ToVector3() + v.Rot.ToWorld(new System.Numerics.Vector3(b.X * half.X, b.Y * half.Y * 2, b.Z * half.Z)));
+        switch (b.Kind)
+        {
+            case DeathVariety.BlastKind.Dust:
+                // the landing: dust thrown out low all round
+                fx.Explode(at, b.Size, 2.4, new Color(0.5f, 0.43f, 0.33f), 0.2f);
+                for (int i = 0; i < 8; i++)
+                {
+                    float a = i * Mathf.Tau / 8;
+                    fx.Strike(at + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * b.Size * 0.4f, new Vector3(Mathf.Cos(a), 0.4f, Mathf.Sin(a)), true, true);
+                }
+                break;
+            case DeathVariety.BlastKind.Pop:
+                fx.Explode(at, b.Size, 0.7, new Color(0.3f, 0.29f, 0.28f), 1f);
+                fx.Strike(at, Vector3.Up, false, true);
+                break;
+            default:
+                fx.Explode(at, b.Size, 1.6 + b.Size * 0.2, new Color(0.16f, 0.15f, 0.14f), 1f);
+                break;
+        }
+    }
+
+    /// <summary>A thrown wheel on fire: flames and embers trailing off it as it flies and rolls.</summary>
+    private void WheelFire(RigidBody3D wheel)
+    {
+        WreckFire.Shared.Init();
+        GpuParticles3D Emit(ParticleProcessMaterial proc, Mesh mesh, int amount, double life, float box)
+        {
+            var p = new GpuParticles3D
+            {
+                ProcessMaterial = (ParticleProcessMaterial)proc.Duplicate(), DrawPass1 = mesh, Amount = amount, Lifetime = life, LocalCoords = true,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, VisibilityAabb = new Aabb(new Vector3(-6, -3, -6), new Vector3(12, 12, 12)), Emitting = true,
+            };
+            ((ParticleProcessMaterial)p.ProcessMaterial).EmissionBoxExtents = new Vector3(box, box, box);
+            p.SetInstanceShaderParameter("level", 0.8f);
+            return p;
+        }
+        // on a holder that follows the wheel without turning with it: the flames rise off it whichever way it tumbles, and go with it
+        var holder = new Node3D { Name = "WheelFire", TopLevel = true };
+        holder.AddChild(Emit(WreckFire.Shared.FlameProc, WreckFire.Shared.FlameMesh, 10, 0.5, 0.18f));
+        holder.AddChild(Emit(WreckFire.Shared.EmberProc, WreckFire.Shared.EmberMesh, 6, 1.2, 0.18f));
+        holder.AddChild(new OmniLight3D { LightColor = new Color(1f, 0.52f, 0.2f), LightEnergy = 1.6f, OmniRange = 4f, ShadowEnabled = false });
+        wheel.AddChild(holder);
+        _wheelFires.Add((wheel, holder));
+    }
+
+    private readonly List<(RigidBody3D Wheel, Node3D Fire)> _wheelFires = [];
+    private BoxMesh _panel = null!;
+
     private double _t;
     private BoxMesh _chunk = null!;
     private StandardMaterial3D _chunkMat = null!;
@@ -49,6 +132,7 @@ public partial class DamageView : Node3D
     {
         _chunk = new BoxMesh { Size = new Vector3(0.35f, 0.2f, 0.5f) };
         _chunkMat = new StandardMaterial3D { AlbedoColor = new Color(0.18f, 0.16f, 0.15f) };
+        _panel = new BoxMesh { Size = new Vector3(1.3f, 0.05f, 0.9f) };
         AddChild(new SkidMarks { Cars = Cars, Origin = Origin, Ground = Ground, Builder = Builder, SceneLight = SceneLight, Name = "SkidMarks" });
         AddChild(new SmokeLayer { Name = "SmokeLayer" });   // the modern look's smoke is drawn and composited there, capped
         AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });
@@ -69,6 +153,8 @@ public partial class DamageView : Node3D
         car.StopHorn();
         car.Conditions.Clear();
         System.Array.Clear(car.ZoneFrames);
+        _deaths.Remove(car);
+        _blasts.RemoveAll(b => b.Car == car);
         if (_fires.Remove(car, out var fire)) { fire.Detach(); fire.QueueFree(); GD.Print($"wreck fire: {car.Name} renewed, out"); }
         car.SetWrecked(false);
         // the intact car's meshes, as the first of its kind was made (a respawn was 50 to 200 ms of assembling them again)
@@ -278,7 +364,7 @@ public partial class DamageView : Node3D
     }
 
     /// <summary>A copy of a piece of a car, thrown from where it is on the car (its spin and steer as they were).</summary>
-    private void ThrowPiece(Node3D piece, System.Numerics.Vector3 vel)
+    private RigidBody3D ThrowPiece(Node3D piece, System.Numerics.Vector3 vel, float? heat = null)
     {
         var copy = (Node3D)piece.Duplicate();
         copy.Transform = Transform3D.Identity;
@@ -287,7 +373,7 @@ public partial class DamageView : Node3D
         var burn = piece is MeshInstance3D pm ? pm.GetInstanceShaderParameter("wreck") : piece.FindChildren("*", nameof(MeshInstance3D), owned: false).OfType<MeshInstance3D>().FirstOrDefault()?.GetInstanceShaderParameter("wreck");
         if (burn is { VariantType: Variant.Type.Vector2 } bv)
             foreach (var m in (copy is MeshInstance3D cm ? [cm] : copy.FindChildren("*", nameof(MeshInstance3D), owned: false).OfType<MeshInstance3D>()))
-                m.SetInstanceShaderParameter("wreck", bv.AsVector2() with { Y = bv.AsVector2().Y * 0.6f });
+                m.SetInstanceShaderParameter("wreck", bv.AsVector2() with { Y = heat ?? bv.AsVector2().Y * 0.6f });
         // tumbling, its open side turns to the camera: the modern look draws it from both sides (1997's as the original, culled)
         if (Builder.Materials is { Mode1997: false } mats) mats.ShowBothSides(copy);
         var body = new RigidBody3D { LinearVelocity = Coords.ToGodot(vel), AngularVelocity = new Vector3(3, 5, 2) };
@@ -296,6 +382,7 @@ public partial class DamageView : Node3D
         AddChild(body);
         body.GlobalTransform = piece.GlobalTransform;
         _debris.Add((body, _t + 6));
+        return body;
     }
 
     private static readonly int? HookLevel = int.TryParse(System.Environment.GetEnvironmentVariable("I76_CAR_DAMAGE"), out int l) ? System.Math.Clamp(l, 0, 3) : null;
@@ -322,23 +409,31 @@ public partial class DamageView : Node3D
                     if (ShowZone(car, z.Zone, z.Level)) Rebuild(car);
                     break;
                 case VehicleKilled k when Cars.TryGetValue(k.Vehicle, out var car):
+                {
                     car.StopEngine();
+                    // the modern look's death by its cause (DeathVariety); the 1997 look's is the original's
+                    var plan = car.Modern && !k.Vehicle.IsEmplacement && !IsHeli(car) ? DeathVariety.For(k.Cause, k.Seed, DeathVariety.Enabled) : null;
+                    if (plan is not null) _deaths[car] = (plan, 0);
                     if (k.DriverKilled)
                     {
                         // the .45's kill (the vehicle's .45-kill flag): no explosion and no wreck, the car as it was, its horn stuck on
                         if (I76.Sim.Vehicles.VehicleFactory.HornSound(Builder.Vfs, k.Vehicle.EngineNumber) is { } horn)
                             car.StartHorn(Audio?.Get(horn, loop: true));
+                        // the modern look: a fire takes the engine bay some seconds later
+                        if (plan is { FireDelay: > 0 }) Burn(car, plan);
                         break;
                     }
                     // every zone goes to state 4: the zones' nodes take their state-3 geometry, the burnt hull
                     // alone; the lamps go out with the lights and the brake lamp's hide flag
                     car.SetWrecked(true);
                     Rebuild(car);
-                    Burn(car);
+                    Burn(car, plan);
+                    if (plan is not null) Stage(car, k.Vehicle, plan);
                     // a gun emplacement: the zones' state 3 is the burnt pole, and its gun is hidden
                     if (k.Vehicle.IsEmplacement) car.HideWeapon(0);
                     Sound("vexplode.wav", k.Vehicle.Pos.ToVector3(), Ds3d.LoudMinDistance);   // Sound event 7
                     break;
+                }
                 case VehicleWrecked w when Cars.TryGetValue(w.Vehicle, out var wc):
                     wc.StopHorn();
                     break;
@@ -371,6 +466,16 @@ public partial class DamageView : Node3D
                         if (f.Slot >= 10) pieces.AddRange(fc.FlingWeapon(f.Slot - 10));
                         else if (fc.FlingWheel(f.Slot) is { } wn) pieces.Add(wn);
                     if (pieces.Count == 0) Throw(f.Vehicle.Pos.ToVector3(), f.Velocity);
+                    // a wheel off a death with a plan: the first ones thrown burn as they fly, the rest go charred and cold
+                    if (f.Slot < 6 && pieces.Count == 1 && fc is not null && _deaths.TryGetValue(fc, out var dv) && dv.Plan != DeathVariety.Plan.Plain)
+                    {
+                        bool flaming = dv.Thrown < dv.Plan.FlamingWheels;
+                        _deaths[fc] = dv with { Thrown = dv.Thrown + 1 };
+                        var wb = ThrowPiece(pieces[0], f.Velocity, flaming ? null : 0f);
+                        GD.Print($"wreck fire: {fc.Name} threw wheel {f.Slot}, {(flaming ? "burning" : "cold")}");
+                        if (flaming) WheelFire(wb);
+                        break;
+                    }
                     foreach (var piece in pieces) ThrowPiece(piece, f.Velocity);
                     break;
                 }
@@ -413,6 +518,20 @@ public partial class DamageView : Node3D
             I76.Formats.Assembly.AssembledModel? m = null;
             car.SyncTyres((slot, blown) => TyreMesh(car.Definition, slot, blown, ref m));
         }
+        for (int i = _wheelFires.Count - 1; i >= 0; i--)
+        {
+            var (wb, wf) = _wheelFires[i];
+            if (!IsInstanceValid(wb) || !wb.IsInsideTree()) { _wheelFires.RemoveAt(i); continue; }
+            wf.GlobalPosition = wb.GlobalPosition;
+            wf.Visible = Builder.Materials is not { Mode1997: true };
+        }
+        for (int i = _blasts.Count - 1; i >= 0; i--)
+            if (_t >= _blasts[i].At)
+            {
+                var b = _blasts[i];
+                _blasts.RemoveAt(i);
+                if (IsInstanceValid(b.Car) && b.Car.Modern) Go(b.Car, b.Vehicle, b.Blast);
+            }
         for (int i = _debris.Count - 1; i >= 0; i--)
             if (_t > _debris[i].Until) { _debris[i].Body.QueueFree(); _debris.RemoveAt(i); }
         foreach (var (car, fire) in _fires.Where(kv => kv.Value.Finished).ToList())

@@ -3,7 +3,7 @@ namespace I76.Game.Sim;
 /// <summary>
 /// The drawing-side settings without a row (shell.cfg's [port] keys, docs/playing.md; the words are I76.Game.Shell.OriginalRecipe's),
 /// applied with the graphics settings (Main.ApplyGraphics): the mirror's far clip, the brake lamps' hold, the modern look's
-/// machine gun rounds, the 1997 sky's drift and the death orbit's turn. Engine-free. The simulation's own (the live ordnance
+/// machine gun rounds, the 1997 sky's drift, the death orbit's turn and the deaths by cause. Engine-free. The simulation's own (the live ordnance
 /// cap, Play Options' Unlim. Ordnance) is the combat's (PlayOptionsCombat).
 /// </summary>
 public static class OriginalBehavior
@@ -25,6 +25,7 @@ public static class OriginalBehavior
         MgTracers = s.MgTracerChoice;
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
+        DeathVariety.Enabled = s.DeathVariety;
     }
 
     /// <summary>The mirror camera's far clip in a look: the original's 100 m, or Full, as far as the main view's camera.</summary>

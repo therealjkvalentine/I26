@@ -876,7 +876,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
                 goto Settled;
             }
             Wrecked = true;
-            Damage?.FallKill(v);
+            Damage?.RollKill(v);
             v.AngVel.X = v.AngVel.Y = 0;
             v.AngVel.Z = 0;
         }

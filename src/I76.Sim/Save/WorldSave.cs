@@ -129,7 +129,7 @@ namespace I76.Sim.Damage
                 .Structural("the mission build's co-op damage factor (the snapshot's SessionBuild.Coop)", nameof(CoopDamageFactor))
                 .Transient("the hooks of the script host, the melee, the salvage and the views (set again by whoever builds the session)",
                     nameof(Recorded), nameof(Killed), nameof(Salvageable), nameof(KilledBy), nameof(Damaging));
-            a.For<VehicleKilled>().Saved(nameof(VehicleKilled.Vehicle), nameof(VehicleKilled.DriverKilled));
+            a.For<VehicleKilled>().Saved(nameof(VehicleKilled.Vehicle), nameof(VehicleKilled.DriverKilled), nameof(VehicleKilled.Cause), nameof(VehicleKilled.Seed));
             a.For<VehicleWrecked>().Saved(nameof(VehicleWrecked.Vehicle));
             a.For<TyreBlown>().Saved(nameof(TyreBlown.Vehicle), nameof(TyreBlown.Slot));
             a.For<PartFlung>().Saved(nameof(PartFlung.Vehicle), nameof(PartFlung.Slot), nameof(PartFlung.Velocity));
@@ -149,7 +149,7 @@ namespace I76.Sim.Damage
             foreach (var e in events ? Events : [])
                 switch (e)
                 {
-                    case VehicleKilled k: w.U8(1); w.Car(k.Vehicle); w.Bool(k.DriverKilled); break;
+                    case VehicleKilled k: w.U8(1); w.Car(k.Vehicle); w.Bool(k.DriverKilled); w.U8((byte)k.Cause); w.VarU(k.Seed); break;
                     case VehicleWrecked x: w.U8(2); w.Car(x.Vehicle); break;
                     case TyreBlown t: w.U8(3); w.Car(t.Vehicle); w.Int(t.Slot); break;
                     case PartFlung p: w.U8(4); w.Car(p.Vehicle); w.Int(p.Slot); w.V3(p.Velocity); break;
@@ -171,7 +171,7 @@ namespace I76.Sim.Damage
             for (int k = r.Count(); k > 0; k--)
                 Events.Add(r.U8() switch
                 {
-                    1 => new VehicleKilled(r.Car()!, r.Bool()),
+                    1 => new VehicleKilled(r.Car()!, r.Bool(), (DeathCause)r.U8(), (ushort)r.VarU()),
                     2 => new VehicleWrecked(r.Car()!),
                     3 => new TyreBlown(r.Car()!, r.Int()),
                     4 => new PartFlung(r.Car()!, r.Int(), r.V3()),
