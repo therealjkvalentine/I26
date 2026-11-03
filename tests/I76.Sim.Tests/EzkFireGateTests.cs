@@ -64,10 +64,32 @@ public class EzkFireGateTests
         Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
         target.Pos = new Double3(25, 0, 50);
         Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
-        // a car crossing ahead: 30 aside now, on the line 0.1 s later
+        // a car crossing ahead at 300: 30 aside now and on the line 0.1 s later, but the predictor's 0.09 s on top
+        // carries it 27 past
         target.Pos = new Double3(-30, 0, 50);
         target.Vel = new Vector3(300, 0, 0);
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+        // slower, 10 aside at 60: 1.5 past at 0.19 s
+        target.Pos = new Double3(-10, 0, 50);
+        target.Vel = new Vector3(60, 0, 0);
         Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+    }
+
+    [Fact]
+    public void TheTargetIsPlacedByThePredictorWithItsExtraNinetyMilliseconds()
+    {
+        var (c, shooter, target, w) = Rig();
+        // crossing at 300 from 60 aside: the lines meet at t = 0.1265 s. Along its line at t the car is 22.1 aside and
+        // 13.2 short (24 m off); the predictor's t + 0.09 s puts it 4.9 aside (14 m off).
+        target.Pos = new Double3(-60, 0, 50);
+        target.Vel = new Vector3(300, 0, 0);
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        // the same car turning hard (1 rad/s, its centre on its right) is carried back round its circle and is not fired at
+        target.AngVel = new Vector3(0, -1, 0);
+        target.Gear = 1;
+        target.Rot = new Rows(new Vector3(0, 0, -1), Vector3.UnitY, new Vector3(1, 0, 0));
+        target.Speed = 300;
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
     }
 
     [Fact]
