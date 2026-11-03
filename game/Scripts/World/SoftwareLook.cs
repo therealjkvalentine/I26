@@ -26,12 +26,12 @@ public partial class SoftwareLook : Node
     private Palette? _palette;
     private byte[]? _lum;
     private float[]? _ramp;
-    private ImageTexture? _lut, _ground, _band;
+    private ImageTexture? _lut, _softLut, _ground, _band;
     private Texture2D? _sky;
     private CanvasLayer? _layer;
     private ShaderMaterial? _grade;
-    private System.Threading.Tasks.Task<byte[]>? _lutJob;
-    private int _lutSide;
+    private System.Threading.Tasks.Task<byte[]>? _lutJob, _softJob;
+    private int _lutSide, _softSide;
     private bool _software, _grading;
     /// <summary>A Nitro Pack install: its exe is the GOG build, whose software path draws the horizon panels; the CD's band is the base game's.</summary>
     private bool _gogHorizon;
@@ -70,6 +70,7 @@ public partial class SoftwareLook : Node
         // the lookup off the main thread (64³ nearest searches, ~70 M distance sums)
         var palette = _palette;
         _lutJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildLut(palette, 64, out _lutSide));
+        if (GradeSoftness > 0) _softJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildSoftLut(palette, 64, GradeSoftness, out _softSide));
         if (_lum is not null)
         {
             var ramp = SoftwarePalette.Ramp(_palette, _lum);
@@ -122,6 +123,7 @@ public partial class SoftwareLook : Node
         _grade.SetShaderParameter("gamma", _software ? Gamma(brightness) : 1f);
         _grade.SetShaderParameter("strength", _software ? 1f : GradeStrength);
         _grade.SetShaderParameter("dither", _software ? 0f : GradeDither);
+        _grade.SetShaderParameter("soft", !_software && GradeSoftness > 0);
     }
 
     private int Brightness { get; set; } = 3;
@@ -149,9 +151,18 @@ public partial class SoftwareLook : Node
     private static readonly float GradeStrength = float.TryParse(System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_STRENGTH"),
         System.Globalization.CultureInfo.InvariantCulture, out float s) ? s : 1f;
 
-    /// <summary>I76_PALETTE_GRADE_DITHER: the modern grade's ordered dither amplitude (0..1 of full scale).</summary>
+    /// <summary>
+    /// I76_PALETTE_GRADE_SOFTNESS: the modern grade's σ (SoftwarePalette.BuildSoftLut, 0..1 RGB units). 0: each pixel to its
+    /// nearest palette colour, as the Software renderer (the grade as it first was: banded, speckled where a colour
+    /// sits between two entries).
+    /// </summary>
+    private static readonly float GradeSoftness = float.TryParse(System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_SOFTNESS"),
+        System.Globalization.CultureInfo.InvariantCulture, out float gs) ? gs : DefaultSoftness;
+    public const float DefaultSoftness = 0.05f;
+
+    /// <summary>I76_PALETTE_GRADE_DITHER: with softness 0, an ordered dither of this amplitude before the match (0..1 of full scale; 0 none).</summary>
     private static readonly float GradeDither = float.TryParse(System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_DITHER"),
-        System.Globalization.CultureInfo.InvariantCulture, out float dd) ? dd : 0.08f;
+        System.Globalization.CultureInfo.InvariantCulture, out float dd) ? dd : 0f;
 
     private void EnsureLayer()
     {
@@ -174,6 +185,12 @@ public partial class SoftwareLook : Node
             _grade.SetShaderParameter("lut", _lut);
             _lutJob = null;
         }
-        if (_layer is not null) _layer.Visible = _grading && _lut is not null;
+        if (_softLut is null && _softJob is { IsCompleted: true } sj && _grade is not null)
+        {
+            _softLut = ImageTexture.CreateFromImage(Image.CreateFromData(_softSide, _softSide, false, Image.Format.Rgb8, sj.Result));
+            _grade.SetShaderParameter("soft_lut", _softLut);
+            _softJob = null;
+        }
+        if (_layer is not null) _layer.Visible = _grading && _lut is not null && (_software || GradeSoftness <= 0 || _softLut is not null);
     }
 }

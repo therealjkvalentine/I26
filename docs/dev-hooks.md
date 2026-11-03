@@ -239,7 +239,7 @@ the car's `VehicleFlags` in hex).
 | `I76_SOFTWARE`, `I76_PALETTE_GRADE` | capture | `1`/`0`: Graphic Detail's 1997 Renderer: Software and Palette Grade on or off for the run, whatever the settings say. |
 | `I76_SW_LINES` | tuning | The Software renderer's grid height (480); `0`: the full resolution. |
 | `I76_SW_GRADE` | debug | `0`: the Software renderer without its final palette pass (the shading and assets alone). |
-| `I76_PALETTE_GRADE_STRENGTH`, `I76_PALETTE_GRADE_DITHER` | tuning | The modern Palette Grade: how far toward the palette colour (1) and the ordered dither's amplitude (0.08; 0 none). |
+| `I76_PALETTE_GRADE_STRENGTH`, `I76_PALETTE_GRADE_SOFTNESS`, `I76_PALETTE_GRADE_DITHER` | tuning | The modern Palette Grade: how far toward the graded colour (1); the blur of the palette lookup across colour space (σ in 0..1 RGB, 0.05; 0 the hard nearest-colour match, each pixel one of the 256); with softness 0, an ordered dither's amplitude before the match (0 by default; 0.08 was the first grade's). |
 | `I76_HORIZON_PANELS` | tuning | `1`: the sky's horizon panels instead of 3D distant terrain. |
 | `I76_HORIZON_TINT` | debug | `1`: the 3D distant terrain drawn flat magenta, to see where it shows (it must never show over the map's own ground). |
 | `I76_HORIZON_MASK` | debug | `0`: the distant terrain drawn over the map's tiles as it was before the floor grid (HorizonTerrain.FloorGrid), for before captures. |

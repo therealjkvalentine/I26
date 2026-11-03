@@ -192,4 +192,60 @@ public static class SoftwarePalette
         });
         return o;
     }
+
+    /// <summary>
+    /// The modern look's palette grade: <see cref="BuildLut"/>'s nearest-colour lookup, same layout, blurred across
+    /// colour space by a Gaussian of <paramref name="sigma"/> (RGB in 0..1 units; the cube's faces repeat outward).
+    /// Read with linear filtering it maps colour to colour continuously. Where the palette's colours lie closer than
+    /// σ the blurred staircase is nearly the identity plus the palette's average pull, so a gradient stays a gradient
+    /// and only changes colour; where they lie further apart the colours still gather toward the palette's. σ 0 is
+    /// the nearest colour itself.
+    /// </summary>
+    public static byte[] BuildSoftLut(Palette palette, int n, float sigma, out int side)
+    {
+        var hard = BuildLut(palette, n, out side);
+        if (sigma <= 0) return hard;
+        int tiles = (int)Math.Round(Math.Sqrt(n)), s = side;
+        // the lattice as [b, g, r, channel] floats
+        var f = new float[n * n * n * 3];
+        int At(int r, int g, int b) => ((b * n + g) * n + r) * 3;
+        int Tex(int r, int g, int b) => ((b / tiles * n + g) * s + b % tiles * n + r) * 3;
+        for (int b = 0; b < n; b++)
+            for (int g = 0; g < n; g++)
+                for (int r = 0; r < n; r++)
+                    for (int c = 0; c < 3; c++) f[At(r, g, b) + c] = hard[Tex(r, g, b) + c];
+        double cells = sigma * (n - 1);
+        int rad = (int)Math.Ceiling(3 * cells);
+        var kernel = new float[2 * rad + 1];
+        double sum = 0;
+        for (int k = -rad; k <= rad; k++) sum += kernel[k + rad] = (float)Math.Exp(-k * k / (2 * cells * cells));
+        for (int k = 0; k < kernel.Length; k++) kernel[k] /= (float)sum;
+        // separable: along red, green, blue in turn
+        foreach (var axis in new[] { (1, 0, 0), (0, 1, 0), (0, 0, 1) })
+        {
+            var src = (float[])f.Clone();
+            Parallel.For(0, n, b =>
+            {
+                for (int g = 0; g < n; g++)
+                    for (int r = 0; r < n; r++)
+                    {
+                        float sr = 0, sg = 0, sb = 0;
+                        for (int k = -rad; k <= rad; k++)
+                        {
+                            int at = At(Math.Clamp(r + k * axis.Item1, 0, n - 1), Math.Clamp(g + k * axis.Item2, 0, n - 1), Math.Clamp(b + k * axis.Item3, 0, n - 1));
+                            float w = kernel[k + rad];
+                            sr += w * src[at]; sg += w * src[at + 1]; sb += w * src[at + 2];
+                        }
+                        int o = At(r, g, b);
+                        f[o] = sr; f[o + 1] = sg; f[o + 2] = sb;
+                    }
+            });
+        }
+        var lut = new byte[hard.Length];
+        for (int b = 0; b < n; b++)
+            for (int g = 0; g < n; g++)
+                for (int r = 0; r < n; r++)
+                    for (int c = 0; c < 3; c++) lut[Tex(r, g, b) + c] = (byte)Math.Clamp(Math.Round(f[At(r, g, b) + c]), 0, 255);
+        return lut;
+    }
 }
