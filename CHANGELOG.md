@@ -115,6 +115,7 @@
 - Load Bookmark has an Import Saves button that brings in the bookmarks you saved in the original Interstate '76: each becomes an I26 bookmark with its name and scene, the car with its parts, armour, van, repair order and field salvage as you left them.
 - Load Bookmark has an All Scenes button that makes a bookmark for every scene of the trip, each in that mission's own car, so a fresh install can start any scene without a save; it asks first and never overwrites a bookmark of the same name.
 - Load Bookmark has a Delete button beside Cancel: it asks "Delete this bookmark?" and, on Yes, removes the picked bookmark and its kept car; the others keep their order and the next one is picked.
+- Force feedback on a wheel or force-feedback stick on Windows: Play Options' Force Feedback row now has Off, Pad and Wheel. Wheel plays the original's effects as its force-feedback driver did (weapons at their own rates, hits pushing from their side, the engine, the road, a flat tyre, the centring spring), with a Wheel Strength row on Play Options' second page; with no force-feedback device found it falls back to the pad's rumble.
 
 ## 0.11.0 (31 October 2026)
 

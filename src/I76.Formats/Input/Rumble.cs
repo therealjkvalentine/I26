@@ -63,8 +63,11 @@ public sealed class ThrottledRumble(IRumbleSink inner, Func<double> clock) : IRu
 /// </summary>
 public sealed class FrcVoice
 {
+    private static int _ids;
+
     internal FrcVoice(IReadOnlyList<FrcEffect> effects, double gain, bool loop)
     {
+        Id = Interlocked.Increment(ref _ids);
         Effects = effects;
         Gain = gain;
         Loop = loop;
@@ -72,6 +75,10 @@ public sealed class FrcVoice
     }
 
     public IReadOnlyList<FrcEffect> Effects { get; }
+    /// <summary>Which voice this is, for a wheel sink's slots.</summary>
+    public int Id { get; }
+    /// <summary>The times it was started over (a wheel sink starts its effects again).</summary>
+    public int Starts { get; private set; }
     public double Gain { get; set; }
     public bool Loop { get; }
     /// <summary>The longest effect of the file, ms.</summary>
@@ -83,7 +90,10 @@ public sealed class FrcVoice
     public bool Playing => !_stopped && Length > 0 && (Loop || Ms < Length);
 
     /// <summary>IDirectInputEffect::Start on an effect that is already playing starts it over.</summary>
-    public void Restart() { Ms = 0; _stopped = false; }
+    public void Restart() { Ms = 0; _stopped = false; Starts++; }
+
+    /// <summary>The file's runs so far: a looping file starts over each <see cref="Length"/>.</summary>
+    public int Generation => Starts + (Loop && Length > 0 ? (int)(Ms / Length) : 0);
     public void Stop() => _stopped = true;
 
     internal (double Weak, double Strong) Now()
@@ -114,6 +124,9 @@ public sealed class RumbleEngine(IRumbleSink sink)
     public static (double Weak, double Strong) Motors(double hz) => hz <= 20 ? (0.35, 1.0) : (1.0, 0.35);
 
     public bool Playing => _voices.Any(v => v.Playing);
+
+    /// <summary>The files playing (as of the last <see cref="Output"/>).</summary>
+    public IReadOnlyList<FrcVoice> Voices => _voices;
 
     /// <summary>Starts a file at <paramref name="gain"/> 0..1 of its strength; null if there is no such file (the driver's create failed).</summary>
     public FrcVoice? Play(IReadOnlyList<FrcEffect> effects, double gain = 1, bool loop = false)
@@ -203,12 +216,14 @@ public sealed class ForceFrame
     public readonly List<WeaponShot> Shots = [];
     /// <summary>The four impact queues +0x150..+0x15c: a damage packet's channel (0 ballistic, 1 explosive, 2 fire, 3 impact) and amount.</summary>
     public readonly List<(int Channel, int Amount)> Hits = [];
+    /// <summary>The impact nodes' +0x00: where this frame's hits came from, degrees clockwise from the car's nose.</summary>
+    public float HitDegrees;
 
     public void Clear()
     {
         EngineOn = Cranking = Airborne = Cycle = Link = Unlink = false;
         FlatFrontRight = FlatFrontLeft = FlatRearRight = FlatRearLeft = false;
-        Rpm = Mph = 0;
+        Rpm = Mph = HitDegrees = 0;
         Surface = 0;
         Shots.Clear();
         Hits.Clear();
@@ -221,7 +236,9 @@ public sealed class ForceFrame
 /// Per frame, in the DLL's order: the hits (an explosive one plays EXPLOSN by its damage, ballistic and impact ones are
 /// a jolt that dies away), the weapons (an effect per hardpoint, on only in frames with a shot), the engine start, the
 /// engine's vibration, the flat-tyre shake and the road. What a stick does and a pad cannot (the centring spring,
-/// friction, the car's acceleration pushing the stick, which way anything pushes) is left out (deviations.md, Force Feedback).
+/// friction, the car's acceleration pushing the stick, which way anything pushes) is left out of the motors; with
+/// <see cref="Wheel"/> set, each frame's effects are also given in DirectInput's terms for a wheel, the spring and the
+/// pushes' directions with them (deviations.md, Force Feedback).
 /// </summary>
 public sealed class ForceModel
 {
@@ -279,6 +296,8 @@ public sealed class ForceModel
     private sealed class Hardpoint
     {
         public bool Active, Made;
+        /// <summary>The times it came on (a wheel sink starts the effect again).</summary>
+        public int Starts;
         public Fx Kind;
         public int Gain, Rate;
         public FrcVoice? Voice;
@@ -289,6 +308,7 @@ public sealed class ForceModel
     private sealed class Jolt
     {
         public int Mag;
+        public int Degrees;
         public required int Rate;
         public required bool Ordnance;
         public bool Over => Ordnance ? Mag <= -1500 : Mag < -1500;
@@ -332,17 +352,21 @@ public sealed class ForceModel
                 case 1:
                     if (Play("EXPLOSN", Clamp((int)((35f + 0.6666667f * amount) * 100f)) / 10000.0) is { } v) { _concussions.Insert(0, v); _hits++; }
                     break;
-                case 3: _jolts.Add(new Jolt { Mag = Clamp((int)((55f + 0.5625f * amount) * 100f)), Rate = 3, Ordnance = false }); _hits++; break;
-                case 0: _jolts.Add(new Jolt { Mag = Clamp((int)((40f + 0.6666667f * amount) * 100f)), Rate = 5, Ordnance = true }); _hits++; break;
+                case 3: _jolts.Add(new Jolt { Mag = Clamp((int)((55f + 0.5625f * amount) * 100f)), Degrees = (int)f.HitDegrees, Rate = 3, Ordnance = false }); _hits++; break;
+                case 0: _jolts.Add(new Jolt { Mag = Clamp((int)((40f + 0.6666667f * amount) * 100f)), Degrees = (int)f.HitDegrees, Rate = 5, Ordnance = true }); _hits++; break;
             }
         for (int i = 0, n = 0; i < _concussions.Count; i++)
         {
             // over when the file is, or when three newer ones are going
             if (!_concussions[i].Playing || ++n > 3) { _concussions[i].Stop(); _concussions.RemoveAt(i--); _hits--; }
         }
+        int jolt = 0, joltDeg = 0;
         for (int i = 0; i < _jolts.Count; i++)
         {
             var j = _jolts[i];
+            // a wheel feels the push as the DLL sent it, the swing into a pull too
+            jolt += j.Mag;
+            joltDeg = j.Degrees;
             // this frame's push; once it has swung past nothing it is a steady pull the other way, which
             // a rumble motor has no way to show
             strong += Math.Max(j.Mag, 0) / 10000.0;
@@ -393,6 +417,7 @@ public sealed class ForceModel
             {
                 _firing++;
                 h.T = 0;
+                h.Starts++;
                 h.Voice?.Stop();
                 h.Voice = h.Kind switch
                 {
@@ -426,18 +451,21 @@ public sealed class ForceModel
         // ---- the engine: its start, then its vibration
         if (_start is { Playing: false }) _start = null;
         if (f.Cranking) _start = _start is null ? Play("ENGSTART", 1) : Restarted(_start);
+        int engine = 0;
         if (f.EngineOn)
         {
             uint half = (uint)(int)f.Mph >> 1;
-            weak += Busy(20 - (int)Math.Min(half, 20u)) / 100.0;
+            engine = Busy(20 - (int)Math.Min(half, 20u));
+            weak += engine / 100.0;
         }
 
         // ---- the flat tyre: a 4 Hz side-to-side shake by speed, none in the air
         bool front = f.FlatFrontRight || f.FlatFrontLeft, flat = front || f.FlatRearRight || f.FlatRearLeft;
+        double tyre = 0;
         if (flat && !f.Airborne)
         {
             if (!_tyre) { _tyre = true; _tyreT = 0; }
-            double g = Math.Min(Math.Abs((front ? 6000.0 : 3000.0) * 0.02 * f.Mph), 10000) / 10000;
+            double g = tyre = Math.Min(Math.Abs((front ? 6000.0 : 3000.0) * 0.02 * f.Mph), 10000) / 10000;
             strong += g * Math.Abs(Math.Cos(2 * Math.PI * 4 * _tyreT));
             _tyreT += dt;
         }
@@ -446,14 +474,54 @@ public sealed class ForceModel
         // ---- the road: a triangle by surface, faster with speed, nothing when stopped or in the air
         int hz = f.Mph <= 1 ? 0 : 2 - (int)(f.Mph / 140f * -20f);
         if (f.Surface is <= 0 or >= 9) hz = 0;
+        int road = 0;
         if (hz != 0)
         {
             int b = RoadGain[f.Surface];
-            weak += Busy(b - (int)(_rand() / 32768.0 * (b >> 1))) / 100.0;
+            road = Busy(b - (int)(_rand() / 32768.0 * (b >> 1)));
+            weak += road / 100.0;
         }
 
         Synth = (weak, strong);
         _out.Output(dt, weak, strong);
+        if (Wheel is { } w) Fill(w, f, jolt, joltDeg, engine, tyre, road, hz);
+    }
+
+    /// <summary>Where a wheel sink reads what the DLL had on the device after each frame (null: a pad only).</summary>
+    public WheelFrame? Wheel { get; set; }
+
+    /// <summary>
+    /// This frame's effects in DirectInput's terms, as the DLL kept them on the device: one per hardpoint firing, the hits'
+    /// push, the engine, the flat tyre, the road, the centring spring and the effects of every force file playing.
+    /// </summary>
+    private void Fill(WheelFrame w, ForceFrame f, int jolt, int joltDeg, int engine, double tyre, int road, int hz)
+    {
+        var s = w.Slots;
+        s.Clear();
+        for (int i = 0; i < _hp.Length; i++)
+        {
+            var h = _hp[i];
+            if (!h.Active) continue;
+            var e = h.Kind switch
+            {
+                Fx.Rattle => WheelMap.Rattle(h.Rate, h.Gain),
+                Fx.Triangle => WheelMap.Triangle(h.Rate, h.Gain),
+                Fx.Thump => WheelMap.Thump(h.Gain),
+                _ => null,
+            };
+            if (e is not null) s[$"hp{i}"] = new(e, h.Starts);
+        }
+        if (_jolts.Count > 0) s["jolt"] = new(WheelMap.Jolt(jolt, joltDeg, w.Axes), 0);
+        if (engine > 0) s["engine"] = new(WheelMap.Engine(engine, f.Rpm), 0);
+        if (tyre > 0) s["tyre"] = new(WheelMap.Tyre(tyre, w.Axes), 0);
+        if (road > 0) s["road"] = new(WheelMap.Road(road, hz), 0);
+        s["spring"] = new(WheelMap.Spring(f.Mph), 0);
+        foreach (var v in _out.Voices)
+        {
+            if (!v.Playing) continue;
+            var fx = WheelMap.File(v.Effects, v.Gain, w.Axes);
+            for (int k = 0; k < fx.Count; k++) s[$"v{v.Id}.{k}"] = new(fx[k], v.Generation);
+        }
     }
 
     /// <summary>Everything off and forgotten: the escape menu, the map, the notepad or a video (+0x08 cleared: DISFFC_STOPALL).</summary>
@@ -467,6 +535,7 @@ public sealed class ForceModel
         _tyre = false;
         _hits = _firing = 0;
         Synth = (0, 0);
+        Wheel?.Slots.Clear();
     }
 
     private static string MissileFile(int id) => id switch { 9 => "MISSIL45", 10 => "MISSILE5", _ => "MISSILE2" };

@@ -16,7 +16,7 @@ public sealed record FrcEffect(
     string Name, int Waveform, int DirectionDegrees, int DurationMs, int GainPercent, int MagnitudePercent,
     int Cycles, int HighPercent, int LowPercent, int MaxLevel, int MinLevel, int[] Samples)
 {
-    public const int Constant = 101, Sine = 102, Cosine = 103, SquareLow = 104, SquareHigh = 105, RampUp = 106, RampDown = 107, SawtoothUp = 108, SawtoothDown = 111, UserDefined = 201;
+    public const int Constant = 101, Sine = 102, Cosine = 103, SquareLow = 104, SquareHigh = 105, RampUp = 106, RampDown = 107, SawtoothUp = 108, SawtoothDown = 111, UserDefined = 201, Sequence = 202, Superimpose = 203;
 
     public bool Custom => Waveform == UserDefined;
 

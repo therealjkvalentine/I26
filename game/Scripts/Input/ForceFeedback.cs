@@ -22,7 +22,7 @@ public sealed class GodotRumble : IRumbleSink
 
     public void Rumble(float weak, float strong)
     {
-        if (Tripped) return;
+        if (Tripped || ForceFeedback.WheelLive) return;
         using var _ = Hitch.Time(Hitch.Phase.Rumble);
         foreach (var d in Input.GetConnectedJoypads().Where(d => Input.IsJoyKnown(d)))
             Input.StartJoyVibration(d, weak, strong, 0.75f);     // ThrottledRumble renews it before it runs out
@@ -56,10 +56,11 @@ public sealed class GodotRumble : IRumbleSink
 /// <summary>
 /// The player's force feedback: each sim tick, the block the original handed
 /// I7_SFRCE.DLL is filled from the player's car and the tick's shots and hits, and
-/// <see cref="ForceModel"/> does what the DLL did with it, on the pad's motors. Presentation only: nothing here writes
-/// the sim's state, and it is not in a headless run. The Play Options switch is <see cref="Enabled"/>; with no pad nothing
-/// plays. Everything stops under anything that pauses the tree (the escape menu, the map, the notepad, a video), as the
-/// original stopped its effects.
+/// <see cref="ForceModel"/> does what the DLL did with it, on the pad's motors, or with Wheel chosen (Windows) on a
+/// force-feedback wheel or stick as the DLL's DirectInput effects (<see cref="DirectInputForce"/>; without one, the pad).
+/// Presentation only: nothing here writes the sim's state, and it is not in a headless run. The Play Options setting is
+/// <see cref="Enabled"/> and <see cref="UseWheel"/>; with neither a pad nor a wheel nothing plays. Everything stops under
+/// anything that pauses the tree (the escape menu, the map, the notepad, a video), as the original stopped its effects.
 /// </summary>
 public partial class ForceFeedback : Node
 {
@@ -71,15 +72,46 @@ public partial class ForceFeedback : Node
         {
             _enabled = value;
             if (!value) _instance?.Silence();     // switched off in the escape menu: quiet at once, not at the next frame
+            Reopen();
         }
     }
     private static bool _enabled = true;
+
+    /// <summary>Play Options' Force Feedback on Wheel (ShellSettings.ForceFeedbackWheel): the DirectInput device instead of the pad; Windows only.</summary>
+    public static bool UseWheel
+    {
+        get => _useWheel;
+        set { _useWheel = value; Reopen(); }
+    }
+    private static bool _useWheel;
+    /// <summary>The wheel's strength, 0..100 % (ShellSettings.FfbStrength): the device's own gain.</summary>
+    public static int Strength
+    {
+        get => _strength;
+        set { _strength = Math.Clamp(value, 0, 100); DirectInputForce.Shared?.SetStrength(_strength); }
+    }
+    private static int _strength = 100;
+    /// <summary>Part of the wheel's name to pick it among several (shell.cfg [port] ffb_device); empty, the first.</summary>
+    public static string WheelName { get; set; } = "";
+    /// <summary>A wheel is open and takes the effects (the pad is left alone).</summary>
+    public static bool WheelLive => DirectInputForce.Shared is { Status: DirectInputForce.State.Ready };
+
+    /// <summary>Opens the wheel when it is wanted and a mission is running, closes it (every effect stopped and released) when not.</summary>
+    private static void Reopen()
+    {
+        if (!(_enabled && _useWheel && DirectInputForce.Supported)) { if (DirectInputForce.Shared is not null) { DirectInputForce.Close(); GodotRumble.StopNow(); } return; }
+        if (_instance is null || !GodotObject.IsInstanceValid(_instance)) return;
+        DirectInputForce.Open(DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle), WheelName, _strength, _instance.GetTree());
+    }
     /// <summary>True while something is over the game that does not pause it (a network game's escape menu, the map and notepad, the game over): nothing plays.</summary>
     public static Func<bool>? Held { get; set; }
     private static ForceFeedback? _instance;
     /// <summary>The player's car (hits, shots and blasts of anyone else are not felt).</summary>
     public Func<Vehicle?>? Player { get; set; }
 
+    private readonly WheelFrame _wheel = new();
+    private bool _quiet;
+    private float _hitDegrees;
     private RumbleEngine _engine = null!;
     private ThrottledRumble _throttle = null!;
     private ForceModel _model = null!;
@@ -88,14 +120,15 @@ public partial class ForceFeedback : Node
     private Armory? _arm;
     private int _selected = -1, _group;
 
-    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && Controls.HasPad;
+    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && (WheelLive || Controls.HasPad);
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;     // it is the one that notices the pause
         _instance = this;
         _engine = new RumbleEngine(_throttle = new ThrottledRumble(new GodotRumble(), () => Time.GetTicksMsec() / 1000.0));
-        _model = new ForceModel(FrcLibrary.Load(Read), _engine);
+        _model = new ForceModel(FrcLibrary.Load(Read), _engine) { Wheel = _wheel };
+        Reopen();
     }
 
     public override void _ExitTree()
@@ -110,6 +143,7 @@ public partial class ForceFeedback : Node
         _model?.StopAll();
         _hits.Clear();
         GodotRumble.StopNow();
+        DirectInputForce.Shared?.StopAll();
     }
 
     private static byte[]? Read(string name)
@@ -124,7 +158,10 @@ public partial class ForceFeedback : Node
     {
         _throttle.Pump();
         // the pause (+0x08 cleared): DISFFC_STOPALL, and the DLL forgets what was playing
-        if (!Enabled || GetTree().Paused || Held?.Invoke() == true || !Controls.HasPad) { _model.StopAll(); _hits.Clear(); }
+        bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !(WheelLive || Controls.HasPad);
+        if (quiet) { _model.StopAll(); _hits.Clear(); }
+        if (quiet && !_quiet) DirectInputForce.Shared?.StopAll();
+        _quiet = quiet;
     }
 
     /// <summary>
@@ -136,6 +173,13 @@ public partial class ForceFeedback : Node
         if (!Live || v != _instance!.Player?.Invoke()) return;
         for (int ch = 0; ch < 4; ch++)
             if (p.Ch[ch] != 0) _instance._hits.Add((ch, p.Ch[ch]));
+        // the impact's direction: the packet does not carry where it struck, so where its maker is, seen from the car
+        if (p.Attacker is Vehicle a && a != v)
+        {
+            var d = v.Rot.ToLocal((a.Pos - v.Pos.ToVector3()).ToVector3());
+            _instance._hitDegrees = WheelMap.Bearing(d.X, d.Z);
+        }
+        else _instance._hitDegrees = 0;
     }
 
     /// <summary>
@@ -150,6 +194,7 @@ public partial class ForceFeedback : Node
         var f = me._frame;
         f.Clear();
         f.Hits.AddRange(me._hits);
+        f.HitDegrees = me._hitDegrees;
         me._hits.Clear();
         if (me.Player?.Invoke() is { } v)
         {
@@ -183,6 +228,8 @@ public partial class ForceFeedback : Node
                             f.Shots.Add(new WeaponShot(Math.Min(hp, 5), s.Weapon.Def.Class, s.Weapon.Def.Tier, s.Weapon.Def.Rate));
             }
         }
+        if (DirectInputForce.Shared is { Status: DirectInputForce.State.Ready } wheel) me._wheel.Axes = wheel.Axes;
         me._model.Frame(f, dt);
+        if (WheelLive) DirectInputForce.Shared?.Post(me._wheel);
     }
 }

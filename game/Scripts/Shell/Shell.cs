@@ -1118,6 +1118,19 @@ public sealed class ShellSettings
     public bool AutoReverse { get; set; }
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
     public bool ForceFeedback { get; set; } = true;
+    /// <summary>The port's own: Force Feedback on a DirectInput wheel or stick instead of the pad (Play Options' Wheel; Windows only, without a device the pad).</summary>
+    public bool ForceFeedbackWheel { get; set; }
+    /// <summary>The port's own: the wheel's force-feedback strength, 0..100 % (Play Options' second page).</summary>
+    public int FfbStrength { get; set; } = 100;
+    /// <summary>The port's own: part of the force-feedback wheel's name, to pick it among several; empty, the first. Only in the file.</summary>
+    public string FfbDevice { get; set; } = "";
+    /// <summary>Play Options' Force Feedback row: 0 Off, 1 Pad, 2 Wheel (Wheel read as Pad where there is no DirectInput).</summary>
+    public int ForceFeedbackMode
+    {
+        get => !ForceFeedback ? 0 : ForceFeedbackWheel && I76.Game.DirectInputForce.Supported ? 2 : 1;
+        set { ForceFeedback = value != 0; ForceFeedbackWheel = value == 2; }
+    }
+    public static readonly string[] ForceFeedbackNames = ["Off", "Pad", "Wheel"];
     /// <summary>The port's own: the simulation rate in Hz (Play Options; 20, 25, 28, 30, 40 or 60, docs/frame-rate.md), applied from the next mission start; a network game runs at the server's.</summary>
     public int SimRate { get; set; } = I76.Sim.Session.SimRate.Default.Label;
     /// <summary>The port's own: the player has been told once that a rate other than 20 Hz can break the game (helicopters, AI, physics); it is not said again.</summary>
@@ -1236,6 +1249,10 @@ public sealed class ShellSettings
         s.Look1997 = version >= 6 && (bool)c.GetValue("port", "look_1997", false);
         // version 7 added Force Feedback: older files have none, so it is on
         s.ForceFeedback = version < 7 || (bool)c.GetValue("port", "force_feedback", true);
+        // no version step: absent, the pad at full strength on the first device, as before the keys
+        s.ForceFeedbackWheel = (bool)c.GetValue("port", "ffb_wheel", false);
+        s.FfbStrength = Math.Clamp((int)c.GetValue("port", "ffb_strength", 100), 0, 100);
+        s.FfbDevice = (string)c.GetValue("port", "ffb_device", "");
         // version 8 added the simulation rate: older files have none, so it is the default (20)
         s.SimRate = version < 8 ? I76.Sim.Session.SimRate.Default.Label : I76.Sim.Session.SimRate.FromLabel((int)c.GetValue("port", "sim_rate", I76.Sim.Session.SimRate.Default.Label)).Label;
         // the warning flag has no version: an older file has none, so the warning is still due
@@ -1300,6 +1317,9 @@ public sealed class ShellSettings
         c.SetValue("port", "draw_distance", DrawDistance);
         c.SetValue("port", "checkpoints", Checkpoints);
         c.SetValue("port", "force_feedback", ForceFeedback);
+        if (ForceFeedbackWheel) c.SetValue("port", "ffb_wheel", true);
+        if (FfbStrength != 100) c.SetValue("port", "ffb_strength", FfbStrength);
+        if (FfbDevice.Length > 0) c.SetValue("port", "ffb_device", FfbDevice);
         c.SetValue("port", "sim_rate", SimRate);
         if (SimRateWarned) c.SetValue("port", "sim_rate_warned", true);
         if (AutoReverse) c.SetValue("port", "auto_reverse", true);

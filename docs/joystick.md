@@ -85,6 +85,38 @@ pad the same way) all see the same sticks:
 
 Tests: `tests/I76.Formats.Tests/PadDeadZoneTests.cs` (radial, rescaled, triggers, steps, defaults, a missing key).
 
+## Force feedback on a wheel or stick (Windows)
+
+Play Options > Force Feedback has three settings: Off, Pad (the pad's two rumble motors, the default) and Wheel. Wheel drives a
+DirectInput force-feedback device (a wheel or a force-feedback stick) from the game itself, by P/Invoke on `dinput8.dll`; there is no
+driver or helper to install beyond the device's own. It is offered on Windows only: Godot has no force-feedback API for a wheel, and on
+Linux and macOS the row goes Off / Pad (a wheel chosen in a shared settings file reads as Pad there).
+
+- **Set-up.** Plug the wheel in and close its vendor control panel before a mission starts: the panel, another game or a feeder tool
+  holding the device exclusively keeps it from the game (the log says which call failed). The game opens the first force-feedback
+  device DirectInput lists, exclusive and in the background, turns its auto-centre off (the game supplies the centring spring) and plays
+  the original's effects on it (deviations.md, Force Feedback). If that device cannot be opened it tries the next; with none, or with
+  any failure, the pad's rumble is used, silently but for a line in the log. A virtual stick (vJoy and the like) is listed by
+  DirectInput only if it claims force feedback, and is skipped if it takes none of the effects used.
+- **Which device.** With several force-feedback devices, `ffb_device` in `user://shell.cfg`, section `[port]`, picks the first whose
+  name contains it (case ignored), for example `ffb_device="T300"`; empty or absent, the first. It is kept when the settings are saved.
+- **Strength.** Play Options' second page, Wheel Strength: 0 to 100 % in steps of 10 (`ffb_strength`), the device's own gain, changed
+  at once. The original's effects are at their own levels under it; nothing is boosted.
+- **Behaviour.** The device is driven from a thread of its own: the frame only hands over the newest effects and never waits on the
+  driver. Only what changed is sent (a changed magnitude alone is one report, not oftener than every 30 ms). The forces keep playing
+  while the window is in the background (the original's DLL asked for the same); a device that was lost (unplugged, taken by
+  another program) is acquired again within a second and its effects started over. Everything stops under the escape menu, the map,
+  the notepad and videos, and is stopped and released when the setting leaves Wheel and when the game quits.
+- **Effect types.** Constant force, periodic (square, sine, triangle, sawtooth), ramp, spring and custom curves are used. A type the
+  device does not report (most wheels lack custom curves, which the cannon files are, and some lack ramps or sawtooths) is played as
+  one constant force the game rewrites every 10 ms from the effect's shape; the log lists the types the device reported.
+- **Known devices.** Written against DirectInput's effect model and the Thrustmaster T300RS's reported effects (constant, periodic,
+  spring, damper; no custom force), and checked on a desktop with DirectInput present and no force-feedback device attached: the
+  enumeration finds none and the pad is used. Not yet run against a real wheel or stick.
+
+Tests: `tests/I76.Formats.Tests/WheelForceTests.cs` (the force files' effects as DirectInput parameters, the DLL's own effects, the hits'
+side, the effects' shapes over time, the rate limit, the hand-over to the thread, the model's slots).
+
 ## Checks
 
 `tests/I76.Formats.Tests/GenericJoystickTests.cs` (button slots, virtual stick, dead zone, preset resolution, raw axes, invert, names).
@@ -95,6 +127,6 @@ the same steer sign a game pad's left stick gives).
 
 Verified: Godot lists and reads an unmapped Linux device raw; the port finds it, applies the preset, shows the screen, and the car
 accelerates and steers from the stick. Not verified: the switch on real hardware (it is tested with the events Godot would send, `GenericJoystickTests`), Windows (DirectInput numbering, hat), real hardware, force feedback on a
-generic device (not offered), more than one stick.
+real wheel or stick (see above), more than one stick.
 
 A way to have both would be to read the hat apart from Godot (on Windows `joyGetPosEx`'s POV against its buttons, on Linux evdev), matched to Godot's device; not done, nothing here to test it on.
