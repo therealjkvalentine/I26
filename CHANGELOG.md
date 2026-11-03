@@ -33,6 +33,7 @@
 - Online, a damaged weapon (under 70 %) no longer shows tracers, flashes and sounds of shots that never happened: its jams are the server's, so its shots now show as the server fires them.
 - The `I76_NET_DEBUG` shots line no longer counts every shot of the last life as taken back at each respawn.
 - The ping in the network score window and on the HUD shows the link's round trip when packets are lost, instead of jumping to several times it (a 60 ms link with 10 % loss read 155 ms, up to 624).
+- In a network game, a right click on a row of the Control Configuration (opened from the Esc menu) waits for a key again, as it does on the main menu, instead of grabbing the mouse pointer and doing nothing (#106).
 
 ## 0.11.0 (31 October 2026)
 
