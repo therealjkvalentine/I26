@@ -13,6 +13,10 @@ public class CheckpointTests
     /// T14 driven by the corpus's inputs: a checkpoint when the intro is over and one when the first objective is
     /// done (tick 1007); the mission then fails. A mission rebuilt from the install (another seed) and given the
     /// last checkpoint is the state the checkpoint was taken in, and from there plays to the same failure.
+    /// Played with the 1997 CD build's tactic choice (build-rules.cfg ai_tactics=1997): under the 1998 build's draw the
+    /// lead cop takes road_side and shoots Taurus from the road, and the corpus's driver, who does not defend him, fails
+    /// the mission before the first objective (seeds 1-6, ticks 1002-1074); under the 1997 stub the cop circles out of
+    /// sight and the objective is done at tick 1007 (seeds 1, 3, 4).
     /// </summary>
     [Fact]
     public void ARetryFromTheObjectivesCheckpointIsTheStateItWasTakenIn()
@@ -21,6 +25,7 @@ public class CheckpointTests
         var l = new SnapshotRig.Loaded(dir);
         var b = SnapshotRig.BuildOf(dir, "t14");
         var (s, _) = SnapshotRig.Make(l, b, SimRate.R20, 1);   // a seed whose run gets the first objective done
+        s.Script!.Host.TacticStub1997 = true;   // a rule of the session, set at each mission start (not in the snapshot)
         var policy = CheckpointPolicy.For(s, enabled: true)!;
         var taken = new List<(string Why, int Tick, byte[] Snap, string Dump)>();
         while (s.Script!.Result is null && s.Ticks < 6000)
@@ -38,6 +43,7 @@ public class CheckpointTests
         var cp = taken[^1];
         var (fresh, _) = SnapshotRig.Make(l, b, SimRate.R20, 77);
         fresh.Restore(cp.Snap);
+        fresh.Script!.Host.TacticStub1997 = true;   // as the game sets it again on a retry
         Assert.Null(StateDump.FirstDifference(cp.Dump, StateDump.Of(fresh)));
         Assert.Equal(Objectives.Succeeded, fresh.Script!.Host.Objectives.Flags[0] & Objectives.Succeeded);
         // the retry's own policy keeps no second checkpoint of the same moment
