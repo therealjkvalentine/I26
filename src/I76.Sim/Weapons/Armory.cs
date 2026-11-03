@@ -192,6 +192,15 @@ public sealed class Armory
 
     private static Rows RowsOf(Affine a) => new(new(a.R[0], a.R[3], a.R[6]), new(a.R[1], a.R[4], a.R[7]), new(a.R[2], a.R[5], a.R[8]));
 
+    /// <summary>
+    /// Heated Seats (SPEC type 8), once as the car is built: every mounted weapon's ammo times 1.1 (a float), truncated.
+    /// The driver's handguns are fitted later and keep theirs.
+    /// </summary>
+    public void HeatedSeats()
+    {
+        foreach (var w in LoadOrder) w.Ammo = (int)(w.Ammo * (double)1.1f);
+    }
+
     /// <summary>WEPN slots onto HLOC hardpoints; a slot without its hardpoint loads nothing (the handler's "wrldr").</summary>
     public static Armory Create(AssetVfs vfs, Bwd2File vcf, Bwd2File vdf)
     {

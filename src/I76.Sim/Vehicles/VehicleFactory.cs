@@ -135,9 +135,10 @@ public static class VehicleFactory
             [.. Enumerable.Range(0, 4).Select(z => Bin.I32(d, p + 0x6d + 4 * z))],
             wheelHp, eng.Hp, brak.Hp, susp.Hp, (100f - susp.B) * 0.01f, specials);
         v.Loadout = new Loadout(wdfNames, engId, suspId, brakeId, [.. specials]);
-        // SPEC type 3 (blower) → engine scale 1.25
+        // SPEC type 3 (blower) → engine scale 1.25; type 8 (Heated Seats) → every mounted weapon's ammo x1.1
         foreach (var c in vcf.All("SPEC"))
             if (Bin.U32(vcf.Data, c.PayloadOffset) == 3) v.P.EngineScale = 1.25f;
+            else if (Bin.U32(vcf.Data, c.PayloadOffset) == 8 && v.Armory is { } heated) heated.HeatedSeats();
         return v;
     }
 

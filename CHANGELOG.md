@@ -86,6 +86,7 @@
 - A mission or mod script that limits the computer cars attacking you to 0 lets one at a time come at you, as in the original, instead of making all of them hang back.
 - Computer cars hold their guns for a car of their own side in the line of fire as the original's do: neutral cars look out for each other too, only a car the bullets would reach within 4 seconds counts, and distances are measured on the ground from the shooting car.
 - Oil pumps and gas stations share one explosion, as in the original, whichever the mission places first: in T05 the oil pump blows as wide as a gas station, and in the S07 scenario the gas stations blow as small as an oil pump.
+- Heated Seats give every mounted weapon a tenth more ammunition when the car starts, as in the original; they did nothing before.
 
 ## 0.11.0 (31 October 2026)
 
