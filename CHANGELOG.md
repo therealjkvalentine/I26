@@ -68,6 +68,7 @@
 - Machine-gun, cannon and mortar rounds start at the muzzle on the shots that have no spread, as the original's do, instead of always a little ahead of it.
 - Pressing the fire button again while a weapon is still between shots (its reload or burst pause) plays the dry click, as in the original, instead of staying silent.
 - With Unlim. Ammo on, a computer-driven car whose guns have run dry keeps firing, as in the original, instead of stopping.
+- Computer-driven cars armed with the EZK Mortar fire it, as in the original, when their target drives across its line; they never fired it before.
 
 ## 0.11.0 (31 October 2026)
 
