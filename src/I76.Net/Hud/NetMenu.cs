@@ -9,6 +9,10 @@ namespace I76.Net.Hud;
 /// </summary>
 public static class NetMenu
 {
+    /// <summary>The two ways out, named apart from each other and from the single-player menu's Abort Mission / Exit Game: the match, or the program.</summary>
+    public const string Leave = "Leave Match", Exit = "Exit I76";
+    public const string LeaveQuestion = "Leave this match (back to the menus)?", ExitQuestion = "Quit Interstate '76 (back to the desktop)?";
+
     public static bool CanSelfDestruct(bool dead, bool decided) => !dead && !decided;
 
     /// <summary>The command the menu's Self Destruct sends with the next tick (none when refused).</summary>

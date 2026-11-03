@@ -21,6 +21,15 @@ public class EscapeMenuSelfDestructTests
         Assert.Equal(sends ? CarCommands.SelfDestruct : 0, NetMenu.SelfDestruct(dead, decided));
     }
 
+    [Fact]
+    public void TheWaysOutSayWhichTheyAre()
+    {
+        Assert.Equal("Leave Match", NetMenu.Leave);
+        Assert.Equal("Exit I76", NetMenu.Exit);
+        Assert.Equal("Leave this match (back to the menus)?", NetMenu.LeaveQuestion);
+        Assert.Equal("Quit Interstate '76 (back to the desktop)?", NetMenu.ExitQuestion);
+    }
+
     /// <summary>The menu's command on the wire destroys the car with no killer: a death, no kill for anyone, the score floored at 0.</summary>
     [Fact]
     public void TheMenusCommandIsANoKillerDeathOnTheServer()
