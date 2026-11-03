@@ -48,15 +48,20 @@ public class T01FollowTests
             var input = new CarInput();
             if (h.Now >= 21.3f && !h.View.Active)
             {
-                // objective 2 open: drive at the stand and have it blown up from 55 m; then 15 m behind Taurus
+                // objective 2 open: drive at the stand and have it blown up from 55 m; then 15 m behind Taurus as he moves
+                // (he backs up after the stand), and stopped within 12 m of him: a driver that pushes into him rams him
+                // until the script fails the mission (6 rams at 30 Hz)
                 bool stand = !fireworks.Dead && (h.Objectives.Flags[1] & (Objectives.Hidden | Objectives.Succeeded)) == 0;
-                var goal = stand ? fireworks.Static!.Centre : taurus.Position - taurus.Rot.Forward * 15;
+                var tv = taurus.Vehicle!;
+                var back = tv.Speed > 1 ? Vector3.Normalize(new Vector3(tv.Vel.X, 0, tv.Vel.Z)) : taurus.Rot.Forward;
+                var goal = stand ? fireworks.Static!.Centre : taurus.Position - back * 15;
                 var to = goal - player.Pos.ToVector3();
                 float err = MathF.Atan2(to.X, to.Z) - MathF.Atan2(player.Rot.Forward.X, player.Rot.Forward.Z);
                 while (err > MathF.PI) err -= 2 * MathF.PI;
                 while (err < -MathF.PI) err += 2 * MathF.PI;
                 float dist = new Vector2(to.X, to.Z).Length();
-                float want = stand ? (dist > 45 ? 8 : 0) : taurus.Vehicle!.Speed + System.Math.Clamp(dist * 0.5f, -15f, 20f);
+                float want = stand ? (dist > 45 ? 8 : 0) : tv.Speed + System.Math.Clamp(dist * 0.5f, -15f, 20f);
+                if (!stand && (taurus.Position - player.Pos.ToVector3()).Length() < 12) want = 0;
                 input.Buttons = CarButtons.Analog;
                 input.Steer = (short)(System.Math.Clamp(-err * 1.5f, -1f, 1f) * 32767);
                 input.Throttle = (short)(System.Math.Clamp((want - player.Speed) * 0.3f, -1f, 1f) * 32767);
