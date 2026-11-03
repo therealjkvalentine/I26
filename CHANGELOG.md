@@ -167,6 +167,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - The Developer panel has a Loadout section: each of your car's weapon mounts with a choice of every weapon the garage allows there, swapped in live and fully loaded with Apply, and a Refill that loads every weapon and special without repairing anything.
 - Handicaps can be Auto (the host form's Hcp, HANDICAPS in the Nitro game options, or --handicaps auto): in a melee the game sets each player's level from the standings, every 1.5 kills (net of deaths) over the table's average costs a level and under it gives one, one step at a time, given back as the field catches up; the levels now reach -5 to +5 (x0.3 to x2.2), by hand too; every change is said in everyone's feed and shown on the scoreboard, so a family of mixed skill plays toward the same number of kills with nobody told their level.
 - World, car and cockpit textures can be upscaled too: a picture named after the texture in user://tex-world/ (or an art pack zip's tex-world/ folder) at 2x, 4x or 8x is drawn in its place in the modern look, the damage panel's plates included; the 1997 look keeps the originals. None ships with the game.
+- tools/upscale-textures.py makes an upscaled texture pack from your own install (the game exports the textures with --export-textures, the script runs the 4xTextures_GTAV_rgt-s_dither model over them into the user folder's tex-world/), for the modern look's HD world and car textures.
 
 ## 0.11.0 (31 October 2026)
 
