@@ -49,6 +49,7 @@
 - A mission script's timed waits now last as long as the original's: its timer starts at the nearest whole second instead of the one before, so a scene such as the opening of T01 no longer ends up to a second early.
 - Rockets fired part-way through a frame all leave at the same speed, as in the original, instead of the later rockets of a salvo starting slower.
 - A car braking to a halt keeps its nose down for the frame it stops on and lifts it on the next, as the original's does, instead of the nose jumping up on the stop frame itself.
+- The rear-view mirror shows 45 degrees across and draws nothing past 100 m, as the original's does, instead of a narrower 30 degree view that reached the far horizon.
 
 ## 0.11.0 (31 October 2026)
 
