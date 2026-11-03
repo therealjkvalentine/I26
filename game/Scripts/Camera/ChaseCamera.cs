@@ -48,7 +48,6 @@ public partial class ChaseCamera : Camera3D
     /// <summary>The track axes at full deflection, degrees a second (the original maps them to ±10° a frame; the port's keys turn at 90 and 45).</summary>
     private const float StickYawRate = 180, StickPitchRate = 90;
     private bool _orbiting;
-    private const float BaseFov = 73.74f;
     private readonly I76.Sim.Views.MouseOrbitOffset _mouse = new();
     private int _epoch = MouseCamera.ZoomEpoch;
     private float _wheel = MouseCamera.ZoomOf(ViewZoom.Kind.Chase);
@@ -129,7 +128,7 @@ public partial class ChaseCamera : Camera3D
         // the port's addition over the original's distance: the mouse wheel's zoom
         if (_epoch != MouseCamera.ZoomEpoch) { _epoch = MouseCamera.ZoomEpoch; _wheel = MouseCamera.ZoomOf(ViewZoom.Kind.Chase); _mouse.Reset(); }   // a new start: no easing from the old
         _wheel = ChaseZoom.Ease(_wheel, MouseCamera.ZoomOf(ViewZoom.Kind.Chase), dt);
-        Fov = BaseFov;
+        Fov = ViewFov.Main;
         if (Fixed is { } fx) (_pitch, _yaw) = (fx.Pitch, fx.Yaw);
 
         // the car's heading from its flattened forward row, slerped at 2·dt

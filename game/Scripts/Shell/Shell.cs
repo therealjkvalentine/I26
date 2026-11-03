@@ -1241,6 +1241,8 @@ public sealed class ShellSettings
     public bool CameraReturn { get; set; } = true;
     /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Graphic Detail's View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
     public bool ZoomReset { get; set; } = true;
+    /// <summary>The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>; shell.cfg [port] fov, degrees across a 4:3 view, written only when not the original's 90).</summary>
+    public int FieldOfView { get; set; }
     /// <summary>The port's own: Ctrl+T "show all names" in a network or co-op game starts on, as the player left it (shell.cfg [port] net_names, written only when off). The original's table started off.</summary>
     public bool NetNames { get; set; } = true;
     /// <summary>The port's own: the map editor plays the game's soundtrack while you edit (the editor's MUSIC button; shell.cfg [port] editor_music, written only when off).</summary>
@@ -1342,6 +1344,8 @@ public sealed class ShellSettings
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
+        // no version step: absent, the original's 90 across 4:3
+        s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 90));
         s.NetNames = (bool)c.GetValue("port", "net_names", true);
         s.EditorMusic = (bool)c.GetValue("port", "editor_music", true);
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
@@ -1418,6 +1422,7 @@ public sealed class ShellSettings
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
+        if (FieldOfView != 0) c.SetValue("port", "fov", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         if (LogFile) c.SetValue("port", "log_file", true);
