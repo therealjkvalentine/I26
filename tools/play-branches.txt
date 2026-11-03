@@ -192,3 +192,16 @@ fix/hd-cockpit-panels                 # stacked on play: under an HD pack the mi
 fix/hd-dream-grey                     # stacked on play: the dream's grey palette applied to the pack's upscales of the entries it greys
 feat/host-form-redesign               # stacked on play: the host form's options one box in the form's paper and lines; an arena sketch with its starts, count and size
 fix/round3-integration-3              # stacked on play, last of I: the handicap helper's and IncomingFactor's summaries each on its member
+fix/hd-cockpit-panels-2               # stacked on play: modern look's ammunition digits on the housing's drums; the mirror's frame and glass cut along smooth edges
+feat/dymo-weapon-labels               # stacked on play: modern look letters the weapon and special labels in a label-tape font (the panels at twice the pixels); after hd-cockpit-panels-2
+fix/host-form-polish                  # stacked on play: the host form's arena sketch on a torn scrap, rule tips, the arena list's scroll bar
+fix/melee-list-arenas-only            # stacked on play: the melee lists leave out co-op packs' copies of the story missions
+fix/scene-names                       # stacked on play: trip missions listed as "Scene N: name", named by what happens in them; after melee-list-arenas-only
+fix/map-edge-on-off                   # stacked on play: Map Edge is Off or On (On draws the walls down at their foot)
+fix/marker-marks-the-port-value       # after map-edge-on-off: the pads' * marks the port's values instead of the original's
+feat/map-edge-thin-barriers           # after marker-marks-the-port-value: Map Edge's On also hides the thin fences between two drivable parts of a map (the owner will try it)
+feat/hood-shine-adjustable            # stacked on play: Hood Finish Matte / Satin / Gloss on both pads, the cars' paint too
+fix/impact-marks-subtler              # stacked on play: ground strikes a third fainter; [port] effects_size / effects_brightness / effects_opacity
+fix/smoke-depth                       # stacked on play: the modern smoke layer takes the nearest surface under each pixel (#95)
+fix/net-esc-labels                    # stacked on play: network Esc menu says Leave Match and Exit I76
+feat/pistol-keys                      # stacked on play: Pistol Left / Pistol Right keys (protocol 25)
