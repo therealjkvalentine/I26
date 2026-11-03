@@ -491,7 +491,7 @@ public sealed class GraphicsScreen : OverlayScreen
         // the port's own rows, one to a line: the menu art pack's (only when one is installed), with the pack's name beside it
         Row(0, "HD Menu Art", () => st.HdMenuArt ? "On" : "Off", () => Apply(!st.HdMenuArt));
         if (HdAssets.Installed) _list.Add((Add(318, ListY + 3, () => HdAssets.Label ?? "", null, Small), 0, 3));
-        Row(1, "Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => st.KeepMouseInWindow = !st.KeepMouseInWindow);
+        Row(1, "Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => { st.KeepMouseInWindow = !st.KeepMouseInWindow; I76.Game.MouseCamera.Confine = st.KeepMouseInWindow; });
         // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
         // from the next start or mission), with the modern look's palette grade (SoftwareLook) after it
         string[] modes = ["Off", "3D Card", "Software"];
