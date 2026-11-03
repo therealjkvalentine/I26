@@ -518,6 +518,7 @@ public partial class Main : Node3D
         {
             Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
             Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
+            SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
         layer.AddChild(_menu);
@@ -603,11 +604,14 @@ public partial class Main : Node3D
         {
             case MenuOutcome.Resume:
             case MenuOutcome.Developer:
+            case MenuOutcome.SelfDestruct:
                 ApplyPlayOptions(settings);
                 SetCheckpointPolicy(settings, resumed: true);   // Checkpoints from Play Options: from the next one on
                 if (settings.Look1997 != _lookSaved) { _lookSaved = settings.Look1997; SetMode1997(_lookSaved); }   // 1997 Mode on the Graphic Detail pad, as F2
                 GetTree().Paused = false;
                 if (o == MenuOutcome.Developer) OpenDevPanel();
+                // the network menu's Self Destruct (new car): Ctrl+Del's command, the server's to apply; asked again here, the game ran on under the menu
+                if (o == MenuOutcome.SelfDestruct && _net is not null && I76.Net.Hud.NetMenu.SelfDestruct(PlayerDead || _ended, _netHud?.Decided == true) is var c && c != 0) _sim?.Cheat(c);
                 break;
             case MenuOutcome.RetryCheckpoint:
                 RetryCheckpoint();

@@ -6,7 +6,7 @@ using I76.Game.Shell;
 namespace I76.Game.Ui;
 
 /// <summary>What the escape menu leaves behind: the game state it sets.</summary>
-public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpoint, Developer }
+public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpoint, Developer, SelfDestruct }
 
 /// <summary>
 /// The engine's own 2D menu, the "Spanner's Cafe" order pad:
@@ -37,6 +37,8 @@ public sealed partial class EscapeMenu : Control
         public Action<Item, int>? Cb;
         /// <summary>One of the port's rows in the scrolling part of a pad: Pair is its place in the list, the pad row is Pair minus the screen's scroll.</summary>
         public bool Scrolls;
+        /// <summary>Refused for now (drawn grey, not selectable): the network game's Self Destruct while dead or decided.</summary>
+        public Func<bool>? Refused;
         public int Type => Flags & 0x3ff;
     }
 
@@ -85,6 +87,8 @@ public sealed partial class EscapeMenu : Control
     public bool CanRetry { get; init; }
     /// <summary>The port's Developer panel is on (docs/dev-hooks.md): the main pad offers it on the free line under Control Configuration.</summary>
     public bool Developer { get; init; }
+    /// <summary>A network game: Self Destruct is refused now (the car dead, or the game decided).</summary>
+    public Func<bool>? SelfDestructRefused { get; init; }
 
     public ShellSettings Settings { get; private set; } = null!;
     private ShellSettings _snap = null!;
@@ -185,8 +189,12 @@ public sealed partial class EscapeMenu : Control
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
 
         _main.Items = Net ? [
-            Action("Leave Game", 1, () => AskExit(_main, MenuOutcome.Abort)),
-            Action("Exit Game", 3, () => AskExit(_main, MenuOutcome.Exit)),
+            Action("Leave Game", 1, () => AskExit(_main, MenuOutcome.Abort, LeaveLine)),
+            // the free row between them: in a network game the original's Replay item sets the self-destruct flag (Ctrl+Del's),
+            // the car blown up and the player back in a new one; here under a label that says so
+            new Item { Flags = Act, Label = "Self Destruct (new car)", Pair = 2, N = 1, Refused = SelfDestructRefused,
+                Cb = (_, m) => { if (m == 4) AskExit(_main, MenuOutcome.SelfDestruct, "Blow up your own car? (a death, -500 points)"); } },
+            Action("Exit Game", 3, () => AskExit(_main, MenuOutcome.Exit, QuitLine)),
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Control Configuration", 6, OpenControls, "$7.65"),
@@ -214,7 +222,7 @@ public sealed partial class EscapeMenu : Control
 
         _exit.Items = [
             Action("Yes", 27, () => Close(_exitYes)),
-            Text("Are you gonna leave me, Sweetheart?", 2),
+            Text(SweetheartLine, 2),
             Text(null, 28),
             Action("No", 29, () => Switch(_exit.Parent)),
         ];
@@ -356,8 +364,8 @@ public sealed partial class EscapeMenu : Control
             // a network co-op mission's end: nothing to replay or reconfigure here, the host's game is over for everyone
             _end.Items = [
                 Text(netEnd.Message, 47),
-                Action("Leave Game", 10, () => AskExit(_end, MenuOutcome.Abort)),
-                Action("Exit Game", 11, () => AskExit(_end, MenuOutcome.Exit)),
+                Action("Leave Game", 10, () => AskExit(_end, MenuOutcome.Abort, LeaveLine)),
+                Action("Exit Game", 11, () => AskExit(_end, MenuOutcome.Exit, QuitLine)),
             ];
             _end.Selected = 1;
         }
@@ -418,10 +426,15 @@ public sealed partial class EscapeMenu : Control
         QueueRedraw();
     }
 
-    private void AskExit(Screen from, MenuOutcome yes)
+    private const string SweetheartLine = "Are you gonna leave me, Sweetheart?";
+    /// <summary>The network game's own questions (the port's): leaving the game is not quitting the program.</summary>
+    private const string LeaveLine = "Leave this game (back to the menus)?", QuitLine = "Quit the program (back to the desktop)?";
+
+    private void AskExit(Screen from, MenuOutcome yes, string? question = null)
     {
         _exit.Parent = from;
         _exitYes = yes;
+        _exit.Items[1].Label = question ?? SweetheartLine;
         Switch(_exit);
     }
 
@@ -442,7 +455,7 @@ public sealed partial class EscapeMenu : Control
         _screen = s;
         foreach (var it in s.Items) it.Cb?.Invoke(it, 6);
         if (s == _cheater) s.Selected = 2;
-        if (s.Selected >= s.Items.Count || s.Items[s.Selected].Cb is null) s.Selected = Next(s, s.Selected, +1);
+        if (s.Selected >= s.Items.Count || !Usable(s.Items[s.Selected])) s.Selected = Next(s, s.Selected, +1);
         EnsureVisible();
         QueueRedraw();
     }
@@ -474,13 +487,15 @@ public sealed partial class EscapeMenu : Control
         QueueFree();
     }
 
+    private static bool Usable(Item? it) => it?.Cb is not null && it.Refused?.Invoke() != true;
+
     private static int Next(Screen s, int from, int dir)
     {
         int n = s.Items.Count;
         for (int k = 1; k <= n; k++)
         {
             int i = ((from + dir * k) % n + n) % n;
-            if (s.Items[i].Cb is not null) return i;
+            if (Usable(s.Items[i])) return i;
         }
         return Math.Clamp(from, 0, n - 1);
     }
@@ -570,7 +585,7 @@ public sealed partial class EscapeMenu : Control
             (_pressed, _pressedMark) = (null, -1);
             if (was is null || hit != was) return;
             if (wasMark >= 0) { if (mark == wasMark) was.Cb?.Invoke(was, 7); }
-            else if (was.Type is Act or Button or Command) was.Cb?.Invoke(was, 4);
+            else if (was.Type is Act or Button or Command) { if (Usable(was)) was.Cb?.Invoke(was, 4); }
             else Step(was, +1);
             QueueRedraw();
         }
@@ -590,10 +605,10 @@ public sealed partial class EscapeMenu : Control
             case Key.Down or Key.Kp2: s.Selected = Next(s, s.Selected, +1); break;
             case Key.Up or Key.Kp8: s.Selected = Next(s, s.Selected, -1); break;
             case Key.Tab: s.Selected = Next(s, s.Selected, shift ? -1 : +1); break;
-            case (Key.Right or Key.Kp6 or Key.Space) when it?.Cb is not null && !shift: Step(it, +1); break;
-            case (Key.Left or Key.Kp4) when it?.Cb is not null && !shift: Step(it, -1); break;
-            case Key.Enter or Key.KpEnter when it?.Cb is not null:
-                if (it.Type is Act or Button or Command) it.Cb(it, 4);
+            case (Key.Right or Key.Kp6 or Key.Space) when Usable(it) && !shift: Step(it!, +1); break;
+            case (Key.Left or Key.Kp4) when Usable(it) && !shift: Step(it!, -1); break;
+            case Key.Enter or Key.KpEnter when Usable(it):
+                if (it!.Type is Act or Button or Command) it.Cb!(it, 4);
                 else Done();
                 break;
             case Key.Escape when !s.EscIgnored: Cancel(); break;
@@ -605,6 +620,7 @@ public sealed partial class EscapeMenu : Control
     }
 
     private readonly I76.Formats.Input.PadRepeater _padNav = new();
+    private bool? _sdRefused;
 
     /// <summary>
     /// The pad (the port's): the D-pad and the left stick press the arrow keys (auto-repeating), A is Enter, B and Start are Esc.
@@ -614,6 +630,13 @@ public sealed partial class EscapeMenu : Control
     {
         if (_closed) return;
         using var _ = Hitch.Time(Hitch.Phase.Shell);
+        // the game runs on under a network menu: Self Destruct greys out the moment the car dies or the game is decided
+        if (SelfDestructRefused?.Invoke() is { } refused && refused != _sdRefused)
+        {
+            _sdRefused = refused;
+            if (_screen.Items.Count > 0 && !Usable(_screen.Items[Math.Clamp(_screen.Selected, 0, _screen.Items.Count - 1)])) _screen.Selected = Next(_screen, _screen.Selected, +1);
+            QueueRedraw();
+        }
         if (_host is not null) { _padNav.Settle(); return; }
         var pads = Controls.PadSource.Read();
         var raw = pads.Count > 0 && Controls.Focused() ? pads[0] : default;
@@ -630,7 +653,7 @@ public sealed partial class EscapeMenu : Control
     {
         foreach (var it in _screen.Items)
         {
-            if (it.Cb is null || !Shown(it)) continue;
+            if (!Usable(it) || !Shown(it)) continue;
             var (a, b) = Rects(it);
             if (Inside(a, p) || (b is { } bb && Inside(bb, p))) return (it, -1);
             if (it.Type == Slider)
@@ -808,10 +831,10 @@ public sealed partial class EscapeMenu : Control
         return Math.Max(1, (int)MathF.Round(cell * _s * cell / Math.Max(1f, h)));
     }
 
-    private void Print(Font f, int cell, float x, float y, string s)
+    private void Print(Font f, int cell, float x, float y, string s, Color? ink = null)
     {
         int size = Size(f, cell);
-        DrawString(f, At(x, y) + new Vector2(0, f.GetAscent(size)), s, HorizontalAlignment.Left, -1, size, Ink);
+        DrawString(f, At(x, y) + new Vector2(0, f.GetAscent(size)), s, HorizontalAlignment.Left, -1, size, ink ?? Ink);
     }
 
     private float Width(Font f, int cell, string s) => f.GetStringSize(s, HorizontalAlignment.Left, -1, Size(f, cell)).X / _s;
@@ -881,7 +904,7 @@ public sealed partial class EscapeMenu : Control
         if (!Shown(it)) return;
         var (font, cell) = it.Type switch { Button or Command => (_arial, 14), _ => (_lee, 18) };
         var (a, b) = Rects(it);
-        if (selected && it.Cb is not null)
+        if (selected && Usable(it))
         {
             // GDI Rectangle: a 1-px black outline on x0..x1−1, y0..y1−1, GRAY_BRUSH inside
             var r = new Rect2(At(a.X0, a.Y0), new Vector2(a.X1 - a.X0, a.Y1 - a.Y0) * _s);
@@ -891,8 +914,10 @@ public sealed partial class EscapeMenu : Control
         if (it.Label is { Length: > 0 } label)
         {
             float x = a.X0 + 3, y = a.Y0 + 3;
-            if (!it.Scrolls && Centred(it.Pair)) { x += ((a.X1 - x) - Width(font, cell, label)) / 2; Print(font, cell, x, y, label); }
-            else foreach (var line in Wrap(font, cell, label, a.X1 - x)) { Print(font, cell, x, y, line); y += 24; }
+            // a refused row (the network Self Destruct while dead or decided) in pencil grey
+            Color? ink = it.Refused?.Invoke() == true ? Ink with { A = 0.35f } : null;
+            if (!it.Scrolls && Centred(it.Pair)) { x += ((a.X1 - x) - Width(font, cell, label)) / 2; Print(font, cell, x, y, label, ink); }
+            else foreach (var line in Wrap(font, cell, label, a.X1 - x)) { Print(font, cell, x, y, line, ink); y += 24; }
         }
         if (b is not { } bb && it.Type != Slider) return;
         string? value = null;
