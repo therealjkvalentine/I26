@@ -461,7 +461,7 @@ public sealed partial class MissionSetup
                 host.RecordDamage(ve, ae, kind switch
                 {
                     I76.Sim.Damage.DamageKind.Collision => ScriptHost.Hit.Ram,
-                    I76.Sim.Damage.DamageKind.Round or I76.Sim.Damage.DamageKind.Explosion => ScriptHost.Hit.Shot,
+                    I76.Sim.Damage.DamageKind.Round => ScriptHost.Hit.Shot,
                     _ => ScriptHost.Hit.Attacked,
                 });
             };

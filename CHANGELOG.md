@@ -71,6 +71,7 @@
 - Computer-driven cars armed with the EZK Mortar fire it, as in the original, when their target drives across its line; they never fired it before.
 - Bullets and rockets no longer fly through road signs and posts: a sign stops the round with an impact, as in the original, and shields what stands behind it; gunfire leaves it standing, a rocket or shell that hits it knocks it off.
 - Computer-driven cars and gun emplacements no longer shoot through buildings, walls and standing road signs: as in the original, they hold their guns and missiles while one stands between them and their target, judged from car centre to car centre a little above the roofs.
+- A blast that only catches a car in its splash (a near-miss rocket or shell, a wreck or building going up) no longer counts as the shooter attacking it: as in the original, mission scripts and computer drivers react to direct hits and rams, not to near misses.
 
 ## 0.11.0 (31 October 2026)
 
