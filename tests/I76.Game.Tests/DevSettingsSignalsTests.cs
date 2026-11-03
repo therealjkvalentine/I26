@@ -28,7 +28,8 @@ public class DevSettingsSignalsTests
         var keys = Regex.Matches(table, @"^\| `([a-z_0-9]+)` \|", RegexOptions.Multiline).Select(m => m.Groups[1].Value).ToList();
         Assert.Contains("sky_drift", keys);
         Assert.Contains("hd_textures", keys);
-        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Order());
+        Assert.Contains("crossover", keys);
+        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Concat(DevSettings.HandSetOnly).Order());
     }
 
     [Fact]
@@ -58,6 +59,8 @@ public class DevSettingsSignalsTests
         Assert.Equal("60", Shown("vegetation_density"));
         Assert.Equal("true*", Shown("hd_textures"));
         Assert.Equal("true*", Shown("hd_menu_art"));
+        Assert.Equal("on*", Shown("lighting_calibration"));
+        Assert.Equal("90", Shown("crossover"));
         Assert.Equal("false", Shown("developer"));
         Assert.Equal("0", Shown("melee_ai"));
         foreach (var e in DevSettings.All)

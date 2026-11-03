@@ -16,7 +16,7 @@ public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings,
 
 /// <summary>
 /// The Developer panels' Settings section (in a mission and on the main menu): every key of docs/playing.md's "Settings
-/// without a row", each a button that steps its value (a right click steps back). A change is saved to shell.cfg at once
+/// without a row" but a curve set by hand (HandSetOnly), each a button that steps its value (a right click steps back). A change is saved to shell.cfg at once
 /// and applied where the setting allows it; the key's colour says when it shows.
 /// </summary>
 public static class DevSettings
@@ -38,6 +38,14 @@ public static class DevSettings
     public static readonly int[] VegetationSteps = [10, 30, 60, 100, 150];
     private static readonly string[] VegetationNames = [.. VegetationSteps.Select(p => p == I76.Formats.Vegetation.VegetationDensity.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestVegetationStep(int percent) => Array.IndexOf(VegetationSteps, VegetationSteps.MinBy(p => Math.Abs(p - percent)));
+
+    /// <summary>crossover's frequencies offered (Hz), in the key's 40..160 range; a value set by hand shows as the nearest.</summary>
+    public static readonly int[] CrossoverSteps = [40, 60, 80, 90, 120, 160];
+    private static readonly string[] CrossoverNames = [.. CrossoverSteps.Select(p => p == (int)I76.Formats.Input.AudioOutputs.DefaultCrossover ? $"{p}" : $"{p}{M}")];
+    public static int NearestCrossoverStep(float hz) => Array.IndexOf(CrossoverSteps, CrossoverSteps.MinBy(p => Math.Abs(p - hz)));
+
+    /// <summary>Keys of the table set by hand only, not stepped here: tactile_eq is a curve of points, not one of a few values.</summary>
+    public static readonly string[] HandSetOnly = ["tactile_eq"];
 
     public static readonly DevSetting[] All =
     [
@@ -63,6 +71,8 @@ public static class DevSettings
             s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
         new("hd_menu_art", FalseTrue, s => s.HdMenuArt ? 1 : 0, (s, v) => s.HdMenuArt = v != 0, DevWhen.NextScreen,
             s => HdAssets.Enabled = s.HdMenuArt),
+        new("lighting_calibration", ["off", "on" + M], s => s.LightingCalibration ? 1 : 0, (s, v) => s.LightingCalibration = v != 0, DevWhen.Live),
+        new("crossover", CrossoverNames, s => NearestCrossoverStep(s.Crossover), (s, v) => s.Crossover = CrossoverSteps[v], DevWhen.Live),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
 
