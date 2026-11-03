@@ -356,7 +356,8 @@ public sealed class PlayOptionsScreen : OverlayScreen
 
 /// <summary>
 /// The port's Original Recipe (OriginalRecipe) on the Play Options sheet, record 10: a row a line, a click on it steps its
-/// value (the original's first); Reset, Done and Cancel at the foot. The rows that follow the look show the shell's look's value.
+/// value (the original's first); Reset, Done and Cancel at the foot. The rows that follow the look show the value in the look
+/// the settings name (1997 Mode, which Graphic Detail may have changed since the shell started).
 /// </summary>
 public sealed class OriginalRecipeScreen : OverlayScreen
 {
@@ -366,7 +367,6 @@ public sealed class OriginalRecipeScreen : OverlayScreen
     protected override void Build()
     {
         var s = Shell.Settings;
-        bool look = Shell.Faithful;
         foreach (var r in OriginalRecipe.Rows) r.Copy(s, _saved);
         // the sheet's check boxes wiped: every row here is a value
         for (int k = 0; k < 14; k++) Frame.CopyBackground(300, 116 + 23 * k, 22, 18, 200, 116 + 23 * k);
@@ -375,8 +375,8 @@ public sealed class OriginalRecipeScreen : OverlayScreen
             var r = OriginalRecipe.Rows[k];
             int y = 116 + 23 * k;
             Add(222, y, r.Label, null);
-            Add(205, y + 1, () => "", () => r.Set(s, look, (r.Get(s, look) + 1) % r.Names.Length), Small, w: 300, h: 12);
-            Add(398, y + 2, () => r.Names[r.Get(s, look)], null);
+            Add(205, y + 1, () => "", () => r.Set(s, s.Look1997, (r.Get(s, s.Look1997) + 1) % r.Names.Length), Small, w: 300, h: 12);
+            Add(398, y + 2, () => r.Names[r.Get(s, s.Look1997)], null);
         }
         Add(246, 438, "Reset", () => OriginalRecipe.ResetAll(s), Small);
         Add(350, 438, "Done", () => { s.Save(); Shell.Overlay(new OptionsScreen()); }, Small);

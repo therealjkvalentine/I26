@@ -1,4 +1,5 @@
 using I76.Formats.Imaging;
+using I76.Formats.Shell;
 using Xunit;
 
 namespace I76.Formats.Tests;
@@ -50,5 +51,27 @@ public class DrawDistanceTests
         Assert.True(DrawDistance.ModernPanels(DrawDistance.Original, true));
         Assert.False(DrawDistance.ModernPanels(DrawDistance.Original, false));   // n01: no panels, no white band
         Assert.False(DrawDistance.ModernPanels(DrawDistance.Far, true));
+    }
+
+    [Fact]
+    public void A0110FileFarIsNoChoiceButALaterOneIs()
+    {
+        Assert.Null(DrawDistance.FromFile(DrawDistance.Far, 11));          // 0.11.0's Save wrote it on every save
+        Assert.Null(DrawDistance.FromFile(DrawDistance.Far, 1));
+        Assert.Equal(DrawDistance.Original, DrawDistance.FromFile(DrawDistance.Original, 11));   // the player's own choice
+        Assert.Equal(DrawDistance.Far, DrawDistance.FromFile(DrawDistance.Far, 12));
+        Assert.Null(DrawDistance.FromFile(null, 12));
+        Assert.Equal(DrawDistance.Original, DrawDistance.Resolve(DrawDistance.FromFile(DrawDistance.Far, 11), look1997: true));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SettingTheValueInEffectKeepsFollowingTheLook(bool look1997)
+    {
+        int shown = LookChoice.Resolve(null, look1997);
+        Assert.Null(LookChoice.Choose(null, look1997, shown));            // Done or Cancel on an untouched row
+        Assert.Equal(1 - shown, LookChoice.Choose(null, look1997, 1 - shown));
+        Assert.Equal(shown, LookChoice.Choose(shown, look1997, shown));   // a choice already made stays made
     }
 }

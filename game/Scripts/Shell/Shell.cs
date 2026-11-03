@@ -1188,7 +1188,7 @@ public sealed class ShellSettings
     /// The port's own: Graphic Detail's Draw Distance (I76.Formats.Imaging.DrawDistance: 0 Original, the 600 m clip; 1 Far, to 20 km).
     /// Until the player chooses it follows the look: Original in the 1997 look, Far in the modern one.
     /// </summary>
-    public int DrawDistance { get => I76.Formats.Imaging.DrawDistance.Resolve(DrawDistanceChoice, Look1997); set => DrawDistanceChoice = value; }
+    public int DrawDistance { get => I76.Formats.Imaging.DrawDistance.Resolve(DrawDistanceChoice, Look1997); set => DrawDistanceChoice = I76.Formats.Shell.LookChoice.Choose(DrawDistanceChoice, Look1997, value); }
     /// <summary>The player's Draw Distance, or null while none was chosen (the file has no key; Reset clears it).</summary>
     public int? DrawDistanceChoice { get; set; }
     /// <summary>The port's own: Graphic Detail's Map Edge, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Original, as they are; 1 Haze; 2 Fade Out). Original unless the player chose.</summary>
@@ -1338,8 +1338,8 @@ public sealed class ShellSettings
         // as 0.2.0 left it, so they are Off (High, chosen, stays)
         s.Vegetation = version < 10 ? 1 : Math.Clamp((int)c.GetValue("port", "vegetation", 1), 0, 2);
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
-        // no version step: a file without the key has no choice, and the look's default applies
-        s.DrawDistanceChoice = c.HasSectionKey("port", "draw_distance") ? I76.Formats.Imaging.DrawDistance.Parse((int)c.GetValue("port", "draw_distance")) : null;
+        // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
+        s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // no version step: a file without the key draws the edge as it is, as before it existed
         s.MapEdge = I76.Game.World.MapEdge.Parse(c.HasSectionKey("port", "map_edge") ? (int)c.GetValue("port", "map_edge") : null);
         // no version step: a file without these keys has them off, which is what they were before they existed
@@ -1422,7 +1422,7 @@ public sealed class ShellSettings
     public void Save()
     {
         var c = new ConfigFile();
-        c.SetValue("shell", "version", 11);
+        c.SetValue("shell", "version", 12);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
         c.SetValue("port", "map_edge", MapEdge);
