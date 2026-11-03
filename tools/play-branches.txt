@@ -216,3 +216,5 @@ fix/dymo-labels-brighter              # stacked on play: the modern cockpit's we
 feat/vegetation-density               # stacked on play: [port] vegetation_density, 60 % of the Vegetation level's plants by default
 fix/ai-fire-cadence-as-original       # stacked on play, docs only: the attack-tactic chooser's deviations row (1997 CD build vs the 1998 build)
 fix/zero-armour-damage-as-original    # stacked on play, test only: a round through a side whose armour is gone, as measured
+fix/wreck-smoke-range                 # stacked on play: modern look's wreck fire and smoke start and draw out to 600 m, as the original's model sprites
+fix/death-orbit-drawn                 # stacked on play: the death orbit camera interpolated between ticks
