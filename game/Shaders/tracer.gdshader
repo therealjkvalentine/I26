@@ -12,6 +12,11 @@ instance uniform float width = 0.08;
 instance uniform float energy = 6.0;
 instance uniform float tail_fall = 2.0;   // how fast the tail fades from the head: 2 a long glow, higher a short bright core with a quick tail (machine guns)
 
+// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
+global uniform float i76_fx_size;
+global uniform float i76_fx_bright;
+global uniform float i76_fx_alpha;
+
 varying float across;
 
 void vertex() {
@@ -25,7 +30,7 @@ void vertex() {
 	float sl = length(side);
 	side = sl > 1e-4 ? side / sl : vec3(0.0, 1.0, 0.0);
 	// at least ~1.5 px wide however far away, so distant fire still reads
-	float w = max(width, dist * 0.0025);
+	float w = max(width * i76_fx_size, dist * 0.0025);
 	across = UV.y * 2.0 - 1.0;
 	p += side * across * w;
 	POSITION = PROJECTION_MATRIX * VIEW_MATRIX * vec4(p, 1.0);
@@ -38,5 +43,5 @@ void fragment() {
 	float along = smoothstep(0.0, 0.9, UV.x);
 	float headglow = (1.0 + 1.5 * smoothstep(0.8, 1.0, UV.x)) * (1.0 - smoothstep(0.95, 1.0, UV.x));   // bright to the head, then a soft end
 	vec3 hot = vec3(1.0, 0.97, 0.88) * core * 1.6;
-	ALBEDO = (hot + tint.rgb * halo) * energy * pow(along, tail_fall) * headglow;
+	ALBEDO = (hot + tint.rgb * halo) * energy * pow(along, tail_fall) * headglow * i76_fx_bright * i76_fx_alpha;
 }

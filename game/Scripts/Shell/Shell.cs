@@ -270,6 +270,7 @@ public partial class Shell : CanvasLayer
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
         I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
+        I76.Game.Sim.ModernFx.ApplyLook(Settings);
         ApplyMusicLevel();
         I76.Game.Boot.Main.ApplyAudio(Settings);   // the SFX and voice levels Audio Control set live go back too
     }
@@ -330,6 +331,7 @@ public partial class Shell : CanvasLayer
         I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
         // the menus keep the pointer in the window too (Main's cursor state reads it every frame)
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
+        I76.Game.Sim.ModernFx.ApplyLook(Settings);
         AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
         _view = new TextureRect
         {
@@ -1291,6 +1293,13 @@ public sealed class ShellSettings
     public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
     /// <summary>The row's values: the original's opening step is the bots' Normal tier (MeleeGame.OriginalOpeningStep).</summary>
     public static readonly string[] MeleeAiNames = ["Normal", "Difficulty" + PortMark, "Easy" + PortMark, "Hard" + PortMark];
+    /// <summary>
+    /// The port's own, config only (no row): the modern look's weapon effects as a percentage of their drawn size, brightness and
+    /// opacity (shell.cfg [port] effects_size, effects_brightness, effects_opacity; 25 to 150, written only when not 100; <see cref="I76.Sim.Views.EffectsLook"/>).
+    /// </summary>
+    public int EffectsSize { get; set; } = I76.Sim.Views.EffectsLook.Default;
+    public int EffectsBrightness { get; set; } = I76.Sim.Views.EffectsLook.Default;
+    public int EffectsOpacity { get; set; } = I76.Sim.Views.EffectsLook.Default;
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
@@ -1441,6 +1450,11 @@ public sealed class ShellSettings
         s.CoopRollingStart = (bool)c.GetValue("port", "coop_rolling_start", false);
         // no version step: absent, the original's opening skill
         s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
+        // no version step: absent, the effects as drawn (100)
+        string? Pct(string key) => c.HasSectionKey("port", key) ? c.GetValue("port", key).ToString() : null;
+        s.EffectsSize = I76.Sim.Views.EffectsLook.Parse(Pct("effects_size"));
+        s.EffectsBrightness = I76.Sim.Views.EffectsLook.Parse(Pct("effects_brightness"));
+        s.EffectsOpacity = I76.Sim.Views.EffectsLook.Parse(Pct("effects_opacity"));
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
@@ -1544,6 +1558,9 @@ public sealed class ShellSettings
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
         if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
+        if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
+        if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);
+        if (EffectsOpacity != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_opacity", EffectsOpacity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);

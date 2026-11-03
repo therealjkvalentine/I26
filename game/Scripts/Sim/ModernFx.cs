@@ -12,11 +12,43 @@ public partial class ModernFx : Node3D
 {
     private ShaderMaterial _tracer = null!;
     private ArrayMesh _strip = null!;
-    private ParticleProcessMaterial _sparkProc = null!, _dustProc = null!, _smokeProc = null!;
-    private Mesh _sparkMesh = null!, _puffMesh = null!;
+    private ParticleProcessMaterial _sparkProc = null!, _dustProc = null!, _groundDustProc = null!, _smokeProc = null!;
+    private Mesh _sparkMesh = null!, _groundSparkMesh = null!, _puffMesh = null!;
     private readonly List<(Node Node, double Until)> _expiring = [];
     private readonly List<(OmniLight3D Light, double Start, double Life, float Energy)> _flashes = [];
     private QuadMesh _quad = null!;
+    private StandardMaterial3D _puffMat = null!;
+
+    /// <summary>
+    /// The config-only effects_size, effects_brightness and effects_opacity (<see cref="I76.Sim.Views.EffectsLook"/>), as factors: the
+    /// shaders read them as globals (i76_fx_size, i76_fx_bright, i76_fx_alpha), the lights and the shared particle meshes here.
+    /// </summary>
+    public static float FxSize { get; private set; } = 1f;
+    public static float FxBright { get; private set; } = 1f;
+    public static float FxAlpha { get; private set; } = 1f;
+    private static event Action? LookChanged;
+
+    /// <summary>The keys from the settings, live: the globals at once, the shared meshes of every combat view through <see cref="LookChanged"/>.</summary>
+    public static void ApplyLook(I76.Game.Shell.ShellSettings s)
+    {
+        FxSize = I76.Sim.Views.EffectsLook.Factor(s.EffectsSize);
+        FxBright = I76.Sim.Views.EffectsLook.Factor(s.EffectsBrightness);
+        FxAlpha = I76.Sim.Views.EffectsLook.Factor(s.EffectsOpacity);
+        RenderingServer.GlobalShaderParameterSet("i76_fx_size", FxSize);
+        RenderingServer.GlobalShaderParameterSet("i76_fx_bright", FxBright);
+        RenderingServer.GlobalShaderParameterSet("i76_fx_alpha", FxAlpha);
+        LookChanged?.Invoke();
+    }
+
+    private void ApplyShared()
+    {
+        ((BoxMesh)_sparkMesh).Size = new Vector3(0.025f, 0.35f, 0.025f) * FxSize;
+        ((BoxMesh)_groundSparkMesh).Size = new Vector3(0.022f, 0.3f, 0.022f) * FxSize;
+        ((QuadMesh)_puffMesh).Size = Vector2.One * FxSize;
+        _puffMat.AlbedoColor = new Color(1, 1, 1, Mathf.Min(FxAlpha, 1f));
+    }
+
+    public override void _ExitTree() => LookChanged -= ApplyShared;
     private Flipbook? _explosionHd, _explosion, _fireball, _smoke;
     private readonly List<Sprite> _sprites = [];
 
@@ -75,10 +107,15 @@ public partial class ModernFx : Node3D
             Code = """
                 shader_type spatial;
                 render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
-                void fragment() { ALBEDO = COLOR.rgb * 7.0 * COLOR.a; }
+                global uniform float i76_fx_bright;
+                global uniform float i76_fx_alpha;
+                void fragment() { ALBEDO = COLOR.rgb * 7.0 * COLOR.a * i76_fx_bright * i76_fx_alpha; }
                 """,
         };
         _sparkMesh = new BoxMesh { Size = new Vector3(0.025f, 0.35f, 0.025f), Material = new ShaderMaterial { Shader = sparkShader } };
+        // off the ground and scenery: dimmer and a little shorter, so a burst into the dirt does not draw the eye as a hit on a car does
+        var groundSpark = new ShaderMaterial { Shader = new Shader { Code = sparkShader.Code.Replace("7.0", "4.5") } };
+        _groundSparkMesh = new BoxMesh { Size = new Vector3(0.022f, 0.3f, 0.022f), Material = groundSpark };
         _sparkProc = new ParticleProcessMaterial
         {
             Direction = Vector3.Up, Spread = 55, InitialVelocityMin = 5, InitialVelocityMax = 15,
@@ -94,7 +131,7 @@ public partial class ModernFx : Node3D
             Gradient = new Gradient { Offsets = [0f, 0.55f, 1f], Colors = [new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.45f), new Color(1, 1, 1, 0)] },
             Fill = GradientTexture2D.FillEnum.Radial, FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(1f, 0.5f), Width = 64, Height = 64,
         };
-        var puffMat = new StandardMaterial3D
+        var puffMat = _puffMat = new StandardMaterial3D
         {
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha, BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
             VertexColorUseAsAlbedo = true, AlbedoTexture = soft, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
@@ -108,6 +145,13 @@ public partial class ModernFx : Node3D
             ColorRamp = Ramp((0, new Color(0.58f, 0.42f, 0.3f, 0.75f)), (1, new Color(0.6f, 0.47f, 0.36f, 0))),
             ScaleCurve = Curve1((0, 0.6f), (1, 2.2f)),
         };
+        // a round's dust off the ground: the same puff, a third less opaque and a tenth smaller
+        _groundDustProc = (ParticleProcessMaterial)_dustProc.Duplicate();
+        _groundDustProc.ColorRamp = Ramp((0, new Color(0.58f, 0.42f, 0.3f, 0.48f)), (1, new Color(0.6f, 0.47f, 0.36f, 0)));
+        _groundDustProc.ScaleMin = 0.45f;
+        _groundDustProc.ScaleMax = 0.8f;
+        ApplyShared();
+        LookChanged += ApplyShared;
         _smokeProc = new ParticleProcessMaterial
         {
             Direction = Vector3.Up, Spread = 180, InitialVelocityMin = 0.2f, InitialVelocityMax = 0.8f,
@@ -251,17 +295,26 @@ public partial class ModernFx : Node3D
         }
     }
 
-    /// <summary>A round strikes: sparks sprayed along <paramref name="spray"/>, dust as well off the ground, and a flash of light.</summary>
+    /// <summary>
+    /// A round strikes: sparks sprayed along <paramref name="spray"/>, dust as well off the ground, and a flash of light. Off the ground
+    /// (and scenery) all three are toned down, about a third, so a burst of fire into the dirt stays in the background; a hit on a car is full.
+    /// </summary>
     public void Strike(Vector3 at, Vector3 spray, bool ground, bool heavy)
     {
+        if (ground)
+        {
+            Burst(_sparkProc, _groundSparkMesh, heavy ? 15 : 8, 0.4, at, spray);
+            Burst(_groundDustProc, _puffMesh, heavy ? 8 : 5, 0.8, at, Vector3.Up);
+            Light(at + spray.Normalized() * 0.3f, heavy ? 2.2f : 1.3f, heavy ? 5 : 3.5f, 0.06, new Color(1f, 0.7f, 0.35f));
+            return;
+        }
         Burst(_sparkProc, _sparkMesh, heavy ? 22 : 12, 0.45, at, spray);
-        if (ground) Burst(_dustProc, _puffMesh, heavy ? 10 : 6, 0.9, at, Vector3.Up);
         Light(at + spray.Normalized() * 0.3f, heavy ? 3.5f : 2f, heavy ? 6 : 4, 0.06, new Color(1f, 0.7f, 0.35f));
     }
 
     public void Light(Vector3 at, float energy, float range, double life, Color color)
     {
-        var l = new OmniLight3D { LightColor = color, LightEnergy = energy, OmniRange = range, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = color, LightEnergy = energy * FxBright, OmniRange = range, ShadowEnabled = false };
         AddChild(l);
         l.GlobalPosition = at;
         _expiring.Add((l, _t + life));
@@ -414,7 +467,7 @@ public partial class ModernFx : Node3D
                 sm.Velocity = new Vector3(GD.Randf() - 0.5f, 2.2f + GD.Randf() * 1.5f, GD.Randf() - 0.5f);
                 sm.Node.SetInstanceShaderParameter("tint", smoke.Lerp(Colors.White, 0.2f) * 1.6f);
             }
-        var l = new OmniLight3D { LightColor = new Color(1f, 0.65f, 0.3f), LightEnergy = 6f * fire, OmniRange = size * 5f, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = new Color(1f, 0.65f, 0.3f), LightEnergy = 6f * fire * FxBright, OmniRange = size * 5f, ShadowEnabled = false };
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up * size * 0.5f;
         _flashes.Add((l, _t, 0.45 + size * 0.04, l.LightEnergy));
@@ -530,7 +583,7 @@ public partial class ModernFx : Node3D
         if (b.Light is { } l)
         {
             l.GlobalPosition = at;
-            l.LightEnergy = 3.2f + 2.2f * flick;
+            l.LightEnergy = (3.2f + 2.2f * flick) * FxBright;
         }
     }
 
@@ -548,7 +601,7 @@ public partial class ModernFx : Node3D
             sp.Node.SetInstanceShaderParameter("tint", new Color(1.1f, 0.75f, 0.45f));
         }
         Burst(_sparkProc, _sparkMesh, 20, 0.7, at + Vector3.Up * 0.4f, Vector3.Up);
-        var l = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 5f, OmniRange = 12f, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 5f * FxBright, OmniRange = 12f, ShadowEnabled = false };
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up;
         _flashes.Add((l, _t, 0.6, l.LightEnergy));
