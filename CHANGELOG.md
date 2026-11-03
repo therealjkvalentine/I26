@@ -54,6 +54,7 @@
 - Engines now sound at the original's pitch: the loop idles about 7 semitones higher than before and rises more gently with the revs, as the original's does.
 - Mines, caltrops, Blox and fire drops no longer pile up without end in a network game: as in the original, at most 40 of each lie live at once and the oldest goes when another is laid (160 of each kind of round offline, and for oil online too).
 - An AI car watches for no-go ground (cliff feet, map edges) along its left side, as the original's does, instead of along its centre line, so it swerves away from a no-go strip at the same moment the original's car does.
+- The 1997 look's machine gun tracers are a line one pixel wide, as the original draws them, instead of a small box, covering the front 65 % of the round's last step; a cannon round's tube spans its whole last step. Neither is cut to 4 m any more, so fast rounds keep their full length, and neither reaches back past the muzzle. The modern look is unchanged.
 
 ## 0.11.0 (31 October 2026)
 
