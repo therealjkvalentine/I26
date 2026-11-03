@@ -219,3 +219,9 @@ fix/zero-armour-damage-as-original    # stacked on play, test only: a round thro
 fix/wreck-smoke-range                 # stacked on play: modern look's wreck fire and smoke start and draw out to 600 m, as the original's model sprites
 fix/death-orbit-drawn                 # stacked on play: the death orbit camera interpolated between ticks
 fix/round3-integration-5              # stacked on play, last of I: vegetation_density in the Developer panel's Settings; the README's Windows tex-world path; two changelog full stops
+feat/tactile-lfe                      # stacked on play: a bass shaker's signal of the port's own on the LFE channel (engine, road, shots, hits, explosions; 15-90 Hz, limited)
+feat/audio-output-modes               # after tactile-lfe: Audio Control's Output (Stereo, Phones, 2.1, 5.1, 7.1) and LFE Level; [port] tactile_eq, crossover
+fix/map-edge-roads-and-1997           # stacked on play: Map Edge On in the 1997 look, its plants on the drawn-down ground, a barrier with a road at its foot kept
+fix/map-edge-placed-objects           # after map-edge-roads-and-1997: On never draws down ground the mission puts something on (T05's helicopters)
+feat/modern-lighting-calibration      # stacked on play (contains feat/modern-look-colour-match, not listed): the modern look's lighting calibrated against the 1997 look's; [port] lighting_calibration
+feat/build-version-rules              # stacked on play: user://build-rules.cfg picks the 1997 or 1998 build's turret slew and AI tactic choice, 1998 by default
