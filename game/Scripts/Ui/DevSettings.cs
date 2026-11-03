@@ -34,6 +34,11 @@ public static class DevSettings
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
 
+    /// <summary>vegetation_density's percentages offered, in the key's 10..150 range; a value set by hand shows as the nearest.</summary>
+    public static readonly int[] VegetationSteps = [10, 30, 60, 100, 150];
+    private static readonly string[] VegetationNames = [.. VegetationSteps.Select(p => p == I76.Formats.Vegetation.VegetationDensity.Default ? $"{p}" : $"{p}{M}")];
+    public static int NearestVegetationStep(int percent) => Array.IndexOf(VegetationSteps, VegetationSteps.MinBy(p => Math.Abs(p - percent)));
+
     public static readonly DevSetting[] All =
     [
         new("draw_distance", ["look", "0", "1" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
@@ -48,6 +53,7 @@ public static class DevSettings
         new("effects_size", EffectNames, s => NearestStep(s.EffectsSize), (s, v) => s.EffectsSize = EffectSteps[v], DevWhen.Live),
         new("effects_brightness", EffectNames, s => NearestStep(s.EffectsBrightness), (s, v) => s.EffectsBrightness = EffectSteps[v], DevWhen.Live),
         new("effects_opacity", EffectNames, s => NearestStep(s.EffectsOpacity), (s, v) => s.EffectsOpacity = EffectSteps[v], DevWhen.Live),
+        new("vegetation_density", VegetationNames, s => NearestVegetationStep(s.VegetationDensity), (s, v) => s.VegetationDensity = VegetationSteps[v], DevWhen.Live),
         new("ordnance_limit", Words(OriginalRecipe.OrdnanceNames), s => s.OrdnanceLimit, (s, v) => s.OrdnanceLimit = v, DevWhen.Live),
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,

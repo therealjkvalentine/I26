@@ -1566,9 +1566,9 @@ public sealed class ShellSettings
         if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
-        if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);
         if (EffectsOpacity != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_opacity", EffectsOpacity);
+        if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
