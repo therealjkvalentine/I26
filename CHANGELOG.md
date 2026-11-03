@@ -63,6 +63,7 @@
 - In the 1997 look the road far ahead is no longer smeared into a grey blur: its lane dashes and edges stay sharp into the distance, as on the original's 3D cards, which drew roads without mipmaps.
 - The 2D dash's rear-view mirror sits where the original's does, at the right of the frame with the end of its bezel cut off by the frame's edge, instead of whole and further left.
 - The overhead view's (F10) Page Up/Down zoom goes at the simulation's tick rate, as the original's per-frame zoom does at its frame rate, instead of a fixed 60 steps a second.
+- The hood view (F6) no longer draws your own car round the camera when you look back; the original leaves it out, as in the cockpit.
 
 ## 0.11.0 (31 October 2026)
 
