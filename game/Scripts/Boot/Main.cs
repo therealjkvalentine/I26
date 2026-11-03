@@ -669,7 +669,7 @@ public partial class Main : Node3D
         // [port] music_tracks (all: on past track 14), from the next track on
         if (_musicSeq is not null && _musicInstall is not null)
             _musicSeq = new I76.Formats.Audio.MissionMusic(I76.Game.Assets.CdMusic.LastTrack(_musicInstall),
-                I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), s.MusicTracks != 0));
+                I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), s.MusicTracks != 0), nitro: _musicInstall.IsNitro);
         I76.Game.ForceFeedback.WheelName = s.FfbDevice;
         I76.Game.ForceFeedback.Strength = s.FfbStrength;
         I76.Game.ForceFeedback.UseWheel = s.ForceFeedbackWheel;
@@ -1647,14 +1647,14 @@ public partial class Main : Node3D
     /// The mission's CD track (WRLD +0x00, verbatim: a01 asks MCI for track 7), which the GOG install ships as music/N.mp3,
     /// four of them out of disc order (CdMusic). It is made here but starts in <see cref="StartMissionMusic"/>: the original
     /// calls the music start after the load and the briefing (the original's start-up), not while the card is up. What follows
-    /// it is MissionMusic's (on to the next track at once through track 14, then track 2; [port] music_tracks=all on through the disc's last; I76_MUSIC_SEQUENCE=retail or gog for the originals' 60 s poll).
+    /// it is MissionMusic's (on to the next track at once through track 14, then track 2, never the shell's; [port] music_tracks=all on through the disc's last; I76_MUSIC_SEQUENCE=retail or gog for the originals' 60 s poll).
     /// </summary>
     private void PlayMusic(GameInstall install, I76.Formats.Mission.WorldSettings? s)
     {
         if (s is null) return;
         if (GetNodeOrNull("Music") is not null) { _status += _musicNote; return; }
         _musicSeq = new I76.Formats.Audio.MissionMusic(I76.Game.Assets.CdMusic.LastTrack(install),
-            I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), I76.Game.Shell.ShellSettings.Load().MusicTracks != 0));
+            I76.Formats.Audio.MissionMusic.For(System.Environment.GetEnvironmentVariable("I76_MUSIC_SEQUENCE"), I76.Game.Shell.ShellSettings.Load().MusicTracks != 0), nitro: install.IsNitro);
         _musicTrack = _musicSeq.First((int)s.CdTrack);
         if (I76.Game.Assets.CdMusic.Path(install, _musicTrack) is null) return;
         ApplyAudio(I76.Game.Shell.ShellSettings.Load());
