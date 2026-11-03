@@ -24,6 +24,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] looks                     every stock mission's WRLD look: palette, .lum, .tbl, sky, ground, horizon, hour
 //   i76 [--install DIR] seams DEF... [--all] [--reach R]  where a model's parts meet: welded, T-junctions, hairline gaps
 //   i76 [--install DIR] props OUT [--maps]        every scenery texture over all missions, who uses it, and its prop material map
+//   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
 
 var argv = args.ToList();
 if (argv.Count > 0 && argv[0] == "installer") return I76.Cli.InstallerCommand.Run(argv);
@@ -35,6 +36,7 @@ if (argv.Count > 0 && argv[0] == "gallery") return I76.Cli.GalleryCommand.Run(ar
 if (argv.Count > 0 && argv[0] == "car-table") return I76.Cli.CarTableCommand.Run(argv, installDir);
 if (argv.Count > 0 && (argv[0] == "car-views" || argv[0] == "car-project" || argv[0] == "car-glass")) return I76.Cli.CarSamCommand.Run(argv, installDir);
 if (argv.Count > 0 && argv[0] == "respray-preview") return I76.Cli.ResprayCommand.Run(argv, installDir);
+if (argv.Count > 0 && argv[0] == "keysheet") return I76.Cli.KeySheetCommand.Run(argv, installDir);
 if (argv.Count == 0 || installDir is null)
 {
     Console.Error.WriteLine("usage: i76 [--install DIR] verify|ls|cat|dump|mission|fsm-disasm ...  (or set I76_INSTALL)");
