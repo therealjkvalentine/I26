@@ -45,7 +45,7 @@ public class AuditPhysicsTests
         public void TerrainImpact(Vehicle v, Vector3 relVel, Vector3 n, Vector3 cLocal) { }
         public void Landing(Vehicle v, Vector3 impactVel, Vector3 n) { }
         public void FallKill(Vehicle v) { FallKills++; v.Flags |= VehicleFlags.Dead; }
-        public void Rough(Vehicle v, float dt) { }
+        public void Rough(Vehicle v, int surface, float dt) { }
         public void StaticContact(Vehicle v, StaticObject o, Contact rec) { }
     }
 

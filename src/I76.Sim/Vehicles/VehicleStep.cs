@@ -169,7 +169,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         for (int i = 0; i < n; i++)
         {
             Damage?.Timer(v, dt);
-            if (grounded && signedSpeed > 7.65f) { if (Damage is { } d) d.Rough(v, dt); else rand.Next(); }
+            if (grounded && signedSpeed > 7.65f) { if (Damage is { } d) d.Rough(v, v.Surface, dt); else rand.Next(); }
         }
     }
 
@@ -205,6 +205,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             // Ground under the body, offset along up when upside down.
             var p = v.Pos;
             if (v.Rot.Up.Y < 0) p += v.Rot.Up * v.P.RideOffset;
+            // the rough-terrain damage below reads the surface probed the substep before (the original's order)
+            int lastSurface = v.Surface;
             v.Surface = ground.SurfaceId(p.X, p.Z);
             var (h, nrm) = ground.Query(p.X, p.Y, p.Z);
             v.GroundNormal = nrm;
@@ -218,7 +220,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             Skid(v.RearLeft, slideBit);
             Skid(v.RearRight, slideBit);
             // Rough-terrain damage: one rand() per grounded substep above 7.65 u/s
-            if (signedSpeed > 7.65f) { if (Damage is { } d) d.Rough(v, dt); else rand.Next(); }
+            if (signedSpeed > 7.65f) { if (Damage is { } d) d.Rough(v, lastSurface, dt); else rand.Next(); }
         }
         else
         {

@@ -107,7 +107,7 @@ public class PlayOptionCheatTests
         ai.Vel = new Vector3(0, 0, -30);                        // rammed head-on at 30 m/s
         dm.CarContact(pl, ai, new Contact { N = Vector3.UnitZ, C = Front });
         ai.Vel = Vector3.Zero;
-        for (int i = 0; i < 200; i++) dm.Rough(pl, 0.1f);       // 400/s of rough ground for 20 s
+        for (int i = 0; i < 200; i++) dm.Rough(pl, pl.Surface, 0.1f);       // 400/s of rough ground for 20 s
         Assert.Equal(c0, pl.Health!.Chassis);
         Assert.Equal(a0, pl.Health.Armour);
         Assert.Equal(p0, State(pl).Parts);
@@ -115,7 +115,7 @@ public class PlayOptionCheatTests
         Assert.Equal(a0[0] - 50, pl.Health.Armour[0]);
         // the AI on the same ground wears down
         var ca = ai.Health!.Chassis.Sum();
-        for (int i = 0; i < 200; i++) dm.Rough(ai, 0.1f);
+        for (int i = 0; i < 200; i++) dm.Rough(ai, ai.Surface, 0.1f);
         Assert.True(ai.Health.Chassis.Sum() < ca);
     }
 
