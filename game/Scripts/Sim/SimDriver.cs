@@ -178,8 +178,8 @@ public partial class SimDriver : Node
     public override void _UnhandledInput(InputEvent e)
     {
         // the commands of input.map (Controls): each goes to the sim with the next tick
-        if (Controls.Suspended && e is not InputEventJoypadButton) return;   // typing a chat line: the pad still plays
-        if (e is not (InputEventKey { Pressed: true, Echo: false } or InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true }) || Player?.Sim is null) return;
+        if (Controls.Suspended && e is not (InputEventJoypadButton or InputEventAction)) return;   // typing a chat line: the pad (and its rules) still plays
+        if (e is not (InputEventKey { Pressed: true, Echo: false } or InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true } or InputEventAction { Pressed: true }) || Player?.Sim is null) return;
         if (FlyCameraActive?.Invoke() != true) LatchPress(e);
         if (FlyCameraActive?.Invoke() == true) return;   // WASDQE fly the debug camera; they are also the radar camera, targets...
         if (Controls.Pressed(e, "weapon_cycle")) _commands.Push(CarCommands.WeaponCycle);   // cammo.wav is the sim's, when the selection changes

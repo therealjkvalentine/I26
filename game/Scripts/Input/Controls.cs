@@ -66,7 +66,26 @@ public static class Controls
         _polled = f;
         using (Hitch.Time(Hitch.Phase.Input)) Pads.Poll(Focused());
         if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } }
+        if (_table?.Rules is { IsEmpty: false } rules)
+        {
+            rules.Update(new PadRules.Frame(Pads, (long)Time.GetTicksMsec(), LookingBack?.Invoke() == true));
+            if (Held?.Invoke() != true) foreach (var c in rules.Pulses) Pulse(c);
+        }
     }
+
+    /// <summary>Whether the head looks back now (the game's cockpit sets it): the look-back rules' context (<see cref="PadRules"/>).</summary>
+    public static Func<bool>? LookingBack { get; set; }
+
+    /// <summary>A rule's press of a command arrives as an action event through Godot's input, so every reader of <see cref="Pressed"/> sees it as a key's.</summary>
+    private const string PulsePrefix = "i26_rule:";
+
+    private static void Pulse(string command)
+    {
+        // dispatched as any event is, the action registered or not (measured on Godot 4.7.2)
+        Godot.Input.ParseInputEvent(new InputEventAction { Action = PulsePrefix + command, Pressed = true });
+    }
+
+    private const string RulesPath = "user://input.rules";
 
     private static int _seen;
 
@@ -202,6 +221,8 @@ public static class Controls
         else if (Pads.Count > 0) t = Defaults();    // the shell copies JOYSTICK.MAP over a missing input.map when a stick is present
         else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd();
         else t = Defaults().Migrate(Install("input.def"));
+        // the port's bindings beside the file (PadRules), before a pad side is chosen: a map with rules has a pad binding
+        if (Godot.FileAccess.FileExists(RulesPath)) t.Rules = PadRules.Parse(Godot.FileAccess.GetFileAsString(RulesPath));
         // a map with no pad blocks at all (saved by the original screen, an older version, or the install's) still lets a pad play:
         // the preset's pad side, in memory only (the keys stay as saved, nothing is written)
         t.AddPadSideIfNone(PadDefaults);
@@ -311,9 +332,11 @@ public static class Controls
         var text = edited.WithTwins(GlanceTwins).ToText(Install("input.def"));
         using (var f = Godot.FileAccess.Open(UserPath, Godot.FileAccess.ModeFlags.Write)) f?.StoreString(text);
         KeepShift(edited.Shift);
+        using (var f = Godot.FileAccess.Open(RulesPath, Godot.FileAccess.ModeFlags.Write)) f?.StoreString(edited.Rules.ToText());
         // in use as the file has it (input.def's blocks verbatim), as the next run reads it
         _table = BindingTable.Parse(text).WithScoreboardOnTab();
         _table.Shift = edited.Shift;
+        _table.Rules = edited.Rules.Clone();
         _axes = new AxisControls(_table.Blocks);
     }
 
@@ -350,7 +373,7 @@ public static class Controls
     {
         if (Held?.Invoke() == true) return false;
         Refresh();
-        return Table.Holds(command, Pads, TermLive);
+        return Table.Rules.Holds(Table, command, Pads, TermLive);
     }
 
     /// <summary>The term, as it stands while this event happens (Shift and Control by the event's own flags).</summary>
@@ -375,11 +398,13 @@ public static class Controls
     /// <summary>Whether the event is the command's input going down: a "+" term of one of its blocks, the rest of the chord holding.</summary>
     public static bool Pressed(InputEvent e, string command)
     {
-        if (Held?.Invoke() == true || Suspended && e is not InputEventJoypadButton) return false;
+        if (Held?.Invoke() == true || Suspended && e is not (InputEventJoypadButton or InputEventAction)) return false;
+        if (e is InputEventAction { Pressed: true } act)
+            return Table.Rules.Sources(command).Any(c => act.Action.ToString() == PulsePrefix + c);
         if (e is InputEventJoypadButton) Refresh(force: true);
-        foreach (var b in Table.Of(command))
+        foreach (var b in Table.Rules.Sources(command).SelectMany(c => Table.Of(c)))
         {
-            if (b.Terms.Length == 0 || InputChord.IsDead(b.Terms[^1], Pads)) continue;
+            if (b.Terms.Length == 0 || InputChord.IsDead(b.Terms[^1], Pads) || Table.Rules.Masks(b)) continue;
             for (int i = 0; i < b.Terms.Length; i++)
             {
                 if (!b.Terms[i].Plus || !Goes(e, b.Terms[i])) continue;

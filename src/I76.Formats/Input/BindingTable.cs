@@ -22,7 +22,10 @@ public sealed class BindingTable
         return t;
     }
 
-    public BindingTable Clone() { var t = FromBlocks(Blocks); t.Shift = Shift; return t; }
+    public BindingTable Clone() { var t = FromBlocks(Blocks); t.Shift = Shift; t.Rules = Rules.Clone(); return t; }
+
+    /// <summary>The port's bindings beside the file's blocks, which input.map cannot hold (<see cref="PadRules"/>).</summary>
+    public PadRules Rules { get; set; } = new();
 
     private void Add(InputBlock b)
     {
@@ -195,6 +198,7 @@ public sealed class BindingTable
         }
         var axis = command.ToLowerInvariant() switch { "throttle_up" or "throttle_down" => "throttle", "steer_left" or "steer_right" => "steer", _ => null };
         if (pad && axis is not null && AxisOf(axis) is not null) Clear(axis);
+        if (pad) Rules.RemoveInput(want);
         Set(command, [.. Of(command).Where(b => IsPad(b) != pad || IsShifted(b)), NewBlock(command, device, channel)]);
         if (pad) NormaliseShift();
     }
@@ -205,6 +209,7 @@ public sealed class BindingTable
     /// <summary>A pad input (a button, a hat direction or an axis, on any pad) off every command that has it; the shift button stops being one.</summary>
     public void ClearInput(string channel)
     {
+        Rules.RemoveInput(new InputTerm(true, "joystick1", channel));
         string want = Norm(new InputTerm(true, "joystick1", channel));
         if (Shift is { } s && Norm(s).Equals(want, StringComparison.OrdinalIgnoreCase)) ClearShift();
         foreach (var c in _order.ToList())
@@ -242,6 +247,8 @@ public sealed class BindingTable
     {
         var s = new InputTerm(true, device, channel);
         if (Shift is { } old && !Same(old, s)) ClearShift();
+        // the shift is that button's one binding: a rule on it goes
+        Rules.RemoveInput(s);
         Shift = s;
         NormaliseShift();
     }
@@ -338,7 +345,7 @@ public sealed class BindingTable
     {
         foreach (var c in _order.Concat(defaults._order).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
             Set(c, [.. Of(c).Where(b => IsPad(b) != pad), .. defaults.Of(c).Where(b => IsPad(b) == pad)]);
-        if (pad) Shift = defaults.Shift;
+        if (pad) { Shift = defaults.Shift; Rules = defaults.Rules.Clone(); }
     }
 
     /// <summary>
@@ -385,7 +392,7 @@ public sealed class BindingTable
     /// <summary>As above, the defaults built (from disk, perhaps) only when there is no pad block to keep.</summary>
     public bool AddPadSideIfNone(Func<BindingTable> defaults)
     {
-        if (Blocks.Any(IsPad)) return false;
+        if (Blocks.Any(IsPad) || !Rules.IsEmpty) return false;
         ResetSide(defaults(), true);
         return true;
     }
