@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 23;
+    public const ushort Version = 24;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -348,15 +348,15 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         w.Bool(Cb);
         // protocol 22: the engine stays on in this game (the host's ignition lock), for the client's prediction
         w.Bool(IgnitionStaysOn);
-        // protocol 23: the host gives players handicaps in this game (the host's Handicaps option)
-        w.Bool(Handicaps);
+        // protocol 23: the host gives players handicaps in this game (the host's Handicaps option); protocol 24: the rule's mode (Off, Manual, Auto)
+        w.U8((byte)Handicaps);
     }
 
     /// <summary>The host's rule that nobody switches their engine off (protocol 22; the host form's IGN. LOCK, i26-server's --no-ignition-off).</summary>
     public bool IgnitionStaysOn { get; init; }
 
-    /// <summary>The host's Handicaps rule (protocol 23; docs/multiplayer.md "Handicaps"): the scoreboard's rows carry each player's level.</summary>
-    public bool Handicaps { get; init; }
+    /// <summary>The host's Handicaps rule (protocol 23, the mode since 24; docs/multiplayer.md "Handicaps"): the scoreboard's rows carry each player's level.</summary>
+    public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
 
     /// <summary>The CB radio is allowed in this game (the host form's CB Radio, i26-server's --no-cb turns it off); off, the server relays no voice and the client neither sends nor opens the microphone.</summary>
     public bool Cb { get; init; } = true;
@@ -393,7 +393,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         var coop = r.Bool() ? CoopInfo.Read(ref r) : null;
         bool cb = r.Bool();
         bool ignition = r.Bool();
-        bool handicaps = r.Bool();
+        var handicaps = (I76.Sim.Missions.HandicapMode)r.U8();
+        if (handicaps > I76.Sim.Missions.HandicapMode.Auto) throw new WireException($"handicaps {handicaps}");
         return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps };
     }
 
@@ -479,7 +480,7 @@ public sealed record InputMessage(uint Tick, IReadOnlyList<CarInput> Inputs, uin
 /// <summary>One player's line on the scoreboard.</summary>
 public sealed record PlayerRow(byte Slot, string Name, byte Team, int Score, int Kills, int Deaths, ushort Ping, int CarSerial, bool Alive)
 {
-    /// <summary>The host's handicap on the player, −3..+3 (protocol 23; <see cref="I76.Sim.Missions.Handicaps"/>), 0 for none.</summary>
+    /// <summary>The host's handicap on the player, −5..+5 (protocol 23; <see cref="I76.Sim.Missions.Handicaps"/>), 0 for none.</summary>
     public sbyte Handicap { get; init; }
 }
 

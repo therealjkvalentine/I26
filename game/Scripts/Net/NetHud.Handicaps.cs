@@ -17,8 +17,8 @@ public partial class NetHud
     private bool _boardShown;
     private bool _handicapHintSaid;
 
-    /// <summary>The host's rule is on in this game and this machine runs it.</summary>
-    private bool HostHandicaps => Server is { Options.Handicaps: true };
+    /// <summary>The host's rule is Manual in this game and this machine runs it (Auto's levels are the game's: the keys do nothing).</summary>
+    private bool HostHandicaps => Server is { Options.Handicaps: HandicapMode.Manual };
 
     /// <summary>A Shift key of the host's handicaps; returns whether it acted.</summary>
     private bool HandicapKey(InputEventKey k)
@@ -48,12 +48,14 @@ public partial class NetHud
         return true;
     }
 
-    /// <summary>The score window's frame: remembers that it is up, and tells the host its keys the first time.</summary>
+    /// <summary>The score window's frame: remembers that it is up, and tells the host its keys (Manual) or the rule (Auto) the first time.</summary>
     private void HandicapBoard(bool shown)
     {
         _boardShown = shown;
-        if (!shown || _handicapHintSaid || !HostHandicaps) return;
+        if (!shown || _handicapHintSaid || Server is not { } s || s.Options.Handicaps == HandicapMode.Off) return;
         _handicapHintSaid = true;
-        Say("Handicaps: Shift+1..9 picks a player, Shift+[ and Shift+] set the level", FeedKind.Own);
+        Say(s.Options.Handicaps == HandicapMode.Auto
+            ? $"Auto handicap: every {Handicaps.AutoStep.ToString(System.Globalization.CultureInfo.InvariantCulture)} kills (net of deaths) over the table's average cost a level, under it give one"
+            : "Handicaps: Shift+1..9 picks a player, Shift+[ and Shift+] set the level", FeedKind.Own);
     }
 }

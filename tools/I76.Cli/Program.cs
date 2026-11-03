@@ -25,6 +25,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] seams DEF... [--all] [--reach R]  where a model's parts meet: welded, T-junctions, hairline gaps
 //   i76 [--install DIR] props OUT [--maps]        every scenery texture over all missions, who uses it, and its prop material map
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
+//   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
 
 var argv = args.ToList();
 if (argv.Count > 0 && argv[0] == "installer") return I76.Cli.InstallerCommand.Run(argv);
@@ -602,6 +603,8 @@ switch (argv[0])
         return I76.Cli.PropSurvey.Run(install, argv);
     case "run":
         return I76.Cli.MissionRun.Run(install, argv);
+    case "melee-sim":
+        return I76.Cli.MeleeSim.Run(install, argv);
     case "wakecheck":
         return I76.Cli.WakeCheck.Run(install, argv);
     case "airtime":

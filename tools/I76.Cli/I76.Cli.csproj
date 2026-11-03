@@ -9,5 +9,6 @@
     <ProjectReference Include="../../src/I76.Formats/I76.Formats.csproj" />
     <ProjectReference Include="../../src/I76.Sim/I76.Sim.csproj" />
     <ProjectReference Include="../../src/I76.Editor/I76.Editor.csproj" />
+    <ProjectReference Include="../../src/I76.Server/I76.Server.csproj" />
   </ItemGroup>
 </Project>

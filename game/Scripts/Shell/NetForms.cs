@@ -359,7 +359,7 @@ public sealed partial class MeleeScreen
         Frame.Text(_font, 15, 449, $"Hidden: {(Shell.Settings.HiddenContent ? "On" : "Off")}");
         // (and the Car Reset's, the reset-upright key, on a line of its own under them)
         // (and the Handicaps' between them, docs/multiplayer.md "Handicaps": the words shortened, the CB's at the line's end)
-        string reset = $"Reset {(Shell.Settings.CarReset ? "On" : "Off")}", hcap = $"Hcp {(Shell.Settings.Handicaps ? "On" : "Off")}", cb = $"CB {(Shell.Settings.CbRadio ? "On" : "Off")}";
+        string reset = $"Reset {(Shell.Settings.CarReset ? "On" : "Off")}", hcap = $"Hcp {HandicapWord(Shell.Settings.Handicaps)}", cb = $"CB {(Shell.Settings.CbRadio ? "On" : "Off")}";
         int gap = Math.Max(2, (198 - _font.Measure(reset) - _font.Measure(hcap) - _font.Measure(cb)) / 2);
         Frame.Text(_font, 15, 463, reset);
         Frame.Text(_font, 15 + _font.Measure(reset) + gap, 463, hcap);
@@ -426,12 +426,18 @@ public sealed partial class MeleeScreen
         Shell.Settings.Save();
     }
 
-    /// <summary>The host form's Handicaps (the port's; docs/multiplayer.md "Handicaps"): whether the host may give the game's players handicaps from the score window.</summary>
-    private void ToggleHandicaps()
+    /// <summary>
+    /// The host form's Handicaps (the port's; docs/multiplayer.md "Handicaps"), stepped: Off, Manual (the host sets the levels from the
+    /// score window), Auto (the game sets them from the standings, a combat melee's rule: a co-op form offers Off and Manual).
+    /// </summary>
+    private void StepHandicaps(int d)
     {
-        Shell.Settings.Handicaps = !Shell.Settings.Handicaps;
+        int n = Coop ? 2 : 3;
+        Shell.Settings.Handicaps = (I76.Sim.Missions.HandicapMode)(((int)Shell.Settings.Handicaps + d + n) % n);
         Shell.Settings.Save();
     }
+
+    private static string HandicapWord(I76.Sim.Missions.HandicapMode m) => m switch { I76.Sim.Missions.HandicapMode.Manual => "Manual", I76.Sim.Missions.HandicapMode.Auto => "Auto", _ => "Off" };
 
     /// <summary>The host form's Car Reset (the port's): whether the game's players may press the reset-upright key (X) to put their car back on the terrain, upright and still.</summary>
     private void ToggleCarReset()
@@ -616,7 +622,8 @@ public sealed partial class MeleeScreen
         OptionsPopupWith(was, wasRate, wasCars);
     }
 
-    private bool _turretsWas, _ignitionWas, _handicapsWas;
+    private bool _turretsWas, _ignitionWas;
+    private I76.Sim.Missions.HandicapMode _handicapsWas;
     private int _coopScaleWas;
     private float _coopDamageWas;
     private bool _rollingWas;
@@ -644,7 +651,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.CoopScale != _coopScaleWas) { Shell.Settings.CoopScale = _coopScaleWas; Shell.Settings.Save(); }
                     if (Shell.Settings.CoopDamage != _coopDamageWas) { Shell.Settings.CoopDamage = _coopDamageWas; Shell.Settings.Save(); }
                     if (Shell.Settings.CoopRollingStart != _rollingWas) ToggleRollingStart();
-                    if (Shell.Settings.Handicaps != _handicapsWas) ToggleHandicaps();
+                    if (Shell.Settings.Handicaps != _handicapsWas) { Shell.Settings.Handicaps = _handicapsWas; Shell.Settings.Save(); }
                 }
                 Draw();
             },
@@ -691,7 +698,7 @@ public sealed partial class MeleeScreen
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
                 // the port's: the players' cars take more or less damage (docs/deviations.md)
                 new("CO-OP DAMAGE:", true, false, CoopDamageText, StepCoopDamage),
-                new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()),
+                new("HANDICAPS:", true, false, HandicapWord(Shell.Settings.Handicaps), StepHandicaps),
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
                 // the port's: a respawn or joiner at a moving teammate's speed (docs/deviations.md)
@@ -724,8 +731,8 @@ public sealed partial class MeleeScreen
         rows.Add(new("IGNITION STAYS ON", false, Shell.Settings.IgnitionStaysOn, "", _ => ToggleIgnition()));
         // the port's: the CB radio, push-to-talk voice chat, the host's decision (on by default)
         rows.Add(new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()));
-        // the port's: the host may give players handicaps from the score window (docs/multiplayer.md "Handicaps"; off by default)
-        rows.Add(new("HANDICAPS", false, Shell.Settings.Handicaps, "", _ => ToggleHandicaps()));
+        // the port's: the host may give players handicaps from the score window, or the game sets them from the standings (docs/multiplayer.md "Handicaps"; off by default)
+        rows.Add(new("HANDICAPS:", true, false, HandicapWord(Shell.Settings.Handicaps), StepHandicaps));
         // the port's: players the server drives (docs/multiplayer.md "Bots"), up to the free seats, and how well
         rows.Add(new("BOTS:", true, false, $"{Math.Min(_bots, MaxBots):00}", d => _bots = Math.Clamp(Math.Min(_bots, MaxBots) + d, 0, MaxBots)));
         rows.Add(new("BOT SKILL:", true, false, _botSkill.ToString(), d => _botSkill = (I76.Sim.Missions.BotSkill)(((int)_botSkill + d + 3) % 3)));
@@ -790,7 +797,7 @@ public sealed partial class MeleeScreen
             case 40 when Hosting: StepCoopScale(1); return true;
             case 41 when Hosting: StepCoopDamage(1); return true;
             case 42 when Hosting: ToggleRollingStart(); return true;
-            case 43 when Hosting: ToggleHandicaps(); return true;
+            case 43 when Hosting: StepHandicaps(1); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -855,7 +862,7 @@ public sealed partial class MeleeScreen
         if (!g.CarReset) parts.Add("No car reset");
         if (g.IgnitionStaysOn) parts.Add("Ignition stays on");
         if (!g.Cb) parts.Add("CB radio off");
-        if (g.Handicaps) parts.Add("Handicaps on");
+        if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) parts.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
 
@@ -875,7 +882,7 @@ public sealed partial class MeleeScreen
         if (!g.CarReset) rows.Add("No car reset");
         if (g.IgnitionStaysOn) rows.Add("Ignition stays on");
         if (!g.Cb) rows.Add("CB radio off");
-        if (g.Handicaps) rows.Add("Handicaps on");
+        if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) rows.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
         return rows;
     }
 

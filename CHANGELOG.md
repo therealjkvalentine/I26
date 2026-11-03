@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Network games use protocol 23: this version does not play with 0.11.0 or earlier.
+
 ### New
 - Map editor: switching between the editor and its playtest is much faster. Coming back to the editor is instant (it was a 2 to 3 second reload) because the editor is kept aside while you play, and going into the playtest takes about 1 second (1.6 s on the big T01 map in the modern look) instead of 2 to 3 (and more on a slow machine). An edit you make always shows in the playtest.
 - Map editor: a playtest (F5, the PLAYTEST button) drops your car under the mouse cursor, on the ground, a road or a bridge's deck, facing the way the camera looks; with the cursor on the sky, off the map, on water, on a cliff or in a building, or off the 3D view, it goes where it used to, at the camera's pivot, and says why.
@@ -167,6 +169,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - The Developer panel has a Scene row: any mission the install offers (the trip's, the melee maps, the Nitro Pack's in that game) in this car, the mission's own or any car file, started at once as `--mission X --drive car` would, the panel still on.
 - The Developer panel's Teleport list has places of its own for every mission: the start, the highest and the lowest ground you can drive to (read from the map, so the top of the hill in Trip mission 5 rather than a canyon wall), the map's centre and each bridge, ramp and tower; and you can keep the car's place under a name for that mission (Keep), listed first from then on, and forget it again.
 - The Developer panel has a Loadout section: each of your car's weapon mounts with a choice of every weapon the garage allows there, swapped in live and fully loaded with Apply, and a Refill that loads every weapon and special without repairing anything.
+- Handicaps can be Auto (the host form's Hcp, HANDICAPS in the Nitro game options, or --handicaps auto): in a melee the game sets each player's level from the standings, every 1.5 kills (net of deaths) over the table's average costs a level and under it gives one, one step at a time, given back as the field catches up; the levels now reach -5 to +5 (x0.3 to x2.2), by hand too; every change is said in everyone's feed and shown on the scoreboard, so a family of mixed skill plays toward the same number of kills with nobody told their level.
 
 ## 0.11.0 (31 October 2026)
 

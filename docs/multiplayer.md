@@ -313,12 +313,12 @@ options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for 
 says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
 join accept carries it (`JoinAccept.Handicaps`, a bool after `Cb`).
 
-With it on, the host gives each player a level from −3 to +3 (0 none). A level scales the damage that player's rounds deal, and
-nothing else (no speed, armour or handling, so the clients' prediction is untouched):
+With it on, the host gives each player a level from −5 to +5 (0 none; ±4 and ±5 came with Auto, which needed the reach). A level
+scales the damage that player's rounds deal, and nothing else (no speed, armour or handling, so the clients' prediction is untouched):
 
-| Level | −3 | −2 | −1 | 0 | +1 | +2 | +3 |
-|---|---|---|---|---|---|---|---|
-| Damage | ×0.55 | ×0.7 | ×0.85 | ×1 | ×1.2 | ×1.4 | ×1.6 |
+| Level | −5 | −4 | −3 | −2 | −1 | 0 | +1 | +2 | +3 | +4 | +5 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Damage | ×0.3 | ×0.4 | ×0.55 | ×0.7 | ×0.85 | ×1 | ×1.2 | ×1.4 | ×1.6 | ×1.9 | ×2.2 |
 
 (`Handicaps.Factor`, a static table in the sim.) The combat applies it where a round's packet is built (`Combat.RoundPacket`, before
 the truncation and the split over the channels, after the difficulty factor, which is 1 online), to the splash of the round's
@@ -331,11 +331,64 @@ seats.
 The listen host sets it from the score window while it is up: **Shift+1..9** picks the n-th numbered row (the rows BOOT_n numbers),
 **Shift+[** lowers and **Shift+]** raises that player's level (`NetHud.HandicapKey` → `NetMeleeServer.SetHandicap`); the first
 time the window opens the feed says so, and each change is said with its factor. `i26-server`'s console: `handicap SLOT LEVEL`.
-Only the host's server sets a level: a client has no message for it, and a game without the rule refuses the host too.
+Only the host's server sets a level: a client has no message for it, and a game without the rule refuses the host too. With the
+rule's third setting, Auto (below), the game sets the levels itself.
 
 Everyone sees the levels on the scoreboard: `PlayerRow.Handicap` rides in the scoreboard message, whose row field mask becomes a
 VarU with 256 for the level (an sbyte); the score window shows "Name (+2)" by the name (`ScoreTable.HandicapName`), and on the
 host's machine the picked player's level in brackets, "Name [0]". Protocol 22.
+
+### Auto handicap (protocol 23)
+
+I26's (docs/deviations.md). The host rule's third setting: Off, Manual (above: the host sets the levels), Auto: the game sets them from
+the standings, so a mixed table (a family, bots of different skill) plays toward the same number of kills by the end without anyone
+having to be told their level. The host form's `Hcp` steps through the three (shell.cfg `[port] handicaps`, "manual" or "auto"; an older
+file's `true` is manual), HANDICAPS in the Nitro form's game options (the co-op form offers Off and Manual: Auto needs a melee's
+kills), `--handicaps auto` for a listen host and `i26-server`. The listing says "Auto handicaps" (`SessionInfo.Handicaps`, the flags
+byte's 16 with the 8) and the join accept carries the mode (`JoinAccept.Handicaps`, a byte in the bool's place: 0 off, 1 manual, 2 auto).
+
+The rule (`MeleeRules.AutoHandicaps`, `MeleeGame.AutoHandicapFrame`, the constants in `Handicaps`), in a combat melee, every tick:
+
+- A player's **standing** is their kills minus deaths as the scoreboard counts them (`MeleePlayer.Form`), **against the table's
+  average** (humans and bots; the AI fill is not at the table, so a kill of a fill car counts for the killer alone and raises the
+  average a little for everyone). A table that scores alike stays at 0 however many kills it has.
+- Every **1.5** net kills over the average is a level: −1 at 1.5, −2 at 3, −3 at 4.5, −4 at 6, −5 at 7.5 (`AutoStep` = 1.5); the same
+  under the average gives +1 to +5. A level is **given back** only once the standing has fallen a kill and a half short of the line
+  it was taken at, which is the line below (`AutoBand` = 1.5: −2 taken at 3 is kept to 1.5, −1 to 0), so one kill and one death in a
+  row never flip a level twice, and a player is never pushed past even: the leader's level comes off as the field catches up.
+- **One step a tick** at most, however far a standing has moved (a joiner's starts at 0), and never past ±5 (`AutoCap`, the table's
+  reach).
+- The standing does not fade with time: a lead stands until the field catches up (the stated aim is the count at the end; a fading
+  standing would reward hiding and tie the rule to the game's pace; over ten bot-minutes a fade of 3 or 10 minutes a net kill changed
+  nothing measurable).
+- Each move is said to everyone as a console line, "*** Taurus is now −1 (damage x0.85)" (`Handicaps.Announce`, through the game's
+  message hook, so the dedicated server logs it too), and the scoreboard shows the level by the name exactly as a manual level. The
+  first time the host's score window opens the feed says the rule in a line. Nothing is hidden.
+- Nothing moves once the game has a winner or the time is up (the end's blow-ups are not standings), in a race or CTF (the kills
+  column counts laps or captures), or in co-op. The host's keys and `i26-server`'s `handicap` are refused in an Auto game ("this
+  game's handicaps are automatic").
+
+The level is applied exactly as a manual one (damage dealt only, the table above; nothing else changes), and a successor host restores
+the standings with the game (savestate format 17: the rule in the build's melee rules, `Form` on each melee player).
+
+Why this rule and not "−1 a kill, +1 a death": an absolute count saturates after three events and flips every event, and a table that
+scores alike would all end at −3; a standing against the table's average neutralises itself as the field catches up, which is the aim.
+The parts come from what players accept elsewhere (the research is summarised in the commit that added the rule): bounded unit steps
+and caps (Smash's handicap, Go's stones, golf's caps, touring-car success ballast), hysteresis with a dead band (Left 4 Dead's
+director), a lever on outcomes rather than inputs (no speed, aim or handling), group-relative standing, and full disclosure, which the
+player studies find raises the experience of both the helped and the unhelped (Baldwin et al. 2016, Depping et al. 2016).
+
+Measured with `i76 melee-sim` (six bots on m05 in the same car, two strong, two middling, two weak: AI tiers 1, 3 and 5 and the
+damage they land ×1.5, ×1 and ×0.6, the harness's test-only skill knob; four AI fill cars for kills to be had; ten seeds, Off against
+Auto; the per-seed tables are in the commit that added the rule). Twenty minutes: the spread of kills (most minus fewest) 12.3 → 7.7,
+its standard deviation 4.7 → 2.7, the leader 13.0 → 8.9, the runner-up 10.0 → 6.8, the median 3.8 → 4.7, the last 0.7 → 1.2, the
+leader's margin over the runner-up 3.0 → 2.1 and over the median 9.2 → 4.2, a strong bot first in 10 of 10 seeds, 16 level moves a
+game. Ten minutes: 6.6 → 5.7, 2.5 → 2.1, the margin over the runner-up 1.5 either way, 10 of 10. The old setting (a step of 2, the
+cap ±3) gave 9.4 / 3.2 / margin 3.0 over twenty minutes with the order lost once; a step of 1 moved levels 25 times a game for no gain;
+a standing of kills alone lost the order (2 of 5). The margin over the middle of the table does not reach 1–2 with damage dealt alone:
+at −5 a ×1.5 bot still lands 0.45 of a middling one's damage but drives and fires better, and the weak bots fire seldom whatever their
+rounds do; closing it would take the damage taken as well (the weak dying slower), or the respawn delay. The test
+`AutoHandicapSimTests` pins one five-minute case.
 
 ### Many players
 

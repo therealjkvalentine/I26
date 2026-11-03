@@ -50,7 +50,7 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
     public void TheRuleRidesInTheAcceptAndTheListing()
     {
         var acc = new JoinAccept(2, 17, "m05", 1234, "vppirna1.vcf", false, 0, 0, 5, [], []);
-        foreach (bool on in new[] { false, true })
+        foreach (var on in new[] { HandicapMode.Off, HandicapMode.Manual, HandicapMode.Auto })
         {
             var w = new NetWriter();
             (acc with { Handicaps = on }).Write(w);
@@ -85,7 +85,7 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The host sets a level on a seat and on a bot (clamped to −3..+3), the scoreboard's rows carry it and a respawn keeps it;
+    /// The host sets a level on a seat and on a bot (clamped to −5..+5), the scoreboard's rows carry it and a respawn keeps it;
     /// where the rule is off the host's request is refused and nothing changes.
     /// </summary>
     [Fact]
@@ -97,20 +97,20 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.NotNull(off.SetHandicap(a0.Slot, 2));
         Assert.Equal(0, a0.Actor.Car.Handicap);
 
-        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m05", Seed = 7, Handicaps = true, Bots = 1, MaxPlayers = 4 });
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m05", Seed = 7, Handicaps = HandicapMode.Manual, Bots = 1, MaxPlayers = 4 });
         var a = host.Join("a", "vppirna1.vcf", 0);
         Assert.Null(host.SetHandicap(a.Slot, 9));
-        Assert.Equal(3, a.Actor.Car.Handicap);
+        Assert.Equal(5, a.Actor.Car.Handicap);          // clamped to the table's reach
         var bot = host.Bots.Single();
         Assert.Null(host.SetHandicap(bot.Slot, -1));
         Assert.Equal(-1, bot.Player.Car.Handicap);
         Assert.NotNull(host.SetHandicap(30, 1));
         var rows = host.Scoreboard().Players;
-        Assert.Equal(3, rows.Single(r => r.Slot == a.Slot).Handicap);
+        Assert.Equal(5, rows.Single(r => r.Slot == a.Slot).Handicap);
         Assert.Equal(-1, rows.Single(r => r.Slot == bot.Slot).Handicap);
         // the car is the player's through a respawn (rebuilt in place)
         MeleeGame.Rebuild(a.Actor.Car, new I76.Sim.Vehicles.Vehicle(), new I76.Sim.Rng.CrtRand(1));
-        Assert.Equal(3, host.HandicapOf(a.Slot));
+        Assert.Equal(5, host.HandicapOf(a.Slot));
     }
 
     /// <summary>
@@ -122,13 +122,13 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         if (HostTests.InstallDir is not { } install) return;
         Assert.DoesNotContain(Enum.GetNames<MsgType>(), n => n.Contains("Handicap"));
-        using var server = new NetMeleeServer(new ServerOptions { Install = install, Arena = "m05", Port = 0, MaxPlayers = 4, Handicaps = true });
+        using var server = new NetMeleeServer(new ServerOptions { Install = install, Arena = "m05", Port = 0, MaxPlayers = 4, Handicaps = HandicapMode.Manual });
         server.Log += m => output.WriteLine($"[server] {m}");
         server.Start();
         using var c = new MeleeClient();
         c.Connect("127.0.0.1", server.Port, "Taurus", "vppirna1.vcf");
         Assert.True(Wait(c, () => c.State == ClientState.Joined && c.Scores is { Players.Count: 1 }));
-        Assert.True(c.Accept!.Handicaps);
+        Assert.Equal(HandicapMode.Manual, c.Accept!.Handicaps);
         byte slot = c.Accept.Slot;
         Assert.Equal(0, c.Scores!.Players.Single().Handicap);
         Assert.Null(server.SetHandicap(slot, -2));
@@ -140,9 +140,63 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
         using var d = new MeleeClient();
         d.Connect("127.0.0.1", plain.Port, "Mule", "vppirna1.vcf");
         Assert.True(Wait(d, () => d.State == ClientState.Joined && d.Scores is { Players.Count: 1 }));
-        Assert.False(d.Accept!.Handicaps);
+        Assert.Equal(HandicapMode.Off, d.Accept!.Handicaps);
         Assert.NotNull(plain.SetHandicap(d.Accept.Slot, 1));
         Assert.Equal(0, plain.HandicapOf(d.Accept.Slot));
+    }
+
+    /// <summary>A scripted kill of <paramref name="victim"/> by <paramref name="killer"/>: rounds on the front until the car is dead, then the tick that books it.</summary>
+    private static void Kill(MeleeHost host, I76.Sim.Vehicles.Vehicle killer, I76.Sim.Vehicles.Vehicle victim)
+    {
+        for (int k = 0; k < 400 && !I76.Sim.Damage.DamageModel.IsDead(victim); k++)
+        {
+            var p = new I76.Sim.Weapons.DamagePacket { Mask = 2, Kind = I76.Sim.Damage.DamageKind.Round, Attacker = killer };
+            p.Ch[1] = 40;
+            host.Setup.Damage.Apply(victim, p, new System.Numerics.Vector3(0, 0.5f, 2));
+        }
+        Assert.True(I76.Sim.Damage.DamageModel.IsDead(victim));
+        host.Step();
+    }
+
+    /// <summary>
+    /// Auto (docs/multiplayer.md "Auto handicap"): the game sets the levels from the standings, a kill at a time, says each move to
+    /// everyone as a console line, the scoreboard carries the levels, the host's keys and console are refused, and a successor host
+    /// restores the standings with the game.
+    /// </summary>
+    [Fact]
+    public void AutoSetsTheLevelsFromTheKillsAndSaysSo()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var o = new ServerOptions { Install = install, Arena = "m05", Seed = 7, Handicaps = HandicapMode.Auto, Bots = 4, MaxPlayers = 6 };
+        var host = new MeleeHost(o);
+        Assert.True(host.Game.Rules.AutoHandicaps);
+        for (int k = 0; k < 20; k++) host.Step();
+        var bots = host.Bots.OrderBy(b => b.Slot).ToList();
+        var (a, b) = (bots[0], bots[1]);
+        host.TakeEvents();
+        Kill(host, a.Player.Car, b.Player.Car);
+        Assert.Equal((1, 1, 0, 0), (a.Player.Kills, b.Player.Deaths, a.Player.Car.Handicap, b.Player.Car.Handicap));
+        // b comes back (5 s and a moment), and goes again: two net kills over the table's average takes a to -1, b to +1
+        for (int k = 0; k < 20 * 12 && b.Player.Destroyed; k++) host.Step();
+        Assert.False(b.Player.Destroyed);
+        host.TakeEvents();
+        Kill(host, a.Player.Car, b.Player.Car);
+        Assert.Equal((-1, 1, 0, 0), (a.Player.Car.Handicap, b.Player.Car.Handicap, bots[2].Player.Car.Handicap, bots[3].Player.Car.Handicap));
+        var said = host.TakeEvents().OfType<ChatEvent>().Where(c => c.From < 0).Select(c => c.Text).ToList();
+        Assert.Contains(Handicaps.Announce(a.Name, -1), said);
+        Assert.Contains(Handicaps.Announce(b.Name, 1), said);
+        var rows = host.Scoreboard().Players;
+        Assert.Equal((-1, 1), (rows.Single(r => r.Slot == a.Slot).Handicap, rows.Single(r => r.Slot == b.Slot).Handicap));
+        // the host cannot set a level by hand in an Auto game
+        Assert.Equal("this game's handicaps are automatic", host.SetHandicap(a.Slot, 2));
+        Assert.Equal(-1, host.HandicapOf(a.Slot));
+        // a successor host restores the standings and the levels with the game
+        var state = host.Session.Snapshot();
+        var fresh = new MeleeHost(o);
+        fresh.RestoreMigrated(state);
+        Assert.True(fresh.Game.Rules.AutoHandicaps);
+        Assert.Equal(host.Game.Players.Select(p => (p.Form, p.Car.Handicap)), fresh.Game.Players.Select(p => (p.Form, p.Car.Handicap)));
+        Assert.Equal((2f, -2f), (fresh.Game.Players.Single(p => p.Name == a.Name).Form, fresh.Game.Players.Single(p => p.Name == b.Name).Form));
     }
 
     private static bool Wait(MeleeClient c, Func<bool> done, int ms = 30000)

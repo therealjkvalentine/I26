@@ -168,11 +168,12 @@ public sealed record ServerOptions
     /// </summary>
     public bool CoopRollingStart { get; init; }
     /// <summary>
-    /// Handicaps (the port's; the host form's, i26-server's --handicaps; docs/multiplayer.md "Handicaps"): the host may give each player
-    /// a level, −3..+3, that scales the damage their rounds deal (<see cref="MeleeHost.SetHandicap"/>). Off by default; listed in
-    /// <see cref="SessionInfo.Handicaps"/> and carried in <see cref="JoinAccept.Handicaps"/>; the levels ride on the scoreboard's rows.
+    /// Handicaps (the port's; the host form's, i26-server's --handicaps [auto]; docs/multiplayer.md "Handicaps"): Manual, the host gives
+    /// each player a level, −3..+3, that scales the damage their rounds deal (<see cref="MeleeHost.SetHandicap"/>); Auto, the game sets the
+    /// levels from the standings ("Auto handicap"). Off by default; listed in <see cref="SessionInfo.Handicaps"/> and carried in
+    /// <see cref="JoinAccept.Handicaps"/>; the levels ride on the scoreboard's rows.
     /// </summary>
-    public bool Handicaps { get; init; }
+    public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
@@ -633,11 +634,12 @@ public sealed partial class MeleeHost : IModeHost
     /// <summary>
     /// The host sets a player's handicap (docs/multiplayer.md "Handicaps"): <paramref name="level"/> −3..+3 (clamped) on the car of
     /// the seat or melee bot in <paramref name="slot"/>, kept through respawns; the scoreboard carries it to everyone. Null when
-    /// done, else why not (the game has no handicaps, no such player).
+    /// done, else why not (the game has no handicaps, they are automatic, no such player).
     /// </summary>
     public string? SetHandicap(int slot, int level)
     {
-        if (!Options.Handicaps) return "this game has no handicaps";
+        if (Options.Handicaps == I76.Sim.Missions.HandicapMode.Off) return "this game has no handicaps";
+        if (Options.Handicaps == I76.Sim.Missions.HandicapMode.Auto) return "this game's handicaps are automatic";
         var car = _seats.FirstOrDefault(s => s.Slot == slot)?.Actor.Car ?? Mode.Bots.FirstOrDefault(b => b.Slot == slot)?.Player.Car;
         if (car is null) return $"no player in slot {slot}";
         level = Math.Clamp(level, I76.Sim.Missions.Handicaps.Min, I76.Sim.Missions.Handicaps.Max);

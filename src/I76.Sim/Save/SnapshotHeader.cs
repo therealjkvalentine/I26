@@ -59,6 +59,7 @@ public sealed record SessionBuild
             w.Bool(r.Network); w.Bool(r.TeamPlay); w.Int(r.MaxScore); w.U8((byte)r.Kind); w.Int(r.CtfTeams);
             w.U8((byte)r.Goal); w.Int(r.GoalValue); w.F32(r.TimeLimit); w.F32(r.RespawnDelay);
             w.Bool(r.IgnitionStaysOn);   // format 16
+            w.Bool(r.AutoHandicaps);   // format 23
         }
         w.Bool(Coop is not null);
         if (Coop is { } c) { w.VarU((ulong)c.Cars.Count); foreach (var car in c.Cars) w.Str(car); w.F32(c.RespawnDelay); w.Int(c.ExtraEnemies); w.F32(c.DamageFactor); w.Bool(c.RollingStart); }
@@ -77,7 +78,7 @@ public sealed record SessionBuild
             rules = new MeleeRules
             {
                 Network = r.Bool(), TeamPlay = r.Bool(), MaxScore = r.Int(), Kind = (MeleeKind)r.U8(), CtfTeams = r.Int(),
-                Goal = (MeleeGoal)r.U8(), GoalValue = r.Int(), TimeLimit = r.F32(), RespawnDelay = r.F32(), IgnitionStaysOn = r.Bool(),
+                Goal = (MeleeGoal)r.U8(), GoalValue = r.Int(), TimeLimit = r.F32(), RespawnDelay = r.F32(), IgnitionStaysOn = r.Bool(), AutoHandicaps = r.Bool(),
             };
         CoopSetup? coop = null;
         if (r.Bool())

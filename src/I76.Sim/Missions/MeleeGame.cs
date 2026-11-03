@@ -43,6 +43,11 @@ public sealed record MeleeRules
     /// i26-server's --no-ignition-off): the ignition key only starts an engine that is off. The original has no such rule.
     /// </summary>
     public bool IgnitionStaysOn { get; init; }
+    /// <summary>
+    /// The host's Handicaps rule is Auto (the port's; docs/multiplayer.md "Auto handicap"): in a combat melee the game sets each player's
+    /// level from the standings every tick (<see cref="MeleeGame.AutoHandicapFrame"/>). In a race or CTF the levels stay as they are.
+    /// </summary>
+    public bool AutoHandicaps { get; init; }
 
     /// <summary>The original's single-player melee.</summary>
     public static MeleeRules SinglePlayer { get; } = new();
@@ -94,6 +99,13 @@ public sealed class MeleePlayer
     internal bool OffPad;
     /// <summary>What the hit that destroyed the car books against its driver (the vehicle slot hands it to the kill-credit routine).</summary>
     internal DeathCredit Death;
+    /// <summary>
+    /// Auto handicap's standing (docs/multiplayer.md "Auto handicap"): kills minus deaths as the scoreboard counts them, compared with
+    /// the table's average each tick. Its own field, so that a fading or windowed standing could be tried without touching the counters.
+    /// </summary>
+    public float Form { get; internal set; }
+    /// <summary>Kills minus deaths when <see cref="Form"/> last took them in (derived: the counters themselves after any frame).</summary>
+    internal int FormKd;
 }
 
 /// <summary>
@@ -151,6 +163,8 @@ public sealed partial class MeleeGame
     public event Action<string>? Message;
     /// <summary>A race lap was counted for a player.</summary>
     public event Action<MeleePlayer>? LapCounted;
+    /// <summary>Auto handicap moved a player's level (<see cref="Vehicle.Handicap"/> has the new one); the feed line goes through <see cref="Message"/>.</summary>
+    public event Action<MeleePlayer>? HandicapChanged;
     private readonly Dictionary<MeleePlayer, RaceTracker> _races = [];
     private float? _overAt;
     /// <summary>Who won, by the player who reached the goal (null until someone has, and for a time limit).</summary>
@@ -531,8 +545,36 @@ public sealed partial class MeleeGame
         foreach (var p in Players) if (!p.Destroyed) Regen(p);
         if (Rules.Kind == MeleeKind.Race) RaceFrame();
         Ctf?.Update(Players, p => !p.Destroyed && !Damage.DamageModel.IsDead(p.Car), p => Radius(p.Car));
+        if (Rules.AutoHandicaps && Rules.Kind == MeleeKind.Combat && !Ended) AutoHandicapFrame();
         if (_overAt is null) CheckEnd();
         else if (Host.Now >= _overAt) _over = true;
+    }
+
+    /// <summary>
+    /// Auto handicap (docs/multiplayer.md "Auto handicap"), once a tick: each player's standing takes in the kills and deaths booked
+    /// since the last tick; against the table's average it moves the player's level one step at most
+    /// (<see cref="Handicaps.AutoNext"/>), and a move is said to everyone. Nothing moves once the game has a winner or the time is up.
+    /// </summary>
+    internal void AutoHandicapFrame()
+    {
+        if (Players.Count < 2) return;
+        float sum = 0;
+        foreach (var p in Players)
+        {
+            int kd = p.Kills - p.Deaths;
+            p.Form += kd - p.FormKd;
+            p.FormKd = kd;
+            sum += p.Form;
+        }
+        float mean = sum / Players.Count;
+        foreach (var p in Players)
+        {
+            int next = Handicaps.AutoNext(p.Car.Handicap, p.Form - mean);
+            if (next == p.Car.Handicap) continue;
+            p.Car.Handicap = next;
+            Message?.Invoke(Handicaps.Announce(p.Name, next));
+            HandicapChanged?.Invoke(p);
+        }
     }
 
     /// <summary>Each live car's lap counting (the lap count): a lap is +1 on the player's counter.</summary>

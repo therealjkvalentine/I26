@@ -23,7 +23,7 @@ namespace I76.Game.Boot;
 ///   --password WORD   (with --host-listen: the game needs it; with --connect or --join-anet: the one to join with; never saved)
 ///   --restrict a,b,c   (with --host-listen: WEAPON RESTRICTIONS, as i26-server's: all, slugs, mortars, missiles, flames, droppers, a .gdf, class:tier)
 ///   --turrets  (with --host-listen: cars may carry several roof turrets; else the host form's setting)
-///   --handicaps / --no-handicaps  (with --host-listen: the host may give players handicaps from the score window; else the host form's setting)
+///   --handicaps [manual|auto] / --no-handicaps  (with --host-listen: the host gives players handicaps from the score window, or auto: the game sets them from the standings; else the host form's setting)
 ///   --hidden   (with --host-listen: the game allows the hidden weapons and cars; else the Hidden Weapons & Cars setting)
 ///   --invite-only   (with --host-listen: each join waits for the host's Ctrl+Y / Ctrl+N, Ctrl+H to ask about the next first)
 ///   --join-anet HOST[:PORT] [--session NAME] [--name N] [--car X.vcf] [--team T]   (a game listed on that anet server: the one named, else the first)
@@ -161,8 +161,8 @@ public sealed class LaunchOptions
     public bool? IgnitionStaysOn { get; set; }
     /// <summary>--cb / --no-cb: whether a listen server has the CB radio on (null: the setting).</summary>
     public bool? Cb { get; set; }
-    /// <summary>--handicaps / --no-handicaps: whether a listen server lets its host give players handicaps (null: the setting).</summary>
-    public bool? Handicaps { get; set; }
+    /// <summary>--handicaps [manual|auto] / --no-handicaps: a listen server's Handicaps rule (null: the setting).</summary>
+    public I76.Sim.Missions.HandicapMode? Handicaps { get; set; }
     /// <summary>--map-downloads ask|always|never: a host's custom map this install lacks (null: the setting).</summary>
     public int? MapDownloads { get; set; }
     /// <summary>--seed N: every mission's rand stream starts at N (spawn points, AI choices, damage rolls, debris), to reproduce a run.</summary>
@@ -342,8 +342,10 @@ public sealed class LaunchOptions
                 case "--ignition-off": o.IgnitionStaysOn = false; break;
                 case "--cb": o.Cb = true; break;
                 case "--no-cb": o.Cb = false; break;
-                case "--handicaps": o.Handicaps = true; break;
-                case "--no-handicaps": o.Handicaps = false; break;
+                case "--handicaps":
+                    o.Handicaps = i + 1 < args.Length && args[i + 1] is "auto" or "manual" ? (args[++i] == "auto" ? I76.Sim.Missions.HandicapMode.Auto : I76.Sim.Missions.HandicapMode.Manual) : I76.Sim.Missions.HandicapMode.Manual;
+                    break;
+                case "--no-handicaps": o.Handicaps = I76.Sim.Missions.HandicapMode.Off; break;
                 case "--map-downloads":
                 {
                     var v = Next();
