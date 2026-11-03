@@ -114,6 +114,7 @@
 - Head tracking: set opentrack's output to UDP over network (127.0.0.1, port 4242) and Play Options > More > Head Tracking to Analog or Digital, and the view in the car turns with your head (Digital glances left, right or at the dash past a threshold); the glance keys and the pad's look stick still win while held. Off by default.
 - Load Bookmark has an Import Saves button that brings in the bookmarks you saved in the original Interstate '76: each becomes an I26 bookmark with its name and scene, the car with its parts, armour, van, repair order and field salvage as you left them.
 - Load Bookmark has an All Scenes button that makes a bookmark for every scene of the trip, each in that mission's own car, so a fresh install can start any scene without a save; it asks first and never overwrites a bookmark of the same name.
+- Load Bookmark has a Delete button beside Cancel: it asks "Delete this bookmark?" and, on Yes, removes the picked bookmark and its kept car; the others keep their order and the next one is picked.
 
 ## 0.11.0 (31 October 2026)
 
