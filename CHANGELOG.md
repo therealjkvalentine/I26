@@ -139,6 +139,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - A pad button can be a shift: held, the pad's other buttons and D-pad do a second command each (Controller screen, a button's list: Shift; hold it or press Tab to see and set the second commands). The pad's defaults have LB as the shift, with the hardpoints on the face buttons, specials 1 and 2 on the stick clicks and binoculars, radar range and the gears on the D-pad; the handbrake moves to RB.
 - A printable sheet of your controls: `i76 keysheet [input.map] [out.html]` writes your bindings as one page, a table per group (driving, weapons, targets and radar, views, the rest), with every key, mouse button and pad input of each command.
 - Draw Distance starts at Original in the 1997 look, the original's 600 m view with its horizon panels, and at Far in the modern look, until you choose one in Graphic Detail; a Draw Distance you chose is kept.
+- `]` in the 3D cockpit toggles the original's ghost cockpit: the interior and the rear mirror disappear, leaving the radar, the damage diagram, the compass and the gunsight over the road. It did nothing before.
 
 ## 0.11.0 (31 October 2026)
 

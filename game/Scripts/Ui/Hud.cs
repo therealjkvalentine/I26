@@ -163,7 +163,7 @@ public partial class Hud : CanvasLayer
         {
             var pit = Pit?.Invoke();
             bool inCar = InCockpit?.Invoke() == true;
-            _instruments.Visible = Car?.Invoke() is not null && !cut && (inCar ? pit is { Dash3D: false, Binoculars: false } : ExtInstruments?.Invoke() == true);
+            _instruments.Visible = Car?.Invoke() is not null && !cut && (inCar ? pit is { Binoculars: false } && (!pit.Dash3D || pit.Ghost) : ExtInstruments?.Invoke() == true);
         }
         if (GetNodeOrNull<CanvasItem>("Target") is { } target) target.Visible = !cut;
         if (_binoMask is not null)
