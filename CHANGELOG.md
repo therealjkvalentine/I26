@@ -85,6 +85,7 @@
 - Computer drivers that ram, chase or cut off a turning or sliding car aim where the original's do: they read its turn from the way the car points and the gear it is in, not from the way it is sliding, and put a car in a right-hand turn back round its circle as the original does.
 - A mission or mod script that limits the computer cars attacking you to 0 lets one at a time come at you, as in the original, instead of making all of them hang back.
 - Computer cars hold their guns for a car of their own side in the line of fire as the original's do: neutral cars look out for each other too, only a car the bullets would reach within 4 seconds counts, and distances are measured on the ground from the shooting car.
+- Oil pumps and gas stations share one explosion, as in the original, whichever the mission places first: in T05 the oil pump blows as wide as a gas station, and in the S07 scenario the gas stations blow as small as an oil pump.
 
 ## 0.11.0 (31 October 2026)
 
