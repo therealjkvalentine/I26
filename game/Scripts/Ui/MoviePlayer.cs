@@ -17,7 +17,7 @@ public partial class MoviePlayer : CanvasLayer
     public required string Path { get; init; }
     /// <summary>The 1997 look: the picture sampled nearest, as the original's 640x480 surface.</summary>
     public bool Faithful { get; init; }
-    /// <summary>Esc, Space, Enter, a click or a pad button skips it. Off in a network co-op game for all but the host (their Esc is the menu, over the movie).</summary>
+    /// <summary>Esc, Space, Enter, a click or a pad button skips it (the original: Esc only; docs/deviations.md). Off in a network co-op game for all but the host (their Esc is the menu, over the movie).</summary>
     public bool Skippable { get; init; } = true;
     public event Action? Finished;
 
