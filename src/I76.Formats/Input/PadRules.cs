@@ -13,8 +13,19 @@ public sealed partial class PadRules
     // the kinds register themselves in their own files' field initializers: run before any member is used
     static PadRules() { }
 
-    /// <summary>What the rules see in a frame: the sticks, the time in milliseconds (the platform's clock: input, not the simulation), the look.</summary>
-    public readonly record struct Frame(JoystickBank Bank, long Ms, bool LookingBack = false);
+    /// <summary>
+    /// What the rules see in a frame: the sticks, the time in milliseconds (the platform's clock: input, not the simulation), the look,
+    /// whether the pad's shift (BindingTable.Shift) is held, and whether a command's own input.map blocks hold (<see cref="DownOf"/>).
+    /// </summary>
+    public readonly record struct Frame(JoystickBank Bank, long Ms, bool LookingBack = false, bool Shifted = false, Func<string, bool>? Down = null);
+
+    /// <summary>Whether a command's own blocks hold (the chord), the rules aside: what <see cref="Frame.Down"/> asks.</summary>
+    public static Func<string, bool> DownOf(BindingTable table, JoystickBank bank, Func<InputTerm, bool> down) =>
+        c => table.Of(c).Any(b => b.Terms.Length > 0 && InputChord.Holds(b.Terms, bank, down));
+
+    /// <summary>Whether the table's shift button is held.</summary>
+    public static bool ShiftHeld(BindingTable table, JoystickBank bank) =>
+        table.Shift is { } s && JoystickBank.DeviceOf(s.Device) is >= 0 and var d && bank.Held(d, s.Channel);
 
     /// <summary>What the rules say in a frame.</summary>
     public sealed class Output

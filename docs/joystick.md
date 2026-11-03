@@ -109,19 +109,21 @@ they hold, which they press once, which commands stand for others and which inpu
 action event through Godot's input (`i26_rule:<command>`), so every reader of a command's press (the car's commands, the map, the views)
 takes it as a key's, and a held command is asked as the bindings' are.
 
-**Tap / hold** (`taphold joystick1 Button1 weapon_fire special1`): one button, two commands. Let go before 400 ms (a tap), it presses the
-first command once, on the release; held to 400 ms it presses the second then and holds it until let go, and the tap never comes. The rule
+**Tap / hold** (`taphold joystick1 Button1 weapon_fire special1`): one button, two commands. Let go before 200 ms (a tap), it presses the
+first command once, on the release; held to 200 ms it presses the second then and holds it until let go, and the tap never comes (200 ms:
+near Steam Input's long press, 150 ms by default; at 400 ms a tap's shot was seen late). A press made with the pad's shift held, or one the
+shift joins before it is decided, belongs to the shift layer (its input.map chord) and does neither. The rule
 is that of a pad layout players used over the original (A: a tap one shot, a hold the nitrous). On the Controller screen a button's list
 ends with *Tap / hold...*, which asks the tap's command and then the hold's; the row then reads *Tap: ...* and *Hold: ...*. Tests:
-`tests/I76.Formats.Tests/TapHoldTests.cs` (timings either side of 400 ms, one press after another, the file, the button's other bindings).
+`tests/I76.Formats.Tests/TapHoldTests.cs` (timings either side of 200 ms, one press after another, the shift, the file, the button's other bindings).
 
 **Look back** (context bindings, after the rules of a pad layout players used over the original; off by default). The head looks back when
 the rear glance is held or the look stick is pushed round to the rear (`Cockpit.LookingBack`, in the car only). `lookback weapon_fire
 hardpoint3_fire`: while looking back every input of fire (a key, A) fires hardpoint 3, the rear gun on most cars, and not the selected
 weapon. `lookbackinput joystick1 Button10 hardpoint4_fire`: while looking back R3, the look stick's click, drops hardpoint 4 (the dropper)
-instead of its own command, and keeps its command otherwise. `pulledback joystick1 Down/Up e_brake reverse_direction`: with the left stick
+instead of its own command, and keeps its command otherwise (and with the shift held). `pulledback joystick1 Down/Up e_brake reverse_direction`: with the left stick
 pulled back past half its travel the handbrake's press toggles reverse instead (a three-point turn without letting go of the stick); the
-choice is made at the press. On the Controller screen the look stick's list has *Look back: rear gun on/off* (the first two together) and
+choice is made at the press and kept while the button is held (a handbrake held before the stick comes back keeps holding). On the Controller screen the look stick's list has *Look back: rear gun on/off* (the first two together) and
 the left stick's Y *Back + e-brake reverse on/off*; their rows say so. The remapper's L3-as-nitrous half of the last rule has no I26
 command to map onto and is left out. Tests: `tests/I76.Formats.Tests/LookBackRulesTests.cs`.
 
