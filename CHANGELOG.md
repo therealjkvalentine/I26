@@ -39,6 +39,7 @@
 - In a network melee, standing on a regen pad that will not regenerate you yet shows how long until it will (the original's 30 s since your last spawn or regen), or that you must drive off it and back on, instead of the pad seeming to do nothing (#102).
 - Map editor: the tool column on the left scrolls with the mouse wheel when it is taller than the window, so Checkpoint, Undo and Redo under Flag can be seen and clicked again (#146).
 - Mouse In Window (Graphic Detail and the Esc menu) now keeps the pointer inside the game window in the menus too (the front end, the Esc menu, the loading screens), not only while a mission hides it, so it no longer wanders off to another monitor (#147).
+- Fences and tyre walls strung along a line (the concrete barriers round Milk Toast's compound and the tyre wall at its start) stand on their line, each piece centred on its stretch between two posts as in the original, instead of half a metre to one side and pushed to one end, which left bigger gaps at corners and pieces sticking out past the last post (#137).
 
 ## 0.11.0 (31 October 2026)
 
