@@ -100,6 +100,7 @@
 - In a network game a helicopter rises from its spawn point at once, as in the original, instead of sitting on the ground until its pilot opens the throttle.
 - Unlim. Ammo, Armor or Chas. Rein. turned on in the shell's Play Options now makes you a cheater as in the original: a win in that mission, and every later one until you pick Turn off Cheater Options, gets "Not too bad for a cheater" instead of the salvage and the next scene. Before, only the in-mission menu marked it, and starting another mission forgot it.
 - A mission started without a car from the shell (from the command line or the mission list) puts you in the Piranha, as the original does, instead of the car the mission places for the player (the Nitro scenarios place others).
+- Field salvage takes a wreck's specials as the original does: every fitted special, even a burnt-out one, at the condition the original gives it; and a T16 tank or the howitzer gives nothing after its own big gun (the original stops at the part it has no salvage tier for), where it used to give its other weapons and specials too.
 
 ## 0.11.0 (31 October 2026)
 
