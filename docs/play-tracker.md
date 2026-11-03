@@ -247,6 +247,13 @@ stacked ones and the integration branch are section I, after H.
 | I46 | fix/wreck-smoke-range | the modern look's scenery-wreck fire and smoke start and draw out to 600 m, as the original's model sprites (were cut well short) | original (the 1997 look's reach); T05's wrecks at 450 / 250 / 80 m both looks; local: Game SmokeWindowTests | - | merged (7603218) |
 | I47 | fix/death-orbit-drawn | the death orbit camera interpolated between ticks (no 8-degree jumps every second or third frame on a fast display) | owner's report (Mac); M01 at 60 fps, frame-to-frame change even (13.5-15.9 against 16.5/2.8/3.2...); local: Sim DeathOrbitTests 2 new | - | merged (a92d4bb) |
 | I48 | fix/round3-integration-5 | the integrator's pass-8 fix: vegetation_density on the Developer panel's Settings (10/30/60/100/150, live), its playing.md row and shell.cfg line after the effects keys; the README's Windows tex-world path (a tab had replaced a backslash-t); two changelog full stops | local: Game 275/275 (DevSettingsSignalsTests' table test failed on play before it) | - | merged (4984d2c) |
+| I49 | feat/tactile-lfe | a bass shaker's signal of the port's own on the LFE channel (TactileSynth, BassShaker): the engine, the road by surface and speed, a thump per shot, hit and explosion, 15-90 Hz under a limiter; nothing on a stereo output | ux (the original has no such signal); local: Formats TactileSynthTests 7 | - | merged (2abfb5d) |
+| I50 | feat/audio-output-modes | Audio Control's Output (Stereo, Phones, 2.1\*, 5.1\*, 7.1\*) and LFE Level rows; 2.1 mixes the shaker signal and a bass boost under the crossover into stereo; `[port] tactile_eq` (a hz:dB correction curve) and `crossover` (40-160 Hz, 90); explosions felt out to 2 km; an old `tactile=lfe` read as 5.1 | ux; local: Formats TactileSynthTests 14, Game 246 | - | merged (8ea721a); the playtest machines have output 2.1 and the owner's curve |
+| I51 | fix/map-edge-roads-and-1997 | Map Edge On in the 1997 look too; the plants follow the drawn-down ground wherever the player is; a thin barrier with a road at its foot stays (the mountain over T05's mountain road) | ux (owner's notes); local: Formats EdgeWallsTests 7; T05 heat maps before/after | - | merged (79ad994) |
+| I52 | fix/map-edge-placed-objects | On never draws down ground the mission puts something on (T05's helicopters stood 111 m up); a pad keeps its height, an object on a wall keeps the cells about it | local: Formats EdgeWallsTests 12 (T05, T11, S06: nothing placed or on a path over hidden ground) | - | merged (26aad4e) |
+| I53 | feat/modern-lighting-calibration | the modern look's lighting calibrated by day against the 1997 look's (exposure, ground and object tints solved per mission, the sky halfway); `[port] lighting_calibration` on\* / off, an earlier `look_colour_match` read; contains feat/modern-look-colour-match (b20aef9, the ground-only first step, not merged separately) | local: Formats LightingCalibrationTests 8, Game SettingsWithoutARowTests (key migration 7); captures T01, T05, M01, T10 | branch's captures | merged (4d447a4) |
+| I54 | feat/build-version-rules | user://build-rules.cfg (written by the game, commented with each build's value) picks the 1997 CD or the 1998 build's turret slew and AI tactic choice, the 1998 (GOG) build's by default; structural session rules, no snapshot or protocol bump | original (the two builds measured); local: Sim TurretSlewTests, TacticChooserBuildTests, Game BuildRulesTests 7 | - | merged (e2cf5d9) |
+| I55 | fix/round3-integration-6 | the integrator's pass-9 fix: lighting_calibration (off / on\*) and crossover (40\*/60\*/80\*/90/120\*/160\* Hz) on the Developer panel's Settings, live; tactile_eq a curve set by hand only (DevSettings.HandSetOnly, the table test allows it); playing.md marks lighting_calibration's on | local: Game 289/289 (the table test fails on play without it) | - | merged (c992a4f) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -411,6 +418,38 @@ Deployed: `play` 0b0790c to the laptop (VERSION.txt "play 0b0790c deployed 2026-
 net 25, the 2x pack read, the plants thinner; `_scratch/deploy/smoke8-laptop.png`) and to the Mac (VERSION.txt "play
 0b0790c deployed 2026-11-03T11:37Z", built and imported there on the first try; no game run). No user-folder changes.
 The laptop's run-gui.ps1 is the older -Cmd one; the -CmdFile one ran from runs/run-gui2.ps1.
+
+Pass 9 (2026-11-03): rows I49-I54 merged by sync-play (incremental, `-NoRebase`, play kept on 0.11.0 though upstream
+master has moved 25 commits; rerere replayed the resolutions of a scratch pass of the same merges in the same order, the
+trees identical but the manifest), then fix/round3-integration-6. feat/modern-look-colour-match is not listed: it is an
+ancestor of feat/modern-lighting-calibration and came in with it. pr/smoke-depth (the upstream pull request's branch on
+current master) is not in the stack. Every branch based on play (93e6e67, or 0b0790c for the build rules), merged once.
+- CHANGELOG.md: union under New (shaker, Audio Control output, lighting calibration) and Fixed (the two Map Edge lines
+  together), except that feat/audio-output-modes rewrote tactile-lfe's own line: its wording kept, the old one dropped.
+- docs/playing.md: the table's `tactile` row (tactile-lfe) dropped, since audio-output-modes replaced it with Output
+  (an old `tactile=lfe` still reads as 5.1); `tactile_eq` and `crossover` added after the HD rows; `lighting_calibration`
+  after `vegetation_density`. The "Output and LFE Level" paragraph goes before "The port's values", whose text is play's
+  (audio-output-modes carried the older one that still listed HD Textures).
+- fix/round3-integration-6: lighting_calibration and crossover on the Developer panel's Settings, tactile_eq set by hand
+  only (a curve, not a few values; DevSettings.HandSetOnly, and dev-hooks.md's Settings row says so). output and
+  lfe_level have Audio Control rows, so they are not in the table; turret_slew and ai_tactics live in build-rules.cfg,
+  which the game writes, not under shell.cfg's [port].
+- The desktop's disk filled during the scratch merges (another session's staging); one merge commit was retried, nothing
+  else was lost.
+
+Versions after pass 9: snapshot 24, protocol 25, shell.cfg 13, unchanged (the build rules are structural session rules).
+
+Test status, pass 9 (`play` d791df7): desktop (I76_INSTALL and I76_NITRO_INSTALL set) Game 289/289, Sim 990/1023, Net
+424/440; outside the desktop baseline only the known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam,
+T01FollowTests at 30 Hz, CaltropTests with the Nitro install set). Laptop: Sim 989/1021, Net 425/440, Game 289/289,
+Formats 951/986 (30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No new failure.
+
+Deployed: `play` d791df7 to the laptop (VERSION.txt "play d791df7 deployed 2026-11-03T12:27Z"; smoke T01 --drive renders
+with output 2.1 set, net 25, the 2x pack read, the lighting calibration solved; `_scratch/deploy/smoke9-laptop.png`) and to
+the Mac (VERSION.txt "play d791df7 deployed 2026-11-03T12:27Z", built and imported there on the first try; no game run).
+Both user folders' shell.cfg backed up as shell.cfg.before-pass9 and given, under [port], `output="2.1"` and the owner's
+`tactile_eq` curve (the shaker rig's measured response, boosts capped at +4 dB); no other key touched; build-rules.cfg
+left to the game.
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
