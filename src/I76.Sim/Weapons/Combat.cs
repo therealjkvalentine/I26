@@ -136,6 +136,12 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     /// <summary>Play Options' Unlim. Ordnance: no cap on the live rounds of a kind (<see cref="Cap"/>). Off, the original's; never in a network game.</summary>
     public bool UnlimitedOrdnance { get; set; }
     /// <summary>
+    /// The turrets' slew as the 1997 CD build turns them: dt·1.5 rad (6.0 a helicopter's) times the turret's health ratio, where
+    /// the 1998 build (GOG's and the Nitro Pack's, the default) turns dt·1.7 (6.8) times 0.75 + 0.25 of it; a network game
+    /// takes 1 for the ratio in both. Off, the 1998 build's; the player's build-rules.cfg (turret_slew), never in a network game.
+    /// </summary>
+    public bool TurretSlew1997 { get; set; }
+    /// <summary>
     /// The Nitro Pack's rules where its weapon code differs from the base game's: the Chemical Mortar kills the driver
     /// (<see cref="Damage.VehicleDamage.ComponentLoop"/>), the droppers' rate follows the speed (<see cref="Timing"/>).
     /// Set by the mission build from the install.
@@ -762,7 +768,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
 
     // ---- fire control ----
 
-    /// <summary>Turrets slew toward the radar target's lead point (aimed as the original's: the target predictor at the round's closest-approach time) at dt·(0.75 + 0.25·HP/max)·1.7 rad (dt·1.7 in a network game), or back to the mount's forward without one.</summary>
+    /// <summary>Turrets slew toward the radar target's lead point (aimed as the original's: the target predictor at the round's closest-approach time) at dt·(0.75 + 0.25·HP/max)·1.7 rad (dt·1.7 in a network game; <see cref="TurretSlew1997"/> for the 1997 CD build's), or back to the mount's forward without one.</summary>
     private void AimTurrets(Vehicle v, Armory a, float dt)
     {
         foreach (var w in a.Weapons.Where(w => w.Style == 3))
@@ -796,8 +802,11 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 // a turret hung upside down under a body (the Phantom's belly mount) keeps below the body's own level: no aiming up through the hull
                 if (w.BaseRot.Up.Y < -0.5f) pitch = MathF.Max(pitch, 0f);
             }
-            // a helicopter's turrets slew four times as fast (6.8 for type 9); a damaged turret is slower offline only
-            float slew = dt * (NetSession ? 1f : 0.75f + 0.25f * w.HpRatio) * (v.IsHeli ? 6.8f : 1.7f);
+            // a helicopter's turrets slew four times as fast (6.8 for type 9); a damaged turret is slower offline only. The 1997
+            // CD build: 1.5 (6.0) times the health ratio itself, so a half-dead turret turns at half speed (TurretSlew1997)
+            float slew = TurretSlew1997
+                ? dt * (NetSession ? 1f : w.HpRatio) * (v.IsHeli ? 6f : 1.5f)
+                : dt * (NetSession ? 1f : 0.75f + 0.25f * w.HpRatio) * (v.IsHeli ? 6.8f : 1.7f);
             float ey = Ai.AiDriver.AngleDelta(w.AimYaw, yaw);
             w.AimYaw += System.Math.Clamp(ey, -slew, slew);
             // the pitch moves only while the yaw error is under 90°, and never for class 3 tier 3 (the EZK);

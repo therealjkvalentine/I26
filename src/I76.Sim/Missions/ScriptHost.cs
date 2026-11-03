@@ -105,6 +105,12 @@ public sealed partial class ScriptHost : IFsmHost
     public Ptable Ptable => _ptable ??= new Ptable(this);
     /// <summary>The AI tactics table the Ptable binds (read from the install's executable, <see cref="I76.Formats.Exe.TacticsTable"/>); null: no AI orders in this world.</summary>
     public I76.Formats.Exe.PtEntry[]? Tactics { get; init; }
+    /// <summary>
+    /// The attack-tactic choice as the 1997 CD build makes it: its chooser returns dirt_gunner every time, no draw and no
+    /// precondition (<see cref="Ptable.ChooseTactic"/>). Off, the 1998 build's weighted draw (GOG's and the Nitro Pack's, the
+    /// default); the player's build-rules.cfg (ai_tactics), never in a network game.
+    /// </summary>
+    public bool TacticStub1997 { get; set; }
 
     /// <summary>
     /// The order opcodes: their fields, then the script's AI order, which is the AI's
