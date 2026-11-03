@@ -113,6 +113,7 @@
 - Less work for the processor every frame, in both looks: the cars' parts were searched for anew each frame to lay their drop shadows, every shadow was told its mesh, place and plane again whether or not they had changed, and the modern look's smoke layer made and threw away its drawing set each frame. Each is now done once, or only when something changed; the picture is the same.
 - Head tracking: set opentrack's output to UDP over network (127.0.0.1, port 4242) and Play Options > More > Head Tracking to Analog or Digital, and the view in the car turns with your head (Digital glances left, right or at the dash past a threshold); the glance keys and the pad's look stick still win while held. Off by default.
 - Load Bookmark has an Import Saves button that brings in the bookmarks you saved in the original Interstate '76: each becomes an I26 bookmark with its name and scene, the car with its parts, armour, van, repair order and field salvage as you left them.
+- Load Bookmark has an All Scenes button that makes a bookmark for every scene of the trip, each in that mission's own car, so a fresh install can start any scene without a save; it asks first and never overwrites a bookmark of the same name.
 
 ## 0.11.0 (31 October 2026)
 
