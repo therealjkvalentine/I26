@@ -47,6 +47,7 @@
 - AI cars take hard turns, slow manoeuvres and searches at the original's speed (12.5 m/s for most cars) instead of 5 to 15 % faster: the turn speed is set when the car appears and changes only when a wheel is shot, as in the original.
 - An AI-driven car no longer brakes into reverse and turns round behind a car just ahead of it on the same road, as the original's does not (its way-ahead check runs from the car's own origin on the ground and passes under a car's box, which starts above the ground). In T02's opening your car now follows Taurus to the road and the camera is handed back about six seconds sooner, as in the original.
 - A mission script's timed waits now last as long as the original's: its timer starts at the nearest whole second instead of the one before, so a scene such as the opening of T01 no longer ends up to a second early.
+- Rockets fired part-way through a frame all leave at the same speed, as in the original, instead of the later rockets of a salvo starting slower.
 
 ## 0.11.0 (31 October 2026)
 
