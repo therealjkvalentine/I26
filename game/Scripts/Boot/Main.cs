@@ -1841,12 +1841,16 @@ public partial class Main : Node3D
         // the sky's light as the radiance map holds it: its colours times the gain its ambient was set for, times the ambient energy
         var sc = SkyFor(_lighting);
         float gain = sc.AmbientGain * _ambientEnergy / 3;
-        var skyUp = Lin(sc.Zenith, gain) + Lin(sc.Horizon, gain) + Lin(sc.Cloud, gain);
-        var skyDown = Lin(HorizonFoot() ?? sc.Horizon * 0.8f, _horizonFootFound ? _ambientEnergy : sc.AmbientGain * _ambientEnergy);
+        double chroma = RadianceChroma(_lighting);
+        static I76.Formats.Imaging.LightingCalibration.Rgb Grey(I76.Formats.Imaging.LightingCalibration.Rgb c, double k) { double l = c.Luminance * (1 - k); return new(l + c.R * k, l + c.G * k, l + c.B * k); }
+        var skyUp = Grey(Lin(sc.Zenith, gain) + Lin(sc.Horizon, gain) + Lin(sc.Cloud, gain), chroma);
+        var skyDown = Grey(Lin(HorizonFoot() ?? sc.Horizon * 0.8f, _horizonFootFound ? _ambientEnergy : sc.AmbientGain * _ambientEnergy), chroma);
         var sun = Lin(_sun.LightColor, _sun.LightEnergy);
         var curve = _lighting == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
-        var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, sun, skyUp);
-        var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, LumaBytes(), light.Intensity, light.Ambient, sun, skyUp, skyDown);
+        bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
+        var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
+        var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, LumaBytes(), light.Intensity, light.Ambient, sun, skyUp, skyDown,
+            card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
         var c = _calibration = I76.Formats.Imaging.LightingCalibration.Solve(img.GetData(), ground, objects, curve);
         GD.Print($"lighting calibration ({curve}): {ground.Count} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
             + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms");
@@ -1911,6 +1915,7 @@ public partial class Main : Node3D
                 m?.SetShaderParameter("cloud_shade", sc.Shade);
                 m?.SetShaderParameter("texture_colours", sc.Texture);
                 m?.SetShaderParameter("sky_gain", sc.Gain * back);
+                m?.SetShaderParameter("radiance_chroma", (float)RadianceChroma(_lighting));
             }
             if (_horizon?.Material is not null) { _horizon.Set("horizon_color", sc.Horizon); _horizon.Set("haze_gain", card ? sc.Gain * back : 1f); }
         }
@@ -1918,7 +1923,11 @@ public partial class Main : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_object_tint", new Vector3((float)c.ObjectTint.R, (float)c.ObjectTint.G, (float)c.ObjectTint.B));
         RenderingServer.GlobalShaderParameterSet("i76_prelit_gain", 1f / (float)c.Exposure);
         RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
+        RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);
     }
+
+    /// <summary>How much of the sky's colour its light on the scene keeps (sky_modern.gdshaderinc radiance_chroma).</summary>
+    private static double RadianceChroma(Lighting l) => l == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.CardRadianceChroma : 1;
 
     private readonly Dictionary<int, ImageTexture> _cardTones = [];
 

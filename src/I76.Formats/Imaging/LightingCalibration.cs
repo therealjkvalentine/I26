@@ -50,16 +50,27 @@ public static class LightingCalibration
     /// <summary>
     /// The sky light on an object's faces against the estimate the ground's solve takes: a car has none of the terrain's
     /// occlusion (its materials' AO on the sky light and a third of the sun's), and its paint and glass reflect the sky.
-    /// Measured: with it the cars' mean L on T01, T05, M01 and T10 (dusk) comes nearest the 1997 look's (2 and 3 leave them
-    /// brighter, the most at dusk).
+    /// Measured under Filmic: with it the cars' mean L on T01, T05, M01 and T10 (dusk) comes nearest the 1997 look's (2 and 3
+    /// leave them brighter, the most at dusk). Through the card's curve, with the sky's light grey, <see cref="CardObjectSky"/>
+    /// (measured by day on T01, T05, M01: 1, 6 and 9 leave the paint +0.062, -0.013 and -0.022 L).
     /// </summary>
-    public const double ObjectSky = 4;
+    public const double ObjectSky = 4, CardObjectSky = 6;
+
+    /// <summary>
+    /// Through the card's curve: the share of the 1997 look's flat-ground weighting in the ground's solve (each cell counts
+    /// ny^<see cref="CardFlatWeight"/>: the ramp lights a slope across the sun as a flat, which the modern light cannot, so the
+    /// solve fits the flats the eye sees near it rather than the map's mix; measured: 0, 8 and 16 leave the near flat ground
+    /// +0.091, +0.066 and +0.050 L, the slopes +0.022, +0.017, +0.018); the glass pane's own painted colour at
+    /// <see cref="CardGlassPane"/> (0.3 left the panes -0.046 L by day, 0.6 -0.011); the sky's light on the scene (ambient and
+    /// reflections) in grey (<see cref="CardRadianceChroma"/>), as the ramp's light is whatever the sky.
+    /// </summary>
+    public const double CardFlatWeight = 16, CardGlassPane = 0.6, CardRadianceChroma = 0;
 
     /// <summary>
     /// The bounds: the exposure (a dusk mission's ground is a third of the modern look's own), the tints (half to double a
     /// channel), the sky light's share (a tenth to all of it).
     /// </summary>
-    public const double MinExposure = 0.25, MaxExposure = 2.0, MinTint = 0.5, MaxTint = 2.0, MinSky = 0.1, MaxSky = 1.0;
+    public const double MinExposure = 0.15, MaxExposure = 2.0, MinTint = 0.4, MaxTint = 2.0, MinSky = 0.1, MaxSky = 1.0;
 
     public static double ToLinear(double s) => s <= 0.04045 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
 
@@ -129,7 +140,7 @@ public static class LightingCalibration
     /// <paramref name="sun"/>: the modern sun's energy times its colour; <paramref name="sky"/>: the modern sky light on
     /// flat ground (a slope sees (1 + ny)/2 of it).
     /// </summary>
-    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky)
+    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky, double flat = 0)
     {
         const double k = 0.1 / 5.0;   // height units to sample units (TerrainNode)
         var groups = new Dictionary<(double, int, int, int), Cell>();
@@ -145,7 +156,8 @@ public static class LightingCalibration
                 var cell = new Cell(Ramp(luma, lit), sun * Math.Max(d / len, 0), sky * ((1 + 1 / len) / 2));
                 var l = cell.Light(1);
                 var key = (cell.Ramp, (int)Math.Round(l.R * 16), (int)Math.Round(l.G * 16), (int)Math.Round(l.B * 16));
-                groups[key] = groups.TryGetValue(key, out var g) ? g with { Count = g.Count + 1 } : cell;
+                double wf = Math.Pow(1 / len, flat);
+                groups[key] = groups.TryGetValue(key, out var g) ? g with { Count = g.Count + wf } : cell with { Count = wf };
             }
         return groups.Values.ToList();
     }
@@ -156,7 +168,7 @@ public static class LightingCalibration
     /// look's the sun's on the normal and the sky's from above the horizon (<paramref name="skyUp"/>) and below it
     /// (<paramref name="skyDown"/>), each in the share of it the face sees, times <see cref="ObjectSky"/>.
     /// </summary>
-    public static List<Cell> ObjectCells(System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double intensity, double ambient, Rgb sun, Rgb skyUp, Rgb skyDown)
+    public static List<Cell> ObjectCells(System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double intensity, double ambient, Rgb sun, Rgb skyUp, Rgb skyDown, double objectSky = ObjectSky)
     {
         var l = System.Numerics.Vector3.Normalize(light);
         var cells = new List<Cell>();
@@ -164,7 +176,7 @@ public static class LightingCalibration
         {
             double d = nx * l.X + ny * l.Y + nz * l.Z;
             double lit = Math.Min(NearFade * intensity * Math.Max(d, 0) + ambient, 1);
-            cells.Add(new Cell(Ramp(luma, lit), sun * Math.Max(d, 0), (skyUp * ((1 + ny) / 2) + skyDown * ((1 - ny) / 2)) * ObjectSky, weight, d <= 0));
+            cells.Add(new Cell(Ramp(luma, lit), sun * Math.Max(d, 0), (skyUp * ((1 + ny) / 2) + skyDown * ((1 - ny) / 2)) * objectSky, weight, d <= 0));
         }
         Add(0, 1, 0, 0.3);
         for (int i = 0; i < 8; i++)

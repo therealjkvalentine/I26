@@ -62,6 +62,9 @@ uniform float detail = 0.35;      // how much the noise reshapes the texture's c
 uniform bool texture_colours = false;
 uniform float texture_light = 0.5;   // and how much of the texture's own lightness it keeps (its dark cores and bright edges; the rest the model's)
 uniform float light_strength = 1.0;
+// the sky's light on the scene (the radiance cube map: ambient and reflections) keeps this much of its colour, the rest its
+// luminance in grey: the original's light ramp is grey whatever the sky (lighting_calibration on)
+uniform float radiance_chroma = 1.0;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -236,5 +239,6 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 	} else if (g.y < 0.0 && !ground_haze) {
 		col = I76_COL(horizon_color) * 0.8;
 	}
+	if (cubemap) col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, radiance_chroma);
 	return col;
 }

@@ -10,9 +10,9 @@ public class PaintFinishTests
     [InlineData("Satin", false, PaintFinish.Satin)]
     [InlineData("gloss", true, PaintFinish.Gloss)]     // the new key wins over the old one
     [InlineData("glossy", false, PaintFinish.Gloss)]
-    [InlineData(null, false, PaintFinish.Satin)]       // nothing saved: the default, one step below the old gloss
+    [InlineData(null, false, PaintFinish.Matte)]       // nothing saved: the default, the original's flat paint
     [InlineData(null, true, PaintFinish.Matte)]        // the old hood_matte = true carries forward
-    [InlineData("nonsense", false, PaintFinish.Satin)]
+    [InlineData("nonsense", false, PaintFinish.Matte)]
     public void Parse(string? word, bool legacyMatte, int expect) => Assert.Equal(expect, PaintFinish.Parse(word, legacyMatte));
 
     [Fact]

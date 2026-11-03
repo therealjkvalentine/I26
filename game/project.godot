@@ -61,7 +61,7 @@ i76_car_interiors={
 
 i76_paint_finish={
 "type": "int",
-"value": 1
+"value": 0
 }
 
 i76_fx_size={
@@ -238,6 +238,10 @@ i76_object_sky={
 i76_prelit_gain={
 "type": "float",
 "value": 1.0
+}
+i76_glass_pane={
+"type": "float",
+"value": 0.3
 }
 i76_brush={
 "type": "vec4",
