@@ -220,6 +220,20 @@ stacked ones and the integration branch are section I, after H.
 | I20 | fix/hd-dream-grey | the dream (T04) grey again with a pack: the entries the mission's palette greys and t01.act colours are found once (HdTexture.Greyed) and an upscale over them takes the mission's grey by luminance, blended between the original's greyed texels (HdTexture.Recolour); road and cars keep their colour, as in the original | spec (t04.act differs from t01.act in 32 entries, the ground and sky ramps); local: Formats HdTextureGreyTests 3; T04 greys 30 entries, T12 7, M15 16, P10 17, T06/T07 2 | `_scratch/r3-hd-cockpit/` (T04 with and without the pack, 1997) | merged |
 | I21 | feat/host-form-redesign | the network host form's options one box under NO. DRIVERS in the form's paper and lines (check boxes for the on/off rules, ruled blanks for Max Score, Turrets, Ignition, Rate, Hcp, Pass); an arena sketch from above with its starts, count and size (ArenaSketch in Formats), a band of high ground hatched round the floor | ux; local: Formats ArenaSketchTests 11, Game HostFormLayoutTests 2 | `_scratch/r3-host-form/shots/` | merged (stacked on fd1ad8e; no hunk against pass 5's network branches beyond the changelog) |
 | I22 | fix/round3-integration-3 | the integrator's pass-6 fix: DamageModel's HandicapTaken and IncomingFactor each under their own summary (pass 5's note) | - | - | merged |
+| I23 | fix/hd-cockpit-panels-2 | modern look: the ammunition counters' digits drawn a pixel left, on the housing's drums (Cockpit.DigitShift); the mirror's frame and glass cut along smooth edges (MirrorEdge: the art's masks blurred, cut at half over a screen pixel), 3D and 2D, with or without a pack; the 1997 look keeps the original's pixels | ux (owner's playtest); local: Game MirrorEdgeTests 5 | `_scratch/r3-hd-cockpit-2/` | merged |
+| I24 | feat/dymo-weapon-labels | modern look: the weapon and special plates (and an empty specials slot's EMPTY) lettered in the Impact Label Reversed font (shipped with its free-font licence, noted in THIRD-PARTY-NOTICES), the weapons and specials panels worked at twice the original's pixels at least (CockpitPanels.LabelScale); the 1997 look the painted plates | ux; local: Game DymoLabelsTests 17 | `_scratch/r3-dymo/` | merged |
+| I25 | fix/host-form-polish | the host form's arena sketch on a torn scrap of paper, a tip on each rule, the arena list's scroll bar | ux; local: Game HostFormLayoutTests 3, Formats ArenaSketchTests | `_scratch/r3-host-form/shots/` | merged |
+| I26 | fix/melee-list-arenas-only | Instant Melee's and the host form's MELEE lists leave out an addon level whose script is byte for byte a story mission's (MissionTitles.IsCoopCopy); the CO-OP list keeps the missions | original (the melee lobby lists every addon level); local: Formats MissionTitlesTests | `_scratch/r3-mission-lists/` | merged |
+| I27 | fix/scene-names | trip missions listed as "Scene N: name" by what happens in them (MissionTitles.SceneNames); the executable's unshown titles no longer read; A01 "Training" | original (shows "Scene N." only); local: Formats MissionTitlesTests, Game SceneBookmarksTests | `_scratch/r3-mission-lists/` | merged |
+| I28 | fix/map-edge-on-off | Map Edge is Off (the walls as they are) or On (drawn down at their foot); Haze and Fade Out gone, a saved 0-3 read as Off/On | ux (owner's notes); local: Game MapEdgeTests | `_scratch/r3-edge-and-marks/shots/` | merged |
+| I29 | fix/marker-marks-the-port-value | the pads' `*` marks the port's values, not the original's (ShellSettings.PortMark) | owner's decision; local: Game SettingsWithoutARowTests | `_scratch/r3-edge-and-marks/shots/` | merged; made uniform by I36 |
+| I30 | feat/map-edge-thin-barriers | Map Edge On also hides a thin fence between two drivable parts of a map (EdgeWalls), drawn at the plate's level; the collision unchanged | ux (the owner will try it); local: Formats EdgeWallsTests 6 | `_scratch/r3-edge-and-marks/shots/t05-*.png` | merged |
+| I31 | feat/hood-shine-adjustable | Hood Finish Matte / Satin (default) / Gloss on both pads, the cars' paint too (PaintFinish; `[port] hood_finish`, an old hood_matte read) | ux; local: Sim PaintFinishTests | `_scratch/r3-visual-tweaks/` | merged |
+| I32 | fix/impact-marks-subtler | ground strikes a third fainter; `[port] effects_size`, `effects_brightness`, `effects_opacity` (25-150 %, the modern look's weapon effects; EffectsLook) | ux; local: Sim EffectsLookTests | `_scratch/r3-visual-tweaks/` | merged; the playtest machines have 80 / 70 / 70 |
+| I33 | fix/smoke-depth | the half-size smoke layer takes the nearest surface under each of its pixels (no fringe over a car's or hill's outline) (#95); I76_SMOKE_DEPTH_VIEW shows the depth it uses | issue #95; local: Game SmokeDepthTests 5 | `_scratch/r3-smoke-depth/` | merged; a Mac launcher with the diagnostic |
+| I34 | fix/net-esc-labels | the network Esc menu: Leave Match, Exit I76, the questions saying which | ux; local: Net EscapeMenuSelfDestructTests 6 | `_scratch/r3-mp-esc/` | merged |
+| I35 | feat/pistol-keys | Pistol Left / Pistol Right (Control Configuration and the pad screens): held in the cockpit, the head turns to that window and the .45 fires once the arm is up; in CarInput, protocol 25 | ux; local: Sim HandgunSessionTests (first shot 0.498 s after the key at 20 Hz), Formats PistolKeysTests, Net WireTests | `_scratch/r3-pistol/shots/` | merged; the owner's input.map and gamekeys.cfg on both machines |
+| I36 | fix/round3-integration-4 | the integrator's pass-7 fix: the `*` on every value the original does not have, on every row that offers the original's (below); the shell's Graphic Detail values end short of the scroll bar | owner's decision; local: Game SettingsWithoutARowTests, Sim PaintFinish / ScreenWobble | `_scratch/r3-integration-4/shots/shell-gd-{modern,1997}.png` | merged |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -304,6 +318,54 @@ CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests w
 more failures than pass 5 are all in the desktop baseline (network flakes under load). Laptop: Sim 958/990, Net 424/439,
 Game 220/220, Formats 903/938 (30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No
 new failure.
+
+Pass 7 (2026-11-02 night): the thirteen branches above merged by sync-play (incremental, `-NoRebase`; rerere replayed the
+resolutions of a scratch pass of the same merges in the same order, the trees identical), then fix/round3-integration-4.
+Play stays on 0.11.0 (5192e29); upstream's move is a separate decision.
+- Cockpit.cs (dymo over hd-cockpit-panels-2): the Faithful setter keeps both: the repaint flags, and the labels' panel
+  scale (LabelScale 1 in the 1997 look, 2 in the modern one) with ArtSwapped on a flip; the weapons row stamps the label
+  (or the painted plate in the 1997 look) and moves the digits by DigitNudge, in both panels.
+- MissionTitles.cs / MissionTitlesTests.cs (scene-names over melee-list-arenas-only): IsCoopCopy and its script hash kept,
+  the executable's title reader gone for SceneNames; both branches' tests kept.
+- Overlays.cs / EscapeMenu.cs (hood-shine over map-edge-on-off): Hood Finish's three steps on both pads with Esc row 18
+  (HD Textures 19), the Resets put Map Edge to Off (the on-off branch's name) and Hood Finish to its default.
+- Main.cs / Shell.cs (impact-marks over hood-shine and the marker flip): ApplyHoodFinish and ModernFx.ApplyLook both; the
+  marker branch's Melee A.I. names with the effects properties after them; playing.md keeps the marker branch's "Settings
+  without a row" table (port values marked) with the three effects rows after melee_ai, unmarked (no original's value).
+- CHANGELOG.md: union at each merge, the network Esc lines in the labels branch's words (Leave Match, Exit I76), the HD
+  Textures line in the marker branch's (On\*), the host form line in the polish branch's; protocol 25 at the top.
+  docs/deviations.md: the network Esc row in the labels branch's words, "Settings without a row" in the marker branch's.
+- A scratch-pass slip: the first record of the marker merge's CHANGELOG resolution dropped the HD Textures line; its
+  rerere entry was rewritten to the corrected file and the merge replayed identical before sync-play ran.
+- fix/round3-integration-4 (the owner's decision, the `*` uniform): every row that offers the original's value marks each
+  value the original does not have, on both pads: Field of View (all but 90), Force Feedback Pad Enhanced\* and Wheel\*
+  (the original drove a force-feedback stick, never a wheel), Melee A.I., Map Edge On\*, HD Textures On\*, HD Menu Art
+  On\*, Hood Finish Satin\* and Gloss\* (Matte the original's flat paint), Render Scale and Rumble Strength all but 100 %,
+  1997 Mode Off\*, Crash Blur Off\*, Vegetation Low\* and High\*, Mouse Camera's speeds, 3D Garage On\*, Head Tracking
+  Analog\* and Digital\*. Left unmarked, no original's value: Palette Grade, Car Interiors, Camera Return, View Zoom Reset,
+  Max FPS, VSync, Mouse In Window, Log, Renderer, Resolution, Update Check, Simulation Rate, Wheel Strength, Head Track
+  Sens., Map Downloads, Anti-Aliasing (the 1997 look ignores it). Crash Blur's and Hood Finish's shell.cfg words come from
+  tables of their own (CrashBlur's round-trip test caught "off\*" reaching the file). The shell's Graphic Detail values end
+  at x 461, short of the bar at 464 ("Monitor\*" ran into it); the Esc pad already moved them.
+- The playtest machines' user folders: `[port] effects_size=80`, `effects_brightness=70`, `effects_opacity=70` added
+  (nothing else changed; shell.cfg.before-pass7 beside it); the owner's input.map and gamekeys.cfg from the pistol lane
+  (gears on [ ], Pistol Left / Right on , and .; the port's [ and ] keys moved to - and =), an existing file kept as
+  .before-pistol. The look rows: the reference install's input.map has the arrows' Up = pilot_glance_up and Down =
+  pilot_glance_down; the lab's and the laptop's install maps have them swapped (Up = glance down, "as the owner plays it on
+  the Mac", 2026-10-21); the owner map installed follows the reference (Up = glance up). The Mac's install map: see the
+  deploy note below.
+
+Versions after pass 7: snapshot 24, protocol 25 (feat/pistol-keys: a 17th button bit in the input queue's mask; WireTests'
+TheProtocolIs25), shell.cfg 13.
+
+Test status, pass 7 (fix/round3-integration-4 at 895e22a, the tree of `play` 26db81f but the manifest): desktop
+(I76_INSTALL and I76_NITRO_INSTALL set) Game 246/246, Sim 982/1015, Net 424/440; outside the desktop baseline only the
+known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the
+Nitro install set); Net's failures all in the baseline. Laptop: Sim 981/1013, Net 425/440, Game 246/246, Formats 915/949
+(30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No new failure.
+
+Deployed: `play` 26db81f to the laptop (VERSION.txt "play 26db81f deployed 2026-11-03T00:57Z"; smoke T01 --drive
+renders, net 25, the 2x pack read).
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
