@@ -175,8 +175,6 @@ void fragment() {
 	float t = max(dist - haze_start, 0.0) / haze_reach;
 	float f = clamp(1.0 - (1.0 - haze_floor) * exp(-t * t), 0.0, 1.0);
 	f = max(f, smoothstep(far_clip * 0.75, far_clip * 0.98, dist));
-	// Map Edge: the ring is all past the edge, hazed by distance from the eye alone (map_edge.gdshaderinc)
-	if (i76_edge_haze.x > 0.0) f = max(f, map_edge_amount(1.0, dist));
 
 	if (debug_tint > 0.0) { albedo = vec3(1.0, 0.0, 1.0); f = 0.0; }
 	ALBEDO = albedo * (1.0 - f);

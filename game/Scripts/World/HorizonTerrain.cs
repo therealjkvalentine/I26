@@ -180,15 +180,11 @@ public partial class HorizonTerrain : Node3D
     public const float FloorMargin = 3f;
     private float[]? _floor;
     private bool[]? _rim;
-    // Map Edge's grid (MapEdge.Distance), made into the global i76_edge_dist in Finish
-    private float[]? _edge;
-    private float _edgeX0, _edgeZ0, _edgeTexel;
-    private int _edgeW, _edgeH;
-    /// <summary>Finish has set Map Edge's distance grid (the shader globals i76_edge_dist and i76_edge_rect) for this map.</summary>
-    public bool HasEdgeGrid { get; private set; }
+    /// <summary>Finish has set Map Edge's foot grid (the shader globals i76_edge_foot and i76_edge_foot_rect) for this map.</summary>
+    public bool HasEdgeWalls { get; private set; }
     // the ring whose grid the globals hold: a scene without one (the map editor) must not read another map's
     private static HorizonTerrain? _edgeOwner;
-    // Map Edge's Hide (MapEdge.WallsFor): the ring is also made for the walls' plain, the difference baked per vertex (UV2.y)
+    // Map Edge's On (MapEdge.WallsFor): the ring is also made for the walls' plain, the difference baked per vertex (UV2.y)
     private EdgeWalls? _walls;
     private float[] _rimHide = [];
     private float _baseHide;
@@ -198,7 +194,6 @@ public partial class HorizonTerrain : Node3D
     {
         if (_edgeOwner != this) return;
         _edgeOwner = null;
-        RenderingServer.GlobalShaderParameterSet("i76_edge_rect", Vector4.Zero);
         RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", Vector4.Zero);
     }
 
@@ -406,7 +401,6 @@ public partial class HorizonTerrain : Node3D
         var surface = TerrainNode.SurfaceFor(world);
         _walls = MapEdge.WallsFor(world, () => surface);
         _floor = FloorGrid(world, surface, _tiles, _bounds, _centre, out _rim, _walls, out _floorHide);
-        _edge = MapEdge.Distance(world.Terrain, out _edgeX0, out _edgeZ0, out _edgeW, out _edgeH, out _edgeTexel);
         float farCorner = _tiles.Max(t => MathF.Max(MathF.Max(Len(t.Item1, t.Item2), Len(t.Item3, t.Item2)), MathF.Max(Len(t.Item1, t.Item4), Len(t.Item3, t.Item4))));
 
         // the rim: along each bearing, the last ground inside the map, as high as the wall tops just inside it (under Hide,
@@ -763,15 +757,8 @@ public partial class HorizonTerrain : Node3D
             float ss = TerrainNode.SampleSize;
             RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", new Vector4(walls.X0 * ss - ss / 2, walls.Z0 * ss - ss / 2, walls.W * ss, walls.H * ss));
             MissionBuilder.Trace($"map edge: {walls.HiddenCount} hidden samples of {walls.W}x{walls.H}");
-        }
-        if (_edge is { } edge)
-        {
-            var edgeImg = Image.CreateFromData(_edgeW, _edgeH, false, Image.Format.Rf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(edge.AsSpan()).ToArray());
-            RenderingServer.GlobalShaderParameterSet("i76_edge_dist", ImageTexture.CreateFromImage(edgeImg));
-            RenderingServer.GlobalShaderParameterSet("i76_edge_rect", new Vector4(_edgeX0, _edgeZ0, _edgeW * _edgeTexel, _edgeH * _edgeTexel));
-            HasEdgeGrid = true;
+            HasEdgeWalls = true;
             _edgeOwner = this;
-            _edge = null;
         }
         // the work, not the wait between Compute and Finish
         BuildMs = _tArrays + _sw!.ElapsedMilliseconds - _finishFrom;

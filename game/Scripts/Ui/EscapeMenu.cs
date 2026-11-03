@@ -325,7 +325,7 @@ public sealed partial class EscapeMenu : Control
             Scrolling(15, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
             // and the 3D view drawn at 50 to 200 % of the window (the HUD and menus are not scaled), live: the shell's Render Scale row
             Scrolling(16, Cycle, "Render Scale", I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: () => Live?.Invoke(Settings)),
-            // and the modern look's boundary walls: plain (as they are, the original's), hazed, faded into the horizon, or hidden (the 1997 look keeps them), live
+            // and the modern look's boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live
             Scrolling(17, Cycle, "Map Edge", I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
             DoneButton(),
@@ -404,7 +404,7 @@ public sealed partial class EscapeMenu : Control
         Settings.Vegetation = 1;
         Settings.FieldOfView = I76.Sim.Views.ViewFov.Monitor;
         Settings.RenderScale = I76.Game.Boot.RenderScale.Default;
-        Settings.MapEdge = I76.Game.World.MapEdge.Original;
+        Settings.MapEdge = I76.Game.World.MapEdge.Off;
         Settings.HdTextures = true;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;
