@@ -47,6 +47,8 @@ public interface IDevHost
     IReadOnlyList<string> DevCars();
     /// <summary>Leaves this mission and starts that one in that car ("" = the mission's own), as --mission X --drive [car].</summary>
     string DevStart(string mission, string car);
+    /// <summary>A setting of the Settings section changed (saved already): the mission applies what it can at once.</summary>
+    void DevSettingChanged(I76.Game.Shell.ShellSettings settings);
     void DevClose();
 }
 
@@ -149,6 +151,10 @@ public partial class DevPanel : Control
         _scale.Selected = System.Math.Max(0, System.Array.IndexOf(Scales, Host.DevScale));
         _scale.ItemSelected += i => { Host.DevScale = Scales[i]; Say($"time scale x{Scales[i]:0.##} (the ticks are the same; only their pace changes)"); };
         col.AddChild(Row(_freeze, Button("Step 1 tick", () => Say(Host.DevStep(1))), Button("Step 10", () => Say(Host.DevStep(10))), new Label { Text = "speed" }, _scale));
+
+        // the settings without a row (docs/playing.md), saved at once; "live" ones apply now, the others say when
+        col.AddChild(Heading("Settings"));
+        DevSettings.Build(col, I76.Game.Shell.ShellSettings.Load(), (s, e) => { Host.DevSettingChanged(s); Say($"{e.Key} = {e.Values?[e.Get(s)].TrimEnd('*') ?? e.Get(s).ToString()} ({DevSettings.WhenText(e.When)})"); });
 
         _message = DevScale.Min(new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart }, 400);
         _message.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.5f));

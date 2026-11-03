@@ -39,6 +39,8 @@ public partial class Main : IDevHost
         AddChild(_dev);
     }
 
+    public void DevSettingChanged(I76.Game.Shell.ShellSettings settings) => ApplyGraphics(settings);
+
     public void DevClose()
     {
         if (_dev is null) return;

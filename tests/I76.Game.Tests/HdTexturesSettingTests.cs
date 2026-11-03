@@ -4,8 +4,8 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's HD Textures ([port] hd_textures): the key when the file has it, else the HD Menu Art switch, which turned the
-/// textures off too before they had a row; the row marks Off as the original's (it draws the textures it ships).
+/// The HD textures' switch ([port] hd_textures, no row): the key when the file has it, else the menu art's switch, which turned the
+/// textures off too before they had a key of their own.
 /// </summary>
 public class HdTexturesSettingTests
 {
@@ -22,7 +22,4 @@ public class HdTexturesSettingTests
         Assert.True(HdTextures.FromFile(null, hdMenuArt: true));    // the default, and a player who never touched the menu art
         Assert.False(HdTextures.FromFile(null, hdMenuArt: false));  // menu art turned off: the textures stay off
     }
-
-    [Fact]
-    public void OnIsMarkedAsThePorts() => Assert.Equal(["Off", "On*"], HdTextures.Names);
 }
