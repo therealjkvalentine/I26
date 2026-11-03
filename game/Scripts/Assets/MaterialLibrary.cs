@@ -219,8 +219,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
         if (ps.Masks is not null) AttachMask(ps, mat, member);
     }
 
-    /// <summary>A texture member as RGBA8 (the colours it is drawn in), the paint masks' source.</summary>
-    public (int Width, int Height, byte[] Rgba)? RgbaOf(string member) => textures.GetRgba(member) is { } t ? (t.Width, t.Height, t.Rgba) : null;
+    /// <summary>A texture member as RGBA8 (the original's colours, at its size with or without an upscale), the paint masks' source.</summary>
+    public (int Width, int Height, byte[] Rgba)? RgbaOf(string member) => textures.GetOriginalRgba(member) is { } t ? (t.Width, t.Height, t.Rgba) : null;
 
     /// <summary>Gives the body materials of a paint scheme (<paramref name="key"/>, <see cref="PaintMasks.KeyOf"/>) their masks; once per scheme, and for materials made later too.</summary>
     public void EnablePaint(string key, PaintMasks masks)
@@ -238,7 +238,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         {
             var rg = mk.Rg;
             // the paint is where the car material table says paint, and nowhere else (a window or a bumper painted the same colour stays glass or chrome)
-            if (textures.Get(member) is { } te && CarTable.Ids(member, te.Rgba, te.Width, te.Height) is { } ids && ids.Length * 2 == rg.Length)
+            if (textures.Get(member)?.Base is { } te && CarTable.Ids(member, te.Rgba, te.Width, te.Height) is { } ids && ids.Length * 2 == rg.Length)
             {
                 rg = (byte[])rg.Clone();
                 var pw = I76.Formats.Imaging.CarMaterialTable.PaintWeight(ids);
@@ -307,7 +307,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
             string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
             int dot = stem.LastIndexOf('.');
             if (dot > 0) stem = stem[..dot];
-            var (rgba, w, h) = (t.Rgba, t.Width, t.Height);
+            var (rgba, w, h) = (t.Base.Rgba, t.Base.Width, t.Base.Height);
             _propJobs[job] = Task.Run(() => I76.Formats.Imaging.PropMaterial.Build(rgba, w, h, stem, family));
         }
         _propPending.Add((mat, job));
@@ -354,6 +354,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>The car windows' data (CarMaterials.tsv over the segmentation maps): which texels of a car texture are glass.</summary>
     public static readonly I76.Formats.Imaging.CarMaterialTable CarTable = I76.Formats.Imaging.CarMaterialTable.Default;
     private static readonly bool TableOff = System.Environment.GetEnvironmentVariable("I76_CAR_TABLE") == "0";
+
 
     // ---- car windows: the glass shading and the proxy cabin behind it (object.gdshaderinc, MeshBuilder.CabinOf) ----
 
@@ -557,8 +558,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
         return o;
     }
 
-    public GlassEntry? GlassOf(string member, TextureFactory.Entry t)
+    public GlassEntry? GlassOf(string member, TextureFactory.Entry served)
     {
+        var t = served.Base;
         if (_glass.TryGetValue(member, out var made)) return made;
         // the windows come from the segmentation maps (I76_CAR_MASKS=0 leaves them out); the cabin behind them is Car Interiors'
         if (!I76.Formats.Imaging.CarMaskMap.Enabled || TableOff) return _glass[member] = null;
@@ -607,7 +609,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     {
         if (!_maps.TryGetValue(member, out var mp))
         {
-            var maps = I76.Formats.Imaging.CarMaterial.Build(t.Rgba, t.Width, t.Height, paint);
+            var maps = I76.Formats.Imaging.CarMaterial.Build(t.Base.Rgba, t.Base.Width, t.Base.Height, paint);
             var orm = Image.CreateFromData(maps.Width, maps.Height, false, Image.Format.Rgba8, maps.Orm);
             var nrm = Image.CreateFromData(maps.Width, maps.Height, false, Image.Format.Rgb8, maps.Normal);
             orm.GenerateMipmaps();
@@ -623,7 +625,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>The paint a car's material maps are made against: the commonest colour over its textures.</summary>
     public I76.Formats.Imaging.CarMaterial.Paint PaintOf(IEnumerable<string> members) =>
         I76.Formats.Imaging.CarMaterial.DominantPaint(members.Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(textures.Get).OfType<TextureFactory.Entry>().Select(e => (e.Rgba, e.Width, e.Height)));
+            .Select(textures.Get).OfType<TextureFactory.Entry>().Select(e => (e.Base.Rgba, e.Base.Width, e.Base.Height)));
 
     /// <summary>Every material made so far for a texture member.</summary>
     public IEnumerable<Material> MadeFor(string member) =>

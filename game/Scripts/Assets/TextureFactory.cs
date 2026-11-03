@@ -15,7 +15,10 @@ namespace I76.Game.Assets;
 public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 {
     /// <param name="KeyColour">What index 255 decodes to (its palette colour): a face that does not honour the key draws that, not the bled colour under it.</param>
-    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba, Color KeyColour = default);
+    /// <param name="Base">The original's texels (bled under the key), what the port's material analyses read (car material table, windows,
+    /// prop and car maps): they are keyed to the original's texel grid, and their maps are sampled by UV over any upscale. The same array
+    /// as Rgba where no upscale is served.</param>
+    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba, Color KeyColour, RoadRaster.Tex Base);
 
     /// <summary>Whether upscales are served (the modern look with HD Textures on); off, every member is the original. Set before the first texture; after, SetHd.</summary>
     public bool Hd { get; set; } = true;
@@ -25,6 +28,9 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 
     /// <summary>A texture's RGBA (index 255 keyed to alpha 0), for CPU-side painting; the upscale's where one is served.</summary>
     public RoadRaster.Tex? GetRgba(string member) => Hd && HdOf(member) is { } h ? h : Original(member);
+
+    /// <summary>The original's RGBA whatever is served (index 255 keyed to alpha 0): what analyses keyed to its texel grid read.</summary>
+    public RoadRaster.Tex? GetOriginalRgba(string member) => Original(member);
 
     /// <summary>How many texels of the served texture cover one of the original's, each way: 1 for the original.</summary>
     public int Scale(string member) => Hd && HdOf(member) is { } h && Original(member) is { } o ? h.Width / o.Width : 1;
@@ -76,8 +82,10 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private Entry? Make(string member)
     {
         if (Original(member) is not { } o) return null;
-        var served = Hd && HdOf(member) is { } h ? Prepare(h) : Prepare(o);
-        return new Entry(ImageTexture.CreateFromImage(served.Img), served.Key, served.Img.GetWidth(), served.Img.GetHeight(), served.Rgba, KeyColourOf(o));
+        var orig = Prepare(o);
+        var served = Hd && HdOf(member) is { } h ? Prepare(h) : orig;
+        return new Entry(ImageTexture.CreateFromImage(served.Img), served.Key, served.Img.GetWidth(), served.Img.GetHeight(), served.Rgba, KeyColourOf(o),
+            new RoadRaster.Tex(o.Width, o.Height, orig.Rgba));
     }
 
     /// <summary>What index 255 decodes to: the colour of the original's first keyed texel (default with no key).</summary>

@@ -169,3 +169,29 @@ public class CarMaterialTableTests
         Assert.DoesNotContain("normalize(v_nlocal)", shader[shader.IndexOf("} else if (car_paint) {", StringComparison.Ordinal)..branch]);
     }
 }
+
+/// <summary>An upscale pack's texture is the original at four times the texels: the table and the segmentation maps are on the original's grid.</summary>
+public class CarMaterialTableUpscaleTests
+{
+    [InstallFact]
+    public void ThePiranhasWindowsAreFoundOnTheOriginalsGridAndNotOnAnUpscales()
+    {
+        var vfs = new AssetVfs(new GameInstall(TestInstall.Dir));
+        var res = new TextureResolver(vfs);
+        var member = res.FindByStem("pp11tp_1")!;
+        var t = res.Load(member)!;
+        var pal = new Palette(vfs.TryRead("t01.act")!);
+        var rgba = TextureReader.ToRgba(t, pal);
+        int Glass(byte[]? ids) => ids?.Count(i => i == CarMaterialTable.PresetNamed("glass")!.Id) ?? 0;
+        int g1 = Glass(CarMaterialTable.Default.Ids(member, rgba, t.Width, t.Height));
+        // the same picture at 4x (nearest), as a pack serves it
+        int s = 4, w = t.Width * s, h = t.Height * s;
+        var up = new byte[w * h * 4];
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) Buffer.BlockCopy(rgba, ((y / s) * t.Width + x / s) * 4, up, (y * w + x) * 4, 4);
+        int g4 = Glass(CarMaterialTable.Default.Ids(member, up, w, h));
+        Console.WriteLine($"glass texels: {g1} at {t.Width}x{t.Height}, {g4} at {w}x{h} (x16 would be {g1 * 16})");
+        Assert.True(g1 > 100);
+        // the windows' analyses (TextureFactory.Entry.Base) must read the original: at the upscale's size most of the glass is lost
+        Assert.True(g4 < g1 * 16 / 2);
+    }
+}
