@@ -131,6 +131,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Online co-op has a Rolling Start option on the host form: a player who respawns or joins beside a teammate who is driving along comes in at that teammate's speed instead of standing still, so the group does not leave them behind.
 - Play Options has a Melee A.I. row (second page): the computer cars of an Instant Melee can follow your Difficulty Level (Wimp easier, Badass harder), or be set to easy or hard, instead of always opening at the original's normal skill.
 - Graphic Detail has a Field of View row (Original, 80, 100, 110 degrees across a 4:3 view), live, for the chase and other outside views and the cockpit's 3D view; the 2D dash, mirror and binoculars keep their own framing. Original is as before.
+- Graphic Detail has a Hood Finish row (Glossy, as before, or Matte): Matte takes the shine off the modern look's cockpit hood, which reflected the sky distractingly.
 
 ## 0.11.0 (31 October 2026)
 

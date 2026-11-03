@@ -90,6 +90,8 @@ varying flat vec4 v_eye;   // the F1 view's eye in the mesh's frame (w 1), CUSTO
 varying vec3 v_cam_l;
 global uniform bool i76_car_materials;   // Ctrl+F8 (a debug key): off, every car without its glass (to compare)
 global uniform bool i76_car_interiors;   // Graphic Detail's Car Interiors: the proxy cabin and driver behind the glass (off: the glass alone)
+global uniform bool i76_hood_matte;   // Graphic Detail's Hood Finish, Matte: the cockpit's hood (hood_surface) loses its clear coat and its sheen
+instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
 uniform bool has_glass = false;    // with car_paint: glass_tex marks the window texels (CarMaterialTable's glass, MaterialLibrary.GlassOf)
 uniform sampler2D glass_tex : source_color, hint_default_black, filter_linear_mipmap;   // rgb the glass's own colour (blurred), a the soft mask
 uniform sampler2D glass_body : source_color, hint_default_black, filter_linear_mipmap;   // the body's colour round the window, past its trim (MaterialLibrary.BodyColour)
@@ -659,6 +661,12 @@ void fragment() {
 		METALLIC = base_metallic;
 		SPECULAR = base_specular;
 		CLEARCOAT = 0.0;
+	}
+	if (hood_surface > 0.5 && i76_hood_matte && !prelit) {
+		ROUGHNESS = max(ROUGHNESS, 0.88);
+		SPECULAR = min(SPECULAR, 0.12);
+		CLEARCOAT = 0.0;
+		METALLIC = min(METALLIC, 0.1);
 	}
 	if (!prelit && wreck.x > 0.0) {
 		vec3 a = ALBEDO, g;

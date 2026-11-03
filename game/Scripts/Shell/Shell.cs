@@ -255,6 +255,7 @@ public partial class Shell : CanvasLayer
         Settings = ShellSettings.Load();
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
+        I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(Settings.HoodMatte);
         ApplyMusicLevel();
         I76.Game.Boot.Main.ApplyAudio(Settings);   // the SFX and voice levels Audio Control set live go back too
     }
@@ -314,6 +315,7 @@ public partial class Shell : CanvasLayer
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
         // the menus keep the pointer in the window too (Main's cursor state reads it every frame)
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
+        I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(Settings.HoodMatte);
         AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
         _view = new TextureRect
         {
@@ -1166,6 +1168,8 @@ public sealed class ShellSettings
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
     /// <summary>The port's own: Graphic Detail's Resolution (shell.cfg [port] resolution, "WxH", written only for a window size). Empty: the desktop, as the game starts.</summary>
     public string Resolution { get; set; } = "";
+    /// <summary>The port's own: Graphic Detail's Hood Finish (shell.cfg [port] hood_matte, written only when on): Matte takes the shine off the modern look's cockpit hood. Glossy (off), as before.</summary>
+    public bool HoodMatte { get; set; }
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
     /// <summary>The port's own: Graphic Detail's VSync (shell.cfg [port] vsync). On, as the window has always run, unless the player chose.</summary>
     public bool VSync { get; set; } = true;
@@ -1308,6 +1312,7 @@ public sealed class ShellSettings
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
         s.Resolution = I76.Game.Boot.WindowSizes.Parse((string)c.GetValue("port", "resolution", "")) is { } rs ? I76.Game.Boot.WindowSizes.Format(rs.W, rs.H) : "";
+        s.HoodMatte = (bool)c.GetValue("port", "hood_matte", false);
         s.MaxFps = I76.Sim.Views.FrameLimit.Parse(c.HasSectionKey("port", "max_fps") ? (int)c.GetValue("port", "max_fps") : null);
         s.VSync = (bool)c.GetValue("port", "vsync", true);
         s.KeepMouseInWindow = (bool)c.GetValue("port", "keep_mouse_in_window", false);
@@ -1379,6 +1384,7 @@ public sealed class ShellSettings
         c.SetValue("port", "mouse_camera", MouseCamera);
         if (MouseInvertY) c.SetValue("port", "mouse_invert_y", true);
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
+        if (HoodMatte) c.SetValue("port", "hood_matte", true);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);
