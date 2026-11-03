@@ -362,7 +362,7 @@ public partial class HorizonTerrain : Node3D
         PrintHash(profile);
     }
 
-    private sealed record Computed((System.Reflection.FieldInfo F, object? V)[] Fields, (string Name, Godot.Collections.Array Arrays)[] Pending, int Vertices);
+    private sealed record Computed((System.Reflection.FieldInfo F, object? V)[] Fields, (string Name, Godot.Collections.Array Arrays, bool Rim)[] Pending, int Vertices);
 
     /// <summary>What <see cref="Compute"/> leaves in the node besides the arrays, by reflection: every instance field this class declares that is not a Godot object, the stopwatch or the pending list.</summary>
     private static readonly System.Reflection.FieldInfo[] _fields = typeof(HorizonTerrain)
