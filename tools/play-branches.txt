@@ -1,0 +1,232 @@
+# The patch stack, in merge order (= the order to offer upstream). One branch a line; # starts a comment.
+# tools/sync-play.ps1 rebuilds `play` from origin/master + play-meta + these. See docs/play-tracker.md.
+
+# A. reported upstream
+fix/wheel-suspension-prime            # #141 spawn bob
+# dropped 2026-11-03, absorbed by upstream 2ddb2d4 (same GAS0 mode rule, the siren on any car): fix/siren-gpw-loop
+fix/script-camera-cuts                # #140 same-op camera cut
+fix/script-camera-arrived-flag        # camIsArrived cleared on every placing call
+fix/mission-music-wrap                # #128
+fix/smoke-sky-flicker                 # cockpit smoke flicker (owner report)
+# dropped 2026-11-03, absorbed by upstream 32988ae (PR #144 landed as upstream's own commit): fix/macos-entitlements-der
+fix/macos-mic-opened-on-first-cb      # supersedes fix/macos-mic-prompt-on-first-cb (docs only, not merged)
+fix/middle-wheel-suspension           # #124 six-wheelers
+fix/predicted-shots-of-jammable-weapon  # MP-B1
+fix/own-shots-counter-at-respawn      # MP-B3
+fix/net-ping-low-percentile           # MP-B2
+fix/escape-menu-right-click-reconfigure  # #106
+fix/first-garage-load-prewarm         # #143
+# dropped 2026-11-03, absorbed by upstream 01228e7 (#142, the same ProcessMode line): fix/load-card-audio-hiccup
+fix/first-explosion-stutter           # #116
+feat/regen-pad-hold-readout           # #102 (readout only; the rule is the original's)
+fix/editor-tool-column-scroll         # #146 map editor tool column scrolls
+fix/mouse-in-window-menus             # #147 Keep Mouse In Window honoured in the menus
+fix/gate-fence-grounding              # #137 fences and tyre walls centred on their line between posts
+fix/1997-effect-sprites-upright       # #105 effect cards upright, foot at the origin (1997 look)
+fix/cockpit-art-bilinear              # dash and gauges smooth when looked down at (owner report)
+
+# B. measured against the original (retail 1.0, emulated Pentium)
+fix/taurus-load-cornering
+fix/difficulty-damage
+fix/ai-turn-speed-at-spawn
+fix/ai-avoid-scripted-lead-car        # T02 opening
+fix/fsm-timer-rounds-to-nearest
+fix/rocket-catchup-eases-by-frame
+fix/brake-stop-keeps-accel-one-tick
+fix/mirror-fov-and-far-clip
+fix/sky-scroll-counts-mirror-pass
+fix/engine-loop-pitch-formula
+fix/ordnance-live-cap
+fix/ai-avoid-probe-left-track
+
+# C. kit or spec evidence
+fix/1997-tracers
+fix/modern-target-health-bar
+fix/bookmark-cancel-returns
+fix/map-voice-line-on-sfx-bus
+fix/radar-sweep-and-pings
+fix/1997-road-light-no-depth-fade
+fix/1997-road-texture-sampling
+fix/dash-mirror-slot-position
+fix/overview-zoom-per-tick
+fix/hood-view-shows-own-car
+fix/brake-lamp-hold-row
+fix/round-start-offset-only-with-spread
+fix/trigger-repress-click
+fix/unlimited-ammo-ai-keeps-firing
+fix/burst-rearm-after-batched-shot
+fix/ai-ezk-mortar-fires
+fix/rounds-hit-signs-and-posts
+fix/ai-sight-line-and-structures
+fix/splash-damage-no-isshot
+fix/turret-slew-online-and-elevation
+fix/zero-length-hit-zone
+fix/rough-terrain-damage-surface
+fix/cb-queue-with-voice-off
+fix/gpw-volume-field
+fix/silent-dropper-hit-sounds
+fix/sound-cull-from-player-car
+fix/sfx-voice-slider-curve
+fix/ai-back-away-terrain-height
+fix/ai-avoid-chooser-order
+fix/ai-target-predictor-arc
+fix/ai-dropper-and-mortar-gates       # stacked on the predictor
+fix/ai-attacker-slot-cap-zero
+fix/ai-friendly-fire-scan
+fix/ezk-mortar-uses-predictor        # stacked on the EZK gate and the predictor
+fix/explosion-template-by-key
+fix/heated-seats-ammo
+fix/death-camera-orbit-rate
+fix/contact-order-statics-last
+fix/emplacement-placements-grounded
+fix/ramp-rails-not-drive-on
+fix/sphere-part-colliders
+fix/modern-physics-sphere-parts       # stacked on sphere-part-colliders
+fix/breakables-per-part-spheres
+fix/ai-predictor-clearance
+fix/blown-tyre-pull-scripted-drive
+fix/fatal-landing-ends-substep
+fix/network-heli-lift-at-init
+fix/trip-cheat-marker
+fix/mission-default-car
+fix/salvage-specials-amount
+fix/set-user-radar
+fix/start-engine-pulse
+fix/is-shot-two-frames
+fix/teleport-path-node-terrain-y
+fix/tactic-skid-modulus
+fix/movie-skip-deviation-row
+fix/end-of-match-brake
+fix/network-deviation-rows
+fix/cockpit-gauge-dials-too-dark      # the 3D cockpit's dials black under their lettering, the art at full size and sharp, the needles in the palette colour, lit, turned off-centre (measured)
+fix/target-tags-bold                  # the garage's (C), (V), (R) legends bold and a little larger (modern look)
+
+# C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
+perf/horizon-early-z
+perf/interop-garbage                  # drop-shadow casters found once, shadow nodes told only what changed, the smoke layer keeps its uniforms
+
+# D. features, each behind an option
+feat/head-tracking-opentrack
+feat/original-save-reader
+feat/import-original-saves-ui         # stacked on the reader
+feat/bookmark-per-mission
+feat/delete-bookmarks                 # Load Bookmark: Delete with a yes/no notice
+feat/wheel-force-feedback-windows
+feat/rumble-strength-and-events
+feat/net-scoreboard-sticky-with-kick
+feat/net-ban-list
+feat/net-return-to-server-list
+feat/host-rule-ignition-stays-on
+feat/coop-enemy-scaling
+feat/coop-damage-factor
+feat/coop-joiner-matches-speed
+feat/bot-skill-from-difficulty
+feat/net-handicaps                    # host rule Handicaps, per-player damage levels -3..+3
+feat/net-auto-handicap                # stacked on feat/net-handicaps: Off / Manual / Auto, levels from the standing, +-5 table
+feat/field-of-view-row
+feat/resolution-row
+# dropped 2026-11-03, absorbed by upstream 356eddb (#138: the same update_check key, on by default, Play Options p2): feat/update-check
+feat/hood-matte-option
+fix/modern-mg-tracers-look
+feat/render-scale-row
+perf/render-scale-down                # stacked on the render scale row: 50..200 %
+fix/1997-look-draw-distance-default
+feat/map-edge-treatment               # Graphic Detail: Map Edge Original / Haze / Fade Out (modern look)
+feat/ghost-cockpit-toggle
+feat/skip-cutscenes-and-mute-switches
+feat/voices-overlay-folder
+feat/extra-music-folder
+feat/steam-deck-support
+feat/pad-shift-layer
+feat/tap-or-hold-binding
+feat/look-back-context-bindings
+feat/device-presets-by-name
+feat/second-device-together
+feat/input-record-and-replay
+feat/telemetry-udp-out
+feat/controls-key-sheet
+feat/hd-world-textures                # the player's upscaled textures from user://tex-world/ (modern look)
+feat/hd-texture-tool                  # after hd-world-textures: --export-textures and tools/upscale-textures.py
+feat/dev-menu
+feat/dev-menu-mission-picker          # stacked on play: Scene picker in the Developer panel
+feat/dev-menu-landmarks               # stacked on play: generated landmarks + kept places
+feat/dev-menu-loadout                 # stacked on play: live weapon loadout (snapshot 21)
+feat/original-behavior-pad            # stacked on play, last: the Original Recipe pad
+
+# E. last: the clock
+feat/sim-rate-24
+
+# G. stacked on play, last: corrections from the original measured 2026-11-02 (merge after everything above)
+fix/ai-dropper-gate-straight-line     # stacked on play: corrections from the original measured 2026-11-02
+fix/turret-lead-predictor-delay       # stacked on play: corrections from the original measured 2026-11-02
+
+# H. stacked on play: follow-ups from the design review (2026-11-02), merge after G
+fix/look-choice-rows                  # one LookChoice helper; a choice stored only on change; shell.cfg 12 drops an old draw_distance
+fix/coop-damage-remainder             # the fraction carried per car and channel (snapshot 23)
+fix/pad-rules-shift-tap-latch         # shift wins over tap/hold; 200 ms tap; handbrake latch
+fix/esc-aa-row-names                  # Esc Anti-Aliasing row lists 8x too
+fix/scoreboard-host-guards            # double-click asks; /ban refuses unknown names; picks by slot order
+fix/input-trace-header-and-flush      # header with build/install/options; flush per row; dev actions marked
+fix/telemetry-rate-and-time           # 60 packets/s cap; monotonic time
+fix/2d-reticle-follows-fov            # the 2D reticle projected through the chosen FOV
+
+# I. round 3 (2026-11-02 afternoon): the playtest's answers, merge after H
+fix/turret-aim-moving-carrier         # stacked on play: a turret aims from the barrel, nothing taken off for the carrier's travel (measured faithful: rounds never inherit the carrier's velocity)
+feat/original-recipe-folded           # stacked on play: the Original Recipe pad folded into Play Options / Graphic Detail rows and [port] keys, the original's value marked *
+fix/graphic-detail-scrollbar          # stacked on play: Graphic Detail scrolls as one list, the bar at the pad's right edge
+feat/field-of-view-in-graphic-detail  # stacked on play: Field of View on the Esc pad too; Monitor the default, 60..110 across the window, 90* the original's
+feat/developer-menu-entry             # stacked on play: developer=true in shell.cfg; the panel at the bottom of the Esc Options Menu; Ctrl+`
+fix/delete-bookmark-from-parts-form-1997  # stacked on play: Save Bookmark has Delete too (the trip's salvage form and garage)
+fix/1997-tracers-two-pixels           # stacked on play: 1997 MG tracers one pixel per 480 rows of the 3D view, four at most
+feat/map-edge-hide                    # stacked on play: Map Edge gains Hide (the walls and the plateau behind them drawn down at their foot)
+fix/round3-integration                # stacked on play, last of I: the 90* mark everywhere, developer in the settings table, Render Scale on the Esc pad, the changelog in order, the stale OriginalRecipeTests gone
+feat/hd-textures-row                  # stacked on play: Graphic Detail's HD Textures row (the pack's world, car and cockpit upscales on and off in play)
+feat/saves-tools-to-dev-panel         # stacked on play: Load Bookmark the original's sheet plus Delete; Import Saves and All Scenes in a main-menu Developer panel
+fix/round3-integration-2              # stacked on play, last of I: the cockpit art's sampling after the dials (nearest, full size), the network handguns row, the .45 and Q in playing.md
+fix/held-keys-stale-modifier          # stacked on play: a modifier whose release macOS swallows no longer leaves held keys acting on the press only
+fix/shell-music-no-title-tracks       # stacked on play: the garage keeps the menu track; its boombox only with [port] garage_radio=on, mission tracks only
+feat/net-esc-self-destruct            # stacked on play: Self Destruct (new car) on the network Esc menu's row 2; Leave / Exit questions say what they do
+feat/net-auto-handicap-2              # stacked on play: a level per net kill over the average, x0.2..x5 dealt, taken 1/factor capped x1/3..x3, rams and the .45 scaled
+fix/hd-pack-glass-and-key             # stacked on play: the window / paint / material analyses read the original's texels under an HD pack (glass, no cyan rim)
+perf/hd-pack-load                     # after hd-pack-glass-and-key: 2x BC7 .dds packs (cockpit 4x) uploaded as stored, a model's upscales decoded in parallel; the script writes DDS, --from repacks
+fix/hd-cockpit-panels                 # stacked on play: under an HD pack the mirror frame, radar marks and panels drawn right and redrawn when HD Textures or the look flips; the tool scales the cockpit's lettering and mirror frame in their own colours
+fix/hd-dream-grey                     # stacked on play: the dream's grey palette applied to the pack's upscales of the entries it greys
+feat/host-form-redesign               # stacked on play: the host form's options one box in the form's paper and lines; an arena sketch with its starts, count and size
+fix/round3-integration-3              # stacked on play, last of I: the handicap helper's and IncomingFactor's summaries each on its member
+fix/hd-cockpit-panels-2               # stacked on play: modern look's ammunition digits on the housing's drums; the mirror's frame and glass cut along smooth edges
+feat/dymo-weapon-labels               # stacked on play: modern look letters the weapon and special labels in a label-tape font (the panels at twice the pixels); after hd-cockpit-panels-2
+fix/host-form-polish                  # stacked on play: the host form's arena sketch on a torn scrap, rule tips, the arena list's scroll bar
+fix/melee-list-arenas-only            # stacked on play: the melee lists leave out co-op packs' copies of the story missions
+fix/scene-names                       # stacked on play: trip missions listed as "Scene N: name", named by what happens in them; after melee-list-arenas-only
+fix/map-edge-on-off                   # stacked on play: Map Edge is Off or On (On draws the walls down at their foot)
+fix/marker-marks-the-port-value       # after map-edge-on-off: the pads' * marks the port's values instead of the original's
+feat/map-edge-thin-barriers           # after marker-marks-the-port-value: Map Edge's On also hides the thin fences between two drivable parts of a map (the owner will try it)
+feat/hood-shine-adjustable            # stacked on play: Hood Finish Matte / Satin / Gloss on both pads, the cars' paint too
+fix/impact-marks-subtler              # stacked on play: ground strikes a third fainter; [port] effects_size / effects_brightness / effects_opacity
+fix/smoke-depth                       # stacked on play: the modern smoke layer takes the nearest surface under each pixel (#95)
+fix/net-esc-labels                    # stacked on play: network Esc menu says Leave Match and Exit I76
+feat/pistol-keys                      # stacked on play: Pistol Left / Pistol Right keys (protocol 25)
+fix/round3-integration-4              # stacked on play, last of I: the * marks every value the original does not have on every row that offers the original's (Hood Finish, Render Scale, Wheel, 1997 Mode, Crash Blur, Vegetation, Mouse Camera, ...); a long value ends short of the shell's Graphic Detail scroll bar
+fix/dev-panel-scale                   # stacked on play: the Developer panels scale with the window (2x from 1080 rows, 3x at 4K)
+feat/graphics-rows-to-config          # after dev-panel-scale: HD Textures and HD Menu Art leave Graphic Detail for [port] keys and the Developer panel
+feat/dev-panel-settings-and-signals   # after graphics-rows-to-config: the Developer panel's Settings (every config-only key) and Signals (force feedback, rumble, telemetry)
+feat/upscale-colour-match             # stacked on play: tools/upscale-textures.py matches the model's colours back to the original's (Oklab, the detail kept)
+fix/smoke-depth-metal                 # stacked on play: with MSAA the smoke layer reads the multisampled depth itself (#95 on a Mac)
+fix/dymo-labels-brighter              # stacked on play: the modern cockpit's weapon labels pure white with a crisp edge
+feat/vegetation-density               # stacked on play: [port] vegetation_density, 60 % of the Vegetation level's plants by default
+fix/ai-fire-cadence-as-original       # stacked on play, docs only: the attack-tactic chooser's deviations row (1997 CD build vs the 1998 build)
+fix/zero-armour-damage-as-original    # stacked on play, test only: a round through a side whose armour is gone, as measured
+fix/wreck-smoke-range                 # stacked on play: modern look's wreck fire and smoke start and draw out to 600 m, as the original's model sprites
+fix/death-orbit-drawn                 # stacked on play: the death orbit camera interpolated between ticks
+fix/round3-integration-5              # stacked on play, last of I: vegetation_density in the Developer panel's Settings; the README's Windows tex-world path; two changelog full stops
+feat/tactile-lfe                      # stacked on play: a bass shaker's signal of the port's own on the LFE channel (engine, road, shots, hits, explosions; 15-90 Hz, limited)
+feat/audio-output-modes               # after tactile-lfe: Audio Control's Output (Stereo, Phones, 2.1, 5.1, 7.1) and LFE Level; [port] tactile_eq, crossover
+fix/map-edge-roads-and-1997           # stacked on play: Map Edge On in the 1997 look, its plants on the drawn-down ground, a barrier with a road at its foot kept
+fix/map-edge-placed-objects           # after map-edge-roads-and-1997: On never draws down ground the mission puts something on (T05's helicopters)
+feat/modern-lighting-calibration      # stacked on play (contains feat/modern-look-colour-match, not listed): the modern look's lighting calibrated against the 1997 look's; [port] lighting_calibration
+feat/build-version-rules              # stacked on play: user://build-rules.cfg picks the 1997 or 1998 build's turret slew and AI tactic choice, 1998 by default
+fix/round3-integration-6              # stacked on play, last of I: lighting_calibration and crossover on the Developer panel's Settings, tactile_eq set by hand only; lighting_calibration's on marked
+feat/dev-fps-overlay                  # stacked on play: [port] dev_fps on the Developer panel's Settings draws the average frame rate over the last second, top left
+fix/net-melee-music-tracks            # stacked on play: an arena asking for a shell's track starts on the next mission track; Nitro's sequence passes over its menu and credits tracks
+feat/build-id-in-lobby                # stacked on play: the network forms show each game's build; a joiner on another build is let in with a notice (protocol 26)
+fix/round3-integration-7              # stacked on play, last of I: the build-id notice's example and tests take a character's name
