@@ -130,8 +130,9 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`, `enhanced`\* | `original` | Force Feedback's Pad or Pad Enhanced\*; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
-| `hd_textures` | `false`, `true`\* | `true` | With a texture pack (see HD textures above), the modern look draws the pack's upscaled world, car and cockpit textures, the dash, gauges and panels among them; `false` draws the install's own. The 1997 look always draws the originals. Absent from a file from before the key, it takes `hd_menu_art`'s value. |
-| `hd_menu_art` | `false`, `true`\* | `true` | With an HD Menu Pack, the modern look's menus draw its upscaled backgrounds, pop-ups and fonts; `false` the original pictures. The 1997 look always draws the originals. |
+
+| `tactile` | `off`, `lfe`\* | `off` | A bass shaker (tactile transducer) on the LFE channel: with a 3.1, 5.1 or 7.1 output, `lfe` adds a signal of the port's own (the original has none) for a shaker on a receiver's or interface's sub output: the engine (a sine from 25 Hz at idle to 45 Hz at 5000 rpm), the road (a rumble by surface and speed, rougher on a flat tyre), a thump per shot by weapon, per hit and per explosion within 150 m, all between 15 and 90 Hz under a limiter. With a stereo output nothing plays. The LFE also carries the game's own sounds: the engine sends every positional sound there at full level, as it does without this key. The Developer panel shows the output and the signal's peak. |
+
 | `developer` | `false`, `true`\* | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
 
 The four that follow the look are the original's in the 1997 look and the modern look's own otherwise until the key is in

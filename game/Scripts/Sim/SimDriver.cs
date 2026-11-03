@@ -200,7 +200,7 @@ public partial class SimDriver : Node
     {
         _hooked = true;
         // the player's hits for the force feedback, by channel, as the original queued them (a network game's come by its own way)
-        if (Remote is null && Combat?.Damage is I76.Sim.Damage.DamageModel dm) dm.Damaging += ForceFeedback.Damaging;
+        if (Remote is null && Combat?.Damage is I76.Sim.Damage.DamageModel dm) { dm.Damaging += ForceFeedback.Damaging; dm.Damaging += BassShaker.Damaging; }
         // DriveTest (I76_TEST_*, I76_TELEMETRY): scripted controls over the sampled ones, and a line a tick after the frame
         if (_test is { } test)
         {
@@ -235,6 +235,8 @@ public partial class SimDriver : Node
     {
         // the pad's force feedback (presentation only; none in a headless run)
         if (DisplayServer.GetName() != "headless") AddChild(new ForceFeedback { Name = "ForceFeedback", Player = () => Player?.Sim });
+        // the bass shaker on the LFE channel ([port] tactile; silent unless set)
+        if (DisplayServer.GetName() != "headless") AddChild(new BassShaker { Name = "BassShaker", Player = () => Player?.Sim });
         // the telemetry feed (I76_TELEMETRY_UDP, [port] telemetry): off unless set
         if (TelemetryOut.Configured() is { } telemetry) AddChild(telemetry);
     }
@@ -443,7 +445,7 @@ public partial class SimDriver : Node
             while (_acc >= Tick) { remote.SendInput(InputHeld?.Invoke() == true ? default : Sample()); _acc -= Tick; ticks++; }
             Alpha = remote.Advance(delta, (float)(_acc / Tick));
             // the force feedback a tick at a time; the server's hits do not reach a client, its shots and car state do
-            for (int i = 0; i < ticks; i++) ForceFeedback.Tick(i == 0 ? Combat?.Events : null, shots, Tick);
+            for (int i = 0; i < ticks; i++) { ForceFeedback.Tick(i == 0 ? Combat?.Events : null, shots, Tick); BassShaker.Tick(i == 0 ? Combat?.Events : null, shots); }
             if (ticks > 0) TickRan?.Invoke(Combat?.Events, shots);
             var ro = Origin();
             foreach (var c in Cars) c.Place(Alpha, ro);
@@ -478,6 +480,7 @@ public partial class SimDriver : Node
         using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
         TraceTick(tick, sampled);
         ForceFeedback.Tick(Combat?.Events, shots, Tick);   // the block the original filled at the frame's end
+        BassShaker.Tick(Combat?.Events, shots);
         TickRan?.Invoke(Combat?.Events, shots);
         if (_debugPlayer)
             foreach (var (_, hn, ht, hnorm, hs) in World.Step.ObjectHits) GD.Print($"  hit {hn} type {ht} n {hnorm.X:0.00},{hnorm.Y:0.00},{hnorm.Z:0.00} at speed {hs:0.0}");

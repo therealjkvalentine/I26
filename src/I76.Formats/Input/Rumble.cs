@@ -288,7 +288,7 @@ public sealed class ForceModel
     };
 
     /// <summary>The road's strength (percent) by +0x148: packed dirt, light vegetation, paved, dirt road, wash, rocky, parking lot, dirt intersection.</summary>
-    private static readonly int[] RoadGain = [0, 25, 35, 15, 20, 25, 40, 15, 30, 0];
+    internal static readonly int[] RoadGain = [0, 25, 35, 15, 20, 25, 40, 15, 30, 0];
 
     /// <summary>The thump (ids 17..20): 0.2 s of a 47 Hz triangle at full strength, 2.1 ms in from nothing and 6.3 ms out.</summary>
     public const double ThumpSeconds = 0.2;
