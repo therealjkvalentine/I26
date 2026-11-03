@@ -1950,6 +1950,17 @@ public partial class Main : Node3D
         _sky1997?.SetShaderParameter("origin_y", gameOrigin.Y);   // the horizon ring sinks with the eye's game height
     }
 
+    private float _skyExtra;
+
+    /// <summary>The 1997 sky's cloud scroll steps again for the mirror's full-mode pass (<see cref="I76.Sim.Views.SkyScroll"/>): the extra step is added to the shader's offset, so the rate never makes it jump.</summary>
+    private void UpdateSkyScroll(float delta)
+    {
+        if (!_mode1997 || _sky1997 is null) { _skyExtra = 0; return; }
+        int steps = I76.Sim.Views.SkyScroll.StepsPerTick(_car?.CockpitCamera?.Current == true, _pit?.HasMirror == true, _pit?.MirrorMode ?? 0);
+        _skyExtra += (steps - 1) * I76.Game.Sim.SimClock.SkyScrollPerSecond * delta;
+        _sky1997.SetShaderParameter("scroll_extra", _skyExtra);
+    }
+
     /// <summary>The 1997 look's sky (sky_dome.gdshader).</summary>
     private ShaderMaterial? _sky1997;
 
@@ -2912,6 +2923,7 @@ public partial class Main : Node3D
         }
         // Draw Distance: Original clips where the original did (the world camera rebuild's 600), in either look
         ActiveCamera.Far = I76.Formats.Imaging.DrawDistance.CameraFar(_drawDistance);
+        UpdateSkyScroll((float)delta);
         UpdateSoftwareBand();   // MainSoftware.cs
         if (_pit?.Binoculars == true && ActiveCamera == _car?.CockpitCamera) ActiveCamera.Far = System.Math.Min(ActiveCamera.Far * 8, 100000f);   // Far = zoom * far, zoom 8
         bool free = ActiveCamera == _cam;   // the fly camera (--cam): the origin follows it, not the car, or a far view loses depth precision

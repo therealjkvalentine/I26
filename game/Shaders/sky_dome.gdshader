@@ -32,6 +32,7 @@ uniform bool has_sprite = false;
 uniform vec3 sprite_dir = vec3(0.0, 1.0, 0.0);   // Godot frame, toward the light
 uniform float sprite_radius = 0.05;               // radians
 uniform float scroll_per_second = 0.02997;
+uniform float scroll_extra = 0.0;                 // the mirror pass's second step, accumulated by the game
 uniform float radius = 6000.0;
 uniform float drop = 5400.0;
 uniform float horizon_height = 1170.6;
@@ -60,7 +61,7 @@ void sky() {
 	float b = g.y * drop;
 	float t = -b + sqrt(b * b - (drop * drop - radius * radius));
 	vec2 xz = (t * g).xz;
-	float off = TIME * scroll_per_second;
+	float off = TIME * scroll_per_second + scroll_extra;
 	vec2 cuv = (xz / radius + 0.5) * 4.0 + vec2(off);
 	vec3 col = i76_software ? point_fetch(clouds, cuv).rgb : texture(clouds, cuv).rgb;
 

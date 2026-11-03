@@ -876,6 +876,10 @@ public partial class Cockpit : Node
         ApplyMirrorMode();
     }
 
+    /// <summary>The mirror's current mode (0 off, 1 objects only, 2 full), and whether the cockpit has a mirror at all.</summary>
+    public int MirrorMode => _mirrorMode;
+    public bool HasMirror => _mirrorView is not null;
+
     private void ApplyMirrorMode()
     {
         if (_mirrorView is null || _mirrorCam is null || _mirrorMat is null) return;
