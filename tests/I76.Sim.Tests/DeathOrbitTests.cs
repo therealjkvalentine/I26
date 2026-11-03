@@ -42,4 +42,33 @@ public class DeathOrbitTests
         for (int i = 0; i < 144; i++) o.AdvanceSmooth(1f / 144);
         Assert.Equal(0.35f, o.Yaw, 4);
     }
+
+    /// <summary>
+    /// Drawn between its steps: at 60 frames a second and 20 ticks the drawn yaw moves on every frame, by a third of a step,
+    /// never holding still and never jumping a whole step; the steps themselves are unchanged.
+    /// </summary>
+    [Fact]
+    public void ItIsDrawnBetweenItsSteps()
+    {
+        var o = new DeathOrbit();
+        o.Start(0);
+        float tick = 102f / 2048, last = o.Drawn, deg = MathF.PI / 180f;
+        for (int i = 0; i < 300; i++)
+        {
+            o.Advance(1f / 60, tick);
+            float move = (o.Drawn - last) / deg;
+            Assert.InRange(move, 8f / 60 / tick * 0.99f, 8f / 60 / tick * 1.01f);
+            Assert.InRange(o.Drawn - o.Yaw, 0f, 8f * deg);
+            last = o.Drawn;
+        }
+    }
+
+    [Fact]
+    public void SmoothIsDrawnAsItTurns()
+    {
+        var o = new DeathOrbit();
+        o.Start(0);
+        o.AdvanceSmooth(0.5f);
+        Assert.Equal(o.Yaw, o.Drawn);
+    }
 }
