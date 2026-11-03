@@ -100,6 +100,35 @@ public static class MissionTitles
     public static string CoopTitle(GameInstall install, string mission) =>
         Coop(install).FirstOrDefault(m => m.Stem.Equals(mission, StringComparison.OrdinalIgnoreCase))?.Title is { Length: > 0 } t ? t : mission.ToUpperInvariant();
 
+    private static readonly Dictionary<string, HashSet<string>> CoopScripts = new();
+
+    /// <summary>
+    /// Whether a mission file is a copy of a story mission the co-op list holds: its FSM chunk byte for byte that mission's. Packs
+    /// for the original put T01-T17 and the scenarios in addon as .lvl under other names, to play them through its melee lobby;
+    /// the melee lists leave them out, as the co-op list has them. False for a file without a script or one that cannot be read.
+    /// </summary>
+    public static bool IsCoopCopy(GameInstall install, string path)
+    {
+        HashSet<string> set;
+        lock (CoopScripts)
+        {
+            if (!CoopScripts.TryGetValue(install.Root, out set!))
+            {
+                set = [];
+                foreach (var m in Coop(install))
+                    if (install.Resolve("miss16", m.Stem + ".msn") is { } f && ScriptHash(f) is { } h) set.Add(h);
+                CoopScripts[install.Root] = set;
+            }
+        }
+        return set.Count > 0 && ScriptHash(path) is { } own && set.Contains(own);
+    }
+
+    private static string? ScriptHash(string path)
+    {
+        try { return new MissionFile(path).FsmPayload() is { Length: >= 4 } b ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(b)) : null; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or IndexOutOfRangeException or UnauthorizedAccessException) { return null; }
+    }
+
     private static readonly Dictionary<string, string[]> TripTitles = new();
 
     /// <summary>"7. The Blood On The Highway": trip mission N's number and the title the original executable holds for it ("Mission N" without).</summary>

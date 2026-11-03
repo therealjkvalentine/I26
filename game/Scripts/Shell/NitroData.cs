@@ -98,10 +98,11 @@ public static class NitroLists
 
     /// <summary>
     /// Base I76's arena list: the fifteen of the table, then every addon\*.lvl, each
-    /// named by its WRLD's 32-byte name field.
+    /// named by its WRLD's 32-byte name field. The original lists every one; a level that is a copy of a story mission
+    /// (<see cref="MissionTitles.IsCoopCopy"/>) is left out here, as the co-op list has it (docs/deviations.md "Melee arena list").
     /// </summary>
     public static List<(string Name, string Msn)> BaseArenas(GameInstall install) =>
-        [.. MeleeData.Arenas, .. Named(install.ListMissions(".lvl", missionDir: false))];
+        [.. MeleeData.Arenas, .. Named(install.ListMissions(".lvl", missionDir: false).Where(f => !MissionTitles.IsCoopCopy(install, f)))];
 
     private static List<(string Name, string Msn)> Named(IEnumerable<string> files)
     {
