@@ -37,6 +37,10 @@ default (`ShellSettings.Vegetation`, `[port] vegetation`, settings version 10: o
 
 Low's plants are a subset of High's (the same cells, a lower cover threshold), so switching only thins them.
 
+`[port] vegetation_density` in shell.cfg (no row; percent, 10 to 150, `60` when absent, `VegetationDensity`) multiplies
+the level's density, so the default places 0.36 of the cover at Low and 0.6 at High; 100 is the level as tabled above.
+It thins the same way (a subset); the plants' reach and the sward are unchanged.
+
 ## Regions
 
 `Biomes.For(mission, ground)` gives a mission its `VegRegion`: a biome, whether its low ground is a strip of its own

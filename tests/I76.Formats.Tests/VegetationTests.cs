@@ -612,6 +612,35 @@ public class VegetationTests(ITestOutputHelper output)
         Assert.All(Placer(new Plane(), density: 0.5f).Place(VegLayer.Shrub, 0, 0, 200), x => Assert.Contains(x.Position, hi));
     }
 
+    [Theory]
+    [InlineData(null, 60)]
+    [InlineData("", 60)]
+    [InlineData("junk", 60)]
+    [InlineData("100", 100)]
+    [InlineData("30%", 30)]
+    [InlineData(" 45.4 ", 45)]
+    [InlineData("0", 10)]
+    [InlineData("400", 150)]
+    public void VegetationDensityKeyReadsAPercentage(string? value, int expected)
+    {
+        Assert.Equal(expected, VegetationDensity.Parse(value));
+        Assert.Equal(expected / 100f, VegetationDensity.Factor(VegetationDensity.Parse(value)));
+    }
+
+    [Fact]
+    public void TheDensityKeyThinsTheLevelsPlantsToASubset()
+    {
+        // Low (0.6) at the key's default, 60 %, and at 30 %: fewer plants each step, every one of them Low's at 100 %
+        var all = Placer(new Plane(), density: 0.6f).Place(VegLayer.Shrub, 0, 0, 300);
+        var byDefault = Placer(new Plane(), density: 0.6f * VegetationDensity.Factor(VegetationDensity.Default)).Place(VegLayer.Shrub, 0, 0, 300);
+        var thin = Placer(new Plane(), density: 0.6f * VegetationDensity.Factor(30)).Place(VegLayer.Shrub, 0, 0, 300);
+        output.WriteLine($"shrubs on 300 m square at Low: 100 % {all.Count}, 60 % {byDefault.Count}, 30 % {thin.Count}");
+        Assert.True(byDefault.Count < all.Count && thin.Count < byDefault.Count);
+        var set = all.Select(x => x.Position).ToHashSet();
+        Assert.All(byDefault, x => Assert.Contains(x.Position, set));
+        Assert.All(thin, x => Assert.Contains(x.Position, set));
+    }
+
     [Fact]
     public void MasksKeepPlantsOffRoadsObjectsAndDrivingLines()
     {

@@ -720,6 +720,12 @@ public partial class Main : Node3D
         I76.Sim.Views.ViewFov.Apply(s.FieldOfView);
         RenderScale.Apply(s);
         _vegetation = s.Vegetation;
+        float vegDensity = I76.Formats.Vegetation.VegetationDensity.Factor(s.VegetationDensity);
+        if (vegDensity != VegetationNode.DensityFactor)
+        {
+            VegetationNode.DensityFactor = vegDensity;
+            if (_veg is not null && _vegLevel > 0) { _veg.SetLevel(_vegLevel); if (_loaded) _veg.Prewarm(); }
+        }
         _drawChoice = s.DrawDistanceChoice;
         _mapEdge = MapEdgeHook(s.MapEdge);
         ApplyDrawDistance();
