@@ -341,7 +341,7 @@ public sealed partial class MeleeGame
     private const float GridAfterSeconds = 25f, GridForSeconds = 90f;
 
     /// <summary>Whether the bot needs a regen pad: hurt, and 30 s past its last, with a pad to go to.</summary>
-    private bool NeedsRegen(MeleePlayer p) => Regens.Count > 0 && Host.Now - p.RegenAt >= 30f && p.Entity.Health < 40f;
+    private bool NeedsRegen(MeleePlayer p) => Regens.Count > 0 && Host.Now - p.RegenAt >= RegenInterval && p.Entity.Health < 40f;
 
     private Vector3? NearestRegen(MeleePlayer p)
     {

@@ -637,6 +637,13 @@ public sealed partial class MeleeGame
         killer.Score += (int)(1000f * victim.P.Mass / a.P.Mass);
     }
 
+    /// <summary>A regen pad's reach (m) and the least time between two regens of a car, counted from its last spawn or regen (s).</summary>
+    public const float RegenRadius = 10f, RegenInterval = 30f;
+
+    /// <summary>Within <see cref="RegenRadius"/> of one of the pads (game axes).</summary>
+    public static bool OnRegenPad(IEnumerable<Spot> pads, System.Numerics.Vector3 at) =>
+        pads.Any(r => System.Numerics.Vector3.DistanceSquared(r.Pos.ToVector3(), at) < RegenRadius * RegenRadius);
+
     /// <summary>
     /// Within 10 m of a regen point, at most once every 30 s
     /// (counted from the last spawn or regen, and a car must leave the pad
@@ -647,8 +654,8 @@ public sealed partial class MeleeGame
     {
         var p = pl.Car;
         var at = p.Pos.ToVector3();
-        if (!Regens.Any(r => System.Numerics.Vector3.DistanceSquared(r.Pos.ToVector3(), at) < 100f)) { pl.OffPad = true; return; }
-        if (Host.Now - pl.RegenAt < 30f)
+        if (!OnRegenPad(Regens, at)) { pl.OffPad = true; return; }
+        if (Host.Now - pl.RegenAt < RegenInterval)
         {
             if (!pl.OffPad) pl.RegenAt = Host.Now;
             return;

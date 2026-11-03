@@ -157,6 +157,7 @@ public sealed class NetHudDemo
         f.CbHint = true;
         if (Has("cb")) { f.CbTx = true; f.CbTalking = [(Name(2), Team(2)), (Name(5), Team(5))]; }
         if (Has("typing")) { f.ChatOpen = true; f.ChatText = Has("longchat") ? "this is a very long line that i am typing and it keeps going on and on past the end of the window so it has to scroll" : "meet me at the gas station"; }
+        if (Has("regen")) f.RegenHold = RegenPadClock.Words((12.4, false));
         if (Has("dead")) f.Death = new NetHudFrame.DeathInfo(Name(1), Team(1), false, 3.4, 5, "Space", null);
         if (Has("ready")) f.Death = new NetHudFrame.DeathInfo(Name(1), Team(1), false, -1, 5, "Space", "Leprechaun Grifter");
         if (Has("end-win")) f.End = new NetHudFrame.EndInfo("*** You have reached the maximum score! You win!", true, false, Name(f.MySlot), Team(f.MySlot), 20, t - 1);
