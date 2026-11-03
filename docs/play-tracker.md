@@ -352,8 +352,8 @@ Play stays on 0.11.0 (5192e29); upstream's move is a separate decision.
   (gears on [ ], Pistol Left / Right on , and .; the port's [ and ] keys moved to - and =), an existing file kept as
   .before-pistol. The look rows: the reference install's input.map has the arrows' Up = pilot_glance_up and Down =
   pilot_glance_down; the lab's and the laptop's install maps have them swapped (Up = glance down, "as the owner plays it on
-  the Mac", 2026-10-21); the owner map installed follows the reference (Up = glance up). The Mac's install map: see the
-  deploy note below.
+  the Mac", 2026-10-21); the owner map installed follows the reference (Up = glance up). The Mac's install map has the
+  reference's way too (Up = glance up), so on the Mac the owner map changes no look row.
 
 Versions after pass 7: snapshot 24, protocol 25 (feat/pistol-keys: a 17th button bit in the input queue's mask; WireTests'
 TheProtocolIs25), shell.cfg 13.
@@ -365,7 +365,9 @@ Nitro install set); Net's failures all in the baseline. Laptop: Sim 981/1013, Ne
 (30 skipped), Editor 216/216; outside the laptop's baseline the three known Sim ones. No new failure.
 
 Deployed: `play` 26db81f to the laptop (VERSION.txt "play 26db81f deployed 2026-11-03T00:57Z"; smoke T01 --drive
-renders, net 25, the 2x pack read).
+renders, net 25, the 2x pack read), and to the Mac (VERSION.txt "play 26db81f deployed 2026-11-03T01:30Z", built and imported there;
+no game run), with a launcher "I26 play (smoke diagnostic)" that sets I76_SMOKE_DEPTH_VIEW=1. Neither user folder had an
+input.map or gamekeys.cfg before, so no .before-pistol copy was needed.
 
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
