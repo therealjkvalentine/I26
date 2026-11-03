@@ -24,5 +24,5 @@ public class HdTexturesSettingTests
     }
 
     [Fact]
-    public void OffIsMarkedAsTheOriginals() => Assert.Equal(["Off*", "On"], HdTextures.Names);
+    public void OnIsMarkedAsThePorts() => Assert.Equal(["Off", "On*"], HdTextures.Names);
 }

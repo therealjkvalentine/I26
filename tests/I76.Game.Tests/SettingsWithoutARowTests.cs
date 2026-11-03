@@ -98,7 +98,7 @@ public class SettingsWithoutARowTests
     [Fact]
     public void ForceFeedbackFoldsThePadsEventsAndTheWheelIntoOneRow()
     {
-        Assert.Equal(["Off", "Pad*", "Pad Enhanced", "Wheel"], ShellSettings.ForceFeedbackNames);
+        Assert.Equal(["Off", "Pad", "Pad Enhanced*", "Wheel"], ShellSettings.ForceFeedbackNames);
         var s = new ShellSettings();
         Assert.Equal(1, s.ForceFeedbackMode);                  // on, the pad, the game's own effects: the default
         s.ForceFeedbackMode = 2;
@@ -117,16 +117,23 @@ public class SettingsWithoutARowTests
         Assert.Equal(I76.Formats.Input.RumbleMode.Original, s.RumbleMode);
     }
 
-    /// <summary>A value shows what it is, and the original's is marked once a row (docs/playing.md): no row says "Original".</summary>
+    /// <summary>A value shows what it is, and every value the original does not have is marked (docs/playing.md): the original's are the unmarked ones, and no row says "Original".</summary>
     [Fact]
-    public void EveryRowWithTheOriginalsValueMarksItOnce()
+    public void EveryRowMarksThePortsValuesAndLeavesTheOriginalsPlain()
     {
-        Assert.Equal("*", ShellSettings.OriginalMark);
-        foreach (var names in new[] { ShellSettings.ForceFeedbackNames, ShellSettings.MeleeAiNames, I76.Game.World.MapEdge.Names, I76.Sim.Views.ViewFov.Names })
+        Assert.Equal("*", ShellSettings.PortMark);
+        foreach (var (names, originals) in new[]
         {
-            Assert.Single(names, n => n.EndsWith(ShellSettings.OriginalMark, System.StringComparison.Ordinal));
+            (ShellSettings.ForceFeedbackNames, new[] { "Off", "Pad", "Wheel" }),
+            (ShellSettings.MeleeAiNames, ["Normal"]),
+            (I76.Game.World.MapEdge.Names, ["Off"]),
+            (I76.Game.Assets.HdTextures.Names, ["Off"]),
+            (I76.Sim.Views.ViewFov.Names, ["90"]),
+        })
+        {
+            Assert.Equal(originals, names.Where(n => !n.EndsWith(ShellSettings.PortMark, System.StringComparison.Ordinal)));
             Assert.DoesNotContain("Original", names);
         }
-        Assert.Equal("Normal*", ShellSettings.MeleeAiNames[(int)I76.Sim.Missions.MeleeAiSkill.Original]);
+        Assert.Equal("Normal", ShellSettings.MeleeAiNames[(int)I76.Sim.Missions.MeleeAiSkill.Original]);
     }
 }

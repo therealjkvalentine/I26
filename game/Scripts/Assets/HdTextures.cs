@@ -18,8 +18,8 @@ public static class HdTextures
 
     /// <summary>The player's switch (ShellSettings.HdTextures): the modern look draws the pack's upscales.</summary>
     public static bool Enabled { get; set; } = true;
-    /// <summary>The row's values; the original draws the textures it ships (<see cref="I76.Game.Shell.ShellSettings.OriginalMark"/>).</summary>
-    public static readonly string[] Names = ["Off" + I76.Game.Shell.ShellSettings.OriginalMark, "On"];
+    /// <summary>The row's values; the original draws the textures it ships, the pack's are the port's (<see cref="I76.Game.Shell.ShellSettings.PortMark"/>).</summary>
+    public static readonly string[] Names = ["Off", "On" + I76.Game.Shell.ShellSettings.PortMark];
 
     /// <summary>
     /// shell.cfg's [port] hd_textures. Absent (a file from before the row, when HD Menu Art switched these too), it follows

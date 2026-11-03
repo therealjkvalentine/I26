@@ -1173,13 +1173,13 @@ public sealed class ShellSettings
             RumbleMode = value == 2 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original;
         }
     }
-    /// <summary>The row's values; the mark is the original's (<see cref="OriginalMark"/>).</summary>
-    public static readonly string[] ForceFeedbackNames = ["Off", "Pad" + OriginalMark, "Pad Enhanced", "Wheel"];
+    /// <summary>The row's values; Pad Enhanced, the port's own, is marked (<see cref="PortMark"/>).</summary>
+    public static readonly string[] ForceFeedbackNames = ["Off", "Pad", "Pad Enhanced" + PortMark, "Wheel"];
     /// <summary>
     /// What marks the original game's value on a pad's row (docs/playing.md): the shell's bitmap fonts and the pads' handwriting have no
     /// italics or second face, and the value columns are too narrow for a word, so one glyph, explained once in the docs.
     /// </summary>
-    public const string OriginalMark = "*";
+    public const string PortMark = "*";
     /// <summary>The port's own: the pad's events, Original (the game's own effects) or Enhanced (and pulses for the events they do not cover): Force Feedback's Pad Enhanced ([port] rumble, written when enhanced; a file's "off", from the Rumble row of a build before the fold, reads as Force Feedback Off unless a wheel was chosen).</summary>
     public I76.Formats.Input.RumbleMode RumbleMode { get; set; }
     /// <summary>The port's own: Play Options' Rumble Strength, percent on every level sent to the pad (25 to 150; [port] rumble_strength, written when not 100).</summary>
@@ -1290,7 +1290,7 @@ public sealed class ShellSettings
     /// </summary>
     public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
     /// <summary>The row's values: the original's opening step is the bots' Normal tier (MeleeGame.OriginalOpeningStep).</summary>
-    public static readonly string[] MeleeAiNames = ["Normal" + OriginalMark, "Difficulty", "Easy", "Hard"];
+    public static readonly string[] MeleeAiNames = ["Normal", "Difficulty" + PortMark, "Easy" + PortMark, "Hard" + PortMark];
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>

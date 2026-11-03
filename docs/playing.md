@@ -94,9 +94,9 @@ are for another game and are not listed.
 
 **Resolution.** Graphic Detail's **Resolution** row steps through Desktop (the game's borderless fullscreen at the desktop's size, as it starts) and the common window sizes that fit the screen; a size is a centred window, applied at once with no restart, and is kept for the next start. Alt+Enter still toggles fullscreen. A `--windowed`, `--fullscreen` or `--resolution` on the command line decides that start. Exclusive fullscreen is not offered.
 
-**Field of view.** Graphic Detail's **Field of View** row (on the Esc menu's pad and the main menu's) sets how wide the main 3D views look. **Monitor**, the default and the recommended choice, keeps the original's height (73.7 degrees) and takes the width from your window's shape: a 4:3 window shows exactly the original's 90 degrees across, a 16:9 window about 106, so a wide screen sees more to the sides than the original did. The numbers are exact degrees across the window whatever its shape, 60 to 110 in steps of 5; **90\*** is the original's width (the pads mark the original game's value with `*`), which in a wide window means less height than the original had. A choice applies at once to the outside views and the cockpit's 3D view; the binoculars, the mirror and the radar keep their own framing. In shell.cfg it is `[port] fov` in degrees across the window (absent for Monitor).
+**Field of view.** Graphic Detail's **Field of View** row (on the Esc menu's pad and the main menu's) sets how wide the main 3D views look. **Monitor**, the default and the recommended choice, keeps the original's height (73.7 degrees) and takes the width from your window's shape: a 4:3 window shows exactly the original's 90 degrees across, a 16:9 window about 106, so a wide screen sees more to the sides than the original did. The numbers are exact degrees across the window whatever its shape, 60 to 110 in steps of 5; **90** is the original's width (the pads mark the values the original game does not have with `*`, so 90 is the one width unmarked), which in a wide window means less height than the original had. A choice applies at once to the outside views and the cockpit's 3D view; the binoculars, the mirror and the radar keep their own framing. In shell.cfg it is `[port] fov` in degrees across the window (absent for Monitor).
 
-**HD textures.** With a texture pack in the user folder's `tex-world/` (or an art pack zip's `tex-world/` folder; the README says how to make one from your own install), Graphic Detail's **HD Textures** row (on the Esc menu's pad and the main menu's, shown only when a pack is found) draws its upscaled world, car and cockpit textures in the modern look (On, the default) or the install's own (Off\*, the original's). A change swaps the textures in place; the cockpit's damage panel keeps its scale until the next mission. The 1997 look always draws the originals. HD Menu Art is the menu pictures' own row. In shell.cfg it is `[port] hd_textures`; a file from before the row takes HD Menu Art's value.
+**HD textures.** With a texture pack in the user folder's `tex-world/` (or an art pack zip's `tex-world/` folder; the README says how to make one from your own install), Graphic Detail's **HD Textures** row (on the Esc menu's pad and the main menu's, shown only when a pack is found) draws its upscaled world, car and cockpit textures in the modern look (On\*, the default) or the install's own (Off, the original's). A change swaps the textures in place; the cockpit's damage panel keeps its scale until the next mission. The 1997 look always draws the originals. HD Menu Art is the menu pictures' own row. In shell.cfg it is `[port] hd_textures`; a file from before the row takes HD Menu Art's value.
 
 **Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
 
@@ -104,29 +104,29 @@ are for another game and are not listed.
 
 **Unlim. Ordnance.** Play Options' second page, beside Unlim. Turrets: the original keeps at most 160 live rounds of a kind (40 online for mines, caltrops, Blox and fire drops) and removes the oldest past that; on, there is no cap, so a long oil or fire trail stays whole. Single-player games only: a network game keeps the original's cap for everyone.
 
-**The original's value.** On a pad, a row's value says what it is, and the original game's value is marked with `*`: Force Feedback's Pad\*, Melee A.I.'s Normal\*, Map Edge's Off\*, HD Textures' Off\*. A row without a mark (1997 Mode, Vegetation, ...) has no original's value to mark, or its original's value is plain Off.
+**The port's values.** On a pad, a row's value says what it is, and a value the original game does not have is marked with `*`: Force Feedback's Pad Enhanced\*, Melee A.I.'s Difficulty\*, Easy\* and Hard\*, Map Edge's On\*, HD Textures' On\*, Field of View's Monitor\* and every width but 90. An unmarked value is the original's (Pad, Normal, Off, 90); a row without a mark at all (1997 Mode, Vegetation, ...) has no original's value to tell apart.
 
 ### Settings without a row
 
 A choice earns a row on a pad only where a player would plausibly change it. The rest are keys in `shell.cfg` (in your user
 folder, see above), section `[port]`, set by hand with a text editor while the game is not running; a key that is absent
-has its default, and a key the game writes itself is left as you set it. The original game's value is marked with `*`.
+has its default, and a key the game writes itself is left as you set it. A value the original game does not have is marked with `*`; the first, unmarked, is the original's.
 
 | Key | Values | Default | What it does |
 |---|---|---|---|
-| `draw_distance` | `0`\*, `1` | follows the look: `0` in the 1997 look, `1` in the modern one | How far the world is drawn: `0` the original's 600 m with the sky's horizon beyond (the modern look fades the ground into the sky there), `1` to 20 km, so a map's far edges can be seen. View only: the game's own ranges are unchanged. |
-| `mirror_range` | `original`\*, `full` | follows the look: `original` in the 1997 look, `full` in the modern one | The rear-view mirror draws nothing past 100 m (the original's), or the whole view. |
-| `brake_lamps` | `original`\*, `held` | follows the look: `original` in the 1997 look, `held` in the modern one | The brake lamps light while braking only, as the original's, or hold on 0.15 s after. |
-| `mg_tracers` | `original`\*, `bolts` | follows the look: `original` in the 1997 look, `bolts` in the modern one | A machine gun's round in the modern look: the original's one-pixel line, or a glowing bolt. The 1997 look always draws the line. |
-| `sky_drift` | `original`\*, `steady` | `steady` | The 1997 look's clouds. The original steps them twice a frame while the cockpit's rear-view mirror is in full mode, a side effect of the mirror pass, so they drift twice as fast with the mirror up; `steady` steps them once a tick whatever the mirror does. |
-| `death_orbit` | `original`\*, `smooth` | `original` | The camera's orbit after your car is destroyed and at a network match's end: the original's 8 degrees a tick, or a steady 20 degrees a second. |
-| `music_tracks` | `original`\*, `all` | `original` | Mission music plays the disc's tracks 2 to 14 in turn, as the original; `all` goes on into the title and ending tracks (15 to 17) before track 2. |
-| `garage_radio` | `off`\*, `on` | `off` | The 3D garage: the menu track goes on, as in the original's CONFIGURE CHASSIS; `on` plays a boombox on the bench instead, a random mission track after another (I76's 2 to 14, the Nitro Pack's but its menu and credits tracks; never the title or ending). |
-| `melee_ai` | `0`\*, `1`, `2`, `3` | `0` | Play Options' Melee A.I. (second page) as a number: the opening skill of an Instant Melee's computer cars, Normal\* (the original's), the Difficulty Level's, Easy, Hard. Single player only. |
-| `ordnance_limit` | `original`\*, `unlimited` | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
-| `modern_physics` | `false`\*, `true` | `false` | Play Options' Modern Physics. Not offered online. |
-| `rumble` | `original`\*, `enhanced` | `original` | Force Feedback's Pad\* or Pad Enhanced; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
-| `developer` | `false`\*, `true` | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
+| `draw_distance` | `0`, `1`\* | follows the look: `0` in the 1997 look, `1` in the modern one | How far the world is drawn: `0` the original's 600 m with the sky's horizon beyond (the modern look fades the ground into the sky there), `1` to 20 km, so a map's far edges can be seen. View only: the game's own ranges are unchanged. |
+| `mirror_range` | `original`, `full`\* | follows the look: `original` in the 1997 look, `full` in the modern one | The rear-view mirror draws nothing past 100 m (the original's), or the whole view. |
+| `brake_lamps` | `original`, `held`\* | follows the look: `original` in the 1997 look, `held` in the modern one | The brake lamps light while braking only, as the original's, or hold on 0.15 s after. |
+| `mg_tracers` | `original`, `bolts`\* | follows the look: `original` in the 1997 look, `bolts` in the modern one | A machine gun's round in the modern look: the original's one-pixel line, or a glowing bolt. The 1997 look always draws the line. |
+| `sky_drift` | `original`, `steady`\* | `steady` | The 1997 look's clouds. The original steps them twice a frame while the cockpit's rear-view mirror is in full mode, a side effect of the mirror pass, so they drift twice as fast with the mirror up; `steady` steps them once a tick whatever the mirror does. |
+| `death_orbit` | `original`, `smooth`\* | `original` | The camera's orbit after your car is destroyed and at a network match's end: the original's 8 degrees a tick, or a steady 20 degrees a second. |
+| `music_tracks` | `original`, `all`\* | `original` | Mission music plays the disc's tracks 2 to 14 in turn, as the original; `all` goes on into the title and ending tracks (15 to 17) before track 2. |
+| `garage_radio` | `off`, `on`\* | `off` | The 3D garage: the menu track goes on, as in the original's CONFIGURE CHASSIS; `on` plays a boombox on the bench instead, a random mission track after another (I76's 2 to 14, the Nitro Pack's but its menu and credits tracks; never the title or ending). |
+| `melee_ai` | `0`, `1`\*, `2`\*, `3`\* | `0` | Play Options' Melee A.I. (second page) as a number: the opening skill of an Instant Melee's computer cars, Normal (the original's), the Difficulty Level's, Easy, Hard. Single player only. |
+| `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
+| `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |
+| `rumble` | `original`, `enhanced`\* | `original` | Force Feedback's Pad or Pad Enhanced\*; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
+| `developer` | `false`, `true`\* | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
 
 The four that follow the look are the original's in the 1997 look and the modern look's own otherwise until the key is in
 the file; a key set by hand holds in both looks. Keys that change the simulation (`melee_ai`, `ordnance_limit`,
@@ -196,8 +196,8 @@ Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / 
 `head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
 `head_track_position` (true moves the eye with your head, up to 10 cm; off).
 
-**Rumble.** A pad's rumble follows the game's own force-feedback effects: Play Options' Force Feedback row steps Off, Pad\* (those
-effects only, the original's and the default), Pad Enhanced (and short pulses for a nitrous kick, the handbrake, gear changes,
+**Rumble.** A pad's rumble follows the game's own force-feedback effects: Play Options' Force Feedback row steps Off, Pad (those
+effects only, the original's and the default), Pad Enhanced\* (and short pulses for a nitrous kick, the handbrake, gear changes,
 the starter, each kind of weapon's shot and a light engine growl) and Wheel (Windows). On Play Options' second page Rumble
 Strength sets 25 to 150 % on every level sent to the pad. Both apply when a mission starts, and from the Esc menu at once.
 

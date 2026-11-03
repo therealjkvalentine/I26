@@ -16,7 +16,7 @@ public class MapEdgeTests
         Assert.Equal(MapEdge.Off, MapEdge.Parse(7));
         Assert.Equal("on", MapEdge.Key(MapEdge.On));
         Assert.Equal("off", MapEdge.Key(MapEdge.Off));
-        Assert.Equal(["Off*", "On"], MapEdge.Names);   // the original's value shows what it is, marked (ShellSettings.OriginalMark)
+        Assert.Equal(["Off", "On*"], MapEdge.Names);   // the port's value is marked (ShellSettings.PortMark)
     }
 
     /// <summary>The row had Plain (0), Haze (1), Fade Out (2) and Hide (3): Hide is On, the rest Off.</summary>
