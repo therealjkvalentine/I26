@@ -699,6 +699,7 @@ public partial class Main : Node3D
     /// </summary>
     private void ApplyGraphics(I76.Game.Shell.ShellSettings s)
     {
+        ApplyDevFps(s);
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(s.CarInteriors);
         I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(s.HoodFinish);
         I76.Game.Sim.ModernFx.ApplyLook(s);
