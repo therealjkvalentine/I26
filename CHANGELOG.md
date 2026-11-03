@@ -94,6 +94,7 @@ Network games use protocol 26: this version does not play with 0.11.0 or earlier
 
 ### Fixed
 - Graphic Detail's Map Edge row is now Hide Map Edge Cliffs, on the main menu's sheet and the Esc menu's pad, which says what its On does; its values and its shell.cfg key (`map_edge`) are unchanged.
+- With Hide Map Edge Cliffs On, the fences and mesas right beside a road in the middle of a map stay, such as the cliffs along T11's east-west road; only the walls round a map's outside, and the fences away from the roads (T05's at its start), are still taken away.
 - Melee and network games no longer play the menu's music: an arena that asks for the menu's track (M09; on the Nitro Pack, arenas asking for its menu's or credits' track) starts on the next mission track, and the Nitro Pack's mission music passes over those two tracks as I76's stops at track 14.
 - The modern cockpit's weapon and special labels are whiter and crisper: the letters are pure white on a lit plate and near white on an unlit one, with a sharp edge and a darker emboss shadow instead of a pinkish blur into the red tape.
 - In the modern look the burning wrecks by the road (T05, T15 and others) are on fire and smoking from as far away as the 1997 look shows them, 600 m, instead of coming into view bare and catching light only within 150 m.
