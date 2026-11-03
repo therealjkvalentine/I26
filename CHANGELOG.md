@@ -97,6 +97,7 @@
 - A computer car weighing up its moves in mid-air reads the same height above the ground as in the original, so a small hop ends when it would there.
 - A flat front tyre no longer tugs at your car's steering while a cut-scene drives it, as in the original.
 - A car killed by a hard landing is dead from that moment, as in the original: the rest of that physics step no longer runs on it and can no longer undo the death it just took.
+- In a network game a helicopter rises from its spawn point at once, as in the original, instead of sitting on the ground until its pilot opens the throttle.
 
 ## 0.11.0 (31 October 2026)
 
