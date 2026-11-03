@@ -1396,6 +1396,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 if (StaticWorld.RayBoxes(o.Boxes, p0, d, 1f) is { } bh && bh.T < best) { best = bh.T; victim = o; normal = bh.N; node = bh.Box.Node; }
                 // a sign or post stops the round on its sphere; its own slot knocks it off for an explosive one
                 if (o.Type == 4 && StaticWorld.RaySphere(o.Centre, o.SphereRadius, p0, d, 1f) is { } sh && sh.T < best) { best = sh.T; victim = o; normal = sh.N; node = -1; }
+                // another type's class-0x4000 / 0x5000 parts: their spheres
+                if (o.Type != 4 && StaticWorld.RaySpheres(o.Spheres, p0, d, 1f) is { } ps && ps.T < best) { best = ps.T; victim = o; normal = ps.N; node = ps.Sphere.Node; }
             }
         }
         Vector3 at;
