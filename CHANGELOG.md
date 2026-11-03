@@ -93,6 +93,7 @@
 - A ramp's or building's box-shaped parts, such as the side rails of T06's ramps, are solid but no longer a surface to drive on: a car that runs into one bounces off it, as in the original, instead of being lifted onto its top.
 - The crashed plane in the Nitro Pack's P18 can be hit: cars bounce off its fuselage and rounds strike it, as in the original, instead of passing through.
 - With Modern Physics on, the player's car meets that plane's fuselage too; it drove through it.
+- Signs and other knock-off objects made of several pieces are knocked off by touching one of their pieces, as in the original, not by coming near the middle of the whole object (a car can pass between the posts of a wide sign).
 
 ## 0.11.0 (31 October 2026)
 

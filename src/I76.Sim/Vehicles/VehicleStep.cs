@@ -578,13 +578,15 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             if (!o.Solid) continue;
             if (o.Type == 4)
             {
-                // a sign: its sphere against the car's box, now and at the end of the frame; no response, it is knocked off
-                float reach = r + o.SphereRadius + v.Speed * dtFrame;
-                if ((new Vector2(o.Centre.X - c.X, o.Centre.Z - c.Z)).LengthSquared() > reach * reach) continue;
-                if (SphereHitsBox(v, o.Centre, o.SphereRadius, dtFrame))
+                // a sign: each part's sphere against the car's box, now and at the end of the frame; no response, it is knocked off
+                foreach (var sp in o.Spheres.Count > 0 ? o.Spheres : [new Collision.NodeSphere(o.Centre, o.SphereRadius)])
                 {
+                    float reach = r + sp.Radius + v.Speed * dtFrame;
+                    if ((new Vector2(sp.Centre.X - c.X, sp.Centre.Z - c.Z)).LengthSquared() > reach * reach) continue;
+                    if (!SphereHitsBox(v, sp.Centre, sp.Radius, dtFrame)) continue;
                     ObjectHits.Add((v, o.Name, o.Type, Vector3.UnitY, v.Speed));
                     Damage?.StaticContact(v, o, new Contact { Hit = true, Other = o });
+                    break;
                 }
                 continue;
             }

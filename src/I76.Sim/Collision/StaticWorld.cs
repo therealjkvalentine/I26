@@ -132,7 +132,7 @@ public sealed partial class StaticObject
     public Vector3? Marker { get; set; }
     /// <summary>The session's stable id: the collider's place in the static world, from 1 (0 until a session assigns it).</summary>
     public int NetId;
-    /// <summary>Type 4's collider: a sphere about Centre (0.75 × the bounding radius).</summary>
+    /// <summary>Type 4's sphere about Centre (0.75 × the bounding radius): the spawn spacing's, and the collider of one made without parts (<see cref="StaticWorld.AddBox"/>).</summary>
     public float SphereRadius;
     /// <summary>The collider record's radius (rec[4]): the farthest vertex from <see cref="Centre"/>, in 3D. A splash reaches what it touches.</summary>
     public float BoundRadius;
@@ -298,7 +298,7 @@ public sealed partial class StaticObject
 
     /// <summary>Class 0x2000 nodes: a box each, in the node's own frame.</summary>
     public List<NodeBox> Boxes { get; } = [];
-    /// <summary>Class 0x4000 / 0x5000 nodes of a type other than 4: a sphere each (type 4's is <see cref="SphereRadius"/>).</summary>
+    /// <summary>Class 0x4000 / 0x5000 nodes: a sphere each. Type 4's parts (0x5000 the default, 0.75 Ã— the part's SGEO radius; 0x4000, Ã— 1) are knocked off by touching one; another type's collide as their SGEO sphere.</summary>
     public List<NodeSphere> Spheres { get; } = [];
     /// <summary>Type 0xc: the first type-0xd node (the deck) in the node walk, for the bridge tree.</summary>
     public NodeFrame? Deck { get; set; }
@@ -402,6 +402,13 @@ public sealed class StaticWorld
             uint cls = nodeClass?.Invoke(part.NodeName) ?? 0;
             if (cls == 0) cls = DefaultClass(type);
             if (cls == 0x1000) continue;
+            if (type == 4 && cls is 0x4000 or 0x5000)
+            {
+                // a breakable: each part its own sphere, its SGEO centre and radius x 0.75 (0x5000) or 1.0 (0x4000)
+                var (sc, sr) = nodeSphere?.Invoke(part.NodeName) ?? BoundSphere(g.Vertices);
+                o.Spheres.Add(new NodeSphere(place.Apply(part.ToModel.Apply(sc)), sr * (cls == 0x4000 ? 1f : 0.75f)) { Node = node });
+                continue;
+            }
             if (cls is 0x4000 or 0x5000 && type != 4)
             {
                 // a flag base (part type 0x5a / 0x5b): the car's collide slot ignores it, the CTF game takes the flag
@@ -445,7 +452,7 @@ public sealed class StaticWorld
         if (all.Count == 0) return null;
         var min = all.Aggregate(Vector3.Min); var max = all.Aggregate(Vector3.Max);
         o.Centre = (min + max) * 0.5f;
-        // class 0x5000 (type 4, signs): a sphere of 0.75 × the node's bounding radius (C1)
+        // type 4: 0.75 × the whole object's bounding radius, for the spawn spacing (its parts collide by their own spheres)
         o.BoundRadius = all.Max(p => Vector3.Distance(p, o.Centre));
         o.SphereRadius = 0.75f * o.BoundRadius;
         o.Radius = all.Max(p => new Vector2(p.X - o.Centre.X, p.Z - o.Centre.Z).Length());
