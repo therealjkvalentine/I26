@@ -170,9 +170,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
         string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
         if (stem.StartsWith('z') || stem.StartsWith('Z'))
         {
-            // drawn through the object path like the rest: bilinear on the 3D card, point-sampled by the Software renderer
+            // drawn from its full-size level, point-sampled, as the original's point sampler drew it (the dials' lettering sharp)
             mat.SetShaderParameter("prelit", true);
             if (t is not null) mat.SetShaderParameter("albedo_cockpit", t.Texture);
+            // an opaque face draws index 255 as its palette colour (the dials' faces: black), not the neighbours bled under the key
+            if (t is { HasKey: true } && !keyed) { mat.SetShaderParameter("key_fill", true); mat.SetShaderParameter("key_fill_color", t.KeyColour); }
         }
         // a car's, in the modern look: the material maps made from the texture (CarMaterial), or for now one
         // clear-coated paint over the whole car

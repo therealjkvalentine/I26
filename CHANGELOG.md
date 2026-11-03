@@ -106,6 +106,8 @@
 - A script's teleportOffset puts the car at the ground height under the path's point, as the original does, not under the offset spot, and teleport writes that height into the path as the original does.
 - An off-road attacker at the default driving skill throws its handbrake skid turn as often as in the original (one chance in 31 a frame, not 32).
 - Once someone wins a network game (or the time limit is up), every car is put on the brakes with the wheel straight for the 10 s until the game ends, as in the original, instead of driving on.
+- The cockpit's 3D gauge needles are the original's dark red, lit like the rest of the car, instead of hot pink: a flat-coloured face takes the mission palette's colour, as the original's does. The dash art is untouched.
+- The cockpit's 3D gauges look like the original's: the dial faces are black again instead of a grey smear, the lettering is sharp, and the needles turn off-centre so the long end shows the reading, in the original's dark red rather than hot pink. The dash art is untouched.
 
 ## 0.11.0 (31 October 2026)
 

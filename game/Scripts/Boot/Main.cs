@@ -1248,8 +1248,21 @@ public partial class Main : Node3D
         if (interior is not null && builder.Assembler?.Geo("needle") is { } needleGeo)
         {
             var nm = new I76.Formats.Assembly.AssembledModel { Definition = "needle", Kind = "sdf", ObjectCode = interior.ObjectCode };
-            nm.Parts.Add(new I76.Formats.Assembly.ModelPart("needle", needleGeo, I76.Formats.Assembly.Affine.Identity));
+            // turned off its middle, the reading side the longer (CockpitNeedle)
+            nm.Parts.Add(new I76.Formats.Assembly.ModelPart("needle", needleGeo, I76.Formats.Assembly.Affine.Identity with { T = new System.Numerics.Vector3(0, 0, I76.Formats.Assembly.CockpitNeedle.Shift(needleGeo)) }));
             var needleMesh = builder.Meshes!.Build(nm, wheels: false);
+            // lit like any object face, as the original draws them (a dark red on the dial: measured on T01 by day, the speedometer's
+            // needle at shade rows 22..31 of its entry, the tachometer's at 31), in the colour the original's palette lookup gives
+            if (builder.ActPalette is { } np && needleGeo.Faces.Length > 0)
+            {
+                var (nr, ng, nb) = I76.Formats.Imaging.SoftwarePalette.FlatColour(np, needleGeo.Faces[0].R, needleGeo.Faces[0].G, needleGeo.Faces[0].B);
+                for (int si = 0; si < needleMesh.GetSurfaceCount(); si++)
+                    if (needleMesh.SurfaceGetMaterial(si) is ShaderMaterial needleMat && builder.Materials?.StripCopy(needleMat) is { } own)
+                    {
+                        own.SetShaderParameter("albedo_color", Color.Color8(nr, ng, nb));
+                        needleMesh.SurfaceSetMaterial(si, own);
+                    }
+            }
             foreach (var l in model.Locations.Where(l => l.Tag == "VLOC" && l.Index is 35 or 36))
                 node.AddNeedle(l.Index - 35, needleMesh, Coords.ToGodot(I76.Formats.Assembly.Affine.From(l.Transform)));
         }

@@ -11,7 +11,8 @@ namespace I76.Game.Assets;
 /// </summary>
 public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 {
-    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba);
+    /// <param name="KeyColour">What index 255 decodes to (its palette colour): a face that does not honour the key draws that, not the bled colour under it.</param>
+    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba, Color KeyColour = default);
 
     private readonly Dictionary<string, I76.Formats.Assembly.RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
 
@@ -45,11 +46,12 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         {
             var rgba = TextureReader.ToRgba(t, palette);
             bool key = false;
-            for (int i = 3; i < rgba.Length; i += 4) if (rgba[i] == 0) { key = true; break; }
+            Color keyColour = default;
+            for (int i = 3; i < rgba.Length; i += 4) if (rgba[i] == 0) { key = true; keyColour = Color.Color8(rgba[i - 3], rgba[i - 2], rgba[i - 1]); break; }
             if (key) BleedUnderKey(rgba, t.Width, t.Height);
             var img = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, rgba);
             img.GenerateMipmaps();
-            e = new Entry(ImageTexture.CreateFromImage(img), key, t.Width, t.Height, rgba);
+            e = new Entry(ImageTexture.CreateFromImage(img), key, t.Width, t.Height, rgba, keyColour);
         }
         return e;
     }
