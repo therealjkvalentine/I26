@@ -41,7 +41,7 @@ public sealed class InputQueue
     /// <summary>What the last <see cref="Next"/> left: the inputs still waiting, or −1 when it found none (the snapshot's slack, protocol 13).</summary>
     public sbyte Slack { get; private set; }
 
-    public const CarButtons Buttons = (CarButtons)0xffff;
+    public const CarButtons Buttons = (CarButtons)0x1ffff;
     public const CarCommands Commands = CarCommands.Reverse | CarCommands.Lights | CarCommands.WeaponCycle | CarCommands.WeaponLink
         | CarCommands.TargetNearest | CarCommands.TargetNext | CarCommands.TargetFrontal | CarCommands.TargetReset
         | CarCommands.ShiftUp | CarCommands.ShiftDown | CarCommands.StartEngine | CarCommands.Special1 | CarCommands.Special2 | CarCommands.Special3

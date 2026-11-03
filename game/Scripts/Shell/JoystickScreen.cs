@@ -42,11 +42,12 @@ public sealed class JoystickScreen : OverlayScreen
     {
         "e_brake", "weapon_fire", "hardpoint1_fire", "hardpoint2_fire", "hardpoint3_fire", "hardpoint4_fire", "hardpoint5_fire", "HONK_HORN",
         "pilot_glance_up", "pilot_glance_down", "pilot_glance_left", "pilot_glance_right", "pilot_glance_target", "throttle_up", "throttle_down", "steer_left", "steer_right",
+        PistolKeys.Left, PistolKeys.Right,
     };
     private static string CommandName(string command) => Array.FindIndex(Controls.Commands, c => c.Equals(command, StringComparison.OrdinalIgnoreCase)) is var i && Entries.Contains(i) ? NameOf(i) : command;
     private static readonly string[] AxisRows = ["throttle", "steer", "track_yaw_delta", "track_pitch_delta"];
-    private static readonly int[] Entries = [.. ControlsScreen.LeftRows, .. ControlsScreen.RightRows];
-    private static string NameOf(int entry) => ControlsScreen.Names[Array.IndexOf(Entries, entry)].Text;
+    private static readonly int[] Entries = ControlsScreen.Entries;
+    private static string NameOf(int entry) => ControlsScreen.NameOf(entry);
 
     public JoystickScreen(BindingTable pending)
     {

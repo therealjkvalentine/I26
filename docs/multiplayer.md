@@ -42,7 +42,7 @@ Everything a human does to the simulation, in twelve bytes (`Write` / `Read`: bu
 
 | Field | What |
 |---|---|
-| `Buttons` (held, sampled once a tick) | `ThrottleUp`, `ThrottleDown`, `SteerLeft`, `SteerRight`, `EBrake`, `Fire`, `Hardpoint1..5`, `Horn`, `Cockpit` (the view is in the car, so its arms are live), `RaiseRightArm` / `RaiseLeftArm` (the glance has turned to a window), `Analog` |
+| `Buttons` (held, sampled once a tick) | `ThrottleUp`, `ThrottleDown`, `SteerLeft`, `SteerRight`, `EBrake`, `Fire`, `Hardpoint1..5`, `Horn`, `Cockpit` (the view is in the car, so its arms are live), `RaiseRightArm` / `RaiseLeftArm` (the glance has turned to a window), `Analog`, `Pistol` (protocol 25: the port's pistol key held; a raised arm's .45 fires as with `Fire`, the hardpoints never) |
 | `Commands` (one-off, applied at the start of the tick) | `Reverse`, `Lights`, `WeaponCycle`, `WeaponLink`, `TargetNearest`, `TargetNext`, `TargetFrontal`, `TargetReset`, `Poem` (the single player's car only), `Skip` (the script's isKeypress), `ShiftUp` / `ShiftDown` (the drive selector, 0..5), `StartEngine` (veh+0xec; nothing reads it yet), `Special1..3` (the jammer, nitro and the exhaust brake, `Specials.Activate`; the charges and the jammer's on-state ride in the own-car block), `RadarRange`, `RadarCamera`, `SelfDestruct`, `TargetPrev`, `RaiseDead` (a dead network player's RAISE_DEAD; the session ignores it, the host asks the melee) |
 | `Steer`, `Throttle` | ±32767 analog positions, read only with `Analog` |
 

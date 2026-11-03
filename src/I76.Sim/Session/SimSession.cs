@@ -371,8 +371,9 @@ public sealed partial class SimSession
 
     /// <summary>
     /// The hardpoints answer only while both arms are down and
-    /// still; a raised, still arm's handgun takes the fire key instead. Out of
-    /// the cockpit the arms rest down.
+    /// still; a raised, still arm's handgun takes the fire key instead (or the
+    /// port's pistol key, which never fires the hardpoints). Out of the cockpit
+    /// the arms rest down.
     /// </summary>
     private void Triggers(Driver d)
     {
@@ -386,7 +387,7 @@ public sealed partial class SimSession
             foreach (var i in arm.PlayerTriggers(fire, KeySets[d.State.Keys])) Misfires.Add((d.Car, i));
         else
             foreach (int ch in (int[])[2, 1])
-                if (arm.Handguns[ch - 1] is { } hg && arms.Ready(ch)) hg.Trigger = hg.Ammo >= 1 && fire;
+                if (arm.Handguns[ch - 1] is { } hg && arms.Ready(ch)) hg.Trigger = hg.Ammo >= 1 && (fire || d.Input.Has(CarButtons.Pistol));
     }
 
     /// <summary>

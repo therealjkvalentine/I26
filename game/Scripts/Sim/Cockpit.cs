@@ -266,8 +266,8 @@ public partial class Cockpit : Node
     private FreeLook.Pose _pose;
     private bool _freeLooking;
 
-    /// <summary>A glance key held, the look stick pushed hard into its pose, or the head tracker's digital mode turned past it.</summary>
-    private bool Glance(string command, FreeLook.Pose pose) => Controls.Down(command) || _pose == pose
+    /// <summary>A glance key (or the port's pistol key on that side) held, the look stick pushed hard into its pose, or the head tracker's digital mode turned past it.</summary>
+    private bool Glance(string command, FreeLook.Pose pose) => Controls.Down(command) || I76.Formats.Input.PistolKeys.Of(command) is { } pistol && Controls.Down(pistol) || _pose == pose
         || pose switch { FreeLook.Pose.Left => _tracked.Left, FreeLook.Pose.Right => _tracked.Right, FreeLook.Pose.Dash => _tracked.Down, _ => false };
 
     // the head tracker (HeadLook): digital's glances this frame, and the head as drawn (the glance machine's blended with analog's)
@@ -322,7 +322,8 @@ public partial class Cockpit : Node
         _freeLooking = false;
         // a glance key or the look stick wins over the head tracker while held
         bool own = Controls.Down("pilot_glance_left") || Controls.Down("pilot_glance_right") || Controls.Down("pilot_glance_up") || Controls.Down("pilot_glance_down")
-            || Controls.Down("pilot_glance_target") || _pose != FreeLook.Pose.Free || FreeLook.Head(sx, sy) is not null;
+            || Controls.Down("pilot_glance_target") || Controls.Down(I76.Formats.Input.PistolKeys.Left) || Controls.Down(I76.Formats.Input.PistolKeys.Right)
+            || _pose != FreeLook.Pose.Free || FreeLook.Head(sx, sy) is not null;
         var track = HeadTracker.Step(dt, own || Binoculars || !I76.Formats.Input.DashToggle.FreeLookAllowed(Node3D.Dash3D));
         _tracked = HeadTracker.Look.Glances(own);
         if (Binoculars) { BinoHead(dt); return; }

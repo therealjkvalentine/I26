@@ -110,6 +110,15 @@ public sealed class GameKeyMap
         (0x70, "Reset Car Upright", "U"),
     ];
 
+    /// <summary>
+    /// Game keys the port's file may move with no row on the screen (set by hand, by id, as the rebinds are kept): the outside
+    /// instruments ('[', 0x5d) and the ghost cockpit (']', 0xc), for a player whose input.map puts commands on those keys.
+    /// </summary>
+    public static readonly (int Id, string Label, string Default)[] FileOnly =
+    [
+        (0x5d, "Ext. Instruments", "["), (0xc, "Ghost Cockpit", "]"),
+    ];
+
     /// <summary>The code of a key as gamekey.map or the port's file writes it ("Backspace", "Ctrl+Delete", "Control+Alt+X"), or -1.</summary>
     public static int ParseKey(string spec)
     {

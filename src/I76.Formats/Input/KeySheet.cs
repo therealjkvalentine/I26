@@ -25,6 +25,7 @@ public static class KeySheet
             ("hardpoint1_fire", "Fire Hardpoint 1"), ("hardpoint2_fire", "Fire Hardpoint 2"), ("hardpoint3_fire", "Fire Hardpoint 3"),
             ("hardpoint4_fire", "Fire Hardpoint 4"), ("hardpoint5_fire", "Fire Hardpoint 5"),
             ("special1", "Use Special 1"), ("special2", "Use Special 2"), ("special3", "Use Special 3"),
+            (PistolKeys.Left, "Pistol Left"), (PistolKeys.Right, "Pistol Right"),
         ]),
         ("Targets and radar", [
             ("frontal_target", "Target Front Enemy"), ("NEXT_TARGET", "Target Next Enemy"), ("TARGET_NEAREST_ENEMY", "Target Nearest Enemy"),

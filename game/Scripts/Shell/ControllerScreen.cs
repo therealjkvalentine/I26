@@ -238,8 +238,8 @@ public sealed class ControllerScreen : OverlayScreen
 
     // ---- what each input does ------------------------------------------------------------------------
 
-    private static readonly int[] Entries = [.. ControlsScreen.LeftRows, .. ControlsScreen.RightRows];
-    private static string NameOf(int entry) => ControlsScreen.Names[Array.IndexOf(Entries, entry)].Text;
+    private static readonly int[] Entries = ControlsScreen.Entries;
+    private static string NameOf(int entry) => ControlsScreen.NameOf(entry);
     /// <summary>A command's name on the sheet: its Control Configuration row's, else the command itself.</summary>
     private static string CommandName(string command) => Array.FindIndex(Controls.Commands, c => c.Equals(command, StringComparison.OrdinalIgnoreCase)) is var i && Entries.Contains(i) ? NameOf(i) : command;
 

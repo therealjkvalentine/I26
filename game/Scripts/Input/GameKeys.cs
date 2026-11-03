@@ -28,7 +28,7 @@ public static class GameKeys
         var d = new Dictionary<int, string>();
         var c = new ConfigFile();
         if (c.Load(MinePath) != Error.Ok) return d;
-        foreach (var (id, _, _) in GameKeyMap.Rebindable)
+        foreach (var (id, _, _) in GameKeyMap.Rebindable.Concat(GameKeyMap.FileOnly))
             if (c.GetValue("keys", id.ToString(), "") is { VariantType: Variant.Type.String } v && v.AsString() is { Length: > 0 } spec && GameKeyMap.ParseKey(spec) >= 0) d[id] = spec;
         return d;
     }
@@ -45,6 +45,9 @@ public static class GameKeys
     {
         var baseline = GameKeyMap.Load(ReadInstall());
         var c = new ConfigFile();
+        // the keys set by hand with no row (FileOnly) stay as the file has them
+        var kept = Mine();
+        foreach (var (id, _, _) in GameKeyMap.FileOnly) if (kept.TryGetValue(id, out var own)) c.SetValue("keys", id.ToString(), own);
         foreach (var (id, spec) in keys)
             if (spec.Length > 0 && GameKeyMap.ParseKey(spec) != GameKeyMap.ParseKey(baseline.KeyOf(id) ?? "")) c.SetValue("keys", id.ToString(), spec);
         c.Save(MinePath);
