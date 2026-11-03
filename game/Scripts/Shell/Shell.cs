@@ -1174,8 +1174,8 @@ public sealed class ShellSettings
     public string Resolution { get; set; } = "";
     /// <summary>The port's own: Graphic Detail's Hood Finish (shell.cfg [port] hood_matte, written only when on): Matte takes the shine off the modern look's cockpit hood. Glossy (off), as before.</summary>
     public bool HoodMatte { get; set; }
-    /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 100, 150, 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
-    public int RenderScale { get; set; }
+    /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 50 to 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
+    public int RenderScale { get; set; } = I76.Game.Boot.RenderScale.Default;
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
     /// <summary>The port's own: Graphic Detail's VSync (shell.cfg [port] vsync). On, as the window has always run, unless the player chose.</summary>
     public bool VSync { get; set; } = true;
@@ -1408,7 +1408,7 @@ public sealed class ShellSettings
         if (MouseInvertY) c.SetValue("port", "mouse_invert_y", true);
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
         if (HoodMatte) c.SetValue("port", "hood_matte", true);
-        if (RenderScale != 0) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
+        if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);
