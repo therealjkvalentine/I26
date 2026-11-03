@@ -148,7 +148,10 @@ public class CaltropTests
         Assert.Equal((25, 100), (wp.Hp, wp.Max));
         Assert.True(victim.FrontLeft.Blown);
         Assert.Contains(dm.Events, e => e is TyreBlown { Slot: 1 } t && t.Vehicle == victim);
-        Assert.Contains(combat.Events, e => e is Impact { Kind: 0xe } i && i.Victim == victim && i.Sound.StartsWith("tcaltrop", StringComparison.OrdinalIgnoreCase));
+        // the car pair is xdf "null" + tcaltrop.wav: no effect object, so, as in the original, no sound either
+        Assert.Equal("null", caltrops.Def.Ordnance!.ImpactXdf[1], ignoreCase: true);
+        Assert.StartsWith("tcaltrop", caltrops.Def.Ordnance!.ImpactWav[1], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(combat.Events, e => e is Impact { Kind: 0xe, Sound: "" } i && i.Victim == victim);
         // the caltrop stays for its 20 s
         int frames = 2;
         while (combat.Rounds.Contains(r) && frames < 1000) { combat.Frame(dt); frames++; }
