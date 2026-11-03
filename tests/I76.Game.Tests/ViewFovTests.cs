@@ -23,9 +23,9 @@ public class ViewFovTests
             Assert.StartsWith(d.ToString(), ViewFov.Names[i]);
         }
         Assert.Equal(12, ViewFov.Across.Length);
-        // the original's 90 is marked as the 1997 game's
+        // the original's 90 is marked as the original's value, as every pad row marks it
         Assert.Equal(90, ViewFov.Across[ViewFov.Original]);
-        Assert.Equal("90 (1997)", ViewFov.Names[ViewFov.Original]);
+        Assert.Equal("90" + I76.Game.Shell.ShellSettings.OriginalMark, ViewFov.Names[ViewFov.Original]);
     }
 
     [Fact]
