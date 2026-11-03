@@ -12,6 +12,7 @@ namespace I76.Game.Boot;
 ///   --skip-movies   --movie NAME.smk
 ///   --skip-cutscenes   (a mission's skippable cut-scenes are skipped as if Esc were pressed when they start; single player)   --mute   (all audio off)   for unattended runs
 ///   --voices LANG|FOLDER   voice files from voices/LANG in the user folder (or that folder) override the install's by name; off without it
+///   --music-extra FOLDER|off   the player's own songs for one mission-music start in I76_MUSIC_EXTRA_EVERY (3); default: music-extra in the user folder
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
 ///   --host-listen [--arena m05] [--port 7676] [--rate 20|24|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
@@ -65,6 +66,8 @@ public sealed class LaunchOptions
     public bool HoldFire { get; set; }
     /// <summary>--no-music: leave the mission's CD track off.</summary>
     public bool NoMusic { get; set; }
+    /// <summary>--music-extra FOLDER|off (or I76_MUSIC_EXTRA): the player's own music folder for the mission music (ExtraMusic); null: music-extra in the user folder.</summary>
+    public string? MusicExtra { get; set; }
     /// <summary>--skip-movies: no intro or credits at startup, no briefing movies in missions.</summary>
     public bool SkipMovies { get; set; }
     /// <summary>--skip-cutscenes: a mission's skippable scripted camera scenes are skipped as Esc would, as they start (single player).</summary>
@@ -272,6 +275,7 @@ public sealed class LaunchOptions
                 case "--hold-throttle": o.HoldThrottle = true; break;
                 case "--hold-fire": o.HoldFire = true; break;
                 case "--no-music": o.NoMusic = true; break;
+                case "--music-extra": o.MusicExtra = Next(); break;
                 case "--ai": o.Ai = Next(); break;
                 case "--cockpit": o.Cockpit = true; break;
                 case "--chase": o.Chase = true; break;

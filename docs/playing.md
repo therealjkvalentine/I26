@@ -168,6 +168,11 @@ German one from your own disc, say) into a folder `voices/de` in the user folder
 `--voices de`, or give the folder itself (`--voices D:/mydub`). Those sound files play in place of the install's files of the same
 name, and the mission scripts wait for their lengths. Without `--voices` nothing changes; `--voices en` is the same.
 
+**Your own music.** Songs you own (.mp3 or .ogg) in a folder `music-extra` in the user folder (`%LOCALAPPDATA%/I26` on Windows),
+or in the folder `--music-extra FOLDER` names, are mixed into the mission music: one song start in three plays one of them, in
+shuffled order, in place of the disc track, and the disc's tracks go on after it. `I76_MUSIC_EXTRA_EVERY=N` (1 to 20) changes the
+three; `--music-extra off` turns it off for a run. The menus' music is not touched. Nothing is shipped with the port.
+
 ### Steam Deck
 
 I26 runs on a Steam Deck as the Linux build. What is written here comes from the notes of a Deck test of the same games and

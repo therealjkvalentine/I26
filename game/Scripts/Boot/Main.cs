@@ -1572,6 +1572,30 @@ public partial class Main : Node3D
     }
 
     private I76.Formats.Audio.MissionMusic? _musicSeq;
+    private I76.Formats.Audio.ExtraMusic? _extraMusic;
+    private bool _extraMusicRead;
+
+    /// <summary>The next of the player's own songs when this start is one of theirs (ExtraMusic), else null; a file that will not load is skipped.</summary>
+    private AudioStream? ExtraSong()
+    {
+        if (!_extraMusicRead)
+        {
+            _extraMusicRead = true;
+            var files = I76.Formats.Audio.ExtraMusic.Scan(I76.Formats.Audio.ExtraMusic.FolderFor(_opt.MusicExtra ?? System.Environment.GetEnvironmentVariable("I76_MUSIC_EXTRA"), LaunchOptions.LocalRoot()));
+            if (files.Count > 0)
+            {
+                _extraMusic = new I76.Formats.Audio.ExtraMusic(files, I76.Formats.Audio.ExtraMusic.ParseEvery(System.Environment.GetEnvironmentVariable("I76_MUSIC_EXTRA_EVERY")), new System.Random());
+                GD.Print($"music-extra: {files.Count} songs");
+            }
+        }
+        if (_extraMusic?.Start() is not { } path) return null;
+        try
+        {
+            var data = System.IO.File.ReadAllBytes(path);
+            return path.EndsWith(".ogg", System.StringComparison.OrdinalIgnoreCase) ? AudioStreamOggVorbis.LoadFromBuffer(data) : new AudioStreamMP3 { Data = data, Loop = false };
+        }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.UnauthorizedAccessException) { return null; }
+    }
     private GameInstall? _musicInstall;
     private int _musicTrack;
     private (int Track, AudioStreamMP3 Stream)? _musicReady;
@@ -1596,11 +1620,15 @@ public partial class Main : Node3D
     {
         if (_musicInstall is null || I76.Game.Assets.CdMusic.Path(_musicInstall, track) is not { } file) return;
         _musicTrack = track;
-        if (_musicReady is { } ready && ready.Track == track) { p.Stream = ready.Stream; _musicReady = null; }
+        // the player's own song in place of the disc track on every Nth start (not when resuming into one); the track number stays the
+        // disc's, so the sequence goes on from it afterwards
+        var own = from == 0 ? ExtraSong() : null;
+        if (own is not null) p.Stream = own;
+        else if (_musicReady is { } ready && ready.Track == track) { p.Stream = ready.Stream; _musicReady = null; }
         else p.Stream = new AudioStreamMP3 { Data = System.IO.File.ReadAllBytes(file), Loop = false };
         if (_musicStartedMs == 0) _musicStartedMs = Time.GetTicksMsec() - (ulong)(from * 1000);
         p.Play((float)from);
-        GD.Print($"music: track {track}");
+        GD.Print(own is null ? $"music: track {track}" : $"music: track {track} (your own song)");
     }
 
     /// <summary>A track ended: the next one after the poller's wait (MissionMusic).</summary>
