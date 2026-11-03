@@ -205,3 +205,4 @@ fix/impact-marks-subtler              # stacked on play: ground strikes a third 
 fix/smoke-depth                       # stacked on play: the modern smoke layer takes the nearest surface under each pixel (#95)
 fix/net-esc-labels                    # stacked on play: network Esc menu says Leave Match and Exit I76
 feat/pistol-keys                      # stacked on play: Pistol Left / Pistol Right keys (protocol 25)
+fix/round3-integration-4              # stacked on play, last of I: the * marks every value the original does not have on every row that offers the original's (Hood Finish, Render Scale, Wheel, 1997 Mode, Crash Blur, Vegetation, Mouse Camera, ...); a long value ends short of the shell's Graphic Detail scroll bar
