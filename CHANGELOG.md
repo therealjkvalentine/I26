@@ -58,6 +58,7 @@
 - The modern look's target health bar has the original's size and place, scaled with the window: up to 30 by 4 pixels at 640x480 (90 by 12 at 1440 pixels high), just over the box, shorter as the car is hurt, instead of a thin bar at least 60 pixels wide at every resolution. Its colours are unchanged.
 - Cancel on the Save Bookmark form opened from the garage, field salvage or the screen after a mission now goes back to that screen, as the original's does, instead of to the Options Menu. Opened from the Options Menu it still returns there, and Escape still goes to the Options Menu.
 - The line spoken when you open the map now follows the Effects (SFX) level, as the original's does, instead of the Voice level: it is heard with Voice at 0.
+- The radar's sweep turns once in 6 seconds through all 30 of its frames, pings every time it passes a car instead of only the first time, and its light and growl answer any car within 600 m, also at the 100 m range, as the original's do.
 
 ## 0.11.0 (31 October 2026)
 
