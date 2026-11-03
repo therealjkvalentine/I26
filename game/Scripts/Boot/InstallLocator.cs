@@ -12,7 +12,7 @@ namespace I76.Game.Boot;
 ///   --skip-movies   --movie NAME.smk
 ///   --skip-cutscenes   (a mission's skippable cut-scenes are skipped as if Esc were pressed when they start; single player)   --mute   (all audio off)   for unattended runs
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
-///   --host-listen [--arena m05] [--port 7676] [--rate 20|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
+///   --host-listen [--arena m05] [--port 7676] [--rate 20|24|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
 ///   --coop-scale 0-3   (with --host-listen --coop: each enemy car gets a copy per player past the first, up to that many; else the host form's Co-op Scaling)
 ///   --password WORD   (with --host-listen: the game needs it; with --connect or --join-anet: the one to join with; never saved)
@@ -113,7 +113,7 @@ public sealed class LaunchOptions
     public I76.Sim.Missions.BotSkill BotSkill { get; set; } = I76.Sim.Missions.BotSkill.Normal;
     /// <summary>--bot-car N=MODEL[:VARIANT] (repeatable, N from 1): the car of bot seat N (docs/multiplayer.md "Bots"); empty: random.</summary>
     public List<string> BotCars { get; set; } = [];
-    /// <summary>--rate HZ: the listen server's simulation rate (20, 25, 28, 30, 40, 60), the game's for everyone in it; 0: the Play Options' setting.</summary>
+    /// <summary>--rate HZ: the listen server's simulation rate (20, 24, 25, 28, 30, 40, 60), the game's for everyone in it; 0: the Play Options' setting.</summary>
     public int Rate { get; set; }
     public bool Teams { get; set; }
     public int MaxScore { get; set; }

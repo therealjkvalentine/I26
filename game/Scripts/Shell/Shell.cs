@@ -1139,7 +1139,7 @@ public sealed class ShellSettings
     public I76.Formats.Input.RumbleMode RumbleMode { get; set; }
     /// <summary>The port's own: Play Options' Rumble Strength, percent on every level sent to the pad (25 to 150; [port] rumble_strength, written when not 100).</summary>
     public int RumbleStrength { get; set; } = I76.Formats.Input.RumbleStrength.Default;
-    /// <summary>The port's own: the simulation rate in Hz (Play Options; 20, 25, 28, 30, 40 or 60, docs/frame-rate.md), applied from the next mission start; a network game runs at the server's.</summary>
+    /// <summary>The port's own: the simulation rate in Hz (Play Options; 20, 24, 25, 28, 30, 40 or 60, docs/frame-rate.md), applied from the next mission start; a network game runs at the server's.</summary>
     public int SimRate { get; set; } = I76.Sim.Session.SimRate.Default.Label;
     /// <summary>The port's own: the player has been told once that a rate other than 20 Hz can break the game (helicopters, AI, physics); it is not said again.</summary>
     public bool SimRateWarned { get; set; }

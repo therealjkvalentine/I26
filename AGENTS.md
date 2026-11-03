@@ -70,7 +70,7 @@ Every `I76_*` hook is listed in [docs/dev-hooks.md](docs/dev-hooks.md). Check a 
 - **New sim state must be serialized** — the snapshot guard test enforces it ([docs/savestate.md](docs/savestate.md)):
   save it in its class's `Save`/`Load` or mark it structural, derived or transient with the reason, and bump
   `SnapshotHeader.CurrentVersion`. `StateHash` is the snapshot's hash and follows by itself.
-- **The tick is a setting.** `SimRate` per session: 20 Hz by default (102/2048 s), also 25/28/30/40/60. Never use exactly
+- **The tick is a setting.** `SimRate` per session: 20 Hz by default (102/2048 s), also 24/25/28/30/40/60. Never use exactly
   0.05 s: the original's substep and weapon timing sit on that edge. Per-frame rules of the original run per tick,
   which is what makes the rate setting reproduce the original at that frame rate ([docs/frame-rate.md](docs/frame-rate.md)).
 - **Comments** follow the surrounding code: brief, factual, saying what the original does or why we differ.
