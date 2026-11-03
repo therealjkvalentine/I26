@@ -61,6 +61,7 @@
 - The radar's sweep turns once in 6 seconds through all 30 of its frames, pings every time it passes a car instead of only the first time, and its light and growl answer any car within 600 m, also at the 100 m range, as the original's do.
 - In the 1997 look the roads are no longer drawn darker near the camera: they take the sun's light alone, without the distance fade the ground has, as in the original.
 - In the 1997 look the road far ahead is no longer smeared into a grey blur: its lane dashes and edges stay sharp into the distance, as on the original's 3D cards, which drew roads without mipmaps.
+- The 2D dash's rear-view mirror sits where the original's does, at the right of the frame with the end of its bezel cut off by the frame's edge, instead of whole and further left.
 
 ## 0.11.0 (31 October 2026)
 

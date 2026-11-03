@@ -73,7 +73,7 @@ public static class HudLayout
     /// The 2D instruments that hang from the top of the frame, in window pixels (the
     /// 640x480 frame scaled with the window's height and centred): the radar (0,0,174x119), the weapons housing
     /// (190,0,183x127) and the damage panel (392,0,241x123); with <paramref name="mirror"/> (the 2D dash only) the
-    /// rear-view mirror too, (384,125,256x64). The bottom ones (speedometer, gear, specials, compass) are not the top
+    /// rear-view mirror too, (465,125,175x55, the original's slot 7, which cuts the art at the frame's right edge). The bottom ones (speedometer, gear, specials, compass) are not the top
     /// columns' business. With <paramref name="dash3d"/> (the 3D cockpit, whose instruments are the car's model) the same places
     /// as measured on its default dash: the radar's bezel reaches 31 units further left, and the mirror sits at (463,138,225x72).
     /// </summary>
@@ -82,7 +82,7 @@ public static class HudLayout
         float k = h / 480f, ox = (w - 640 * k) / 2;
         HudRect R(float x, float y, float rw, float rh) => new(ox + x * k, y * k, rw * k, rh * k);
         var r = new List<HudRect> { dash3d ? R(-31, 0, 205, 119) : R(0, 0, 174, 119), R(190, 0, 183, 127), R(392, 0, 241, 123) };
-        if (mirror) r.Add(dash3d ? R(463, 138, 225, 72) : R(384, 125, 256, 64));
+        if (mirror) r.Add(dash3d ? R(463, 138, 225, 72) : R(465, 125, 175, 55));
         return [.. r];
     }
 
