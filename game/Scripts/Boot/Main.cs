@@ -704,6 +704,8 @@ public partial class Main : Node3D
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         if (_modernEnv is not null) { _modernEnv.AdjustmentEnabled = true; _modernEnv.AdjustmentBrightness = ModernBrightness(s.Graphics[0xc]); }
+        _lookColourMatch = s.LookColourMatch;
+        ApplyLookColour();
         if (_env1997 is not null)
         {
             _env1997.AdjustmentEnabled = true;
@@ -1742,6 +1744,7 @@ public partial class Main : Node3D
     /// <summary>The mission's sky texture on the engine's dome, in both modes; modern fogs toward its average colour.</summary>
     private void ApplySky()
     {
+        _lookColourMatch = I76.Game.Shell.ShellSettings.Load().LookColourMatch;   // the match is made here, before ApplyGraphics
         if (_builder?.SkyTexture is not { } tex) return;
         var mat = _sky1997 = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_dome.gdshader") };
         mat.SetShaderParameter("clouds", tex);
@@ -1776,6 +1779,7 @@ public partial class Main : Node3D
         // the modern sky's clouds move (TIME), so its radiance (ambient light and reflections) is redone all the
         // time: Incremental spreads each redo over a few frames (0.45 ms a frame less than Realtime's every frame);
         // the sky itself is drawn every frame either way. I76_SKY_REALTIME=1 for the old way.
+        SolveLookColour(light, modernSky);
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
         AddSkyFog(modernSky);
@@ -1784,6 +1788,49 @@ public partial class Main : Node3D
         // no ambient: the 1997 shaders carry the engine's own light, and light() adds only the sun's shadow
         _env1997.AmbientLightSource = Environment.AmbientSource.Disabled;
         _env1997.ReflectedLightSource = Environment.ReflectionSource.Disabled;
+    }
+
+    private bool _lookColourMatch = true;
+    private double _lookExposure = 1;
+    private Vector3 _lookTint = Vector3.One;
+
+    /// <summary>
+    /// The modern look's colour match (LookColourMatch, [port] look_colour_match): the exposure and ground tint that show this
+    /// mission's ground, over its own map, as the 1997 look does, from its ground texture, light ramp, sun and sky. The modern
+    /// light is the sun's (energy·colour on the cell's normal) and the sky's ambient, taken as its energy times the mean of the
+    /// sky's zenith, horizon and cloud colours (linear). By day only: a night's light is the cars' and the moon's (left as tuned).
+    /// </summary>
+    private void SolveLookColour(I76.Formats.Mission.LightPreset light, ShaderMaterial sky)
+    {
+        _lookExposure = 1; _lookTint = Vector3.One;
+        if (!_lookColourMatch || !light.IsDay || _builder?.World is not { } world
+            || _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLookColour(); return; }
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (img.IsCompressed()) img.Decompress();
+        img.Convert(Image.Format.Rgb8);
+        img.Resize(8, 8, Image.Interpolation.Lanczos);
+        I76.Formats.Imaging.LookColourMatch.Rgb Lin(Color c, float k) { var x = c.SrgbToLinear(); return new(x.R * k, x.G * k, x.B * k); }
+        float gain = (float)sky.GetShaderParameter("sky_gain").AsDouble() * _modernEnv.AmbientLightEnergy / 3;
+        var ambient = Lin(sky.GetShaderParameter("zenith_color").AsColor(), gain) + Lin(sky.GetShaderParameter("horizon_color").AsColor(), gain)
+            + Lin(sky.GetShaderParameter("cloud_color").AsColor(), gain);
+        var cells = I76.Formats.Imaging.LookColourMatch.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, Lin(_sun.LightColor, _sun.LightEnergy), ambient);
+        var (e, t) = I76.Formats.Imaging.LookColourMatch.Solve(img.GetData(), cells);
+        _lookExposure = e; _lookTint = new((float)t.R, (float)t.G, (float)t.B);
+        // the sky is not lit: it takes half the exposure's change (in log), which keeps the measured skies (T01, T05, M01, T10) near the
+        // 1997 dome's lightness; the ambient it gives the ground is scaled back to what the solve took
+        float skyGain = 1f / Mathf.Sqrt((float)e);
+        sky.SetShaderParameter("sky_gain", (float)sky.GetShaderParameter("sky_gain").AsDouble() * skyGain);
+        _modernEnv.AmbientLightEnergy /= skyGain;
+        GD.Print($"look colour match: {cells.Count} kinds of cell, exposure {e:0.000}, ground tint {t.R:0.000} {t.G:0.000} {t.B:0.000}, {sw.ElapsedMilliseconds} ms");
+        ApplyLookColour();
+    }
+
+    /// <summary>The match's exposure and ground tint in the modern look, or none ([port] look_colour_match=off).</summary>
+    private void ApplyLookColour()
+    {
+        bool on = _lookColourMatch;
+        if (_modernEnv is not null) _modernEnv.TonemapExposure = on ? (float)_lookExposure : 1f;
+        RenderingServer.GlobalShaderParameterSet("i76_ground_tint", on ? _lookTint : Vector3.One);
     }
 
     /// <summary>

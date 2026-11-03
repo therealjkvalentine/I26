@@ -1317,6 +1317,11 @@ public sealed class ShellSettings
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
     public bool GarageRadio { get; set; }
+    /// <summary>
+    /// The port's own, without a row: the modern look's colour match ([port] look_colour_match, written only when off): each mission's
+    /// exposure and ground tint solved so its sunlit ground shows the 1997 look's colour (I76.Formats.Imaging.LookColourMatch).
+    /// </summary>
+    public bool LookColourMatch { get; set; } = true;
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
     public bool CarInteriors { get; set; } = true;
     /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Graphic Detail's Camera Return); off, it stays where it was left.</summary>
@@ -1480,6 +1485,7 @@ public sealed class ShellSettings
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
+        s.LookColourMatch = !string.Equals(c.GetValue("port", "look_colour_match", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
@@ -1590,6 +1596,7 @@ public sealed class ShellSettings
         if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
+        if (!LookColourMatch) c.SetValue("port", "look_colour_match", "off");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
