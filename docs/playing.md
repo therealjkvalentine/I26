@@ -163,6 +163,10 @@ the original front end; `--skip-movies` leaves them out. Useful options (after `
 `--install DIR`, `--mission a01`, `--drive [car.vcf]`, `--melee`, `--1997`, `--cockpit`, `--windowed` (Godot's, before the `--`).
 For unattended runs `--skip-cutscenes` skips a mission's skippable camera scenes as Esc would, and `--mute` turns the sound off.
 
+**Another language's voices.** The port ships no game files, but it can read yours: copy the voice files of a dub you own (the 1997
+German one from your own disc, say) into a folder `voices/de` in the user folder (`%LOCALAPPDATA%/I26` on Windows) and start with
+`--voices de`, or give the folder itself (`--voices D:/mydub`). Those sound files play in place of the install's files of the same
+name, and the mission scripts wait for their lengths. Without `--voices` nothing changes; `--voices en` is the same.
 
 ### Steam Deck
 

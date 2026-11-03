@@ -75,6 +75,9 @@ public sealed class AssetVfs
         foreach (var dir in install.AddonFolders())
             foreach (var p in Directory.EnumerateFiles(dir))
                 if (Path.GetFileName(p) is { } n && !n.StartsWith('.')) _map.TryAdd(n, new AssetSource.Loose(n, p));
+        // the player's own voice overlay (VoiceOverlay): its sound files over the install's, by name
+        if (VoiceOverlay.Folder is { } vo && Directory.Exists(vo))
+            foreach (var (n, p) in VoiceOverlay.Files(vo, _map.ContainsKey)) _map[n] = new AssetSource.Loose(n, p);
         // a map downloaded from a network game's host (GameInstall.MapDir): its files are the host's, over everything on disk
         if (install.MapDir is { } dl && Directory.Exists(dl)) AddLoose(dl);
     }

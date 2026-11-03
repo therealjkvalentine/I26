@@ -133,6 +133,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Graphic Detail has a Field of View row (Original, 80, 100, 110 degrees across a 4:3 view), live, for the chase and other outside views and the cockpit's 3D view; the 2D dash, mirror and binoculars keep their own framing. Original is as before.
 - Graphic Detail has a Hood Finish row (Glossy, as before, or Matte): Matte takes the shine off the modern look's cockpit hood, which reflected the sky distractingly.
 - Graphic Detail has a Render Scale row (100, 150 or 200 %: the 3D view drawn larger and scaled down, sharper edges for a fast GPU; the HUD and menus are not scaled) and Anti-Aliasing gains an 8x step. Both are off or as before until you change them.
+- A voice overlay: copy another language's voice files from your own disc (the 1997 German dub, say) into `voices/de` in the user folder and start with `--voices de`; they play in place of the install's files of the same names. Nothing changes without `--voices`.
 
 ## 0.11.0 (31 October 2026)
 
