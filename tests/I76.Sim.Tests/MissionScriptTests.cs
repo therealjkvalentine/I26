@@ -17,6 +17,19 @@ public class CbRadioTests
     }
 
     [Fact]
+    public void WithTheVoiceLevelOffNoLineIsQueuedAndTheRadioStaysEmpty()
+    {
+        var (cb, started, _) = Radio();
+        bool on = false;
+        cb.Enabled = () => on;
+        cb.Say("a", null, 3);
+        Assert.True(cb.Empty); Assert.Empty(started);
+        on = true;
+        cb.Say("b", null, 3);
+        Assert.False(cb.Empty); Assert.Equal(["b"], started);
+    }
+
+    [Fact]
     public void LinesQueueAndPlayInTurn()
     {
         var (cb, started, _) = Radio();

@@ -73,6 +73,7 @@
 - Computer-driven cars and gun emplacements no longer shoot through buildings, walls and standing road signs: as in the original, they hold their guns and missiles while one stands between them and their target, judged from car centre to car centre a little above the roofs.
 - A blast that only catches a car in its splash (a near-miss rocket or shell, a wreck or building going up) no longer counts as the shooter attacking it: as in the original, mission scripts and computer drivers react to direct hits and rams, not to near misses.
 - A damaged turret turns at full speed in a network game, as in the original (offline it still slows down with damage), and a turret aiming at a target almost overhead now raises its barrel as far as it goes instead of leaving it where it was.
+- With the Voice level at 0 or 1 (single player), CB lines are no longer queued silently: missions that wait for the radio to go quiet move on at once, as in the original, and opening the menu clears the radio.
 
 ## 0.11.0 (31 October 2026)
 
