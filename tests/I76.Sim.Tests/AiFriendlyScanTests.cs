@@ -92,4 +92,19 @@ public class AiFriendlyScanTests
         Assert.True(c2.AiShouldFire(s2, t2, g2, 1, 1));
         Assert.Equal(w2.Rand.Next(), w1.Rand.Next());
     }
+
+    /// <summary>
+    /// The scan tests the round as it flies here, at the muzzle speed along the barrel alone: a shooter sliding across
+    /// at 50 m/s with a friend straight ahead on the line holds (the original's model, the shooter's velocity in the
+    /// round, puts that round 9.6 from the friend and clears it; the rounds then went through the friend).
+    /// </summary>
+    [Fact]
+    public void AMovingShootersRoundIsTheOneItFires()
+    {
+        var (c, _, shooter, target, friend, w) = Rig();
+        shooter.Vel = new Vector3(50, 0, 0); shooter.Speed = 50;
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+        friend.Pos = new Double3(9, 0, 25);                        // off the line by 9: cleared, moving or not
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+    }
 }
