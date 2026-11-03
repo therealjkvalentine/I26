@@ -119,12 +119,20 @@ public static class ShellGlyphs
     /// <summary>Record 69's braces are the garage's part legends, a letter in a ring: (C) in the car, (V) the van, (R) in repair.</summary>
     private static readonly Dictionary<(int, char), char> Circled = new() { [(69, '{')] = 'C', [(69, '|')] = 'V', [(69, '}')] = 'R' };
 
-    /// <summary>The face's O as the ring over the whole ink box, its letter inside where the bitmap has it, a little smaller so that it clears the ring (9/26 in from the left, 7/26 from the right, 5/22 from top and bottom).</summary>
+    /// <summary>The legends' letters' extra weight (the face's emboldening strength, 0 = its own weight).</summary>
+    internal const float LegendEmbolden = 1.3f;
+
+    /// <summary>
+    /// The face's O as the ring over the whole ink box, its letter inside where the bitmap has it (7/26 in from the left,
+    /// 5/26 from the right, 3/22 from top and bottom). The letter is emboldened: at the face's own weight it read thin
+    /// inside the ring at the window's resolution; the bitmap's letter is about as heavy as the ring.
+    /// </summary>
     private static byte[]? Ringed(Font face, char letter, int tw, int th)
     {
-        if (Raster(face, "O") is not { } ring || Raster(face, letter.ToString()) is not { } l) return null;
+        var bold = new FontVariation { BaseFont = face, VariationEmbolden = LegendEmbolden };
+        if (Raster(face, "O") is not { } ring || Raster(bold, letter.ToString()) is not { } l) return null;
         var cov = Fit(ring, tw, th);
-        int lx = tw * 9 / 26, ly = th * 5 / 22, lw = tw - lx - tw * 7 / 26, lh = th - 2 * ly;
+        int lx = tw * 7 / 26, ly = th * 3 / 22, lw = tw - lx - tw * 5 / 26, lh = th - 2 * ly;
         var inner = Fit(l, lw, lh);
         for (int y = 0; y < lh; y++)
             for (int x = 0; x < lw; x++)

@@ -108,6 +108,7 @@
 - Once someone wins a network game (or the time limit is up), every car is put on the brakes with the wheel straight for the 10 s until the game ends, as in the original, instead of driving on.
 - The cockpit's 3D gauge needles are the original's dark red, lit like the rest of the car, instead of hot pink: a flat-coloured face takes the mission palette's colour, as the original's does. The dash art is untouched.
 - The cockpit's 3D gauges look like the original's: the dial faces are black again instead of a grey smear, the lettering is sharp, and the needles turn off-centre so the long end shows the reading, in the original's dark red rather than hot pink. The dash art is untouched.
+- The (C), (V) and (R) in the garage's part lists are bold and a little larger in the modern look, so they read at a glance.
 
 ## 0.11.0 (31 October 2026)
 
