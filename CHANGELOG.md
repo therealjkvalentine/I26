@@ -90,6 +90,7 @@
 - The camera round a destroyed car, and round the winner at the end of a network game, turns 8 degrees a tick (160 degrees a second at the default rate) as the original's end-of-match orbit does, instead of a slow 20 degrees a second.
 - A car shoved into a wall by another car in the same moment bounces off the wall, as in the original, instead of being driven on into it by the shove.
 - Gun emplacements stand on the ground where the mission puts them, as in the original, instead of at the height written in the mission file: one of T11's machine guns no longer floats 2 m up, and the guns there and in S06 that sat up to 0.7 m sunk into the ground come up onto it.
+- A ramp's or building's box-shaped parts, such as the side rails of T06's ramps, are solid but no longer a surface to drive on: a car that runs into one bounces off it, as in the original, instead of being lifted onto its top.
 
 ## 0.11.0 (31 October 2026)
 
