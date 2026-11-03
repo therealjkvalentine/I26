@@ -22,7 +22,7 @@ public class MissionMusicTests
     [InlineData(0, 2)]
     [InlineData(40, 2)]
     public void TheMissionStartsOnItsTrackOrTheFirstAudioTrack(int wrld, int first) =>
-        Assert.Equal(first, new MissionMusic(17).First(wrld));
+        Assert.Equal(first, new MissionMusic(17, MissionMusic.Policy.Retail1997).First(wrld));
 
     [Fact]
     public void Retail1997PlaysOnFromTheMissionsTrackThrough14ThenFrom2()
@@ -90,13 +90,37 @@ public class MissionMusicTests
         Assert.Equal(0, m.Wait(9, 37));
     }
 
+    /// <summary>The default never plays the shell's tracks (the menu's, title's, ending's): a melee arena asking for one starts on track 2.</summary>
     [Fact]
-    public void TheDiscPolicyPlaysTrack15AndUpAloneThenFrom2()
+    public void TheDiscPolicyNeverPlaysTrack15AndUp()
     {
         var m = new MissionMusic(17, MissionMusic.Policy.Disc);
-        Assert.Equal([15, 2, 3], Walk(m, 15, 3));     // M09's track
-        Assert.Equal([17, 2], Walk(m, 17, 2));
-        Assert.Equal(0, m.Wait(15, 37));
+        Assert.Equal([2, 3, 4], Walk(m, 15, 3));     // M09's WRLD asks for the menu's track
+        Assert.Equal([2, 3], Walk(m, 17, 2));
+        Assert.Equal(2, m.Next(15));
+        var heard = Walk(m, 15, 40).Concat(Walk(m, 9, 40)).ToList();
+        Assert.All(heard, t => Assert.InRange(t, 2, 14));
+    }
+
+    /// <summary>Nitro's disc: its menu's (10) and credits' (4) tracks sit among the missions'; the default passes over them.</summary>
+    [Fact]
+    public void TheDiscPolicyPassesOverNitrosMenuAndCreditsTracks()
+    {
+        var m = new MissionMusic(11, nitro: true);
+        Assert.Equal([2, 3, 5, 6, 7, 8, 9, 11, 2, 3], Walk(m, 2, 10));
+        Assert.Equal(11, m.First(10));     // N05's and N60's arena asks for the menu's track
+        Assert.Equal(5, m.First(4));       // N01's for the credits'
+        Assert.False(m.IsMissionTrack(10));
+        Assert.False(m.IsMissionTrack(4));
+        Assert.True(m.IsMissionTrack(11));
+        Assert.DoesNotContain(Walk(m, 4, 30), t => t is 4 or 10);
+    }
+
+    [Fact]
+    public void TheOriginalsSequencesStillPlayTheShellsTracksAsAsked()
+    {
+        Assert.Equal([15, 2, 3], Walk(new MissionMusic(17, MissionMusic.Policy.Retail1997), 15, 3));
+        Assert.Equal([9, 10, 11, 2], Walk(new MissionMusic(11, MissionMusic.Policy.Retail1997, nitro: true), 9, 4));
     }
 
     [Theory]
