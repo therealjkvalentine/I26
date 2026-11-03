@@ -54,6 +54,11 @@ public partial class Cockpit : Node
 
     public override void _Ready()
     {
+        // a pack's upscales of the frames below, decoded together on worker threads
+        Textures.Prefetch(new[] { ("zswls{0}{1:00}", 36), ("zhr45{0}{1:00}", 6), ("zhl45{0}{1:00}", 6), ("zsr45{0}{1:00}", 3), ("zsl45{0}{1:00}", 3) }
+            .SelectMany(f => Enumerable.Range(1, f.Item2).Select(i => string.Format(f.Item1, LightVariant, i)))
+            .Concat(Enumerable.Range(0, 31).SelectMany(i => new[] { "zradf" + i.ToString("000"), "zradb" + i.ToString("000") })).Append("zradmask")
+            .Select(Resolver.FindByStem).OfType<string>(), rgba: true);
         _wheelFrames = Frames("zswls{0}{1:00}", 36);
         _armR = Frames("zhr45{0}{1:00}", 6);
         _armL = Frames("zhl45{0}{1:00}", 6);

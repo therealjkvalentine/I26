@@ -8,7 +8,9 @@ namespace I76.Formats.Imaging;
 /// </summary>
 public static class HdTexture
 {
-    public static readonly string[] Extensions = [".png", ".webp", ".jpg"];
+    /// <summary>A .dds first: block-compressed with its mipmaps, written by tools/upscale-textures.py in the texture's stored row order and
+    /// already keyed (alpha 0 or 255) and bled, so the game sends it to the GPU as it is. A picture is fitted on load (Fit).</summary>
+    public static readonly string[] Extensions = [".dds", ".png", ".webp", ".jpg"];
 
     /// <summary>The pack paths that can hold the member's upscale, in the order tried.</summary>
     public static IEnumerable<string> Candidates(string member)
@@ -30,6 +32,9 @@ public static class HdTexture
     /// <paramref name="bottomUp"/> (a .map or .m16 keeps a DIB's order; a .vqm is top-down), alpha 0 under one half
     /// and 255 above, or, when the picture is opaque throughout, the original's keyed texels (alpha 0 in
     /// <paramref name="original"/>, already in stored order) each covering a <paramref name="scale"/>-square block.
+    /// A keyed texel takes the colour of the original's texel under it (<paramref name="original"/> bled under its key,
+    /// TextureFactory), so filtering and mipmaps pull no key colour into the edges whatever the pack put there, and the
+    /// upscale needs no bleed of its own at sixteen times the texels.
     /// </summary>
     public static byte[] Fit(byte[] rgba, int w, int h, int scale, byte[] original, int ow, int oh, bool bottomUp)
     {
@@ -40,13 +45,15 @@ public static class HdTexture
         {
             int sy = bottomUp ? h - 1 - y : y;
             Buffer.BlockCopy(rgba, sy * w * 4, o, y * w * 4, w * 4);
-        }
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
+            int orow = (y / scale) * ow;
+            for (int x = 0, i = y * w * 4; x < w; x++, i += 4)
             {
-                int i = (y * w + x) * 4 + 3;
-                o[i] = anyAlpha ? (o[i] < 128 ? (byte)0 : (byte)255) : original[((y / scale) * ow + x / scale) * 4 + 3] == 0 ? (byte)0 : (byte)255;
+                int oi = (orow + x / scale) * 4;
+                bool keyed = anyAlpha ? o[i + 3] < 128 : original[oi + 3] == 0;
+                if (keyed) { o[i] = original[oi]; o[i + 1] = original[oi + 1]; o[i + 2] = original[oi + 2]; o[i + 3] = 0; }
+                else o[i + 3] = 255;
             }
+        }
         return o;
     }
 }

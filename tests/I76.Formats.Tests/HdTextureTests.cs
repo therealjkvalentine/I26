@@ -65,9 +65,26 @@ public class HdTextureTests
     }
 
     [Fact]
+    public void AKeyedTexelTakesTheBledOriginalsColourWhateverThePackPutThere()
+    {
+        // the pack's picture: opaque blue, but cyan with alpha 0 over the left half of the top row (a key colour the model smeared)
+        var p = Upright2x();
+        for (int x = 0; x < 4; x++) { int i = x * 4; p[i] = 0; p[i + 1] = 255; p[i + 2] = 255; p[i + 3] = 0; }
+        var orig = Original();
+        orig[3 * 4] = 10; orig[3 * 4 + 1] = 20; orig[3 * 4 + 2] = 30;   // the colour bled under the original's keyed texel
+        // the picture's own alpha: its keyed texels take the original's colour under them (stored row 3 is the picture's top row, original row 1: blue)
+        var f = HdTexture.Fit(p, 8, 4, 2, orig, 4, 2, bottomUp: true);
+        for (int x = 0; x < 4; x++) { int i = (3 * 8 + x) * 4; Assert.Equal(new byte[] { 0, 0, 255, 0 }, f[i..(i + 4)]); }
+        // an opaque picture keyed by the original: the keyed block carries the bled colour, not the picture's
+        var g = HdTexture.Fit(Upright2x(), 8, 4, 2, orig, 4, 2, bottomUp: true);
+        Assert.Equal(new byte[] { 10, 20, 30, 0 }, g[((0 * 8 + 6) * 4)..((0 * 8 + 6) * 4 + 4)]);
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, g[((0 * 8 + 5) * 4)..((0 * 8 + 5) * 4 + 4)]);
+    }
+
+    [Fact]
     public void FoundByStemInAFolderOrAPacksWorldRoot()
     {
-        Assert.Equal(["pp11ftf1.png", "pp11ftf1.webp", "pp11ftf1.jpg"], HdTexture.Candidates("PP11FTF1.M16"));
+        Assert.Equal(["pp11ftf1.dds", "pp11ftf1.png", "pp11ftf1.webp", "pp11ftf1.jpg"], HdTexture.Candidates("PP11FTF1.M16"));
         var dir = Directory.CreateTempSubdirectory("hdtex").FullName;
         File.WriteAllText(Path.Combine(dir, "zsy_.png"), "px");
         using var folder = new HdDirSource(dir);

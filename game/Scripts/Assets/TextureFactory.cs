@@ -10,24 +10,45 @@ namespace I76.Game.Assets;
 /// key is the material's decision (the key is per draw type).
 /// In the modern look a member with an upscale in the player's pack (HdTextures) is served at the upscale's size
 /// with the original's key under it, unless the HD Textures row is off; the 1997 look is served the originals, and a
-/// flip of the look or of the row swaps the pictures of the textures already made (SetMode1997, SetHd).
+/// flip of the look or of the row swaps the pictures of the textures already made (SetMode1997, SetHd). A pack's .dds
+/// (block-compressed with its mipmaps, in the texture's stored order, keyed and bled by the tool) goes to the GPU as it is;
+/// its texels are decompressed only for the few that are painted on the CPU (GetRgba).
 /// </summary>
 public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 {
     /// <param name="KeyColour">What index 255 decodes to (its palette colour): a face that does not honour the key draws that, not the bled colour under it.</param>
     /// <param name="Base">The original's texels (bled under the key), what the port's material analyses read (car material table, windows,
-    /// prop and car maps): they are keyed to the original's texel grid, and their maps are sampled by UV over any upscale. The same array
-    /// as Rgba where no upscale is served.</param>
-    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, byte[] Rgba, Color KeyColour, RoadRaster.Tex Base);
+    /// prop and car maps): they are keyed to the original's texel grid, and their maps are sampled by UV over any upscale.</param>
+    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, Color KeyColour, RoadRaster.Tex Base);
+
+    /// <summary>An upscale: its texels fitted from a picture (RGBA8, stored order), or a .dds as stored (Gpu; its texels decompressed when asked).</summary>
+    private sealed class HdPic(int width, int height, RoadRaster.Tex? rgba, Image? gpu)
+    {
+        public readonly int Width = width, Height = height;
+        public readonly Image? Gpu = gpu;
+        private RoadRaster.Tex? _rgba = rgba;
+        public RoadRaster.Tex Rgba
+        {
+            get
+            {
+                if (_rgba is not null) return _rgba;
+                var im = (Image)Gpu!.Duplicate();
+                im.ClearMipmaps();
+                im.Decompress();
+                im.Convert(Image.Format.Rgba8);
+                return _rgba = new RoadRaster.Tex(Width, Height, im.GetData());
+            }
+        }
+    }
 
     /// <summary>Whether upscales are served (the modern look with HD Textures on); off, every member is the original. Set before the first texture; after, SetHd.</summary>
     public bool Hd { get; set; } = true;
 
     private readonly Dictionary<string, RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, RoadRaster.Tex?> _hd = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HdPic?> _hd = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A texture's RGBA (index 255 keyed to alpha 0), for CPU-side painting; the upscale's where one is served.</summary>
-    public RoadRaster.Tex? GetRgba(string member) => Hd && HdOf(member) is { } h ? h : Original(member);
+    public RoadRaster.Tex? GetRgba(string member) => Hd && HdOf(member) is { } h ? h.Rgba : Original(member);
 
     /// <summary>The original's RGBA whatever is served (index 255 keyed to alpha 0): what analyses keyed to its texel grid read.</summary>
     public RoadRaster.Tex? GetOriginalRgba(string member) => Original(member);
@@ -53,19 +74,70 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         return _rgba[member] = r;
     }
 
+    private readonly Dictionary<string, RoadRaster.Tex?> _bled = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The original with its keyed texels given their opaque neighbours' colour (alpha untouched): what is drawn, and the colour under an upscale's key.</summary>
+    private RoadRaster.Tex? Bled(string member)
+    {
+        if (_bled.TryGetValue(member, out var b)) return b;
+        if (Original(member) is { } o)
+        {
+            var rgba = (byte[])o.Rgba.Clone();
+            if (HasKey(rgba)) BleedUnderKey(rgba, o.Width, o.Height);
+            b = new RoadRaster.Tex(o.Width, o.Height, rgba);
+        }
+        return _bled[member] = b;
+    }
+
     /// <summary>The pack's upscale of the member in the texture's stored order and key, decoded the first time; null where there is none.</summary>
-    private RoadRaster.Tex? HdOf(string member)
+    private HdPic? HdOf(string member)
     {
         if (_hd.TryGetValue(member, out var h)) return h;
-        h = null;
-        if (Original(member) is { } o && HdTextures.Load(member) is { } img)
-        {
-            int w = img.GetWidth(), hh = img.GetHeight(), s = HdTexture.ScaleOf(w, hh, o.Width, o.Height);
-            if (s == 0) GD.PushWarning($"HD texture {member}: {w}x{hh} is not a power-of-two multiple of {o.Width}x{o.Height}");
-            else h = new RoadRaster.Tex(w, hh, HdTexture.Fit(img.GetData(), w, hh, s, o.Rgba, o.Width, o.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase)));
-        }
+        h = Bled(member) is { } b && HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b) : null;
         return _hd[member] = h;
     }
+
+    /// <summary>
+    /// Decodes and fits the upscales of the members not made yet on worker threads (a model's or a scene's textures, before its
+    /// materials ask for them one at a time). Nothing touches the renderer.
+    /// <paramref name="rgba"/>: they are painted on the CPU (GetRgba), so a .dds is decompressed there too.
+    /// </summary>
+    public void Prefetch(IEnumerable<string> members, bool rgba = false)
+    {
+        if (!Hd || HdTextures.Source is null) return;
+        // a folder's files are read on the workers too; a zip's here
+        bool anywhere = HdTextures.ReadAnywhere;
+        var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base)>();
+        foreach (var m in members.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (_hd.ContainsKey(m)) continue;
+            if (Bled(m) is not { } b) { _hd[m] = null; continue; }
+            var f = anywhere ? null : HdTextures.Read(m);
+            if (!anywhere && f is null) { _hd[m] = null; continue; }
+            todo.Add((m, f, b));
+        }
+        if (todo.Count == 0) return;
+        var made = new HdPic?[todo.Count];
+        System.Threading.Tasks.Parallel.For(0, todo.Count, i =>
+        {
+            if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
+            made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base);
+            if (rgba) _ = made[i]?.Rgba;
+        });
+        for (int i = 0; i < todo.Count; i++) _hd[todo[i].Member] = made[i];
+    }
+
+    private static HdPic? Fitted(string member, string name, byte[] bytes, RoadRaster.Tex b)
+    {
+        if (HdTextures.Decode(name, bytes) is not { } img) return null;
+        int w = img.GetWidth(), hh = img.GetHeight(), s = HdTexture.ScaleOf(w, hh, b.Width, b.Height);
+        if (s == 0) { GD.PushWarning($"HD texture {member}: {w}x{hh} is not a power-of-two multiple of {b.Width}x{b.Height}"); return null; }
+        if (img.IsCompressed()) return new HdPic(w, hh, null, img);
+        return new HdPic(w, hh, new RoadRaster.Tex(w, hh, HdTexture.Fit(img.GetData(), w, hh, s, b.Rgba, b.Width, b.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase))), null);
+    }
+
+    /// <summary>The upscale's picture for the GPU: a .dds as it is, a fitted picture with its mipmaps.</summary>
+    private static Image Picture(HdPic h) => h.Gpu ?? Prepare(h.Rgba).Img;
 
     private readonly Dictionary<string, Entry?> _cache = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The members with an upscale among the textures made: each look's picture, for the swap.</summary>
@@ -74,7 +146,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     public Entry? Get(string member)
     {
         if (_cache.TryGetValue(member, out var e)) return e;
-        e = Stored ? I76.Formats.Vfs.SessionStore.GetOrAdd("tex|" + _scope + member, () => Make(member), x => x is null ? 0 : x.Rgba.LongLength * 5 / 2) : Make(member);
+        e = Stored ? I76.Formats.Vfs.SessionStore.GetOrAdd("tex|" + _scope + member, () => Make(member), x => x is null ? 0 : x.Base.Rgba.LongLength * 5 / 2) : Make(member);
         _cache[member] = e;
         return e;
     }
@@ -82,17 +154,10 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private Entry? Make(string member)
     {
         if (Original(member) is not { } o) return null;
-        var orig = Prepare(o);
-        var served = Hd && HdOf(member) is { } h ? Prepare(h) : orig;
-        return new Entry(ImageTexture.CreateFromImage(served.Img), served.Key, served.Img.GetWidth(), served.Img.GetHeight(), served.Rgba, KeyColourOf(o),
-            new RoadRaster.Tex(o.Width, o.Height, orig.Rgba));
-    }
-
-    /// <summary>What index 255 decodes to: the colour of the original's first keyed texel (default with no key).</summary>
-    private static Color KeyColourOf(RoadRaster.Tex t)
-    {
-        for (int i = 3; i < t.Rgba.Length; i += 4) if (t.Rgba[i] == 0) return Color.Color8(t.Rgba[i - 3], t.Rgba[i - 2], t.Rgba[i - 1]);
-        return default;
+        var b = Bled(member)!;
+        var img = Hd && HdOf(member) is { } h ? Picture(h) : Prepare(b).Img;
+        // keyed as the original is: an upscale carries the original's key
+        return new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
     }
 
     /// <summary>The look's pictures on the textures made so far: the originals in the 1997 look, the modern look's per the HD Textures row.</summary>
@@ -106,20 +171,30 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         foreach (var (member, e) in _cache)
         {
             if (e is null || HdOf(member) is not { } h) continue;
-            if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Prepare(h).Img, Prepare(Original(member)!).Img);
+            if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Picture(h), Prepare(Bled(member)!).Img);
             e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
         }
     }
 
-    private static (Image Img, bool Key, byte[] Rgba) Prepare(RoadRaster.Tex t)
+    /// <summary>What index 255 decodes to in the original (its first keyed texel's colour, before any bleed).</summary>
+    private static Color KeyColour(RoadRaster.Tex t)
     {
-        var rgba = (byte[])t.Rgba.Clone();
-        bool key = false;
-        for (int i = 3; i < rgba.Length; i += 4) if (rgba[i] == 0) { key = true; break; }
-        if (key) BleedUnderKey(rgba, t.Width, t.Height);
-        var img = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, rgba);
+        for (int i = 3; i < t.Rgba.Length; i += 4) if (t.Rgba[i] == 0) return Color.Color8(t.Rgba[i - 3], t.Rgba[i - 2], t.Rgba[i - 1]);
+        return default;
+    }
+
+    private static bool HasKey(byte[] rgba)
+    {
+        for (int i = 3; i < rgba.Length; i += 4) if (rgba[i] == 0) return true;
+        return false;
+    }
+
+    /// <summary>A texture already coloured under its key (Bled, or an upscale fitted over it) with its mipmaps.</summary>
+    private static (Image Img, bool Key) Prepare(RoadRaster.Tex t)
+    {
+        var img = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
         img.GenerateMipmaps();
-        return (img, key, rgba);
+        return (img, HasKey(t.Rgba));
     }
 
     /// <summary>

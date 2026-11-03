@@ -116,6 +116,7 @@ public partial class Hud : CanvasLayer
             static Texture2D? Upright(Texture2D? t)
             {
                 if (t?.GetImage() is not { } img) return null;
+                if (img.IsCompressed()) img.Decompress();   // a pack's .dds
                 img.FlipY();
                 return ImageTexture.CreateFromImage(img);
             }
