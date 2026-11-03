@@ -196,6 +196,7 @@ stacked ones and the integration branch are section I, after H.
 |---|---|---|---|---|---|
 | C2 | perf/interop-garbage | the cars' drop-shadow casters are found once, a shadow's node is told only what changed, the smoke layer keeps its uniform set (frame profiler: gc0_per_100) | frame profiles: process step T01 2.08 -> 1.77 ms, T05 3.04 -> 2.38 (GTX 1650 Ti), T01 3.85 -> 2.84 (GTX 1080 Ti); finalizer thread 6.3 -> 3.0 % of samples; captures bit-identical | - | merged |
 | C | fix/cockpit-gauge-dials-too-dark | the 3D cockpit's dials black under their lettering (an opaque face draws its keyed texels in index 255's colour, not the bleed), the cockpit art read at its full-size level, nearest; the needles in the palette colour the original's flat-face lookup gives (entry 160 on T01), lit, turned off-centre with the reading side 0.69 of the length; its earlier "Cockpit gauge needles" deviations row gone | original (86Box, retail 1.0, software renderer, 640x480, T01 by day, n 1 boot): every needle pixel a shade of entry 160; the pivot 0.70/0.71 (speedometer) and 0.66/0.70 (tachometer); the speedometer face's pixels darker than 32/255 68 % original, 33 % before, 61 % (1997) / 64 % (modern) now; local: Game CockpitNeedleTests 4 | `_scratch/r3-needle-2/` (captures beside the emulator's) | merged (6a01da1, pass 4) |
+| C | fix/target-tags-bold | the garage's (C), (V), (R) part legends: the letter rastered emboldened (1.3) and a little larger in its ring, modern look only; the ring and the 1997 look unchanged | ux (owner's note); captures of FIELD SALVAGE before and after; no unit test (a text-server raster weight) | `_scratch/r3-visual-tweaks/` | merged (ebadeb6, pass 8) |
 | D | feat/hd-world-textures | the modern look draws a player's upscaled texture from user://tex-world/ (or a pack zip's tex-world/) in a texture's place, 2x/4x/8x; the 1997 look keeps the originals; nothing ships | local: Formats HdTextureTests, Game CockpitPanelsBlitTests | `_scratch/r3-upscale-v1/shots/{front,cockpit}-{original,hd}-1280x960.png` | merged |
 | D | feat/hd-texture-tool | `--export-textures DIR` and tools/upscale-textures.py (the 4xTextures_GTAV_rgt-s_dither model, CC-BY-4.0, named in the pack) make such a pack from the player's own install | local: 6,563 PNGs exported from a base install; the lab's pack stays outside the repository | as above | merged |
 | I1 | fix/turret-aim-moving-carrier | a turret aims at the predictor's point from the barrel; nothing taken off for the carrier's own travel; the AI gun gate and friendly scan test the round as it flies here | original (measured 2026-11-02, see below): rounds never inherit the carrier's velocity and the original's turrets hit from a moving carrier; local: TurretLeadTests 188/200 hits at 20 m/s (was 1) | `_scratch/r3-sim-fixes/shots/turret-chase-{modern,1997}.png` | merged; CheckpointTests (T14) moves, see known failures |
@@ -234,6 +235,18 @@ stacked ones and the integration branch are section I, after H.
 | I34 | fix/net-esc-labels | the network Esc menu: Leave Match, Exit I76, the questions saying which | ux; local: Net EscapeMenuSelfDestructTests 6 | `_scratch/r3-mp-esc/` | merged |
 | I35 | feat/pistol-keys | Pistol Left / Pistol Right (Control Configuration and the pad screens): held in the cockpit, the head turns to that window and the .45 fires once the arm is up; in CarInput, protocol 25 | ux; local: Sim HandgunSessionTests (first shot 0.498 s after the key at 20 Hz), Formats PistolKeysTests, Net WireTests | `_scratch/r3-pistol/shots/` | merged; the owner's input.map and gamekeys.cfg on both machines |
 | I36 | fix/round3-integration-4 | the integrator's pass-7 fix: the `*` on every value the original does not have, on every row that offers the original's (below); the shell's Graphic Detail values end short of the scroll bar | owner's decision; local: Game SettingsWithoutARowTests, Sim PaintFinish / ScreenWobble | `_scratch/r3-integration-4/shots/shell-gd-{modern,1997}.png` | merged |
+| I37 | fix/dev-panel-scale | the Developer panels (mission and main menu) scale with the window: 2x from 1080 rows, 3x at 4K, following a resize (DevScale) | ux (owner's note); local: Game DevScaleTests; captures at factor 1 and a forced 2 | `_scratch/r3-devscale/` | merged (9884461) |
+| I38 | feat/graphics-rows-to-config | HD Textures and HD Menu Art leave Graphic Detail: `[port] hd_textures` / `hd_menu_art`, on by default (modern look), toggled on the Developer panel; a saved Off kept | owner's taste (keep menus simple); local: Game HdSettingsKeysTests, HdTexturesSettingTests | `_scratch/r3-dev-settings/` | merged (7ae64f9) |
+| I39 | feat/dev-panel-settings-and-signals | the Developer panel's second column: Settings (every key of playing.md's "Settings without a row" as a stepping button, saved at once, applied live where it can) and Signals (the last 3 s of force feedback, rumble and telemetry, can stay over the game) | local: Game DevSettingsSignalsTests 7 (the key list held equal to playing.md's table) | `_scratch/r3-dev-settings/` | merged (e7fa4a4) |
+| I40 | feat/upscale-colour-match | tools/upscale-textures.py brings the model's blurred picture back to the original's colour in Oklab, the model's detail kept; `--from` applies it to an old pack, `--no-colour-match`, `--self-check` | self-check 5/5 (error 4.23 -> 0.40); the lab pack's car panel 2.06 -> 1.07, dash 2.66 -> 1.84; 6,510 textures repacked in 25 min | `_scratch/r3-upscale-v1/` | merged (c638aeb); the playtest machines keep their pack (regenerate to see it) |
+| I41 | fix/smoke-depth-metal | with MSAA the modern smoke layer reads the multisampled depth itself (no smoke through a hill, car or turret on a Mac) (#95) | issue #95; on an M-series Mac (Metal, MSAA 4x, Render Scale 50 %) before/after; local: Game SmokeDepthTests 9 | `_scratch/r3-smoke-mac/` | merged (f6c143a) |
+| I42 | fix/dymo-labels-brighter | the modern cockpit's label tape letters pure white (255 lit, 238 unlit), a narrower antialiased edge, the emboss shadow darker | ux (owner's note); local: Game DymoLabelsTests 19 | `_scratch/r3-visual-tweaks/` | merged (72392d9) |
+| I43 | feat/vegetation-density | `[port] vegetation_density` (10-150 %, 60 by default) thins the modern look's scattered plants to a subset; the map's placed objects and the 1997 look untouched | ux (owner: Low too dense); local: Formats VegetationTests (914 / 559 / 284 shrubs at 100 / 60 / 30 %); m01 plants placed 2886 / 1728 / 866 | - | merged (2dbf091) |
+| I44 | fix/ai-fire-cadence-as-original | docs only: a deviations row for the attack-tactic chooser: the 1997 CD build's is a stub that always picks dirt_gunner (T14's cop circles out of sight, a few rounds a minute), the 1998 build GOG ships draws from the weighted lists (road_side, steady fire); I26 follows the 1998 build | 86Box, retail 1.0, T14, n 7; headless T14 seeds 1-3 | - | merged (158f1b6); the AI follows GOG's build (version policy) |
+| I45 | fix/zero-armour-damage-as-original | test only: a round through a side whose armour is gone goes whole to the components, as measured | original (T14 damage tap); local: Sim DamageTests (new test passes) | - | merged (93b72d7) |
+| I46 | fix/wreck-smoke-range | the modern look's scenery-wreck fire and smoke start and draw out to 600 m, as the original's model sprites (were cut well short) | original (the 1997 look's reach); T05's wrecks at 450 / 250 / 80 m both looks; local: Game SmokeWindowTests | - | merged (7603218) |
+| I47 | fix/death-orbit-drawn | the death orbit camera interpolated between ticks (no 8-degree jumps every second or third frame on a fast display) | owner's report (Mac); M01 at 60 fps, frame-to-frame change even (13.5-15.9 against 16.5/2.8/3.2...); local: Sim DeathOrbitTests 2 new | - | merged (a92d4bb) |
+| I48 | fix/round3-integration-5 | the integrator's pass-8 fix: vegetation_density on the Developer panel's Settings (10/30/60/100/150, live), its playing.md row and shell.cfg line after the effects keys; the README's Windows tex-world path (a tab had replaced a backslash-t); two changelog full stops | local: Game 275/275 (DevSettingsSignalsTests' table test failed on play before it) | - | merged (4984d2c) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -369,12 +382,45 @@ renders, net 25, the 2x pack read), and to the Mac (VERSION.txt "play 26db81f de
 no game run), with a launcher "I26 play (smoke diagnostic)" that sets I76_SMOKE_DEPTH_VIEW=1. Neither user folder had an
 input.map or gamekeys.cfg before, so no .before-pistol copy was needed.
 
+Pass 8 (2026-11-03): the twelve branches above (rows I37-I47 and fix/target-tags-bold in C) merged by sync-play
+(incremental, `-NoRebase`, play kept on 0.11.0; rerere replayed the resolutions of a scratch pass of the same merges in
+the same order, the trees identical), then fix/round3-integration-5. fix/wreck-smoke-range and fix/death-orbit-drawn
+came in during the pass and went into a second dry run before anything was pushed. Left for the next pass (in progress):
+feat/tactile-lfe, feat/audio-output-modes, feat/modern-look-colour-match, feat/modern-lighting-calibration,
+fix/map-edge-roads-and-1997, fix/map-edge-placed-objects, feat/build-version-rules.
+- CHANGELOG.md: fix/target-tags-bold (base 0.11.0) adds its own Unreleased Fixed part; its line goes at the end of
+  play's Fixed list. Elsewhere union (the Developer panel, HD keys, colour match and vegetation lines under New; labels,
+  wreck smoke and death orbit under Fixed).
+- README.md (colour match over graphics-rows-to-config): the colour-match paragraph kept, ending with the HD key's words
+  (`hd_textures=false` or the Developer panel's Settings) since the row is gone.
+- fix/round3-integration-5: vegetation_density in DevSettings (the table test holds the panel to playing.md), the
+  README's Windows path, two full stops.
+
+Versions after pass 8: snapshot 24, protocol 25, shell.cfg 13, unchanged (vegetation_density is written only when not
+60; the HD keys only when off).
+
+Test status, pass 8 (fix/round3-integration-5 at 4984d2c, the tree of `play` 0b0790c but the manifest): desktop
+(I76_INSTALL and I76_NITRO_INSTALL set) Game 275/275, Sim 985/1018, Net 419/440; outside the desktop baseline only the
+known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the
+Nitro install set) and three Net network tests (AnetMelee's NAT game, Discovery's address book, the locked game's
+lobby) that ran while the laptop deploy and the push loaded the machine; run alone they pass 3/3, and on the laptop.
+Laptop: Sim 984/1016, Net 425/440, Game 275/275, Formats 923/958 (30 skipped), Editor 216/216; outside the laptop's
+baseline the three known Sim ones. No new failure.
+
+Deployed: `play` 0b0790c to the laptop (VERSION.txt "play 0b0790c deployed 2026-11-03T11:38Z"; smoke T01 --drive renders,
+net 25, the 2x pack read, the plants thinner; `_scratch/deploy/smoke8-laptop.png`) and to the Mac (VERSION.txt "play
+0b0790c deployed 2026-11-03T11:37Z", built and imported there on the first try; no game run). No user-folder changes.
+The laptop's run-gui.ps1 is the older -Cmd one; the -CmdFile one ran from runs/run-gui2.ps1.
+
 Open after round 3:
 - The Mac's head look (the owner's note): open; not reproduced here. A per-machine input.map is suspected. Needs the
   Mac's input.map and a repro.
 - Map walls: Original (Plain*) stays the default; Hide is a choice, not the default.
-- CheckpointTests (T14) fails with the turret aim fix: the cops' turrets now hit Taurus and the checkpoint race no longer
-  plays out as the test pinned it. A consequence of a faithful fix: left failing and listed below; the test needs a
+- CheckpointTests (T14) fails because I26's AI follows the GOG (1998) build: its attack-tactic chooser draws from the
+  weighted lists, so T14's lead cop takes road_side and patrols 160-190 m off in clear view, firing steadily, and with
+  the turret aim fix its rounds hit Taurus; the checkpoint race no longer plays out as the test pinned it. The 1997 CD
+  build's chooser always returns dirt_gunner and its cop circles mostly out of sight (fix/ai-fire-cadence-as-original's
+  deviations row, measured n 7). Faithful to the build players own, so left failing and listed below; the test needs a
   different mission or car (a follow-up lane).
 
 Hand fixes in round 3 (each a conflict-hunk resolution rerere keeps, unless said to be in fix/round3-integration):
