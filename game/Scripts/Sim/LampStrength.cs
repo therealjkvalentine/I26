@@ -1,0 +1,34 @@
+namespace I76.Game.Sim;
+
+/// <summary>
+/// How strong the modern look's lamps are against the daylight. The original lights nothing from a car by day (its
+/// headlight pool and night light exist only under a night preset), and its lit lamp faces are flat texture; the modern
+/// look's beams, glares and lens glows are an addition, full at night and turned down in sunlight, where a lamp reads
+/// as a lit lens rather than a light source. Daylight is the preset's sun intensity (1 by day, 0.625 at dusk), 0 at night.
+/// </summary>
+public static class LampStrength
+{
+    /// <summary>The headlamp spotlights' energy at night.</summary>
+    public const float HeadEnergy = 9f;
+    /// <summary>The brake lamps' small red light behind the car, at night.</summary>
+    public const float BrakeLightEnergy = 0.7f;
+    /// <summary>The lens glow over the lit brake and tail lamp faces, at night.</summary>
+    public const float BrakeGlow = 0.9f, TailGlow = 0.4f;
+    /// <summary>What is left of each in full sun.</summary>
+    public const float HeadDayFloor = 0.2f, BrakeLightDayFloor = 0.25f, GlowDayFloor = 0.4f;
+
+    /// <summary>The daylight a preset gives: its intensity under the sun, 0 under the moon.</summary>
+    public static float Daylight(bool isDay, float intensity) => isDay ? Math.Clamp(intensity, 0f, 1f) : 0f;
+
+    /// <summary>A lamp's share of its night strength at <paramref name="daylight"/>: 1 at night, <paramref name="dayFloor"/> in full sun.</summary>
+    public static float Scale(float daylight, float dayFloor) => 1f - (1f - dayFloor) * Math.Clamp(daylight, 0f, 1f);
+
+    /// <summary>The current mission's daylight, as last set (the shaders read it as the i76_daylight global).</summary>
+    public static float Current { get; private set; }
+
+    public static void Set(float daylight)
+    {
+        Current = daylight;
+        I76.Game.World.ObjectLight.Set("i76_daylight", daylight);
+    }
+}

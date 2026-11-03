@@ -1771,6 +1771,7 @@ public partial class Main : Node3D
         I76.Game.World.ObjectLight.Set("i76_light_dir", l);
         _lightDir = l;
         I76.Game.World.ObjectLight.Set("i76_light_intensity", light.Intensity);
+        I76.Game.Sim.LampStrength.Set(I76.Game.Sim.LampStrength.Daylight(light.IsDay, light.Intensity));
         I76.Game.World.ObjectLight.Set("i76_ambient", light.Ambient);
         I76.Game.World.ObjectLight.Set("i76_night", !light.IsDay);
         I76.Game.World.ObjectLight.Set("i76_fade", new Vector2(I76.Formats.Mission.Lighting.FadeA, I76.Formats.Mission.Lighting.FadeB));

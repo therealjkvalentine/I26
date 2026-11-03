@@ -103,6 +103,10 @@ i76_light_intensity={
 "type": "float",
 "value": 1.0
 }
+i76_daylight={
+"type": "float",
+"value": 0.0
+}
 i76_smoke={
 "type": "sampler2D",
 "value": ""
