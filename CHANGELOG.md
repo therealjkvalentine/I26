@@ -120,6 +120,8 @@
 - In a network game a quick tap of Tab (or the pad's Back) locks the standings open until the next tap or Esc: the mouse pointer appears, the wheel turns the pages, the pad's d-pad moves a cursor, and the host can boot a driver by clicking their row twice (#107).
 - The host of a network game can ban a player for the rest of the game: type /ban NAME in the chat (or ban NAME on the dedicated server's console) to boot them and refuse their rejoins, by name and by the address they joined from; /ban lists the bans and /unban NAME lifts one (#117).
 - The internet game list (the Net Melee Entry Roster) has a Connect to Server button under the games, which opens the server list again so you can look at another server's games without going back to the main menu (#122).
+Network games use protocol 22: this version does not play with 0.11.0 or earlier.
+- A network game's host can lock the ignition: with the host form's Ign: Lock (IGNITION STAYS ON in the Nitro and co-op game options, or --no-ignition-off for the dedicated server), nobody can switch their engine off in that game to hide from turrets; the game list shows "Ignition stays on" (#108).
 
 ## 0.11.0 (31 October 2026)
 

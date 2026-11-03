@@ -12,10 +12,35 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs21()
+    public void TheProtocolIs22()
     {
-        Assert.Equal(21, Protocol.Version);
+        Assert.Equal(22, Protocol.Version);
         Assert.Equal(16, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+    }
+
+    /// <summary>The host's ignition lock (protocol 22): the join accept's last byte and the listing's; an older listing without it reads as off.</summary>
+    [Fact]
+    public void TheIgnitionLockRidesInTheAcceptAndTheListing()
+    {
+        var acc = new JoinAccept(2, 17, "m05", 1234, "vppirna1.vcf", false, 0, 0, 5, [], []);
+        foreach (bool on in new[] { false, true })
+        {
+            var w = new NetWriter();
+            (acc with { IgnitionStaysOn = on }).Write(w);
+            var r = new NetReader(w.Span);
+            r.U8();
+            Assert.Equal(on, JoinAccept.Read(ref r).IgnitionStaysOn);
+            w.Clear();
+            var info = new SessionInfo(7, Protocol.Version, "Night", "M05.MSN", 1, 8, false, false, 0, 0, false, [], IgnitionStaysOn: on);
+            info.Write(w);
+            Assert.Equal(on, SessionInfo.TryRead(w.Span)!.IgnitionStaysOn);
+            if (!on) continue;
+            // a listing that ends before the byte (an older host): off
+            var older = w.Span[..^1].ToArray();
+            var back = SessionInfo.TryRead(older)!;
+            Assert.False(back.IgnitionStaysOn);
+            Assert.True(back.Cb);
+        }
     }
 
     [Fact]
@@ -196,7 +221,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(21, Protocol.Version);
+        Assert.Equal(22, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -530,7 +555,7 @@ public class RestrictionWireTests
         // an answer written before the fields (it ends at the password flag) has no restrictions and no hidden content
         var w = new NetWriter();
         Info(I76.Sim.Trip.WeaponRestrictions.Normalize(false, [(2, 6)]), true).Write(w);
-        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's and the CB's
+        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1 + 1)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's, the CB's and protocol 22's ignition byte
         var back = SessionInfo.TryRead(cut)!;
         Assert.NotNull(back);
         Assert.False(back.Hidden);
@@ -545,7 +570,7 @@ public class RestrictionWireTests
         var w = new NetWriter();
         Info(null, false).Write(w);
         var bytes = w.Span.ToArray();
-        bytes[^6] = 200;                       // the pair count (before the co-op, rate, lobby, car reset and CB bytes), past the most a list carries
+        bytes[^7] = 200;                       // the pair count (before the co-op, rate, lobby, car reset, CB and ignition bytes), past the most a list carries
         Assert.Null(SessionInfo.TryRead(bytes));
     }
 }

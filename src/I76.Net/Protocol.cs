@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 21;
+    public const ushort Version = 22;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -346,7 +346,12 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         Coop?.Write(w);
         // protocol 20: the CB radio is on in this game (the host's CB Radio option)
         w.Bool(Cb);
+        // protocol 22: the engine stays on in this game (the host's ignition lock), for the client's prediction
+        w.Bool(IgnitionStaysOn);
     }
+
+    /// <summary>The host's rule that nobody switches their engine off (protocol 22; the host form's IGN. LOCK, i26-server's --no-ignition-off).</summary>
+    public bool IgnitionStaysOn { get; init; }
 
     /// <summary>The CB radio is allowed in this game (the host form's CB Radio, i26-server's --no-cb turns it off); off, the server relays no voice and the client neither sends nor opens the microphone.</summary>
     public bool Cb { get; init; } = true;
@@ -382,7 +387,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         if (kind > MeleeKind.Ctf || goal > MeleeGoal.Kills) throw new WireException($"melee kind {kind} goal {goal}");
         var coop = r.Bool() ? CoopInfo.Read(ref r) : null;
         bool cb = r.Bool();
-        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb };
+        bool ignition = r.Bool();
+        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>

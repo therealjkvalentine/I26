@@ -73,6 +73,7 @@ public partial class Main
                 AllowTurrets = _opt.Turrets ?? I76.Game.Shell.MeleeSetup.Load().HostTurrets,
                 AllowCarReset = _opt.CarReset ?? I76.Game.Shell.ShellSettings.Load().CarReset,
                 AllowCb = _opt.Cb ?? I76.Game.Shell.ShellSettings.Load().CbRadio,
+                IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
             };
             if (_opt.Restrict is { Length: > 0 } spec)
             {
@@ -430,6 +431,7 @@ public partial class Main
         _opt.Hidden = n.Hidden;
         _opt.Turrets = n.Turrets;
         _opt.CarReset = n.CarReset;
+        _opt.IgnitionStaysOn = n.IgnitionStaysOn;
         _opt.Cb = n.Cb;
         _opt.Bots = n.Bots;
         _opt.BotSkill = n.BotSkill;
