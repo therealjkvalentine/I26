@@ -1219,7 +1219,7 @@ public sealed class ShellSettings
     /// <summary>The port's own: the modern look's frame matched to the mission's 8-bit palette (Graphic Detail's Palette Grade; SoftwareLook). Off unless set.</summary>
     public bool PaletteGrade { get; set; }
     /// <summary>The port's own: Graphic Detail's Crash Blur, the software renderer's double image on a big cockpit hit (<see cref="I76.Sim.Views.CrashBlurMode"/>: On by default; the original's blit in the 1997 look, a smooth one in the modern look).</summary>
-    public int CrashBlur { get; set; }
+    public int CrashBlur { get; set; } = I76.Sim.Views.CrashBlurMode.On;
     /// <summary>The port's own: the mouse orbits the chase view (Graphic Detail's Mouse Camera; <see cref="I76.Sim.Views.MouseLook"/>: 0 Off, 1 Slow, 2 Normal, 3 Fast). Normal unless the player chose; a file without the key gets it.</summary>
     public int MouseCamera { get; set; } = I76.Sim.Views.MouseLook.Normal;
     /// <summary>The port's own: Mouse Camera's vertical flipped (shell.cfg [port] mouse_invert_y; off).</summary>
