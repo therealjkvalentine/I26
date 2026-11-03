@@ -33,6 +33,18 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     private readonly Dictionary<string, Image?> _sheets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, byte[]?> _sheetBytes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _scales = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The modern look's labels, made once per plate, text and scale: RGBA8 at the target's scale, stored bottom-up.</summary>
+    private readonly Dictionary<(string, string, int), byte[]> _labels = new();
+
+    /// <summary>The panels the modern look's labels are drawn on (the weapons and the specials panels).</summary>
+    private static readonly HashSet<string> Labelled = new(["zbk_.map", "zbks_.map"], StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The fewest texels per original pixel the labelled panels are worked at: 2 in the modern look, so its labels are
+    /// drawn finer than the original's pixels without the pack (the panel's own pixels doubled, nearest); 1 in the 1997 look.
+    /// Takes effect at the next Reload.
+    /// </summary>
+    public int LabelScale { get; set; } = 2;
 
     public EltLayout Layout => layout;
 
@@ -67,10 +79,10 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// </summary>
     public void Reload()
     {
-        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear();
+        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear(); _labels.Clear();
         foreach (var (dst, t) in _targets)
         {
-            if (t is null || Load(dst) is not { } img) continue;
+            if (t is null || LoadTarget(dst) is not { } img) continue;
             var bytes = img.GetData();
             t.Base = img; t.Work = (Image)img.Duplicate(); t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone();
             t.W = img.GetWidth(); t.H = img.GetHeight(); t.S = ScaleOf(dst); t.Dirty = false;
@@ -82,7 +94,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     {
         if (_targets.TryGetValue(dst, out var t)) return t;
         t = null;
-        if (Member(dst) is { } member && Load(dst) is { } img)
+        if (Member(dst) is { } member && LoadTarget(dst) is { } img)
         {
             var tex = ImageTexture.CreateFromImage(img);
             if (!Unbound.Contains(dst)) materials.OverrideTexture(member, tex);
@@ -90,6 +102,20 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
             t = new Target { Base = img, Work = (Image)img.Duplicate(), Texture = tex, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = img.GetWidth(), H = img.GetHeight(), S = ScaleOf(dst) };
         }
         return _targets[dst] = t;
+    }
+
+    /// <summary>A dst texture's original image, a labelled panel's doubled (nearest) up to LabelScale.</summary>
+    private Image? LoadTarget(string dst)
+    {
+        if (Load(dst) is not { } img) return null;
+        int s = ScaleOf(dst);
+        if (Labelled.Contains(dst) && s < LabelScale && LabelScale % s == 0)
+        {
+            int k = LabelScale / s;
+            img.Resize(img.GetWidth() * k, img.GetHeight() * k, Image.Interpolation.Nearest);
+            _scales[dst] = LabelScale;
+        }
+        return img;
     }
 
     private Image? Sheet(string src)
@@ -138,6 +164,30 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     public void StampAt(string sprite, string anchor, int dx = 0, int dy = 0)
     {
         if (layout.Find(anchor) is { } a && !a.Label.Name.Equals(sprite, StringComparison.OrdinalIgnoreCase)) Stamp(a.Texture, sprite, a.Label.X + dx, a.Label.Y + dy);
+    }
+
+    /// <summary>
+    /// The modern look's label at a dst anchor: the plate <paramref name="sprite"/> (or <paramref name="fallback"/>, the
+    /// EMPTY plate, for a plate the sheet has not got) with its painted letters replaced by <paramref name="text"/> in the
+    /// label font (DymoLabels), at the panel's scale. Without the font, the plate as painted.
+    /// </summary>
+    public void StampLabel(string sprite, string fallback, string anchor, string text, bool lit)
+    {
+        if (layout.Find(anchor) is not { } a || TargetOf(a.Texture) is not { } t) return;
+        if (layout.Find(sprite) is null) sprite = fallback;
+        if (DymoLabels.Font is not { } font) { StampAt(sprite, anchor); return; }
+        if (layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return;
+        var r = s.Label;
+        var key = (sprite.ToLowerInvariant(), text + (lit ? "|on" : "|off"), t.S);
+        if (!_labels.TryGetValue(key, out var label))
+        {
+            label = new byte[r.W * t.S * r.H * t.S * 4];
+            Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, label, r.W * t.S, r.H * t.S, t.S, 0, 0, keyed: false);
+            DymoLabels.Paint(label, r.W, r.H, t.S, font, text, lit);
+            _labels[key] = label;
+        }
+        Blit(label, r.W * t.S, r.H * t.S, t.S, 0, 0, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, a.Label.X, a.Label.Y, keyed: true);
+        t.Dirty = true;
     }
 
     /// <summary>

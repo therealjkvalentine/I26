@@ -247,6 +247,7 @@ for plat in windows linux linux-arm64; do
     [ $plat != windows ] && chmod +x "$stage/$exe"
     sed -e "s/@VERSION@/$ver/g" -e "s/@BUILD@/$stamp/g" tools/release/README.txt > "$stage/README.txt"
     cp tools/release/THIRD-PARTY-NOTICES.txt "$stage/"
+    cp "game/Fonts/ImpactLabel/Impact Label Licence.txt" "$stage/"   # the label font's licence travels with every copy
     [ -f game/vfx/SOURCE.txt ] && { echo; cat game/vfx/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
     [ -f game/ground/SOURCE.txt ] && { echo; cat game/ground/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
     dest=$here/dist/$name-$plat.zip
@@ -284,6 +285,7 @@ esac
 run rcodesign sign "$stage/I26.app" >"$cache/rcodesign.log" 2>&1 || { tail -30 "$cache/rcodesign.log" >&2; echo "rcodesign failed" >&2; exit 1; }
 sed -e "s/@VERSION@/$ver/g" -e "s/@BUILD@/$stamp/g" tools/release/README.txt > "$stage/README.txt"
 cp tools/release/THIRD-PARTY-NOTICES.txt "$stage/"
+cp "game/Fonts/ImpactLabel/Impact Label Licence.txt" "$stage/"
 [ -f game/vfx/SOURCE.txt ] && { echo; cat game/vfx/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
 [ -f game/ground/SOURCE.txt ] && { echo; cat game/ground/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
 dest=$here/dist/$name-macos.zip

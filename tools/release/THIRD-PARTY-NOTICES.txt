@@ -14,6 +14,12 @@ Free art (CC0, public domain dedication; no attribution required, given anyway)
   Visualization Studio, "CGI Moon Kit" (LRO / LROC colour map),
   https://svs.gsfc.nasa.gov/4720. NASA imagery, public domain.
 
+Font (Tension Type Free Font licence, not the project's licence)
+- Impact Label Reversed, (c) 2011 Tension Type: the cockpit's weapon labels in
+  the modern look. https://www.fontspace.com/impact-label-font-f9163
+  Free to use; redistributed unmodified with its licence, which is in
+  "Impact Label Licence.txt" in this folder.
+
 Godot Engine (MIT)
   Copyright (c) 2014-present Godot Engine contributors.
   Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.

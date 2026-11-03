@@ -34,7 +34,16 @@ public partial class Cockpit : Node
     public bool Faithful
     {
         get => _faithful;
-        set { _faithful = value; ApplyMirrorMode(); _repaintWeapons = _repaintSpecials = true; }
+        set
+        {
+            bool was = _faithful;
+            _faithful = value;
+            ApplyMirrorMode();
+            _repaintWeapons = _repaintSpecials = true;
+            // the modern look's labels want the weapons and specials panels at twice the original's pixels at least
+            Panels.LabelScale = value ? 1 : 2;
+            if (was != value && IsInsideTree()) ArtSwapped();
+        }
     }
     private bool _faithful;
 
@@ -559,7 +568,10 @@ public partial class Cockpit : Node
             var w = ws[i]; var row = _rows[i]; int n = i + 1;
             Panels.StampAt("housing" + row.Housing, $"bracket_{n}");
             if (row.Diode >= 0) Panels.StampAt(DiodeSprite[row.Diode], $"diode_{n}");
-            Panels.StampAt(Res(row.On ? w.Def.PlateOn : w.Def.PlateOff), $"dymo_{n}");
+            string plate = Res(row.On ? w.Def.PlateOn : w.Def.PlateOff);
+            // the 1997 look: the plate as painted; the modern look: the name embossed in the label font (docs/deviations.md)
+            if (_faithful) Panels.StampAt(plate, $"dymo_{n}");
+            else Panels.StampLabel(plate, row.On ? "empty_on" : "empty_off", $"dymo_{n}", DymoLabels.Text(plate, w.Def.Name), row.On);
             for (int p = 0; p < 4; p++) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
         }
         if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
@@ -615,9 +627,16 @@ public partial class Cockpit : Node
             var s = specs[i]; var row = _specRows[i]; int n = i + 1;
             Panels.StampAt("housing" + row.Housing, $"sp_bracket_{n}");
             // an empty slot (type 0) keeps the housing's own EMPTY plate and 0000: no plate, diode or counter is drawn
-            if (s is null || s.Type == 0) continue;
+            if (s is null || s.Type == 0)
+            {
+                // the modern look letters the housing's painted EMPTY as it does the plates
+                if (!_faithful) Panels.StampLabel("sp_empty_off", "sp_empty_off", $"sp_dymo_{n}", DymoLabels.Text("sp_empty_off", null), false);
+                continue;
+            }
             int type = s.Type < 0 || s.Type >= SpecialNames.Length ? 0 : s.Type;
-            Panels.StampAt(SpecialNames[type] + (row.On ? "_on" : "_off"), $"sp_dymo_{n}");
+            string plate = SpecialNames[type] + (row.On ? "_on" : "_off");
+            if (_faithful) Panels.StampAt(plate, $"sp_dymo_{n}");
+            else Panels.StampLabel(plate, row.On ? "sp_empty_on" : "sp_empty_off", $"sp_dymo_{n}", DymoLabels.Text(plate, null), row.On);
             if (row.Diode >= 0) Panels.StampAt(DiodeSprite[row.Diode], $"sp_diode_{n}");
             for (int p = 0; p < 4; p++) Panels.VWindow("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
         }
