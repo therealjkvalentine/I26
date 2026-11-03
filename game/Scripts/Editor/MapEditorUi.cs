@@ -89,9 +89,12 @@ public partial class MapEditor
         palette.OffsetLeft = 14 * s; palette.OffsetTop = 70 * s;
         palette.AddThemeStyleboxOverride("panel", EditorStyle.Panel(s));
         _root.AddChild(palette);
+        // the column is taller than a 16:9 window: it scrolls (the wheel over it) down to the object tools and undo (#146)
+        var toolScroll = new ScrollContainer { Name = "ToolScroll", HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        palette.AddChild(toolScroll);
         var tools = new VBoxContainer();
         tools.AddThemeConstantOverride("separation", (int)(6 * s));
-        palette.AddChild(tools);
+        toolScroll.AddChild(tools);
         var tl = new Label { Text = "TERRAIN" };
         EditorStyle.Title(tl, 18 * s);
         tools.AddChild(tl);
@@ -118,6 +121,9 @@ public partial class MapEditor
         _undoLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(190 * s, 0) };
         EditorStyle.Body(_undoLabel, 14 * s, dim: true);
         tools.AddChild(_undoLabel);
+        void FitTools() => toolScroll.CustomMinimumSize = new Vector2(0, EditorStyle.ColumnHeight(tools.GetCombinedMinimumSize().Y, GetViewport().GetVisibleRect().Size.Y, s));
+        tools.MinimumSizeChanged += FitTools;
+        FitTools();
 
         // ---- the brush settings, right
         var side = new PanelContainer { Name = "Brush" };
