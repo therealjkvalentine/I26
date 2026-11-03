@@ -1293,6 +1293,8 @@ public sealed class ShellSettings
     public static readonly string[] MeleeAiNames = ["Normal" + OriginalMark, "Difficulty", "Easy", "Hard"];
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
+    /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
+    public bool GarageRadio { get; set; }
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
     public bool CarInteriors { get; set; } = true;
     /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Graphic Detail's Camera Return); off, it stays where it was left.</summary>
@@ -1439,6 +1441,7 @@ public sealed class ShellSettings
         s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
+        s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
@@ -1540,6 +1543,7 @@ public sealed class ShellSettings
         if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
+        if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
