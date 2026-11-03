@@ -88,6 +88,7 @@
 - Oil pumps and gas stations share one explosion, as in the original, whichever the mission places first: in T05 the oil pump blows as wide as a gas station, and in the S07 scenario the gas stations blow as small as an oil pump.
 - Heated Seats give every mounted weapon a tenth more ammunition when the car starts, as in the original; they did nothing before.
 - The camera round a destroyed car, and round the winner at the end of a network game, turns 8 degrees a tick (160 degrees a second at the default rate) as the original's end-of-match orbit does, instead of a slow 20 degrees a second.
+- A car shoved into a wall by another car in the same moment bounces off the wall, as in the original, instead of being driven on into it by the shove.
 
 ## 0.11.0 (31 October 2026)
 
