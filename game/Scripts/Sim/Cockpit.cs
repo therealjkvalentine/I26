@@ -68,7 +68,13 @@ public partial class Cockpit : Node
         _rng = new System.Random();
         HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
         SetupMirror();
+        Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
     }
+
+    public override void _ExitTree() => Controls.LookingBack = null;
+
+    /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
+    public bool LookingBack => Active && (_state >= 6 || _pose == FreeLook.Pose.Rear);
 
     private (string? Member, ImageTexture?[] Tex) Frames(string pattern, int n)
     {

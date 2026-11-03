@@ -141,6 +141,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Draw Distance starts at Original in the 1997 look, the original's 600 m view with its horizon panels, and at Far in the modern look, until you choose one in Graphic Detail; a Draw Distance you chose is kept.
 - `]` in the 3D cockpit toggles the original's ghost cockpit: the interior and the rear mirror disappear, leaving the radar, the damage diagram, the compass and the gunsight over the road. It did nothing before.
 - A pad button can do one thing on a tap and another when held (Controller screen, a button's list: Tap / hold...): for example A a single shot on a tap and the nitrous when held. A press shorter than 400 ms is a tap.
+- Look-back bindings for a pad (Controller screen, off until switched on): looking back in the cockpit, fire shoots the rear gun (hardpoint 3) and R3 drops the dropper (hardpoint 4); and with the left stick pulled back, the handbrake button toggles reverse.
 
 ## 0.11.0 (31 October 2026)
 

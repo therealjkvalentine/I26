@@ -243,6 +243,9 @@ public sealed class ControllerScreen : OverlayScreen
     /// <summary>A command's name on the sheet: its Control Configuration row's, else the command itself.</summary>
     private static string CommandName(string command) => Array.FindIndex(Controls.Commands, c => c.Equals(command, StringComparison.OrdinalIgnoreCase)) is var i && Entries.Contains(i) ? NameOf(i) : command;
 
+    private bool LookBackOn => PadRules.LookBackPair().All(_map.Rules.Has);
+    private bool StickBackOn => _map.Rules.Has(PadRules.StickBackReverse());
+
     /// <summary>What an axis can do: the throttle, the steer, or the camera (the chase camera's track rows; the free look in the car).</summary>
     private static readonly string[] AxisItems = ["Accelerate / Brake", "Steer", "Camera / Look"];
     private static bool IsY(string channel) => channel.Equals("Down/Up", StringComparison.OrdinalIgnoreCase) || channel.Equals("5thAxis", StringComparison.OrdinalIgnoreCase);
@@ -264,6 +267,9 @@ public sealed class ControllerScreen : OverlayScreen
     {
         var lines = new List<string>();
         if (IsShift(e)) return [layer ? "Shift (held)" : "Shift"];
+        // the look-back rules (PadRules): on the look stick and the left stick's Y, where they are switched
+        if (e.Key == "RSX" && LookBackOn) lines.Add("Back: rear gun, dropper");
+        if (e.Key == "LSY" && StickBackOn) lines.Add("Back + e-brake: reverse");
         if (e.Axis)
         {
             foreach (var row in AxisControls.Rows)
@@ -284,6 +290,7 @@ public sealed class ControllerScreen : OverlayScreen
         }
         // with the shift held an input without a second command does its first: shown in brackets
         if (layer && lines.Count == 0) return [.. Describe(e, false).Select(l => $"({l})")];
+        if (e.Key == "R3" && LookBackOn) lines.Add("(back: dropper)");
         return [.. lines.Distinct()];
     }
 
@@ -542,10 +549,15 @@ public sealed class ControllerScreen : OverlayScreen
         if (e.Axis) items.AddRange(AxisItems);
         else foreach (var n in Entries) items.Add(NameOf(n));
         if (!e.Axis && !layer) { items.Add(ShiftItem); items.Add(TapHoldItem); }
+        // the look-back rules, switched from the stick they are keyed on
+        string? rule = e.Key is "RSX" or "RSY" ? (LookBackOn ? "Look back: rear gun off" : "Look back: rear gun on")
+            : e.Key == "LSY" ? (StickBackOn ? "Back + e-brake reverse off" : "Back + e-brake reverse on") : null;
+        if (rule is not null) items.Add(rule);
         List(items, byPad, i =>
         {
             if (!e.Axis && !layer && i == Entries.Length + 2) { TapHoldLists(e, byPad); return; }
-            if (i == 0 && layer && !IsShift(e)) _map.ClearShifted(e.Channel);
+            if (rule is not null && i == items.Count - 1) { if (e.Key == "LSY") _map.Rules.Toggle(PadRules.StickBackReverse()); else _map.Rules.Toggle(PadRules.LookBackPair()); }
+            else if (i == 0 && layer && !IsShift(e)) _map.ClearShifted(e.Channel);
             else if (i == 0) _map.ClearInput(e.Channel);
             else if (!e.Axis && !layer && i == Entries.Length + 1) _map.SetShift("joystick1", e.Channel);
             else if (i > 0 && layer) _map.AssignShifted(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);

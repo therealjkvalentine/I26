@@ -115,6 +115,16 @@ is that of a pad layout players used over the original (A: a tap one shot, a hol
 ends with *Tap / hold...*, which asks the tap's command and then the hold's; the row then reads *Tap: ...* and *Hold: ...*. Tests:
 `tests/I76.Formats.Tests/TapHoldTests.cs` (timings either side of 400 ms, one press after another, the file, the button's other bindings).
 
+**Look back** (context bindings, after the rules of a pad layout players used over the original; off by default). The head looks back when
+the rear glance is held or the look stick is pushed round to the rear (`Cockpit.LookingBack`, in the car only). `lookback weapon_fire
+hardpoint3_fire`: while looking back every input of fire (a key, A, RB) fires hardpoint 3, the rear gun on most cars, and not the selected
+weapon. `lookbackinput joystick1 Button10 hardpoint4_fire`: while looking back R3, the look stick's click, drops hardpoint 4 (the dropper)
+instead of its own command, and keeps its command otherwise. `pulledback joystick1 Down/Up e_brake reverse_direction`: with the left stick
+pulled back past half its travel the handbrake's press toggles reverse instead (a three-point turn without letting go of the stick); the
+choice is made at the press. On the Controller screen the look stick's list has *Look back: rear gun on/off* (the first two together) and
+the left stick's Y *Back + e-brake reverse on/off*; their rows say so. The remapper's L3-as-nitrous half of the last rule has no I26
+command to map onto and is left out. Tests: `tests/I76.Formats.Tests/LookBackRulesTests.cs`.
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that
