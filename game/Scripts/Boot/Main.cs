@@ -828,7 +828,7 @@ public partial class Main : Node3D
     /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover), live.</summary>
     public static void ApplyOutput(I76.Game.Shell.ShellSettings s)
     {
-        // Output and LFE Level: the shaker signal (BassShaker); in 2.1 the effects' bass under the crossover boosted by the level's
+        // Output and LFE Level: the shaker signal (BassShaker); mixed into stereo, the effects' bass under the crossover boosted by the level's
         // share once more. Godot's low shelf gives the square of its gain well below the corner and the gain itself at it (measured:
         // gain 2 is 4.0x at 20 Hz, 2.0x at the corner, 1.0x at 1 kHz), so it takes the factor's square root
         var output = s.Output;
@@ -841,7 +841,7 @@ public partial class Main : Node3D
         var low = (AudioEffectLowShelfFilter)AudioServer.GetBusEffect(sfx, shelf);
         low.CutoffHz = crossover;
         low.Gain = MathF.Sqrt(I76.Formats.Input.AudioOutputs.BassBoost(s.LfeLevel));
-        AudioServer.SetBusEffectEnabled(sfx, shelf, output == I76.Formats.Input.AudioOutput.Sub21 && s.LfeLevel > 0);
+        AudioServer.SetBusEffectEnabled(sfx, shelf, !I76.Formats.Input.AudioOutputs.Discrete(output) && I76.Formats.Input.AudioOutputs.Tactile(s.LfeLevel));
     }
 
     private void EndMission(bool won)

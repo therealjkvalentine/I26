@@ -260,8 +260,20 @@ public class TactileSynthTests
     {
         foreach (AudioOutput o in Enum.GetValues<AudioOutput>()) Assert.Equal(o, AudioOutputs.Parse(AudioOutputs.Key(o)));
         Assert.Equal(AudioOutput.Stereo, AudioOutputs.Parse("quad"));
-        Assert.False(AudioOutputs.Tactile(AudioOutput.Headphones));
-        Assert.True(AudioOutputs.Tactile(AudioOutput.Sub21));
+        Assert.Equal(["Stereo", "Phones", "5.1", "7.1"], AudioOutputs.Names);
+        // the LFE Level alone says whether the signal plays; 5.1 and 7.1 put it on the LFE, the rest mix it into both channels
+        Assert.Equal(0, AudioOutputs.DefaultLevel);
+        Assert.False(AudioOutputs.Tactile(AudioOutputs.DefaultLevel));
+        Assert.True(AudioOutputs.Tactile(25));
+        Assert.False(AudioOutputs.Discrete(AudioOutput.Headphones));
+        Assert.True(AudioOutputs.Discrete(AudioOutput.Surround71));
+        // an older file's 2.1 (the stereo mix) is Stereo, and with 5.1 and 7.1 keeps the old absent level, 100
+        Assert.Equal(AudioOutput.Stereo, AudioOutputs.Parse("2.1"));
+        Assert.True(AudioOutputs.HadShaker("2.1"));
+        Assert.True(AudioOutputs.HadShaker("5.1"));
+        Assert.False(AudioOutputs.HadShaker("stereo"));
+        Assert.False(AudioOutputs.HadShaker(null));
+        Assert.Equal(100, AudioOutputs.OldDefaultLevel);
         Assert.Equal(125, AudioOutputs.ClampLevel(130));
         Assert.Equal(200, AudioOutputs.ClampLevel(999));
         Assert.Equal(2f, AudioOutputs.BassBoost(100));

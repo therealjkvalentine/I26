@@ -5,6 +5,7 @@
 Network games use protocol 26: this version does not play with 0.11.0 or earlier.
 
 ### New
+- Audio Control's Output is Stereo, Phones, 5.1 or 7.1, and the LFE Level alone turns the bass-shaker signal on: in Stereo (and Phones) it is mixed into both channels with the effects' bass boost, as 2.1 was, in 5.1 and 7.1 it goes to the LFE channel; LFE Level is 0 (off) for new players, and a saved 2.1 reads as Stereo with the shaker on.
 - A Show FPS switch (shell.cfg `[port]` `dev_fps`, also in the Developer panel's Settings) puts the frame rate over the game in the top left corner (`FPS 64`, the average over the last second).
 - The network forms show which build each game is on: the host form shows your own build id, the server list the host's, and when a game, or a player joining yours, is on a different build, a one-line notice says so to everyone ("Skeeter is on a different build (abc1234; the host def5678) - update to play together"); the join still goes ahead when the network protocol matches.
 - A new file in the user folder, build-rules.cfg, picks between the original's builds where they play differently: `turret_slew` and `ai_tactics` follow the 1998 build GOG sells by default, and `1997` gives the March 1997 CD release's slower turrets and its AI that always fights as a gunner from off road; each key's comment says what each build does and how that was measured.

@@ -1189,13 +1189,13 @@ public sealed class ShellSettings
     public I76.Formats.Input.RumbleMode RumbleMode { get; set; }
     /// <summary>The port's own: Play Options' Rumble Strength, percent on every level sent to the pad (25 to 150; [port] rumble_strength, written when not 100).</summary>
     public int RumbleStrength { get; set; } = I76.Formats.Input.RumbleStrength.Default;
-    /// <summary>The port's own: Audio Control's Output, Stereo (the default), Headphones (the same), 2.1, 5.1 or 7.1 ([port] output, written when not Stereo; BassShaker).</summary>
+    /// <summary>The port's own: Audio Control's Output, Stereo (the default), Headphones (the same), 5.1 or 7.1 ([port] output, written when not Stereo; BassShaker).</summary>
     public I76.Formats.Input.AudioOutput Output { get; set; }
-    /// <summary>The port's own: Audio Control's LFE Level, the shaker signal's (and 2.1's bass boost's) level, 0 to 200 % ([port] lfe_level, written when not 100).</summary>
+    /// <summary>The port's own: Audio Control's LFE Level, the shaker signal's (and the stereo mix's bass boost's) level, 0 (none, the default) to 200 % ([port] lfe_level, written when not 0 or with 5.1 and 7.1).</summary>
     public int LfeLevel { get; set; } = I76.Formats.Input.AudioOutputs.DefaultLevel;
     /// <summary>The port's own, no row: the shaker signal's correction curve, "hz:db" points ([port] tactile_eq, written when set; none by default).</summary>
     public string TactileEq { get; set; } = "";
-    /// <summary>The port's own, no row: the top of the shaker signal and of 2.1's bass boost, Hz ([port] crossover, written when not 90).</summary>
+    /// <summary>The port's own, no row: the top of the shaker signal and of the stereo mix's bass boost, Hz ([port] crossover, written when not 90).</summary>
     public float Crossover { get; set; } = I76.Formats.Input.AudioOutputs.DefaultCrossover;
     /// <summary>The port's own: the simulation rate in Hz (Play Options; 20, 24, 25, 28, 30, 40 or 60, docs/frame-rate.md), applied from the next mission start; a network game runs at the server's.</summary>
     public int SimRate { get; set; } = I76.Sim.Session.SimRate.Default.Label;
@@ -1409,11 +1409,14 @@ public sealed class ShellSettings
         s.RumbleMode = Enum.TryParse<I76.Formats.Input.RumbleMode>((string)c.GetValue("port", "rumble", "original"), true, out var rm) ? rm : I76.Formats.Input.RumbleMode.Original;
         if (s.RumbleMode == I76.Formats.Input.RumbleMode.Off) { s.RumbleMode = I76.Formats.Input.RumbleMode.Original; if (!s.ForceFeedbackWheel) s.ForceFeedback = false; }
         s.RumbleStrength = I76.Formats.Input.RumbleStrength.Clamp((int)c.GetValue("port", "rumble_strength", I76.Formats.Input.RumbleStrength.Default));
-        // no version step: absent, Stereo. A build before the Output row had [port] tactile = lfe for the LFE path: that is 5.1 now
-        s.Output = c.HasSectionKey("port", "output") ? I76.Formats.Input.AudioOutputs.Parse(c.GetValue("port", "output", "").ToString())
-            : string.Equals(c.GetValue("port", "tactile", "off").ToString(), "lfe", StringComparison.OrdinalIgnoreCase) ? I76.Formats.Input.AudioOutput.Surround51
-            : I76.Formats.Input.AudioOutput.Stereo;
-        s.LfeLevel = I76.Formats.Input.AudioOutputs.ClampLevel((int)c.GetValue("port", "lfe_level", I76.Formats.Input.AudioOutputs.DefaultLevel));
+        // no version step: absent, Stereo. A build before the Output row had [port] tactile = lfe for the LFE path: that is 5.1 now;
+        // 2.1, the stereo mix, is Stereo with the level above 0
+        string? output = c.HasSectionKey("port", "output") ? c.GetValue("port", "output", "").ToString()
+            : string.Equals(c.GetValue("port", "tactile", "off").ToString(), "lfe", StringComparison.OrdinalIgnoreCase) ? "5.1" : null;
+        s.Output = I76.Formats.Input.AudioOutputs.Parse(output);
+        // absent, 0 (none); before that default an absent level was 100, which a file that chose 2.1, 5.1 or 7.1 keeps
+        s.LfeLevel = I76.Formats.Input.AudioOutputs.ClampLevel((int)c.GetValue("port", "lfe_level",
+            I76.Formats.Input.AudioOutputs.HadShaker(output) ? I76.Formats.Input.AudioOutputs.OldDefaultLevel : I76.Formats.Input.AudioOutputs.DefaultLevel));
         s.TactileEq = c.GetValue("port", "tactile_eq", "").ToString();
         s.Crossover = I76.Formats.Input.AudioOutputs.ClampCrossover((float)c.GetValue("port", "crossover", I76.Formats.Input.AudioOutputs.DefaultCrossover));
         // version 8 added the simulation rate: older files have none, so it is the default (20)
@@ -1538,7 +1541,7 @@ public sealed class ShellSettings
         if (FfbDevice.Length > 0) c.SetValue("port", "ffb_device", FfbDevice);
         if (RumbleMode != I76.Formats.Input.RumbleMode.Original) c.SetValue("port", "rumble", RumbleMode.ToString().ToLowerInvariant());
         if (Output != I76.Formats.Input.AudioOutput.Stereo) c.SetValue("port", "output", I76.Formats.Input.AudioOutputs.Key(Output));
-        if (LfeLevel != I76.Formats.Input.AudioOutputs.DefaultLevel) c.SetValue("port", "lfe_level", LfeLevel);
+        if (LfeLevel != I76.Formats.Input.AudioOutputs.DefaultLevel || I76.Formats.Input.AudioOutputs.Discrete(Output)) c.SetValue("port", "lfe_level", LfeLevel);
         if (TactileEq.Length > 0) c.SetValue("port", "tactile_eq", TactileEq);
         if (Crossover != I76.Formats.Input.AudioOutputs.DefaultCrossover) c.SetValue("port", "crossover", (double)Crossover);
         if (RumbleStrength != I76.Formats.Input.RumbleStrength.Default) c.SetValue("port", "rumble_strength", RumbleStrength);

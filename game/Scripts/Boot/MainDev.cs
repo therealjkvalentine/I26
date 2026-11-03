@@ -102,7 +102,7 @@ public partial class Main : IDevHost
             : "";
         return $"tick {s.Ticks}  {s.Rate.Label} Hz  next tick {s.Rate.FrameDelta(s.Ticks) * 2048:0}/2048 s = {n} substep{(n == 1 ? "" : "s")} of {dt * 1000:0.0} ms"
             + $"\nsim time {s.World.Time:0.00} s  {Engine.GetFramesPerSecond():0} fps{(_sim.DevFrozen ? "  FROZEN" : "")}{(_sim.DevTimeScale != 1 ? $"  x{_sim.DevTimeScale:0.##}" : "")}{(I76.Game.Shell.CheatMarker.Set ? "  (cheater)" : "")}" + car
-            + (I76.Formats.Input.AudioOutputs.Tactile(BassShaker.Output) ? "\n" + BassShaker.Status : "");
+            + (BassShaker.On ? "\n" + BassShaker.Status : "");
     }
 
     /// <summary>Where the player's car was placed at the mission's start (the panel's "start").</summary>

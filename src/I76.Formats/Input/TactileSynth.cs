@@ -2,38 +2,47 @@ namespace I76.Formats.Input;
 
 /// <summary>
 /// Audio Control's Output ([port] output): what the port does with the device the system gives it (Godot takes the device's
-/// channel count; the game cannot choose it). Stereo and Headphones play as the original does (nothing headphone-specific: they
-/// are the same); 2.1 adds the bass-shaker signal and a boost of the effects' bass under the crossover to both channels, for a
-/// sub or shaker fed from the stereo output; 5.1 and 7.1 put the shaker signal on the LFE channel alone (the same path: the LFE
-/// of whatever surround layout the device has; nothing on a stereo device).
+/// channel count; the game cannot choose it). With the LFE Level at 0 (the default) every output plays as the original does.
+/// Above it, Stereo and Headphones (the same: nothing headphone-specific) mix the bass-shaker signal into both channels and boost
+/// the effects' bass under the crossover, for a sub or shaker fed from the stereo output, or whatever a player's rig makes of
+/// it; 5.1 and 7.1 put the shaker signal on the LFE channel alone (the same path: the LFE of whatever surround layout the device
+/// has; nothing on a stereo device).
 /// </summary>
-public enum AudioOutput { Stereo, Headphones, Sub21, Surround51, Surround71 }
+public enum AudioOutput { Stereo, Headphones, Surround51, Surround71 }
 
 public static class AudioOutputs
 {
     /// <summary>The rows' values: Headphones is "Phones", the word being wider than the pads' value column.</summary>
-    public static readonly string[] Names = ["Stereo", "Phones", "2.1", "5.1", "7.1"];
-    private static readonly string[] Keys = ["stereo", "headphones", "2.1", "5.1", "7.1"];
+    public static readonly string[] Names = ["Stereo", "Phones", "5.1", "7.1"];
+    private static readonly string[] Keys = ["stereo", "headphones", "5.1", "7.1"];
 
     public static string Key(AudioOutput o) => Keys[(int)o];
 
-    /// <summary>A [port] output value; anything else is Stereo.</summary>
+    /// <summary>A [port] output value; anything else is Stereo. A build before this one had 2.1 for the stereo mix: Stereo now.</summary>
     public static AudioOutput Parse(string? key)
     {
         int i = Array.IndexOf(Keys, key?.Trim().ToLowerInvariant());
         return i < 0 ? AudioOutput.Stereo : (AudioOutput)i;
     }
 
-    /// <summary>The shaker signal plays: on both channels (2.1) or on the LFE (5.1, 7.1).</summary>
-    public static bool Tactile(AudioOutput o) => o is AudioOutput.Sub21 or AudioOutput.Surround51 or AudioOutput.Surround71;
+    /// <summary>An output value that played the shaker signal while an absent lfe_level meant 100 % (2.1, 5.1, 7.1): such a file keeps 100.</summary>
+    public static bool HadShaker(string? key) => key?.Trim().ToLowerInvariant() is "2.1" or "5.1" or "7.1";
 
-    /// <summary>Audio Control's LFE Level: 0 to 200 % in steps of 25, 100 the default.</summary>
+    /// <summary>The shaker signal on the LFE channel alone (5.1, 7.1), not mixed into both channels.</summary>
+    public static bool Discrete(AudioOutput o) => o is AudioOutput.Surround51 or AudioOutput.Surround71;
+
+    /// <summary>The shaker signal plays: any output with the LFE Level above 0.</summary>
+    public static bool Tactile(int levelPercent) => levelPercent > 0;
+
+    /// <summary>Audio Control's LFE Level: 0 to 200 % in steps of 25, 0 (none) the default.</summary>
     public static readonly int[] Levels = [0, 25, 50, 75, 100, 125, 150, 175, 200];
     public static readonly string[] LevelNames = Levels.Select(l => $"{l} %").ToArray();
-    public const int DefaultLevel = 100;
+    public const int DefaultLevel = 0;
+    /// <summary>The level an older file that chose a shaker output had without the key.</summary>
+    public const int OldDefaultLevel = 100;
     public static int ClampLevel(int percent) => Levels.MinBy(l => Math.Abs(l - percent));
 
-    /// <summary>[port] crossover: the top of the shaker signal and of 2.1's bass boost, 40 to 160 Hz (90 by default).</summary>
+    /// <summary>[port] crossover: the top of the shaker signal and of the stereo mix's bass boost, 40 to 160 Hz (90 by default).</summary>
     public const float DefaultCrossover = 90f;
     public static float ClampCrossover(float hz) => float.IsFinite(hz) ? Math.Clamp(hz, 40f, 160f) : DefaultCrossover;
 
@@ -44,7 +53,7 @@ public static class AudioOutputs
     /// </summary>
     public static float ShakerGain(int percent) => 1.5f * Math.Clamp(percent, 0, 200) / 100f;
 
-    /// <summary>2.1's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
+    /// <summary>The stereo mix's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
     public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
 }
 

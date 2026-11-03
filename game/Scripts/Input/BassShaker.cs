@@ -7,15 +7,15 @@ using I76.Sim.Weapons;
 namespace I76.Game;
 
 /// <summary>
-/// The port's bass-shaker output (Audio Control's Output 2.1, 5.1 or 7.1; the original has none): <see cref="TactileSynth"/>'s
+/// The port's bass-shaker output (Audio Control's LFE Level above 0; the original has none): <see cref="TactileSynth"/>'s
 /// signal from the player's car on a bus of its own ("Tactile", into Master; the LFE Level is the synth's gain, inside its limiter). In 5.1 and 7.1 it is
 /// on the LFE channel alone, for a shaker on an amplifier's or receiver's sub output: Godot's buses carry the output as stereo
 /// pairs (front, centre and LFE, rear, side), a player with the centre mix target writes the centre/LFE pair, its frame's right
 /// half the LFE, so the frames go out as (0, s). With a stereo device there is no LFE pair (the right half would land on the
 /// right speaker): nothing plays. Godot's 3D panner also sends every positional sound to the LFE at full level, so the shaker
-/// feels the game's sounds under the synth; no effect a script can add reaches one channel of a pair, so that stays. In 2.1 the
-/// frames go out as (s, s) on the front pair, for a sub or shaker fed from the stereo output below its own crossover (the
-/// effects' own bass is boosted there too: <see cref="I76.Game.Boot.Main.ApplyAudio"/>). Presentation only.
+/// feels the game's sounds under the synth; no effect a script can add reaches one channel of a pair, so that stays. In Stereo
+/// (and Phones) the frames go out as (s, s) on the front pair, for a sub or shaker fed from the stereo output below its own
+/// crossover, or however a rig takes it (the effects' own bass is boosted there too: <see cref="I76.Game.Boot.Main.ApplyAudio"/>). Presentation only.
 /// </summary>
 public partial class BassShaker : Node
 {
@@ -31,6 +31,7 @@ public partial class BassShaker : Node
     private static TactileEq? _eq;
     private static float _crossover = AudioOutputs.DefaultCrossover;
     private static float _gain = AudioOutputs.ShakerGain(AudioOutputs.DefaultLevel);
+    private static int _level = AudioOutputs.DefaultLevel;
 
     /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq and crossover: live.</summary>
     public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover)
@@ -39,6 +40,7 @@ public partial class BassShaker : Node
         _eq = eq;
         _crossover = crossover;
         _gain = AudioOutputs.ShakerGain(levelPercent);
+        _level = levelPercent;
         int bus = TactileBus();
         AudioServer.SetBusMute(bus, levelPercent <= 0);
         // the level is the synth's, before its limiter: a gain on the bus would put the loud thumps over the Master limiter
@@ -53,8 +55,11 @@ public partial class BassShaker : Node
         return bus;
     }
 
-    /// <summary>The output the shaker plays on now (2.1, or 5.1/7.1 with an LFE channel), or null for none.</summary>
-    private static bool? Playing => !AudioOutputs.Tactile(Output) ? null : Output == AudioOutput.Sub21 ? true : HasLfe ? false : null;
+    /// <summary>The shaker signal is wanted: the LFE Level above 0.</summary>
+    public static bool On => AudioOutputs.Tactile(_level);
+
+    /// <summary>The output the shaker plays on now (true both channels, false the LFE of 5.1/7.1 with an LFE channel), or null for none.</summary>
+    private static bool? Playing => !On ? null : !AudioOutputs.Discrete(Output) ? true : HasLfe ? false : null;
     private bool _stereoPair;
 
     private readonly TactileSynth _synth = new();
@@ -82,7 +87,7 @@ public partial class BassShaker : Node
             };
             if (Playing is null) return $"bass shaker: {speakers} output, no LFE channel: silent";
             float peak = _instance?._out is null ? 0 : _instance._synth.Peak;
-            string to = Playing == true ? $"both channels of {speakers} (2.1), under {_crossover:0} Hz" : $"LFE of {speakers}";
+            string to = Playing == true ? $"both channels of {speakers}, under {_crossover:0} Hz" : $"LFE of {speakers}";
             return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}";
         }
     }
