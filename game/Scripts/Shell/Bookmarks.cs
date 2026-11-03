@@ -144,7 +144,45 @@ public abstract class BookmarkScreen : OverlayScreen
         Redraw();
     }
 
+    /// <summary>
+    /// The port's Delete (Save and Load Bookmark alike: the trip screens' SAVE BOOKMARK button is where a full list is
+    /// met): asks first; Yes removes the picked bookmark's entry and its kept car and selects the row that took its place.
+    /// </summary>
+    protected void Delete()
+    {
+        if (Picked < 0 || Picked >= Marks.Entries.Count) return;
+        int row = Picked;
+        Shell.Modal(new ConfirmPopup
+        {
+            Lines = ["Delete this bookmark?"],
+            Answer = yes =>
+            {
+                if (!yes || row >= Marks.Entries.Count) return;
+                Bookmarks.DeleteCar(Marks.Entries[row].Stem);
+                Picked = Marks.RemoveAt(row);
+                Marks.Save();
+                Top = Math.Clamp(Top, 0, Math.Max(0, Marks.Entries.Count - 10));
+                Redraw();
+            },
+        });
+    }
+
     protected virtual void Pick(int row) => Picked = row;
+
+    /// <summary>
+    /// Where Delete goes on the sheet (both looks share the art): beside the scroll-up arrow, where Load Bookmark's All
+    /// Scenes stands, after it on Load Bookmark; in Nitro (no trip, no All Scenes) left of Load, drawn the same way (to the
+    /// right of Cancel it would run off the sheet).
+    /// </summary>
+    public static (int X, int Y) DeletePlace(bool load, bool nitro, Func<string, int> measure) =>
+        nitro ? (328 - 25 - measure("Delete"), 420) : load ? (250 + measure("All Scenes") + 25, 158) : (250, 158);
+
+    /// <summary>The Delete button, where <see cref="DeletePlace"/> puts it.</summary>
+    protected void AddDelete(bool load)
+    {
+        var (x, y) = DeletePlace(load, Shell.Install.IsNitro, Small.Measure);
+        Add(x, y, "Delete", Delete, Small);
+    }
 
     protected override bool Wheeled(int rows)
     {
@@ -207,6 +245,7 @@ public sealed class SaveBookmarkScreen : BookmarkScreen
     {
         base.Build();
         Add(183, 127, () => "", () => _editing = true, w: 271, h: 23);      // the name field, 32 characters
+        AddDelete(load: false);
     }
 
     protected override (int, string) Header() => (Shell.Trip.Mission, _name + (_editing ? "_" : ""));
@@ -274,18 +313,18 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
     protected override string Action => "Load";
     protected override string? EmptyText => "(No Games available)";
 
-    /// <summary>The port's Import Saves, between the scroll-down arrow and Load: the original's own bookmarks from the install (the base game only: Nitro has no trip).</summary>
+    /// <summary>
+    /// The port's Import Saves, between the scroll-down arrow and Load: the original's own bookmarks from the install; and
+    /// All Scenes, beside the scroll-up arrow (the base game only: Nitro has no trip). Delete follows All Scenes (left of
+    /// Load in Nitro), as on Save Bookmark.
+    /// </summary>
     protected override void Build()
     {
         base.Build();
-        if (!Shell.Install.IsNitro) Add(230, 420, "Import Saves", () => Shell.Overlay(new ImportSavesScreen { FromMainMenu = FromMainMenu }), Small);
-    }
-
-    /// <summary>The port's All Scenes, beside the scroll-up arrow (the base game only: Nitro has no trip).</summary>
-    protected override void Build()
-    {
-        base.Build();
-        if (!Shell.Install.IsNitro) Add(250, 158, "All Scenes", AllScenes, Small);
+        AddDelete(load: true);
+        if (Shell.Install.IsNitro) return;
+        Add(230, 420, "Import Saves", () => Shell.Overlay(new ImportSavesScreen { Direct = Direct }), Small);
+        Add(250, 158, "All Scenes", AllScenes, Small);
     }
 
     /// <summary>One bookmark per mission of the trip, in that mission's stock car; asks first, since it makes many files, and leaves a bookmark of the same scene and name alone.</summary>
@@ -304,36 +343,9 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
             }, Bookmarks.WriteCar);
             marks.Save();
             var text = $"{made} bookmark{(made == 1 ? "" : "s")} made." + (had > 0 ? $" {had} already were." : "");
-            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = text, Closed = () => Shell.Overlay(new LoadBookmarkScreen { FromMainMenu = FromMainMenu }) });
+            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = text, Closed = () => Shell.Overlay(new LoadBookmarkScreen { Direct = Direct }) });
         },
     });
-
-    protected override void Build()
-    {
-        base.Build();
-        // Delete sits left of Load, drawn the same way (to the right of Cancel it would run off the sheet)
-        Add(328 - 25 - Small.Measure("Delete"), 420, "Delete", Delete, Small);
-    }
-
-    /// <summary>Delete: asks first; Yes removes the picked bookmark's entry and its kept car and selects the row that took its place.</summary>
-    private void Delete()
-    {
-        if (Picked < 0 || Picked >= Marks.Entries.Count) return;
-        int row = Picked;
-        Shell.Modal(new ConfirmPopup
-        {
-            Lines = ["Delete this bookmark?"],
-            Answer = yes =>
-            {
-                if (!yes || row >= Marks.Entries.Count) return;
-                Bookmarks.DeleteCar(Marks.Entries[row].Stem);
-                Picked = Marks.RemoveAt(row);
-                Marks.Save();
-                Top = Math.Clamp(Top, 0, Math.Max(0, Marks.Entries.Count - 10));
-                Redraw();
-            },
-        });
-    }
 
     protected override (int, string) Header() =>
         Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
@@ -392,7 +404,7 @@ public sealed class ImportSavesScreen : BookmarkScreen
         Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
 
     /// <summary>Cancel and Esc go back to Load Bookmark.</summary>
-    private void Back() => Shell.Overlay(new LoadBookmarkScreen { FromMainMenu = FromMainMenu });
+    private void Back() => Shell.Overlay(new LoadBookmarkScreen { Direct = Direct });
     protected override void Cancel() => Back();
     protected override void Escape() => Back();
 
