@@ -233,3 +233,17 @@ fix/round3-integration-7              # stacked on play, last of I: the build-id
 
 # J. upstream rebuild (2026-11-03): play moved onto upstream master 32988ae; merge last
 fix/upstream-rebuild-integration      # stacked on play, last: old play's hand fixes redone, the changelog and docs as old play's plus upstream's rows, Wheel Strength back, Graphic Detail closed up
+
+# K. pass 11 (2026-11-03): round-3 branches built on the old play, rebased onto the rebuilt one; all stacked on play
+feat/graphics-submenus                # Graphic Detail's port rows on four pages (Display, World, Car & Cockpit, Effects) on the sheet and the Esc pad; no Update Check row (upstream's is on Play Options)
+fix/lfe-level-stronger                # the bass shaker half as strong again at the same LFE Level, inside its limiter
+feat/lfe-2                            # after lfe-level-stronger: Output Stereo/Phones/5.1/7.1, LFE Level 0 = off; [port] lfe_* source levels; road rumble from speed and springs; game_eq / movie_eq
+feat/smooth-keyed-edges               # modern look: keyed textures cut along smooth outlines (signed distance fields); contains fix/compass-smooth-edges (not listed)
+fix/known-test-failures               # T14 checkpoints, CoopFormation side ram, T01Follow at 30 Hz, Nitro caltrop silent hit
+fix/vehicle-lights-strength           # modern look: lamps weaker at night, well down by day
+fix/palette-grade-no-dither           # Palette Grade moves colours smoothly, no dither
+fix/dymo-letter-weight                # modern cockpit weapon labels lettered heavier
+fix/paved-roads-sharp                 # paved roads carry the asphalt grain near the camera; 16x anisotropy
+feat/lighting-original-colours        # modern look in the original's colours; Matte the default Hood Finish (upstream's all-over clear coat only under Satin and Gloss)
+fix/map-edge-row-name                 # Map Edge row named Hide Map Edge Cliffs (on the World page)
+fix/map-edge-roadside                 # after map-edge-row-name: thin barriers within 80 m of a road stay
