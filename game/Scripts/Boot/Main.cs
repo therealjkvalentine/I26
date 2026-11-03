@@ -430,6 +430,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("drop shadows");
         var loaded = I76.Game.Shell.ShellSettings.Load();
         _drawChoice = loaded.DrawDistanceChoice;
+        _mapEdge = MapEdgeHook(loaded.MapEdge);
         _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
         SetMode1997(_opt.Mode1997);
         MissionBuilder.Trace("look set");
@@ -701,6 +702,7 @@ public partial class Main : Node3D
         RenderScale.Apply(s);
         _vegetation = s.Vegetation;
         _drawChoice = s.DrawDistanceChoice;
+        _mapEdge = MapEdgeHook(s.MapEdge);
         ApplyDrawDistance();
         ApplyModernQuality();
         ApplySoftware(s);   // MainSoftware.cs
@@ -2006,6 +2008,29 @@ public partial class Main : Node3D
                 m?.SetShaderParameter("ground_haze", !panels);
             }
         }
+        ApplyMapEdge();
+    }
+
+    /// <summary>I76_MAP_EDGE=0|1|2, a capture hook: Original, Haze or Fade Out whatever the settings say.</summary>
+    private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? MapEdge.Parse(me) : setting;
+    private int _mapEdge = MapEdge.Original;
+
+    /// <summary>
+    /// Map Edge on the modern look's terrain and ring (MapEdge, map_edge.gdshaderinc): the haze's strength and reach, in the
+    /// ring's own horizon colour and sun glow; off in the 1997 look, at Original, and with no ring (no edge grid then).
+    /// </summary>
+    private void ApplyMapEdge()
+    {
+        bool on = !_mode1997 && _mapEdge != MapEdge.Original && _horizon is { HasEdgeGrid: true };
+        // amount at full haze, band inside the edge, clear air and reach (m): Haze leaves the walls' and the ranges' shapes
+        // as pale silhouettes; Fade Out takes them into the horizon colour from nearer
+        var haze = !on ? Vector4.Zero : _mapEdge == MapEdge.FadeOut ? new Vector4(1f, 900f, 100f, 420f) : new Vector4(0.6f, 900f, 150f, 550f);
+        RenderingServer.GlobalShaderParameterSet("i76_edge_haze", haze);
+        if (!on) return;
+        var m = _horizon!.Material;
+        var c = m.GetShaderParameter("horizon_color").AsColor().SrgbToLinear();   // a source_color there, a plain vec4 here
+        RenderingServer.GlobalShaderParameterSet("i76_edge_color", new Vector4(c.R, c.G, c.B, m.GetShaderParameter("light_strength").AsSingle()));
+        RenderingServer.GlobalShaderParameterSet("i76_edge_sun", m.GetShaderParameter("sprite_dir").AsVector3());
     }
 
     /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>

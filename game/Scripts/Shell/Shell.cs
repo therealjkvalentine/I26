@@ -1190,6 +1190,8 @@ public sealed class ShellSettings
     public int DrawDistance { get => I76.Formats.Imaging.DrawDistance.Resolve(DrawDistanceChoice, Look1997); set => DrawDistanceChoice = value; }
     /// <summary>The player's Draw Distance, or null while none was chosen (the file has no key; Reset clears it).</summary>
     public int? DrawDistanceChoice { get; set; }
+    /// <summary>The port's own: Graphic Detail's Map Edge, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Original, as they are; 1 Haze; 2 Fade Out). Original unless the player chose.</summary>
+    public int MapEdge { get; set; } = I76.Game.World.MapEdge.Original;
     /// <summary>
     /// The port's own: a network host's custom map this game does not have (docs/multiplayer.md "Custom maps"): 0 asks
     /// (the loading screen's Download / Always / Cancel), 1 downloads it, 2 never does (Play Options' Map Downloads).
@@ -1318,6 +1320,8 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // no version step: a file without the key has no choice, and the look's default applies
         s.DrawDistanceChoice = c.HasSectionKey("port", "draw_distance") ? I76.Formats.Imaging.DrawDistance.Parse((int)c.GetValue("port", "draw_distance")) : null;
+        // no version step: a file without the key draws the edge as it is, as before it existed
+        s.MapEdge = I76.Game.World.MapEdge.Parse(c.HasSectionKey("port", "map_edge") ? (int)c.GetValue("port", "map_edge") : null);
         // no version step: a file without these keys has them off, which is what they were before they existed
         s.SoftwareRenderer = (bool)c.GetValue("port", "software_renderer", false);
         s.PaletteGrade = (bool)c.GetValue("port", "palette_grade", false);
@@ -1389,6 +1393,7 @@ public sealed class ShellSettings
         c.SetValue("shell", "version", 11);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
+        c.SetValue("port", "map_edge", MapEdge);
         c.SetValue("port", "checkpoints", Checkpoints);
         c.SetValue("port", "force_feedback", ForceFeedback);
         if (ForceFeedbackWheel) c.SetValue("port", "ffb_wheel", true);

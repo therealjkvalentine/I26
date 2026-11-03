@@ -228,6 +228,26 @@ i76_brush_style={
 "type": "vec4",
 "value": Vector4(1, 0.7, 0.2, 0)
 }
+i76_edge_dist={
+"type": "sampler2D",
+"value": ""
+}
+i76_edge_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+i76_edge_haze={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+i76_edge_color={
+"type": "vec4",
+"value": Vector4(0.7, 0.75, 0.8, 1)
+}
+i76_edge_sun={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}
 
 [importer_defaults]
 
