@@ -955,6 +955,8 @@ public partial class Main : Node3D
             melee.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
             melee.Removed += v => { if (carNodes.Remove(v, out var n)) { _sim.Cars.Remove(n); n.QueueFree(); } };
             melee.PlayerRenewed += v => { if (carNodes.GetValueOrDefault(v) is { } n) damageView.Restore(n); };
+            // Play Options' Melee A.I. (the port's; docs/deviations.md): the opponents' opening skill, the original's 3 unless the player chose
+            melee.OpenAt(I76.Sim.Missions.MeleeGame.OpeningStep(playSettings.MeleeAi, playSettings.Difficulty));
             melee.Start();
             MissionBuilder.Trace("spawn: melee started");
             damageView.PrewarmWrecks(melee.Roster.Concat(carNodes.Values.Select(n => n.Definition)), _car?.Modern ?? true);   // every kind of car that will fall, built once

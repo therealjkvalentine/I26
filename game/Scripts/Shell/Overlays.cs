@@ -158,6 +158,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
     private int _savedRumbleStrength;
     private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate;
     private int _savedStrength;
+    private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
     private float _savedHeadSens;
@@ -199,6 +200,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedHeadSens = s.HeadTrackSensitivity;
         _savedRumble = s.RumbleMode;
         _savedRumbleStrength = s.RumbleStrength;
+        _savedMeleeAi = s.MeleeAi;
         // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
         // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
@@ -277,6 +279,10 @@ public sealed class PlayOptionsScreen : OverlayScreen
         Add(222, 254, "Rumble Strength", null);
         Add(205, 255, () => "", () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength), Small, w: 300, h: 12);
         Add(398, 256, () => s.RumbleStrength + " %", null);
+        // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
+        Add(222, 277, "Melee A.I.", null);
+        Add(205, 278, () => "", () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length), Small, w: 300, h: 12);
+        Add(398, 279, () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)], null);
         Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
@@ -315,6 +321,7 @@ public sealed class PlayOptionsScreen : OverlayScreen
         s.CbVoice = f._savedCb; s.UpdateCheck = f._savedUpdate;
         s.HeadTrack = f._savedHead; s.HeadTrackSensitivity = f._savedHeadSens;
         s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.ForceFeedbackWheel = f._savedWheel; s.FfbStrength = f._savedStrength; s.RumbleMode = f._savedRumble; s.RumbleStrength = f._savedRumbleStrength; s.Checkpoints = f._savedCheckpoints;
+        s.MeleeAi = f._savedMeleeAi;
         s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
     }

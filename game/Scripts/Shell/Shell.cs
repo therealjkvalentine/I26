@@ -1227,6 +1227,12 @@ public sealed class ShellSettings
     public float CoopDamage { get; set; } = 1f;
     /// <summary>The port's own: a hosted co-op game's Rolling Start (the host form's; shell.cfg [port] coop_rolling_start, written only when on).</summary>
     public bool CoopRollingStart { get; set; }
+    /// <summary>
+    /// The port's own: Play Options' Melee A.I. (second page; shell.cfg [port] melee_ai, written only when not Original): the skill an
+    /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
+    /// </summary>
+    public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
+    public static readonly string[] MeleeAiNames = ["Original", "Difficulty", "Easy", "Hard"];
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
@@ -1329,6 +1335,8 @@ public sealed class ShellSettings
         s.CoopDamage = (float)(double)c.GetValue("port", "coop_damage", 1.0) is var cd && System.Array.IndexOf(I76.Sim.Missions.CoopSetup.DamageFactors, cd) >= 0 ? cd : 1f;
         // no version step: absent, off (a fresh car stands still)
         s.CoopRollingStart = (bool)c.GetValue("port", "coop_rolling_start", false);
+        // no version step: absent, the original's opening skill
+        s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
@@ -1405,6 +1413,7 @@ public sealed class ShellSettings
         if (CoopScale != 0) c.SetValue("port", "coop_scale", CoopScale);
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
         if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
+        if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
