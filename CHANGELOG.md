@@ -80,6 +80,7 @@
 - The Effects and Voice sliders in Audio Control follow the original's volume curve (4 dB per halving) instead of 2 dB a step: the middle levels are louder and the lowest ones quieter than before; level 8 is unchanged.
 - An AI car backing away stops when the ground under it rises or falls 3 m, as the original's does (backing off a bridge deck over a gully), instead of when the car itself climbs or drops 3 m (up a ramp or a structure, or in the air).
 - An AI car dodging an obstacle picks its way round as the original's does: with its wheel straight it tries a little to the left first, and when no way is clear it turns at full lock instead of holding its steer and running into the obstacle.
+- Computer drivers that ram, chase or cut off a turning or sliding car aim where the original's do: they read its turn from the way the car points and the gear it is in, not from the way it is sliding, and put a car in a right-hand turn back round its circle as the original does.
 
 ## 0.11.0 (31 October 2026)
 
