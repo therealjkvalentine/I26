@@ -452,13 +452,9 @@ public sealed partial class MeleeScreen
         string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
         if (ArenaSketches.Of(Shell.Install, stem, SketchSize.X, SketchSize.Y) is not { } s) return;
         var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
-        // its drawn left edge a few px in from DRIVER:'s (x 227), its middle a little below the space's
-        int left = SketchLeft - x0, top = SketchSpace.Position.Y + SketchSpace.Size.Y / 2 + SketchDrop - (y0 + y1 + 1) / 2;
-        ArenaSketches.Draw(Frame, stem, s, left, top);
-        // the span as a map's legend, in the sketch's lower right corner
         PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
         int w = (int)MathF.Ceiling(PrintedType.Measure(Shell.Db, s.SizeText, SizeCap, PrintedType.Face.Hand));
-        // right-aligned on the sketch's right edge, on its foot; moved right (then down) off any line it would sit on
+        // the span as a map's legend: right-aligned on the sketch's right edge, on its foot; moved right (then down) off any line it would sit on
         int nx = x1 + 1 - w, ny = y1 + 1;
         bool Clear(int ax, int ay)
         {
@@ -468,10 +464,47 @@ public sealed partial class MeleeScreen
             return true;
         }
         for (int k = 0; k < 40 && !Clear(nx, ny); k++) { if (k < 30) nx += 2; else ny += 2; }
-        PrintedType.Draw(Frame, Shell.Db, left + nx, top + ny, s.SizeText, SizeCap, HandInk, PrintedType.Face.Hand);
+        // the scrap: the sketch's and the legend's extent with a margin of paper
+        int sx0 = Math.Min(x0, nx) - ScrapPad, sy0 = Math.Min(y0, ny - SizeCap) - ScrapPad, sx1 = Math.Max(x1 + 1, nx + w) + ScrapPad, sy1 = Math.Max(y1 + 1, ny + 1) + ScrapPad;
+        var scrap = new Rect2I(sx0, sy0, sx1 - sx0, sy1 - sy0);
+        // laid in the space: inside its margins, a small one centred across them, a large one from their left (DRIVER:'s x),
+        // its middle a little below the space's
+        int room = SketchMargin.Size.X, left = SketchMargin.Position.X + Math.Max(0, (room - scrap.Size.X) / 2);
+        int mid = SketchMargin.Position.Y + SketchMargin.Size.Y / 2 + SketchDrop;
+        int bx = left - sx0, by = mid - scrap.Size.Y / 2 - sy0;
+        if (_art is { } art) ArenaSketches.DrawScrap(Frame, art, BlankPaper, stem, s, bx, by, scrap, s.SizeText, nx, ny, SizeCap, HandInk);
     }
 
-    private const int SketchLeft = 231, SketchDrop = 8;
+    /// <summary>
+    /// Where the sketch's scrap goes: from DRIVER:'s x (227) across the width of the sketch box, and from the front view's
+    /// foot to the side view's roof less a few px; and how far below the middle of that it sits. The scrap's paper reaches
+    /// ScrapPad past the drawing.
+    /// </summary>
+    private static readonly Rect2I SketchMargin = new(227, 188, 210, 112);
+    private const int SketchDrop = 12, ScrapPad = 5;
+
+    /// <summary>
+    /// The AREA OF PLAY list's scroll bar (the port's; Graphic Detail's look): a faint track down the list's right edge inside
+    /// its box and a thumb in the labels' ink for the rows shown, following the arrows and the wheel. Only when the list scrolls.
+    /// </summary>
+    private void DrawListBar()
+    {
+        int total = ListCount;
+        if (total <= Rows) return;
+        const int x = 211, top = 149, h = Rows * Row - 4;
+        int th = Math.Max(6, h * Rows / total), max = total - Rows, at = top + (h - th) * Math.Clamp(_scroll, 0, max) / max;
+        var pal = Frame.Palette;
+        var faint = new Dictionary<byte, byte>();
+        for (int y = top; y < top + h; y++)
+        {
+            byte under = Frame.At(x + 1, y);
+            if (!faint.TryGetValue(under, out byte v))
+                faint[under] = v = Frame.Nearest(Color.Color8(pal[under * 3], pal[under * 3 + 1], pal[under * 3 + 2]).Lerp(LabelInk, 0.35f));
+            Frame.Pixel(x + 1, y, v);
+        }
+        Frame.Fill(x, at, 3, th, Frame.Nearest(LabelInk));
+    }
+
 
     // ---- the options box's hover help (the port's): a pointer resting half a second on a rule shows a line on what it does
 

@@ -239,7 +239,7 @@ public sealed partial class MeleeScreen : ShellScreen
         }
         else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
         // the arena's sketch between the car's views, over them (the base host form's; the port's)
-        if (Hosting && !Nitro) { DrawArenaSketch(); DrawTip(); }
+        if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); DrawTip(); }
     }
 
     /// <summary>The car panel the melee and scenario forms share: the blueprint views, the weapons, the make and model, the variant.</summary>

@@ -138,6 +138,13 @@ public static class PrintedType
         return Pictures[(text, cap, face, ink)] = made;
     }
 
+    /// <summary>The words' coverage at scale pixels a shell pixel (trimmed to the ink, its foot the words' foot), in either look's rendering.</summary>
+    internal static (byte[] A, int W, int H)? Coverage(string text, int cap, Face face, int scale, bool modern)
+    {
+        if (FontOf(face, modern) is not { } f) return null;
+        return ShellGlyphs.Raster(f, text, Math.Max(4, (int)MathF.Round(cap * scale * 200f / CapHeight(face))));
+    }
+
     /// <summary>The words at the 640x480 frame's own size: the face at the pixel size whose capital H is cap px.</summary>
     private static (byte[] A, int W, int H)? Raster1997(string text, int cap, Face face)
     {
@@ -156,7 +163,6 @@ public static class ArenaSketches
     /// <summary>Pixels of the picture per shell pixel in the modern look (the box is 400 px wide in a 1280-wide window).</summary>
     public const int Scale = 4;
     private static readonly Dictionary<string, ArenaSketch?> Sketches = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, ImageTexture> Textures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, byte[]> Aliased = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The mission's sketch for a box of w x h shell pixels, or null (no file, no terrain, nothing placed).</summary>
@@ -177,38 +183,147 @@ public static class ArenaSketches
         return Sketches[key] = s;
     }
 
-    /// <summary>The sketch over the box at (x, y): a picture in the modern look; in the 1997 look its ink multiplied into the paper and matched to the palette.</summary>
-    public static void Draw(ShellFrame frame, string stem, ArenaSketch s, int x, int y)
+    /// <summary>The scrap's paper: the form's own lightened (grain kept; the one used), or nearer white (no such colours in the 1997 look's palette, which turns it green-grey).</summary>
+    public enum Paper { Lightened, Whiter }
+    public static Paper ScrapPaper = Paper.Lightened;
+    private static readonly Dictionary<string, (ImageTexture Tex, Rect2I At)> Scraps = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The sketch on a scrap of paper laid on the form (the port's): the form's paper (a blank patch of the same art, from
+    /// <paramref name="art"/> at <paramref name="paperAt"/>) made lighter, its edges torn, turned a degree or two (by the
+    /// arena's name), with the span as a legend on it. In the modern look a picture with a soft shadow; in the 1997 look its
+    /// pixels matched to the palette, the shadow a hard pixel's. <paramref name="scrap"/> is the paper's rectangle and
+    /// (lx, ly) the legend's left and foot, both in the sketch box's own pixels; the box's top left goes at (bx, by).
+    /// </summary>
+    public static void DrawScrap(ShellFrame frame, byte[] art, (int X, int Y) paperAt, string stem, ArenaSketch s, int bx, int by,
+        Rect2I scrap, string legend, int lx, int ly, int cap, Color legendInk)
     {
-        string key = $"{stem}:{s.BoxWidth}x{s.BoxHeight}";
-        if (frame.Modern)
+        bool modern = frame.Modern;
+        int k = modern ? Scale : 1;
+        const int M = 4;
+        var canvas = scrap.Grow(M);
+        string key = $"{stem}:{s.BoxWidth}x{s.BoxHeight}:{scrap}:{ScrapPaper}";
+        if (modern && Scraps.TryGetValue(key, out var have))
         {
-            if (!Textures.TryGetValue(key, out var tex))
-            {
-                var img = Image.CreateFromData(s.BoxWidth * Scale, s.BoxHeight * Scale, false, Image.Format.Rgba8, s.Render(Scale, aliased: false));
-                img.GenerateMipmaps();
-                Textures[key] = tex = ImageTexture.CreateFromImage(img);
-            }
-            frame.Picture(new Rect2I(x, y, s.BoxWidth, s.BoxHeight), tex);
+            frame.Picture(new Rect2I(bx + have.At.Position.X, by + have.At.Position.Y, have.At.Size.X, have.At.Size.Y), have.Tex);
             return;
         }
-        if (!Aliased.TryGetValue(key, out var px)) Aliased[key] = px = s.Render(1, aliased: true);
+        int W = canvas.Size.X * k, H = canvas.Size.Y * k;
+        var ink = InkLayer(s, stem, k, !modern);
+        int iw = s.BoxWidth * k, ih = s.BoxHeight * k;
+        var lg = PrintedType.Coverage(legend, cap, PrintedType.Face.Hand, k, modern);
+        // a degree or two either way, the same for an arena every time
+        uint hsh = 2166136261;
+        foreach (char ch in stem.ToLowerInvariant()) hsh = (hsh ^ ch) * 16777619;
+        float ang = (1f + (hsh % 100) / 100f * 0.8f) * ((hsh & 0x100) != 0 ? 1 : -1) * MathF.PI / 180;
+        float ca = MathF.Cos(ang), sa = MathF.Sin(ang);
+        float mx = scrap.Position.X + scrap.Size.X / 2f, my = scrap.Position.Y + scrap.Size.Y / 2f;
+        float X0 = scrap.Position.X, Y0 = scrap.Position.Y, X1 = scrap.End.X, Y1 = scrap.End.Y;
+        static float Hash(int i) { uint u = (uint)(i * 374761393 + 668265263); u = (u ^ (u >> 13)) * 1274126177; return ((u ^ (u >> 16)) & 0xffff) / 65535f; }
+        static float Noise(float t) { int i = (int)MathF.Floor(t); float f = t - i; f = f * f * (3 - 2 * f); return Hash(i) + (Hash(i + 1) - Hash(i)) * f; }
+        // how far in from the rectangle's edge the torn edge runs at (p, q): a slow wander and a fine fray
+        float Inside(float p, float q)
+        {
+            float l = p - X0, r = X1 - p, t = q - Y0, b = Y1 - q;
+            float d = MathF.Min(MathF.Min(l, r), MathF.Min(t, b));
+            float along = d == l || d == r ? q + (d == l ? 0 : 500) : p + (d == t ? 1000 : 1500);
+            return d - (0.3f + 1.2f * Noise(along / 6f) + 0.5f * Noise(along * 1.3f));
+        }
         var pal = frame.Palette;
-        var mixed = new Dictionary<(byte, int), byte>();
-        for (int yy = 0; yy < s.BoxHeight; yy++)
-            for (int xx = 0; xx < s.BoxWidth; xx++)
+        (float R, float G, float B) PaperAt(float p, float q)
+        {
+            int c = (int)MathF.Floor(p - X0), r = (int)MathF.Floor(q - Y0);
+            int m = ((c % 400) + 400) % 400, sc = m < 200 ? m : 399 - m;
+            int mr = ((r % 220) + 220) % 220, sr = mr < 110 ? mr : 219 - mr;
+            int i = art[(paperAt.Y + sr) * ShellFrame.W + paperAt.X + sc] * 3;
+            float R = pal[i], G = pal[i + 1], B = pal[i + 2];
+            return ScrapPaper == Paper.Lightened
+                ? (R + (255 - R) * 0.42f, G + (255 - G) * 0.42f, B + (255 - B) * 0.42f)
+                : (R + (250 - R) * 0.7f, G + (246 - G) * 0.7f, B + (234 - B) * 0.7f);
+        }
+        float Sample(byte[] a, int w, int h, float x, float y, int stride, int off)
+        {
+            // bilinear in the modern look, nearest in the 1997 look's pixels
+            if (!modern) { int xi = (int)MathF.Floor(x), yi = (int)MathF.Floor(y); return xi < 0 || yi < 0 || xi >= w || yi >= h ? 0 : a[(yi * w + xi) * stride + off]; }
+            x -= 0.5f; y -= 0.5f;
+            int x0 = (int)MathF.Floor(x), y0 = (int)MathF.Floor(y);
+            float fx = x - x0, fy = y - y0, acc = 0;
+            for (int j = 0; j < 4; j++)
             {
-                int o = (yy * s.BoxWidth + xx) * 4, a = px[o + 3];
-                if (a < 40) continue;
-                byte under = frame.At(x + xx, y + yy);
-                int ink = px[o] << 16 | px[o + 1] << 8 | px[o + 2] | a << 24;
-                if (!mixed.TryGetValue((under, ink), out byte v))
-                {
-                    float al = a / 255f;
-                    float P(int c, int i) => pal[under * 3 + c] * (1 - al) + pal[under * 3 + c] * px[o + i] / 255f * al;
-                    mixed[(under, ink)] = v = frame.Nearest(Color.Color8((byte)P(0, 0), (byte)P(1, 1), (byte)P(2, 2)));
-                }
-                frame.Pixel(x + xx, y + yy, v);
+                int xx = x0 + (j & 1), yy = y0 + (j >> 1);
+                if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                acc += a[(yy * w + xx) * stride + off] * ((j & 1) == 1 ? fx : 1 - fx) * ((j >> 1) == 1 ? fy : 1 - fy);
             }
+            return acc;
+        }
+        var rgba = modern ? new byte[W * H * 4] : null;
+        var mixed = new Dictionary<int, byte>();
+        for (int oy = 0; oy < H; oy++)
+            for (int ox = 0; ox < W; ox++)
+            {
+                float u = canvas.Position.X + (ox + 0.5f) / k - mx, v = canvas.Position.Y + (oy + 0.5f) / k - my;
+                float p = mx + ca * u + sa * v, q = my - sa * u + ca * v;
+                float din = Inside(p, q);
+                float cover = modern ? Math.Clamp(din * k + 0.5f, 0, 1) : din > 0 ? 1 : 0;
+                // the shadow: the scrap's own shape a little down and right, soft (modern) or one hard pixel (1997)
+                float shadow = modern ? Math.Clamp((Inside(p - 1.2f, q - 1.6f) + 1.5f) / 3f, 0, 1) * 0.3f
+                                      : Inside(p - 1, q - 1) > 0 ? 1 : 0;
+                if (cover <= 0 && shadow <= 0) continue;
+                var (R, G, B) = PaperAt(p, q);
+                float ia = Sample(ink, iw, ih, p * k, q * k, 4, 3) / 255f;
+                if (ia > 0)
+                {
+                    // the ink's colour from the nearest inked pixel (the layer's colour is straight, its alpha the coverage)
+                    int xi = Math.Clamp((int)(p * k), 0, iw - 1), yi = Math.Clamp((int)(q * k), 0, ih - 1), o = (yi * iw + xi) * 4;
+                    float ir = ink[o + 3] > 0 ? ink[o] : 40, ig = ink[o + 3] > 0 ? ink[o + 1] : 30, ib = ink[o + 3] > 0 ? ink[o + 2] : 18;
+                    // the inks laid on the paper (multiplied, as pen on paper)
+                    R = R * (1 - ia) + R * ir / 255 * ia; G = G * (1 - ia) + G * ig / 255 * ia; B = B * (1 - ia) + B * ib / 255 * ia;
+                }
+                if (lg is { } L)
+                {
+                    float la = Sample(L.A, L.W, L.H, (p - lx) * k, (q - (ly - (float)L.H / k)) * k, 1, 0) / 255f;
+                    if (!modern) la = la >= 0.35f ? 1 : 0;
+                    R = R * (1 - la) + legendInk.R8 * la; G = G * (1 - la) + legendInk.G8 * la; B = B * (1 - la) + legendInk.B8 * la;
+                }
+                if (modern)
+                {
+                    float a = cover + shadow * (1 - cover);
+                    int o = (oy * W + ox) * 4;
+                    // straight alpha: the paper where it covers, the shadow's dark brown under its edge
+                    rgba![o] = (byte)Math.Clamp((R * cover + 40 * shadow * (1 - cover)) / a, 0, 255);
+                    rgba[o + 1] = (byte)Math.Clamp((G * cover + 30 * shadow * (1 - cover)) / a, 0, 255);
+                    rgba[o + 2] = (byte)Math.Clamp((B * cover + 18 * shadow * (1 - cover)) / a, 0, 255);
+                    rgba[o + 3] = (byte)Math.Clamp(a * 255 + 0.5f, 0, 255);
+                    continue;
+                }
+                int fx = bx + canvas.Position.X + ox, fy = by + canvas.Position.Y + oy;
+                int keyc;
+                if (cover > 0) keyc = (int)R / 4 << 12 | (int)G / 4 << 6 | (int)B / 4;
+                else
+                {
+                    byte under = frame.At(fx, fy);
+                    keyc = 1 << 24 | under;
+                }
+                if (!mixed.TryGetValue(keyc, out byte idx))
+                {
+                    Color c = cover > 0 ? Color.Color8((byte)R, (byte)G, (byte)B)
+                        : Color.Color8((byte)(pal[(keyc & 0xff) * 3] * 0.72f), (byte)(pal[(keyc & 0xff) * 3 + 1] * 0.72f), (byte)(pal[(keyc & 0xff) * 3 + 2] * 0.72f));
+                    mixed[keyc] = idx = frame.Nearest(c);
+                }
+                frame.Pixel(fx, fy, idx);
+            }
+        if (!modern) return;
+        var img = Image.CreateFromData(W, H, false, Image.Format.Rgba8, rgba);
+        img.GenerateMipmaps();
+        var tex = ImageTexture.CreateFromImage(img);
+        Scraps[key] = (tex, canvas);
+        frame.Picture(new Rect2I(bx + canvas.Position.X, by + canvas.Position.Y, canvas.Size.X, canvas.Size.Y), tex);
+    }
+
+    private static byte[] InkLayer(ArenaSketch s, string stem, int k, bool aliased)
+    {
+        string key = $"{stem}:{s.BoxWidth}x{s.BoxHeight}:{k}:{aliased}";
+        if (!Aliased.TryGetValue(key, out var px)) Aliased[key] = px = s.Render(k, aliased);
+        return px;
     }
 }
