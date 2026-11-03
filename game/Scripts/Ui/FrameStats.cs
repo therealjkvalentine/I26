@@ -3,8 +3,8 @@ using Godot;
 namespace I76.Game.Ui;
 
 /// <summary>
-/// The frame times of the last few seconds (the Developer panel's Show FPS): a ring of real frame deltas trimmed to a window,
-/// read as the mean rate over the newest part of it and as a percentile of the frame time. Engine-free.
+/// The frame times of the last few seconds (the Developer panel's Show FPS): a ring of real frame deltas trimmed to a window (1 s),
+/// read as the mean rate over the window. Engine-free.
 /// </summary>
 public sealed class FrameStats
 {
@@ -13,7 +13,7 @@ public sealed class FrameStats
     private double _sum;
     public double Window { get; }
 
-    public FrameStats(double windowSeconds = 5.0, int capacity = 4096) { Window = windowSeconds; _ring = new double[capacity]; }
+    public FrameStats(double windowSeconds = 1.0, int capacity = 4096) { Window = windowSeconds; _ring = new double[capacity]; }
 
     public int Count => _count;
 
@@ -44,23 +44,8 @@ public sealed class FrameStats
         return t > 0 ? n / t : 0;
     }
 
-    /// <summary>The frame time (seconds) that <paramref name="p"/> (0..1) of the window's frames did not exceed; 0 with none.</summary>
-    public double Percentile(double p)
-    {
-        if (_count == 0) return 0;
-        var s = new double[_count];
-        for (int i = 0; i < _count; i++) s[i] = At(i);
-        System.Array.Sort(s);
-        return s[System.Math.Clamp((int)System.Math.Ceiling(p * _count) - 1, 0, _count - 1)];
-    }
-
-    /// <summary>The overlay's text: "FPS 144  p97 98  6.9 ms" (p97 is the 97th-percentile frame time as a rate; the last is the newest 0.5 s's mean).</summary>
-    public string Text()
-    {
-        double fps = Fps(0.5), slow = Percentile(0.97);
-        if (fps <= 0 || slow <= 0) return "FPS --";
-        return $"FPS {fps:0}  p97 {1 / slow:0}  {1000 / fps:0.0} ms";
-    }
+    /// <summary>The overlay's text: "FPS 64", the mean rate over the window (frames counted over the time they took).</summary>
+    public string Text() => Fps(Window) is var f and > 0 ? $"FPS {f:0}" : "FPS --";
 }
 
 /// <summary>The Show FPS overlay: a small label in the window's top left corner, scaled with the Developer panel's factor.</summary>
@@ -102,7 +87,7 @@ public partial class FpsOverlay : Control
         _last = now;
         _stats.Add(dt);
         _since += dt;
-        if (_since < 0.25) return;
+        if (_since < 0.5) return;
         _since = 0;
         _label.Text = _stats.Text();
     }
