@@ -13,7 +13,7 @@ namespace I76.Game.Editor.RoadTools;
 /// </summary>
 public sealed class RoadPainter(MissionBuilder builder, RoadStore store)
 {
-    private const int Res = MissionBuilder.RoadLayerResolution;
+    private static int Res => MissionBuilder.RoadLayerResolution;
     private System.Numerics.Vector4? _wanted;
     private Task<Dictionary<(int, int), (Image? Modern, Image? Faithful)>>? _job;
     /// <summary>Chunks painted by the last finished job, and how long it took (ms), for the editor's log.</summary>

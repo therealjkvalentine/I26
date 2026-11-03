@@ -28,6 +28,20 @@ public static class GroundPaint
         return GroundMarkings.Find(img.GetData(), img.GetWidth(), img.GetHeight(), 40f);
     }
 
+    /// <summary>
+    /// The asphalt scan into the shared modern terrain material for the paved roads (terrain_modern.gdshaderinc,
+    /// has_asphalt): their aggregate near the camera over the road layer's colour. Nothing without the scan.
+    /// </summary>
+    public static void ApplyRoads(ShaderMaterial m, TerrainMaterials.Pack? asphalt)
+    {
+        m.SetShaderParameter("has_asphalt", asphalt is not null);
+        if (asphalt is null) return;
+        m.SetShaderParameter("asphalt_albedo", asphalt.Albedo);
+        m.SetShaderParameter("asphalt_normal", asphalt.Normal);
+        m.SetShaderParameter("asphalt_lum", new Vector2(asphalt.LumMean[0], asphalt.LumSpread[0]));
+        m.SetShaderParameter("asphalt_tile", AsphaltTile);
+    }
+
     /// <summary>The paint into the shared modern terrain material, and the asphalt scan in place of the natural materials (null: without it).</summary>
     public static void Apply(ShaderMaterial m, GroundMarkings g, TerrainMaterials.Pack? asphalt)
     {
