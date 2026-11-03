@@ -29,6 +29,7 @@
 - The 1997 look's damage smoke no longer flickers over the sky in the cockpit view when your own car is smoking, worst at speed. Puffs were placed from where the car is drawn between two sim ticks and then drawn where the sim had them, so at 30 fps on the 20 Hz sim they jumped back and forth by up to a tick's travel past the eye; and puffs right by the eye were drawn, filling the screen for a frame. Puffs now leave the car where the sim has it and are drawn between ticks as the cars are, and, as in the original, none nearer the eye than 1 m (both looks).
 - The modern look's damage smoke swells and thins on the game's clock instead of the computer's, so it no longer jumps to another density when the game comes out of a pause.
 - On macOS the microphone permission is asked at the first press of the CB key, not when the game starts.
+- The six-wheeled trucks (the Marx trucks and the milk tankers) ride their middle wheels on their own suspension over bumps and crests, as the original's do, instead of drawing them halfway between the front and rear wheels. The tank has no middle wheels: its road wheels belong to the body, so this does not change how deep they sit (#124).
 
 ## 0.11.0 (31 October 2026)
 
