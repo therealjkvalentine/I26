@@ -1,3 +1,4 @@
+using I76.Formats.Assembly;
 using I76.Formats.Mission;
 
 namespace I76.Game.World;
@@ -8,16 +9,29 @@ namespace I76.Game.World;
 /// (HorizonTerrain) carries on from the rim's height. Original (Plain on the pads, marked as the original's) draws that as it is. Haze lays a distance haze, toward the
 /// modern sky's horizon colour, over the ground in a band inside the edge and over the ring beyond it, so the walls and
 /// the ranges past them read as far land; Fade Out takes them wholly into that colour, the boundary dissolving into the
-/// sky's horizon. Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the simulation are unchanged,
-/// and the playable interior away from the edge is untouched.
+/// sky's horizon. Hide draws the walls, and the plateau behind them, down at the plain of their foot (EdgeWalls: the ground
+/// no car reaches that is joined to the map's edge; the terrain's vertex shader holds it to the foot grid, the ring beyond
+/// starts from the plain), so the ground runs on level to the ring's ranges. Drawing only (map_edge.gdshaderinc): the
+/// heightfield, its collision and the simulation are unchanged, and the playable interior away from the edge is untouched.
 /// </summary>
 public static class MapEdge
 {
-    public const int Original = 0, Haze = 1, FadeOut = 2;
-    public static readonly string[] Names = ["Plain" + I76.Game.Shell.ShellSettings.OriginalMark, "Haze", "Fade Out"];
+    public const int Original = 0, Haze = 1, FadeOut = 2, Hide = 3;
+    public static readonly string[] Names = ["Plain" + I76.Game.Shell.ShellSettings.OriginalMark, "Haze", "Fade Out", "Hide"];
 
     /// <summary>shell.cfg's [port] map_edge: absent or out of range, Original.</summary>
-    public static int Parse(int? value) => value is >= Original and <= FadeOut ? value.Value : Original;
+    public static int Parse(int? value) => value is >= Original and <= Hide ? value.Value : Original;
+
+    // Hide's walls per mission, made once for the terrain's chunks and the ring (either may ask first, on its own thread)
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MissionWorld, Lazy<EdgeWalls?>> _walls = new();
+
+    /// <summary>
+    /// Hide's walls of a mission (<see cref="EdgeWalls"/>) from the surface the modern look draws, made on the first call and
+    /// kept with the world; null for a map too big for one surface (it has no ring either). I76_MAP_EDGE_RIDGES=0 hides the
+    /// ridges between drivable regions as well, for comparison.
+    /// </summary>
+    public static EdgeWalls? WallsFor(MissionWorld world, Func<ITerrainSurface> surface) =>
+        _walls.GetValue(world, w => new Lazy<EdgeWalls?>(() => w.Terrain.Huge ? null : EdgeWalls.Build(w.Terrain, surface(), keepRidges: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_RIDGES") != "0"))).Value;
 
     /// <summary>Metres a texel of the edge-distance grid; coarser by twos on a map so large that it would pass <see cref="MaxTexels"/>.</summary>
     public const float Texel = 10f;

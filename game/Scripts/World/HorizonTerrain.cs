@@ -188,12 +188,18 @@ public partial class HorizonTerrain : Node3D
     public bool HasEdgeGrid { get; private set; }
     // the ring whose grid the globals hold: a scene without one (the map editor) must not read another map's
     private static HorizonTerrain? _edgeOwner;
+    // Map Edge's Hide (MapEdge.WallsFor): the ring is also made for the walls' plain, the difference baked per vertex (UV2.y)
+    private EdgeWalls? _walls;
+    private float[] _rimHide = [];
+    private float _baseHide;
+    private float[]? _floorHide;
 
     public override void _ExitTree()
     {
         if (_edgeOwner != this) return;
         _edgeOwner = null;
         RenderingServer.GlobalShaderParameterSet("i76_edge_rect", Vector4.Zero);
+        RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", Vector4.Zero);
     }
 
 
@@ -208,9 +214,14 @@ public partial class HorizonTerrain : Node3D
     /// is far under it there).
     /// </summary>
     public static float[] FloorGrid(MissionWorld world, ITerrainSurface surface, (float X0, float Z0, float X1, float Z1)[] tiles, (float X0, float Z0, float X1, float Z1) bounds, System.Numerics.Vector2 centre, out bool[] rim)
+        => FloorGrid(world, surface, tiles, bounds, centre, out rim, null, out _);
+
+    /// <summary>The same, and with <paramref name="walls"/> the floor under Map Edge's Hide (<paramref name="hide"/>: the ground drawn down to the walls' plain, where it is lower).</summary>
+    public static float[] FloorGrid(MissionWorld world, ITerrainSurface surface, (float X0, float Z0, float X1, float Z1)[] tiles, (float X0, float Z0, float X1, float Z1) bounds, System.Numerics.Vector2 centre, out bool[] rim, EdgeWalls? walls, out float[] hide)
     {
         int w = (int)MathF.Ceiling((bounds.X1 - bounds.X0) / FloorTexel), h = (int)MathF.Ceiling((bounds.Z1 - bounds.Z0) / FloorTexel);
         var low = new float[w * h];
+        var lowHide = new float[w * h];
         var inside = new bool[w * h];
         foreach (var (x0, z0, x1, z1) in tiles)
         {
@@ -229,31 +240,41 @@ public partial class HorizonTerrain : Node3D
                 bool edge = false;
                 for (int dj = -band; dj <= band && !edge; dj++)
                     for (int di = -band; di <= band && !edge; di++) edge = Out(i + di, j + dj);
-                float lo = float.MaxValue;
+                float lo = float.MaxValue, loHide = float.MaxValue;
                 int steps = edge ? 4 : 2;
                 for (int sj = 0; sj <= steps; sj++)
                     for (int si = 0; si <= steps; si++)
                     {
                         float x = centre.X + bounds.X0 + (i + si / (float)steps) * FloorTexel, z = centre.Y + bounds.Z0 + (j + sj / (float)steps) * FloorTexel;
-                        lo = MathF.Min(lo, (float)world.BilinearHeight(x, z));
-                        if (edge) lo = MathF.Min(lo, surface.Point(x / TerrainNode.SampleSize, z / TerrainNode.SampleSize, out _).Y);
+                        float g = (float)world.BilinearHeight(x, z);
+                        lo = MathF.Min(lo, g);
+                        if (walls is not null) loHide = MathF.Min(loHide, (float)walls.Ground(x, z, g));
+                        if (edge)
+                        {
+                            float d = surface.Point(x / TerrainNode.SampleSize, z / TerrainNode.SampleSize, out _).Y;
+                            lo = MathF.Min(lo, d);
+                            if (walls is not null) loHide = MathF.Min(loHide, (float)walls.Ground(x, z, d));
+                        }
                     }
                 low[j * w + i] = lo;
+                lowHide[j * w + i] = walls is null ? lo : loHide;
             }
         });
         var grid = new float[w * h];
+        hide = new float[w * h];
         rim = new bool[w * h];
         for (int j = 0; j < h; j++)
             for (int i = 0; i < w; i++)
             {
-                if (!inside[j * w + i]) { grid[j * w + i] = 1e9f; continue; }
+                if (!inside[j * w + i]) { grid[j * w + i] = hide[j * w + i] = 1e9f; continue; }
                 for (int dj = -1; dj <= 1; dj++)
                     for (int di = -1; di <= 1; di++) rim[j * w + i] |= Out(i + di, j + dj);
-                float lo = low[j * w + i];
+                float lo = low[j * w + i], loHide = lowHide[j * w + i];
                 for (int dj = -2; dj <= 2; dj++)
                     for (int di = -2; di <= 2; di++)
-                        if (!Out(i + di, j + dj)) lo = MathF.Min(lo, low[(j + dj) * w + i + di]);
+                        if (!Out(i + di, j + dj)) { lo = MathF.Min(lo, low[(j + dj) * w + i + di]); loHide = MathF.Min(loHide, lowHide[(j + dj) * w + i + di]); }
                 grid[j * w + i] = lo - FloorMargin;
+                hide[j * w + i] = loHide - FloorMargin;
             }
         return grid;
     }
@@ -382,32 +403,43 @@ public partial class HorizonTerrain : Node3D
                     holes.Add((c * tileW - _centre.X, r * tileW - _centre.Y, (c + 1) * tileW - _centre.X, (r + 1) * tileW - _centre.Y));
         _holes = holes.ToArray();
         _bounds = (c0 * tileW - _centre.X, r0 * tileW - _centre.Y, (c1 + 1) * tileW - _centre.X, (r1 + 1) * tileW - _centre.Y);
-        _floor = FloorGrid(world, TerrainNode.SurfaceFor(world), _tiles, _bounds, _centre, out _rim);
+        var surface = TerrainNode.SurfaceFor(world);
+        _walls = MapEdge.WallsFor(world, () => surface);
+        _floor = FloorGrid(world, surface, _tiles, _bounds, _centre, out _rim, _walls, out _floorHide);
         _edge = MapEdge.Distance(world.Terrain, out _edgeX0, out _edgeZ0, out _edgeW, out _edgeH, out _edgeTexel);
         float farCorner = _tiles.Max(t => MathF.Max(MathF.Max(Len(t.Item1, t.Item2), Len(t.Item3, t.Item2)), MathF.Max(Len(t.Item1, t.Item4), Len(t.Item3, t.Item4))));
 
-        // the rim: along each bearing, the last ground inside the map, as high as the wall tops just inside it
+        // the rim: along each bearing, the last ground inside the map, as high as the wall tops just inside it (under Hide,
+        // as high as the plain they are drawn down to)
         int nb = 1024;
         var rim = new float[nb];
+        var rimHide = new float[nb];
         for (int b = 0; b < nb; b++)
         {
             float a = (b + 0.5f) / nb * MathF.Tau, sx = MathF.Sin(a), sz = MathF.Cos(a);
             float last = -1;
             for (float t = 0; t < farCorner + 10; t += 10) if (SignedDistance(sx * t, sz * t) <= 0) last = t;
-            float top = 0;
+            float top = 0, topHide = 0;
             if (last >= 0)
                 for (float t = MathF.Max(0, last - 60); t <= last; t += 5)
-                    top = MathF.Max(top, (float)world.BilinearHeight(_centre.X + sx * t, _centre.Y + sz * t));
-            rim[b] = top;
+                {
+                    float g = (float)world.BilinearHeight(_centre.X + sx * t, _centre.Y + sz * t);
+                    top = MathF.Max(top, g);
+                    topHide = MathF.Max(topHide, _walls is null ? g : (float)_walls.Ground(_centre.X + sx * t, _centre.Y + sz * t, g));
+                }
+            rim[b] = top; rimHide[b] = topHide;
         }
         _rimByBearing = new float[nb];
+        _rimHide = new float[nb];
         for (int b = 0; b < nb; b++)
         {
-            float s = 0;
-            for (int d = -8; d <= 8; d++) s += rim[(b + d + nb) % nb];
+            float s = 0, sh = 0;
+            for (int d = -8; d <= 8; d++) { s += rim[(b + d + nb) % nb]; sh += rimHide[(b + d + nb) % nb]; }
             _rimByBearing[b] = s / 17;
+            _rimHide[b] = sh / 17;
         }
         _base = _rimByBearing.Order().ElementAt(nb / 2);
+        _baseHide = _rimHide.Order().ElementAt(nb / 2);
         _meanRef = profile.Height.Average();
 
         PlaceFeatures(profile, farCorner);
@@ -434,6 +466,7 @@ public partial class HorizonTerrain : Node3D
         var sin = new float[n + 1]; var cos = new float[n + 1];
         for (int i = 0; i <= n; i++) { sin[i] = MathF.Sin(i / (float)n * MathF.Tau); cos[i] = MathF.Cos(i / (float)n * MathF.Tau); }
         var hgt = new float[rings * n];      // the drawn height
+        var hgtHide = new float[rings * n];  // the same under Map Edge's Hide: the ring from the walls' plain
         var shadowH = new float[rings * n];  // the height that shadows: the playable ground inside the map
         var aux = new Vector4[rings * n];    // per vertex: height above the base, distance from the map, rockiness, style
         float hmin = float.MaxValue;
@@ -443,8 +476,9 @@ public partial class HorizonTerrain : Node3D
             for (int i = 0; i < n; i++)
             {
                 float x = sin[i] * r, z = cos[i] * r;
-                var (hh, ab) = Height(world, x, z);
+                var (hh, ab) = Height(world, x, z, false);
                 hgt[j * n + i] = hh;
+                hgtHide[j * n + i] = _walls is null ? hh : Height(world, x, z, true).H;
                 aux[j * n + i] = ab;
                 shadowH[j * n + i] = ab.Y < 0 ? (float)world.BilinearHeight(_centre.X + x, _centre.Y + z) : hh;
             }
@@ -570,7 +604,7 @@ public partial class HorizonTerrain : Node3D
                         var ax = aux[g];
                         col[k] = new Color(vis[g], ax.Z, ax.W, 1);
                         uv[k] = new Vector2(ax.X, ax.Y);
-                        uv2[k] = new Vector2(hgt[g] - _base, 0);
+                        uv2[k] = new Vector2(hgt[g] - _base, hgtHide[g] - hgt[g]);
                     }
                 var idx = new int[(cols - 1) * (rws - 1) * 6];
                 var rimIdx = new List<int>();
@@ -641,10 +675,14 @@ public partial class HorizonTerrain : Node3D
             var arrays = mesh.SurfaceGetArrays(0);
             var verts = arrays[(int)Mesh.ArrayType.Vertex].AsVector3Array();
             var uvs = arrays[(int)Mesh.ArrayType.TexUV].AsVector2Array();
+            var uv2s = arrays[(int)Mesh.ArrayType.TexUV2].AsVector2Array();
             Vector3 lo = verts[0], hi = verts[0];
             for (int k = 0; k < verts.Length; k++)
             {
                 var v = verts[k];
+                // the vertex under Hide (UV2.y lower or higher) counts too: the setting changes live
+                hi.Y = MathF.Max(hi.Y, v.Y + MathF.Max(uv2s[k].Y, 0));
+                v.Y = MathF.Min(v.Y, v.Y + uv2s[k].Y);
                 float y = v.Y;
                 if (footK > 0)
                 {
@@ -707,14 +745,25 @@ public partial class HorizonTerrain : Node3D
         var (fx0, fz0, fx1, fz1) = _bounds;
         int fw = (int)MathF.Ceiling((fx1 - fx0) / FloorTexel), fh = (int)MathF.Ceiling((fz1 - fz0) / FloorTexel);
         var floor = _floor ?? [];
+        var floorHide = _floorHide ?? floor;
         var rimTexels = _rim ?? [];
-        var both = new float[floor.Length * 2];
-        for (int k = 0; k < floor.Length; k++) { both[2 * k] = floor[k]; both[2 * k + 1] = rimTexels.Length > k && rimTexels[k] ? 1f : 0f; }
-        var floorImg = Image.CreateFromData(fw, fh, false, Image.Format.Rgf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(both.AsSpan()).ToArray());
+        // R: the floor, G: a rim texel, B: the floor under Map Edge's Hide
+        var all = new float[floor.Length * 3];
+        for (int k = 0; k < floor.Length; k++) { all[3 * k] = floor[k]; all[3 * k + 1] = rimTexels.Length > k && rimTexels[k] ? 1f : 0f; all[3 * k + 2] = floorHide[k]; }
+        var floorImg = Image.CreateFromData(fw, fh, false, Image.Format.Rgbf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(all.AsSpan()).ToArray());
         Set("map_floor", ImageTexture.CreateFromImage(floorImg));
         Set("map_origin", new Vector2(fx0, fz0));
         Set("map_extent", System.Environment.GetEnvironmentVariable("I76_HORIZON_MASK") == "0" ? Vector2.Zero : new Vector2(fw * FloorTexel, fh * FloorTexel));   // I76_HORIZON_MASK=0: as it was, for before captures
-        _floor = null; _rim = null;
+        _floor = null; _rim = null; _floorHide = null;
+        if (_walls is { } walls)
+        {
+            // Hide's foot grid (EdgeWalls): the plain's height and the hidden flag a sample, texel centres on the samples
+            var footImg = Image.CreateFromData(walls.W, walls.H, false, Image.Format.Rgf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(walls.Texels().AsSpan()).ToArray());
+            RenderingServer.GlobalShaderParameterSet("i76_edge_foot", ImageTexture.CreateFromImage(footImg));
+            float ss = TerrainNode.SampleSize;
+            RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", new Vector4(walls.X0 * ss - ss / 2, walls.Z0 * ss - ss / 2, walls.W * ss, walls.H * ss));
+            MissionBuilder.Trace($"map edge: {walls.HiddenCount} hidden samples of {walls.W}x{walls.H}");
+        }
         if (_edge is { } edge)
         {
             var edgeImg = Image.CreateFromData(_edgeW, _edgeH, false, Image.Format.Rf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(edge.AsSpan()).ToArray());
@@ -873,25 +922,33 @@ public partial class HorizonTerrain : Node3D
     /// The height at a centre-relative game point, and (height above the
     /// base, distance from the map, rockiness, style).
     /// </summary>
-    private (float H, Vector4 Aux) Height(MissionWorld world, float x, float z)
+    private (float H, Vector4 Aux) Height(MissionWorld world, float x, float z, bool hide)
     {
         float d = SignedDistance(x, z);
         float r = Len(x, z);
         float bearing = (MathF.Atan2(x, z) / MathF.Tau + 1) % 1;
-        float rim = _rimByBearing[(int)(bearing * _rimByBearing.Length) % _rimByBearing.Length];
+        var rims = hide ? _rimHide : _rimByBearing;
+        float rim = rims[(int)(bearing * rims.Length) % rims.Length];
+        float baseLevel = hide ? _baseHide : _base;
+        // the map's ground as drawn: under Hide, down at the walls' plain
+        float Ground(float gx, float gz)
+        {
+            float g = (float)world.BilinearHeight(_centre.X + gx, _centre.Y + gz);
+            return hide && _walls is not null ? (float)_walls.Ground(_centre.X + gx, _centre.Y + gz, g) : g;
+        }
         if (d < 0)
         {
             // under the map: just below its own ground near the edge (a cell of this mesh can straddle the edge, and
             // its outside part must not dip into a trench), deeper further in
-            float ground = (float)world.BilinearHeight(_centre.X + x, _centre.Y + z);
+            float ground = Ground(x, z);
             return (ground - 3 + 2 * MathF.Min(d + 30, 0), new Vector4(0, d, 0, 0));
         }
-        float baseH = rim + (_base - rim) * SmoothStep(0, 1500, d);
+        float baseH = rim + (baseLevel - rim) * SmoothStep(0, 1500, d);
         if (d < 300)
         {
             // at the map's edge: just under the edge's own ground, so nothing shows above it, then out to the rim's level
             var (ex, ez) = NearestInside(x, z);
-            float edge = (float)world.BilinearHeight(_centre.X + ex, _centre.Y + ez) - 0.5f;
+            float edge = Ground(ex, ez) - 0.5f;
             baseH = edge + (baseH - edge) * SmoothStep(0, 300, d);
         }
         // the features: the highest of them here

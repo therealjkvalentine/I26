@@ -68,6 +68,8 @@ public class MapEdgeTests
         Assert.Equal(MapEdge.Original, MapEdge.Parse(null));
         Assert.Equal(MapEdge.Original, MapEdge.Parse(7));
         Assert.Equal(MapEdge.FadeOut, MapEdge.Parse(2));
-        Assert.Equal(["Plain*", "Haze", "Fade Out"], MapEdge.Names);   // the original's value shows what it is, marked (ShellSettings.OriginalMark)
+        Assert.Equal(MapEdge.Hide, MapEdge.Parse(3));
+        Assert.Equal(MapEdge.Original, MapEdge.Parse(4));
+        Assert.Equal(["Plain*", "Haze", "Fade Out", "Hide"], MapEdge.Names);   // the original's value shows what it is, marked (ShellSettings.OriginalMark)
     }
 }

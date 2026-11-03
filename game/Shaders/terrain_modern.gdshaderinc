@@ -176,6 +176,12 @@ void vertex() {
 		uv += vec2(move.x, -move.z) / 5.0;
 		NORMAL = normalize(mix(NORMAL, CUSTOM1.xyz, k));
 	}
+	// Map Edge's Hide: the walls and the plateau behind them held down to the plain at their foot (map_edge.gdshaderinc)
+	if (i76_edge_hide > 0.0) {
+		float up;
+		VERTEX.y = map_edge_hide_y(uv * 5.0, VERTEX.y, up);
+		if (up > 0.0) NORMAL = normalize(mix(NORMAL, vec3(0.0, 1.0, 0.0), up));
+	}
 	g_pos = vec3(uv.x * 5.0, VERTEX.y, uv.y * 5.0);
 	g_nrm = vec3(NORMAL.x, NORMAL.y, -NORMAL.z);
 	g_broad = vec3(CUSTOM2.x, sqrt(max(1.0 - dot(CUSTOM2.xy, CUSTOM2.xy), 0.0)), CUSTOM2.y);
