@@ -104,6 +104,7 @@
 - Custom maps: a script's setUserRadar now acts as in the original (it was ignored): its first use switches the player's radar off, blank with no contacts and no target, for the rest of the mission; the original's own toggle never brings it back.
 - A script's isShot and isRammed see a hit for two script frames, as in the original, instead of one, so a script that checks every other frame no longer misses it.
 - A script's teleportOffset puts the car at the ground height under the path's point, as the original does, not under the offset spot, and teleport writes that height into the path as the original does.
+- An off-road attacker at the default driving skill throws its handbrake skid turn as often as in the original (one chance in 31 a frame, not 32).
 
 ## 0.11.0 (31 October 2026)
 
