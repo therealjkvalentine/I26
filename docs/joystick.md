@@ -117,7 +117,7 @@ ends with *Tap / hold...*, which asks the tap's command and then the hold's; the
 
 **Look back** (context bindings, after the rules of a pad layout players used over the original; off by default). The head looks back when
 the rear glance is held or the look stick is pushed round to the rear (`Cockpit.LookingBack`, in the car only). `lookback weapon_fire
-hardpoint3_fire`: while looking back every input of fire (a key, A, RB) fires hardpoint 3, the rear gun on most cars, and not the selected
+hardpoint3_fire`: while looking back every input of fire (a key, A) fires hardpoint 3, the rear gun on most cars, and not the selected
 weapon. `lookbackinput joystick1 Button10 hardpoint4_fire`: while looking back R3, the look stick's click, drops hardpoint 4 (the dropper)
 instead of its own command, and keeps its command otherwise. `pulledback joystick1 Down/Up e_brake reverse_direction`: with the left stick
 pulled back past half its travel the handbrake's press toggles reverse instead (a three-point turn without letting go of the stick); the
@@ -155,6 +155,19 @@ device and its preset. The layouts are those players settled on for these device
 Tests: `tests/I76.Formats.Tests/DevicePresetTests.cs` (matching by ids and names, both layouts, a preset only on its own device, the three
 threshold modes with their two lines, the file). Not verified on the devices: matched by the ids their makers publish and the layouts as
 measured on the original; Godot's axis numbering for them on Windows is assumed to follow winmm's (X, Y, then the rest).
+
+## A wheel and a stick together
+
+Every device Godot lists is read (`JoystickBank`, joystick1, joystick2, ... in `GodotPads`' order: the game pads first, then the rest), and
+input.map's `joystickN` terms already named any of them, so a wheel (joystick1) steering on its pedals with a flight stick (joystick2) for the
+buttons plays from one map. What was missing was editing the second device: the Joystick Configuration screen now edits one device at a time,
+and with two or more devices without a standard layout a row in its middle (or Tab) steps to the next (`Device 2 of 2: joystick2`). Its rows,
+its list's choices, Delete, Invert and Restore Defaults are that device's: a button given a command replaces the command's binding on that
+device only (a wheel's button and a stick's can both fire), clearing or inverting an axis leaves the other device's axis of the same number,
+and Restore puts joystick1's preset back on joystick1 and a known second device's own preset on it (Device presets, above), leaving any other
+second device with nothing. A game pad as
+joystick1 with a stick beside it: the pad keeps the Controller screen, and the stick's buttons are bound from Control Configuration's capture
+(right-click, then the button: `joystick2 ButtonN`). Tests: `tests/I76.Formats.Tests/TwoDeviceTests.cs`. Not verified on two real devices.
 
 ## Game pad dead zones
 
@@ -220,6 +233,6 @@ the same steer sign a game pad's left stick gives).
 
 Verified: Godot lists and reads an unmapped Linux device raw; the port finds it, applies the preset, shows the screen, and the car
 accelerates and steers from the stick. Not verified: the switch on real hardware (it is tested with the events Godot would send, `GenericJoystickTests`), Windows (DirectInput numbering, hat), real hardware, force feedback on a
-real wheel or stick (see above), more than one stick.
+real wheel or stick (see above), more than one stick (edited one at a time, above).
 
 A way to have both would be to read the hat apart from Godot (on Windows `joyGetPosEx`'s POV against its buttons, on Linux evdev), matched to Godot's device; not done, nothing here to test it on.

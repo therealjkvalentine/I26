@@ -348,6 +348,9 @@ public static class Controls
     /// <summary>The first device is a flight stick or the like (no standard gamepad layout): its preset is the stick's, not the pad's (docs/joystick.md).</summary>
     public static bool PrimaryIsGeneric { get { Refresh(); return Pads.IsGeneric(0); } }
 
+    /// <summary>The devices with no standard layout (0 is joystick1), in order: a wheel and a stick together are two.</summary>
+    public static IReadOnlyList<int> GenericDevices { get { Refresh(); return [.. Enumerable.Range(0, Pads.Count).Where(Pads.IsGeneric)]; } }
+
     private static string? Install(string name)
     {
         if (InstallDir is not { } dir || !System.IO.Directory.Exists(dir)) return null;
