@@ -239,14 +239,8 @@ public sealed partial class Ptable
         else { v.Gear = 1f; v.DriveState = 3; }
     }
 
-    /// <summary>GetAiCruiseSpeed: the speed where full lock meets the flat grip, sqrt(7.84·Σgrip / gain).</summary>
-    public static float Cruise(Vehicle v)
-    {
-        float sum = v.Wheels.Sum(w => w.Grip);
-        return sum < 0 || v.P.SteerGain <= 0 ? 1f : MathF.Sqrt(7.84f * sum / v.P.SteerGain);
-    }
-    /// <summary>The AI's cruise: 10 for a helicopter, else the cruise speed.</summary>
-    private static float Cruise(Entity e) => e.IsHeli ? 10f : Cruise(e.Vehicle!);
+    /// <summary>The AI's turn speed: 10 for a helicopter, else the car's stored one (<see cref="Vehicle.TurnSpeed"/>).</summary>
+    private static float Cruise(Entity e) => e.IsHeli ? 10f : e.Vehicle!.TurnSpeed;
 
     // ---- geometry (GetCachedObjectGeometry and the pair cache) ----
 

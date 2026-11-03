@@ -94,6 +94,7 @@ public static class VehicleFactory
             if (slots[kind * 2] is { } a) a.Grip = grip;
             if (slots[kind * 2 + 1] is { } b) b.Grip = grip;
         }
+        v.TurnSpeed = v.TurnSpeedFor(Vehicle.SpawnSteerGain);   // spawned with the wheel files' grips, before the steer gain is the car's
 
         // compnent.cdf: ENGN by engsnd.dat's ENG COMP ID; SUSP and BRAK by ordinal.
         var (engns, braks, susps) = ReadComponents(vfs);

@@ -73,15 +73,15 @@ public sealed class VehicleDamage
             d.Chassis[z] = d.ChassisMax[z] = d.ChassisMirror[z] = b.Chassis[z];
         }
         d.ArmourMirror[4] = d.ChassisMirror[4] = 100;
-        d.Slots[0] = new WheelPart(v.FrontRight, b.WheelHp[0]);
-        d.Slots[1] = new WheelPart(v.FrontLeft, b.WheelHp[0]);
+        d.Slots[0] = new WheelPart(v.FrontRight, b.WheelHp[0], v);
+        d.Slots[1] = new WheelPart(v.FrontLeft, b.WheelHp[0], v);
         if (v.MiddleRight is { } mr && v.MiddleLeft is { } ml)
         {
-            d.Slots[2] = new WheelPart(mr, b.WheelHp[1]);
-            d.Slots[3] = new WheelPart(ml, b.WheelHp[1]);
+            d.Slots[2] = new WheelPart(mr, b.WheelHp[1], v);
+            d.Slots[3] = new WheelPart(ml, b.WheelHp[1], v);
         }
-        d.Slots[4] = new WheelPart(v.RearRight, b.WheelHp[2]);
-        d.Slots[5] = new WheelPart(v.RearLeft, b.WheelHp[2]);
+        d.Slots[4] = new WheelPart(v.RearRight, b.WheelHp[2], v);
+        d.Slots[5] = new WheelPart(v.RearLeft, b.WheelHp[2], v);
         d.Slots[6] = new ChassisPart();
         d.Slots[7] = new EnginePart(v.Engine, b.EngineHp, isPlayer || network ? 0.4f : 0.275f);
         d.Slots[8] = new SuspensionPart(v.P, b.SuspensionHp, b.SuspensionImpactScale);

@@ -44,6 +44,7 @@
 - Looking down at the 3D cockpit's dash, the speedometer, tachometer and panels are no longer broken into slanted blocks on a large window: the cockpit art is smoothed as the original's 3D cards drew it, in the 1997 look and the modern one (1997 Software keeps its sharp pixels).
 - Taurus's car corners as the original's does: the car the mission names as Taurus (Interstate '76's missions 1 to 3 and the others he drives in) now takes the original's load-based cornering whatever the play options say, which sets how hard he can corner and the speeds he plans for the turns, and, outside network games, when his car comes to rest on its roof it is put back on its wheels instead of destroyed (which could fail the mission).
 - Play Options' Difficulty Level now does something: off the network, your weapons do double damage at Wimp and three quarters at Badass (Champion unchanged; the .45 the same at every level), as in the original. Until now every setting played as Champion. A change in the Esc menu takes effect when you resume. The setting starts at Wimp, as the original's shipped settings do, so check it if your weapons now seem strong. Network games, melee and co-op, ignore it for everyone, as the original's network games did.
+- AI cars take hard turns, slow manoeuvres and searches at the original's speed (12.5 m/s for most cars) instead of 5 to 15 % faster: the turn speed is set when the car appears and changes only when a wheel is shot, as in the original.
 
 ## 0.11.0 (31 October 2026)
 

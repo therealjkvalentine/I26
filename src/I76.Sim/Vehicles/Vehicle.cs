@@ -309,6 +309,26 @@ public sealed class Vehicle
 
     public float InvSpeed => Speed <= 1e-4f ? 1e30f : 1f / Speed;
 
+    /// <summary>
+    /// The AI's turn speed, the speed where full lock meets the flat grip limit: sqrt(7.84 x the four corner wheels'
+    /// grip / steer gain). The original stores it when the car is spawned, while the steer gain is still the default
+    /// <see cref="SpawnSteerGain"/>, and again when a wheel is damaged (<see cref="RecomputeTurnSpeed"/>); the AI reads
+    /// the stored value, never the live car.
+    /// </summary>
+    public float TurnSpeed;
+    /// <summary>The steer gain before the car's own is set, 1 / (2 x 2.5 m): the spawn's turn speed uses it.</summary>
+    public const float SpawnSteerGain = 0.2f;
+
+    /// <summary>sqrt(7.84 x the four corner grips / <paramref name="steerGain"/>); 1 m/s for a negative sum.</summary>
+    public float TurnSpeedFor(float steerGain)
+    {
+        float sum = FrontRight.Grip + FrontLeft.Grip + RearRight.Grip + RearLeft.Grip;
+        return sum < 0 || steerGain <= 0 ? 1f : MathF.Sqrt(7.84f * sum / steerGain);
+    }
+
+    /// <summary>A wheel was damaged: the turn speed again, from the current grips and the car's own steer gain.</summary>
+    public void RecomputeTurnSpeed() => TurnSpeed = TurnSpeedFor(P.SteerGain);
+
     /// <summary>The COLP box: ascending x0..x3, y0..y3, z0..z3.</summary>
     public float[] BoxX = [-0.9f, -0.5f, 0.5f, 0.9f], BoxY = [0f, 0.3f, 1.0f, 1.4f], BoxZ = [-2.1f, -1f, 0.5f, 2f];
 

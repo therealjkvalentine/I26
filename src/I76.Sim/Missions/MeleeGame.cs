@@ -695,6 +695,7 @@ public sealed partial class MeleeGame
             else { w.Grip = f.Grip; w.Rolling = f.Rolling; w.Blown = false; w.Rest = f.Rest; }   // the blow-out's lower rest height too
         p.P = fresh.P;
         p.Engine = fresh.Engine;
+        p.TurnSpeed = fresh.TurnSpeed;
         // the driver's side-glance handguns are fitted to the car by the game after the build (the cockpit decides
         // which arms there are), so the fresh armoury has none: the driver keeps theirs, loaded again
         if (p.Armory is { } old && fresh.Armory is { } fa)
