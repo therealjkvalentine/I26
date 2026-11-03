@@ -47,8 +47,9 @@ public class MissionTitlesTests
         // the campaign (A01, T01-T17), then the scenarios in the shell's own order; no melee arena
         string[] t = [.. Enumerable.Range(1, 17).Select(i => $"t{i:00}")];
         Assert.Equal(["a01", .. t, .. MissionTitles.BaseScenarios.Select(s => s.Msn)], list);
-        Assert.Equal("3. The Two Samurai", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t03").Title);
-        Assert.Equal("17. The Truth Is Out There", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t17").Title);
+        Assert.Equal("Scene 3: The Bar-D", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t03").Title);
+        Assert.Equal("Scene 17: Malocchio", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t17").Title);
+        Assert.Equal("Training", MissionTitles.CoopTitle(TestInstall.Install, "a01"));
         Assert.Equal("Oil Well Well", MissionTitles.CoopTitle(TestInstall.Install, "S03"));
         Assert.Equal("M01", MissionTitles.CoopTitle(TestInstall.Install, "m01"));
     }
@@ -94,5 +95,32 @@ public class MissionTitlesTests
             Assert.False(MissionTitles.IsCoopCopy(install, edited));
         }
         finally { Directory.Delete(dir, true); }
+    }
+
+
+    [Fact]
+    public void TheTripScenesAreNamedByWhatHappensInThem()
+    {
+        // the port's names (the original shows only "Scene N."); the executable's unshown titles are not used
+        Assert.Equal(17, MissionTitles.SceneNames.Length);
+        Assert.Equal(17, MissionTitles.SceneNames.Distinct().Count());
+        Assert.All(MissionTitles.SceneNames, n => Assert.False(string.IsNullOrWhiteSpace(n)));
+        Assert.Equal("Scene 4: Dream Race", MissionTitles.TripTitle(4));
+        Assert.Equal("Scene 5: Save Taurus", MissionTitles.TripTitle(5));
+        Assert.Equal("Scene 1: Meet Taurus", MissionTitles.TripTitle(1));
+        Assert.Equal("Scene 17: Malocchio", MissionTitles.TripTitle(17));
+        Assert.Equal("Save Taurus", MissionTitles.SceneName(5));
+        Assert.Equal("Scene 18", MissionTitles.TripTitle(18));
+        Assert.DoesNotContain("Roswell", MissionTitles.SceneNames);
+        Assert.DoesNotContain("The Desert War", MissionTitles.SceneNames);
+    }
+
+    [InstallFact]
+    public void TheCampaignListsTheScenesByTheirNames()
+    {
+        var all = MissionTitles.Stock(TestInstall.Install);
+        Assert.Equal("Training (A01)", all.First(m => m.Stem == "a01").Label);
+        Assert.Equal("Scene 5: Save Taurus (T05)", all.First(m => m.Stem == "t05").Label);
+        Assert.Equal("Scene 4: Dream Race (T04)", all.First(m => m.Stem == "t04").Label);
     }
 }

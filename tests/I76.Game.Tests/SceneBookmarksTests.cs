@@ -62,7 +62,7 @@ public class SceneBookmarksTests : IDisposable
         {
             var car = TripCar.FromVcf(vfs.Read(SceneBookmarks.CarFile(n)), c => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, c));
             Assert.NotNull(TripInventory.FromCar(car, PartsDatabase.Build(vfs), vfs).Save());
-            var name = SceneBookmarks.NameOf(TestInstall.Install, n);
+            var name = SceneBookmarks.NameOf(n);
             Assert.False(string.IsNullOrWhiteSpace(name));
             Assert.DoesNotContain(". ", name[..Math.Min(4, name.Length)]);
             names.Add(name);
