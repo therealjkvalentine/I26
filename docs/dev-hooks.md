@@ -29,6 +29,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_SHOT_SIZE` | capture | Render size, `WxH` (default 1280x720). |
 | `I76_SHOT_FPS` | capture | Step the game at a fixed frame rate (`--fixed-fps`). |
 | `I76_SHOT_MAX_FPS` | capture | At most that many frames a real second (paced by `FrameLimiter.Pace`: Godot's `--max-fps` does nothing under `--fixed-fps`). With `I76_SHOT_FPS` the same the capture runs in real time, which a network game needs: its listen server ticks and its bots play on the wall clock, so a slower capture shows them sped up. |
+| `I76_BUILD_ID` | capture | `abc1234`: this process's build id (`BuildId`) instead of its commit's, for captures of the network forms' different-build notice (a dedicated server or a joiner given another). |
 | `I76_NET_TIME_SCALE` | capture | `S`: the network game's clock (`NetClock`) runs at S times the wall clock: the listen server's ticks, the client's view of them, and `i26-server --bots` given the same value. For a network capture the machine can't render in real time: `I76_SHOT_FPS=30 I76_SHOT_MAX_FPS=15` with S 0.5 in both processes records a game at half speed that plays back at full. |
 | `I76_SHOT_FRAMES` | capture | Quit after N frames (default 12); the shot is frame N-2. |
 | `I76_SHOT_SERIES` | capture | Also save the last K frames. |

@@ -83,6 +83,7 @@ public sealed partial class NetMeleeServer
         _lobby.Add(new LobbyPeer((byte)id, peer, j with { Name = name }));
         Log?.Invoke($"lobby: {name} comes in ({_lobby.Count} of {Options.MaxPlayers}), {j.Car}");
         SendLobby();
+        if (BuildId.Differs(j.Build, BuildId.Current)) LobbySay("Server", BuildId.JoinNotice(name, j.Build, BuildId.Current));
     }
 
     private void SendLobby()

@@ -214,20 +214,23 @@ public sealed partial class MeleeClient : IDisposable
         };
     }
 
+    /// <summary>The build the join request names (<see cref="BuildId"/>; another in tests).</summary>
+    public string Build { get; init; } = BuildId.Current;
+
     /// <summary>Starts connecting to host:port with the join request (name, car, team).</summary>
     public void Connect(string host, int port, string name, string car, byte team = 0, byte[]? config = null, string password = "", byte[]? paint = null)
     {
         _net.Start();
         State = ClientState.Connecting;
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint);
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build };
         _net.Connect(host, port, JoinData(name, car, team, config, password, paint));
     }
 
-    private static NetDataWriter JoinData(string name, string car, byte team, byte[]? config, string password = "", byte[]? paint = null)
+    private NetDataWriter JoinData(string name, string car, byte team, byte[]? config, string password = "", byte[]? paint = null)
     {
         var w = new NetDataWriter();
         var nw = new NetWriter();
-        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint).Write(nw);
+        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build }.Write(nw);
         w.Put(nw.ToArray());
         return w;
     }
@@ -245,7 +248,7 @@ public sealed partial class MeleeClient : IDisposable
         _net.Start();
         State = ClientState.Connecting;
         _joinData = JoinData(name, car, team, config, password, paint);
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint);
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build };
         _joiner = new AnetJoiner(new LiteNetAnetTransport(_net, _layer), serverHost, serverPort, game, (ep, d) => _net.SendUnconnectedMessage(d, ep),
             privateOverride: privateOverride) { CheckServers = checkServers ?? [] };
         _joiner.Log += m => Log?.Invoke(m);

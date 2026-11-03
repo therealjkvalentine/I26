@@ -20,7 +20,7 @@ public class DiscoveryTests
         Assert.Equal(0, SessionInfo.TryRead(w.Span)!.RateHz);
         w = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], RateHz: 60).Write(w);
-        Assert.Equal(0, SessionInfo.TryRead(w.Span[..^5])!.RateHz);       // (protocol 22 ends with the lobby, car reset, CB and ignition bytes, after the rate)
+        Assert.Equal(0, SessionInfo.TryRead(w.Span[..^6])!.RateHz);       // (protocol 26 ends with the lobby, car reset, CB and ignition bytes and the build, after the rate)
     }
 
     /// <summary>The host's Car Reset (the reset-upright key) is listed; a build that did not say (no key) is "no".</summary>
@@ -36,7 +36,7 @@ public class DiscoveryTests
         }
         var old = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], RateHz: 60, CarReset: true).Write(old);
-        var older = SessionInfo.TryRead(old.Span[..^3])!;
+        var older = SessionInfo.TryRead(old.Span[..^4])!;
         Assert.False(older.CarReset);
         Assert.True(older.Cb);
         Assert.Equal(60, older.RateHz);
@@ -55,7 +55,7 @@ public class DiscoveryTests
         }
         var old = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], CarReset: true, Cb: false).Write(old);
-        Assert.True(SessionInfo.TryRead(old.Span[..^2])!.Cb);
+        Assert.True(SessionInfo.TryRead(old.Span[..^3])!.Cb);
     }
 
     [Fact]

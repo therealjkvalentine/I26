@@ -588,7 +588,7 @@ public sealed partial class MeleeHost : IModeHost
         [.. _seats.Select(s => new SessionDriver(s.Name, s.Actor.CarFile, (byte)s.Actor.Team)), .. Mode.Bots.Select(b => new SessionDriver(b.Name, b.Player.CarFile, (byte)b.Player.Team))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams,
         MapOffer?.Hash, MapOffer?.Shared ?? false, (uint)(MapOffer?.TotalSize ?? 0), Options.Password.Length > 0,
-        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, IgnitionStaysOn: Options.IgnitionStaysOn) { Handicaps = Options.Handicaps };
+        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, IgnitionStaysOn: Options.IgnitionStaysOn) { Handicaps = Options.Handicaps, Build = BuildId.Current };
 
     /// <summary>
     /// A player joins: the car they asked for, built from the server's own
@@ -721,7 +721,7 @@ public sealed partial class MeleeHost : IModeHost
         [.. Setup.World.Vehicles.Select(Info)],
         [.. _structureSerial.Where(kv => kv.Key.Destroyed || kv.Key.Nodes.Any(n => n.Destroyed)).Select(kv => new StructureState(kv.Value, kv.Key.DestroyedMask()))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams, (byte)Session.Rate.Label,
-        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash) { Coop = Mode.JoinState(s), Cb = Options.AllowCb, IgnitionStaysOn = Options.IgnitionStaysOn, Handicaps = Options.Handicaps };
+        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash) { Coop = Mode.JoinState(s), Cb = Options.AllowCb, IgnitionStaysOn = Options.IgnitionStaysOn, Handicaps = Options.Handicaps, Build = BuildId.Current };
 
     private CarInfo Info(Vehicle v)
     {
