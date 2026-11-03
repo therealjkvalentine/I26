@@ -135,6 +135,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Graphic Detail has a Render Scale row (100, 150 or 200 %: the 3D view drawn larger and scaled down, sharper edges for a fast GPU; the HUD and menus are not scaled) and Anti-Aliasing gains an 8x step. Both are off or as before until you change them.
 - A voice overlay: copy another language's voice files from your own disc (the 1997 German dub, say) into `voices/de` in the user folder and start with `--voices de`; they play in place of the install's files of the same names. Nothing changes without `--voices`.
 - Your own music in the mission music: put songs (.mp3 or .ogg) in a `music-extra` folder in the user folder and one mission-music start in three plays one of them in place of the disc track (the shell's music is left alone); `--music-extra off` or a folder, and `I76_MUSIC_EXTRA_EVERY` (1 to 20) change it. No folder, no change.
+- A Developer panel for testing, off for players: with `--dev`, `I76_DEV=1` or `developer_tools=true` in the settings file, Ctrl+F2 in a single-player mission (or the escape menu's Developer row) opens it over the paused game. Teleport to the mission's named places or to coordinates, repair and refill the car, God mode, bring the nearest car, store and restore the whole simulation (the restored run goes on tick for tick as the stored one did), freeze, step and slow the ticks, and a status line with the tick, its substeps and the fps (docs/dev-hooks.md).
 
 ## 0.11.0 (31 October 2026)
 

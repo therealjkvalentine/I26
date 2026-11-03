@@ -122,7 +122,7 @@ and a pad).
 
 Shift or Ctrl held cancels a command, as in the original. Port keys: C poetry (in network games, the CB radio's push-to-talk), Ctrl+F3 debug text, Ctrl+F7
 Modern Physics, Ctrl+F5 debug fly camera (right mouse looks, WASD/QE fly, Shift for speed), Ctrl+F9 wins the trip
-mission on the spot (debug).
+mission on the spot (debug), Ctrl+F2 the Developer panel when it is turned on (docs/dev-hooks.md).
 
 **Cheats.** The original's words, typed while holding Ctrl+Shift (single player): `getdown` stops the mission script
 and sets everyone on you; get killed (or Ctrl+Del) and the mission counts as won 5 s later, the original's level

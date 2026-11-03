@@ -510,7 +510,7 @@ public partial class Main : Node3D
         _menu = new EscapeMenu
         {
             Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
-            Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry,
+            Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
         layer.AddChild(_menu);
@@ -595,10 +595,12 @@ public partial class Main : Node3D
         switch (o)
         {
             case MenuOutcome.Resume:
+            case MenuOutcome.Developer:
                 ApplyPlayOptions(settings);
                 SetCheckpointPolicy(settings, resumed: true);   // Checkpoints from Play Options: from the next one on
                 if (settings.Look1997 != _lookSaved) { _lookSaved = settings.Look1997; SetMode1997(_lookSaved); }   // 1997 Mode on the Graphic Detail pad, as F2
                 GetTree().Paused = false;
+                if (o == MenuOutcome.Developer) OpenDevPanel();
                 break;
             case MenuOutcome.RetryCheckpoint:
                 RetryCheckpoint();
@@ -664,6 +666,8 @@ public partial class Main : Node3D
         if (_modernSetup is not null && s.ModernPhysics != (_modern?.Enabled == true)) EnableModern(s.ModernPhysics);
         // the cheats (Unlim. Ammo / Armor / Chas. Rein.) and the Difficulty Level
         if (_sim?.Combat is { } c) PlayOptionsCombat.Apply(s, c);
+        // the Developer panel's God mode outlasts the options applied again (DevTools.SetGodMode)
+        if (_devGod && _sim?.Session is { } gs) I76.Sim.Session.DevTools.SetGodMode(gs, true);
         if (_sim?.World.Player is { } p)
             p.Flags = (s.PlayOptions & 1) != 0 ? p.Flags | I76.Sim.Vehicles.VehicleFlags.LoadBasedCornering : p.Flags & ~I76.Sim.Vehicles.VehicleFlags.LoadBasedCornering;
     }
@@ -2268,7 +2272,7 @@ public partial class Main : Node3D
     private void UpdateMouseCapture()
     {
         if (_editor is not null) return;   // the editor camera captures the pointer for its own drags
-        bool inMission = _sim is not null && !_inMenu && _menu is null && !_loading && _picture is null && !_installerOnly && _reconfig is null
+        bool inMission = _sim is not null && !_inMenu && _menu is null && !_loading && _picture is null && !_installerOnly && _reconfig is null && _dev is null
             && _opt.Install is not null;
         bool chase = !CameraHeld && _chase is { Current: true, Fixed: null };
         bool focused = DisplayServer.WindowIsFocused() || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;   // (a capture's off-screen window is never focused)
@@ -2421,6 +2425,8 @@ public partial class Main : Node3D
         switch (k.Keycode)
         {
             case Key.F3 when _overlay is not null: _overlay.Visible = !_overlay.Visible; return true;
+            // the port's Developer panel, when it is on (MainDev.cs)
+            case Key.F2 when DevOn && _net is null && !_ended: OpenDevPanel(); return true;
             // the cars' material maps and glass against the old all-over clear coat
             case Key.F8: GD.Print($"car materials {(I76.Game.Assets.MaterialLibrary.ToggleCarMaterials() ? "on" : "off")}"); return true;
             case Key.F4:
@@ -2927,7 +2933,7 @@ public partial class Main : Node3D
             // each key is down for one frame, so held-key checks see it too
             foreach (var (f, u, k, m) in _keys.Where(e => e.Until == _n - 1)) Post(k, m, false);
             foreach (var (f, u, k, m) in _keys.Where(e => e.Frame == _n)) Post(k, m, true);
-            if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null)) return;
+            if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null && Owner._dev is null)) return;
             var o = Owner._opt;
             if (o.Screenshot is not null && ++Owner._frames == System.Math.Max(o.QuitAfter, 10) - 2) GetViewport().GetTexture().GetImage().SavePng(o.Screenshot);
             if (o.QuitAfter > 0 && Owner._frames >= o.QuitAfter) GetTree().Quit();
