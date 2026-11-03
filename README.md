@@ -45,7 +45,11 @@ repository: `tools/upscale-textures.py` makes them on your own machine from your
 and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. World and car
 textures come out at twice the original's size and the cockpit's art at four times, as compressed `.dds` files the game
 loads about as fast as its own; the cockpit's pixel lettering (the weapon labels, the ammunition digits) and the mirror's
-frame are scaled in their own colours rather than by the model. `--from OLD_PACK` repacks a pack made by an earlier version without running the model again. The 1997 look
+frame are scaled in their own colours rather than by the model. The model darkens or lightens broad areas and shifts
+their tint, so its output is matched back to the original's colour: the upscale's blurred picture is brought to the
+original's in Oklab and the model's fine detail kept (`--no-colour-match` writes the model's colours as they come;
+`--self-check` tests the match on a made-up picture). `--from OLD_PACK` repacks a pack made by an earlier version without running the model again,
+colour matching it to your export on the way. The 1997 look
 keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code
