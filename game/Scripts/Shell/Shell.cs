@@ -1303,6 +1303,8 @@ public sealed class ShellSettings
     public int EffectsSize { get; set; } = I76.Sim.Views.EffectsLook.Default;
     public int EffectsBrightness { get; set; } = I76.Sim.Views.EffectsLook.Default;
     public int EffectsOpacity { get; set; } = I76.Sim.Views.EffectsLook.Default;
+    /// <summary>The port's own, config only (no row): the modern look's scattered plants as a percentage of the Vegetation level's cover (shell.cfg [port] vegetation_density; 10 to 150, written only when not 60; <see cref="I76.Formats.Vegetation.VegetationDensity"/>).</summary>
+    public int VegetationDensity { get; set; } = I76.Formats.Vegetation.VegetationDensity.Default;
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
@@ -1458,6 +1460,8 @@ public sealed class ShellSettings
         s.EffectsSize = I76.Sim.Views.EffectsLook.Parse(Pct("effects_size"));
         s.EffectsBrightness = I76.Sim.Views.EffectsLook.Parse(Pct("effects_brightness"));
         s.EffectsOpacity = I76.Sim.Views.EffectsLook.Parse(Pct("effects_opacity"));
+        // no version step: absent, 60 (the plants were placed at the full level before the key)
+        s.VegetationDensity = I76.Formats.Vegetation.VegetationDensity.Parse(Pct("vegetation_density"));
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
@@ -1562,6 +1566,7 @@ public sealed class ShellSettings
         if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
+        if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);
         if (EffectsOpacity != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_opacity", EffectsOpacity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);

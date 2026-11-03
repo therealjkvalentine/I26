@@ -203,7 +203,10 @@ public partial class VegetationNode : Node3D
     private ulong _seed;
     private float _lowLevel;
 
-    /// <summary>Off (0) hides and drops everything; Low (1) and High (2) re-place every chunk at their density and reach.</summary>
+    /// <summary>shell.cfg's vegetation_density as a factor on the level's density (<see cref="VegetationDensity"/>); applied at the next <see cref="SetLevel"/>.</summary>
+    public static float DensityFactor { get; set; } = VegetationDensity.Factor(VegetationDensity.Default);
+
+    /// <summary>Off (0) hides and drops everything; Low (1) and High (2) re-place every chunk at their density (times <see cref="DensityFactor"/>) and reach.</summary>
     public void SetLevel(int level)
     {
         Clear();
@@ -211,7 +214,7 @@ public partial class VegetationNode : Node3D
         _tumble?.SetLevel(level);
         if (level == 0) { _placer = null!; UpdateSward(0, now: true); return; }
         _level = level >= 2 ? High : Low;
-        _placer = new VegetationPlacer(_region.Biome, new VegetationParams { Density = _level.Density * _region.Density, LowLevel = _lowLevel, LowGround = _region.LowGround }, _terrain, _mask, _seed);
+        _placer = new VegetationPlacer(_region.Biome, new VegetationParams { Density = _level.Density * _region.Density * DensityFactor, LowLevel = _lowLevel, LowGround = _region.LowGround }, _terrain, _mask, _seed);
         for (int l = 0; l < 2; l++)
         {
             float mid = l == 0 ? _level.ShrubMid : _level.GroundMid, far = l == 0 ? _level.ShrubFar : _level.GroundFar;
