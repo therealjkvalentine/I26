@@ -71,6 +71,12 @@ public static class BoardCursor
         return players.Count == 0 ? -1 : (last ? players[^1] : players[0]).Slot;
     }
 
+    /// <summary>How long a boot's question is up before the same row picked again boots, in seconds: a double-click is quicker.</summary>
+    public const double ConfirmAfter = 0.5;
+
+    /// <summary>Whether a second pick at <paramref name="t"/> of the row asked about at <paramref name="askedAt"/> boots.</summary>
+    public static bool Confirms(double askedAt, double t) => t - askedAt >= ConfirmAfter;
+
     /// <summary>Whether the host may boot the player on this row: another player's row, on the listen host's own machine.</summary>
     public static bool CanBoot(bool host, ScoreLine l) => host && l.Kind == ScoreLineKind.Player && !l.Me && l.Slot >= 0;
 }

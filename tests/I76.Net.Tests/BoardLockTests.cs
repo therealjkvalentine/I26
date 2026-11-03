@@ -100,4 +100,25 @@ public class BoardLockTests
         var team = new ScoreLine(ScoreLineKind.Team, "t1", 1, 0, 0, 0);
         Assert.False(BoardCursor.CanBoot(true, team));
     }
+
+    [Fact] public void ADoubleClickAsksAndDoesNotBoot()
+    {
+        Assert.False(BoardCursor.Confirms(10.0, 10.2));     // a double-click's second click: the question stays up
+        Assert.False(BoardCursor.Confirms(10.0, 10.49));
+        Assert.True(BoardCursor.Confirms(10.0, 10.5));      // a second pick once it has been read
+    }
+
+    [Fact] public void TheHostsHandicapKeysPickFromAStableOrder()
+    {
+        Assert.Equal(ScoreOrder.Ranked, ScoreTable.OrderFor(modern: true, teamPlay: false, hostPicking: false));
+        Assert.Equal(ScoreOrder.Ranked, ScoreTable.OrderFor(modern: false, teamPlay: true, hostPicking: false));
+        Assert.Equal(ScoreOrder.Slot, ScoreTable.OrderFor(modern: false, teamPlay: false, hostPicking: false));
+        Assert.Equal(ScoreOrder.Slot, ScoreTable.OrderFor(modern: true, teamPlay: true, hostPicking: true));
+        // by slot, the n-th numbered row is the same player whatever the scores do
+        var host = new ScoreContext(MeleeKind.Combat, false, 0, true, ScoreTable.OrderFor(true, false, true), ScoreTable.ModernRows);
+        var rows = Rows(5);
+        var before = ScoreTable.Players(rows, host, 0, t => "").Numbered.Select(x => x.Slot).ToList();
+        rows[1] = rows[1] with { Score = 999, Kills = 40 };
+        Assert.Equal(before, ScoreTable.Players(rows, host, 0, t => "").Numbered.Select(x => x.Slot).ToList());
+    }
 }

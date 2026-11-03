@@ -82,6 +82,13 @@ public static class ScoreTable
         return teams.Select((t, i) => t with { Rank = ranks[i] }).OrderBy(t => t.Rank).ThenBy(t => t.Team).ToList();
     }
 
+    /// <summary>
+    /// The players' window's order: ranked in the modern look and in team play, by slot in the original's look; by slot as well while
+    /// the host's handicap keys can pick a row (Shift+n picks the n-th numbered row: a ranked board re-sorts under the key every second).
+    /// </summary>
+    public static ScoreOrder OrderFor(bool modern, bool teamPlay, bool hostPicking) =>
+        !hostPicking && (modern || teamPlay) ? ScoreOrder.Ranked : ScoreOrder.Slot;
+
     /// <summary>The players' window, page <paramref name="page"/> (clamped to the pages there are).</summary>
     public static ScoreView Players(IReadOnlyList<PlayerRow> rows, ScoreContext c, int page, Func<int, string> teamName)
     {

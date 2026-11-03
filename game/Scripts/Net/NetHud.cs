@@ -70,6 +70,8 @@ public partial class NetHud : CanvasLayer
     public bool Decided { get; private set; }
     /// <summary>The boot asked about (BOOT_n, "Boot %s from the game?"), until Ctrl+Y or Ctrl+N.</summary>
     private (byte Slot, string Name)? _boot;
+    /// <summary>When a board pick asked about <see cref="_boot"/> (the HUD's clock, seconds).</summary>
+    private double _bootAskedAt;
     private string? _reconfigured;
     /// <summary>The player a migration named the new host (the clients know no other way); -1 when unknown.</summary>
     private int _hostSlot = -1;
@@ -205,7 +207,10 @@ public partial class NetHud : CanvasLayer
         if (PlayersPage() is { } next && next.Page != was) _cursor = BoardCursor.End(next.Lines, last: page < 0);
     }
 
-    /// <summary>A row picked: the cursor goes to it; on the listen host's machine another player's row asks to boot them, and the same row again boots.</summary>
+    /// <summary>
+    /// A row picked: the cursor goes to it; on the listen host's machine another player's row asks to boot them, and the same row again
+    /// boots, once the question has been up <see cref="BoardCursor.ConfirmAfter"/> (a double-click is one pick, not a boot).
+    /// </summary>
     private void Pick(int slot)
     {
         if (slot < 0) return;
@@ -214,10 +219,11 @@ public partial class NetHud : CanvasLayer
             || !BoardCursor.CanBoot(true, l)) return;
         if (_boot?.Slot == slot)
         {
+            if (!BoardCursor.Confirms(_bootAskedAt, _t)) return;
             _boot = null;
             if (Server.Kick(slot) is { } why) Say(why);
         }
-        else _boot = ((byte)slot, l.Name);
+        else { _boot = ((byte)slot, l.Name); _bootAskedAt = _t; }
     }
 
     /// <summary>
@@ -411,13 +417,14 @@ public partial class NetHud : CanvasLayer
         var numbered = PlayersPage()?.Numbered ?? [];
         // A number past the list takes the prompt away
         _boot = bootRow <= ScoreTable.HostRows && bootRow <= numbered.Count ? numbered[bootRow - 1] : null;
+        _bootAskedAt = _t;
         return true;
     }
 
     private ScoreContext? Context(bool modern)
     {
         if (Client.Accept is not { } a) return null;
-        return new ScoreContext(a.Kind, a.TeamPlay, a.Slot, Server is not null, modern || a.TeamPlay ? ScoreOrder.Ranked : ScoreOrder.Slot,
+        return new ScoreContext(a.Kind, a.TeamPlay, a.Slot, Server is not null, ScoreTable.OrderFor(modern, a.TeamPlay, HostHandicaps && _boardShown),
             modern ? ScoreTable.ModernRows : ScoreTable.ClassicRows) { HostSlot = Server is not null ? a.Slot : _hostSlot, HandicapPick = HostHandicaps ? _handicapPick : -1 };
     }
 

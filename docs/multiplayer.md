@@ -244,7 +244,8 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   driving keys still drive): it lights the row under it, the wheel turns the page, a pad's d-pad Up/Down moves the cursor
   (Right picks, Left shuts the window; the d-pad's game commands wait meanwhile). On the listen host's machine a click on
   another player's row asks "Boot %s from the game?" as BOOT_n does, and a second click on that row (or Ctrl+Y) boots
-  through the same `NetMeleeServer.Kick`. Presentation only: no message is added.
+  through the same `NetMeleeServer.Kick`, once the question has been up half a second (`BoardCursor.ConfirmAfter`: a
+  double-click asks, it does not boot). Presentation only: no message is added.
 - **Bans** (I26, #117; `NetMeleeServer.Ban`, `BanList`): the listen host's chat line `/ban NAME` (a slot, a name or a
   unique start of one) boots the player and refuses their joins for the rest of the game ("The host has banned you
   from this game.", the refusal's text: no wire change); everyone sees "*** NAME has been banned by the host". `/ban`
@@ -252,7 +253,9 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   the server knows of the player: the name (case does not matter) and the address they joined from; a join matching
   either is refused, before the password. Limits: another name from another address (a new connection, a VPN) gets
   in; everyone behind the banned public address is refused with them; a loopback address (players on the server's
-  machine) is never held; a name not in the game is banned by name only; bots are booted, not banned. The list lives
+  machine) is never held; a name that matches nobody in the game is refused, the line naming the players it may have
+  meant (those it starts, else those with its first letter), and `/ban name:NAME` bans a name not in the game by name
+  only; bots are booted, not banned. The list lives
   in the server for this game: the dedicated server keeps it across rounds, a host migration's new host starts
   without one.
 - **Invite only** (cfg bit 2; INVITE_ACCEPT / DECLINE / SKIP, Ctrl+Y / N /
@@ -328,7 +331,8 @@ scaled. The level is the car's (`Vehicle.Handicap`): `MeleeGame.Rebuild` keeps i
 starts at 0 (a co-op seat's car may have had another player's). In a melee bots can have one too; in co-op only the humans have
 seats.
 
-The listen host sets it from the score window while it is up: **Shift+1..9** picks the n-th numbered row (the rows BOOT_n numbers),
+The listen host sets it from the score window while it is up: **Shift+1..9** picks the n-th numbered row (the rows BOOT_n numbers;
+while the rule is on the host's window is in slot order, so a row's number does not change under the key as the scores re-rank),
 **Shift+[** lowers and **Shift+]** raises that player's level (`NetHud.HandicapKey` → `NetMeleeServer.SetHandicap`); the first
 time the window opens the feed says so, and each change is said with its factor. `i26-server`'s console: `handicap SLOT LEVEL`.
 Only the host's server sets a level: a client has no message for it, and a game without the rule refuses the host too. With the
