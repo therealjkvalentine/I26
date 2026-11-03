@@ -64,6 +64,7 @@
 - The 2D dash's rear-view mirror sits where the original's does, at the right of the frame with the end of its bezel cut off by the frame's edge, instead of whole and further left.
 - The overhead view's (F10) Page Up/Down zoom goes at the simulation's tick rate, as the original's per-frame zoom does at its frame rate, instead of a fixed 60 steps a second.
 - The hood view (F6) no longer draws your own car round the camera when you look back; the original leaves it out, as in the cockpit.
+- In the 1997 look the brake lamps go out the moment the brake is let go, as the original's do; the modern look keeps its short hold, so an AI car flicking between brake and throttle does not strobe.
 
 ## 0.11.0 (31 October 2026)
 
