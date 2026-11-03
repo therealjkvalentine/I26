@@ -56,7 +56,10 @@ public class CoopFormationTests(ITestOutputHelper output)
     /// <summary>
     /// T01 with two humans, seat 1 put in Taurus's way as the intro starts: he drives into it. The ram is Taurus's
     /// (seat 1's rammer is him), not seat 1's: his rammer is not seat 1, so the friendly-fire routine (data 12) counts
-    /// nothing and he says no "watch it". The intro's follow is at the lead, as in single player.
+    /// nothing and he says no "watch it". The intro's follow is at the lead, as in single player. Held back, Taurus
+    /// then catches the scene-driven lead (from tick 358) and strikes it at an angle while overtaking: a human is
+    /// named his rammer only where that human closed the faster along the line between them (the lead's own steer
+    /// into his side at tick 511), never in his overtaking (ticks 358-485, where the contact normal is a side face's).
     /// </summary>
     [Fact]
     public void AnAiDrivingIntoAHumanIsNotThatHumansRam()
@@ -75,16 +78,30 @@ public class CoopFormationTests(ITestOutputHelper output)
         seat.Rot = taurus.Rot;
         var cb = new List<string>();
         host.Cb.Started += line => cb.Add(line.Name);
+        var named = new List<string>();
+        setup.Damage!.Recorded += (victim, attacker, kind, _) =>
+        {
+            if (victim != taurus || kind != Damage.DamageKind.Collision || !setup.Humans.Contains(attacker)) return;
+            var d = attacker.Pos.ToVector3() - taurus.Pos.ToVector3();
+            d.Y = 0;
+            float his = Vector3.Dot(taurus.Vel, d), theirs = Vector3.Dot(attacker.Vel, -d);
+            if (theirs <= his) named.Add($"tick {s.Ticks}: seat {setup.Humans.ToList().IndexOf(attacker)} named, closing {theirs / d.Length():0.0} m/s against his {his / d.Length():0.0}");
+        };
         bool rammed = false;
         for (int i = 0; i < 600; i++)
         {
             s.Tick(new CarInput[2]); SnapshotRig.TakeEvents(s);
             rammed |= se.LastRammer == te;
             Assert.NotEqual(se, te.LastRammer);
+            if (i == 300)
+            {
+                // seat 1's two rams are past (ticks 33, 102), the lead's contacts to come
+                Assert.Equal(0, setup.Script.Vm!.Data[12]);
+                Assert.DoesNotContain(cb, x => x.StartsWith("gdsta05", StringComparison.OrdinalIgnoreCase) || x.StartsWith("gdsta06", StringComparison.OrdinalIgnoreCase));
+            }
         }
         Assert.True(rammed, "Taurus drove into seat 1");
-        Assert.Equal(0, setup.Script.Vm!.Data[12]);
-        Assert.DoesNotContain(cb, x => x.StartsWith("gdsta05", StringComparison.OrdinalIgnoreCase) || x.StartsWith("gdsta06", StringComparison.OrdinalIgnoreCase));
+        Assert.True(named.Count == 0, string.Join("; ", named));
         output.WriteLine($"the radio: {string.Join(" ", cb)}");
     }
 
