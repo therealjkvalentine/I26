@@ -8,7 +8,7 @@ namespace I76.Game.Assets;
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a power-of-two
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
 /// user://tex-world/ (a folder), then the newest i76-hd-*.zip next to the executable or in user:// that has a
-/// tex-world/ folder (read in place). Graphic Detail's HD Textures row switches them off (Enabled); the 1997 look
+/// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (no row; the Developer panel's Settings) switches them off (Enabled); the 1997 look
 /// never draws them (TextureFactory.Hd).
 /// </summary>
 public static class HdTextures
@@ -18,8 +18,6 @@ public static class HdTextures
 
     /// <summary>The player's switch (ShellSettings.HdTextures): the modern look draws the pack's upscales.</summary>
     public static bool Enabled { get; set; } = true;
-    /// <summary>The row's values; the original draws the textures it ships, the pack's are the port's (<see cref="I76.Game.Shell.ShellSettings.PortMark"/>).</summary>
-    public static readonly string[] Names = ["Off", "On" + I76.Game.Shell.ShellSettings.PortMark];
 
     /// <summary>
     /// shell.cfg's [port] hd_textures. Absent (a file from before the row, when HD Menu Art switched these too), it follows
@@ -28,7 +26,7 @@ public static class HdTextures
     public static bool FromFile(bool? hdTextures, bool hdMenuArt) => hdTextures ?? hdMenuArt;
 
     public static HdSource? Source { get { Probe(); return _source; } }
-    /// <summary>A pack was found (Graphic Detail shows the HD Textures row only then).</summary>
+    /// <summary>A pack was found.</summary>
     public static bool Installed => Source is not null;
 
     private static void Probe()

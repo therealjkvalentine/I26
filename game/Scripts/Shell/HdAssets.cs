@@ -8,7 +8,7 @@ namespace I76.Game.Shell;
 /// $I76_TEX_DIR (a folder, for development), user://tex-menu/ (a folder), then the newest
 /// i76-hd-menus*.zip next to the executable or in user:// (the HD Menu Pack, read in place).
 /// Paths are relative to the tex-menu layout ("shellbg1.webp", "nitro/load/loadgame.webp").
-/// The "HD Menu Art" setting (Options, Graphic Detail) switches it all off; the 1997 look never asks.
+/// shell.cfg's [port] hd_menu_art (no row; the Developer panel's Settings) switches it all off; the 1997 look never asks.
 /// </summary>
 public static class HdAssets
 {
@@ -18,6 +18,12 @@ public static class HdAssets
 
     /// <summary>The player's switch (ShellSettings.HdMenuArt).</summary>
     public static bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// shell.cfg's [port] hd_menu_art: on unless the file says false. Files before version 4 had no switch, so on whatever they
+    /// hold; a saved Off from the row Graphic Detail had until it became a key stays off.
+    /// </summary>
+    public static bool FromFile(bool? hdMenuArt, int version) => version < 4 || (hdMenuArt ?? true);
 
     public static HdSource? Source { get { Probe(); return _source; } }
     public static bool Installed => Source is not null;

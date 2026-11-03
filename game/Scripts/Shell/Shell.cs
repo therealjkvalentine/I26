@@ -1147,9 +1147,9 @@ public sealed class ShellSettings
     public int Difficulty { get; set; } = 0;
     /// <summary>The port's own: the player's car on the modern physics (docs/modern-physics.md); F7 in a mission flips it.</summary>
     public bool ModernPhysics { get; set; }
-    /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look (Graphic Detail); on unless the player turned it off.</summary>
+    /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
-    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures in the modern look (Graphic Detail's HD Textures, shown with a pack; HdTextures). On unless the player turned it off.</summary>
+    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, no row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1369,7 +1369,7 @@ public sealed class ShellSettings
         (s.PlayOptions, s.Difficulty) = I76.Formats.Shell.PlayProfile.Resolve(Nitro, Nitro ? Read("nitro") : Read("shell"), Read("shell"));
         s.ModernPhysics = (bool)c.GetValue("port", "modern_physics", false);
         // version 4 added the HD menu art switch: older files have none, so it is on
-        s.HdMenuArt = version < 4 || (bool)c.GetValue("port", "hd_menu_art", true);
+        s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
         s.HdTextures = I76.Game.Assets.HdTextures.FromFile(c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt);
         // version 5 added Auto Reverse: older files have none, so it is off

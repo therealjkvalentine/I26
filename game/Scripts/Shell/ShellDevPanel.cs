@@ -33,6 +33,9 @@ public partial class ShellDevPanel : Control
         col.AddChild(Row(Button("Import Saves", ImportSaves, trip), Note("the original game's bookmarks, car and parts included")));
         col.AddChild(Row(Button("All Scenes", AllScenes, trip), Note("a bookmark for every scene of the trip, in its own car")));
         if (!trip) col.AddChild(Note("(the Nitro Pack has no trip)"));
+        // the settings without a row (docs/playing.md), saved at once
+        col.AddChild(Heading("Settings"));
+        DevSettings.Build(col, Shell.Settings, null);
         col.AddChild(Row(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill }, Button("Close", Close, true)));
         _rescale();
     }

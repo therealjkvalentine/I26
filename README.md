@@ -46,7 +46,7 @@ and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt
 textures come out at twice the original's size and the cockpit's art at four times, as compressed `.dds` files the game
 loads about as fast as its own; the cockpit's pixel lettering (the weapon labels, the ammunition digits) and the mirror's
 frame are scaled in their own colours rather than by the model. `--from OLD_PACK` repacks a pack made by an earlier version without running the model again. The 1997 look
-keeps the originals; Graphic Detail's HD Textures row (shown when a pack is found) switches the upscales off and on.
+keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).
