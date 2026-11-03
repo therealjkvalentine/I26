@@ -328,7 +328,7 @@ public sealed partial class EscapeMenu : Control
             // and the 3D view drawn at 50 to 200 % of the window (the HUD and menus are not scaled), live: the shell's Render Scale row
             Scrolling(16, Cycle, "Render Scale", I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live
-            Scrolling(17, Cycle, "Map Edge", I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(17, Cycle, "Hide Map Edge Cliffs", I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's car paint and cockpit hood: Matte, Satin (the default) or Gloss, live: the shell's Hood Finish row
             Scrolling(18, Cycle, "Hood Finish", I76.Sim.Views.PaintFinish.Names.Length, I76.Sim.Views.PaintFinish.Names, s => s.HoodFinish, (s, v) => s.HoodFinish = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
