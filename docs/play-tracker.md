@@ -540,6 +540,90 @@ Formats 881/915 (30 skipped), Editor 216/216; outside the laptop's baseline the 
 AutoHandicapSimTests' six bots, all known. No new failure. Versions unchanged: snapshot 24, protocol 24, shell.cfg 13
 (no pass-4 branch bumps any; hd_textures, when absent, follows hd_menu_art).
 
+## Upstream rebuild 2026-11-03
+
+`play` moved from 0.11.0 (5192e29) onto upstream's master at 32988ae (25 commits, still 0.11.0 plus Unreleased; upstream's
+snapshot 15 and protocol 21 unchanged: no format or wire change).
+
+What upstream changed (and what it meant for the stack):
+- Our PR #144 landed as upstream's own commit (rcodesign, DER entitlements): fix/macos-entitlements-der dropped.
+- #141 and #142 (01228e7): the player's car settled before the first tick, the carried menu track `ProcessMode.Always`,
+  the mission track read behind the card. fix/load-card-audio-hiccup dropped (the same line). fix/wheel-suspension-prime
+  kept: it primes every placed car's wheel history (AI, respawns, co-op seats), upstream settles only single-player cars.
+- Police sirens loop by the GAS0 mode, on any car, and a police honk turns the siren on (2ddb2d4): fix/siren-gpw-loop dropped.
+- Update check (356eddb, #138): the same `[port] update_check` key, on by default, a Check for Updates row on Play
+  Options' second page and a link under the version: feat/update-check dropped. Our Graphic Detail row is gone (the rows
+  under it move up one); upstream's row sits on Play Options' second page at y 300, under the port's rows.
+- Car materials (2815842, 30eef70): the per-part finish table is gone, every car clear-coated paint with only the windows
+  as glass. fix/hd-pack-glass-and-key keeps its delta (the windows and paint analyses read the original texture);
+  feat/hood-shine-adjustable's Matte/Satin/Gloss now acts on that all-over paint.
+- The horizon (6 commits): the 1997 panels by the original rule alone (no far-edge measuring), the modern ring sunk from
+  `HorizonEdge.Ring` (`sink_low`). perf/horizon-early-z keeps the shader as an include with upstream's cone in it; the
+  map-edge branches' shader edits go into the include.
+- The map editor's playtest switch, stash and session store (`SessionStore`): TextureFactory keeps upstream's store for
+  the originals always and for made textures when no HD pack is present (an HD pack's textures are repainted in place by
+  a look flip, so they are made per factory as before).
+- Bots use ramps (JumpLinks, MeleeBotJumps): its damage recorder takes the port's Rough(v, surface, dt)
+  (fix/rough-terrain-damage-surface amended).
+- Co-op clients' colliders follow gates and burnt guns; memory freed between missions (smoke table, force feedback,
+  heap trim); F12 and music in the editor: no overlap beyond context.
+
+Dropped from the manifest (absorbed): fix/siren-gpw-loop, fix/macos-entitlements-der, fix/load-card-audio-hiccup,
+feat/update-check. Added: fix/upstream-rebuild-integration (stacked on play, last).
+
+How it was rebuilt: every branch rebased by its own commits (master-based onto upstream, stacked-on-a-topic onto that
+topic's new tip, stacked-on-play onto the play being built), merged in old play's own merge order (its first-parent
+history; the manifest's order met different conflict shapes, so rerere could not replay), the 11 branches held in the
+other session's worktrees merged as they stand. sync-play's `-Rebuild` cannot do this as it is: it rebases a branch
+stacked on play onto upstream with all of old play's commits under it. The hand resolutions (54, besides rule-based
+ones: the changelog/docs union, version pins only, upstream's Check for Updates moved, and a stacked branch's file taken
+as old play's pre/post-merge pair three-way merged onto the new play) are, in short:
+- Play Options' second page: Head Tracking 185/208, Rumble Strength 231, Melee A.I. 254, Wheel Strength 277, Check for
+  Updates (upstream) 300; the fold's and the round-3 branches' Update Check pieces left out.
+- Graphic Detail: old numbering kept through the rebuild (slot 16, our Update Check, empty), closed up in
+  fix/upstream-rebuild-integration (Hood Finish 16, Render Scale 17, Map Edge 18).
+- VehicleSave: TurnSpeed and Handicap saved, upstream's HornLoops structural; MeleeSave: HandicapChanged and upstream's
+  Landed and ramp state; SnapshotHeader: the ignition and auto-handicap bytes in old play's order.
+- Main.cs: the sky scroll's extra step without the far-edge code upstream removed; SetHorizonEye through `_horizon.Set`
+  with upstream's ring values; the own song before upstream's pre-read track; the skip latch beside the editor timers.
+- DropShadows: upstream's once-a-run shaders with the cached parameter names; MainDev: the mission picker and the
+  loadout; TextureFactory: as above, KeyColour from the original; the old siren's code gone with the branch.
+- Old play's hand fixes outside any branch (CheatMarker.Mark, ForceFeedback.PadStrength, the Load Bookmark Build with
+  Direct, DevicePresets' shift, the ignition switches' launch header, the AI-fill and sight-line test set-ups, the
+  Rough stub, the handicap protocol numbers in multiplayer.md, snapshot 24): three ride in the stacked branches that were
+  built on them, the rest are in fix/upstream-rebuild-integration with the changelog, deviations and dev hooks rebuilt
+  as old play's plus upstream's rows (the union merges had repeated rows).
+Checked: every file upstream did not touch equals old play's except the dropped siren branch's (AudioBank, WeaponTests);
+the files it did touch were compared with old play three-way merged with upstream, the differences being the above.
+
+Versions on `play` after the rebuild: snapshot 24, protocol 26 (both above upstream's 15 / 21; WireTests pins 26 / 24),
+shell.cfg 13; `[port] update_check` now defaults to on (upstream's), written only when off.
+
+Fixes found by building after the rebuild (each in its branch, amended, pushed, merged into play again with play's side
+for the rest): fix/rough-terrain-damage-surface (upstream's JumpLinks.Recorder implements Rough(v, surface, dt)) and
+perf/horizon-early-z (the ring's session cache keeps the chunks' Rim flag; upstream's HorizonEdgeTests source check
+reads the include and the eye set through HorizonTerrain.Set).
+
+Test status, upstream rebuild (`play` 7f21cc6), laptop: Sim 1001/1033, Net 450/467, Game 300/300, Formats 962/997 (30
+skipped), Editor 222/222. Against upstream master's own run on the laptop (32988ae: Sim 698/729, Net 404/421, Game
+67/67, Formats 753/786, Editor 222/222; 41 failures, of which upstream's two new BotJumpTests are outside the laptop's
+0.11.0 baseline): play adds the three known Sim ones (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam,
+T01FollowTests at 30 Hz) and VegetationTests.T02Sward's timing line (3.7 s against 1.5 s under load; in the laptop's
+0.11.0 baseline), and passes AiStuckTests...TurnsOnIt, which fails on upstream. New because of upstream: BotJumpTests'
+two (fail on upstream alone on this machine). New because of us: none.
+
+Desktop (`play` 7f21cc6; I76_INSTALL and I76_NITRO_INSTALL set; an emulator lane running): game/ built; Game 300/300,
+Sim 1002/1035, Net 442/467, Formats 976/997 (16 skipped), Editor 222/222. Outside the desktop's 0.11.0 baseline: the
+known four (CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the
+Nitro install); tests that fail on upstream master too (BotJumpTests' two, AnetPunchTests' symmetric NAT, AiPathTests'
+Seminole bridge, BrakeTests' melee stop, FlameDamageTests, FrameRateTraceTests' two, MortarRangeTests' WP mortar);
+upstream's new CoopNetTests.AGateTheScriptSlidesMovesTheClientsColliderToo, which fails on upstream master alone on this
+desktop too (the host's gate does not finish its slide within the wait; it passes on the laptop); and load flakes that
+pass when run again or on the laptop (EightPlayersShareAStoryMission, HostMigrationTests' bots) or are network timing
+(PredictionTests' laggy link, AnetMeleeTests' NAT roster; both pass on the laptop). New because of us: none.
+
+Not deployed in this pass (the coordinator deploys after folding in the day's pending branches).
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
