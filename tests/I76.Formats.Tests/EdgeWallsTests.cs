@@ -180,6 +180,65 @@ public class EdgeWallsTests
         Assert.Equal(20.5, walls.Ground(12 * 5, 50 * 5, 20.5), 3);
     }
 
+    // the Height plate with a pad 8 samples square at 120 m on the west plateau, cliffs all round it (T05's helicopter mesas)
+    private static double Pad(int x, int z) => x is >= 6 and <= 13 && z is >= 60 and <= 67 ? 120 : Height(x, z);
+
+    [Fact]
+    public void GroundTheMissionPutsSomethingOnStays()
+    {
+        var tiles = Tile(Pad);
+        var surf = new TerrainSurface(tiles, [new System.Numerics.Vector2(40.5f, 40.5f)]);
+        Assert.False(surf.Open(9, 63));
+        // nothing on the pad: hidden with the plateau
+        var bare = EdgeWalls.Build(tiles, surf)!;
+        Assert.True(bare.Hidden[63 * T + 9]);
+        Assert.Equal(20, bare.Ground(9 * 5, 63 * 5, 120), 3);
+        // a helicopter on it: the pad stays at its height, its cliff rises from the plain on a slope, the plateau away from it is hidden
+        var walls = EdgeWalls.Build(tiles, surf, keep: [new System.Numerics.Vector2(9.5f, 63.5f), new System.Numerics.Vector2(40.5f, 40.5f)])!;
+        Assert.False(walls.Hidden[63 * T + 9]);
+        Assert.True(walls.Kept[63 * T + 9]);
+        Assert.Equal(64, walls.KeptCount);
+        Assert.Equal(120, walls.Ground(9 * 5, 63 * 5, 120), 3);
+        Assert.InRange(walls.Ground(9 * 5, 85 * 5, 70), 21, 69);
+        Assert.True(walls.Hidden[10 * T + 64]);
+        Assert.Equal(20, walls.Ground(64 * 5, 10 * 5, 70), 3);
+        Assert.True(walls.Hidden[63 * T + 16]);   // the plateau beside the pad is not the pad's: it is not kept, only fades
+        Assert.False(walls.Kept[63 * T + 16]);
+    }
+
+    [Fact]
+    public void AnObjectOnAWallKeepsTheGroundAboutIt()
+    {
+        var tiles = Tile(Height);
+        var surf = new TerrainSurface(tiles, [new System.Numerics.Vector2(40.5f, 40.5f)]);
+        var walls = EdgeWalls.Build(tiles, surf, keep: [new System.Numerics.Vector2(23.5f, 64.5f)])!;
+        Assert.True(walls.Kept[64 * T + 23] && walls.Kept[64 * T + 24]);
+        Assert.False(walls.Kept[64 * T + 21]);   // the 3 x 3 cells about it, not the plateau behind
+        Assert.False(walls.Hidden[64 * T + 23]);
+        Assert.Equal(45, walls.Ground(23 * 5, 64 * 5, 45), 3);
+        Assert.Equal(20, walls.Ground(64 * 5, 10 * 5, 70), 3);
+    }
+
+    [InstallTheory]
+    [InlineData("t05")]   // two helicopters on the crest of the fence north-west of the start, 110 m over the plain
+    [InlineData("t11")]   // two gun emplacements
+    [InlineData("s06")]   // fence posts on a cliff
+    public void NothingTheMissionPutsDownStandsOnHiddenGround(string mission)
+    {
+        var w = new MissionWorld(TestInstall.Vfs, new ModelAssembler(TestInstall.Vfs), TestInstall.Install.FindMission(mission)!);
+        var walls = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), keep: EdgeWalls.Keep(w))!;
+        var bare = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w))!;
+        int before = 0;
+        foreach (var p in EdgeWalls.Keep(w))
+        {
+            double x = p.X / MissionWorld.SampleScale, z = p.Y / MissionWorld.SampleScale, g = w.BilinearHeight(x, z);
+            Assert.Equal(g, walls.Ground(x, z, g), 1);
+            if (g - bare.Ground(x, z, g) > 0.5) before++;
+        }
+        Assert.True(before > 0);
+        Assert.InRange(walls.HiddenCount, bare.HiddenCount * 0.99, bare.HiddenCount);   // the walls themselves stay hidden
+    }
+
     [Fact]
     public void NoTilesGivesNoWalls()
     {
