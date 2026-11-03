@@ -1109,7 +1109,11 @@ then its address. DONE uses the entry picked; with none, or with CANCEL, the
 form goes back to the main menu, as the original's did. The book is saved
 either way. A player without an internet.lst starts with the community's
 anet servers (`AddressBook.Defaults`, below); an existing book is theirs
-and is never changed.
+and is never changed. The internet roster (mode 8) has the port's CONNECT TO
+SERVER button under its games' list (#122): it opens the book again, and the
+entry picked lists that server's games in the roster; CANCEL there keeps the
+roster as it was instead of going back to the main menu. A join that fails
+comes back to the roster with its notice and the book, as before.
 
 **The host form** (the original's modes 3 and 4):
 - LOCAL DRIVER (RENAME), the area of play (the 15 arenas, as the instant
