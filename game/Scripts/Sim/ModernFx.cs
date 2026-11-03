@@ -154,8 +154,9 @@ public partial class ModernFx : Node3D
         return m;
     }
 
-    public static void SetTracer(MeshInstance3D m, Vector3 tail, Vector3 head, Color tint, float width, float energy)
+    public static void SetTracer(MeshInstance3D m, Vector3 tail, Vector3 head, Color tint, float width, float energy, float fall = 2f)
     {
+        m.SetInstanceShaderParameter("tail_fall", fall);
         m.SetInstanceShaderParameter("tail", tail);
         m.SetInstanceShaderParameter("head", head);
         m.SetInstanceShaderParameter("tint", tint);

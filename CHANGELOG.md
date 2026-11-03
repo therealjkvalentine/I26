@@ -124,6 +124,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - A network game's host can lock the ignition: with the host form's Ign: Lock (IGNITION STAYS ON in the Nitro and co-op game options, or --no-ignition-off for the dedicated server), nobody can switch their engine off in that game to hide from turrets; the game list shows "Ignition stays on" (#108).
 - Online co-op has a Co-op Scaling option on the host form: each enemy car of a story mission comes with up to one, two or three copies of itself, one for each player past the first, so a group has more to fight. The mission's objectives still follow the original cars.
 - Graphic Detail has a Resolution row: Desktop (the fullscreen the game starts in, as before) or a window of a common size that fits your screen, applied at once and kept for the next start (#81).
+- In the modern look a machine gun's rounds are short, bright bolts with a fading tail, the length of their last step, where they were a thin ten-metre beam that read as a laser.
 
 ## 0.11.0 (31 October 2026)
 
