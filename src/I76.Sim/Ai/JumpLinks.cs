@@ -213,7 +213,7 @@ public sealed class JumpLinks
         public void TerrainImpact(Vehicle v, Vector3 relVel, Vector3 n, Vector3 cLocal) { }
         public void Landing(Vehicle v, Vector3 impactVel, Vector3 n) { if (Armed) Impact = System.Math.Max(Impact, System.Math.Abs(Vector3.Dot(impactVel, n))); }
         public void FallKill(Vehicle v) => Fell = true;
-        public void Rough(Vehicle v, float dt) { }
+        public void Rough(Vehicle v, int surface, float dt) { }
         public void StaticContact(Vehicle v, StaticObject o, Contact rec) { if (Armed) Hit.Add(o); }
     }
 
