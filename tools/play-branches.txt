@@ -226,3 +226,6 @@ fix/map-edge-placed-objects           # after map-edge-roads-and-1997: On never 
 feat/modern-lighting-calibration      # stacked on play (contains feat/modern-look-colour-match, not listed): the modern look's lighting calibrated against the 1997 look's; [port] lighting_calibration
 feat/build-version-rules              # stacked on play: user://build-rules.cfg picks the 1997 or 1998 build's turret slew and AI tactic choice, 1998 by default
 fix/round3-integration-6              # stacked on play, last of I: lighting_calibration and crossover on the Developer panel's Settings, tactile_eq set by hand only; lighting_calibration's on marked
+feat/dev-fps-overlay                  # stacked on play: [port] dev_fps on the Developer panel's Settings draws the average frame rate over the last second, top left
+fix/net-melee-music-tracks            # stacked on play: an arena asking for a shell's track starts on the next mission track; Nitro's sequence passes over its menu and credits tracks
+feat/build-id-in-lobby                # stacked on play: the network forms show each game's build; a joiner on another build is let in with a notice (protocol 26)
