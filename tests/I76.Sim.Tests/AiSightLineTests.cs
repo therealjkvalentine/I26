@@ -87,6 +87,7 @@ public class AiSightLineTests
         var (c, s, shooter, target, w) = Rig();
         var other = new Vehicle { Pos = new Double3(0, 0, 20) };
         c.World.Vehicles.Add(other);
+        c.Team = v => v == shooter ? 1 : 2;   // the other cars on another team: the friendly scan (AiFriendlyScanTests) holds for a team-mate on the line
         Assert.True(c.CanSee(shooter, target));
         var shed = s.AddBox("shed", 2, new Vector3(-3, 0, 38), new Vector3(3, 4, 42));
         Assert.True(c.AiShouldFire(shooter, shed, shed.Centre, Vector3.UnitZ, w, 1, 1));

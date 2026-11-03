@@ -308,13 +308,13 @@ saved in the snapshot (the VTAB entry and the melee players; savestate format 13
 it too. A bot seat takes the paint `ServerOptions.PaintOfCar` gives for its chosen car (the game supplies it from the saved variant's sidecar). A co-op
 seat's car keeps its player's paint through the mission's respawns.
 
-### Handicaps (protocol 22)
+### Handicaps (protocol 23)
 
 I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
 form's HCP on the options box's last line (between RATE and PASS), HANDICAPS in the Nitro and co-op forms' game
 options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
 says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
-join accept carries it (`JoinAccept.Handicaps`, a bool after `Cb`).
+join accept carries it (`JoinAccept.Handicaps`, after `Cb` and the ignition lock's byte).
 
 With it on, the host gives each player a level from −5 to +5 (0 none; ±4 and ±5 came with Auto, which needed the reach). A level
 scales the damage that player deals and, inversely, the damage the player takes from other cars, and nothing else (no speed, armour
@@ -346,9 +346,9 @@ rule's third setting, Auto (below), the game sets the levels itself.
 
 Everyone sees the levels on the scoreboard: `PlayerRow.Handicap` rides in the scoreboard message, whose row field mask becomes a
 VarU with 256 for the level (an sbyte); the score window shows "Name (+2)" by the name (`ScoreTable.HandicapName`), and on the
-host's machine the picked player's level in brackets, "Name [0]". Protocol 22.
+host's machine the picked player's level in brackets, "Name [0]". Protocol 23.
 
-### Auto handicap (protocol 23)
+### Auto handicap (protocol 24)
 
 I26's (docs/deviations.md). The host rule's third setting: Off, Manual (above: the host sets the levels), Auto: the game sets them from
 the standings, so a mixed table (a family, bots of different skill) plays toward the same number of kills by the end without anyone
@@ -1478,7 +1478,7 @@ compact:
 | snapshot | server → client | unreliable | server tick, the last client tick applied (the ack), the slack (protocol 13: the client's inputs left waiting after the tick took one, −1 when it found none), the baseline (protocol 13: how many ticks back the snapshot it is written against is, 0 for a full one), the recipient's own car, its motion at full precision (protocol 13, `OwnMotion`) or two bytes confirming the client's own prediction of it (header bit 4), the motion's slow part when it changed and its weapons' fire control (protocol 13, `OwnFire`), as byte deltas; then the cars and the rounds in flight that the snapshot's budget carries, each an entry of what changed since the baseline; then the CTF flags and the flame streams (protocol 13), then a byte of what follows of a mission's script (protocol 15: 1 the gates off their places, each structure, node and how far along; 2 the script camera while it holds the view, its eye and what it looks at or its basis; protocol 19: 4 the seats' personal cameras, each a seat byte and a camera; a melee's is 0) (below, "Delta snapshots", "The snapshot budget") |
 | snapshot piece | server → client | unreliable | a snapshot too big for one datagram, in pieces (LiteNetLib fragments only reliable messages); one lost piece loses that snapshot. Since the snapshot budget only when a snapshot's essential entries alone do not fit (a full snapshot's head, a burst of removals): none in the load tests up to 64 players |
 | events | server → client | reliable ordered | one tick's events, stamped with the tick: to each client those it is sent (below, "Events at scale"), effect and sound names by number once sent (protocol 13, `NameTable`: 0 and the string the first time, both ends adding it, then its number + 1) |
-| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left); protocol 22: the mask is a VarU, 256 the host's handicap (an sbyte; "Handicaps") |
+| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left); protocol 23: the mask is a VarU, 256 the host's handicap (an sbyte; "Handicaps") |
 | next round | server → client | reliable ordered | a new round on this connection (protocol 12): the arena; a map offer or the join accept follows (above, "Rounds") |
 | chat, leave | client → server | reliable | |
 | host candidate, successor | both | reliable | host migration (protocol 13, above "Host migration"): whether a client can take over and its addresses at home; who takes over, where, and the seat's token |
