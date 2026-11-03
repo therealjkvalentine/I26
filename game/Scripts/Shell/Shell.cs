@@ -1195,6 +1195,9 @@ public sealed class ShellSettings
     public int LfeLevel { get; set; } = I76.Formats.Input.AudioOutputs.DefaultLevel;
     /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine, lfe_road, lfe_hits, lfe_shots, lfe_explosions, 0 to 200, each written when not 100).</summary>
     public int[] LfeSources { get; set; } = I76.Formats.Input.TactileSources.Defaults();
+    /// <summary>The port's own, no row: the game's sounds' and the movies' tone, "hz:db" points or "off" ([port] game_eq, movie_eq, written when set; empty is SoundEq's default).</summary>
+    public string GameEq { get; set; } = "";
+    public string MovieEq { get; set; } = "";
     /// <summary>The port's own, no row: the shaker signal's correction curve, "hz:db" points ([port] tactile_eq, written when set; none by default).</summary>
     public string TactileEq { get; set; } = "";
     /// <summary>The port's own, no row: the top of the shaker signal and of the stereo mix's bass boost, Hz ([port] crossover, written when not 90).</summary>
@@ -1422,6 +1425,9 @@ public sealed class ShellSettings
         // no version step: absent, 100 (each source as made)
         s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select(k => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.Default)))];
         s.TactileEq = c.GetValue("port", "tactile_eq", "").ToString();
+        // no version step: absent, the defaults (the game's sounds and the movies set to sit together)
+        s.GameEq = c.GetValue("port", "game_eq", "").ToString();
+        s.MovieEq = c.GetValue("port", "movie_eq", "").ToString();
         s.Crossover = I76.Formats.Input.AudioOutputs.ClampCrossover((float)c.GetValue("port", "crossover", I76.Formats.Input.AudioOutputs.DefaultCrossover));
         // version 8 added the simulation rate: older files have none, so it is the default (20)
         s.SimRate = version < 8 ? I76.Sim.Session.SimRate.Default.Label : I76.Sim.Session.SimRate.FromLabel((int)c.GetValue("port", "sim_rate", I76.Sim.Session.SimRate.Default.Label)).Label;
@@ -1549,6 +1555,8 @@ public sealed class ShellSettings
         for (int i = 0; i < I76.Formats.Input.TactileSources.Keys.Length; i++)
             if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.Default) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
         if (TactileEq.Length > 0) c.SetValue("port", "tactile_eq", TactileEq);
+        if (GameEq.Length > 0) c.SetValue("port", "game_eq", GameEq);
+        if (MovieEq.Length > 0) c.SetValue("port", "movie_eq", MovieEq);
         if (Crossover != I76.Formats.Input.AudioOutputs.DefaultCrossover) c.SetValue("port", "crossover", (double)Crossover);
         if (RumbleStrength != I76.Formats.Input.RumbleStrength.Default) c.SetValue("port", "rumble_strength", RumbleStrength);
         c.SetValue("port", "sim_rate", SimRate);

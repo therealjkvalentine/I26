@@ -52,8 +52,8 @@ public static class DevSettings
         s => NearestSourceStep(s.LfeSources[(int)src]), (s, v) => s.LfeSources[(int)src] = SourceSteps[v], DevWhen.Live,
         I76.Game.Boot.Main.ApplyOutput, Slider: true);
 
-    /// <summary>Keys of the table set by hand only, not stepped here: tactile_eq is a curve of points, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq"];
+    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, not one of a few values.</summary>
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq"];
 
     public static readonly DevSetting[] All =
     [

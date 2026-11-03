@@ -85,7 +85,7 @@ public partial class MoviePlayer : CanvasLayer
         if (_movie.HasAudio(0))
         {
             var gen = new AudioStreamGenerator { MixRate = _movie.SampleRate(0), BufferLength = 0.5f };
-            var player = new AudioStreamPlayer { Stream = gen, Name = "Sound" };
+            var player = new AudioStreamPlayer { Stream = gen, Name = "Sound", Bus = I76.Game.Boot.Main.MovieBus() };
             AddChild(player);
             player.Play();
             _out = (AudioStreamGeneratorPlayback)player.GetStreamPlayback();
