@@ -34,7 +34,7 @@ public partial class Cockpit : Node
     public bool Faithful
     {
         get => _faithful;
-        set { _faithful = value; ApplyMirrorMode(); }
+        set { _faithful = value; ApplyMirrorMode(); _repaintWeapons = _repaintSpecials = true; }
     }
     private bool _faithful;
 
@@ -98,11 +98,20 @@ public partial class Cockpit : Node
     {
         Panels.Reload();
         LoadArt();
+        MirrorFill();
         ResetPanels();
         _repaintWeapons = _repaintSpecials = _radarRedraw = true;
         _wheelShown = -1;
         _armShown[0] = _armShown[1] = (-1, -1);
     }
+
+    /// <summary>
+    /// The counters' digit anchors sit a pixel right of the drums the housings paint (their own 0000 is drawn a pixel to
+    /// the left): the original stamps the 8-wide strip there, its white right edge over the drum's dark divider. The
+    /// modern look draws it on the housing's drum; the 1997 look at the anchor, as the original.
+    /// </summary>
+    public static int DigitShift(bool faithful) => faithful ? 0 : -1;
+    private int DigitNudge => DigitShift(_faithful);
 
     /// <summary>The weapons and specials panels redraw on their next update whatever moved (their rows and housings kept).</summary>
     private bool _repaintWeapons, _repaintSpecials;
@@ -289,8 +298,10 @@ public partial class Cockpit : Node
     }
 
     private Texture2D? _mirrorArt;
-    /// <summary>The mirror as the 2D dash shows it (slot 7): its live view and its art, or null with the mirror off.</summary>
-    public (Texture2D View, Texture2D Art)? MirrorFace => _mirrorView is not null && _mirrorMode != 0 && _mirrorArt is not null ? (_mirrorView.GetTexture(), _mirrorArt) : null;
+    /// <summary>The modern look's smooth outline (MirrorEdge): the masks' field, and the art with its frame colours spread.</summary>
+    private ImageTexture? _mirrorEdge, _mirrorFill;
+    /// <summary>The mirror as the 2D dash shows it (slot 7): its live view, its art and the smooth outline's two pictures, or null with the mirror off.</summary>
+    public (Texture2D View, Texture2D Art, Texture2D? Edge, Texture2D? Fill)? MirrorFace => _mirrorView is not null && _mirrorMode != 0 && _mirrorArt is not null ? (_mirrorView.GetTexture(), _mirrorArt, _mirrorEdge, _mirrorFill) : null;
 
     /// <summary>The pilot's glance as it stands (yaw, pitch down-positive, roll; radians): what the F6 view reads.</summary>
     public (float Yaw, float Pitch, float Roll) HeadAngles => (_viewYaw, _viewPitch, _viewRoll);
@@ -549,7 +560,7 @@ public partial class Cockpit : Node
             Panels.StampAt("housing" + row.Housing, $"bracket_{n}");
             if (row.Diode >= 0) Panels.StampAt(DiodeSprite[row.Diode], $"diode_{n}");
             Panels.StampAt(Res(row.On ? w.Def.PlateOn : w.Def.PlateOff), $"dymo_{n}");
-            for (int p = 0; p < 4; p++) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f);
+            for (int p = 0; p < 4; p++) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
         }
         if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
     }
@@ -608,7 +619,7 @@ public partial class Cockpit : Node
             int type = s.Type < 0 || s.Type >= SpecialNames.Length ? 0 : s.Type;
             Panels.StampAt(SpecialNames[type] + (row.On ? "_on" : "_off"), $"sp_dymo_{n}");
             if (row.Diode >= 0) Panels.StampAt(DiodeSprite[row.Diode], $"sp_diode_{n}");
-            for (int p = 0; p < 4; p++) Panels.VWindow("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f);
+            for (int p = 0; p < 4; p++) Panels.VWindow("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
         }
     }
 
@@ -933,6 +944,13 @@ public partial class Cockpit : Node
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
+        if (Textures.GetOriginalRgba(member) is { } o)
+        {
+            _mirrorEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.Rg8, MirrorEdge.Field(o.Rgba, o.Width, o.Height)));
+            _mirrorMat.SetShaderParameter("edge", _mirrorEdge);
+        }
+        MirrorFill();
+        _mirrorMat.SetShaderParameter("smooth_edge", _mirrorEdge is not null && _mirrorFill is not null);
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir) foreach (var n in new[] { "zmiri101", "zdash101", "zdash102" }) Image(n)?.SavePng(System.IO.Path.Combine(dir, n + ".png"));
         var vt = _mirrorView.GetTexture();
         _mirrorMat.SetShaderParameter("view", vt);
@@ -940,6 +958,15 @@ public partial class Cockpit : Node
         foreach (int i in surfaces) mi.SetSurfaceOverrideMaterial(i, _mirrorMat);
         _mirrorMode = _mirrorSetting;
         ApplyMirrorMode();
+    }
+
+    /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture.</summary>
+    private void MirrorFill()
+    {
+        if (_mirrorMat is null || Resolver.FindByStem("zmiri101") is not { } member || Textures.GetRgba(member) is not { } a) return;
+        var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+        if (_mirrorFill is null) { _mirrorFill = ImageTexture.CreateFromImage(img); _mirrorMat.SetShaderParameter("fill", _mirrorFill); }
+        else _mirrorFill.SetImage(img);
     }
 
     /// <summary>Puts a 2D overlay into the mirror's own picture (the target brackets, inMirror = 1); false with no mirror.</summary>
