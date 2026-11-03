@@ -23,6 +23,7 @@
 - Your car no longer hops at the start of a mission: it is already at rest on its suspension when the loading screen lifts, instead of dropping onto the ground in the first moments (#141).
 - The menu music no longer cuts out for a moment after the loading screen: it plays on through the last part of the loading, and the mission's own track starts without a hitch (#142).
 - Cars no longer drop and bob on their springs as a mission starts: a newly placed car's wheels start from the ground under them, as the original's do, so a car at rest stands still from its first moment (#141). The same goes for a melee's cars, a respawn and a co-op seat's car.
+- A cut-scene's cut from one shot to the next no longer shows a frame from somewhere in between: the camera drawn between two moments of the game took a cut between two placements of the same kind (the camera turning from one speaker to the other, as in the first and fourth Trip missions' openings) for a move and showed it halfway across. A cut now starts the new shot at once; the travelling shots still glide (#140).
 
 ## 0.11.0 (31 October 2026)
 

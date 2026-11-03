@@ -94,7 +94,10 @@ public sealed partial class ScriptCamera
 
     public void Set(string op, int[] ints, Entity?[] objs, IReadOnlyList<Vector3>? path)
     {
-        if (_op != op.ToLowerInvariant()) _cut = true;
+        // a new placement is a cut, whether or not the op changes (t04's intro cuts camObjObj to camObjObj between the
+        // speakers); the same op re-issued with the same arguments, as a travelling shot is every frame, is not
+        if (_op != op.ToLowerInvariant() || !ints.AsSpan().SequenceEqual(_a) || !SameObjects(objs, _o)
+            || (path is null ? _path is not null : _path is null || !SamePath(_path, path))) _cut = true;
         _op = op.ToLowerInvariant(); _a = ints; _o = objs; _path = path;
         // the scripts issue a travelling op every frame until it arrives: progress is kept while the path stays the same
         // only pushCam takes the view (camera mode 5); an op on an un-pushed camera only sets its placement
@@ -245,6 +248,13 @@ public sealed partial class ScriptCamera
         _target = new Vector2(a.X, a.Z) + _dir * t;
         float l2 = _dir.LengthSquared();
         _invLen = l2 > 0 ? 1 / MathF.Sqrt(l2) : 0;
+    }
+
+    private static bool SameObjects(Entity?[] a, Entity?[] b)
+    {
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++) if (!ReferenceEquals(a[i], b[i])) return false;
+        return true;
     }
 
     private static bool SamePath(IReadOnlyList<Vector3>? a, IReadOnlyList<Vector3> b) =>
