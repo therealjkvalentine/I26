@@ -50,11 +50,8 @@ void vertex() {
 	COLOR = CUSTOM1;
 #endif
 	vec3 origin = MODEL_MATRIX[3].xyz;
-	// Map Edge's Hide: a plant on ground drawn down to the plain (map_edge.gdshaderinc) is not drawn (collapsed to its root)
-	if (i76_edge_hide > 0.0) {
-		float up;
-		if (origin.y - map_edge_hide_y(vec2(origin.x, -origin.z), origin.y, up) > 0.5) { VERTEX = vec3(0.0); }
-	}
+	// Map Edge's On: a plant on ground drawn down to the plain (map_edge.gdshaderinc) is not drawn (collapsed to its root)
+	if (i76_edge_hide > 0.0 && map_edge_drop(origin) > 0.5) { VERTEX = vec3(0.0); }
 	v_fade = 1.0 - smoothstep(fade_start, fade_end, distance(origin, MAIN_CAM_INV_VIEW_MATRIX[3].xyz));
 	vec2 dh = origin.xz - MAIN_CAM_INV_VIEW_MATRIX[3].xz;
 	float gd = length(dh);

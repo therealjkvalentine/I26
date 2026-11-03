@@ -751,12 +751,7 @@ public partial class HorizonTerrain : Node3D
         _floor = null; _rim = null; _floorHide = null;
         if (_walls is { } walls)
         {
-            // Hide's foot grid (EdgeWalls): the plain's height and the hidden flag a sample, texel centres on the samples
-            var footImg = Image.CreateFromData(walls.W, walls.H, false, Image.Format.Rgf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(walls.Texels().AsSpan()).ToArray());
-            RenderingServer.GlobalShaderParameterSet("i76_edge_foot", ImageTexture.CreateFromImage(footImg));
-            float ss = TerrainNode.SampleSize;
-            RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", new Vector4(walls.X0 * ss - ss / 2, walls.Z0 * ss - ss / 2, walls.W * ss, walls.H * ss));
-            MissionBuilder.Trace($"map edge: {walls.HiddenCount} hidden samples of {walls.W}x{walls.H}");
+            MapEdge.Upload(walls);
             HasEdgeWalls = true;
             _edgeOwner = this;
         }

@@ -52,6 +52,7 @@ global uniform sampler2D i76_sw_ground;   // no source_color on a global: its te
 global uniform bool i76_sw_ground_on;
 
 #include "res://Shaders/brush_cursor.gdshaderinc"
+#include "res://Shaders/map_edge.gdshaderinc"
 
 varying vec2 v_intensity;
 varying vec2 v_road;
@@ -65,7 +66,15 @@ vec3 to_linear(vec3 c) {
 }
 
 void vertex() {
-	float d = light_game.y - UV2.x * light_game.x - UV2.y * light_game.z;
+	vec2 dh = UV2;
+	// Map Edge's On: the walls held down to the plain at their foot (map_edge.gdshaderinc), lit as the level plain they are
+	// drawn as, through the same light and ramp
+	if (i76_edge_hide > 0.0) {
+		float up;
+		VERTEX.y = map_edge_hide_y(UV * 5.0, VERTEX.y, up);
+		dh *= 1.0 - up;
+	}
+	float d = light_game.y - dh.x * light_game.x - dh.y * light_game.z;
 	float view_z = -(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z;
 	float light;
 	if (d < 0.0) {
