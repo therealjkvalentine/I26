@@ -25,6 +25,7 @@
 - Cars no longer drop and bob on their springs as a mission starts: a newly placed car's wheels start from the ground under them, as the original's do, so a car at rest stands still from its first moment (#141). The same goes for a melee's cars, a respawn and a co-op seat's car.
 - A cut-scene's cut from one shot to the next no longer shows a frame from somewhere in between: the camera drawn between two moments of the game took a cut between two placements of the same kind (the camera turning from one speaker to the other, as in the first and fourth Trip missions' openings) for a move and showed it halfway across. A cut now starts the new shot at once; the travelling shots still glide (#140).
 - A cut-scene path camera that starts a new path after arriving no longer still reads as arrived: any camera call that places the camera clears camIsArrived, as the original's does. No stock mission is affected.
+- Mission music goes back to track 2 after track 14, as the original's does, instead of going on into tracks 15 to 17. A mission whose own track is 15 or later (Interstate '76's M09) still plays it once, then 2 to 14; the next track still follows without a gap (#128).
 
 ## 0.11.0 (31 October 2026)
 
