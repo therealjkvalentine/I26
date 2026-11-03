@@ -386,7 +386,9 @@ public class CombatTests
         Assert.Equal(2f, victim.Timer);
         Assert.Equal(0x80000400u, (uint)victim.Flags & 0x80000400u);
         Assert.Equal(0x400u, (uint)car.Flags & 0x400u ^ 0x400u);   // the dropper is not over it
-        Assert.Contains(combat.Events.OfType<Impact>(), i => i.Victim == victim && i.Sound.Equals("vcdoil.wav", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(combat.Events.OfType<Impact>(), i => i.Victim == victim);
+        // the slick's pair names vcdoil.wav, but its effect is "null": the original plays no sound for it
+        Assert.All(combat.Events.OfType<Impact>().Where(i => i.Victim == victim), i => Assert.Equal("", i.Sound));
         Assert.DoesNotContain(sink.Hits, h => h.Victim == victim);
         Assert.Single(combat.Rounds);
         // the shared timer runs it out and takes the flag off

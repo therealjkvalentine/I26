@@ -1464,17 +1464,24 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         return null;
     }
 
-    /// <summary>The impact pair by what was hit: terrain; vehicles (1, 4, 8, 9); classes 2/0xc; 3/0xb; a structure by the node's own type.</summary>
+    /// <summary>The impact pair by what was hit: terrain; vehicles (1, 4, 8, 9); classes 2/0xc; 3/0xb; a structure by the node's own type.
+    /// Any other class has no pair: -1, no effect and no sound.</summary>
     private static int ImpactClass(object? victim, int node = -1) => victim switch
     {
         null => 0,
         Vehicle => 1,
         StaticObject { Vehicle: not null } => 1,
-        StaticObject o when node >= 0 && node < o.Nodes.Count => o.Nodes[node].Type switch { 2 or 0xc => 2, 3 or 0xb => 3, _ => 1 },
-        StaticObject { Type: 2 or 0xc } => 2,
-        StaticObject { Type: 3 or 0xb } => 3,
-        _ => 1,
+        StaticObject o when node >= 0 && node < o.Nodes.Count => ClassOf(o.Nodes[node].Type),
+        StaticObject o => ClassOf(o.Type),
+        _ => -1,
     };
+
+    private static int ClassOf(uint type) => type switch { 1 or 4 or 8 or 9 => 1, 2 or 0xc => 2, 3 or 0xb => 3, _ => -1 };
+
+    /// <summary>The impact's effect, if one loaded: the original plays the pair's sound only when its explosion object was created
+    /// (the name "null" and a file that did not load make none), so the oil slick, gblox and the fire dropper's car hits are silent.</summary>
+    private EffectDef? ImpactEffect(string fx) =>
+        fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) ? effects(fx) : null;
 
     private float PlayerMult(Round r) => r.Kind == 0x12 ? 1f : DifficultyFactor(r.Shooter);
 
@@ -1498,11 +1505,13 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             for (int i = 0; i < r.Count; i++)
                 sink.Apply(victim, RoundPacket(r), Local(victim, at), node);
         int cls = ImpactClass(victim, node);
+        if (cls < 0) { if (r.Kind == 5 && !bomblet) ScheduleBomblets(r, at); return; }
         var fx = r.Ord.ImpactXdf[cls];
+        var e = ImpactEffect(fx);
         // the bullet step (kinds 1, 6, 0x12, 0x15) places its impact 2 m back along the path
         var place = r.Kind is 1 or 6 or 0x12 or 0x15 ? at - dir * 2f : at;
-        Events.Add(new Impact(fx, r.Ord.ImpactWav[cls], place, victim, r.Kind, at, n, dir));
-        if (fx.Length > 0 && !fx.Equals("null", StringComparison.OrdinalIgnoreCase) && effects(fx) is { } e)
+        Events.Add(new Impact(fx, e is null ? "" : r.Ord.ImpactWav[cls], place, victim, r.Kind, at, n, dir));
+        if (e is not null)
         {
             Events.Add(new Explosion(e, place));
             if (e.SplashDamage != 0) Splash(place, e.SplashRadius, e.SplashDamage, r.Shooter);
