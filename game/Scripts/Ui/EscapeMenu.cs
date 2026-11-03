@@ -327,6 +327,8 @@ public sealed partial class EscapeMenu : Control
             Scrolling(16, Cycle, "Render Scale", I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live
             Scrolling(17, Cycle, "Map Edge", I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
+            // and the modern look's car paint and cockpit hood: Matte, Satin (the default) or Gloss, live: the shell's Hood Finish row
+            Scrolling(18, Cycle, "Hood Finish", I76.Sim.Views.PaintFinish.Names.Length, I76.Sim.Views.PaintFinish.Names, s => s.HoodFinish, (s, v) => s.HoodFinish = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
             DoneButton(),
             CancelButton(),
@@ -334,7 +336,7 @@ public sealed partial class EscapeMenu : Control
         // and the texture pack's upscaled world, car and cockpit textures in the modern look (Off*, the original's, or On), swapped in place, live;
         // the row is there only when a pack is found (HdTextures), as the shell's
         if (I76.Game.Assets.HdTextures.Installed)
-            _graphics.Items.Insert(_graphics.Items.FindIndex(i => i.Label == "Reset"), Scrolling(18, Cycle, "HD Textures", 2, I76.Game.Assets.HdTextures.Names,
+            _graphics.Items.Insert(_graphics.Items.FindIndex(i => i.Label == "Reset"), Scrolling(19, Cycle, "HD Textures", 2, I76.Game.Assets.HdTextures.Names,
                 s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, apply: () => Live?.Invoke(Settings)));
 
         Item Level(string label, int row, int n, int at, bool live) =>
@@ -405,6 +407,7 @@ public sealed partial class EscapeMenu : Control
         Settings.FieldOfView = I76.Sim.Views.ViewFov.Monitor;
         Settings.RenderScale = I76.Game.Boot.RenderScale.Default;
         Settings.MapEdge = I76.Game.World.MapEdge.Off;
+        Settings.HoodFinish = I76.Sim.Views.PaintFinish.Default;
         Settings.HdTextures = true;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;

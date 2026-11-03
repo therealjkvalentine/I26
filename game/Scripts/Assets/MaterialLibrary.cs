@@ -370,8 +370,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>The glass a texture got when its material was made (null: none, or not made yet).</summary>
     /// <summary>Graphic Detail's Car Interiors, for every car's glass at once (the shaders' global i76_car_interiors).</summary>
-    /// <summary>Graphic Detail's Hood Finish: Matte (true) takes the cockpit hood's clear coat and sheen off in the modern look (the shaders' global i76_hood_matte).</summary>
-    public static void ApplyHoodMatte(bool on) => RenderingServer.GlobalShaderParameterSet("i76_hood_matte", on);
+    /// <summary>Graphic Detail's Hood Finish (<see cref="I76.Sim.Views.PaintFinish"/>): the modern look's car paint and cockpit hood, Matte, Satin or Gloss (the shaders' global i76_paint_finish).</summary>
+    public static void ApplyHoodFinish(int finish) => RenderingServer.GlobalShaderParameterSet("i76_paint_finish", Math.Clamp(finish, 0, I76.Sim.Views.PaintFinish.Names.Length - 1));
 
     public static void ApplyCarInteriors(bool on) => RenderingServer.GlobalShaderParameterSet("i76_car_interiors", on);
 

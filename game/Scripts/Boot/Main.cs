@@ -697,7 +697,7 @@ public partial class Main : Node3D
     private void ApplyGraphics(I76.Game.Shell.ShellSettings s)
     {
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(s.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodMatte(s.HoodMatte);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(s.HoodFinish);
         // HD Textures: the modern look's textures swapped in place, as a flip of the look does (the 1997 look keeps the originals)
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);

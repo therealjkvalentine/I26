@@ -90,7 +90,7 @@ varying flat vec4 v_eye;   // the F1 view's eye in the mesh's frame (w 1), CUSTO
 varying vec3 v_cam_l;
 global uniform bool i76_car_materials;   // Ctrl+F8 (a debug key): off, every car without its glass (to compare)
 global uniform bool i76_car_interiors;   // Graphic Detail's Car Interiors: the proxy cabin and driver behind the glass (off: the glass alone)
-global uniform bool i76_hood_matte;   // Graphic Detail's Hood Finish, Matte: the cockpit's hood (hood_surface) loses its clear coat and its sheen
+global uniform int i76_paint_finish;   // Graphic Detail's Hood Finish (PaintFinish): 0 Matte, 1 Satin, 2 Gloss, the cars' paint and the cockpit's hood (hood_surface)
 instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
 uniform bool has_glass = false;    // with car_paint: glass_tex marks the window texels (CarMaterialTable's glass, MaterialLibrary.GlassOf)
 uniform sampler2D glass_tex : source_color, hint_default_black, filter_linear_mipmap;   // rgb the glass's own colour (blurred), a the soft mask
@@ -534,6 +534,7 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 #else
+	float glass_w = 0.0;   // the car's window texels (the paint's finish leaves them as glass)
 	if (prelit) {
 		ALBEDO = vec3(0.0);
 		EMISSION = c.rgb;
@@ -561,6 +562,7 @@ void fragment() {
 			vec4 gt = texture(glass_tex, UV);
 			float gm = gt.a;
 			float g = clamp((gm - 0.5) / max(fwidth(gm), 1e-3) + 0.5, 0.0, 1.0);   // the windows' polygons (GlassShape) cut at their edge, antialiased over a pixel
+			glass_w = g;
 			// a texel painted as pane (or its painted edge) that the straightened edge leaves outside the glass shows the frame beside it,
 			// not a tooth; and the painted edge's trim is drawn again as a straight line along the glass, the 1.25 texels just outside it (over the painted frame's own steps)
 			// (the field: 0.5 at the edge, 0 at GlassShape.FieldReach = 6 texels out)
@@ -662,11 +664,15 @@ void fragment() {
 		SPECULAR = base_specular;
 		CLEARCOAT = 0.0;
 	}
-	if (hood_surface > 0.5 && i76_hood_matte && !prelit) {
-		ROUGHNESS = max(ROUGHNESS, 0.88);
-		SPECULAR = min(SPECULAR, 0.12);
-		CLEARCOAT = 0.0;
-		METALLIC = min(METALLIC, 0.1);
+	if (((car_paint && !wheel_face) || hood_surface > 0.5) && i76_paint_finish < 2 && !prelit) {
+		// Hood Finish below Gloss: Satin thins the clear coat and blurs the sheen, Matte takes both off (the windows stay glass)
+		bool matte = i76_paint_finish < 1;
+		float k = 1.0 - glass_w;
+		ROUGHNESS = mix(ROUGHNESS, max(ROUGHNESS, matte ? 0.88 : 0.65), k);
+		SPECULAR = mix(SPECULAR, min(SPECULAR, matte ? 0.12 : 0.3), k);
+		CLEARCOAT = mix(CLEARCOAT, min(CLEARCOAT, matte ? 0.0 : 0.2), k);
+		CLEARCOAT_ROUGHNESS = mix(CLEARCOAT_ROUGHNESS, max(CLEARCOAT_ROUGHNESS, 0.3), k);
+		METALLIC = mix(METALLIC, min(METALLIC, matte ? 0.1 : 0.5), k);
 	}
 	if (!prelit && wreck.x > 0.0) {
 		vec3 a = ALBEDO, g;

@@ -98,7 +98,7 @@ are for another game and are not listed.
 
 **HD textures.** With a texture pack in the user folder's `tex-world/` (or an art pack zip's `tex-world/` folder; the README says how to make one from your own install), Graphic Detail's **HD Textures** row (on the Esc menu's pad and the main menu's, shown only when a pack is found) draws its upscaled world, car and cockpit textures in the modern look (On\*, the default) or the install's own (Off, the original's). A change swaps the textures in place; the cockpit's damage panel keeps its scale until the next mission. The 1997 look always draws the originals. HD Menu Art is the menu pictures' own row. In shell.cfg it is `[port] hd_textures`; a file from before the row takes HD Menu Art's value.
 
-**Hood finish.** In the modern look the cockpit's hood is clear-coated paint and mirrors the sky; Graphic Detail's **Hood Finish** row, Matte, takes the clear coat and the sheen off it (live; the 1997 look is not affected).
+**Hood finish.** In the modern look the cars' paint, the cockpit's hood included, is clear-coated and mirrors the sky; Graphic Detail's **Hood Finish** row sets how much: Satin (the default) softens the coat, Gloss is the full mirror, Matte takes the coat and the sheen off (live; the 1997 look is not affected). An old `hood_matte=true` reads as Matte.
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
 
