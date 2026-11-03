@@ -685,7 +685,7 @@ public partial class Main
         var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor };
         Controls.Held = _held = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null;   // #109: Esc's arrow keys turned the head
         _sim = new SimDriver { Session = mirror.Session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio, Remote = view,
-            InputHeld = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null, CameraSubject = () => _tv?.Subject,
+            InputHeld = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null,
             HookRemoteScript = accept.Coop is not null };
         _sim.ProcessPriority = -1;
         AddChild(_sim);

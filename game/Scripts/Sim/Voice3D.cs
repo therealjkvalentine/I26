@@ -75,7 +75,7 @@ public partial class Voice3D : AudioStreamPlayer3D
         return true;
     }
 
-    /// <summary>Where the camera's object is (Godot's frame), set by the SimDriver: distances are measured from it (the player's car, or F11's round), not from the listener.</summary>
+    /// <summary>Where the player's car is (Godot's frame), set by the SimDriver: distances are measured from it (the player's car, whatever the camera follows), not from the listener.</summary>
     public static Func<Vector3?>? Followed { get; set; }
 
     /// <summary>Whether the cockpit view is up (the original's hud flag), set by the SimDriver.</summary>

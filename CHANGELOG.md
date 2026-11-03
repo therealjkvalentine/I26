@@ -76,6 +76,7 @@
 - With the Voice level at 0 or 1 (single player), CB lines are no longer queued silently: missions that wait for the radio to go quiet move on at once, as in the original, and opening the menu clears the radio.
 - The Moth trucks', buses' and tractor's engine sound is quieter (about 3 dB), as its file's own volume asks and the original plays it.
 - Driving over an oil slick, a gblox hit and the fire dropper's car hit are silent again, as in the original, which plays a weapon's impact sound only when its effect exists; a round that strikes an object of a class with no impact pair shows and sounds nothing.
+- Sounds are dropped or admitted by their distance from your car, as in the original, also while the camera follows a shell (F11) or another subject, instead of from what the camera follows.
 
 ## 0.11.0 (31 October 2026)
 
