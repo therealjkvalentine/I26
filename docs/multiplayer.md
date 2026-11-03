@@ -512,10 +512,10 @@ may hear you does.
   talk opens and a click with a fading tail when it closes. The game has no CB click or static of its own (its CB lines are plain speech), so the
   squelch is synthesised. The sender hears the same click at its own key, not its own voice.
 - **Capture.** `AudioStreamMicrophone` on a muted `CbMic` bus with an `AudioEffectCapture` (`audio/driver/enable_input` is on in the project, but
-  Godot opens the device only when the stream plays): nothing is opened until the key is first pressed, the device is closed again after 30 s of
+  Godot opens the device only when the stream plays; on macOS it is off in the project and turned on at the first press, because the CoreAudio driver sets the input up, and macOS asks for the microphone, as soon as the driver starts with it on): nothing is opened until the key is first pressed, the device is closed again after 30 s of
   silence, and the device is the system default or the one chosen in Audio Control (`CB Microphone` under the three levels, a click steps through the input devices; shell.cfg `[port] cb_mic`). Without any input
   device the first press says so in the console. The sound card's rate is brought to 8 kHz by `VoiceResampler`. The macOS export asks for the
-  microphone with a usage description and the hardened runtime's audio-input entitlement.
+  microphone with a usage description and the hardened runtime's audio-input entitlement. On macOS the permission prompt therefore comes at the first press of the CB key (and again at the first press of each new build, since macOS keys the answer to an ad hoc signed app's code hash), not when the game starts.
 - **Settings and commands.** Play Options' second page: `CB Voice` (shell.cfg `[port] cb_voice`, on by default; off neither sends nor plays); Audio Control has `CB Microphone` (the incoming voice's level is the Voice Level there). In the chat line: `/mute NAME`, `/unmute NAME` (a name, or a unique start or part of one; kept for the session, not by slot),
   `/cb on` and `/cb off` (for this game), `/mute` alone lists who is muted.
 - **Muting.** Three levels. (1) *For yourself*: `/mute NAME` / `/unmute NAME` (and `/cb off`, which mutes everybody). The client plays nothing of that

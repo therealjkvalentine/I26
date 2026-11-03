@@ -237,6 +237,8 @@ public partial class CbVoice : Node
     private void OpenMic()
     {
         if (_mic is not null) return;
+        // macOS: the project leaves the input off at start (no permission prompt then); the first use turns it on, and macOS asks now
+        if (OS.GetName() == "macOS") ProjectSettings.SetSetting("audio/driver/enable_input", true);
         int bus = AudioServer.GetBusIndex(MicBus);
         if (bus < 0)
         {
