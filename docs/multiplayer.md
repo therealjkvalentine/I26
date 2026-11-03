@@ -1020,7 +1020,7 @@ MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 
 - **The Nitro Pack's form** has Co-op in its GAME TYPE list beside Combat, Race and CTF; **the base game's** form has a
   MELEE / CO-OP button (RENAME's look) at the right end of its AREA OF PLAY bar, showing the game type; a click switches.
 - A co-op form lists the install's story missions by their titles instead of arenas (`MissionTitles.Coop`: the stock
-  scripted missions, `MapFileSet.IsStockMission`: I76's A01 ("Training ground"), T01–T17 ("7. The Blood On The Highway": the 17 titles the original game holds; "Mission N" without the exe) and the scenarios S01–S07 by
+  scripted missions, `MapFileSet.IsStockMission`: I76's A01 ("Training"), T01–T17 ("Scene 5: Save Taurus": the scene number the original shows and the port's name for it, docs/deviations.md "Scene names") and the scenarios S01–S07 by
   their shell names in the shell's own order; the Nitro Pack's campaign in SCENARIO.DAT's order, then B01 and the P
   missions SCENARIO.DAT does not list). It keeps the host form's GAME NAME (the mission's title until renamed), NO. DRIVERS
   (1–8), INVITE ONLY, the password, WEAPON RESTRICTIONS (Nitro's form) and Hidden Weapons & Cars, which apply to the cars

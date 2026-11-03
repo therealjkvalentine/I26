@@ -12,13 +12,8 @@ public static class SceneBookmarks
     /// <summary>The mission's stock car, as NEW TRIP and the post-mission router launch it.</summary>
     public static string CarFile(int scene) => $"vppt{scene:00}.vcf";
 
-    /// <summary>The bookmark's name: the mission's title ("Mission N" when the install has none), without its number, which the list shows as "Scene N. ".</summary>
-    public static string NameOf(I76.Formats.Vfs.GameInstall install, int scene)
-    {
-        var t = I76.Formats.Mission.MissionTitles.TripTitle(install, scene);
-        var prefix = $"{scene}. ";
-        return t.StartsWith(prefix, StringComparison.Ordinal) ? t[prefix.Length..] : t;
-    }
+    /// <summary>The bookmark's name: the scene's name ("Save Taurus"), without its number, which the list shows as "Scene N. ".</summary>
+    public static string NameOf(int scene) => I76.Formats.Mission.MissionTitles.SceneName(scene);
 
     /// <summary>
     /// Adds a bookmark for every scene that has none of that name yet (a scene's bookmark of the same name, whoever made it, is

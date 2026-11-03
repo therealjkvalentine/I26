@@ -15,8 +15,8 @@ public sealed record MapListing(string Stem, string Title, string Group)
 /// The titles of the install's stock missions, from the places the game takes them from:
 /// the base melee lobby's own tables (15 arenas and 7 scenarios); the
 /// Nitro lobby's callback +0x58, which reads WRLD + 0x143 of each file; Nitro's campaign list, addon\SCENARIO.DAT. The base
-/// campaign (A01, T01-T17) has no titles in a data file: the trip numbers its missions ("T.R.I.P. Missions 1-17"), but the original executable holds
-/// their 17 titles (the unused Save Points pad's), so they read "7. The Blood On The Highway"; "Mission 7" when the exe is not there.
+/// campaign has no titles the original shows: the trip numbers its missions ("Scene N." on the bookmark board) and A01 is
+/// the main menu's Training. The port names each scene by what happens in it (<see cref="SceneNames"/>), "Scene 5: Save Taurus".
 /// </summary>
 public static class MissionTitles
 {
@@ -60,7 +60,7 @@ public static class MissionTitles
                 if (listed?.m is { } lm) { title = lm.Title; rank = listed.Value.i; }
                 else { title = FileName(install, stem); rank = stem[0] switch { 'b' => 100, 'p' => 101, _ => 200 }; }
             }
-            else if (stem[0] is 'a' or 't') { group = Campaign; rank = stem[0] == 'a' ? 0 : 1; title = stem[0] == 't' ? TripTitle(install, num) : "Training ground"; }
+            else if (stem[0] is 'a' or 't') { group = Campaign; rank = stem[0] == 'a' ? 0 : 1; title = stem[0] == 't' ? TripTitle(num) : TrainingName; }
             else
             {
                 group = Melee;
@@ -129,51 +129,28 @@ public static class MissionTitles
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or IndexOutOfRangeException or UnauthorizedAccessException) { return null; }
     }
 
-    private static readonly Dictionary<string, string[]> TripTitles = new();
-
-    /// <summary>"7. The Blood On The Highway": trip mission N's number and the title the original executable holds for it ("Mission N" without).</summary>
-    public static string TripTitle(GameInstall install, int n)
-    {
-        var t = TripTitleList(install);
-        return n >= 1 && n <= t.Length && t[n - 1].Length > 0 ? $"{n}. {t[n - 1]}" : $"Mission {n}";
-    }
 
     /// <summary>
-    /// The 17 titles, T01 first. The exe has them as 17 consecutive C strings (4-byte aligned) from "The Truth Is Out There" (T17) to
-    /// "Meet Taurus" (T01), found by those two; none (empty) when the exe is missing, another build or not laid out so.
+    /// T01-T17's names, the port's (docs/deviations.md "Scene names"): the original shows a trip mission only as "Scene N" and its
+    /// objectives, so each is named by its objectives (the place, the job or the target). The titles the executable holds
+    /// for the 17 are never shown by the original and mostly fit other stories than the missions that shipped; they are not used.
+    /// Short enough that "Scene 13: The Truckstop" fits the host form's list row.
     /// </summary>
-    internal static string[] TripTitleList(GameInstall install)
-    {
-        var path = install.FindFile("i76.exe");
-        if (path is null) return [];
-        lock (TripTitles)
-        {
-            if (TripTitles.TryGetValue(path, out var c)) return c;
-            string[] r = [];
-            try
-            {
-                var b = File.ReadAllBytes(path);
-                int at = IndexOf(b, "The Truth Is Out There\0"u8);
-                if (at >= 0)
-                {
-                    var l = new List<string>();
-                    for (int p = at; l.Count < 17 && p < b.Length;)
-                    {
-                        if (b[p] == 0) { p++; continue; }
-                        int e = Array.IndexOf(b, (byte)0, p);
-                        if (e < 0) break;
-                        l.Add(Encoding.Latin1.GetString(b, p, e - p));
-                        p = e;
-                    }
-                    if (l.Count == 17 && l[16] == "Meet Taurus") { l.Reverse(); r = [.. l]; }
-                }
-            }
-            catch (IOException) { }
-            return TripTitles[path] = r;
-        }
-    }
+    public static readonly string[] SceneNames =
+    [
+        "Meet Taurus", "Levelland School", "The Bar-D", "Dream Race", "Save Taurus", "Out of Gas",
+        "Highway 380", "The Warehouse", "Disable Calisto", "Van to Tatum", "The Pecos", "The Komplex",
+        "The Truckstop", "Escort the Van", "To Fort Davis", "Fort Davis", "Malocchio",
+    ];
 
-    private static int IndexOf(byte[] b, ReadOnlySpan<byte> pat) => b.AsSpan().IndexOf(pat);
+    /// <summary>A01's name: the original's main menu button that starts it.</summary>
+    public const string TrainingName = "Training";
+
+    /// <summary>Trip scene N's name ("Save Taurus"); "Scene N" past the table.</summary>
+    public static string SceneName(int n) => n >= 1 && n <= SceneNames.Length ? SceneNames[n - 1] : $"Scene {n}";
+
+    /// <summary>"Scene 5: Save Taurus": trip mission N as the lists give it.</summary>
+    public static string TripTitle(int n) => n >= 1 && n <= SceneNames.Length ? $"Scene {n}: {SceneNames[n - 1]}" : $"Scene {n}";
 
     /// <summary>The name in the mission file itself (WRLD + 0x143), as the Nitro lobby lists it; empty if none.</summary>
     private static string FileName(GameInstall install, string stem)

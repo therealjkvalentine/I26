@@ -214,7 +214,14 @@ public partial class Main : IDevHost
     {
         if (_opt.Install is null) return [];
         var install = new GameInstall(_opt.Install);
-        return MainMenu.MissionIds(install).Select(id => (id, MainMenu.IsTrip(id) ? id : MainMenu.ArenaName(install, id) is { } n ? $"{id}  {n}" : id)).ToList();
+        return MainMenu.MissionIds(install).Select(id => (id, MainMenu.IsTrip(id) ? TripLabel(id) : MainMenu.ArenaName(install, id) is { } n ? $"{id}  {n}" : id)).ToList();
+
+        static string TripLabel(string id) => id switch
+        {
+            "A01" => $"{id}  {I76.Formats.Mission.MissionTitles.TrainingName}",
+            ['T', ..] when int.TryParse(id.AsSpan(1), out int n) => $"{id}  {I76.Formats.Mission.MissionTitles.TripTitle(n)}",
+            _ => id,
+        };
     }
 
     public string? DevCurrentCar => _sim?.World.Player?.Definition;

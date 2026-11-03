@@ -68,7 +68,7 @@ public partial class ShellDevPanel : Control
                 if (!yes) return;
                 var marks = Bookmarks.Load();
                 var vfs = shell.Vfs;
-                var (made, had) = SceneBookmarks.Generate(marks, n => SceneBookmarks.NameOf(shell.Install, n), n =>
+                var (made, had) = SceneBookmarks.Generate(marks, SceneBookmarks.NameOf, n =>
                 {
                     var car = I76.Sim.Trip.TripCar.FromVcf(vfs.Read(SceneBookmarks.CarFile(n)), c => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, c));
                     return I76.Sim.Trip.TripInventory.FromCar(car, shell.Parts, vfs).Save();
