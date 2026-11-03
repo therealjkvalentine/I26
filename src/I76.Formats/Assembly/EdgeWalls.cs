@@ -20,6 +20,8 @@ namespace I76.Formats.Assembly;
 /// unless a road runs at its foot (<see cref="RoadShare"/> of it within <see cref="RoadNear"/> of a road: T05's mountain road,
 /// cut along the ridge south of its start 100 m up, against T05's start road, 30-95 m off its fences), from which it is seen
 /// close up: such a barrier stays.
+/// Ground the mission puts something on (<see cref="Keep"/>) stays too: unreachable is not unused (T05's helicopters wait on a fence's
+/// crest no car reaches, measured in the simulation: driven at it from every side a car gets no nearer than 18 m below it).
 /// Over that ground the drawn surface is held down to the plain at its foot: each sample's foot is the nearest
 /// drivable sample's height, blurred away from the drivable ground so the plain runs level, and the ground is drawn at
 /// the lower of its own height and the foot, so land already below the foot (a drop beyond a crest) keeps its shape. Where
@@ -52,6 +54,11 @@ public sealed class EdgeWalls
     /// <summary>Samples of thin barriers kept for a road at their foot.</summary>
     public int RoadKeptCount { get; private init; }
 
+    /// <summary>Per sample: outer ground kept for something the mission puts on it (see Build).</summary>
+    public bool[] Kept { get; private init; } = [];
+    /// <summary>Samples kept for something the mission puts on them that would be hidden otherwise.</summary>
+    public int KeptCount { get; private init; }
+
     /// <summary>The blur's radius in samples (three box passes: a bell about 4.5 samples wide), and how far from the drivable ground the blurred foot takes over.</summary>
     public const int BlurRadius = 4;
     public const float Blend = 4f;
@@ -79,6 +86,11 @@ public sealed class EdgeWalls
     /// </summary>
     public const int RoadNear = 6, RoadAlong = 20;
     public const float RoadShare = 0.06f;
+    /// <summary>
+    /// How far (samples, a square: 40 m) the gentle ground about something the mission puts on outer ground is kept; the clamp
+    /// fades in over <see cref="Ramp"/> beyond. T05's helicopters stand on the flat crest of a fence that runs on for 2 km.
+    /// </summary>
+    public const int KeepReach = 8;
 
     private EdgeWalls(int x0, int z0, int w, int h, float[] foot, bool[] hidden, float[] mask, bool[] ridge, int count)
     {
@@ -91,7 +103,8 @@ public sealed class EdgeWalls
     /// <paramref name="roads"/>: the map's roads as polylines in sample coordinates (<see cref="Roads"/>), for the thin barriers
     /// with a road at their foot; null, none is kept for a road.
     /// </summary>
-    public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true, IEnumerable<IReadOnlyList<System.Numerics.Vector2>>? roads = null)
+    public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true, IEnumerable<IReadOnlyList<System.Numerics.Vector2>>? roads = null,
+        IEnumerable<System.Numerics.Vector2>? keep = null)
     {
         var (r0, r1, c0, c1) = tiles.Bounds();
         if (r1 < r0) return null;
@@ -112,6 +125,16 @@ public sealed class EdgeWalls
                 int i = z * w + x;
                 cell[i] = present[i] && present[i + 1] && present[i + w] && present[i + w + 1];
                 open[i] = cell[i] && surface.Open(x0 + x, z0 + z);
+            }
+        var steep = new float[n];   // per cell: its steepest gradient (rise per unit run), at a corner of the bilinear surface
+        for (int z = 0; z < ch; z++)
+            for (int x = 0; x < cw; x++)
+            {
+                int i = z * w + x;
+                if (!cell[i]) continue;
+                float a = height[i], b = height[i + 1], c = height[i + w], d = height[i + w + 1];
+                static float G(float e1, float e2) => MathF.Sqrt(e1 * e1 + e2 * e2);
+                steep[i] = MathF.Max(MathF.Max(G(b - a, c - a), G(b - a, d - b)), MathF.Max(G(d - c, c - a), G(d - c, d - b))) / (float)TerrainSurface.Spacing;
             }
         // the outer ground: cells no car reaches, joined four-ways to the edge (a side with no tile beyond it, or the bounds)
         var outer = new bool[n];
@@ -232,10 +255,55 @@ public sealed class EdgeWalls
                 ridge[i] = false;
                 if (!hidden[i]) thin[i] = false;
             }
-        for (int i = 0; i < n; i++) if (ridge[i]) hidden[i] = false;
+        // ground the mission puts something on (a placement, a point of a script path) stays: the gentle ground it stands on
+        // within KeepReach (T05's helicopters wait on the flat crest of the fence north-west of its start, 110 m over the plain,
+        // and lift off from it), or on a steeper face the cells about it; the clamp fades in from it as from a ridge
+        var kept = new bool[n];
+        if (keep is not null)
+        {
+            var patch = new bool[n];
+            var from = new int[n];
+            var seeds = new Queue<int>();
+            foreach (var p in keep)
+            {
+                int cx = (int)MathF.Floor(p.X) - x0, cz = (int)MathF.Floor(p.Y) - z0;
+                if (cx < 0 || cz < 0 || cx >= cw || cz >= ch) continue;
+                int i = cz * w + cx;
+                if (!cell[i] || open[i]) continue;
+                if (steep[i] <= TerrainSurface.WallGradient) { if (!patch[i]) { patch[i] = true; from[i] = i; seeds.Enqueue(i); } continue; }
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                        if (cx + dx >= 0 && cz + dz >= 0 && cx + dx < cw && cz + dz < ch) patch[i + dz * w + dx] = true;
+            }
+            while (seeds.Count > 0)
+            {
+                int i = seeds.Dequeue(), x = i % w, z = i / w, ox = from[i] % w, oz = from[i] / w;
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int xx = x + dx, zz = z + dz;
+                        if (xx < 0 || zz < 0 || xx >= cw || zz >= ch || Math.Max(Math.Abs(xx - ox), Math.Abs(zz - oz)) > KeepReach) continue;
+                        int j = zz * w + xx;
+                        if (patch[j] || !cell[j] || open[j] || steep[j] > TerrainSurface.WallGradient) continue;
+                        patch[j] = true; from[j] = from[i]; seeds.Enqueue(j);
+                    }
+            }
+            for (int z = 0; z < ch; z++)
+                for (int x = 0; x < cw; x++)
+                {
+                    int i = z * w + x;
+                    if (patch[i]) kept[i] = kept[i + 1] = kept[i + w] = kept[i + w + 1] = true;
+                }
+        }
+        int keptCount = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (kept[i] && hidden[i]) keptCount++;
+            if (ridge[i] || kept[i]) hidden[i] = false;
+        }
         // where the hidden ground meets a ridge that is kept (the same plateau, cut by the test) the plain would end in a
         // cliff as high as the ridge: the clamp fades in over Ramp samples from kept outer ground, so it rises to the ridge on a slope
-        var toRidge = Chamfer(ridge, w, h);
+        var toRidge = Chamfer([.. ridge.Select((r, i) => r || kept[i])], w, h);
         var mask = new float[n];
         int count = 0;
         for (int i = 0; i < n; i++)
@@ -257,7 +325,7 @@ public sealed class EdgeWalls
         int thinCount = 0, roadCount = 0;
         if (thin is not null) for (int i = 0; i < n; i++) if (thin[i] &= hidden[i]) thinCount++;
         if (roadKept is not null) for (int i = 0; i < n; i++) if (roadKept[i]) roadCount++;
-        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { Thin = thin, ThinCount = thinCount, RoadKept = roadKept, RoadKeptCount = roadCount };
+        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { Thin = thin, ThinCount = thinCount, RoadKept = roadKept, RoadKeptCount = roadCount, Kept = kept, KeptCount = keptCount };
     }
 
     /// <summary>
@@ -324,6 +392,17 @@ public sealed class EdgeWalls
             foreach (int i in part) thin[i] = true;
         }
         return thin;
+    }
+
+    /// <summary>Where <paramref name="world"/> puts something, in sample coordinates, for <see cref="Build"/>: every placement and every point of the script's paths.</summary>
+    public static List<System.Numerics.Vector2> Keep(MissionWorld world)
+    {
+        var k = (float)MissionWorld.SampleScale;
+        var points = world.Placements.Concat(world.LinePlacements).Select(p => new System.Numerics.Vector2(p.Object.Position.X, p.Object.Position.Z) * k).ToList();
+        if (world.Mission.GetFsmTables()?.Paths is { } paths)
+            foreach (var path in paths)
+                foreach (var q in path.Points) points.Add(new System.Numerics.Vector2(q.X, q.Z) * k);
+        return points;
     }
 
     /// <summary>The roads of <paramref name="world"/> as polylines in sample coordinates, for <see cref="Build"/>.</summary>
