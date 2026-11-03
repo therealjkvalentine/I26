@@ -17,7 +17,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_GOG_GALAXY_STUB` | test | A GOG Galaxy downloader `.exe`, which `InstallerIntegrationTests` expect to be refused as one. |
 | `I76_CUSTOM_MAPS_I76` | test | Base Interstate '76 community maps unzipped under one folder (each map's `.lvl` and `.ter`, a folder per map or not); the base-map tests put them in scratch base and Nitro installs and skip without it and `I76_INSTALL`. Tests only. |
 | `I76_CUSTOM_MAPS` | test | The unzipped community Nitro map pack (the folder holding its `miss16`, `miss8` and `addon`); `CustomMapTests` build a scratch install of links from it and `I76_NITRO_INSTALL` and skip without both. Tests only: the game reads custom maps from the install's own folders. |
-| `I76_TEX_DIR` | setup | A folder of replacement menu art, read in place of the original's (development). |
+| `I76_TEX_DIR` | setup | A folder of replacement menu art, read in place of the original's (development). Its `world/` sub-folder holds upscaled world, car and cockpit textures by the texture's name (`pp11ftf1.png`), as `user://tex-world/` and a pack zip's `tex-world/` do. |
 | `I76_NO_SYSTEM_FONTS` | debug | `1`: Impact and Arial from the replacement menu art's folder only, never the system's. |
 | `I76_FONTS_MISSING` | test | `1`/`both`, `Impact` or `Arial`: the shell's one-time "fonts not installed" notice behaves as if those faces were missing, every start and with no marker written; `0`: none missing. |
 | `I76_GROUND_RES` | setup | `tools/fetch-ground.sh`: `2K` fetches the 2K ground sets (1K by default). |

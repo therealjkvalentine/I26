@@ -119,6 +119,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     public void SetMode1997(bool on)
     {
         Mode1997 = on;
+        textures.SetMode1997(on);
         foreach (var m in _cache.Values.OfType<ShaderMaterial>())
             m.Shader = _oneSided1997.TryGetValue(m, out var pair) ? (on ? pair.Faithful : pair.Modern) : Swap(m.Shader, on);
     }

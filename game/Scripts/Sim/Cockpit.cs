@@ -49,6 +49,8 @@ public partial class Cockpit : Node
 
     /// <summary>The radar's current frame, as the 2D panel shows it (rows bottom-up), or null before the first sweep.</summary>
     public Texture2D? RadarTexture => _radarTex;
+    /// <summary>The radar frames' texels per original pixel (an upscaled pack).</summary>
+    public int RadarScale => _radarMember is { } m ? Textures.Scale(m) : 1;
 
     public override void _Ready()
     {

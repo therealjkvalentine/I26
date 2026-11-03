@@ -59,7 +59,7 @@ public sealed class HdDirSource : HdSource
     public override byte[]? Read(string rel) { var p = P(rel); return File.Exists(p) ? File.ReadAllBytes(p) : null; }
 }
 
-/// <summary>A pack file: a zip whose tex-menu/ folder is the layout, read in place.</summary>
+/// <summary>A pack file: a zip whose tex-menu/ folder is the layout (or another root, tex-world/ for the world textures), read in place.</summary>
 public sealed class HdZipSource : HdSource
 {
     private readonly string _path;
@@ -68,14 +68,14 @@ public sealed class HdZipSource : HdSource
     private readonly object _lock = new();
     public const string Root = "tex-menu/";
 
-    public HdZipSource(string path)
+    public HdZipSource(string path, string root = Root)
     {
         _path = path;
         _zip = new ZipArchive(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read), ZipArchiveMode.Read);
         foreach (var e in _zip.Entries)
         {
             var n = Norm(e.FullName);
-            if (n.StartsWith(Root) && n.Length > Root.Length) _entries[n[Root.Length..]] = e;
+            if (n.StartsWith(root) && n.Length > root.Length) _entries[n[root.Length..]] = e;
         }
         Info = HdPackInfo.Parse(Slurp(_zip.GetEntry("pack.json")));
     }
@@ -102,17 +102,17 @@ public sealed class HdZipSource : HdSource
 
 public static class HdPackFinder
 {
-    /// <summary>Opens the newest readable pack among i76-hd-menus*.zip in the folders, or null; unreadable ones are reported through <paramref name="warn"/>.</summary>
-    public static HdZipSource? Newest(IEnumerable<string> folders, Action<string>? warn = null)
+    /// <summary>Opens the newest readable pack among the folders' <paramref name="pattern"/> zips with files under <paramref name="root"/>, or null; unreadable ones are reported through <paramref name="warn"/>.</summary>
+    public static HdZipSource? Newest(IEnumerable<string> folders, Action<string>? warn = null, string pattern = "i76-hd-menus*.zip", string root = HdZipSource.Root)
     {
         HdZipSource? best = null;
         foreach (var dir in folders.Where(Directory.Exists).Distinct())
-            foreach (var f in Directory.EnumerateFiles(dir, "i76-hd-menus*.zip").OrderBy(f => f, StringComparer.Ordinal))
+            foreach (var f in Directory.EnumerateFiles(dir, pattern).OrderBy(f => f, StringComparer.Ordinal))
             {
                 HdZipSource z;
-                try { z = new HdZipSource(f); }
+                try { z = new HdZipSource(f, root); }
                 catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException) { warn?.Invoke($"{f}: {e.Message}"); continue; }
-                if (z.Info is null || z.Count == 0) { warn?.Invoke($"{f}: no pack.json or no tex-menu/ files"); z.Dispose(); continue; }
+                if (z.Info is null || z.Count == 0) { warn?.Invoke($"{f}: no pack.json or no {root} files"); z.Dispose(); continue; }
                 if (best is null || HdPackInfo.Compare(z.Info.Version, best.Info!.Version) > 0) { best?.Dispose(); best = z; }
                 else z.Dispose();
             }

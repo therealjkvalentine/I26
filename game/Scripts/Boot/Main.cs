@@ -1500,7 +1500,7 @@ public partial class Main : Node3D
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var vfs = new AssetVfs(install);
         var msn = MissionPath(install);
-        _builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
+        _builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
         var world = _builder.Build(msn);
         _worldRoot.AddChild(world);
         MissionBuilder.Trace("world in tree");

@@ -109,10 +109,11 @@ public partial class ExtInstruments : Control
             if (dash && pit.LookingAway) break;   // The nine panels wait for the head to come forward
             // a panel not drawn into yet is the original's empty descriptor: its slot is skipped
             if ((panel is null ? pit.RadarTexture : pit.Panels.Texture(panel)) is not { } tex) continue;
-            int th = tex.GetHeight();
-            // y flipped about the slot: local row 0 (stored row th − h, the picture's row h − 1) lands at the slot's foot
+            // the slot is the original's pixels; a panel served upscaled (s texels a pixel) is read at its scale
+            int th = tex.GetHeight(), s = panel is null ? pit.RadarScale : pit.Panels.Scale(panel);
+            // y flipped about the slot: local row 0 (stored row th − h·s, the picture's row h − 1) lands at the slot's foot
             DrawSetTransformMatrix(new Transform2D(new Vector2(k, 0), new Vector2(0, -k), origin + new Vector2(x, y + h) * k));
-            DrawTextureRectRegion(tex, new Rect2(0, 0, w, h), new Rect2(0, th - h, w, h));
+            DrawTextureRectRegion(tex, new Rect2(0, 0, w, h), new Rect2(0, th - h * s, w * s, h * s));
         }
         DrawSetTransformMatrix(Transform2D.Identity);
         // the reticles are drawn whatever the head does, the 2D dash and the ghost cockpit only
