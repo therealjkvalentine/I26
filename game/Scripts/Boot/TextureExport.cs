@@ -10,7 +10,7 @@ namespace I76.Game.Boot;
 /// (DIR/&lt;stem&gt;.png, the name an upscale pack uses) and DIR/bottom-up.txt (the stems the game stores bottom up), then quit. The input of tools/upscale-textures.py.
 /// A stem held by several formats exports the one the game draws (.m16 first). An .m16 carries its own colours;
 /// a .map or .vqm is coloured by --palette (t01.act unless said), and a mission with another palette shows an
-/// upscale made from it in these colours.
+/// upscale made from it in these colours, but for the entries it turns grey (the dream: HdTexture.Recolour).
 /// </summary>
 public static class TextureExport
 {

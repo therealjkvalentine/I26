@@ -47,6 +47,18 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <summary>After SetHd swaps what is served: art made from GetRgba (the cockpit's panels, radar frames, wheel) is made again.</summary>
     public event System.Action? Swapped;
 
+    /// <summary>
+    /// The palette the pack's pictures were coloured by (HdTexture.PackPalette). Where the mission's palette turns grey entries
+    /// that one colours (the dream), an upscale over them is turned grey too (HdTexture.Recolour). Set before the first texture.
+    /// </summary>
+    public Palette? PackPalette
+    {
+        get => _packPalette;
+        set { _packPalette = value; _greyed = palette is not null && value is not null ? HdTexture.Greyed(palette, value) : null; }
+    }
+    private Palette? _packPalette;
+    private bool[]? _greyed;
+
     private readonly Dictionary<string, RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HdPic?> _hd = new(StringComparer.OrdinalIgnoreCase);
 
@@ -96,7 +108,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private HdPic? HdOf(string member)
     {
         if (_hd.TryGetValue(member, out var h)) return h;
-        h = Bled(member) is { } b && HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b) : null;
+        h = Bled(member) is { } b && HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b, GreyedOf(member)) : null;
         return _hd[member] = h;
     }
 
@@ -110,33 +122,46 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         if (!Hd || HdTextures.Source is null) return;
         // a folder's files are read on the workers too; a zip's here
         bool anywhere = HdTextures.ReadAnywhere;
-        var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base)>();
+        var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed)>();
         foreach (var m in members.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (_hd.ContainsKey(m)) continue;
             if (Bled(m) is not { } b) { _hd[m] = null; continue; }
             var f = anywhere ? null : HdTextures.Read(m);
             if (!anywhere && f is null) { _hd[m] = null; continue; }
-            todo.Add((m, f, b));
+            todo.Add((m, f, b, GreyedOf(m)));
         }
         if (todo.Count == 0) return;
         var made = new HdPic?[todo.Count];
         System.Threading.Tasks.Parallel.For(0, todo.Count, i =>
         {
             if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
-            made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base);
+            made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
             if (rgba) _ = made[i]?.Rgba;
         });
         for (int i = 0; i < todo.Count; i++) _hd[todo[i].Member] = made[i];
     }
 
-    private static HdPic? Fitted(string member, string name, byte[] bytes, RoadRaster.Tex b)
+    /// <summary>The member's palette indices when it uses an entry the mission's palette greys (PackPalette), else null.</summary>
+    private byte[]? GreyedOf(string member) =>
+        _greyed is { } g && resolver.Load(member) is { Palette: null } t && HdTexture.Uses(t.Indices, g) ? t.Indices : null;
+
+    private HdPic? Fitted(string member, string name, byte[] bytes, RoadRaster.Tex b, byte[]? greyedIndices)
     {
         if (HdTextures.Decode(name, bytes) is not { } img) return null;
         int w = img.GetWidth(), hh = img.GetHeight(), s = HdTexture.ScaleOf(w, hh, b.Width, b.Height);
         if (s == 0) { GD.PushWarning($"HD texture {member}: {w}x{hh} is not a power-of-two multiple of {b.Width}x{b.Height}"); return null; }
-        if (img.IsCompressed()) return new HdPic(w, hh, null, img);
-        return new HdPic(w, hh, new RoadRaster.Tex(w, hh, HdTexture.Fit(img.GetData(), w, hh, s, b.Rgba, b.Width, b.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase))), null);
+        byte[] rgba;
+        if (img.IsCompressed())
+        {
+            if (greyedIndices is null) return new HdPic(w, hh, null, img);
+            // a .dds over the greyed entries is decompressed, turned grey and sent as RGBA8 with new mipmaps
+            img.ClearMipmaps(); img.Decompress(); img.Convert(Image.Format.Rgba8);
+            rgba = img.GetData();
+        }
+        else rgba = HdTexture.Fit(img.GetData(), w, hh, s, b.Rgba, b.Width, b.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase));
+        if (greyedIndices is not null) HdTexture.Recolour(rgba, w, hh, s, greyedIndices, b.Width, b.Height, _greyed!, palette!, _packPalette!);
+        return new HdPic(w, hh, new RoadRaster.Tex(w, hh, rgba), null);
     }
 
     /// <summary>The upscale's picture for the GPU: a .dds as it is, a fitted picture with its mipmaps.</summary>

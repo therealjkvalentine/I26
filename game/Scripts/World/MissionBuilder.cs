@@ -330,7 +330,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
         else Notes.Add($"palette {world.PaletteName} not found");
 
         var resolver = Resolver = new TextureResolver(vfs);
-        var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 && HdTextures.Enabled };
+        var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 && HdTextures.Enabled,
+            PackPalette = vfs.TryRead(I76.Formats.Imaging.HdTexture.PackPalette) is { Length: I76.Formats.Imaging.Palette.Size } pp ? new Palette(pp) : null };
         var materials = Materials = new MaterialLibrary(textures);
         Meshes = new MeshBuilder(resolver, materials);
         _carParts = null;
