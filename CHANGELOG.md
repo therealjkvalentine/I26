@@ -67,6 +67,7 @@
 - In the 1997 look the brake lamps go out the moment the brake is let go, as the original's do; the modern look keeps its short hold, so an AI car flicking between brake and throttle does not strobe.
 - Machine-gun, cannon and mortar rounds start at the muzzle on the shots that have no spread, as the original's do, instead of always a little ahead of it.
 - Pressing the fire button again while a weapon is still between shots (its reload or burst pause) plays the dry click, as in the original, instead of staying silent.
+- With Unlim. Ammo on, a computer-driven car whose guns have run dry keeps firing, as in the original, instead of stopping.
 
 ## 0.11.0 (31 October 2026)
 
