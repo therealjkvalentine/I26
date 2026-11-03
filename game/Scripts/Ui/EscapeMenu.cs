@@ -50,8 +50,9 @@ public sealed partial class EscapeMenu : Control
         public string? Title;
         public List<Item> Items = [];
         public int Order;
-        /// <summary>The scrolling rows' first pad row, how many show at once, and how far they are scrolled (in rows).</summary>
-        public const int FirstRow = 7, VisibleRows = 8;
+        /// <summary>The scrolling rows' first pad row, how many show at once (the port's rows under the original's six by default; Graphic Detail scrolls as one list of fourteen), and how far they are scrolled (in rows).</summary>
+        public int FirstRow { get; init; } = 7;
+        public int VisibleRows { get; init; } = 8;
         public int Scroll;
         public int Scrollable => Items.Count(i => i.Scrolls);
         public int MaxScroll => Math.Max(0, Scrollable - VisibleRows);
@@ -161,7 +162,7 @@ public sealed partial class EscapeMenu : Control
         };
     }
 
-    /// <summary>A Setting in the scrolling part of the pad (<paramref name="at"/> counts from the first scrolling row, 7).</summary>
+    /// <summary>A Setting in the scrolling part of the pad (<paramref name="at"/> is its place in the list, counted from the screen's FirstRow).</summary>
     private Item Scrolling(int at, int flags, string label, int n, string[]? names, Func<ShellSettings, int> get, Action<ShellSettings, int> put,
         bool live = true, Action? apply = null)
     {
@@ -177,7 +178,8 @@ public sealed partial class EscapeMenu : Control
         _abort = new Screen { Key = four ? "abort4" : "abort5", Art = "abrtms1", Parent = _main };
         _exit = new Screen { Key = "exit", Art = "extgme1" };
         _play = new Screen { Key = "play", Art = "plyopt1", Parent = _main };
-        _graphics = new Screen { Key = "graphics", Art = "grxdet1", Parent = _main };
+        // Graphic Detail is one list, the original's six rows and the port's, scrolled together on the pad's fourteen lines
+        _graphics = new Screen { Key = "graphics", Art = "grxdet1", Parent = _main, FirstRow = 1, VisibleRows = 14 };
         _audio = new Screen { Key = "audio", Art = "audcon1", Parent = _main };
         _cheater = new Screen { Key = "cheater", Art = "plyopt1", EscIgnored = true };
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
@@ -286,7 +288,7 @@ public sealed partial class EscapeMenu : Control
 
         // Graphic Detail: only the settings this port honours (resolution, visibility and the 1997 renderer's detail levels are gone)
         Item G(int flags, string label, int row, int n, string[]? names, int at) =>
-            Setting(flags, label, row, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: () => Live?.Invoke(Settings));
+            Scrolling(row, flags, label, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: () => Live?.Invoke(Settings));
         string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
         _graphics.Items = [
             G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 1, 11, null, 0xc),
@@ -658,7 +660,7 @@ public sealed partial class EscapeMenu : Control
     private static (Rect4 A, Rect4? B) Box(int row) => (RowA(row), new Rect4(2, RowY(row), 32, RowY(row) + 30));
 
     /// <summary>Whether the item is on the pad now: a scrolling row is only when it is within the window of rows.</summary>
-    private bool Shown(Item it) => !it.Scrolls || (it.Pair - _screen.Scroll is >= Screen.FirstRow and < Screen.FirstRow + Screen.VisibleRows);
+    private bool Shown(Item it) => !it.Scrolls || (it.Pair - _screen.Scroll >= _screen.FirstRow && it.Pair - _screen.Scroll < _screen.FirstRow + _screen.VisibleRows);
 
     private (Rect4 A, Rect4? B) Rects(Item it)
     {
@@ -831,18 +833,22 @@ public sealed partial class EscapeMenu : Control
         DrawString(_arial, at, title, HorizontalAlignment.Left, -1, size, Color.Color8(64, 64, 64));
     }
 
-    /// <summary>The port's scrolling rows: a thin track down the pad's left edge with a thumb, and an arrow at an end where there is more.</summary>
+    /// <summary>The scroll bar's left edge in pad pixels: the pad's right margin, after the value column (the pad is 296 wide).</summary>
+    private const int BarX = 291;
+
+    /// <summary>The scrolling rows: a thin track in the pad's ink down its right edge, after the values, with a thumb for the rows shown, and an arrow at an end where there is more.</summary>
     private void DrawScrollMark()
     {
         int max = _screen.MaxScroll;
         if (max <= 0) return;
-        float top = RowY(Screen.FirstRow) + 2, bottom = RowY(Screen.FirstRow + Screen.VisibleRows - 1) + 22, h = bottom - top;
-        const float x = 212;
-        float thumb = h * Screen.VisibleRows / _screen.Scrollable, at = top + (h - thumb) * _screen.Scroll / max;
+        float top = RowY(_screen.FirstRow) + 10, bottom = RowY(_screen.FirstRow + _screen.VisibleRows - 1) + 14, h = bottom - top;
+        const float x = BarX;
+        float thumb = h * _screen.VisibleRows / _screen.Scrollable, at = top + (h - thumb) * _screen.Scroll / max;
         DrawRect(new Rect2(At(x + 2, top), new Vector2(1, h) * _s), Ink with { A = 0.35f });
         DrawRect(new Rect2(At(x, at), new Vector2(5, thumb) * _s), Ink);
-        if (_screen.Scroll > 0) DrawColoredPolygon([At(x + 2.5f, top - 9), At(x - 1, top - 3), At(x + 6, top - 3)], Ink);
-        if (_screen.Scroll < max) DrawColoredPolygon([At(x + 2.5f, bottom + 9), At(x - 1, bottom + 3), At(x + 6, bottom + 3)], Ink);
+        // the arrows inside the list's span, so the top one stays off the header
+        if (_screen.Scroll > 0) DrawColoredPolygon([At(x + 2.5f, top - 8), At(x - 1, top - 2), At(x + 6, top - 2)], Ink);
+        if (_screen.Scroll < max) DrawColoredPolygon([At(x + 2.5f, bottom + 8), At(x - 1, bottom + 2), At(x + 6, bottom + 2)], Ink);
     }
 
     /// <summary>Scroll the port's rows so the selected one shows.</summary>
@@ -852,8 +858,8 @@ public sealed partial class EscapeMenu : Control
         if (s.Items.Count == 0 || s.MaxScroll == 0) return;
         var it = s.Items[Math.Clamp(s.Selected, 0, s.Items.Count - 1)];
         if (!it.Scrolls) return;
-        int row = it.Pair - Screen.FirstRow;
-        s.Scroll = Math.Clamp(s.Scroll, Math.Max(0, row - Screen.VisibleRows + 1), Math.Min(row, s.MaxScroll));
+        int row = it.Pair - s.FirstRow;
+        s.Scroll = Math.Clamp(s.Scroll, Math.Max(0, row - s.VisibleRows + 1), Math.Min(row, s.MaxScroll));
     }
 
     /// <summary>The original's menu-item drawing: the selection bar, the label (wrapped, or centred on the buttons), then column B.</summary>
@@ -899,7 +905,9 @@ public sealed partial class EscapeMenu : Control
         if (value is { Length: > 0 } && b is { } vb)
         {
             float w = Width(font, cell, value), x = vb.X0;
-            if (x + w > vb.X1) x = vb.X1 - w;
+            // a value that would run under the scroll bar (Unlimited) moves left to clear it
+            float limit = it.Scrolls && _screen.MaxScroll > 0 ? BarX - 1 : vb.X1;
+            if (x + w > limit) x = limit - w;
             Print(font, cell, x, vb.Y0, value);
         }
     }
