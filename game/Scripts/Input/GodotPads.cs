@@ -162,4 +162,14 @@ public sealed class GodotPads : IPadSource
     }
 
     public IReadOnlyList<PadRaw> Read() => [.. Devices().Select(d => Raw(d))];
+
+    /// <summary>What the platform says joystick N+1 is: its name and USB ids (for the device presets, docs/joystick.md).</summary>
+    public static DevicePresets.Device Info(int index)
+    {
+        if (index < 0 || index >= Devices().Count) return default;
+        int d = Devices()[index];
+        var info = Input.GetJoyInfo(d);
+        uint Id(string k) => info.TryGetValue(k, out var v) && uint.TryParse(v.AsString(), out var n) ? n : 0;
+        return new DevicePresets.Device(Input.GetJoyName(d), Id("vendor_id"), Id("product_id"));
+    }
 }

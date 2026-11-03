@@ -142,6 +142,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - `]` in the 3D cockpit toggles the original's ghost cockpit: the interior and the rear mirror disappear, leaving the radar, the damage diagram, the compass and the gunsight over the road. It did nothing before.
 - A pad button can do one thing on a tap and another when held (Controller screen, a button's list: Tap / hold...): for example A a single shot on a tap and the nitrous when held. A press shorter than 400 ms is a tap.
 - Look-back bindings for a pad (Controller screen, off until switched on): looking back in the cockpit, fire shoots the rear gun (hardpoint 3) and R3 drops the dropper (hardpoint 4); and with the left stick pulled back, the handbrake button toggles reverse.
+- A Thrustmaster T300RS wheel and a CH Fighterstick are recognised and get their own layouts out of the box (named on the Joystick Configuration screen, then rebindable as usual); with the stick beside a wheel it is the gearbox (back the handbrake, forward reverse, sideways the gears). Any stick axis can now give a command when pushed past half its travel (Joystick Configuration, an axis's list).
 
 ## 0.11.0 (31 October 2026)
 

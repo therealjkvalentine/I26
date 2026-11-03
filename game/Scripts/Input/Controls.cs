@@ -65,7 +65,7 @@ public static class Controls
         if (!force && f == _polled) return;
         _polled = f;
         using (Hitch.Time(Hitch.Phase.Input)) Pads.Poll(Focused());
-        if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } }
+        if (Pads.Count != _seen) { int was = _seen; _seen = Pads.Count; if (was == 0 && _seen > 0) { using var _ = Hitch.Time(Hitch.Phase.PadPlug); Plugged(); } if (_seen > was && _table is not null) { _table = WithDevicePresets(_table); _axes = new AxisControls(_table.Blocks); } }
         if (_table?.Rules is { IsEmpty: false } rules)
         {
             rules.Update(new PadRules.Frame(Pads, (long)Time.GetTicksMsec(), LookingBack?.Invoke() == true));
@@ -227,8 +227,10 @@ public static class Controls
         // the preset's pad side, in memory only (the keys stay as saved, nothing is written)
         t.AddPadSideIfNone(PadDefaults);
         // a stick plugged in over a map the gamepad preset made (a gamepad's Throttle, triggers and right stick mean nothing on it): the stick's, in memory
-        if (PrimaryIsGeneric && (t.PadSideIs(PadPreset.Build(KeyBase())) || t.PadSideIs(PadPreset.BuildUnshifted(KeyBase())))) t.ResetSide(GenericPreset.Build(KeyBase()), true);
-        t = t.WithScoreboardOnTab();
+        if (PrimaryIsGeneric && (t.PadSideIs(PadPreset.Build(KeyBase())) || t.PadSideIs(PadPreset.BuildUnshifted(KeyBase())))) t.ResetSide(PadDefaults(), true);
+        // a known wheel or stick over a map the generic stick's preset made (before the device presets): its own, in memory
+        if (PresetOf(0) is not null && t.Rules.IsEmpty && t.PadSideIs(GenericPreset.Build(KeyBase()))) t.ResetSide(PadDefaults(), true);
+        t = WithDevicePresets(t.WithScoreboardOnTab());
         t.Shift = ShiftKept(t);
         _axes = new AxisControls(t.Blocks);
         return t;
@@ -305,7 +307,43 @@ public static class Controls
     }
 
     /// <summary>The pad preset, whether or not a pad is connected: what the controller screen's Restore loads.</summary>
-    public static BindingTable PadDefaults() => PrimaryIsGeneric ? GenericPreset.Build(KeyBase()) : PadPreset.Build(KeyBase());
+    public static BindingTable PadDefaults() =>
+        !PrimaryIsGeneric ? PadPreset.Build(KeyBase()) : PresetOf(0) is { } p ? WithDerivedShift(DevicePresets.Apply(KeyBase(), p, "joystick1", Pads.Count == 1)) : GenericPreset.Build(KeyBase());
+
+    /// <summary>A device preset's shift layer is written as chords (the T300RS's button 6): its shift read off them, as a file's is.</summary>
+    private static BindingTable WithDerivedShift(BindingTable t) { t.Shift = t.DeriveShift(); return t; }
+
+    /// <summary>The device preset of joystick N+1 (a known wheel or stick with no standard layout), or null.</summary>
+    public static DevicePresets.Preset? PresetOf(int index)
+    {
+        Refresh();
+        return Pads.IsGeneric(index) && PadSource is GodotPads ? DevicePresets.Match(GodotPads.Info(index)) : null;
+    }
+
+    /// <summary>What joystick N+1 is called by the platform ("" for none).</summary>
+    public static string DeviceName(int index) => PadSource is GodotPads ? GodotPads.Info(index).Name : "";
+
+    private static readonly HashSet<string> Announced = [];
+
+    /// <summary>
+    /// The known wheels and sticks after the first that the bindings have nothing on (no block, no rule) get their preset, in memory (nothing is
+    /// written until Done): the second device of a wheel and a stick together. Joystick1's comes with the pad defaults. Each match is logged once.
+    /// </summary>
+    private static BindingTable WithDevicePresets(BindingTable t)
+    {
+        for (int i = 0; i < Pads.Count; i++)
+        {
+            if (PresetOf(i) is not { } p) continue;
+            string dev = $"joystick{i + 1}";
+            bool applied = i > 0 && DevicePresets.Unbound(t, dev);
+            if (applied) t = DevicePresets.Apply(t, p, dev, false);
+            var d = GodotPads.Info(i);
+            bool inUse = applied || i == 0 && t.PadSideIs(PadDefaults());
+            if (Announced.Add($"{dev} {p.Name} {inUse}"))
+                GD.Print($"[controls] {dev} \"{d.Name}\" ({d.Vendor:x4}:{d.Product:x4}) is a {p.Name}: {(inUse ? "its preset is in use" : "the saved bindings are kept")}");
+        }
+        return t;
+    }
 
     /// <summary>The first device is a flight stick or the like (no standard gamepad layout): its preset is the stick's, not the pad's (docs/joystick.md).</summary>
     public static bool PrimaryIsGeneric { get { Refresh(); return Pads.IsGeneric(0); } }

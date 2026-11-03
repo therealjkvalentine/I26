@@ -125,6 +125,37 @@ choice is made at the press. On the Controller screen the look stick's list has 
 the left stick's Y *Back + e-brake reverse on/off*; their rows say so. The remapper's L3-as-nitrous half of the last rule has no I26
 command to map onto and is left out. Tests: `tests/I76.Formats.Tests/LookBackRulesTests.cs`.
 
+**Axis thresholds** (`threshold joystick2 Down/Up + 0.45 0.30 level e_brake`): a stick pushed one way past a line of its travel (the stick's
+own deflection, before the response's square) gives a command, and lets go of it only back under a lower line, so a stick resting near the
+line does not chatter. `level` holds the command while past (a handbrake), `edge` presses it once a push (a sequential gear change: held
+over, it does not change again), `momentary` presses it going in and again coming out (reverse, a toggle, held only while pushed). One each
+way on an axis; the axis keeps what else it does. The Joystick screen's axis list has *Pushed + / - : a command...* (half the travel in, a
+third out; held for a held command such as the e-brake or fire, else pressed once), the row shows them, and clearing the axis clears them.
+
+**Device presets** (`DevicePresets`): a known wheel or stick is recognised by its USB vendor and product ids (Godot's joy info) or, without
+them, its name, and its preset is what the pad defaults are for it (no saved map, Restore Defaults) instead of the generic stick's; a saved map
+whose pad side is exactly the generic stick's preset (made before) takes it in memory. A known device after the first (a stick beside a wheel
+or a pad) that the bindings have nothing on gets its preset in memory on its joystickN; nothing is written until Done, and from then on it is
+edited like any other binding. Each match is logged once (`[controls] joystickN "name" (vid:pid) is a ...`). The Joystick screen names the
+device and its preset. The layouts are those players settled on for these devices on the original, where they map onto I26's commands:
+
+- *Thrustmaster T300RS* (044F:B66E, B66F, B66D, and B65D before Thrustmaster's driver is installed), pedals set to Combined (Separate cannot work:
+  each pedal rests at an end): the wheel steers (`- Left/Right`), the pedals are the throttle (`- Down/Up`). Button 6 is a shift, written as
+  input.map chords (the second command's block the button `+` and Button6 `+`, the first's Button6 `-`). Base / with 6: 1 lights / fire,
+  2 fire / front target, 3 cycle / combat view, 4 e-brake / reverse, 5 special 1 / special 2, 7 hardpoint 3 / 4, 8 nearest / clear target,
+  9 horn / look at target, 10 horn / radar range, 11 lights / radar camera, 12 ignition / binoculars, 13 horn / poetry; D-pad lights, map,
+  ignition, notepad (up, right, down, left), with 6 gear up (up) and down (down).
+- *CH Fighterstick* (068E:00F3; Windows names it only "HID-compliant game controller"): beside a wheel the stick is the gearbox, by threshold
+  rules: back the e-brake (level), forward reverse (momentary), at 45 % in and 30 % out; left and right a gear down and up (edge) at 55 % and
+  40 % (the stick is knocked sideways more easily than pulled). Alone it steers (`- Left/Right`), its base wheel is the throttle (`- Axis3`)
+  and back and forward keep the e-brake and reverse. Buttons: trigger fire, 2 (pickle) hardpoint 2, 3 special 1, 4 (pinky) look at target,
+  5 to 8 hardpoints 2 to 5, 9 to 12 front, next, nearest target and radar range, 13 to 16 special 1, notepad, combat view, map (each hat up,
+  right, down, left); the cone hat glances while held, its up looking down as in a flight stick.
+
+Tests: `tests/I76.Formats.Tests/DevicePresetTests.cs` (matching by ids and names, both layouts, a preset only on its own device, the three
+threshold modes with their two lines, the file). Not verified on the devices: matched by the ids their makers publish and the layouts as
+measured on the original; Godot's axis numbering for them on Windows is assumed to follow winmm's (X, Y, then the rest).
+
 ## Game pad dead zones
 
 A pad with a standard layout used to be read with no dead zone at all (only the free look cut off 12 % of the right stick), so a worn stick that
