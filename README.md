@@ -36,7 +36,7 @@ On Linux, ensure Microsoft core fonts are installed for Impact and Arial.
 # HD textures (optional)
 
 The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world/`
-(`%APPDATA%I26	ex-world` on Windows, `~/.local/share/I26/tex-world` on Linux, `~/Library/Application Support/I26/tex-world`
+(`%APPDATA%\I26\tex-world` on Windows, `~/.local/share/I26/tex-world` on Linux, `~/Library/Application Support/I26/tex-world`
 on macOS), named after the texture (`pp11ftf1.png`) at 2x, 4x or 8x. None ships with I26, and no game art is in this
 repository: `tools/upscale-textures.py` makes them on your own machine from your own install. Export the textures
 (`i26 -- --install DIR --export-textures SRC_DIR`, which quits when done), install Python 3.10+ with

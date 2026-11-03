@@ -55,6 +55,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("steady*", Shown("sky_drift"));
         Assert.Equal("original", Shown("death_orbit"));
         Assert.Equal("100", Shown("effects_size"));
+        Assert.Equal("60", Shown("vegetation_density"));
         Assert.Equal("true*", Shown("hd_textures"));
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("false", Shown("developer"));
