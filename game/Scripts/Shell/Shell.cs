@@ -1209,6 +1209,8 @@ public sealed class ShellSettings
     public bool Checkpoints { get; set; }
     /// <summary>The port's own: the Developer panel in single-player missions (docs/dev-hooks.md). No menu sets it: <c>developer=true</c> under [port] in the file (<c>developer_tools</c>, its older name, is still read), or --dev / I76_DEV=1 for one run.</summary>
     public bool DeveloperTools { get; set; }
+    /// <summary>[port] dev_fps (no row; the Developer panel's Settings): the frame rate and its 97th-percentile over the game. Off by default.</summary>
+    public bool DevFps { get; set; }
 
     /// <summary>A hand-written flag's word: true, 1, on or yes (any case) turn it on; anything else, or nothing, leaves it off.</summary>
     public static bool DeveloperWord(string? word) => word?.Trim().ToLowerInvariant() is "true" or "1" or "on" or "yes";
@@ -1514,6 +1516,7 @@ public sealed class ShellSettings
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
         // no version step: absent, it is off (players never see the panel); developer_tools is the key's older name, still read
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
+        s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
@@ -1556,6 +1559,7 @@ public sealed class ShellSettings
         c.SetValue("port", "vsync", VSync);
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);
         if (DeveloperTools) c.SetValue("port", "developer", true);
+        if (DevFps) c.SetValue("port", "dev_fps", true);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
         c.SetValue("port", "hd_textures", HdTextures);
         c.SetValue("shell", "graphics", Graphics);

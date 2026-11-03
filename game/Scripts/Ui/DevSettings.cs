@@ -73,6 +73,7 @@ public static class DevSettings
             s => HdAssets.Enabled = s.HdMenuArt),
         new("lighting_calibration", ["off", "on" + M], s => s.LightingCalibration ? 1 : 0, (s, v) => s.LightingCalibration = v != 0, DevWhen.Live),
         new("crossover", CrossoverNames, s => NearestCrossoverStep(s.Crossover), (s, v) => s.Crossover = CrossoverSteps[v], DevWhen.Live),
+        new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
 
