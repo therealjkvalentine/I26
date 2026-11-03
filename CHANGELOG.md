@@ -125,6 +125,7 @@ Network games use protocol 22: this version does not play with 0.11.0 or earlier
 - Online co-op has a Co-op Scaling option on the host form: each enemy car of a story mission comes with up to one, two or three copies of itself, one for each player past the first, so a group has more to fight. The mission's objectives still follow the original cars.
 - Graphic Detail has a Resolution row: Desktop (the fullscreen the game starts in, as before) or a window of a common size that fits your screen, applied at once and kept for the next start (#81).
 - In the modern look a machine gun's rounds are short, bright bolts with a fading tail, the length of their last step, where they were a thin ten-metre beam that read as a laser.
+- Two command-line switches for unattended runs: `--skip-cutscenes` (a mission's skippable camera scenes are skipped as if Esc were pressed) and `--mute` (all sound off).
 
 ## 0.11.0 (31 October 2026)
 
