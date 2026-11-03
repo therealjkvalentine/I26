@@ -70,6 +70,7 @@
 - With Unlim. Ammo on, a computer-driven car whose guns have run dry keeps firing, as in the original, instead of stopping.
 - Computer-driven cars armed with the EZK Mortar fire it, as in the original, when their target drives across its line; they never fired it before.
 - Bullets and rockets no longer fly through road signs and posts: a sign stops the round with an impact, as in the original, and shields what stands behind it; gunfire leaves it standing, a rocket or shell that hits it knocks it off.
+- Computer-driven cars and gun emplacements no longer shoot through buildings, walls and standing road signs: as in the original, they hold their guns and missiles while one stands between them and their target, judged from car centre to car centre a little above the roofs.
 
 ## 0.11.0 (31 October 2026)
 

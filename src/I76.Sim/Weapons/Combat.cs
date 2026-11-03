@@ -596,7 +596,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 tol = range < 12 ? 3 : range < 25 ? 6 : 10;
                 if (def.Class == 4) tol *= 0.7f;
             }
-            if (miss >= tol || !LineOfSight(m, tc)) return false;
+            if (miss >= tol || !CanSee(shooter, target)) return false;
             foreach (var o in World.Vehicles)
             {
                 if (o == shooter || o == target || IsDead(o) || Team(o) == 0 || Team(o) != Team(shooter)) continue;
@@ -618,7 +618,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             float cos = Vector3.Dot(Vector3.Normalize(d), f);
             if (cos <= (d2 < 625 ? 0.95f : 0.85f)) return false;
             if (tier is 1 or 0x65 && MathF.Abs(Vector3.Dot(tfwd, f)) <= (d2 < 625 ? 0.7f : 0.75f)) return false;
-            return LineOfSight(m, tc);
+            return CanSee(shooter, target);
         }
         if (def.Class == 3 && tier == 3)
         {
@@ -668,7 +668,47 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         return Vector3.Distance(m + wv * t, tpos + tvel * t);
     }
 
-    /// <summary>A terrain line of sight (the original also tests non-vehicle objects; not here).</summary>
+    /// <summary>
+    /// The AI's sight test: from the shooter's collider centre 1.5 up to the target's centre 1.5 up (centre to centre,
+    /// not the gun's own line), against the terrain, then every static collider but an emplacement's and the target's
+    /// own. Structures, scenery, gates and standing signs block; vehicles never do.
+    /// </summary>
+    public bool CanSee(Vehicle shooter, object target)
+    {
+        var up = new Vector3(0, 1.5f, 0);
+        var a = ColliderCentre(shooter) + up;
+        var b = CentreOf(target) + up;
+        return LineOfSight(a, b) && !StaticBlocks(a, b, target);
+    }
+
+    /// <summary>Whether a static collider's shape crosses the line a to b: a sphere 3 beyond its radius first, then its meshes, boxes or a sign's sphere.</summary>
+    private bool StaticBlocks(Vector3 a, Vector3 b, object? skip)
+    {
+        if (World.Ground is not IHasStatics hs) return false;
+        var d = b - a;
+        float minX = MathF.Min(a.X, b.X) - 3, maxX = MathF.Max(a.X, b.X) + 3, minZ = MathF.Min(a.Z, b.Z) - 3, maxZ = MathF.Max(a.Z, b.Z) + 3;
+        foreach (var o in hs.World.Objects)
+        {
+            if (!o.Solid || o.Vehicle is not null || o == skip) continue;
+            float reach = MathF.Max(o.BoundRadius, o.SphereRadius);
+            if (o.Centre.X + reach < minX || o.Centre.X - reach > maxX || o.Centre.Z + reach < minZ || o.Centre.Z - reach > maxZ) continue;
+            if (!SegmentNear(a, d, o.Centre, reach + 3f)) continue;
+            if (StaticWorld.RayMesh(o.Polys, a, d, 1f).Hit is not null) return true;
+            if (StaticWorld.RayBoxes(o.Boxes, a, d, 1f) is not null) return true;
+            if (o.Type == 4 && SegmentNear(a, d, o.Centre, o.SphereRadius)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether the segment a + d·t, t in [0, 1], comes within r of c.</summary>
+    private static bool SegmentNear(Vector3 a, Vector3 d, Vector3 c, float r)
+    {
+        float dd = Vector3.Dot(d, d);
+        float t = dd < 1e-12f ? 0 : System.Math.Clamp(Vector3.Dot(c - a, d) / dd, 0f, 1f);
+        return (a + d * t - c).LengthSquared() <= r * r;
+    }
+
+    /// <summary>The terrain part of the sight test: the line sampled every 5 against the bare ground.</summary>
     public bool LineOfSight(Vector3 a, Vector3 b)
     {
         float len = Vector3.Distance(a, b);
