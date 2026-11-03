@@ -22,6 +22,7 @@ public sealed class GodotRumble : IRumbleSink
 
     public void Rumble(float weak, float strong)
     {
+        I76.Game.Ui.DevSignals.Pad(weak, strong);
         if (Tripped || ForceFeedback.WheelLive) return;
         using var _ = Hitch.Time(Hitch.Phase.Rumble);
         foreach (var d in Input.GetConnectedJoypads().Where(d => Input.IsJoyKnown(d)))
@@ -31,6 +32,7 @@ public sealed class GodotRumble : IRumbleSink
 
     public void Stop()
     {
+        I76.Game.Ui.DevSignals.Pad(0, 0);
         if (Tripped) return;
         using var _ = Hitch.Time(Hitch.Phase.Rumble);
         foreach (var d in Input.GetConnectedJoypads()) Input.StopJoyVibration(d);
@@ -40,6 +42,7 @@ public sealed class GodotRumble : IRumbleSink
     /// <summary>Every pad's motors off at once, past the rate limit (leaving the game, switching the setting off): a stop held back there would never go out.</summary>
     public static void StopNow()
     {
+        I76.Game.Ui.DevSignals.Pad(0, 0);
         if (Tripped) return;
         foreach (var d in Input.GetConnectedJoypads()) Input.StopJoyVibration(d);
     }
@@ -142,7 +145,9 @@ public partial class ForceFeedback : Node
     private Armory? _arm;
     private int _selected = -1, _group;
 
-    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && (WheelLive || (Controls.HasPad && Mode != RumbleMode.Off));
+    private static bool Live => _instance is { _model: not null } i && Enabled && !i.GetTree().Paused && Held?.Invoke() != true && Device;
+    /// <summary>A wheel or a pad to play on; or the Developer panel's Signals watching, where the effects run with nowhere to go.</summary>
+    private static bool Device => WheelLive || ((Controls.HasPad || I76.Game.Ui.DevSignals.Watching) && Mode != RumbleMode.Off);
 
     public override void _Ready()
     {
@@ -182,7 +187,8 @@ public partial class ForceFeedback : Node
     {
         _throttle.Pump();
         // the pause (+0x08 cleared): DISFFC_STOPALL, and the DLL forgets what was playing
-        bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !(WheelLive || (Controls.HasPad && Mode != RumbleMode.Off));
+        bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !Device;
+        if (I76.Game.Ui.DevSignals.Watching && !GetTree().Paused) I76.Game.Ui.DevSignals.Sample(Time.GetTicksUsec() / 1e6);
         if (quiet) { _model.StopAll(); _hits.Clear(); _enhanced.Reset(); _mix.SetExtra(0, 0); }
         if (quiet && !_quiet) DirectInputForce.Shared?.StopAll();
         _quiet = quiet;
@@ -254,6 +260,7 @@ public partial class ForceFeedback : Node
         }
         if (DirectInputForce.Shared is { Status: DirectInputForce.State.Ready } wheel) me._wheel.Axes = wheel.Axes;
         me._model.Frame(f, dt);
+        if (I76.Game.Ui.DevSignals.Watching) I76.Game.Ui.DevSignals.Wheel(me._wheel, Time.GetTicksUsec() / 1e6);
         if (WheelLive) DirectInputForce.Shared?.Post(me._wheel);
         if (Mode == RumbleMode.Enhanced) me.StepEnhanced(f, dt);
     }
