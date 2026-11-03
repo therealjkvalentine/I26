@@ -14,7 +14,8 @@ namespace I76.Game.Shell;
 /// The D-pad, A, B and Start drive the screen; the sticks, triggers and other buttons only show (PadMenu). In the 1997 look the
 /// sheet, its rules and its words are the shell's pixels (its palette and bitmap fonts) and the drawing is made at 640x480.
 /// It edits only the joystick blocks of its own copy of the bindings (the Control Configuration screen edits keys and mouse only);
-/// Done hands the copy back to that screen, Cancel and Esc hand back what it gave.
+/// Done hands the copy back to that screen, Cancel and Esc hand back what it gave. With a shift button (BindingTable.Shift) the sheet
+/// shows and edits the second commands while the shift is held on the pad, or after Tab or a click on the shift itself.
 /// </summary>
 public sealed class ControllerScreen : OverlayScreen
 {
@@ -244,9 +245,23 @@ public sealed class ControllerScreen : OverlayScreen
     private static readonly string[] AxisItems = ["Accelerate / Brake", "Steer", "Camera / Look"];
     private static bool IsY(string channel) => channel.Equals("Down/Up", StringComparison.OrdinalIgnoreCase) || channel.Equals("5thAxis", StringComparison.OrdinalIgnoreCase);
 
-    private string[] Describe(El e)
+    /// <summary>The second commands are shown: the shift held on the pad, or Tab (a click on the shift) pressed.</summary>
+    private bool _shiftView;
+    private bool _shownLayer;
+
+    private bool IsShift(El e) => !e.Axis && _map.Shift is { } s && VirtualStick.DiscreteId(s.Channel) == VirtualStick.DiscreteId(e.Channel);
+
+    /// <summary>Whether the sheet shows the second commands now.</summary>
+    internal bool Layer => _map.Shift is { } s && (_shiftView || Els.FirstOrDefault(e => !e.Axis && VirtualStick.DiscreteId(e.Channel) == VirtualStick.DiscreteId(s.Channel)) is { } se && se.Live(ReadPad()) > 0.5f);
+
+    private string ShiftName => _map.Shift is { } s ? PadNames.Of(s.Channel) : "";
+
+    private string[] Describe(El e) => Describe(e, Layer);
+
+    private string[] Describe(El e, bool layer)
     {
         var lines = new List<string>();
+        if (IsShift(e)) return [layer ? "Shift (held)" : "Shift"];
         if (e.Axis)
         {
             foreach (var row in AxisControls.Rows)
@@ -261,8 +276,10 @@ public sealed class ControllerScreen : OverlayScreen
         {
             var cmd = Controls.Commands[entry];
             foreach (var b in _map.Of(cmd))
-                if (BindingTable.IsPad(b) && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == VirtualStick.DiscreteId(e.Channel)) { lines.Add(NameOf(entry)); break; }
+                if (BindingTable.IsPad(b) && _map.IsShifted(b) == layer && b.Terms[0].Plus && VirtualStick.DiscreteId(b.Terms[0].Channel) == VirtualStick.DiscreteId(e.Channel)) { lines.Add(NameOf(entry)); break; }
         }
+        // with the shift held an input without a second command does its first: shown in brackets
+        if (layer && lines.Count == 0) return [.. Describe(e, false).Select(l => $"({l})")];
         return [.. lines.Distinct()];
     }
 
@@ -416,10 +433,12 @@ public sealed class ControllerScreen : OverlayScreen
     private void Center(ShellFont f, int cx, int y, string s, byte[]? ink = null) => Frame.Text(f, cx - f.Measure(s) / 2, y, s, ink ?? ShellFrame.OverlayInk);
 
     /// <summary>The notice under the frame's top and the help over its foot, in the middle of the sheet.</summary>
-    private static string[] Notice => Controls.HasPad
-        ? ["Click an input, or pick it with the D-pad", "and press A, to choose what it does"]
-        : ["No controller connected"];
-    private static readonly string[] Help = ["Right-click or Delete clears the selected input.", "Start is Done, B is Cancel."];
+    private string[] Notice => !Controls.HasPad ? ["No controller connected"]
+        : Layer ? [$"SECOND COMMANDS, with {ShiftName} held:", "click an input or press A to choose"]
+        : ["Click an input, or pick it with the D-pad", "and press A, to choose what it does"];
+    private string[] Help => _map.Shift is null
+        ? ["Right-click or Delete clears the selected input.", "Start is Done, B is Cancel."]
+        : ["Right-click or Delete clears the selected input.", $"Hold {ShiftName} or press Tab for the second commands.", "Start is Done, B is Cancel."];
 
     protected override void DrawExtra()
     {
@@ -500,18 +519,26 @@ public sealed class ControllerScreen : OverlayScreen
     private void Clear(El e)
     {
         Shell.Sound(82);
-        _map.ClearInput(e.Channel);
+        if (Layer && !e.Axis && !IsShift(e)) _map.ClearShifted(e.Channel);
+        else _map.ClearInput(e.Channel);
         Redraw();
     }
+
+    /// <summary>The list's last entry on a button: it becomes the shift.</summary>
+    private const string ShiftItem = "Shift (hold for second commands)";
 
     private void Open(El e, bool byPad)
     {
         Shell.Sound(82);
         _sel = Array.IndexOf(Walk, e.Key);
+        // the shift itself: a click shows the other layer
+        if (IsShift(e) && !byPad) { _shiftView = !_shiftView; Redraw(); return; }
+        bool layer = Layer && !e.Axis;
         ShowPad = false;      // the list is a sprite over the sheet's middle: the drawing would show through it
         var items = new List<string> { "(none)" };
         if (e.Axis) items.AddRange(AxisItems);
         else foreach (var n in Entries) items.Add(NameOf(n));
+        if (!e.Axis && !layer) items.Add(ShiftItem);
         var s = Shell.Db.Bank(0x24)[16];
         int w = s?.Width ?? 172, h = s?.Height ?? 235;
         Shell.Modal(new ListPopup
@@ -523,7 +550,10 @@ public sealed class ControllerScreen : OverlayScreen
             {
                 _menu.Settle();      // the A that picked (or the B that cancelled) does nothing here when the list closes
                 ShowPad = true;
-                if (i == 0) _map.ClearInput(e.Channel);
+                if (i == 0 && layer && !IsShift(e)) _map.ClearShifted(e.Channel);
+                else if (i == 0) _map.ClearInput(e.Channel);
+                else if (!e.Axis && !layer && i == Entries.Length + 1) _map.SetShift("joystick1", e.Channel);
+                else if (i > 0 && layer) _map.AssignShifted(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);
                 else if (i > 0 && e.Axis) _map.AssignAxis(i switch { 1 => "throttle", 2 => "steer", _ => IsY(e.Channel) ? "track_pitch_delta" : "track_yaw_delta" }, "joystick1", e.Channel);
                 else if (i > 0) _map.Assign(Controls.Commands[Entries[i - 1]], "joystick1", e.Channel);
                 Redraw();
@@ -560,6 +590,8 @@ public sealed class ControllerScreen : OverlayScreen
         }
         // a pad plugged in or pulled out: the notice says so at once
         if (_replugged || Controls.HasPad != _hadPad) { _replugged = false; _hadPad = Controls.HasPad; Redraw(); }
+        // the shift pressed or let go: the rows are the other layer's
+        if (Layer != _shownLayer) { _shownLayer = Layer; Redraw(); }
         // the D-pad, A, B and Start only; a stick, a trigger or any other button just shows on the drawing
         var act = _menu.Update(ReadPad());
         if ((act & PadMenu.Act.Prev) != 0) Step(-1);
@@ -573,6 +605,7 @@ public sealed class ControllerScreen : OverlayScreen
             else if (k is Key.Down or Key.Right) Step(1);
             else if (k is Key.Enter or Key.Space or Key.KpEnter) { Open(Selected, false); return; }
             else if (k is Key.Delete or Key.Backspace) Clear(Selected);
+            else if (k is Key.Tab && _map.Shift is not null) { _shiftView = !_shiftView; Shell.Sound(82); Redraw(); }
         }
         if (Shell.RightClicked && ElementAt(Shell.Mouse) is { } e) { _sel = Array.IndexOf(Walk, e.Key); Clear(e); return; }
         base.Tick();

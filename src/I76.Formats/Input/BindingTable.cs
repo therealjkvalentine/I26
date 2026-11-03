@@ -22,7 +22,7 @@ public sealed class BindingTable
         return t;
     }
 
-    public BindingTable Clone() => FromBlocks(Blocks);
+    public BindingTable Clone() { var t = FromBlocks(Blocks); t.Shift = Shift; return t; }
 
     private void Add(InputBlock b)
     {
@@ -185,27 +185,149 @@ public sealed class BindingTable
     {
         bool pad = JoystickBank.DeviceOf(device) >= 0;
         var want = new InputTerm(true, device, channel);
+        // the shift button given a command of its own is a plain button again
+        if (pad && Shift is { } s && Same(s, want)) ClearShift();
         foreach (var other in _order.ToList())
         {
             if (other.Equals(command, StringComparison.OrdinalIgnoreCase)) continue;
-            var keep = _by[other].Where(b => !(b.Terms.Length > 0 && Same(b.Terms[0], want))).ToArray();
+            var keep = _by[other].Where(b => !(b.Terms.Length > 0 && Same(b.Terms[0], want) && !IsShifted(b))).ToArray();
             if (keep.Length != _by[other].Count) Set(other, keep);
         }
         var axis = command.ToLowerInvariant() switch { "throttle_up" or "throttle_down" => "throttle", "steer_left" or "steer_right" => "steer", _ => null };
         if (pad && axis is not null && AxisOf(axis) is not null) Clear(axis);
-        Set(command, [.. Of(command).Where(b => IsPad(b) != pad), NewBlock(command, device, channel)]);
+        Set(command, [.. Of(command).Where(b => IsPad(b) != pad || IsShifted(b)), NewBlock(command, device, channel)]);
+        if (pad) NormaliseShift();
     }
 
     /// <summary>Takes a command's blocks on one side away (the other side stays).</summary>
     public void ClearOn(string command, bool pad) => Set(command, [.. Of(command).Where(b => IsPad(b) != pad)]);
 
-    /// <summary>A pad input (a button, a hat direction or an axis, on any pad) off every command that has it.</summary>
+    /// <summary>A pad input (a button, a hat direction or an axis, on any pad) off every command that has it; the shift button stops being one.</summary>
     public void ClearInput(string channel)
     {
         string want = Norm(new InputTerm(true, "joystick1", channel));
+        if (Shift is { } s && Norm(s).Equals(want, StringComparison.OrdinalIgnoreCase)) ClearShift();
         foreach (var c in _order.ToList())
             if (_by[c].Any(b => IsPad(b) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))
                 Set(c, [.. _by[c].Where(b => !(IsPad(b) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))]);
+        NormaliseShift();
+    }
+
+    // ---- the pad's shift layer -------------------------------------------------------------------
+
+    /// <summary>
+    /// The pad's shift button (the port's; the original has none): while it is held, a pad input that has a second command does that
+    /// one instead, and one without keeps its first. It lives in the file as the original's own chords, so the original reads the same
+    /// file to the same effect: the second command's block is the input "+" and the shift "+", and the first command's block of an input
+    /// that has a second gets the shift "-". The shift alone does nothing (it has no block of its own). Which button it is is kept beside
+    /// the file (Controls), or, with nothing kept, read off the file's chords (<see cref="DeriveShift"/>). Null: no shift layer.
+    /// </summary>
+    public InputTerm? Shift { get; set; }
+
+    /// <summary>Whether a block is a second command's: a pad block on a button or hat direction with the shift "+" after it.</summary>
+    public bool IsShifted(InputBlock b) => Shift is { } s && OnShift(b, s);
+
+    private static bool OnShift(InputBlock b, InputTerm s) =>
+        IsPad(b) && !IsAxis(b.Terms[0]) && !Same(b.Terms[0], s) && b.Terms.Skip(1).Any(t => t.Plus && Same(t, s));
+
+    private static bool Excluding(InputBlock b, InputTerm s) => b.Terms.Skip(1).Any(t => !t.Plus && Same(t, s));
+
+    private static InputBlock WithoutExclusion(InputBlock b, InputTerm s) => b with { Terms = [b.Terms[0], .. b.Terms.Skip(1).Where(t => t.Plus || !Same(t, s))] };
+
+    /// <summary>The pad blocks of one layer: the first commands (false) or the second (true).</summary>
+    public IEnumerable<InputBlock> PadLayer(bool shifted) => Blocks.Where(b => IsPad(b) && IsShifted(b) == shifted);
+
+    /// <summary>A pad button becomes the shift: whatever it did alone it no longer does, and the layer's exclusions follow.</summary>
+    public void SetShift(string device, string channel)
+    {
+        var s = new InputTerm(true, device, channel);
+        if (Shift is { } old && !Same(old, s)) ClearShift();
+        Shift = s;
+        NormaliseShift();
+    }
+
+    /// <summary>No shift button: the second commands' blocks go, and the first commands lose the shift's exclusion.</summary>
+    public void ClearShift()
+    {
+        if (Shift is not { } s) return;
+        foreach (var c in _order.ToList())
+            if (_by[c].Any(b => OnShift(b, s) || IsPad(b) && Excluding(b, s)))
+                Set(c, [.. _by[c].Where(b => !OnShift(b, s)).Select(b => IsPad(b) && Excluding(b, s) ? WithoutExclusion(b, s) : b)]);
+        Shift = null;
+    }
+
+    /// <summary>
+    /// The second command of a pad button or hat direction (with the shift held): the input's other second command goes, and this
+    /// command's other second binding; its first binding (and every key) stays.
+    /// </summary>
+    public void AssignShifted(string command, string device, string channel)
+    {
+        if (Shift is not { } s) return;
+        var want = new InputTerm(true, device, channel);
+        if (Same(want, s)) return;
+        foreach (var other in _order.ToList())
+        {
+            var keep = _by[other].Where(b => !(IsShifted(b) && Same(b.Terms[0], want))).ToArray();
+            if (keep.Length != _by[other].Count) Set(other, keep);
+        }
+        Set(command, [.. Of(command).Where(b => !IsShifted(b)), new InputBlock(command, [want, s])]);
+        NormaliseShift();
+    }
+
+    /// <summary>A pad input's second command off (its first stays).</summary>
+    public void ClearShifted(string channel)
+    {
+        string want = Norm(new InputTerm(true, "joystick1", channel));
+        foreach (var c in _order.ToList())
+            if (_by[c].Any(b => IsShifted(b) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))
+                Set(c, [.. _by[c].Where(b => !(IsShifted(b) && Norm(b.Terms[0]).Equals(want, StringComparison.OrdinalIgnoreCase)))]);
+        NormaliseShift();
+    }
+
+    /// <summary>
+    /// The layer's rule kept: the shift has no block of its own; a first command's block carries the shift "-" exactly when its input
+    /// has a second command (so an input without one keeps its first command with the shift held).
+    /// </summary>
+    private void NormaliseShift()
+    {
+        if (Shift is not { } s) return;
+        static string Key(InputTerm t) => Norm(t) + "@" + t.Device.ToLowerInvariant();
+        var second = Blocks.Where(b => OnShift(b, s)).Select(b => Key(b.Terms[0])).ToHashSet();
+        foreach (var c in _order.ToList())
+        {
+            var now = new List<InputBlock>();
+            bool changed = false;
+            foreach (var b in _by[c])
+            {
+                if (!IsPad(b) || IsAxis(b.Terms[0]) || OnShift(b, s)) { now.Add(b); continue; }
+                if (Same(b.Terms[0], s)) { changed = true; continue; }       // the shift alone does nothing
+                bool want = second.Contains(Key(b.Terms[0])), has = Excluding(b, s);
+                if (want == has) { now.Add(b); continue; }
+                changed = true;
+                now.Add(want ? b with { Terms = [.. b.Terms, s with { Plus = false }] } : WithoutExclusion(b, s));
+            }
+            if (changed) Set(c, [.. now]);
+        }
+    }
+
+    /// <summary>
+    /// The shift a file's chords imply, for a map with no shift kept beside it (the preset in memory, a file from elsewhere): the one pad
+    /// button that is the "+" second term of chords on that pad's other buttons and hat; null when there is none or more than one.
+    /// </summary>
+    public InputTerm? DeriveShift()
+    {
+        var found = Blocks.Where(b => IsPad(b) && !IsAxis(b.Terms[0]) && b.Terms.Length > 1)
+            .SelectMany(b => b.Terms.Skip(1).Where(t => t.Plus && t.Device.Equals(b.Terms[0].Device, StringComparison.OrdinalIgnoreCase) && !IsAnalogName(t.Channel) && VirtualStick.DiscreteId(t.Channel) >= 0))
+            .GroupBy(t => Norm(t) + "@" + t.Device.ToLowerInvariant()).Select(g => g.First()).ToList();
+        return found.Count == 1 ? found[0] : null;
+    }
+
+    /// <summary>Whether the command is held: any of its blocks' chords holds ("+" down, "-" up; a dead pad term dropped).</summary>
+    public bool Holds(string command, JoystickBank bank, Func<InputTerm, bool> down)
+    {
+        foreach (var b in Of(command))
+            if (InputChord.Holds(b.Terms, bank, down)) return true;
+        return false;
     }
 
     /// <summary>
@@ -216,6 +338,7 @@ public sealed class BindingTable
     {
         foreach (var c in _order.Concat(defaults._order).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
             Set(c, [.. Of(c).Where(b => IsPad(b) != pad), .. defaults.Of(c).Where(b => IsPad(b) == pad)]);
+        if (pad) Shift = defaults.Shift;
     }
 
     /// <summary>
@@ -316,21 +439,34 @@ public sealed class BindingTable
 /// The port's joystick.map for a modern pad: the keyboard blocks, and on the virtual stick the
 /// stock file's axes, A and B as its Button1 and Button2, the "4 button" block uncommented, and the rest of the face on the buttons
 /// left. The right stick is the camera (the chase camera's track_yaw_delta and track_pitch_delta rows, which the original has but
-/// never bound; in the car the port's free look reads them), RB fires as A does (A last, the one a row shows), so the right thumb can stay on the stick, and the
+/// never bound; in the car the port's free look reads them), and the
 /// D-pad is link, reverse and the target keys rather than the stock "hat" glances. The stock file's "- ButtonN" cross-exclusions
-/// are dropped: they only kept a 2-button stick from firing both.
+/// are dropped: they only kept a 2-button stick from firing both. LB is the shift (<see cref="BindingTable.Shift"/>), RB the e-brake;
+/// with LB held the face buttons are hardpoints 1 to 4 (A the rear gun, B the dropper as the remapper layer had them), L3 and R3
+/// specials 1 and 2, the D-pad binoculars, radar range and the gears; RB, Back and the sticks do what they do without it.
 /// </summary>
 public static class PadPreset
 {
+    /// <summary>The shift button: LB.</summary>
+    public const string ShiftChannel = "Button5";
+
     private static readonly (string Command, string Channel, bool Axis)[] Pad =
     [
         ("throttle", "Throttle", true), ("steer", "Left/Right", true),
         ("track_yaw_delta", "Rudder", true), ("track_pitch_delta", "5thAxis", true),
-        ("weapon_fire", "Button6", false), ("weapon_fire", "Button1", false), ("weapon_cycle", "Button2", false),
+        ("weapon_fire", "Button1", false), ("weapon_cycle", "Button2", false),
         ("TARGET_NEAREST_ENEMY", "Button3", false), ("frontal_target", "Button4", false),
-        ("e_brake", "Button5", false), ("SHOW_MAP", "Button7", false),
+        ("e_brake", "Button6", false), ("SHOW_MAP", "Button7", false),
         ("HONK_HORN", "Button9", false), ("toggle_cmbt_view", "Button10", false),
         ("weapon_link", "HatUp", false), ("reverse_direction", "HatDown", false), ("RESET_TARGET", "HatLeft", false), ("NEXT_TARGET", "HatRight", false),
+    ];
+
+    /// <summary>The second commands, with LB held.</summary>
+    private static readonly (string Command, string Channel)[] Shifted =
+    [
+        ("hardpoint3_fire", "Button1"), ("hardpoint4_fire", "Button2"), ("hardpoint1_fire", "Button3"), ("hardpoint2_fire", "Button4"),
+        ("special1", "Button9"), ("special2", "Button10"),
+        ("TOGGLE_BINOCULARS", "HatUp"), ("RADAR_RANGE_TOGGLE", "HatDown"), ("shift_down", "HatLeft"), ("shift_up", "HatRight"),
     ];
 
     /// <summary>The preset on top of KEYBOARD.MAP's text (null: the pad's blocks alone).</summary>
@@ -342,6 +478,21 @@ public static class PadPreset
         var all = t.Blocks.ToList();
         // an axis is "-" as the shell writes it, but the camera's pitch: up looks up
         foreach (var (cmd, ch, axis) in Pad) all.Add(new InputBlock(cmd, [new InputTerm(!axis || cmd == "track_pitch_delta", "joystick1", ch)]));
+        var o = BindingTable.FromBlocks(all);
+        o.SetShift("joystick1", ShiftChannel);
+        foreach (var (cmd, ch) in Shifted) o.AssignShifted(cmd, "joystick1", ch);
+        return o;
+    }
+
+    /// <summary>The preset before the shift layer (A and RB fire, LB the e-brake): a map saved from it is still known as a game pad's.</summary>
+    public static BindingTable BuildUnshifted(BindingTable keys)
+    {
+        var all = keys.Blocks.ToList();
+        foreach (var (cmd, ch, axis) in Pad)
+        {
+            if (cmd == "weapon_fire") all.Add(new InputBlock(cmd, [new InputTerm(true, "joystick1", "Button6")]));
+            all.Add(new InputBlock(cmd, [new InputTerm(!axis || cmd == "track_pitch_delta", "joystick1", cmd == "e_brake" ? ShiftChannel : ch)]));
+        }
         return BindingTable.FromBlocks(all);
     }
 }
