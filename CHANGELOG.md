@@ -118,6 +118,7 @@
 - Force feedback on a wheel or force-feedback stick on Windows: Play Options' Force Feedback row now has Off, Pad and Wheel. Wheel plays the original's effects as its force-feedback driver did (weapons at their own rates, hits pushing from their side, the engine, the road, a flat tyre, the centring spring), with a Wheel Strength row on Play Options' second page; with no force-feedback device found it falls back to the pad's rumble.
 - Play Options' second page has a Rumble row (Original, the game's own effects, as before; Enhanced, which adds short pulses for the nitrous kick, handbrake, gear changes, the starter, each weapon's shots and a light engine growl; Off) and a Rumble Strength row (25 to 150 %) for a game pad.
 - In a network game a quick tap of Tab (or the pad's Back) locks the standings open until the next tap or Esc: the mouse pointer appears, the wheel turns the pages, the pad's d-pad moves a cursor, and the host can boot a driver by clicking their row twice (#107).
+- The host of a network game can ban a player for the rest of the game: type /ban NAME in the chat (or ban NAME on the dedicated server's console) to boot them and refuse their rejoins, by name and by the address they joined from; /ban lists the bans and /unban NAME lifts one (#117).
 
 ## 0.11.0 (31 October 2026)
 
