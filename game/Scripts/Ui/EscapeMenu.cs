@@ -12,7 +12,7 @@ public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpo
 /// The engine's own 2D menu, the "Spanner's Cafe" order pad:
 /// Esc in a mission opens the Options Menu over the frozen last frame; its
 /// pads (Abort Mission, Play Options, Graphic Detail, Audio Control, the
-/// exit confirmation, the cheater warning; the port's Original Recipe) edit the settings block the
+/// exit confirmation, the cheater warning) edit the settings block the
 /// shell shares (I76PLYR.DEF, here user://shell.cfg). The mission-end menu
 /// (failed, or won with cheats) is the same machinery. Everything is placed
 /// in pad coordinates of the 296x425 art, centred as the original's 1:1 blit
@@ -87,7 +87,7 @@ public sealed partial class EscapeMenu : Control
 
     public ShellSettings Settings { get; private set; } = null!;
     private ShellSettings _snap = null!;
-    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!, _recipe = null!;
+    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!;
     private Screen _screen = null!;
     private MenuOutcome _exitYes;
     private readonly Dictionary<string, ImageTexture?> _art = [];
@@ -179,7 +179,6 @@ public sealed partial class EscapeMenu : Control
         _play = new Screen { Key = "play", Art = "plyopt1", Parent = _main };
         _graphics = new Screen { Key = "graphics", Art = "grxdet1", Parent = _main };
         _audio = new Screen { Key = "audio", Art = "audcon1", Parent = _main };
-        _recipe = new Screen { Key = "recipe", Art = "grxdet1", Parent = _main, Title = "Original Recipe" };
         _cheater = new Screen { Key = "cheater", Art = "plyopt1", EscIgnored = true };
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
 
@@ -189,7 +188,6 @@ public sealed partial class EscapeMenu : Control
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Control Configuration", 6, OpenControls, "$7.65"),
-            Action("Original Recipe", 7, () => Switch(_recipe), "$1.97"),
             CancelButton("Resume"),
         ] : [
             Action("Abort Mission", 1, () => Switch(_abort), "$6.78"),
@@ -198,12 +196,10 @@ public sealed partial class EscapeMenu : Control
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             // the port's own, on the free ruled line (row 6) under Audio Control: the Options Menu's Control Configuration, over the paused game
             Action("Control Configuration", 6, OpenControls, "$7.65"),
-            // and on row 7 the port's Original Recipe: every choice between the original's behaviour and an update
-            Action("Original Recipe", 7, () => Switch(_recipe), "$1.97"),
             CancelButton("Exit"),
         ];
-        // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or the setting): the next free line, row 8
-        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", 8, () => Close(MenuOutcome.Developer)));
+        // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or the setting): the next free line, row 7
+        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", 7, () => Close(MenuOutcome.Developer)));
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
@@ -264,8 +260,8 @@ public sealed partial class EscapeMenu : Control
                 else if (m == 9) { Settings.Checkpoints = _snap.Checkpoints; it.Value = Settings.Checkpoints ? 1 : 0; }
             },
         });
-        // Force Feedback: Off, Pad, Wheel (Windows only), live
-        int ffModes = I76.Game.DirectInputForce.Supported ? 3 : 2;
+        // Force Feedback: Off, Pad, Pad Enhanced, Wheel (Windows only), live
+        int ffModes = I76.Game.DirectInputForce.Supported ? 4 : 3;
         _play.Items.Add(Setting(Cycle, "Force Feedback", 10, ffModes, ShellSettings.ForceFeedbackNames[..ffModes], st => st.ForceFeedbackMode, (st, v) => st.ForceFeedbackMode = v,
             apply: ApplyForce, applyDone: ApplyForce));
         _play.Items.Add(new Item
@@ -307,28 +303,19 @@ public sealed partial class EscapeMenu : Control
             Scrolling(9, Cycle, "Crash Blur", 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's plants on the next free row
             Scrolling(10, Cycle, "Vegetation", 3, offLowHigh, s => s.Vegetation, (s, v) => s.Vegetation = v, apply: () => Live?.Invoke(Settings)),
-            // and how far the world is drawn (either look), live: Original Recipe's row, which keeps following the look unless changed
-            RecipeRow(OriginalRecipe.Rows.Single(r => r.Label == "Draw Distance"), 11),
             // and the mouse orbiting the chase view, live
-            Scrolling(12, Cycle, "Mouse Camera", I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(11, Cycle, "Mouse Camera", I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: () => Live?.Invoke(Settings)),
             // and the hidden mouse kept inside the window, live
-            Scrolling(13, Cycle, "Keep Mouse In Window", 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: () => Live?.Invoke(Settings)),
+            Scrolling(12, Cycle, "Keep Mouse In Window", 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: () => Live?.Invoke(Settings)),
             // and the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
-            Scrolling(14, Cycle, "Max FPS", I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: () => Live?.Invoke(Settings)),
-            Scrolling(15, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
-            // and the modern look's boundary walls: as they are, hazed, or faded into the horizon (the 1997 look keeps them), live
-            Scrolling(16, Cycle, "Map Edge", 3, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(13, Cycle, "Max FPS", I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(14, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
+            // and the modern look's boundary walls: plain (as they are, the original's), hazed, or faded into the horizon (the 1997 look keeps them), live
+            Scrolling(15, Cycle, "Map Edge", 3, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
             DoneButton(),
             CancelButton(),
         ];
-
-        // Original Recipe (OriginalRecipe): the original's behaviour or the port's update, row by row, live; Reset is the original's
-        // everywhere (the look's for the rows that follow it). The simulation's rows take effect when the menu closes, offline only
-        for (int k = 0; k < OriginalRecipe.Rows.Length; k++) _recipe.Items.Add(RecipeRow(OriginalRecipe.Rows[k], k + 1));
-        _recipe.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { OriginalRecipe.ResetAll(Settings); Live?.Invoke(Settings); Switch(_recipe); } } });
-        _recipe.Items.Add(DoneButton());
-        _recipe.Items.Add(CancelButton());
 
         Item Level(string label, int row, int n, int at, bool live) =>
             Setting(Slider | Min1, label, row, n, null, s => Math.Clamp((int)s.Audio[at], 1, n - 1), (s, v) => s.Audio[at] = (byte)v, live,
@@ -381,26 +368,10 @@ public sealed partial class EscapeMenu : Control
         if (Mission.Length >= 3 && "tmnsp".Contains(char.ToLowerInvariant(Mission[0])) && int.TryParse(Mission.AsSpan(1, 2), out int no))
         {
             if (no != _orderMission) { _orderMission = no; _orderBase = new Random().Next(0x8000) % 992 + (no + 900) * 1000; }
-            Screen?[] order = [_main, null, _abort, _play, _graphics, _audio, _exit, _recipe];
+            Screen?[] order = [_main, null, _abort, _play, _graphics, _audio, _exit];
             for (int k = 0; k < order.Length; k++) if (order[k] is { } sc) sc.Order = _orderBase + k;
         }
     }
-
-    /// <summary>An Original Recipe row on pad row <paramref name="pair"/> (from row 7 in the scrolling part): msg 6 shows the value in effect in this look, 7 sets it live, 8 commits, 9 restores.</summary>
-    private Item RecipeRow(OriginalRecipe.Row row, int pair) => new()
-    {
-        Flags = Cycle, Label = row.Label, Pair = pair, N = row.Names.Length, Names = row.Names, Scrolls = pair >= Screen.FirstRow,
-        Cb = (it, m) =>
-        {
-            switch (m)
-            {
-                case 6: it.Value = row.Get(Settings, Faithful); break;
-                case 7: row.Set(Settings, Faithful, it.Value); Live?.Invoke(Settings); break;
-                case 8: row.Set(Settings, Faithful, it.Value); row.Copy(Settings, _snap); break;
-                case 9: row.Copy(_snap, Settings); it.Value = row.Get(Settings, Faithful); Live?.Invoke(Settings); break;
-            }
-        },
-    };
 
     /// <summary>Reset: the default profile, then the pad again (msg 6 reloads every value).</summary>
     private void ResetGraphics()
@@ -411,7 +382,6 @@ public sealed partial class EscapeMenu : Control
         Settings.PaletteGrade = false;
         Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On;
         Settings.Vegetation = 1;
-        Settings.DrawDistanceChoice = null;
         Settings.MapEdge = I76.Game.World.MapEdge.Original;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;
@@ -447,6 +417,7 @@ public sealed partial class EscapeMenu : Control
     {
         I76.Game.ForceFeedback.UseWheel = Settings.ForceFeedbackWheel;
         I76.Game.ForceFeedback.Enabled = Settings.ForceFeedback;
+        I76.Game.ForceFeedback.Mode = Settings.RumbleMode;
     }
 
     /// <summary>The menu screen switch: every item told msg 6, the selection kept; null closes the menu (resume).</summary>

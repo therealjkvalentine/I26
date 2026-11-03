@@ -786,7 +786,7 @@ public partial class CombatView : Node3D
             var dirSim = step.LengthSquared() > 1e-8f ? System.Numerics.Vector3.Normalize(step) : r.Rot.Forward;
             var head = G(headSim);
             var dir = Coords.ToGodot(dirSim);
-            // Original Recipe's MG Tracers, Original: a machine gun's round is the original's one-pixel line in the modern look too
+            // [port] mg_tracers=original: a machine gun's round is the original's one-pixel line in the modern look too
             bool lineMg = r.Kind == 1 && OriginalBehavior.LineTracers(!modern);
             // how far it has come from the muzzle by this frame: neither look draws it further back than that
             float flown = I76.Formats.Assembly.TracerLength.Flown(r.Travelled, step.Length(), alpha);

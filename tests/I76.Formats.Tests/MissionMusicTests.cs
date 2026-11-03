@@ -107,7 +107,7 @@ public class MissionMusicTests
     [InlineData("x", MissionMusic.Policy.Disc)]
     public void ThePolicyComesFromTheEnvironment(string? v, MissionMusic.Policy p) => Assert.Equal(p, MissionMusic.PolicyFromEnvironment(v));
 
-    /// <summary>Original Recipe's Music Tracks, All: on through the disc's last track, then track 2, at once.</summary>
+    /// <summary>[port] music_tracks=all: on through the disc's last track, then track 2, at once.</summary>
     [Fact]
     public void AllTracksGoesOnThrough17()
     {
