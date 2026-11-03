@@ -305,15 +305,17 @@ public sealed partial class EscapeMenu : Control
             Scrolling(9, Cycle, "Crash Blur", 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: () => Live?.Invoke(Settings)),
             // and the modern look's plants on the next free row
             Scrolling(10, Cycle, "Vegetation", 3, offLowHigh, s => s.Vegetation, (s, v) => s.Vegetation = v, apply: () => Live?.Invoke(Settings)),
+            // and the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
+            Scrolling(11, Cycle, "Field of View", I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: () => Live?.Invoke(Settings)),
             // and the mouse orbiting the chase view, live
-            Scrolling(11, Cycle, "Mouse Camera", I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(12, Cycle, "Mouse Camera", I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: () => Live?.Invoke(Settings)),
             // and the hidden mouse kept inside the window, live
-            Scrolling(12, Cycle, "Keep Mouse In Window", 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: () => Live?.Invoke(Settings)),
+            Scrolling(13, Cycle, "Keep Mouse In Window", 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: () => Live?.Invoke(Settings)),
             // and the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
-            Scrolling(13, Cycle, "Max FPS", I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: () => Live?.Invoke(Settings)),
-            Scrolling(14, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
+            Scrolling(14, Cycle, "Max FPS", I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(15, Cycle, "VSync", 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: () => Live?.Invoke(Settings)),
             // and the modern look's boundary walls: plain (as they are, the original's), hazed, or faded into the horizon (the 1997 look keeps them), live
-            Scrolling(15, Cycle, "Map Edge", 3, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
+            Scrolling(16, Cycle, "Map Edge", 3, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: () => Live?.Invoke(Settings)),
             new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } },
             DoneButton(),
             CancelButton(),
@@ -384,6 +386,7 @@ public sealed partial class EscapeMenu : Control
         Settings.PaletteGrade = false;
         Settings.CrashBlur = I76.Sim.Views.CrashBlurMode.On;
         Settings.Vegetation = 1;
+        Settings.FieldOfView = I76.Sim.Views.ViewFov.Monitor;
         Settings.MapEdge = I76.Game.World.MapEdge.Original;
         Settings.MouseCamera = I76.Sim.Views.MouseLook.Normal;
         Settings.KeepMouseInWindow = false;

@@ -1273,7 +1273,7 @@ public sealed class ShellSettings
     public bool CameraReturn { get; set; } = true;
     /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Graphic Detail's View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
     public bool ZoomReset { get; set; } = true;
-    /// <summary>The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>; shell.cfg [port] fov, degrees across a 4:3 view, written only when not the original's 90).</summary>
+    /// <summary>The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>; shell.cfg [port] fov, degrees across the window, written only when not Monitor).</summary>
     public int FieldOfView { get; set; }
     /// <summary>The port's own: Ctrl+T "show all names" in a network or co-op game starts on, as the player left it (shell.cfg [port] net_names, written only when off). The original's table started off.</summary>
     public bool NetNames { get; set; } = true;
@@ -1414,8 +1414,9 @@ public sealed class ShellSettings
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
-        // no version step: absent, the original's 90 across 4:3
-        s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 90));
+        // no version step: absent, Monitor (the original's height, which is what a file without the key meant before; a value from
+        // then, degrees across 4:3, is read as degrees across the window)
+        s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 0));
         s.NetNames = (bool)c.GetValue("port", "net_names", true);
         s.EditorMusic = (bool)c.GetValue("port", "editor_music", true);
         // the settings without a row (docs/playing.md). No version step: absent, the original's (the look's for the three that follow it),

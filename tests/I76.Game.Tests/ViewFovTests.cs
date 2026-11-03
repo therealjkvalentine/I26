@@ -3,42 +3,80 @@ using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>Graphic Detail's Field of View: the original's 90 degrees across 4:3 is 73.74 high, and a choice scales the tangent of the half angle.</summary>
+/// <summary>
+/// Graphic Detail's Field of View: Monitor keeps the original's 73.74 degrees of height in any window (90 across at 4:3, more in a
+/// wider one), and a number is exact degrees across the window, the height following its shape.
+/// </summary>
 public class ViewFovTests
 {
-    [Fact] public void TheOriginalKeepsTheOriginalsHeight() => Assert.Equal(73.74f, ViewFov.Vertical(73.74f, 0), 0.02f);
+    private const float SixteenByNine = 16f / 9;
 
-    [Theory]
-    [InlineData(1, 64.4)]    // 80 across 4:3
-    [InlineData(2, 83.6)]    // 100
-    [InlineData(3, 93.9)]    // 110
-    public void AChoiceIsTheFieldAcrossFourByThree(int choice, double vertical)
+    [Fact]
+    public void TheTableIsMonitorThenSixtyToOneHundredTenByFive()
     {
-        float v = ViewFov.Vertical(73.74f, choice);
-        Assert.Equal(vertical, v, 0.1);
-        // across a 4:3 view: tan(h/2) = tan(v/2) * 4/3
-        double across = 2 * System.Math.Atan(System.Math.Tan(v * System.Math.PI / 360) * 4 / 3) * 180 / System.Math.PI;
-        Assert.Equal(ViewFov.Across[choice], across, 0.1);
+        Assert.Equal(ViewFov.Names.Length, ViewFov.Across.Length);
+        Assert.Equal("Monitor", ViewFov.Names[ViewFov.Monitor]);
+        Assert.Equal(0, ViewFov.Across[ViewFov.Monitor]);
+        for (int d = 60, i = 1; d <= 110; d += 5, i++)
+        {
+            Assert.Equal(d, ViewFov.Across[i]);
+            Assert.StartsWith(d.ToString(), ViewFov.Names[i]);
+        }
+        Assert.Equal(12, ViewFov.Across.Length);
+        // the original's 90 is marked as the 1997 game's
+        Assert.Equal(90, ViewFov.Across[ViewFov.Original]);
+        Assert.Equal("90 (1997)", ViewFov.Names[ViewFov.Original]);
     }
 
-    [Fact] public void ParseKeepsTheOriginalForAnythingElse()
+    [Fact]
+    public void MonitorKeepsTheOriginalsHeightInAnyWindow()
     {
-        Assert.Equal(0, ViewFov.Parse(null));
-        Assert.Equal(0, ViewFov.Parse(90));
-        Assert.Equal(0, ViewFov.Parse(137));
-        Assert.Equal(2, ViewFov.Parse(100));
+        Assert.Equal(73.74f, ViewFov.VerticalOf(ViewFov.Monitor, ViewFov.FourByThree), 0.01f);
+        Assert.Equal(73.74f, ViewFov.VerticalOf(ViewFov.Monitor, SixteenByNine), 0.01f);
+        // which is the original's 90 across at 4:3, and 106 across at 16:9
+        Assert.Equal(90f, ViewFov.MonitorAcross(ViewFov.FourByThree), 0.05f);
+        Assert.Equal(106.26f, ViewFov.MonitorAcross(SixteenByNine), 0.05f);
+    }
+
+    [Fact]
+    public void NinetyAcrossAFourByThreeWindowIsExactlyTheOriginal() => Assert.Equal(73.74f, ViewFov.VerticalOf(ViewFov.Original, ViewFov.FourByThree), 0.01f);
+
+    [Theory]
+    [InlineData(90, 16f / 9, 58.72)]    // the original's width in a wide window: less height than the original
+    [InlineData(110, 16f / 9, 77.6)]
+    [InlineData(60, 4f / 3, 46.8)]
+    [InlineData(110, 4f / 3, 93.9)]
+    public void ADegreeChoiceIsThatWidthAcrossTheWindow(int across, float aspect, double vertical)
+    {
+        float v = ViewFov.Vertical(across, aspect);
+        Assert.Equal(vertical, v, 0.1);
+        // and back: tan(h/2) = tan(v/2) * aspect
+        double h = 2 * System.Math.Atan(System.Math.Tan(v * System.Math.PI / 360) * aspect) * 180 / System.Math.PI;
+        Assert.Equal(across, h, 0.01);
+    }
+
+    [Fact] public void ParseIsMonitorForAbsentZeroOrAnythingNotOffered()
+    {
+        Assert.Equal(ViewFov.Monitor, ViewFov.Parse(null));
+        Assert.Equal(ViewFov.Monitor, ViewFov.Parse(0));
+        Assert.Equal(ViewFov.Monitor, ViewFov.Parse(137));
+        Assert.Equal(ViewFov.Monitor, ViewFov.Parse(73));
+        Assert.Equal(ViewFov.Original, ViewFov.Parse(90));
+        Assert.Equal(100, ViewFov.Across[ViewFov.Parse(100)]);
     }
 
     [Fact] public void ApplyChangesTheMainViewsAndClamps()
     {
+        float aspect = ViewFov.Aspect;
         try
         {
-            ViewFov.Apply(2);
-            Assert.Equal(ViewFov.Vertical(73.74f, 2), ViewFov.Main, 0.001f);
+            ViewFov.Aspect = SixteenByNine;
+            ViewFov.Apply(ViewFov.Original);
+            Assert.Equal(ViewFov.Vertical(90, SixteenByNine), ViewFov.Main, 0.001f);
             ViewFov.Apply(99);
-            Assert.Equal(3, ViewFov.Choice);
+            Assert.Equal(ViewFov.Across.Length - 1, ViewFov.Choice);
         }
-        finally { ViewFov.Apply(0); }
+        finally { ViewFov.Apply(ViewFov.Monitor); ViewFov.Aspect = aspect; }
         Assert.Equal(73.74f, ViewFov.Main);
     }
 
@@ -47,22 +85,24 @@ public class ViewFovTests
     /// at the original's view 74 px under the centre, and with another Field of View where that view puts the same direction.
     /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public void TheDashReticleFollowsTheFieldOfView(int choice)
+    [InlineData(0, 4f / 3)]
+    [InlineData(90, 4f / 3)]
+    [InlineData(90, 16f / 9)]
+    [InlineData(60, 4f / 3)]
+    [InlineData(110, 4f / 3)]
+    public void TheDashReticleFollowsTheFieldOfView(int across, float aspect)
     {
-        float vertical = choice == 0 ? ViewFov.OriginalVertical : ViewFov.Vertical(ViewFov.OriginalVertical, choice);
-        double Focal(float v) => 240 / Math.Tan(v * Math.PI / 360);
-        double drop = Math.Tan(13 * Math.PI / 180);
+        float vertical = across == 0 ? ViewFov.OriginalVertical : ViewFov.Vertical(across, aspect);
+        double Focal(float v) => 240 / System.Math.Tan(v * System.Math.PI / 360);
+        double drop = System.Math.Tan(13 * System.Math.PI / 180);
         float y0 = (float)(240 + Focal(ViewFov.OriginalVertical) * drop);
         Assert.InRange(y0, 313f, 315f);                              // the original's sprite: centre 316 (300 + 16), the gun 2 px under the eye line
         var (x, y) = ViewFov.ScreenPoint(320, y0, vertical);
         Assert.Equal(320f, x, 3);
         Assert.Equal(240 + Focal(vertical) * drop, y, 2);
-        // a wider view lifts it toward the centre: 110 across 4:3 puts it 22 px higher, 80 lower
-        if (choice == 3) Assert.InRange(y0 - y, 21f, 24f);
-        if (choice == 1) Assert.True(y > y0);
+        // a wider view lifts it toward the centre: 110 across 4:3 puts it 22 px higher, 60 lower; 90 at 4:3 is the original's place
+        if (across == 110) Assert.InRange(y0 - y, 21f, 24f);
+        if (across == 60) Assert.True(y > y0);
+        if (across == 90 && aspect == 4f / 3) Assert.Equal(y0, y, 0.5f);
     }
 }
