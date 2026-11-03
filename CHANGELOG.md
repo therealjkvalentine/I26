@@ -69,6 +69,7 @@
 - Pressing the fire button again while a weapon is still between shots (its reload or burst pause) plays the dry click, as in the original, instead of staying silent.
 - With Unlim. Ammo on, a computer-driven car whose guns have run dry keeps firing, as in the original, instead of stopping.
 - Computer-driven cars armed with the EZK Mortar fire it, as in the original, when their target drives across its line; they never fired it before.
+- Bullets and rockets no longer fly through road signs and posts: a sign stops the round with an impact, as in the original, and shields what stands behind it; gunfire leaves it standing, a rocket or shell that hits it knocks it off.
 
 ## 0.11.0 (31 October 2026)
 
