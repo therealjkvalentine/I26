@@ -103,6 +103,7 @@
 - Field salvage takes a wreck's specials as the original does: every fitted special, even a burnt-out one, at the condition the original gives it; and a T16 tank or the howitzer gives nothing after its own big gun (the original stops at the part it has no salvage tier for), where it used to give its other weapons and specials too.
 - Custom maps: a script's setUserRadar now acts as in the original (it was ignored): its first use switches the player's radar off, blank with no contacts and no target, for the rest of the mission; the original's own toggle never brings it back.
 - A script's isShot and isRammed see a hit for two script frames, as in the original, instead of one, so a script that checks every other frame no longer misses it.
+- A script's teleportOffset puts the car at the ground height under the path's point, as the original does, not under the offset spot, and teleport writes that height into the path as the original does.
 
 ## 0.11.0 (31 October 2026)
 
