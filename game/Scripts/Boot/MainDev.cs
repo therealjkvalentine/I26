@@ -88,7 +88,8 @@ public partial class Main : IDevHost
             ? $"\ncar ({v.Pos.X:0.0}, {v.Pos.Y:0.0}, {v.Pos.Z:0.0}) heading {DevTools.HeadingOf(v.Rot.Forward):0}  {v.Speed * 3.6f:0} km/h  health {v.Health?.HealthPercent():0}%"
             : "";
         return $"tick {s.Ticks}  {s.Rate.Label} Hz  next tick {s.Rate.FrameDelta(s.Ticks) * 2048:0}/2048 s = {n} substep{(n == 1 ? "" : "s")} of {dt * 1000:0.0} ms"
-            + $"\nsim time {s.World.Time:0.00} s  {Engine.GetFramesPerSecond():0} fps{(_sim.DevFrozen ? "  FROZEN" : "")}{(_sim.DevTimeScale != 1 ? $"  x{_sim.DevTimeScale:0.##}" : "")}{(_cheated ? "  (cheater)" : "")}" + car;
+            + $"\nsim time {s.World.Time:0.00} s  {Engine.GetFramesPerSecond():0} fps{(_sim.DevFrozen ? "  FROZEN" : "")}{(_sim.DevTimeScale != 1 ? $"  x{_sim.DevTimeScale:0.##}" : "")}{(I76.Game.Shell.CheatMarker.Set ? "  (cheater)" : "")}" + car
+            + (BassShaker.Mode != I76.Formats.Input.TactileMode.Off ? "\n" + BassShaker.Status : "");
     }
 
     /// <summary>Where the player's car was placed at the mission's start (the panel's "start").</summary>
