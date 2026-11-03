@@ -2071,13 +2071,21 @@ public partial class Main : Node3D
     private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? (me == 1 ? MapEdge.On : MapEdge.Off) : setting;
     private int _mapEdge = MapEdge.Off;
 
+    // On's foot grid made without the ring (a mission started in the 1997 look builds the ring only on the first switch to the modern look)
+    private System.Threading.Tasks.Task<I76.Formats.Assembly.EdgeWalls?>? _edgeJob;
+    private bool _edgeGrid;
+
     /// <summary>
-    /// Map Edge on the modern look's terrain and ring (MapEdge, map_edge.gdshaderinc): On clamps the ground to the walls'
-    /// foot grid; off in the 1997 look, at Off, and with no ring (no foot grid then).
+    /// Map Edge on both looks' terrain and the modern look's ring and plants (MapEdge, map_edge.gdshaderinc): On clamps the
+    /// ground to the walls' foot grid, which the ring sets, or a job of its own while there is no ring; off at Off, on a map too
+    /// big for one surface, and until the grid is up.
     /// </summary>
     private void ApplyMapEdge()
     {
-        bool on = !_mode1997 && _mapEdge == MapEdge.On && _horizon is { HasEdgeWalls: true };
+        bool grid = _horizon is { HasEdgeWalls: true } || _edgeGrid;
+        if (_mapEdge == MapEdge.On && !grid && _edgeJob is null && _builder?.World is { Terrain.Huge: false } world)
+            _edgeJob = System.Threading.Tasks.Task.Run(() => MapEdge.WallsFor(world, () => World.TerrainNode.SurfaceFor(world)));
+        bool on = _mapEdge == MapEdge.On && grid;
         RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on ? 1f : 0f);
         MissionBuilder.Trace($"map edge: {MapEdge.Names[_mapEdge]}, {(on ? "on" : "off")}");
     }
@@ -2123,6 +2131,7 @@ public partial class Main : Node3D
     {
         _origin = gameOrigin;
         _worldRoot.Position = -Coords.ToGodot(gameOrigin);
+        RenderingServer.GlobalShaderParameterSet("i76_origin", new Vector3(gameOrigin.X, gameOrigin.Y, gameOrigin.Z));   // Map Edge's plants (map_edge.gdshaderinc)
         _sky1997?.SetShaderParameter("origin_y", gameOrigin.Y);   // the horizon ring sinks with the eye's game height
     }
 
@@ -3107,6 +3116,11 @@ public partial class Main : Node3D
             _sim.SkipLatch = true;
         }
         PumpModernBuild();
+        if (_edgeJob is { IsCompleted: true } ej && !_edgeGrid)
+        {
+            if (ej.IsCompletedSuccessfully && ej.Result is { } ew) { MapEdge.Upload(ew); _builder?.Terrain?.ReachEdgeFoot(ew); _edgeGrid = true; ApplyMapEdge(); }
+            else if (ej.IsFaulted) GD.PrintErr($"map edge: {ej.Exception!.GetBaseException().Message}");
+        }
         if (!_horizonEyeSet) SetHorizonEye();
         _animClock += delta;
         _builder?.Materials?.Animate(_animClock);

@@ -255,6 +255,10 @@ i76_edge_hide={
 "type": "float",
 "value": 0.0
 }
+i76_origin={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
 
 [importer_defaults]
 

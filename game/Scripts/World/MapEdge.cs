@@ -4,12 +4,14 @@ using I76.Formats.Mission;
 namespace I76.Game.World;
 
 /// <summary>
-/// Graphic Detail's Map Edge (the port's own, modern look only). A level's boundary is its heightfield's own outer tiles:
+/// Graphic Detail's Map Edge (the port's own, both looks). A level's boundary is its heightfield's own outer tiles:
 /// most missions are bowls whose rim rises 100-170 m to a cliff band along the last tiles, and the modern look's ring
 /// (HorizonTerrain) carries on from the rim's height. Off (the original's) draws that as it is. On draws the walls,
 /// and the plateau behind them, down at the plain of their foot (EdgeWalls: the ground no car reaches that is joined to the
 /// map's edge; the terrain's vertex shader holds it to the foot grid, the ring beyond starts from the plain), so the ground
-/// runs on level to the ring's ranges (On is marked as the port's). Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the
+/// runs on level to the ring's ranges (On is marked as the port's). The 1997 look's terrain is held down the same way, lit by the
+/// original's light through the mission's ramp as level ground; it has no ring, so past the walls' plain the sky's horizon
+/// panels stand where they stand at Off. Drawing only (map_edge.gdshaderinc): the heightfield, its collision and the
 /// simulation are unchanged, and the playable interior away from the edge is untouched.
 /// </summary>
 public static class MapEdge
@@ -37,8 +39,21 @@ public static class MapEdge
     /// <summary>
     /// On's walls of a mission (<see cref="EdgeWalls"/>) from the surface the modern look draws, made on the first call and
     /// kept with the world; null for a map too big for one surface (it has no ring either). I76_MAP_EDGE_RIDGES=0 hides the
-    /// ridges between drivable regions as well, and I76_MAP_EDGE_THIN=0 keeps the thin barriers among them, for comparison.
+    /// ridges between drivable regions as well, I76_MAP_EDGE_THIN=0 keeps the thin barriers among them, and I76_MAP_EDGE_ROADS=0
+    /// hides the thin barriers with a road at their foot too, for comparison.
     /// </summary>
     public static EdgeWalls? WallsFor(MissionWorld world, Func<ITerrainSurface> surface) =>
-        _walls.GetValue(world, w => new Lazy<EdgeWalls?>(() => w.Terrain.Huge ? null : EdgeWalls.Build(w.Terrain, surface(), keepRidges: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_RIDGES") != "0", thinBarriers: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_THIN") != "0"))).Value;
+        _walls.GetValue(world, w => new Lazy<EdgeWalls?>(() => w.Terrain.Huge ? null : EdgeWalls.Build(w.Terrain, surface(), keepRidges: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_RIDGES") != "0", thinBarriers: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_THIN") != "0",
+            roads: System.Environment.GetEnvironmentVariable("I76_MAP_EDGE_ROADS") == "0" ? null : EdgeWalls.Roads(w)))).Value;
+
+    /// <summary>On's foot grid of <paramref name="walls"/> into the shader globals i76_edge_foot and i76_edge_foot_rect (main thread).</summary>
+    public static void Upload(EdgeWalls walls)
+    {
+        // the plain's height and the hidden flag a sample, texel centres on the samples
+        var img = Godot.Image.CreateFromData(walls.W, walls.H, false, Godot.Image.Format.Rgf, System.Runtime.InteropServices.MemoryMarshal.AsBytes(walls.Texels().AsSpan()).ToArray());
+        Godot.RenderingServer.GlobalShaderParameterSet("i76_edge_foot", Godot.ImageTexture.CreateFromImage(img));
+        float ss = TerrainNode.SampleSize;
+        Godot.RenderingServer.GlobalShaderParameterSet("i76_edge_foot_rect", new Godot.Vector4(walls.X0 * ss - ss / 2, walls.Z0 * ss - ss / 2, walls.W * ss, walls.H * ss));
+        MissionBuilder.Trace($"map edge: {walls.HiddenCount} hidden samples of {walls.W}x{walls.H}");
+    }
 }

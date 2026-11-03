@@ -16,7 +16,10 @@ namespace I76.Formats.Assembly;
 /// unless it is a thin barrier: no more than 250 m from one side's drivable ground to the other's, carrying the walls' cliffs
 /// (steps of 15 m or more in a sample) and with its crest 10 m or more over the drivable ground nearest it, the fences of
 /// the terraces that line roads and split a map's valleys (T05's either side of its start; over the stock maps they are
-/// most of what the ridge test kept, and the rest of it outer walls with a valley beyond), which goes with the walls.
+/// most of what the ridge test kept, and the rest of it outer walls with a valley beyond), which goes with the walls,
+/// unless a road runs at its foot (<see cref="RoadShare"/> of it within <see cref="RoadNear"/> of a road: T05's mountain road,
+/// cut along the ridge south of its start 100 m up, against T05's start road, 30-95 m off its fences), from which it is seen
+/// close up: such a barrier stays.
 /// Over that ground the drawn surface is held down to the plain at its foot: each sample's foot is the nearest
 /// drivable sample's height, blurred away from the drivable ground so the plain runs level, and the ground is drawn at
 /// the lower of its own height and the foot, so land already below the foot (a drop beyond a crest) keeps its shape. Where
@@ -44,6 +47,10 @@ public sealed class EdgeWalls
     public bool[]? Thin { get; private init; }
     /// <summary>Samples hidden as thin barriers.</summary>
     public int ThinCount { get; private init; }
+    /// <summary>Per sample: a thin barrier kept for a road at its foot (see Build); null when Build was given no roads.</summary>
+    public bool[]? RoadKept { get; private init; }
+    /// <summary>Samples of thin barriers kept for a road at their foot.</summary>
+    public int RoadKeptCount { get; private init; }
 
     /// <summary>The blur's radius in samples (three box passes: a bell about 4.5 samples wide), and how far from the drivable ground the blurred foot takes over.</summary>
     public const int BlurRadius = 4;
@@ -65,6 +72,13 @@ public sealed class EdgeWalls
     public const float TopClear = 10f;
     /// <summary>Samples of other ground across which two scraps of ridge are judged as one (15 m).</summary>
     public const int ThinJoin = 3;
+    /// <summary>
+    /// A road runs at a thin barrier's foot when at least <see cref="RoadShare"/> of its samples, and <see cref="RoadAlong"/> or
+    /// more, lie within <see cref="RoadNear"/> samples (30 m) of a road. Over the stock maps the share is 0.11 and 0.14 for T05's
+    /// mountain road and 0.03-0.04 for T05's start road against its fences.
+    /// </summary>
+    public const int RoadNear = 6, RoadAlong = 20;
+    public const float RoadShare = 0.06f;
 
     private EdgeWalls(int x0, int z0, int w, int h, float[] foot, bool[] hidden, float[] mask, bool[] ridge, int count)
     {
@@ -74,8 +88,10 @@ public sealed class EdgeWalls
     /// <summary>
     /// The walls of <paramref name="tiles"/> as <paramref name="surface"/> draws them; null for a map with no tiles. With
     /// <paramref name="keepRidges"/> off, a ridge between two drivable regions is hidden like a wall (for comparison).
+    /// <paramref name="roads"/>: the map's roads as polylines in sample coordinates (<see cref="Roads"/>), for the thin barriers
+    /// with a road at their foot; null, none is kept for a road.
     /// </summary>
-    public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true)
+    public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true, IEnumerable<IReadOnlyList<System.Numerics.Vector2>>? roads = null)
     {
         var (r0, r1, c0, c1) = tiles.Bounds();
         if (r1 < r0) return null;
@@ -189,7 +205,26 @@ public sealed class EdgeWalls
         // a thin barrier is a ridge only by the test's letter: a band no wider than ThinAcross from one drivable side to the
         // other that carries the cliffs of the walls (steps of CliffStep in one sample, the terraces' fences), not a hill or a
         // massif between two valleys; it goes with the walls
-        var thin = thinBarriers ? ThinBarriers(ridge, across, height, present, foot, w, h) : null;
+        bool[]? road = null;
+        if (roads is not null)
+        {
+            road = new bool[n];
+            foreach (var line in roads)
+                for (int k = 0; k + 1 < line.Count; k++)
+                {
+                    var a = line[k];
+                    var b = line[k + 1];
+                    int steps = Math.Max(1, (int)Math.Ceiling(System.Numerics.Vector2.Distance(a, b) * 2));
+                    for (int s = 0; s <= steps; s++)
+                    {
+                        var p = System.Numerics.Vector2.Lerp(a, b, s / (float)steps);
+                        int xx = (int)MathF.Floor(p.X) - x0, zz = (int)MathF.Floor(p.Y) - z0;
+                        if (xx >= 0 && zz >= 0 && xx < w && zz < h) road[zz * w + xx] = true;
+                    }
+                }
+        }
+        var roadKept = road is not null && thinBarriers ? new bool[n] : null;
+        var thin = thinBarriers ? ThinBarriers(ridge, across, height, present, foot, w, h, road, roadKept) : null;
         if (thin is not null)
             for (int i = 0; i < n; i++)
             {
@@ -219,19 +254,23 @@ public sealed class EdgeWalls
             float t = Math.Clamp(dist[i] / Blend, 0, 1);
             foot[i] += (blurred[i] - foot[i]) * t * t * (3 - 2 * t);
         }
-        int thinCount = 0;
+        int thinCount = 0, roadCount = 0;
         if (thin is not null) for (int i = 0; i < n; i++) if (thin[i] &= hidden[i]) thinCount++;
-        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { Thin = thin, ThinCount = thinCount };
+        if (roadKept is not null) for (int i = 0; i < n; i++) if (roadKept[i]) roadCount++;
+        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { Thin = thin, ThinCount = thinCount, RoadKept = roadKept, RoadKeptCount = roadCount };
     }
 
     /// <summary>
     /// The kept ridges that are thin barriers (<see cref="ThinAcross"/>, <see cref="CliffStep"/>, <see cref="TopClear"/>), judged
     /// by parts: ridge samples joined eight ways or across a gap of up to <see cref="ThinJoin"/> samples of other ground (the
-    /// test leaves a barrier's crest and its back slope as separate scraps).
+    /// test leaves a barrier's crest and its back slope as separate scraps). A part with a road at its foot (<see cref="RoadShare"/>)
+    /// is not one; its ridge samples go into <paramref name="roadKept"/>.
     /// </summary>
-    private static bool[] ThinBarriers(bool[] ridge, float[] across, float[] height, bool[] present, float[] foot, int w, int h)
+    private static bool[] ThinBarriers(bool[] ridge, float[] across, float[] height, bool[] present, float[] foot, int w, int h, bool[]? road, bool[]? roadKept)
     {
         int n = w * h;
+        // each sample's steps to the nearest road
+        var toRoad = road is null ? null : Steps(road, w, h);
         var joined = Grown(ridge, w, h, ThinJoin);
         var thin = new bool[n];
         var seen = new bool[n];
@@ -243,6 +282,7 @@ public sealed class EdgeWalls
         {
             if (!joined[s0] || seen[s0]) continue;
             part.Clear(); widths.Clear(); tops.Clear();
+            int byRoad = 0;
             seen[s0] = true; queue.Enqueue(s0);
             int cliffs = 0;
             float reached = float.MinValue;
@@ -266,6 +306,7 @@ public sealed class EdgeWalls
                 if (present[i] && step >= CliffStep) cliffs++;
                 if (present[i]) tops.Add(height[i]);
                 reached = MathF.Max(reached, foot[i]);
+                if (toRoad is not null && toRoad[i] >= 0 && toRoad[i] <= RoadNear) byRoad++;
             }
             if (widths.Count == 0 || tops.Count == 0 || cliffs < CliffShare * part.Count) continue;
             widths.Sort();
@@ -274,9 +315,22 @@ public sealed class EdgeWalls
             // drivable ground, a canyon's rim, is scenery seen from below and above, not a barrier)
             tops.Sort();
             if (reached > tops[(int)(tops.Count * 0.95)] - TopClear) continue;
+            // a road at its foot: it is seen close up from the road, as the scenery the road runs under
+            if (byRoad >= RoadAlong && byRoad >= RoadShare * part.Count)
+            {
+                if (roadKept is not null) foreach (int i in part) roadKept[i] = true;
+                continue;
+            }
             foreach (int i in part) thin[i] = true;
         }
         return thin;
+    }
+
+    /// <summary>The roads of <paramref name="world"/> as polylines in sample coordinates, for <see cref="Build"/>.</summary>
+    public static List<IReadOnlyList<System.Numerics.Vector2>> Roads(MissionWorld world)
+    {
+        var k = (float)MissionWorld.SampleScale;
+        return [.. world.Mission.RoadSegments().Select(seg => (IReadOnlyList<System.Numerics.Vector2>)seg.Points.Select(p => new System.Numerics.Vector2(p.X, p.Z) * k).ToList())];
     }
 
     /// <summary>Thirds of a sample from each sample to the nearest source (a 3-4 chamfer: within 8% of the Euclidean distance), far with no source.</summary>

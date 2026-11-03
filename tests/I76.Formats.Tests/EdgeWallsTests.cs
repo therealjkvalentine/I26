@@ -138,6 +138,28 @@ public class EdgeWallsTests
     }
 
     [Fact]
+    public void AThinFenceWithARoadAtItsFootStays()
+    {
+        // the fence of the test above with a road along its south foot (z 56, 10 m off its cliff): it is the scenery the road
+        // runs under, seen close up from it (T05's mountain road), and stays; the same road 90 m off (z 40) does not keep it
+        var tiles = Tile(Fence);
+        var surf = new TerrainSurface(tiles, BothSides);
+        System.Numerics.Vector2[] Along(float z) => [new(26.5f, z), new(64.5f, z), new(101.5f, z)];
+        var near = EdgeWalls.Build(tiles, surf, roads: [Along(56.5f)])!;
+        Assert.False(near.Hidden[63 * T + 64]);
+        Assert.True(near.Ridge[63 * T + 64]);
+        Assert.True(near.RoadKept![63 * T + 64]);
+        Assert.True(near.RoadKeptCount > 0);
+        Assert.Equal(0, near.ThinCount);
+        Assert.Equal(70, near.Ground(64 * 5, 63 * 5, 70), 3);
+        Assert.True(near.Hidden[10 * T + 64]);   // the walls are still hidden
+        var far = EdgeWalls.Build(tiles, surf, roads: [Along(40.5f)])!;
+        Assert.True(far.Hidden[63 * T + 64]);
+        Assert.Equal(0, far.RoadKeptCount);
+        Assert.Equal(20, far.Ground(64 * 5, 63 * 5, 70), 3);
+    }
+
+    [Fact]
     public void AWideFenceStays()
     {
         // the same fence 300 m across (z 34..93): wider than ThinAcross from one drivable side to the other
