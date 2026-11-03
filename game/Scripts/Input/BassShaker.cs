@@ -33,9 +33,12 @@ public partial class BassShaker : Node
     private static float _gain = AudioOutputs.ShakerGain(AudioOutputs.DefaultLevel);
     private static int _level = AudioOutputs.DefaultLevel;
 
-    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq and crossover: live.</summary>
-    public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover)
+    private static int[] _sources = TactileSources.Defaults();
+
+    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq, crossover and the sources' levels (lfe_engine ...): live.</summary>
+    public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover, int[] sources)
     {
+        _sources = sources;
         Output = output;
         _eq = eq;
         _crossover = crossover;
@@ -45,7 +48,7 @@ public partial class BassShaker : Node
         AudioServer.SetBusMute(bus, levelPercent <= 0);
         // the level is the synth's, before its limiter: a gain on the bus would put the loud thumps over the Master limiter
         AudioServer.SetBusVolumeDb(bus, 0f);
-        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; }
+        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; me._synth.SetWeights(sources); }
     }
 
     private static int TactileBus()
@@ -111,6 +114,7 @@ public partial class BassShaker : Node
         _synth.Eq = _eq;
         _synth.LowPassHz = _crossover;
         _synth.Gain = _gain;
+        _synth.SetWeights(_sources);
         float rate = AudioServer.GetMixRate();
         // 50 ms of queue: a 60 fps frame fills it with room to spare, and a hit is felt within about three frames
         var gen = new AudioStreamGenerator { MixRate = rate, BufferLength = 0.05f };

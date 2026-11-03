@@ -256,6 +256,47 @@ public class TactileSynthTests
     }
 
     [Fact]
+    public void Each_source_takes_its_own_weight()
+    {
+        // one source at a time, at a weight: the level it reaches over the same source at 100 % (a low gain keeps the limiter out of it)
+        float Level(TactileSource src, int percent)
+        {
+            var s = new TactileSynth { Gain = 0.25f };
+            var w = TactileSources.Defaults();
+            w[(int)src] = percent;
+            s.SetWeights(w);
+            var e = new TactileEvents();
+            switch (src)
+            {
+                case TactileSource.Engine: e.EngineOn = true; e.Rpm = 600; break;
+                case TactileSource.Road: e.Surface = 6; e.Mph = 40; break;
+                case TactileSource.Hits: e.Hits.Add((3, 20)); break;
+                case TactileSource.Shots: e.Shots.Add(new WeaponShot(0, 2, 1, 1)); break;
+                case TactileSource.Explosions: e.Blasts.Add(60f); break;
+            }
+            s.Step(e);
+            bool bed = src is TactileSource.Engine or TactileSource.Road;
+            return Rms(Run(s, bed ? 2.0 : 0.3).AsSpan(bed ? Rate / 2 : 0));
+        }
+        foreach (var src in Enum.GetValues<TactileSource>())
+        {
+            float full = Level(src, 100);
+            Assert.True(full > 0.002f, $"{src}");
+            Assert.Equal(0f, Level(src, 0));
+            Assert.InRange(Level(src, 50) / full, 0.45f, 0.55f);       // the road's noise is the same sequence each run
+            Assert.InRange(Level(src, 200) / full, 1.9f, 2.02f);
+        }
+        // the others are untouched by one source's weight
+        var only = new TactileSynth();
+        only.SetWeights([0, 100, 100, 100, 100]);
+        only.Step(new TactileEvents { EngineOn = true, Rpm = 600, Surface = 6, Mph = 40 });
+        Assert.True(Rms(Run(only, 2.0).AsSpan(Rate / 2)) > 0.01f);
+        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"], TactileSources.Keys);
+        Assert.Equal(200, TactileSources.Clamp(999));
+        Assert.Equal(0, TactileSources.Clamp(-5));
+    }
+
+    [Fact]
     public void Output_and_level_keys_read_back()
     {
         foreach (AudioOutput o in Enum.GetValues<AudioOutput>()) Assert.Equal(o, AudioOutputs.Parse(AudioOutputs.Key(o)));

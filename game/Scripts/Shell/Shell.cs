@@ -1193,6 +1193,8 @@ public sealed class ShellSettings
     public I76.Formats.Input.AudioOutput Output { get; set; }
     /// <summary>The port's own: Audio Control's LFE Level, the shaker signal's (and the stereo mix's bass boost's) level, 0 (none, the default) to 200 % ([port] lfe_level, written when not 0 or with 5.1 and 7.1).</summary>
     public int LfeLevel { get; set; } = I76.Formats.Input.AudioOutputs.DefaultLevel;
+    /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine, lfe_road, lfe_hits, lfe_shots, lfe_explosions, 0 to 200, each written when not 100).</summary>
+    public int[] LfeSources { get; set; } = I76.Formats.Input.TactileSources.Defaults();
     /// <summary>The port's own, no row: the shaker signal's correction curve, "hz:db" points ([port] tactile_eq, written when set; none by default).</summary>
     public string TactileEq { get; set; } = "";
     /// <summary>The port's own, no row: the top of the shaker signal and of the stereo mix's bass boost, Hz ([port] crossover, written when not 90).</summary>
@@ -1417,6 +1419,8 @@ public sealed class ShellSettings
         // absent, 0 (none); before that default an absent level was 100, which a file that chose 2.1, 5.1 or 7.1 keeps
         s.LfeLevel = I76.Formats.Input.AudioOutputs.ClampLevel((int)c.GetValue("port", "lfe_level",
             I76.Formats.Input.AudioOutputs.HadShaker(output) ? I76.Formats.Input.AudioOutputs.OldDefaultLevel : I76.Formats.Input.AudioOutputs.DefaultLevel));
+        // no version step: absent, 100 (each source as made)
+        s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select(k => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.Default)))];
         s.TactileEq = c.GetValue("port", "tactile_eq", "").ToString();
         s.Crossover = I76.Formats.Input.AudioOutputs.ClampCrossover((float)c.GetValue("port", "crossover", I76.Formats.Input.AudioOutputs.DefaultCrossover));
         // version 8 added the simulation rate: older files have none, so it is the default (20)
@@ -1542,6 +1546,8 @@ public sealed class ShellSettings
         if (RumbleMode != I76.Formats.Input.RumbleMode.Original) c.SetValue("port", "rumble", RumbleMode.ToString().ToLowerInvariant());
         if (Output != I76.Formats.Input.AudioOutput.Stereo) c.SetValue("port", "output", I76.Formats.Input.AudioOutputs.Key(Output));
         if (LfeLevel != I76.Formats.Input.AudioOutputs.DefaultLevel || I76.Formats.Input.AudioOutputs.Discrete(Output)) c.SetValue("port", "lfe_level", LfeLevel);
+        for (int i = 0; i < I76.Formats.Input.TactileSources.Keys.Length; i++)
+            if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.Default) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
         if (TactileEq.Length > 0) c.SetValue("port", "tactile_eq", TactileEq);
         if (Crossover != I76.Formats.Input.AudioOutputs.DefaultCrossover) c.SetValue("port", "crossover", (double)Crossover);
         if (RumbleStrength != I76.Formats.Input.RumbleStrength.Default) c.SetValue("port", "rumble_strength", RumbleStrength);

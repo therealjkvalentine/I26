@@ -57,6 +57,18 @@ public static class AudioOutputs
     public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
 }
 
+/// <summary>The shaker signal's sources, each with a level of its own ([port] lfe_engine ... lfe_explosions, 0 to 200 %, 100 by default).</summary>
+public enum TactileSource { Engine, Road, Hits, Shots, Explosions }
+
+public static class TactileSources
+{
+    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"];
+    public const int Default = 100, Max = 200;
+    public static int Clamp(int percent) => Math.Clamp(percent, 0, Max);
+    /// <summary>Every source at 100 %.</summary>
+    public static int[] Defaults() => [.. Keys.Select(_ => Default)];
+}
+
 /// <summary>
 /// [port] tactile_eq: a shaker's correction curve, "hz:db" points ("20:3.6, 35:-3.5, 60:0"), interpolated in log frequency
 /// (feel is ratio-based: 20 to 25 Hz is a bigger step than 60 to 65), held flat past the ends, each point within ±12 dB.
@@ -139,7 +151,7 @@ public sealed class TactileEvents
 /// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
 /// force model's road strengths) and speed, rougher with a flat tyre. Transients: a decaying sine per shot by weapon class, per
 /// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
-/// shaker's <see cref="Eq"/> at its frequency. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
+/// shaker's <see cref="Eq"/> at its frequency. Each source takes its <see cref="Weights"/> share. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
 /// Level's <see cref="Gain"/> and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
 /// </summary>
 public sealed class TactileSynth
@@ -234,6 +246,16 @@ public sealed class TactileSynth
     }
     private float _lowPassHz = HighHz;
 
+    /// <summary>Each <see cref="TactileSource"/>'s weight (1 as made; [port] lfe_engine and the rest over 100), applied as a tick's events are read.</summary>
+    public readonly float[] Weights = [1f, 1f, 1f, 1f, 1f];
+    private float W(TactileSource s) => Weights[(int)s];
+
+    /// <summary>The weights from the keys' percentages, in <see cref="TactileSource"/> order.</summary>
+    public void SetWeights(IReadOnlyList<int> percent)
+    {
+        for (int i = 0; i < Weights.Length; i++) Weights[i] = i < percent.Count ? TactileSources.Clamp(percent[i]) / 100f : 1f;
+    }
+
     /// <summary>The LFE Level's gain (<see cref="AudioOutputs.ShakerGain"/>), applied before the limiter.</summary>
     public float Gain { get; set; } = 1f;
 
@@ -244,12 +266,14 @@ public sealed class TactileSynth
     public void Step(TactileEvents e)
     {
         _engHz = e.Cranking ? CrankHz : EngineHz(e.Rpm);
-        _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz);
-        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres);
-        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t);
-        foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t);
-        foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t);
+        _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz) * W(TactileSource.Engine);
+        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres) * W(TactileSource.Road);
+        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots));
+        foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t, W(TactileSource.Hits));
+        foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
     }
+
+    private void Add(Thump t, float weight) => Add(t with { Level = t.Level * weight });
 
     /// <summary>A transient, through the <see cref="Eq"/>; past <see cref="MaxThumps"/> playing, the quietest goes (a far blast before a near hit).</summary>
     public void Add(Thump t)

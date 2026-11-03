@@ -825,7 +825,7 @@ public partial class Main : Node3D
         ApplyOutput(s);
     }
 
-    /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover), live.</summary>
+    /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover, lfe_engine and the other sources), live.</summary>
     public static void ApplyOutput(I76.Game.Shell.ShellSettings s)
     {
         // Output and LFE Level: the shaker signal (BassShaker); mixed into stereo, the effects' bass under the crossover boosted by the level's
@@ -833,7 +833,7 @@ public partial class Main : Node3D
         // gain 2 is 4.0x at 20 Hz, 2.0x at the corner, 1.0x at 1 kHz), so it takes the factor's square root
         var output = s.Output;
         float crossover = I76.Formats.Input.AudioOutputs.ClampCrossover(s.Crossover);
-        I76.Game.BassShaker.Apply(output, s.LfeLevel, I76.Formats.Input.TactileEq.Parse(s.TactileEq), crossover);
+        I76.Game.BassShaker.Apply(output, s.LfeLevel, I76.Formats.Input.TactileEq.Parse(s.TactileEq), crossover, s.LfeSources);
         int sfx = AudioServer.GetBusIndex("SFX");
         if (sfx < 0) return;
         int shelf = Enumerable.Range(0, AudioServer.GetBusEffectCount(sfx)).FirstOrDefault(e => AudioServer.GetBusEffect(sfx, e) is AudioEffectLowShelfFilter, -1);
