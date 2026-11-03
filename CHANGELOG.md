@@ -26,6 +26,8 @@
 - A cut-scene's cut from one shot to the next no longer shows a frame from somewhere in between: the camera drawn between two moments of the game took a cut between two placements of the same kind (the camera turning from one speaker to the other, as in the first and fourth Trip missions' openings) for a move and showed it halfway across. A cut now starts the new shot at once; the travelling shots still glide (#140).
 - A cut-scene path camera that starts a new path after arriving no longer still reads as arrived: any camera call that places the camera clears camIsArrived, as the original's does. No stock mission is affected.
 - Mission music goes back to track 2 after track 14, as the original's does, instead of going on into tracks 15 to 17. A mission whose own track is 15 or later (Interstate '76's M09) still plays it once, then 2 to 14; the next track still follows without a gap (#128).
+- The 1997 look's damage smoke no longer flickers over the sky in the cockpit view when your own car is smoking, worst at speed. Puffs were placed from where the car is drawn between two sim ticks and then drawn where the sim had them, so at 30 fps on the 20 Hz sim they jumped back and forth by up to a tick's travel past the eye; and puffs right by the eye were drawn, filling the screen for a frame. Puffs now leave the car where the sim has it and are drawn between ticks as the cars are, and, as in the original, none nearer the eye than 1 m (both looks).
+- The modern look's damage smoke swells and thins on the game's clock instead of the computer's, so it no longer jumps to another density when the game comes out of a pause.
 
 ## 0.11.0 (31 October 2026)
 

@@ -22,6 +22,8 @@ public partial class DamageView : Node3D
     public required Dictionary<I76.Sim.Collision.StaticObject, Placement> PlacementOf { get; init; }
     public Assets.AudioBank? Audio { get; init; }
     public I76.Sim.Terrain.IGround? Ground { get; init; }
+    /// <summary>How far the frame is between sim ticks (SimDriver.Alpha), for the 1997 damage smoke; unset: at the last tick.</summary>
+    public Func<float>? Alpha { get; init; }
     private readonly List<(RigidBody3D Body, double Until)> _debris = [];
     /// <summary>The modern look's fire on each burning wreck (WreckFire), until it has burnt out or the car is renewed.</summary>
     private readonly Dictionary<CarNode, WreckFire> _fires = [];
@@ -49,7 +51,7 @@ public partial class DamageView : Node3D
         _chunkMat = new StandardMaterial3D { AlbedoColor = new Color(0.18f, 0.16f, 0.15f) };
         AddChild(new SkidMarks { Cars = Cars, Origin = Origin, Ground = Ground, Builder = Builder, SceneLight = SceneLight, Name = "SkidMarks" });
         AddChild(new SmokeLayer { Name = "SmokeLayer" });   // the modern look's smoke is drawn and composited there, capped
-        AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Name = "DamageSmoke" });
+        AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });
     }
 
     private Vector3 G(System.Numerics.Vector3 p) => Coords.ToGodot(p - Origin());

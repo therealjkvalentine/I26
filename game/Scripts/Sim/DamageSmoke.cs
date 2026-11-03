@@ -23,6 +23,8 @@ public partial class DamageSmoke : Node3D
     public required World.MissionBuilder Builder { get; init; }
     public required Func<System.Numerics.Vector3> Origin { get; init; }
     public float SceneLight { get; set; } = 1f;
+    /// <summary>How far the frame is between the last sim tick and the next (SimDriver.Alpha); the 1997 puffs are drawn there, as the cars are. Unset: at the last tick.</summary>
+    public Func<float>? Alpha { get; init; }
 
     /// <summary>I76_SMOKE=h holds every living car's health at h (0..1), for captures; I76_SMOKE=0 leaves the smoke out.</summary>
     private static readonly float? Held = float.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h) ? h : null;
@@ -36,7 +38,7 @@ public partial class DamageSmoke : Node3D
     ];
     private static readonly string[] Kinds = ["xwp1", "xsg1", "xbp1"];
 
-    private struct Puff { public bool Live; public double X, Y, Z; public float Vx, Vy, Vz, Dx, Dy, Dz, S, Target, Age; public int Kind; }
+    private struct Puff { public bool Live; public double X, Y, Z, PX, PY, PZ; public float Vx, Vy, Vz, Dx, Dy, Dz, S, Target, Age; public int Kind; }
     private readonly Puff[] _pool = new Puff[CapModern];
     private int _next;
     private readonly Random _rng = new(7676);   // not the sim's CrtRand
@@ -63,6 +65,7 @@ public partial class DamageSmoke : Node3D
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
+    private double _clock;   // game seconds the modern smoke has run: the clumping's clock (not the wall clock, which runs on through a pause and a slow capture)
     // The billows go out in depth slabs, one MultiMeshInstance3D each. Godot sorts transparent draws (the lamps' glare, the
     // tyre smoke) by instance, not by puff, and one instance for all the smoke sorted as a block: a flare behind the smoke was
     // drawn over it, one in front under it. Each slab's custom AABB is a small box at its mean puff, so it sorts at its own depth.
@@ -257,6 +260,7 @@ public partial class DamageSmoke : Node3D
                 ref var p = ref _pool[i];
                 if (!p.Live) continue;
                 if (p.Age >= life) { p.Live = false; continue; }
+                p.PX = p.X; p.PY = p.Y; p.PZ = p.Z;   // where it was at the last tick, to draw it between the two
                 p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
                 float k = 2f * (float)dt, s = p.S;
                 float s2 = k >= 0 && k <= 0.95f && MathF.Abs(p.Target - s) >= 0.005f ? s + k * (p.Target - s) : p.Target;
@@ -272,6 +276,7 @@ public partial class DamageSmoke : Node3D
     private void ProcessModern(double delta)
     {
         double dt = Math.Min(delta, 0.25);
+        _clock += dt;
         _matM.SetShaderParameter("scene_light", SceneLight);
         foreach (var (v, car) in Cars)
         {
@@ -284,7 +289,7 @@ public partial class DamageSmoke : Node3D
             float L = st.Level;
             float rate = (L < 1 ? Mathf.Lerp(16f, 30f, L) : Mathf.Lerp(30f, 70f, L - 1)) * RateMul;   // half the puffs, 1.3x the size, denser: the same look for half the fill
             // the stream comes in clumps, not a band: the rate swells and ebbs, more deeply for black
-            double tt = Time.GetTicksMsec() / 1000.0 + car.GetInstanceId() % 97;
+            double tt = _clock + car.GetInstanceId() % 97;
             float clump = 1f + Mathf.Clamp(L - 0.5f, 0f, 1f) * 0.9f * (float)(Math.Sin(tt * 2.9) * Math.Sin(tt * 1.3 + 1));
             // a moving car lays its puffs by distance driven (the drawn path), so the trail is a stream at any speed and
             // frame rate; the time rate keeps a parked car smoking
@@ -454,7 +459,7 @@ public partial class DamageSmoke : Node3D
             if (!p.Live) continue;
             var gp = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float depth = -ct.Basis.Z.Dot(gp - ct.Origin);
-            if (depth < cam.Near || depth > 150) continue;
+            if (!SmokeWindow.Drawn(depth, cam.Near, 150)) continue;
             _keyM[cnt] = -depth; _idxM[cnt++] = i;   // ascending -depth: far to near
         }
         Array.Sort(_keyM, _idxM, 0, cnt);
@@ -519,13 +524,15 @@ public partial class DamageSmoke : Node3D
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble();
         float ox = r1 - 0.5f, oz = RearZ(car) - 1 + r2 - 0.5f, oy = 0.2f + 1 + 0.5f * r3;
-        var t = car.GlobalTransform;
-        var g = Coords.ToGame(t * new Vector3(ox, oy, -oz)) + Origin();
+        // from the car where the sim has it at this tick, not where it is drawn this frame (between two ticks): spawned off the drawn
+        // car and drawn at its ticks, a puff jumped against the car by up to a tick's travel from frame to frame, through the cab at speed
+        var off = Coords.ToGame(Coords.ToGodot(v.Rot.ToEngine()) * new Vector3(ox, oy, -oz));
+        var g = new I76.Sim.Math.Double3(v.Pos.X + off.X, v.Pos.Y + off.Y, v.Pos.Z + off.Z);
         var vel = v.Vel;
         float speed = v.Speed;
         ref var p = ref _pool[_next];
         _next = (_next + 1) % cap;   // the oldest is recycled when the pool is full
-        p = new Puff { Live = true, X = g.X, Y = g.Y, Z = g.Z, Vx = vel.X, Vy = vel.Y + 1.2f, Vz = vel.Z, Kind = kind };
+        p = new Puff { Live = true, X = g.X, Y = g.Y, Z = g.Z, PX = g.X, PY = g.Y, PZ = g.Z, Vx = vel.X, Vy = vel.Y + 1.2f, Vz = vel.Z, Kind = kind };
         if (speed > 0.1f)
         {
             var d = vel / MathF.Max(vel.Length(), 1e-4f);
@@ -533,27 +540,32 @@ public partial class DamageSmoke : Node3D
         }
     }
 
+    /// <summary>A puff's drawn place (Godot, relative to the floating origin): between its last two ticks, as the cars are drawn.</summary>
+    private static Vector3 Drawn(in Puff p, System.Numerics.Vector3 org, float a) =>
+        new((float)(p.PX + (p.X - p.PX) * a - org.X), (float)(p.PY + (p.Y - p.PY) * a - org.Y), -(float)(p.PZ + (p.Z - p.PZ) * a - org.Z));
+
     private void Draw(bool modern, int cap, float life)
     {
         var cam = GetViewport().GetCamera3D();
         if (cam is null) { _mm.VisibleInstanceCount = 0; return; }
         var ct = cam.GlobalTransform;
         var org = Origin();
+        float alpha = Math.Clamp(Alpha?.Invoke() ?? 1f, 0f, 1f);
         _order.Clear();
         for (int i = 0; i < cap; i++)
         {
             ref var p = ref _pool[i];
             if (!p.Live) continue;
-            var gp = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
-            float depth = -ct.Basis.Z.Dot(gp - ct.Origin);   // view depth: drawn within the near plane and 60
-            if (depth < cam.Near || depth > 60) continue;
+            var gp = Drawn(p, org, alpha);
+            float depth = -ct.Basis.Z.Dot(gp - ct.Origin);   // view depth: drawn from the original's 1 m out to 60
+            if (!SmokeWindow.Drawn(depth, cam.Near, 60)) continue;
             _order.Add((depth, i));
         }
         _order.Sort((a, b) => b.Depth.CompareTo(a.Depth));   // far to near
         for (int j = 0; j < _order.Count; j++)
         {
             ref var p = ref _pool[_order[j].I];
-            var pos = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
+            var pos = Drawn(p, org, alpha);
             float lf = Math.Clamp(p.Age / life, 0f, 0.9999f);
             int age = (int)(lf * Life1997);
             int frame = p.Kind == 2 || p.Kind == 1 ? FrameTable[1][age] : FrameTable[0][age];
@@ -563,4 +575,19 @@ public partial class DamageSmoke : Node3D
         }
         _mm.VisibleInstanceCount = _order.Count;
     }
+}
+
+/// <summary>
+/// Which puffs the damage smoke draws, by view depth. The original draws a puff only from its near plane, 1 m, out to 60 m
+/// (renderer_UpdateSmoke; the main view camera, which every view mode drives, the cockpit too, has near 1.0), so a puff by the eye
+/// is never drawn. Our cameras' near planes are nearer (0.25 m outside, 0.05 m in the cockpit), and a 0.8 m puff a few centimetres
+/// from the eye fills the screen several times over for a frame or two as the car passes through its own smoke.
+/// </summary>
+public static class SmokeWindow
+{
+    /// <summary>The original's near plane: no puff is drawn nearer the eye than this (metres of view depth).</summary>
+    public const float Near = 1f;
+
+    /// <summary>Whether a puff at <paramref name="depth"/> (view depth, metres) is drawn: from the original's 1 m, or the camera's own near plane if that is further, out to <paramref name="far"/>.</summary>
+    public static bool Drawn(float depth, float cameraNear, float far) => depth >= Math.Max(cameraNear, Near) && depth <= far;
 }
