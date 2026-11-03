@@ -72,6 +72,36 @@ public sealed class ShellFrame
         Restore(dx, dy, w, h);
     }
 
+    /// <summary>A copy of the background as it is now (640 x 480 palette indices), to paste parts of it back after it has been drawn over.</summary>
+    public byte[] CleanCopy() => (byte[])_clean.Clone();
+
+    /// <summary>
+    /// Pastes a rectangle of a background copy (<see cref="CleanCopy"/>) onto the background at another place, only the
+    /// pixels <paramref name="keep"/> accepts (offsets within the rectangle) when given.
+    /// </summary>
+    public void PasteBackground(byte[] from, int sx, int sy, int w, int h, int dx, int dy, Func<int, int, bool>? keep = null)
+    {
+        for (int r = 0; r < h; r++)
+            for (int c = 0; c < w; c++)
+            {
+                int x = sx + c, y = sy + r, tx = dx + c, ty = dy + r;
+                if (x is < 0 or >= W || y is < 0 or >= H || tx is < 0 or >= W || ty is < 0 or >= H || keep?.Invoke(c, r) == false) continue;
+                _clean[ty * W + tx] = from[y * W + x];
+            }
+        Restore(dx, dy, w, h);
+    }
+
+    /// <summary>The palette index shown at a pixel now.</summary>
+    public byte At(int x, int y) => x is >= 0 and < W && y is >= 0 and < H ? _work[y * W + x] : (byte)0;
+
+    /// <summary>One pixel drawn in a palette index.</summary>
+    public void Pixel(int x, int y, byte index)
+    {
+        if (x is < 0 or >= W || y is < 0 or >= H) return;
+        Put(y * W + x, index);
+        _dirty = true;
+    }
+
     /// <summary>The whole work buffer back to the background.</summary>
     public void RestoreAll() { Array.Copy(_clean, _work, _clean.Length); Unplace(0, 0, W, H); ForgetText(); _dirty = true; }
 
@@ -226,6 +256,8 @@ public sealed class ShellFrame
         public ShellFont? Font;
         public char Ch;
         public string? Caption;
+        /// <summary>A picture in its own colours drawn into the box (the port's: the host form's printed labels and arena sketch).</summary>
+        public Texture2D? Picture;
         public Rect2I Box;
         public byte Ink;
         /// <summary>The cell's pixels on the frame, and how many are still the glyph's.</summary>
@@ -286,6 +318,12 @@ public sealed class ShellFrame
 
     /// <summary>A string set in the shell's handwriting and fitted to an ink box (the action names painted into record 16, when the upscale has none).</summary>
     public void Caption(Rect2I box, string text, byte ink) => Claim(new HdGlyph { Caption = text, Box = box, Ink = ink });
+
+    /// <summary>A picture the text layer draws into a box at the window's resolution (the modern look), kept as a glyph is.</summary>
+    public void Picture(Rect2I box, Texture2D picture) => Claim(new HdGlyph { Picture = picture, Box = box });
+
+    /// <summary>Whether strings and pictures go to the text layer (the modern look) rather than into the pixels.</summary>
+    public bool Modern => HdFonts is not null;
 
     private void Claim(HdGlyph g)
     {

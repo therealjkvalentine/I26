@@ -210,8 +210,8 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   (`UprightReset`: the terrain under the car, upright, heading kept, at rest; the car's `NetGeneration` bumps so every client snaps to it, and a prediction does not run it itself) unless the host turned it off
   (`ServerOptions.AllowCarReset`, the host form's Car Reset, `--no-car-reset`; default on; listed in `SessionInfo.CarReset`, the discovery answer's last byte, an older host's missing byte reading as off). It never works in a cut-scene (a co-op player's own camera scene too) or while dead.
 - **Ignition stays on** (I26, #108; protocol 22): the host's rule that nobody switches their engine off in the game, so no car
-  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's `Ign: Lock`
-  beside the turrets' line, IGNITION STAYS ON in the Nitro and co-op forms' game options (shell.cfg `[port] ignition_stays_on`,
+  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's IGNITION: Lock
+  beside TURRETS, IGNITION STAYS ON in the Nitro and co-op forms' game options (shell.cfg `[port] ignition_stays_on`,
   written only when on), `--no-ignition-off` for a listen host and `i26-server`. A melee's rules carry it
   (`MeleeRules.IgnitionStaysOn`, saved in the savestate's build, so a migration's successor keeps it), a co-op host sets it on its
   session; the session's input handling (`SimSession.IgnitionStaysOn`) drops the ignition key while the engine runs, and still
@@ -311,7 +311,7 @@ seat's car keeps its player's paint through the mission's respawns.
 ### Handicaps (protocol 22)
 
 I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
-form's `Hcp` on the line under the options (between the car reset's and the CB's), HANDICAPS in the Nitro and co-op forms' game
+form's HCP on the options box's last line (between RATE and PASS), HANDICAPS in the Nitro and co-op forms' game
 options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
 says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
 join accept carries it (`JoinAccept.Handicaps`, a bool after `Cb`).
@@ -442,8 +442,8 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   with " (bot)" after it: the name is the mark on the scoreboard and in the feed, since the wire has no field for it (`BotNames.IsBot`). A car at
   random from `ServerOptions.BotCars`, stock cars first variants (Piranha, Courier, Eagle, Aztec, Stag, Marx, Pony, Royal, Amazon on the base game's
   list; the Nitro Pack's models are the same stems) the install has and the game's hidden-content rules let in. Under WEAPON RESTRICTIONS a bot (and the AI fill) drives its rolled car with the restricted weapons taken off, all of them under All Weapons (`MeleeHost.Legal`): never another model or a stand-in, and served by content as a player's own variant is (`CarInfo.Vcf`), so every machine, the host's own screen included, builds the same car, and a successor host gets the same file from the savestate's served cars and the options' restrictions. The original had no server-driven cars to restrict, so this is the port's reading of its rule: a game that allows no weapons has none on any car.
-- **A.I. cars.** The host picks each bot seat's car (`ServerOptions.BotChoices`, one car file per seat, empty for Random): on the host form the Bots line's
-  *Cars* (the Nitro form's GAME OPTIONS has an A.I. CARS line) opens the A.I. CARS popup (`BotCarsPopup`; mouse and pad), a row for each bot seat up to Bots, each with the
+- **A.I. cars.** The host picks each bot seat's car (`ServerOptions.BotChoices`, one car file per seat, empty for Random): on the host form the BOTS line's
+  A.I. CARS (the Nitro form's GAME OPTIONS has an A.I. CARS line) opens the A.I. CARS popup (`BotCarsPopup`; mouse and pad), a row for each bot seat up to Bots, each with the
   instant melee's MAKE / MODEL and VARIANT (stock cars, the host's saved variants, hidden models when Hidden Wpns & Cars is on). The choices are kept in
   melee.cfg (`bot_cars`), not in the original's .mel files; i26-server takes `--bot-car N=MODEL[:VARIANT]`. Bot seat N is the Nth bot slot counting down from `MaxSeats - 1`
   (`MeleeMode.AddBot`), and whenever a bot enters that seat, at the start or when a human leaves, it drives choice N; so a bot sent away for a human and its seat's
@@ -546,7 +546,7 @@ class (`WeaponRestrictions`). It is kept for the shell's run, not saved, as the 
   weapon restricted), a pair count (at most 64) and the pairs (class `i8`, tier `i16`). An older answer ends before them
   and reads as no restrictions.
 - **Unlim. Turrets.** The host forms' UNLIM. TURRETS (the I76 form's GAME OPTIONS box too, the co-op form's; saved in the host settings, off by default; `i26-server --turrets`) lets the game's cars carry several turrets, each on a roof mount (docs/deviations.md). Off, `CarConfigCheck` refuses a configuration with a second turret (DONE's notice 26) and `Strict` a joining car's; a bot's car keeps its first turret and loses the rest (`MeleeHost.Legal`). The listing's direct answer carries it as flag 4 beside Hidden and All Weapons (`SessionInfo.Turrets`), the session popup says "Unlimited turrets", and a joiner's own check names it before connecting.
-- **The host's switch.** Hidden Weapons & Cars is Play Options' setting, and also a row on the host forms: the I76 form's line under SHARE MAPS (hotspot 28), the Nitro form's GAME OPTIONS popup (last row). It flips the same setting; the form's MAKE / MODEL list gains or loses the hidden models at once. Joiners bring hidden models and weapons when their own setting shows them and the game's answer says allowed.
+- **The host's switch.** Hidden Weapons & Cars is Play Options' setting, and also a row on the host forms: the I76 form's HIDDEN CARS box (hotspot 28), the Nitro form's GAME OPTIONS popup (last row). It flips the same setting; the form's MAKE / MODEL list gains or loses the hidden models at once. Joiners bring hidden models and weapons when their own setting shows them and the game's answer says allowed.
 - **Armour rule** (`CarConfigCheck`). The garage's DEFENSE buttons move 10 units between a zone, the chassis and the unassigned pool; the total never grows. So a variant passes when no value is negative and armour + chassis + pool is at most that of the model's heaviest stock variant (it used to compare each zone with the stock maximum, refusing what the garage makes by moving everything into one zone). With the host's hidden content on, the Rattler's secret bodies (`HiddenContent.SecretBodies`) are accepted with their own armour (stock + the secret's, no tyre or garage checks, their tracks are no garage part); off, the refusal says the body is a hidden car. Specials are 0..9 (0..11 on Nitro).
 - **Joiners.** The join form's game popup prints the restrictions (by the checklist's names) and "Hidden weapons & cars
   allowed" under the drivers; JOIN checks the player's car against the game's answer first and says what is not allowed,
@@ -665,7 +665,7 @@ may hear you does.
   everybody, the muted player included, and sends the player `MsgType.VoiceMuted` (reliable, one byte, also at the seat) so the client stops
   sending, and the HUD says `CB: you are muted by the host` (the modern look's `MUTED BY HOST` panel). A muted player never appears in the others'
   on-air list. The set rides in the host-migration extras (after the shot counts), so a successor keeps it. (3) *The game's CB radio off*:
-  the host form's CB RADIO (the base form's `CB: On` beside Car reset, CB RADIO in the Nitro and co-op forms' game options; shell.cfg
+  the host form's CB RADIO (the base form's CB RADIO box beside CAR RESET, CB RADIO in the Nitro and co-op forms' game options; shell.cfg
   `[port] cb_radio`, written only when off; `--no-cb` for a listen host and `i26-server --no-cb`; `ServerOptions.AllowCb`, on by default,
   also in the migration's options): the server relays no voice, `JoinAccept.Cb` (last byte) tells the clients, which neither send nor open
   the microphone, show no CB hint and say `CB is off in this game` on a key press; the listing carries it (`SessionInfo.Cb`, the discovery
@@ -1025,7 +1025,7 @@ MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 
   missions SCENARIO.DAT does not list). It keeps the host form's GAME NAME (the mission's title until renamed), NO. DRIVERS
   (1–8), INVITE ONLY, the password, WEAPON RESTRICTIONS (Nitro's form) and Hidden Weapons & Cars, which apply to the cars
   the players choose; it has no TEAM PLAY, score or other limit, Bots or Share Maps (a stock mission is on every install).
-  The base form's Bots line says "Co-op missions" in its place.
+  The base form's options box has the co-op rules (Foes, Dmg, Roll) on the BOTS line.
 - The car panel shows "Mission's own car" (the default) or the player's pick (above).
 - Hosting opens the lobby (above, "The co-op lobby"), where the host starts the mission. BROADCAST GAME hosts it as `--host-listen --coop MISSION --coop-lobby` does (`NetLaunch.Coop`, `MainNet.ApplyNetLaunch`).
 - The roster (JOIN) lists a co-op game with a "co-op" tag after its name, "co-op lobby" while the host has not started it (the anet tag's kind bits 3 and the session
@@ -1261,10 +1261,19 @@ comes back to the roster with its notice and the book, as before.
 - NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
   what the wire, the screens and i26-server take): the server's seats (below, "Bandwidth"). The form has no room for a note on the upload a
   big game needs, so `MeleeScreen.UploadMbit(players)` (a small table, placeholders until measured) goes to the log line a listen server writes;
-- BOTS (the port's, a line under NO. DRIVERS: `-` `+` and the skill, Easy, Normal or Hard on a click; Nitro's form has them in its GAME OPTIONS):
-  how many players the server drives (0 to the seats NO. DRIVERS leaves besides the host's own) and how well (below, "Bots"; kept in melee.cfg);
-- TEAM PLAY, INVITE ONLY, and MAX SCORE with its ⊟ ⊞ (1000–100000 in steps
-  of 1000, 20000 to start; the score counts only when its box is ticked);
+- the options box (the port's layout of the original's: the box runs from NO. DRIVERS' foot rule to the sheet's foot, its paper a
+  blank part of the same art; the labels are printed in Arial, the values in the form's handwriting, the boxes, steppers, rules and
+  buttons pieces of the record's own art), row by row:
+  - BOTS (the port's: ⊟ ⊞, the skill, Easy, Normal or Hard on a click, and A.I. CARS; Nitro's form has them in its GAME OPTIONS):
+    how many players the server drives (0 to the seats NO. DRIVERS leaves besides the host's own) and how well (below, "Bots"; kept in melee.cfg);
+  - the switches as check boxes of TEAM PLAY's own: TEAM PLAY, INVITE ONLY, SHARE MAPS, HIDDEN CARS, CAR RESET, CB RADIO;
+  - MAX SCORE with its box and ⊟ ⊞ (1000–100000 in steps of 1000, 20000 to start; the score counts only when its box is ticked);
+  - the stepped rules on ruled blanks, a click steps each: TURRETS (One, Unlim.), IGNITION (Free, Lock), RATE, HCP (Off, Manual,
+    Auto) and PASS (the password prompt);
+  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE;
+- the arena's sketch (the port's, `ArenaSketch`), between the car's views: the arena from above, its floor as paper, the ground
+  that rises above it hatched with an inked edge, the roads as lines, each start point an x, built from the terrain and the
+  mission's placements when the area is picked; under it the start count and the span ("17 starts · 1.0 x 1.0 km");
 - the car: MAKE / MODEL, VARIANT and CONFIGURE CHASSIS, as on the instant
   melee form;
 - BROADCAST GAME: CHOOSE A TEAM first with team play, then the launch: a
@@ -1339,7 +1348,7 @@ shows on a LAN roster.
 A game may have a password (protocol 12). Blank is an open game; the password is never saved (not in shell.cfg or any
 file), so a host sets it again each time.
 
-- **Hosting.** The base host form's `Pass:` line beside `Share maps` and the Nitro form's PASSWORD button open a small
+- **Hosting.** The base host form's PASS blank (the options box's last line) and the Nitro form's PASSWORD button open a small
   prompt (`PasswordPopup`, the notice's blank sprite with a line to type in through the shell's text entry; Enter or OK
   takes it, Esc leaves it as it was, an empty entry clears it). `i26-server --password WORD` and
   `--host-listen --password WORD` set it from the command line (`ServerOptions.Password`).
@@ -1419,7 +1428,7 @@ meanwhile searches it before addon\ for missions and terrains, and the VFS puts 
 so a different local copy of the same name is not used. It is cleared when the game ends; downloaded maps are not listed
 in the shell. A server never plays from it (`MeleeHost` opens its install with no map folder).
 
-**The host.** The host forms' **Share maps** (the Nitro Pack's GAME OPTIONS row, a line under the base form's options box;
+**The host.** The host forms' **Share maps** (the Nitro Pack's GAME OPTIONS row, a check box in the base form's options box;
 `[port] share_maps`, on), `--share-maps`/`--no-share-maps` on `--host-listen` and i26-server. A map over 16 MiB
 (`--map-max-mb`) or 16 files is offered unshared ("too big"). The server reads the files once at start and sends those
 bytes (hashed again if they changed in between). It logs the map at start ("custom map xfermap.lvl: 3 files, 186 KiB,
@@ -1551,8 +1560,8 @@ listen server's is the host form's choice, the dedicated one's `--rate 20|24|25|
 from it and refuses a rate it does not offer; its own setting is ignored while connected (the session's rate is built into the client's session; Play Options' `[port] sim_rate`, which its
 single-player games use, is neither read nor written by a network game).
 
-**The host form.** GAME OPTIONS' SIM RATE row on the Nitro form and the co-op form, "Rate NNHz" on the Hidden line of the base
-game's host form (a click steps it); kept in melee.cfg (`host_rate`) apart from Play Options' rate, the first time starting at
+**The host form.** GAME OPTIONS' SIM RATE row on the Nitro form and the co-op form, RATE on the base game's host form's last
+line (a click steps it); kept in melee.cfg (`host_rate`) apart from Play Options' rate, the first time starting at
 that one. `--host-listen --rate HZ` sets it from the command line. The session list's answer carries it (`SessionInfo.RateHz`, a
 byte appended to its tail: 0 from a build that does not say), and the roster shows it beside the selected game and in its popup
 (the Nitro popup at its foot, the base game's in the rules line). The join accept already carried it: no protocol change beyond

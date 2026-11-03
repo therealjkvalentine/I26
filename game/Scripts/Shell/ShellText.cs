@@ -180,15 +180,15 @@ public static class ShellGlyphs
     }
 
     /// <summary>
-    /// The string as the face draws it at <see cref="RenderSize"/> px, as
+    /// The string as the face draws it at <see cref="RenderSize"/> px (or px), as
     /// coverage trimmed to its ink: the shaped glyphs' bitmaps taken from the
     /// font's own cache. Null without ink, or when a character is missing.
     /// </summary>
-    private static (byte[] A, int W, int H)? Raster(Font face, string s)
+    internal static (byte[] A, int W, int H)? Raster(Font face, string s, int px = RenderSize)
     {
         var ts = TextServerManager.GetPrimaryInterface();
         var line = new TextLine();
-        if (!line.AddString(s, face, RenderSize)) return null;
+        if (!line.AddString(s, face, px)) return null;
         var parts = new List<(byte[] Data, int Stride, int Bpp, Rect2I Src, Vector2I At)>();
         var pages = new Dictionary<(Rid, long), (byte[] Data, int W, int Bpp)>();
         float pen = 0;
@@ -291,7 +291,8 @@ public partial class ShellTextLayer : Control
                 var k = src.Size / box.Size;
                 return new Rect2(src.Position + (part.Position - box.Position) * k, part.Size * k);
             }
-            if (g.Caption is { } text)
+            if (g.Picture is { } pic) DrawTextureRectRegion(pic, dest, Sub(new Rect2(Vector2.Zero, pic.GetSize())));
+            else if (g.Caption is { } text)
             {
                 if (ShellGlyphs.Caption(text, g.Box.Size.X, g.Box.Size.Y) is { } t) DrawTextureRectRegion(t, dest, Sub(new Rect2(Vector2.Zero, t.GetSize())), ink);
             }
