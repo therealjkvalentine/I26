@@ -62,10 +62,11 @@ public class HorizonEdgeTests
     [Fact]
     public void TheModernRingTakesOneReferenceEyeSetOnce()
     {
-        var ring = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshader"));
+        // the ring's shader body is its include (the depth pre-pass and the main pass share it); the game sets the eye on both through HorizonTerrain.Set
+        var ring = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshaderinc"));
         Assert.Contains("sink_low + (ref_eye.y - sink_low)", ring);
         var main = File.ReadAllText(Path.Combine(Repo(), "game", "Scripts", "Boot", "Main.cs"));
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(main, "SetShaderParameter\\(\"ref_eye\"").Count);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(main, "Set\\(\"ref_eye\"").Count);
         Assert.Contains("HorizonEdge.Ring(world)", main);
     }
 }
