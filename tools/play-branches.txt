@@ -99,6 +99,7 @@ fix/movie-skip-deviation-row
 fix/end-of-match-brake
 fix/network-deviation-rows
 fix/cockpit-gauge-dials-too-dark      # the 3D cockpit's dials black under their lettering, the art at full size and sharp, the needles in the palette colour, lit, turned off-centre (measured)
+fix/target-tags-bold                  # the garage's (C), (V), (R) legends bold and a little larger (modern look)
 
 # C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
 perf/horizon-early-z
@@ -206,3 +207,12 @@ fix/smoke-depth                       # stacked on play: the modern smoke layer 
 fix/net-esc-labels                    # stacked on play: network Esc menu says Leave Match and Exit I76
 feat/pistol-keys                      # stacked on play: Pistol Left / Pistol Right keys (protocol 25)
 fix/round3-integration-4              # stacked on play, last of I: the * marks every value the original does not have on every row that offers the original's (Hood Finish, Render Scale, Wheel, 1997 Mode, Crash Blur, Vegetation, Mouse Camera, ...); a long value ends short of the shell's Graphic Detail scroll bar
+fix/dev-panel-scale                   # stacked on play: the Developer panels scale with the window (2x from 1080 rows, 3x at 4K)
+feat/graphics-rows-to-config          # after dev-panel-scale: HD Textures and HD Menu Art leave Graphic Detail for [port] keys and the Developer panel
+feat/dev-panel-settings-and-signals   # after graphics-rows-to-config: the Developer panel's Settings (every config-only key) and Signals (force feedback, rumble, telemetry)
+feat/upscale-colour-match             # stacked on play: tools/upscale-textures.py matches the model's colours back to the original's (Oklab, the detail kept)
+fix/smoke-depth-metal                 # stacked on play: with MSAA the smoke layer reads the multisampled depth itself (#95 on a Mac)
+fix/dymo-labels-brighter              # stacked on play: the modern cockpit's weapon labels pure white with a crisp edge
+feat/vegetation-density               # stacked on play: [port] vegetation_density, 60 % of the Vegetation level's plants by default
+fix/ai-fire-cadence-as-original       # stacked on play, docs only: the attack-tactic chooser's deviations row (1997 CD build vs the 1998 build)
+fix/zero-armour-damage-as-original    # stacked on play, test only: a round through a side whose armour is gone, as measured
