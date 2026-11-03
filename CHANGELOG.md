@@ -96,6 +96,7 @@
 - Signs and other knock-off objects made of several pieces are knocked off by touching one of their pieces, as in the original, not by coming near the middle of the whole object (a car can pass between the posts of a wide sign).
 - A computer car weighing up its moves in mid-air reads the same height above the ground as in the original, so a small hop ends when it would there.
 - A flat front tyre no longer tugs at your car's steering while a cut-scene drives it, as in the original.
+- A car killed by a hard landing is dead from that moment, as in the original: the rest of that physics step no longer runs on it and can no longer undo the death it just took.
 
 ## 0.11.0 (31 October 2026)
 
