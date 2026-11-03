@@ -106,4 +106,27 @@ public class DymoLabelsTests
         Assert.InRange(right - left + 1, 30 * s, 60 * s);
         Assert.InRange((left + right) / 2, 44 * s, 48 * s);
     }
+
+    [Theory]
+    [InlineData(true, 255)]
+    [InlineData(false, 238)]
+    public void TheFaceIsSolidWhiteWithACrispEdge(bool lit, int white)
+    {
+        const int s = 4;
+        int w = DymoLabels.PlateW * s, h = DymoLabels.PlateH * s;
+        var b = Plate(s);
+        DymoLabels.Paint(b, DymoLabels.PlateW, DymoLabels.PlateH, s, DymoLabels.Font!, "OIL SLICK", lit);
+        int solid = 0, fringe = 0;
+        for (int y = 7 * s; y <= 14 * s; y++)
+            for (int x = 0; x < w; x++)
+            {
+                var (r, g, bl) = At(b, w, h, x, y);
+                // the face's core is the white itself, not a pink blend with the tape
+                if (r == white && g == white && bl == white) solid++;
+                // a pink fringe: red with a light green/blue, between the tape and the face
+                else if (r > 200 && g is > 60 and < 200) fringe++;
+            }
+        Assert.True(solid > 200, $"{solid} solid white texels");
+        Assert.True(fringe < solid / 2, $"{fringe} fringe texels against {solid} solid");
+    }
 }

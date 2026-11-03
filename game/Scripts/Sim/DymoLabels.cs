@@ -63,7 +63,7 @@ public static class DymoLabels
     /// Paints the label over a plate: <paramref name="rgba"/> is the plate at <paramref name="s"/> texels a pixel
     /// (w·s × h·s RGBA8, stored bottom-up as the panels are). The lettering's rows take each row's tape colour (the
     /// commonest colour that is not a letter's grey), then the name is set in the font at the painted letters' height,
-    /// squeezed across where it is wider than the tape, embossed: a dark shadow down-right and the white face.
+    /// squeezed across where it is wider than the tape, embossed: a dark shadow down-right and the white face, its edge crisp.
     /// </summary>
     public static void Paint(byte[] rgba, int w, int h, int s, DymoFont font, string text, bool lit)
     {
@@ -81,11 +81,14 @@ public static class DymoLabels
         float ox = (tw - (right - left) * sx) / 2 - left * sx;
         float oy = (CentreRow + CapRows / 2) * s;
         var face = DymoFont.Fill(contours, tw, th, sx, sy, ox, oy);
+        // the face's edge made crisp: coverage 0.35..0.75 ramps to full, so the strokes are solid white with a texel's
+        // soft edge rather than a wide pink fringe where the antialiased edge blends into the red tape
+        for (int k = 0; k < face.Length; k++) face[k] = Math.Clamp((face[k] - 0.35f) / 0.4f, 0, 1);
         // the shadow: the face blurred a little, offset half and three quarters of a pixel
         int dx = (int)Math.Round(0.5f * s), dy = (int)Math.Round(0.75f * s);
-        var shadow = Blur(face, tw, th, Math.Max(1, s / 4));
-        (byte R, byte G, byte B) shade = lit ? ((byte)90, (byte)0, (byte)18) : ((byte)60, (byte)15, (byte)15);
-        byte white = lit ? (byte)236 : (byte)190;
+        var shadow = Blur(face, tw, th, Math.Max(1, s / 6));
+        (byte R, byte G, byte B) shade = lit ? ((byte)60, (byte)0, (byte)12) : ((byte)40, (byte)8, (byte)8);
+        byte white = lit ? LitWhite : UnlitWhite;
         for (int y = 0; y < th; y++)
             for (int x = 0; x < tw; x++)
             {
@@ -98,6 +101,9 @@ public static class DymoLabels
                 if (f > 0) Mix(rgba, i, white, white, white, f);
             }
     }
+
+    /// <summary>The face's white on a lit plate and on an unlit one: near pure white both, the unlit a step down.</summary>
+    public const byte LitWhite = 255, UnlitWhite = 238;
 
     private static void Mix(byte[] p, int i, byte r, byte g, byte b, float a)
     {
