@@ -122,6 +122,7 @@
 - The internet game list (the Net Melee Entry Roster) has a Connect to Server button under the games, which opens the server list again so you can look at another server's games without going back to the main menu (#122).
 Network games use protocol 22: this version does not play with 0.11.0 or earlier.
 - A network game's host can lock the ignition: with the host form's Ign: Lock (IGNITION STAYS ON in the Nitro and co-op game options, or --no-ignition-off for the dedicated server), nobody can switch their engine off in that game to hide from turrets; the game list shows "Ignition stays on" (#108).
+- Online co-op has a Co-op Scaling option on the host form: each enemy car of a story mission comes with up to one, two or three copies of itself, one for each player past the first, so a group has more to fight. The mission's objectives still follow the original cars.
 
 ## 0.11.0 (31 October 2026)
 

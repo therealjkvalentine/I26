@@ -332,8 +332,8 @@ public sealed partial class MeleeScreen
         // (y 356: the line's feet stay off the options box's top rule, y 368)
         if (_coopBase)
         {
-            // the options box's team play and score limit mean nothing in a story mission
-            Frame.Text(_font, 15, 356, "Co-op missions");
+            // the options box's team play and score limit mean nothing in a story mission: the free Bots line has the co-op rules
+            Frame.Text(_font, 15, 356, $"Foes: {CoopScaleText}");
         }
         else
         {
@@ -391,6 +391,16 @@ public sealed partial class MeleeScreen
         Shell.Settings.CbRadio = !Shell.Settings.CbRadio;
         Shell.Settings.Save();
     }
+
+    /// <summary>The host form's Co-op Scaling (the port's; docs/deviations.md): the most extra copies of each enemy car, one per player past the first (0 off).</summary>
+    private void StepCoopScale(int d)
+    {
+        int n = I76.Sim.Missions.CoopSetup.MaxExtraEnemies + 1;
+        Shell.Settings.CoopScale = (Shell.Settings.CoopScale + d + n) % n;
+        Shell.Settings.Save();
+    }
+
+    private string CoopScaleText => Shell.Settings.CoopScale == 0 ? "Off" : $"+{Shell.Settings.CoopScale}";
 
     /// <summary>The host form's Car Reset (the port's): whether the game's players may press the reset-upright key (X) to put their car back on the terrain, upright and still.</summary>
     private void ToggleCarReset()
@@ -565,6 +575,7 @@ public sealed partial class MeleeScreen
     {
         _turretsWas = _turrets;
         _ignitionWas = Shell.Settings.IgnitionStaysOn;
+        _coopScaleWas = Shell.Settings.CoopScale;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio);
         int wasRate = _rate;
         var wasCars = new List<string>(_botCars);
@@ -572,6 +583,7 @@ public sealed partial class MeleeScreen
     }
 
     private bool _turretsWas, _ignitionWas;
+    private int _coopScaleWas;
 
     private void OptionsPopupWith((bool, int, int, bool, int, I76.Sim.Missions.BotSkill, bool, bool, bool, bool) was, int wasRate, List<string> wasCars)
     {
@@ -593,6 +605,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.CarReset != was.Item9) ToggleCarReset();
                     if (Shell.Settings.IgnitionStaysOn != _ignitionWas) ToggleIgnition();
                     if (Shell.Settings.CbRadio != was.Item10) ToggleCb();
+                    if (Shell.Settings.CoopScale != _coopScaleWas) { Shell.Settings.CoopScale = _coopScaleWas; Shell.Settings.Save(); }
                 }
                 Draw();
             },
@@ -630,6 +643,8 @@ public sealed partial class MeleeScreen
             return
             [
                 new("INVITE ONLY", false, _inviteOnly, "", _ => _inviteOnly = !_inviteOnly),
+                // the port's: extra enemy cars for a bigger group (docs/deviations.md)
+                new("CO-OP SCALING:", true, false, CoopScaleText, StepCoopScale),
                 new("HIDDEN WPNS & CARS", false, Shell.Settings.HiddenContent, "", _ => ToggleHidden()),
                 new("UNLIM. TURRETS", false, _turrets, "", _ => SetTurrets(!_turrets)),
                 new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()),
@@ -726,6 +741,7 @@ public sealed partial class MeleeScreen
             case 36 when Hosting: ToggleCarReset(); return true;
             case 39 when Hosting: ToggleIgnition(); return true;
             case 37 when Hosting: ToggleCb(); return true;
+            case 40 when Hosting: StepCoopScale(1); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -770,7 +786,7 @@ public sealed partial class MeleeScreen
                     Kind = Nitro && !Coop ? Types[_kind].Kind : null, Goal = NitroGoal.Goal, GoalValue = NitroGoal.Value, Minutes = NitroGoal.Minutes, CtfTeams = Types[_kind].Teams,
                     Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio, IgnitionStaysOn = Shell.Settings.IgnitionStaysOn,
                     Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
-                    Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar,
+                    Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar, CoopScale = Coop ? Shell.Settings.CoopScale : 0,
                 },
             });
         }

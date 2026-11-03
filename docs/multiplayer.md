@@ -694,6 +694,26 @@ else the first living human), rebuilt in place as a network melee's reconfigured
 driver's handguns kept and loaded, the engine started, `NetGeneration` up, the driver's keys at rest). With nobody
 alive it waits: the script then sees the group dead. Seats' deaths and timers are saved.
 
+### Co-op Scaling
+
+The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the host form's Co-op Scaling, `--coop-scale N`; off
+by default). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
+copies, the cap 1–3 (`CoopSetup.MaxExtraEnemies`), decided once, the first time the script orders it (most stock enemies are given
+their sit or hide order on the first tick, so in a game that started from its lobby the copies are there from the start; a game
+whose players came later has the copies of the humans present when each car was first ordered). A copy is the same car file
+(an AI car's damage state, the night's lights) placed beside the original by the formation's rule (`SpawnSpace.Beside`), facing and
+moving as it does, with its skill and aggression. Every order the script gives the original goes to its living copies in the same
+tick, a human target or follow reference taken as the human nearest the copy (`NearestHuman`); its settings (skill, aggression,
+avoidance, attacker cap, start, lights, siren) and a teleport (beside it again) too. Once the original is dead or gone, each living
+copy attacks the human nearest it every tick until destroyed (`ScriptHost.ExtrasFrame`).
+
+The script never sees a copy: no instance id (the registry's lookups miss it), no actor slot, and left out of the host's vehicle
+lists, so `allEnemyDead`, `nearestEnemy` and `isWithinEnemy` and every objective and counter follow the originals alone
+(`CoopScalingTests`: T02's objective succeeds when its three enemy cars die, their six copies alive, as without the option). A
+copy that hits a human is still that human's attacker (`whoShot`). On the server the copies are spawn events with their files
+(`CoopGroup.Spawned`), so the clients' mirrors build them as cars the server names; they are entities and cars of the savestate
+(format 16: `Entity.ExtraOf`, `Entity.Scaled`, the cap in the build), and a restore makes them again (`CoopGroup.BuildEnemy`).
+
 ### Cut-scenes and the controls
 
 A cut-scene (the script holding the camera) drives the lead; every driver's keys are held as the one player's were

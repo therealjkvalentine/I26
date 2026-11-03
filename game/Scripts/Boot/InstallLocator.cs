@@ -13,6 +13,7 @@ namespace I76.Game.Boot;
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
 ///   --host-listen [--arena m05] [--port 7676] [--rate 20|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
+///   --coop-scale 0-3   (with --host-listen --coop: each enemy car gets a copy per player past the first, up to that many; else the host form's Co-op Scaling)
 ///   --password WORD   (with --host-listen: the game needs it; with --connect or --join-anet: the one to join with; never saved)
 ///   --restrict a,b,c   (with --host-listen: WEAPON RESTRICTIONS, as i26-server's: all, slugs, mortars, missiles, flames, droppers, a .gdf, class:tier)
 ///   --turrets  (with --host-listen: cars may carry several roof turrets; else the host form's setting)
@@ -74,6 +75,8 @@ public sealed class LaunchOptions
     public string? Coop { get; set; }
     /// <summary>--coop-lobby with --host-listen --coop: the game opens in its lobby, as a host form's co-op game does (the command line starts the mission at once without it).</summary>
     public bool CoopLobby { get; set; }
+    /// <summary>--coop-scale N with --host-listen --coop: each enemy car gets a copy per player past the first, up to N (docs/deviations.md); null: the host form's setting.</summary>
+    public int? CoopScale { get; set; }
     /// <summary>--anet HOST[:PORT] with --host-listen: list the game on that anet server (repeatable).</summary>
     public List<string> AnetServers { get; set; } = [];
     /// <summary>--join-anet HOST[:PORT]: join a game listed there, through its introduction and the hole punch (--session NAME picks it; the shell gives the record itself).</summary>
@@ -254,6 +257,7 @@ public sealed class LaunchOptions
                 case "--host-listen": o.HostListen = true; break;
                 case "--coop": o.Coop = Next(); break;
                 case "--coop-lobby": o.CoopLobby = true; break;
+                case "--coop-scale": o.CoopScale = int.TryParse(Next(), out int cs) ? Math.Clamp(cs, 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies) : 0; break;
                 case "--anet": o.AnetServers.Add(Next()); break;
                 case "--join-anet": o.JoinAnet = Next(); break;
                 case "--session": o.SessionName = Next(); break;
