@@ -117,6 +117,8 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_NO_OVERLAY` | capture | Leave the debug overlay out. |
 | `I76_NO_SCRIPT_CAM` | capture | `1`: ignore the mission script's camera moves (keep the cockpit view). |
 | `I76_MOVIE_HOLD` | capture | Hold a movie on a frame number. |
+| `I76_MOVIE_SHOT` | capture | `out.png@SECONDS`: an HD movie (`movies/*.ogv`) saves the window when its stream reaches that time, and logs the stream's and the wall clock's time. |
+| `I76_MOVIE_LOG` | debug | `1`: an HD movie logs its stream time against the wall clock each second and every frame that came more than 1/15 s after the last. Its end line (always) gives the stream's length, the wall-clock time it took and the late frames. |
 
 ## Map editor (docs/map-editor.md)
 
@@ -321,6 +323,7 @@ Turn off Cheater Options clears it. Not there yet: freezing the AI and spawning 
 | `I76_DEBUG_CAM`, `I76_DEBUG_PLAYER` | debug | Scripted camera and player debug lines (`SimDriver`), with each change of the player's tyre sounds. |
 | `I76_MUSIC_PROBE` | debug | `1`: log every music player four times a second. |
 | `I76_MUSIC_SEQUENCE` | setting | `retail`: the 1997 game's mission music (N..14, then 2..14, each restart on a 60 s poll); `gog`: the 1998 GOG build's (the mission's track, then track 2 on a 60 s poll). Default: on to the next track at once, wrapping to track 2 after the last. |
+| `I76_BUILD_PACE` | debug | `0`: a mission built under its briefing (`briefing_while_loading`) keeps the player's frame cap and VSync instead of uncapped Mailbox frames; the build then waits a displayed frame for each renderer call that returns a value (t08: 21 s instead of 13 at the 240 fps cap). |
 | `I76_SHADER_SMOKE` | debug | `1`: draw every shader of `game/Shaders` once and quit; the renderer's log shows any it refuses (with `--rendering-method gl_compatibility`, docs/compatibility-renderer.md). |
 | `I76_EXIT_WATCHDOG` | debug | `0`: leave out the watchdog that ends a run when the engine hangs in its own exit. |
 

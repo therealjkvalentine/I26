@@ -415,9 +415,22 @@ public partial class Main : Node3D
             AddChild(new InstallerScreen { Message = _status, OnInstalled = _ => GetTree().ReloadCurrentScene() });
             return;
         }
+        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
+        // thread under the movie, the rest of the load after it, behind the card
+        (Load Start, Node3D? World, System.Exception? Error)? built = null;
+        if (BriefingDuringLoad(loading is not null) is { } briefing)
+        {
+            built = await BuildUnderBriefing(briefing);
+            if (!IsInsideTree()) return;
+        }
         // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
         var load = Hitch.Time(Hitch.Phase.Load);
-        try { LoadMission(); }
+        try
+        {
+            if (built is not { } b) LoadMission();
+            else if (b.Error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(b.Error).Throw();
+            else AttachWorld(b.Start, b.World!);
+        }
         catch (System.Exception ex)
         {
             _status = $"failed to load: {ex.Message}";
@@ -486,7 +499,8 @@ public partial class Main : Node3D
         if (_editorMode) return;
         // The original's start-up plays the mission's briefing (WRLD +0x04) before it starts, and the music after it
         // (a network co-op mission has none: its host's mission runs from the first player in, docs/deviations.md)
-        if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
+        if (built is not null) StartMissionMusic();   // its briefing played over the build
+        else if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
             MissionMovie(new GameInstall(_opt.Install), ws.Briefing);
         else StartMissionMusic();
     }
@@ -1602,14 +1616,93 @@ public partial class Main : Node3D
         }
     }
 
-    private void LoadMission()
+    /// <summary>A mission load begun: the builder made, its world still to build from <see cref="Msn"/>.</summary>
+    private sealed record Load(GameInstall Install, AssetVfs Vfs, string Msn, System.Diagnostics.Stopwatch Clock, MissionBuilder Builder);
+
+    private Load StartLoad()
     {
         var install = new GameInstall(_opt.Install!);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var vfs = new AssetVfs(install);
         var msn = MissionPath(install);
-        _builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
-        var world = _builder.Build(msn);
+        var builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
+        return new Load(install, vfs, msn, sw, builder);
+    }
+
+    private void LoadMission()
+    {
+        var start = StartLoad();
+        _builder = start.Builder;
+        AttachWorld(start, _builder.Build(start.Msn));
+    }
+
+    /// <summary>
+    /// The briefing a mission start plays while its world builds, or null for the original's order (the build, then the
+    /// briefing): the setting on, the modern look, a single-player start behind the loading card with a briefing movie that
+    /// is there, and no checkpoint to resume (BriefingOverlap.Plan).
+    /// </summary>
+    private string? BriefingDuringLoad(bool card)
+    {
+        if (!card || _opt.Install is null || _opt.Mission is null) return null;
+        var install = new GameInstall(_opt.Install);
+        string? name = null;
+        try
+        {
+            if (install.FindMission(_opt.Mission) is { } path)
+                name = I76.Formats.Mission.WorldSettings.Read(new I76.Formats.Mission.MissionFile(path))?.Briefing;
+        }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.ArgumentException) { return null; }
+        bool on = BriefingOverlap.Plan(I76.Game.Shell.ShellSettings.Load().BriefingWhileLoading, _opt.Mode1997, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null,
+            _opt.SkipMovies, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        return on ? name : null;
+    }
+
+    /// <summary>
+    /// The mission's world built on a thread of its own while its briefing plays (the movie draws on the main thread, the
+    /// build makes nodes outside the tree and touches none in it); both over, the world comes back for <see cref="AttachWorld"/>
+    /// on the main thread. A briefing ended early leaves the loading card up until the build is done.
+    /// </summary>
+    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildUnderBriefing(string briefing)
+    {
+        // the builder is the game's (_builder, which the overlay and the views read each frame) only once the thread is done with it
+        var start = StartLoad();
+        var builder = start.Builder;
+        builder.OffMainThread = true;
+        Node3D? world = null;
+        System.Exception? error = null;
+        MissionBuilder.Trace("build: on its own thread, under the briefing");
+        var thread = new System.Threading.Thread(() =>
+        {
+            try { world = builder.Build(start.Msn); }
+            catch (System.Exception ex) { error = ex; }
+            start.Clock.Stop();   // the status line's time is the build's, not the movie's
+        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
+        if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
+        thread.Start();
+        var over = new System.Threading.Tasks.TaskCompletionSource();
+        try { PlayMovies(start.Install, [briefing], () => over.TrySetResult()); }
+        catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
+        bool built = false;
+        while (thread.IsAlive || !over.Task.IsCompleted)
+        {
+            if (!built && !thread.IsAlive) { built = true; FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load()); MissionBuilder.Trace($"build: done under the briefing ({start.Clock.ElapsedMilliseconds} ms)"); }
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInsideTree()) break;
+        }
+        thread.Join();
+        if (!built) FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
+        _builder = builder;
+        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
+        MissionBuilder.Trace("build: briefing and build both over");
+        return (start, world, error);
+    }
+
+    /// <summary>The rest of the load on the main thread: the built world into the tree, the sky, the music, the camera.</summary>
+    private void AttachWorld(Load start, Node3D world)
+    {
+        var install = start.Install;
+        var sw = start.Clock;
+        var vfs = start.Vfs;
         _worldRoot.AddChild(world);
         MissionBuilder.Trace("world in tree");
         _builder.Scenery!.Modern = !_mode1997;
