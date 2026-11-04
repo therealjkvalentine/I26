@@ -93,6 +93,7 @@ Network games use protocol 26: this version does not play with 0.11.0 or earlier
 - I26 tells you when a newer release is out: at start-up it quietly checks GitHub and shows "version X available" under the version in the corner of the game chooser and the main menu (click it to open the release page). Play Options (second page) has a Check for Updates row to turn it off (#138).
 
 ### Fixed
+- Computer cars with mines, oil, Blox or fire droppers no longer drop them under a car chasing them straight on at more than about 100 km/h (28 m/s): as in the original (the build GOG sells, measured), they judge where you will be a little ahead of time, so a fast pursuer is already past their spot.
 - Melee and network games no longer play the menu's music: an arena that asks for the menu's track (M09; on the Nitro Pack, arenas asking for its menu's or credits' track) starts on the next mission track, and the Nitro Pack's mission music passes over those two tracks as I76's stops at track 14.
 - The modern cockpit's weapon and special labels are whiter and crisper: the letters are pure white on a lit plate and near white on an unlit one, with a sharp edge and a darker emboss shadow instead of a pinkish blur into the red tape.
 - In the modern look the burning wrecks by the road (T05, T15 and others) are on fire and smoking from as far away as the 1997 look shows them, 600 m, instead of coming into view bare and catching light only within 150 m.
@@ -166,7 +167,7 @@ Network games use protocol 26: this version does not play with 0.11.0 or earlier
 - With the Voice level at 0 or 1 (single player), CB lines are no longer queued silently: missions that wait for the radio to go quiet move on at once, as in the original, and opening the menu clears the radio.
 - Sounds are dropped or admitted by their distance from your car, as in the original, also while the camera follows a shell (F11) or another subject, instead of from what the camera follows.
 - An AI car backing away stops when the ground under it rises or falls 3 m, as the original's does (backing off a bridge deck over a gully), instead of when the car itself climbs or drops 3 m (up a ramp or a structure, or in the air).
-- Mortar cars lead their target as the original's do: a little ahead of time, and along its turn when it is turning. Computer cars with mines, oil, Blox or fire droppers still drop them under a car chasing them straight on at any speed, as the original's do.
+- Mortar cars lead their target as the original's do: a little ahead of time, and along its turn when it is turning.
 - Computer drivers that ram, chase or cut off a turning or sliding car aim where the original's do: they read its turn from the way the car points and the gear it is in, not from the way it is sliding, and put a car in a right-hand turn back round its circle as the original does.
 - A mission or mod script that limits the computer cars attacking you to 0 lets one at a time come at you, as in the original, instead of making all of them hang back.
 - A car shoved into a wall by another car in the same moment bounces off the wall, as in the original, instead of being driven on into it by the shove.

@@ -5,7 +5,7 @@ namespace I76.Sim.Ai;
 
 /// <summary>
 /// The AI's target predictor: where a vehicle will be after a lead time chosen by the caller plus a fixed 0.09 s.
-/// Used by lead pursuit, intercept, ram approach and the mortar fire gate (the dropper gate takes a straight line). It reads the target's
+/// Used by lead pursuit, intercept, ram approach and the mortar and dropper fire gates. It reads the target's
 /// position, velocity, speed, yaw rate, gear direction and rows; no acceleration, no shooter, no projectile.
 /// </summary>
 public static class TargetPredictor

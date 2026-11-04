@@ -10,10 +10,9 @@ using Xunit;
 namespace I76.Sim.Tests;
 
 /// <summary>
-/// The AI's dropper (class 6) fire gate predicts the target in a straight line at its arrival time; the mortar (class 3,
-/// subtypes other than the EZK) predicts it with the target predictor: the gate's time + 0.09 s, along the turning
-/// circle when the target turns (ai.md, the target predictor's callers). The dropper's cases are measured in the
-/// original (retail 1.0, emulated Pentium, 2 boots).
+/// The AI's dropper (class 6) and mortar (class 3, subtypes other than the EZK) fire gates predict the target with the
+/// target predictor: the gate's time + 0.09 s, along the turning circle when the target turns (ai.md, the dropper gate
+/// and the target predictor's callers).
 /// </summary>
 public class AiDropAndMortarGateTests
 {
@@ -56,56 +55,53 @@ public class AiDropAndMortarGateTests
     [InlineData(30f)]
     [InlineData(60f)]
     [InlineData(120f)]
-    public void ADropperDropsOnAPursuerStraightBehindAtAnySpeed(float behind)
+    public void ADropperDropsOnAPursuerStraightBehindAt20ButNotAt32(float behind)
     {
         var (c, shooter, target, w) = Rig(6, 0);
         Drive(shooter, Vector3.Zero, 20);
-        foreach (float v in new[] { 20f, 27f, 29f, 32f })
-        {
-            Drive(target, new Vector3(0, 0, -behind), v);
-            Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
-        }
+        Drive(target, new Vector3(0, 0, -behind), 20);        // predicted 0.09 x 20 = 1.8 past the spot
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        Drive(target, new Vector3(0, 0, -behind), 27);        // 2.43 past
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        Drive(target, new Vector3(0, 0, -behind), 29);        // 2.61 past: beyond 2.5
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+        Drive(target, new Vector3(0, 0, -behind), 32);        // 2.88 past
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
     }
 
     [Theory]
-    [InlineData(40f)]
-    [InlineData(50f)]
-    [InlineData(60f)]
-    public void ADropperDropsOnAFastPursuerStraightOn(float speed)
+    [InlineData(20f, 0f, true)]
+    [InlineData(20f, 1f, true)]       // 1.0 aside: 2.06 m from the spot at t + 0.09 s
+    [InlineData(20f, 2f, false)]      // 2.0 aside: 2.0 on the straight line at t, 2.69 at t + 0.09 s
+    [InlineData(36f, 0f, false)]      // 3.24 past the spot
+    [InlineData(36f, 1f, false)]
+    [InlineData(45f, 0f, false)]      // 4.05 past
+    public void AStillDropperDropsOnAPursuerAsMeasured(float speed, float aside, bool drops)
     {
-        // measured: the original dropped under a pursuer coming straight on at 40, 50 and 60 m/s
+        // measured in the original (the 1998 build GOG ships, emulated Pentium): an Oil Slick car held still on a straight
+        // road, the player's car launched at it and coasting from 5.5 s out; oil under it every second at 20 m/s straight on
+        // and 1 m aside, none once it ran free at 36 or 45 m/s straight on or at 20 m/s 2 m aside (2 trials each); launched at 28 m/s it still dropped while
+        // coasting at 27.5-27.9 m/s, 2.47-2.51 m from the spot at t + 0.09 s: the 2.5 m edge
         var (c, shooter, target, w) = Rig(6, 0);
-        Drive(shooter, Vector3.Zero, 20);
-        Drive(target, new Vector3(0, 0, -60), speed);
-        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        Drive(shooter, Vector3.Zero, 0);
+        Drive(target, new Vector3(aside, 0, -4f * speed), speed);
+        Assert.Equal(drops, c.AiShouldFire(shooter, target, w, 1, 1));
     }
 
     [Fact]
-    public void ADropperDropsOnAPursuer2Point3MAsideButNot2Point8()
-    {
-        // measured: dropped on at 2.3 m of lateral offset, not at 2.8 (the 2.5 m radius)
-        var (c, shooter, target, w) = Rig(6, 0);
-        Drive(shooter, Vector3.Zero, 20);
-        Drive(target, new Vector3(2.3f, 0, -60), 40);
-        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
-        Drive(target, new Vector3(2.8f, 0, -60), 40);
-        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
-    }
-
-    [Fact]
-    public void ADropperPredictsATurningPursuerInAStraightLine()
+    public void ADropperPredictsATurningPursuerAlongItsCircle()
     {
         var (c, shooter, target, w) = Rig(6, 0);
         Drive(shooter, Vector3.Zero, 20);
-        // 20 m/s turning left at 0.2 rad/s from behind and to the right, its circle running through the dropper: in a
-        // straight line it passes 27 m aside, so no drop, whichever way and however fast it turns
+        // 20 m/s turning left at 0.2 rad/s (radius 100) from behind and to the right, its circle running through the
+        // dropper: 73.95 m of chord, 3.70 s + 0.09 s, 0.7575 rad of arc. In a straight line it would pass 27 m aside.
         Drive(target, new Vector3(27.3455f, 0, -68.7119f), 20, 0.2f);
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        Drive(target, new Vector3(27.3455f, 0, -68.7119f), 20, 0.04f);   // below 0.05 rad/s: the straight line
         Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+        // the mirror, turning right: the original's predictor carries it back round its circle, so no drop
         Drive(target, new Vector3(-27.3455f, 0, -68.7119f), 20, -0.2f);
         Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
-        // turning, but its straight line runs over the spot: dropped on
-        Drive(target, new Vector3(0, 0, -60), 30, 0.2f);
-        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
     }
 
     [Fact]
