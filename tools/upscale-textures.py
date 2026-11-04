@@ -25,6 +25,21 @@ in the texture's stored row order (SRC_DIR/bottom-up.txt), so the game sends it 
 missing or the size is not a multiple of 4. The output folder is the game's own (Windows %APPDATA%/I26/tex-world-Nx, Linux
 ~/.local/share/I26/tex-world-Nx, macOS ~/Library/Application Support/I26/tex-world-Nx) unless --out says otherwise; a texture already
 there is skipped, so a stopped run resumes. Only the modern look draws these; Graphic Detail's HD Textures row switches them off.
+
+The cockpit by family (--families): the cockpit's art suits different models, so --families runs each family of z* textures
+through its own colour model (the table COCKPIT below, or --family-table FILE.json with the same rows) and, for the art
+drawn as a keyed shape, the alpha step:
+           python3 tools/upscale-textures.py SRC_DIR --families --models-dir DIR [--from 8X_MASTERS] --only "z*" --max-size 640
+The family models are not downloaded: put them in --models-dir (default ~/.cache/i26/models); a missing one stops the run and
+names its source. A family without a colour model of its own takes the run's colour (--from, else --model). --families
+overrides --pixel for the textures it lists. The alpha step (--alpha for every texture, or a family's alpha column): the
+game's keyed textures have a binary alpha, so a keyed shape's outline (dial ticks and numerals, needles, the reticle) is
+otherwise the alpha enlarged bilinear and cut at one half, stair-stepped whatever the colour model; with it the alpha goes
+through 4xHDcube-Alpha (by Venomalia, made for alpha: grey in all three channels, reflect-padded and tiled like the
+colour), and the model's output, the three channels averaged, is cut at one half at the written size. Colour is bled
+under the new key as always. Models run on tiles (--tile, 128 px by default, the context padded 16 px) and in half
+precision on a GPU where the model allows it; --gpu-share F idles F times each tile's time after it, for a GPU shared
+with other work. pack.json and ATTRIBUTION.txt name every model used.
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -34,6 +49,30 @@ MODEL = "4xTextures_GTAV_rgt-s_dither"
 MODEL_URL = f"https://github.com/Phhofm/models/releases/download/{MODEL}/{MODEL}.pth"
 ATTRIBUTION = f"{MODEL} by Philip Hofmann (Phhofm), CC-BY-4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither"
 PAD = 16   # reflect padding, against ringing at the edges
+ALPHA_MODEL = "4xHDcube-Alpha.pth"
+# model file -> (name, author, licence, source); NC = non-commercial: such a pack is for your own use
+MODELS = {
+    MODEL + ".pth": (MODEL, "Philip Hofmann (Phhofm)", "CC-BY-4.0", "https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither"),
+    "4xHDcube3_500k.pth": ("4xHDcube3_500k", "Venomalia", "CC-BY-NC-SA-4.0 (non-commercial)", "https://github.com/Venomalia/HDcube/releases/download/3.0/4xHDcube3_500k.pth"),
+    "4x-UltraSharpV2.safetensors": ("4x-UltraSharpV2", "Kim2091", "CC-BY-NC-SA-4.0 (non-commercial)", "https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2.safetensors"),
+    "4xHDCube4Compact.pth": ("4xHDcube4Compact", "Venomalia", "HDcube licence (the author claims no rights in outputs)", "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip"),
+    ALPHA_MODEL: ("4xHDcube-Alpha", "Venomalia", "HDcube licence (the author claims no rights in outputs)", "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip (Alpha folder)"),
+}
+# The cockpit's families: (family, name globs, colour model file or None = the run's colour (--from, else --model), alpha step)
+COCKPIT = [
+    ("radar", "zradf*,zradb*,zradmask", "4xHDcube3_500k.pth", False),
+    ("panels", "zdash*", "4x-UltraSharpV2.safetensors", False),
+    ("gauges", "zspeedo*,ztach*", None, True),
+    ("needles", "zneedle*", None, True),
+    ("gear", "zgear*", "4x-UltraSharpV2.safetensors", False),
+    ("compass", "zcm_*,zcme*", "4x-UltraSharpV2.safetensors", False),
+    ("damage", "zsy_*,zsye*", "4xHDcube3_500k.pth", False),
+    ("weapons", "zwpe*,zbk_*,zbks_*,zdde*,zdse*,zdue*,zsle*,zrge*,ztge*,zbar_*", "4xHDcube3_500k.pth", False),
+    ("mirror", "zmiri*,zmiro*", "4x-UltraSharpV2.safetensors", False),
+    ("notepad", "znpd*,zhpd*,zcbh*", "4xHDCube4Compact.pth", False),
+    ("hands", "zswls*,zhl45*,zhr45*,zsl45*,zsr45*", "4xHDcube3_500k.pth", False),
+    ("misc", "zretc*,ztarg*,zteam,zbinc", None, True),
+]
 
 def user_dir(scale=2):
     if sys.platform == "win32": return os.path.join(os.environ.get("APPDATA", ""), "I26", f"tex-world-{scale}x")
@@ -66,15 +105,45 @@ def bleed(rgb, alpha, passes=8):
         rgb[fill] = acc[fill] / cnt[fill][..., None]; m = m | fill
     return rgb
 
+TILE = 128      # --tile: model input tiles (each with PAD of context), so no pass is larger than TILE + 2 PAD
+GPU_SHARE = 0.0  # --gpu-share: idle this many times each tile's time after it
+
+def run_tiled(model, device, torch, x):
+    """float HxWx3 in 0..1 -> float at the model's scale, through the model tile by tile (reflect-padded, each tile with
+    PAD texels of context on every side), in the precision the model was loaded in (load_model)."""
+    s = model.scale; h, w = x.shape[:2]
+    dtype = next(model.model.parameters()).dtype
+    P = np.pad(x.astype(np.float32), ((PAD, PAD), (PAD, PAD), (0, 0)), mode="reflect")
+    out = np.zeros((h * s, w * s, 3), np.float32)
+    for y in range(0, h, TILE):
+        for x0 in range(0, w, TILE):
+            th, tw = min(TILE, h - y), min(TILE, w - x0)
+            t = torch.from_numpy(np.ascontiguousarray(P[y:y + th + 2 * PAD, x0:x0 + tw + 2 * PAD])).permute(2, 0, 1)[None].to(device)
+            t = t.to(dtype)
+            t0 = time.time()
+            with torch.no_grad(): Y = model(t)
+            Y = Y[0].float().permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+            if GPU_SHARE > 0: time.sleep((time.time() - t0) * GPU_SHARE)
+            out[y * s:(y + th) * s, x0 * s:(x0 + tw) * s] = Y[PAD * s:(PAD + th) * s, PAD * s:(PAD + tw) * s]
+    return out
+
 def upscale(model, device, torch, im):
     """RGBA in, RGBA at the model's scale out: colour through the model, alpha scaled on its own and cut at one half."""
-    a = im[..., 3]; rgb = bleed(im[..., :3], a) / 255.0
-    x = torch.from_numpy(np.pad(rgb, ((PAD, PAD), (PAD, PAD), (0, 0)), mode="reflect")).permute(2, 0, 1)[None].float().to(device)
-    with torch.no_grad(): y = model(x)
-    s = model.scale
-    y = y[0].permute(1, 2, 0).clamp(0, 1).cpu().numpy()[PAD * s:-PAD * s, PAD * s:-PAD * s]
+    a = im[..., 3]; s = model.scale
+    y = run_tiled(model, device, torch, np.clip(bleed(im[..., :3], a) + 0.5, 0, 255).astype(np.uint8) / 255.0)
     A = np.array(Image.fromarray(a).resize((a.shape[1] * s, a.shape[0] * s), Image.BILINEAR))
     return np.dstack([(y * 255 + 0.5).astype(np.uint8), np.where(A >= 128, 255, 0).astype(np.uint8)])
+
+def load_model(spandrel, torch, path, device):
+    """A spandrel model on the device, in half precision on a GPU where the model allows it."""
+    m = spandrel.ModelLoader().load_from_file(path).to(device).eval()
+    if device != "cpu" and m.supports_half: m = m.half()
+    return m
+
+def alpha_up(model, device, torch, a):
+    """The alpha step: a texture's alpha (0..255) through the alpha model, grey in all three channels; the channels'
+    mean, 0..1 at the model's scale (cut at one half where it is written, by finish)."""
+    return run_tiled(model, device, torch, np.repeat(a[..., None].astype(np.float32) / 255.0, 3, -1)).mean(-1)
 
 def pixel_scale(im, s=4):
     """Pixel art at s x in its own colours: a bicubic enlargement, then each texel takes the closest of the 3 x 3 original
@@ -130,6 +199,13 @@ def colour_match(big, orig, sigma=1.5):
     rgb = np.clip(from_oklab(B + D) + 0.5, 0, 255).astype(np.uint8)
     return np.dstack([rgb, big[..., 3]])
 
+def alpha_ok(big, h, w, s):
+    """finish() with an alpha step's output: a disc at twice the written size comes back as the disc, cut at one half."""
+    yy, xx = np.mgrid[0:h * s * 2, 0:w * s * 2]; disc = (((yy - h * s) ** 2 + (xx - w * s) ** 2) < (h * s * 0.6) ** 2).astype(np.float32)
+    px = finish(big, w, h, s, alpha=disc * 0.8)          # 0.8 > 0.5: the disc opaque, the rest keyed
+    want = np.array(Image.fromarray(disc * 0.8, "F").resize((w * s, h * s), Image.BILINEAR)) >= 0.5
+    return np.array_equal(px[..., 3] == 255, want) and set(np.unique(px[..., 3])) <= {0, 255} and px[..., :3][~want].sum() > 0
+
 def self_check():
     """Colour match on a made-up texture: a model-like upscale with a colour cast and fine detail comes back to the original's
     colour, keeps its detail and its alpha."""
@@ -156,22 +232,27 @@ def self_check():
               (f"colour error {e0:.2f} -> {e1:.2f} (under a third)", e1 < e0 / 3),
               (f"fine detail kept (correlation {keep:.3f} > 0.95)", keep > 0.95),
               ("alpha unchanged", np.array_equal(out[..., 3], big[..., 3])),
-              ("a size that is not a multiple is left alone", np.array_equal(colour_match(big[:-1], orig), big[:-1]))]
+              ("a size that is not a multiple is left alone", np.array_equal(colour_match(big[:-1], orig), big[:-1])),
+              ("the alpha step's alpha is cut at one half at the written size, colour bled under it", alpha_ok(big, h, w, s))]
     for name, ok in checks: print(("ok   " if ok else "FAIL ") + name)
     return all(ok for _, ok in checks)
 
 def matches(stem, globs):
     return any(fnmatch.fnmatch(stem, g.strip().lower()) for g in globs.split(",") if g.strip())
 
-def finish(big, ow, oh, scale):
+def finish(big, ow, oh, scale, alpha=None):
     """The model's RGBA (upright) at `scale` times the original (ow x oh): colour Lanczos, alpha box and cut at one half, then the
-    colour bled under the key all the way (the mipmaps average it in)."""
+    colour bled under the key all the way (the mipmaps average it in). `alpha`: the alpha step's output (0..1, any size),
+    taken to the written size bilinear and cut at one half in place of big's alpha."""
     w, h = ow * scale, oh * scale
     if big.shape[1] != w or big.shape[0] != h:
         rgb = np.array(Image.fromarray(big[..., :3]).resize((w, h), Image.LANCZOS))
         a = np.array(Image.fromarray(big[..., 3]).resize((w, h), Image.BOX))
     else:
         rgb, a = big[..., :3], big[..., 3]
+    if alpha is not None:
+        A = alpha if alpha.shape == (h, w) else np.array(Image.fromarray(alpha.astype(np.float32), "F").resize((w, h), Image.BILINEAR))
+        a = np.where(A >= 0.5, 255, 0)
     a = np.where(a >= 128, 255, 0).astype(np.uint8)
     rgb = bleed(rgb, a, passes=64)
     if (a == 0).any() and (a > 0).any():
@@ -196,26 +277,57 @@ def write_dds(path, rgba, etcpak):
     dx10 = struct.pack("<IIIII", 99, 3, 0, 1, 0)                           # DXGI_FORMAT_BC7_UNORM_SRGB, a 2D texture
     with open(path, "wb") as f: f.write(hdr + dx10 + b"".join(blocks))
 
+class Runner:
+    """The models of a run, loaded when first needed (two kept at a time, the jobs sorted by family): run(im, file) is
+    upscale() through that colour model (None: the run's own, --model), alpha(a) the alpha step."""
+    def __init__(self, device, default, models_dir, alpha_file):
+        import torch, spandrel
+        self.torch, self.spandrel, self.device = torch, spandrel, device
+        self.default, self.models_dir, self.alpha_file, self.loaded, self.used = default, models_dir, alpha_file, {}, []
+    def model(self, f):
+        if f is None: f = self.default = model_file(self.default)       # the run's own model (downloaded once if needed)
+        path = f if os.path.isabs(f) or f == self.default else os.path.join(self.models_dir, f)
+        if path not in self.loaded:
+            if not os.path.exists(path):
+                src = MODELS.get(os.path.basename(path), (None, None, None, "its author's release"))[3]
+                sys.exit(f"\nmodel {path} not found: download it from {src} into --models-dir")
+            while len(self.loaded) >= 2: self.loaded.pop(next(iter(self.loaded)))
+            if self.device != "cpu": self.torch.cuda.empty_cache()
+            self.loaded[path] = load_model(self.spandrel, self.torch, path, self.device)
+            if os.path.basename(path) not in self.used: self.used.append(os.path.basename(path))
+        return self.loaded[path]
+    def run(self, im, f=None):
+        return upscale(self.model(f), self.device, self.torch, im)
+    def alpha(self, a):
+        return alpha_up(self.model(self.alpha_file), self.device, self.torch, a)
+
 def one(job, run_model=None):
-    """One texture into the pack; (name, whether it was written)."""
-    n, src, out_dir, frm, max_size, scale, full, pixel, flip, dds, cm = job
+    """One texture into the pack; (name, whether it was written). job[11], when there: (colour model file or None, alpha
+    step on, listed by --families); run_model: a Runner, or a function of the RGBA original (the run's model)."""
+    n, src, out_dir, frm, max_size, scale, full, pixel, flip, dds, cm = job[:11]
+    fam = job[11] if len(job) > 11 else None
     stem = n[:-4].lower()
     if any(os.path.exists(os.path.join(out_dir, stem + e)) for e in (".dds", ".png")): return n, False
     im = np.array(Image.open(os.path.join(src, n)).convert("RGBA"))
     oh, ow = im.shape[:2]
-    pix = matches(stem, pixel)
+    pix = matches(stem, pixel) and not (fam and fam[2])
     if max(ow, oh) > max_size and not pix: return n, False
+    run = run_model.run if isinstance(run_model, Runner) else (lambda im, f=None: run_model(im))
     if pix:
         big = pixel_scale(im, 4)
+    elif fam and fam[0]:
+        big = run(im, fam[0])
     elif frm:
         p = os.path.join(frm, stem + ".png")
         if not os.path.exists(p): return n, False
         big = np.array(Image.open(p).convert("RGBA"))
     else:
-        big = run_model(im)
+        big = run(im)
     if cm and not pix: big = colour_match(big, im)
+    a = im[..., 3]
+    alpha = run_model.alpha(a) if fam and fam[1] and not pix and (a == 0).any() and (a > 0).any() else None
     scale = min(4 if matches(stem, full) else scale, big.shape[1] // ow)
-    px = finish(big, ow, oh, scale)
+    px = finish(big, ow, oh, scale, alpha)
     out = os.path.join(out_dir, stem)
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
         import etcpak
@@ -223,6 +335,12 @@ def one(job, run_model=None):
     else:
         Image.fromarray(px, "RGBA").save(out + ".part.png"); os.replace(out + ".part.png", out + ".png")
     return n, True
+
+def family_of(stem, table, alpha_all):
+    """(colour model file or None, alpha step, listed) for a texture: its row of the family table, else the run's."""
+    for name, globs, colour, alpha in table:
+        if matches(stem, globs): return (colour, alpha or alpha_all, True), name
+    return ((None, True, False), None) if alpha_all else (None, None)
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -241,10 +359,25 @@ def main():
                     " colour matched back to the original's, its detail kept)")
     ap.add_argument("--self-check", action="store_true", help="test the colour match on a made-up texture and quit")
     ap.add_argument("--format", default="dds", choices=("dds", "png"), help="dds (BC7 with mipmaps, needs etcpak) or png")
+    ap.add_argument("--families", action="store_true", help="the cockpit by family: each family of z* art through its own colour model"
+                    " and, where the table says, the alpha step (the table COCKPIT in this script)")
+    ap.add_argument("--family-table", help="a JSON file of [family, globs, colour model file or null, alpha step] rows to use instead (implies --families)")
+    ap.add_argument("--models-dir", default=os.path.join(os.path.expanduser("~/.cache"), "i26", "models"),
+                    help="where the family models and the alpha model are (default ~/.cache/i26/models; not downloaded)")
+    ap.add_argument("--alpha", action="store_true", help="the alpha step for every keyed texture (default: only the families whose row says so)")
+    ap.add_argument("--alpha-model", default=ALPHA_MODEL, help="the alpha model's file (default " + ALPHA_MODEL + " in --models-dir)")
+    ap.add_argument("--tile", type=int, default=128, help="model input tile size in texels (default 128; each tile also gets 16 texels of context)")
+    ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
+    global TILE, GPU_SHARE
+    TILE, GPU_SHARE = max(16, args.tile), max(0.0, args.gpu_share)
     if args.out is None: args.out = user_dir(args.scale)
     if args.self_check: sys.exit(0 if self_check() else 1)
     if not args.src: ap.error("the folder --export-textures wrote is needed")
+    table = []
+    if args.family_table:
+        with open(args.family_table) as f: table = [tuple(r) for r in json.load(f)]
+    elif args.families: table = COCKPIT
     etcpak = None
     if args.format == "dds":
         try: import etcpak
@@ -253,33 +386,47 @@ def main():
     if os.path.exists(os.path.join(args.src, "bottom-up.txt")):
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
-    model = device = torch = None
-    if not args.frm:
-        import torch, spandrel
-        device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-        model = spandrel.ModelLoader().load_from_file(model_file(args.model)).to(device).eval()
-        print(f"model {MODEL} x{model.scale} on {device} ({ATTRIBUTION})")
     names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and fnmatch.fnmatch(n.lower(), args.only.lower()))
+    fams = {n: family_of(n[:-4].lower(), table, args.alpha) for n in names}
+    order = {row[0]: i for i, row in enumerate(table)}
+    names.sort(key=lambda n: (order.get(fams[n][1], len(order)), n))              # a family's textures together: its model loads once
+    needs_model = not args.frm or any(f and (f[0] or f[1]) for f, _ in fams.values())
+    runner = None
+    if needs_model:
+        import torch
+        device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        runner = Runner(device, args.model, args.models_dir, args.alpha_model)
+        print(f"models on {device}, {TILE} px tiles" + (f", families: {', '.join(r[0] for r in table)}" if table else "") + (", alpha step on every keyed texture" if args.alpha else ""))
     os.makedirs(args.out, exist_ok=True)
-    jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, args.pixel, n[:-4].lower() in bottom_up, etcpak is not None, args.cm) for n in names]
+    jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, args.pixel, n[:-4].lower() in bottom_up, etcpak is not None, args.cm)
+            + ((fams[n][0],) if fams[n][0] else ()) for n in names]
     done = skipped = 0; t0 = time.time()
     def tick(i, n, ok):
         nonlocal done, skipped
         if not ok: skipped += 1; return
         done += 1; el = time.time() - t0
         print(f"\r{i}/{len(names)} {n}  {el / done:.2f} s each, about {el / done * (len(names) - i) / 60:.0f} min left   ", end="", flush=True)
-    if args.frm:
+    if not needs_model:
         # no model: the pictures are independent, one process a core
         import multiprocessing
         with multiprocessing.Pool() as pool:
             for i, (n, ok) in enumerate(pool.imap_unordered(one, jobs, chunksize=8), 1): tick(i, n, ok)
     else:
-        for i, j in enumerate(jobs, 1): tick(i, j[0], one(j, lambda im: upscale(model, device, torch, im))[1])
+        for i, j in enumerate(jobs, 1): tick(i, j[0], one(j, runner)[1])
+    used = [MODEL + ".pth"] if not args.frm else []
+    used += [os.path.basename(m) for m in (runner.used if runner else []) if os.path.basename(m) not in used]
+    models = [{"file": f, "model": MODELS.get(f, (f,))[0], "by": MODELS.get(f, (0, "?"))[1], "license": MODELS.get(f, (0, 0, "see its source"))[2],
+               "source": MODELS.get(f, (0, 0, 0, "?"))[3]} for f in used]
+    attribution = [f"{m['model']} by {m['by']}, {m['license']}, {m['source']}" for m in models]
+    if args.frm: attribution.insert(0, f"colour of the textures without a model of their own: the --from pack ({args.frm}) and its models")
     with open(os.path.join(args.out, "pack.json"), "w") as f:
         json.dump({"name": "Upscaled textures (own machine)", "version": "2", "date": time.strftime("%Y-%m-%d"),
-                   "model": MODEL, "model_license": "CC-BY-4.0", "attribution": ATTRIBUTION,
-                   "scale": args.scale, "full_scale": args.full, "pixel": args.pixel, "colour_match": args.cm, "format": "dds-bc7" if etcpak else "png"}, f, indent=2)
-    with open(os.path.join(args.out, "ATTRIBUTION.txt"), "w") as f: f.write(ATTRIBUTION + "\n")
+                   "model": MODEL, "model_license": "; ".join(f"{m['model']}: {m['license']}" for m in models) or "CC-BY-4.0",
+                   "attribution": " | ".join(attribution) or ATTRIBUTION, "models": models,
+                   "families": [{"family": r[0], "globs": r[1], "colour": r[2] or ("--from" if args.frm else MODEL), "alpha_step": bool(r[3])} for r in table],
+                   "alpha_step_all": args.alpha, "scale": args.scale, "full_scale": args.full, "pixel": args.pixel, "colour_match": args.cm,
+                   "format": "dds-bc7" if etcpak else "png"}, f, indent=2)
+    with open(os.path.join(args.out, "ATTRIBUTION.txt"), "w") as f: f.write("\n".join(attribution or [ATTRIBUTION]) + "\n")
     print(f"\n{done} written, {skipped} skipped, in {args.out}")
 
 if __name__ == "__main__":
