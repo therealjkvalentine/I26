@@ -6,7 +6,7 @@ using Xunit;
 
 namespace I76.Formats.Tests;
 
-/// <summary>A pack's upscale of a world texture: found by stem, fitted at a power-of-two scale, flipped to the stored order, keyed as the original.</summary>
+/// <summary>A pack's upscale of a world texture: found by stem, fitted at a whole-multiple scale, flipped to the stored order, keyed as the original.</summary>
 public class HdTextureTests
 {
     /// <summary>A 4x2 original in stored (bottom-up) order: row 0 red with its last texel keyed, row 1 blue.</summary>
@@ -28,14 +28,35 @@ public class HdTextureTests
     }
 
     [Fact]
-    public void ScaleIsAPowerOfTwoTheSameBothWays()
+    public void ScaleIsAWholeMultipleTheSameBothWays()
     {
         Assert.Equal(2, HdTexture.ScaleOf(8, 4, 4, 2));
         Assert.Equal(4, HdTexture.ScaleOf(512, 256, 128, 64));
         Assert.Equal(1, HdTexture.ScaleOf(4, 2, 4, 2));
-        Assert.Equal(0, HdTexture.ScaleOf(12, 6, 4, 2));
+        // a 3x pack: 192 px from a 64 px original
+        Assert.Equal(3, HdTexture.ScaleOf(12, 6, 4, 2));
+        Assert.Equal(3, HdTexture.ScaleOf(192, 192, 64, 64));
+        Assert.Equal(3, HdTexture.ScaleOf(384, 192, 128, 64));
         Assert.Equal(0, HdTexture.ScaleOf(8, 2, 4, 2));
         Assert.Equal(0, HdTexture.ScaleOf(9, 4, 4, 2));
+        Assert.Equal(0, HdTexture.ScaleOf(192, 96, 64, 64));
+        Assert.Equal(0, HdTexture.ScaleOf(0, 0, 4, 2));
+    }
+
+    [Fact]
+    public void AThreeTimesPictureKeysThreeByThreeBlocks()
+    {
+        // the 4x2 original at 3x, opaque, blue on top and red below as the picture decodes
+        var p = new byte[12 * 6 * 4];
+        for (int y = 0; y < 6; y++)
+            for (int x = 0; x < 12; x++) { int i = (y * 12 + x) * 4; p[i + (y < 3 ? 2 : 0)] = 255; p[i + 3] = 255; }
+        var f = HdTexture.Fit(p, 12, 6, 3, Original(), 4, 2, bottomUp: true);
+        // the original's keyed texel (stored row 0, column 3) covers stored rows 0..2, columns 9..11, and nothing else
+        for (int y = 0; y < 6; y++)
+            for (int x = 0; x < 12; x++)
+                Assert.Equal(y < 3 && x >= 9 ? 0 : 255, f[(y * 12 + x) * 4 + 3]);
+        // stored rows 0..2 red, 3..5 blue
+        Assert.Equal(255, f[(2 * 12 + 8) * 4]); Assert.Equal(255, f[(3 * 12 + 0) * 4 + 2]);
     }
 
     [Fact]

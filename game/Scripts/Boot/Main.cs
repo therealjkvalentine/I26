@@ -3478,6 +3478,9 @@ public partial class Main : Node3D
             var img = GetViewport().GetTexture().GetImage();
             img.SavePng(_opt.Screenshot);
             GD.Print($"screenshot: {_opt.Screenshot}");
+            // which sizes of a pack were drawn: a capture's check that the chosen size loads
+            var served = Enumerable.Range(1, 16).Where(n => I76.Game.Assets.TextureFactory.ServedAt(n) > 0).Select(n => $"{n}x {I76.Game.Assets.TextureFactory.ServedAt(n)}");
+            GD.Print($"HD textures served: {(served.Any() ? string.Join(", ", served) : "none")}");
         }
         if (_opt.QuitAfter > 0 && _frames >= _opt.QuitAfter) GetTree().Quit();
     }

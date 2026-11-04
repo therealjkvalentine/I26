@@ -2,8 +2,8 @@ namespace I76.Formats.Imaging;
 
 /// <summary>
 /// An upscaled replacement for a world, car or cockpit texture, from a player's pack (none ships with the port):
-/// a picture named by the member's stem ("pp11ftf1.png", "zsy_.webp"), the right way up, at a power-of-two
-/// multiple of the original's size, the same both ways. Alpha under one half is the original's colour key.
+/// a picture named by the member's stem ("pp11ftf1.png", "zsy_.webp"), the right way up, at a whole multiple
+/// (2x, 3x, 4x, ...) of the original's size, the same both ways. Alpha under one half is the original's colour key.
 /// A picture with no alpha at all takes the original's key, scaled; nothing else about it is checked.
 /// </summary>
 public static class HdTexture
@@ -19,12 +19,16 @@ public static class HdTexture
         return Extensions.Select(e => stem + e);
     }
 
-    /// <summary>The picture's scale over the original: 1, 2, 4, 8, ... when it is one, the same both ways; 0 otherwise.</summary>
+    /// <summary>
+    /// The picture's scale over the original: a whole multiple (1, 2, 3, 4, ...), the same both ways; 0 otherwise. Nothing that
+    /// reads it needs a power of two: a texel of the original covers an s-square block (Fit, Recolour, the cockpit's panels map
+    /// by multiplication and division), and a .dds carries its own mipmaps (a 3x pack's 192 px down to 1 px).
+    /// </summary>
     public static int ScaleOf(int w, int h, int ow, int oh)
     {
         if (ow <= 0 || oh <= 0 || w % ow != 0 || h % oh != 0) return 0;
         int s = w / ow;
-        return s == h / oh && s > 0 && (s & (s - 1)) == 0 ? s : 0;
+        return s == h / oh && s > 0 ? s : 0;
     }
 
     /// <summary>
