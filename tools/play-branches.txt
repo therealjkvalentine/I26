@@ -264,3 +264,7 @@ fix/dev-panel-2                       # section N: Developer panel at half size 
 feat/lfe-3                            # section N: bass shaker: each surface its own band and lumps (gravel road above off-road), wider road/off-road contrast, a per-wheel knock at road and bridge edges; [port] lfe_offroad, lfe_bumps; dev readout
 fix/map-edge-slopes                   # section N: Hide Map Edge Cliffs keeps slopes: only ground behind a step steeper than 60 degrees is hidden; I76_MAP_EDGE_SLOPES=0 for the old rule
 feat/movie-while-loading              # section N: modern look: the briefing plays while the world builds on a thread ([port] briefing_while_loading, default on); HD movies: user://movies/<stem>.ogv replaces the SMK
+
+# O. pass 15 (2026-11-04): a removal and a finer control; stacked on play
+remove/map-edge-cliffs                # section O: Hide Map Edge Cliffs taken out (classifier, shaders, setting, rows, hooks, docs): the boundary walls and the slopes up to them are the maps' intended shape
+feat/hood-gloss-level                 # section O: Hood Finish becomes Hood Gloss 0-100 in steps of 5 (0/50/100 = the old Matte/Satin/Gloss, blends between); hood_finish and hood_matte read for migration; dev slider

@@ -283,6 +283,8 @@ stacked ones and the integration branch are section I, after H.
 | I82 | feat/lfe-3 | bass shaker: per-surface bands with distance-paced lumps and grit (off-road 30-34 Hz, gravel road 66 Hz + 76 Hz grit, pavement a narrow 56 Hz hum, planks 46 Hz; 60 ms crossfade), road/off-road contrast stretched (sand ~15 dB above asphalt), a per-wheel 28 Hz knock on crossing a road or bridge edge scaled by speed (front axle then rear); `[port] lfe_offroad`, `lfe_bumps`; dev readout line, I76_LFE_LOG; tools/TactileRender writes the synth to WAV; docs/lfe-surfaces.md | playtest; research with sources; local: Formats TactileSynth 23/23, Sim WheelCrossings 5/5 | `_scratch/r3-lfe-3/` (46 WAVs) | ready (5014d29, 64e18c0) |
 | I83 | fix/map-edge-slopes | Hide Map Edge Cliffs hid every unreachable slope (36-60 degrees) joined to the edge; now only ground whose way in crosses a step steeper than 60 degrees (8.66 m per 5 m sample) is hidden, drawn down to the cliff's foot, never below its old height; patches under 25 samples kept; I76_MAP_EDGE_SLOPES=0 for the old rule. T05 restores 53 % of the ground it flattened, M06 77 % | playtest ("it hides slopes we want to keep"); local: Formats EdgeWallsTests 18/18 (1 new) | `_scratch/r3-map-edge-6/edge-slopes.png` | ready (16adac5) |
 | I84 | feat/movie-while-loading | modern look: the briefing plays while MissionBuilder.Build runs on a thread (nodes outside the tree; prop material maps held and flushed after; frames capped at 240 fps during the build), then the card for the rest of the load; `[port] briefing_while_loading` (default on; 1997 look, retries, --skip-movies, co-op and the editor keep the original order); saves 5-8 s per briefed mission. HD movies: `user://movies/<stem>.ogv` (Theora + Vorbis, any fps, same duration) replaces the SMK in the modern look, same skip keys and stall watch; I76_MOVIE_SHOT, I76_MOVIE_LOG | playtest ("couldn't the movie play during loading?"); measured t01/t07/t08/m01; local: Game 342/342 (BriefingOverlap, MovieReplacement tests) | `_scratch/r3-movie-load/` | ready (1cfac51, 82a12f3, 6fb5e20) |
+| I85 | remove/map-edge-cliffs | Hide Map Edge Cliffs removed: EdgeWalls.cs and its tests, MapEdge.cs, the shader include and the draw-down code in five shaders, four shader globals, the horizon ring's hidden-state heights, the setting and both menus' row, seven I76_MAP_EDGE* hooks, the docs rows; a withdrawn note in deviations.md and a Removed line in the CHANGELOG; old shell.cfg files with `map_edge` still load (24 files, +47/-1340) | the user, after playtesting the slope fix: the walls and the slopes up to them are the maps' intended shape; removed for simplicity | `_scratch/r3-map-edge-remove/shots/` | ready (726b2e8) |
+| I86 | feat/hood-gloss-level | Hood Finish -> Hood Gloss, a 0-100 level in steps of 5 on the sheet and the Esc pad (any integer from the file and the dev slider); 0/50/100 render as the old Matte/Satin/Gloss (captured: within 2/255), levels between blend the two nearest presets' roughness, specular, clearcoat, coat roughness, metallic cap and hubcap coat; shader global `i76_hood_gloss` (float) replaces `i76_paint_finish`; `hood_finish` and `hood_matte` read for migration, not written | playtest ("a finer grained adjustment for hood gloss"); local: Game HoodGlossTests, Sim PaintFinishTests 24/24 | `_scratch/r3-hood-gloss/shots/hood-gloss-steps.png` | ready (e518ee3) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -740,7 +742,14 @@ lfe_offroad and lfe_bumps rows above dev-panel-2's dev_fps row (rerere recorded)
 
 Test status, pass 14 (`play` 83408bb): desktop, I76_INSTALL set, a performance survey sharing the GPU. Game: no failures;
 Formats: 5 failures (GameDiscovery, GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in
-the desktop baseline. New because of us: none. Deployed 83408bb to the laptop, James's Mac, Michael's and Andrew's Macs.
+the desktop baseline. New because of us: none. Deployed b8e7233 (83408bb plus the play-meta merge and feat/lfe-3's sweep-harness commit 8ee9178, which the second sync
+picked up: the knock level to 0.6) to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 15 (2026-11-04)
+
+Two branches as manifest section O (rows I85-I86), both made on play after pass 14 (83408bb) and merged with --no-ff: the map
+edge cliffs option removed, Hood Gloss as a level. The old map-edge branches stay in sections F-N as history; a -Rebuild would
+merge them and then this removal, in order.
 
 ## Withdrawn or answered (not offered as fixes)
 
