@@ -95,6 +95,8 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Hits),
         Source(I76.Formats.Input.TactileSource.Shots),
         Source(I76.Formats.Input.TactileSource.Explosions),
+        Source(I76.Formats.Input.TactileSource.Offroad),
+        Source(I76.Formats.Input.TactileSource.Bumps),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
