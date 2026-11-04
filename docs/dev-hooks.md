@@ -249,6 +249,7 @@ the car's `VehicleFlags` in hex).
 | `I76_MAP_EDGE_ROADS` | capture | `0`: Hide Map Edge Cliffs' On hides the thin barriers with a road at their foot too (EdgeWalls.RoadShare: T05's mountain road), as before they were kept, for comparison. |
 | `I76_MAP_EDGE_KEEP` | capture | `0`: Hide Map Edge Cliffs' On hides ground the mission puts something on as well (EdgeWalls.Keep: placements and script path points, with the climbable patch they stand on: T05's helicopter mesas), as before it was kept, for comparison. |
 | `I76_MAP_EDGE_ROADSIDE` | capture | `0`: Hide Map Edge Cliffs' On draws down the thin barriers beside a road too (EdgeWalls.RoadClear: within 80 m of a road's middle line, fading in to 120 m; T11's fences and mesas along its east-west road), as before they were kept, for comparison. |
+| `I76_MAP_EDGE_SLOPES` | capture | `0`: Hide Map Edge Cliffs' On draws down the slopes too steep to drive that rise to the walls (EdgeWalls.SheerStep: outer ground whose way in from the drivable ground climbs no step steeper than 60°; T05's valley sides), as before they were kept, for comparison. |
 | `I76_BAKE_CACHE` | tuning | `0`: no bake cache: road layers, ground materials and terrain surfaces are made afresh and not kept (`user://cache/terrain/`, keyed by their inputs, 1 GB at most). |
 | `I76_GROUND_MATERIALS` | tuning | `0`: procedural ground only (and a painted ground without the asphalt scan). |
 | `I76_GROUND_PAINT` | tuning | `0`: a painted ground (M15's parking lot, GroundMarkings) drawn as fitted noise like a natural one. |
