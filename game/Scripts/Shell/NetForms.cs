@@ -474,8 +474,8 @@ public sealed partial class MeleeScreen
 
     /// <summary>
     /// The arena's sketch in the form's middle (the port's; <see cref="ArenaSketch"/>), its ink centred in the space between
-    /// the car's views, and its span ("1.5 x 1.0 km") small in the form's hand at the space's lower left. The x marks are the
-    /// start points; their count is no limit on the players, so it is not written.
+    /// the car's views, and its span ("1.5 x 1.0 km") small in the form's hand under the drawing, centred on it. The x marks
+    /// are the start points; their count is no limit on the players, so it is not written.
     /// </summary>
     private void DrawArenaSketch()
     {
@@ -485,22 +485,15 @@ public sealed partial class MeleeScreen
         var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
         PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
         int w = (int)MathF.Ceiling(PrintedType.Measure(Shell.Db, s.SizeText, SizeCap, PrintedType.Face.Hand));
-        // the span as a map's legend: right-aligned on the sketch's right edge, on its foot; moved right (then down) off any line it would sit on
-        int nx = x1 + 1 - w, ny = y1 + 1;
-        bool Clear(int ax, int ay)
-        {
-            for (int yy = ay - SizeCap - 1; yy <= ay + 1; yy++)
-                for (int xx = ax - 2; xx <= ax + w + 1; xx++)
-                    if (s.Inked(xx, yy)) return false;
-            return true;
-        }
-        for (int k = 0; k < 40 && !Clear(nx, ny); k++) { if (k < 30) nx += 2; else ny += 2; }
+        // the span as a map's legend: under the drawing (its foot is the ink's), centred on it, a few px of paper between
+        int nx = (x0 + x1 + 1 - w) / 2, ny = y1 + 1 + LegendGap + SizeCap;
         // the scrap: the sketch's and the legend's extent with a margin of paper
         int sx0 = Math.Min(x0, nx) - ScrapPad, sy0 = Math.Min(y0, ny - SizeCap) - ScrapPad, sx1 = Math.Max(x1 + 1, nx + w) + ScrapPad, sy1 = Math.Max(y1 + 1, ny + 1) + ScrapPad;
         var scrap = new Rect2I(sx0, sy0, sx1 - sx0, sy1 - sy0);
         // laid in the space: inside its margins, a small one centred across them, a large one from their left (DRIVER:'s x),
         // its middle a little below the space's
-        int room = SketchMargin.Size.X, left = SketchMargin.Position.X + Math.Max(0, (room - scrap.Size.X) / 2);
+        // then ScrapLeft further left (the owner's wish), but never onto the panel's rule
+        int room = SketchMargin.Size.X, left = Math.Max(SketchSpace.Position.X + 3, SketchMargin.Position.X + Math.Max(0, (room - scrap.Size.X) / 2) - ScrapLeft);
         int mid = SketchMargin.Position.Y + SketchMargin.Size.Y / 2 + SketchDrop;
         int bx = left - sx0, by = mid - scrap.Size.Y / 2 - sy0;
         if (_art is { } art) ArenaSketches.DrawScrap(Frame, art, BlankPaper, stem, s, bx, by, scrap, s.SizeText, nx, ny, SizeCap, HandInk);
@@ -513,6 +506,11 @@ public sealed partial class MeleeScreen
     /// </summary>
     private static readonly Rect2I SketchMargin = new(227, 188, 210, 112);
     private const int SketchDrop = 12, ScrapPad = 5;
+    /// <summary>
+    /// How far left of that the scrap is laid: about half an inch on a desktop screen (the shell's 640 x 480 is scaled whole,
+    /// 4:3 and centred, so 20 px is 1/32 of its width: 32 px at 1024 x 768, 60 px at 1440 high); and the legend's gap under the ink.
+    /// </summary>
+    private const int ScrapLeft = 20, LegendGap = 3;
 
     /// <summary>
     /// The AREA OF PLAY list's scroll bar (the port's; Graphic Detail's look): a faint track down the list's right edge inside

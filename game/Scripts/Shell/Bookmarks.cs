@@ -170,16 +170,16 @@ public abstract class BookmarkScreen : OverlayScreen
     protected virtual void Pick(int row) => Picked = row;
 
     /// <summary>
-    /// Where Delete goes on the sheet (both looks share the art), Save and Load Bookmark alike: beside the scroll-up arrow;
-    /// in Nitro left of Load, drawn the same way (to the right of Cancel it would run off the sheet).
+    /// Where Delete goes on the sheet (both looks share the art), Save and Load Bookmark alike, base game and Nitro: on the
+    /// buttons' line at the foot, under the rows, left of the action with Cancel's 25 px between (to the right of Cancel it
+    /// would run off the sheet). The pad's Down from the list lands on the action, the nearer.
     /// </summary>
-    public static (int X, int Y) DeletePlace(bool nitro, Func<string, int> measure) =>
-        nitro ? (328 - 25 - measure("Delete"), 420) : (250, 158);
+    public static (int X, int Y) DeletePlace(Func<string, int> measure) => (328 - 25 - measure("Delete"), 420);
 
     /// <summary>The Delete button, where <see cref="DeletePlace"/> puts it.</summary>
     protected void AddDelete()
     {
-        var (x, y) = DeletePlace(Shell.Install.IsNitro, Small.Measure);
+        var (x, y) = DeletePlace(Small.Measure);
         Add(x, y, "Delete", Delete, Small);
     }
 
