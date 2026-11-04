@@ -248,3 +248,8 @@ feat/lighting-original-colours        # modern look in the original's colours; M
 fix/map-edge-row-name                 # Map Edge row named Hide Map Edge Cliffs (on the World page)
 fix/map-edge-roadside                 # after map-edge-row-name: thin barriers within 80 m of a road stay
 fix/round3-integration-8              # stacked on play, last of K: the Effects page's title (was Effects & Textures) on both pads; the Developer panel's bass-shaker trace fed by the shaker's peak; the Settings test names the new keys
+fix/ai-dropper-gate-as-original       # section L (pass 12): AI cars drop no mines, oil, Blox or fire under a pursuer closing straight on above about 28 m/s, as the build GOG sells
+fix/hd-menu-port-edits                # section L: the HD menu art's port edits
+feat/hd-pack-scale                    # section L: the HD pack's scale
+feat/death-variety                    # section L: modern look car deaths by cause; snapshot 25, protocol 27 (cherry-picked onto the rebuilt play: its two commits after d0a9384)
+feat/brush-impacts                    # section L: modern look brush answers rounds, cars, blasts and fire (cherry-picked onto the rebuilt play: its one commit after d0a9384)
