@@ -32,7 +32,7 @@ public partial class SignalsView : Control
         _rows.Add((Kind.Trace, "", DevSignals.TelSurge, "m/s²"));
         _rows.Add((Kind.Trace, "", DevSignals.TelSway, "m/s²"));
         _rows.Add((Kind.Trace, "", DevSignals.TelHeave, "m/s²"));
-        _rows.Add((Kind.Header, DevSignals.LfeWired ? "bass shaker" : "bass shaker: no LFE output on this build (placeholder)", null, ""));
+        _rows.Add((Kind.Header, "bass shaker: the signal's peak (Audio Control's LFE Level above 0)", null, ""));
         _rows.Add((Kind.Trace, "", DevSignals.Lfe, "%"));
         UpdateMinimumSize();
     }

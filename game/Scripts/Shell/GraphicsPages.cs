@@ -19,7 +19,7 @@ public enum GraphicsRow
 public static class GraphicsPages
 {
     public const int Sheet = 0, Display = 1, World = 2, Car = 3, Effects = 4;
-    public static readonly string[] Names = ["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects & Textures"];
+    public static readonly string[] Names = ["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"];
     /// <summary>Each page's rows in order; the sheet's are the original's six, as the original has them.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
