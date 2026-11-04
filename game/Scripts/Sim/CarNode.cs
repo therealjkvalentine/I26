@@ -444,20 +444,22 @@ public partial class CarNode : Node3D
     private const string GlowSource = """
         shader_type spatial;
         render_mode unshaded, blend_add, cull_disabled, depth_draw_never;
+        global uniform float i76_daylight;
         uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+        uniform float day_floor = 1.0;
         instance uniform float level = 0.0;
         void fragment() {
             vec4 t = texture(albedo_tex, UV);
             float red = clamp((t.r - max(t.g, t.b)) * 2.0, 0.0, 1.0);
             float lum = clamp(t.r * 1.2, 0.0, 1.0);
-            ALBEDO = vec3(1.0, 0.1, 0.05) * red * (0.25 + 0.75 * lum) * level;
+            ALBEDO = vec3(1.0, 0.1, 0.05) * red * (0.25 + 0.75 * lum) * level * mix(1.0, day_floor, clamp(i76_daylight, 0.0, 1.0));
         }
         """;
     private static Shader? _glowShader;
     /// <summary>One glow material per texture; weakly keyed, so a finished scene's car textures are not held for the rest of the run.</summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture2D, ShaderMaterial> GlowMats = new();
     internal static void ResetForGameSwitch() => GlowMats.Clear();
-    private const float BrakeLevel = 1.3f, TailLevel = 0.6f;
+    private const float BrakeLevel = LampStrength.BrakeGlow, TailLevel = LampStrength.TailGlow;
 
     /// <summary>The tail lamp mesh's glow twin: each surface's own texture under the red-lens shader.</summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Mesh, Mesh?> GlowTwins = new();
@@ -480,7 +482,7 @@ public partial class CarNode : Node3D
         for (int i = 0; i < m.GetSurfaceCount(); i++)
         {
             if (m.SurfaceGetMaterial(i) is not ShaderMaterial sm || sm.GetShaderParameter("albedo_tex").As<Texture2D>() is not { } tex) continue;
-            if (!GlowMats.TryGetValue(tex, out var gm)) { gm = new ShaderMaterial { Shader = _glowShader, RenderPriority = 1 }; gm.SetShaderParameter("albedo_tex", tex); GlowMats.Add(tex, gm); }
+            if (!GlowMats.TryGetValue(tex, out var gm)) { gm = new ShaderMaterial { Shader = _glowShader, RenderPriority = 1 }; gm.SetShaderParameter("albedo_tex", tex); gm.SetShaderParameter("day_floor", LampStrength.GlowDayFloor); GlowMats.Add(tex, gm); }
             m.SurfaceSetMaterial(i, gm); any = true;
         }
         return any ? m : null;
@@ -710,14 +712,14 @@ public partial class CarNode : Node3D
         {
             _rearMat = new ShaderMaterial { Shader = _glareShader };
             _rearMat.SetShaderParameter("tint", new Color(1f, 0.1f, 0.06f));
-            _rearMat.SetShaderParameter("strength", 0.6f);
+            _rearMat.SetShaderParameter("strength", 0.45f);
             _rearMat.SetShaderParameter("sharpness", 1.5f);
             _rearMat.SetShaderParameter("wide", 0.3f);
             _rearMat.SetShaderParameter("size_near", 0.22f);
             _rearMat.SetShaderParameter("size_far", 0.48f);
             _rearMat.SetShaderParameter("streak_amount", 0.25f);
             _rearMat.SetShaderParameter("halo_amount", 0.2f);
-            _rearMat.SetShaderParameter("day_floor", 0.4f);
+            _rearMat.SetShaderParameter("day_floor", 0.2f);
         }
         // the lamp's -Z looks backwards: half a turn about up
         _rearGlare = at.Select(p =>
@@ -728,9 +730,10 @@ public partial class CarNode : Node3D
             return g;
         }).ToArray();
         var mid = at.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / at.Length;
-        _brakeLight = new OmniLight3D { Position = Coords.ToGodot(mid) + new Vector3(0, -0.15f, 0.6f), OmniRange = 4.5f, LightEnergy = 1.0f,
+        _brakeLight = new OmniLight3D { Position = Coords.ToGodot(mid) + new Vector3(0, -0.15f, 0.6f), OmniRange = 4.5f, LightEnergy = LampStrength.BrakeLightEnergy,
             LightColor = new Color(1f, 0.08f, 0.04f), ShadowEnabled = false, Visible = false, Name = "BrakeLight" };
         AddChild(_brakeLight);
+        _lampDaylight = -1;
     }
 
     private SirenBar? _siren;
@@ -769,7 +772,9 @@ public partial class CarNode : Node3D
 
     // The modern look's headlamps (GitHub #52): a long, wide, soft-edged beam, pitched a little down so it lays on the road
     // out to about 50 m. The player's car casts shadows from it; of the others, only the nearest few carry a real light.
-    private const float HeadRange = 110f, HeadAngle = 42f, HeadEnergy = 14f, HeadPitch = -2.5f;
+    // Its energy is LampStrength's, turned down by day.
+    private const float HeadRange = 110f, HeadAngle = 42f, HeadPitch = -2.5f;
+    private float _lampDaylight = -1;
     /// <summary>How many other cars' headlamps cast real light at once (the nearest to the camera); I76_HEADLIGHTS overrides it. The player's always do.</summary>
     public static readonly int MaxHeadLit = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HEADLIGHTS"), out int hn) ? hn : 6;
     private static readonly List<CarNode> HeadCars = [];
@@ -793,10 +798,11 @@ public partial class CarNode : Node3D
         at ??= [new(-x, y, z), new(x, y, z)];
         _isPlayer = player;
         if (!HeadCars.Contains(this)) HeadCars.Add(this);
+        _lampDaylight = -1;
         _lamps = at.Select(p =>
         {
             var l = new SpotLight3D { Position = Coords.ToGodot(p), RotationDegrees = new Vector3(HeadPitch, 0, 0), SpotRange = HeadRange, SpotAngle = HeadAngle, SpotAttenuation = 0.6f,
-                SpotAngleAttenuation = 0.7f, LightEnergy = HeadEnergy, LightColor = new Color(1f, 0.95f, 0.8f), ShadowEnabled = player, ShadowBias = 0.08f, ShadowNormalBias = 2.5f, Visible = false };
+                SpotAngleAttenuation = 0.7f, LightEnergy = LampStrength.HeadEnergy, LightColor = new Color(1f, 0.95f, 0.8f), ShadowEnabled = player, ShadowBias = 0.08f, ShadowNormalBias = 2.5f, Visible = false };
             AddChild(l);
             return l;
         }).ToArray();
@@ -1013,6 +1019,13 @@ public partial class CarNode : Node3D
         _headDist2 = lampsOn && headCam is not null ? headCam.GlobalPosition.DistanceSquaredTo(GlobalPosition) : float.MaxValue;
         bool lampLights = lampsOn && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));
         for (int i = 0; i < _lamps.Length; i++) _lamps[i].Visible = lampLights && HeadHeld(i);
+        if (LampStrength.Current != _lampDaylight)
+        {
+            _lampDaylight = LampStrength.Current;
+            float headE = LampStrength.HeadEnergy * LampStrength.Scale(_lampDaylight, LampStrength.HeadDayFloor);
+            foreach (var l in _lamps) l.LightEnergy = headE;
+            if (_brakeLight is not null) _brakeLight.LightEnergy = LampStrength.BrakeLightEnergy * LampStrength.Scale(_lampDaylight, LampStrength.BrakeLightDayFloor);
+        }
         // the pool lies on the road ahead, so it shows from the cockpit too (the body hidden there)
         if (_lightPool is not null) _lightPool.Visible = !Wrecked && lit && !Modern;
         for (int i = 0; i < _glare.Length; i++) _glare[i].Visible = shown && lit && Modern && HeadHeld(i);
