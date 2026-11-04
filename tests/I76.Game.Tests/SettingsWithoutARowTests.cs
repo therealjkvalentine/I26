@@ -11,7 +11,7 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// The settings without a row (docs/playing.md): their stored words, the keys that follow the look, the sky's default, Unlim.
-/// Ordnance offline only; and the pads' rows that fold or mark the original's value (Force Feedback, Melee A.I., Map Edge).
+/// Ordnance offline only; and the pads' rows that fold or mark the original's value (Force Feedback, Melee A.I.).
 /// </summary>
 public class SettingsWithoutARowTests
 {
@@ -126,7 +126,6 @@ public class SettingsWithoutARowTests
         {
             (ShellSettings.ForceFeedbackNames, new[] { "Off", "Pad" }),
             (ShellSettings.MeleeAiNames, ["Normal"]),
-            (I76.Game.World.MapEdge.Names, ["Off"]),
             (I76.Sim.Views.ViewFov.Names, ["90"]),
             (I76.Sim.Views.PaintFinish.Names, ["Matte"]),
             (I76.Game.Boot.RenderScale.Names, ["100%"]),

@@ -1250,8 +1250,6 @@ public sealed class ShellSettings
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
     public int? DrawDistanceChoice { get; set; }
-    /// <summary>The port's own: Graphic Detail's Hide Map Edge Cliffs, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Off, as they are; 1 On, drawn down at their foot). Off unless the player chose.</summary>
-    public int MapEdge { get; set; } = I76.Game.World.MapEdge.Off;
     /// <summary>
     /// The port's own: a network host's custom map this game does not have (docs/multiplayer.md "Custom maps"): 0 asks
     /// (the loading screen's Download / Always / Cancel), 1 downloads it, 2 never does (Play Options' Map Downloads).
@@ -1458,10 +1456,7 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
-        // no version step: a file without the key draws the edge as it is, as before it existed; the four-value row's number
-        // (Plain, Haze, Fade Out, Hide) reads as Off but Hide's 3, On
-        var me = c.HasSectionKey("port", "map_edge") ? c.GetValue("port", "map_edge") : default;
-        s.MapEdge = I76.Game.World.MapEdge.Parse(me.VariantType == Variant.Type.String ? (string)me : me.VariantType == Variant.Type.Int ? (object)(int)me : null);
+        // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
         // no version step: a file without these keys has them off, which is what they were before they existed
         s.SoftwareRenderer = (bool)c.GetValue("port", "software_renderer", false);
         s.PaletteGrade = (bool)c.GetValue("port", "palette_grade", false);
@@ -1565,7 +1560,6 @@ public sealed class ShellSettings
         c.SetValue("shell", "version", 13);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
-        c.SetValue("port", "map_edge", I76.Game.World.MapEdge.Key(MapEdge));
         c.SetValue("port", "checkpoints", Checkpoints);
         c.SetValue("port", "force_feedback", ForceFeedback);
         if (ForceFeedbackWheel) c.SetValue("port", "ffb_wheel", true);

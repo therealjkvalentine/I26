@@ -32,7 +32,6 @@ uniform float haze_start = 2000.0;   // metres of clear air
 uniform float haze_reach = 13000.0;  // then 1 - exp(-(d/reach)^2): 63% this far past the clear air
 uniform float far_clip = 20000.0;    // wholly sky by here
 uniform float haze_floor = 0.0;      // air this much hazier from the start (night)
-#include "res://Shaders/map_edge.gdshaderinc"
 
 // The original's panels stand on a ring whose foot is 10.2 x the eye's game height below the eye, so over
 // high ground they sink below the horizon. The ring's base is put on the cone from the reference eye (over the map's
@@ -76,8 +75,6 @@ vec3 noised(vec2 x) {
 }
 
 void vertex() {
-	// Map Edge's Hide: the ring made for the walls' plain (HorizonTerrain.Compute: UV2.y is the height under Hide less this one)
-	VERTEX.y += UV2.y * i76_edge_hide;
 	g_pos = vec3(VERTEX.x, VERTEX.y, -VERTEX.z);
 	g_nrm = vec3(NORMAL.x, NORMAL.y, -NORMAL.z);
 	v_data = COLOR;
@@ -106,15 +103,15 @@ void fragment() {
 	{
 		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
 		if (!(tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0)) discard;
-		vec3 fl = textureLod(map_floor, tuv, 0.0).rgb;
-		if (!(g_pos.y > mix(fl.r, fl.b, i76_edge_hide) && fl.g > 0.5)) discard;
+		vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
+		if (!(g_pos.y > fl.r && fl.g > 0.5)) discard;
 	}
 #else
 	if (map_extent.x > 0.0) {
 		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
 		if (tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0) {
-			vec3 fl = textureLod(map_floor, tuv, 0.0).rgb;
-			if (g_pos.y > mix(fl.r, fl.b, i76_edge_hide)) discard;
+			vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
+			if (g_pos.y > fl.r) discard;
 		}
 	}
 #endif

@@ -536,10 +536,6 @@ public sealed class GraphicsScreen : OverlayScreen
                 string[] veg = ["Off", "Low" + mark, "High" + mark];
                 Row(line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
                 break;
-            // the modern look's boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them)
-            case GraphicsRow.MapEdge:
-                Row(line, "Hide Map Edge Cliffs", () => I76.Game.World.MapEdge.Names[st.MapEdge], () => st.MapEdge = (st.MapEdge + 1) % I76.Game.World.MapEdge.Names.Length);
-                break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
                 Row(line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });

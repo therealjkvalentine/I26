@@ -153,7 +153,6 @@ uniform float lot_relief = 0.12;      // the share of the broad undulation a lot
 #endif
 
 #include "res://Shaders/brush_cursor.gdshaderinc"
-#include "res://Shaders/map_edge.gdshaderinc"
 #ifndef PAINTED_GROUND
 // The sward (World/Vegetation.cs, SwardMap; docs/modern-vegetation.md): how grassy the ground between the plants is,
 // a byte a 4 m texel over the map's tiles (rect: its game-frame corner and 1 / its size in metres), and the dry
@@ -193,12 +192,6 @@ void vertex() {
 		VERTEX += move;
 		uv += vec2(move.x, -move.z) / 5.0;
 		NORMAL = normalize(mix(NORMAL, CUSTOM1.xyz, k));
-	}
-	// Map Edge's Hide: the walls and the plateau behind them held down to the plain at their foot (map_edge.gdshaderinc)
-	if (i76_edge_hide > 0.0) {
-		float up;
-		VERTEX.y = map_edge_hide_y(uv * 5.0, VERTEX.y, up);
-		if (up > 0.0) NORMAL = normalize(mix(NORMAL, vec3(0.0, 1.0, 0.0), up));
 	}
 	g_pos = vec3(uv.x * 5.0, VERTEX.y, uv.y * 5.0);
 	g_nrm = vec3(NORMAL.x, NORMAL.y, -NORMAL.z);
