@@ -63,8 +63,9 @@ public static class DymoLabels
     /// Paints the label over a plate: <paramref name="rgba"/> is the plate at <paramref name="s"/> texels a pixel
     /// (w·s × h·s RGBA8, stored bottom-up as the panels are). The lettering's rows take each row's tape colour (the
     /// commonest colour that is not a letter's grey), then the name is set in the font at the painted letters' height,
-    /// squeezed across where it is wider than the tape, emboldened (<see cref="Bold"/>), embossed: a dark shadow down-right
-    /// and the white face, its edge crisp.
+    /// closed up by <see cref="Tracking"/>, squeezed across where it is still wider than the tape, embossed as the tape's
+    /// raised letters are: a dark shadow down-right, the face a step under white with its edge crisp, lit along its upper-left edges
+    /// and shaded along its lower-right ones.
     /// </summary>
     public static void Paint(byte[] rgba, int w, int h, int s, DymoFont font, string text, bool lit)
     {
@@ -75,44 +76,55 @@ public static class DymoLabels
             if (Tape(rgba, r, tw) is not { } c) continue;
             for (int x = 0; x < tw; x++) { int i = r + x * 4; rgba[i] = c.R; rgba[i + 1] = c.G; rgba[i + 2] = c.B; rgba[i + 3] = 255; }
         }
-        var (contours, left, right) = font.Layout(text, Bold * font.CapHeight);
+        var (contours, left, right) = font.Layout(text, Tracking * font.MeanGap);
         if (right <= left) return;
         float sy = CapRows * s / font.CapHeight;
         float sx = Math.Min(sy, Width * s / (right - left));
         float ox = (tw - (right - left) * sx) / 2 - left * sx;
         float oy = (CentreRow + CapRows / 2) * s;
         var face = DymoFont.Fill(contours, tw, th, sx, sy, ox, oy);
-        // the face's edge made crisp: coverage 0.35..0.75 ramps to full, so the strokes are solid white with a texel's
-        // soft edge rather than a wide pink fringe where the antialiased edge blends into the red tape
+        // the face's edge made crisp: coverage 0.35..0.75 ramps to full, so the strokes are solid with a texel's soft
+        // edge rather than a wide pink fringe where the antialiased edge blends into the red tape
         for (int k = 0; k < face.Length; k++) face[k] = Math.Clamp((face[k] - 0.35f) / 0.4f, 0, 1);
         // the shadow: the face blurred a little, offset half and three quarters of a pixel
         int dx = (int)Math.Round(0.5f * s), dy = (int)Math.Round(0.75f * s);
         var shadow = Blur(face, tw, th, Math.Max(1, s / 6));
         (byte R, byte G, byte B) shade = lit ? ((byte)60, (byte)0, (byte)12) : ((byte)40, (byte)8, (byte)8);
-        byte white = lit ? LitWhite : UnlitWhite;
+        byte white = lit ? LitWhite : UnlitWhite, body = lit ? LitFace : UnlitFace;
+        // the emboss's bevel: a face texel with no face a quarter pixel up-left of it is a lit edge, one with none that
+        // far down-right a shaded edge; under 4 texels a pixel the edge is a texel, wider, so it is drawn fainter
+        int e = Math.Max(1, s / 4);
+        float bevel = Math.Min(1, s / (4f * e));
+        float F(int x, int y) => x >= 0 && y >= 0 && x < tw && y < th ? Math.Min(1, face[y * tw + x]) : 0;
         for (int y = 0; y < th; y++)
             for (int x = 0; x < tw; x++)
             {
                 int i = ((th - 1 - y) * tw + x) * 4;
                 if (rgba[i + 3] < 128) continue;
-                int sxp = x - dx, syp = y - dy;
-                float a = sxp >= 0 && syp >= 0 ? Math.Min(1, shadow[syp * tw + sxp]) : 0;
+                float a = x >= dx && y >= dy ? Math.Min(1, shadow[(y - dy) * tw + x - dx]) : 0;
                 if (a > 0) Mix(rgba, i, shade.R, shade.G, shade.B, a);
-                float f = Math.Min(1, face[y * tw + x]);
-                if (f > 0) Mix(rgba, i, white, white, white, f);
+                float f = F(x, y);
+                if (f <= 0) continue;
+                float hi = bevel * Math.Max(0, f - F(x - e, y - e)), lo = bevel * Math.Max(0, f - F(x + e, y + e));
+                // the body, lifted to the white on the lit edge and taken down to the bevel's shade on the other
+                float v = body + (white - body) * hi - (body - BevelShade) * lo * (1 - hi);
+                byte c = (byte)Math.Clamp(v + 0.5f, 0, 255);
+                Mix(rgba, i, c, c, c, f);
             }
     }
 
     /// <summary>
-    /// The letters' synthetic bold, a share of the capitals' height pushed out on every side (DymoFont.Embolden): the
-    /// font's strokes at 8 px a capital are a pixel and a half, which the shadow and the tape's edge ate into; 0.035 of
-    /// the cap height is 0.28 px a side (at 0.05 the counters of S, G and B closed). A long name is squeezed into the
-    /// tape's width as before, bold included.
+    /// The share of the font's gap between letters taken out (<see cref="DymoFont.MeanGap"/>): the font is a typewriter's,
+    /// its letters set about 0.6 em apart with some 0.2 em between them, which at the plates' 8-pixel capitals spread a
+    /// name across the whole tape where the painted plates' letters sit closer.
     /// </summary>
-    public const float Bold = 0.035f;
+    public const float Tracking = 0.3f;
 
-    /// <summary>The face's white on a lit plate and on an unlit one: near pure white both, the unlit a step down.</summary>
-    public const byte LitWhite = 255, UnlitWhite = 238;
+    /// <summary>
+    /// The face's colours, lit plate and unlit: the white of its lit upper-left edges, the body of the stroke a step
+    /// under it (so the bevel shows; the painted letters are light greys), and the shade of its lower-right edges.
+    /// </summary>
+    public const byte LitWhite = 255, UnlitWhite = 238, LitFace = 232, UnlitFace = 214, BevelShade = 150;
 
     private static void Mix(byte[] p, int i, byte r, byte g, byte b, float a)
     {

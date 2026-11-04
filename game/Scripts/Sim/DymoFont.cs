@@ -179,12 +179,10 @@ public sealed class DymoFont
 
     /// <summary>
     /// The text set on one line from x = 0 at the baseline, its contours in font units, and its ink's left and right
-    /// (font units; both 0 for text with no ink). <paramref name="bold"/> > 0 emboldens it synthetically, as a
-    /// rasteriser's synthetic bold does: each outline pushed out by that many font units on every side
-    /// (<see cref="Embolden"/>), the glyph moved right by as much and its advance grown by twice it, so the letters keep
-    /// their spacing.
+    /// (font units; both 0 for text with no ink). <paramref name="tracking"/> is taken off every advance (font units),
+    /// closing the letters up evenly.
     /// </summary>
-    public (List<List<(float X, float Y)>> Contours, float InkLeft, float InkRight) Layout(string text, float bold = 0)
+    public (List<List<(float X, float Y)>> Contours, float InkLeft, float InkRight) Layout(string text, float tracking = 0)
     {
         var all = new List<List<(float X, float Y)>>();
         float pen = 0, left = float.MaxValue, right = float.MinValue;
@@ -192,55 +190,26 @@ public sealed class DymoFont
         {
             int g = Glyph(ch);
             var b = Bounds(g);
-            if (b.XMax > b.XMin) { left = Math.Min(left, pen + b.XMin); right = Math.Max(right, pen + b.XMax + 2 * bold); }
-            var outline = Outline(g, pen + bold, 0);
-            all.AddRange(bold > 0 ? Embolden(outline, bold) : outline);
-            pen += Advance(g) + 2 * bold;
+            if (b.XMax > b.XMin) { left = Math.Min(left, pen + b.XMin); right = Math.Max(right, pen + b.XMax); }
+            all.AddRange(Outline(g, pen, 0));
+            pen += Advance(g) - tracking;
         }
         return left > right ? (all, 0, 0) : (all, left, right);
     }
 
     /// <summary>
-    /// A glyph's contours pushed out from the ink by <paramref name="d"/> font units: each point moved along its two
-    /// edges' outward normals (the mitre, held to twice d at sharp corners). Which side is the ink's follows the
-    /// outline's winding (the sum of the contours' signed areas: TrueType's outer contours run clockwise), so holes
-    /// shrink as the strokes thicken.
+    /// The mean gap between letters as the font sets them, in font units: each capital's and digit's advance less its
+    /// ink's width (the font is a typewriter's, every advance about 0.6 em).
     /// </summary>
-    public static List<List<(float X, float Y)>> Embolden(List<List<(float X, float Y)>> contours, float d)
+    public float MeanGap
     {
-        double area = 0;
-        foreach (var c in contours)
-            for (int i = 0; i < c.Count; i++) { var a = c[i]; var b = c[(i + 1) % c.Count]; area += (double)a.X * b.Y - (double)b.X * a.Y; }
-        // clockwise (negative area, y up): the ink is on the right of the direction of travel, outward is the left normal
-        float side = area < 0 ? 1 : -1;
-        var res = new List<List<(float X, float Y)>>(contours.Count);
-        foreach (var c in contours)
+        get
         {
-            // the contour without repeated points (the curves' cuts and closing points can land on each other)
-            var p = new List<(float X, float Y)>(c.Count);
-            foreach (var q in c) if (p.Count == 0 || MathF.Abs(q.X - p[^1].X) + MathF.Abs(q.Y - p[^1].Y) > 1e-3f) p.Add(q);
-            while (p.Count > 1 && MathF.Abs(p[0].X - p[^1].X) + MathF.Abs(p[0].Y - p[^1].Y) <= 1e-3f) p.RemoveAt(p.Count - 1);
-            int n = p.Count;
-            if (n < 3) { res.Add(c); continue; }
-            var o = new List<(float X, float Y)>(n);
-            for (int i = 0; i < n; i++)
-            {
-                var prev = p[(i + n - 1) % n]; var cur = p[i]; var next = p[(i + 1) % n];
-                var n1 = Normal(prev, cur, side); var n2 = Normal(cur, next, side);
-                float mx = n1.X + n2.X, my = n1.Y + n2.Y, dot = 1 + n1.X * n2.X + n1.Y * n2.Y;
-                // the mitre: (n1 + n2) / (1 + n1·n2) reaches d off both edges; a corner sharper than 60 degrees is held to 2d
-                float k = dot > 0.5f ? d / dot : 2 * d / MathF.Max(1e-4f, MathF.Sqrt(mx * mx + my * my));
-                o.Add((cur.X + mx * k, cur.Y + my * k));
-            }
-            res.Add(o);
+            float sum = 0; int n = 0;
+            foreach (char ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+                if (Glyph(ch) is var g and > 0 && Bounds(g) is var b && b.XMax > b.XMin) { sum += Advance(g) - (b.XMax - b.XMin); n++; }
+            return n == 0 ? 0 : sum / n;
         }
-        return res;
-    }
-
-    private static (float X, float Y) Normal((float X, float Y) a, (float X, float Y) b, float side)
-    {
-        float dx = b.X - a.X, dy = b.Y - a.Y, l = MathF.Max(1e-6f, MathF.Sqrt(dx * dx + dy * dy));
-        return (-dy / l * side, dx / l * side);
     }
 
     /// <summary>

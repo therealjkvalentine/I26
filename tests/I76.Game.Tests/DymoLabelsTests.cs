@@ -44,7 +44,7 @@ public class DymoLabelsTests
         Assert.True(right - left > 2000);
     }
 
-    private static readonly (byte, byte, byte) Olive = (66, 72, 32), Tape = (209, 0, 41), Grey = (170, 170, 170);
+    private static readonly (byte, byte, byte) Olive = (66, 72, 32), Tape = (209, 0, 41), Grey = (176, 166, 170);
 
     /// <summary>A lit plate as the original's: olive above and below, the tape on rows 3..18, grey letters on rows 7..14.</summary>
     private static byte[] Plate(int s)
@@ -108,66 +108,47 @@ public class DymoLabelsTests
     }
 
     [Theory]
-    [InlineData(true, 255)]
-    [InlineData(false, 238)]
-    public void TheFaceIsSolidWhiteWithACrispEdge(bool lit, int white)
+    [InlineData(true, DymoLabels.LitFace, DymoLabels.LitWhite)]
+    [InlineData(false, DymoLabels.UnlitFace, DymoLabels.UnlitWhite)]
+    public void TheFaceIsEmbossedWithACrispEdge(bool lit, int body, int white)
     {
         const int s = 4;
         int w = DymoLabels.PlateW * s, h = DymoLabels.PlateH * s;
         var b = Plate(s);
         DymoLabels.Paint(b, DymoLabels.PlateW, DymoLabels.PlateH, s, DymoLabels.Font!, "OIL SLICK", lit);
-        int solid = 0, fringe = 0;
+        int core = 0, litEdge = 0, shaded = 0, fringe = 0;
         for (int y = 7 * s; y <= 14 * s; y++)
             for (int x = 0; x < w; x++)
             {
                 var (r, g, bl) = At(b, w, h, x, y);
-                // the face's core is the white itself, not a pink blend with the tape
-                if (r == white && g == white && bl == white) solid++;
+                // the face's texels are greys: its body, the white of its lit edges, the bevel's shade on the others
+                if (r == g && g == bl)
+                {
+                    if (r == body) core++;
+                    else if (r == white) litEdge++;
+                    else if (r < body && r >= DymoLabels.BevelShade) shaded++;
+                }
                 // a pink fringe: red with a light green/blue, between the tape and the face
                 else if (r > 200 && g is > 60 and < 200) fringe++;
             }
-        Assert.True(solid > 200, $"{solid} solid white texels");
-        Assert.True(fringe < solid / 2, $"{fringe} fringe texels against {solid} solid");
-    }
-
-    private static List<(float X, float Y)> Square(float a, float b, bool clockwise)
-    {
-        var c = new List<(float X, float Y)> { (a, a), (a, b), (b, b), (b, a) };
-        if (!clockwise) c.Reverse();
-        return c;
+        // the stroke's body stays a step under the white, so the raised edges show on it
+        Assert.True(core > 100, $"{core} body texels");
+        Assert.True(litEdge > 50, $"{litEdge} lit-edge texels");
+        Assert.True(shaded > 50, $"{shaded} shaded-edge texels");
+        Assert.True(fringe < (core + litEdge + shaded) / 2, $"{fringe} fringe texels against {core + litEdge + shaded} face");
     }
 
     [Fact]
-    public void EmboldeningPushesTheOutlineOutAndTheHoleIn()
-    {
-        // TrueType's winding: the outer contour clockwise, the hole counter-clockwise
-        var ring = DymoFont.Embolden([Square(0, 100, true), Square(30, 70, false)], 10);
-        Assert.Equal((-10f, 110f), (ring[0].Min(p => p.X), ring[0].Max(p => p.X)), new Tol());
-        Assert.Equal((-10f, 110f), (ring[0].Min(p => p.Y), ring[0].Max(p => p.Y)), new Tol());
-        Assert.Equal((40f, 60f), (ring[1].Min(p => p.X), ring[1].Max(p => p.X)), new Tol());
-        // a font wound the other way round grows too
-        var other = DymoFont.Embolden([Square(0, 100, false)], 10);
-        Assert.Equal((-10f, 110f), (other[0].Min(p => p.X), other[0].Max(p => p.X)), new Tol());
-    }
-
-    private sealed class Tol : IEqualityComparer<(float, float)>
-    {
-        public bool Equals((float, float) a, (float, float) b) => Math.Abs(a.Item1 - b.Item1) < 0.01f && Math.Abs(a.Item2 - b.Item2) < 0.01f;
-        public int GetHashCode((float, float) a) => 0;
-    }
-
-    [Fact]
-    public void TheBoldLettersCarryMoreInkAndKeepTheirSpacing()
+    public void TheLettersAreClosedUpByThirtyPercentOfTheirGap()
     {
         var f = DymoLabels.Font!;
-        float bold = DymoLabels.Bold * f.CapHeight;
-        var (plain, pl, pr) = f.Layout("OIL SLICK");
-        var (heavy, hl, hr) = f.Layout("OIL SLICK", bold);
-        Assert.Equal(pl, hl);
-        // each of the nine characters' advance grows by twice the bold
-        Assert.InRange(hr - hl - (pr - pl), 2 * bold * 8, 2 * bold * 9 + 1);
-        float sc = 8f * 4 / f.CapHeight;
-        float Ink(List<List<(float X, float Y)>> c) => DymoFont.Fill(c, 400, 60, sc, sc, 4, 44).Sum();
-        Assert.True(Ink(heavy) > 1.3f * Ink(plain), $"{Ink(heavy)} against {Ink(plain)}");
+        float gap = f.MeanGap;
+        // the typewriter font: about 0.6 em an advance, some 0.2 em between the letters' ink
+        Assert.InRange(gap, 180, 280);
+        var (_, l0, r0) = f.Layout("OIL SLICK");
+        var (_, l1, r1) = f.Layout("OIL SLICK", DymoLabels.Tracking * gap);
+        // eight advances between the nine characters' ink, each taken down by the tracking
+        Assert.Equal(8 * DymoLabels.Tracking * gap, (r0 - l0) - (r1 - l1), 1f);
+        Assert.Equal(0.3f, DymoLabels.Tracking);
     }
 }
