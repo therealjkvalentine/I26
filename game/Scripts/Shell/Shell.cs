@@ -1326,10 +1326,17 @@ public sealed class ShellSettings
     public bool GarageRadio { get; set; }
     /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
-    /// written only when off; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
-    /// ground and object tints solved so its ground and cars show the 1997 look's light (I76.Formats.Imaging.LightingCalibration).
+    /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
+    /// ground and object tints solved so its ground and cars show the 1997 look's light (I76.Formats.Imaging.LightingCalibration),
+    /// the frame shown through the 3D card's curve and the sky in its texture's colours.
     /// </summary>
     public bool LightingCalibration { get; set; } = true;
+
+    /// <summary>[port] lighting_calibration=filmic: the calibration solved under the Filmic tonemap, the sky in the modern look's own colours (as before the card's curve).</summary>
+    public bool LightingFilmic { get; set; }
+
+    /// <summary>[port] lighting_calibration's word is "filmic".</summary>
+    public static bool LightingFilmicOn(string? word) => string.Equals(word?.Trim(), "filmic", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>[port] lighting_calibration's word, or when absent the earlier look_colour_match's: on unless "off".</summary>
     public static bool LightingCalibrationOn(string? word, string? earlier) =>
@@ -1505,8 +1512,9 @@ public sealed class ShellSettings
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
-        s.LightingCalibration = LightingCalibrationOn(c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null,
-            c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
+        string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
+        s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
+        s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
         s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
@@ -1624,6 +1632,7 @@ public sealed class ShellSettings
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
+        else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);

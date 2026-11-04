@@ -122,6 +122,71 @@ public class LightingCalibrationTests
     }
 
     [Fact]
+    public void TheCardCurveIsThe1997LooksDisplayBelowItsKneeAndRollsOffAbove()
+    {
+        for (int i = 0; i <= 255; i++)
+        {
+            double s = i / 255.0, v = M.ToLinear(s);
+            if (v <= M.Knee) Assert.Equal(M.ToLinear(M.Card(s)), M.CardTone(v), 9);
+        }
+        Assert.True(M.CardTone(1.0) < 1 && M.CardTone(M.Headroom) > 0.9999);
+        for (double v = 0; v < M.Headroom; v += 0.01) Assert.True(M.CardTone(v + 0.01) > M.CardTone(v));
+    }
+
+    [Fact]
+    public void TheCardCurvesTableIsTheCurveOverTheHeadroomAndAtOtherLevelsTakesThePaletteCurve()
+    {
+        var t = M.CardToneTable(1024, MonitorBrightness.Default);
+        Assert.Equal(1024, t.Length);
+        for (int i = 0; i < 1024; i += 37)
+            Assert.Equal(M.CardTone(M.Headroom * M.ToLinear(i / 1023.0)), M.ToLinear(t[i]), 6);
+        // a brighter level lifts every entry, as its palette curve does in the 1997 look
+        var bright = M.CardToneTable(1024, 6);
+        Assert.All(Enumerable.Range(1, 1000), i => Assert.True(bright[i] > t[i]));
+    }
+
+    // Oklab hue (degrees) and chroma of a linear colour
+    private static (double H, double C) Hue(M.Rgb c)
+    {
+        double l = Math.Cbrt(0.4122214708 * c.R + 0.5363325363 * c.G + 0.0514459929 * c.B), m = Math.Cbrt(0.2119034982 * c.R + 0.6806995451 * c.G + 0.1073969566 * c.B),
+            s = Math.Cbrt(0.0883024619 * c.R + 0.2817188376 * c.G + 0.6299787005 * c.B);
+        double a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, b = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+        return (Math.Atan2(b, a) * 180 / Math.PI, Math.Sqrt(a * a + b * b));
+    }
+
+    [Fact]
+    public void ThroughTheCardCurveTheTintSolvedOnTheGroundGivesAPaintIts1997HueAndChromaAsFilmicDoesNot()
+    {
+        // an orange paint the solve never saw: Filmic's curve, steep in the darks and flat in the brights, moves its hue and
+        // chroma with its light; the card's, near a power, carries the ground's tint over to it
+        byte[] paint = Enumerable.Range(0, 16).SelectMany(i => i % 2 == 0 ? new byte[] { 200, 90, 30 } : [150, 60, 25]).ToArray();
+        var ground = M.Cells(Tile((x, z) => 1000 + (int)(40 * Math.Sin(x / 9.0) + 30 * Math.Cos(z / 7.0))), 2, Sun(0.785), Luma, 0, SunLight, SkyLight);
+        var car = Car(0.785);
+        double Error(M.ToneCurve curve)
+        {
+            var r = M.Solve(Sand, ground, car, curve);
+            var (h0, c0) = Hue(M.Target(paint, car));
+            var (h1, c1) = Hue(M.Modern(paint, car, r.Exposure, r.ObjectTint, r.Sky, curve));
+            return Math.Abs(h1 - h0) + 100 * Math.Abs(c1 / c0 - 1);
+        }
+        double card = Error(M.ToneCurve.Card), filmic = Error(M.ToneCurve.Filmic);
+        Assert.True(card < 4, $"card {card:0.00}, filmic {filmic:0.00}");
+        Assert.True(card < filmic / 2, $"card {card:0.00}, filmic {filmic:0.00}");
+    }
+
+    [Fact]
+    public void TheCardCurvesSolveShowsTheGroundAsThe1997LookDoes()
+    {
+        var cells = M.Cells(Tile((x, z) => 1000 + (int)(40 * Math.Sin(x / 9.0) + 30 * Math.Cos(z / 7.0))), 2, Sun(0.785), Luma, 0, SunLight, SkyLight);
+        var r = M.Solve(Sand, cells, Car(0.785), M.ToneCurve.Card);
+        var target = M.Target(Sand, cells);
+        var shown = M.Modern(Sand, cells, r.Exposure, r.GroundTint, 1, M.ToneCurve.Card);
+        for (int c = 0; c < 3; c++) Assert.Equal(target[c], shown[c], 3);
+        // the card's curve and the ramp are both near a power of the light: the tint is little more than the modern light's colour
+        Assert.InRange(r.GroundTint.B / r.GroundTint.R, 0.8, 1.6);
+    }
+
+    [Fact]
     public void NoCellsLeaveTheModernLookAsItIs()
     {
         Assert.Equal(M.Result.None, M.Solve(Sand, [], Car(0.785)));

@@ -154,4 +154,18 @@ public class SettingsWithoutARowTests
         Assert.Equal(on, ShellSettings.LightingCalibrationOn(word, earlier));
         Assert.True(new ShellSettings().LightingCalibration);
     }
+
+    /// <summary>[port] lighting_calibration=filmic: the calibration as it was under Filmic; on (the card's curve) by default.</summary>
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("on", false)]
+    [InlineData("off", false)]
+    [InlineData("filmic", true)]
+    [InlineData(" Filmic ", true)]
+    public void TheLightingCalibrationKeysFilmicWordKeepsTheFilmicCalibration(string? word, bool filmic)
+    {
+        Assert.Equal(filmic, ShellSettings.LightingFilmicOn(word));
+        Assert.True(ShellSettings.LightingCalibrationOn(word, null) || word == "off");
+        Assert.False(new ShellSettings().LightingFilmic);
+    }
 }

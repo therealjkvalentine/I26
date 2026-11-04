@@ -107,6 +107,8 @@ instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (Ca
 // exposure, so it shows as painted. All 1 with [port] lighting_calibration=off
 global uniform vec3 i76_object_tint;
 global uniform float i76_object_sky;
+// and through the card's curve (lighting_calibration on) a car's glass pane shows i76_glass_pane of its painted colour (0.3 otherwise)
+global uniform float i76_glass_pane;
 global uniform float i76_prelit_gain;
 uniform bool has_glass = false;    // with car_paint: glass_tex marks the window texels (CarMaterialTable's glass, MaterialLibrary.GlassOf)
 uniform sampler2D glass_tex : source_color, hint_default_black, filter_linear_mipmap;   // rgb the glass's own colour (blurred), a the soft mask
@@ -613,7 +615,7 @@ void fragment() {
 				// hue the artist painted it, and a little of that colour itself lies on the pane (a near-black pane's hue is noise: neutral)
 				float gl = dot(gt.rgb, vec3(0.2126, 0.7152, 0.0722));
 				vec3 tint = mix(vec3(1.0), min(gt.rgb / max(gl, 0.01), vec3(2.5)), smoothstep(0.01, 0.06, gl)) * 0.9;
-				ALBEDO = mix(ALBEDO, (vec3(0.004, 0.007, 0.008) + gt.rgb * 0.3 + tone * tint) * (1.0 - fres), g);
+				ALBEDO = mix(ALBEDO, (vec3(0.004, 0.007, 0.008) + gt.rgb * i76_glass_pane + tone * tint) * (1.0 - fres), g);
 				ROUGHNESS = mix(ROUGHNESS, 0.04, g);
 				METALLIC = mix(METALLIC, 0.0, g);
 				SPECULAR = mix(SPECULAR, 0.3, g);
@@ -626,7 +628,8 @@ void fragment() {
 			float metal = smoothstep(0.07, 0.22, dot(c.rgb, vec3(0.299, 0.587, 0.114)));
 			ROUGHNESS = mix(0.95, 0.38, metal);
 			SPECULAR = mix(0.2, 0.5, metal);
-			CLEARCOAT = metal * 0.5;
+			// Hood Finish Matte (the default): no clear coat on the hubcap either; the coat is Satin's and Gloss's
+			CLEARCOAT = i76_paint_finish < 1 ? 0.0 : metal * 0.5;
 		}
 	} else if (tread) {
 		ALBEDO = c.rgb;

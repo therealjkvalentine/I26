@@ -2,8 +2,9 @@ namespace I76.Sim.Views;
 
 /// <summary>
 /// The port's Hood Finish (Graphic Detail): how much the modern look's car paint and cockpit hood shine. The original's hood is a
-/// flat texture with no reflection; the modern look's clear-coated paint mirrors the sky across it. Satin, the default, thins the
-/// coat; Gloss is the full coat (as before the setting); Matte takes it off.
+/// flat texture with no reflection; the modern look's clear-coated paint mirrors the sky across it. Matte, the default, takes the
+/// coat off, so the paint shows the original's colours (the sky it mirrors washed an orange paint 7 degrees toward the sky's hue,
+/// measured against the 1997 look); Satin thins the coat; Gloss is the full coat (as before the setting).
 /// </summary>
 public static class PaintFinish
 {
@@ -11,7 +12,7 @@ public static class PaintFinish
     /// <summary>The row's values: Matte is the original's look (its hood and paint reflect nothing); the shine is the port's, marked as the pads mark it.</summary>
     public static readonly string[] Names = ["Matte", "Satin*", "Gloss*"];
     private static readonly string[] Words = ["matte", "satin", "gloss"];
-    public const int Default = Satin;
+    public const int Default = Matte;
 
     /// <summary>The cfg word ([port] hood_finish); absent or unknown, the old hood_matte key's Matte, else the default.</summary>
     public static int Parse(string? word, bool legacyMatte = false) => (word ?? "").Trim().ToLowerInvariant() switch
