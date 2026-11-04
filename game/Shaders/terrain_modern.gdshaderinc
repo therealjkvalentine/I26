@@ -122,6 +122,21 @@ uniform vec2 ground_rough = vec2(0.9, 1.0);
 uniform float ground_specular = 0.06;
 uniform vec2 asphalt_shine = vec2(0.8, 0.2);  // roughness, specular
 uniform vec2 dirt_road_shine = vec2(0.96, 0.08);
+// ---- the paved roads' aggregate (the Asphalt015 scan, TerrainMaterials.Asphalt; MissionBuilder) ----
+// The road layer holds the original's 64-texel road textures at 6.4 texels a metre: under a car's wheels a texel is a
+// hand across and the asphalt reads as a smear. Near the camera the scan's luminance, against its mean, varies the
+// paved road's colour (its hue and the markings' layout stay the layer's), read at its own size for the aggregate and
+// nine times larger for wear over metres (the aggregate alone is finer than a pixel past a few metres), and its normal
+// map gives the aggregate relief.
+uniform bool has_asphalt = false;
+uniform sampler2DArray asphalt_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray asphalt_normal : filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec2 asphalt_lum = vec2(0.1, 0.03);   // the scan's luminance mean and spread (linear)
+uniform float asphalt_tile = 1.0;             // metres one repeat covers
+uniform float asphalt_grain = 0.22;           // the road colour's swing per spread of the scan's luminance
+uniform float asphalt_wear = 0.14;            // and of the scan read nine times larger: wear and patching over metres
+uniform float asphalt_bump = 0.5;             // its normal map's strength
+uniform vec2 asphalt_fade = vec2(35.0, 110.0); // metres: whole to the first, gone (not read) from the second
 
 #ifdef PAINTED_GROUND
 // ---- a painted ground (GroundPaint) ----
@@ -564,6 +579,31 @@ void fragment() {
 		road_relief = mix(0.25, 0.6, dirt);
 		paved = road * (1.0 - dirt);
 	}
+	vec3 agrad = vec3(0.0);   // the aggregate's relief on paved road
+#ifndef PAINTED_GROUND
+	if (has_asphalt && paved > 0.0 && dist < asphalt_fade.y) {
+		float af = 1.0 - smoothstep(asphalt_fade.x, asphalt_fade.y, dist);
+		// two reads at different turns and scales, so the 1 m repeat never lines up
+		mat2 r1 = mat2(vec2(0.857, 0.515), vec2(-0.515, 0.857)), r2 = mat2(vec2(-0.391, 0.920), vec2(-0.920, -0.391));
+		float t1 = asphalt_tile, t2 = asphalt_tile * 1.37;
+		vec2 q1 = r1 * g_pos.xz / t1, q2 = r2 * g_pos.xz / t2;
+		vec4 a1 = i76_srgb_array(textureGrad(asphalt_albedo, vec3(q1, 0.0), r1 * dpx.xz / t1, r1 * dpy.xz / t1));
+		vec4 a2 = i76_srgb_array(textureGrad(asphalt_albedo, vec3(q2, 0.0), r2 * dpx.xz / t2, r2 * dpy.xz / t2));
+		vec4 n1 = textureGrad(asphalt_normal, vec3(q1, 0.0), r1 * dpx.xz / t1, r1 * dpy.xz / t1);
+		vec4 n2 = textureGrad(asphalt_normal, vec3(q2, 0.0), r2 * dpx.xz / t2, r2 * dpy.xz / t2);
+		float b = clamp(0.5 + (a2.a - a1.a) * 2.0, 0.0, 1.0);   // the higher stone of the two shows
+		float l = (lum_lin(mix(a1.rgb, a2.rgb, b)) - asphalt_lum.x) / asphalt_lum.y;
+		float t3 = asphalt_tile * 9.0;
+		vec2 q3 = r2 * r1 * g_pos.xz / t3;
+		vec4 a3 = i76_srgb_array(textureGrad(asphalt_albedo, vec3(q3, 0.0), r2 * r1 * dpx.xz / t3, r2 * r1 * dpy.xz / t3));
+		float wear = (lum_lin(a3.rgb) - asphalt_lum.x) / asphalt_lum.y;
+		ground *= mix(1.0, clamp(1.0 + asphalt_grain * l + asphalt_wear * wear, 0.5, 1.6), af * paved);
+		vec2 s1 = transpose(r1) * (slope(n1) * vec2(1.0, -1.0)), s2 = transpose(r2) * (slope(n2) * vec2(1.0, -1.0));
+		vec2 s = mix(s1, s2, b);
+		agrad = vec3(s.x, 0.0, s.y) * asphalt_bump * af * paved;
+		rough = mix(rough, mix(n1.z, n2.z, b), 0.5 * af * paved);
+	}
+#endif
 	ROUGHNESS = rough;
 	SPECULAR = spec;
 	ALBEDO = ground;
@@ -606,6 +646,7 @@ void fragment() {
 	grad += tgrad * bump_texture * fine * (1.0 - 0.5 * road);
 	grad += mgrad * mix(1.0, road_relief, road);
 	grad *= far * (1.0 - paved);   // asphalt keeps the ground's slope but not its bumps
+	grad += agrad;                 // only its aggregate
 	// and takes that slope over a broad span: the samples' own lumps, a few metres each, read as a bumpy track at night
 	n = normalize(mix(n, normalize(g_broad), paved));
 	// tilt the normal against the gradient's part in the surface, then back to Godot's frame and view space

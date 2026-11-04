@@ -26,8 +26,15 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public RoadNode? Roads { get; private set; }
     /// <summary>The road pieces RoadNode draws in the 1997 look (game space).</summary>
     public List<I76.Formats.Assembly.RoadPiece>? RoadPieces { get; private set; }
-    /// <summary>Road layer texels per chunk side: 1024 over 160 units is the road textures' own 6.4 per unit.</summary>
-    public const int RoadLayerResolution = 1024;
+    /// <summary>
+    /// Road layer texels per chunk side: 1024 over 160 units is the road textures' own 6.4 per unit (64 texels across a
+    /// 10 unit road). With the HD textures' upscales (four times as dense) 2048, so the bake keeps half of what they add
+    /// rather than a quarter, for four times the layers' memory (<see cref="RoadLayerResolutionFor"/>).
+    /// </summary>
+    public static int RoadLayerResolution { get; private set; } = 1024;
+
+    /// <summary>The layer's resolution for road textures at most <paramref name="widest"/> texels across.</summary>
+    public static int RoadLayerResolutionFor(int widest) => widest >= 128 ? 2048 : 1024;
     public static bool CompressRoadLayers { get; set; } = OS.HasFeature("editor") && System.Environment.GetEnvironmentVariable("I76_SOFT_COMPRESS") is not ("0" or "1");   // I76_SOFT_COMPRESS: 1 our encoder, 0 none (RGBA8, an export without it)   // editor builds only have Godot's compressor (TerrainMaterials.Compress)
     /// <summary>
     /// Where Godot's compressor is not there (an export; I76_SOFT_COMPRESS=1 pretends so in the editor) the layers are BC3 by our own
@@ -469,6 +476,17 @@ public sealed class MissionBuilder(AssetVfs vfs)
                     GroundPaint.Apply(sharedModern, paint, TerrainMaterials.CompleteAsphalt());
                     Notes.Add($"ground {GroundTexture}: painted ({paint.Coverage:P1} paint), drawn as asphalt");
                 }
+                else if (flat.Count > 0)
+                {
+                    // the paved roads' aggregate near the camera (GroundPaint.ApplyRoads)
+                    if (!TerrainMaterials.AsphaltReady)
+                    {
+                        var imported = TerrainMaterials.ReadImportedAsphalt();
+                        var stage = System.Threading.Tasks.Task.Run(() => TerrainMaterials.StageAsphalt(imported));
+                        while (!stage.IsCompleted) yield return stage;
+                    }
+                    GroundPaint.ApplyRoads(sharedModern, TerrainMaterials.CompleteAsphalt());
+                }
             }
             // a painted ground has no hollows to fill
             cavities = ground is not null && !painted && TerrainMaterials.Get() is not null;
@@ -495,6 +513,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         // read once up front so the workers only read.
         Trace("road textures");
         for (int i = 0; i < roadNames.Length; i++) RoadTex(i);
+        RoadLayerResolution = RoadLayerResolutionFor(Enumerable.Range(0, roadNames.Length).Select(i => RoadTex(i)?.Width ?? 0).DefaultIfEmpty(0).Max());
         Trace("road pieces");
         // road-piece objects (ODEF types 0x50–0x5f, the intersections): their tops painted over the roads,
         // their textures numbered after the road set's
