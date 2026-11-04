@@ -691,7 +691,8 @@ public partial class Cockpit : Node
         int frame = System.Math.Clamp((int)MathF.Round(_wheel), 1, 36);
         if (frame == _wheelShown || _wheelFrames.Member is null || _wheelFrames.Tex[frame] is not { } t) return;
         _wheelShown = frame;
-        Materials.OverrideTexture(_wheelFrames.Member, t);
+        // each frame has its own key: the smooth outline of the first frame would cut the others
+        Materials.OverrideTexture(_wheelFrames.Member, t, ownKey: true);
     }
 
     private (string? Member, ImageTexture?[] Tex) _shotR, _shotL;
@@ -713,7 +714,7 @@ public partial class Cockpit : Node
             var tex = a.Axis == 1 ? shot.Tex[frame] : raise.Tex[frame];
             if (tex is null) continue;
             _armShown[i] = (a.Axis, frame);
-            Materials.OverrideTexture(raise.Member, tex);
+            Materials.OverrideTexture(raise.Member, tex, ownKey: true);
         }
     }
 

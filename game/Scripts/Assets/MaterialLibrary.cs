@@ -93,7 +93,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     private void SmoothKey(ShaderMaterial mat, string member)
     {
-        if (textures.KeyEdge(member) is not { } edge) return;
+        if (_ownKey.Contains(member) || textures.KeyEdge(member) is not { } edge) return;
         mat.SetShaderParameter("key_edge", edge);
         mat.SetShaderParameter("smooth_key", true);
     }
@@ -668,14 +668,24 @@ public sealed class MaterialLibrary(TextureFactory textures)
     public IEnumerable<Material> MadeFor(string member) =>
         _cache.Where(kv => kv.Key.StartsWith(member + "|", StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Value);
 
-    /// <summary>Points every material made for a texture member at another texture (the cockpit's live panels).</summary>
-    public void OverrideTexture(string member, Texture2D texture)
+    /// <summary>The members whose materials show a texture keyed by its own texels (OverrideTexture's ownKey): no smooth outline from the original's key.</summary>
+    private readonly HashSet<string> _ownKey = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Points every material made for a texture member at another texture (the cockpit's live panels). <paramref name="ownKey"/>:
+    /// the texture's key is not the original's (the weapons panel's housings are stamped where the bare art is keyed; the wheel's and
+    /// arms' frames each have their own), so its
+    /// materials cut by its texels, not by the smooth outline traced from the original's key (SmoothKey), which would cut the stamps away.
+    /// </summary>
+    public void OverrideTexture(string member, Texture2D texture, bool ownKey = false)
     {
+        if (ownKey) _ownKey.Add(member);
         foreach (var (key, m) in _cache)
             if (m is ShaderMaterial sm && key.StartsWith(member + "|", StringComparison.OrdinalIgnoreCase))
             {
                 sm.SetShaderParameter("albedo_tex", texture);
                 sm.SetShaderParameter("albedo_cockpit", texture);
+                if (ownKey) sm.SetShaderParameter("smooth_key", false);
             }
     }
 
