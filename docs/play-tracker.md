@@ -258,6 +258,19 @@ stacked ones and the integration branch are section I, after H.
 | I57 | fix/net-melee-music-tracks | a melee, Instant or network, asking for a shell's track (I76's M09: 15, the menu's) starts on the next mission track; Nitro's default sequence passes over its menu (10) and credits (4) tracks; `I76_MUSIC_SEQUENCE=retail/gog` and `music_tracks=all` unchanged; the stale duplicate of the music deviations row removed | WRLD tracks read from every mission of both installs; local: Formats MissionMusicTests | - | merged (3000ef8) |
 | I58 | feat/build-id-in-lobby | the host form shows this build's id, the roster the host's (red when it differs), and a joiner on another build is let in with a one-line notice to everyone; the id from the SDK's source revision or, in a git archive, an export-subst placeholder; `I76_BUILD_ID`; protocol 26 (join request, accept, session list) | ux (family games on several machines); local: Net BuildIdTests 6, WireTests | - | merged (d6f0a7c) |
 | I59 | fix/round3-integration-7 | the integrator's pass-10 fix: the build-id notice's changelog example and BuildIdTests take a character's name (Skeeter) for the joining player instead of a real first name | local: Net BuildId 6/6 | - | merged (0ceb444) |
+| I60 | feat/graphics-submenus | Graphic Detail keeps the original's six rows on its sheet; the port's rows on four pages, Display, World, Car & Cockpit and Effects, on the main menu's sheet and the Esc pad alike (GraphicsPages, one table); nothing scrolls; Done/Cancel across pages from one snapshot, Reset per page. Rebased: no Update Check row (upstream's Check for Updates stays on Play Options' second page) | local: Game GraphicsPagesTests | `_scratch/r3-gfx-sub/shots` | merged (02d1181) |
+| I61 | fix/lfe-level-stronger | the bass shaker half as strong again at the same LFE Level, the level applied inside the shaker's limiter | local: Formats TactileSynthTests | - | merged (fd2d2b6) |
+| I62 | feat/lfe-2 | Output Stereo, Phones, 5.1, 7.1 and LFE Level 0 (off, the default) turning the shaker signal on; `[port] lfe_engine/road/hits/shots/explosions` 0-200 % (Developer panel sliders); road rumble from the car's speed and its springs; movies' high shelf and the game's shelves (`game_eq`, `movie_eq`, set by hand) | local: Formats TactileSynth, SoundEq; Game 293 | - | merged (125f6bf) |
+| I63 | feat/smooth-keyed-edges | modern look: keyed textures cut along smooth outlines traced from the key (signed distance fields from KeyEdge, made on workers), signs, fences, plants, the cockpit's art, the mirror and compass; contains fix/compass-smooth-edges (eb71edf, not merged separately) | local: Formats KeyEdgeTests 6, 4210 keyed textures; captures T01 | branch's captures | merged (591d76f) |
+| I64 | fix/known-test-failures | the four known Sim failures answered: T14 checkpoint test on the 1997 tactic rule, the co-op side ram while overtaking not the human's, T01Follow's driver keeps off Taurus at 30 Hz, the Nitro caltrop's silent hit | local: probes on a second machine; Sim 992/1021 there | - | merged (8b3ae05) |
+| I65 | fix/vehicle-lights-strength | modern look: head, brake and tail lamps weaker at night and well down by day (LampStrength) | local: Game LampStrength 3; captures | - | merged (e154725) |
+| I66 | fix/palette-grade-no-dither | Palette Grade moves the modern look's colours toward the mission's palette smoothly, no per-pixel dither | local: Formats SoftwarePalette 24 | - | merged (ff55868) |
+| I67 | fix/dymo-letter-weight | the modern cockpit's weapon labels lettered heavier, the embossed shadow no longer eating the strokes | local: Game DymoLabels 21 | - | merged (fdf3130) |
+| I68 | fix/paved-roads-sharp | modern look: paved roads carry the asphalt scan's grain and wear near the camera; textures at 16x anisotropy | local: Game PavedRoadDetail 2; captures | - | merged (16fa62f) |
+| I69 | feat/lighting-original-colours | modern look in the original's colours: the frame through the 3D card's curve, the sky's texture colour per point, grey sky light, the ground solve on the flats; Matte the default Hood Finish (rebased onto upstream's all-over clear coat: Matte takes it off every car, the global starts at Matte, a hubcap's coat only under Satin and Gloss) | local: Formats LightingCalibration, Sim PaintFinish; captures against the 1997 look, 9 sets | branch's captures | merged (ff37f7a) |
+| I70 | fix/map-edge-row-name | the Map Edge row is Hide Map Edge Cliffs (the World page, both menus) | local: capture of the sheet | - | merged (f995e90) |
+| I71 | fix/map-edge-roadside | Hide Map Edge Cliffs keeps a thin barrier within 80 m of a road (fades in to 120 m) | local: Formats EdgeWallsTests 13 | - | merged (d2e5809) |
+| I72 | fix/round3-integration-8 | the integrator's pass-11 fix: the last page is Effects (the Esc pad's title art), the Developer panel's bass-shaker trace fed by the shaker's peak with its header and dev-hooks line saying so (was "no LFE output on this build"), the Settings test names the lfe_* sliders and tactile_eq / game_eq / movie_eq / lighting_calibration, two Hood Finish comments say Matte is the default | local: Game 328/328 | - | merged (f130273) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -623,6 +636,49 @@ pass when run again or on the laptop (EightPlayersShareAStoryMission, HostMigrat
 (PredictionTests' laggy link, AnetMeleeTests' NAT roster; both pass on the laptop). New because of us: none.
 
 Not deployed in this pass (the coordinator deploys after folding in the day's pending branches).
+
+## Pass 11 (2026-11-03)
+
+Thirteen round-3 branches built on the old play (d0a9384) were rebased onto the rebuilt play (52b62c5) by their own
+commits (`git rebase --onto 52b62c5 d0a9384`, the stacked ones onto their base's new tip), force-pushed to `play`, listed
+as manifest section K and merged by sync-play's incremental path (`-NoRebase`: without it the script would rebase the
+eleven other-session branches that are no longer checked out in their worktrees onto upstream and merge them a second
+time), dry run first; rerere replayed the resolutions of a scratch pass of the same merges in the same order (the trees
+identical). Then fix/round3-integration-8.
+
+Rebase resolutions (in the branches):
+- feat/graphics-submenus: Overlays.cs takes the branch's pages over the rebuilt flat list; its Update Check row goes
+  (GraphicsRow, the Display page, the copy and the tests; the changelog and the deviations row say Display is Resolution,
+  VSync, Max FPS, Render Scale, Renderer, Log), upstream's Check for Updates staying on Play Options' second page.
+- feat/smooth-keyed-edges: TextureFactory keeps upstream's `Make` (the session store) and adds the branch's KeyEdge
+  methods after it. fix/compass-smooth-edges moved to the rebased first commit (eb71edf) and is not listed.
+- fix/vehicle-lights-strength: CarNode keeps upstream's weakly keyed GlowMats (`Add`) with the branch's day_floor.
+- feat/lighting-original-colours: deviations rows merged word by word (upstream's Horizon panels, the branch's Lighting,
+  the Sky row with both edits). Paint: upstream clear-coats every car all over and the Hood Finish block already acts on
+  that paint, so Matte (the branch's new default) takes the coat off every car and Satin and Gloss keep it; the shaders'
+  global i76_paint_finish starts at Matte (project.godot had Satin) and a wheel face's hubcap drops its coat under Matte.
+- fix/map-edge-row-name: the flat list's Map Edge row (18 after the close-up) renamed.
+Merge resolution (rerere): fix/map-edge-row-name over feat/graphics-submenus in Overlays.cs and EscapeMenu.cs keeps the
+pages and names the World page's row Hide Map Edge Cliffs on both menus.
+
+fix/round3-integration-8: the last page's title is Effects (the Esc pad prints it over the title art, where "Effects &
+Textures" ran past it), on both menus, the changelog and the deviations row; the Developer panel's Signals plot the bass
+shaker's peak (BassShaker hands each block's peak to DevSignals, zero while nothing plays) under a header saying so,
+where it said "no LFE output on this build" and plotted zero; docs/dev-hooks.md the same; DevSettingsSignalsTests names
+the five lfe_* keys (sliders), tactile_eq, game_eq and movie_eq (hand-set only) and lighting_calibration; two comments
+said Satin was the default Hood Finish.
+
+Versions unchanged: snapshot 24, protocol 26, shell.cfg 13 (no pass-11 branch bumps either).
+
+Test status, pass 11 (`play` d70996c): desktop (I76_INSTALL and I76_NITRO_INSTALL set, an emulator lane running) game/
+built; Game 328/328, Sim 1006/1035, Net 444/467. Sim: every failure is on the desktop baseline list; the known four
+(CheckpointTests T14, CoopFormationTests...IsNotThatHumansRam, T01FollowTests at 30 Hz, CaltropTests with the Nitro
+install) now pass (fix/known-test-failures). Net outside the baseline: upstream's BotJumpTests' two, and four that pass
+when run again alone (AnetMeleeTests' two NAT tests, BotCarsTests.TheNewHostKeepsTheSameUnarmedBotCars,
+CoopNetTests.TheSuccessorsReplayOfAMissionIsTheHostsGame t01; 7/7 alone): load. Laptop: Sim 1004/1033, Net 449/467,
+Game 328/328, Formats 985/1020 (30 skipped), Editor 222/222; outside the laptop's baseline only upstream's BotJumpTests'
+two and BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink (the laptop-load flake, in the desktop baseline). The three
+known Sim ones are gone there too (Sim 1001 -> 1004 passed). New because of us: none.
 
 ## Withdrawn or answered (not offered as fixes)
 
