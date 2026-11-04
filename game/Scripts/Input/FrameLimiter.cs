@@ -40,7 +40,7 @@ public static class FrameLimiter
         DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
     }
 
-    public const int BuildFps = 500;
+    public const int BuildFps = 240;
 
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {
