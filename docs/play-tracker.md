@@ -271,6 +271,11 @@ stacked ones and the integration branch are section I, after H.
 | I70 | fix/map-edge-row-name | the Map Edge row is Hide Map Edge Cliffs (the World page, both menus) | local: capture of the sheet | - | merged (f995e90) |
 | I71 | fix/map-edge-roadside | Hide Map Edge Cliffs keeps a thin barrier within 80 m of a road (fades in to 120 m) | local: Formats EdgeWallsTests 13 | - | merged (d2e5809) |
 | I72 | fix/round3-integration-8 | the integrator's pass-11 fix: the last page is Effects (the Esc pad's title art), the Developer panel's bass-shaker trace fed by the shaker's peak with its header and dev-hooks line saying so (was "no LFE output on this build"), the Settings test names the lfe_* sliders and tactile_eq / game_eq / movie_eq / lighting_calibration, two Hood Finish comments say Matte is the default | local: Game 328/328 | - | merged (f130273) |
+| I73 | fix/ai-dropper-gate-as-original | AI cars with mines, oil, Blox or fire droppers no longer drop under a car chasing them straight on above about 28 m/s, as the build GOG sells | local: Sim AiDropAndMortarGateTests | - | merged (ff44787) |
+| I74 | fix/hd-menu-port-edits | the HD menu art's port edits | local | - | merged (c594240) |
+| I75 | feat/hd-pack-scale | the HD pack's scale | local | - | merged (0c0f928) |
+| I76 | feat/death-variety | modern look: a car's death follows what killed it; most deaths open with a calmer blast, burning wheels drawn per death; snapshot 25, protocol 27 | local: Game DeathVarietyTests, Sim DeathCauseTests | - | cherry-picked (9b80ce0, b091233) |
+| I77 | feat/brush-impacts | modern look: the scattered plants answer rounds, cars, blasts and fire; `[port] brush_impacts` | local: Formats BrushFieldTests | - | cherry-picked (93cc458) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -679,6 +684,30 @@ CoopNetTests.TheSuccessorsReplayOfAMissionIsTheHostsGame t01; 7/7 alone): load. 
 Game 328/328, Formats 985/1020 (30 skipped), Editor 222/222; outside the laptop's baseline only upstream's BotJumpTests'
 two and BotTests.ThreeBotsPlayAMinuteOfMeleeOverALossyLink (the laptop-load flake, in the desktop baseline). The three
 known Sim ones are gone there too (Sim 1001 -> 1004 passed). New because of us: none.
+
+## Pass 12 (2026-11-03)
+
+Five branches added as manifest section L. fix/ai-dropper-gate-as-original, fix/hd-menu-port-edits and feat/hd-pack-scale
+were merged with --no-ff (CHANGELOG.md conflicts only, both sides kept). feat/death-variety and feat/brush-impacts were
+built on the old play (d0a9384): a merge would drag the old history in (the first attempt conflicted in 66 files, add/add
+on everything the rebuild re-created) and was aborted; their own commits after d0a9384 (two and one) were cherry-picked.
+Before the next sync-play run these two must be rebased onto play (`git rebase --onto <play tip> d0a9384`) or the script
+will merge the old history.
+
+Resolutions: CHANGELOG.md, both sides; docs/deviations.md keeps the branch's Car deaths and Brush impacts rows beside
+play's current Police light bar and Roads rows (the branch's older copies dropped); docs/playing.md adds brush_impacts
+above the lighting_calibration row; Shell.cs ShellSetting has DeathVariety and BrushImpacts (properties, read, write)
+beside LightingCalibration/LightingFilmic; WreckFire keeps death-variety's delayed `SetBurn(kindle, heat)` and adds
+brush-impacts' `BrushImpacts.Heat` call.
+
+Versions: snapshot 24 -> 25 (death-variety only), protocol 26 -> 27 (death-variety only); WireTests pins 25 and 27.
+Only one branch bumps either, so nothing to reconcile; the snapshot guard passes.
+
+Test status, pass 12: desktop, I76_INSTALL set. Editor 222/222, Game 336/336, Formats 1001/1036 (30 skipped, 5 failures),
+Net 440/467 (27), Sim 1020/1049 (29). Sim's 29 and all the Net and Formats failures but seven are the same tests that
+fail on the previous play tip (df066fa, run on its own build): the desktop baseline. The seven outside it (VegetationTests
+T02Sward..., five network tests and VisibilityTests.EveryoneSeesEveryoneAfterANewRound) passed when rerun alone (Vegetation T02Sward, the migration, prediction and visibility ones, the hidden-cars Anet one; the punch pair and SixBots failed in a
+first rerun under load, then passed alone: 2/2) and the same tests pass alone on df066fa: load. New because of us: none.
 
 ## Withdrawn or answered (not offered as fixes)
 
