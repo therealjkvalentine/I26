@@ -411,6 +411,8 @@ public sealed partial class EscapeMenu : Control
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             GraphicsRow.VSync => Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live),
             GraphicsRow.MaxFps => Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live),
+            // [port] dev_fps: the frame rate and frame time in the window's top right corner, live (Main's ApplyGraphics)
+            GraphicsRow.ShowFps => Setting(Cycle, "Show FPS", 0, 2, offOn, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, apply: live),
             // the 3D view drawn at 50 to 200 % of the window (the HUD and menus are not scaled), live: the shell's Render Scale row
             GraphicsRow.RenderScale => Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live),
             // the modern look's plants, and its boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live

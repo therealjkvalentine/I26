@@ -235,6 +235,7 @@ public partial class Main : Node3D
         }
         var first = I76.Game.Shell.ShellSettings.Load();
         FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
+        FpsOverlay.Apply(GetTree(), first.DevFps);   // Show FPS, over the menus too
         WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
         I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
         RenderScale.Apply(first);

@@ -12,7 +12,7 @@ public class FrameStatsTests
         var s = new FrameStats();
         for (int i = 0; i < 300; i++) s.Add(1.0 / 100);
         Assert.Equal(100, s.Fps(1.0), 3);
-        Assert.Equal("FPS 100", s.Text());
+        Assert.Equal("100 fps  10.0 ms", s.Text());
     }
 
     [Fact]
@@ -22,14 +22,14 @@ public class FrameStatsTests
         for (int i = 0; i < 100; i++) s.Add(0.1);   // 10 s of 10 fps
         Assert.InRange(s.Count, 9, 11);
         for (int i = 0; i < 100; i++) s.Add(0.01);  // then 1 s of 100 fps: the slow frames are gone
-        Assert.Equal("FPS 100", s.Text());
+        Assert.Equal("100 fps  10.0 ms", s.Text());
     }
 
     [Fact]
     public void NothingYetAndBadDeltasAreIgnored()
     {
         var s = new FrameStats();
-        Assert.Equal("FPS --", s.Text());
+        Assert.Equal("-- fps", s.Text());
         s.Add(0); s.Add(-1); s.Add(double.NaN);
         Assert.Equal(0, s.Count);
     }
