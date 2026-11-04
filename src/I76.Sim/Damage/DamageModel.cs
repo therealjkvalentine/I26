@@ -610,11 +610,19 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// Co-op only (the port's own; docs/deviations.md): an AI car that drove into a human does not name that human its
     /// rammer. The original records each car as the other's rammer whoever moved, so a friend driving
     /// into the one player counts as the player's ram in its friendly-fire routine, and single player keeps that; in co-op
-    /// a friend's way through the group's cars is not any player's fault. The AI drove into it when its own speed into
-    /// the contact (along the normal) is the greater: the human's car was the slower to close or stood still.
+    /// a friend's way through the group's cars is not any player's fault. The AI drove into it when its own speed toward
+    /// the human's car (along the line between the two) is the greater: the human's car was the slower to close or stood
+    /// still. Not along the contact normal: a car overtaking with its nose into the other's side has a side face's normal,
+    /// across which its own speed is nil.
     /// </summary>
-    private bool AiRammedHuman(Vehicle self, Vehicle other, Contact rec) =>
-        World.Coop && World.IsHuman(other) && !World.IsHuman(self) && Vector3.Dot(self.Vel, -rec.N) > Vector3.Dot(other.Vel, rec.N);
+    private bool AiRammedHuman(Vehicle self, Vehicle other, Contact rec)
+    {
+        if (!World.Coop || !World.IsHuman(other) || World.IsHuman(self)) return false;
+        var d = other.Pos.ToVector3() - self.Pos.ToVector3();
+        d.Y = 0;
+        if (d.LengthSquared() < 1e-6f) d = -rec.N;
+        return Vector3.Dot(self.Vel, d) > Vector3.Dot(other.Vel, -d);
+    }
 
     // ---- structures ----
 
