@@ -439,7 +439,7 @@ public partial class ModernFx : Node3D
     /// light and sparks. <paramref name="smoke"/> tints the smoke (white
     /// phosphorus: white). False when the flipbooks are missing.
     /// </summary>
-    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f)
+    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f, float smokeAmount = 1f)
     {
         var main = size >= 4 ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
         if (main is null) return false;
@@ -459,7 +459,7 @@ public partial class ModernFx : Node3D
             fb.Loop = true; fb.FrameRate = 40; fb.FadeOut = 0.7f;
         }
         if (_smoke is not null)
-            for (int k = 0; k < layers * 2; k++)
+            for (int k = 0, puffs = Mathf.Max(1, Mathf.RoundToInt(layers * 2 * smokeAmount)); k < puffs; k++)
             {
                 var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.8f;
                 var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (0.35 + 0.08 * k), 3.5 + GD.Randf(), GD.Randf() * Mathf.Tau);

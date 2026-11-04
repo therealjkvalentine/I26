@@ -70,6 +70,19 @@ public partial class DamageView : Node3D
             else _blasts.Add((_t + b.Delay, car, v, b));
     }
 
+    /// <summary>
+    /// The death's opening blast, which CombatView leaves to us in this case: the original's (6 m, its smoke) for a catastrophic
+    /// death, otherwise 60 % of the size and half the smoke puffs.
+    /// </summary>
+    private void Opening(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
+    {
+        if (Fx?.Invoke() is not { HasExplosions: true } fx) return;
+        var at = G(v.Pos.ToVector3());
+        var smoke = new Color(0.16f, 0.15f, 0.14f);
+        if (plan.Calm) fx.Explode(at, DeathVariety.CalmSize, 2.6, smoke, 1f, DeathVariety.CalmSmoke);
+        else fx.Explode(at, 6f, 3.2, smoke, 1f);
+    }
+
     /// <summary>One of a death's blasts, where it is on the car now.</summary>
     private void Go(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Blast b)
     {
@@ -428,6 +441,7 @@ public partial class DamageView : Node3D
                     car.SetWrecked(true);
                     Rebuild(car);
                     Burn(car, plan);
+                    if (plan is not null) Opening(car, k.Vehicle, plan);
                     if (plan is not null) Stage(car, k.Vehicle, plan);
                     // a gun emplacement: the zones' state 3 is the burnt pole, and its gun is hidden
                     if (k.Vehicle.IsEmplacement) car.HideWeapon(0);

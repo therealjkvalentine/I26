@@ -24,7 +24,7 @@ public static class DeathVariety
     /// long before it catches. <see cref="Sag"/> drops the burnt body that far (m) and tilts it (<see cref="Pitch"/>,
     /// <see cref="Roll"/>, radians). <see cref="Panels"/> body panels thrown from <see cref="PanelAt"/> along the length.
     /// </summary>
-    public sealed record Plan(int FlamingWheels, float FireAt, float FireSize, float FireDelay, float Sag, float Pitch, float Roll, Blast[] Blasts, int Panels, float PanelAt)
+    public sealed record Plan(int FlamingWheels, float FireAt, float FireSize, float FireDelay, float Sag, float Pitch, float Roll, Blast[] Blasts, int Panels, float PanelAt, bool Calm = false)
     {
         public static readonly Plan Plain = new(int.MaxValue, 0, 1, 0, 0, 0, 0, [], 0, 0);
     }
@@ -48,6 +48,23 @@ public static class DeathVariety
     public static Plan For(DeathCause cause, ushort seed, bool enabled = true)
     {
         if (!enabled) return Plan.Plain;
+        return Build(cause, seed) with { Calm = !Catastrophic(cause, seed) };
+    }
+
+    /// <summary>Whether the modern look draws this death's opening blast and smoke for this car: the vehicle's own, not a gun emplacement or a helicopter.</summary>
+    public static bool Owns(I76.Sim.Vehicles.Vehicle v, bool modernCar) => Enabled && modernCar && !v.IsEmplacement && !v.IsHeli;
+
+    /// <summary>The calm opening's blast size (60 % of the original's 6 m) and its smoke amount: a 3.6 m blast has one layer, so 1.5 makes 3 puffs where the original's has 6.</summary>
+    public const float CalmSize = 3.6f, CalmSmoke = 1.5f;
+
+    /// <summary>
+    /// A catastrophic death keeps the original's full blast and smoke: every special-weapon kill (a big blast of its own) and one
+    /// death in eight of the others, drawn from the death's seed. The rest open with the calm blast.
+    /// </summary>
+    public static bool Catastrophic(DeathCause cause, ushort seed) => cause == DeathCause.Special || U(seed, 50) < 0.125f;
+
+    private static Plan Build(DeathCause cause, ushort seed)
+    {
         int wheels = WheelCount(seed);
         float side = U(seed, 1) < 0.5f ? -1 : 1, end = U(seed, 2) < 0.5f ? -1 : 1;
         float Jit(int k, float a) => (U(seed, k) * 2 - 1) * a;

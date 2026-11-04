@@ -19,6 +19,18 @@ public class DeathVarietyTests
         Assert.InRange((n[3] + n[4]) / 65536.0, 0.04, 0.06);
     }
 
+    /// <summary>The original's full blast is kept for a special kill and about one death in eight of the others.</summary>
+    [Fact]
+    public void OnlyTheOccasionalDeathKeepsTheBigBlast()
+    {
+        int big = 0;
+        for (int s = 0; s < 65536; s++) if (DeathVariety.Catastrophic(DeathCause.Engine, (ushort)s)) big++;
+        Assert.InRange(big / 65536.0, 0.115, 0.135);
+        Assert.True(DeathVariety.Catastrophic(DeathCause.Special, 1));
+        Assert.True(DeathVariety.For(DeathCause.Wheel, 7).Calm != DeathVariety.Catastrophic(DeathCause.Wheel, 7));
+        Assert.False(DeathVariety.For(DeathCause.Wheel, 7, enabled: false).Calm);
+    }
+
     [Fact]
     public void APlanFollowsItsSeed()
     {

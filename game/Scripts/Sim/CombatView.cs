@@ -394,6 +394,11 @@ public partial class CombatView : Node3D
         return null;
     }
 
+    /// <summary>The car whose death blast is at <paramref name="at"/> (it may have moved on a few ticks since): the nearest killed car within 8 m.</summary>
+    private I76.Sim.Vehicles.Vehicle? DyingAt(System.Numerics.Vector3 at) =>
+        Combat.World.Vehicles.Where(v => (v.Flags & (I76.Sim.Vehicles.VehicleFlags)0x80000000) != 0 && !v.Pos.ToVector3().Equals(default) && System.Numerics.Vector3.DistanceSquared(v.Pos.ToVector3(), at) < 64)
+            .OrderBy(v => System.Numerics.Vector3.DistanceSquared(v.Pos.ToVector3(), at)).FirstOrDefault();
+
     private Vector3 CameraPos() => GetViewport().GetCamera3D()?.GlobalPosition ?? Vector3.Zero;
 
     private Vector3 G(System.Numerics.Vector3 p) => Coords.ToGodot(p - Origin());
@@ -695,6 +700,10 @@ public partial class CombatView : Node3D
                     break;
                 // the napalm stream hit burst (xflht1): the modern look draws the fire on the target itself (NapalmModern)
                 case Explosion x when IsModern && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xflht", StringComparison.OrdinalIgnoreCase):
+                    break;
+                // a car's death in the modern look with the variety on: DamageView draws the opening blast (calm or catastrophic)
+                case Explosion x when IsModern && _fx.HasExplosions && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xcarx", StringComparison.OrdinalIgnoreCase)
+                    && DyingAt(x.At) is { } dv && DeathVariety.Owns(dv, (CarOf?.Invoke(dv) as CarNode)?.Modern == true):
                     break;
                 case Explosion x when IsModern && _fx.HasExplosions && Blast(x.Effect) is { } bl:
                     _fx.Explode(G(x.At), bl.Size, bl.Life, bl.Smoke, bl.Fire);
