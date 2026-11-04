@@ -12,7 +12,7 @@ public enum DevWhen { Live, NextScreen, NextMission, NextStart }
 /// and when a change shows. <see cref="Apply"/> is what a change needs beyond the setting and the host's refresh.
 /// </summary>
 public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings, int> Get, Action<ShellSettings, int> Set, DevWhen When,
-    Action<ShellSettings>? Apply = null, bool Slider = false);
+    Action<ShellSettings>? Apply = null, bool Slider = false, Func<int, bool>? Offered = null);
 
 /// <summary>
 /// The Developer panels' Settings section (in a mission and on the main menu): every key of docs/playing.md's "Settings
@@ -77,6 +77,11 @@ public static class DevSettings
             s => ForceFeedback.Mode = s.RumbleMode),
         new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
             s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
+        // 4x, 3x, 2x: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
+        new("hd_texture_size", ["4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
+            (s, v) => s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.Size = s.HdTextureSize,
+            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
         new("hd_menu_art", FalseTrue, s => s.HdMenuArt ? 1 : 0, (s, v) => s.HdMenuArt = v != 0, DevWhen.NextScreen,
             s => HdAssets.Enabled = s.HdMenuArt),
         new("lighting_calibration", ["off", "filmic" + M, "on" + M], s => !s.LightingCalibration ? 0 : s.LightingFilmic ? 1 : 2,
@@ -129,9 +134,21 @@ public static class DevSettings
             }
             var b = DevScale.Min(new Button { FocusMode = Control.FocusModeEnum.None, Alignment = HorizontalAlignment.Left, TooltipText = "click: next value, right click: back" }, 84);
             void Show() => b.Text = e.Values[Math.Clamp(e.Get(settings), 0, e.Values.Length - 1)];
+            if (e.Offered is not null && !Enumerable.Range(0, e.Values.Length).Any(e.Offered))
+            {
+                b.Disabled = true;
+                b.TooltipText = "no tex-world-4x/3x/2x folder in the user folder; a change shows from the next mission";
+            }
             void Step(int by)
             {
-                int v = ((Math.Clamp(e.Get(settings), 0, e.Values.Length - 1) + by) % e.Values.Length + e.Values.Length) % e.Values.Length;
+                int n = e.Values.Length, v = e.Get(settings);
+                // a key with Offered steps over the values it does not offer
+                for (int i = 0; i < n; i++)
+                {
+                    v = ((Math.Clamp(v, 0, n - 1) + by) % n + n) % n;
+                    if (e.Offered is null || e.Offered(v)) break;
+                }
+                if (e.Offered is not null && !e.Offered(v)) return;
                 e.Set(settings, v);
                 settings.Save();
                 e.Apply?.Invoke(settings);
