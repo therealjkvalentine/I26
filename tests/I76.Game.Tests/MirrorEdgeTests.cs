@@ -72,6 +72,51 @@ public class MirrorEdgeTests
         for (int x = 0; x < w; x++) Assert.Equal(new byte[] { 16, 16, 16, 255 }, fill[(x * 4)..(x * 4 + 4)]);
     }
 
+    /// <summary>A w × h keyed art (the compass's kind): opaque <see cref="Frame"/> where <paramref name="solid"/>, else keyed.</summary>
+    private static byte[] Keyed(int w, int h, System.Func<int, int, bool> solid) => Art(w, h, (x, y) => solid(x, y) ? 1 : 2);
+
+    /// <summary>Where row Y of a one-channel field crosses 128, in original pixels.</summary>
+    private static float Crossing1(byte[] f, int fw, int Y)
+    {
+        for (int X = 1; X < fw; X++)
+        {
+            int a = f[Y * fw + X - 1], b = f[Y * fw + X];
+            if ((a < 128) != (b < 128)) return (X - 0.5f + (127.5f - a) / (b - a)) / MirrorEdge.FieldScale;
+        }
+        return float.NaN;
+    }
+
+    [Fact]
+    public void AKeyedPanelsDiagonalComesOutAStraightSlope()
+    {
+        // the compass's shoulders: the opaque part steps a pixel every two rows, its edge straight on the pixel boundary elsewhere
+        const int w = 32, h = 32;
+        var f = MirrorEdge.KeyField(Keyed(w, h, (x, y) => x >= 4 + y / 2), w, h);
+        Assert.Equal(w * h * MirrorEdge.FieldScale * MirrorEdge.FieldScale, f.Length);
+        float worst = 0;
+        for (int Y = 6 * MirrorEdge.FieldScale; Y < 26 * MirrorEdge.FieldScale; Y++)
+        {
+            float y = (Y + 0.5f) / MirrorEdge.FieldScale;
+            worst = System.MathF.Max(worst, System.MathF.Abs(Crossing1(f, w * MirrorEdge.FieldScale, Y) - (4 + (y - 1) / 2)));
+        }
+        Assert.True(worst < 0.15f, $"off the slope by {worst} px");
+        var g = MirrorEdge.KeyField(Keyed(24, 8, (x, _) => x >= 8), 24, 8);
+        for (int Y = 0; Y < 8 * MirrorEdge.FieldScale; Y++) Assert.InRange(Crossing1(g, 24 * MirrorEdge.FieldScale, Y), 7.9f, 8.1f);
+    }
+
+    [Fact]
+    public void TheKeyFillGivesTheKeyedTexelsTheirNeighboursColour()
+    {
+        const int w = 8, h = 2;
+        var art = Keyed(w, h, (x, _) => x >= 5);
+        new byte[] { 200, 100, 50 }.CopyTo(art, 5 * 4);
+        var fill = MirrorEdge.KeyFill(art, w, h, 1);
+        // three pixels' reach from the art beside it, opaque; the art's own texels kept
+        for (int x = 2; x < 5; x++) Assert.Equal(new byte[] { 200, 100, 50, 255 }, fill[(x * 4)..(x * 4 + 4)]);
+        Assert.Equal(new byte[] { 200, 100, 50, 255 }, fill[(5 * 4)..(5 * 4 + 4)]);
+        Assert.Equal(new byte[] { 16, 16, 16, 255 }, fill[(6 * 4)..(6 * 4 + 4)]);
+    }
+
     [Fact]
     public void TheModernLookDrawsTheDigitsOnTheHousingsDrums() =>
         Assert.Equal((0, -1), (Cockpit.DigitShift(faithful: true), Cockpit.DigitShift(faithful: false)));

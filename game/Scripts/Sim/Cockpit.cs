@@ -69,6 +69,7 @@ public partial class Cockpit : Node
         _rng = new System.Random();
         HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
         SetupMirror();
+        CompassOutline();
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
         Textures.Swapped += ArtSwapped;
     }
@@ -108,6 +109,7 @@ public partial class Cockpit : Node
         Panels.Reload();
         LoadArt();
         MirrorFill();
+        CompassOutline();
         ResetPanels();
         _repaintWeapons = _repaintSpecials = _radarRedraw = true;
         _wheelShown = -1;
@@ -472,6 +474,37 @@ public partial class Cockpit : Node
         if (MathF.Abs(deg - _compass) < 0.5f) return;
         _compass = deg;
         Panels.Window("zcm_.map", "compass_window", "left", "right", deg / 360f);
+    }
+
+    /// <summary>
+    /// The modern look's smooth compass outline (MirrorEdge.KeyField, KeyFill): the art keys everything round its housing, a
+    /// staircase a few screen pixels a step along the diagonal shoulders; its keyed texels inside the outline take the housing's colours. The field from the original art, the fill from the
+    /// art served (the originals or a pack's upscale); the 3D compass's materials (object.gdshaderinc) and the 2D dash's slot
+    /// (ExtInstruments) cut along it. The 1997 look's shaders key the art's own pixels.
+    /// </summary>
+    private ImageTexture? _compassEdge, _compassFill;
+    /// <summary>The compass's smooth outline's two pictures (the mask's field, the art with its colours spread), or null.</summary>
+    public (Texture2D Edge, Texture2D Fill)? CompassEdge => _compassEdge is not null && _compassFill is not null ? (_compassEdge, _compassFill) : null;
+
+    private void CompassOutline()
+    {
+        if (Resolver.FindByStem("zcm_") is not { } member) return;
+        if (_compassEdge is null && Textures.GetOriginalRgba(member) is { } o)
+            _compassEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.R8, MirrorEdge.KeyField(o.Rgba, o.Width, o.Height)));
+        if (Textures.GetRgba(member) is { } a)
+        {
+            var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.KeyFill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+            if (_compassFill is null) _compassFill = ImageTexture.CreateFromImage(img);
+            else _compassFill.SetImage(img);
+        }
+        if (_compassEdge is null || _compassFill is null) return;
+        foreach (var m in Materials.MadeFor(member).OfType<ShaderMaterial>())
+        {
+            m.SetShaderParameter("key_edge", _compassEdge);
+            m.SetShaderParameter("key_edge_fill", _compassFill);
+            m.SetShaderParameter("smooth_key_fill", true);
+            m.SetShaderParameter("smooth_key", true);
+        }
     }
 
     // ---- damage panel ----

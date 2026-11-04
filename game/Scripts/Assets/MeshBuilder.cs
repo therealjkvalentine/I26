@@ -113,6 +113,10 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         // a pack's upscales of the model's textures, decoded together on worker threads rather than one by one as its faces ask
         materials.Prefetch(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
+        // and the smooth outlines of its cut-out faces' textures (the modern look's keyed edges), likewise
+        materials.PrefetchKeyEdges(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces)
+            .Where(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) == MaterialLibrary.FaceMode.Cutout)
+            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
         return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf);
     }
 

@@ -34,6 +34,15 @@ uniform float shadow_dark = 0.0;   // the original's shadows were pure black
 uniform bool prelit = false;       // the cockpit's art: drawn as painted, no light, no shadow
 uniform bool key_fill = false;     // the cockpit's art on an opaque face: its keyed texels (index 255) in that index's colour
 uniform vec4 key_fill_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+#ifdef KEY_COVERAGE
+// a keyed face's smooth outline (TextureFactory.KeyEdge; the compass's MirrorEdge.KeyField): the key's outline as a signed
+// distance field, cut at half over one screen pixel; inside it a keyed texel keeps the colour bled under the key or, with
+// smooth_key_fill, takes the art's beside it (the compass's KeyFill)
+uniform bool smooth_key = false;
+uniform bool smooth_key_fill = false;
+uniform sampler2D key_edge : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D key_edge_fill : source_color, filter_nearest, repeat_disable;
+#endif
 uniform bool unlit_1997 = false;   // the 1997 look: a face the engine draws at full brightness (FaceLight: lamps, lit windows, translucent faces)
 // material maps (modern look): roughness, metallic, clear coat, specular; a car's (CarMaterial) with a tangent-space
 // normal, scenery's and props' (PropMaterial) without
@@ -508,6 +517,11 @@ void fragment() {
 	vec4 c = use_texture ? (prelit ? textureLod(albedo_cockpit, tuv, 0.0) : texture(albedo_tex, tuv)) : albedo_color;
 #endif
 	if (key_fill && c.a < 0.5) c = vec4(key_fill_color.rgb, 1.0);
+#ifdef KEY_COVERAGE
+	float key_f = smooth_key ? texture(key_edge, tuv).r : 1.0;
+	float key_w = fwidth(key_f);
+	if (smooth_key && smooth_key_fill && c.a < 0.5) c = vec4(textureLod(key_edge_fill, tuv, 0.0).rgb, 1.0);
+#endif
 	// a respray: the scheme's paint texels (the mask) take the car's own colours; pf_metal / pf_matte the finish where they did
 	float pf_metal = 0.0;
 	float pf_matte = 0.0;
@@ -531,6 +545,7 @@ void fragment() {
 	}
 #ifdef KEY_COVERAGE
 	float key_cov = round_key ? clamp((0.495 - disc_d) / max(fwidth(disc_d), 0.0001) + 0.5, 0.0, 1.0)
+		: smooth_key ? clamp((key_f - 0.5) / max(key_w, 0.0001) + 0.5, 0.0, 1.0)
 		: alpha_key ? smoothstep(0.1, 0.9, c.a) : 1.0;
 	if (key_cov <= 0.0) discard;
 #else

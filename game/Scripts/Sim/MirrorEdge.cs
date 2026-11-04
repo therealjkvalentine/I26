@@ -3,16 +3,14 @@ namespace I76.Game.Sim;
 /// <summary>
 /// The modern look's smooth mirror outline. The mirror's art cuts its frame and glass by pixel (the surround in its corner
 /// colour, the glass at alpha 0), which drawn a few screen pixels to the texel is a staircase. Field takes the original
-/// art's two masks (not surround, glass), blurred (a Gaussian, <see cref="Sigma"/> original pixels) and sampled at four
-/// texels a pixel: the shader cuts each at 0.5 over one screen pixel, a smooth antialiased curve. Fill is the art served
+/// art's two masks (not surround, glass) as smooth outlines (KeyEdge: staircases straightened, uneven curves evened, corners
+/// kept) in signed distance fields at four texels a pixel: the shader cuts each at 0.5 over one screen pixel. Fill is the art served
 /// (the original or a pack's upscale) with the frame's colours spread into the surround and the glass, so the soft edge
-/// takes the frame's colour. The 1997 look keeps the art's own pixels.
+/// takes the frame's colour. KeyField and KeyFill do the same for a keyed panel's outline (the compass). The 1997 look keeps
+/// the art's own pixels.
 /// </summary>
 public static class MirrorEdge
 {
-    /// <summary>The blur, in original pixels: wide enough to straighten the art's one-pixel steps, its corners rounded no more than they are drawn.</summary>
-    public const float Sigma = 2f;
-
     /// <summary>The field's texels per original pixel.</summary>
     public const int FieldScale = 4;
 
@@ -25,35 +23,30 @@ public static class MirrorEdge
     }
 
     /// <summary>
-    /// The two masks of a w × h RGBA art, blurred and sampled at FieldScale: an RG8 picture (w·4 × h·4, the art's row
-    /// order), R the frame and glass (not surround), G the glass (closed). 128 is the edge.
+    /// The two masks of a w × h RGBA art as smooth outlines' distance fields at FieldScale (KeyEdge.Field): an RG8 picture
+    /// (w·4 × h·4, the art's row order), R the frame and glass (not surround), G the glass (closed). 128 is the edge.
     /// </summary>
-    public static byte[] Field(byte[] rgba, int w, int h, float sigma = Sigma)
+    public static byte[] Field(byte[] rgba, int w, int h)
     {
         var corner = new[] { rgba[0], rgba[1], rgba[2] };
-        var solid = new float[w * h];
+        var solid = new bool[w * h];
         var glass = new float[w * h];
         for (int i = 0; i < w * h; i++)
         {
-            solid[i] = Surround(rgba, i * 4, corner) ? 0 : 1;
+            solid[i] = !Surround(rgba, i * 4, corner);
             glass[i] = rgba[i * 4 + 3] < 128 ? 1 : 0;
         }
-        int fw = w * FieldScale, fh = h * FieldScale;
         Close(glass, w, h);
-        var a = Blur(solid, w, h, sigma);
-        var b = Blur(glass, w, h, sigma);
-        var o = new byte[fw * fh * 2];
-        for (int i = 0; i < fw * fh; i++)
-        {
-            o[i * 2] = (byte)System.Math.Clamp((int)(a[i] * 255f + 0.5f), 0, 255);
-            o[i * 2 + 1] = (byte)System.Math.Clamp((int)(b[i] * 255f + 0.5f), 0, 255);
-        }
+        var a = I76.Formats.Imaging.KeyEdge.Field(solid, w, h, FieldScale);
+        var b = I76.Formats.Imaging.KeyEdge.Field([.. glass.Select(v => v > 0.5f)], w, h, FieldScale);
+        var o = new byte[a.Length * 2];
+        for (int i = 0; i < a.Length; i++) { o[i * 2] = a[i]; o[i * 2 + 1] = b[i]; }
         return o;
     }
 
     /// <summary>
     /// Closes a mask (grown a pixel, four ways, then shrunk a pixel): the one-pixel lines the art paints on the glass (its
-    /// cross-hair) count as glass, so the blur keeps the glass whole; the shaders draw them from the art.
+    /// cross-hair) count as glass, so the outline keeps the glass whole; the shaders draw them from the art.
     /// </summary>
     private static void Close(float[] m, int w, int h)
     {
@@ -70,43 +63,6 @@ public static class MirrorEdge
                     System.MathF.Min(y > 0 ? grown[(y - 1) * w + x] : 1, y < h - 1 ? grown[(y + 1) * w + x] : 1)));
     }
 
-    /// <summary>A mask's normalised Gaussian blur sampled at the FieldScale grid's texel centres, edges clamped; separable.</summary>
-    private static float[] Blur(float[] m, int w, int h, float sigma)
-    {
-        int fw = w * FieldScale, fh = h * FieldScale, r = (int)System.MathF.Ceiling(3 * sigma) + 1;
-        var tmp = new float[h * fw];
-        for (int X = 0; X < fw; X++)
-        {
-            float xs = (X + 0.5f) / FieldScale - 0.5f;
-            int x0 = (int)System.MathF.Floor(xs);
-            Span<float> wt = stackalloc float[2 * r + 1];
-            float sum = 0;
-            for (int d = -r; d <= r; d++) { float t = (x0 + d - xs) / sigma; sum += wt[d + r] = System.MathF.Exp(-0.5f * t * t); }
-            for (int y = 0; y < h; y++)
-            {
-                float acc = 0;
-                for (int d = -r; d <= r; d++) acc += wt[d + r] * m[y * w + System.Math.Clamp(x0 + d, 0, w - 1)];
-                tmp[y * fw + X] = acc / sum;
-            }
-        }
-        var o = new float[fh * fw];
-        for (int Y = 0; Y < fh; Y++)
-        {
-            float ys = (Y + 0.5f) / FieldScale - 0.5f;
-            int y0 = (int)System.MathF.Floor(ys);
-            Span<float> wt = stackalloc float[2 * r + 1];
-            float sum = 0;
-            for (int d = -r; d <= r; d++) { float t = (y0 + d - ys) / sigma; sum += wt[d + r] = System.MathF.Exp(-0.5f * t * t); }
-            for (int X = 0; X < fw; X++)
-            {
-                float acc = 0;
-                for (int d = -r; d <= r; d++) acc += wt[d + r] * tmp[System.Math.Clamp(y0 + d, 0, h - 1) * fw + X];
-                o[Y * fw + X] = acc / sum;
-            }
-        }
-        return o;
-    }
-
     /// <summary>
     /// The served art (w × h RGBA, <paramref name="scale"/> texels a pixel) with its frame's colours spread, a texel a
     /// pass, into the surround and the glass round it (three original pixels' reach), opaque: the colour the smooth
@@ -115,9 +71,30 @@ public static class MirrorEdge
     public static byte[] Fill(byte[] rgba, int w, int h, int scale)
     {
         var corner = new[] { rgba[0], rgba[1], rgba[2] };
-        var o = (byte[])rgba.Clone();
         var known = new bool[w * h];
         for (int i = 0; i < w * h; i++) known[i] = rgba[i * 4 + 3] >= 128 && !Surround(rgba, i * 4, corner);
+        return Spread(rgba, w, h, scale, known);
+    }
+
+    /// <summary>
+    /// A keyed panel's outline (the compass, whose art keys everything round it): its opaque mask (alpha 0.5 and over) as
+    /// <see cref="Field"/>'s, an R8 picture (w·4 × h·4, the art's row order). 128 is the edge.
+    /// </summary>
+    public static byte[] KeyField(byte[] rgba, int w, int h) =>
+        I76.Formats.Imaging.KeyEdge.Field(I76.Formats.Imaging.KeyEdge.Opaque(rgba, w, h), w, h, FieldScale);
+
+    /// <summary>A keyed panel's served art with its opaque texels' colours spread into the keyed ones round them, opaque: the soft edge's colour.</summary>
+    public static byte[] KeyFill(byte[] rgba, int w, int h, int scale)
+    {
+        var known = new bool[w * h];
+        for (int i = 0; i < w * h; i++) known[i] = rgba[i * 4 + 3] >= 128;
+        return Spread(rgba, w, h, scale, known);
+    }
+
+    /// <summary>The <paramref name="known"/> texels' colours spread a texel a pass into the rest, three original pixels' reach; all opaque.</summary>
+    private static byte[] Spread(byte[] rgba, int w, int h, int scale, bool[] known)
+    {
+        var o = (byte[])rgba.Clone();
         var next = new bool[w * h];
         for (int pass = 0; pass < 3 * scale; pass++)
         {
