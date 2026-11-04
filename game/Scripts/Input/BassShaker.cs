@@ -67,7 +67,8 @@ public partial class BassShaker : Node
     private static bool? Playing => !On ? null : !AudioOutputs.Discrete(Output) ? true : HasLfe ? false : null;
     private bool _stereoPair;
 
-    private readonly TactileSynth _synth = new();
+    /// <summary>The synth, its randomness from a seed drawn as the mission starts (a node of the mission's SimDriver).</summary>
+    private readonly TactileSynth _synth = new((uint)System.Random.Shared.Next(1, int.MaxValue));
     private readonly TactileEvents _events = new();
     private readonly List<(int Channel, int Amount)> _hits = [];
     private readonly WheelCrossings _crossings = new();
@@ -115,7 +116,7 @@ public partial class BassShaker : Node
         string name = (uint)s.Surface < (uint)TactileSynth.SurfaceNames.Length ? TactileSynth.SurfaceNames[s.Surface] : "?";
         string wheels = string.Concat(_crossings.Kinds.Select(k => KindLetters[(int)k]));
         float road = s.RoadNow * _gain;
-        return $"LFE road: {name}, bed {s.BedHz:0} Hz at {(road > 1e-4f ? $"{20 * MathF.Log10(road):0.0} dB" : "off")}, wheels {wheels}, bumps {s.Bumps}";
+        return $"LFE road: {name}, bed {s.BedHz:0} Hz at {(road > 1e-4f ? $"{20 * MathF.Log10(road):0.0} dB" : "off")}, wheels {wheels}{(s.Strip ? " shoulder" : "")}, bumps {s.Bumps}, lumps {s.Lumps}";
     }
 
     public override void _Ready()
@@ -230,7 +231,7 @@ public partial class BassShaker : Node
             e.TickSeconds = dt;
             // each wheel onto or off a road or a bridge; a new car (a respawn, a car change) starts unseen
             if (v != me._crossingsOf) { me._crossings.Reset(); me._crossingsOf = v; }
-            if (me.Ground?.Invoke() is { } ground) me._crossings.Step(ground, v, dt, e.Crossings);
+            if (me.Ground?.Invoke() is { } ground) { me._crossings.Step(ground, v, dt, e.Crossings); e.Shoulder = me._crossings.Shoulder; }
             if (events is not null)
             {
                 var at = v.Pos.ToVector3();

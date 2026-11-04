@@ -62,6 +62,44 @@ Options not taken (rendered for comparison, `tools/TactileRender`): expansion-jo
 roads of the game are asphalt, not jointed concrete), a washboard dirt road (a tone at v / 0.7 m: convincing but tiring over a
 long drive, and the game's dirt roads are not drawn corrugated), heavier lumps at contrast 3.
 
+## Randomness, cracks, the shoulder, the knock and the impacts (round 2)
+
+- **Randomness.** Each mission draws a seed; the synth's draws come from it (a fixed seed in the tests and sweeps, so they
+  repeat). On top of the lumps' jittered spacing and level: the bed's level wanders about ±2 dB and its band about ±4 % with a
+  correlation time of about 1.6 s (an AR(1) per tick), and one lump in 14 is 1.6 times as strong, 15 % lower and 40 % longer
+  (a rock, a pothole, a wide crack). `TactileTuning.Variation` 0 turns it off.
+- **Filled cracks** on asphalt and parking lots: a 38 Hz, 70 ms tick every 8 to 20 m (14 m ± 43 %), each met again by the rear
+  axle a wheelbase (2.8 m) on; 4 to 6 dB over the asphalt bed's own peaks (-22 against -26 dBFS at 30 m/s). With them the
+  asphalt's RMS is about the dirt road's (it was 4 dB under), and sand stands 10 to 13.6 dB over asphalt instead of 13.6 to 15:
+  the bed itself is as quiet as before, the cracks are separate ticks.
+- **Rumble strip.** The game's roads have no shoulder; the heightfield's 5 m surface cells give the edge. When one side's two
+  wheels are on asphalt and the other's off it for 0.3 s, the car runs along the edge: a buzz at the milled strip's strike rate
+  (speed over 30.5 cm: 49 Hz at 15 m/s, 98 Hz at 30 m/s), folded an octave down while over 60 Hz so a shaker keeps it.
+- **The knock** for a transducer that needs time to reach amplitude: 28 Hz held at full for 140 ms then down to -40 dB by
+  350 ms, a 52 Hz thud (0.6 of it, 200 ms) and an 82 Hz click (0.45, 35 ms) for the edge, the click held up against the
+  crossover's low-pass at its frequency (at most 6 dB, so a 60 Hz crossover does not eat it).
+- **Impacts.** The level by damage on a log curve (the DLL's strengths are full from about 80 damage, so a landing, a ram and a
+  head-on crash all felt the same): -12 dB at 8 rising 6 dB a decade to 0 dB at 800, an explosive hit 2 dB more. Each hit has
+  its channel's tone held 60 ms, a 55 Hz part and an 80 Hz click. An impact-channel hit over 20 (the original's threshold for
+  its cockpit jolt, `ScreenWobble`: 19 px easing out at 2·dt a frame, a 0.5 s time constant, under a pixel at 1.47 s) rings
+  the cabin at 26 Hz, 0.55 of the hit, with the same 0.5 s time constant.
+
+### Headroom plan
+
+Peaks at the limiter's input at LFE 100 % (gain 1.5), measured by `tools/TactileRender --plan` (seed 76):
+
+| Peak | What | Measured |
+|---|---|---|
+| 0 dBFS | the hardest impact: a head-on ram, a crash into a building; a blast at the car | head-on (783) -0.2, building (300) -2.7, blast at 5 m -2.1 |
+| -6 | a typical hit, an axle's knock at speed, the rumble strip | rocket -8.3, landing (80) -6.1, ram (120) -5.1; axle knock 30 m/s -6.0; strip -7 to -9 |
+| -12 | a wheel's knock, the heavy shots, the engine, light hits | wheel knock 30 m/s -12.0; cannon shot -12.1, mortar -11.2; engine -11.7; cannon round -12.0, MG round -15.5 |
+| -6 or under | every road at its worst (full speed, the springs busy) | rough -8.5 (-6.7 busy), sand -7.2 (-5.1 busy), asphalt -18; big lumps now and then to about -5 |
+| -18 to -24 | a filled crack, a road at 15 m/s | crack at 30 m/s -22.3, 15 m/s -26.7; sand at 15 m/s -17.5 |
+
+The roads are 14 dB under their first-round level for this (`TactileTuning.RoadTrim`; `lfe_road` 200 gives 6 dB back), and
+the shots 6 dB. The limiter (0.85·tanh(x/0.85), 1 dB of reduction from -5.7 dBFS) then takes the hardest impacts to about
+-2.3 dBFS out and leaves the roads alone at LFE 100 %.
+
 ## Sources
 
 - PIARC road dictionary, [megatexture](https://www.piarc.org/en/activities/Road-Dictionary-Terminology-Road-Transport/term-sheet/92983-en-megatexture) and [macrotexture](https://piarc.org/en/activities/Road-Dictionary-Terminology-Road-Transport/term-sheet/92982-en-macrotexture?ls=de); [Road texture](https://en.wikipedia.org/wiki/Road_texture) (Wikipedia); FHWA, [concrete pavement texture](https://www.fhwa.dot.gov/pavement/pubs/hif17011.pdf)

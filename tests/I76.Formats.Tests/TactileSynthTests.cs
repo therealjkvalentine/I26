@@ -7,6 +7,9 @@ public class TactileSynthTests
 {
     private const int Rate = 48000;
 
+    /// <summary>The synth as the first round had it (no trims, knock or ring of the plan, no randomness, asphalt without cracks): the bed's own calibration.</summary>
+    private static TactileSynth Plain() => new() { Tune = TactileTuning.Before, Surfaces = TactileSynth.FirstRound };
+
     private static float[] Run(TactileSynth s, double seconds)
     {
         var b = new float[(int)(seconds * Rate)];
@@ -56,7 +59,7 @@ public class TactileSynthTests
     {
         float Bed(int surface, float mph)
         {
-            var s = new TactileSynth();
+            var s = Plain();
             s.Step(new TactileEvents { Surface = surface, Mph = mph });
             return Rms(Run(s, 2.0).AsSpan(Rate / 2));
         }
@@ -74,7 +77,7 @@ public class TactileSynthTests
     {
         float Bed(TactileEvents e, int ticks = 1, Action<TactileEvents, int>? each = null)
         {
-            var s = new TactileSynth();
+            var s = Plain();
             float rms = 0;
             for (int t = 0; t < ticks; t++)
             {
@@ -181,7 +184,7 @@ public class TactileSynthTests
     [Fact]
     public void A_thump_dies_away_and_reset_silences_the_beds()
     {
-        var s = new TactileSynth();
+        var s = Plain();
         s.Step(new TactileEvents { Shots = { new WeaponShot(0, 2, 1, 1) } });
         Run(s, 0.05);
         Assert.True(s.Peak > 0.2f);
@@ -409,7 +412,8 @@ public class TactileSynthTests
     public void The_roads_and_the_ground_stand_further_apart()
     {
         float Db(float[] a, float[] b) => 20 * MathF.Log10(Rms(a) / Rms(b));
-        float now = Db(Road(2, 40), Road(3, 40));
+        Action<TactileSynth> first = s => { s.Surfaces = TactileSynth.FirstRound; s.Tune = TactileTuning.Default with { Variation = 0 }; };
+        float now = Db(Road(2, 40, first), Road(3, 40, first));
         float was = Db(Road(2, 40, s => { s.Surfaces = TactileSynth.Flat; s.Contrast = 1; }), Road(3, 40, s => { s.Surfaces = TactileSynth.Flat; s.Contrast = 1; }));
         Assert.InRange(was, 6f, 8.5f);          // the force model's 35 against 15
         Assert.True(now > 13f, $"sand over asphalt {now:0.0} dB");
@@ -483,11 +487,163 @@ public class TactileSynthTests
     {
         // rough ground's lumps at 25 Hz: twice the speed, about twice as many in the same time (more of the 25 Hz component
         // than the bed's growth alone gives); standing, none at all
-        float Lumps(float mph) => Amplitude(Road(6, mph), 25f) / TactileSynth.RoadLevel(6, mph, 0);
+        float Lumps(float mph) => Amplitude(Road(6, mph, s => s.Tune = TactileTuning.Default with { Variation = 0 }), 25f) / TactileSynth.RoadLevel(6, mph, 0);
         Assert.True(Lumps(40) > Lumps(20) * 1.1f);
         Assert.Equal(0f, Rms(Road(6, 0)));
-        // the old profile has no lumps: asphalt and every surface of Flat is the bed alone
-        Assert.Equal(0f, TactileSynth.Profiles[3].LumpLevel);
+        // the first round's asphalt and every surface of Flat is the bed alone; asphalt now has its cracks, each met by both axles
+        Assert.Equal(0f, TactileSynth.FirstRound[3].LumpLevel);
+        Assert.True(TactileSynth.Profiles[3].LumpLevel > 0 && TactileSynth.Profiles[3].Paired);
         Assert.All(TactileSynth.Flat, p => Assert.Equal(0f, p.LumpLevel + p.GrainLevel));
+    }
+
+    /// <summary>The synth at LFE 100 %, stepped as the game steps it, for <paramref name="seconds"/>; events by tick.</summary>
+    private static float[] Drive(TactileSynth s, float seconds, Action<int, TactileEvents> each)
+    {
+        int tick = (int)(Rate * 102f / 2048f);
+        var b = new float[(int)(seconds * Rate) / tick * tick];
+        var e = new TactileEvents();
+        for (int i = 0, at = 0; at < b.Length; i++, at += tick)
+        {
+            e.Clear();
+            e.TickSeconds = 102f / 2048f;
+            each(i, e);
+            s.Step(e);
+            s.Fill(b.AsSpan(at, tick), Rate);
+        }
+        return b;
+    }
+
+    [Fact]
+    public void A_seed_plays_the_same_every_time_and_another_seed_differently()
+    {
+        float[] Rough(uint seed, float variation) => Drive(new TactileSynth(seed) { Tune = TactileTuning.Default with { Variation = variation } }, 4f,
+            (_, e) => { e.Surface = 6; e.Mph = 50; });
+        Assert.Equal(Rough(76, 1), Rough(76, 1));
+        Assert.NotEqual(Rough(76, 1), Rough(77, 1));
+        Assert.NotEqual(Rough(76, 0), Rough(76, 1));
+    }
+
+    [Fact]
+    public void The_randomness_makes_the_bed_wander()
+    {
+        // the bed's level over half-second windows on asphalt (no lumps in the way at a crack's 8 to 20 m: the first round's), 20 s
+        float Spread(float variation)
+        {
+            var s = new TactileSynth(76) { Tune = TactileTuning.Default with { Variation = variation }, Surfaces = TactileSynth.FirstRound };
+            var x = Drive(s, 20f, (_, e) => { e.Surface = 3; e.Mph = 60; });
+            var db = Enumerable.Range(2, 36).Select(k => 20 * MathF.Log10(Rms(x.AsSpan(k * Rate / 2, Rate / 2)))).ToArray();
+            float mean = db.Average();
+            return MathF.Sqrt(db.Select(d => (d - mean) * (d - mean)).Average());
+        }
+        float plain = Spread(0), varied = Spread(1);
+        Assert.True(varied > plain + 0.5f, $"plain {plain:0.00} dB, varied {varied:0.00} dB");
+        Assert.InRange(varied, 0.8f, 3.5f);
+    }
+
+    [Fact]
+    public void Asphalt_has_a_crack_every_8_to_20_m()
+    {
+        var s = new TactileSynth(76);
+        // 1000 m at 20 m/s
+        Drive(s, 50f, (_, e) => { e.Surface = 3; e.Mph = 20 * 2.2369363f; });
+        Assert.InRange(s.Lumps, 1000 / 20, 1000 / 8);
+    }
+
+    [Fact]
+    public void The_knock_is_long_broad_and_held_up_against_the_crossover()
+    {
+        var parts = TactileSynth.KnockParts(TactileTuning.Default, 1f, 60f).ToList();
+        Assert.Equal([28f, 52f, 82f], parts.Select(p => p.Hz));
+        Assert.Equal(0.35f, parts[0].Seconds);
+        float Knock(float crossover, float hz, int from, int to)
+        {
+            var s = new TactileSynth(76) { Gain = 0.25f, LowPassHz = crossover };
+            var e = new TactileEvents { Mph = 60 };
+            e.Crossings.Add(1f);
+            s.Step(e);
+            return Amplitude(Run(s, 0.6).AsSpan(from, to - from), hz);
+        }
+        // held 140 ms, then down: still within 16 dB of its start 200 to 250 ms on (the 150 ms knock was 50 dB down by then)
+        Assert.True(Knock(90, 28f, Rate / 5, Rate / 4) > 0.15f * Knock(90, 28f, 0, Rate / 20));
+        // the click: a 60 Hz crossover takes 6 dB off 82 Hz, the click is held up by up to that
+        // (the click alone: the knock with it less the knock without, the same seed)
+        float Click(float crossover)
+        {
+            float[] One(TactileTuning t)
+            {
+                var s = new TactileSynth(76) { Gain = 0.25f, LowPassHz = crossover, Tune = t };
+                var e = new TactileEvents { Mph = 60 };
+                e.Crossings.Add(1f);
+                s.Step(e);
+                return Run(s, 0.1);
+            }
+            var with = One(TactileTuning.Default);
+            var without = One(TactileTuning.Default with { KnockClick = 0 });
+            return with.Zip(without, (a, b) => MathF.Abs(a - b)).Max();
+        }
+        float ratio = Click(60) / Click(90);
+        Assert.True(ratio is > 0.8f and < 1.25f, $"the click at a 60 Hz crossover over 90: {ratio:0.00}");
+    }
+
+    [Fact]
+    public void A_big_impact_rings_the_cabin_as_the_original_jolts_the_view()
+    {
+        var parts = TactileSynth.HitParts(TactileTuning.Default, 3, 783).ToList();
+        var ring = parts.Single(p => p.Hz == TactileTuning.Default.RingHz);
+        // the jolt's time constant 0.5 s: -40 dB after 0.5·ln(100) s
+        Assert.InRange(ring.Seconds, 2.2f, 2.4f);
+        Assert.DoesNotContain(TactileSynth.HitParts(TactileTuning.Default, 3, 15), p => p.Hz == ring.Hz);     // 20 or less: no jolt
+        Assert.DoesNotContain(TactileSynth.HitParts(TactileTuning.Default, 1, 150), p => p.Hz == ring.Hz);    // a blast's hit: the impact channel only
+        // the ring decays by e over each half second
+        var s = new TactileSynth(76) { Gain = 0.25f };
+        var e = new TactileEvents();
+        e.Hits.Add((3, 783));
+        s.Step(e);
+        var x = Run(s, 1.6);
+        float a = Amplitude(x.AsSpan((int)(0.6 * Rate), Rate / 5), ring.Hz), b = Amplitude(x.AsSpan((int)(1.1 * Rate), Rate / 5), ring.Hz);
+        Assert.InRange(b / a, 0.30f, 0.45f);   // e^-1 = 0.37
+    }
+
+    [Fact]
+    public void The_levels_follow_the_headroom_plan()
+    {
+        // peaks at the limiter's input at LFE 100 % (rendered far under the limiter and scaled back: the chain is linear before it)
+        float g = AudioOutputs.ShakerGain(100) / 1e-3f;
+        float Db(float[] x) => 20 * MathF.Log10(x.Max(MathF.Abs) * g);
+        float Hit(int ch, int amount)
+        {
+            var s = new TactileSynth(76) { Gain = 1e-3f };
+            var e = new TactileEvents();
+            e.Hits.Add((ch, amount));
+            s.Step(e);
+            return Db(Run(s, 2.5));
+        }
+        float axle = Db(Drive(new TactileSynth(76) { Gain = 1e-3f }, 1f, (i, e) => { e.Mph = 70; if (i == 0) { e.Crossings.Add(1f); e.Crossings.Add(1f); } }));
+        float rough = Db(Drive(new TactileSynth(76) { Gain = 1e-3f }, 10f, (_, e) => { e.Surface = 6; e.Mph = 80; })[(2 * Rate)..]);
+        float crash = Hit(3, 783);
+        Assert.InRange(crash, -1.5f, 0.5f);                     // the hardest: full scale into the limiter
+        Assert.InRange(axle, -8f, -4f);                         // an axle's knock at speed: about -6
+        // the roughest road at full speed: its peaks about -6, a rare big lump to -4; its RMS well under the knock
+        float roughRms = 20 * MathF.Log10(Rms(Drive(new TactileSynth(76) { Gain = 1e-3f }, 10f, (_, e) => { e.Surface = 6; e.Mph = 80; })[(2 * Rate)..]) * g);
+        Assert.True(rough < -4f, $"rough {rough:0.0}");
+        Assert.True(roughRms < axle - 10f, $"rough rms {roughRms:0.0}, axle {axle:0.0}");
+        // hits grow with damage, and a ram outgrows a round
+        Assert.True(Hit(0, 8) < Hit(0, 30) && Hit(0, 30) < Hit(3, 120) && Hit(3, 120) < Hit(3, 300) && Hit(3, 300) < crash);
+        Assert.Equal(0f, TactileSynth.HitDb(3, 800), 3);
+        Assert.Equal(-12f, TactileSynth.HitDb(0, 8), 3);
+    }
+
+    [Fact]
+    public void The_shoulder_buzzes_at_the_strike_rate_folded_under_60_hz()
+    {
+        float At(float mps, float hz, bool shoulder)
+        {
+            var s = new TactileSynth(76) { Gain = 0.25f, Surfaces = TactileSynth.Flat };
+            var x = Drive(s, 3f, (_, e) => { e.Surface = 3; e.Mph = mps * 2.2369363f; e.Shoulder = shoulder; });
+            return Amplitude(x.AsSpan(Rate), hz);
+        }
+        // 15 m/s over 0.305 m: 49 Hz; 30 m/s: 98 Hz, an octave down to 49
+        Assert.True(At(15, 49.2f, true) > 5 * At(15, 49.2f, false));
+        Assert.True(At(30, 49.2f, true) > 5 * At(30, 49.2f, false));
     }
 }

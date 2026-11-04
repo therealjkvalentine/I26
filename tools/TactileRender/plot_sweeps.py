@@ -131,6 +131,19 @@ def plot_limiter(d):
     knee = open(os.path.join(d, "d_knee.txt")).read().strip()
     kdb = float(re.search(r"input of (-?[\d.]+)", knee).group(1))
     ax[0].axvline(kdb, color="#2a7ab0", ls="--", lw=1, label=f"1 dB of reduction at {kdb:.1f} dBFS in")
+    plan = os.path.join(d, "plan.csv")
+    if os.path.exists(plan):
+        # where each source peaks (tools/TactileRender --plan, LFE 100 %): on the curve, by group
+        marks = {"impact": ("o", "#c0392b"), "explosion": ("D", "#e67e22"), "knock": ("s", "#7a3fb0"), "shot": ("^", "#2a9a40"), "road": ("v", "#2a7ab0"), "engine": ("x", "k")}
+        seen = set()
+        for x in rows(plan):
+            if x["tuning"] != "after":
+                continue
+            pk = fl(x, "peak_dbfs")
+            m, c = marks.get(x["group"], ("+", "k"))
+            ax[0].plot([pk], [20 * math.log10(0.85 * math.tanh(10 ** (pk / 20) / 0.85))], m, color=c, ms=6,
+                       label=f"{x['group']} peaks (--plan)" if x["group"] not in seen else None)
+            seen.add(x["group"])
     ax[0].set(title="(d) the limiter: input peak against output peak", xlabel="input dBFS", ylabel="output dBFS", ylim=(-30, 1))
     ax[0].legend(fontsize=8); ax[0].grid(alpha=0.3)
     labels, vals, cols = [], [], []
@@ -149,7 +162,7 @@ def plot_limiter(d):
         f"{x['surface']} {x['lfe_percent']}% {x['springs']} {100 * fl(x, 'share_over_1db'):.0f}% (mean {fl(x, 'mean_reduction_db'):.1f} dB)" for x in o))
 
 
-LINE = re.compile(r"lfe: t ([\d.]+), x (-?[\d.]+), z (-?[\d.]+), speed ([\d.]+) m/s, LFE road: ([a-z ]+), bed (\d+) Hz at (-?[\d.]+|off)(?: dB)?, wheels (\S+), bumps (\d+), rms (-?[\d.]+) dBFS, peak (-?[\d.]+) dBFS")
+LINE = re.compile(r"lfe: t ([\d.]+), x (-?[\d.]+), z (-?[\d.]+), speed ([\d.]+) m/s, LFE road: ([a-z ]+), bed (\d+) Hz at (-?[\d.]+|off)(?: dB)?, wheels (\S+)(?: shoulder)?, bumps (\d+)(?:, lumps \d+)?, rms (-?[\d.]+) dBFS, peak (-?[\d.]+) dBFS")
 
 
 def plot_game(d, logs):

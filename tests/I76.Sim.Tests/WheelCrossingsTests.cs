@@ -128,4 +128,35 @@ public class WheelCrossingsTests
         w.Reset();
         Assert.All(w.Kinds, k => Assert.Equal(GroundKind.None, k));
     }
+
+    [Fact]
+    public void Running_along_the_road_s_edge_is_the_shoulder_and_crossing_it_is_not()
+    {
+        var g = new Strip();
+        // facing +z along x = 20: the right wheels (x 20.8) on the asphalt, the left (19.2) on the sand
+        Vehicle Along(double z)
+        {
+            var v = new Vehicle { Pos = new Double3(20, 0.5, z), Rot = Rows.Identity, Vel = new Vector3(0, 0, 15) };
+            (float side, float along)[] at = [(0.8f, 1.5f), (-0.8f, 1.5f), (0.8f, -1.5f), (-0.8f, -1.5f)];
+            int i = 0;
+            foreach (var w in v.Wheels) { w.Offset = new Vector3(at[i].side, 0f, at[i].along); w.InitSuspension(); i++; }
+            return v;
+        }
+        var w = new WheelCrossings();
+        var into = new List<float>();
+        w.Step(g, Along(0), 0.05f, into);
+        Assert.False(w.Shoulder);
+        for (int k = 1; k <= 8; k++) w.Step(g, Along(k * 0.75), 0.05f, into);
+        Assert.True(w.Shoulder);
+        Assert.Empty(into);
+        // off it: the left pair onto the asphalt too
+        var on = Along(7);
+        on.Pos = new Double3(21.5, 0.5, 7);
+        w.Step(g, on, 0.05f, into);
+        Assert.False(w.Shoulder);
+        // straight across the edge: never long enough
+        w = new WheelCrossings();
+        for (double x = 5; x < 40; x += 15 * 0.05) w.Step(g, Car(x, 50, 15), 0.05f, into);
+        Assert.False(w.Shoulder);
+    }
 }
