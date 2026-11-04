@@ -20,9 +20,11 @@ static class Round2
 
     /// <summary>A scene: the surface and speed over time, and each tick's events; the synth as the game steps it.</summary>
     static float[] Scene(float seconds, Func<float, int> surface, Func<float, float> mps, Action<float, TactileEvents>? events = null,
-        TactileTuning? tune = null, P[]? surfaces = null, uint seed = 76)
+        TactileTuning? tune = null, P[]? surfaces = null, uint seed = 76, bool options = false)
     {
         var s = new TactileSynth(seed) { Gain = AudioOutputs.ShakerGain(100), Tune = tune ?? TactileTuning.Default, Surfaces = surfaces ?? TactileSynth.Profiles };
+        // the developer's options (lfe_cracks, lfe_strip) at their recommended 100 % where a file is about them
+        if (options) { var w = TactileSources.Defaults(); foreach (var o in TactileSources.DevOnly) w[(int)o] = 100; s.SetWeights(w); }
         int per = (int)MathF.Round(Rate * Tick);
         var x = new float[(int)(seconds * Rate) / per * per];
         var e = new TactileEvents();
@@ -71,13 +73,13 @@ static class Round2
         // ---- 2. the knock: alone (an axle pair crossing every 2 s at 30 m/s, nothing else) and in asphalt-sand-asphalt at 20 m/s
         var knocks = new (string Id, string What, TactileTuning T, bool Pick)[]
         {
-            ("K0_before_150ms_28Hz", "before: 28 Hz alone, 150 ms, 0.6", TactileTuning.Before with { RoadTrim = def.RoadTrim }, false),
-            ("K1_250ms_full", "250 ms; 28 Hz + 52 Hz thud + 82 Hz click", def with { KnockSeconds = 0.25f }, false),
-            ("K2_350ms_full", "350 ms; 28 + 52 + 82 Hz (the pick)", def, true),
-            ("K3_500ms_full", "500 ms; 28 + 52 + 82 Hz", def with { KnockSeconds = 0.5f }, false),
-            ("K4_350ms_28Hz_only", "350 ms; 28 Hz alone", def with { KnockBody = 0f, KnockClick = 0f }, false),
-            ("K5_350ms_no_click", "350 ms; 28 + 52 Hz, no click", def with { KnockClick = 0f }, false),
-            ("K6_350ms_full_plus4dB", "350 ms; 28 + 52 + 82 Hz, 4 dB stronger", def with { KnockLevel = def.KnockLevel * 1.585f }, false),
+            ("K0_round1_150ms_28Hz", "round 1: 28 Hz alone, 150 ms, 0.6", TactileTuning.Before with { RoadTrim = def.RoadTrim }, false),
+            ("K1_round2_350ms_28_52_82Hz", "round 2's pick: 28 Hz body, 52 Hz thud, 82 Hz click, 350 ms", def with { KnockHz = 28f, KnockBody = 0.6f, KnockBodyHz = 52f, KnockClickHz = 82f, KnockLevel = 0.135f }, false),
+            ("K2_350ms_40_80Hz", "round 3 (the pick): 40 Hz body held 140 ms, gone by 350 ms, its 80 Hz octave as the click", def, true),
+            ("K3_250ms_40_80Hz", "the same, 250 ms", def with { KnockSeconds = 0.25f }, false),
+            ("K4_500ms_40_80Hz", "the same, 500 ms", def with { KnockSeconds = 0.5f }, false),
+            ("K5_350ms_40Hz_only", "40 Hz alone, no click", def with { KnockClick = 0f }, false),
+            ("K6_350ms_40_80Hz_plus4dB", "the pick, 4 dB stronger", def with { KnockLevel = def.KnockLevel * 1.585f }, false),
         };
         foreach (var (id, what, t, pick) in knocks)
         {
@@ -92,16 +94,16 @@ static class Round2
         {
             var surf = (P[])TactileSynth.Profiles.Clone();
             surf[Asphalt] = surf[Asphalt] with { LumpLevel = level };
-            items.Add(new("3 cracks", $"3_cracks_{id}_20ms", $"asphalt with filled cracks every 8 to 20 m (each axle), level {level}", pick, Scene(12, _ => Asphalt, _ => 20, surfaces: surf)));
+            items.Add(new("3 cracks (dev only)", $"3_cracks_{id}_20ms", $"asphalt with filled cracks every 8 to 20 m (each axle), level {level} (lfe_cracks 100 is 0.45; the default is off)", pick, Scene(12, _ => Asphalt, _ => 20, surfaces: surf, options: true)));
         }
-        items.Add(new("3 cracks", "3_cracks_mid_0.45_30ms", "asphalt with filled cracks, level 0.45, 30 m/s", true, Scene(12, _ => Asphalt, _ => 30)));
+        items.Add(new("3 cracks (dev only)", "3_cracks_mid_0.45_30ms", "asphalt with filled cracks, level 0.45, 30 m/s", true, Scene(12, _ => Asphalt, _ => 30, options: true)));
 
         // ---- 4. the rumble strip: asphalt 3 s, along the edge 4 s, asphalt 3 s at 25 m/s
         foreach (var (id, t, mps, pick) in new[] {
             ("0.12_fold60", def with { StripLevel = 0.12f }, 25f, false), ("0.24_fold60", def, 25f, true), ("0.36_fold60", def with { StripLevel = 0.36f }, 25f, false),
             ("0.24_fold90", def with { StripHz = 90f }, 25f, false), ("0.24_fold60_15ms", def, 15f, true), ("0.24_fold60_35ms", def, 35f, true) })
-            items.Add(new("4 rumble strip", $"4_strip_{id}{(id.EndsWith("ms") ? "" : "_25ms")}", $"rumble strip, level {t.StripLevel}, a buzz at speed/{t.StripSpacing} m folded an octave down over {t.StripHz:0} Hz, {mps:0} m/s: asphalt 3 s, 4 s along the edge, asphalt", pick,
-                Scene(10, _ => Asphalt, _ => mps, (tt, e) => e.Shoulder = tt >= 3 && tt < 7, t)));
+            items.Add(new("4 rumble strip (dev only)", $"4_strip_{id}{(id.EndsWith("ms") ? "" : "_25ms")}", $"rumble strip, level {t.StripLevel}, a buzz at speed/{t.StripSpacing} m folded an octave down over {t.StripHz:0} Hz, {mps:0} m/s: asphalt 3 s, 4 s along the edge, asphalt", pick,
+                Scene(10, _ => Asphalt, _ => mps, (tt, e) => e.Shoulder = tt >= 3 && tt < 7, t, options: true)));
 
         // ---- 5. impacts: the family, one every 2.5 s: a burst of 5 MG rounds, a cannon round, a rocket, a near blast, a sign,
         // a hard landing, a ram at 10 m/s, a building at 15 m/s, a head-on ram at 25 m/s
@@ -117,11 +119,12 @@ static class Round2
         var impacts = new (string Id, string What, TactileTuning T, bool Pick)[]
         {
             ("I0_before", "before: the DLL's strengths, one decaying sine", TactileTuning.Before, false),
-            ("I1_plan_no_ring", "on the plan's curve with the 55 Hz part and 80 Hz click, no ring", def with { RingShare = 0f }, false),
+            ("I1_round2_parts_ring26", "round 2's pick: each hit with a 55 Hz part and an 80 Hz click, ring at 26 Hz", def with { ImpactBody = 0.45f, ImpactClick = 0.35f, RingHz = 26f, ImpactLevel = 0.41f }, false),
+            ("I1b_no_ring", "round 3, no ring", def with { RingShare = 0f }, false),
             ("I2_ring_0.4s", "plan + cabin ring 26 Hz, gone (-26 dB) in 0.4 s", def with { RingSeconds = 0.4f * 1.535f }, false),
             ("I3_ring_0.7s", "plan + cabin ring, gone in 0.7 s", def with { RingSeconds = 0.7f * 1.535f }, false),
             ("I4_ring_1.0s", "plan + cabin ring, gone in 1.0 s", def with { RingSeconds = 1.0f * 1.535f }, false),
-            ("I5_ring_1.47s_original", "plan + cabin ring, gone in 1.47 s: the original's cockpit jolt (time constant 0.5 s) (the pick)", def, true),
+            ("I5_ring_1.47s_original", "round 3 (the pick): one tone a hit (25 to 29 Hz by channel), the cabin ring at 23 Hz gone in 1.47 s as the original's cockpit jolt (time constant 0.5 s)", def, true),
         };
         foreach (var (id, what, t, pick) in impacts)
             items.Add(new("5 impacts", $"5_{id}_family", $"{what}. At 0.5 s 5 MG rounds (8), 3 s a cannon round (30), 5.5 a rocket (60), 8 a blast at 5 m and its hit (150), 10.5 a sign (15), 13 a hard landing (80), 15.5 a ram at 10 m/s (120), 18 a building at 15 m/s (300), 20.5 a head-on ram at 25 m/s (783)", pick,
@@ -140,7 +143,7 @@ static class Round2
                 }, t, s)));
 
         var md = new StringBuilder();
-        md.AppendLine("# Bass-shaker options, round 2");
+        md.AppendLine("# Bass-shaker options, round 3");
         md.AppendLine();
         md.AppendLine("**For a bass shaker or a subwoofer, not headphones at volume.** The impacts reach the top of the scale; start quiet.");
         md.AppendLine();
@@ -149,8 +152,10 @@ static class Round2
         md.AppendLine("impact at full scale into the limiter, -3 dBFS out of it). `matched/` has each file at -20 dBFS RMS (peaks under -1 dBFS), to");
         md.AppendLine("compare character at one loudness. Springs still, engine off: the game adds both. Seed 76 throughout.");
         md.AppendLine();
-        md.AppendLine("**Picks** (marked **R**, what the branch now plays): every `_varied` surface; knock K2 (350 ms, 28 + 52 + 82 Hz); cracks at 0.45;");
-        md.AppendLine("the rumble strip at 0.24 folded under 60 Hz; impacts I5 (the plan's levels and the cabin ring timed as the original's jolt); `6_drive_after`.");
+        md.AppendLine("**Picks** (marked **R**, what the branch now plays): every `_varied` surface; knock K2 (40 Hz held, its 80 Hz octave as the click,");
+        md.AppendLine("350 ms); impacts I5 (one tone a hit on the headroom plan, the cabin ring at 23 Hz timed as the original's jolt); `6_drive_after`.");
+        md.AppendLine("The cracks and the rumble strip are **off by default** (the game's roads have neither): developer options `lfe_cracks` and");
+        md.AppendLine("`lfe_strip` on the Developer panel, 100 % the level marked R here. Each source has a band of its own: docs/lfe-bands.md.");
         md.AppendLine();
         string? section = null;
         foreach (var it in items)

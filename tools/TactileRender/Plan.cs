@@ -22,6 +22,8 @@ static class Plan
         var rows = new List<Row>();
         float g = AudioOutputs.ShakerGain(100) / 1e-3f;
         TactileSynth New() => new(76) { Gain = 1e-3f, Tune = tune, Surfaces = surfaces };
+        // the developer's options (lfe_cracks, lfe_strip) at their recommended 100 %
+        TactileSynth WithOptions() { var s = New(); var w = TactileSources.Defaults(); foreach (var o in TactileSources.DevOnly) w[(int)o] = 100; s.SetWeights(w); return s; }
         (double, double) Event(Action<TactileEvents> set, float seconds = 3f)
         {
             var s = New();
@@ -74,20 +76,20 @@ static class Plan
         foreach (int mps in new[] { 15, 30 })
         {
             // the cracks alone: asphalt with them over asphalt without, by the peaks
-            var with = Drive(New(), 3, mps * Mph, 12f);
+            var with = Drive(WithOptions(), 3, mps * Mph, 12f);
             var s0 = New(); s0.Surfaces = TactileSynth.FirstRound;
             var without = Drive(s0, 3, mps * Mph, 12f);
             var (pw, _) = Stats(with[(2 * Rate)..], g);
             var (po, ro) = Stats(without[(2 * Rate)..], g);
-            rows.Add(new("road", $"asphalt cracks, {mps} m/s (bed alone: peak {po:0.0}, rms {ro:0.0})", pw, ro, -18));
+            rows.Add(new("road", $"asphalt cracks (lfe_cracks 100), {mps} m/s (bed alone: peak {po:0.0}, rms {ro:0.0})", pw, ro, -18));
         }
         {
-            var x = Drive(New(), 3, 30 * Mph, 10f, shoulder: true);
+            var x = Drive(WithOptions(), 3, 30 * Mph, 10f, shoulder: true);
             var (pk, rms) = Stats(x[(2 * Rate)..], g);
-            rows.Add(new("road", "rumble strip on asphalt, 30 m/s", pk, rms, -9));
-            var x2 = Drive(New(), 3, 15 * Mph, 10f, shoulder: true);
+            rows.Add(new("road", "rumble strip (lfe_strip 100) on asphalt, 30 m/s", pk, rms, -9));
+            var x2 = Drive(WithOptions(), 3, 15 * Mph, 10f, shoulder: true);
             var (pk2, rms2) = Stats(x2[(2 * Rate)..], g);
-            rows.Add(new("road", "rumble strip on asphalt, 15 m/s", pk2, rms2, -9));
+            rows.Add(new("road", "rumble strip (lfe_strip 100) on asphalt, 15 m/s", pk2, rms2, -9));
         }
         return rows;
     }

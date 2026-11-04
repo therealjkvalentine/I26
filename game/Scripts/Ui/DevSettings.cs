@@ -12,7 +12,7 @@ public enum DevWhen { Live, NextScreen, NextMission, NextStart }
 /// and when a change shows. <see cref="Apply"/> is what a change needs beyond the setting and the host's refresh.
 /// </summary>
 public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings, int> Get, Action<ShellSettings, int> Set, DevWhen When,
-    Action<ShellSettings>? Apply = null, bool Slider = false, Func<int, bool>? Offered = null);
+    Action<ShellSettings>? Apply = null, bool Slider = false, Func<int, bool>? Offered = null, string? Note = null);
 
 /// <summary>
 /// The Developer panels' Settings section (in a mission and on the main menu): every key of docs/playing.md's "Settings
@@ -46,11 +46,15 @@ public static class DevSettings
 
     /// <summary>The shaker sources' percentages (lfe_engine ...), 0 to 200 in tens on a slider; a value set by hand shows as the nearest.</summary>
     public static readonly int[] SourceSteps = [.. Enumerable.Range(0, 21).Select(i => i * 10)];
-    private static readonly string[] SourceNames = [.. SourceSteps.Select(p => p == I76.Formats.Input.TactileSources.Default ? $"{p}" : $"{p}{M}")];
+    private static string[] SourceNames(int dflt) => [.. SourceSteps.Select(p => p == dflt ? $"{p}" : $"{p}{M}")];
     public static int NearestSourceStep(int percent) => Array.IndexOf(SourceSteps, SourceSteps.MinBy(p => Math.Abs(p - percent)));
-    private static DevSetting Source(I76.Formats.Input.TactileSource src) => new(I76.Formats.Input.TactileSources.Keys[(int)src], SourceNames,
+    private static DevSetting Source(I76.Formats.Input.TactileSource src, string? note = null) => new(I76.Formats.Input.TactileSources.Keys[(int)src],
+        SourceNames(I76.Formats.Input.TactileSources.DefaultOf((int)src)),
         s => NearestSourceStep(s.LfeSources[(int)src]), (s, v) => s.LfeSources[(int)src] = SourceSteps[v], DevWhen.Live,
-        I76.Game.Boot.Main.ApplyOutput, Slider: true);
+        I76.Game.Boot.Main.ApplyOutput, Slider: true, Note: note);
+
+    /// <summary>Keys on the panel for the developer's listening only, not in docs/playing.md's table (docs/dev-hooks.md has them): the shaker's dev-only sources.</summary>
+    public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
     /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, not one of a few values.</summary>
     public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq"];
@@ -96,6 +100,8 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Explosions),
         Source(I76.Formats.Input.TactileSource.Offroad),
         Source(I76.Formats.Input.TactileSource.Bumps),
+        Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
+        Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
@@ -128,7 +134,7 @@ public static class DevSettings
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
         foreach (var e in All)
         {
-            var name = DevScale.Min(new Label { Text = e.Key, TooltipText = WhenText(e.When) }, 136);
+            var name = DevScale.Min(new Label { Text = e.Note is null ? e.Key : $"{e.Key} ({e.Note})", TooltipText = WhenText(e.When) }, 136);
             name.AddThemeColorOverride("font_color", WhenColour(e.When));
             if (e.Slider)
             {

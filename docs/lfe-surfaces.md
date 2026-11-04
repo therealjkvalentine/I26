@@ -68,11 +68,16 @@ long drive, and the game's dirt roads are not drawn corrugated), heavier lumps a
   repeat). On top of the lumps' jittered spacing and level: the bed's level wanders about ±2 dB and its band about ±4 % with a
   correlation time of about 1.6 s (an AR(1) per tick), and one lump in 14 is 1.6 times as strong, 15 % lower and 40 % longer
   (a rock, a pothole, a wide crack). `TactileTuning.Variation` 0 turns it off.
-- **Filled cracks** on asphalt and parking lots: a 38 Hz, 70 ms tick every 8 to 20 m (14 m ± 43 %), each met again by the rear
+Round 3 (docs/lfe-bands.md): the cracks and the rumble strip are developer-only listening options (`lfe_cracks`, `lfe_strip`,
+0 by default: the game's roads have neither; docs/dev-hooks.md), and every source moved to a band of its own: the knock to
+40 Hz with its 80 Hz octave (the thud dropped), the hits to one tone each (25 to 29 Hz), the ring to 23, the explosions to 17
+to 21, the engine to 36 to 50, the shots to 36 to 50, the lumps to their bed's centre.
+
+- **Filled cracks** (dev only) on asphalt and parking lots: a 38 Hz, 70 ms tick every 8 to 20 m (14 m ± 43 %), each met again by the rear
   axle a wheelbase (2.8 m) on; 4 to 6 dB over the asphalt bed's own peaks (-22 against -26 dBFS at 30 m/s). With them the
   asphalt's RMS is about the dirt road's (it was 4 dB under), and sand stands 10 to 13.6 dB over asphalt instead of 13.6 to 15:
   the bed itself is as quiet as before, the cracks are separate ticks.
-- **Rumble strip.** The game's roads have no shoulder; the heightfield's 5 m surface cells give the edge. When one side's two
+- **Rumble strip** (dev only). The game's roads have no shoulder; the heightfield's 5 m surface cells give the edge. When one side's two
   wheels are on asphalt and the other's off it for 0.3 s, the car runs along the edge: a buzz at the milled strip's strike rate
   (speed over 30.5 cm: 49 Hz at 15 m/s, 98 Hz at 30 m/s), folded an octave down while over 60 Hz so a shaker keeps it.
 - **The knock** for a transducer that needs time to reach amplitude: 28 Hz held at full for 140 ms then down to -40 dB by
@@ -88,13 +93,13 @@ long drive, and the game's dirt roads are not drawn corrugated), heavier lumps a
 
 Peaks at the limiter's input at LFE 100 % (gain 1.5), measured by `tools/TactileRender --plan` (seed 76):
 
-| Peak | What | Measured |
+| Peak | What | Measured (round 3) |
 |---|---|---|
-| 0 dBFS | the hardest impact: a head-on ram, a crash into a building; a blast at the car | head-on (783) -0.2, building (300) -2.7, blast at 5 m -2.1 |
-| -6 | a typical hit, an axle's knock at speed, the rumble strip | rocket -8.3, landing (80) -6.1, ram (120) -5.1; axle knock 30 m/s -6.0; strip -7 to -9 |
-| -12 | a wheel's knock, the heavy shots, the engine, light hits | wheel knock 30 m/s -12.0; cannon shot -12.1, mortar -11.2; engine -11.7; cannon round -12.0, MG round -15.5 |
-| -6 or under | every road at its worst (full speed, the springs busy) | rough -8.5 (-6.7 busy), sand -7.2 (-5.1 busy), asphalt -18; big lumps now and then to about -5 |
-| -18 to -24 | a filled crack, a road at 15 m/s | crack at 30 m/s -22.3, 15 m/s -26.7; sand at 15 m/s -17.5 |
+| 0 dBFS | the hardest impact: a head-on ram, a crash into a building; a blast at the car | head-on (783) 0.0, building (300) -2.5, blast at 5 m -3.2 |
+| -6 | a typical hit, an axle's knock at speed | rocket -7.6, landing (80) -5.9, ram (120) -4.9; axle knock 30 m/s -6.0 |
+| -12 | a wheel's knock, the heavy shots, the engine, light hits | wheel knock 30 m/s -12.0; cannon shot -12.3, mortar -10.2; engine -11.8; cannon round -11.1, MG round -14.5 |
+| -6 or under | every road at its worst (full speed, the springs busy) | rough -8.3 (-6.5 busy), sand -7.3 (-5.1 busy), asphalt -24.8; big lumps now and then to about -5 |
+| (dev only) | `lfe_cracks` 100, `lfe_strip` 100 | a crack -22 at 30 m/s; the strip -8 to -10 |
 
 The roads are 14 dB under their first-round level for this (`TactileTuning.RoadTrim`; `lfe_road` 200 gives 6 dB back), and
 the shots 6 dB. The limiter (0.85·tanh(x/0.85), 1 dB of reduction from -5.7 dBFS) then takes the hardest impacts to about

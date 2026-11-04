@@ -46,12 +46,13 @@ public class TactileSynthTests
         var s = new TactileSynth();
         s.Step(new TactileEvents { EngineOn = true, Rpm = 600 });
         var idle = Run(s, 1.0).AsSpan(Rate / 2);
-        Assert.InRange(Amplitude(idle, 25f) / TactileSynth.EngineLevel(true, 600), 0.9f, 1.02f);   // the high-pass costs 25 Hz 0.5 dB
+        // 36 Hz at idle to 50 at 5000 rpm: over the off-road ground and the hits, under the engines' own sound (docs/lfe-bands.md)
+        Assert.InRange(Amplitude(idle, 36f) / TactileSynth.EngineLevel(true, 600), 0.95f, 1.02f);
         s.Step(new TactileEvents { EngineOn = true, Rpm = 5000 });
         var top = Run(s, 1.0).AsSpan(Rate / 2);
-        Assert.Equal(45f, TactileSynth.EngineHz(5000));
-        Assert.InRange(Amplitude(top, 45f) / TactileSynth.EngineLevel(true, 5000), 0.95f, 1.02f);
-        Assert.True(Amplitude(top, 25f) < 0.005f);
+        Assert.Equal(50f, TactileSynth.EngineHz(5000));
+        Assert.InRange(Amplitude(top, 50f) / TactileSynth.EngineLevel(true, 5000), 0.93f, 1.02f);
+        Assert.True(Amplitude(top, 36f) < 0.005f);
     }
 
     [Fact]
@@ -230,9 +231,9 @@ public class TactileSynthTests
             Assert.InRange(db, TactileEq.Parse(curve)!.Db(hz) - 0.1f, TactileEq.Parse(curve)!.Db(hz) + 0.1f);
         }
         // the engine's sine too
-        var e = new TactileSynth { Eq = TactileEq.Parse("25:-6") };
+        var e = new TactileSynth { Eq = TactileEq.Parse("36:-6") };
         e.Step(new TactileEvents { EngineOn = true, Rpm = 600 });
-        Assert.InRange(Amplitude(Run(e, 1.0).AsSpan(Rate / 2), 25f) / TactileSynth.EngineLevel(true, 600), 0.45f, 0.51f);
+        Assert.InRange(Amplitude(Run(e, 1.0).AsSpan(Rate / 2), 36f) / TactileSynth.EngineLevel(true, 600), 0.47f, 0.52f);
     }
 
     [Fact]
@@ -328,7 +329,7 @@ public class TactileSynthTests
             bool bed = src is TactileSource.Engine or TactileSource.Road or TactileSource.Offroad;
             return Rms(Run(s, bed ? 2.0 : 0.3).AsSpan(bed ? Rate / 2 : 0));
         }
-        foreach (var src in Enum.GetValues<TactileSource>())
+        foreach (var src in Enum.GetValues<TactileSource>().Except(TactileSources.DevOnly))   // the dev-only ones: their own tests
         {
             float full = Level(src, 100);
             Assert.True(full > 0.002f, $"{src}");
@@ -338,10 +339,11 @@ public class TactileSynthTests
         }
         // the others are untouched by one source's weight
         var only = new TactileSynth();
-        only.SetWeights([0, 100, 100, 100, 100, 100, 100]);
+        only.SetWeights([0, 100, 100, 100, 100, 100, 100, 0, 0]);
         only.Step(new TactileEvents { EngineOn = true, Rpm = 600, Surface = 6, Mph = 40 });
         Assert.True(Rms(Run(only, 2.0).AsSpan(Rate / 2)) > 0.01f);
-        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps"], TactileSources.Keys);
+        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip"], TactileSources.Keys);
+        Assert.Equal([100, 100, 100, 100, 100, 100, 100, 0, 0], TactileSources.Defaults());
         Assert.Equal(Enum.GetValues<TactileSource>().Length, TactileSources.Keys.Length);
         Assert.Equal(200, TactileSources.Clamp(999));
         Assert.Equal(0, TactileSources.Clamp(-5));
@@ -475,7 +477,7 @@ public class TactileSynthTests
             s.Step(e);
             var x = Run(s, 0.3);
             Assert.Equal(1, s.Bumps);
-            return Amplitude(x.AsSpan(0, Rate / 10), TactileSynth.BumpHz);
+            return Amplitude(x.AsSpan(0, Rate / 10), TactileTuning.Default.KnockHz);
         }
         Assert.True(Knock(100) > 0.01f);
         Assert.Equal(0f, Knock(0));
@@ -541,9 +543,15 @@ public class TactileSynthTests
     }
 
     [Fact]
-    public void Asphalt_has_a_crack_every_8_to_20_m()
+    public void Asphalt_has_a_crack_every_8_to_20_m_when_the_developer_asks()
     {
+        var off = new TactileSynth(76);
+        Drive(off, 10f, (_, e) => { e.Surface = 3; e.Mph = 20 * 2.2369363f; });
+        Assert.Equal(0, off.Lumps);       // lfe_cracks 0 by default: the game's roads have none
         var s = new TactileSynth(76);
+        var w = TactileSources.Defaults();
+        w[(int)TactileSource.Cracks] = 100;
+        s.SetWeights(w);
         // 1000 m at 20 m/s
         Drive(s, 50f, (_, e) => { e.Surface = 3; e.Mph = 20 * 2.2369363f; });
         Assert.InRange(s.Lumps, 1000 / 20, 1000 / 8);
@@ -553,7 +561,7 @@ public class TactileSynthTests
     public void The_knock_is_long_broad_and_held_up_against_the_crossover()
     {
         var parts = TactileSynth.KnockParts(TactileTuning.Default, 1f, 60f).ToList();
-        Assert.Equal([28f, 52f, 82f], parts.Select(p => p.Hz));
+        Assert.Equal([40f, 80f], parts.Select(p => p.Hz));      // the body and its octave for the edge: no part between them (docs/lfe-bands.md)
         Assert.Equal(0.35f, parts[0].Seconds);
         float Knock(float crossover, float hz, int from, int to)
         {
@@ -564,7 +572,7 @@ public class TactileSynthTests
             return Amplitude(Run(s, 0.6).AsSpan(from, to - from), hz);
         }
         // held 140 ms, then down: still within 16 dB of its start 200 to 250 ms on (the 150 ms knock was 50 dB down by then)
-        Assert.True(Knock(90, 28f, Rate / 5, Rate / 4) > 0.15f * Knock(90, 28f, 0, Rate / 20));
+        Assert.True(Knock(90, 40f, Rate / 5, Rate / 4) > 0.15f * Knock(90, 40f, 0, Rate / 20));
         // the click: a 60 Hz crossover takes 6 dB off 82 Hz, the click is held up by up to that
         // (the click alone: the knock with it less the knock without, the same seed)
         float Click(float crossover)
@@ -639,6 +647,9 @@ public class TactileSynthTests
         float At(float mps, float hz, bool shoulder)
         {
             var s = new TactileSynth(76) { Gain = 0.25f, Surfaces = TactileSynth.Flat };
+            var w = TactileSources.Defaults();
+            w[(int)TactileSource.Strip] = 100;       // lfe_strip 0 by default
+            s.SetWeights(w);
             var x = Drive(s, 3f, (_, e) => { e.Surface = 3; e.Mph = mps * 2.2369363f; e.Shoulder = shoulder; });
             return Amplitude(x.AsSpan(Rate), hz);
         }

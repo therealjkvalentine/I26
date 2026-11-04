@@ -1195,7 +1195,7 @@ public sealed class ShellSettings
     public I76.Formats.Input.AudioOutput Output { get; set; }
     /// <summary>The port's own: Audio Control's LFE Level, the shaker signal's (and the stereo mix's bass boost's) level, 0 (none, the default) to 200 % ([port] lfe_level, written when not 0 or with 5.1 and 7.1).</summary>
     public int LfeLevel { get; set; } = I76.Formats.Input.AudioOutputs.DefaultLevel;
-    /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine, lfe_road, lfe_hits, lfe_shots, lfe_explosions, 0 to 200, each written when not 100).</summary>
+    /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine ... lfe_strip, 0 to 200, each written when not its default: 100, the dev-only lfe_cracks and lfe_strip 0).</summary>
     public int[] LfeSources { get; set; } = I76.Formats.Input.TactileSources.Defaults();
     /// <summary>The port's own, no row: the game's sounds' and the movies' tone, "hz:db" points or "off" ([port] game_eq, movie_eq, written when set; empty is SoundEq's default).</summary>
     public string GameEq { get; set; } = "";
@@ -1438,7 +1438,7 @@ public sealed class ShellSettings
         s.LfeLevel = I76.Formats.Input.AudioOutputs.ClampLevel((int)c.GetValue("port", "lfe_level",
             I76.Formats.Input.AudioOutputs.HadShaker(output) ? I76.Formats.Input.AudioOutputs.OldDefaultLevel : I76.Formats.Input.AudioOutputs.DefaultLevel));
         // no version step: absent, 100 (each source as made)
-        s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select(k => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.Default)))];
+        s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select((k, i) => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.DefaultOf(i))))];
         s.TactileEq = c.GetValue("port", "tactile_eq", "").ToString();
         // no version step: absent, the defaults (the game's sounds and the movies set to sit together)
         s.GameEq = c.GetValue("port", "game_eq", "").ToString();
@@ -1572,7 +1572,7 @@ public sealed class ShellSettings
         if (Output != I76.Formats.Input.AudioOutput.Stereo) c.SetValue("port", "output", I76.Formats.Input.AudioOutputs.Key(Output));
         if (LfeLevel != I76.Formats.Input.AudioOutputs.DefaultLevel || I76.Formats.Input.AudioOutputs.Discrete(Output)) c.SetValue("port", "lfe_level", LfeLevel);
         for (int i = 0; i < I76.Formats.Input.TactileSources.Keys.Length; i++)
-            if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.Default) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
+            if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.DefaultOf(i)) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
         if (TactileEq.Length > 0) c.SetValue("port", "tactile_eq", TactileEq);
         if (GameEq.Length > 0) c.SetValue("port", "game_eq", GameEq);
         if (MovieEq.Length > 0) c.SetValue("port", "movie_eq", MovieEq);

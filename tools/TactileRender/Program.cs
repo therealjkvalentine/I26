@@ -17,6 +17,8 @@ if (args is ["--plan", var planDir]) { Plan.Run(planDir); return; }
 if (args is ["--round2", var round2Dir]) { Round2.Run(round2Dir); return; }
 // --measure OUTDIR: constant-level sweeps and tones to measure a shaker with (Measure.cs; eq_from_measurement.py reads the readings)
 if (args is ["--measure", var measureDir]) { Measure.Run(measureDir); return; }
+// --sfx INSTALL OUTDIR [name[@idle|@rev|@rate]]...: the game's sounds' low-frequency bands (Sfx.cs), for bands.md
+if (args is ["--sfx", var sfxInstall, var sfxDir, .. var sfxNames]) { Sfx.Run(sfxInstall, sfxDir, sfxNames.Length > 0 ? sfxNames : Sfx.DefaultSet); return; }
 // --find-strip INSTALL MISSION...: a straight drive across asphalt, a dirt road and off-road (StripFinder.cs)
 if (args is ["--find-strip", var stripInstall, .. var stripMissions]) { StripFinder.Run(stripInstall, stripMissions); return; }
 string outDir = args.Length > 0 ? args[0] : "wavs";

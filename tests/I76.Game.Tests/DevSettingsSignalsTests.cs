@@ -33,15 +33,18 @@ public class DevSettingsSignalsTests
         // the bass shaker's sources, each a slider; the two tone curves set by hand only
         foreach (var key in TactileSources.Keys)
         {
-            Assert.Contains(key, keys);
+            Assert.Equal(!DevSettings.DevOnly.Contains(key), keys.Contains(key));
             Assert.True(DevSettings.All.Single(e => e.Key == key).Slider);
         }
+        // the dev-only keys are in docs/dev-hooks.md instead
+        var hooks = File.ReadAllText(RepoFile(Path.Combine("docs", "dev-hooks.md")));
+        foreach (var key in DevSettings.DevOnly) Assert.Contains($"`{key}`", hooks);
         foreach (var key in new[] { "tactile_eq", "game_eq", "movie_eq" })
         {
             Assert.Contains(key, keys);
             Assert.Contains(key, DevSettings.HandSetOnly);
         }
-        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Concat(DevSettings.HandSetOnly).Order());
+        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Except(DevSettings.DevOnly).Concat(DevSettings.HandSetOnly).Order());
     }
 
     [Fact]
@@ -73,7 +76,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("on*", Shown("lighting_calibration"));
         Assert.Equal("90", Shown("crossover"));
-        foreach (var key in TactileSources.Keys) Assert.Equal("100", Shown(key));
+        foreach (var key in TactileSources.Keys) Assert.Equal(DevSettings.DevOnly.Contains(key) ? "0" : "100", Shown(key));
         Assert.Equal("false", Shown("developer"));
         Assert.Equal("0", Shown("melee_ai"));
         foreach (var e in DevSettings.All)
