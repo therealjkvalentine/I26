@@ -673,7 +673,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>
     /// Points every material made for a texture member at another texture (the cockpit's live panels). <paramref name="ownKey"/>:
-    /// the texture's key is not the original's (the weapons panel's housings are stamped where the bare art is keyed), so its
+    /// the texture's key is not the original's (the weapons panel's housings are stamped where the bare art is keyed; the wheel's and
+    /// arms' frames each have their own), so its
     /// materials cut by its texels, not by the smooth outline traced from the original's key (SmoothKey), which would cut the stamps away.
     /// </summary>
     public void OverrideTexture(string member, Texture2D texture, bool ownKey = false)

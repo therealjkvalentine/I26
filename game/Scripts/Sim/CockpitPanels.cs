@@ -97,8 +97,8 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         if (Member(dst) is { } member && LoadTarget(dst) is { } img)
         {
             var tex = ImageTexture.CreateFromImage(img);
-            // the weapons and specials panels' housings hang where the bare art is keyed: their texels key them
-            if (!Unbound.Contains(dst)) materials.OverrideTexture(member, tex, ownKey: Labelled.Contains(dst));
+            // the weapons panel's housings hang where the bare art is keyed: its texels key it (the specials' sit on the dash's opaque art)
+            if (!Unbound.Contains(dst)) materials.OverrideTexture(member, tex, ownKey: dst.Equals("zbk_.map", StringComparison.OrdinalIgnoreCase));
             var bytes = img.GetData();
             t = new Target { Base = img, Work = (Image)img.Duplicate(), Texture = tex, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = img.GetWidth(), H = img.GetHeight(), S = ScaleOf(dst) };
         }
