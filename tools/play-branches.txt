@@ -247,3 +247,4 @@ fix/paved-roads-sharp                 # paved roads carry the asphalt grain near
 feat/lighting-original-colours        # modern look in the original's colours; Matte the default Hood Finish (upstream's all-over clear coat only under Satin and Gloss)
 fix/map-edge-row-name                 # Map Edge row named Hide Map Edge Cliffs (on the World page)
 fix/map-edge-roadside                 # after map-edge-row-name: thin barriers within 80 m of a road stay
+fix/round3-integration-8              # stacked on play, last of K: the Effects page's title (was Effects & Textures) on both pads; the Developer panel's bass-shaker trace fed by the shaker's peak; the Settings test names the new keys
