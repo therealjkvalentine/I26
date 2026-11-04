@@ -5,7 +5,7 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The HD packs' switches without a row ([port] hd_textures, hd_menu_art): on by default, a saved Off kept, files from before the
+/// The HD packs' switches ([port] hd_textures, Graphic Detail's HD Textures row; hd_menu_art, no row): on by default, a saved Off kept, files from before the
 /// menu art's switch on; both on the Developer panel's Settings, applied live.
 /// </summary>
 public class HdSettingsKeysTests
@@ -30,7 +30,7 @@ public class HdSettingsKeysTests
     [InlineData("hd_menu_art")]
     public void TheDeveloperPanelTogglesThem(string key)
     {
-        var e = Assert.Single(DevSettings.All, d => d.Key == key);
+        var e = Assert.Single(DevSettings.All.Concat(DevSettings.WithRow), d => d.Key == key);
         var s = new ShellSettings();
         Assert.Equal(1, e.Get(s));
         e.Set(s, 0);

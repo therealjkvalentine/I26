@@ -1149,9 +1149,9 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
-    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, no row; HdTextures). On unless the file says false.</summary>
+    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
-    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, no row; HdTextures.Size). Applies from the next mission.</summary>
+    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, the HD Textures row; HdTextures.Size). Applies from the next mission.</summary>
     public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1246,7 +1246,7 @@ public sealed class ShellSettings
     /// <summary>The port's own: the modern look's procedural plants (Graphic Detail; 0 Off, 1 Low, 2 High; docs/modern-vegetation.md). Low unless the player chose.</summary>
     public int Vegetation { get; set; } = 1;
     /// <summary>
-    /// The port's own, without a row: how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
+    /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
     public int? DrawDistanceChoice { get; set; }
