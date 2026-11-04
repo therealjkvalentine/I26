@@ -141,7 +141,7 @@ public class EdgeWallsTests
     public void AThinFenceWithARoadAtItsFootStays()
     {
         // the fence of the test above with a road along its south foot (z 56, 10 m off its cliff): it is the scenery the road
-        // runs under, seen close up from it (T05's mountain road), and stays; the same road 90 m off (z 40) does not keep it
+        // runs under, seen close up from it (T05's mountain road), and stays; the same road 140 m off (z 30) does not keep it
         var tiles = Tile(Fence);
         var surf = new TerrainSurface(tiles, BothSides);
         System.Numerics.Vector2[] Along(float z) => [new(26.5f, z), new(64.5f, z), new(101.5f, z)];
@@ -153,10 +153,33 @@ public class EdgeWallsTests
         Assert.Equal(0, near.ThinCount);
         Assert.Equal(70, near.Ground(64 * 5, 63 * 5, 70), 3);
         Assert.True(near.Hidden[10 * T + 64]);   // the walls are still hidden
-        var far = EdgeWalls.Build(tiles, surf, roads: [Along(40.5f)])!;
+        var far = EdgeWalls.Build(tiles, surf, roads: [Along(30.5f)])!;
         Assert.True(far.Hidden[63 * T + 64]);
         Assert.Equal(0, far.RoadKeptCount);
         Assert.Equal(20, far.Ground(64 * 5, 63 * 5, 70), 3);
+    }
+
+    [Fact]
+    public void AThinFenceBesideARoadIsNotDrawnDownThere()
+    {
+        // the fence of the tests above with a road 42 m off its south cliff (z 49.5), too far for RoadShare: within RoadClear (80 m,
+        // to z 65) of the road's middle line it stays as it is, the clamp fades in to RoadClear + RoadFade (120 m); the wall about
+        // the map is hidden though the road ends 17 m from it (x 26.5)
+        var tiles = Tile(Fence);
+        var surf = new TerrainSurface(tiles, BothSides);
+        System.Numerics.Vector2[] road = [new(26.5f, 49.5f), new(101.5f, 49.5f)];
+        var walls = EdgeWalls.Build(tiles, surf, roads: [road])!;
+        Assert.Equal(0, walls.RoadKeptCount);
+        Assert.False(walls.Hidden[60 * T + 64]);
+        Assert.Equal(70, walls.Ground(64 * 5, 60 * 5, 70), 3);
+        Assert.True(walls.Hidden[68 * T + 64]);
+        Assert.InRange(walls.Ground(64 * 5, 68 * 5, 70), 20.5, 69.5);
+        Assert.True(walls.Hidden[49 * T + 20]);
+        Assert.Equal(20, walls.Ground(20 * 5, 49 * 5, 70), 3);
+        // without the rule it is drawn down to the plate, as before
+        var before = EdgeWalls.Build(tiles, surf, roads: [road], roadside: false)!;
+        Assert.True(before.Hidden[60 * T + 64]);
+        Assert.Equal(20, before.Ground(64 * 5, 60 * 5, 70), 3);
     }
 
     [Fact]
@@ -227,7 +250,7 @@ public class EdgeWallsTests
     {
         var w = new MissionWorld(TestInstall.Vfs, new ModelAssembler(TestInstall.Vfs), TestInstall.Install.FindMission(mission)!);
         var walls = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), keep: EdgeWalls.Keep(w))!;
-        var bare = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w))!;
+        var bare = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), roadside: false)!;   // T11's and S06's stand beside a road too
         int before = 0;
         foreach (var p in EdgeWalls.Keep(w))
         {
@@ -236,7 +259,7 @@ public class EdgeWallsTests
             if (g - bare.Ground(x, z, g) > 0.5) before++;
         }
         Assert.True(before > 0);
-        Assert.InRange(walls.HiddenCount, bare.HiddenCount * 0.99, bare.HiddenCount);   // the walls themselves stay hidden
+        Assert.InRange(walls.HiddenCount, bare.HiddenCount * 0.85, bare.HiddenCount);   // the walls themselves stay hidden, but beside the roads
     }
 
     [Fact]

@@ -19,7 +19,7 @@ namespace I76.Formats.Assembly;
 /// most of what the ridge test kept, and the rest of it outer walls with a valley beyond), which goes with the walls,
 /// unless a road runs at its foot (<see cref="RoadShare"/> of it within <see cref="RoadNear"/> of a road: T05's mountain road,
 /// cut along the ridge south of its start 100 m up, against T05's start road, 30-95 m off its fences), from which it is seen
-/// close up: such a barrier stays.
+/// close up: such a barrier stays. Nor is any ground within <see cref="RoadClear"/> of a road drawn down, whatever it is part of.
 /// Ground the mission puts something on (<see cref="Keep"/>) stays too: unreachable is not unused (T05's helicopters wait on a fence's
 /// crest no car reaches, measured in the simulation: driven at it from every side a car gets no nearer than 18 m below it).
 /// Over that ground the drawn surface is held down to the plain at its foot: each sample's foot is the nearest
@@ -91,6 +91,14 @@ public sealed class EdgeWalls
     /// fades in over <see cref="Ramp"/> beyond. T05's helicopters stand on the flat crest of a fence that runs on for 2 km.
     /// </summary>
     public const int KeepReach = 8;
+    /// <summary>
+    /// Ground within <see cref="RoadClear"/> samples (80 m) of a road's middle line is never drawn down, and the clamp fades in over
+    /// <see cref="RoadFade"/> (40 m) beyond: what stands beside a road is seen close up from it. Over the stock maps the hidden ground
+    /// began 25-30 m off a road, and the fences and mesas a road runs under (T11's beside its east-west road, 35-150 m off it) were
+    /// drawn down to the road's level; T05's start fences, whose cliffs stand on the crest of a slope above its start road, stay
+    /// hidden (86% of the nearer one's samples, all of the others').
+    /// </summary>
+    public const float RoadClear = 16, RoadFade = 8;
 
     private EdgeWalls(int x0, int z0, int w, int h, float[] foot, bool[] hidden, float[] mask, bool[] ridge, int count)
     {
@@ -101,10 +109,11 @@ public sealed class EdgeWalls
     /// The walls of <paramref name="tiles"/> as <paramref name="surface"/> draws them; null for a map with no tiles. With
     /// <paramref name="keepRidges"/> off, a ridge between two drivable regions is hidden like a wall (for comparison).
     /// <paramref name="roads"/>: the map's roads as polylines in sample coordinates (<see cref="Roads"/>), for the thin barriers
-    /// with a road at their foot; null, none is kept for a road.
+    /// with a road at their foot and the ground beside a road (<see cref="RoadClear"/>; <paramref name="roadside"/> off, it is
+    /// drawn down as before, for comparison); null, none is kept for a road.
     /// </summary>
     public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true, IEnumerable<IReadOnlyList<System.Numerics.Vector2>>? roads = null,
-        IEnumerable<System.Numerics.Vector2>? keep = null)
+        IEnumerable<System.Numerics.Vector2>? keep = null, bool roadside = true)
     {
         var (r0, r1, c0, c1) = tiles.Bounds();
         if (r1 < r0) return null;
@@ -304,6 +313,9 @@ public sealed class EdgeWalls
         // where the hidden ground meets a ridge that is kept (the same plateau, cut by the test) the plain would end in a
         // cliff as high as the ridge: the clamp fades in over Ramp samples from kept outer ground, so it rises to the ridge on a slope
         var toRidge = Chamfer([.. ridge.Select((r, i) => r || kept[i])], w, h);
+        // a thin barrier beside a road is not drawn down there (the walls about the map are left as they are): the clamp fades in
+        // from RoadClear to RoadClear + RoadFade off the road's middle line
+        var toRoadLine = road is null || !roadside ? null : Chamfer(road, w, h);
         var mask = new float[n];
         int count = 0;
         for (int i = 0; i < n; i++)
@@ -311,6 +323,11 @@ public sealed class EdgeWalls
             if (!hidden[i]) continue;
             float t = Math.Clamp(toRidge[i] / (3f * Ramp), 0, 1);
             mask[i] = t * t * (3 - 2 * t);
+            if (toRoadLine is not null && thin?[i] == true)
+            {
+                float u = Math.Clamp((toRoadLine[i] / 3f - RoadClear) / RoadFade, 0, 1);
+                mask[i] *= u * u * (3 - 2 * u);
+            }
             if (mask[i] > 0) count++; else hidden[i] = false;
         }
         // blurred away from the anchors, so the plain runs level where the nearest anchor changes
