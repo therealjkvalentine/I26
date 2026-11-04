@@ -545,17 +545,32 @@ public partial class Main : Node3D
     /// </summary>
     private int DriverVariant() => GameInstall.DriverVariant(_opt.Mission, _opt.Install is { } i && new GameInstall(i).IsNitro);
 
+    /// <summary>
+    /// The modern look's upscale of the map or the notepad from the HD menu art (HdAssets): maps/&lt;stem&gt; or &lt;stem&gt;
+    /// (.webp, .png or .jpg), the picture the right way up; null in the 1997 look or when there is none.
+    /// </summary>
+    private Texture2D? HdPicture(string stem, bool map)
+    {
+        if (_mode1997 || I76.Game.Shell.HdAssets.LoadImage(I76.Game.Shell.HdAssets.Find(map ? $"maps/{stem}" : stem)) is not { } img) return null;
+        img.GenerateMipmaps();
+        return ImageTexture.CreateFromImage(img);
+    }
+
     private void OpenPicture(MissionPicture.Kind kind)
     {
         Texture2D? pic;
+        string stem;
         if (kind == MissionPicture.Kind.Map)
         {
             // WRLD +0x79 names it; none ("No map specified for this mission"): nothing happens
             if (_builder?.Settings?.Overview is not { Length: > 0 } name) return;
-            pic = Picture(System.IO.Path.GetFileNameWithoutExtension(name));
+            stem = System.IO.Path.GetFileNameWithoutExtension(name);
         }
-        else pic = Picture($"ZNPD6{DriverVariant()}01");
-        if (pic is null) return;
+        else stem = $"ZNPD6{DriverVariant()}01";
+        // the install's own first: no picture there, no map (an upscale alone does not make one)
+        if (Picture(stem) is not { } low) return;
+        var hd = HdPicture(stem, kind == MissionPicture.Kind.Map);
+        pic = hd ?? low;
         if (_net is null) GetTree().Paused = true;
         if (GetNodeOrNull<AudioStreamPlayer>("Music") is { } music) music.ProcessMode = ProcessModeEnum.Always;
         var layer = new CanvasLayer { Layer = 40, ProcessMode = ProcessModeEnum.Always, Name = "MissionPicture" };
@@ -571,7 +586,8 @@ public partial class Main : Node3D
         var view = new MissionPicture
         {
             What = kind, Picture = pic, Objectives = objectives, Lee = lee,
-            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,   // the art's pixels kept in both looks (the text is set at the window's scale)
+            // the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
+            TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
             Closed = k =>
             {
                 layer.QueueFree();
