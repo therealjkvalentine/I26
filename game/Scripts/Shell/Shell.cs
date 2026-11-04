@@ -1248,7 +1248,7 @@ public sealed class ShellSettings
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
     public int? DrawDistanceChoice { get; set; }
-    /// <summary>The port's own: Graphic Detail's Map Edge, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Off, as they are; 1 On, drawn down at their foot). Off unless the player chose.</summary>
+    /// <summary>The port's own: Graphic Detail's Hide Map Edge Cliffs, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Off, as they are; 1 On, drawn down at their foot). Off unless the player chose.</summary>
     public int MapEdge { get; set; } = I76.Game.World.MapEdge.Off;
     /// <summary>
     /// The port's own: a network host's custom map this game does not have (docs/multiplayer.md "Custom maps"): 0 asks

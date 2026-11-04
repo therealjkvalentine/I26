@@ -415,7 +415,7 @@ public sealed partial class EscapeMenu : Control
             GraphicsRow.RenderScale => Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live),
             // the modern look's plants, and its boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live
             GraphicsRow.Vegetation => Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live),
-            GraphicsRow.MapEdge => Setting(Cycle, "Map Edge", 0, I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: live),
+            GraphicsRow.MapEdge => Setting(Cycle, "Hide Map Edge Cliffs", 0, I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: live),
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             GraphicsRow.FieldOfView => Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live),
             // the modern look's car paint and cockpit hood: Matte, Satin (the default) or Gloss, live: the shell's Hood Finish row
