@@ -59,6 +59,7 @@ public partial class Main : Node3D
     private bool _mode1997, _lookSaved;
     private I76.Game.Sim.Cockpit? _pit;
     private int _lastShotTick = -1;
+    private int _tickShots;
     // capture hook: I76_SHOT_PIPE=PATH sends the series frames (I76_SHOT_SERIES) there as raw RGB24, one after another, instead
     // of PNGs: a FIFO an encoder reads (ffmpeg -f rawvideo -pix_fmt rgb24 -s WxH), so no PNG is compressed on the main thread
     private static readonly string? ShotPipe = System.Environment.GetEnvironmentVariable("I76_SHOT_PIPE");
@@ -3544,6 +3545,15 @@ public partial class Main : Node3D
         }
         // test hook: I76_NET_TEST holds the capture's frame count through a network game (MainNet.cs)
         if (_net is not null && NetTest is not null) { NetTestFrame(); return; }
+        // capture hooks: I76_QUIT_TICK=N quits at that sim tick; I76_SHOT_TICKS=from-to saves every frame drawn while the sim tick is
+        // in [from, to] (OUT_0000.png on, or down I76_SHOT_PIPE), then quits: a clip of an event at a known tick, at the --fixed-fps rate
+        if (int.TryParse(System.Environment.GetEnvironmentVariable("I76_QUIT_TICK"), out int qt) && _sim is { } sq && sq.Ticks >= qt) { GetTree().Quit(); return; }
+        if (_opt.Screenshot is not null && System.Environment.GetEnvironmentVariable("I76_SHOT_TICKS") is { } stw && stw.Split('-') is [var stA, var stB]
+            && _sim is { } sdt && sdt.Ticks >= int.Parse(stA))
+        {
+            if (sdt.Ticks > int.Parse(stB)) { GetTree().Quit(); return; }
+            SaveSeriesFrame(_opt.Screenshot.Replace(".png", $"_{_tickShots++:0000}.png"));
+        }
         // capture hook: I76_SHOT_EVERY=N saves every Nth frame as OUT_<frame>.png (frames as the sim counts them: ticks)
         if (_opt.Screenshot is not null && int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_EVERY"), out int every) && every > 0
             && _sim is { } sd && sd.Ticks != _lastShotTick && sd.Ticks % every == 0)
