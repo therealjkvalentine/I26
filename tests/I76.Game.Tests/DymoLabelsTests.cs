@@ -129,4 +129,45 @@ public class DymoLabelsTests
         Assert.True(solid > 200, $"{solid} solid white texels");
         Assert.True(fringe < solid / 2, $"{fringe} fringe texels against {solid} solid");
     }
+
+    private static List<(float X, float Y)> Square(float a, float b, bool clockwise)
+    {
+        var c = new List<(float X, float Y)> { (a, a), (a, b), (b, b), (b, a) };
+        if (!clockwise) c.Reverse();
+        return c;
+    }
+
+    [Fact]
+    public void EmboldeningPushesTheOutlineOutAndTheHoleIn()
+    {
+        // TrueType's winding: the outer contour clockwise, the hole counter-clockwise
+        var ring = DymoFont.Embolden([Square(0, 100, true), Square(30, 70, false)], 10);
+        Assert.Equal((-10f, 110f), (ring[0].Min(p => p.X), ring[0].Max(p => p.X)), new Tol());
+        Assert.Equal((-10f, 110f), (ring[0].Min(p => p.Y), ring[0].Max(p => p.Y)), new Tol());
+        Assert.Equal((40f, 60f), (ring[1].Min(p => p.X), ring[1].Max(p => p.X)), new Tol());
+        // a font wound the other way round grows too
+        var other = DymoFont.Embolden([Square(0, 100, false)], 10);
+        Assert.Equal((-10f, 110f), (other[0].Min(p => p.X), other[0].Max(p => p.X)), new Tol());
+    }
+
+    private sealed class Tol : IEqualityComparer<(float, float)>
+    {
+        public bool Equals((float, float) a, (float, float) b) => Math.Abs(a.Item1 - b.Item1) < 0.01f && Math.Abs(a.Item2 - b.Item2) < 0.01f;
+        public int GetHashCode((float, float) a) => 0;
+    }
+
+    [Fact]
+    public void TheBoldLettersCarryMoreInkAndKeepTheirSpacing()
+    {
+        var f = DymoLabels.Font!;
+        float bold = DymoLabels.Bold * f.CapHeight;
+        var (plain, pl, pr) = f.Layout("OIL SLICK");
+        var (heavy, hl, hr) = f.Layout("OIL SLICK", bold);
+        Assert.Equal(pl, hl);
+        // each of the nine characters' advance grows by twice the bold
+        Assert.InRange(hr - hl - (pr - pl), 2 * bold * 8, 2 * bold * 9 + 1);
+        float sc = 8f * 4 / f.CapHeight;
+        float Ink(List<List<(float X, float Y)>> c) => DymoFont.Fill(c, 400, 60, sc, sc, 4, 44).Sum();
+        Assert.True(Ink(heavy) > 1.3f * Ink(plain), $"{Ink(heavy)} against {Ink(plain)}");
+    }
 }

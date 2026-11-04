@@ -63,7 +63,8 @@ public static class DymoLabels
     /// Paints the label over a plate: <paramref name="rgba"/> is the plate at <paramref name="s"/> texels a pixel
     /// (w·s × h·s RGBA8, stored bottom-up as the panels are). The lettering's rows take each row's tape colour (the
     /// commonest colour that is not a letter's grey), then the name is set in the font at the painted letters' height,
-    /// squeezed across where it is wider than the tape, embossed: a dark shadow down-right and the white face, its edge crisp.
+    /// squeezed across where it is wider than the tape, emboldened (<see cref="Bold"/>), embossed: a dark shadow down-right
+    /// and the white face, its edge crisp.
     /// </summary>
     public static void Paint(byte[] rgba, int w, int h, int s, DymoFont font, string text, bool lit)
     {
@@ -74,7 +75,7 @@ public static class DymoLabels
             if (Tape(rgba, r, tw) is not { } c) continue;
             for (int x = 0; x < tw; x++) { int i = r + x * 4; rgba[i] = c.R; rgba[i + 1] = c.G; rgba[i + 2] = c.B; rgba[i + 3] = 255; }
         }
-        var (contours, left, right) = font.Layout(text);
+        var (contours, left, right) = font.Layout(text, Bold * font.CapHeight);
         if (right <= left) return;
         float sy = CapRows * s / font.CapHeight;
         float sx = Math.Min(sy, Width * s / (right - left));
@@ -101,6 +102,14 @@ public static class DymoLabels
                 if (f > 0) Mix(rgba, i, white, white, white, f);
             }
     }
+
+    /// <summary>
+    /// The letters' synthetic bold, a share of the capitals' height pushed out on every side (DymoFont.Embolden): the
+    /// font's strokes at 8 px a capital are a pixel and a half, which the shadow and the tape's edge ate into; 0.035 of
+    /// the cap height is 0.28 px a side (at 0.05 the counters of S, G and B closed). A long name is squeezed into the
+    /// tape's width as before, bold included.
+    /// </summary>
+    public const float Bold = 0.035f;
 
     /// <summary>The face's white on a lit plate and on an unlit one: near pure white both, the unlit a step down.</summary>
     public const byte LitWhite = 255, UnlitWhite = 238;
