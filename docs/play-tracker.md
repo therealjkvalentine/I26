@@ -766,6 +766,13 @@ of us: none. Deployed ca59d29 to the laptop, James's Mac, Michael's and Andrew's
 Two branches as manifest section P (rows I87-I88), both made on play after pass 15 and merged with --no-ff: the shaker's
 second and third rounds (feat/lfe-3 stays as merged; its lane continued on feat/lfe-4) and the three-page Graphic Detail.
 
+Resolution: feat/graphics-pages-3 conflicted with feat/lfe-4 in DevSettings.cs (the panel's key list: lfe-4 added the
+lfe_cracks/lfe_strip sliders where pages-3 moved dev_fps up among the keys that have a row): both kept (rerere recorded).
+
+Test status, pass 16 (`play` da88d22): desktop, I76_INSTALL set. Game 356, no failures; Formats 1037, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed da88d22 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
