@@ -268,7 +268,7 @@ public partial class Shell : CanvasLayer
     {
         Settings = ShellSettings.Load();
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
         I76.Game.Sim.ModernFx.ApplyLook(Settings);
         ApplyMusicLevel();
@@ -328,7 +328,7 @@ public partial class Shell : CanvasLayer
         ShellSettings.Nitro = Install.IsNitro;
         Settings = ShellSettings.Load();
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         // the menus keep the pointer in the window too (Main's cursor state reads it every frame)
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
         I76.Game.Sim.ModernFx.ApplyLook(Settings);
@@ -1234,8 +1234,8 @@ public sealed class ShellSettings
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
     /// <summary>The port's own: Graphic Detail's Resolution (shell.cfg [port] resolution, "WxH", written only for a window size). Empty: the desktop, as the game starts.</summary>
     public string Resolution { get; set; } = "";
-    /// <summary>The port's own: Graphic Detail's Hood Finish, a <see cref="I76.Sim.Views.PaintFinish"/> (shell.cfg [port] hood_finish, written only when not Satin; the old hood_matte = true reads as Matte): the modern look's car paint and cockpit hood.</summary>
-    public int HoodFinish { get; set; } = I76.Sim.Views.PaintFinish.Default;
+    /// <summary>The port's own: Graphic Detail's Hood Gloss, a <see cref="I76.Sim.Views.PaintFinish"/> level 0 (Matte, the default) to 100 (Gloss), Satin at 50: the modern look's car paint and cockpit hood (shell.cfg [port] hood_gloss, any integer, written only when not 0; a file without it keeps its earlier hood_finish word, matte 0, satin 50, gloss 100, or its older hood_matte = true's Matte).</summary>
+    public int HoodGloss { get; set; } = I76.Sim.Views.PaintFinish.Default;
     /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 50 to 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
     public int RenderScale { get; set; } = I76.Game.Boot.RenderScale.Default;
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
@@ -1472,7 +1472,9 @@ public sealed class ShellSettings
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
         s.Resolution = I76.Game.Boot.WindowSizes.Parse((string)c.GetValue("port", "resolution", "")) is { } rs ? I76.Game.Boot.WindowSizes.Format(rs.W, rs.H) : "";
-        s.HoodFinish = I76.Sim.Views.PaintFinish.Parse(c.HasSectionKey("port", "hood_finish") ? (string)c.GetValue("port", "hood_finish") : null, (bool)c.GetValue("port", "hood_matte", false));
+        // no version step: hood_gloss, else the earlier hood_finish's word, else the older hood_matte (each read only, as look_colour_match)
+        s.HoodGloss = I76.Sim.Views.PaintFinish.Parse(c.HasSectionKey("port", "hood_gloss") ? c.GetValue("port", "hood_gloss").ToString() : null,
+            c.HasSectionKey("port", "hood_finish") ? c.GetValue("port", "hood_finish").ToString() : null, (bool)c.GetValue("port", "hood_matte", false));
         // no version step: absent, 100 %
         s.RenderScale = I76.Game.Boot.RenderScale.Parse((int)c.GetValue("port", "render_scale", 100));
         s.MaxFps = I76.Sim.Views.FrameLimit.Parse(c.HasSectionKey("port", "max_fps") ? (int)c.GetValue("port", "max_fps") : null);
@@ -1592,7 +1594,7 @@ public sealed class ShellSettings
         c.SetValue("port", "mouse_camera", MouseCamera);
         if (MouseInvertY) c.SetValue("port", "mouse_invert_y", true);
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
-        if (HoodFinish != I76.Sim.Views.PaintFinish.Default) c.SetValue("port", "hood_finish", I76.Sim.Views.PaintFinish.Word(HoodFinish));
+        if (I76.Sim.Views.PaintFinish.FileValue(HoodGloss) is { } hoodGloss) c.SetValue("port", "hood_gloss", hoodGloss);
         if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);

@@ -32,7 +32,7 @@ public class GraphicsPagesTests
         GraphicsRow.Vegetation => s.Vegetation,
         GraphicsRow.MapEdge => s.MapEdge,
         GraphicsRow.FieldOfView => s.FieldOfView,
-        GraphicsRow.HoodFinish => s.HoodFinish,
+        GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.CarInteriors => s.CarInteriors,
         GraphicsRow.MouseCamera => s.MouseCamera,
         GraphicsRow.MouseInWindow => s.KeepMouseInWindow,
@@ -53,7 +53,7 @@ public class GraphicsPagesTests
         s.Resolution = "1280x720"; s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
         s.Vegetation = 2; s.MapEdge = I76.Game.World.MapEdge.Off + 1;
-        s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodFinish = (I76.Sim.Views.PaintFinish.Default + 1) % I76.Sim.Views.PaintFinish.Names.Length; s.CarInteriors = false;
+        s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CarInteriors = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
         return s;
@@ -96,7 +96,7 @@ public class GraphicsPagesTests
         Assert.True(s.VSync);
         Assert.Equal(I76.Sim.Views.FrameLimit.Unlimited, s.MaxFps);
         Assert.Equal(I76.Sim.Views.MouseLook.Normal, s.MouseCamera);
-        Assert.Equal(I76.Sim.Views.PaintFinish.Default, s.HoodFinish);
+        Assert.Equal(I76.Sim.Views.PaintFinish.Default, s.HoodGloss);
         Assert.Equal(I76.Game.Boot.RenderScale.Default, s.RenderScale);
         Assert.Equal(I76.Game.World.MapEdge.Off, s.MapEdge);
         Assert.Equal(I76.Sim.Views.ViewFov.Monitor, s.FieldOfView);

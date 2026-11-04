@@ -420,8 +420,10 @@ public sealed partial class EscapeMenu : Control
             GraphicsRow.MapEdge => Setting(Cycle, "Hide Map Edge Cliffs", 0, I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: live),
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             GraphicsRow.FieldOfView => Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live),
-            // the modern look's car paint and cockpit hood: Matte (the default), Satin or Gloss, live: the shell's Hood Finish row
-            GraphicsRow.HoodFinish => Setting(Cycle, "Hood Finish", 0, I76.Sim.Views.PaintFinish.Names.Length, I76.Sim.Views.PaintFinish.Names, s => s.HoodFinish, (s, v) => s.HoodFinish = v, apply: live),
+            // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row
+            // (a level set by hand in the file shows as the nearest step and is kept unless the row is stepped)
+            GraphicsRow.HoodGloss => Setting(Cycle, "Hood Gloss", 0, I76.Sim.Views.PaintFinish.Steps.Length, I76.Sim.Views.PaintFinish.StepNames, s => I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss),
+                (s, v) => { if (I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss) != v) s.HoodGloss = I76.Sim.Views.PaintFinish.Steps[v]; }, apply: live),
             // the mouse orbiting the chase view, and the hidden mouse kept inside the window, live
             GraphicsRow.MouseCamera => Setting(Cycle, "Mouse Camera", 0, I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: live),
             GraphicsRow.MouseInWindow => Setting(Cycle, "Keep Mouse In Window", 0, 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: live),

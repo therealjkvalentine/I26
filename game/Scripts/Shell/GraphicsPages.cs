@@ -6,7 +6,7 @@ public enum GraphicsRow
     MonitorBrightness, ExtInstruments, RearMirror, ShadowDetail, TerrainDetail, AntiAliasing,
     Resolution, VSync, MaxFps, RenderScale, Renderer, LogFile, ShowFps,
     Vegetation, MapEdge,
-    FieldOfView, HoodFinish, CarInteriors, MouseCamera, MouseInWindow, CameraReturn, ZoomReset, Garage3D,
+    FieldOfView, HoodGloss, CarInteriors, MouseCamera, MouseInWindow, CameraReturn, ZoomReset, Garage3D,
     Look1997, PaletteGrade, CrashBlur,
 }
 
@@ -26,7 +26,7 @@ public static class GraphicsPages
         [GraphicsRow.MonitorBrightness, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror, GraphicsRow.ShadowDetail, GraphicsRow.TerrainDetail, GraphicsRow.AntiAliasing],
         [GraphicsRow.Resolution, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.RenderScale, GraphicsRow.Renderer, GraphicsRow.LogFile],
         [GraphicsRow.Vegetation, GraphicsRow.MapEdge],
-        [GraphicsRow.FieldOfView, GraphicsRow.HoodFinish, GraphicsRow.CarInteriors, GraphicsRow.MouseCamera, GraphicsRow.MouseInWindow, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.Garage3D],
+        [GraphicsRow.FieldOfView, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.MouseCamera, GraphicsRow.MouseInWindow, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.Garage3D],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur],
     ];
 
@@ -77,7 +77,7 @@ public static class GraphicsPages
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
             case GraphicsRow.MapEdge: t.MapEdge = f.MapEdge; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
-            case GraphicsRow.HoodFinish: t.HoodFinish = f.HoodFinish; break;
+            case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;
             case GraphicsRow.MouseCamera: t.MouseCamera = f.MouseCamera; break;
             case GraphicsRow.MouseInWindow: t.KeepMouseInWindow = f.KeepMouseInWindow; break;
