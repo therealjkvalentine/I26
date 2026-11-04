@@ -1328,6 +1328,8 @@ public sealed class ShellSettings
     public bool GarageRadio { get; set; }
     /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
     public bool DeathVariety { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
+    public bool BrushImpacts { get; set; } = true;
     /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
     /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
@@ -1519,6 +1521,7 @@ public sealed class ShellSettings
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
@@ -1641,6 +1644,7 @@ public sealed class ShellSettings
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!DeathVariety) c.SetValue("port", "death_variety", "off");
+        if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CarInteriors) c.SetValue("port", "car_interiors", false);
