@@ -52,4 +52,23 @@ public class CockpitPanelsBlitTests
         Assert.Equal(((byte)2, (byte)2, (byte)0), At(panel, 4, 4, 3, 3));
         Assert.Equal(((byte)0, (byte)0, (byte)0), At(panel, 4, 4, 2, 2));
     }
+
+    [Fact]
+    public void TheCountersInkIsDeepenedAndTheDrumLeftWhite()
+    {
+        // a 3 x 1 pixel window at 2 texels a pixel: the strip's ink (41, 41, 20), a mid grey and the drum's white
+        int w = 3 * 2, h = 2;
+        var panel = new byte[w * h * 4];
+        (byte, byte, byte)[] cols = [(41, 41, 20), (101, 101, 101), (255, 255, 255)];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) { int i = ((h - 1 - y) * w + x) * 4; (panel[i], panel[i + 1], panel[i + 2], panel[i + 3]) = (cols[x / 2].Item1, cols[x / 2].Item2, cols[x / 2].Item3, 255); }
+        CockpitPanels.DeepenInk(panel, w, h, 2, 0, 0, 3, 1);
+        (byte R, byte G, byte B) Px(int x) { int i = ((h - 1) * w + x) * 4; return (panel[i], panel[i + 1], panel[i + 2]); }
+        // the ink to about a third of itself, its hue kept
+        Assert.InRange(Px(0).R, 10, 18);
+        Assert.True(Px(0).B < Px(0).R);
+        // the grey less, the white untouched
+        Assert.InRange(Px(2).R, 70, 90);
+        Assert.Equal(((byte)255, (byte)255, (byte)255), Px(4));
+    }
 }
