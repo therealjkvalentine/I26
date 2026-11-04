@@ -510,6 +510,10 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.MaxFps:
                 Row(line, "Max FPS", () => I76.Sim.Views.FrameLimit.Names[Math.Clamp(st.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)], () => { st.MaxFps = (st.MaxFps + 1) % I76.Sim.Views.FrameLimit.Names.Length; I76.Game.FrameLimiter.Apply(st); });
                 break;
+            // [port] dev_fps: the frame rate and frame time in the window's top right corner (FpsOverlay), over the menus too, live
+            case GraphicsRow.ShowFps:
+                Row(line, "Show FPS", () => st.DevFps ? "On" : "Off", () => { st.DevFps = !st.DevFps; I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps); });
+                break;
             // the 3D view supersampled at 100, 150 or 200 % of the window, live (the HUD and menus are not scaled)
             case GraphicsRow.RenderScale:
                 Row(line, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
@@ -596,6 +600,7 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsPages.Display:
                 I76.Game.Boot.WindowApplier.Apply(st);
                 I76.Game.FrameLimiter.Apply(st);
+                I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
                 I76.Game.Boot.RenderScale.Apply(st);
                 break;
             case GraphicsPages.Car:
