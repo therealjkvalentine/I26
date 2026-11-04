@@ -236,7 +236,7 @@ public partial class SimDriver : Node
         // the pad's force feedback (presentation only; none in a headless run)
         if (DisplayServer.GetName() != "headless") AddChild(new ForceFeedback { Name = "ForceFeedback", Player = () => Player?.Sim });
         // the bass shaker (Audio Control's LFE Level above 0; silent otherwise)
-        if (DisplayServer.GetName() != "headless") AddChild(new BassShaker { Name = "BassShaker", Player = () => Player?.Sim });
+        if (DisplayServer.GetName() != "headless") AddChild(new BassShaker { Name = "BassShaker", Player = () => Player?.Sim, Ground = () => World.Ground });
         // the telemetry feed (I76_TELEMETRY_UDP, [port] telemetry): off unless set
         if (TelemetryOut.Configured() is { } telemetry) AddChild(telemetry);
     }

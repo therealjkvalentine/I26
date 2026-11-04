@@ -57,12 +57,16 @@ public static class AudioOutputs
     public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
 }
 
-/// <summary>The shaker signal's sources, each with a level of its own ([port] lfe_engine ... lfe_explosions, 0 to 200 %, 100 by default).</summary>
-public enum TactileSource { Engine, Road, Hits, Shots, Explosions }
+/// <summary>
+/// The shaker signal's sources, each with a level of its own ([port] lfe_engine ... lfe_bumps, 0 to 200 %, 100 by default).
+/// Off-road is a share of the road's on off-road ground (dirt, sand, rough), on top of lfe_road; Bumps the knock of a wheel
+/// crossing onto or off a road or a bridge.
+/// </summary>
+public enum TactileSource { Engine, Road, Hits, Shots, Explosions, Offroad, Bumps }
 
 public static class TactileSources
 {
-    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"];
+    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps"];
     public const int Default = 100, Max = 200;
     public static int Clamp(int percent) => Math.Clamp(percent, 0, Max);
     /// <summary>Every source at 100 %.</summary>
@@ -139,6 +143,8 @@ public sealed class TactileEvents
     public readonly List<(int Channel, int Amount)> Hits = [];
     /// <summary>Explosions this tick, by their distance from the car (m).</summary>
     public readonly List<float> Blasts = [];
+    /// <summary>Wheels crossing onto or off a road or a bridge this tick, each by its strength (0 to 1, <see cref="TactileSynth.BumpThump"/>).</summary>
+    public readonly List<float> Crossings = [];
 
     public void Clear()
     {
@@ -149,14 +155,17 @@ public sealed class TactileEvents
         Shots.Clear();
         Hits.Clear();
         Blasts.Clear();
+        Crossings.Clear();
     }
 }
 
 /// <summary>
 /// The port's bass-shaker signal (the original has none): sines and a noise bed between 20 and 90 Hz. Continuous: the engine,
-/// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
-/// force model's road strengths) and the car's speed, rougher with a flat tyre, stronger with the springs' load (a turn, a stop)
-/// and their movement (bumps), engine or no engine. Transients: a decaying sine per shot by weapon class, per
+/// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, a noise band by surface (its
+/// <see cref="SurfaceProfile"/>: low and lumpy off-road, higher and gritty on a dirt road, a faint smooth hum on asphalt) at the
+/// force model's road strengths stretched by <see cref="Contrast"/>, by the car's speed, rougher with a flat tyre, stronger with
+/// the springs' load (a turn, a stop) and their movement (bumps), engine or no engine; the surface's lumps and grit as short
+/// decaying sines spaced by the distance driven; a knock as a wheel crosses onto or off a road or a bridge. Transients: a decaying sine per shot by weapon class, per
 /// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
 /// shaker's <see cref="Eq"/> at its frequency. Each source takes its <see cref="Weights"/> share. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
 /// Level's <see cref="Gain"/> and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
@@ -177,9 +186,54 @@ public sealed class TactileSynth
     /// <summary>A blast at the car: 25 Hz, 0.5 s; at <see cref="BlastRange"/> a lower, longer roll (the ground and air lose the top first).</summary>
     public const float BlastHz = 25f, BlastFarHz = 18f, BlastSeconds = 0.5f, BlastFarSeconds = 1.2f;
     public const float CrankHz = 24f, CrankLevel = 0.2f;
-    /// <summary>The road bed's centre.</summary>
-    public const float RoadHz = 50f;
-    private const int MaxThumps = 8;
+    /// <summary>The road bed's centre before the surfaces had their own (<see cref="Flat"/>), and the band its level is calibrated on.</summary>
+    public const float RoadHz = 50f, RoadQ = 0.7f;
+    private const int MaxThumps = 8, MaxGrains = 12;
+
+    /// <summary>
+    /// A surface's feel: the road bed's band (centre and Q), its lumps (a decaying sine at <see cref="LumpHz"/> every
+    /// <see cref="LumpSpacing"/> metres on average, the stones and ruts the tyre cannot swallow) and its grit (short sines at
+    /// <see cref="GrainHz"/> every <see cref="GrainSpacing"/> metres: loose aggregate). Levels are at full speed; each spacing
+    /// is jittered from half to one and a half times, so the rate follows the speed without a tone (unless
+    /// <see cref="Periodic"/>: a washboard's even ripples, which are a tone). <see cref="OffRoad"/> surfaces take lfe_offroad.
+    /// </summary>
+    public readonly record struct SurfaceProfile(float BedHz, float BedQ, float LumpLevel = 0, float LumpSpacing = 0, float LumpHz = 26f,
+        float GrainLevel = 0, float GrainSpacing = 0, float GrainHz = 75f, bool OffRoad = false, bool Periodic = false);
+
+    /// <summary>The surfaces' names for the Developer panel, by the synth's surface (the car's + 1; 0 none, 9 in the air).</summary>
+    public static readonly string[] SurfaceNames = ["none", "dirt", "sand", "asphalt", "dirt road", "planks", "rough", "parking lot", "dirt junction", "air"];
+
+    private static readonly SurfaceProfile Asphalt = new(56f, 1.6f);
+    private static readonly SurfaceProfile DirtRoad = new(66f, 1.2f, LumpLevel: 0.05f, LumpSpacing: 4f, LumpHz: 30f, GrainLevel: 0.07f, GrainSpacing: 0.45f, GrainHz: 76f);
+
+    /// <summary>
+    /// The port's surfaces (playtest: a dirt road above the off-road ground in pitch, roads and off-road further apart). Off-road
+    /// (dirt, sand, rough) sits low, 30 to 34 Hz, with lumps; a dirt road (the gravel road) at 66 Hz with grit; asphalt a narrow
+    /// faint 56 Hz hum and nothing else; planks a hollow 46 Hz with the beams' knock. docs/lfe-surfaces.md has the reasoning.
+    /// </summary>
+    public static readonly SurfaceProfile[] Profiles =
+    [
+        new(RoadHz, RoadQ),
+        new(34f, 0.9f, LumpLevel: 0.14f, LumpSpacing: 2.5f, LumpHz: 26f, OffRoad: true),                                         // dirt
+        new(30f, 0.8f, LumpLevel: 0.08f, LumpSpacing: 3.5f, LumpHz: 24f, OffRoad: true),                                         // sand
+        Asphalt,
+        DirtRoad,
+        new(46f, 2.5f, LumpLevel: 0.08f, LumpSpacing: 1.2f, LumpHz: 40f),                                                        // planks
+        new(32f, 0.8f, LumpLevel: 0.22f, LumpSpacing: 1.4f, LumpHz: 25f, GrainLevel: 0.05f, GrainSpacing: 0.6f, GrainHz: 70f, OffRoad: true), // rough
+        Asphalt,                                                                                                                  // parking lot
+        DirtRoad,                                                                                                                 // dirt junction
+        new(RoadHz, RoadQ),
+    ];
+
+    /// <summary>Every surface as before the profiles: one 50 Hz band, no lumps or grit (with <see cref="Contrast"/> 1, the earlier signal).</summary>
+    public static readonly SurfaceProfile[] Flat = [.. Enumerable.Repeat(new SurfaceProfile(RoadHz, RoadQ), 10)];
+
+    /// <summary>
+    /// The road strengths' stretch: the bed goes as strength/40 times (strength/<see cref="ContrastPivot"/>)^(contrast - 1), so 2
+    /// puts asphalt (15) 15 dB under sand (35) where the force model's straight line (1) had 7: the roads softer (asphalt -6 dB,
+    /// a dirt road -3.5), the ground harder (sand +1.3, rough +2.5), a dirt junction (30) as it was.
+    /// </summary>
+    public const float DefaultContrast = 2f, ContrastPivot = 30f;
 
     /// <summary>A decaying sine: <see cref="Level"/> at its start, -40 dB after <see cref="Seconds"/>, then gone.</summary>
     public readonly record struct Thump(float Hz, float Level, float Seconds);
@@ -188,13 +242,36 @@ public sealed class TactileSynth
     public static float EngineHz(float rpm) => 25f + 20f * RpmShare(rpm);
     public static float EngineLevel(bool on, float rpm) => on ? 0.08f + 0.10f * RpmShare(rpm) : 0f;
 
-    /// <summary>The road bed: none standing or in the air, up to 0.3 on the roughest surface at 80 mph and over (a paved road 15/40 of that); each flat tyre adds a third.</summary>
-    public static float RoadLevel(int surface, float mph, int flats)
+    /// <summary>
+    /// The road bed: none standing or in the air, at 80 mph and over 0.3 · strength/40 (the force model's road strengths) stretched
+    /// by <paramref name="contrast"/> about <see cref="ContrastPivot"/> (rough ground 0.4, asphalt 0.056 at 2); each flat tyre adds a third.
+    /// </summary>
+    public static float RoadLevel(int surface, float mph, int flats, float contrast = DefaultContrast)
     {
         if (!OnGround(surface)) return 0f;
-        float l = 0.3f * ForceModel.RoadGain[surface] / 40f * Math.Clamp(mph / 80f, 0f, 1f);
+        float g = ForceModel.RoadGain[surface];
+        float l = 0.3f * g / 40f * MathF.Pow(g / ContrastPivot, contrast - 1f) * SpeedShare(mph);
         return l * (1f + Math.Clamp(flats, 0, 4) / 3f);
     }
+
+    private static float SpeedShare(float mph) => Math.Clamp(mph / 80f, 0f, 1f);
+
+    /// <summary>A lump's or a grain's level from its profile's at the car's speed: a lump keeps 0.3 of it at walking pace, the grit falls with the bed.</summary>
+    public static float LumpLevel(in SurfaceProfile p, float mph) => p.LumpLevel * (0.3f + 0.7f * SpeedShare(mph));
+    public static float GrainLevel(in SurfaceProfile p, float mph) => p.GrainLevel * (0.2f + 0.8f * SpeedShare(mph));
+
+    /// <summary>
+    /// A wheel crossing onto or off a road or a bridge (<paramref name="strength"/> 1 for asphalt or a bridge against the
+    /// ground, less between kinds of road): a 28 Hz knock of up to <see cref="BumpLevel"/> by the car's speed, full at 50 mph
+    /// and over, nothing under 4 mph (a kerb's lip, a deck's joint, felt in the wheel's hop before the springs take it).
+    /// </summary>
+    public static Thump? BumpThump(float strength, float mph)
+    {
+        if (!(strength > 0) || !(mph > 4f)) return null;
+        float share = Math.Clamp(mph / 50f, 0.15f, 1f);
+        return new Thump(BumpHz, BumpLevel * Math.Min(strength, 1f) * share, BumpSeconds);
+    }
+    public const float BumpHz = 28f, BumpLevel = 0.35f, BumpSeconds = 0.15f;
 
     private static bool OnGround(int surface) => surface > 0 && surface < ForceModel.RoadGain.Length - 1;
 
@@ -217,11 +294,11 @@ public sealed class TactileSynth
     }
 
     /// <summary>The road bed from the surface, the car's speed, flats, the springs' load (0 to 1) and their rate (limits a second).</summary>
-    public static float RoadLevel(int surface, float mph, int flats, float load, float jolt)
+    public static float RoadLevel(int surface, float mph, int flats, float load, float jolt, float contrast = DefaultContrast)
     {
         if (!OnGround(surface)) return 0f;
         load = Math.Clamp(load, 0f, 1f);
-        float l = RoadLevel(surface, mph, flats) * (1f + load) + LoadGain * load + JoltGain * Math.Clamp(jolt / JoltFull, 0f, 1f);
+        float l = RoadLevel(surface, mph, flats, contrast) * (1f + load) + LoadGain * load + JoltGain * Math.Clamp(jolt / JoltFull, 0f, 1f);
         return Math.Min(l, RoadMax);
     }
 
@@ -258,13 +335,20 @@ public sealed class TactileSynth
     }
 
     private sealed class Voice { public float Hz, Level, Fall, Left; public double Phase; }
-    private readonly List<Voice> _thumps = [];
+    private readonly List<Voice> _thumps = [], _grains = [];
     private float _engHz = EngineHz(0), _engTarget, _roadTarget, _eng, _road;
+    // the road bed in two slots: a change of surface starts the other on the new band and the old one fades
+    private readonly Biquad[] _bands = new Biquad[2];
+    private readonly float[] _slotHz = [RoadHz, RoadHz], _slotQ = [RoadQ, RoadQ], _slotMix = [1f, 0f];
+    private int _slot, _surface;
+    private float _mps, _lumpLevel, _grainLevel, _toLump, _toGrain;
+    private SurfaceProfile _profile = Flat[0];
+    private int _bumps;
     private readonly float[] _travel = new float[4];
     private bool _travelSeen;
     private double _engPhase;
     private uint _noise = 0x9E3779B9u;
-    private Biquad _roadBand, _hp, _lp;
+    private Biquad _hp, _lp;
     private Biquad[] _roadEq = [];
     private TactileEq? _roadEqFor;
     /// <summary>The road bed's correction: a third-octave bank (ISO centres) whose gains are trimmed until each centre reads the curve.</summary>
@@ -285,7 +369,7 @@ public sealed class TactileSynth
     private float _lowPassHz = HighHz;
 
     /// <summary>Each <see cref="TactileSource"/>'s weight (1 as made; [port] lfe_engine and the rest over 100), applied as a tick's events are read.</summary>
-    public readonly float[] Weights = [1f, 1f, 1f, 1f, 1f];
+    public readonly float[] Weights = [.. TactileSources.Keys.Select(_ => 1f)];
     private float W(TactileSource s) => Weights[(int)s];
 
     /// <summary>The weights from the keys' percentages, in <see cref="TactileSource"/> order.</summary>
@@ -293,6 +377,18 @@ public sealed class TactileSynth
     {
         for (int i = 0; i < Weights.Length; i++) Weights[i] = i < percent.Count ? TactileSources.Clamp(percent[i]) / 100f : 1f;
     }
+
+    /// <summary>The surfaces' feel (<see cref="Profiles"/>; <see cref="Flat"/> the earlier one), by the synth's surface.</summary>
+    public SurfaceProfile[] Surfaces { get; set; } = Profiles;
+    /// <summary>The road strengths' stretch (<see cref="DefaultContrast"/>; 1 the force model's straight line).</summary>
+    public float Contrast { get; set; } = DefaultContrast;
+
+    /// <summary>The surface of the last tick (the car's + 1), the bed's band now (Hz) and its level (before the LFE Level), for the Developer panel.</summary>
+    public int Surface => _surface;
+    public float BedHz => _slotHz[_slot];
+    public float RoadNow => _road;
+    /// <summary>The crossing knocks played since the synth was made.</summary>
+    public int Bumps => _bumps;
 
     /// <summary>The LFE Level's gain (<see cref="AudioOutputs.ShakerGain"/>), applied before the limiter.</summary>
     public float Gain { get; set; } = 1f;
@@ -315,7 +411,16 @@ public sealed class TactileSynth
         }
         Array.Copy(e.Travel, _travel, 4);
         _travelSeen = ground;
-        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt) * W(TactileSource.Road);
+        _surface = e.Surface;
+        var prof = (uint)e.Surface < (uint)Surfaces.Length ? Surfaces[e.Surface] : Flat[0];
+        float road = W(TactileSource.Road) * (prof.OffRoad ? W(TactileSource.Offroad) : 1f);
+        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt, Contrast) * road;
+        if (ground && (prof.BedHz != _slotHz[_slot] || prof.BedQ != _slotQ[_slot])) NewBed(prof.BedHz, prof.BedQ);
+        _profile = prof;
+        _mps = ground ? e.Mph / 2.2369363f : 0f;
+        _lumpLevel = ground ? LumpLevel(prof, e.Mph) * road : 0f;
+        _grainLevel = ground ? GrainLevel(prof, e.Mph) * road : 0f;
+        foreach (var c in e.Crossings) if (BumpThump(c, e.Mph) is { } t) { Add(t, W(TactileSource.Bumps)); _bumps++; }
         foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots));
         foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t, W(TactileSource.Hits));
         foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
@@ -342,8 +447,41 @@ public sealed class TactileSynth
     public void Reset()
     {
         _engTarget = _roadTarget = 0;
+        _lumpLevel = _grainLevel = _mps = 0;
         _thumps.Clear();
+        _grains.Clear();
         _travelSeen = false;
+    }
+
+    /// <summary>The road bed onto a new band: the other slot, from rest, while the current one fades.</summary>
+    private void NewBed(float hz, float q)
+    {
+        _slot ^= 1;
+        _slotHz[_slot] = hz;
+        _slotQ[_slot] = q;
+        if (_rate > 0) _bands[_slot] = Biquad.BandPass(hz, q, _rate);
+    }
+
+    /// <summary>A band's gain onto the bed's level: the noise through a narrower or lower band is weaker, as the square root of its width.</summary>
+    private static float BandNorm(float hz, float q) => 28f * MathF.Sqrt(RoadHz / RoadQ / (hz / q));
+
+    /// <summary>The next spacing: the mean from half to one and a half times it, or the mean itself for a periodic surface.</summary>
+    private float Spacing(float mean, bool periodic) => periodic ? mean : mean * (0.5f + Rand());
+
+    /// <summary>The noise source's next value, 0 to 1.</summary>
+    private float Rand()
+    {
+        _noise ^= _noise << 13; _noise ^= _noise >> 17; _noise ^= _noise << 5;
+        return _noise / 4294967296f;
+    }
+
+    /// <summary>A lump or a grain: its own pool, so the road never pushes a hit's thump out; past <see cref="MaxGrains"/> the oldest goes.</summary>
+    private void Grain(float hz, float level, float seconds)
+    {
+        if (level <= 0) return;
+        level *= EqGain(hz);
+        if (_grains.Count >= MaxGrains) _grains.RemoveAt(0);
+        _grains.Add(new Voice { Hz = hz, Level = level, Fall = MathF.Log(100f) / seconds, Left = seconds });
     }
 
     /// <summary>The next <paramref name="dst"/>.Length samples at <paramref name="rate"/> Hz.</summary>
@@ -352,26 +490,58 @@ public sealed class TactileSynth
         if (rate != _rate)
         {
             _rate = rate;
-            _roadBand = Biquad.BandPass(RoadHz, 0.7f, rate);
+            for (int k = 0; k < 2; k++) _bands[k] = Biquad.BandPass(_slotHz[k], _slotQ[k], rate);
             _hp = Biquad.HighPass(LowHz, rate);
             _lp = Biquad.LowPass(_lowPassHz, rate);
             _roadEq = _eq is null ? [] : RoadEq(_eq, rate);
         }
         float dt = 1f / rate;
         float glide = 1f - MathF.Exp(-dt / 0.03f);   // 30 ms: a tick's step without a click
+        float fade = 1f - MathF.Exp(-dt / 0.06f);    // 60 ms: one band into the next
         float peak = 0;
         for (int i = 0; i < dst.Length; i++)
         {
             _eng += (_engTarget - _eng) * glide;
             _road += (_roadTarget - _road) * glide;
+            _slotMix[_slot] += (1f - _slotMix[_slot]) * fade;
+            _slotMix[_slot ^ 1] -= _slotMix[_slot ^ 1] * fade;
             _engPhase += 2 * Math.PI * _engHz * dt;
             if (_engPhase > 2 * Math.PI) _engPhase -= 2 * Math.PI;
             float x = _eng * (float)Math.Sin(_engPhase);
             _noise ^= _noise << 13; _noise ^= _noise >> 17; _noise ^= _noise << 5;
-            // the filters leave white noise of ±1 at about 0.025 rms: ×28 is the 0.71 rms of a sine at the bed's level
-            float bed = _roadBand.Run(_noise / 2147483648f - 1f);
+            // the filters leave white noise of ±1 at about 0.025 rms through the 50 Hz band: ×28 is the 0.71 rms of a sine at the bed's level
+            float white = _noise / 2147483648f - 1f, bed = 0;
+            for (int k = 0; k < 2; k++)
+            {
+                float b = _bands[k].Run(white);
+                if (_slotMix[k] > 1e-4f) bed += _slotMix[k] * BandNorm(_slotHz[k], _slotQ[k]) * b;
+            }
             for (int k = 0; k < _roadEq.Length; k++) bed = _roadEq[k].Run(bed);
-            x += _road * 28f * bed;
+            x += _road * bed;
+            // the lumps and the grit, by the distance driven
+            if (_mps > 0.5f)
+            {
+                float step = _mps * dt;
+                if (_lumpLevel > 0 && _profile.LumpSpacing > 0 && (_toLump -= step) <= 0)
+                {
+                    _toLump = Math.Max(_toLump, 0) + Spacing(_profile.LumpSpacing, _profile.Periodic);
+                    float hz = _profile.Periodic ? _profile.LumpHz : _profile.LumpHz * (0.9f + 0.2f * Rand());
+                    Grain(hz, _lumpLevel * (_profile.Periodic ? 1f : 0.6f + 0.4f * Rand()), 0.14f);
+                }
+                if (_grainLevel > 0 && _profile.GrainSpacing > 0 && (_toGrain -= step) <= 0)
+                {
+                    _toGrain = Math.Max(_toGrain, 0) + Spacing(_profile.GrainSpacing, false);
+                    Grain(_profile.GrainHz * (0.88f + 0.24f * Rand()), _grainLevel * (0.5f + 0.5f * Rand()), 0.05f);
+                }
+            }
+            for (int v = _grains.Count - 1; v >= 0; v--)
+            {
+                var t = _grains[v];
+                x += t.Level * (float)Math.Sin(t.Phase);
+                t.Phase += 2 * Math.PI * t.Hz * dt;
+                t.Level *= MathF.Exp(-t.Fall * dt);
+                if ((t.Left -= dt) <= 0) _grains.RemoveAt(v);
+            }
             for (int v = _thumps.Count - 1; v >= 0; v--)
             {
                 var t = _thumps[v];

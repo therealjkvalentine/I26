@@ -318,9 +318,11 @@ public class TactileSynthTests
                 case TactileSource.Hits: e.Hits.Add((3, 20)); break;
                 case TactileSource.Shots: e.Shots.Add(new WeaponShot(0, 2, 1, 1)); break;
                 case TactileSource.Explosions: e.Blasts.Add(60f); break;
+                case TactileSource.Offroad: e.Surface = 2; e.Mph = 40; break;
+                case TactileSource.Bumps: e.Mph = 40; e.Crossings.Add(1f); break;
             }
             s.Step(e);
-            bool bed = src is TactileSource.Engine or TactileSource.Road;
+            bool bed = src is TactileSource.Engine or TactileSource.Road or TactileSource.Offroad;
             return Rms(Run(s, bed ? 2.0 : 0.3).AsSpan(bed ? Rate / 2 : 0));
         }
         foreach (var src in Enum.GetValues<TactileSource>())
@@ -333,10 +335,11 @@ public class TactileSynthTests
         }
         // the others are untouched by one source's weight
         var only = new TactileSynth();
-        only.SetWeights([0, 100, 100, 100, 100]);
+        only.SetWeights([0, 100, 100, 100, 100, 100, 100]);
         only.Step(new TactileEvents { EngineOn = true, Rpm = 600, Surface = 6, Mph = 40 });
         Assert.True(Rms(Run(only, 2.0).AsSpan(Rate / 2)) > 0.01f);
-        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"], TactileSources.Keys);
+        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps"], TactileSources.Keys);
+        Assert.Equal(Enum.GetValues<TactileSource>().Length, TactileSources.Keys.Length);
         Assert.Equal(200, TactileSources.Clamp(999));
         Assert.Equal(0, TactileSources.Clamp(-5));
     }
@@ -364,5 +367,127 @@ public class TactileSynthTests
         Assert.Equal(200, AudioOutputs.ClampLevel(999));
         Assert.Equal(2f, AudioOutputs.BassBoost(100));
         Assert.Equal(90f, AudioOutputs.ClampCrossover(float.NaN));
+    }
+
+    /// <summary>The road alone on <paramref name="surface"/> at <paramref name="mph"/> for 3 s, its last 2 s (a low gain keeps the limiter out).</summary>
+    private static float[] Road(int surface, float mph, Action<TactileSynth>? set = null)
+    {
+        var s = new TactileSynth { Gain = 0.25f };
+        set?.Invoke(s);
+        var b = new float[3 * Rate];
+        int tick = (int)(Rate * 102f / 2048f);
+        for (int at = 0; at + tick <= b.Length; at += tick)
+        {
+            s.Step(new TactileEvents { Surface = surface, Mph = mph });
+            s.Fill(b.AsSpan(at, tick), Rate);
+        }
+        return b[Rate..];
+    }
+
+    /// <summary>The power-weighted centre of the signal between 16 and 100 Hz, from its components every 2 Hz.</summary>
+    private static float Centroid(float[] x)
+    {
+        double sum = 0, w = 0;
+        for (float hz = 16; hz <= 100; hz += 2) { double a = Amplitude(x, hz); sum += a * a * hz; w += a * a; }
+        return (float)(sum / w);
+    }
+
+    [Fact]
+    public void A_dirt_road_sits_above_the_ground_off_it_in_pitch()
+    {
+        // synth surfaces: dirt 1, sand 2, asphalt 3, dirt road 4, rough 6
+        float road = Centroid(Road(4, 40)), sand = Centroid(Road(2, 40)), dirt = Centroid(Road(1, 40)), rough = Centroid(Road(6, 40));
+        Assert.True(road > sand + 15f, $"dirt road {road:0} Hz, sand {sand:0} Hz");
+        Assert.True(road > dirt + 15f, $"dirt road {road:0} Hz, dirt {dirt:0} Hz");
+        Assert.True(road > rough + 15f, $"dirt road {road:0} Hz, rough {rough:0} Hz");
+        // as before the profiles, one band for all: within a few Hz of each other
+        float flatRoad = Centroid(Road(4, 40, s => s.Surfaces = TactileSynth.Flat)), flatSand = Centroid(Road(2, 40, s => s.Surfaces = TactileSynth.Flat));
+        Assert.InRange(flatRoad - flatSand, -4f, 4f);
+    }
+
+    [Fact]
+    public void The_roads_and_the_ground_stand_further_apart()
+    {
+        float Db(float[] a, float[] b) => 20 * MathF.Log10(Rms(a) / Rms(b));
+        float now = Db(Road(2, 40), Road(3, 40));
+        float was = Db(Road(2, 40, s => { s.Surfaces = TactileSynth.Flat; s.Contrast = 1; }), Road(3, 40, s => { s.Surfaces = TactileSynth.Flat; s.Contrast = 1; }));
+        Assert.InRange(was, 6f, 8.5f);          // the force model's 35 against 15
+        Assert.True(now > 13f, $"sand over asphalt {now:0.0} dB");
+        // the stretch pivots on a dirt junction's strength (30): it keeps its level, the roads go down, the ground up
+        Assert.Equal(TactileSynth.RoadLevel(8, 60, 0, 1f), TactileSynth.RoadLevel(8, 60, 0), 5);
+        Assert.True(TactileSynth.RoadLevel(3, 60, 0) < TactileSynth.RoadLevel(3, 60, 0, 1f));
+        Assert.True(TactileSynth.RoadLevel(2, 60, 0) > TactileSynth.RoadLevel(2, 60, 0, 1f));
+        // contrast 1 is the earlier straight line
+        Assert.Equal(0.3f * 15f / 40f * 0.5f, TactileSynth.RoadLevel(3, 40, 0, 1f), 5);
+    }
+
+    [Fact]
+    public void Lfe_offroad_moves_the_ground_and_leaves_the_roads()
+    {
+        Action<TactileSynth> Off(int percent) => s => { var w = TactileSources.Defaults(); w[(int)TactileSource.Offroad] = percent; s.SetWeights(w); };
+        Assert.Equal(Rms(Road(3, 40)), Rms(Road(3, 40, Off(0))));
+        Assert.Equal(Rms(Road(4, 40)), Rms(Road(4, 40, Off(200))));
+        Assert.Equal(0f, Rms(Road(2, 40, Off(0))));
+        Assert.InRange(Rms(Road(6, 40, Off(150))) / Rms(Road(6, 40)), 1.45f, 1.55f);
+    }
+
+    [Fact]
+    public void The_band_follows_the_surface_without_a_click()
+    {
+        var s = new TactileSynth { Gain = 0.25f };
+        int tick = (int)(Rate * 102f / 2048f);
+        var b = new float[tick];
+        float jump = 0, last = 0;
+        for (int i = 0; i < 80; i++)
+        {
+            s.Step(new TactileEvents { Surface = i < 40 ? 3 : 2, Mph = 50 });
+            s.Fill(b, Rate);
+            foreach (var v in b) { jump = Math.Max(jump, Math.Abs(v - last)); last = v; }
+            if (i == 39) Assert.Equal(56f, s.BedHz);
+        }
+        Assert.Equal(30f, s.BedHz);
+        Assert.Equal(2, s.Surface);
+        // a 30 Hz band moves little from one sample to the next; a click would be a step of the signal's own size
+        Assert.True(jump < 0.02f, $"largest step {jump}");
+    }
+
+    [Fact]
+    public void A_crossing_knocks_by_speed_and_lfe_bumps()
+    {
+        Assert.Null(TactileSynth.BumpThump(1f, 3f));
+        Assert.Null(TactileSynth.BumpThump(0f, 60f));
+        Assert.Equal(TactileSynth.BumpLevel, TactileSynth.BumpThump(1f, 50f)!.Value.Level, 5);
+        Assert.Equal(TactileSynth.BumpLevel, TactileSynth.BumpThump(1f, 120f)!.Value.Level, 5);
+        Assert.Equal(TactileSynth.BumpLevel * 0.5f * 0.6f, TactileSynth.BumpThump(0.5f, 30f)!.Value.Level, 5);
+        Assert.Equal(TactileSynth.BumpLevel * 0.15f, TactileSynth.BumpThump(1f, 5f)!.Value.Level, 5);
+        float Knock(int percent)
+        {
+            var s = new TactileSynth { Gain = 0.25f };
+            var w = TactileSources.Defaults();
+            w[(int)TactileSource.Bumps] = percent;
+            s.SetWeights(w);
+            var e = new TactileEvents { Mph = 50 };
+            e.Crossings.Add(1f);
+            s.Step(e);
+            var x = Run(s, 0.3);
+            Assert.Equal(1, s.Bumps);
+            return Amplitude(x.AsSpan(0, Rate / 10), TactileSynth.BumpHz);
+        }
+        Assert.True(Knock(100) > 0.01f);
+        Assert.Equal(0f, Knock(0));
+        Assert.InRange(Knock(200) / Knock(100), 1.9f, 2.05f);
+    }
+
+    [Fact]
+    public void The_lumps_come_with_the_distance_driven_and_stop_with_the_car()
+    {
+        // rough ground's lumps at 25 Hz: twice the speed, about twice as many in the same time (more of the 25 Hz component
+        // than the bed's growth alone gives); standing, none at all
+        float Lumps(float mph) => Amplitude(Road(6, mph), 25f) / TactileSynth.RoadLevel(6, mph, 0);
+        Assert.True(Lumps(40) > Lumps(20) * 1.1f);
+        Assert.Equal(0f, Rms(Road(6, 0)));
+        // the old profile has no lumps: asphalt and every surface of Flat is the bed alone
+        Assert.Equal(0f, TactileSynth.Profiles[3].LumpLevel);
+        Assert.All(TactileSynth.Flat, p => Assert.Equal(0f, p.LumpLevel + p.GrainLevel));
     }
 }
