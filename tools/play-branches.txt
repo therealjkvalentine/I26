@@ -253,3 +253,7 @@ fix/hd-menu-port-edits                # section L: the HD menu art's port edits
 feat/hd-pack-scale                    # section L: the HD pack's scale
 feat/death-variety                    # section L: modern look car deaths by cause; snapshot 25, protocol 27 (cherry-picked onto the rebuilt play: its two commits after d0a9384)
 feat/brush-impacts                    # section L: modern look brush answers rounds, cars, blasts and fire (cherry-picked onto the rebuilt play: its one commit after d0a9384)
+
+# M. pass 13 (2026-11-04): the cockpit's live textures and the 3x pack; both stacked on play
+fix/hardpoint-textures                # section M: modern look: the 3D cockpit's weapons panel, steering wheel and arms are cut by their own pixels, not the first frame's outline (the housings, plates, hands and pistol draw whole)
+fix/hd-pack-3x                        # section M: an HD upscale at any whole multiple is served (the 3x pack was silently falling back to the originals for car and world textures)
