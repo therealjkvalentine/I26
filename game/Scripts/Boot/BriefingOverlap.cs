@@ -9,6 +9,13 @@ namespace I76.Game.Boot;
 /// </summary>
 public static class BriefingOverlap
 {
+    /// <summary>
+    /// The loading card ("SOMEWHERE IN THE SOUTHWEST...") comes up before the briefing only in the original's order, where the
+    /// load it covers comes first; under the briefing the screen stays black until the movie, and the card covers the rest of
+    /// the load after it: movie, card, mission (a card before the movie as well read as a title out of place).
+    /// </summary>
+    public static bool CardBeforeBriefing(bool overlapped) => !overlapped;
+
     public static bool Plan(bool setting, bool look1997, string? briefing, bool movieFound, bool skipMovies, bool network, bool editor, bool retry)
         => setting && !look1997 && briefing is { Length: > 0 } && movieFound && !skipMovies && !network && !editor && !retry;
 }
