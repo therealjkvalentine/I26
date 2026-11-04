@@ -276,6 +276,8 @@ stacked ones and the integration branch are section I, after H.
 | I75 | feat/hd-pack-scale | the HD pack's scale | local | - | merged (0c0f928) |
 | I76 | feat/death-variety | modern look: a car's death follows what killed it; most deaths open with a calmer blast, burning wheels drawn per death; snapshot 25, protocol 27 | local: Game DeathVarietyTests, Sim DeathCauseTests | - | cherry-picked (9b80ce0, b091233) |
 | I77 | feat/brush-impacts | modern look: the scattered plants answer rounds, cars, blasts and fire; `[port] brush_impacts` | local: Formats BrushFieldTests | - | cherry-picked (93cc458) |
+| I78 | fix/hardpoint-textures | modern look: the 3D cockpit's weapons panel, steering wheel and arms are cut by their own pixels rather than the first frame's outline (the housings, ammo plates, hands and pistol were cut away; the specials panel was never affected and keeps its smooth edges) | playtest ("hardpoint textures don't appear"); captures `_scratch/r3-hardpoint-tex/`; local: Game 336/336 | `_scratch/r3-hardpoint-tex/` | ready (5727c81, 5e04625) |
+| I79 | fix/hd-pack-3x | an HD upscale at any whole multiple of the original is served, not only a power of two (the 3x pack fell back to the originals for every car and world texture, 282 of them on M01); the log notes the first upscale served at each scale and a --screenshot run prints a count per scale | found while on I78; local: Formats HdTextureTests 9 (one new) | `_scratch/r3-hd-pack-3x/` | ready (b8162bb) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -708,6 +710,12 @@ Net 440/467 (27), Sim 1020/1049 (29). Sim's 29 and all the Net and Formats failu
 fail on the previous play tip (df066fa, run on its own build): the desktop baseline. The seven outside it (VegetationTests
 T02Sward..., five network tests and VisibilityTests.EveryoneSeesEveryoneAfterANewRound) passed when rerun alone (Vegetation T02Sward, the migration, prediction and visibility ones, the hidden-cars Anet one; the punch pair and SixBots failed in a
 first rerun under load, then passed alone: 2/2) and the same tests pass alone on df066fa: load. New because of us: none.
+
+## Pass 13 (2026-11-04)
+
+Two branches added as manifest section M, both made on play a3b949f (pass 12) and merged with --no-ff: fix/hardpoint-textures
+(I78) and fix/hd-pack-3x (I79). Before the run feat/death-variety and feat/brush-impacts were pointed at their cherry-picks on
+play (b091233 and 93cc458) so the script sees them as merged instead of merging their old-base history (the pass-12 note).
 
 ## Withdrawn or answered (not offered as fixes)
 
