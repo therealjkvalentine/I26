@@ -11,6 +11,14 @@ using P = I76.Formats.Input.TactileSynth.SurfaceProfile;
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 // --sweep OUTDIR: the chain's measurements (Sweeps.cs); plot them with plot_sweeps.py
 if (args is ["--sweep", var sweepDir]) { Sweeps.Run(sweepDir); return; }
+// --plan OUTDIR: each source's peak at the limiter's input against the headroom plan (Plan.cs)
+if (args is ["--plan", var planDir]) { Plan.Run(planDir); return; }
+// --round2 OUTDIR: the second set of options (Round2.cs)
+if (args is ["--round2", var round2Dir]) { Round2.Run(round2Dir); return; }
+// --measure OUTDIR: constant-level sweeps and tones to measure a shaker with (Measure.cs; eq_from_measurement.py reads the readings)
+if (args is ["--measure", var measureDir]) { Measure.Run(measureDir); return; }
+// --sfx INSTALL OUTDIR [name[@idle|@rev|@rate]]...: the game's sounds' low-frequency bands (Sfx.cs), for bands.md
+if (args is ["--sfx", var sfxInstall, var sfxDir, .. var sfxNames]) { Sfx.Run(sfxInstall, sfxDir, sfxNames.Length > 0 ? sfxNames : Sfx.DefaultSet); return; }
 // --find-strip INSTALL MISSION...: a straight drive across asphalt, a dirt road and off-road (StripFinder.cs)
 if (args is ["--find-strip", var stripInstall, .. var stripMissions]) { StripFinder.Run(stripInstall, stripMissions); return; }
 string outDir = args.Length > 0 ? args[0] : "wavs";
@@ -24,7 +32,8 @@ const float Wheelbase = 3f;    // a mid-size car's, front axle to rear (m)
 const int Dirt = 1, Sand = 2, Asphalt = 3, DirtRoad = 4, Rough = 6;
 
 var cur = TactileSynth.Flat;
-var rec = TactileSynth.Profiles;
+// round one's set, as round one had it (no trims, ring or randomness; asphalt without cracks; --round2 has the current synth)
+var rec = TactileSynth.FirstRound;
 P[] With(int surface, P p) { var a = (P[])rec.Clone(); a[surface] = p; return a; }
 
 var renders = new List<Render>();
@@ -141,7 +150,7 @@ record Render(string Name, string What, float Mps, P[] Profiles, float Contrast,
 {
     public float[] Run()
     {
-        var s = new TactileSynth { Gain = AudioOutputs.ShakerGain(100), Surfaces = Profiles, Contrast = Contrast };
+        var s = new TactileSynth { Gain = AudioOutputs.ShakerGain(100), Surfaces = Profiles, Contrast = Contrast, Tune = TactileTuning.Before };
         var e = new TactileEvents();
         float mph = Mps * 2.2369363f, total = Segments.Sum(g => g.Seconds);
         int perTick = (int)MathF.Round(48000 * 102f / 2048f);

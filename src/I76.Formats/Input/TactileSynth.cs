@@ -62,15 +62,22 @@ public static class AudioOutputs
 /// Off-road is a share of the road's on off-road ground (dirt, sand, rough), on top of lfe_road; Bumps the knock of a wheel
 /// crossing onto or off a road or a bridge.
 /// </summary>
-public enum TactileSource { Engine, Road, Hits, Shots, Explosions, Offroad, Bumps }
+public enum TactileSource { Engine, Road, Hits, Shots, Explosions, Offroad, Bumps, Cracks, Strip }
 
 public static class TactileSources
 {
-    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps"];
+    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip"];
     public const int Default = 100, Max = 200;
+    /// <summary>
+    /// The developer's listening options, none in the game's roads (they have neither): filled cracks across asphalt and a
+    /// rumble strip along a paved road's edge, 0 (off) by default; 100 % is the level recommended in docs/dev-hooks.md.
+    /// </summary>
+    public static readonly TactileSource[] DevOnly = [TactileSource.Cracks, TactileSource.Strip];
+    /// <summary>A source's level when the file has none: 100, the dev-only ones 0.</summary>
+    public static int DefaultOf(int i) => i < Keys.Length && Array.IndexOf(DevOnly, (TactileSource)i) >= 0 ? 0 : Default;
     public static int Clamp(int percent) => Math.Clamp(percent, 0, Max);
     /// <summary>Every source at 100 %.</summary>
-    public static int[] Defaults() => [.. Keys.Select(_ => Default)];
+    public static int[] Defaults() => [.. Keys.Select((_, i) => DefaultOf(i))];
 }
 
 /// <summary>
@@ -145,6 +152,8 @@ public sealed class TactileEvents
     public readonly List<float> Blasts = [];
     /// <summary>Wheels crossing onto or off a road or a bridge this tick, each by its strength (0 to 1, <see cref="TactileSynth.BumpThump"/>).</summary>
     public readonly List<float> Crossings = [];
+    /// <summary>The car runs along a paved road's edge, one side's wheels on it and the other's off (the rumble strip).</summary>
+    public bool Shoulder;
 
     public void Clear()
     {
@@ -156,7 +165,81 @@ public sealed class TactileEvents
         Hits.Clear();
         Blasts.Clear();
         Crossings.Clear();
+        Shoulder = false;
     }
+}
+
+/// <summary>
+/// The synth's levels and shapes past the surfaces, as one record so the sweeps and the WAV options can vary them
+/// (tools/TactileRender); <see cref="Default"/> is what the game plays. Levels are the synth's, before the LFE gain (1.5 at
+/// 100 %); the headroom plan they follow is in docs/lfe-surfaces.md: the hardest impact's peak at full scale into the limiter,
+/// a typical hit and an axle's knock at speed about -6 dBFS, one wheel's knock, the shots and the engine about -12, every
+/// road under -6 at its worst (rough ground, full speed, the springs busy).
+/// </summary>
+public sealed record TactileTuning
+{
+    /// <summary>The whole road (bed, lumps, grit, cracks, the springs' share) against the rest: 14 dB down from the surfaces' own levels, so rough ground at full speed peaks under -6 dBFS.</summary>
+    public float RoadTrim { get; init; } = 0.2f;
+    /// <summary>The own shots' thumps under the hits: 6 dB down from the class table.</summary>
+    public float ShotTrim { get; init; } = 0.5f;
+    /// <summary>
+    /// The crossing knock: a body at <see cref="KnockHz"/> of <see cref="KnockLevel"/> (full strength, 50 mph and over) dying
+    /// over <see cref="KnockSeconds"/> to -40 dB, a <see cref="KnockBodyHz"/> part at <see cref="KnockBody"/> of it for the
+    /// thud, and a short <see cref="KnockClickHz"/> click at <see cref="KnockClick"/> of it for the edge (held up against the
+    /// crossover's low-pass, at most 6 dB).
+    /// </summary>
+    public float KnockLevel { get; init; } = 0.162f;
+    public float KnockSeconds { get; init; } = 0.35f;
+    /// <summary>The share of the knock's body held at full level before it decays: 0.4 of 350 ms, 140 ms at full and 210 ms down.</summary>
+    public float KnockHold { get; init; } = 0.4f;
+    public float KnockHz { get; init; } = 40f;
+    public float KnockBodyHz { get; init; } = 52f;
+    public float KnockClickHz { get; init; } = 80f;
+    public float KnockBody { get; init; } = 0f;
+    public float KnockClick { get; init; } = 0.45f;
+    public float KnockBodySeconds { get; init; } = 0.2f;
+    public float KnockClickSeconds { get; init; } = 0.035f;
+    /// <summary>
+    /// A hit: the original force-feedback DLL's strength (<see cref="TactileSynth.HitThump"/>) times <see cref="ImpactLevel"/>,
+    /// with a 55 Hz part and an 80 Hz click as the knock has; an impact-channel hit over <see cref="RingThreshold"/> (the
+    /// original's cockpit jolt: ScreenWobble) then rings the cabin at <see cref="RingHz"/>, <see cref="RingShare"/> of the hit,
+    /// dying as the jolt does: a time constant of 0.5 s, -40 dB at 2.3 s (the jolt is under a pixel at 1.47 s, -26 dB).
+    /// </summary>
+    public float ImpactLevel { get; init; } = 0.49f;
+    public float ImpactBody { get; init; } = 0f;
+    /// <summary>The hit's body held at full level this long (s) before its decay.</summary>
+    public float ImpactHold { get; init; } = 0.06f;
+    public float ImpactClick { get; init; } = 0f;
+    public float RingShare { get; init; } = 0.55f;
+    public float RingHz { get; init; } = 23f;
+    public float RingSeconds { get; init; } = 2.3f;
+    public int RingThreshold { get; init; } = 20;
+    /// <summary>Hits by <see cref="TactileSynth.HitDb"/> (the plan's curve over damage); false: the DLL's strengths, as before.</summary>
+    public bool HitCurve { get; init; } = true;
+    /// <summary>
+    /// The rumble strip along a road's edge: a buzz at the strike rate, speed over <see cref="StripSpacing"/> (a milled strip's
+    /// 30 cm pitch: 49 Hz at 15 m/s), an octave down while over <see cref="StripHz"/> so a shaker keeps it, at
+    /// <see cref="StripLevel"/>, full from 40 mph.
+    /// </summary>
+    public float StripLevel { get; init; } = 0.24f;
+    public float StripSpacing { get; init; } = 0.305f;
+    public float StripHz { get; init; } = 60f;
+    /// <summary>
+    /// The surfaces' randomness, 0 (none past the lumps' jittered spacing) to 1: the bed's level wanders about ±2 dB and its
+    /// band about ±4 % over a second or two, and one lump in <see cref="BigLumpEvery"/> is <see cref="BigLumpGain"/> times
+    /// as strong and lower. Drawn from the synth's seed, so a seed plays the same every time.
+    /// </summary>
+    public float Variation { get; init; } = 1f;
+    public int BigLumpEvery { get; init; } = 14;
+    public float BigLumpGain { get; init; } = 1.6f;
+
+    public static readonly TactileTuning Default = new();
+    /// <summary>The synth as it was before the plan (the first round's surfaces, the 0.6 knock alone, no ring or trims), for comparisons.</summary>
+    public static readonly TactileTuning Before = new()
+    {
+        RoadTrim = 1f, ShotTrim = 1f, KnockHz = 28f, KnockLevel = 0.6f, KnockSeconds = 0.15f, KnockHold = 0f, KnockBody = 0f, KnockClick = 0f, ImpactHold = 0f,
+        ImpactLevel = 1f, ImpactBody = 0f, ImpactClick = 0f, RingShare = 0f, StripLevel = 0f, Variation = 0f, HitCurve = false,
+    };
 }
 
 /// <summary>
@@ -184,11 +267,11 @@ public sealed class TactileSynth
     /// </summary>
     public const float BlastNear = 15f, BlastKnee = 120f, BlastRange = 2000f;
     /// <summary>A blast at the car: 25 Hz, 0.5 s; at <see cref="BlastRange"/> a lower, longer roll (the ground and air lose the top first).</summary>
-    public const float BlastHz = 25f, BlastFarHz = 18f, BlastSeconds = 0.5f, BlastFarSeconds = 1.2f;
+    public const float BlastHz = 21f, BlastFarHz = 17f, BlastSeconds = 0.5f, BlastFarSeconds = 1.2f;
     public const float CrankHz = 24f, CrankLevel = 0.2f;
     /// <summary>The road bed's centre before the surfaces had their own (<see cref="Flat"/>), and the band its level is calibrated on.</summary>
     public const float RoadHz = 50f, RoadQ = 0.7f;
-    private const int MaxThumps = 8, MaxGrains = 12;
+    private const int MaxThumps = 16, MaxGrains = 16;
 
     /// <summary>
     /// A surface's feel: the road bed's band (centre and Q), its lumps (a decaying sine at <see cref="LumpHz"/> every
@@ -197,29 +280,35 @@ public sealed class TactileSynth
     /// is jittered from half to one and a half times, so the rate follows the speed without a tone (unless
     /// <see cref="Periodic"/>: a washboard's even ripples, which are a tone). <see cref="OffRoad"/> surfaces take lfe_offroad.
     /// </summary>
+    /// <see cref="Jitter"/> is the spacing's spread (0.5: half to one and a half times the mean); <see cref="LumpSeconds"/> a
+    /// lump's length; a <see cref="Paired"/> lump comes again as the rear axle meets it (a crack across the road).
     public readonly record struct SurfaceProfile(float BedHz, float BedQ, float LumpLevel = 0, float LumpSpacing = 0, float LumpHz = 26f,
-        float GrainLevel = 0, float GrainSpacing = 0, float GrainHz = 75f, bool OffRoad = false, bool Periodic = false);
+        float GrainLevel = 0, float GrainSpacing = 0, float GrainHz = 75f, bool OffRoad = false, bool Periodic = false,
+        float Jitter = 0.5f, float LumpSeconds = 0.14f, bool Paired = false);
 
     /// <summary>The surfaces' names for the Developer panel, by the synth's surface (the car's + 1; 0 none, 9 in the air).</summary>
     public static readonly string[] SurfaceNames = ["none", "dirt", "sand", "asphalt", "dirt road", "planks", "rough", "parking lot", "dirt junction", "air"];
 
-    private static readonly SurfaceProfile Asphalt = new(56f, 1.6f);
-    private static readonly SurfaceProfile DirtRoad = new(66f, 1.2f, LumpLevel: 0.05f, LumpSpacing: 4f, LumpHz: 30f, GrainLevel: 0.07f, GrainSpacing: 0.45f, GrainHz: 76f);
+    /// <summary>Asphalt: the hum, and filled cracks across it every 8 to 20 m, a short 38 Hz tick for each axle.</summary>
+    private static readonly SurfaceProfile Asphalt = new(56f, 1.6f, LumpLevel: 0.45f, LumpSpacing: 14f, LumpHz: 46f, Jitter: 0.43f, LumpSeconds: 0.07f, Paired: true);
+    /// <summary>The wheelbase a paired lump comes again after (m).</summary>
+    public const float Wheelbase = 2.8f;
+    private static readonly SurfaceProfile DirtRoad = new(66f, 1.2f, LumpLevel: 0.05f, LumpSpacing: 4f, LumpHz: 46f, GrainLevel: 0.07f, GrainSpacing: 0.45f, GrainHz: 76f);
 
     /// <summary>
     /// The port's surfaces (playtest: a dirt road above the off-road ground in pitch, roads and off-road further apart). Off-road
     /// (dirt, sand, rough) sits low, 30 to 34 Hz, with lumps; a dirt road (the gravel road) at 66 Hz with grit; asphalt a narrow
-    /// faint 56 Hz hum and nothing else; planks a hollow 46 Hz with the beams' knock. docs/lfe-surfaces.md has the reasoning.
+    /// faint 56 Hz hum with sparse filled cracks; planks a hollow 46 Hz with the beams' knock. docs/lfe-surfaces.md has the reasoning.
     /// </summary>
     public static readonly SurfaceProfile[] Profiles =
     [
         new(RoadHz, RoadQ),
-        new(34f, 0.9f, LumpLevel: 0.14f, LumpSpacing: 2.5f, LumpHz: 26f, OffRoad: true),                                         // dirt
-        new(30f, 0.8f, LumpLevel: 0.08f, LumpSpacing: 3.5f, LumpHz: 24f, OffRoad: true),                                         // sand
+        new(34f, 0.9f, LumpLevel: 0.14f, LumpSpacing: 2.5f, LumpHz: 34f, OffRoad: true),                                         // dirt
+        new(30f, 0.8f, LumpLevel: 0.08f, LumpSpacing: 3.5f, LumpHz: 30f, OffRoad: true),                                         // sand
         Asphalt,
         DirtRoad,
-        new(46f, 2.5f, LumpLevel: 0.08f, LumpSpacing: 1.2f, LumpHz: 40f),                                                        // planks
-        new(32f, 0.8f, LumpLevel: 0.22f, LumpSpacing: 1.4f, LumpHz: 25f, GrainLevel: 0.05f, GrainSpacing: 0.6f, GrainHz: 70f, OffRoad: true), // rough
+        new(46f, 2.5f, LumpLevel: 0.08f, LumpSpacing: 1.2f, LumpHz: 46f),                                                        // planks
+        new(32f, 0.8f, LumpLevel: 0.22f, LumpSpacing: 1.4f, LumpHz: 32f, GrainLevel: 0.05f, GrainSpacing: 0.6f, GrainHz: 70f, OffRoad: true), // rough
         Asphalt,                                                                                                                  // parking lot
         DirtRoad,                                                                                                                 // dirt junction
         new(RoadHz, RoadQ),
@@ -227,6 +316,8 @@ public sealed class TactileSynth
 
     /// <summary>Every surface as before the profiles: one 50 Hz band, no lumps or grit (with <see cref="Contrast"/> 1, the earlier signal).</summary>
     public static readonly SurfaceProfile[] Flat = [.. Enumerable.Repeat(new SurfaceProfile(RoadHz, RoadQ), 10)];
+    /// <summary>The surfaces of the first round (asphalt without its cracks), for comparisons.</summary>
+    public static readonly SurfaceProfile[] FirstRound = [.. Profiles.Select(p => p.Paired ? new SurfaceProfile(56f, 1.6f) : p)];
 
     /// <summary>
     /// The road strengths' stretch: the bed goes as strength/40 times (strength/<see cref="ContrastPivot"/>)^(contrast - 1), so 2
@@ -235,11 +326,15 @@ public sealed class TactileSynth
     /// </summary>
     public const float DefaultContrast = 2f, ContrastPivot = 30f;
 
-    /// <summary>A decaying sine: <see cref="Level"/> at its start, -40 dB after <see cref="Seconds"/>, then gone.</summary>
-    public readonly record struct Thump(float Hz, float Level, float Seconds);
+    /// <summary>
+    /// A decaying sine: <see cref="Level"/> from its start, held for <see cref="Hold"/> (a body a shaker has time to reach),
+    /// then -40 dB at <see cref="Seconds"/> from the start, then gone.
+    /// </summary>
+    public readonly record struct Thump(float Hz, float Level, float Seconds, float Hold = 0f);
 
     private static float RpmShare(float rpm) => Math.Clamp((rpm - 600f) / 4400f, 0f, 1f);
-    public static float EngineHz(float rpm) => 25f + 20f * RpmShare(rpm);
+    /// <summary>The engine's tone: 36 Hz at idle to 50 at 5000 rpm, over the off-road ground (30 to 34) and the hits (25 to 29), under the engines' own sound (most from 63 Hz up).</summary>
+    public static float EngineHz(float rpm) => 36f + 14f * RpmShare(rpm);
     public static float EngineLevel(bool on, float rpm) => on ? 0.08f + 0.10f * RpmShare(rpm) : 0f;
 
     /// <summary>
@@ -275,6 +370,42 @@ public sealed class TactileSynth
     }
     public const float BumpHz = 28f, BumpLevel = 0.6f, BumpSeconds = 0.15f;
 
+    /// <summary>The share of the knock's full level at a speed: full from 50 mph, 0.15 of it near walking pace, none under 4 mph.</summary>
+    public static float KnockShare(float mph) => mph > 4f ? Math.Clamp(mph / 50f, 0.15f, 1f) : 0f;
+
+    /// <summary>The crossing knock's parts (<see cref="TactileTuning"/>): the body, the thud, the click.</summary>
+    public static IEnumerable<Thump> KnockParts(TactileTuning k, float strength, float mph)
+    {
+        float l = k.KnockLevel * Math.Clamp(strength, 0f, 1f) * KnockShare(mph);
+        if (!(l > 0)) yield break;
+        yield return new Thump(k.KnockHz, l, k.KnockSeconds, k.KnockHold * k.KnockSeconds);
+        if (k.KnockBody > 0) yield return new Thump(k.KnockBodyHz, l * k.KnockBody, k.KnockBodySeconds);
+        if (k.KnockClick > 0) yield return new Thump(k.KnockClickHz, l * k.KnockClick, k.KnockClickSeconds);
+    }
+
+    /// <summary>
+    /// A hit's level on the headroom plan, from its damage: -12 dB at 8 (a machine-gun round), rising 6 dB a decade to 0 dB
+    /// at 800 (a head-on ram at 25 m/s), an explosive hit 2 dB over a round or a ram of the same damage (never over 0). The
+    /// DLL's strengths are full from about 80 damage, which put a landing, a ram and a crash at the same level.
+    /// </summary>
+    public static float HitDb(int channel, int amount)
+    {
+        if (amount <= 0) return float.NegativeInfinity;
+        float db = -12f + 6f * MathF.Log10(amount / 8f) + (channel == 1 ? 2f : 0f);
+        return Math.Clamp(db, -24f, 0f);
+    }
+
+    /// <summary>A hit's parts: the DLL's channel tone at the plan's level, a 55 Hz part, an 80 Hz click, and for a big impact the cabin's ring.</summary>
+    public static IEnumerable<Thump> HitParts(TactileTuning k, int channel, int amount)
+    {
+        if (HitThump(channel, amount) is not { } t) yield break;
+        float l = k.ImpactLevel * (k.HitCurve ? MathF.Pow(10f, HitDb(channel, amount) / 20f) : t.Level);
+        yield return t with { Level = l, Hold = k.ImpactHold };
+        if (k.ImpactBody > 0) yield return new Thump(55f, l * k.ImpactBody, 0.18f);
+        if (k.ImpactClick > 0) yield return new Thump(80f, l * k.ImpactClick, 0.04f);
+        if (channel == 3 && amount > k.RingThreshold && k.RingShare > 0) yield return new Thump(k.RingHz, l * k.RingShare, k.RingSeconds);
+    }
+
     private static bool OnGround(int surface) => surface > 0 && surface < ForceModel.RoadGain.Length - 1;
 
     /// <summary>
@@ -307,12 +438,12 @@ public sealed class TactileSynth
     /// <summary>A shot by weapon class (1 machine guns, 2 cannons, 3 mortars, 4 rockets and missiles, 5 flame weapons, 6 droppers); none for any other.</summary>
     public static Thump? ShotThump(uint weaponClass) => weaponClass switch
     {
-        1 => new Thump(55f, 0.25f, 0.06f),
-        2 => new Thump(40f, 0.5f, 0.12f),
-        3 => new Thump(30f, 0.6f, 0.15f),
-        4 => new Thump(35f, 0.4f, 0.18f),
-        5 => new Thump(60f, 0.15f, 0.10f),
-        6 => new Thump(45f, 0.3f, 0.08f),
+        1 => new Thump(48f, 0.25f, 0.06f),
+        2 => new Thump(38f, 0.5f, 0.12f),
+        3 => new Thump(36f, 0.6f, 0.15f),
+        4 => new Thump(42f, 0.4f, 0.18f),
+        5 => new Thump(50f, 0.15f, 0.10f),
+        6 => new Thump(44f, 0.3f, 0.08f),
         _ => null,
     };
 
@@ -320,8 +451,8 @@ public sealed class TactileSynth
     public static Thump? HitThump(int channel, int amount) => channel switch
     {
         1 => new Thump(25f, Math.Clamp((35f + amount * 2f / 3f) / 100f, 0f, 1f), 0.6f),
-        0 => new Thump(32f, 0.7f * Math.Clamp((40f + amount * 2f / 3f) / 100f, 0f, 1f), 0.15f),
-        3 => new Thump(30f, 0.8f * Math.Clamp((55f + amount * 0.5625f) / 100f, 0f, 1f), 0.25f),
+        0 => new Thump(29f, 0.7f * Math.Clamp((40f + amount * 2f / 3f) / 100f, 0f, 1f), 0.15f),
+        3 => new Thump(27f, 0.8f * Math.Clamp((55f + amount * 0.5625f) / 100f, 0f, 1f), 0.25f),
         _ => null,
     };
 
@@ -336,7 +467,7 @@ public sealed class TactileSynth
         return new Thump(BlastHz + (BlastFarHz - BlastHz) * far, 0.7f * level, BlastSeconds + (BlastFarSeconds - BlastSeconds) * far);
     }
 
-    private sealed class Voice { public float Hz, Level, Fall, Left; public double Phase; }
+    private sealed class Voice { public float Hz, Level, Fall, Left, Hold; public double Phase; }
     private readonly List<Voice> _thumps = [], _grains = [];
     private float _engHz = EngineHz(0), _engTarget, _roadTarget, _eng, _road;
     // the road bed in two slots: a change of surface starts the other on the new band and the old one fades
@@ -349,7 +480,10 @@ public sealed class TactileSynth
     private readonly float[] _travel = new float[4];
     private bool _travelSeen;
     private double _engPhase;
-    private uint _noise = 0x9E3779B9u;
+    private uint _noise = 0x9E3779B9u, _vary = 0x85EBCA6Bu;
+    private float _driftLevel, _driftHz, _toEcho = -1, _echoLevel, _echoHz, _strip, _stripNow;
+    private double _stripPhase;
+    private int _lumps;
     private Biquad _hp, _lp;
     private Biquad[] _roadEq = [];
     private TactileEq? _roadEqFor;
@@ -371,14 +505,23 @@ public sealed class TactileSynth
     private float _lowPassHz = HighHz;
 
     /// <summary>Each <see cref="TactileSource"/>'s weight (1 as made; [port] lfe_engine and the rest over 100), applied as a tick's events are read.</summary>
-    public readonly float[] Weights = [.. TactileSources.Keys.Select(_ => 1f)];
+    public readonly float[] Weights = [.. TactileSources.Keys.Select((_, i) => TactileSources.DefaultOf(i) / 100f)];
     private float W(TactileSource s) => Weights[(int)s];
 
     /// <summary>The weights from the keys' percentages, in <see cref="TactileSource"/> order.</summary>
     public void SetWeights(IReadOnlyList<int> percent)
     {
-        for (int i = 0; i < Weights.Length; i++) Weights[i] = i < percent.Count ? TactileSources.Clamp(percent[i]) / 100f : 1f;
+        for (int i = 0; i < Weights.Length; i++) Weights[i] = (i < percent.Count ? TactileSources.Clamp(percent[i]) : TactileSources.DefaultOf(i)) / 100f;
     }
+
+    /// <summary>A synth with its randomness from <paramref name="seed"/> (the game draws one a mission; the tests and sweeps fix it).</summary>
+    public TactileSynth(uint seed = 0)
+    {
+        if (seed != 0) { _noise = seed; _vary = seed * 0x9E3779B1u ^ 0x85EBCA6Bu; if (_vary == 0) _vary = 1; }
+    }
+
+    /// <summary>The levels and shapes past the surfaces (<see cref="TactileTuning.Default"/>).</summary>
+    public TactileTuning Tune { get; set; } = TactileTuning.Default;
 
     /// <summary>The surfaces' feel (<see cref="Profiles"/>; <see cref="Flat"/> the earlier one), by the synth's surface.</summary>
     public SurfaceProfile[] Surfaces { get; set; } = Profiles;
@@ -391,6 +534,10 @@ public sealed class TactileSynth
     public float RoadNow => _road;
     /// <summary>The crossing knocks played since the synth was made.</summary>
     public int Bumps => _bumps;
+    /// <summary>The lumps (and cracks) played since the synth was made.</summary>
+    public int Lumps => _lumps;
+    /// <summary>The rumble strip plays (the last tick's shoulder).</summary>
+    public bool Strip => _strip > 0;
 
     /// <summary>
     /// A signal of the caller's, a sample at a time, summed in before the filters, the gain and the limiter (not through the
@@ -421,20 +568,42 @@ public sealed class TactileSynth
         _travelSeen = ground;
         _surface = e.Surface;
         var prof = (uint)e.Surface < (uint)Surfaces.Length ? Surfaces[e.Surface] : Flat[0];
-        float road = W(TactileSource.Road) * (prof.OffRoad ? W(TactileSource.Offroad) : 1f);
-        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt, Contrast) * road;
+        float road = W(TactileSource.Road) * (prof.OffRoad ? W(TactileSource.Offroad) : 1f) * Tune.RoadTrim;
+        // the bed's slow wander (an AR(1) of about 1.6 s, standard deviation 1), from the variation's own draws
+        float v = Math.Clamp(Tune.Variation, 0f, 1f);
+        if (v > 0)
+        {
+            _driftLevel = 0.97f * _driftLevel + 0.42f * (2 * Vary() - 1);
+            _driftHz = 0.97f * _driftHz + 0.42f * (2 * Vary() - 1);
+        }
+        float wander = v > 0 ? MathF.Pow(10f, 2f * v * Math.Clamp(_driftLevel, -2.5f, 2.5f) / 20f) : 1f;
+        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt, Contrast) * road * wander;
         if (ground && (prof.BedHz != _slotHz[_slot] || prof.BedQ != _slotQ[_slot])) NewBed(prof.BedHz, prof.BedQ);
+        else if (ground && v > 0 && _rate > 0) _bands[_slot].Retune(_slotHz[_slot] * (1 + 0.04f * v * Math.Clamp(_driftHz, -2.5f, 2.5f)), _slotQ[_slot], _rate);
         _profile = prof;
+        _strip = ground && e.Shoulder ? Tune.StripLevel * Math.Clamp(e.Mph / 40f, 0f, 1f) * W(TactileSource.Strip) : 0f;
         _mps = ground ? e.Mph / 2.2369363f : 0f;
-        _lumpLevel = ground ? LumpLevel(prof, e.Mph) * road : 0f;
+        _lumpLevel = ground ? LumpLevel(prof, e.Mph) * road * (prof.Paired ? W(TactileSource.Cracks) : 1f) : 0f;
         _grainLevel = ground ? GrainLevel(prof, e.Mph) * road : 0f;
-        foreach (var c in e.Crossings) if (BumpThump(c, e.Mph) is { } t) { Add(t, W(TactileSource.Bumps)); _bumps++; }
-        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots));
-        foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t, W(TactileSource.Hits));
+        foreach (var c in e.Crossings)
+        {
+            bool any = false;
+            foreach (var t in KnockParts(Tune, c, e.Mph)) { AddHeld(t, W(TactileSource.Bumps)); any = true; }
+            if (any) _bumps++;
+        }
+        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots) * Tune.ShotTrim);
+        foreach (var (ch, amount) in e.Hits) foreach (var t in HitParts(Tune, ch, amount)) AddHeld(t, W(TactileSource.Hits));
         foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
     }
 
     private void Add(Thump t, float weight) => Add(t with { Level = t.Level * weight });
+
+    /// <summary>A part held up against the crossover's low-pass at its frequency (at most 6 dB): a click at 80 Hz keeps its edge under a 90 Hz corner.</summary>
+    private void AddHeld(Thump t, float weight)
+    {
+        float r = t.Hz / _lowPassHz, lp = 1f / MathF.Sqrt(1 + r * r * r * r);
+        Add(t, weight * (t.Hz > 60f ? MathF.Min(1f / lp, 2f) : 1f));
+    }
 
     /// <summary>A transient, through the <see cref="Eq"/>; past <see cref="MaxThumps"/> playing, the quietest goes (a far blast before a near hit).</summary>
     public void Add(Thump t)
@@ -448,14 +617,16 @@ public sealed class TactileSynth
             if (_thumps[q].Level >= level) return;
             _thumps.RemoveAt(q);
         }
-        _thumps.Add(new Voice { Hz = t.Hz, Level = level, Fall = MathF.Log(100f) / t.Seconds, Left = t.Seconds });
+        float hold = Math.Clamp(t.Hold, 0f, t.Seconds * 0.9f);
+        _thumps.Add(new Voice { Hz = t.Hz, Level = level, Fall = MathF.Log(100f) / (t.Seconds - hold), Left = t.Seconds, Hold = hold });
     }
 
     /// <summary>Everything silent (the pause, a menu over the game): the transients stop, the beds fade out over 30 ms.</summary>
     public void Reset()
     {
         _engTarget = _roadTarget = 0;
-        _lumpLevel = _grainLevel = _mps = 0;
+        _lumpLevel = _grainLevel = _mps = _strip = 0;
+        _toEcho = -1;
         _thumps.Clear();
         _grains.Clear();
         _travelSeen = false;
@@ -474,7 +645,14 @@ public sealed class TactileSynth
     private static float BandNorm(float hz, float q) => 28f * MathF.Sqrt(RoadHz / RoadQ / (hz / q));
 
     /// <summary>The next spacing: the mean from half to one and a half times it, or the mean itself for a periodic surface.</summary>
-    private float Spacing(float mean, bool periodic) => periodic ? mean : mean * (0.5f + Rand());
+    private float Spacing(float mean, bool periodic, float jitter = 0.5f) => periodic ? mean : mean * (1f - jitter + 2f * jitter * Rand());
+
+    /// <summary>The variation's own draws, 0 to 1 (apart from the noise, so a plain synth plays the same noise and lumps).</summary>
+    private float Vary()
+    {
+        _vary ^= _vary << 13; _vary ^= _vary >> 17; _vary ^= _vary << 5;
+        return _vary / 4294967296f;
+    }
 
     /// <summary>The noise source's next value, 0 to 1.</summary>
     private float Rand()
@@ -511,6 +689,7 @@ public sealed class TactileSynth
         {
             _eng += (_engTarget - _eng) * glide;
             _road += (_roadTarget - _road) * glide;
+            _stripNow += (_strip - _stripNow) * glide;
             _slotMix[_slot] += (1f - _slotMix[_slot]) * fade;
             _slotMix[_slot ^ 1] -= _slotMix[_slot ^ 1] * fade;
             _engPhase += 2 * Math.PI * _engHz * dt;
@@ -526,16 +705,37 @@ public sealed class TactileSynth
             }
             for (int k = 0; k < _roadEq.Length; k++) bed = _roadEq[k].Run(bed);
             x += _road * bed;
+            // the rumble strip: the strike rate, folded down an octave at a time over the top
+            if (_stripNow > 1e-5f)
+            {
+                double f = _mps / Math.Max(Tune.StripSpacing, 0.05f);
+                while (f > Tune.StripHz) f *= 0.5;
+                _stripPhase += 2 * Math.PI * f * dt;
+                if (_stripPhase > 2 * Math.PI) _stripPhase -= 2 * Math.PI;
+                x += _stripNow * EqGain((float)f) * (float)Math.Sin(_stripPhase);
+            }
             // the lumps and the grit, by the distance driven
             if (_mps > 0.5f)
             {
                 float step = _mps * dt;
                 if (_lumpLevel > 0 && _profile.LumpSpacing > 0 && (_toLump -= step) <= 0)
                 {
-                    _toLump = Math.Max(_toLump, 0) + Spacing(_profile.LumpSpacing, _profile.Periodic);
+                    _toLump = Math.Max(_toLump, 0) + Spacing(_profile.LumpSpacing, _profile.Periodic, _profile.Jitter);
                     float hz = _profile.Periodic ? _profile.LumpHz : _profile.LumpHz * (0.9f + 0.2f * Rand());
-                    Grain(hz, _lumpLevel * (_profile.Periodic ? 1f : 0.6f + 0.4f * Rand()), 0.14f);
+                    float level = _lumpLevel * (_profile.Periodic ? 1f : 0.6f + 0.4f * Rand()), len = _profile.LumpSeconds;
+                    // now and then a bigger one, lower and longer: a rock, a pothole, a wide crack
+                    if (Tune.Variation > 0 && Tune.BigLumpEvery > 0 && Vary() * Tune.BigLumpEvery < 1f)
+                    {
+                        level *= 1f + (Tune.BigLumpGain - 1f) * Math.Clamp(Tune.Variation, 0f, 1f);
+                        hz *= 0.85f;
+                        len *= 1.4f;
+                    }
+                    Grain(hz, level, len);
+                    _lumps++;
+                    if (_profile.Paired) { _toEcho = Wheelbase; _echoLevel = level * 0.9f; _echoHz = hz; }
                 }
+                if (_toEcho >= 0 && (_toEcho -= step) < 0) Grain(_echoHz, _echoLevel, _profile.LumpSeconds);
+
                 if (_grainLevel > 0 && _profile.GrainSpacing > 0 && (_toGrain -= step) <= 0)
                 {
                     _toGrain = Math.Max(_toGrain, 0) + Spacing(_profile.GrainSpacing, false);
@@ -555,7 +755,7 @@ public sealed class TactileSynth
                 var t = _thumps[v];
                 x += t.Level * (float)Math.Sin(t.Phase);
                 t.Phase += 2 * Math.PI * t.Hz * dt;
-                t.Level *= MathF.Exp(-t.Fall * dt);
+                if (t.Hold > 0) t.Hold -= dt; else t.Level *= MathF.Exp(-t.Fall * dt);
                 if ((t.Left -= dt) <= 0) _thumps.RemoveAt(v);
             }
             if (TestInput is { } probe) x += probe();
@@ -609,6 +809,13 @@ public sealed class TactileSynth
         {
             float w = 2 * MathF.PI * hz / rate, c = MathF.Cos(w), al = MathF.Sin(w) / (2 * 0.70710678f);
             return Make((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + al, -2 * c, 1 - al);
+        }
+
+        /// <summary>New band-pass coefficients, the state kept: a slow drift of the centre without a restart.</summary>
+        public void Retune(float hz, float q, int rate)
+        {
+            var b = BandPass(hz, q, rate);
+            _b0 = b._b0; _b1 = b._b1; _b2 = b._b2; _a1 = b._a1; _a2 = b._a2;
         }
 
         public static Biquad BandPass(float hz, float q, int rate)

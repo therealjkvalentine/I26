@@ -184,11 +184,12 @@ static class Sweeps
             e.Crossings.Add(1f);
             s.Step(e);
             var x = new float[Rate];
+            // (the knock's body is the first part; the expected peak is its start level through the limiter)
             s.Fill(x, Rate);
             float pk = Peak(x);
             int start = Array.FindIndex(x, v => MathF.Abs(v) >= pk * 0.5f);
             int Last(float frac) { int k = x.Length - 1; while (k > 0 && MathF.Abs(x[k]) < pk * frac) k--; return k; }
-            float lvl = TactileSynth.BumpThump(1f, mph)!.Value.Level * AudioOutputs.ShakerGain(100);
+            float lvl = TactileSynth.KnockParts(TactileTuning.Default, 1f, mph).First().Level * AudioOutputs.ShakerGain(100);
             float expect = TactileSynth.Ceiling * MathF.Tanh(lvl / TactileSynth.Ceiling);
             // against the asphalt bed at that speed: how far the knock stands out of the road it lands on
             // (the bed's RMS times the square root of 2: a sine's peak at the bed's power)

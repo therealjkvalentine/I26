@@ -20,8 +20,19 @@ public sealed class WheelCrossings
     /// <summary>A wheel knocks at most once in this long (s): a wheel running along a road's edge flickers between its cells.</summary>
     public const float HoldOff = 0.25f;
 
+    /// <summary>The car runs along a paved road's edge this long (s) before its shoulder plays: a crossing at an angle straddles it for a moment only.</summary>
+    public const float ShoulderAfter = 0.3f;
+
     private readonly GroundKind[] _kind = new GroundKind[4];
     private readonly float[] _quiet = new float[4];
+    private float _straddled;
+
+    /// <summary>
+    /// The car runs along a paved road's edge: one side's two wheels on asphalt, the other side's two off it (the ground or a
+    /// dirt road), for <see cref="ShoulderAfter"/> or more. The heightfield's surface cells are 5 m, so the edge is the cells'
+    /// edge, not the road's drawn one; the game's roads have no shoulder of their own.
+    /// </summary>
+    public bool Shoulder => _straddled >= ShoulderAfter;
 
     /// <summary>The four corner wheels' ground at the last <see cref="Step"/> (front right, front left, rear right, rear left).</summary>
     public IReadOnlyList<GroundKind> Kinds => _kind;
@@ -66,7 +77,7 @@ public sealed class WheelCrossings
     /// </summary>
     public void Step(IGround g, Vehicle v, float dt, List<float> into)
     {
-        if ((v.Flags & VehicleFlags.Airborne) != 0) return;
+        if ((v.Flags & VehicleFlags.Airborne) != 0) { _straddled = 0; return; }
         float speed = v.Vel.Length();
         int i = 0;
         foreach (var w in v.Wheels)
@@ -82,6 +93,11 @@ public sealed class WheelCrossings
             }
             i++;
         }
+        // front right, front left, rear right, rear left: the right pair against the left pair
+        bool Paved(int k) => _kind[k] == GroundKind.Paved;
+        bool Off(int k) => _kind[k] is GroundKind.OffRoad or GroundKind.DirtRoad;
+        bool straddle = (Paved(0) && Paved(2) && Off(1) && Off(3)) || (Paved(1) && Paved(3) && Off(0) && Off(2));
+        _straddled = straddle && speed >= MinSpeed ? _straddled + dt : 0f;
     }
 
     /// <summary>Forget the wheels (a new car, a teleport, the pause): the next look knocks nothing.</summary>
@@ -89,5 +105,6 @@ public sealed class WheelCrossings
     {
         Array.Clear(_kind);
         Array.Clear(_quiet);
+        _straddled = 0;
     }
 }
