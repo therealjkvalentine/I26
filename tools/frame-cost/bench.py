@@ -91,7 +91,7 @@ def write_cfg(over, graphics_over):
 
 def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, skip_ms, run_ms, look1997, timeout):
     os.makedirs(OUT, exist_ok=True)
-    stem = os.path.join(OUT, f"{name}.{res}.{rep}")
+    stem = os.path.join(OUT, f"{name}.{res}.{scene}.{rep}")   # the scene in the name: the sets share configuration names
     write_cfg(cfg_over, graphics_over)
     # the window: the game's own Resolution setting (a centred window of that size; empty is the desktop's borderless fullscreen)
     cfg_over = dict(cfg_over)

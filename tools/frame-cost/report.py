@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """costs.md's tables from runs/results.tsv and runs/loadtime.tsv (markdown on stdout)."""
-import os, sys, statistics as st, collections
+import os, sys, re, statistics as st, collections
 here = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, here)
 import bench
@@ -108,7 +108,7 @@ def base_table(scene="cockpit"):
 def hd_table(scene="cockpit"):
     disk = {"4x": "1608 MB, 6563 .dds", "3x": "1220 MB, 6563 .dds", "2x": "923 MB, 6563 .dds", "off": "the install's own textures"}
     cfgs = [("4x", "base"), ("3x", "hd_3x"), ("2x", "hd_2x"), ("off", "hd_off")]
-    out = ["| Pack | On disk | VRAM textures MB 1440p | 1080p | GPU ms 1440p | 1080p | Frame (wall) ms 1440p | 1080p | Load T01 s | Load M01 s |", "|---|---|---|---|---|---|---|---|---|---|"]
+    out = ["| Pack | On disk | VRAM textures MB 1440p | 1080p | GPU ms 1440p | 1080p | Frame (wall) ms 1440p | 1080p | Load T01 s (card up to gone; of which the build) | Load M01 s |", "|---|---|---|---|---|---|---|---|---|---|"]
     lt = loadtimes()
     for pack, cfg in cfgs:
         cells = [pack, disk[pack]]
@@ -117,8 +117,8 @@ def hd_table(scene="cockpit"):
                 rs = runs.get((res, scene, cfg), [])
                 cells.append(f"{med(rs, k):.{d}f}" if rs else "n/a")
         for mission in ("t01", "m01"):
-            v = lt.get((pack, mission))
-            cells.append(f"{st.median(v):.1f} (n={len(v)}, {min(v):.1f}-{max(v):.1f})" if v else "n/a")
+            v = lt.get((pack, mission)); b = lt.get((pack, mission, "build"))
+            cells.append((f"{st.median(v):.1f} ({min(v):.1f}-{max(v):.1f}" + (f"; build {st.median(b):.1f})" if b else ")")) if v else "n/a")
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
 
@@ -128,8 +128,12 @@ def loadtimes():
     if not os.path.exists(p): return lt
     for l in open(p, encoding="utf-8"):
         f = l.rstrip("\n").split("\t")
-        if len(f) < 9 or f[2] == "0" or f[5] == "" or f[8] != "0": continue   # rep 0 warms the caches; a run with another Godot is out
-        lt[(f[0], f[1])].append(float(f[5]))
+        if len(f) < 9 or f[2] == "0" or f[8] != "0": continue   # rep 0 warms the caches; a run with another Godot is out
+        # the card up to the card gone: the trace clock starts at the card, so "gone" is the load (the load_s column is blank then)
+        secs = float(f[5]) if f[5] else (int(f[4]) - int(f[3])) / 1000 if f[3] not in ("", "None") and f[4] not in ("", "None") else None
+        if secs is not None: lt[(f[0], f[1])].append(secs)
+        m = re.match(r"[A-Z]\d\d: (\d+) ms", f[6]) if len(f) > 6 else None   # the mission build's own line (chunks, roads, placements)
+        if m: lt[(f[0], f[1], "build")].append(int(m.group(1)) / 1000)
     return lt
 
 def set_table(scene, names, res, title):

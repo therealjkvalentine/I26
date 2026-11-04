@@ -20,7 +20,7 @@ for rep in range(0, reps + 1):   # rep 0 warms the caches and is kept apart
             name = f"load_{pack}"
             scene = f"load_{mission}"
             line, others = bench.run_once(name, res, rep, scene, cfg, {}, {"I76_BUILD_TRACE": "1"}, [], 1000, 2000, False, 400)
-            log = os.path.join(bench.OUT, f"{name}.{res}.{rep}.log")
+            log = os.path.join(bench.OUT, f"{name}.{res}.{scene}.{rep}.log")
             up = gone = None; build = ""
             for l in open(log, encoding="utf-8", errors="replace"):
                 if m := re.search(r"build trace: loading card up @(\d+) ms", l): up = int(m.group(1))
