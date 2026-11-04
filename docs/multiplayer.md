@@ -1274,9 +1274,9 @@ comes back to the roster with its notice and the book, as before.
   half a second on a rule shows a line on what it does, on a slip of the form's paper by the pointer (`RuleHelp`);
 - the arena's sketch (the port's, `ArenaSketch`), between the car's views, on a scrap of the form's paper lightened, its
   edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
-  the space (a small one centred, a large one from DRIVER:'s x): the arena from above, its floor as paper,
+  the space (a small one centred, then 20 px to the left; a large one from the panel's rule): the arena from above, its floor as paper,
   a band of the ground that rises round it hatched with an inked edge, the roads as lines, each start point an x, built from
-  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small at its lower right, as a
+  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small under the drawing, centred, as a
   map's legend ("1.5 x 1.0 km"; the starts are not counted, they are no limit on the players);
 - the car: MAKE / MODEL, VARIANT and CONFIGURE CHASSIS, as on the instant
   melee form;
