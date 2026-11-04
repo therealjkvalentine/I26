@@ -735,6 +735,13 @@ changed: the T05 jump's fall (gravity 9.8 m/s^2 and no airborne drag, as the spe
 at 120 mph; the "fell too fast" feel is most likely the nose pitching down ~90 degrees over the flight below ~110 mph, which
 the spec does not cover). Proposal only, no code: the graphics options reorganisation (`_scratch/r3-gfx-options/proposal.md`).
 
+Resolution: feat/lfe-3 conflicted with fix/dev-panel-2 in docs/playing.md (the `[port]` table's tail): both kept, the
+lfe_offroad and lfe_bumps rows above dev-panel-2's dev_fps row (rerere recorded). DevSettings.cs auto-merged.
+
+Test status, pass 14 (`play` 83408bb): desktop, I76_INSTALL set, a performance survey sharing the GPU. Game: no failures;
+Formats: 5 failures (GameDiscovery, GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in
+the desktop baseline. New because of us: none. Deployed 83408bb to the laptop, James's Mac, Michael's and Andrew's Macs.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
