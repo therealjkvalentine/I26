@@ -31,4 +31,12 @@ public class BriefingOverlapTests
         Assert.False(Plan(editor: true));
         Assert.False(Plan(retry: true));      // a checkpoint's retry has no briefing
     }
+
+    /// <summary>Playtest: "Somewhere in the Southwest plays before the video": under the briefing the card comes after the movie only.</summary>
+    [Fact]
+    public void TheCardComesBeforeTheBriefingOnlyInTheOriginalsOrder()
+    {
+        Assert.True(BriefingOverlap.CardBeforeBriefing(overlapped: false));
+        Assert.False(BriefingOverlap.CardBeforeBriefing(overlapped: true));
+    }
 }

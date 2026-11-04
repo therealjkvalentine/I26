@@ -160,6 +160,7 @@ public partial class MoviePlayer : CanvasLayer
                 return;
             }
             _started = true;
+            I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
         }
         else _clock += delta;
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare

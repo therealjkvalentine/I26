@@ -373,6 +373,9 @@ public partial class Main : Node3D
             _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
             return;
         }
+        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
+        // thread under the movie, the rest of the load after it behind the card, which comes up only then (movie, card, mission)
+        string? briefing = loading is null && _opt.Install is not null && _opt.Mission is not null ? BriefingDuringLoad() : null;
         // up, and drawn once, before the build
         if (_opt.Install is not null && _opt.Mission is not null)
         {
@@ -380,9 +383,9 @@ public partial class Main : Node3D
             if (loading is null)
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
-                await loading.FadeIn();
+                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) await loading.FadeIn();   // (else its black only, until the movie is over)
             }
-            MissionBuilder.Trace("loading card up");
+            MissionBuilder.Trace(briefing is null ? "loading card up" : "loading card black: the briefing first");
             BootSplash.Dismiss(now: true);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -415,12 +418,15 @@ public partial class Main : Node3D
             AddChild(new InstallerScreen { Message = _status, OnInstalled = _ => GetTree().ReloadCurrentScene() });
             return;
         }
-        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
-        // thread under the movie, the rest of the load after it, behind the card
         (Load Start, Node3D? World, System.Exception? Error)? built = null;
-        if (BriefingDuringLoad(loading is not null) is { } briefing)
+        if (briefing is not null && loading is not null)
         {
             built = await BuildUnderBriefing(briefing);
+            if (!IsInsideTree()) return;
+            // the briefing over: the card fades in for the rest of the load, as the original's comes up before the mission's
+            await loading.FadeIn();
+            MissionBuilder.Trace("loading card up, after the briefing");
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
         }
         // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
@@ -1639,9 +1645,9 @@ public partial class Main : Node3D
     /// briefing): the setting on, the modern look, a single-player start behind the loading card with a briefing movie that
     /// is there, and no checkpoint to resume (BriefingOverlap.Plan).
     /// </summary>
-    private string? BriefingDuringLoad(bool card)
+    private string? BriefingDuringLoad()
     {
-        if (!card || _opt.Install is null || _opt.Mission is null) return null;
+        if (_opt.Install is null || _opt.Mission is null) return null;
         var install = new GameInstall(_opt.Install);
         string? name = null;
         try
