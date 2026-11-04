@@ -609,6 +609,24 @@ public partial class ModernFx : Node3D
     }
 
     /// <summary>
+    /// Dust thrown out low and wide, <paramref name="size"/> m round, no fire and no flash: the smoke flipbook's puffs tinted
+    /// <paramref name="tint"/>, spreading along the ground. A car's death by a fall (DeathVariety), a suspension's collapse.
+    /// </summary>
+    public void Dust(Vector3 at, float size, Color tint)
+    {
+        if (_smoke is null) return;
+        for (int k = 0; k < 6; k++)
+        {
+            float a = k * Mathf.Tau / 6 + GD.Randf() * 0.5f;
+            var dir = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
+            var sm = AddSprite(_smoke, at + dir * size * 0.25f + Vector3.Up * size * 0.15f, size * 0.5f, size * 1.4f, k * 0.02, 1.8 + GD.Randf() * 0.6, GD.Randf() * Mathf.Tau);
+            sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.05f; sm.FadeOut = 0.6f; sm.Opacity = 0.5f;
+            sm.Velocity = dir * size * 0.9f + Vector3.Up * 0.4f;
+            sm.Node.SetInstanceShaderParameter("tint", tint * 1.6f);
+        }
+    }
+
+    /// <summary>
     /// A flare of fire <paramref name="size"/> m across: one card of the flame flipbook that swells and fades, a few sparks and a
     /// short warm light, no smoke. A dying car's effect-roll explosions in the modern look's deaths (DeathVariety): the wreck
     /// flaring up rather than exploding again.

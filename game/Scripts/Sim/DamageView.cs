@@ -123,7 +123,7 @@ public partial class DamageView : Node3D
         {
             case DeathVariety.BlastKind.Dust:
                 // the landing: dust thrown out low all round
-                fx.Explode(at, b.Size, 2.4, new Color(0.5f, 0.43f, 0.33f), 0.2f);
+                fx.Dust(at, b.Size, new Color(0.5f, 0.43f, 0.33f));
                 for (int i = 0; i < 8; i++)
                 {
                     float a = i * Mathf.Tau / 8;

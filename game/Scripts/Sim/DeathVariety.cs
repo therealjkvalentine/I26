@@ -18,7 +18,7 @@ public static class DeathVariety
     /// <summary>A blast on the car, after <see cref="Delay"/> s: where, as fractions of the body's half width, height and half length (game axes: x right, z forward), and its radius in metres.</summary>
     public readonly record struct Blast(float Delay, float X, float Y, float Z, float Size, BlastKind Kind = BlastKind.Fire, float Smoke = 0.5f);
 
-    /// <summary>Fire: a fireball with smoke; Dust: thrown out low, no fire; Pop: a short burst and sparks; Sparks: a shower of sparks and a small flare, no smoke.</summary>
+    /// <summary>Fire: a fireball with smoke; Dust: thrown out low along the ground, no fire and no flash (ModernFx.Dust); Pop: a short burst and sparks; Sparks: a shower of sparks and a small flare, no smoke.</summary>
     public enum BlastKind { Fire, Dust, Pop, Sparks }
 
     /// <summary>How the drawn body is thrown: not at all (the sim's kick shows), sliding on the ground, down and back, dropped onto its frame, slammed down, or launched.</summary>
