@@ -109,12 +109,41 @@ public class EdgeWallsTests
         Assert.True(Hidden(64, 10));
         Assert.Equal(0, walls.ThinCount);   // a hill, not a fence
         Assert.Equal(72, walls.Ground(64 * 5, 63 * 5, 72), 3);
-        // the wall beside the ridge's end rises to it on a ramp (the clamp fades in over Ramp samples from kept outer ground);
-        // the south wall, further than that from the ridge, is at the plate's level
-        Assert.InRange(walls.Ground(10 * 5, 64 * 5, 70), 25, 65);
+        // the wall beside the ridge's end rises to it (the clamp fades in over Ramp samples from kept outer ground, and the hill's
+        // slope, which climbs onto the plateau there, is its foot); the south wall, further than that from the ridge, is at the plate's level
+        Assert.InRange(walls.Ground(10 * 5, 64 * 5, 70), 25, 70);
         Assert.Equal(20, walls.Ground(64 * 5, 8 * 5, 70), 3);
         Assert.Equal(1f, walls.Mask[8 * T + 64]);
         Assert.InRange(walls.Mask[64 * T + 10], 0.05, 0.95);
+    }
+
+    // the Height plate whose north side rises to the edge as a bank of 7 m a sample (54°: no car climbs it, but no cliff) from z 104
+    // to a shelf at 90 m, with a 40 m cliff onto a plateau at 130 m from z 118 (T05's valley sides, T16's banks under its fences)
+    private static double Bank(int x, int z) => z < 104 ? Height(x, z) : z < 118 ? Math.Min(20 + 7 * (z - 103), 90) : 130;
+
+    [Fact]
+    public void ASlopeRisingToTheEdgeStaysAndOnlyTheCliffAboveItIsHidden()
+    {
+        var tiles = Tile(Bank);
+        var surf = new TerrainSurface(tiles, [new System.Numerics.Vector2(40.5f, 40.5f)]);
+        var walls = EdgeWalls.Build(tiles, surf)!;
+        bool Hidden(int x, int z) => walls.Hidden[z * T + x];
+        Assert.False(surf.Open(64, 108));   // too steep to drive
+        Assert.False(Hidden(64, 108));      // but a slope: it stays as it is
+        Assert.False(Hidden(64, 117));      // and the shelf above it
+        Assert.Equal(55, walls.Ground(64 * 5, 108 * 5, 55), 3);
+        Assert.True(walls.SlopeCount > 0);
+        // the cliff and the plateau behind it are hidden, drawn down to the shelf at the cliff's foot, not to the plate
+        Assert.True(Hidden(64, 120));
+        Assert.Equal(90, walls.Ground(64 * 5, 124 * 5, 130), 1);
+        // the walls with a cliff at the plate's edge are hidden to the plate as before
+        Assert.True(Hidden(64, 10));
+        Assert.Equal(20, walls.Ground(64 * 5, 10 * 5, 70), 3);
+        // without the rule the bank goes with the walls, drawn down to the plate, as before
+        var before = EdgeWalls.Build(tiles, surf, slopes: false)!;
+        Assert.True(before.Hidden[108 * T + 64]);
+        Assert.Equal(20, before.Ground(64 * 5, 108 * 5, 55), 3);
+        Assert.Equal(0, before.SlopeCount);
     }
 
     [Fact]
@@ -251,12 +280,13 @@ public class EdgeWallsTests
         var w = new MissionWorld(TestInstall.Vfs, new ModelAssembler(TestInstall.Vfs), TestInstall.Install.FindMission(mission)!);
         var walls = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), keep: EdgeWalls.Keep(w))!;
         var bare = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), roadside: false)!;   // T11's and S06's stand beside a road too
+        var first = EdgeWalls.Build(w.Terrain, new TerrainSurface(w.Terrain, TerrainSurface.Seeds(w)), roads: EdgeWalls.Roads(w), roadside: false, slopes: false)!;   // and T11's on a slope
         int before = 0;
         foreach (var p in EdgeWalls.Keep(w))
         {
             double x = p.X / MissionWorld.SampleScale, z = p.Y / MissionWorld.SampleScale, g = w.BilinearHeight(x, z);
             Assert.Equal(g, walls.Ground(x, z, g), 1);
-            if (g - bare.Ground(x, z, g) > 0.5) before++;
+            if (g - first.Ground(x, z, g) > 0.5) before++;
         }
         Assert.True(before > 0);
         Assert.InRange(walls.HiddenCount, bare.HiddenCount * 0.85, bare.HiddenCount);   // the walls themselves stay hidden, but beside the roads

@@ -10,7 +10,9 @@ namespace I76.Formats.Assembly;
 /// within 50 m of the edge, and the sample's no-go flag marks interior cliffs as well. What tells the walls from the
 /// mesas and canyons inside is reachability: the walls, and the plateau behind them, are ground no car reaches that is
 /// joined to the map's edge without crossing drivable ground (<see cref="ITerrainSurface.Open"/>: the cells gentler
-/// than 36° flood-filled from the cars, roads and script paths); a cliff enclosed by drivable ground is scenery and
+/// than 36° flood-filled from the cars, roads and script paths) and lies behind a cliff (a step steeper than 60°, <see cref="SheerStep"/>):
+/// outer ground reached from the drivable ground over gentler steps is a hillside, a cutting or a bank, part of the land's shape,
+/// and stays, and the plain the hidden ground is drawn down to is the foot of the cliff; a cliff enclosed by drivable ground is scenery and
 /// stays, and so does a ridge between two drivable regions (it joins the walls somewhere, but looking straight away
 /// from its nearest drivable ground there is drivable ground again within 600 m, where a wall has the plateau or the edge),
 /// unless it is a thin barrier: no more than 250 m from one side's drivable ground to the other's, carrying the walls' cliffs
@@ -23,7 +25,7 @@ namespace I76.Formats.Assembly;
 /// Ground the mission puts something on (<see cref="Keep"/>) stays too: unreachable is not unused (T05's helicopters wait on a fence's
 /// crest no car reaches, measured in the simulation: driven at it from every side a car gets no nearer than 18 m below it).
 /// Over that ground the drawn surface is held down to the plain at its foot: each sample's foot is the nearest
-/// drivable sample's height, blurred away from the drivable ground so the plain runs level, and the ground is drawn at
+/// kept sample's height (drivable ground or slope), blurred away from the drivable ground so the plain runs level, and the ground is drawn at
 /// the lower of its own height and the foot, so land already below the foot (a drop beyond a crest) keeps its shape. Where
 /// hidden ground meets a kept ridge (one plateau, cut by the test) the clamp fades in over <see cref="Ramp"/> samples, so the
 /// plain rises to the ridge on a slope rather than ending in a cliff as high as it.
@@ -45,6 +47,8 @@ public sealed class EdgeWalls
     public bool[] Ridge { get; }
     /// <summary>Samples hidden.</summary>
     public int HiddenCount { get; }
+    /// <summary>Outer samples kept as slope (reached from the drivable ground without a sheer step; see <see cref="SheerStep"/>).</summary>
+    public int SlopeCount { get; private init; }
     /// <summary>Per sample: hidden as a thin barrier (see Build); null when Build was told not to look for them.</summary>
     public bool[]? Thin { get; private init; }
     /// <summary>Samples hidden as thin barriers.</summary>
@@ -59,6 +63,13 @@ public sealed class EdgeWalls
     /// <summary>Samples kept for something the mission puts on them that would be hidden otherwise.</summary>
     public int KeptCount { get; private init; }
 
+    /// <summary>
+    /// A step from one sample to the next (5 m) of more than this, metres (60°), is a cliff; outer ground reached from the drivable
+    /// ground over gentler steps is slope and stays (see Build).
+    /// </summary>
+    public const float SheerStep = 8.66f;
+    /// <summary>Hidden ground left in a piece smaller than this many samples by the slopes about it is kept with them.</summary>
+    public const int Speck = 25;
     /// <summary>The blur's radius in samples (three box passes: a bell about 4.5 samples wide), and how far from the drivable ground the blurred foot takes over.</summary>
     public const int BlurRadius = 4;
     public const float Blend = 4f;
@@ -110,10 +121,11 @@ public sealed class EdgeWalls
     /// <paramref name="keepRidges"/> off, a ridge between two drivable regions is hidden like a wall (for comparison).
     /// <paramref name="roads"/>: the map's roads as polylines in sample coordinates (<see cref="Roads"/>), for the thin barriers
     /// with a road at their foot and the ground beside a road (<see cref="RoadClear"/>; <paramref name="roadside"/> off, it is
-    /// drawn down as before, for comparison); null, none is kept for a road.
+    /// drawn down as before, for comparison); null, none is kept for a road. <paramref name="slopes"/> off, the slopes too steep to
+    /// drive that rise to the walls are hidden with them, as before (for comparison).
     /// </summary>
     public static EdgeWalls? Build(TerrainTiles tiles, ITerrainSurface surface, bool keepRidges = true, bool thinBarriers = true, IEnumerable<IReadOnlyList<System.Numerics.Vector2>>? roads = null,
-        IEnumerable<System.Numerics.Vector2>? keep = null, bool roadside = true)
+        IEnumerable<System.Numerics.Vector2>? keep = null, bool roadside = true, bool slopes = true)
     {
         var (r0, r1, c0, c1) = tiles.Bounds();
         if (r1 < r0) return null;
@@ -182,11 +194,11 @@ public sealed class EdgeWalls
                 foreach (int j in (ReadOnlySpan<int>)[i, i + 1, i + w, i + w + 1])
                     if (!anchor[j]) hidden[j] = true;
             }
-        // the foot: the nearest anchor's height (a breadth-first fill, eight ways), and how far it is in steps
-        var foot = new float[n];
-        var nearest = new int[n];
         if (!anchor.Any(a => a)) return new EdgeWalls(x0, z0, w, h, height, new bool[n], new float[n], new bool[n], 0);   // nowhere to drive: nothing to hide
-        var dist = Steps(anchor, w, h, (from, to) => { foot[to] = foot[from]; nearest[to] = nearest[from]; }, i => { foot[i] = height[i]; nearest[i] = i; });
+        // the nearest drivable ground and its height (a breadth-first fill, eight ways), for the ridges and the thin barriers
+        var level = new float[n];
+        var nearest = new int[n];
+        Steps(anchor, w, h, (from, to) => { level[to] = level[from]; nearest[to] = nearest[from]; }, i => { level[i] = height[i]; nearest[i] = i; });
         // a ridge between two drivable regions touches the outer walls somewhere, so it is outer ground too, but it is scenery
         // seen from both sides, not a wall: looking straight away from its nearest drivable ground (and a little to either side), a
         // ridge's sample finds drivable ground again within Reach; a wall's finds the plateau, or the edge
@@ -256,7 +268,7 @@ public sealed class EdgeWalls
                 }
         }
         var roadKept = road is not null && thinBarriers ? new bool[n] : null;
-        var thin = thinBarriers ? ThinBarriers(ridge, across, height, present, foot, w, h, road, roadKept) : null;
+        var thin = thinBarriers ? ThinBarriers(ridge, across, height, present, level, w, h, road, roadKept) : null;
         if (thin is not null)
             for (int i = 0; i < n; i++)
             {
@@ -264,6 +276,69 @@ public sealed class EdgeWalls
                 ridge[i] = false;
                 if (!hidden[i]) thin[i] = false;
             }
+        // a slope is not a wall: outer ground whose way from its nearest drivable ground (the breadth-first fill's, eight ways)
+        // climbs no sheer step (more than SheerStep from a sample to the next, 60°) is a hillside, a cutting or a bank too steep to
+        // drive (36° and up) and the ground above it, and stays as it is; only the cliffs and what lies behind them are hidden. Judged
+        // along each sample's own way in, not by any way at all: one hill that climbs onto a plateau does not keep the cliffs the
+        // rest of the plateau stands on. Over the stock maps the walls' steps are steeper than 70° and almost none falls between
+        // 55° and 65°; before, half or more of what T02, T03, T05 and T16 drew down was such slope (T05's valley sides, 88%), up to 160 m of it
+        var ground = (bool[])anchor.Clone();   // the drivable ground and the slopes: what the hidden ground is drawn down to
+        int slopeCount = 0;
+        if (slopes)
+        {
+            var q = new Queue<int>();
+            // a sample is slope if any of its ways in from the step before (the same distance from the drivable ground) is
+            var steps = new int[n];
+            Array.Fill(steps, -1);
+            for (int i = 0; i < n; i++) if (anchor[i]) { steps[i] = 0; q.Enqueue(i); }
+            while (q.Count > 0)
+            {
+                int i = q.Dequeue(), x = i % w, z = i / w;
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int xx = x + dx, zz = z + dz;
+                        if (xx < 0 || zz < 0 || xx >= w || zz >= h) continue;
+                        int j = zz * w + xx;
+                        if (!present[j] || steps[j] >= 0 && steps[j] <= steps[i]) continue;
+                        if (ground[i] && MathF.Abs(height[j] - height[i]) <= (dx != 0 && dz != 0 ? SheerStep * MathF.Sqrt(2) : SheerStep)) ground[j] = true;
+                        if (steps[j] < 0) { steps[j] = steps[i] + 1; q.Enqueue(j); }
+                    }
+            }
+            for (int i = 0; i < n; i++)
+                if (ground[i] && hidden[i]) { hidden[i] = false; if (!ridge[i]) slopeCount++; }
+            // what is left is hidden in pieces of Speck samples or more (eight ways): a smaller one is a notch in a cliff face whose top
+            // is slope (T05's, T14's: single samples drawn down 130 m to the floor), and stays
+            var seen = new bool[n];
+            var piece = new List<int>();
+            for (int s0 = 0; s0 < n; s0++)
+            {
+                if (!hidden[s0] || ridge[s0] || seen[s0]) continue;
+                piece.Clear();
+                seen[s0] = true; q.Enqueue(s0);
+                while (q.Count > 0)
+                {
+                    int i = q.Dequeue(), x = i % w, z = i / w;
+                    piece.Add(i);
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int xx = x + dx, zz = z + dz;
+                            if (xx < 0 || zz < 0 || xx >= w || zz >= h) continue;
+                            int j = zz * w + xx;
+                            if (hidden[j] && !ridge[j] && !seen[j]) { seen[j] = true; q.Enqueue(j); }
+                        }
+                }
+                if (piece.Count < Speck)
+                    foreach (int i in piece) { hidden[i] = false; ground[i] = true; slopeCount++; }
+            }
+        }
+        // the foot: the nearest kept ground's height, at a cliff's foot (a cliff over a slope goes down to the slope's top, not the
+        // floor), and how far it is in steps; never below the nearest drivable ground's, so ground beyond the walls that falls away
+        // to a lower slope beside it is not drawn further down than it was
+        var foot = new float[n];
+        var dist = Steps(ground, w, h, (from, to) => foot[to] = foot[from], i => foot[i] = height[i]);
+        for (int i = 0; i < n; i++) foot[i] = MathF.Max(foot[i], level[i]);
         // ground the mission puts something on (a placement, a point of a script path) stays: the gentle ground it stands on
         // within KeepReach (T05's helicopters wait on the flat crest of the fence north-west of its start, 110 m over the plain,
         // and lift off from it), or on a steeper face the cells about it; the clamp fades in from it as from a ridge
@@ -342,7 +417,7 @@ public sealed class EdgeWalls
         int thinCount = 0, roadCount = 0;
         if (thin is not null) for (int i = 0; i < n; i++) if (thin[i] &= hidden[i]) thinCount++;
         if (roadKept is not null) for (int i = 0; i < n; i++) if (roadKept[i]) roadCount++;
-        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { Thin = thin, ThinCount = thinCount, RoadKept = roadKept, RoadKeptCount = roadCount, Kept = kept, KeptCount = keptCount };
+        return new EdgeWalls(x0, z0, w, h, foot, hidden, mask, ridge, count) { SlopeCount = slopeCount, Thin = thin, ThinCount = thinCount, RoadKept = roadKept, RoadKeptCount = roadCount, Kept = kept, KeptCount = keptCount };
     }
 
     /// <summary>
