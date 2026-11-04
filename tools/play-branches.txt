@@ -278,3 +278,6 @@ fix/briefing-overlap-title            # section Q: under the briefing the loadin
 fix/counter-digits-font               # section Q: modern cockpit ammunition counters draw their digits from Roboto Bold (OFL) on the drum face instead of the upscaled znbe strip; inset variant built, off
 fix/shell-layout-2                    # section Q: bookmark Delete on the bottom button line left of Load/Save; the host form's arena scrap 20 base px left with its dimensions under the drawing, centred
 feat/death-variety-2                  # section Q: two-stage deaths: the failed part's own event, a 200-500 ms beat, one tank blast, a cause-specific throw; the effect roll as flares; the catastrophic award alone has more; variety-off's double blast fixed
+
+# R. pass 18 (2026-11-04): the pack tool's family table; stacked on play
+feat/hd-pack-alpha                    # section R: upscale-textures.py --families: a colour model per cockpit family and an alpha step (4xHDcube-Alpha) for keyed art; --family-table, --models-dir, --gpu-share; licences listed in pack.json and ATTRIBUTION.txt
