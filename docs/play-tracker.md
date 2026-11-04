@@ -291,6 +291,7 @@ stacked ones and the integration branch are section I, after H.
 | I90 | fix/counter-digits-font | modern look: the ammunition counters' digits drawn from Roboto Bold 3.016 (SIL OFL 1.1, embedded, licence shipped) at the panel's resolution on the strip's drum face with its separators, 1 texel anti-aliasing (`CounterDigits.cs`); a reverse-emboss inset built and off; the 1997 look keeps the znbe strip; font match against ten faces on the sheet | playtest ("the edges of the numbers in the ammometers are fuzzy; font-match and replace"); local: Game 334/334 (3 new) | `_scratch/r3-counter-digits/counter-digits.png` | ready (0b276b2) |
 | I91 | fix/shell-layout-2 | Save/Load Bookmark's Delete moved from the scroll arrow's line to the bottom button line left of Load/Save (the Nitro screen's spot); the host form's arena scrap 20 base px (1/32 of the 640 picture) further left, its dimensions under the drawing and centred, stopping 3 px short of the AREA OF PLAY border on wide arenas; checked on 11 arenas, 1024x768 / 1280x720 / 3440x1440, HD art on and off, 1997 look | playtest; local: Game 349/349 (BookmarkDeletePlaceTests rewritten) | `_scratch/r3-shell-fixes-2/shots/` | ready (e22f8dc) |
 | I92 | feat/death-variety-2 | two-stage deaths in the modern look: the failed part's event (hood out burning, a corner burst, sparks, the first pop, a crunch), a 200-500 ms beat, exactly one tank blast, a cause-specific drawn throw (down-and-back, slide, launch with a roll, sag, none for a driver); the original's 10 s effect roll (~25 x1_cars1) drawn as flares instead of 3 m blasts (the six-second fireball, and why brakes looked alike); variety-off's double blast fixed; the catastrophic award (1 in 8 + specials, never a driver) alone gets the 7.5 m tank, three burning panels, every wheel burning, a 20 s fire; driver smoke at a quarter rate; burning wheels 1.2 -> 0.8 per death; every number in `DeathVariety.cs`; I76_SHOT_TICKS, I76_QUIT_TICK, I76_DEATH_SEED hooks. Drawn throw only: the simulated wreck still takes the original's kick, so collisions can sit metres from the picture | the user's critique of the first clips and design brief; `_scratch/r3-death-2/design.md`, clips `deaths2-compare.mp4`, counts over 25 scripted deaths; local: Game 327/327, Sim DeathCause/Snapshot 33 | `_scratch/r3-death-2/` | ready for playtest (4b17cb8, b6b286b) |
+| I93 | feat/hd-pack-alpha | the pack tool's `--families`: each cockpit family through its own colour model (radar HDcube3; panels, gear, compass, mirror UltraSharpV2; damage, weapons, hands HDcube3; notepad HDcube4Compact; gauges, needles, misc the pack's own colour with the alpha step), the transparency upscaled with 4xHDcube-Alpha and cut at one half (`--alpha` for every keyed texture), `--family-table FILE.json`, `--models-dir`, `--gpu-share`, `--self-check` 6/6; pack.json and ATTRIBUTION.txt list every model and licence. The packs rebuilt with it (393 files each) are installed on the desktop, the lab sources, the laptop and James's Mac | the user's picks from the dash sheets (`_scratch/r3-dash-upscale/sheets/`, `dash-applied.png`) | `_scratch/r3-dash-upscale/` | ready (79864e3) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -781,6 +782,18 @@ of us: none. Deployed da88d22 to the laptop, James's Mac, Michael's and Andrew's
 
 Four branches as manifest section Q (rows I89-I92), merged with --no-ff: the card after the briefing, font-drawn counter
 digits, the two shell layout moves, and the two-stage deaths (for playtest; the drawn-throw trade-off is in its row).
+
+Resolution: feat/death-variety-2 conflicted with fix/briefing-overlap-title in docs/playing.md (the `[port]` table's death_variety
+and briefing_while_loading rows, adjacent): the new deaths text with the title fix's loading-card wording (rerere recorded).
+
+Test status, pass 17 (`play` 3f58a55): desktop, I76_INSTALL set. Game 363, no failures; Formats 1037, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed 3f58a55 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 18 (2026-11-04)
+
+One branch as manifest section R (row I93): the pack tool's family table and alpha step (tool and docs only; the rebuilt
+packs are user data, already installed).
 
 ## Withdrawn or answered (not offered as fixes)
 
