@@ -268,3 +268,7 @@ feat/movie-while-loading              # section N: modern look: the briefing pla
 # O. pass 15 (2026-11-04): a removal and a finer control; stacked on play
 remove/map-edge-cliffs                # section O: Hide Map Edge Cliffs taken out (classifier, shaders, setting, rows, hooks, docs): the boundary walls and the slopes up to them are the maps' intended shape
 feat/hood-gloss-level                 # section O: Hood Finish becomes Hood Gloss 0-100 in steps of 5 (0/50/100 = the old Matte/Satin/Gloss, blends between); hood_finish and hood_matte read for migration; dev slider
+
+# P. pass 16 (2026-11-04): the options re-laid and the shaker's third round; stacked on play
+feat/lfe-4                            # section P: bass shaker round 2+3: damage-scaled impacts with a cabin ring, the 40 Hz edge knock, seeded variation on every surface, each source in its own band (docs/lfe-bands.md); cracks and strip dev-only at 0; measurement sweeps and eq_from_measurement.py
+feat/graphics-pages-3                 # section P: Graphic Detail in the original's order with Visibility Range; three pages Look / Display / Camera on both pads; one HD Textures row (Off/4x/3x/2x); Reset scopes; label fit
