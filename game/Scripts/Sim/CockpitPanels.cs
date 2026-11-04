@@ -219,6 +219,30 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     }
 
     /// <summary>
+    /// The modern look's counter drum: VWindow's cell for <paramref name="digit"/> (0..10 down the strip) with its figure
+    /// set again in the counters' font (CounterDigits), at the panel's scale, made once per cell and scale. Without the
+    /// font, the strip's cell with its ink deepened.
+    /// </summary>
+    public void Digit(string dst, string anchor, string top, string bottom, int digit, int dx = 0)
+    {
+        if (CounterDigits.Font is not { } font) { VWindow(dst, anchor, top, bottom, digit * 0.1f, dx, deepInk: true); return; }
+        if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return;
+        int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
+        if (sy == tp.Label.Y) sy = bt.Label.Y;
+        int w = tp.Label.W, h = tp.Label.H;
+        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Inset}", t.S);
+        if (!_labels.TryGetValue(key, out var cell))
+        {
+            cell = new byte[w * t.S * h * t.S * 4];
+            Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
+            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Inset);
+            _labels[key] = cell;
+        }
+        Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
+        t.Dirty = true;
+    }
+
+    /// <summary>
     /// The counter digits' ink taken darker in a w × h rectangle (the layout's pixels) of a target at <paramref name="ds"/>
     /// texels a pixel, rows bottom-up as Blit's: a texel under <see cref="InkKnee"/> in brightness is scaled by
     /// (brightness / knee) ^ <see cref="InkGamma"/>, so the strip's darkest ink, (41, 41, 20), comes to about a third of

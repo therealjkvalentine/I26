@@ -20,6 +20,12 @@ Font (Tension Type Free Font licence, not the project's licence)
   Free to use; redistributed unmodified with its licence, which is in
   "Impact Label Licence.txt" in this folder.
 
+Font (SIL Open Font License 1.1, not the project's licence)
+- Roboto Bold, Copyright 2011 The Roboto Project Authors: the cockpit's
+  ammunition counter digits in the modern look.
+  https://github.com/googlefonts/roboto-3-classic. Redistributed unmodified;
+  the licence is in "Roboto OFL.txt" in this folder.
+
 Godot Engine (MIT)
   Copyright (c) 2014-present Godot Engine contributors.
   Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
