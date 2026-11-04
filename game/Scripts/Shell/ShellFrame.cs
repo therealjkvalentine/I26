@@ -42,6 +42,9 @@ public sealed class ShellFrame
         Palette = p.Palette;
         Record = record;
         Native = native;
+        _edits.Clear();
+        _copies.Clear();
+        EditsVersion++;
         ForgetText();
         _dirty = true;
         _black = black;
@@ -63,9 +66,37 @@ public sealed class ShellFrame
         _dirty = true;
     }
 
+    /// <summary>
+    /// A change the port made to the background itself: the patch (Sx, Sy, W, H) laid at (Dx, Dy), only where Mask (W x H, by
+    /// row) is true when given. From is -1 for the background as it is when the edit is made, else the background as it was
+    /// after the first From edits (a <see cref="CleanCopy"/> taken then). Kept so an upscale drawn under the frame can be changed
+    /// the same way (ShellBackdrop): the frame is see-through where it is still the background, edited or not.
+    /// </summary>
+    public sealed record BackgroundEdit(int From, int Sx, int Sy, int W, int H, int Dx, int Dy, bool[]? Mask);
+
+    private readonly List<BackgroundEdit> _edits = [];
+    private readonly Dictionary<byte[], int> _copies = new(ReferenceEqualityComparer.Instance);
+    /// <summary>The edits made to the background since it was loaded, in order (those that changed none of its pixels left out).</summary>
+    public IReadOnlyList<BackgroundEdit> Edits => _edits;
+    /// <summary>Changes whenever <see cref="Edits"/> does (and on every background load).</summary>
+    public int EditsVersion { get; private set; }
+
     /// <summary>Copies a patch of the background onto another place of it (the port's: a printed check box onto a line that has none).</summary>
     public void CopyBackground(int sx, int sy, int w, int h, int dx, int dy)
     {
+        bool changed = false;
+        for (int r = 0; r < h; r++)
+            if (sy + r is >= 0 and < H && dy + r is >= 0 and < H && sx >= 0 && dx >= 0 && sx + w <= W && dx + w <= W
+                && !_clean.AsSpan((sy + r) * W + sx, w).SequenceEqual(_clean.AsSpan((dy + r) * W + dx, w)))
+            {
+                changed = true;
+                break;
+            }
+        if (changed)
+        {
+            _edits.Add(new BackgroundEdit(-1, sx, sy, w, h, dx, dy, null));
+            EditsVersion++;
+        }
         for (int r = 0; r < h; r++)
             if (sy + r is >= 0 and < H && dy + r is >= 0 and < H && sx >= 0 && dx >= 0 && sx + w <= W && dx + w <= W)
                 Array.Copy(_clean, (sy + r) * W + sx, _clean, (dy + r) * W + dx, w);
@@ -73,7 +104,12 @@ public sealed class ShellFrame
     }
 
     /// <summary>A copy of the background as it is now (640 x 480 palette indices), to paste parts of it back after it has been drawn over.</summary>
-    public byte[] CleanCopy() => (byte[])_clean.Clone();
+    public byte[] CleanCopy()
+    {
+        var c = (byte[])_clean.Clone();
+        _copies[c] = _edits.Count;
+        return c;
+    }
 
     /// <summary>
     /// Pastes a rectangle of a background copy (<see cref="CleanCopy"/>) onto the background at another place, only the
@@ -81,13 +117,24 @@ public sealed class ShellFrame
     /// </summary>
     public void PasteBackground(byte[] from, int sx, int sy, int w, int h, int dx, int dy, Func<int, int, bool>? keep = null)
     {
+        var mask = keep is null ? null : new bool[w * h];
+        bool changed = false;
         for (int r = 0; r < h; r++)
             for (int c = 0; c < w; c++)
             {
                 int x = sx + c, y = sy + r, tx = dx + c, ty = dy + r;
-                if (x is < 0 or >= W || y is < 0 or >= H || tx is < 0 or >= W || ty is < 0 or >= H || keep?.Invoke(c, r) == false) continue;
+                if (x is < 0 or >= W || y is < 0 or >= H || tx is < 0 or >= W || ty is < 0 or >= H) continue;
+                if (mask is not null && !(mask[r * w + c] = keep!(c, r))) continue;
+                if (_clean[ty * W + tx] == from[y * W + x]) continue;
                 _clean[ty * W + tx] = from[y * W + x];
+                changed = true;
             }
+        if (changed)
+        {
+            // a copy of an earlier load's background (none known): the background as loaded
+            _edits.Add(new BackgroundEdit(_copies.TryGetValue(from, out int n) ? n : 0, sx, sy, w, h, dx, dy, mask));
+            EditsVersion++;
+        }
         Restore(dx, dy, w, h);
     }
 

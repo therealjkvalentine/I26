@@ -17,7 +17,8 @@ namespace I76.Game.Ui;
 /// and centred over black (a recorded deviation), and the text is set at the
 /// window's own scale. Any key closes it, and the key then acts as it would
 /// (Closed hands it back): N on the map swaps to the notepad, M back, Esc goes
-/// on to the escape menu.
+/// on to the escape menu. In the modern look an upscale from the HD menu art
+/// (maps/&lt;stem&gt;, ZNPD6{v}01) is drawn in the art's place, filtered smooth.
 /// </summary>
 public partial class MissionPicture : Control
 {
