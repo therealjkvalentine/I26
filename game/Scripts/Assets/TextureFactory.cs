@@ -150,7 +150,8 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     {
         if (HdTextures.Decode(name, bytes) is not { } img) return null;
         int w = img.GetWidth(), hh = img.GetHeight(), s = HdTexture.ScaleOf(w, hh, b.Width, b.Height);
-        if (s == 0) { GD.PushWarning($"HD texture {member}: {w}x{hh} is not a power-of-two multiple of {b.Width}x{b.Height}"); return null; }
+        if (s == 0) { GD.PushWarning($"HD texture {member}: {w}x{hh} is not a whole multiple of {b.Width}x{b.Height}, the same both ways"); return null; }
+        Served(s, member);
         byte[] rgba;
         if (img.IsCompressed())
         {
@@ -162,6 +163,18 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         else rgba = HdTexture.Fit(img.GetData(), w, hh, s, b.Rgba, b.Width, b.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase));
         if (greyedIndices is not null) HdTexture.Recolour(rgba, w, hh, s, greyedIndices, b.Width, b.Height, _greyed!, palette!, _packPalette!);
         return new HdPic(w, hh, new RoadRaster.Tex(w, hh, rgba), null);
+    }
+
+    private static readonly int[] _served = new int[17];
+
+    /// <summary>How many upscales at scale s (1..16) have been fitted in this run, for a log or a check that a pack's size loads.</summary>
+    public static int ServedAt(int s) => s is > 0 and < 17 ? System.Threading.Volatile.Read(ref _served[s]) : 0;
+
+    /// <summary>Counts an upscale fitted (worker threads too); the first at each scale is logged.</summary>
+    private static void Served(int s, string member)
+    {
+        if (s >= _served.Length) return;
+        if (System.Threading.Interlocked.Increment(ref _served[s]) == 1) GD.Print($"HD textures: first {s}x upscale served ({member})");
     }
 
     /// <summary>The upscale's picture for the GPU: a .dds as it is, a fitted picture with its mipmaps.</summary>
