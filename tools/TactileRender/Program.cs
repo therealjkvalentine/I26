@@ -1,5 +1,5 @@
 // Renders the bass-shaker synth (src/I76.Formats/Input/TactileSynth.cs) to WAV files, to listen to surface feels outside the
-// game: `dotnet run --project tools/TactileRender -- OUTDIR`. 48 kHz mono 16-bit, at the LFE Level of 100 % (gain 1.5), the
+// game: `dotnet run --project tools/TactileRender -- OUTDIR` (`-- --sweep OUTDIR` measures the chain instead: Sweeps.cs). 48 kHz mono 16-bit, at the LFE Level of 100 % (gain 1.5), the
 // engine off unless a file says otherwise. The set is the one the bass-shaker playtest compared: the surfaces as they were,
 // the port's profiles and variants, the wheel-crossing knock. A README.md table of what each file is goes with them.
 using System.Globalization;
@@ -9,6 +9,10 @@ using I76.Sim.Vehicles;
 using P = I76.Formats.Input.TactileSynth.SurfaceProfile;
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+// --sweep OUTDIR: the chain's measurements (Sweeps.cs); plot them with plot_sweeps.py
+if (args is ["--sweep", var sweepDir]) { Sweeps.Run(sweepDir); return; }
+// --find-strip INSTALL MISSION...: a straight drive across asphalt, a dirt road and off-road (StripFinder.cs)
+if (args is ["--find-strip", var stripInstall, .. var stripMissions]) { StripFinder.Run(stripInstall, stripMissions); return; }
 string outDir = args.Length > 0 ? args[0] : "wavs";
 Directory.CreateDirectory(outDir);
 Directory.CreateDirectory(Path.Combine(outDir, "matched"));

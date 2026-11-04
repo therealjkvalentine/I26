@@ -263,7 +263,9 @@ public sealed class TactileSynth
     /// <summary>
     /// A wheel crossing onto or off a road or a bridge (<paramref name="strength"/> 1 for asphalt or a bridge against the
     /// ground, less between kinds of road): a 28 Hz knock of up to <see cref="BumpLevel"/> by the car's speed, full at 50 mph
-    /// and over, nothing under 4 mph (a kerb's lip, a deck's joint, felt in the wheel's hop before the springs take it).
+    /// and over, nothing under 4 mph (a kerb's lip, a deck's joint, felt in the wheel's hop before the springs take it). A
+    /// decaying sine from zero peaks at 0.57 of its level after the filters (measured, tools/TactileRender --sweep): at 0.6 a
+    /// wheel's knock stands a little over the sand's rumble at speed, where 0.35 sat under it.
     /// </summary>
     public static Thump? BumpThump(float strength, float mph)
     {
@@ -271,7 +273,7 @@ public sealed class TactileSynth
         float share = Math.Clamp(mph / 50f, 0.15f, 1f);
         return new Thump(BumpHz, BumpLevel * Math.Min(strength, 1f) * share, BumpSeconds);
     }
-    public const float BumpHz = 28f, BumpLevel = 0.35f, BumpSeconds = 0.15f;
+    public const float BumpHz = 28f, BumpLevel = 0.6f, BumpSeconds = 0.15f;
 
     private static bool OnGround(int surface) => surface > 0 && surface < ForceModel.RoadGain.Length - 1;
 
@@ -389,6 +391,12 @@ public sealed class TactileSynth
     public float RoadNow => _road;
     /// <summary>The crossing knocks played since the synth was made.</summary>
     public int Bumps => _bumps;
+
+    /// <summary>
+    /// A signal of the caller's, a sample at a time, summed in before the filters, the gain and the limiter (not through the
+    /// <see cref="Eq"/>, which acts on each source at its frequency): the chain's sweeps (tools/TactileRender --sweep). The game sets none.
+    /// </summary>
+    public Func<float>? TestInput { get; set; }
 
     /// <summary>The LFE Level's gain (<see cref="AudioOutputs.ShakerGain"/>), applied before the limiter.</summary>
     public float Gain { get; set; } = 1f;
@@ -550,6 +558,7 @@ public sealed class TactileSynth
                 t.Level *= MathF.Exp(-t.Fall * dt);
                 if ((t.Left -= dt) <= 0) _thumps.RemoveAt(v);
             }
+            if (TestInput is { } probe) x += probe();
             float y = Ceiling * MathF.Tanh(Gain * _lp.Run(_hp.Run(x)) / Ceiling);
             dst[i] = y;
             peak = Math.Max(peak, Math.Abs(y));
