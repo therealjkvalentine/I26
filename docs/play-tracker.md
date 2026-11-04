@@ -751,6 +751,14 @@ Two branches as manifest section O (rows I85-I86), both made on play after pass 
 edge cliffs option removed, Hood Gloss as a level. The old map-edge branches stay in sections F-N as history; a -Rebuild would
 merge them and then this removal, in order.
 
+Resolution: feat/hood-gloss-level conflicted with remove/map-edge-cliffs in CHANGELOG.md, docs/deviations.md, docs/playing.md,
+GraphicsPages.cs and GraphicsPagesTests.cs (the same World/Car rows): hood gloss's side taken with the map-edge row, value and
+test line dropped (rerere recorded).
+
+Test status, pass 15 (`play` ca59d29): desktop, I76_INSTALL set. Game 349, no failures; Formats 1030, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed ca59d29 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
