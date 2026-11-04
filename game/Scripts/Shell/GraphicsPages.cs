@@ -5,7 +5,7 @@ public enum GraphicsRow
 {
     MonitorBrightness, ExtInstruments, RearMirror, ShadowDetail, TerrainDetail, AntiAliasing,
     Resolution, VSync, MaxFps, RenderScale, Renderer, LogFile, ShowFps,
-    Vegetation, MapEdge,
+    Vegetation,
     FieldOfView, HoodFinish, CarInteriors, MouseCamera, MouseInWindow, CameraReturn, ZoomReset, Garage3D,
     Look1997, PaletteGrade, CrashBlur,
 }
@@ -25,7 +25,7 @@ public static class GraphicsPages
     [
         [GraphicsRow.MonitorBrightness, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror, GraphicsRow.ShadowDetail, GraphicsRow.TerrainDetail, GraphicsRow.AntiAliasing],
         [GraphicsRow.Resolution, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.RenderScale, GraphicsRow.Renderer, GraphicsRow.LogFile],
-        [GraphicsRow.Vegetation, GraphicsRow.MapEdge],
+        [GraphicsRow.Vegetation],
         [GraphicsRow.FieldOfView, GraphicsRow.HoodFinish, GraphicsRow.CarInteriors, GraphicsRow.MouseCamera, GraphicsRow.MouseInWindow, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.Garage3D],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur],
     ];
@@ -75,7 +75,6 @@ public static class GraphicsPages
             case GraphicsRow.LogFile: t.LogFile = f.LogFile; break;
             case GraphicsRow.ShowFps: t.DevFps = f.DevFps; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
-            case GraphicsRow.MapEdge: t.MapEdge = f.MapEdge; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodFinish: t.HoodFinish = f.HoodFinish; break;
             case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;

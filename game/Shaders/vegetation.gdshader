@@ -31,7 +31,6 @@ uniform bool rolling = false;
 // the cars' positions (World/CabClip.cs: x, y, z, and the radius a plant is parted from), 16 at most
 global uniform int i76_car_count;
 global uniform sampler2D i76_cars : filter_nearest;
-#include "res://Shaders/map_edge.gdshaderinc"
 // the brush impacts (World/BrushImpacts.cs, BrushField): a field of 1.5 m cells round the camera, per cell r laid down,
 // g the way it lies (an angle over a turn), b scorched, a shaken; the rect is its corner (x, z), 1 / its side, and w 1 when on
 global uniform sampler2D i76_veg_field : filter_nearest;
@@ -57,8 +56,6 @@ void vertex() {
 	COLOR = CUSTOM1;
 #endif
 	vec3 origin = MODEL_MATRIX[3].xyz;
-	// Map Edge's On: a plant on ground drawn down to the plain (map_edge.gdshaderinc) is not drawn (collapsed to its root)
-	if (i76_edge_hide > 0.0 && map_edge_drop(origin) > 0.5) { VERTEX = vec3(0.0); }
 	v_fade = 1.0 - smoothstep(fade_start, fade_end, distance(origin, MAIN_CAM_INV_VIEW_MATRIX[3].xyz));
 	vec2 dh = origin.xz - MAIN_CAM_INV_VIEW_MATRIX[3].xz;
 	float gd = length(dh);

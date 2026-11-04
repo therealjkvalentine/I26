@@ -12,7 +12,6 @@ uniform float strength = 0.85;
 uniform vec2 contact = vec2(0.35, 0.3);
 uniform float fade_start = 50.0;
 uniform float fade_end = 70.0;
-#include "res://Shaders/map_edge.gdshaderinc"
 
 varying float v_shade;
 varying float v_fade;
@@ -20,8 +19,6 @@ varying vec2 v_uv;
 
 void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
-	// Map Edge's On: no shade left on ground drawn down to the plain, as its plant is not drawn
-	if (i76_edge_hide > 0.0 && map_edge_drop(origin) > 0.5) { VERTEX = vec3(0.0); }
 	float d = distance(origin, MAIN_CAM_INV_VIEW_MATRIX[3].xyz);
 	v_fade = 1.0 - smoothstep(fade_start, fade_end, d);
 	v_shade = INSTANCE_CUSTOM.x * strength * v_fade;

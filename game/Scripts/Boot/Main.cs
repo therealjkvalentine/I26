@@ -450,7 +450,6 @@ public partial class Main : Node3D
         MissionBuilder.Trace("drop shadows");
         var loaded = I76.Game.Shell.ShellSettings.Load();
         _drawChoice = loaded.DrawDistanceChoice;
-        _mapEdge = MapEdgeHook(loaded.MapEdge);
         _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
         SetMode1997(_opt.Mode1997);
         MissionBuilder.Trace("look set");
@@ -765,7 +764,6 @@ public partial class Main : Node3D
             if (_veg is not null && _vegLevel > 0) { _veg.SetLevel(_vegLevel); if (_loaded) _veg.Prewarm(); }
         }
         _drawChoice = s.DrawDistanceChoice;
-        _mapEdge = MapEdgeHook(s.MapEdge);
         ApplyDrawDistance();
         ApplyModernQuality();
         ApplySoftware(s);   // MainSoftware.cs
@@ -2389,30 +2387,6 @@ public partial class Main : Node3D
                 m?.SetShaderParameter("ground_haze", !panels);
             }
         }
-        ApplyMapEdge();
-    }
-
-    /// <summary>I76_MAP_EDGE=0|1, a capture hook: Off or On whatever the settings say.</summary>
-    private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? (me == 1 ? MapEdge.On : MapEdge.Off) : setting;
-    private int _mapEdge = MapEdge.Off;
-
-    // On's foot grid made without the ring (a mission started in the 1997 look builds the ring only on the first switch to the modern look)
-    private System.Threading.Tasks.Task<I76.Formats.Assembly.EdgeWalls?>? _edgeJob;
-    private bool _edgeGrid;
-
-    /// <summary>
-    /// Map Edge on both looks' terrain and the modern look's ring and plants (MapEdge, map_edge.gdshaderinc): On clamps the
-    /// ground to the walls' foot grid, which the ring sets, or a job of its own while there is no ring; off at Off, on a map too
-    /// big for one surface, and until the grid is up.
-    /// </summary>
-    private void ApplyMapEdge()
-    {
-        bool grid = _horizon is { HasEdgeWalls: true } || _edgeGrid;
-        if (_mapEdge == MapEdge.On && !grid && _edgeJob is null && _builder?.World is { Terrain.Huge: false } world)
-            _edgeJob = System.Threading.Tasks.Task.Run(() => MapEdge.WallsFor(world, () => World.TerrainNode.SurfaceFor(world)));
-        bool on = _mapEdge == MapEdge.On && grid;
-        RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on ? 1f : 0f);
-        MissionBuilder.Trace($"map edge: {MapEdge.Names[_mapEdge]}, {(on ? "on" : "off")}");
     }
 
     /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>
@@ -2456,7 +2430,6 @@ public partial class Main : Node3D
     {
         _origin = gameOrigin;
         _worldRoot.Position = -Coords.ToGodot(gameOrigin);
-        RenderingServer.GlobalShaderParameterSet("i76_origin", new Vector3(gameOrigin.X, gameOrigin.Y, gameOrigin.Z));   // Map Edge's plants (map_edge.gdshaderinc)
         _sky1997?.SetShaderParameter("origin_y", gameOrigin.Y);   // the horizon ring sinks with the eye's game height
     }
 
@@ -3458,11 +3431,6 @@ public partial class Main : Node3D
             _sim.SkipLatch = true;
         }
         PumpModernBuild();
-        if (_edgeJob is { IsCompleted: true } ej && !_edgeGrid)
-        {
-            if (ej.IsCompletedSuccessfully && ej.Result is { } ew) { MapEdge.Upload(ew); _builder?.Terrain?.ReachEdgeFoot(ew); _edgeGrid = true; ApplyMapEdge(); }
-            else if (ej.IsFaulted) GD.PrintErr($"map edge: {ej.Exception!.GetBaseException().Message}");
-        }
         if (!_horizonEyeSet) SetHorizonEye();
         _animClock += delta;
         _builder?.Materials?.Animate(_animClock);
