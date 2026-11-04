@@ -100,6 +100,14 @@ are for another game and are not listed.
 
 **HD textures.** With a texture pack in the user folder's `tex-world-4x/`, `tex-world-3x/` or `tex-world-2x/` (side by side, each with a pack.json whose `scale` says its size; or the older plain `tex-world/`; or an art pack zip's `tex-world/` folder; the README says how to make one from your own install), the modern look draws its upscaled world, car and cockpit textures (the dash, gauges and panels among them); the 1997 look always draws the originals. The switch has no row: `hd_textures` under [Settings without a row](#settings-without-a-row), or the Developer panel's Settings, where a change swaps the textures in place (the cockpit's damage panel keeps its scale until the next mission). `hd_texture_size` picks among the sizes present (from the next mission). The menu pictures' pack has its own key, `hd_menu_art`.
 
+**HD movies.** An upscaled movie in the user folder's `movies/` (beside `tex-world-4x/`; on Windows `%APPDATA%\I26\movies\`) plays in the modern look in place of the install's Smacker file of the same name: `INT01F01.ogv` for `smk\INT01F01.SMK`, the stem in any case, the extension `.ogv`. It must be Ogg Theora video with Vorbis sound (what Godot plays; H.264 or MP4 does not play), any size (shown at its own aspect, black beside it), at any frame rate as long as it lasts as long as the original (the originals are 15 fps; 30 fps from interpolated frames plays as well), and its sound the original's track (22050 Hz mono), starting with the first frame. From upscaled frames and the original's sound (`i76 smk INT01F01.SMK --wav int01f01.wav` writes it):
+
+```
+ffmpeg -framerate 30 -i frames/%05d.png -i int01f01.wav -c:v libtheora -q:v 9 -pix_fmt yuv420p -c:a libvorbis -q:a 6 -ar 22050 -ac 1 -shortest INT01F01.ogv
+```
+
+(`-framerate` is the frames' own rate: 15 for one upscaled frame per original frame, 30 after interpolating to twice as many.) The 1997 look always plays the originals, and a file that does not open plays the original instead. The same keys skip it.
+
 **Hood finish.** In the modern look the cars' paint, the cockpit's hood included, is clear-coated and mirrors the sky; Graphic Detail's **Hood Finish** row sets how much: Matte (the default) takes the coat and the sheen off, as the original's flat paint, so the cars show the original's colours; Satin\* softens the coat, Gloss\* is the full mirror (live; the 1997 look is not affected). An old `hood_matte=true` reads as Matte.
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
