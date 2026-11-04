@@ -70,6 +70,51 @@ public class TactileSynthTests
     }
 
     [Fact]
+    public void The_road_follows_the_springs_and_not_the_engine()
+    {
+        float Bed(TactileEvents e, int ticks = 1, Action<TactileEvents, int>? each = null)
+        {
+            var s = new TactileSynth();
+            float rms = 0;
+            for (int t = 0; t < ticks; t++)
+            {
+                each?.Invoke(e, t);
+                s.Step(e);
+                rms = Rms(Run(s, 0.25).AsSpan(Rate / 10));
+            }
+            return rms;
+        }
+        // the engine off, rolling on a paved road: felt, and less than on a dirt road
+        float paved = Bed(new TactileEvents { Surface = 3, Mph = 40 });
+        Assert.True(paved > 0.01f);
+        Assert.True(paved < Bed(new TactileEvents { Surface = 4, Mph = 40 }));
+        Assert.True(TactileSynth.RoadLevel(3, 40, 0) < TactileSynth.RoadLevel(4, 40, 0));
+
+        // the load: the mean deflection of the four corners; a turn's (two compressed, two extended) adds to the bed
+        Assert.Equal(0.35f, TactileSynth.LoadOf([0.5f, -0.5f, 0.2f, -0.2f]), 4);
+        Assert.Equal(1f, TactileSynth.LoadOf([3f, -3f, 1f, 1f]));
+        float flat = TactileSynth.RoadLevel(3, 40, 0, 0f, 0f);
+        Assert.Equal(TactileSynth.RoadLevel(3, 40, 0), flat);
+        Assert.Equal(flat * 1.8f + TactileSynth.LoadGain * 0.8f, TactileSynth.RoadLevel(3, 40, 0, 0.8f, 0f), 5);
+        var turn = new TactileEvents { Surface = 3, Mph = 40 };
+        turn.Travel[0] = turn.Travel[2] = 0.8f; turn.Travel[1] = turn.Travel[3] = -0.8f;
+        Assert.True(Bed(turn) > 1.5f * paved);
+        // standing, loaded (braked to a stop on a slope): the load alone; in the air nothing, however the springs hang
+        Assert.Equal(TactileSynth.LoadGain * 0.5f, TactileSynth.RoadLevel(3, 0, 0, 0.5f, 0f), 5);
+        Assert.Equal(0f, TactileSynth.RoadLevel(9, 60, 0, 1f, 40f));
+
+        // the springs' rate, in limits a second: the full jolt at JoltFull, so the tick rate does not change what a bump is worth
+        Assert.Equal(TactileSynth.JoltGain, TactileSynth.RoadLevel(3, 0, 0, 0f, TactileSynth.JoltFull), 5);
+        // standing on the ground, the corners swinging ±0.02 of their limit each tick
+        float Bumps(float tick) => Bed(new TactileEvents { Surface = 3, TickSeconds = tick }, 6, (e, t) => Array.Fill(e.Travel, t % 2 == 0 ? 0.02f : -0.02f));
+        float still = Bed(new TactileEvents { Surface = 3 }, 6, (e, _) => Array.Fill(e.Travel, 0.02f));
+        Assert.True(Bumps(102f / 2048f) > 4f * still);
+        Assert.InRange(Bumps(1f / 60f) / Bumps(1f / 30f), 1.8f, 2.1f);   // the same swing twice as often: twice the rate
+        // everything at once stays under the bed's top
+        Assert.Equal(TactileSynth.RoadMax, TactileSynth.RoadLevel(6, 120, 4, 1f, 100f));
+    }
+
+    [Fact]
     public void Sources_outside_20_to_90_hz_are_cut()
     {
         float Through(float hz)
@@ -256,12 +301,65 @@ public class TactileSynthTests
     }
 
     [Fact]
+    public void Each_source_takes_its_own_weight()
+    {
+        // one source at a time, at a weight: the level it reaches over the same source at 100 % (a low gain keeps the limiter out of it)
+        float Level(TactileSource src, int percent)
+        {
+            var s = new TactileSynth { Gain = 0.25f };
+            var w = TactileSources.Defaults();
+            w[(int)src] = percent;
+            s.SetWeights(w);
+            var e = new TactileEvents();
+            switch (src)
+            {
+                case TactileSource.Engine: e.EngineOn = true; e.Rpm = 600; break;
+                case TactileSource.Road: e.Surface = 6; e.Mph = 40; break;
+                case TactileSource.Hits: e.Hits.Add((3, 20)); break;
+                case TactileSource.Shots: e.Shots.Add(new WeaponShot(0, 2, 1, 1)); break;
+                case TactileSource.Explosions: e.Blasts.Add(60f); break;
+            }
+            s.Step(e);
+            bool bed = src is TactileSource.Engine or TactileSource.Road;
+            return Rms(Run(s, bed ? 2.0 : 0.3).AsSpan(bed ? Rate / 2 : 0));
+        }
+        foreach (var src in Enum.GetValues<TactileSource>())
+        {
+            float full = Level(src, 100);
+            Assert.True(full > 0.002f, $"{src}");
+            Assert.Equal(0f, Level(src, 0));
+            Assert.InRange(Level(src, 50) / full, 0.45f, 0.55f);       // the road's noise is the same sequence each run
+            Assert.InRange(Level(src, 200) / full, 1.9f, 2.02f);
+        }
+        // the others are untouched by one source's weight
+        var only = new TactileSynth();
+        only.SetWeights([0, 100, 100, 100, 100]);
+        only.Step(new TactileEvents { EngineOn = true, Rpm = 600, Surface = 6, Mph = 40 });
+        Assert.True(Rms(Run(only, 2.0).AsSpan(Rate / 2)) > 0.01f);
+        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"], TactileSources.Keys);
+        Assert.Equal(200, TactileSources.Clamp(999));
+        Assert.Equal(0, TactileSources.Clamp(-5));
+    }
+
+    [Fact]
     public void Output_and_level_keys_read_back()
     {
         foreach (AudioOutput o in Enum.GetValues<AudioOutput>()) Assert.Equal(o, AudioOutputs.Parse(AudioOutputs.Key(o)));
         Assert.Equal(AudioOutput.Stereo, AudioOutputs.Parse("quad"));
-        Assert.False(AudioOutputs.Tactile(AudioOutput.Headphones));
-        Assert.True(AudioOutputs.Tactile(AudioOutput.Sub21));
+        Assert.Equal(["Stereo", "Phones", "5.1", "7.1"], AudioOutputs.Names);
+        // the LFE Level alone says whether the signal plays; 5.1 and 7.1 put it on the LFE, the rest mix it into both channels
+        Assert.Equal(0, AudioOutputs.DefaultLevel);
+        Assert.False(AudioOutputs.Tactile(AudioOutputs.DefaultLevel));
+        Assert.True(AudioOutputs.Tactile(25));
+        Assert.False(AudioOutputs.Discrete(AudioOutput.Headphones));
+        Assert.True(AudioOutputs.Discrete(AudioOutput.Surround71));
+        // an older file's 2.1 (the stereo mix) is Stereo, and with 5.1 and 7.1 keeps the old absent level, 100
+        Assert.Equal(AudioOutput.Stereo, AudioOutputs.Parse("2.1"));
+        Assert.True(AudioOutputs.HadShaker("2.1"));
+        Assert.True(AudioOutputs.HadShaker("5.1"));
+        Assert.False(AudioOutputs.HadShaker("stereo"));
+        Assert.False(AudioOutputs.HadShaker(null));
+        Assert.Equal(100, AudioOutputs.OldDefaultLevel);
         Assert.Equal(125, AudioOutputs.ClampLevel(130));
         Assert.Equal(200, AudioOutputs.ClampLevel(999));
         Assert.Equal(2f, AudioOutputs.BassBoost(100));

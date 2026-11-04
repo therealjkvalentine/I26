@@ -822,26 +822,70 @@ public partial class Main : Node3D
         Bus("SFX", s.Audio[1], true);
         Bus("Voice", s.Audio[2], true);
         VoiceLevel = s.Audio[2];
+        ApplyEq("SFX", s.GameEq, I76.Formats.Audio.SoundEq.GameDefault);
+        ApplyEq(MovieBus(), s.MovieEq, I76.Formats.Audio.SoundEq.MovieDefault);
         ApplyOutput(s);
     }
 
-    /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover), live.</summary>
+    /// <summary>The movies' bus (into Master at 0 dB: the levels do not reach the movies, as in the original), made with its EQ the first time.</summary>
+    public static string MovieBus()
+    {
+        const string name = "Movie";
+        if (AudioServer.GetBusIndex(name) >= 0) return name;
+        AudioServer.AddBus();
+        int i = AudioServer.BusCount - 1;
+        AudioServer.SetBusName(i, name);
+        AudioServer.SetBusSend(i, "Master");
+        ApplyEq(name, I76.Game.Shell.ShellSettings.Load().MovieEq, I76.Formats.Audio.SoundEq.MovieDefault);
+        return name;
+    }
+
+    /// <summary>
+    /// [port] game_eq or movie_eq on a bus: a low and a high shelf at its head, bypassed for "off". Shelves, not Godot's
+    /// ten-band EQ: that one measured +3.3 dB at its centres and +0.3 to +1.6 between them with every band at 0.
+    /// </summary>
+    private static void ApplyEq(string bus, string text, string defaults)
+    {
+        int b = AudioServer.GetBusIndex(bus);
+        if (b < 0) return;
+        var shelves = I76.Formats.Audio.SoundEq.Parse(text, defaults);
+        var (low, lowAt) = BusEffect<AudioEffectLowShelfFilter>(b, "eq_low", 0);
+        var (high, highAt) = BusEffect<AudioEffectHighShelfFilter>(b, "eq_high", 1);
+        if (shelves is { } sh)
+        {
+            var (l, h) = sh;
+            low.CutoffHz = l.Hz; low.Gain = l.GodotGain;
+            high.CutoffHz = h.Hz; high.Gain = h.GodotGain;
+        }
+        AudioServer.SetBusEffectEnabled(b, lowAt, shelves is not null);
+        AudioServer.SetBusEffectEnabled(b, highAt, shelves is not null);
+    }
+
+    /// <summary>The bus's effect of that name (made at <paramref name="at"/> the first time) and where it is.</summary>
+    private static (T Effect, int At) BusEffect<T>(int bus, string name, int at) where T : AudioEffect, new()
+    {
+        for (int k = 0; k < AudioServer.GetBusEffectCount(bus); k++)
+            if (AudioServer.GetBusEffect(bus, k) is T e && e.ResourceName == name) return (e, k);
+        at = Math.Min(at, AudioServer.GetBusEffectCount(bus));
+        AudioServer.AddBusEffect(bus, new T { ResourceName = name }, at);
+        return ((T)AudioServer.GetBusEffect(bus, at), at);
+    }
+
+    /// <summary>Audio Control's Output and LFE Level (and [port] tactile_eq, crossover, lfe_engine and the other sources), live.</summary>
     public static void ApplyOutput(I76.Game.Shell.ShellSettings s)
     {
-        // Output and LFE Level: the shaker signal (BassShaker); in 2.1 the effects' bass under the crossover boosted by the level's
+        // Output and LFE Level: the shaker signal (BassShaker); mixed into stereo, the effects' bass under the crossover boosted by the level's
         // share once more. Godot's low shelf gives the square of its gain well below the corner and the gain itself at it (measured:
         // gain 2 is 4.0x at 20 Hz, 2.0x at the corner, 1.0x at 1 kHz), so it takes the factor's square root
         var output = s.Output;
         float crossover = I76.Formats.Input.AudioOutputs.ClampCrossover(s.Crossover);
-        I76.Game.BassShaker.Apply(output, s.LfeLevel, I76.Formats.Input.TactileEq.Parse(s.TactileEq), crossover);
+        I76.Game.BassShaker.Apply(output, s.LfeLevel, I76.Formats.Input.TactileEq.Parse(s.TactileEq), crossover, s.LfeSources);
         int sfx = AudioServer.GetBusIndex("SFX");
         if (sfx < 0) return;
-        int shelf = Enumerable.Range(0, AudioServer.GetBusEffectCount(sfx)).FirstOrDefault(e => AudioServer.GetBusEffect(sfx, e) is AudioEffectLowShelfFilter, -1);
-        if (shelf < 0) { AudioServer.AddBusEffect(sfx, new AudioEffectLowShelfFilter()); shelf = AudioServer.GetBusEffectCount(sfx) - 1; }
-        var low = (AudioEffectLowShelfFilter)AudioServer.GetBusEffect(sfx, shelf);
+        var (low, shelf) = BusEffect<AudioEffectLowShelfFilter>(sfx, "lfe_boost", int.MaxValue);
         low.CutoffHz = crossover;
         low.Gain = MathF.Sqrt(I76.Formats.Input.AudioOutputs.BassBoost(s.LfeLevel));
-        AudioServer.SetBusEffectEnabled(sfx, shelf, output == I76.Formats.Input.AudioOutput.Sub21 && s.LfeLevel > 0);
+        AudioServer.SetBusEffectEnabled(sfx, shelf, !I76.Formats.Input.AudioOutputs.Discrete(output) && I76.Formats.Input.AudioOutputs.Tactile(s.LfeLevel));
     }
 
     private void EndMission(bool won)

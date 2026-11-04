@@ -2,38 +2,47 @@ namespace I76.Formats.Input;
 
 /// <summary>
 /// Audio Control's Output ([port] output): what the port does with the device the system gives it (Godot takes the device's
-/// channel count; the game cannot choose it). Stereo and Headphones play as the original does (nothing headphone-specific: they
-/// are the same); 2.1 adds the bass-shaker signal and a boost of the effects' bass under the crossover to both channels, for a
-/// sub or shaker fed from the stereo output; 5.1 and 7.1 put the shaker signal on the LFE channel alone (the same path: the LFE
-/// of whatever surround layout the device has; nothing on a stereo device).
+/// channel count; the game cannot choose it). With the LFE Level at 0 (the default) every output plays as the original does.
+/// Above it, Stereo and Headphones (the same: nothing headphone-specific) mix the bass-shaker signal into both channels and boost
+/// the effects' bass under the crossover, for a sub or shaker fed from the stereo output, or whatever a player's rig makes of
+/// it; 5.1 and 7.1 put the shaker signal on the LFE channel alone (the same path: the LFE of whatever surround layout the device
+/// has; nothing on a stereo device).
 /// </summary>
-public enum AudioOutput { Stereo, Headphones, Sub21, Surround51, Surround71 }
+public enum AudioOutput { Stereo, Headphones, Surround51, Surround71 }
 
 public static class AudioOutputs
 {
     /// <summary>The rows' values: Headphones is "Phones", the word being wider than the pads' value column.</summary>
-    public static readonly string[] Names = ["Stereo", "Phones", "2.1", "5.1", "7.1"];
-    private static readonly string[] Keys = ["stereo", "headphones", "2.1", "5.1", "7.1"];
+    public static readonly string[] Names = ["Stereo", "Phones", "5.1", "7.1"];
+    private static readonly string[] Keys = ["stereo", "headphones", "5.1", "7.1"];
 
     public static string Key(AudioOutput o) => Keys[(int)o];
 
-    /// <summary>A [port] output value; anything else is Stereo.</summary>
+    /// <summary>A [port] output value; anything else is Stereo. A build before this one had 2.1 for the stereo mix: Stereo now.</summary>
     public static AudioOutput Parse(string? key)
     {
         int i = Array.IndexOf(Keys, key?.Trim().ToLowerInvariant());
         return i < 0 ? AudioOutput.Stereo : (AudioOutput)i;
     }
 
-    /// <summary>The shaker signal plays: on both channels (2.1) or on the LFE (5.1, 7.1).</summary>
-    public static bool Tactile(AudioOutput o) => o is AudioOutput.Sub21 or AudioOutput.Surround51 or AudioOutput.Surround71;
+    /// <summary>An output value that played the shaker signal while an absent lfe_level meant 100 % (2.1, 5.1, 7.1): such a file keeps 100.</summary>
+    public static bool HadShaker(string? key) => key?.Trim().ToLowerInvariant() is "2.1" or "5.1" or "7.1";
 
-    /// <summary>Audio Control's LFE Level: 0 to 200 % in steps of 25, 100 the default.</summary>
+    /// <summary>The shaker signal on the LFE channel alone (5.1, 7.1), not mixed into both channels.</summary>
+    public static bool Discrete(AudioOutput o) => o is AudioOutput.Surround51 or AudioOutput.Surround71;
+
+    /// <summary>The shaker signal plays: any output with the LFE Level above 0.</summary>
+    public static bool Tactile(int levelPercent) => levelPercent > 0;
+
+    /// <summary>Audio Control's LFE Level: 0 to 200 % in steps of 25, 0 (none) the default.</summary>
     public static readonly int[] Levels = [0, 25, 50, 75, 100, 125, 150, 175, 200];
     public static readonly string[] LevelNames = Levels.Select(l => $"{l} %").ToArray();
-    public const int DefaultLevel = 100;
+    public const int DefaultLevel = 0;
+    /// <summary>The level an older file that chose a shaker output had without the key.</summary>
+    public const int OldDefaultLevel = 100;
     public static int ClampLevel(int percent) => Levels.MinBy(l => Math.Abs(l - percent));
 
-    /// <summary>[port] crossover: the top of the shaker signal and of 2.1's bass boost, 40 to 160 Hz (90 by default).</summary>
+    /// <summary>[port] crossover: the top of the shaker signal and of the stereo mix's bass boost, 40 to 160 Hz (90 by default).</summary>
     public const float DefaultCrossover = 90f;
     public static float ClampCrossover(float hz) => float.IsFinite(hz) ? Math.Clamp(hz, 40f, 160f) : DefaultCrossover;
 
@@ -44,8 +53,20 @@ public static class AudioOutputs
     /// </summary>
     public static float ShakerGain(int percent) => 1.5f * Math.Clamp(percent, 0, 200) / 100f;
 
-    /// <summary>2.1's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
+    /// <summary>The stereo mix's boost of the effects under the crossover, as an amplitude factor: the LFE level's share added once more (100 %: twice, +6 dB).</summary>
     public static float BassBoost(int percent) => 1f + Math.Clamp(percent, 0, 200) / 100f;
+}
+
+/// <summary>The shaker signal's sources, each with a level of its own ([port] lfe_engine ... lfe_explosions, 0 to 200 %, 100 by default).</summary>
+public enum TactileSource { Engine, Road, Hits, Shots, Explosions }
+
+public static class TactileSources
+{
+    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions"];
+    public const int Default = 100, Max = 200;
+    public static int Clamp(int percent) => Math.Clamp(percent, 0, Max);
+    /// <summary>Every source at 100 %.</summary>
+    public static int[] Defaults() => [.. Keys.Select(_ => Default)];
 }
 
 /// <summary>
@@ -104,10 +125,15 @@ public sealed class TactileEq
 public sealed class TactileEvents
 {
     public bool EngineOn, Cranking;
+    /// <summary>The engine's rpm, and the car's own speed (mph, from its velocity: the engine need not run).</summary>
     public float Rpm, Mph;
-    /// <summary>The surface as the force block has it: the car's + 1 while moving, 0 standing, 9 in the air.</summary>
+    /// <summary>The surface: the car's + 1 on the ground, 0 for none, 9 in the air.</summary>
     public int Surface;
     public int FlatTyres;
+    /// <summary>Each corner wheel's suspension travel over its limit (−1 to 1, 0 at rest): the springs' load, cornering and braking included.</summary>
+    public readonly float[] Travel = new float[4];
+    /// <summary>The sim tick's length, seconds: the travel's rate is per second whatever the rate setting.</summary>
+    public float TickSeconds = 102f / 2048f;
     public readonly List<WeaponShot> Shots = [];
     /// <summary>The player's damage packets: channel (0 ballistic, 1 explosive, 2 fire, 3 impact) and amount.</summary>
     public readonly List<(int Channel, int Amount)> Hits = [];
@@ -119,6 +145,7 @@ public sealed class TactileEvents
         EngineOn = Cranking = false;
         Rpm = Mph = 0;
         Surface = FlatTyres = 0;
+        Array.Clear(Travel);
         Shots.Clear();
         Hits.Clear();
         Blasts.Clear();
@@ -128,9 +155,10 @@ public sealed class TactileEvents
 /// <summary>
 /// The port's bass-shaker signal (the original has none): sines and a noise bed between 20 and 90 Hz. Continuous: the engine,
 /// a sine from 25 Hz at idle to 45 Hz at 5000 rpm (the starter a 24 Hz shudder); the road, noise around 50 Hz by surface (the
-/// force model's road strengths) and speed, rougher with a flat tyre. Transients: a decaying sine per shot by weapon class, per
+/// force model's road strengths) and the car's speed, rougher with a flat tyre, stronger with the springs' load (a turn, a stop)
+/// and their movement (bumps), engine or no engine. Transients: a decaying sine per shot by weapon class, per
 /// hit (at the original force-feedback DLL's strengths) and per explosion within <see cref="BlastRange"/>, each through the
-/// shaker's <see cref="Eq"/> at its frequency. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
+/// shaker's <see cref="Eq"/> at its frequency. Each source takes its <see cref="Weights"/> share. Then a 15 Hz high-pass, a low-pass at <see cref="LowPassHz"/> (90 Hz), the LFE
 /// Level's <see cref="Gain"/> and a soft limiter under <see cref="Ceiling"/>. Presentation only: its parameters are set once a sim tick, its samples made a block at a time.
 /// </summary>
 public sealed class TactileSynth
@@ -160,12 +188,41 @@ public sealed class TactileSynth
     public static float EngineHz(float rpm) => 25f + 20f * RpmShare(rpm);
     public static float EngineLevel(bool on, float rpm) => on ? 0.08f + 0.10f * RpmShare(rpm) : 0f;
 
-    /// <summary>The road bed: none standing or in the air, up to 0.3 on the roughest surface at 80 mph and over; each flat tyre adds a third.</summary>
+    /// <summary>The road bed: none standing or in the air, up to 0.3 on the roughest surface at 80 mph and over (a paved road 15/40 of that); each flat tyre adds a third.</summary>
     public static float RoadLevel(int surface, float mph, int flats)
     {
-        if (surface <= 0 || surface >= ForceModel.RoadGain.Length) return 0f;
+        if (!OnGround(surface)) return 0f;
         float l = 0.3f * ForceModel.RoadGain[surface] / 40f * Math.Clamp(mph / 80f, 0f, 1f);
         return l * (1f + Math.Clamp(flats, 0, 4) / 3f);
+    }
+
+    private static bool OnGround(int surface) => surface > 0 && surface < ForceModel.RoadGain.Length - 1;
+
+    /// <summary>
+    /// The springs' load on the road bed: the mean deflection of the four corners over their limit, 0 to 1. The vehicle model's
+    /// weight transfer (the acceleration along and across the car) drives each spring, so a hard turn or a stop loads the bed:
+    /// the bed grows by the load's share and gains <see cref="LoadGain"/> at full load, so a turn is felt on any surface.
+    /// </summary>
+    public const float LoadGain = 0.12f;
+    /// <summary>The springs' movement on the road bed: the corners' mean travel rate, limits a second; <see cref="JoltGain"/> at <see cref="JoltFull"/> and over (a bump, a kerb, a landing).</summary>
+    public const float JoltGain = 0.2f, JoltFull = 4f;
+    /// <summary>The bed's top, everything together: under a lone hit's thump.</summary>
+    public const float RoadMax = 0.5f;
+
+    public static float LoadOf(ReadOnlySpan<float> travel)
+    {
+        float sum = 0;
+        foreach (var t in travel) sum += Math.Min(Math.Abs(t), 1f);
+        return travel.Length == 0 ? 0f : sum / travel.Length;
+    }
+
+    /// <summary>The road bed from the surface, the car's speed, flats, the springs' load (0 to 1) and their rate (limits a second).</summary>
+    public static float RoadLevel(int surface, float mph, int flats, float load, float jolt)
+    {
+        if (!OnGround(surface)) return 0f;
+        load = Math.Clamp(load, 0f, 1f);
+        float l = RoadLevel(surface, mph, flats) * (1f + load) + LoadGain * load + JoltGain * Math.Clamp(jolt / JoltFull, 0f, 1f);
+        return Math.Min(l, RoadMax);
     }
 
     /// <summary>A shot by weapon class (1 machine guns, 2 cannons, 3 mortars, 4 rockets and missiles, 5 flame weapons, 6 droppers); none for any other.</summary>
@@ -203,6 +260,8 @@ public sealed class TactileSynth
     private sealed class Voice { public float Hz, Level, Fall, Left; public double Phase; }
     private readonly List<Voice> _thumps = [];
     private float _engHz = EngineHz(0), _engTarget, _roadTarget, _eng, _road;
+    private readonly float[] _travel = new float[4];
+    private bool _travelSeen;
     private double _engPhase;
     private uint _noise = 0x9E3779B9u;
     private Biquad _roadBand, _hp, _lp;
@@ -225,6 +284,16 @@ public sealed class TactileSynth
     }
     private float _lowPassHz = HighHz;
 
+    /// <summary>Each <see cref="TactileSource"/>'s weight (1 as made; [port] lfe_engine and the rest over 100), applied as a tick's events are read.</summary>
+    public readonly float[] Weights = [1f, 1f, 1f, 1f, 1f];
+    private float W(TactileSource s) => Weights[(int)s];
+
+    /// <summary>The weights from the keys' percentages, in <see cref="TactileSource"/> order.</summary>
+    public void SetWeights(IReadOnlyList<int> percent)
+    {
+        for (int i = 0; i < Weights.Length; i++) Weights[i] = i < percent.Count ? TactileSources.Clamp(percent[i]) / 100f : 1f;
+    }
+
     /// <summary>The LFE Level's gain (<see cref="AudioOutputs.ShakerGain"/>), applied before the limiter.</summary>
     public float Gain { get; set; } = 1f;
 
@@ -235,12 +304,24 @@ public sealed class TactileSynth
     public void Step(TactileEvents e)
     {
         _engHz = e.Cranking ? CrankHz : EngineHz(e.Rpm);
-        _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz);
-        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres);
-        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t);
-        foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t);
-        foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t);
+        _engTarget = (e.Cranking ? CrankLevel : EngineLevel(e.EngineOn, e.Rpm)) * EqGain(_engHz) * W(TactileSource.Engine);
+        // the springs' rate from the last tick's travel; the first tick (or the first back on the ground) has none
+        float jolt = 0;
+        bool ground = OnGround(e.Surface);
+        if (ground && _travelSeen && e.TickSeconds > 0)
+        {
+            for (int i = 0; i < 4; i++) jolt += Math.Abs(e.Travel[i] - _travel[i]);
+            jolt /= 4 * e.TickSeconds;
+        }
+        Array.Copy(e.Travel, _travel, 4);
+        _travelSeen = ground;
+        _roadTarget = RoadLevel(e.Surface, e.Mph, e.FlatTyres, LoadOf(e.Travel), jolt) * W(TactileSource.Road);
+        foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots));
+        foreach (var (ch, amount) in e.Hits) if (HitThump(ch, amount) is { } t) Add(t, W(TactileSource.Hits));
+        foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
     }
+
+    private void Add(Thump t, float weight) => Add(t with { Level = t.Level * weight });
 
     /// <summary>A transient, through the <see cref="Eq"/>; past <see cref="MaxThumps"/> playing, the quietest goes (a far blast before a near hit).</summary>
     public void Add(Thump t)
@@ -262,6 +343,7 @@ public sealed class TactileSynth
     {
         _engTarget = _roadTarget = 0;
         _thumps.Clear();
+        _travelSeen = false;
     }
 
     /// <summary>The next <paramref name="dst"/>.Length samples at <paramref name="rate"/> Hz.</summary>

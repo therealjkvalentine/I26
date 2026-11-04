@@ -29,6 +29,8 @@ public class DevSettingsSignalsTests
         Assert.Contains("sky_drift", keys);
         Assert.Contains("hd_textures", keys);
         Assert.Contains("crossover", keys);
+        Assert.Contains("lfe_road", keys);
+        Assert.True(DevSettings.All.Single(e => e.Key == "lfe_explosions").Slider);
         Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Concat(DevSettings.HandSetOnly).Order());
     }
 
@@ -61,6 +63,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("on*", Shown("lighting_calibration"));
         Assert.Equal("90", Shown("crossover"));
+        foreach (var key in TactileSources.Keys) Assert.Equal("100", Shown(key));
         Assert.Equal("false", Shown("developer"));
         Assert.Equal("0", Shown("melee_ai"));
         foreach (var e in DevSettings.All)

@@ -386,7 +386,7 @@ public sealed class AudioScreen : OverlayScreen
         Frame.CopyBackground(200, 324, 150, 18, 200, 371);      // (the sheet's unused check boxes on that line, wiped)
         Add(204, 347, "CB Microphone", null);
         Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18);
-        // the port's: what the output carries (2.1, 5.1 and 7.1 add the bass shaker's signal) and that signal's level, live; a click steps each
+        // the port's: what the output carries (the bass shaker's signal mixed into stereo, or on the LFE of 5.1 and 7.1) and that signal's level (0 none), live; a click steps each
         // in the dotted box under the sheet's rows, its two unused check boxes wiped
         Frame.CopyBackground(250, 403, 22, 20, 202, 403);
         Frame.CopyBackground(250, 403, 22, 20, 330, 403);

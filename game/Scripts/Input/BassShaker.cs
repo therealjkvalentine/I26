@@ -7,15 +7,15 @@ using I76.Sim.Weapons;
 namespace I76.Game;
 
 /// <summary>
-/// The port's bass-shaker output (Audio Control's Output 2.1, 5.1 or 7.1; the original has none): <see cref="TactileSynth"/>'s
+/// The port's bass-shaker output (Audio Control's LFE Level above 0; the original has none): <see cref="TactileSynth"/>'s
 /// signal from the player's car on a bus of its own ("Tactile", into Master; the LFE Level is the synth's gain, inside its limiter). In 5.1 and 7.1 it is
 /// on the LFE channel alone, for a shaker on an amplifier's or receiver's sub output: Godot's buses carry the output as stereo
 /// pairs (front, centre and LFE, rear, side), a player with the centre mix target writes the centre/LFE pair, its frame's right
 /// half the LFE, so the frames go out as (0, s). With a stereo device there is no LFE pair (the right half would land on the
 /// right speaker): nothing plays. Godot's 3D panner also sends every positional sound to the LFE at full level, so the shaker
-/// feels the game's sounds under the synth; no effect a script can add reaches one channel of a pair, so that stays. In 2.1 the
-/// frames go out as (s, s) on the front pair, for a sub or shaker fed from the stereo output below its own crossover (the
-/// effects' own bass is boosted there too: <see cref="I76.Game.Boot.Main.ApplyAudio"/>). Presentation only.
+/// feels the game's sounds under the synth; no effect a script can add reaches one channel of a pair, so that stays. In Stereo
+/// (and Phones) the frames go out as (s, s) on the front pair, for a sub or shaker fed from the stereo output below its own
+/// crossover, or however a rig takes it (the effects' own bass is boosted there too: <see cref="I76.Game.Boot.Main.ApplyAudio"/>). Presentation only.
 /// </summary>
 public partial class BassShaker : Node
 {
@@ -31,19 +31,24 @@ public partial class BassShaker : Node
     private static TactileEq? _eq;
     private static float _crossover = AudioOutputs.DefaultCrossover;
     private static float _gain = AudioOutputs.ShakerGain(AudioOutputs.DefaultLevel);
+    private static int _level = AudioOutputs.DefaultLevel;
 
-    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq and crossover: live.</summary>
-    public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover)
+    private static int[] _sources = TactileSources.Defaults();
+
+    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq, crossover and the sources' levels (lfe_engine ...): live.</summary>
+    public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover, int[] sources)
     {
+        _sources = sources;
         Output = output;
         _eq = eq;
         _crossover = crossover;
         _gain = AudioOutputs.ShakerGain(levelPercent);
+        _level = levelPercent;
         int bus = TactileBus();
         AudioServer.SetBusMute(bus, levelPercent <= 0);
         // the level is the synth's, before its limiter: a gain on the bus would put the loud thumps over the Master limiter
         AudioServer.SetBusVolumeDb(bus, 0f);
-        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; }
+        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; me._synth.SetWeights(sources); }
     }
 
     private static int TactileBus()
@@ -53,8 +58,11 @@ public partial class BassShaker : Node
         return bus;
     }
 
-    /// <summary>The output the shaker plays on now (2.1, or 5.1/7.1 with an LFE channel), or null for none.</summary>
-    private static bool? Playing => !AudioOutputs.Tactile(Output) ? null : Output == AudioOutput.Sub21 ? true : HasLfe ? false : null;
+    /// <summary>The shaker signal is wanted: the LFE Level above 0.</summary>
+    public static bool On => AudioOutputs.Tactile(_level);
+
+    /// <summary>The output the shaker plays on now (true both channels, false the LFE of 5.1/7.1 with an LFE channel), or null for none.</summary>
+    private static bool? Playing => !On ? null : !AudioOutputs.Discrete(Output) ? true : HasLfe ? false : null;
     private bool _stereoPair;
 
     private readonly TactileSynth _synth = new();
@@ -82,7 +90,7 @@ public partial class BassShaker : Node
             };
             if (Playing is null) return $"bass shaker: {speakers} output, no LFE channel: silent";
             float peak = _instance?._out is null ? 0 : _instance._synth.Peak;
-            string to = Playing == true ? $"both channels of {speakers} (2.1), under {_crossover:0} Hz" : $"LFE of {speakers}";
+            string to = Playing == true ? $"both channels of {speakers}, under {_crossover:0} Hz" : $"LFE of {speakers}";
             return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}";
         }
     }
@@ -106,6 +114,7 @@ public partial class BassShaker : Node
         _synth.Eq = _eq;
         _synth.LowPassHz = _crossover;
         _synth.Gain = _gain;
+        _synth.SetWeights(_sources);
         float rate = AudioServer.GetMixRate();
         // 50 ms of queue: a 60 fps frame fills it with room to spare, and a hit is felt within about three frames
         var gen = new AudioStreamGenerator { MixRate = rate, BufferLength = 0.05f };
@@ -149,8 +158,8 @@ public partial class BassShaker : Node
             if (p.Ch[ch] != 0) me._hits.Add((ch, p.Ch[ch]));
     }
 
-    /// <summary>One sim tick has run: the player's car, its shots among <paramref name="events"/> from <paramref name="from"/> on, the explosions, the hits queued since.</summary>
-    public static void Tick(IReadOnlyList<CombatEvent>? events, int from)
+    /// <summary>One sim tick of <paramref name="dt"/> seconds has run: the player's car, its shots among <paramref name="events"/> from <paramref name="from"/> on, the explosions, the hits queued since.</summary>
+    public static void Tick(IReadOnlyList<CombatEvent>? events, int from, float dt)
     {
         if (_instance is not { _out: not null } me || me.GetTree().Paused || Held?.Invoke() == true) return;
         var e = me._events;
@@ -163,11 +172,18 @@ public partial class BassShaker : Node
             e.EngineOn = (flags & VehicleFlags.EngineOn) != 0;
             e.Cranking = (flags & VehicleFlags.Started) != 0;
             e.Rpm = v.Engine.Rpm;
-            float mph = v.Engine.Speedo;
-            e.Mph = MathF.Min(mph, 165f);
-            // the force block's surface: the car's + 1 while the speedometer reads, 9 in the air
-            e.Surface = (flags & VehicleFlags.Airborne) != 0 ? 9 : mph > 0 ? v.Surface + 1 : 0;
+            // the car's own speed, not the speedometer's (which follows the engine): the road is felt with the engine off too
+            e.Mph = MathF.Min(v.Vel.Length() * 2.2369363f, 165f);
+            e.Surface = (flags & VehicleFlags.Airborne) != 0 ? 9 : v.Surface + 1;
             e.FlatTyres = (v.FrontRight.Blown ? 1 : 0) + (v.FrontLeft.Blown ? 1 : 0) + (v.RearRight.Blown ? 1 : 0) + (v.RearLeft.Blown ? 1 : 0);
+            // each corner's travel over its limit (a negative rest reverses the limits: the span is the larger's size)
+            int k = 0;
+            foreach (var w in v.Wheels)
+            {
+                float span = MathF.Max(MathF.Abs(w.TravelMax), MathF.Abs(w.TravelMin));
+                e.Travel[k++] = span > 1e-4f ? Math.Clamp(w.Travel / span, -1f, 1f) : 0f;
+            }
+            e.TickSeconds = dt;
             if (events is not null)
             {
                 var at = v.Pos.ToVector3();

@@ -12,7 +12,7 @@ public enum DevWhen { Live, NextScreen, NextMission, NextStart }
 /// and when a change shows. <see cref="Apply"/> is what a change needs beyond the setting and the host's refresh.
 /// </summary>
 public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings, int> Get, Action<ShellSettings, int> Set, DevWhen When,
-    Action<ShellSettings>? Apply = null);
+    Action<ShellSettings>? Apply = null, bool Slider = false);
 
 /// <summary>
 /// The Developer panels' Settings section (in a mission and on the main menu): every key of docs/playing.md's "Settings
@@ -44,8 +44,16 @@ public static class DevSettings
     private static readonly string[] CrossoverNames = [.. CrossoverSteps.Select(p => p == (int)I76.Formats.Input.AudioOutputs.DefaultCrossover ? $"{p}" : $"{p}{M}")];
     public static int NearestCrossoverStep(float hz) => Array.IndexOf(CrossoverSteps, CrossoverSteps.MinBy(p => Math.Abs(p - hz)));
 
-    /// <summary>Keys of the table set by hand only, not stepped here: tactile_eq is a curve of points, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq"];
+    /// <summary>The shaker sources' percentages (lfe_engine ...), 0 to 200 in tens on a slider; a value set by hand shows as the nearest.</summary>
+    public static readonly int[] SourceSteps = [.. Enumerable.Range(0, 21).Select(i => i * 10)];
+    private static readonly string[] SourceNames = [.. SourceSteps.Select(p => p == I76.Formats.Input.TactileSources.Default ? $"{p}" : $"{p}{M}")];
+    public static int NearestSourceStep(int percent) => Array.IndexOf(SourceSteps, SourceSteps.MinBy(p => Math.Abs(p - percent)));
+    private static DevSetting Source(I76.Formats.Input.TactileSource src) => new(I76.Formats.Input.TactileSources.Keys[(int)src], SourceNames,
+        s => NearestSourceStep(s.LfeSources[(int)src]), (s, v) => s.LfeSources[(int)src] = SourceSteps[v], DevWhen.Live,
+        I76.Game.Boot.Main.ApplyOutput, Slider: true);
+
+    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, not one of a few values.</summary>
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq"];
 
     public static readonly DevSetting[] All =
     [
@@ -73,6 +81,11 @@ public static class DevSettings
             s => HdAssets.Enabled = s.HdMenuArt),
         new("lighting_calibration", ["off", "on" + M], s => s.LightingCalibration ? 1 : 0, (s, v) => s.LightingCalibration = v != 0, DevWhen.Live),
         new("crossover", CrossoverNames, s => NearestCrossoverStep(s.Crossover), (s, v) => s.Crossover = CrossoverSteps[v], DevWhen.Live),
+        Source(I76.Formats.Input.TactileSource.Engine),
+        Source(I76.Formats.Input.TactileSource.Road),
+        Source(I76.Formats.Input.TactileSource.Hits),
+        Source(I76.Formats.Input.TactileSource.Shots),
+        Source(I76.Formats.Input.TactileSource.Explosions),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
@@ -107,6 +120,12 @@ public static class DevSettings
         {
             var name = DevScale.Min(new Label { Text = e.Key, TooltipText = WhenText(e.When) }, 136);
             name.AddThemeColorOverride("font_color", WhenColour(e.When));
+            if (e.Slider)
+            {
+                grid.AddChild(name);
+                grid.AddChild(SliderFor(e, settings, changed));
+                continue;
+            }
             var b = DevScale.Min(new Button { FocusMode = Control.FocusModeEnum.None, Alignment = HorizontalAlignment.Left, TooltipText = "click: next value, right click: back" }, 84);
             void Show() => b.Text = e.Values[Math.Clamp(e.Get(settings), 0, e.Values.Length - 1)];
             void Step(int by)
@@ -125,6 +144,29 @@ public static class DevSettings
             grid.AddChild(b);
         }
         col.AddChild(grid);
+    }
+
+    /// <summary>A key of many steps as a slider over its values with the value beside it: dragging applies each step as it passes.</summary>
+    private static Control SliderFor(DevSetting e, ShellSettings settings, Action<ShellSettings, DevSetting>? changed)
+    {
+        var box = new HBoxContainer();
+        var slider = DevScale.Min(new HSlider { MinValue = 0, MaxValue = e.Values.Length - 1, Step = 1, FocusMode = Control.FocusModeEnum.None,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, Value = Math.Clamp(e.Get(settings), 0, e.Values.Length - 1) }, 60);
+        var value = DevScale.Min(new Label(), 30);
+        void Show() => value.Text = e.Values[Math.Clamp(e.Get(settings), 0, e.Values.Length - 1)];
+        slider.ValueChanged += v =>
+        {
+            if ((int)v == e.Get(settings)) return;
+            e.Set(settings, (int)v);
+            settings.Save();
+            e.Apply?.Invoke(settings);
+            changed?.Invoke(settings, e);
+            Show();
+        };
+        Show();
+        box.AddChild(slider);
+        box.AddChild(value);
+        return box;
     }
 
     /// <summary>The panel's line for a change: the key, its value as the file writes it, and when it shows.</summary>
