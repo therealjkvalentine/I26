@@ -257,3 +257,10 @@ feat/brush-impacts                    # section L: modern look brush answers rou
 # M. pass 13 (2026-11-04): the cockpit's live textures and the 3x pack; both stacked on play
 fix/hardpoint-textures                # section M: modern look: the 3D cockpit's weapons panel, steering wheel and arms are cut by their own pixels, not the first frame's outline (the housings, plates, hands and pistol draw whole)
 fix/hd-pack-3x                        # section M: an HD upscale at any whole multiple is served (the 3x pack was silently falling back to the originals for car and world textures)
+
+# N. pass 14 (2026-11-04): the playtest's answers, round 4; all stacked on play
+fix/dymo-labels-2                     # section N: modern cockpit weapon labels: the synthetic bold out (the emboss reads again), letter gap 30 % tighter, counter digits' ink darker
+fix/dev-panel-2                       # section N: Developer panel at half size and 85 % opaque; its Teleport row's buttons no longer covered by the second column; Show FPS row on the Display page (dev_fps)
+feat/lfe-3                            # section N: bass shaker: each surface its own band and lumps (gravel road above off-road), wider road/off-road contrast, a per-wheel knock at road and bridge edges; [port] lfe_offroad, lfe_bumps; dev readout
+fix/map-edge-slopes                   # section N: Hide Map Edge Cliffs keeps slopes: only ground behind a step steeper than 60 degrees is hidden; I76_MAP_EDGE_SLOPES=0 for the old rule
+feat/movie-while-loading              # section N: modern look: the briefing plays while the world builds on a thread ([port] briefing_while_loading, default on); HD movies: user://movies/<stem>.ogv replaces the SMK
