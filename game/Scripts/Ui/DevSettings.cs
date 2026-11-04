@@ -101,6 +101,17 @@ public static class DevSettings
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
 
+    /// <summary>
+    /// Keys that have a menu row but are offered here too, to sweep live: Hood Gloss level by level (the rows step in fives), the
+    /// file's 0..100 on a slider. Not in docs/playing.md's table of settings without a row.
+    /// </summary>
+    public static readonly DevSetting[] WithRow =
+    [
+        new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Default ? $"{v}" : $"{v}{M}")],
+            s => I76.Sim.Views.PaintFinish.Clamp(s.HoodGloss), (s, v) => s.HoodGloss = v, DevWhen.Live,
+            s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
+    ];
+
     public static string WhenText(DevWhen w) => w switch { DevWhen.Live => "live", DevWhen.NextScreen => "next screen", DevWhen.NextMission => "next mission", _ => "next start" };
 
     /// <summary>The key's colour for when a change shows: green at once, amber the next screen or mission, grey the next start.</summary>
@@ -127,7 +138,7 @@ public static class DevSettings
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
-        foreach (var e in All)
+        foreach (var e in All.Concat(WithRow))
         {
             var name = DevScale.Min(new Label { Text = e.Key, TooltipText = WhenText(e.When) }, 136);
             name.AddThemeColorOverride("font_color", WhenColour(e.When));

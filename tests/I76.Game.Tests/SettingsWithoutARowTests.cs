@@ -127,7 +127,7 @@ public class SettingsWithoutARowTests
             (ShellSettings.ForceFeedbackNames, new[] { "Off", "Pad" }),
             (ShellSettings.MeleeAiNames, ["Normal"]),
             (I76.Sim.Views.ViewFov.Names, ["90"]),
-            (I76.Sim.Views.PaintFinish.Names, ["Matte"]),
+            (I76.Sim.Views.PaintFinish.StepNames, ["Matte"]),
             (I76.Game.Boot.RenderScale.Names, ["100%"]),
             (I76.Sim.Views.CrashBlurMode.Names, ["On"]),
             (I76.Sim.Views.MouseLook.Names, ["Off"]),

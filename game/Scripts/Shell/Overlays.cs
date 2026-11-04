@@ -540,9 +540,10 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.FieldOfView:
                 Row(line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
                 break;
-            // the modern look's car paint and cockpit hood: Matte (the default), Satin or Gloss (the full clear coat), live
-            case GraphicsRow.HoodFinish:
-                Row(line, "Hood Finish", () => I76.Sim.Views.PaintFinish.Names[Math.Clamp(st.HoodFinish, 0, I76.Sim.Views.PaintFinish.Names.Length - 1)], () => { st.HoodFinish = (st.HoodFinish + 1) % I76.Sim.Views.PaintFinish.Names.Length; I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(st.HoodFinish); });
+            // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss, the full clear coat) in fives, Satin at 50,
+            // live; a level set by hand in the file shows as it is and a click goes to the next step above it
+            case GraphicsRow.HoodGloss:
+                Row(line, "Hood Gloss", () => I76.Sim.Views.PaintFinish.Name(st.HoodGloss), () => { st.HoodGloss = I76.Sim.Views.PaintFinish.NextStep(st.HoodGloss); I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss); });
                 break;
             // the modern look's cabin and driver behind a car's windows (off: plain reflective glass), live
             case GraphicsRow.CarInteriors:
@@ -601,7 +602,7 @@ public sealed class GraphicsScreen : OverlayScreen
                 break;
             case GraphicsPages.Car:
                 I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
-                I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(st.HoodFinish);
+                I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
                 I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors);
                 I76.Game.MouseCamera.Apply(st);
                 break;

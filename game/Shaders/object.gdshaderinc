@@ -99,7 +99,7 @@ varying flat vec4 v_eye;   // the F1 view's eye in the mesh's frame (w 1), CUSTO
 varying vec3 v_cam_l;
 global uniform bool i76_car_materials;   // Ctrl+F8 (a debug key): off, every car without its glass (to compare)
 global uniform bool i76_car_interiors;   // Graphic Detail's Car Interiors: the proxy cabin and driver behind the glass (off: the glass alone)
-global uniform int i76_paint_finish;   // Graphic Detail's Hood Finish (PaintFinish): 0 Matte, 1 Satin, 2 Gloss, the cars' paint and the cockpit's hood (hood_surface)
+global uniform float i76_hood_gloss;   // Graphic Detail's Hood Gloss (PaintFinish) as 0..1: 0 Matte, 0.5 Satin, 1 Gloss, the cars' paint and the cockpit's hood (hood_surface)
 instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
 // the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): lit faces take i76_object_sky
 // of the sky's light (through their occlusion: ambient and reflections, not the sun) and their colours times i76_object_tint,
@@ -628,8 +628,8 @@ void fragment() {
 			float metal = smoothstep(0.07, 0.22, dot(c.rgb, vec3(0.299, 0.587, 0.114)));
 			ROUGHNESS = mix(0.95, 0.38, metal);
 			SPECULAR = mix(0.2, 0.5, metal);
-			// Hood Finish Matte (the default): no clear coat on the hubcap either; the coat is Satin's and Gloss's
-			CLEARCOAT = i76_paint_finish < 1 ? 0.0 : metal * 0.5;
+			// Hood Gloss 0 (Matte, the default): no clear coat on the hubcap either; it comes in toward Satin's and Gloss's
+			CLEARCOAT = metal * 0.5 * clamp(i76_hood_gloss * 2.0, 0.0, 1.0);
 		}
 	} else if (tread) {
 		ALBEDO = c.rgb;
@@ -689,15 +689,19 @@ void fragment() {
 		SPECULAR = base_specular;
 		CLEARCOAT = 0.0;
 	}
-	if (((car_paint && !wheel_face) || hood_surface > 0.5) && i76_paint_finish < 2 && !prelit) {
-		// Hood Finish below Gloss: Satin thins the clear coat and blurs the sheen, Matte takes both off (the windows stay glass)
-		bool matte = i76_paint_finish < 1;
+	if (((car_paint && !wheel_face) || hood_surface > 0.5) && i76_hood_gloss < 1.0 && !prelit) {
+		// Hood Gloss below 100 (Gloss, the full coat): Satin (50) thins the clear coat and blurs the sheen, Matte (0) takes both off;
+		// a level between blends the two presets around it (0..50 Matte to Satin, 50..100 Satin to Gloss) value by value, so every
+		// level is a mix of two real finishes (PaintFinish.Blend). The windows stay glass.
+		float hg = clamp(i76_hood_gloss, 0.0, 1.0);
+		float ha = clamp(hg * 2.0, 0.0, 1.0), hb = clamp(hg * 2.0 - 1.0, 0.0, 1.0);
 		float k = 1.0 - glass_w;
-		ROUGHNESS = mix(ROUGHNESS, max(ROUGHNESS, matte ? 0.88 : 0.65), k);
-		SPECULAR = mix(SPECULAR, min(SPECULAR, matte ? 0.12 : 0.3), k);
-		CLEARCOAT = mix(CLEARCOAT, min(CLEARCOAT, matte ? 0.0 : 0.2), k);
-		CLEARCOAT_ROUGHNESS = mix(CLEARCOAT_ROUGHNESS, max(CLEARCOAT_ROUGHNESS, 0.3), k);
-		METALLIC = mix(METALLIC, min(METALLIC, matte ? 0.1 : 0.5), k);
+		float r = ROUGHNESS, sp = SPECULAR, cc = CLEARCOAT, ccr = CLEARCOAT_ROUGHNESS, mt = METALLIC;
+		ROUGHNESS = mix(r, mix(mix(max(r, 0.88), max(r, 0.65), ha), r, hb), k);
+		SPECULAR = mix(sp, mix(mix(min(sp, 0.12), min(sp, 0.3), ha), sp, hb), k);
+		CLEARCOAT = mix(cc, mix(mix(0.0, min(cc, 0.2), ha), cc, hb), k);
+		CLEARCOAT_ROUGHNESS = mix(ccr, mix(max(ccr, 0.3), ccr, hb), k);
+		METALLIC = mix(mt, mix(mix(min(mt, 0.1), min(mt, 0.5), ha), mt, hb), k);
 	}
 	if (!prelit && wreck.x > 0.0) {
 		vec3 a = ALBEDO, g;
