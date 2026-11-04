@@ -717,6 +717,12 @@ Two branches added as manifest section M, both made on play a3b949f (pass 12) an
 (I78) and fix/hd-pack-3x (I79). Before the run feat/death-variety and feat/brush-impacts were pointed at their cherry-picks on
 play (b091233 and 93cc458) so the script sees them as merged instead of merging their old-base history (the pass-12 note).
 
+Test status, pass 13 (`play` c2237c7): desktop, I76_INSTALL set, the movie render on the GPU. Game 336/336, Formats 1002/1037
+(30 skipped, 5 failures in the first run, 4 when rerun to list them: GameDiscovery ServerPlacesFindTheGameNextToTheExecutable,
+GogLibrary Drive_letters_map..., InstallAndMigration App_folder_is_the_one_holding_the_mac_bundle, TerrainSurface
+ParallelBuildAndCachedCopy...; the fifth is the order-dependent WeaponTests.EveryWeaponSlotHasItsHardpoint, which passes alone),
+all in the desktop baseline. New because of us: none. Deployed c2237c7 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
