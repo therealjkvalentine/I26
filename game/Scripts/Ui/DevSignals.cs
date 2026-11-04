@@ -44,7 +44,8 @@ public sealed class SignalTrace
 /// <summary>
 /// The Developer panel's Signals (docs/dev-hooks.md): what the game sends to the player's devices over the last few seconds,
 /// for checking the force feedback, the rumble and the telemetry feed without the hardware. The producers report here
-/// (the wheel's effects as ForceFeedback builds them, the pad's motor levels as they go to Godot, each telemetry packet);
+/// (the wheel's effects as ForceFeedback builds them, the pad's motor levels as they go to Godot, each telemetry packet, the
+/// bass shaker's peak as BassShaker sends it);
 /// <see cref="Sample"/> runs once a frame while the game runs, so the traces stop while it is paused (the panel open) and
 /// show the seconds before. Only while <see cref="Watching"/> (the panel is on for the run); nothing here feeds back.
 /// </summary>
@@ -64,8 +65,8 @@ public static class DevSignals
 
     public static readonly SignalTrace[] All = [WheelForce, WheelSpring, WheelEffects, PadLow, PadHigh, TelRate, TelPitch, TelRoll, TelSurge, TelSway, TelHeave, Lfe];
 
-    /// <summary>The bass shaker's feed: none on this build (its meter is a placeholder at zero).</summary>
-    public static bool LfeWired => false;
+    /// <summary>The bass shaker's signal: the peak of the block just sent to the Tactile bus (0 while the LFE Level is 0 or nothing plays).</summary>
+    public static void Shaker(float peak) => _lfe = peak;
 
     /// <summary>The telemetry feed's targets as the log line names them, or null without a feed.</summary>
     public static string? TelemetryTargets { get; set; }
@@ -74,7 +75,7 @@ public static class DevSignals
     private static int _effects;
     private static readonly Dictionary<string, (int Generation, double Start)> Started = [];
     private static readonly Queue<double> Packets = new();
-    private static float _pitch, _roll, _surge, _sway, _heave;
+    private static float _pitch, _roll, _surge, _sway, _heave, _lfe;
 
     /// <summary>The levels just sent to the pad's motors (0..1), as Godot's weak (high-frequency) and strong (low-frequency) motor.</summary>
     public static void Pad(float weak, float strong) { _weak = weak; _strong = strong; }
@@ -124,7 +125,7 @@ public static class DevSignals
         TelSurge.Add(now, _surge);
         TelSway.Add(now, _sway);
         TelHeave.Add(now, _heave);
-        Lfe.Add(now, 0);
+        Lfe.Add(now, _lfe);
     }
 
     /// <summary>A new mission: the traces and the levels start empty.</summary>
@@ -133,7 +134,7 @@ public static class DevSignals
         foreach (var t in All) t.Clear();
         Started.Clear();
         Packets.Clear();
-        _weak = _strong = _force = _spring = _pitch = _roll = _surge = _sway = _heave = 0;
+        _weak = _strong = _force = _spring = _pitch = _roll = _surge = _sway = _heave = _lfe = 0;
         _effects = 0;
     }
 }

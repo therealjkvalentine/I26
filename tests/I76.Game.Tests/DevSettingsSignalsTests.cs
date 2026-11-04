@@ -29,8 +29,18 @@ public class DevSettingsSignalsTests
         Assert.Contains("sky_drift", keys);
         Assert.Contains("hd_textures", keys);
         Assert.Contains("crossover", keys);
-        Assert.Contains("lfe_road", keys);
-        Assert.True(DevSettings.All.Single(e => e.Key == "lfe_explosions").Slider);
+        Assert.Contains("lighting_calibration", keys);
+        // the bass shaker's sources, each a slider; the two tone curves set by hand only
+        foreach (var key in TactileSources.Keys)
+        {
+            Assert.Contains(key, keys);
+            Assert.True(DevSettings.All.Single(e => e.Key == key).Slider);
+        }
+        foreach (var key in new[] { "tactile_eq", "game_eq", "movie_eq" })
+        {
+            Assert.Contains(key, keys);
+            Assert.Contains(key, DevSettings.HandSetOnly);
+        }
         Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Concat(DevSettings.HandSetOnly).Order());
     }
 
@@ -109,6 +119,19 @@ public class DevSettingsSignalsTests
         DevSignals.Wheel(f, 11.0);
         DevSignals.Sample(11.0);
         Assert.Equal(0.5f, DevSignals.WheelForce.Last, 3);
+        DevSignals.Reset();
+    }
+
+    [Fact]
+    public void TheBassShakersPeakIsSampled()
+    {
+        DevSignals.Reset();
+        DevSignals.Shaker(0.4f);
+        DevSignals.Sample(1.0);
+        Assert.Equal(0.4f, DevSignals.Lfe.Last);
+        DevSignals.Shaker(0);
+        DevSignals.Sample(1.1);
+        Assert.Equal(0f, DevSignals.Lfe.Last);
         DevSignals.Reset();
     }
 

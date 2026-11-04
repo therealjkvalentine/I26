@@ -540,7 +540,7 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.FieldOfView:
                 Row(line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
                 break;
-            // the modern look's car paint and cockpit hood: Matte, Satin (the default) or Gloss (the full clear coat), live
+            // the modern look's car paint and cockpit hood: Matte (the default), Satin or Gloss (the full clear coat), live
             case GraphicsRow.HoodFinish:
                 Row(line, "Hood Finish", () => I76.Sim.Views.PaintFinish.Names[Math.Clamp(st.HoodFinish, 0, I76.Sim.Views.PaintFinish.Names.Length - 1)], () => { st.HoodFinish = (st.HoodFinish + 1) % I76.Sim.Views.PaintFinish.Names.Length; I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(st.HoodFinish); });
                 break;

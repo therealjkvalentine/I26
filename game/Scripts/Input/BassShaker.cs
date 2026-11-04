@@ -140,12 +140,13 @@ public partial class BassShaker : Node
         bool? want = Playing;
         if (_out is not null && want != _stereoPair) Close();
         if (want is { } pair && _out is null) Open(pair);
-        if (_playback is null) return;
+        if (_playback is null) { I76.Game.Ui.DevSignals.Shaker(0); return; }
         if (GetTree().Paused || Held?.Invoke() == true) { _synth.Reset(); _hits.Clear(); }
         int n = _playback.GetFramesAvailable();
         if (n <= 0) return;
         if (_block.Length < n) { _block = new float[n]; _frames = new Vector2[n]; }
         _synth.Fill(_block.AsSpan(0, n), (int)AudioServer.GetMixRate());
+        I76.Game.Ui.DevSignals.Shaker(_synth.Peak);
         for (int i = 0; i < n; i++) _frames[i] = new Vector2(_stereoPair ? _block[i] : 0, _block[i]);
         _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
     }
