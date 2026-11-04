@@ -248,6 +248,7 @@ for plat in windows linux linux-arm64; do
     sed -e "s/@VERSION@/$ver/g" -e "s/@BUILD@/$stamp/g" tools/release/README.txt > "$stage/README.txt"
     cp tools/release/THIRD-PARTY-NOTICES.txt "$stage/"
     cp "game/Fonts/ImpactLabel/Impact Label Licence.txt" "$stage/"   # the label font's licence travels with every copy
+    cp game/Fonts/Roboto/OFL.txt "$stage/Roboto OFL.txt"   # and the counter digits' font's
     [ -f game/vfx/SOURCE.txt ] && { echo; cat game/vfx/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
     [ -f game/ground/SOURCE.txt ] && { echo; cat game/ground/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
     dest=$here/dist/$name-$plat.zip
@@ -286,6 +287,7 @@ run rcodesign sign "$stage/I26.app" >"$cache/rcodesign.log" 2>&1 || { tail -30 "
 sed -e "s/@VERSION@/$ver/g" -e "s/@BUILD@/$stamp/g" tools/release/README.txt > "$stage/README.txt"
 cp tools/release/THIRD-PARTY-NOTICES.txt "$stage/"
 cp "game/Fonts/ImpactLabel/Impact Label Licence.txt" "$stage/"
+cp game/Fonts/Roboto/OFL.txt "$stage/Roboto OFL.txt"
 [ -f game/vfx/SOURCE.txt ] && { echo; cat game/vfx/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
 [ -f game/ground/SOURCE.txt ] && { echo; cat game/ground/SOURCE.txt; } >> "$stage/THIRD-PARTY-NOTICES.txt"
 dest=$here/dist/$name-macos.zip

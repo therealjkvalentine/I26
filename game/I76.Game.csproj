@@ -16,5 +16,7 @@
     <EmbeddedResource Include="Embedded/moon_lroc_1k.jpg" LogicalName="moon_lroc_1k.jpg" />
     <!-- the modern look's weapon labels (Fonts/ has a .gdignore; the font's own licence, see Fonts/ImpactLabel/README.md) -->
     <EmbeddedResource Include="Fonts/ImpactLabel/Impact Label Reversed.ttf" LogicalName="ImpactLabelReversed.ttf" />
+    <!-- the modern look's ammunition counter digits (the font's own licence, see Fonts/Roboto/README.md) -->
+    <EmbeddedResource Include="Fonts/Roboto/Roboto-Bold.ttf" LogicalName="RobotoBold.ttf" />
   </ItemGroup>
 </Project>
