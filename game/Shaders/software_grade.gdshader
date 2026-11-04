@@ -8,14 +8,18 @@
 // gamma: Monitor Brightness, applied to the palette colour after the match, as the original re-ramps its
 // palette rather than the picture: level 3 is 1, the identity.
 // The frame comes in sRGB-encoded (no HDR 2D), the palette's own terms.
+// soft: the modern grade reads soft_lut instead (SoftwarePalette.BuildSoftLut, the nearest-colour lookup blurred across
+// colour space), interpolated between cells, so the colour moves toward the palette's without bands or speckle.
 shader_type canvas_item;
 
 uniform sampler2D screen : hint_screen_texture, filter_nearest;
 uniform sampler2D lut : filter_nearest, repeat_disable;
+uniform sampler2D soft_lut : filter_linear, repeat_disable;
+uniform bool soft = false;
 uniform float lines = 0.0;
 uniform float gamma = 1.0;
 uniform float strength = 1.0;   // 1: the palette colour; less blends back toward the frame (the modern grade)
-uniform float dither = 0.0;     // the modern grade only: a 4x4 ordered dither of this amplitude before the match (the original never dithered)
+uniform float dither = 0.0;     // the modern grade's hard match only: a 4x4 ordered dither of this amplitude before it (the original never dithered)
 
 const float N = 64.0;
 
@@ -26,6 +30,17 @@ vec3 nearest(vec3 c) {
 	return texelFetch(lut, at, 0).rgb;
 }
 
+// soft_lut trilinear: red and green filtered inside a blue tile (texel centres, so no tile bleeds into the next), blue between two tiles
+vec3 graded(vec3 c) {
+	vec3 x = clamp(c, 0.0, 1.0) * (N - 1.0);
+	float b0 = floor(x.b), b1 = min(b0 + 1.0, N - 1.0);
+	vec2 size = vec2(textureSize(soft_lut, 0));
+	vec2 rg = x.rg + 0.5;
+	vec3 lo = textureLod(soft_lut, (vec2(mod(b0, 8.0), floor(b0 / 8.0)) * N + rg) / size, 0.0).rgb;
+	vec3 hi = textureLod(soft_lut, (vec2(mod(b1, 8.0), floor(b1 / 8.0)) * N + rg) / size, 0.0).rgb;
+	return mix(lo, hi, x.b - b0);
+}
+
 void fragment() {
 	vec2 frag = FRAGCOORD.xy;
 	if (lines > 0.0) {
@@ -33,11 +48,11 @@ void fragment() {
 		frag = (floor(frag / cell) + 0.5) * cell;
 	}
 	vec3 c = textureLod(screen, frag * SCREEN_PIXEL_SIZE, 0.0).rgb;
-	if (dither > 0.0) {
+	if (dither > 0.0 && !soft) {
 		ivec2 q = ivec2(frag) & ivec2(3);
 		const float bayer[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 		c += (bayer[q.y * 4 + q.x] / 16.0 - 0.46875) * dither;
 	}
-	vec3 p = nearest(c);
+	vec3 p = soft ? graded(c) : nearest(c);
 	COLOR = vec4(pow(mix(c, p, strength), vec3(1.0 / gamma)), 1.0);
 }

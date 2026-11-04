@@ -89,6 +89,62 @@ public class SoftwarePaletteTests
         }
     }
 
+    /// <summary>A palette like a mission's: most entries close together (a fine grey ramp), a few far apart.</summary>
+    private static Palette Ramp()
+    {
+        var d = new byte[768];
+        for (int i = 0; i < 256; i++) d[i * 3] = d[i * 3 + 1] = d[i * 3 + 2] = (byte)i;
+        return new Palette(d);
+    }
+
+    private static (byte R, byte G, byte B) Cell(byte[] lut, int side, int n, int ri, int gi, int bi)
+    {
+        int tiles = (int)Math.Sqrt(n), x = bi % tiles * n + ri, y = bi / tiles * n + gi, at = (y * side + x) * 3;
+        return (lut[at], lut[at + 1], lut[at + 2]);
+    }
+
+    [Fact]
+    public void TheSoftLutWithNoSigmaIsTheNearestLut()
+    {
+        var hard = SoftwarePalette.BuildLut(Grid(), 16, out _);
+        Assert.Equal(hard, SoftwarePalette.BuildSoftLut(Grid(), 16, 0f, out int side));
+        Assert.Equal(64, side);
+    }
+
+    [Fact]
+    public void TheSoftLutHasNoStepsWhereTheNearestLutHasThem()
+    {
+        // the grid palette's blue comes in steps of 85: the nearest lookup jumps 85 between neighbouring cells, the
+        // soft one (σ 0.1) moves a little at a time
+        const int n = 16;
+        var hard = SoftwarePalette.BuildLut(Grid(), n, out int side);
+        var soft = SoftwarePalette.BuildSoftLut(Grid(), n, 0.1f, out _);
+        int hardJump = 0, softJump = 0;
+        for (int bi = 1; bi < n; bi++)
+        {
+            hardJump = Math.Max(hardJump, Math.Abs(Cell(hard, side, n, 8, 8, bi).B - Cell(hard, side, n, 8, 8, bi - 1).B));
+            softJump = Math.Max(softJump, Math.Abs(Cell(soft, side, n, 8, 8, bi).B - Cell(soft, side, n, 8, 8, bi - 1).B));
+        }
+        Assert.Equal(85, hardJump);
+        Assert.InRange(softJump, 1, 40);
+    }
+
+    [Fact]
+    public void WhereThePaletteIsDenseTheSoftLutKeepsTheColour()
+    {
+        // a grey ramp of every level: the grade leaves a grey as it is, away from the cube's ends
+        const int n = 64;
+        var soft = SoftwarePalette.BuildSoftLut(Ramp(), n, 0.05f, out int side);
+        for (int i = 16; i < 48; i++)
+        {
+            int v = (int)Math.Round(255.0 * i / (n - 1));
+            var (r, g, b) = Cell(soft, side, n, i, i, i);
+            Assert.InRange(r, v - 3, v + 3);
+            Assert.InRange(g, v - 3, v + 3);
+            Assert.InRange(b, v - 3, v + 3);
+        }
+    }
+
     [Fact]
     public void TheLutNeedsASquareSize() => Assert.Throws<ArgumentException>(() => SoftwarePalette.BuildLut(Grid(), 32, out _));
 
