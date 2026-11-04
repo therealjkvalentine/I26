@@ -8,7 +8,7 @@ namespace I76.Game;
 
 /// <summary>
 /// The port's bass-shaker output (Audio Control's Output 2.1, 5.1 or 7.1; the original has none): <see cref="TactileSynth"/>'s
-/// signal from the player's car on a bus of its own ("Tactile", into Master; its volume is the LFE Level). In 5.1 and 7.1 it is
+/// signal from the player's car on a bus of its own ("Tactile", into Master; the LFE Level is the synth's gain, inside its limiter). In 5.1 and 7.1 it is
 /// on the LFE channel alone, for a shaker on an amplifier's or receiver's sub output: Godot's buses carry the output as stereo
 /// pairs (front, centre and LFE, rear, side), a player with the centre mix target writes the centre/LFE pair, its frame's right
 /// half the LFE, so the frames go out as (0, s). With a stereo device there is no LFE pair (the right half would land on the
@@ -30,17 +30,20 @@ public partial class BassShaker : Node
 
     private static TactileEq? _eq;
     private static float _crossover = AudioOutputs.DefaultCrossover;
+    private static float _gain = AudioOutputs.ShakerGain(AudioOutputs.DefaultLevel);
 
-    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the Tactile bus's volume), [port] tactile_eq and crossover: live.</summary>
+    /// <summary>Audio Control's Output and LFE Level (0 to 200 %, the synth's gain; the Tactile bus muted at 0), [port] tactile_eq and crossover: live.</summary>
     public static void Apply(AudioOutput output, int levelPercent, TactileEq? eq, float crossover)
     {
         Output = output;
         _eq = eq;
         _crossover = crossover;
+        _gain = AudioOutputs.ShakerGain(levelPercent);
         int bus = TactileBus();
         AudioServer.SetBusMute(bus, levelPercent <= 0);
-        AudioServer.SetBusVolumeDb(bus, levelPercent <= 0 ? -80f : 20f * MathF.Log10(levelPercent / 100f));
-        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; }
+        // the level is the synth's, before its limiter: a gain on the bus would put the loud thumps over the Master limiter
+        AudioServer.SetBusVolumeDb(bus, 0f);
+        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; }
     }
 
     private static int TactileBus()
@@ -102,6 +105,7 @@ public partial class BassShaker : Node
         _stereoPair = stereoPair;
         _synth.Eq = _eq;
         _synth.LowPassHz = _crossover;
+        _synth.Gain = _gain;
         float rate = AudioServer.GetMixRate();
         // 50 ms of queue: a 60 fps frame fills it with room to spare, and a hit is felt within about three frames
         var gen = new AudioStreamGenerator { MixRate = rate, BufferLength = 0.05f };
