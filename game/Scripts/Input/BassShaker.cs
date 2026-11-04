@@ -71,8 +71,12 @@ public partial class BassShaker : Node
     private readonly TactileEvents _events = new();
     private readonly List<(int Channel, int Amount)> _hits = [];
     private readonly WheelCrossings _crossings = new();
-    private static readonly bool LogLfe = System.Environment.GetEnvironmentVariable("I76_LFE_LOG") is "1";
-    private double _logIn;
+    /// <summary>I76_LFE_LOG: 1 for a line every half second, or the interval in seconds (0.05: about a line a tick); 0 none.</summary>
+    private static readonly double LogEvery = System.Environment.GetEnvironmentVariable("I76_LFE_LOG") is { } l
+        && double.TryParse(l, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double sec) && sec > 0
+        ? (sec == 1 ? 0.5 : sec) : 0;
+    private double _logIn, _logSq, _logClock;
+    private int _logN;
     private Vehicle? _crossingsOf;
     private AudioStreamPlayer? _out;
     private AudioStreamGeneratorPlayback? _playback;
@@ -118,6 +122,24 @@ public partial class BassShaker : Node
     {
         ProcessMode = ProcessModeEnum.Always;     // it fills the stream under the pause too, with silence
         _instance = this;
+    }
+
+    /// <summary>
+    /// I76_LFE_LOG: the panel's road line on stdout, with the clock (s since the shaker opened), the car's x, z and speed (m/s),
+    /// and the signal's RMS and peak over the interval (dBFS), for a scripted drive (tools/TactileRender/plot_sweeps.py reads it).
+    /// </summary>
+    private void Log(int n, double delta)
+    {
+        _logClock += delta;
+        for (int i = 0; i < n; i++) _logSq += _block[i] * _block[i];
+        _logN += n;
+        if ((_logIn -= delta) > 0) return;
+        _logIn = LogEvery;
+        float rms = _logN > 0 ? MathF.Sqrt((float)(_logSq / _logN)) : 0;
+        _logSq = 0; _logN = 0;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string car = Player?.Invoke() is { } v ? string.Create(inv, $"x {v.Pos.X:0.0}, z {v.Pos.Z:0.0}, speed {v.Vel.Length():0.0} m/s") : "no car";
+        GD.Print(string.Create(inv, $"lfe: t {_logClock:0.000}, {car}, {Readout()}, rms {(rms > 0 ? 20 * MathF.Log10(rms) : -999):0.0} dBFS, peak {(_synth.Peak > 0 ? 20 * MathF.Log10(_synth.Peak) : -999):0.0} dBFS"));
     }
 
     public override void _ExitTree()
@@ -167,8 +189,7 @@ public partial class BassShaker : Node
         if (_block.Length < n) { _block = new float[n]; _frames = new Vector2[n]; }
         _synth.Fill(_block.AsSpan(0, n), (int)AudioServer.GetMixRate());
         I76.Game.Ui.DevSignals.Shaker(_synth.Peak);
-        // I76_LFE_LOG=1: the panel's road line on stdout twice a second, for a scripted drive
-        if (LogLfe && (_logIn -= delta) <= 0) { _logIn = 0.5; GD.Print($"lfe: {Readout()}, peak {(_synth.Peak > 0 ? 20 * MathF.Log10(_synth.Peak) : -999):0.0} dBFS"); }
+        if (LogEvery > 0) Log(n, delta);
         for (int i = 0; i < n; i++) _frames[i] = new Vector2(_stereoPair ? _block[i] : 0, _block[i]);
         _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
     }
