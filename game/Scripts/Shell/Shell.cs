@@ -1151,6 +1151,8 @@ public sealed class ShellSettings
     public bool HdMenuArt { get; set; } = true;
     /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, no row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
+    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, no row; HdTextures.Size). Applies from the next mission.</summary>
+    public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
@@ -1406,6 +1408,8 @@ public sealed class ShellSettings
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
         s.HdTextures = I76.Game.Assets.HdTextures.FromFile(c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt);
+        // no version step: absent, 4 (a plain tex-world from before the sizes is used whatever the size)
+        s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Normalize((int)c.GetValue("port", "hd_texture_size", I76.Formats.Shell.HdPackFolders.DefaultSize));
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1541,6 +1545,7 @@ public sealed class ShellSettings
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
+        I76.Game.Assets.HdTextures.Size = s.HdTextureSize;
         return s;
     }
 
@@ -1587,6 +1592,7 @@ public sealed class ShellSettings
         if (DevFps) c.SetValue("port", "dev_fps", true);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
         c.SetValue("port", "hd_textures", HdTextures);
+        c.SetValue("port", "hd_texture_size", HdTextureSize);
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them

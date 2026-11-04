@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world/).
+"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world-Nx/, N the --scale: 2, 3 or 4; sizes can sit side by side and hd_texture_size picks one).
 
     1. Export the install's textures as PNGs (the game does it, then quits):
            i26 -- --install DIR --export-textures SRC_DIR
@@ -22,8 +22,8 @@ the original before it is written: the model shifts broad colour and brightness 
 blurred picture is brought to the original's blurred picture in Oklab and the model's fine detail kept (--no-colour-match
 skips it; the --pixel art keeps its own colours and is not touched). Each as a BC7 .dds with its mipmaps, keyed (alpha 0 or 255) and with colour bled under the key,
 in the texture's stored row order (SRC_DIR/bottom-up.txt), so the game sends it to the GPU as it is; a PNG where etcpak is
-missing or the size is not a multiple of 4. The output folder is the game's own (Windows %APPDATA%/I26/tex-world, Linux
-~/.local/share/I26/tex-world, macOS ~/Library/Application Support/I26/tex-world) unless --out says otherwise; a texture already
+missing or the size is not a multiple of 4. The output folder is the game's own (Windows %APPDATA%/I26/tex-world-Nx, Linux
+~/.local/share/I26/tex-world-Nx, macOS ~/Library/Application Support/I26/tex-world-Nx) unless --out says otherwise; a texture already
 there is skipped, so a stopped run resumes. Only the modern look draws these; Graphic Detail's HD Textures row switches them off.
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
@@ -35,10 +35,10 @@ MODEL_URL = f"https://github.com/Phhofm/models/releases/download/{MODEL}/{MODEL}
 ATTRIBUTION = f"{MODEL} by Philip Hofmann (Phhofm), CC-BY-4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither"
 PAD = 16   # reflect padding, against ringing at the edges
 
-def user_dir():
-    if sys.platform == "win32": return os.path.join(os.environ.get("APPDATA", ""), "I26", "tex-world")
-    if sys.platform == "darwin": return os.path.expanduser("~/Library/Application Support/I26/tex-world")
-    return os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "I26", "tex-world")
+def user_dir(scale=2):
+    if sys.platform == "win32": return os.path.join(os.environ.get("APPDATA", ""), "I26", f"tex-world-{scale}x")
+    if sys.platform == "darwin": return os.path.expanduser(f"~/Library/Application Support/I26/tex-world-{scale}x")
+    return os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "I26", f"tex-world-{scale}x")
 
 def model_file(path):
     if path: return path
@@ -227,13 +227,13 @@ def one(job, run_model=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src", nargs="?", help="the folder --export-textures wrote")
-    ap.add_argument("--out", default=user_dir(), help="where the upscales go (default: the game's tex-world folder)")
+    ap.add_argument("--out", default=None, help="where the upscales go (default: the game's tex-world-Nx folder, N the --scale)")
     ap.add_argument("--from", dest="frm", help="repack the 4x PNGs of a pack made earlier instead of running the model")
     ap.add_argument("--model", help="a spandrel-loadable model file (default: download " + MODEL + ")")
     ap.add_argument("--device", default=None, help="cuda or cpu (default: cuda when available)")
     ap.add_argument("--only", default="*", help="a glob of texture names to do, e.g. 'pp11*' for one car")
     ap.add_argument("--max-size", type=int, default=512, help="skip textures wider or taller than this (the ground sheets)")
-    ap.add_argument("--scale", type=int, default=2, choices=(2, 4), help="the world and car textures' size over the original (default 2)")
+    ap.add_argument("--scale", type=int, default=2, choices=(2, 3, 4), help="the world and car textures' size over the original (default 2)")
     ap.add_argument("--full", default="z*", help="globs (comma-separated) of textures kept at the model's 4x (default z*: the cockpit's own art)")
     ap.add_argument("--pixel", default="zdue*,zdse*,znbe*,zmir*", help="globs of pixel art scaled 4x in its own colours instead of by the model, whatever"
                     " their size (default: the weapon and special labels, the ammunition digits, the mirror's frames)")
@@ -242,6 +242,7 @@ def main():
     ap.add_argument("--self-check", action="store_true", help="test the colour match on a made-up texture and quit")
     ap.add_argument("--format", default="dds", choices=("dds", "png"), help="dds (BC7 with mipmaps, needs etcpak) or png")
     args = ap.parse_args()
+    if args.out is None: args.out = user_dir(args.scale)
     if args.self_check: sys.exit(0 if self_check() else 1)
     if not args.src: ap.error("the folder --export-textures wrote is needed")
     etcpak = None
