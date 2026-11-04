@@ -131,6 +131,9 @@ public class SettingsWithoutARowTests
             (I76.Game.Boot.RenderScale.Names, ["100%"]),
             (I76.Sim.Views.CrashBlurMode.Names, ["On"]),
             (I76.Sim.Views.MouseLook.Names, ["Off"]),
+            (I76.Game.Boot.RenderScale.AntiAliasing, ["Off", "2x", "4x"]),
+            (VisibilityRange.Names, ["Far"]),
+            (HdTextureRow.Names([4, 3, 2], true)!, ["Off"]),
         })
         {
             Assert.Equal(originals, names.Where(n => !n.EndsWith(ShellSettings.PortMark, System.StringComparison.Ordinal)));

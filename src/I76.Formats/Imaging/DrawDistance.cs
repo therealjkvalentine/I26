@@ -1,7 +1,7 @@
 namespace I76.Formats.Imaging;
 
 /// <summary>
-/// The port's draw distance (shell.cfg's [port] draw_distance, no row: docs/playing.md "Settings without a row"), independent of
+/// The port's draw distance (shell.cfg's [port] draw_distance: Graphic Detail's Visibility Range row), independent of
 /// the look: Original draws terrain and objects only to the original's far clip (the world camera rebuild: 600 with Visibility
 /// Range on) with the sky's horizon beyond; Far draws to 20 km as this port always did. View only: the game's own ranges (AI,
 /// weapons, visibility checks) are unaffected.

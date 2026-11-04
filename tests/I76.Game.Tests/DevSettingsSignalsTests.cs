@@ -27,7 +27,12 @@ public class DevSettingsSignalsTests
         var table = doc[at..doc.IndexOf("\n### ", at + 10, StringComparison.Ordinal)];
         var keys = Regex.Matches(table, @"^\| `([a-z_0-9]+)` \|", RegexOptions.Multiline).Select(m => m.Groups[1].Value).ToList();
         Assert.Contains("sky_drift", keys);
-        Assert.Contains("hd_textures", keys);
+        // the keys with a Graphic Detail row are not in the table (DevSettings.WithRow), though the panel has them too
+        foreach (var key in new[] { "draw_distance", "hd_textures", "hd_texture_size", "dev_fps" })
+        {
+            Assert.DoesNotContain(key, keys);
+            Assert.Single(DevSettings.WithRow, e => e.Key == key);
+        }
         Assert.Contains("crossover", keys);
         Assert.Contains("lighting_calibration", keys);
         // the bass shaker's sources, each a slider; the two tone curves set by hand only
@@ -62,7 +67,7 @@ public class DevSettingsSignalsTests
     public void TheDefaultsAreTheFilesAndTheOriginalsAreUnmarked()
     {
         var s = new ShellSettings();
-        string Shown(string key) { var e = DevSettings.All.Single(d => d.Key == key); return e.Values[e.Get(s)]; }
+        string Shown(string key) { var e = DevSettings.All.Concat(DevSettings.WithRow).Single(d => d.Key == key); return e.Values[e.Get(s)]; }
         Assert.Equal("look", Shown("draw_distance"));
         Assert.Equal("look", Shown("mirror_range"));
         Assert.Equal("steady*", Shown("sky_drift"));
