@@ -2226,7 +2226,7 @@ public partial class Main : Node3D
     {
         if (_horizonEyeSet || _horizon?.Material is not { } m || _builder?.World is not { } world) return;
         _horizonEyeSet = true;
-        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") m.SetShaderParameter("debug_tint", 1f);
+        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") _horizon.Set("debug_tint", 1f);
         if (System.Environment.GetEnvironmentVariable("I76_HORIZON_DEBUG") == "1" && world.Outside is { } o)
             GD.Print($"horizon: ring sunk for an eye at game height {o.Sink.EyeY:0.0} (counted from {o.Sink.Low:0.0})");
     }
@@ -2242,7 +2242,7 @@ public partial class Main : Node3D
         foreach (var p in new[] { "horizon_color", "sprite_dir", "light_strength" })
             _horizon.Set(p, sky.GetShaderParameter(p));
         // night air: the dark rock shows as silhouettes against the sky, as the night panels drew it
-        if (!light.IsDay) _horizon.Material.SetShaderParameter("haze_reach", 20000f);
+        if (!light.IsDay) _horizon.Set("haze_reach", 20000f);
         // the ground past the map near the camera: the ring's shading, its parameters as now set
         if (_builder?.OutsideNode is { } outside) { outside.Ring = _horizon; outside.Modern = _horizon.Material; }
         // out of view, but still in the sky's light: the ring is lit by it as the panels' scene was (sky_modern.gdshaderinc)

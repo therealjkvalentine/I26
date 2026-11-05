@@ -92,12 +92,24 @@ void vertex() {
 
 void fragment() {
 #ifdef HORIZON_RING
-	// every path writes DEPTH (the backstop below moves it): a shader that writes it on one path only leaves it undefined
-	// on the others, which some drivers take as near, drawing the whole ring over the map (#69)
+#ifdef HORIZON_DEPTH_EVERYWHERE
+	// I76_HORIZON_SPLIT=0 (horizon_ring_depth.gdshader), for a measurement: upstream's one pass, DEPTH written on every path
 	DEPTH = FRAGCOORD.z;
 	int mask = horizon_mask(g_pos);
 	if (mask == 1) discard;
 	if (mask == 2) DEPTH = FRAGCOORD.z * 0.5;
+#elif defined(HORIZON_RIM_PASS)
+	// the rim pass (horizon_rim.gdshader, on the ring's cells over a tile's outermost texels): the backstop alone, pushed to twice
+	// its depth behind the terrain's edge. Its one path writes DEPTH (a shader that writes it on one path only leaves it undefined
+	// on the others, which some drivers take as near, #69); everything else is discarded
+	DEPTH = FRAGCOORD.z * 0.5;
+	if (horizon_mask(g_pos) != 2) discard;
+#else
+	// the main pass writes no DEPTH, so the engine's depth pre-pass and early depth test skip every fragment the ground hides (the
+	// ring under the map covers the lower screen: perf/horizon-early-z, 2.8 ms of a T01 cockpit frame at 3440x1440); over a tile it is
+	// drawn only under the floor, the rim's pushed fragments being the rim pass's
+	if (horizon_mask(g_pos) != 0) discard;
+#endif
 #endif
 	float dist = length(VERTEX);
 	float footprint = max(length(dFdx(g_pos)), length(dFdy(g_pos)));

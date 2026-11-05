@@ -74,4 +74,20 @@ public class HorizonEdgeTests
         var main = File.ReadAllText(Path.Combine(Repo(), "game", "Scripts", "Boot", "Main.cs"));
         Assert.DoesNotContain("SetShaderParameter(\"ref_eye\"", main);
     }
+
+    /// <summary>
+    /// The ring's main pass writes no depth, so the GPU tests it early where the ground hides it (perf/horizon-early-z, re-ported onto
+    /// the outside ground's ring): only the rim pass, on the cells over a tile's outermost texels, writes DEPTH.
+    /// </summary>
+    [Fact]
+    public void OnlyTheRingsRimPassWritesDepth()
+    {
+        var inc = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshaderinc")).Replace("\r\n", "\n");
+        int rim = inc.IndexOf("defined(HORIZON_RIM_PASS)"), other = inc.IndexOf("#else", rim), end = inc.IndexOf("#endif", other);
+        Assert.True(rim >= 0 && other > rim);
+        Assert.Contains("DEPTH = FRAGCOORD.z * 0.5;", inc[rim..other]);
+        Assert.DoesNotContain("DEPTH =", inc[other..end] + inc[end..]);   // the main pass, and the rest (before the rim pass: the I76_HORIZON_SPLIT=0 hook's one-pass variant)
+        Assert.Contains("#define HORIZON_RIM_PASS", File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_rim.gdshader")));
+        Assert.DoesNotContain("HORIZON_RIM_PASS", File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshader")).Replace("rim pass", ""));
+    }
 }

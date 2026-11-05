@@ -242,6 +242,7 @@ the car's `VehicleFlags` in hex).
 | `I76_GPU_TIME` | debug | `1`: measure the main viewport's GPU render time. |
 | `I76_SSAO`, `I76_SHADOWS` | tuning | `0` turns the effect off; `I76_SSAO=1` turns SSAO on whatever Ambient Occlusion says. |
 | `I76_TERRAIN_TIERS` | tuning | `0`: the modern terrain shader reads every layer at every distance and in the mirror and shadow passes (its one tier, as before the frame-cost plan's item 3; `i76_terrain_tiers` global uniform). |
+| `I76_HORIZON_SPLIT` | tuning | `0`: the modern look's distant ring drawn as upstream's one pass that writes depth on every path (horizon_ring_depth.gdshader, no rim meshes), to measure the main/rim split (the main pass writes no depth so the GPU tests it early; only the rim pass, on the cells over a tile's outermost 10 m, does). |
 | `I76_SHADOW_DIST`, `I76_SHADOW_SPLITS`, `I76_SHADOW_ATLAS`, `I76_MSAA` | tuning | Shadow distance (m), cascades (1, 2 or 4), atlas size, MSAA level, over Shadow Detail's (Low two splits to 600 m, High four to 1500 m) and Anti-Aliasing's; the terrain's casters reach twice the distance. |
 | `I76_MODERN_MOON` | tuning | `0`: the modern look's night sky shows the mission's moon sprite instead of the drawn moon. |
 | `I76_CAM_AT_LIGHT` | capture | `1`: the free camera (a mission without `--drive`) starts looking at the mission's sun or moon. |
