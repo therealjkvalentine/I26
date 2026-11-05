@@ -106,7 +106,10 @@
   {
    "op": "text",
    "text": "'rahna",
-   "font": "Lobster",
+   "font": "Comfortaa",
+   "variation": {
+    "Weight": 700
+   },
    "cap": 4.7,
    "quad": [
     [

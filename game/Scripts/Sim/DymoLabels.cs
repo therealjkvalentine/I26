@@ -181,6 +181,11 @@ public static class DymoLabels
         {
             if (_tried) return _font;
             _tried = true;
+            // capture hook: I76_DYMO_FONT=path.ttf letters the labels in another TrueType face (comparing candidates in play)
+            if (System.Environment.GetEnvironmentVariable("I76_DYMO_FONT") is { Length: > 0 } alt && System.IO.File.Exists(alt))
+            {
+                try { return _font = new DymoFont(System.IO.File.ReadAllBytes(alt)); } catch (Exception) { _font = null; }
+            }
             using var st = typeof(DymoLabels).Assembly.GetManifestResourceStream("ImpactLabelReversed.ttf");
             if (st is null) return null;
             using var ms = new System.IO.MemoryStream();

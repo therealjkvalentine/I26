@@ -25,7 +25,7 @@ def spec(tex, plate_rect, champ, badge_rect, badge):
                 {"op": "text", "text": "TEXAS", "font": "Anton", "cap": 2.1, "colour": [40, 40, 48],
                  "quad": [[champ[0][0] + 4.6, champ[0][1] - 3.6], [champ[1][0] - 3.4, champ[1][1] - 3.6], [champ[1][0] - 3.4, champ[1][1] - 1.5], [champ[0][0] + 4.6, champ[0][1] - 1.5]]},
                 {"op": "erase", "rect": badge_rect, "where": {"opaque": True}, "grow": 0.5, "fill": "key"},
-                {"op": "text", "text": "'rahna", "font": "Lobster", "cap": 4.7, "quad": badge, "alpha": "set",
+                {"op": "text", "text": "'rahna", "font": "Comfortaa", "variation": {"Weight": 700}, "cap": 4.7, "quad": badge, "alpha": "set",
                  "gradient": [[240, 240, 244], [130, 132, 140]], "stroke": {"width": 0.4, "colour": [18, 18, 22]}},
             ]}
 

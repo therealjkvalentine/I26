@@ -429,6 +429,7 @@ def self_check(fonts_dir=FONTS):
     for name in table:
         op = [{"op": "erase", "rect": [2, 2, 14, 14], "where": {"lum_below": 60}, "grow": 0.5},
               {"op": "text", "text": "AB", "font": name, "cap": 6, "center": [22, 8], "colour": [10, 10, 10]}]
+        if "[" in table[name]["file"]: op[1]["variation"] = {"Weight": 700}     # a variable face at its bold, as the specs set them
         out = apply_ops(px, orig, op, fonts_dir, table).astype(int)
         left = out[8:56, 8:56, :3].mean(axis=2)
         right = out[20:44, 64:116, :3].mean(axis=2)
