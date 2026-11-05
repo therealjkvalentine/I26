@@ -481,6 +481,7 @@ public partial class Main : Node3D
         }
         // the plants about the first view, behind the loading card
         _loaded = true;
+        FrameProfiler.MarkLoaded();
         MissionBuilder.Trace("first tick done");
         _veg?.Prewarm();
         MissionBuilder.Trace("vegetation prewarmed");

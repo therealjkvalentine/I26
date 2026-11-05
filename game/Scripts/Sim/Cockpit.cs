@@ -1092,9 +1092,21 @@ public partial class Cockpit : Node
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & 0xFFFFF;
-        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : null;
+        // I76_MIRROR_SSAO=0 (perf survey): the full mirror through the world's environment without its SSAO, so the mirror's depth pre-pass
+        // has no normals to write (a 160-pixel-tall picture shows no ambient occlusion); the environment is copied once the world has one
+        if (_mirrorMode == 2 && MirrorNoSsao && GetViewport()?.World3D?.Environment is { } we && (_mirrorNoSsaoEnv is null || _mirrorNoSsaoEnv.Sky != we.Sky))
+        {
+            _mirrorNoSsaoEnv = (Godot.Environment)we.Duplicate();
+            _mirrorNoSsaoEnv.SsaoEnabled = false;
+        }
+        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorNoSsao ? _mirrorNoSsaoEnv : null;
         _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full
     }
+
+    /// <summary>Perf survey hooks (docs/perf/costs.md): I76_MIRROR_RATE=2 updates the modern look's mirror every second frame; I76_MIRROR_SSAO=0 leaves SSAO out of it.</summary>
+    private static readonly bool MirrorHalfRate = System.Environment.GetEnvironmentVariable("I76_MIRROR_RATE") == "2";
+    private static readonly bool MirrorNoSsao = System.Environment.GetEnvironmentVariable("I76_MIRROR_SSAO") == "0";
+    private Godot.Environment? _mirrorNoSsaoEnv;
 
     private void Mirror()
     {
@@ -1103,8 +1115,8 @@ public partial class Cockpit : Node
         if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
-        // the original redraws it every second frame; the modern look every frame
+        // the original redraws it every second frame; the modern look every frame (I76_MIRROR_RATE=2, perf survey: every second frame there too)
         _mirrorTick = !_mirrorTick;
-        _mirrorView.RenderTargetUpdateMode = !_faithful ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        _mirrorView.RenderTargetUpdateMode = !_faithful && !MirrorHalfRate ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
     }
 }

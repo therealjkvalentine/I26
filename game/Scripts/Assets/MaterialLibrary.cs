@@ -81,7 +81,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>Makes the smooth outlines of these cut-out faces' textures together on worker threads (TextureFactory.PrefetchKeyEdges); the modern look only.</summary>
     public void PrefetchKeyEdges(IEnumerable<string> members)
     {
-        if (!Mode1997) textures.PrefetchKeyEdges(members);
+        if (!Mode1997 && !SmoothKeyOff) textures.PrefetchKeyEdges(members);
     }
 
     /// <summary>
@@ -91,9 +91,12 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// </summary>
     private readonly List<(ShaderMaterial Mat, string Member)> _smoothKeyPending = [];
 
+    /// <summary>I76_SMOOTH_KEY=0: the modern look keys its texels as the 1997 look does, no outline fields made or sampled (to cost them).</summary>
+    private static readonly bool SmoothKeyOff = System.Environment.GetEnvironmentVariable("I76_SMOOTH_KEY") == "0";
+
     private void SmoothKey(ShaderMaterial mat, string member)
     {
-        if (_ownKey.Contains(member) || textures.KeyEdge(member) is not { } edge) return;
+        if (SmoothKeyOff || _ownKey.Contains(member) || textures.KeyEdge(member) is not { } edge) return;
         mat.SetShaderParameter("key_edge", edge);
         mat.SetShaderParameter("smooth_key", true);
     }
