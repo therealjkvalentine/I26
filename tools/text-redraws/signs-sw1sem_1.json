@@ -1,0 +1,64 @@
+{
+ "textures": [
+  "sw1sem_1"
+ ],
+ "note": "the Seminole town sign: its small print; written by gen/signs.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    4.4,
+    51.2,
+    35.2,
+    58.8
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    72.4,
+    51.2,
+    123.2,
+    58.8
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Pop. 185",
+   "font": "Bitter",
+   "cap": 4.4,
+   "center": [
+    20.0,
+    54.5
+   ],
+   "width": 28.0,
+   "colour": [
+    228,
+    228,
+    234
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "\"Drive Friendly\"",
+   "font": "Bitter",
+   "cap": 4.4,
+   "center": [
+    98.0,
+    54.5
+   ],
+   "width": 48.0,
+   "colour": [
+    228,
+    228,
+    234
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  }
+ ]
+}

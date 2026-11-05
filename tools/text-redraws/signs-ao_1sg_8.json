@@ -1,0 +1,98 @@
+{
+ "textures": [
+  "ao_1sg_8"
+ ],
+ "note": "the Texas billboard: its small print; written by gen/signs.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    64.4,
+    32.8,
+    102.2,
+    39.8
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    86.4,
+    37.2,
+    125.2,
+    44.8
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    4.4,
+    57.4,
+    124.2,
+    62.0
+   ],
+   "fill": [
+    252,
+    250,
+    249
+   ]
+  },
+  {
+   "op": "text",
+   "text": "\"The Lone",
+   "font": "Bitter",
+   "cap": 4.4,
+   "center": [
+    83.5,
+    36.0
+   ],
+   "width": 35.0,
+   "colour": [
+    150,
+    18,
+    22
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "Star State\"",
+   "font": "Bitter",
+   "cap": 4.4,
+   "center": [
+    106.0,
+    41.0
+   ],
+   "width": 36.0,
+   "colour": [
+    150,
+    18,
+    22
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "Drive friendly · speed laws strictly enforced",
+   "font": "Bitter",
+   "cap": 2.9,
+   "center": [
+    64.5,
+    59.4
+   ],
+   "width": 116.362,
+   "colour": [
+    150,
+    18,
+    22
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "skew": 0.22
+  }
+ ]
+}

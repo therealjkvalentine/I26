@@ -1,0 +1,92 @@
+{
+ "textures": [
+  "sw1sea_1"
+ ],
+ "note": "the Seagraves town sign (T01): its small print; written by gen/signs.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    4.4,
+    36.2,
+    123.2,
+    44.8
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    6.4,
+    50.2,
+    37.2,
+    57.8
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    84.4,
+    50.2,
+    117.2,
+    57.8
+   ]
+  },
+  {
+   "op": "text",
+   "text": "\"Flower of the Panhandle\"",
+   "font": "Bitter",
+   "cap": 5.4,
+   "center": [
+    64.0,
+    40.7
+   ],
+   "width": 116.0,
+   "colour": [
+    52,
+    36,
+    26
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "Pop. 245",
+   "font": "Bitter",
+   "cap": 4.4,
+   "center": [
+    22.0,
+    53.5
+   ],
+   "width": 28.0,
+   "colour": [
+    52,
+    36,
+    26
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "Elev. 290",
+   "font": "Bitter",
+   "cap": 4.6,
+   "center": [
+    101.0,
+    54.0
+   ],
+   "width": 30.0,
+   "colour": [
+    52,
+    36,
+    26
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  }
+ ]
+}
