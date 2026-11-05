@@ -111,8 +111,8 @@ public static class DevSettings
         new("draw_distance", ["look", "0", "1" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
         new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
             s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
-        // 4x, 3x, 2x: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
-        new("hd_texture_size", ["4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
+        // 8x, 4x, 3x, 2x (HdPackFolders.Sizes): only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
+        new("hd_texture_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
             (s, v) => s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
             s => I76.Game.Assets.HdTextures.Size = s.HdTextureSize,
             Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),

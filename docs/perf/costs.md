@@ -141,6 +141,40 @@ with mipmaps, the cockpit art at full scale in every pack, which is why 2x is mo
 
 In a player's words: 4x over 2x costs +1.3 s of load on T01 and +1.0 s on M01 (4x loads T01 in 11.6 s, 2x in 10.3 s, the originals in 8.7 s), 125 MB more VRAM (723 MB over the originals), and -0.30 ms of GPU frame time at 3440x1440 and +0.05 ms at 1920x1080, which is inside the noise: the pack size is a VRAM and loading choice, not a frame-rate one. 3x sits between on every count.
 
+## HD textures 8x (cockpit & cars) over 4x
+
+The partial 8x pack (`tex-world-8x/`: the cockpit's own art but the mission maps, and every car texture with its dented
+stages, 2,556 BC7 .dds, 2.86 GB on disk; the 4x serves the rest, HdPackFolders.Chain) against the 4x alone, branch
+`feat/hd-pack-8x` on play 187e255, 2026-11-05, GTX 1080 Ti at 180 W, the same harness (`tools/frame-cost/bench.py`'s
+`run_once`, everything-on profile, cockpit view, 8 s after the load then 8 s profiled; the load is the loading card up to
+gone with `I76_BUILD_TRACE=1`). Per configuration a warm-up run (dropped) then three, reps interleaved 4x / 8x; the median,
+the range in brackets. The machine was shared with other lanes' CPU work (the absolute load times are a second over the
+4x row above; the 4x-to-8x step is what this measures).
+
+| Mission, resolution | Pack | VRAM textures MB | VRAM total MB | Load s | GPU ms | Frame (wall) ms |
+|---|---|---|---|---|---|---|
+| T01, 3440x1440 | 4x | 1660 (1660-1660) | 1913 (1912-1913) | 12.94 (12.85-13.15) | 11.25 (11.20-11.40) | 12.62 (12.55-12.73) |
+| | 8x over 4x | 2195 (2170-2195) | 2476 (2434-2480) | 15.18 (15.14-15.28) | 11.38 (11.29-11.46) | 12.65 (12.60-12.83) |
+| | delta | **+536** | **+563** | **+2.2** | +0.13 | +0.03 |
+| T05, 3440x1440 | 4x | 2039 (2039-2064) | 2331 (2330-2371) | 15.05 (14.99-16.02) | 14.33 (14.20-14.42) | 15.58 (15.51-15.76) |
+| | 8x over 4x | 2649 (2624-2649) | 2972 (2932-2972) | 17.76 (16.87-18.24) | 14.33 (14.27-14.35) | 15.59 (15.54-15.69) |
+| | delta | **+610** | **+641** | **+2.7** | -0.00 | +0.01 |
+| T01, 1920x1080 | 4x | 1324 (1324-1349) | 1546 (1546-1592) | 11.73 (11.61-11.77) | 6.06 (6.04-6.13) | 8.22 (7.90-8.34) |
+| | 8x over 4x | 1860 (1860-1860) | 2116 (2114-2117) | 13.69 (13.56-13.78) | 6.56 (6.24-6.89) | 8.10 (8.06-8.26) |
+| | delta | **+536** | **+570** | **+2.0** | +0.50 | -0.12 |
+| T05, 1920x1080 | 4x | 1703 (1703-1728) | 1968 (1963-2004) | 13.58 (13.57-14.73) | 7.82 (7.67-7.93) | 9.62 (9.51-14.97) |
+| | 8x over 4x | 2313 (2313-2313) | 2606 (2606-2606) | 15.74 (15.70-15.81) | 7.52 (7.49-7.93) | 9.32 (9.30-9.35) |
+| | delta | **+610** | **+638** | **+2.2** | -0.31 | -0.30 |
+
+The 8x is a VRAM and loading choice like the other sizes: +0.54 GB of textures in T01 and +0.61 GB in T05 at either
+resolution (the same textures), the game's whole use then 2.5 GB (T01) to 3.0 GB at 3440x1440; +2.0 to +2.7 s of load
+no frame time (GPU deltas from -0.3 to +0.5 ms, inside or at the edge of
+the runs' spread, the frame unchanged). The rest of the video memory (total minus textures: render targets, buffers) is
+220-320 MB and grows ~30 MB with the 8x. So the 8x fits a 6 GB card with half of it spare (on a 4 GB card the 3 GB of T05 leaves
+too little for the desktop and the driver), and a 16 GB Apple-silicon Mac; but an A/B of the same frames (the dash, the gauges,
+the player's car at 3 m and close up, a car at 10 m, at 3440x1440 and 1920x1080) shows no difference, so the first start keeps
+the 4x (HdTextures.FirstStartSize) and the 8x is only the row's, when its folder is there.
+
 ## The other scenes and the follow-ups
 
 The mirror's follow-ups update the mirror on alternate frames, which makes a run's frames bimodal; the medians in those

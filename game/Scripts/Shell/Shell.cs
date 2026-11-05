@@ -1164,7 +1164,7 @@ public sealed class ShellSettings
     public bool HdMenuArt { get; set; } = true;
     /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
-    /// <summary>The port's own: which size of the texture pack to draw, 4 (the HD Textures row's; the user folder's tex-world-4x) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_texture_size; HdTextures.Size). Applies from the next mission.</summary>
+    /// <summary>The port's own: which size of the texture pack to draw, 4 or 8 (the HD Textures row's; the user folder's tex-world-4x, and tex-world-8x, a partial pack over it) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_texture_size; HdTextures.Size). Applies from the next mission.</summary>
     public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1453,8 +1453,10 @@ public sealed class ShellSettings
         var c = new ConfigFile();
         if (c.Load(Path) != Error.Ok)
         {
-            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault)
+            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault), and their size (4x, whatever the card: FirstStartSize)
             s.HdTextures = I76.Game.Assets.HdTextures.FirstStartDefault;
+            s.HdTextureSize = I76.Game.Assets.HdTextures.FirstStartSize;
+            I76.Game.Assets.HdTextures.Size = s.HdTextureSize;
             I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
             return s;
         }

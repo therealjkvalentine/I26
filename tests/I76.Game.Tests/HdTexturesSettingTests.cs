@@ -37,6 +37,10 @@ public class HdTexturesFirstStartTests
     [InlineData(false, null, false)]
     public void FourXWhenItsFolderIsThereAndTheGpuHasRoom(bool has4x, long? mb, bool on) => Assert.Equal(on, HdTextures.DefaultOn(has4x, mb));
 
+    /// <summary>The first start's size is the 4x even when a tex-world-8x is there: the 8x shows no difference at play (docs/perf/costs.md).</summary>
+    [Fact]
+    public void TheFirstStartIs4xWhateverTheCard() => Assert.Equal(4, HdTextures.FirstStartSize);
+
     [Fact]
     public void AFileWithoutTheKeyTakesTheFirstStartsDefaultUnlessTheMenuArtIsOff()
     {

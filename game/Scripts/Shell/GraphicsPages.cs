@@ -157,40 +157,56 @@ public static class VisibilityRange
 }
 
 /// <summary>
-/// HD Textures: one row over [port] hd_textures and hd_texture_size, Off or 4x* (the port's, so marked): the 4x pack is the one the
-/// modern look is made for, and a 2x or 3x pack saves video memory and a second of loading but no frame time (docs/perf/costs.md).
-/// The loader still serves any whole multiple (HdPackFolders.Choose: the chosen size's tex-world-Nx, else the plain tex-world, else the
-/// nearest size present), and a size set in the file or on the Developer panel shows as itself until the row is clicked. A pack with no
-/// tex-world-4x (a plain tex-world, a zip, or only a 2x or 3x folder) gives Off and On*; no pack at all, no row. Off keeps the size; a
-/// size change applies from the next mission.
+/// HD Textures: one row over [port] hd_textures and hd_texture_size, Off, 4x* and, when its folder is there, 8x* (the port's, so
+/// marked): the 4x pack is the one the modern look is made for; an 8x pack is partial (the cockpit and the cars: pack.json's covers,
+/// shown in the value, "8x (cockpit &amp; cars)*"), the rest served from the 4x (HdPackFolders.Chain). A 2x or 3x pack saves video memory
+/// and a second of loading but no frame time (docs/perf/costs.md). The loader still serves any whole multiple (HdPackFolders.Choose:
+/// the chosen size's tex-world-Nx, else the plain tex-world, else the nearest size present), and a size set in the file or on the
+/// Developer panel shows as itself until the row is clicked. A pack with no tex-world-4x (a plain tex-world, a zip, or only a 2x or
+/// 3x folder) gives Off and On*; no pack at all, no row. Off keeps the size; a size change applies from the next mission.
 /// </summary>
 public static class HdTextureRow
 {
     public const string On = "On" + ShellSettings.PortMark;
-    /// <summary>The one size the row offers.</summary>
+    /// <summary>The size the row offers first (the default).</summary>
     public const int Size = I76.Formats.Shell.HdPackFolders.DefaultSize;
+    /// <summary>The larger size the row offers when its folder is there.</summary>
+    public const int Large = 8;
 
-    /// <summary>The row's values for the sizes present (largest first), whether a pack of any kind was found and the size the file asks for; null for no row.</summary>
-    public static string[]? Names(int[] available, bool anyPack, int size = Size)
+    /// <summary>The 8x value's words: "8x (cockpit &amp; cars)*" for a partial pack that says what it covers, else "8x*".</summary>
+    public static string LargeName(string? covers) => $"{Large}x{(covers is { Length: > 0 } c ? $" ({c})" : "")}{ShellSettings.PortMark}";
+
+    /// <summary>
+    /// The row's values for the sizes present (largest first), whether a pack of any kind was found, the size the file asks for and
+    /// what the 8x pack covers (null: a full pack, or none); null for no row.
+    /// </summary>
+    public static string[]? Names(int[] available, bool anyPack, int size = Size, string? covers8 = null)
     {
-        if (available.Contains(Size)) return ["Off", $"{(size != Size && available.Contains(size) ? size : Size)}x{ShellSettings.PortMark}"];
+        if (available.Contains(Size))
+        {
+            var mid = $"{(size is not Size and not Large && available.Contains(size) ? size : Size)}x{ShellSettings.PortMark}";
+            return available.Contains(Large) ? ["Off", mid, LargeName(covers8)] : ["Off", mid];
+        }
         return anyPack || available.Length > 0 ? ["Off", On] : null;
     }
 
-    public static int Index(ShellSettings s, int[] available) => s.HdTextures ? 1 : 0;
+    /// <summary>The value showing: Off, the 4x (or the file's size), or the 8x when that is the size and its folder is there.</summary>
+    public static int Index(ShellSettings s, int[] available) =>
+        !s.HdTextures ? 0 : s.HdTextureSize == Large && available.Contains(Large) && available.Contains(Size) ? 2 : 1;
 
-    /// <summary>A value picked: Off writes hd_textures=false and keeps the size, On writes true and 4 (when its folder is there); nothing when it is what shows.</summary>
+    /// <summary>A value picked: Off writes hd_textures=false and keeps the size, 4x writes true and 4 (when its folder is there), 8x true and 8; nothing when it is what shows.</summary>
     public static void Put(ShellSettings s, int[] available, int v)
     {
         if (Index(s, available) == v) return;
         s.HdTextures = v != 0;
-        if (v > 0 && available.Contains(Size)) s.HdTextureSize = Size;
+        if (v == 2 && available.Contains(Large)) s.HdTextureSize = Large;
+        else if (v > 0 && available.Contains(Size)) s.HdTextureSize = Size;
     }
 
-    /// <summary>A click: the other value.</summary>
+    /// <summary>A click: the next value (Off, 4x, 8x, Off ...).</summary>
     public static void Step(ShellSettings s, int[] available, bool anyPack)
     {
-        if (Names(available, anyPack, s.HdTextureSize) is null) return;
-        Put(s, available, 1 - Index(s, available));
+        if (Names(available, anyPack, s.HdTextureSize) is not { } names) return;
+        Put(s, available, (Index(s, available) + 1) % names.Length);
     }
 }
