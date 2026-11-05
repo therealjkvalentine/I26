@@ -293,3 +293,6 @@ feat/font-redraws                     # section T: tools/text-redraws.py + per-t
 # U. console hygiene (2026-11-05)
 feat/quiet-test-window                # section U: I76_QUIET_WINDOW: test and capture runs start windowed, hand focus back and sit behind the user's windows (=min minimised); bench.py, matrix.py, shot.sh default to it; the game reads --resolution from the process command line
 feat/font-redraws-3                   # section T, after font-redraws: damage lights centred on their boxes, "by Rammo" + "(c) 1971", badges matched to the real cars ('Cuda Comfortaa, Mustang Bitter), I76_DYMO_FONT hook, Comfortaa/Bitter licences
+
+# V. load time (2026-11-05)
+perf/load-time                        # section V: load-time survey (docs/perf/loadtime.md, loadtime-plan.md, tools/load-time), I76_LOAD_PROFILE; the card first for the retail's 6.5 s with the build running, the briefing, the card again until ready (briefing_while_loading=card_first|movie_first); cars' parts, cockpit art and lighting calibration off the main thread; modern effects made under the card; menu_warmup key (off); MainThread.Check passes the build thread (play's debug builds failed every briefed start)
