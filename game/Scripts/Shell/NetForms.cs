@@ -353,78 +353,95 @@ public sealed partial class MeleeScreen
         Frame.Fill(x, y + 4, 7, 6, ink);            // the body
     }
 
-    // ---- the base host form's options box (the port's layout; docs/multiplayer.md "The host form") ----
+    // ---- the base host form's options box and rules table (the port's layout, HostFormLayout; docs/multiplayer.md "The host form") ----
     // The original's box (TEAM PLAY, INVITE ONLY, MAX SCORE) is drawn again taller: its top is NO. DRIVERS' foot rule, its
     // foot a rule of its own over the sheet's bottom margin, and inside it the paper of a blank part of the same art (under
-    // the side view), so the grain goes on. Its rows: BOTS (the co-op form: Foes, Dmg, Roll), the switches as check boxes
-    // of TEAM PLAY's own, MAX SCORE, then the stepped rules as printed labels and handwritten values on ruled blanks. The
+    // the side view), so the grain goes on. Its rows: BOTS (the co-op form: Co-op Scaling, Co-op Damage, Rolling Start, a
+    // labelled row each), the switches as check boxes of TEAM PLAY's own, MAX SCORE. The host's rules are a table of
+    // labelled rows at the car panel's top, where the original drew the car's front view: printed labels and handwritten
+    // values on ruled blanks (upstream's labelled row for every rule, 56373bd, in this form's own paper and lines). The
     // boxes, steppers, rules and the A.I. CARS button are pieces of the record's own art; the labels are set in Arial.
 
-    /// <summary>The box's foot rule (2 px, the original box's own), the blank paper copied into it, and its rows' baselines.</summary>
-    private const int BoxFoot = 473;
+    /// <summary>The blank paper copied into the box (a plain part of the same art, under the side view).</summary>
     private static readonly (int X, int Y) BlankPaper = (356, 298);
-    private static readonly int[] BoxRow = [368, 385, 399, 413, 433, 448, 463];
-    /// <summary>The check boxes' columns: the labels' x and the box's (TEAM PLAY's own, 11 x 11 at 87, 381 in the art).</summary>
-    private const int LabelA = 15, CheckA = 90, LabelB = 112, CheckB = 200;
-    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the front view's foot to the side view's roof.</summary>
+    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the rules table's foot to the side view's roof.</summary>
     private static readonly Vector2I SketchSize = new(200, 120);
     private static readonly Rect2I SketchSpace = new(219, 183, 237, 122);
     /// <summary>The labels in about the ink of the form's rules (they are thinner); the box's handwriting a little darker than those, lighter than the hand elsewhere.</summary>
     private static readonly Color LabelInk = Color.Color8(76, 64, 42), ButtonInk = Color.Color8(88, 72, 44), HandInk = Color.Color8(60, 50, 32);
     private const int LabelCap = 8, ButtonCap = 5;
-    /// <summary>The stepped rules: the label and where it goes, the row, and the blank's run (from the label's Arial width and the widest value).</summary>
-    private static readonly (int Id, string Label, int X, int Row, int Blank0, int Blank1)[] Stepped =
-    [
-        (35, "TURRETS:", 15, 5, 72, 113), (39, "IGNITION:", 124, 5, 179, 213),
-        (33, "RATE:", 15, 6, 49, 87), (43, "HCP:", 92, 6, 120, 167), (27, "PASS:", 172, 6, 205, 213),
-    ];
-    private static readonly (int Id, string Label, int X, int Blank0, int Blank1)[] CoopLine =
-        [(40, "FOES:", 15, 50, 75), (41, "DMG:", 87, 118, 142), (42, "ROLL:", 154, 188, 213)];
 
     private int _boxBaked;
     private byte[]? _art;
 
-    /// <summary>The ids in the options box, melee and co-op (the rest of <see cref="Live"/> is the form's other parts).</summary>
-    private static readonly int[] MeleeBox = [16, 17, 18, 20, 21, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36, 37, 39, 43], CoopBox = [17, 27, 28, 33, 35, 36, 37, 39, 40, 41, 42, 43];
+    /// <summary>The form's settings as the layout reads them.</summary>
+    private HostFormLayout.State HostState() => new()
+    {
+        Coop = _coopBase,
+        TeamPlay = _teamPlay,
+        InviteOnly = _inviteOnly,
+        ShareMaps = Shell.Settings.ShareMaps,
+        Hidden = Shell.Settings.HiddenContent,
+        CarReset = Shell.Settings.CarReset,
+        Cb = Shell.Settings.CbRadio,
+        ScoreOn = _scoreOn,
+        MaxScore = _maxScore,
+        Bots = Math.Min(_bots, MaxBots),
+        BotSkill = _botSkill.ToString(),
+        Rate = _rate,
+        Turrets = _turrets,
+        IgnitionStaysOn = Shell.Settings.IgnitionStaysOn,
+        Handicaps = HandicapWord(Shell.Settings.Handicaps),
+        Password = _password.Length > 0,
+        Crosshair = Shell.Settings.HostCrosshair,
+        CoopScale = CoopScaleText,
+        CoopDamage = CoopDamageText,
+        RollingStart = Shell.Settings.CoopRollingStart,
+    };
 
-    /// <summary>The base host form's hotspots in the options box, by id (the layout's tests: inside the box, none over another).</summary>
-    public static IReadOnlyDictionary<int, (int X0, int X1, int Y0, int Y1)> HostBoxHotspots(bool coop) =>
-        (coop ? CoopBox : MeleeBox).ToDictionary(id => id, id => coop && CoopHot.TryGetValue(id, out var c) ? c : Hot[id]);
+    /// <summary>A ruled blank from x0 to x1 under a baseline: the art's own rule (MAX SCORE's), laid in pieces.</summary>
+    private void Blank(byte[] art, int x0, int x1, int baseline)
+    {
+        for (int x = x0; x <= x1; x += 60) Frame.PasteBackground(art, 104, 413, Math.Min(60, x1 - x + 1), 1, x, baseline + 2);
+    }
 
-    /// <summary>The options box's inside (between its rules), in shell pixels: x0, x1, y0, y1 inclusive.</summary>
-    public static (int X0, int X1, int Y0, int Y1) HostBoxInside => (10, 215, 356, BoxFoot - 1);
-
-    /// <summary>The box's art for the form's kind (melee 1, co-op 2), once per background load and kind: the paper, the rules, the boxes, the steppers.</summary>
+    /// <summary>The box's and the table's art for the form's kind (melee 1, co-op 2), once per background load and kind: the paper, the rules, the boxes, the steppers.</summary>
     private void BakeBox()
     {
         int kind = _coopBase ? 2 : 1;
         if (_boxBaked == kind) return;
         _boxBaked = kind;
         var art = _art ??= Frame.CleanCopy();
+        int foot = HostFormLayout.BoxFoot;
+        int[] row = HostFormLayout.BoxRow;
         // the paper, then the box's edges: the left and right rules run on down, the foot is the original box's own
-        Frame.CopyBackground(BlankPaper.X, BlankPaper.Y, 206, BoxFoot - 356, 10, 356);
-        Frame.PasteBackground(art, 10, 425, 206, 2, 10, BoxFoot);
+        Frame.CopyBackground(BlankPaper.X, BlankPaper.Y, 206, foot - 356, 10, 356);
+        Frame.PasteBackground(art, 10, 425, 206, 2, 10, foot);
         Frame.PasteBackground(art, 8, 372, 2, 13, 8, 356);
-        Frame.PasteBackground(art, 8, 372, 2, BoxFoot + 2 - 427, 8, 427);
-        Frame.PasteBackground(art, 216, 380, 2, BoxFoot + 2 - 444, 216, 444);
-        // TEAM PLAY's box (its ring only: the paper inside stays the new paper), NO. DRIVERS' minus and plus, MAX SCORE's rule
-        void Check(int x, int row) => Frame.PasteBackground(art, 87, 381, 11, 11, x, BoxRow[row] - 10, (c, r) => c is 0 or 10 || r is 0 or 10);
-        void Minus(int x, int row) => Frame.PasteBackground(art, 155, 341, 10, 10, x, BoxRow[row] - 9);
-        void Plus(int x, int row) => Frame.PasteBackground(art, 201, 341, 10, 10, x, BoxRow[row] - 9);
-        void Blank(int x0, int x1, int row) => Frame.PasteBackground(art, 104, 413, x1 - x0 + 1, 1, x0, BoxRow[row] + 2);
-        int rows = _coopBase ? 2 : 3;
-        for (int r = 1; r <= rows; r++) { Check(CheckA, r); Check(CheckB, r); }
-        if (_coopBase) foreach (var c in CoopLine) Blank(c.Blank0, c.Blank1, 0);
-        else
+        Frame.PasteBackground(art, 8, 372, 2, foot + 2 - 427, 8, 427);
+        Frame.PasteBackground(art, 216, 380, 2, foot + 2 - 444, 216, 444);
+        // TEAM PLAY's box (its ring only: the paper inside stays the new paper), NO. DRIVERS' minus and plus
+        void Check(int x, int r) => Frame.PasteBackground(art, 87, 381, 11, 11, x, row[r] - 10, (c, rr) => c is 0 or 10 || rr is 0 or 10);
+        void Minus(int x, int r) => Frame.PasteBackground(art, 155, 341, 10, 10, x, row[r] - 9);
+        void Plus(int x, int r) => Frame.PasteBackground(art, 201, 341, 10, 10, x, row[r] - 9);
+        foreach (var f in HostFormLayout.Fields(HostState()))
+            switch (f.Where)
+            {
+                case HostFormLayout.Place.CheckA: Check(HostFormLayout.CheckA, f.Row); break;
+                case HostFormLayout.Place.CheckB: Check(HostFormLayout.CheckB, f.Row); break;
+                case HostFormLayout.Place.BoxRow: Blank(art, HostFormLayout.BoxBlank0, HostFormLayout.BoxBlank1, row[f.Row]); break;
+                case HostFormLayout.Place.Table: Blank(art, HostFormLayout.TableBlank0, HostFormLayout.TableX1 - 2, HostFormLayout.TableBaseline(f.Row)); break;
+            }
+        if (!_coopBase)
         {
-            Minus(50, 0); Plus(81, 0);
-            BakeButton(171, BoxRow[0] - 10, 43);
-            Check(CheckA, 4); Minus(112, 4); Plus(200, 4); Blank(125, 197, 4);
+            int b = HostFormLayout.BotsRow, s = HostFormLayout.ScoreRow;
+            Minus(50, b); Plus(81, b);
+            BakeButton(171, row[b] - 10, 43);
+            Check(HostFormLayout.CheckA, s); Minus(112, s); Plus(200, s); Blank(art, 125, 197, row[s]);
         }
-        foreach (var t in Stepped) Blank(t.Blank0, t.Blank1, t.Row);
     }
 
-    /// <summary>The game name, NO. DRIVERS, and the options box: its labels, X marks and values.</summary>
+    /// <summary>The game name, NO. DRIVERS, the options box and the rules table: their labels, X marks and values.</summary>
     private void DrawHost()
     {
         Frame.Text(_font, 11, 305, AddressBookPopup.Fit(_font, _gameName + (_naming ? "_" : ""), 160));
@@ -436,41 +453,38 @@ public sealed partial class MeleeScreen
         var ink = new byte[256];
         byte handInk = Frame.Nearest(HandInk);
         for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
-        void Label(int x, int row, string t) => PrintedType.Draw(Frame, Shell.Db, x, BoxRow[row], t, LabelCap, LabelInk);
-        void Value(int x, int row, string t) => Frame.Text(hand, x, BoxRow[row] - 11, t, ink);
-        void Switch(bool colB, int row, string t, bool on)
+        int[] row = HostFormLayout.BoxRow;
+        void Label(int x, int baseline, string t) => PrintedType.Draw(Frame, Shell.Db, x, baseline, t, LabelCap, LabelInk);
+        void Value(int x, int baseline, string t, int w) => Frame.Text(hand, x, baseline - 11, AddressBookPopup.Fit(hand, t, w), ink);
+        foreach (var f in HostFormLayout.Fields(HostState()))
+            switch (f.Where)
+            {
+                case HostFormLayout.Place.Table:
+                    int y = HostFormLayout.TableBaseline(f.Row);
+                    Label(HostFormLayout.TableX0 + 4, y, f.Label + ":");
+                    Value(HostFormLayout.TableBlank0 + 3, y, f.Value, HostFormLayout.TableX1 - HostFormLayout.TableBlank0 - 6);
+                    break;
+                case HostFormLayout.Place.BoxRow:
+                    Label(HostFormLayout.LabelA, row[f.Row], f.Label + ":");
+                    Value(HostFormLayout.BoxBlank0 + 3, row[f.Row], f.Value, HostFormLayout.BoxBlank1 - HostFormLayout.BoxBlank0 - 4);
+                    break;
+                default:
+                    bool colB = f.Where == HostFormLayout.Place.CheckB;
+                    Label(colB ? HostFormLayout.LabelB : HostFormLayout.LabelA, row[f.Row], f.Label);
+                    if (f.Value.Length > 0) Frame.Text(hand, colB ? HostFormLayout.CheckB : HostFormLayout.CheckA, row[f.Row] - 10, f.Value, ink);
+                    break;
+            }
+        if (!_coopBase)
         {
-            Label(colB ? LabelB : LabelA, row, t);
-            if (on) Frame.Text(hand, colB ? CheckB : CheckA, BoxRow[row] - 10, "X", ink);
+            int b = row[HostFormLayout.BotsRow], s = row[HostFormLayout.ScoreRow];
+            Label(15, b, "BOTS");
+            Value(63, b, $"{Math.Min(_bots, MaxBots):00}", 40);
+            Value(98, b, _botSkill.ToString(), 70);
+            PrintedType.Draw(Frame, Shell.Db, 192, b - 2, "A.I. CARS", ButtonCap, ButtonInk, bold: true, centre: true);
+            Label(HostFormLayout.LabelA, s, "MAX SCORE");
+            if (_scoreOn) Frame.Text(hand, HostFormLayout.CheckA, s - 10, "X", ink);
+            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, s - 11, _maxScore.ToString(), ink);
         }
-        if (_coopBase)
-        {
-            // a story mission has no team play, score limit, Bots or custom map: the first line has the co-op rules
-            string[] v = [CoopScaleText, CoopDamageText, Shell.Settings.CoopRollingStart ? "On" : "Off"];
-            for (int i = 0; i < CoopLine.Length; i++) { Label(CoopLine[i].X, 0, CoopLine[i].Label); Value(CoopLine[i].Blank0 + 1, 0, v[i]); }
-            Switch(false, 1, "INVITE ONLY", _inviteOnly);
-            Switch(true, 1, "HIDDEN CARS", Shell.Settings.HiddenContent);
-            Switch(false, 2, "CAR RESET", Shell.Settings.CarReset);
-            Switch(true, 2, "CB RADIO", Shell.Settings.CbRadio);
-        }
-        else
-        {
-            Label(15, 0, "BOTS");
-            Value(63, 0, $"{Math.Min(_bots, MaxBots):00}");
-            Value(98, 0, _botSkill.ToString());
-            PrintedType.Draw(Frame, Shell.Db, 192, BoxRow[0] - 2, "A.I. CARS", ButtonCap, ButtonInk, bold: true, centre: true);
-            Switch(false, 1, "TEAM PLAY", _teamPlay);
-            Switch(true, 1, "INVITE ONLY", _inviteOnly);
-            Switch(false, 2, "SHARE MAPS", Shell.Settings.ShareMaps);
-            Switch(true, 2, "HIDDEN CARS", Shell.Settings.HiddenContent);
-            Switch(false, 3, "CAR RESET", Shell.Settings.CarReset);
-            Switch(true, 3, "CB RADIO", Shell.Settings.CbRadio);
-            Switch(false, 4, "MAX SCORE", _scoreOn);
-            Frame.Text(hand, 161 - hand.Measure(_maxScore.ToString()) / 2, BoxRow[4] - 11, _maxScore.ToString(), ink);
-        }
-        string[] stepped = [_turrets ? "Unlim." : "One", Shell.Settings.IgnitionStaysOn ? "Lock" : "Free", $"{_rate} Hz",
-            HandicapWord(Shell.Settings.Handicaps), _password.Length > 0 ? "*" : "-"];
-        for (int i = 0; i < Stepped.Length; i++) { Label(Stepped[i].X, Stepped[i].Row, Stepped[i].Label); Value(Stepped[i].Blank0 + 1, Stepped[i].Row, stepped[i]); }
     }
 
     /// <summary>
@@ -548,22 +562,23 @@ public sealed partial class MeleeScreen
         [16] = "Players pick a team; no score on teammates",
         [17] = "You let in or turn away each player who asks",
         [26] = "Players without this custom map may download it",
-        [28] = "The hidden cars and weapons are allowed",
+        [28] = "Hidden Weapons & Cars: the hidden ones are allowed",
         [36] = "Players may set their car upright (reset key)",
         [37] = "Players may talk on the CB (push to talk)",
         [18] = "Ticked: the game ends when a score reaches this",
         [20] = "Lower the score that ends the game", [21] = "Raise the score that ends the game",
-        [35] = "One: one roof turret a car. Unlim.: any number",
-        [39] = "Free: engines may be switched off. Lock: never",
+        [35] = "On: any number of roof turrets a car. Off: one",
+        [39] = "On: the engines may never be switched off",
         [33] = "Simulation steps a second, the same for all",
         [43] = "Damage handicaps: Off, Manual (you set) or Auto",
         [27] = "A password joiners must give: click to set",
         [40] = "Extra enemy cars for each player past the first",
         [41] = "Damage the players' cars take (x1 the original)",
         [42] = "On: a respawn joins at a moving teammate's speed",
+        [38] = "Players with the chase crosshair on may see it",
     };
     /// <summary>The BOTS label's own help area (the line's buttons have theirs).</summary>
-    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, 356, 371);
+    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, HostFormLayout.BoxRow[HostFormLayout.BotsRow] - 14, HostFormLayout.BoxRow[HostFormLayout.BotsRow] + 5);
     private int _tipHover = int.MinValue, _tip = int.MinValue;
     private double _tipWait;
     private Vector2I _tipAt;
