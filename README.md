@@ -68,7 +68,23 @@ same checkout: the specs are committed, so every machine gets the same lettering
 not in the user folder, and running it again after the pack is rebuilt redraws the new model files (delete the pack's
 `.text-base/` first, so the new upscales become the base). The specs are written by the scripts in
 `tools/text-redraws/gen/` (the dials, the damage labels, the police doors, the cars' tails, the dented Piranha, the maps),
-which hold each label's place as read off the original. The 1997 look
+which hold each label's place as read off the original.
+
+An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's HD Textures row then offers
+`8x (cockpit & cars)`) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
+the game reads for every texture the 8x does not have; it needs the 4x pack and adds 2.9 GB on disk (2,556 textures), ~0.55-0.6 GB of video memory and ~2 s to a
+mission's load, and in our A/B shows no difference at play (docs/perf/costs.md), so it is an experiment, not a recommendation. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
+2xHDCube_Compact), the cockpit's families taken from their own 4x models to 8x by 2xHDCube_Compact (`--x2-model`, in
+`--models-dir`), in three steps: the models on the graphics card (about 15 minutes on a GTX 1080 Ti), then the packing on the
+CPU (about half an hour on 8 cores), then the lettering:
+
+    python3 tools/upscale-textures.py SRC_DIR --families --models-dir DIR --from MASTERS_8X --x2-model 2xHDCube_Compact.pth         --masters-out FAMILY_MASTERS --only "z*" --skip "zmap*" --max-size 640 --scale 8
+    python3 tools/upscale-textures.py SRC_DIR --from MASTERS_8X --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth         --scale 8 --only @tools/hd-8x-cars.txt,zdue --covers "cockpit & cars"
+    python3 tools/upscale-textures.py SRC_DIR --families --family-masters FAMILY_MASTERS --from MASTERS_8X         --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --max-size 640 --only "z*" --skip "zmap*"         --covers "cockpit & cars"
+    python3 tools/text-redraws.py SRC_DIR --pack PATH/TO/tex-world-8x
+
+(`--out` defaults to the user folder's `tex-world-8x/`; the mission maps, `zmap*`, stay at 4x: 1.4 GB more for a picture
+already finer than the screen.) The 1997 look
 keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code
