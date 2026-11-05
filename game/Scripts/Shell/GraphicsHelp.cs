@@ -52,7 +52,12 @@ public static class GraphicsHelp
     {
         var lines = new List<string>();
         var line = "";
-        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        // a figure and its unit stay on one line ("29 %", "100 m", "0.7 GB")
+        var words = new List<string>();
+        foreach (var w in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            if (words.Count > 0 && (w.StartsWith('%') || w is "m" or "m," or "m)" or "GB" or "s" or "ms") && char.IsDigit(words[^1][^1])) words[^1] += " " + w;
+            else words.Add(w);
+        foreach (var word in words)
         {
             var t = line.Length == 0 ? word : line + " " + word;
             if (line.Length > 0 && measure(t) > width) { lines.Add(line); line = word; }

@@ -74,5 +74,7 @@ public class GraphicsHelpTests
         // a word wider than the line keeps a line of its own
         Assert.Equal(["a", "verylongwordindeed", "b"], GraphicsHelp.Wrap("a verylongwordindeed b", Measure, 60));
         Assert.Empty(GraphicsHelp.Wrap("", Measure, 60));
+        // a figure keeps its unit: "12 %" is never split
+        Assert.Equal(["4x is about", "12 % of it"], GraphicsHelp.Wrap("4x is about 12 % of it", Measure, 66));
     }
 }
