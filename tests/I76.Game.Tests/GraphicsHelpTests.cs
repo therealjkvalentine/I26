@@ -44,6 +44,7 @@ public class GraphicsHelpTests
         var t = GraphicsHelp.Text(GraphicsRow.RearMirror, false)!;
         Assert.Contains("100 m", t);
         Assert.Contains("Full", t);
+        Assert.Contains("mirror_range", t);
     }
 
     [Theory]

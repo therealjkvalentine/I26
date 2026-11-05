@@ -25,7 +25,7 @@ public static class GraphicsHelp
             : "Ambient occlusion: contact shadows under cars and shrubs. About 29 % of a full-detail frame.",
         GraphicsRow.RearMirror => look1997
             ? "Rear mirror: the original's small mirror, to 100 m. Little cost in the 1997 look."
-            : "Rear mirror: a second view of the road behind, to the original's 100 m (Full, the whole map, in shell.cfg). Up to 17 % of a full-detail frame.",
+            : "Rear mirror: a second view of the road behind, as far as you can see (Full; the original's 100 m is mirror_range=original in shell.cfg). Up to 17 % of a full-detail frame.",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look. No cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x about 9 %.",
