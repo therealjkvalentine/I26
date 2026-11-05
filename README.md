@@ -56,7 +56,12 @@ cut out of the key, get the alpha step: their transparency goes through 4xHDcube
 out straight and dial numerals round instead of stair-stepped (`--alpha` does it for every keyed texture). Those models
 are not downloaded: put them in `--models-dir`; the tool's `--help` names their sources and licences (UltraSharpV2 and
 HDcube3 are non-commercial, so such a pack is for your own use), and the pack's `pack.json` and `ATTRIBUTION.txt` list
-every model used. The 1997 look
+every model used. Lettering painted a few texels high (the 3D dash's speedometer and tachometer figures, the damage
+panel's MR.DAMAGE plate and its labels, the Piranha's licence plate and badge) still comes out soft and blobby from any
+model, so `python3 tools/text-redraws.py SRC_DIR` sets those words again from free fonts (SIL OFL, in
+`tools/text-redraws/fonts/` with their licences) at the pack's resolution: one spec a texture in `tools/text-redraws/`
+(where the painted letters are, which words, which font, how large), CPU only and a few seconds, the model's files kept
+in the pack's `.text-base/` (`--restore` puts them back), the fonts named in `pack.json` and `ATTRIBUTION.txt`. The 1997 look
 keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code

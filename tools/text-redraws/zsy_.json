@@ -1,0 +1,11 @@
+{
+  "textures": ["zsy_"],
+  "note": "the damage panel's maker's plate, 'MR.DAMAGE by Ramone' (the signature as read from the painted texels)",
+  "ops": [
+    {"op": "erase", "rect": [186, 49, 222, 60], "where": {"lum_below": 45}, "grow": 0.7},
+    {"op": "erase", "rect": [186, 59, 220, 83], "where": {"lum_below": 45}, "grow": 0.7},
+    {"op": "text", "text": "MR.DAMAGE", "font": "LeagueGothic", "cap": 7, "center": [203.5, 54.5], "width": 33, "colour": [17, 17, 14]},
+    {"op": "text", "text": "by", "font": "MrDafoe", "cap": 6, "center": [197.5, 62.5], "colour": [17, 17, 14]},
+    {"op": "text", "text": "Ramone", "font": "MrDafoe", "cap": 9, "center": [201, 71.5], "width": 31, "rotate": 22, "colour": [17, 17, 14]}
+  ]
+}

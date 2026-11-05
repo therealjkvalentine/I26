@@ -1,0 +1,305 @@
+{
+ "textures": [
+  "ztach6"
+ ],
+ "note": "the tachometer's figures over the world (the external instruments and the 2D dash)",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    44,
+    10,
+    49,
+    17
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    30,
+    11,
+    35,
+    18
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    18,
+    16,
+    23,
+    23
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    11,
+    28,
+    16,
+    35
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    11,
+    41,
+    16,
+    48
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    16,
+    52,
+    21,
+    59
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    26,
+    60,
+    31,
+    67
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    40,
+    62,
+    43,
+    69
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    53,
+    57,
+    58,
+    64
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "text",
+   "text": "8",
+   "cap": 7,
+   "center": [
+    46.5,
+    13.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "7",
+   "cap": 7,
+   "center": [
+    32.5,
+    14.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "6",
+   "cap": 7,
+   "center": [
+    20.5,
+    19.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "5",
+   "cap": 7,
+   "center": [
+    13.5,
+    31.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "4",
+   "cap": 7,
+   "center": [
+    13.5,
+    44.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "3",
+   "cap": 7,
+   "center": [
+    18.5,
+    55.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "2",
+   "cap": 7,
+   "center": [
+    28.5,
+    63.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "1",
+   "cap": 7,
+   "center": [
+    41.5,
+    65.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "0",
+   "cap": 7,
+   "center": [
+    55.5,
+    60.5
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set"
+  }
+ ]
+}

@@ -39,7 +39,8 @@ through 4xHDcube-Alpha (by Venomalia, made for alpha: grey in all three channels
 colour), and the model's output, the three channels averaged, is cut at one half at the written size. Colour is bled
 under the new key as always. Models run on tiles (--tile, 128 px by default, the context padded 16 px) and in half
 precision on a GPU where the model allows it; --gpu-share F idles F times each tile's time after it, for a GPU shared
-with other work. pack.json and ATTRIBUTION.txt name every model used.
+with other work. pack.json and ATTRIBUTION.txt name every model used. Lettering painted a few texels high stays soft from any
+model: tools/text-redraws.py sets it again from fonts in the finished pack (its --help says how).
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
