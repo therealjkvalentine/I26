@@ -302,13 +302,13 @@ public sealed partial class EscapeMenu : Control
         // are its own rows'.
         int sheetRow = 1;
         List<GraphicsRow> sheetOffered = [];
-        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); }
+        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
         for (int p = GraphicsPages.Look; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
             List<GraphicsRow> offered = [];
-            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); }
+            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
             page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); Switch(page); } } });
             page.Items.Add(DoneButton());
@@ -619,6 +619,12 @@ public sealed partial class EscapeMenu : Control
             _screen.Scroll = Math.Clamp(_screen.Scroll + (wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1), 0, _screen.MaxScroll);
             QueueRedraw();
         }
+        else if (e is InputEventMouseMotion mm)
+        {
+            // the help line follows the mouse over Graphic Detail's rows (GraphicsHelp), else the selection
+            var (over, _) = Hit(ToPad(mm.Position));
+            if (over != _hover) { _hover = over; if (_rowOf.ContainsKey(over ?? _noItem) || HelpShown) QueueRedraw(); }
+        }
         else if (e is InputEventMouseButton { ButtonIndex: MouseButton.Left } mb)
         {
             GetViewport().SetInputAsHandled();
@@ -904,6 +910,40 @@ public sealed partial class EscapeMenu : Control
         if (_screen.Order > 0) Print(_arial, 16, 226, 60, $"{_screen.Order / 1000:00000}-{_screen.Order % 1000:000}");
         for (int i = 0; i < _screen.Items.Count; i++) DrawItem(_screen.Items[i], i == _screen.Selected);
         DrawScrollMark();
+        DrawHelp();
+    }
+
+    // ---- Graphic Detail's help line (GraphicsHelp) ----
+
+    /// <summary>Graphic Detail's items and the rows they are, for the help line.</summary>
+    private readonly Dictionary<Item, GraphicsRow> _rowOf = [];
+    private Item? _hover;
+    private static readonly Item _noItem = new();
+    private bool HelpShown;
+
+    /// <summary>The help's first pad row, its line spacing and how many lines it may take: rows 12 to 14 are free on Graphic Detail's pads, the buttons start at 407.</summary>
+    private const int HelpRow = 12, HelpCell = 13, HelpStep = 15, HelpMaxLines = 4;
+
+    /// <summary>
+    /// The row under the mouse, else the selected one, said on the pad's free rows in Arial (the order's and the titles' face), the pad's ink;
+    /// nothing on any other pad, or for a row without help.
+    /// </summary>
+    private void DrawHelp()
+    {
+        HelpShown = false;
+        if (_screen != _graphics && !_graphicsPages.Contains(_screen)) return;
+        var it = _hover is not null && _screen.Items.Contains(_hover) && _rowOf.ContainsKey(_hover) ? _hover
+            : _screen.Selected >= 0 && _screen.Selected < _screen.Items.Count ? _screen.Items[_screen.Selected] : null;
+        if (it is null || !_rowOf.TryGetValue(it, out var row) || GraphicsHelp.Text(row, Faithful) is not { } text) return;
+        float y = RowY(HelpRow) + 2;
+        int n = 0;
+        foreach (var line in GraphicsHelp.Wrap(text, s => Width(_arial, HelpCell, s), 296 - 24))
+        {
+            if (++n > HelpMaxLines) break;
+            Print(_arial, HelpCell, 24, y, line);
+            y += HelpStep;
+        }
+        HelpShown = true;
     }
 
     /// <summary>

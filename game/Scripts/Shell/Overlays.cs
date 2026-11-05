@@ -448,10 +448,11 @@ public sealed class GraphicsScreen : OverlayScreen
         _saved = Snapshot ?? GraphicsPages.CopyAll(Shell.Settings, new ShellSettings());
         int line = Page == GraphicsPages.Sheet ? 0 : GraphicsPages.FirstRowLine;
         if (Page != GraphicsPages.Sheet) Add(200, LineY(GraphicsPages.HeadingLine), GraphicsPages.Names[Page], null);
+        _lineRow.Clear();
         foreach (var r in GraphicsPages.Rows[Page])
         {
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
-            if (PortRow(r, line)) line++;
+            if (PortRow(r, line)) _lineRow[line++] = r;
         }
         if (Page == GraphicsPages.Sheet)
         {
@@ -466,6 +467,40 @@ public sealed class GraphicsScreen : OverlayScreen
         Add(288, 438, "Reset", Reset, Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+    }
+
+    // ---- the help line (GraphicsHelp): the row under the mouse, said in the sheet's small font on the free lines under the rows ----
+
+    private readonly Dictionary<int, GraphicsRow> _lineRow = [];
+    private GraphicsRow? _hover;
+    /// <summary>The help's first line and how many it may take (the sheet's lines 11 to 13 are free on every page; the buttons start at 438).</summary>
+    private const int HelpLine = 11, HelpX = 200, HelpRight = 462, HelpMaxLines = 4;
+
+    /// <summary>The row whose line the mouse is on (label or value), or null.</summary>
+    private GraphicsRow? RowAt(Vector2I m)
+    {
+        if (m.X < HelpX || m.X >= HelpRight || m.Y < ListY) return null;
+        int line = (m.Y - ListY) / LineH;
+        return _lineRow.TryGetValue(line, out var r) ? r : null;
+    }
+
+    public override void Tick()
+    {
+        var h = RowAt(Shell.Mouse);
+        if (h != _hover) { _hover = h; Redraw(); }
+        base.Tick();
+    }
+
+    protected override void DrawExtra()
+    {
+        if (_hover is not { } r || GraphicsHelp.Text(r, Shell.Settings.Look1997) is not { } text) return;
+        int y = LineY(HelpLine), step = Small.Height + 2, n = 0;
+        foreach (var l in GraphicsHelp.Wrap(text, s => Small.Measure(s), HelpRight - HelpX))
+        {
+            if (++n > HelpMaxLines) break;
+            Frame.Text(Small, HelpX, y, l, ShellFrame.OverlayInk);
+            y += step;
+        }
     }
 
     /// <summary>A row of the graphics block: the byte's value word, a click the next.</summary>
