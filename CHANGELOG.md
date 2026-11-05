@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### New
+- The modern cockpit's ammunition counters look like drums: each wheel's face is lit at its crown and darker toward the window's top and bottom edges, its figure follows the curve, and the figures are cut in, a lit lower edge and a faint shadow along the top; the 1997 look keeps the original's strip.
 - Graphic Detail's Ambient Occlusion (Look page, Off unless chosen): the modern look's contact shadows under cars and shrubs, a row of their own. Shadow Detail High turned them on before; they are the costliest thing the modern look draws (about 29 % of a full-detail frame at 3440x1440), so a player who turned shadows up paid for them unknowingly. shell.cfg `[port] ambient_occlusion`.
 - Graphic Detail's Camera page, left with Field of View alone once the mouse rows moved to Mouse Options, is gone: Field of View is on Display, after Render Scale.
 - Graphic Detail has a help line: on the main menu's sheet the row under the mouse, on the Esc menu's pad the row under the mouse or the selected one, says what the eight costliest settings do and what each costs as a share of a full-detail frame (docs/perf/costs.md), and in the 1997 look that they cost nothing there.
