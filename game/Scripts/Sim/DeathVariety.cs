@@ -17,6 +17,8 @@ public static class DeathVariety
 
     /// <summary>The drawn death's delay after the moment of death (s): the blast, vexplode.wav, the wreck's hull and its fire.</summary>
     public const float Delay = 0.1f;
+    /// <summary>How early a delayed piece may go (s): the frame clock's sum of steps lands a hair under 0.1 s after three 30 fps frames, and the blast slipped to the fourth.</summary>
+    public const double Slack = 1e-3;
     /// <summary>The death blast's drawn size, a fraction of the stock one's.</summary>
     public const float SizeFactor = 0.5f;
     /// <summary>The death blast's sparks and the dying car's thrown chunks, a fraction of the stock count.</summary>
@@ -36,7 +38,7 @@ public static class DeathVariety
     };
 
     /// <summary>The pre-events' numbers: the puffs' and the wheel burst's sizes (m), the hood's lift (m/s up) and turn (rad/s).</summary>
-    public const float HoodPuff = 0.7f, HoodLift = 2.5f, HoodSpin = 2.5f, WheelBurst = 0.6f, CabPuff = 0.6f;
+    public const float HoodPuff = 0.8f, HoodLift = 2.5f, HoodSpin = 2.5f, WheelBurst = 0.6f, CabPuff = 0.8f;
 
     /// <summary>Whether the modern look draws this death its own way for this car: the variety on, a car's own (not a gun emplacement's or a helicopter's).</summary>
     public static bool Owns(I76.Sim.Vehicles.Vehicle v, bool modernCar) => Enabled && modernCar && !v.IsEmplacement && !v.IsHeli;

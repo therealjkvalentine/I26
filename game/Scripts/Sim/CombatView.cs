@@ -743,7 +743,7 @@ public partial class CombatView : Node3D
         }
         Combat.Events.Clear();
         for (int i = _lateBlasts.Count - 1; i >= 0; i--)
-            if (_t >= _lateBlasts[i].At)
+            if (_t >= _lateBlasts[i].At - DeathVariety.Slack)
             {
                 var (_, lv, off, lb) = _lateBlasts[i];
                 _lateBlasts.RemoveAt(i);

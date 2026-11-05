@@ -13,7 +13,15 @@ public class DeathVarietyTests
 {
     /// <summary>The blast, the wreck and vexplode.wav come 100 ms after the moment of death.</summary>
     [Fact]
-    public void TheDeathIsAHundredMillisecondsLate() => Assert.Equal(0.1f, DeathVariety.Delay);
+    public void TheDeathIsAHundredMillisecondsLate()
+    {
+        Assert.Equal(0.1f, DeathVariety.Delay);
+        // three frames at 30 fps on the views' clock (a sum of frame steps) are the delay: the blast is the third frame's, not the fourth's
+        double t = 7.3, at = t + DeathVariety.Delay, now = t;
+        int frames = 0;
+        while (now < at - DeathVariety.Slack) { now += 1.0 / 30; frames++; }
+        Assert.Equal(3, frames);
+    }
 
     /// <summary>The blast's drawn size and its sparks and chunks are half the stock ones'.</summary>
     [Fact]

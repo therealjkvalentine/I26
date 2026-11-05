@@ -102,7 +102,7 @@ public partial class DamageView : Node3D
             }
             case DeathVariety.Pre.Cab:
                 // the driver: a grey puff at the cab, no fire
-                fx.Puff(On(0.5f, 0.9f, 0.45f), DeathVariety.CabPuff, new Color(0.45f, 0.44f, 0.42f));
+                fx.Puff(On(0.5f, 0.9f, 0.45f), DeathVariety.CabPuff, new Color(0.3f, 0.29f, 0.28f));
                 break;
             case DeathVariety.Pre.Crack:
                 // the ammunition: one crack, sparks and a flash on top of the body
@@ -498,7 +498,7 @@ public partial class DamageView : Node3D
             car.SyncTyres((slot, blown) => TyreMesh(car.Definition, slot, blown, ref m));
         }
         for (int i = _late.Count - 1; i >= 0; i--)
-            if (_t >= _late[i].At)
+            if (_t >= _late[i].At - DeathVariety.Slack)
             {
                 var (_, lc, lv) = _late[i];
                 _late.RemoveAt(i);

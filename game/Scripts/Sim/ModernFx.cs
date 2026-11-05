@@ -485,14 +485,13 @@ public partial class ModernFx : Node3D
     /// </summary>
     public void Puff(Vector3 at, float size, Color tint, float flash = 0f)
     {
-        if (_smoke is not null)
-            for (int k = 0; k < 2; k++)
-            {
-                var sm = AddSprite(_smoke, at + new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.3f, size * 0.5f, size * 1.6f, k * 0.04, 1.0 + GD.Randf() * 0.4, GD.Randf() * Mathf.Tau);
-                sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.05f; sm.FadeOut = 0.6f; sm.Opacity = 0.5f;
-                sm.Velocity = Vector3.Up * 1.2f;
-                sm.Node.SetInstanceShaderParameter("tint", tint * 1.6f);
-            }
+        // the dust's puffs (they show at once; the smoke flipbook opens faint), in the tint, rising slowly and spreading
+        var proc = (ParticleProcessMaterial)_dustProc.Duplicate();
+        proc.ColorRamp = Ramp((0, tint with { A = 0.85f }), (1, tint with { A = 0 }));
+        proc.InitialVelocityMin = 0.6f * size; proc.InitialVelocityMax = 1.6f * size;
+        proc.Gravity = new Vector3(0, 0.3f, 0);
+        proc.ScaleMin = 0.5f * size; proc.ScaleMax = 0.8f * size;
+        Burst(proc, _puffMesh, 8, 1.0, at, Vector3.Up);
         if (flash <= 0) return;
         var l = new OmniLight3D { LightColor = new Color(1f, 0.6f, 0.28f), LightEnergy = flash * FxBright, OmniRange = size * 5f, ShadowEnabled = false };
         AddChild(l);
