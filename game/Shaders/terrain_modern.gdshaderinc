@@ -167,6 +167,8 @@ uniform float sward_keep_lum = 0.6;    // how much of the ground's own lightness
 global uniform vec3 i76_ground_tint;
 
 #endif
+// The distance tiers (docs/perf/plan.md, item 3): 1 on, 0 the one tier everywhere (I76_TERRAIN_TIERS=0, for a measurement).
+global uniform float i76_terrain_tiers;
 
 varying vec3 g_pos;     // game-frame position: sample * 5, height
 varying vec3 g_nrm;
@@ -346,14 +348,23 @@ void fragment() {
 	vec3 n = normalize(g_nrm);
 	float steep = 1.0 - n.y;
 	float dist = length(VERTEX);
+	// Distance tiers (docs/perf/plan.md, item 3). Near, to 250 m: everything below. Middle, to 700 m: no material is read (the flat
+	// ones have left by mat_far; the rock's triplanar, untiled pairs end here rather than at rock_far) and no asphalt. Far, past
+	// 700 m: no relief either (its octaves had faded to nothing by bump_far * 4 anyway), the colour at the surface's own normal.
+	// Each change is a cross-fade over the LOD morph band past it (TerrainLodMesh.MorphStart 360-420 m and 730-870 m), so no
+	// boundary line shows. The shadow passes (orthographic) and the mirror (a camera without TerrainNode.NearTierLayer, bit 19)
+	// take the far tier everywhere: neither shows the materials.
+	bool aux_pass = PROJECTION_MATRIX[3][3] > 0.5 || (CAMERA_VISIBLE_LAYERS & 524288u) == 0u;
+	float tier_mid = i76_terrain_tiers * (aux_pass ? 1.0 : smoothstep(250.0, 420.0, dist));
+	float tier_far = i76_terrain_tiers * (aux_pass ? 1.0 : smoothstep(700.0, 870.0, dist));
 	vec3 dpx = dFdx(g_pos), dpy = dFdy(g_pos);
 	float footprint = max(max(length(dpx), length(dpy)), 1e-4);
 	vec4 road_col = has_road ? texture(road_layer, road_uv) : vec4(0.0);
 	float road = road_col.a;
 
 	// how much of the near detail is the materials'
-	float mat_fade = use_materials && procedural ? 1.0 - smoothstep(mat_near, mat_far, dist) : 0.0;
-	float rock_fade = use_materials && procedural ? 1.0 - smoothstep(rock_near, rock_far, dist) : 0.0;
+	float mat_fade = use_materials && procedural ? (1.0 - smoothstep(mat_near, mat_far, dist)) * (1.0 - tier_mid) : 0.0;
+	float rock_fade = use_materials && procedural ? (1.0 - smoothstep(rock_near, rock_far, dist)) * (1.0 - tier_mid) : 0.0;
 
 	vec3 ground;
 	vec4 gn = vec4(0.0);
@@ -574,8 +585,8 @@ void fragment() {
 	}
 	vec3 agrad = vec3(0.0);   // the aggregate's relief on paved road
 #ifndef PAINTED_GROUND
-	if (has_asphalt && paved > 0.0 && dist < asphalt_fade.y) {
-		float af = 1.0 - smoothstep(asphalt_fade.x, asphalt_fade.y, dist);
+	if (has_asphalt && paved > 0.0 && dist < asphalt_fade.y && tier_mid < 1.0) {
+		float af = (1.0 - smoothstep(asphalt_fade.x, asphalt_fade.y, dist)) * (1.0 - tier_mid);
 		// two reads at different turns and scales, so the 1 m repeat never lines up
 		mat2 r1 = mat2(vec2(0.857, 0.515), vec2(-0.515, 0.857)), r2 = mat2(vec2(-0.391, 0.920), vec2(-0.920, -0.391));
 		float t1 = asphalt_tile, t2 = asphalt_tile * 1.37;
@@ -613,24 +624,27 @@ void fragment() {
 
 	// ---- the relief ----
 	float fine = 1.0 - smoothstep(bump_far * 0.3, bump_far, dist);
-	float far = 1.0 - smoothstep(bump_far, bump_far * 4.0, dist);
+	float far = (1.0 - smoothstep(bump_far, bump_far * 4.0, dist)) * (1.0 - tier_far);
 	// the relief's gradient: broad undulation, mid lumps, fine grit (in metres; the fine octaves fade with
-	// distance, and near the camera with the materials, which carry their own)
+	// distance, and near the camera with the materials, which carry their own); none read in the far tier
 	float grit = fine * (1.0 - mat_fade);
-	vec2 rg = octave(g_pos.xz, 9.09, vec2(0.8, 0.6), vec2(3.1, 7.7), footprint).yz * 0.3
-	        + octave(g_pos.xz, 1.667, vec2(-0.28, 0.96), vec2(11.3, 5.9), footprint).yz * 0.1 * fine;
+	vec2 rg = vec2(0.0);
+	if (far > 0.0) {
+		rg = octave(g_pos.xz, 9.09, vec2(0.8, 0.6), vec2(3.1, 7.7), footprint).yz * 0.3
+		   + octave(g_pos.xz, 1.667, vec2(-0.28, 0.96), vec2(11.3, 5.9), footprint).yz * 0.1 * fine;
 #ifdef PAINTED_GROUND
-	rg *= lot_relief;   // a lot is laid flat
-	grit *= 0.3;
+		rg *= lot_relief;   // a lot is laid flat
+		grit *= 0.3;
 #endif
-	if (grit > 0.0) rg += octave(g_pos.xz, 0.370, vec2(0.6, -0.8), vec2(23.9, 41.3), footprint).yz * 0.025 * grit;
+		if (grit > 0.0) rg += octave(g_pos.xz, 0.370, vec2(0.6, -0.8), vec2(23.9, 41.3), footprint).yz * 0.025 * grit;
+	}
 	vec3 grad = vec3(rg.x, 0.0, rg.y) * bump_noise;
 	grad *= mix(0.6, 1.8, steep) * (1.0 - 0.7 * road);
 	// the texture as height on the top projection: brightness differences one texel apart
 	vec2 uv = g_pos.xz / repeat_units;
 	float t = 1.0 / float(textureSize(ground_tex, 0).x);
 	float tx = 0.0, tz = 0.0;
-	if (!procedural) {
+	if (!procedural && far > 0.0) {
 		tx = (lum(uv + vec2(t, 0)) - lum(uv - vec2(t, 0))) / (2.0 * t * repeat_units);
 		tz = (lum(uv + vec2(0, t)) - lum(uv - vec2(0, t))) / (2.0 * t * repeat_units);
 	}

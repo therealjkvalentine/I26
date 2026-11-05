@@ -23,6 +23,12 @@ public partial class TerrainNode : Node3D
 {
     /// <summary>The render layer terrain chunks draw on (the rear-view mirror's objects-only mode leaves it out).</summary>
     public const uint TerrainLayer = 2;
+    /// <summary>
+    /// A render layer no node is on: a camera that sees it gets the modern terrain's near and middle distance tiers
+    /// (terrain_modern.gdshaderinc reads CAMERA_VISIBLE_LAYERS), one that does not (the mirror's) the far tier everywhere.
+    /// Every camera's default mask has it.
+    /// </summary>
+    public const uint NearTierLayer = 1u << 19;
     /// <summary>The sky-fog quad also sits on this layer, so the weapon camera can leave it out (it keeps layer 1, so every other camera draws it as before).</summary>
     public const uint SkyFogLayer = 1u << 6;
     public const int Chunk = 32;
