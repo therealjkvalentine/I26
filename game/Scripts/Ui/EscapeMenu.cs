@@ -921,8 +921,8 @@ public sealed partial class EscapeMenu : Control
     private static readonly Item _noItem = new();
     private bool HelpShown;
 
-    /// <summary>The help's first pad row, its line spacing and how many lines it may take: rows 12 to 14 are free on Graphic Detail's pads, the buttons start at 407.</summary>
-    private const int HelpRow = 12, HelpCell = 13, HelpStep = 15, HelpMaxLines = 4;
+    /// <summary>The help's first pad row and how many it may take, a line of text to a ruled row: rows 11 to 14 are free on Graphic Detail's pads (the sheet's entries end on row 10), the buttons start at 407.</summary>
+    private const int HelpRow = 11, HelpCell = 13, HelpMaxLines = 4;
 
     /// <summary>
     /// The row under the mouse, else the selected one, said on the pad's free rows in Arial (the order's and the titles' face), the pad's ink;
@@ -935,13 +935,11 @@ public sealed partial class EscapeMenu : Control
         var it = _hover is not null && _screen.Items.Contains(_hover) && _rowOf.ContainsKey(_hover) ? _hover
             : _screen.Selected >= 0 && _screen.Selected < _screen.Items.Count ? _screen.Items[_screen.Selected] : null;
         if (it is null || !_rowOf.TryGetValue(it, out var row) || GraphicsHelp.Text(row, Faithful) is not { } text) return;
-        float y = RowY(HelpRow) + 2;
         int n = 0;
         foreach (var line in GraphicsHelp.Wrap(text, s => Width(_arial, HelpCell, s), 296 - 24))
         {
-            if (++n > HelpMaxLines) break;
-            Print(_arial, HelpCell, 24, y, line);
-            y += HelpStep;
+            if (n >= HelpMaxLines) break;
+            Print(_arial, HelpCell, 24, RowY(HelpRow + n++) + 6, line);   // between the row's rules
         }
         HelpShown = true;
     }

@@ -473,8 +473,8 @@ public sealed class GraphicsScreen : OverlayScreen
 
     private readonly Dictionary<int, GraphicsRow> _lineRow = [];
     private GraphicsRow? _hover;
-    /// <summary>The help's first line and how many it may take (the sheet's lines 11 to 13 are free on every page; the buttons start at 438).</summary>
-    private const int HelpLine = 11, HelpX = 200, HelpRight = 462, HelpMaxLines = 4;
+    /// <summary>The help's first line and how many it may take, a line of text to a ruled line (the sheet's lines 11 to 13 are free on every page; the buttons start at 438).</summary>
+    private const int HelpLine = 11, HelpX = 200, HelpRight = 462, HelpMaxLines = 3;
 
     /// <summary>The row whose line the mouse is on (label or value), or null.</summary>
     private GraphicsRow? RowAt(Vector2I m)
@@ -494,12 +494,11 @@ public sealed class GraphicsScreen : OverlayScreen
     protected override void DrawExtra()
     {
         if (_hover is not { } r || GraphicsHelp.Text(r, Shell.Settings.Look1997) is not { } text) return;
-        int y = LineY(HelpLine), step = Small.Height + 2, n = 0;
+        int n = 0;
         foreach (var l in GraphicsHelp.Wrap(text, s => Small.Measure(s), HelpRight - HelpX))
         {
-            if (++n > HelpMaxLines) break;
-            Frame.Text(Small, HelpX, y, l, ShellFrame.OverlayInk);
-            y += step;
+            if (n >= HelpMaxLines) break;
+            Frame.Text(Small, HelpX, LineY(HelpLine + n++) + Math.Max(0, (LineH - Small.Height) / 2), l, ShellFrame.OverlayInk);   // between the line's rules
         }
     }
 
