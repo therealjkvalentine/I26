@@ -1,0 +1,158 @@
+{
+ "textures": [
+  "xb13bkb1"
+ ],
+ "note": "the school bus's rear lettering, its see-through holes closed; written by gen/school_bus.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    35.4,
+    3.4,
+    91.6,
+    17.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31.4,
+    53.4,
+    89.6,
+    59.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    34.4,
+    68.4,
+    95.6,
+    76.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    34.4,
+    77.4,
+    95.6,
+    85.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    46.4,
+    85.4,
+    74.6,
+    94.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL BUS",
+   "font": "DDINCondensed",
+   "cap": 13,
+   "center": [
+    63.5,
+    10.5
+   ],
+   "width": 55,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "EMERGENCY EXIT",
+   "font": "DDINCondensed",
+   "cap": 5,
+   "center": [
+    60.5,
+    56.5
+   ],
+   "width": 57,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "STOP WHEN",
+   "font": "DDINCondensed",
+   "cap": 7,
+   "center": [
+    65.0,
+    72.5
+   ],
+   "width": 60,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "RED LIGHTS",
+   "font": "DDINCondensed",
+   "cap": 7,
+   "center": [
+    65.0,
+    81.5
+   ],
+   "width": 60,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FLASH",
+   "font": "DDINCondensed",
+   "cap": 8,
+   "center": [
+    60.5,
+    90.0
+   ],
+   "width": 27,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+ "textures": [
+  "sw1rop_1"
+ ],
+ "note": "the Ropesville sign: its small print; written by gen/signs.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    30.4,
+    53.2,
+    104.2,
+    61.8
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Last Week of September",
+   "font": "ArchivoNarrow",
+   "cap": 3.9,
+   "center": [
+    67.5,
+    56.6
+   ],
+   "width": 71.0,
+   "colour": [
+    222,
+    240,
+    200
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  }
+ ]
+}

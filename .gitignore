@@ -66,3 +66,7 @@ dist/
 # game installers and their parts, never committed
 /*.exe
 /*.bin
+
+# label-tape face candidates: personal-use fonts, kept outside the repository (only the README is tracked)
+/tools/text-redraws/fonts/candidates/*
+!/tools/text-redraws/fonts/candidates/README.md
