@@ -66,25 +66,11 @@ public static class HdTextures
     public static bool FirstStartDefault => DefaultOn(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), I76.Game.Boot.RenderBackend.VideoMemoryMb);
 
     /// <summary>
-    /// Video memory from this (MiB) starts with the 8x pack when it is there (FirstStartSize): a "6 GB" card. The 8x of the cockpit and
-    /// the cars adds ~0.55 GB of textures over the 4x (T01 +0.54, T05 +0.59 GB at 3440x1440), the game's whole use coming to ~2.5 GB in
-    /// T01 and ~3.0 GB in T05 (docs/perf/costs.md's hd-8x section): on a 4 GB card that leaves too little for the desktop, other
-    /// missions and the driver; on 6 GB, half the card is spare.
+    /// The first start never picks the 8x of the cockpit and the cars, even with its folder and the room for it: it would fit a 6 GB
+    /// card (the game's whole use ~2.5-3.0 GB with it, docs/perf/costs.md) or a 16 GB Mac, but costs ~0.55 GB and ~2 s of load and
+    /// shows no difference at play (docs/perf/costs.md, the 8x section), so it is the player's to pick on the row.
     /// </summary>
-    public const long High8xVideoMemoryMb = 5760;
-    /// <summary>The same for a GPU that shares the machine's memory (Apple silicon, whose VideoMemoryMb is the machine's): 16 GB (Metal's working set is about two thirds of it, ~10.7 GB, against ~3 GB of game); an 8 GB Mac's ~5.3 GB is shared with the game's own memory and the system, so it keeps the 4x.</summary>
-    public const long High8xUnifiedMemoryMb = 15360;
-
-    /// <summary>
-    /// The first start's size: 8 when the user folder has tex-world-8x and the GPU reports <see cref="High8xVideoMemoryMb"/> or more
-    /// (<see cref="High8xUnifiedMemoryMb"/> for memory shared with the machine), else 4 (unknown memory, Linux's, counts as not enough
-    /// for 8x: the 4x is the safe default). The player's choice is saved from then on.
-    /// </summary>
-    public static int FirstStartSize(bool has8x, long? videoMemoryMb, bool unified = false) =>
-        has8x && videoMemoryMb >= (unified ? High8xUnifiedMemoryMb : High8xVideoMemoryMb) ? 8 : HdPackFolders.DefaultSize;
-
-    /// <summary><see cref="FirstStartSize"/> for this machine (a Mac's memory is unified: RenderBackend.VideoMemoryMb is the machine's).</summary>
-    public static int FirstStartSizeHere => FirstStartSize(UserHas(HdPackFolders.Folder(8)), I76.Game.Boot.RenderBackend.VideoMemoryMb, OperatingSystem.IsMacOS());
+    public static int FirstStartSize => HdPackFolders.DefaultSize;
 
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>

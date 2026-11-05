@@ -1437,9 +1437,9 @@ public sealed class ShellSettings
         var c = new ConfigFile();
         if (c.Load(Path) != Error.Ok)
         {
-            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault), and their size (8x on a large GPU when its folder is there: FirstStartSizeHere)
+            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault), and their size (4x, whatever the card: FirstStartSize)
             s.HdTextures = I76.Game.Assets.HdTextures.FirstStartDefault;
-            s.HdTextureSize = I76.Game.Assets.HdTextures.FirstStartSizeHere;
+            s.HdTextureSize = I76.Game.Assets.HdTextures.FirstStartSize;
             I76.Game.Assets.HdTextures.Size = s.HdTextureSize;
             I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
             return s;
