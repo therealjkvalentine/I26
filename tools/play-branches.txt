@@ -302,3 +302,6 @@ feat/1997-parity                      # section W: docs/1997-parity.md (ten diff
 
 # X. the host form, ours as master (2026-11-05)
 feat/host-form-master                 # section X: our host form restored over upstream 56373bd (options box, arena scrap with its size, rule tips, list bar) with upstream's improvements folded in: a labelled rules table (Sim Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair) where the front view was, the co-op rows full width, every hotspot id upstream's, HostFormLayout with its tests; Nitro form unchanged
+
+# Y. HD pack tooling from the 8x trial (2026-11-05; the 8x pack itself is not shipped: no visible difference to 4x)
+feat/hd-pack-8x                       # section Y: the loader serves each texture from the largest size that has it (a partial pack over 4x); the row lists a partial size as "8x (cockpit & cars)*"; a first start never picks 8x; upscale-textures.py --scale 8 with separate GPU/CPU steps and --covers, bleed reach scaled with the size, bleed 18x faster; text-redraws at any scale; docs/perf/costs.md 8x section
