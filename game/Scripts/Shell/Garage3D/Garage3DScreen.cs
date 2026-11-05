@@ -128,6 +128,10 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
 
     public override void Enter()
     {
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        // I76_LOAD_PROFILE: the garage's opening, from here to its first frame drawn (docs/perf/loadtime.md)
+        if (I76.Game.Boot.LoadProfiler.On)
+            RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(() => GD.Print($"load-profile: garage open to its first frame {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms ({(_built ? "built" : "not built")})")), (uint)GodotObject.ConnectFlags.OneShot);
         if (!_built)
         {
             try { Build(); }

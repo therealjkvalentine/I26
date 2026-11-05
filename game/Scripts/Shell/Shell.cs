@@ -828,6 +828,12 @@ public partial class Shell : CanvasLayer
                 LaunchTrip(Trip.StockCar(this, tc));
             }
             // capture hook: "overlay:controls@frame" opens the Control Configuration over the screen
+            // capture hook: "garage@frame" opens CONFIGURE CHASSIS (the 3D garage, or the 2D form) on the melee form's saved car, as its button does
+            if (kind == "garage")
+            {
+                var st = MeleeSetup.Load();
+                Go(ChassisForm.Create(this, new MeleeChassis(st.Model, st.Variant, _ => Go(new MainMenuScreen()), () => Go(new MainMenuScreen()))));
+            }
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());

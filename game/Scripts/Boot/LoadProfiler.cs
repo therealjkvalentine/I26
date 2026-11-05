@@ -118,6 +118,7 @@ public static class LoadProfiler
         double mb = rows.Sum(r => r.BytesOrig + r.BytesHd) / 1048576.0;
         string E(string k) => ev.TryGetValue(k, out var t) ? t.ToString() : "-";
         GD.Print($"load-profile-result: mission={mission} total_ms={E("mission")} card_ms={E("card first frame")} movie_ms={E("movie start")} movie_over_ms={E("movie over")} built_ms={E("build done")} "
+            + $"ws_mb={System.Environment.WorkingSet >> 20} managed_mb={System.GC.GetTotalMemory(false) >> 20} vram_tex_mb={(long)Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) >> 20} vram_mb={(long)Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) >> 20} "
             + $"main_ms={rows.Where(r => r.Thread == "main").Sum(r => r.EndMs - r.StartMs)} build_ms={rows.Where(r => r.Thread == "mission-build").Sum(r => r.EndMs - r.StartMs)} textures={tex} hd={hd} tex_mb={mb:0} pipelines={rows.Sum(r => r.Pipelines)} {extra}csv={path}");
         foreach (var r in rows.OrderByDescending(r => r.EndMs - r.StartMs).Take(8))
             GD.Print($"load-profile: {r.EndMs - r.StartMs,6} ms  {r.Thread,-13} {r.Phase} (tex {r.TexOrig}+{r.TexHd} hd, {(r.BytesOrig + r.BytesHd) / 1048576.0:0} MB, {r.Pipelines} pipelines)");
