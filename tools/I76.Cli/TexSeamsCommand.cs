@@ -38,20 +38,20 @@ public static class TexSeamsCommand
             tiles[s] = (t.U || u, t.V || v, t.Why);
         }
         static float[] Uv(Vector2 a, Vector2 b) => [MathF.Round(a.X, 5), MathF.Round(a.Y, 5), MathF.Round(b.X, 5), MathF.Round(b.Y, 5)];
-        void Add(string cls, string model, string partA, string partB, string ta, Vector2 a0, Vector2 a1, string tb, Vector2 b0, Vector2 b1, float len, float angle, Vector2? ac = null, Vector2? bc = null)
+        void Add(string cls, string model, string partA, string partB, string ta, Vector2 a0, Vector2 a1, string tb, Vector2 b0, Vector2 b1, float len, float angle, Vector2? ac = null, Vector2? bc = null, Vector3? at = null, Vector3? normal = null)
         {
             string sa = Stem(ta), sb = Stem(tb);
             var key = $"{sa}|{string.Join(",", Uv(a0, a1))}|{sb}|{string.Join(",", Uv(b0, b1))}";
             var rev = $"{sb}|{string.Join(",", Uv(b0, b1))}|{sa}|{string.Join(",", Uv(a0, a1))}";
             if (seen.Contains(rev) || !seen.Add(key)) return;
-            seams.Add(new { cls, model, parts = new[] { partA, partB }, a = sa, auv = Uv(a0, a1), b = sb, buv = Uv(b0, b1), ac = ac is { } x && float.IsFinite(x.X + x.Y) ? new[] { MathF.Round(x.X, 5), MathF.Round(x.Y, 5) } : null, bc = bc is { } y && float.IsFinite(y.X + y.Y) ? new[] { MathF.Round(y.X, 5), MathF.Round(y.Y, 5) } : null, len = MathF.Round(len, 4), angle = MathF.Round(angle, 1) });
+            seams.Add(new { cls, model, parts = new[] { partA, partB }, a = sa, auv = Uv(a0, a1), b = sb, buv = Uv(b0, b1), ac = ac is { } x && float.IsFinite(x.X + x.Y) ? new[] { MathF.Round(x.X, 5), MathF.Round(x.Y, 5) } : null, bc = bc is { } y && float.IsFinite(y.X + y.Y) ? new[] { MathF.Round(y.X, 5), MathF.Round(y.Y, 5) } : null, len = MathF.Round(len, 4), angle = MathF.Round(angle, 1), at = at is { } p ? new[] { MathF.Round(p.X, 3), MathF.Round(p.Y, 3), MathF.Round(p.Z, 3) } : null, normal = normal is { } q ? new[] { MathF.Round(q.X, 3), MathF.Round(q.Y, 3), MathF.Round(q.Z, 3) } : null });
         }
         void Model(string cls, string def, AssembledModel m, int frame)
         {
             var faces = TextureSeams.Faces(m, res, frame);
             foreach (var f in faces) { var (u, v) = TextureSeams.Tiles(f); Tile(f.Texture, u, v, cls + ":" + def); }
             foreach (var s in TextureSeams.Find(faces))
-                Add(cls, def, s.PartA, s.PartB, s.A.Texture, s.A.Uv0, s.A.Uv1, s.B.Texture, s.B.Uv0, s.B.Uv1, s.Length, s.Angle, s.A.Centre, s.B.Centre);
+                Add(cls, def, s.PartA, s.PartB, s.A.Texture, s.A.Uv0, s.A.Uv1, s.B.Texture, s.B.Uv0, s.B.Uv1, s.Length, s.Angle, s.A.Centre, s.B.Centre, s.At, s.Normal);
         }
         var defs = vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) || n.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase))
             .Where(Want).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
@@ -106,8 +106,24 @@ public static class TexSeamsCommand
                         else Add("horizon", Path.GetFileName(w.Horizon), $"panel {i}", $"panel {(i + 1) % HorizonList.Panels}", a, new(1, 0), new(1, 1), b, new(0, 0), new(0, 1), 0, 0, new(0.5f, 0.5f), new(0.5f, 0.5f));
                     }
             }
+        // where the scenery stands: up to three placements a definition (mission, the engine's rotation as Affine rows, position), to find a seam in the world
+        var places = new Dictionary<string, List<object>>(StringComparer.OrdinalIgnoreCase);
+        var asm = new ModelAssembler(vfs);
+        foreach (var path in install.ListMissions(".msn"))
+        {
+            MissionWorld mw;
+            try { mw = new MissionWorld(vfs, asm, path); } catch (Exception) { continue; }
+            foreach (var pl in mw.Placements)
+                if (pl.Definition is { } dn && dn.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!places.TryGetValue(dn, out var l)) places[dn] = l = [];
+                    var a = Affine.FromEngine(pl.Object.Rotation, pl.Object.Position);
+                    if (l.Count < 3) l.Add(new { mission = Path.GetFileNameWithoutExtension(path), r = a.R, t = new[] { a.T.X, a.T.Y, a.T.Z } });
+                }
+        }
         var doc = new
         {
+            places,
             note = "i76 tex-seams: where textures meet (seams: side a's UVs at the edge's two ends against side b's, v = 0 the first stored row) and what repeats (tiles: u, v)",
             seams,
             tiles = tiles.OrderBy(k => k.Key, StringComparer.Ordinal).ToDictionary(k => k.Key, k => new { u = k.Value.U, v = k.Value.V, why = k.Value.Why.Order().Take(6).ToArray(), uses = k.Value.Why.Count }),

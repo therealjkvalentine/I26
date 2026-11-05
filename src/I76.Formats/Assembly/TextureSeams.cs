@@ -17,8 +17,8 @@ public static class TextureSeams
     /// <summary>One side of a seam: the texture, the UVs at the edge's two ends (in the edge's order) and the face's UV centroid (which side of the edge the face lies).</summary>
     public readonly record struct Side(string Texture, Vector2 Uv0, Vector2 Uv1, Vector2 Centre);
 
-    /// <summary>An edge two faces share where the picture is not continuous: sides A and B, the edge's length, and the angle (degrees) between the two faces' normals.</summary>
-    public sealed record Seam(string PartA, string PartB, Side A, Side B, float Length, float Angle);
+    /// <summary>An edge two faces share where the picture is not continuous: sides A and B, the edge's length, the angle (degrees) between the two faces' normals, its middle (model space) and side A's face normal.</summary>
+    public sealed record Seam(string PartA, string PartB, Side A, Side B, float Length, float Angle, Vector3 At, Vector3 Normal);
 
     /// <summary>
     /// The seams among <paramref name="faces"/>: corners within <paramref name="weld"/> of each other are the same point;
@@ -71,7 +71,7 @@ public static class TextureSeams
                     var kb = (ka.Item2, ka.Item1, ka.Item4, ka.Item3);
                     if (seen.Contains(ka) || seen.Contains(kb)) continue;
                     seen.Add(ka);
-                    o.Add(new Seam(fa.Part, fb.Part, new Side(fa.Texture, a.Lo, a.Hi, Centre(fa)), new Side(fb.Texture, b.Lo, b.Hi, Centre(fb)), Vector3.Distance(a.PLo, a.PHi), angle));
+                    o.Add(new Seam(fa.Part, fb.Part, new Side(fa.Texture, a.Lo, a.Hi, Centre(fa)), new Side(fb.Texture, b.Lo, b.Hi, Centre(fb)), Vector3.Distance(a.PLo, a.PHi), angle, (a.PLo + a.PHi) / 2, normals[a.Face]));
                 }
         return o;
     }
