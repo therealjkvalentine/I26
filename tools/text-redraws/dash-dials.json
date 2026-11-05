@@ -1,8 +1,11 @@
 {
  "textures": [
-  "zdash101"
+  "zdash101",
+  "zdash201",
+  "zdash301",
+  "zdash501"
  ],
- "note": "the Piranha's 3D dash: the speedometer's figures 0-150 and the tachometer's 0-8, on the dials' keyed faces (the cockpit draws the key black)",
+ "note": "the 3D dashes' speedometer 0-150 and tachometer 0-8 on the dials' keyed faces (the cockpit draws the key black); written by gen/dials.py",
  "ops": [
   {
    "op": "erase",
@@ -387,10 +390,6 @@
     107.0,
     101.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -401,7 +400,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -411,10 +414,6 @@
     103.5,
     96.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -425,7 +424,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -435,10 +438,6 @@
     101.0,
     89.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -449,7 +448,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -459,10 +462,6 @@
     100.5,
     83.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -473,7 +472,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -483,10 +486,6 @@
     102.5,
     76.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -497,7 +496,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -507,10 +510,6 @@
     108.0,
     70.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -521,7 +520,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -531,10 +534,6 @@
     114.5,
     65.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -545,7 +544,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -555,10 +558,6 @@
     122.0,
     63.0
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -569,7 +568,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -579,10 +582,6 @@
     129.5,
     63.0
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -593,7 +592,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -603,10 +606,6 @@
     136.0,
     65.0
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -617,7 +616,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -627,10 +630,6 @@
     142.0,
     69.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -642,6 +641,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -652,10 +655,6 @@
     147.0,
     75.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -667,6 +666,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -677,10 +680,6 @@
     149.5,
     82.0
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -692,6 +691,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -702,10 +705,6 @@
     150.0,
     89.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -717,6 +716,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -727,10 +730,6 @@
     147.0,
     95.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -742,6 +741,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -752,10 +755,6 @@
     142.0,
     101.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -767,6 +766,10 @@
     0,
     0
    ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6.0
   },
   {
@@ -777,10 +780,6 @@
     222,
     106.7
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -791,7 +790,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -801,10 +804,6 @@
     214.7,
     109
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -815,7 +814,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -825,10 +828,6 @@
     201.7,
     109
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -839,7 +838,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -849,10 +852,6 @@
     191,
     102
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -863,7 +862,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -873,10 +876,6 @@
     185,
     93
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -887,7 +886,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -897,10 +900,6 @@
     184.7,
     83.8
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -911,7 +910,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -921,10 +924,6 @@
     190.5,
     72
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -935,7 +934,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -945,10 +948,6 @@
     204.6,
     65.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -959,7 +958,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -969,10 +972,6 @@
     220,
     67.6
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     226,
     226,
@@ -983,7 +982,11 @@
     0,
     0,
     0
-   ]
+   ],
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   }
  ]
 }

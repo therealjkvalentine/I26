@@ -16,14 +16,14 @@ class FontsTests(unittest.TestCase):
         table = tr.font_table()
         for name, t in table.items():
             self.assertTrue(os.path.exists(os.path.join(tr.FONTS, t["file"])), name)
-            self.assertTrue(os.path.exists(os.path.join(tr.FONTS, os.path.dirname(t["file"]), "OFL.txt")), name)
-            self.assertIn("OFL", t["license"])
+            d=os.path.join(tr.FONTS, os.path.dirname(t["file"])); self.assertTrue(os.path.exists(os.path.join(d, "OFL.txt")) or os.path.exists(os.path.join(d, "LICENSE.txt")), name)
+            self.assertTrue("OFL" in t["license"] or "Apache" in t["license"], name)
             self.assertGreater(tr.cap_ratio(name), 0.4, name)
 
 class SpecTests(unittest.TestCase):
     def specs(self):
         out = []
-        for p in sorted(glob.glob(os.path.join(tr.SPECS, "*.json"))):
+        for p in sorted(glob.glob(os.path.join(tr.SPECS, "*.json")) + glob.glob(os.path.join(tr.SPECS, "maps", "*.json"))):
             with open(p, encoding="utf-8") as f: out.append((os.path.basename(p), json.load(f)))
         return out
 
@@ -46,6 +46,8 @@ class SpecTests(unittest.TestCase):
         near where the spec's text centres are."""
         for name, spec in self.specs():
             texts = [op for op in spec["ops"] if op["op"] == "text"]
+            for op in texts:
+                if "quad" in op: op.setdefault("center", [sum(p[0] for p in op["quad"]) / 4, sum(p[1] for p in op["quad"]) / 4])
             w = int(max(max(op["center"][0] + op["cap"] * 4 for op in texts), max((op["rect"][2] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
             h = int(max(max(op["center"][1] + op["cap"] * 2 for op in texts), max((op["rect"][3] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
             orig = blank(w, h, (128, 128, 128))
@@ -73,6 +75,17 @@ class CompositorTests(unittest.TestCase):
         halo = tr.apply_ops(px, orig, [{"op": "erase", "rect": [5, 5, 11, 11], "where": {"lum_below": 50}, "halo": {"within": 1, "lum_below": 100}}])
         self.assertLess(plain[20:44, 20:44, :3].min(), 100)          # without the halo the soft edge stays and smears in
         self.assertGreater(halo[18:46, 18:46, :3].min(), 190)        # with it the hole is the background's
+
+    def test_quad_puts_the_run_on_its_corners_and_matches_the_plain_box(self):
+        orig = blank(40, 20, (220, 220, 220)); px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
+        base = {"op": "text", "text": "HIH", "font": "Anton", "cap": 8, "colour": [0, 0, 0]}
+        plain = tr.apply_ops(px, orig, [dict(base, center=[20, 10], width=16)])[..., 0] < 128
+        quad = tr.apply_ops(px, orig, [dict(base, quad=[[12, 6], [28, 6], [28, 14], [12, 14]])])[..., 0] < 128
+        self.assertGreater((plain & quad).sum() / max(1, (plain | quad).sum()), 0.9)   # an axis-aligned quad is the box
+        tilt = tr.apply_ops(px, orig, [dict(base, quad=[[12, 4], [28, 8], [28, 16], [12, 12]])])[..., 0] < 128
+        ys, xs = np.where(tilt)
+        left, right = ys[xs < xs.mean()].mean(), ys[xs > xs.mean()].mean()
+        self.assertGreater((right - left) / 4, 1.5)                                     # the right end sits lower (half the 4-texel drop, by halves)
 
     def test_set_alpha_keys_by_half_coverage(self):
         orig = blank(24, 16, (0, 0, 0), a=0)

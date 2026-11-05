@@ -27,7 +27,8 @@ A spec (coordinates in the original's texels, upright, so the same spec serves a
         "alpha": "keep"}]}
 erase: the texels of rect (all, or those of the original matching "where": lum_below / lum_above on the original's brightness,
 opaque / keyed on its alpha), grown by "grow" texels, with the pack's texels within "halo": {"within": texels, "lum_below" or
-"lum_above"} of them that still look like ink (the upscale's soft edge), filled: "inpaint" (smoothly from the texels round them), "key" (cut out of
+"lum_above"} of them that still look like ink (the upscale's soft edge), made opaque with "opaque": true, filled
+("texture": [dx, dy] gives an inpainted hole the grain of the surface that far away: paper, paint): "inpaint" (smoothly from the texels round them), "key" (cut out of
 the colour key: alpha 0, its colour "under" when given, else its neighbours'; a car panel shows a keyed texel's colour, the
 cockpit's opaque faces draw the key black), or an [r, g, b].
 text: the string at cap height "cap" (the font's H), its cap band's middle at "center", squeezed or stretched to "width" texels
@@ -35,11 +36,14 @@ text: the string at cap height "cap" (the font's H), its cap band's middle at "c
 apart; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
 (the texture's own key untouched: lettering on an opaque face), "set" (opaque where the lettering covers half a texel or more:
 lettering cut into the key, as dial figures over the world) or "cover" (opaque wherever it covers, over "under": a keyed face the
-game draws in the key's colour, as the 3D dash's dials).
+game draws in the key's colour, as the 3D dash's dials). "mirror": true reflects the lettering about its centre (the car's other side,
+textured mirrored). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
+corners, top-left, top-right, bottom-right, bottom-left, in place of center/width/rotate/skew: a 4-point warp, for
+lettering on a bent panel.
 """
 import argparse, fnmatch, glob, json, math, os, shutil, struct, sys, time
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPECS = os.path.join(HERE, "text-redraws")
@@ -97,7 +101,7 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
     rx, ry = pad + run / 2.0, base_y - cap_px / 2.0
     fx = (float(op["width"]) * s * SS / run) if op.get("width") else 1.0
     ang = math.radians(float(op.get("rotate", 0))); skew = float(op.get("skew", 0))
-    cx, cy = (float(v) * s for v in op["center"])
+    cx, cy = (float(v) * s for v in op.get("center", (0, 0)))
     # output sample (u, v) at SS x the pack's resolution -> mask point: undo the rotation, the skew and the squeeze
     ca, sa = math.cos(ang), math.sin(ang)
     k = 1.0 / SS
@@ -109,24 +113,45 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
     m = SS / fx
     A = (a11 * m + skew * a21 * m, a12 * m + skew * a22 * m, rx + (b1 + skew * b2) * m,
          a21 * SS, a22 * SS, ry + b2 * SS)
-    def warp(img):
-        big = img.transform((W * SS, H * SS), Image.AFFINE, A, resample=Image.BILINEAR, fillcolor=0)
+    if op.get("mirror"):
+        # the lettering seen in a mirror (a texture laid on the car's other side mirrored): reflect about the centre's x
+        X = 2 * cx * SS
+        A = (-A[0], A[1], A[2] + A[0] * X, -A[3], A[4], A[5] + A[3] * X)
+    Pc = tuple(A) + (0.0, 0.0)          # output sample -> mask point, as a projective map (affine so far)
+    if op.get("quad"):
+        # a 4-point warp: the run's box (cap line to baseline, first letter to last) onto the quad's corners (TL, TR, BR,
+        # BL, the original's texels), for lettering on a bent or tilted panel
+        src = [(pad, base_y - cap_px), (pad + run, base_y - cap_px), (pad + run, base_y), (pad, base_y)]
+        dst = [(float(x) * s * SS, float(y) * s * SS) for x, y in op["quad"]]
+        Pc = perspective(dst, src)
+    def proj(P, ox=0.0, oy=0.0):
+        """P with the output shifted by (ox, oy) pack px (u -> u - ox), normalised."""
+        a, b, c, d, e, f, g, h = P; ox *= SS; oy *= SS
+        n = 1 - g * ox - h * oy
+        return tuple(v / n for v in (a, b, c - a * ox - b * oy, d, e, f - d * ox - e * oy, g, h))
+    def warp(img, P):
+        big = img.transform((W * SS, H * SS), Image.PERSPECTIVE, P, resample=Image.BILINEAR, fillcolor=0)
         return np.asarray(big.resize((W, H), Image.BOX), np.float32) / 255.0
-    cov = warp(fill)
-    st = warp(strk) if strk else None
+    cov = warp(fill, Pc)
+    st = warp(strk, Pc) if strk else None
     sh = None
     if op.get("shadow"):
-        d = op["shadow"]; ox, oy = float(d.get("dx", 0)) * s, float(d.get("dy", 0)) * s
-        src = strk or fill
-        A2 = (A[0], A[1], A[2] - (A[0] * ox + A[1] * oy) * SS, A[3], A[4], A[5] - (A[3] * ox + A[4] * oy) * SS)
-        big = src.transform((W * SS, H * SS), Image.AFFINE, A2, resample=Image.BILINEAR, fillcolor=0)
-        sh = np.asarray(big.resize((W, H), Image.BOX), np.float32) / 255.0
+        d = op["shadow"]
+        sh = warp(strk or fill, proj(Pc, float(d.get("dx", 0)) * s, float(d.get("dy", 0)) * s))
     # the gradient's parameter: each pack pixel's mask y, 0 at the cap line, 1 at the baseline
     vv, uu = np.mgrid[0:H, 0:W].astype(np.float32)
     uu = (uu + 0.5) * SS; vv = (vv + 0.5) * SS
-    my = A[3] * uu + A[4] * vv + A[5]
+    my = (Pc[3] * uu + Pc[4] * vv + Pc[5]) / (Pc[6] * uu + Pc[7] * vv + 1)
     t = np.clip((my - (base_y - cap_px)) / cap_px, 0, 1)
     return cov, st, sh, t
+
+def perspective(frm, to):
+    """The 8 coefficients of the projective map taking the 4 points frm to the 4 points to (PIL's PERSPECTIVE order)."""
+    M, r = [], []
+    for (u, v), (x, y) in zip(frm, to):
+        M.append([u, v, 1, 0, 0, 0, -u * x, -v * x]); r.append(x)
+        M.append([0, 0, 0, u, v, 1, -u * y, -v * y]); r.append(y)
+    return tuple(np.linalg.solve(np.array(M, np.float64), np.array(r, np.float64)))
 
 # ---- erasing ----
 
@@ -185,6 +210,7 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
     """px: the pack's texture (H x W x 4 uint8, upright); orig: the original (h x w x 4). Returns the redrawn RGBA."""
     H, W = px.shape[:2]; s = W / orig.shape[1]
     rgb = px[..., :3].astype(np.float32); alpha = px[..., 3].copy()
+    grain = []          # (hole, [dx, dy]) of the run's erasures that take a surface's grain
     pending = None      # consecutive inpaint erasures fill as one hole, so none fills from another's letters
     rebleed = np.zeros(alpha.shape, bool)   # texels newly cut into the key with no colour given: coloured from round them at the end
     for i, op in enumerate(ops):
@@ -203,12 +229,24 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 if "lum_below" in hl: ink &= lum < float(hl["lum_below"])
                 if "lum_above" in hl: ink &= lum > float(hl["lum_above"])
                 hole = hole | (near & ink)
+            if op.get("opaque"): alpha[hole] = 255           # keyed texels in the hole become part of the face
             fill = op.get("fill", "inpaint")
             if fill == "inpaint":
                 pending = hole if pending is None else pending | hole
+                if op.get("texture"): grain.append((hole, op["texture"]))
                 nxt = ops[i + 1] if i + 1 < len(ops) else None
                 if not (nxt and nxt["op"] == "erase" and nxt.get("fill", "inpaint") == "inpaint"):
                     rgb = inpaint(rgb, pending); pending = None
+                    # the inpaint is smooth: give each hole the grain of the surface beside it (the pack's own detail,
+                    # its high frequencies, from the texels "texture": [dx, dy] texels away)
+                    if grain:
+                        blur = np.asarray(Image.fromarray(np.clip(rgb + 0.5, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.4 * s)), np.float32)
+                        hp = rgb - blur
+                        for h, (gx, gy) in grain:
+                            dx, dy = int(round(float(gx) * s)), int(round(float(gy) * s))
+                            sh = np.roll(np.roll(hp, -dy, axis=0), -dx, axis=1)
+                            rgb[h] += sh[h]
+                        grain = []
             elif fill == "key":
                 alpha[hole] = 0
                 if "under" in op: rgb[hole] = op["under"]; rebleed &= ~hole
@@ -356,6 +394,26 @@ def restore(pack, only):
         with open(pj, "w", encoding="utf-8") as f: json.dump(info, f, indent=2)
     return n
 
+def menu_maps(src, pack, out_dir, specs):
+    """The map screen draws its map from the HD menu art (maps/<stem>), not from the world pack: each map's upscale (the
+    world pack's file, as the model left it) redrawn and written there as a PNG, upright."""
+    bu = set()
+    p = os.path.join(src, "bottom-up.txt")
+    if os.path.exists(p):
+        with open(p) as f: bu = {l.strip().lower() for l in f if l.strip()}
+    os.makedirs(os.path.join(out_dir, "maps"), exist_ok=True); table = font_table()
+    for name, stem, spec in specs:
+        base = os.path.join(pack, BASE, stem + ".dds")
+        cur = base if os.path.exists(base) else pack_file(pack, stem)
+        if cur is None: print(f"{stem}: not in the pack, skipped"); continue
+        px = read_pack_file(cur)
+        if stem in bu and cur.endswith(".dds"): px = px[::-1]
+        orig = np.array(Image.open(os.path.join(src, stem + ".png")).convert("RGBA"))
+        out = apply_ops(px, orig, spec["ops"], table=table)
+        dst = os.path.join(out_dir, "maps", stem + ".png")
+        Image.fromarray(out, "RGBA").save(dst + ".part.png"); os.replace(dst + ".part.png", dst)
+        print(f"{stem}: {dst}")
+
 # ---- self-check ----
 
 def self_check(fonts_dir=FONTS):
@@ -405,10 +463,16 @@ def main():
     ap.add_argument("--list", action="store_true", help="list the specs' textures and quit")
     ap.add_argument("--restore", action="store_true", help="put the model's files back (from PACK/.text-base) and quit")
     ap.add_argument("--self-check", action="store_true", help="redraw made-up textures and check the result")
+    ap.add_argument("--menu-maps", metavar="DIR", help="the mission maps instead (specs in tools/text-redraws/maps/): the pack's upscale of each"
+                    " map redrawn and written as DIR/maps/<map>.png, where the map screen (M) looks for an HD map (DIR: the HD menu art's"
+                    " folder, user://tex-menu, or I76_TEX_DIR); the world pack is not changed")
     args = ap.parse_args()
     if args.self_check: sys.exit(0 if self_check() else 1)
     pack = args.pack or user_pack()
     if args.restore: print(f"{restore(pack, args.only)} textures restored in {pack}"); return
+    if args.menu_maps:
+        if not args.src: ap.error("the folder --export-textures wrote is needed")
+        menu_maps(args.src, pack, args.menu_maps, load_specs(os.path.join(SPECS, "maps"), args.only)); return
     specs = load_specs(args.specs, args.only)
     if args.list:
         for name, stem, spec in specs: print(f"{stem}\t{name}\t{', '.join(fonts_of(spec))}")

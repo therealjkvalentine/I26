@@ -61,7 +61,14 @@ panel's MR.DAMAGE plate and its labels, the Piranha's licence plate and badge) s
 model, so `python3 tools/text-redraws.py SRC_DIR` sets those words again from free fonts (SIL OFL, in
 `tools/text-redraws/fonts/` with their licences) at the pack's resolution: one spec a texture in `tools/text-redraws/`
 (where the painted letters are, which words, which font, how large), CPU only and a few seconds, the model's files kept
-in the pack's `.text-base/` (`--restore` puts them back), the fonts named in `pack.json` and `ATTRIBUTION.txt`. The 1997 look
+in the pack's `.text-base/` (`--restore` puts them back), the fonts named in `pack.json` and `ATTRIBUTION.txt`. On another
+machine with its own pack (a fresh `tex-world-4x` from `upscale-textures.py`, or one copied over), export that machine's
+textures once (`i26 -- --install DIR --export-textures SRC_DIR`) and run `python3 tools/text-redraws.py SRC_DIR` with the
+same checkout: the specs are committed, so every machine gets the same lettering; `--pack DIR` points it at a pack that is
+not in the user folder, and running it again after the pack is rebuilt redraws the new model files (delete the pack's
+`.text-base/` first, so the new upscales become the base). The specs are written by the scripts in
+`tools/text-redraws/gen/` (the dials, the damage labels, the police doors, the cars' tails, the dented Piranha, the maps),
+which hold each label's place as read off the original. The 1997 look
 keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code

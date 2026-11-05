@@ -1,0 +1,64 @@
+{
+ "textures": [
+  "cp11mdl2",
+  "cp12mdl2",
+  "cp13mdl2"
+ ],
+ "note": "the police car's left door, livery 2: NEW MEXICO STATE / POLICE; written by gen/police.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    73,
+    23,
+    125,
+    31
+   ],
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    74,
+    32,
+    118,
+    47
+   ],
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "NEW MEXICO STATE",
+   "cap": 6,
+   "center": [
+    99.0,
+    27.0
+   ],
+   "width": 49.28,
+   "skew": 0.12,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  },
+  {
+   "op": "text",
+   "text": "POLICE",
+   "cap": 12,
+   "center": [
+    96.0,
+    39.5
+   ],
+   "width": 39.6,
+   "skew": 0.2,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  }
+ ]
+}

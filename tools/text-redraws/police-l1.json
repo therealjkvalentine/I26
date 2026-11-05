@@ -1,0 +1,64 @@
+{
+ "textures": [
+  "cp11mdl1",
+  "cp12mdl1",
+  "cp13mdl1"
+ ],
+ "note": "the police car's left door, livery 1: VALDEZ COUNTY / SHERIFF; written by gen/police.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    74,
+    23,
+    120,
+    31
+   ],
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    75,
+    33,
+    118,
+    46
+   ],
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "VALDEZ COUNTY",
+   "cap": 6,
+   "center": [
+    97.0,
+    27.0
+   ],
+   "width": 43.28,
+   "skew": 0.12,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SHERIFF",
+   "cap": 11,
+   "center": [
+    96.5,
+    39.5
+   ],
+   "width": 38.8,
+   "skew": 0.2,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  }
+ ]
+}

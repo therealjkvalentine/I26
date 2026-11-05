@@ -1,0 +1,281 @@
+{
+ "textures": [
+  "zmap6t01"
+ ],
+ "note": "zmap6t01's hand lettering: WAGON, WHEEL, DINER, FIREWORKS, STAND, SEAGRAVES, SHORTCUT; written by gen/maps.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    111,
+    167,
+    178,
+    182
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    -14
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    130,
+    189,
+    195,
+    206
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    -12
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    155,
+    212,
+    212,
+    229
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    350,
+    153,
+    445,
+    173
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    -16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    383,
+    176,
+    441,
+    196
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    24,
+    0
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    324,
+    295,
+    464,
+    320
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    22
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    121,
+    348,
+    214,
+    364
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    -14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WAGON",
+   "font": "PermanentMarker",
+   "cap": 12.0,
+   "center": [
+    144.5,
+    174.5
+   ],
+   "width": 63.0,
+   "rotate": 0,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "PermanentMarker",
+   "cap": 13.8,
+   "center": [
+    162.5,
+    197.5
+   ],
+   "width": 61.1,
+   "rotate": 0,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "DINER",
+   "font": "PermanentMarker",
+   "cap": 13.8,
+   "center": [
+    183.5,
+    220.5
+   ],
+   "width": 53.4,
+   "rotate": 0,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FIREWORKS",
+   "font": "PermanentMarker",
+   "cap": 12.1,
+   "center": [
+    397.5,
+    163.0
+   ],
+   "width": 90.3,
+   "rotate": -3,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "STAND",
+   "font": "PermanentMarker",
+   "cap": 14.8,
+   "center": [
+    412.0,
+    186.0
+   ],
+   "width": 54.4,
+   "rotate": -2,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SEAGRAVES",
+   "font": "PermanentMarker",
+   "cap": 16.7,
+   "center": [
+    394.0,
+    307.5
+   ],
+   "width": 133.9,
+   "rotate": -2,
+   "colour": [
+    34,
+    28,
+    24
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SHORTCUT",
+   "font": "PermanentMarker",
+   "cap": 12.9,
+   "center": [
+    167.5,
+    356.0
+   ],
+   "width": 88.3,
+   "rotate": 0,
+   "colour": [
+    34,
+    28,
+    24
+   ]
+  }
+ ]
+}

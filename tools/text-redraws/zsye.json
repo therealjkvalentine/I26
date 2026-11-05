@@ -2,7 +2,7 @@
  "textures": [
   "zsye"
  ],
- "note": "the damage display's part labels (ENGINE, SUSP., BRAKES, WHEEL) in its five states: white, green, yellow, red, off",
+ "note": "the damage display's part labels (ENGINE, SUSP., BRAKES, WHEEL) in its five states: white, green, yellow, red, off; written by gen/damage_labels.py",
  "ops": [
   {
    "op": "erase",

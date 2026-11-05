@@ -13,6 +13,20 @@
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow"
   },
+  "Cinzel": {
+    "name": "Cinzel",
+    "file": "Cinzel/Cinzel[wght].ttf",
+    "by": "Natanael Gama, The Cinzel Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/cinzel"
+  },
+  "DDINCondensed": {
+    "name": "D-DIN Condensed Bold",
+    "file": "DDINCondensed/D-DINCondensed-Bold.otf",
+    "by": "Datto Inc.",
+    "license": "SIL OFL 1.1",
+    "source": "https://www.datto.com/fonts/d-din"
+  },
   "LeagueGothic": {
     "name": "League Gothic",
     "file": "LeagueGothic/LeagueGothic[wdth].ttf",
@@ -33,6 +47,13 @@
     "by": "Alejandro Paul (Sudtipos)",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/mrdafoe"
+  },
+  "PermanentMarker": {
+    "name": "Permanent Marker",
+    "file": "PermanentMarker/PermanentMarker-Regular.ttf",
+    "by": "Font Diner",
+    "license": "Apache 2.0",
+    "source": "https://github.com/google/fonts/tree/main/apache/permanentmarker"
   },
   "RussoOne": {
     "name": "Russo One",

@@ -2,7 +2,7 @@
  "textures": [
   "zspeedo6"
  ],
- "note": "the speedometer's figures over the world (the external instruments and the 2D dash): keyed white figures",
+ "note": "the speedometer's figures over the world (the external instruments and the 2D dash): keyed white figures; written by gen/dials.py",
  "ops": [
   {
    "op": "erase",
@@ -236,16 +236,16 @@
     21.5,
     60.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
-   "alpha": "set"
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
   },
   {
    "op": "text",
@@ -255,16 +255,16 @@
     16.0,
     54.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6
   },
   {
@@ -275,16 +275,16 @@
     13.5,
     46.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 7
   },
   {
@@ -295,16 +295,16 @@
     11.0,
     37.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 6
   },
   {
@@ -315,16 +315,16 @@
     13.5,
     29.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 7
   },
   {
@@ -335,16 +335,16 @@
     17.5,
     22.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 7
   },
   {
@@ -355,16 +355,16 @@
     24.0,
     16.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 8
   },
   {
@@ -375,16 +375,16 @@
     31.5,
     12.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 7
   },
   {
@@ -395,16 +395,16 @@
     40.0,
     10.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 8
   },
   {
@@ -415,16 +415,16 @@
     49.5,
     11.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 7
   },
   {
@@ -435,16 +435,16 @@
     58.0,
     15.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 10
   },
   {
@@ -455,16 +455,16 @@
     63.5,
     22.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 9
   },
   {
@@ -475,16 +475,16 @@
     67.0,
     30.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 10
   },
   {
@@ -495,16 +495,16 @@
     68.5,
     37.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 9
   },
   {
@@ -515,16 +515,16 @@
     67.0,
     45.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 10
   },
   {
@@ -535,16 +535,16 @@
     63.0,
     52.5
    ],
-   "font": "ArchivoNarrow",
-   "variation": {
-    "Weight": 700
-   },
    "colour": [
     255,
     255,
     255
    ],
    "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
    "width": 10
   }
  ]

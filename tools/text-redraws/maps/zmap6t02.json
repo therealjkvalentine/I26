@@ -1,0 +1,242 @@
+{
+ "textures": [
+  "zmap6t02"
+ ],
+ "note": "zmap6t02's hand lettering: LEVELAND, SCHOOL, OUTLAW, TERRITORY, BROWN-, FIELD; written by gen/maps.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    177,
+    49,
+    286,
+    80
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    30
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    399,
+    37,
+    462,
+    60
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    22
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    321,
+    131,
+    394,
+    150
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    -14
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    345,
+    157,
+    442,
+    176
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    10,
+    18
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    183,
+    184,
+    278,
+    209
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    0,
+    26
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    199,
+    217,
+    262,
+    238
+   ],
+   "where": {
+    "lum_below": 92
+   },
+   "grow": 1.0,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 110
+   },
+   "opaque": true,
+   "texture": [
+    -30,
+    0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "LEVELAND",
+   "font": "PermanentMarker",
+   "cap": 11.1,
+   "center": [
+    231.5,
+    64.5
+   ],
+   "width": 105.1,
+   "rotate": 9,
+   "colour": [
+    34,
+    28,
+    24
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL",
+   "font": "PermanentMarker",
+   "cap": 10.4,
+   "center": [
+    430.5,
+    48.5
+   ],
+   "width": 59.9,
+   "rotate": -9,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "OUTLAW",
+   "font": "PermanentMarker",
+   "cap": 12.2,
+   "center": [
+    357.5,
+    140.5
+   ],
+   "width": 69.0,
+   "rotate": -3,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TERRITORY",
+   "font": "PermanentMarker",
+   "cap": 9.5,
+   "center": [
+    393.5,
+    166.5
+   ],
+   "width": 92.4,
+   "rotate": -4,
+   "colour": [
+    118,
+    8,
+    18
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BROWN-",
+   "font": "PermanentMarker",
+   "cap": 15.2,
+   "center": [
+    230.5,
+    196.5
+   ],
+   "width": 90.4,
+   "rotate": -4,
+   "colour": [
+    34,
+    28,
+    24
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FIELD",
+   "font": "PermanentMarker",
+   "cap": 17.5,
+   "center": [
+    230.5,
+    227.5
+   ],
+   "width": 59.2,
+   "rotate": 0,
+   "colour": [
+    34,
+    28,
+    24
+   ]
+  }
+ ]
+}

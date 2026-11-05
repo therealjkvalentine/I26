@@ -1,0 +1,152 @@
+{
+ "textures": [
+  "pp12bkb1"
+ ],
+ "note": "the Piranha's dented tail (pp12bkb1): plate CHAMP and badge 'rahna on the bent panel; written by gen/piranha_dented.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    55.5,
+    15,
+    70.5,
+    24.6
+   ],
+   "where": {
+    "lum_below": 128
+   },
+   "grow": 0.9,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 125
+   }
+  },
+  {
+   "op": "text",
+   "text": "CHAMP",
+   "font": "Anton",
+   "cap": 5,
+   "quad": [
+    [
+     55.6,
+     18.7
+    ],
+    [
+     70.6,
+     18.5
+    ],
+    [
+     70.6,
+     23.4
+    ],
+    [
+     55.6,
+     23.6
+    ]
+   ],
+   "colour": [
+    28,
+    28,
+    34
+   ],
+   "shadow": {
+    "dx": 0.25,
+    "dy": 0.25,
+    "colour": [
+     235,
+     235,
+     238
+    ],
+    "opacity": 0.5
+   }
+  },
+  {
+   "op": "text",
+   "text": "TEXAS",
+   "font": "Anton",
+   "cap": 2.1,
+   "colour": [
+    40,
+    40,
+    48
+   ],
+   "quad": [
+    [
+     60.2,
+     15.1
+    ],
+    [
+     67.19999999999999,
+     14.9
+    ],
+    [
+     67.19999999999999,
+     17.0
+    ],
+    [
+     60.2,
+     17.2
+    ]
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    77,
+    15,
+    93,
+    23.5
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "text",
+   "text": "'rahna",
+   "font": "Lobster",
+   "cap": 4.7,
+   "quad": [
+    [
+     79.3,
+     17.1
+    ],
+    [
+     92.2,
+     17.5
+    ],
+    [
+     92.2,
+     22.0
+    ],
+    [
+     79.3,
+     21.6
+    ]
+   ],
+   "alpha": "set",
+   "gradient": [
+    [
+     240,
+     240,
+     244
+    ],
+    [
+     130,
+     132,
+     140
+    ]
+   ],
+   "stroke": {
+    "width": 0.4,
+    "colour": [
+     18,
+     18,
+     22
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,64 @@
+{
+ "textures": [
+  "cp11mdl3",
+  "cp12mdl3",
+  "cp13mdl3"
+ ],
+ "note": "the police car's left door, livery 3: TEXAS HIGHWAY / TROOPER; written by gen/police.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    79,
+    23,
+    120,
+    31
+   ],
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    74,
+    32,
+    122,
+    45
+   ],
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "TEXAS HIGHWAY",
+   "cap": 6,
+   "center": [
+    99.5,
+    27.0
+   ],
+   "width": 38.28,
+   "skew": 0.12,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TROOPER",
+   "cap": 11,
+   "center": [
+    98.0,
+    38.5
+   ],
+   "width": 43.8,
+   "skew": 0.2,
+   "font": "DDINCondensed",
+   "colour": [
+    20,
+    20,
+    26
+   ]
+  }
+ ]
+}
