@@ -13,6 +13,12 @@ def parse_res(s):
     return dict(kv.split("=", 1) for kv in s.split() if "=" in kv)
 
 
+def local(out, path):
+    """The run's CSV where it is now: OUT/runs/NAME.csv when the folder was moved after the run."""
+    if not path or os.path.exists(path): return path
+    return os.path.join(out, "runs", path.replace("\\", "/").split("/")[-1])
+
+
 def load(out):
     rows = []
     for l in open(os.path.join(out, "results.tsv"), encoding="utf-8"):
@@ -21,7 +27,7 @@ def load(out):
         when, tag, mission, pack, cache, rep, gpu, load0, loadmed, others, wall, code, res = f[:13]
         r = parse_res(res) if res != "FAILED" else {}
         rows.append(dict(when=when, tag=tag, mission=mission, pack=pack, cache=cache, rep=int(rep), cpu=int(loadmed) if loadmed.lstrip("-").isdigit() else -1,
-                         others=others, res=r, csv=r.get("csv")))
+                         others=others, res=r, csv=local(out, r.get("csv"))))
     return rows
 
 
