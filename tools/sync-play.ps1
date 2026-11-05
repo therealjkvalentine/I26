@@ -1,18 +1,19 @@
-<#
+﻿<#
 .SYNOPSIS
-  Rebuilds the private `play` integration branch from origin/master plus every topic branch of the patch stack.
+  Merges the patch stack's new topic branches onto the private `play` integration branch.
 
 .DESCRIPTION
   Run from a worktree whose checked-out branch is `play`. The stack is the branch list in tools/play-branches.txt on
-  the `play-meta` branch (one branch a line, merge order, # comments). For each branch the script:
+  `play` itself (one branch a line, merge order, # comments; since pass 19 the bookkeeping lives on play, the old
+  `play-meta` branch is history). For each branch the script:
     1. drops it from the stack when its pull request upstream is merged (gh, --head <user>:<branch>) or its commits are
        already in origin/master;
     2. rebases it onto origin/master in a temporary detached worktree, unless it is checked out in another worktree
        (then it is merged as it stands and listed as "rebase skipped");
-    3. after `play` is reset to origin/master and `play-meta` merged, merges the branch with --no-ff. Conflicts in
+    3. merges the branch onto `play` with --no-ff (upstream moves are merged into play by hand, pass 19 onward). Conflicts in
        CHANGELOG.md, docs/deviations.md and docs/dev-hooks.md are resolved by keeping both sides' lines (duplicates
        removed), everything else aborts that merge and the branch is listed as a conflict;
-    4. pushes `play`, `play-meta` and every topic branch to the `play` remote (--force-with-lease), unless -NoPush.
+    4. pushes `play` and every topic branch to the `play` remote (--force-with-lease), unless -NoPush.
   Nothing is ever pushed to origin or fork. The upstream repository and the fork's owner are read from the remotes.
 
 .PARAMETER NoPush   Build only.
@@ -63,8 +64,8 @@ Git fetch origin --prune | Out-Null
 Git fetch play --prune | Out-Null
 Git config rerere.enabled true | Out-Null
 
-$manifestText = Git show play-meta:tools/play-branches.txt
-if ($gitExit -ne 0) { Fail 'play-meta:tools/play-branches.txt not found' }
+$manifestText = Get-Content -LiteralPath (Join-Path $root 'tools/play-branches.txt') -Encoding UTF8
+if (-not $manifestText) { Fail 'tools/play-branches.txt not found on play' }
 $stack = @()
 foreach ($line in $manifestText) {
   $t = ($line -split '#')[0].Trim()
@@ -152,12 +153,9 @@ $already = @()
 if ($Rebuild) {
   Write-Host '== rebuild play from origin/master'
   Git reset --hard origin/master | Out-Null
-  $out = Git merge --no-ff --no-edit play-meta
-  if ($gitExit -ne 0) { Git merge --abort | Out-Null; Fail 'play-meta does not merge onto origin/master' }
+  Fail '-Rebuild is retired since pass 19: play carries its own bookkeeping and 100+ branches are stacked on it; merge origin/master into play by hand instead'
 } else {
   Write-Host '== merge the new branches onto play'
-  Git merge-base --is-ancestor play-meta play | Out-Null
-  if ($gitExit -ne 0) { $out = Git merge --no-ff --no-edit play-meta; if ($gitExit -ne 0) { Git merge --abort | Out-Null; Fail 'play-meta does not merge onto play' } }
 }
 
 foreach ($b in $stack) {
@@ -188,7 +186,7 @@ foreach ($b in $stack) {
 
 if (-not $NoPush) {
   Write-Host '== push to play'
-  Git push --force-with-lease play play play-meta | Out-Null
+  Git push --force-with-lease play play | Out-Null
   foreach ($b in $stack) { Git push --force-with-lease play $b | Out-Null }
 }
 
@@ -197,6 +195,6 @@ Write-Host "merged into play now ($($merged.Count)):"; $merged | ForEach-Object 
 if ($already) { Write-Host "already in play: $($already.Count)" }
 if ($Rebuild) { Write-Host 'full rebuild: redo the hand fixes listed under "Integration notes" in docs/play-tracker.md, then dotnet build I76.sln' }
 if ($rebaseSkipped) { Write-Host 'rebase skipped (merged as they stand):'; $rebaseSkipped | ForEach-Object { "  $_" } }
-if ($dropped) { Write-Host 'dropped from the stack (edit tools/play-branches.txt on play-meta):'; $dropped | ForEach-Object { "  $_" } }
+if ($dropped) { Write-Host 'dropped from the stack (edit tools/play-branches.txt on play):'; $dropped | ForEach-Object { "  $_" } }
 if ($missing) { Write-Host 'listed but no such local branch:'; $missing | ForEach-Object { "  $_" } }
 if ($conflicts) { Write-Host 'CONFLICTS (not in play):' -ForegroundColor Yellow; $conflicts | ForEach-Object { "  $_" } }
