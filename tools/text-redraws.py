@@ -326,8 +326,8 @@ def note_pack(pack, done, table):
     for stem, name, spec in done: prev[stem] = {"texture": stem, "spec": "tools/text-redraws/" + name, "fonts": fonts_of(spec)}
     info["text_redraws"] = [prev[k] for k in sorted(prev)]
     used = sorted({f for r in info["text_redraws"] for f in r["fonts"]})
-    info["text_fonts"] = [{"font": f, "by": table[f]["by"], "license": table[f]["license"], "source": table[f]["source"]} for f in used]
-    lines = [f"lettering redrawn in {f} by {table[f]['by']}, {table[f]['license']}, {table[f]['source']}" for f in used]
+    info["text_fonts"] = [{"font": table[f].get("name", f), "by": table[f]["by"], "license": table[f]["license"], "source": table[f]["source"]} for f in used]
+    lines = [f"lettering redrawn in {table[f].get('name', f)} by {table[f]['by']}, {table[f]['license']}, {table[f]['source']}" for f in used]
     if lines:
         info["attribution"] = " | ".join([a for a in info.get("attribution", "").split(" | ") if a and not a.startswith("lettering redrawn in ")] + lines)
     with open(pj + ".part", "w", encoding="utf-8") as f: json.dump(info, f, indent=2)

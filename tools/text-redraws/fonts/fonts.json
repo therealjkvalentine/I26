@@ -1,8 +1,44 @@
 {
-  "Anton": {"file": "Anton/Anton-Regular.ttf", "by": "Vernon Adams, The Anton Project Authors", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/anton"},
-  "ArchivoNarrow": {"file": "ArchivoNarrow/ArchivoNarrow[wght].ttf", "by": "Omnibus-Type, The Archivo Narrow Project Authors", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow"},
-  "LeagueGothic": {"file": "LeagueGothic/LeagueGothic[wdth].ttf", "by": "The League of Moveable Type, The League Gothic Project Authors", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/leaguegothic"},
-  "Lobster": {"file": "Lobster/Lobster-Regular.ttf", "by": "Pablo Impallari, The Lobster Project Authors", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/lobster"},
-  "MrDafoe": {"file": "MrDafoe/MrDafoe-Regular.ttf", "by": "Alejandro Paul (Sudtipos)", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/mrdafoe"},
-  "RussoOne": {"file": "RussoOne/RussoOne-Regular.ttf", "by": "Jovanny Lemonad", "license": "SIL OFL 1.1", "source": "https://github.com/google/fonts/tree/main/ofl/russoone"}
+  "Anton": {
+    "name": "Anton",
+    "file": "Anton/Anton-Regular.ttf",
+    "by": "Vernon Adams, The Anton Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/anton"
+  },
+  "ArchivoNarrow": {
+    "name": "Archivo Narrow",
+    "file": "ArchivoNarrow/ArchivoNarrow[wght].ttf",
+    "by": "Omnibus-Type, The Archivo Narrow Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow"
+  },
+  "LeagueGothic": {
+    "name": "League Gothic",
+    "file": "LeagueGothic/LeagueGothic[wdth].ttf",
+    "by": "The League of Moveable Type, The League Gothic Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/leaguegothic"
+  },
+  "Lobster": {
+    "name": "Lobster",
+    "file": "Lobster/Lobster-Regular.ttf",
+    "by": "Pablo Impallari, The Lobster Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/lobster"
+  },
+  "MrDafoe": {
+    "name": "Mr Dafoe",
+    "file": "MrDafoe/MrDafoe-Regular.ttf",
+    "by": "Alejandro Paul (Sudtipos)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/mrdafoe"
+  },
+  "RussoOne": {
+    "name": "Russo One",
+    "file": "RussoOne/RussoOne-Regular.ttf",
+    "by": "Jovanny Lemonad",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/russoone"
+  }
 }
