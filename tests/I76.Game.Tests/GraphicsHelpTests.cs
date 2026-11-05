@@ -43,8 +43,8 @@ public class GraphicsHelpTests
     {
         var t = GraphicsHelp.Text(GraphicsRow.RearMirror, false)!;
         Assert.Contains("100 m", t);
-        Assert.Contains("Full", t);
-        Assert.Contains("mirror_range", t);
+        Assert.Contains("Developer panel", t);
+        Assert.DoesNotContain("=", t);   // no config key shown to the player
     }
 
     [Theory]
