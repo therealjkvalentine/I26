@@ -94,7 +94,7 @@ public class BriefingOverlapTests
         Assert.Equal(Stage.Attach, s.Step(8, built: true, movieOver: true));
     }
 
-    /// <summary>No briefing (a melee, --skip-movies): the card until the build is done, and the retail time at least, in either order.</summary>
+    /// <summary>No briefing (a melee, --skip-movies): the card until the build is done, no longer, in either order (the original's card is up for its load).</summary>
     [Theory]
     [InlineData(CardOrder.CardFirst)]
     [InlineData(CardOrder.MovieFirst)]
@@ -102,9 +102,8 @@ public class BriefingOverlapTests
     {
         var s = new CardSequence(order, briefing: false, holdSeconds: 6);
         Assert.Equal(Stage.Card, s.Now);
-        Assert.Equal(Stage.Card, s.Step(2, built: true, movieOver: false));   // built before the hold is over
         Assert.Equal(Stage.Card, s.Step(10, built: false, movieOver: false));
-        Assert.Equal(Stage.Attach, s.Step(12, built: true, movieOver: false));
+        Assert.Equal(Stage.Attach, s.Step(2, built: true, movieOver: false));   // built before the retail time: no hold
         Assert.False(s.MovieShown);
     }
 

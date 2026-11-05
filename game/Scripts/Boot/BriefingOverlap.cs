@@ -48,7 +48,7 @@ public static class BriefingOverlap
 /// The screens of a mission start, a step a frame (Main.BuildBehindCard): <see cref="Stage.Card"/> while the card leads,
 /// <see cref="Stage.Movie"/> while the briefing plays, <see cref="Stage.CardAgain"/> after it until the build is done, then
 /// <see cref="Stage.Attach"/> (the rest of the load, on the main thread behind the card). With no briefing the card holds until
-/// the build is done and at least the retail time.
+/// the build is done, as the original's is up for its load (Main builds such a start on the main thread).
 /// </summary>
 public sealed class CardSequence(CardOrder order, bool briefing, double holdSeconds = BriefingOverlap.RetailCardSeconds)
 {
@@ -69,7 +69,7 @@ public sealed class CardSequence(CardOrder order, bool briefing, double holdSeco
         {
             case Stage.Card:
                 if (briefing) { if (cardSeconds >= holdSeconds) Now = Stage.Movie; }
-                else if (built && cardSeconds >= holdSeconds) Now = Stage.Attach;
+                else if (built) Now = Stage.Attach;
                 break;
             case Stage.Movie:
                 if (movieOver) Now = built ? Stage.Attach : Stage.CardAgain;

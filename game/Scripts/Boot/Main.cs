@@ -383,6 +383,9 @@ public partial class Main : Node3D
         bool threaded = loading is null && _opt.Install is not null && _opt.Mission is not null
             && BriefingOverlap.Threaded(_opt.Mode1997, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
         string? briefing = threaded ? BriefingDuringLoad() : null;
+        // with no briefing to build under, the main thread builds behind the card as the original loads: the thread would only add its
+        // queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
+        threaded &= briefing is not null;
         var order = I76.Game.Shell.ShellSettings.Load().CardOrder;
         BuildJob? job = threaded ? StartBuildJob() : null;
         // up, and drawn once, before the build (a threaded build: already going)
@@ -497,6 +500,9 @@ public partial class Main : Node3D
         MissionBuilder.Trace("trees prewarmed");
         load.Dispose();
         MissionBuilder.Trace("car, first tick");
+        await FinishLightingCalibration();
+        if (!IsInsideTree()) return;
+        MissionBuilder.Trace("lighting calibration applied");
         if (MissionBuilder.TraceOn) TraceFrames(6);
         if (loading is not null) await WarmEffects();
         MissionBuilder.Trace("effects rehearsal");
@@ -1712,7 +1718,7 @@ public partial class Main : Node3D
             catch (System.Exception ex) { job!.Error = ex; }
             start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
             LoadProfiler.Event("build done");
-        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
+        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.Normal, Name = "mission-build" };
         job = new BuildJob(start, thread);
         if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
         thread.Start();
@@ -1768,6 +1774,8 @@ public partial class Main : Node3D
             {
                 if (cardUp) { await loading.FadeOut(); cardUp = false; if (!IsInsideTree()) break; }
                 movieStarted = true;
+                // under the movie the build gives way to its decoding (at the normal priority behind the card)
+                try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.BelowNormal; } catch (System.Threading.ThreadStateException) { }
                 MissionBuilder.Trace("briefing starts");
                 OnNextDraw(() => LoadProfiler.Event("movie start"));
                 try { PlayMovies(job.Start.Install, [briefing!], () => over.TrySetResult()); }
@@ -1775,6 +1783,7 @@ public partial class Main : Node3D
             }
             if (was == CardSequence.Stage.Movie && now != CardSequence.Stage.Movie)
             {
+                try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.Normal; } catch (System.Threading.ThreadStateException) { }
                 LoadProfiler.Event("movie over");
                 MissionBuilder.Trace("briefing over");
             }
@@ -2064,7 +2073,8 @@ public partial class Main : Node3D
         _calibratedSky = modernSky;
         _calibratedLight = light;
         MissionBuilder.Trace("sky materials");
-        SolveLightingCalibration();
+        // at a load: its arithmetic beside the rest of the load (I76_CALIBRATION_BESIDE=0: here, as before)
+        SolveLightingCalibration(background: System.Environment.GetEnvironmentVariable("I76_CALIBRATION_BESIDE") != "0");
         MissionBuilder.Trace("lighting calibration");
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
@@ -2109,9 +2119,10 @@ public partial class Main : Node3D
     /// colours (linear) from above the horizon and the horizon panels' foot (what the radiance map holds there) from below.
     /// By day only: a night's light is the cars' and the moon's (left as tuned).
     /// </summary>
-    private void SolveLightingCalibration()
+    private void SolveLightingCalibration(bool background = false)
     {
         _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
+        _calibrationJob = null;
         if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || !light.IsDay || _builder?.World is not { } world
             || _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLightingCalibration(); return; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -2129,13 +2140,56 @@ public partial class Main : Node3D
         var sun = Lin(_sun.LightColor, _sun.LightEnergy);
         var curve = _lighting == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
         bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
-        var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
-        var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, LumaBytes(), light.Intensity, light.Ambient, sun, skyUp, skyDown,
-            card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
-        var c = _calibration = I76.Formats.Imaging.LightingCalibration.Solve(img.GetData(), ground, objects, curve);
-        GD.Print($"lighting calibration ({curve}): {ground.Count} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
-            + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms");
-        ApplyLightingCalibration();
+        var luma = LumaBytes();
+        var pixels = img.GetData();
+        // the cells and the solve are the Formats library's arithmetic: at a mission's load on a worker while the rest of the load
+        // goes on behind the card (FinishLightingCalibration applies it before the card goes), else here
+        I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
+        {
+            var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
+            var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, luma, light.Intensity, light.Ambient, sun, skyUp, skyDown,
+                card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
+            kinds = ground.Count;
+            return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
+        }
+        void Done(I76.Formats.Imaging.LightingCalibration.Result c, int kinds)
+        {
+            _calibration = c;
+            GD.Print($"lighting calibration ({curve}): {kinds} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
+                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms{(background ? " (beside the load)" : "")}");
+            ApplyLightingCalibration();
+        }
+        if (background)
+        {
+            var job = System.Threading.Tasks.Task.Run(() => { var r = Solve(out int k); return (r, k); });
+            _calibrationJob = job;
+            _calibrationDone = () => { if (job.IsCompletedSuccessfully) Done(job.Result.r, job.Result.k); else GD.PrintErr($"lighting calibration: {job.Exception?.GetBaseException().Message}"); };
+            ApplyLightingCalibration();   // (uncalibrated until it is done: behind the card)
+            return;
+        }
+        var res = Solve(out int n);
+        Done(res, n);
+    }
+
+    private System.Threading.Tasks.Task? _calibrationJob;
+    private System.Action? _calibrationDone;
+
+    /// <summary>The load's lighting calibration (solved beside the rest of the load, SolveLightingCalibration) applied, once it is done.</summary>
+    private async System.Threading.Tasks.Task FinishLightingCalibration()
+    {
+        if (_calibrationJob is not { } job) return;
+        if (!job.IsCompleted)
+        {
+            // the world held still meanwhile, as under the effects rehearsal: the mission does not start behind the card
+            bool was = GetTree().Paused;
+            GetTree().Paused = true;
+            while (!job.IsCompleted) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+            GetTree().Paused = was;
+        }
+        if (_calibrationJob != job) return;   // (solved again meanwhile: a setting changed)
+        _calibrationJob = null;
+        _calibrationDone?.Invoke();
+        _calibrationDone = null;
     }
 
     private bool _horizonFootFound;
