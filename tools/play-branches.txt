@@ -9,7 +9,7 @@ fix/script-camera-arrived-flag        # camIsArrived cleared on every placing ca
 fix/mission-music-wrap                # #128
 fix/smoke-sky-flicker                 # cockpit smoke flicker (owner report)
 # dropped 2026-11-03, absorbed by upstream 32988ae (PR #144 landed as upstream's own commit): fix/macos-entitlements-der
-fix/macos-mic-opened-on-first-cb      # supersedes fix/macos-mic-prompt-on-first-cb (docs only, not merged)
+# dropped 2026-11-05, absorbed by upstream 0f2ebef + 692c9c8 (CB Microphone starts on None; the input off in the project until a device is chosen): fix/macos-mic-opened-on-first-cb
 fix/middle-wheel-suspension           # #124 six-wheelers
 fix/predicted-shots-of-jammable-weapon  # MP-B1
 fix/own-shots-counter-at-respawn      # MP-B3
@@ -19,7 +19,7 @@ fix/first-garage-load-prewarm         # #143
 # dropped 2026-11-03, absorbed by upstream 01228e7 (#142, the same ProcessMode line): fix/load-card-audio-hiccup
 fix/first-explosion-stutter           # #116
 feat/regen-pad-hold-readout           # #102 (readout only; the rule is the original's)
-fix/editor-tool-column-scroll         # #146 map editor tool column scrolls
+# dropped 2026-11-05, absorbed by upstream e1926cc (#146, the tool column scrolls): fix/editor-tool-column-scroll
 fix/mouse-in-window-menus             # #147 Keep Mouse In Window honoured in the menus
 fix/gate-fence-grounding              # #137 fences and tyre walls centred on their line between posts
 fix/1997-effect-sprites-upright       # #105 effect cards upright, foot at the origin (1997 look)
@@ -27,7 +27,7 @@ fix/cockpit-art-bilinear              # dash and gauges smooth when looked down 
 
 # B. measured against the original (retail 1.0, emulated Pentium)
 fix/taurus-load-cornering
-fix/difficulty-damage
+# dropped 2026-11-05, absorbed by upstream be3d718 (the same x2 / x1 / x0.75 rule, x1 online; ShellSettings.ApplyTo): fix/difficulty-damage
 fix/ai-turn-speed-at-spawn
 fix/ai-avoid-scripted-lead-car        # T02 opening
 fix/fsm-timer-rounds-to-nearest
@@ -75,7 +75,7 @@ fix/ai-attacker-slot-cap-zero
 fix/ai-friendly-fire-scan
 fix/ezk-mortar-uses-predictor        # stacked on the EZK gate and the predictor
 fix/explosion-template-by-key
-fix/heated-seats-ammo
+# dropped 2026-11-05, absorbed by upstream a99303d (Heated Seats x1.1 rounds, and the Nitro specials): fix/heated-seats-ammo
 fix/death-camera-orbit-rate
 fix/contact-order-statics-last
 fix/emplacement-placements-grounded
@@ -102,7 +102,7 @@ fix/cockpit-gauge-dials-too-dark      # the 3D cockpit's dials black under their
 fix/target-tags-bold                  # the garage's (C), (V), (R) legends bold and a little larger (modern look)
 
 # C2. performance (pure, frames unchanged; measured on a GTX 1080 Ti and a GTX 1650 Ti)
-perf/horizon-early-z
+# superseded 2026-11-05 by upstream 8625cce + 798c651 (the outside ground; its near chunks take early depth rejection; the ring's main/rim split not re-ported): perf/horizon-early-z
 perf/interop-garbage                  # drop-shadow casters found once, shadow nodes told only what changed, the smoke layer keeps its uniforms
 
 # D. features, each behind an option
@@ -191,11 +191,11 @@ fix/hd-pack-glass-and-key             # stacked on play: the window / paint / ma
 perf/hd-pack-load                     # after hd-pack-glass-and-key: 2x BC7 .dds packs (cockpit 4x) uploaded as stored, a model's upscales decoded in parallel; the script writes DDS, --from repacks
 fix/hd-cockpit-panels                 # stacked on play: under an HD pack the mirror frame, radar marks and panels drawn right and redrawn when HD Textures or the look flips; the tool scales the cockpit's lettering and mirror frame in their own colours
 fix/hd-dream-grey                     # stacked on play: the dream's grey palette applied to the pack's upscales of the entries it greys
-feat/host-form-redesign               # stacked on play: the host form's options one box in the form's paper and lines; an arena sketch with its starts, count and size
+# superseded 2026-11-05 by upstream 56373bd (the base host form drawn by the port as a ruled sheet; our Ignition Lock, Handicaps and co-op rows are rows of it on play-reconcile): feat/host-form-redesign
 fix/round3-integration-3              # stacked on play, last of I: the handicap helper's and IncomingFactor's summaries each on its member
 fix/hd-cockpit-panels-2               # stacked on play: modern look's ammunition digits on the housing's drums; the mirror's frame and glass cut along smooth edges
 feat/dymo-weapon-labels               # stacked on play: modern look letters the weapon and special labels in a label-tape font (the panels at twice the pixels); after hd-cockpit-panels-2
-fix/host-form-polish                  # stacked on play: the host form's arena sketch on a torn scrap, rule tips, the arena list's scroll bar
+# superseded 2026-11-05 by upstream 56373bd (the arena sketch scrap, rule tips and arena list bar went with our options box): fix/host-form-polish
 fix/melee-list-arenas-only            # stacked on play: the melee lists leave out co-op packs' copies of the story missions
 fix/scene-names                       # stacked on play: trip missions listed as "Scene N: name", named by what happens in them; after melee-list-arenas-only
 fix/map-edge-on-off                   # stacked on play: Map Edge is Off or On (On draws the walls down at their foot)
@@ -276,6 +276,7 @@ feat/graphics-pages-3                 # section P: Graphic Detail in the origina
 # Q. pass 17 (2026-11-04): the playtest's answers, round 5; stacked on play
 fix/briefing-overlap-title            # section Q: under the briefing the loading card comes up after the movie only (black, movie, card, mission); the original order keeps card first
 fix/counter-digits-font               # section Q: modern cockpit ammunition counters draw their digits from Roboto Bold (OFL) on the drum face instead of the upscaled znbe strip; inset variant built, off
+# 2026-11-05: fix/shell-layout-2's host form arena scrap move is superseded by upstream 56373bd (no scrap on the drawn sheet); its bookmark Delete placement is kept
 fix/shell-layout-2                    # section Q: bookmark Delete on the bottom button line left of Load/Save; the host form's arena scrap 20 base px left with its dimensions under the drawing, centred
 feat/death-variety-2                  # section Q: two-stage deaths: the failed part's own event, a 200-500 ms beat, one tank blast, a cause-specific throw; the effect roll as flares; the catastrophic award alone has more; variety-off's double blast fixed
 
