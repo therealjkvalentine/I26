@@ -87,7 +87,7 @@ difference. Rows marked *same* or *I26 closer* need nothing.
 |---|---|---|---|---|---|---|
 | 1 | Waiting for the tick | a key change runs the next tick now (borrowed), drawn from the pose on screen | the keys wait for the tick (0-41.5 ms) | 33 ms median, throttle from rest (50 against 17) | **large**: every press, every turn-in | **Done**: Early Tick (`TickPacer`), `[port] early_tick`. Small (a pacer class, a key-change test, a kept drawn pose per car). Risk low: the ticks and their inputs are unchanged; rounds and effects drawn between ticks can move on up to a tick at a press |
 | 2 | Polygon edges | 4x MSAA (and 2x supersampling full screen) | no multisampling | pillars, horizon and road lines crawl in I26 | **medium**: the clean look in motion | **Done**: the 1997 look takes the Anti-Aliasing row, `[port] aa_1997`. A few lines; no measurable cost (179 fps either way). Risk: keyed texture cut-outs stay stepped (MSAA smooths geometry, not texels) |
-| 3 | Machine-gun cadence | each shot's flash and sound on the display frame where its timer put it (`I76_MG_EVEN`): 100 ms apart | the flash on the tick: 83 and 125 ms apart at 24 Hz (the looping report was already steady) | the flash interval's 21 ms swing to under 10 | **small to medium**: firing is half the game | **Done**: `ShotFired.Lead` (presentation only) and the 1997 look's flash and one-shot report at it, `[port] even_shots`. Small; risk low (a flash at most a tick later than before) |
+| 3 | Machine-gun cadence | each shot's flash and sound on the display frame where its timer put it (`I76_MG_EVEN`): 100 ms apart | the shot on the tick: 83 and 125 ms apart at 24 Hz; the looping report already steady; each flash a 10-frames-a-second sprite of its own | the shot grid's 21 ms swing; the visible flash is dominated by the sprites' own 100 ms frames | small | **Tried and withdrawn**: each shot's flash drawn at its place in the tick. In the chase view the flash re-lit every 206 ms (sd 14) before and irregularly after (sd 138, fewer re-lights): shifting overlapping 10 fps sprites off the tick made the pattern less even, not more. Evening it out would need the 1997 flash itself redrawn per shot (one sprite, restarted), a separate change |
 | 4 | Supersampling | full screen: drawn at 2x per axis (6880x2880 on 3440x1440); none in a window | Render Scale 100 % | texture shimmer, sub-pixel detail | small to medium, full screen only | none needed: Render Scale 200 % does it (a 1997-look frame is 1.6-2.4 ms of GPU at 1080p); worth a word in the help line |
 | 5 | Distance | 2300 m, terrain LOD x24 with morphing, a fog to the horizon colour from 0.75 of the clip | 600 m with the horizon panels (Far) or 20 km drawn crisp to the map's end (Max\*), no fade | i76-e's far ground melts into the horizon; I26 shows more, with an edge | small for feel, visible in the horizon shots | proposed: a fade to the horizon colour over the last quarter of the draw distance in the 1997 terrain and object shaders at Max\*, or a 2.3 km setting. Medium cost, low risk |
 | 6 | Frame rate and pacing | 110-118 fps, 1 % low 63-76, uneven on a 179 Hz display | 179 fps, sd 1.0 ms, 1 % low 83 | **I26 ahead** | none in i76-e's favour | none |
@@ -99,3 +99,16 @@ difference. Rows marked *same* or *I26 closer* need nothing.
 Not compared: sound cue timing (both set the engine's pitch from its rpm once a tick and start one-shot reports on the
 tick; i76-e was muted in every run), a jump, a hit taken and a car's death (T01's first minute has none of them and the
 runs were kept short on a shared machine), and a melee (i76-e starts one only through its menus).
+
+## What changed in the 1997 look
+
+| Change | Key | Before | After | Reference |
+|---|---|---|---|---|
+| Early Tick: a key change runs the next tick at once (`TickPacer`, `CarNode.KeepDrawn`) | `[port] early_tick` (on) | throttle from rest, key to first change: 50 ms median (39-67, n 9) | 22 ms (17-28, n 10) | i76-e 17 ms (11-17, n 9) |
+| Anti-aliasing: the 1997 look takes the Anti-Aliasing row's MSAA | `[port] aa_1997` (on) | stepped polygon edges (the pillars, the horizon, the road lines) | smooth, as i76-e's | 179.0 / 178.1 fps, 1 % low 83 / 82 fps: no measurable cost |
+
+Neither changes the simulation: the ticks, their length, their inputs and the physics are the same, and both are off in
+the modern look (which keeps its own Anti-Aliasing as before) and, for Early Tick, online, under Modern Physics and with an
+input replay. The remaining distance to i76-e in the throttle test, about one 5.6 ms display frame, is within the method's
+resolution. The rows above that need a change and are not made here: supersampling (a setting, Render Scale 200 %) and
+the far fade to the horizon colour (row 5).

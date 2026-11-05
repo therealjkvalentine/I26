@@ -1404,8 +1404,6 @@ public sealed class ShellSettings
     public bool EarlyTick { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look takes Graphic Detail's Anti-Aliasing as the modern one does; off, none, as the 3D card drew it ([port] aa_1997, written when off).</summary>
     public bool Antialias1997 { get; set; } = true;
-    /// <summary>The port's own, without a row: the 1997 look shows each shot's flash and report where the gun's timer put it in its tick, not on the tick ([port] even_shots, written when off).</summary>
-    public bool EvenShots { get; set; } = true;
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1606,7 +1604,6 @@ public sealed class ShellSettings
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
-        s.EvenShots = (bool)c.GetValue("port", "even_shots", true);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -1733,7 +1730,6 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
-        if (!EvenShots) c.SetValue("port", "even_shots", false);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

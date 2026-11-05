@@ -21,8 +21,6 @@ public static class OriginalBehavior
     public static bool EarlyTick = true;
     /// <summary>The 1997 look takes the Anti-Aliasing row ([port] aa_1997, on unless false); off, no multisampling, as the 3D card drew it.</summary>
     public static bool Antialias1997 = true;
-    /// <summary>The 1997 look's even shots: a shot's flash and report at its place in the tick (ShotFired.Lead; [port] even_shots, on unless false).</summary>
-    public static bool EvenShots = true;
 
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {
@@ -33,7 +31,6 @@ public static class OriginalBehavior
         SmoothOrbit = s.DeathOrbit != Original;
         EarlyTick = s.EarlyTick;
         Antialias1997 = s.Antialias1997;
-        EvenShots = s.EvenShots;
         DeathVariety.Enabled = s.DeathVariety;
     }
 

@@ -55,15 +55,7 @@ public sealed class Round
 }
 
 public abstract record CombatEvent;
-public sealed record ShotFired(Vehicle Shooter, Weapon Weapon, Vector3 Muzzle, Vector3 Forward) : CombatEvent
-{
-    /// <summary>
-    /// How far into its frame the shot fell, seconds (the frame's dt less what the timing loop had left at the shot; batched rounds:
-    /// the first's). The original fires only on a frame, so a 10/s gun at a 24/s tick fires 2, 3, 2, 3 ticks apart; this lets a view
-    /// show the flash where the timer put it (the 1997 look's even shots). Presentation only: nothing in the sim reads it.
-    /// </summary>
-    public float Lead { get; init; }
-}
+public sealed record ShotFired(Vehicle Shooter, Weapon Weapon, Vector3 Muzzle, Vector3 Forward) : CombatEvent;
 /// <summary>A round's hit: At is the effect's place (bullets back off 2 m), Hit the struck point, N its normal, Dir the flight.</summary>
 public sealed record Impact(string Effect, string Sound, Vector3 At, object? Victim, uint Kind = 0, Vector3 Hit = default, Vector3 N = default, Vector3 Dir = default) : CombatEvent;
 public sealed record Explosion(EffectDef Effect, Vector3 At) : CombatEvent;
@@ -951,7 +943,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         void FireOne(float pre)
         {
             if (batch) { batched++; batchDt = MathF.Max(batchDt, pre); }
-            else Shot(v, w, 1, pre, frameDt, frameDt - pre);
+            else Shot(v, w, 1, pre, frameDt);
         }
         if (dt <= w.WaitA || dt <= w.WaitB)
         {
@@ -1020,11 +1012,11 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         if (flameHeld) FlameHold(v, w);
         w.WasFiring = w.Trigger;
         w.Trigger = false;   // a per-frame request
-        if (batched > 0) Shot(v, w, batched, batchDt / 3f, frameDt, frameDt - batchDt);
+        if (batched > 0) Shot(v, w, batched, batchDt / 3f, frameDt);
     }
 
     /// <summary>Sound and flash, ammo, the target by ordnance kind, then the round.</summary>
-    private void Shot(Vehicle v, Weapon w, int n, float dtPre, float frameDt, float lead = 0)
+    private void Shot(Vehicle v, Weapon w, int n, float dtPre, float frameDt)
     {
         var rot = Rows.Concat(w.MuzzleRot, v.Rot);
         var muzzle = v.Pos.ToVector3() + v.Rot.ToWorld(w.MuzzlePos);
@@ -1050,7 +1042,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             rot = Rows.Concat(w.MuzzleRot, v.Rot);
             muzzle = v.Pos.ToVector3() + v.Rot.ToWorld(w.MuzzlePos);   // a turret's muzzle swings with its gun
         }
-        Events.Add(new ShotFired(v, w, muzzle, rot.Forward) { Lead = System.Math.Clamp(lead, 0, frameDt) });
+        Events.Add(new ShotFired(v, w, muzzle, rot.Forward));
         if (!Unlimited(v)) w.Ammo = System.Math.Max(0, w.Ammo - n);
         int had = PredictedRounds.Count;
         if (n > 0) Spawn(v, w, muzzle, rot, n, target, dtPre, frameDt);

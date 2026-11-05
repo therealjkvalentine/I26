@@ -80,7 +80,6 @@ public static class DevSettings
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
         new("early_tick", FalseTrue, s => s.EarlyTick ? 1 : 0, (s, v) => s.EarlyTick = v != 0, DevWhen.Live),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
-        new("even_shots", FalseTrue, s => s.EvenShots ? 1 : 0, (s, v) => s.EvenShots = v != 0, DevWhen.Live),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),
