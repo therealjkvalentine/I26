@@ -12,6 +12,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public AssetVfs Vfs => vfs;
     public MissionWorld? World { get; private set; }
     public TerrainNode? Terrain { get; private set; }
+    /// <summary>The ground past the map's tiles near the camera (null for a map too big for it).</summary>
+    public OutsideTerrain? OutsideNode { get; private set; }
     public ScenerySpawner? Scenery { get; private set; }
     public MeshBuilder? Meshes { get; private set; }
     private I76.Game.Sim.CarPartsCache? _carParts;
@@ -70,7 +72,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public sealed record SkyPalette(Color Sky, Color Cloud, Color Shade, float SkyLum, float CloudLum);
 
     /// <summary>
-    /// The upward faces of every road-piece placement (types 0x50–0x5f), and
+    /// The upward faces of every painted road-piece placement (types 0x50–0x5f, flat models: RoadPieceObjects), and
     /// the ground-level faces of grounded scenery (GroundDecals), in the game
     /// frame's XZ, with their UVs and textures (a flat colour as a 1×1
     /// texture), for RoadRaster to paint into the terrain layer. The original
@@ -91,10 +93,12 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var lowestOf = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in world.Placements.Concat(world.LinePlacements))
         {
-            bool piece = ScenerySpawner.IsRoadPiece(p.Object.ObjectType);
-            bool decals = !piece && GroundDecals.Applies(p);
-            if (!piece && !decals || p.Definition is null || asm.Assemble(p.Definition) is not { } model) continue;
-            if (!lowestOf.TryGetValue(p.Definition, out float lowest)) lowestOf[p.Definition] = lowest = GroundDecals.LowestY(model);
+            bool decals = GroundDecals.Applies(p);
+            if (!decals && !ScenerySpawner.IsRoadPiece(p.Object.ObjectType) || p.Definition is null || asm.Assemble(p.Definition) is not { } model) continue;
+            // a road piece is painted only where the paint is its whole look (RoadPieceObjects): a ramp given the type is drawn
+            if (!decals && !RoadPieceObjects.IsFlat(model = RoadPieceObjects.Drawn(model))) continue;
+            float lowest = 0;
+            if (decals && !lowestOf.TryGetValue(p.Definition, out lowest)) lowestOf[p.Definition] = lowest = GroundDecals.LowestY(model);
             var place = I76.Formats.Assembly.Affine.FromEngine(p.Object.Rotation, world.GroundedPosition(p));
             foreach (var part in model.Parts)
                 foreach (var f in part.Mesh.Faces)
@@ -386,6 +390,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 Horizon = new Texture2DArray();
                 Horizon.CreateFromImages(imgs);
+                GC.KeepAlive(imgs);   // held past the call (see MeshArrays)
                 if (defer) HorizonImages = [.. imgs];
                 else if (EarlyHorizon && !huge) panels = [.. imgs.Select(im => (Image)im.Duplicate())];
             }
@@ -642,6 +647,12 @@ public sealed class MissionBuilder(AssetVfs vfs)
         if (I76.Game.Editor.SwitchTimer.On) GD.Print($"switch: terrain content {world.Terrain.ContentHash():x16}");
         Trace("terrain built");
         root.AddChild(Terrain);
+        if (world.Outside is not null && System.Environment.GetEnvironmentVariable("I76_OUTSIDE_CHUNKS") != "0")   // I76_OUTSIDE_CHUNKS=0: the ring alone out there (A/B)
+        {
+            OutsideNode = new OutsideTerrain { Name = "OutsideTerrain" };
+            OutsideNode.Setup(world, TerrainMaterial);
+            root.AddChild(OutsideNode);
+        }
         RoadBakeMs = sw.ElapsedMilliseconds;
 
         Roads = new RoadNode { Name = "Roads", Visible = false, LightY = Light.Direction.Y * Light.Intensity, Ambient = Light.Ambient };

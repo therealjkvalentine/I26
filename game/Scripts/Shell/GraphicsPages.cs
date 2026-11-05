@@ -6,7 +6,8 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
     Look1997, HdTextures, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
     AntiAliasing, RenderScale, VSync, MaxFps, ShowFps, Renderer, LogFile,
-    FieldOfView, MouseCamera, CameraReturn, ZoomReset, MouseInWindow,
+    FieldOfView,
+    AmbientOcclusion,
 }
 
 /// <summary>
@@ -20,15 +21,16 @@ public enum GraphicsRow
 /// </summary>
 public static class GraphicsPages
 {
-    public const int Sheet = 0, Look = 1, Display = 2, Camera = 3;
-    public static readonly string[] Names = ["Graphic Detail", "Look", "Display", "Camera"];
+    public const int Sheet = 0, Look = 1, Display = 2;
+    public static readonly string[] Names = ["Graphic Detail", "Look", "Display"];
     /// <summary>Each page's rows in order; the sheet's are the original's, as the original has them.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
-        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
-        [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
-        [GraphicsRow.FieldOfView, GraphicsRow.MouseCamera, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.MouseInWindow],
+        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        // Field of View, the Camera page's last row once the mouse rows (Mouse Camera, Camera Return, View Zoom Reset, Mouse In Window) became
+        // upstream's Mouse Options screen's (pass 19), with the live view rows; the Camera page is gone
+        [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
     ];
 
     /// <summary>Rows with a blank line over them on the shell's sheet: Display's start-up rows apart from the live ones.</summary>
@@ -121,13 +123,10 @@ public static class GraphicsPages
             // one row over two keys: off, or on at a size (the size kept while off)
             case GraphicsRow.HdTextures: t.HdTextures = f.HdTextures; t.HdTextureSize = f.HdTextureSize; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
+            case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;
-            case GraphicsRow.MouseCamera: t.MouseCamera = f.MouseCamera; break;
-            case GraphicsRow.MouseInWindow: t.KeepMouseInWindow = f.KeepMouseInWindow; break;
-            case GraphicsRow.CameraReturn: t.CameraReturn = f.CameraReturn; break;
-            case GraphicsRow.ZoomReset: t.ZoomReset = f.ZoomReset; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
@@ -158,42 +157,40 @@ public static class VisibilityRange
 }
 
 /// <summary>
-/// HD Textures: one row over [port] hd_textures and hd_texture_size. Off, then each size of the texture pack whose tex-world-Nx
-/// folder the user folder has, largest first (the sizes are the port's, so marked). A pack with no sized folder (the plain tex-world,
-/// or a zip) gives Off and On*; no pack at all, no row. A size whose folder is missing shows as the nearest size that is there (the
-/// one HdPackFolders.Choose loads). Off keeps the size; a size change applies from the next mission.
+/// HD Textures: one row over [port] hd_textures and hd_texture_size, Off or 4x* (the port's, so marked): the 4x pack is the one the
+/// modern look is made for, and a 2x or 3x pack saves video memory and a second of loading but no frame time (docs/perf/costs.md).
+/// The loader still serves any whole multiple (HdPackFolders.Choose: the chosen size's tex-world-Nx, else the plain tex-world, else the
+/// nearest size present), and a size set in the file or on the Developer panel shows as itself until the row is clicked. A pack with no
+/// tex-world-4x (a plain tex-world, a zip, or only a 2x or 3x folder) gives Off and On*; no pack at all, no row. Off keeps the size; a
+/// size change applies from the next mission.
 /// </summary>
 public static class HdTextureRow
 {
     public const string On = "On" + ShellSettings.PortMark;
+    /// <summary>The one size the row offers.</summary>
+    public const int Size = I76.Formats.Shell.HdPackFolders.DefaultSize;
 
-    /// <summary>The row's values for the sizes present (largest first) and whether a pack of any kind was found; null for no row.</summary>
-    public static string[]? Names(int[] available, bool anyPack)
+    /// <summary>The row's values for the sizes present (largest first), whether a pack of any kind was found and the size the file asks for; null for no row.</summary>
+    public static string[]? Names(int[] available, bool anyPack, int size = Size)
     {
-        if (available.Length > 0) return ["Off", .. available.Select(z => $"{z}x{ShellSettings.PortMark}")];
-        return anyPack ? ["Off", On] : null;
+        if (available.Contains(Size)) return ["Off", $"{(size != Size && available.Contains(size) ? size : Size)}x{ShellSettings.PortMark}"];
+        return anyPack || available.Length > 0 ? ["Off", On] : null;
     }
 
-    public static int Index(ShellSettings s, int[] available)
-    {
-        if (!s.HdTextures) return 0;
-        if (available.Length == 0) return 1;
-        int size = I76.Formats.Shell.HdPackFolders.Normalize(s.HdTextureSize);
-        return 1 + Array.IndexOf(available, available.MinBy(z => Math.Abs(z - size)));
-    }
+    public static int Index(ShellSettings s, int[] available) => s.HdTextures ? 1 : 0;
 
-    /// <summary>A value picked: Off writes hd_textures=false and keeps the size, a size writes true and that size; nothing when it is what shows.</summary>
+    /// <summary>A value picked: Off writes hd_textures=false and keeps the size, On writes true and 4 (when its folder is there); nothing when it is what shows.</summary>
     public static void Put(ShellSettings s, int[] available, int v)
     {
         if (Index(s, available) == v) return;
         s.HdTextures = v != 0;
-        if (v > 0 && available.Length > 0) s.HdTextureSize = available[v - 1];
+        if (v > 0 && available.Contains(Size)) s.HdTextureSize = Size;
     }
 
-    /// <summary>A click: the next value, round.</summary>
+    /// <summary>A click: the other value.</summary>
     public static void Step(ShellSettings s, int[] available, bool anyPack)
     {
-        if (Names(available, anyPack) is not { } n) return;
-        Put(s, available, (Index(s, available) + 1) % n.Length);
+        if (Names(available, anyPack, s.HdTextureSize) is null) return;
+        Put(s, available, 1 - Index(s, available));
     }
 }

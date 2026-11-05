@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world-Nx/, N the --scale: 2, 3 or 4; sizes can sit side by side and hd_texture_size picks one).
+"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world-4x/; Graphic Detail's HD Textures row offers Off or 4x. --scale 2 or 3 still writes tex-world-2x/-3x, which the game loads only when shell.cfg's hd_texture_size or the Developer panel names them).
 
     1. Export the install's textures as PNGs (the game does it, then quits):
            i26 -- --install DIR --export-textures SRC_DIR
@@ -39,7 +39,8 @@ through 4xHDcube-Alpha (by Venomalia, made for alpha: grey in all three channels
 colour), and the model's output, the three channels averaged, is cut at one half at the written size. Colour is bled
 under the new key as always. Models run on tiles (--tile, 128 px by default, the context padded 16 px) and in half
 precision on a GPU where the model allows it; --gpu-share F idles F times each tile's time after it, for a GPU shared
-with other work. pack.json and ATTRIBUTION.txt name every model used.
+with other work. pack.json and ATTRIBUTION.txt name every model used. Lettering painted a few texels high stays soft from any
+model: tools/text-redraws.py sets it again from fonts in the finished pack (its --help says how).
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -351,7 +352,7 @@ def main():
     ap.add_argument("--device", default=None, help="cuda or cpu (default: cuda when available)")
     ap.add_argument("--only", default="*", help="a glob of texture names to do, e.g. 'pp11*' for one car")
     ap.add_argument("--max-size", type=int, default=512, help="skip textures wider or taller than this (the ground sheets)")
-    ap.add_argument("--scale", type=int, default=2, choices=(2, 3, 4), help="the world and car textures' size over the original (default 2)")
+    ap.add_argument("--scale", type=int, default=4, choices=(2, 3, 4), help="the world and car textures' size over the original (default 4, the one the HD Textures row offers; 2 and 3 for a developer's comparison)")
     ap.add_argument("--full", default="z*", help="globs (comma-separated) of textures kept at the model's 4x (default z*: the cockpit's own art)")
     ap.add_argument("--pixel", default="zdue*,zdse*,znbe*,zmir*", help="globs of pixel art scaled 4x in its own colours instead of by the model, whatever"
                     " their size (default: the weapon and special labels, the ammunition digits, the mirror's frames)")

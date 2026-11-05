@@ -58,15 +58,36 @@ public class HorizonEdgeTests
         Assert.Equal(600f, I76.Formats.Imaging.DrawDistance.OriginalClip);
     }
 
-    /// <summary>The modern ring's sinking is set once from the map: the ring's shader reads one reference eye and the game sets it once (a per-frame follow of the eye is gone).</summary>
+    /// <summary>
+    /// The modern ring's sinking is one per map: it is in the outside ground's heights (OutsideGround, which the simulation reads too), made
+    /// from HorizonEdge.Ring when the map loads; the ring's shader moves nothing with the camera and the game sets it no reference eye.
+    /// </summary>
     [Fact]
     public void TheModernRingTakesOneReferenceEyeSetOnce()
     {
-        // the ring's shader body is its include (the depth pre-pass and the main pass share it); the game sets the eye on both through HorizonTerrain.Set
-        var ring = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshaderinc"));
-        Assert.Contains("sink_low + (ref_eye.y - sink_low)", ring);
+        var outside = File.ReadAllText(Path.Combine(Repo(), "src", "I76.Formats", "Assembly", "OutsideGround.cs"));
+        Assert.Contains("HorizonEdge.Ring(world)", outside);
+        Assert.Contains("_sinkLow + (_sinkEye - _sinkLow) * (1 - _footK * r)", outside);
+        var ring = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshader"));
+        Assert.DoesNotContain("ref_eye", ring);
+        Assert.DoesNotContain("VERTEX.y +=", ring);
         var main = File.ReadAllText(Path.Combine(Repo(), "game", "Scripts", "Boot", "Main.cs"));
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(main, "Set\\(\"ref_eye\"").Count);
-        Assert.Contains("HorizonEdge.Ring(world)", main);
+        Assert.DoesNotContain("SetShaderParameter(\"ref_eye\"", main);
+    }
+
+    /// <summary>
+    /// The ring's main pass writes no depth, so the GPU tests it early where the ground hides it (perf/horizon-early-z, re-ported onto
+    /// the outside ground's ring): only the rim pass, on the cells over a tile's outermost texels, writes DEPTH.
+    /// </summary>
+    [Fact]
+    public void OnlyTheRingsRimPassWritesDepth()
+    {
+        var inc = File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshaderinc")).Replace("\r\n", "\n");
+        int rim = inc.IndexOf("defined(HORIZON_RIM_PASS)"), other = inc.IndexOf("#else", rim), end = inc.IndexOf("#endif", other);
+        Assert.True(rim >= 0 && other > rim);
+        Assert.Contains("DEPTH = FRAGCOORD.z * 0.5;", inc[rim..other]);
+        Assert.DoesNotContain("DEPTH =", inc[other..end] + inc[end..]);   // the main pass, and the rest (before the rim pass: the I76_HORIZON_SPLIT=0 hook's one-pass variant)
+        Assert.Contains("#define HORIZON_RIM_PASS", File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_rim.gdshader")));
+        Assert.DoesNotContain("HORIZON_RIM_PASS", File.ReadAllText(Path.Combine(Repo(), "game", "Shaders", "horizon_terrain.gdshader")).Replace("rim pass", ""));
     }
 }

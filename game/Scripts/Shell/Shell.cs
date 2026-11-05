@@ -75,6 +75,8 @@ public sealed record NetLaunch(int Mode)
     public bool Cb { get; init; } = true;
     /// <summary>Hosting: the Handicaps rule (the form's Hcp; off): Manual, the host sets each player's level from the score window; Auto, the game sets them from the standings.</summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
+    /// <summary>Hosting: the chase crosshair may show for the players who have it on (the form's Chase Crosshair; off).</summary>
+    public bool Crosshair { get; init; }
     /// <summary>Hosting: the form's Bots, players the server drives (up to the free seats), and how well.</summary>
     public int Bots { get; init; }
     public I76.Sim.Missions.BotSkill BotSkill { get; init; } = I76.Sim.Missions.BotSkill.Normal;
@@ -603,6 +605,8 @@ public partial class Shell : CanvasLayer
     /// <summary>A modal popup over everything, or none: it is ticked instead of the overlay and the screen.</summary>
     /// <summary>A pop-up is up over the screen (which must not repaint under it).</summary>
     public bool ModalOpen => _modal is not null;
+    /// <summary>An overlay (the notepad screens) is up over the screen: a screen's own layers over the frame hide under it.</summary>
+    public bool OverlayOpen => _overlay is not null;
 
     public void Modal(ShellScreen? popup)
     {
@@ -835,6 +839,7 @@ public partial class Shell : CanvasLayer
                 Go(ChassisForm.Create(this, new MeleeChassis(st.Model, st.Variant, _ => Go(new MainMenuScreen()), () => Go(new MainMenuScreen()))));
             }
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
+            if (kind == "overlay" && arg == "mouse") Overlay(new MouseOptionsScreen());
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());
             if (kind == "type") _typed.Append(arg);
@@ -1141,10 +1146,12 @@ public sealed class ShellSettings
     /// rear mirror High (+0xd, full rather than objects only), the external
     /// instruments On (+0xe, the HUD readouts in the chase view), +0x8, a byte
     /// no screen of the original shows, the modern look's anti-aliasing (0 off,
-    /// 1 MSAA 2x, 2 MSAA 4x), and Terrain Detail Low (+0x2) and Shadow Detail Low
-    /// (+0x6), the lighter settings for a first start (a saved file keeps its own).
+    /// 1 MSAA 2x, the default, 2 MSAA 4x: 4x costs 12 % of a full-detail frame at
+    /// 3440x1440, 2x 3 %, docs/perf/costs.md), and Terrain Detail Low (+0x2) and Shadow Detail Low
+    /// (+0x6), the lighter settings for a first start (a saved file keeps its own,
+    /// the block whole: a 4x saved before 2x was the default stays 4x).
     /// </summary>
-    public static readonly byte[] DefaultGraphics = [5, 1, 0, 1, 1, 1, 1, 2, 2, 1, 1, 1, 3, 2, 1, 1];
+    public static readonly byte[] DefaultGraphics = [5, 1, 0, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
@@ -1157,7 +1164,7 @@ public sealed class ShellSettings
     public bool HdMenuArt { get; set; } = true;
     /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
-    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, the HD Textures row; HdTextures.Size). Applies from the next mission.</summary>
+    /// <summary>The port's own: which size of the texture pack to draw, 4 (the HD Textures row's; the user folder's tex-world-4x) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_texture_size; HdTextures.Size). Applies from the next mission.</summary>
     public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1165,7 +1172,7 @@ public sealed class ShellSettings
     public bool ForceFeedback { get; set; } = true;
     /// <summary>The port's own: Force Feedback on a DirectInput wheel or stick instead of the pad (Play Options' Wheel; Windows only, without a device the pad).</summary>
     public bool ForceFeedbackWheel { get; set; }
-    /// <summary>The port's own: the wheel's force-feedback strength, 0..100 % (Play Options' second page).</summary>
+    /// <summary>The port's own: the wheel's force-feedback strength, 0..100 % (Play Options).</summary>
     public int FfbStrength { get; set; } = 100;
     /// <summary>The port's own: part of the force-feedback wheel's name, to pick it among several; empty, the first. Only in the file.</summary>
     public string FfbDevice { get; set; } = "";
@@ -1233,10 +1240,18 @@ public sealed class ShellSettings
     public bool PaletteGrade { get; set; }
     /// <summary>The port's own: Graphic Detail's Crash Blur, the software renderer's double image on a big cockpit hit (<see cref="I76.Sim.Views.CrashBlurMode"/>: On by default; the original's blit in the 1997 look, a smooth one in the modern look).</summary>
     public int CrashBlur { get; set; } = I76.Sim.Views.CrashBlurMode.On;
-    /// <summary>The port's own: the mouse orbits the chase view (Graphic Detail's Mouse Camera; <see cref="I76.Sim.Views.MouseLook"/>: 0 Off, 1 Slow, 2 Normal, 3 Fast). Normal unless the player chose; a file without the key gets it.</summary>
+    /// <summary>The port's own: the mouse orbits the chase view (Mouse Options' Mouse Camera; <see cref="I76.Sim.Views.MouseLook"/>: 0 Off, 1 Slow, 2 Normal, 3 Fast). Normal unless the player chose; a file without the key gets it.</summary>
     public int MouseCamera { get; set; } = I76.Sim.Views.MouseLook.Normal;
+    /// <summary>The port's own: fine-grained mouse sensitivity scale (10% to 200% in 10% steps; shell.cfg [port] mouse_sensitivity; 1.0 unless chosen, migrated from mouse_camera when absent).</summary>
+    public float MouseSensitivity { get; set; } = I76.Sim.Views.MouseLook.DefaultSensitivity;
     /// <summary>The port's own: Mouse Camera's vertical flipped (shell.cfg [port] mouse_invert_y; off).</summary>
     public bool MouseInvertY { get; set; }
+    /// <summary>The port's own: mouse free look in the F1 3D cockpit (shell.cfg [port] mouse_cockpit; off).</summary>
+    public bool MouseCockpit { get; set; }
+    /// <summary>The port's own: a 3D-projected aiming crosshair in the F2 chase view (shell.cfg [port] chase_crosshair; off).</summary>
+    public bool ChaseCrosshair { get; set; }
+    /// <summary>The port's own: the mouse wheel cycles weapons instead of zooming the external views (shell.cfg [port] wheel_cycle_weapon; off).</summary>
+    public bool WheelCycleWeapon { get; set; }
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
     /// <summary>The port's own: Graphic Detail's Resolution (shell.cfg [port] resolution, "WxH", written only for a window size). Empty: the desktop, as the game starts.</summary>
     public string Resolution { get; set; } = "";
@@ -1247,10 +1262,16 @@ public sealed class ShellSettings
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
     /// <summary>The port's own: Graphic Detail's VSync (shell.cfg [port] vsync). On, as the window has always run, unless the player chose.</summary>
     public bool VSync { get; set; } = true;
-    /// <summary>The port's own: in a mission the hidden mouse cursor cannot leave the window (Graphic Detail's Keep Mouse In Window; shell.cfg [port] keep_mouse_in_window; off).</summary>
+    /// <summary>The port's own: in a mission the hidden mouse cursor cannot leave the window (Mouse Options' Mouse In Window; shell.cfg [port] keep_mouse_in_window; off).</summary>
     public bool KeepMouseInWindow { get; set; }
     /// <summary>The port's own: the modern look's procedural plants (Graphic Detail; 0 Off, 1 Low, 2 High; docs/modern-vegetation.md). Low unless the player chose.</summary>
     public int Vegetation { get; set; } = 1;
+    /// <summary>
+    /// The port's own: the modern look's ambient occlusion (SSAO; Graphic Detail's Ambient Occlusion, Look page; [port] ambient_occlusion,
+    /// written only when on). Off unless the player chose: it was Shadow Detail High's until it had a row, and it is the frame's costliest
+    /// feature (docs/perf/costs.md: 29 % of a full-detail frame at 3440x1440, most of it the depth pre-pass drawing every surface's normals).
+    /// </summary>
+    public bool AmbientOcclusion { get; set; }
     /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
@@ -1271,9 +1292,12 @@ public sealed class ShellSettings
     public bool CbRadio { get; set; } = true;
     /// <summary>The port's own: a hosted game's Handicaps rule (the host form's Hcp; shell.cfg [port] handicaps, "manual" or "auto", written only when on; an older file's true is manual).</summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; set; }
-    /// <summary>The port's own: CB Voice (Play Options, second page; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
+    /// <summary>The port's own: a hosted game allows the chase crosshair (the host form's Chase Crosshair; shell.cfg [port] host_crosshair, written only when on).</summary>
+    public bool HostCrosshair { get; set; }
+    /// <summary>The port's own: CB Voice (Play Options; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
     public bool CbVoice { get; set; } = true;
     /// <summary>The port's own: the microphone CB Voice uses (shell.cfg [port] cb_mic; Play Options steps through the sound system's list). Empty is the system default.</summary>
+    /// <summary>The CB voice chat's input device: empty is none, the default for anyone who has not chosen (the audio input is never opened); "Default" is the system's.</summary>
     public string CbMic { get; set; } = "";
     public static readonly string[] MapDownloadNames = ["Ask", "Always", "Never"];
     /// <summary>
@@ -1281,16 +1305,16 @@ public sealed class ShellSettings
     /// CHASSIS's pickers and the complete hidden models MAKE / MODEL, and a hosted game allows them (docs/hidden-content.md).
     /// </summary>
     public bool HiddenContent { get; set; }
-    /// <summary>The port's own: Unlim. Turrets (Play Options, second page; off, as the original): any number of turrets on a car, each on a roof mount (docs/deviations.md).</summary>
+    /// <summary>The port's own: Unlim. Turrets (Play Options; off, as the original): any number of turrets on a car, each on a roof mount (docs/deviations.md).</summary>
     public bool UnlimTurrets { get; set; }
-    /// <summary>The port's own: Check for Updates (Play Options, second page; shell.cfg [port] update_check, written only when off). On: each start asks GitHub, once, whether a newer release exists and says so under the version in the corner.</summary>
+    /// <summary>The port's own: Check for Updates (Play Options; shell.cfg [port] update_check, written only when off). On: each start asks GitHub, once, whether a newer release exists and says so under the version in the corner.</summary>
     public bool UpdateCheck { get; set; } = true;
     /// <summary>
-    /// The port's own: Head Tracking (Play Options, second page; shell.cfg [port] head_track = analog / digital, written only when
+    /// The port's own: Head Tracking (Play Options; shell.cfg [port] head_track = analog / digital, written only when
     /// not off): opentrack's "UDP over network" output turns the head in the car (<see cref="I76.Game.HeadLook"/>). Off, as the original.
     /// </summary>
     public I76.Game.HeadTrackMode HeadTrack { get; set; }
-    /// <summary>Head tracking's sensitivity, the tracked angle's multiplier (Play Options, second page; [port] head_track_sensitivity, written only when not 3).</summary>
+    /// <summary>Head tracking's sensitivity, the tracked angle's multiplier (Play Options; [port] head_track_sensitivity, written only when not 3).</summary>
     public float HeadTrackSensitivity { get; set; } = I76.Game.HeadLook.DefaultSensitivity;
     /// <summary>The UDP port opentrack sends to ([port] head_track_port, written only when not 4242; kept out of the menus).</summary>
     public int HeadTrackPort { get; set; } = I76.Game.HeadLook.DefaultPort;
@@ -1311,7 +1335,7 @@ public sealed class ShellSettings
     /// <summary>The port's own: a hosted co-op game's Rolling Start (the host form's; shell.cfg [port] coop_rolling_start, written only when on).</summary>
     public bool CoopRollingStart { get; set; }
     /// <summary>
-    /// The port's own: Play Options' Melee A.I. (second page; shell.cfg [port] melee_ai, written only when not Original): the skill an
+    /// The port's own: Play Options' Melee A.I. (shell.cfg [port] melee_ai, written only when not Original): the skill an
     /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
     /// </summary>
     public I76.Sim.Missions.MeleeAiSkill MeleeAi { get; set; }
@@ -1361,9 +1385,9 @@ public sealed class ShellSettings
         !string.Equals((word ?? earlier)?.Trim(), "off", StringComparison.OrdinalIgnoreCase);
     /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
     public bool CarInteriors { get; set; } = true;
-    /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Graphic Detail's Camera Return); off, it stays where it was left.</summary>
+    /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Mouse Options' Camera Return); off, it stays where it was left.</summary>
     public bool CameraReturn { get; set; } = true;
-    /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Graphic Detail's View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
+    /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Mouse Options' View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
     public bool ZoomReset { get; set; } = true;
     /// <summary>The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>; shell.cfg [port] fov, degrees across the window, written only when not Monitor).</summary>
     public int FieldOfView { get; set; }
@@ -1390,7 +1414,7 @@ public sealed class ShellSettings
     public int DeathOrbit { get; set; }
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
-    /// <summary>The port's own: Play Options' Unlim. Ordnance (second page), live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
+    /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
     public int OrdnanceLimit { get; set; }
 
     /// <summary>The port's own, kept out of the menus: [port] seed fixes every mission's rand seed, as --seed does (absent: the clock's, as the original).</summary>
@@ -1402,17 +1426,40 @@ public sealed class ShellSettings
     /// <summary>The music level as a volume: off below 2, else −8 dB at 8 and 2 dB a step either side.</summary>
     public float MusicDb => Audio[0] < 2 ? -80f : -8f + (Audio[0] - 8) * 2f;
 
+    /// <summary>
+    /// The Play Options the simulation reads, onto a mission's combat: Unlim. Ammo (0x04), Unlim. Armor (0x08) and
+    /// Unlim. Chas. Rein. (0x10), and the difficulty, the factor on the player's own rounds and flame. Ammo and the
+    /// difficulty stay out of a network game, as the original keeps them (a network game plays Champion's ×1).
+    /// The mission runs it at its start, on resuming from the pad and over a restored checkpoint's copies.
+    /// </summary>
+    public void ApplyTo(I76.Sim.Weapons.Combat c)
+    {
+        c.UnlimitedAmmo = (PlayOptions & 4) != 0 && !c.NetSession;
+        if (c.Damage is I76.Sim.Damage.DamageModel dm)
+        {
+            dm.UnlimitedArmour = (PlayOptions & 8) != 0;
+            dm.UnlimitedChassis = (PlayOptions & 0x10) != 0;
+        }
+        c.Difficulty = c.NetworkGame ? 1 : Math.Clamp(Difficulty, 0, 2);
+    }
+
     public static ShellSettings Load()
     {
         var s = new ShellSettings();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return s;
+        if (c.Load(Path) != Error.Ok)
+        {
+            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault)
+            s.HdTextures = I76.Game.Assets.HdTextures.FirstStartDefault;
+            I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
+            return s;
+        }
         var g = (byte[])c.GetValue("shell", "graphics", s.Graphics);
         if (g.Length == 16) Array.Copy(g, s.Graphics, 16);
         // files from before the mirror and the external instruments did anything carry the shipped Low / Off: the port's defaults instead
         int version = (int)c.GetValue("shell", "version", 1);
         if (version < 2) { s.Graphics[0xd] = DefaultGraphics[0xd]; s.Graphics[0xe] = DefaultGraphics[0xe]; }
-        // and from before +0x8 was the anti-aliasing: the shipped 1 would read as 2x, the default is 4x
+        // and from before +0x8 was the anti-aliasing: the shipped byte is not a choice, so the default (2x)
         if (version < 3) s.Graphics[0x8] = DefaultGraphics[0x8];
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
@@ -1423,7 +1470,8 @@ public sealed class ShellSettings
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
-        s.HdTextures = I76.Game.Assets.HdTextures.FromFile(c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt);
+        s.HdTextures = c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures")
+            : I76.Game.Assets.HdTextures.FromFile(null, s.HdMenuArt, I76.Game.Assets.HdTextures.FirstStartDefault);
         // no version step: absent, 4 (a plain tex-world from before the sizes is used whatever the size)
         s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Normalize((int)c.GetValue("port", "hd_texture_size", I76.Formats.Shell.HdPackFolders.DefaultSize));
         // version 5 added Auto Reverse: older files have none, so it is off
@@ -1466,6 +1514,8 @@ public sealed class ShellSettings
         // as 0.2.0 left it, so they are Off (High, chosen, stays)
         s.Vegetation = version < 10 ? 1 : Math.Clamp((int)c.GetValue("port", "vegetation", 1), 0, 2);
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
+        // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
+        s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -1473,9 +1523,15 @@ public sealed class ShellSettings
         s.SoftwareRenderer = (bool)c.GetValue("port", "software_renderer", false);
         s.PaletteGrade = (bool)c.GetValue("port", "palette_grade", false);
         s.CrashBlur = I76.Sim.Views.CrashBlurMode.Parse((string)c.GetValue("port", "crash_blur", "on"));
-        // no version step: absent, the mouse camera is on at Normal
+        // no version step: absent, the mouse camera is on at Normal, and mouse_sensitivity migrates from mouse_camera
         s.MouseCamera = Math.Clamp((int)c.GetValue("port", "mouse_camera", I76.Sim.Views.MouseLook.Normal), 0, I76.Sim.Views.MouseLook.Names.Length - 1);
+        s.MouseSensitivity = c.HasSectionKey("port", "mouse_sensitivity")
+            ? I76.Sim.Views.MouseLook.ClampSensitivity((float)c.GetValue("port", "mouse_sensitivity", I76.Sim.Views.MouseLook.DefaultSensitivity))
+            : I76.Sim.Views.MouseLook.SensitivityFromLevel(s.MouseCamera);
         s.MouseInvertY = (bool)c.GetValue("port", "mouse_invert_y", false);
+        s.MouseCockpit = (bool)c.GetValue("port", "mouse_cockpit", false);
+        s.ChaseCrosshair = (bool)c.GetValue("port", "chase_crosshair", false);
+        s.WheelCycleWeapon = (bool)c.GetValue("port", "wheel_cycle_weapon", false);
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
         s.Resolution = I76.Game.Boot.WindowSizes.Parse((string)c.GetValue("port", "resolution", "")) is { } rs ? I76.Game.Boot.WindowSizes.Format(rs.W, rs.H) : "";
@@ -1500,7 +1556,9 @@ public sealed class ShellSettings
         s.Handicaps = hcp.VariantType == Variant.Type.Bool ? ((bool)hcp ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off)
             : hcp.VariantType == Variant.Type.String && (string)hcp == "auto" ? I76.Sim.Missions.HandicapMode.Auto
             : hcp.VariantType == Variant.Type.String && (string)hcp == "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
+        s.HostCrosshair = (bool)c.GetValue("port", "host_crosshair", false);
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
+        // no version step: absent (never chosen, or the old implicit default) is none; a saved device stays
         s.CbMic = (string)c.GetValue("port", "cb_mic", "");
         // no version step: absent, it is off, the stock game
         s.HiddenContent = (bool)c.GetValue("port", "hidden_content", false);
@@ -1595,14 +1653,19 @@ public sealed class ShellSettings
         if (AutoReverse) c.SetValue("port", "auto_reverse", true);
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
+        if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));
         c.SetValue("port", "mouse_camera", MouseCamera);
+        c.SetValue("port", "mouse_sensitivity", I76.Sim.Views.MouseLook.ClampSensitivity(MouseSensitivity));
         if (MouseInvertY) c.SetValue("port", "mouse_invert_y", true);
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
         if (I76.Sim.Views.PaintFinish.FileValue(HoodGloss) is { } hoodGloss) c.SetValue("port", "hood_gloss", hoodGloss);
         if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
+        if (MouseCockpit) c.SetValue("port", "mouse_cockpit", true);
+        if (ChaseCrosshair) c.SetValue("port", "chase_crosshair", true);
+        if (WheelCycleWeapon) c.SetValue("port", "wheel_cycle_weapon", true);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);
@@ -1634,6 +1697,7 @@ public sealed class ShellSettings
         if (IgnitionStaysOn) c.SetValue("port", "ignition_stays_on", true);
         if (!CbRadio) c.SetValue("port", "cb_radio", false);
         if (Handicaps != I76.Sim.Missions.HandicapMode.Off) c.SetValue("port", "handicaps", Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "auto" : "manual");
+        if (HostCrosshair) c.SetValue("port", "host_crosshair", true);
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
         if (CbMic.Length > 0) c.SetValue("port", "cb_mic", CbMic);
         if (HiddenContent) c.SetValue("port", "hidden_content", true);
@@ -1678,6 +1742,6 @@ public sealed class ShellSettings
         if (LogFile) c.SetValue("port", "log_file", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         c.Save(Path);
-        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer);
+        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic));
     }
 }

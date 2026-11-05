@@ -12,9 +12,9 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs27()
+    public void TheProtocolIs28()
     {
-        Assert.Equal(27, Protocol.Version);
+        Assert.Equal(28, Protocol.Version);
         Assert.Equal(25, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
@@ -36,7 +36,7 @@ public class WireTests
             Assert.Equal(on, SessionInfo.TryRead(w.Span)!.IgnitionStaysOn);
             if (!on) continue;
             // a listing that ends before the byte (an older host): off
-            var older = w.Span[..^2].ToArray();     // (and the build, protocol 26)
+            var older = w.Span[..^(3 + DiscoveryTests.Names)].ToArray();     // (and the build, protocol 26, the crosshair and the names, protocol 28)
             var back = SessionInfo.TryRead(older)!;
             Assert.False(back.IgnitionStaysOn);
             Assert.True(back.Cb);
@@ -213,6 +213,13 @@ public class WireTests
         Assert.Equal(acc.DestroyedStructures, acc2.DestroyedStructures);
         Assert.Equal((acc.Slot, acc.CarSerial, acc.Arena, acc.ServerTick, acc.MaxScore, acc.TimeLimit), (acc2.Slot, acc2.CarSerial, acc2.Arena, acc2.ServerTick, acc2.MaxScore, acc2.TimeLimit));
 
+        // the host's Chase Crosshair rides in the accept (protocol 22): off unless the host allows it
+        Assert.False(acc2.Crosshair);
+        w.Clear();
+        (acc with { Crosshair = true }).Write(w);
+        r = new NetReader(w.Span); r.U8();
+        Assert.True(JoinAccept.Read(ref r).Crosshair);
+
         // the arena's fingerprint rides in the accept (protocol 8): mission and terrain, size and CRC
         w.Clear();
         (acc with { MapSize = 11138, MapCrc = 0xdeadbeef, TerrainSize = 32768, TerrainCrc = 0x12345678 }).Write(w);
@@ -221,7 +228,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(27, Protocol.Version);
+        Assert.Equal(28, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -406,6 +413,16 @@ public class InputQueueTests
 {
     private static InputMessage Msg(uint tick, params CarInput[] newestFirst) => new(tick, newestFirst);
 
+    /// <summary>The wheel's step back through the weapons (Mouse Options' Cycle Weapon) reaches the server as the forward step does.</summary>
+    [Fact]
+    public void TheWeaponCycleBothWaysIsCarried()
+    {
+        var q = new InputQueue(SimRate.R28);
+        var i = new CarInput { Commands = CarCommands.WeaponCyclePrev | CarCommands.WeaponCycle };
+        Assert.Equal(i, q.Check(i));
+        Assert.Equal(0, q.Corrected);
+    }
+
     [Fact]
     public void EachClientTickIsAppliedOnceInOrder_ALateOneHoldsTheKeys()
     {
@@ -555,7 +572,7 @@ public class RestrictionWireTests
         // an answer written before the fields (it ends at the password flag) has no restrictions and no hidden content
         var w = new NetWriter();
         Info(I76.Sim.Trip.WeaponRestrictions.Normalize(false, [(2, 6)]), true).Write(w);
-        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1 + 1 + 1)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's, the CB's, protocol 22's ignition byte and protocol 26's (empty) build
+        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + DiscoveryTests.Names)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's, the CB's, protocol 22's ignition byte, protocol 26's (empty) build, protocol 28's crosshair and names
         var back = SessionInfo.TryRead(cut)!;
         Assert.NotNull(back);
         Assert.False(back.Hidden);
@@ -570,7 +587,7 @@ public class RestrictionWireTests
         var w = new NetWriter();
         Info(null, false).Write(w);
         var bytes = w.Span.ToArray();
-        bytes[^8] = 200;                       // the pair count (before the co-op, rate, lobby, car reset, CB and ignition bytes and the empty build), past the most a list carries
+        bytes[^(9 + DiscoveryTests.Names)] = 200;    // the pair count (before the co-op, rate, lobby, car reset, CB and ignition bytes, the empty build, the crosshair byte and the names), past the most a list carries
         Assert.Null(SessionInfo.TryRead(bytes));
     }
 }

@@ -192,15 +192,6 @@ public sealed class Armory
 
     private static Rows RowsOf(Affine a) => new(new(a.R[0], a.R[3], a.R[6]), new(a.R[1], a.R[4], a.R[7]), new(a.R[2], a.R[5], a.R[8]));
 
-    /// <summary>
-    /// Heated Seats (SPEC type 8), once as the car is built: every mounted weapon's ammo times 1.1 (a float), truncated.
-    /// The driver's handguns are fitted later and keep theirs.
-    /// </summary>
-    public void HeatedSeats()
-    {
-        foreach (var w in LoadOrder) w.Ammo = (int)(w.Ammo * (double)1.1f);
-    }
-
     /// <summary>A weapon on a hardpoint, whole and loaded: its style there, muzzle, aim pivot and mount kind.</summary>
     public static Weapon Mount(GizmoDef g, Hardpoint hp)
     {
@@ -250,13 +241,14 @@ public sealed class Armory
     /// Returns how many times the original asks for cammo.wav this frame: a selection that changed, each weapon linked
     /// or unlinked.
     /// </summary>
-    public int Select(bool cycleKey, bool linkKey, out bool selectionChanged)
+    public int Select(bool cycleKey, bool linkKey, out bool selectionChanged, bool cyclePrevKey = false)
     {
         selectionChanged = false;
         if (!Weapons.Take(5).Any(w => w.HpRatio > 0)) return 0;
         int sounds = 0;
         if (Selected >= 0 && Selected < Weapons.Count && Weapons[Selected].HpRatio == 0) cycleKey = true;
         if (cycleKey && Cycle()) { selectionChanged = true; sounds++; }
+        else if (cyclePrevKey && CyclePrev()) { selectionChanged = true; sounds++; }
         if (linkKey) Link = !Link;
         sounds += Link ? LinkGroup() : Unlink();
         return sounds;
@@ -274,6 +266,39 @@ public sealed class Armory
         {
             int i = (Selected + k) % Weapons.Count;
             if (Group.Contains(i) || Weapons[i].HpRatio <= 0) continue;
+            Selected = i;
+            Group.Clear();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Steps the selected hardpoint backward (upward on the HUD weapon rack), skipping hardpoints in the current
+    /// linked group or without HP left. True when the selection changed.
+    /// </summary>
+    public bool CyclePrev()
+    {
+        if (Selected < 0 || Selected >= Weapons.Count) return false;
+        for (int k = 1; k < Weapons.Count; k++)
+        {
+            int i = (Selected + Weapons.Count - k) % Weapons.Count;
+            if (Group.Contains(i) || Weapons[i].HpRatio <= 0) continue;
+            if (Link)
+            {
+                var w = Weapons[i];
+                if (!((w.Def.Class is 3 or 4) && w.Def.Tier == 4))
+                    for (int m = 0; m < Weapons.Count; m++)
+                    {
+                        var first = Weapons[m];
+                        if (first.MountKind == w.MountKind && first.Def.Class == w.Def.Class && first.HpRatio > 0
+                            && !((first.Def.Class is 3 or 4) && first.Def.Tier == 4))
+                        {
+                            i = m;
+                            break;
+                        }
+                    }
+            }
             Selected = i;
             Group.Clear();
             return true;

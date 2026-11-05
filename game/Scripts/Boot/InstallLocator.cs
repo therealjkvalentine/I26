@@ -168,6 +168,8 @@ public sealed class LaunchOptions
     public bool? Cb { get; set; }
     /// <summary>--handicaps [manual|auto] / --no-handicaps: a listen server's Handicaps rule (null: the setting).</summary>
     public I76.Sim.Missions.HandicapMode? Handicaps { get; set; }
+    /// <summary>--crosshair / --no-crosshair: whether a listen server allows the chase crosshair (null: the setting).</summary>
+    public bool? Crosshair { get; set; }
     /// <summary>--map-downloads ask|always|never: a host's custom map this install lacks (null: the setting).</summary>
     public int? MapDownloads { get; set; }
     /// <summary>--seed N: every mission's rand stream starts at N (spawn points, AI choices, damage rolls, debris), to reproduce a run.</summary>
@@ -353,6 +355,8 @@ public sealed class LaunchOptions
                     o.Handicaps = i + 1 < args.Length && args[i + 1] is "auto" or "manual" ? (args[++i] == "auto" ? I76.Sim.Missions.HandicapMode.Auto : I76.Sim.Missions.HandicapMode.Manual) : I76.Sim.Missions.HandicapMode.Manual;
                     break;
                 case "--no-handicaps": o.Handicaps = I76.Sim.Missions.HandicapMode.Off; break;
+                case "--crosshair": o.Crosshair = true; break;
+                case "--no-crosshair": o.Crosshair = false; break;
                 case "--map-downloads":
                 {
                     var v = Next();

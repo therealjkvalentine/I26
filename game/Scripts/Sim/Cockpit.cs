@@ -164,6 +164,14 @@ public partial class Cockpit : Node
         if (!pit)
         {
             _wantArm[0] = _wantArm[1] = false;
+            if (_mouseHead.HasOffset || _freeLooking)
+            {
+                _mouseHead.Reset();
+                _freeLooking = false;
+                _yaw = 0;
+                _pitch = -13 * Mathf.Pi / 180;
+                _roll = 0;
+            }
             if (_mirrorView is not null) _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
         }
         if (shown && !_wasShown) ResetPanels();
@@ -263,8 +271,9 @@ public partial class Cockpit : Node
     /// <summary>Whether the head is turned (the 2D panels and the gun are off while it is).</summary>
     public bool LookingAway => _state != 2 || _freeLooking;
 
-    // the port's free look on the pad's look stick (FreeLook): the head in proportion, a hard push the glance keys' poses
+    // the port's free look on the pad's look stick (FreeLook) and mouse (MouseCockpitOffset)
     private readonly FreeLook _look = new();
+    private readonly I76.Sim.Views.MouseCockpitOffset _mouseHead = new();
     private FreeLook.Pose _pose;
     private bool _freeLooking;
 
@@ -286,6 +295,9 @@ public partial class Cockpit : Node
 
     private Texture2D? _reticle;
 
+    /// <summary>The 32x32 gunsight reticle texture (<c>zretc_1</c>) from the game's archive.</summary>
+    public Texture2D? ReticleTexture => _reticle ??= Image("zretc_1") is { } img ? ImageTexture.CreateFromImage(img) : null;
+
     /// <summary>
     /// The reticle zretc_1 (32x32) the 2D dash draws, with its top-left on the 640x480 frame: the side reticle at (300, 240) when
     /// an arm is raised or busy and the head has turned to its window (yaw beyond 88° right or -83° left), else the forward gunsight at
@@ -294,14 +306,13 @@ public partial class Cockpit : Node
     public (Texture2D Tex, float X, float Y)? Reticle()
     {
         if (Binoculars) return null;
-        _reticle ??= Image("zretc_1") is { } img ? ImageTexture.CreateFromImage(img) : null;
-        if (_reticle is null) return null;
+        if (ReticleTexture is not { } tex) return null;
         bool Up(int ch) => Car.Arms[ch].Busy || Car.Arms.Ready(ch);
         // the original's places, for its own view; with another Field of View the gun line projects elsewhere, so the sprite's centre moves with it
         (Texture2D, float, float) At(int x, int y)
         {
             var (cx, cy) = I76.Sim.Views.ViewFov.ScreenPoint(x + 16, y + 16, I76.Sim.Views.ViewFov.Main);
-            return (_reticle, cx - 16, cy - 16);
+            return (tex, cx - 16, cy - 16);
         }
         if ((Up(1) && _yaw > 1.5359f) || (Up(2) && _yaw < -1.4486f)) return At(300, 240);
         if (Car.Arms.Idle(1) && Car.Arms.Idle(2) && MathF.Abs(_yaw) < 0.0698f) return At(306, 300);
@@ -349,13 +360,32 @@ public partial class Cockpit : Node
         if (int.TryParse(System.Environment.GetEnvironmentVariable("I76_HEAD_STATE"), out int hs) && hs is >= 0 and <= 7) _state = hs;
         var (ty, tp, tr) = HeadStates[_state];
         float yawT = ty * Mathf.Pi / 180, pitchT = tp * Mathf.Pi / 180, rollT = tr * Mathf.Pi / 180;
-        // the free look: facing forward with no glance key held, the stick's own aim (a little roll into the turn, as the glances lean)
-        if (_state == 2 && col == 2 && I76.Formats.Input.DashToggle.FreeLookAllowed(Node3D.Dash3D) && FreeLook.Head(sx, sy) is { } fh)
+        // the free look: facing forward with no glance key held, the stick's or mouse's own aim (a little roll into the turn, as the glances lean)
+        bool freeAllowed = _state == 2 && col == 2 && I76.Formats.Input.DashToggle.FreeLookAllowed(Node3D.Dash3D);
+        var fh = freeAllowed ? FreeLook.Head(sx, sy) : null;
+        if (MouseCamera.CockpitActive && freeAllowed)
         {
-            yawT = fh.Yaw * Mathf.Pi / 180;
-            pitchT = fh.Pitch * Mathf.Pi / 180;
-            rollT = System.Math.Clamp(fh.Yaw / 90f, -1f, 1f) * 2 * Mathf.Pi / 180;
-            _freeLooking = MathF.Abs(fh.Yaw) > 15 || MathF.Abs(fh.Pitch - FreeLook.Rest) > 10;
+            var (my, mp) = MouseCamera.Take();
+            _mouseHead.Step(dt, MouseCamera.ReturnBehind, fh is not null || Controls.Down("pilot_glance_target"), my, mp);
+        }
+        else
+        {
+            if (MouseCamera.CockpitActive) MouseCamera.Take();
+            _mouseHead.Reset();
+        }
+        if (fh is { } stickHead)
+        {
+            yawT = stickHead.Yaw * Mathf.Pi / 180;
+            pitchT = stickHead.Pitch * Mathf.Pi / 180;
+            rollT = System.Math.Clamp(stickHead.Yaw / 90f, -1f, 1f) * 2 * Mathf.Pi / 180;
+            _freeLooking = MathF.Abs(stickHead.Yaw) > 15 || MathF.Abs(stickHead.Pitch - FreeLook.Rest) > 10;
+        }
+        else if (_mouseHead.HasOffset)
+        {
+            yawT += _mouseHead.Yaw;
+            pitchT += _mouseHead.Pitch;
+            rollT = System.Math.Clamp(yawT / (Mathf.Pi / 2f), -1f, 1f) * 2 * Mathf.Pi / 180;
+            _freeLooking = MathF.Abs(_mouseHead.Yaw) > 15 * Mathf.Pi / 180 || MathF.Abs(_mouseHead.Pitch) > 10 * Mathf.Pi / 180;
         }
         // capture hook: I76_HEAD=yaw,pitch in the game's degrees
         if (System.Environment.GetEnvironmentVariable("I76_HEAD") is { } hv && hv.Split(',') is [var hy, var hp]
@@ -381,9 +411,9 @@ public partial class Cockpit : Node
             float e = Mathf.Atan2(d.Y, new Vector2(d.X, d.Z).Length());
             pitchT = -Mathf.Clamp(e, -16 * Mathf.Pi / 180, 16 * Mathf.Pi / 180);   // game pitch is positive downwards
         }
-        float k = 4 * dt;
+        float k = (_mouseHead.HasOffset ? 18 : 4) * dt;
         float dy = Mathf.Wrap(yawT - _yaw, -Mathf.Pi, Mathf.Pi);
-        if (MathF.Abs(dy) >= 0.005f) _yaw += k * dy;
+        if (MathF.Abs(dy) >= 0.005f) _yaw += MathF.Min(1f, k) * dy;
         _pitch = k <= 0.95f && MathF.Abs(pitchT - _pitch) >= 0.005f ? _pitch + k * (pitchT - _pitch) : pitchT;
         _roll = k <= 0.95f && MathF.Abs(rollT - _roll) >= 0.005f ? _roll + k * (rollT - _roll) : rollT;
         // the head tracker's analog head, followed as it comes (the tracker smooths it) and blended over the glance machine's
@@ -400,8 +430,8 @@ public partial class Cockpit : Node
             cam.Fov = I76.Sim.Views.ViewFov.Main;
         }
         // arms rise past ±58° / 53° to the side windows (the handguns): the sim moves them with the next tick
-        _wantArm[0] = _state == 4 && _yaw > 1.0123f;
-        _wantArm[1] = _state == 0 && _yaw < -0.9250f;
+        _wantArm[0] = (_state == 4 || _mouseHead.HasOffset) && _yaw > 1.0123f;
+        _wantArm[1] = (_state == 0 || _mouseHead.HasOffset) && _yaw < -0.9250f;
     }
 
     // ---- head sway: the eye tilts with the car's acceleration; view only ----
@@ -1061,10 +1091,64 @@ public partial class Cockpit : Node
         _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(1024, 256);
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
-        _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & 0xFFFFF;
-        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : null;
-        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full
+        // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
+        // material, relief or asphalt for a camera without it), as for the shadow passes
+        _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF;
+        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full (the modern look's default)
+        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
     }
+
+    /// <summary>
+    /// The full mirror's environment in the modern look: the world's own, copied, without its SSAO (the world's Ambient Occlusion is
+    /// not drawn in a picture 160 pixels tall, and it makes the mirror's depth pre-pass draw every surface's normals: docs/perf/costs.md,
+    /// 1 of the mirror's 3.5 ms at 3440x1440) and, at the original's 100 m reach, with a depth fog into the sky over the last stretch, so
+    /// the clip is a fade as the original's was (its fog table ends the 100 m) and not a cut. Null in the 1997 look (the world's, which has
+    /// neither). I76_MIRROR_SSAO=1 draws it through the world's environment, SSAO and all, for a measurement.
+    /// </summary>
+    private Godot.Environment? MirrorEnvironment()
+    {
+        if (_faithful || MirrorWorldEnv || GetViewport()?.World3D?.Environment is not { } we) return null;
+        if (_mirrorEnvSource != we || _mirrorEnv is null) { _mirrorEnv = (Godot.Environment)we.Duplicate(); _mirrorEnvSource = we; }
+        SyncMirrorEnvironment(we, _mirrorEnv);
+        return _mirrorEnv;
+    }
+
+    /// <summary>What the world's environment changes after the mission is built (the lighting calibration, the sky, Monitor Brightness) carried into the mirror's copy; SSAO and the fog are the mirror's own.</summary>
+    private void SyncMirrorEnvironment(Godot.Environment we, Godot.Environment me)
+    {
+        if (me.Sky != we.Sky) me.Sky = we.Sky;
+        me.AmbientLightEnergy = we.AmbientLightEnergy;
+        me.TonemapMode = we.TonemapMode;
+        me.TonemapExposure = we.TonemapExposure;
+        me.AdjustmentEnabled = we.AdjustmentEnabled;
+        me.AdjustmentBrightness = we.AdjustmentBrightness;
+        me.AdjustmentColorCorrection = we.AdjustmentColorCorrection;
+        me.SsaoEnabled = false;
+        float far = _mirrorCam?.Far ?? MirrorCameraSettings.FarMetres;
+        bool fog = MirrorFog && far <= MirrorCameraSettings.FarMetres + 1f;
+        me.FogEnabled = fog;
+        if (fog)
+        {
+            me.FogMode = Godot.Environment.FogModeEnum.Depth;
+            me.FogDepthBegin = MirrorCameraSettings.FogBeginMetres;
+            me.FogDepthEnd = far;
+            me.FogDepthCurve = 1f;
+            me.FogDensity = 1f;
+            me.FogAerialPerspective = 1f;   // the fog takes the sky's colour behind it
+            me.FogSkyAffect = 0f;
+            me.FogLightEnergy = 1f;
+        }
+    }
+
+    /// <summary>
+    /// The mirror's cadence: every second frame, as the original's (docs/deviations.md); I76_MIRROR_RATE=1 every frame in the modern
+    /// look, as it was before (perf survey). I76_MIRROR_SSAO=1 gives it the world's environment; I76_MIRROR_FOG=0 no fog at 100 m.
+    /// </summary>
+    private static readonly bool MirrorEveryFrame = System.Environment.GetEnvironmentVariable("I76_MIRROR_RATE") == "1";
+    private static readonly bool MirrorWorldEnv = System.Environment.GetEnvironmentVariable("I76_MIRROR_SSAO") == "1";
+    private static readonly bool MirrorFog = System.Environment.GetEnvironmentVariable("I76_MIRROR_FOG") != "0";
+    private Godot.Environment? _mirrorEnv, _mirrorEnvSource;
+    private int _mirrorSync;
 
     private void Mirror()
     {
@@ -1073,8 +1157,11 @@ public partial class Cockpit : Node
         if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
-        // the original redraws it every second frame; the modern look every frame
+        // the original redraws it every second frame, and so do both looks (I76_MIRROR_RATE=1: the modern look every frame)
         _mirrorTick = !_mirrorTick;
-        _mirrorView.RenderTargetUpdateMode = !_faithful ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        _mirrorView.RenderTargetUpdateMode = !_faithful && MirrorEveryFrame ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        // the world's environment as it is now, about twice a second (the lighting calibration's solve ends after the mirror is made)
+        if (_mirrorEnv is not null && _mirrorEnvSource is not null && _mirrorCam.Environment == _mirrorEnv && ++_mirrorSync % 30 == 0)
+            SyncMirrorEnvironment(_mirrorEnvSource, _mirrorEnv);
     }
 }

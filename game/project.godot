@@ -18,10 +18,9 @@ boot_splash/use_filter=true
 
 [audio]
 
-; the CB voice chat's microphone: the input is only opened when the CB Transmit key is first pressed. On macOS the driver sets the
-; input up (and macOS asks for the microphone) at start when this is on, so there it is off and CbVoice turns it on at first use
-driver/enable_input=true
-driver/enable_input.macos=false
+; the CB voice chat's microphone: the audio input is off (so no system asks for microphone access at start-up) until the player
+; chooses a CB Microphone; the game then switches it on at run time (CbVoice)
+driver/enable_input=false
 
 [debug]
 
@@ -239,6 +238,10 @@ i76_veg_field_rect={
 i76_ground_tint={
 "type": "vec3",
 "value": Vector3(1, 1, 1)
+}
+i76_terrain_tiers={
+"type": "float",
+"value": 1.0
 }
 i76_object_tint={
 "type": "vec3",

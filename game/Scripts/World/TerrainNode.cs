@@ -23,6 +23,12 @@ public partial class TerrainNode : Node3D
 {
     /// <summary>The render layer terrain chunks draw on (the rear-view mirror's objects-only mode leaves it out).</summary>
     public const uint TerrainLayer = 2;
+    /// <summary>
+    /// A render layer no node is on: a camera that sees it gets the modern terrain's near and middle distance tiers
+    /// (terrain_modern.gdshaderinc reads CAMERA_VISIBLE_LAYERS), one that does not (the mirror's) the far tier everywhere.
+    /// Every camera's default mask has it.
+    /// </summary>
+    public const uint NearTierLayer = 1u << 19;
     /// <summary>The sky-fog quad also sits on this layer, so the weapon camera can leave it out (it keeps layer 1, so every other camera draws it as before).</summary>
     public const uint SkyFogLayer = 1u << 6;
     public const int Chunk = 32;
@@ -78,7 +84,11 @@ public partial class TerrainNode : Node3D
     private static readonly int EnvFinest = Math.Clamp(int.TryParse(OS.GetEnvironment("I76_TERRAIN_LOD"), out int fl) ? fl : 0, 0, TerrainLodMesh.Levels - 1);
     /// <summary>The coarsest level a chunk casts its sun shadow from: the 5 m grid, as the shadows always were.</summary>
     private const int CasterCoarsest = 2;
-    private const float CasterReach = 3000f;
+    /// <summary>
+    /// How far a chunk casts its sun shadow: the shadow map's reach and the longest shadow that can fall into it (ShadowReach.CasterReach:
+    /// twice the reach, 1200 m with Shadow Detail Low's 600 m, 3000 m with High's 1500 m); half the Far draw's calls were these.
+    /// </summary>
+    public float CasterReach { get; set; } = 3000f;
     private int _finest;
     /// <summary>
     /// No level finer than this: 0 all three (Graphic Detail's Terrain Detail High), 1 none finer than 2.5 m (Low).
@@ -123,7 +133,7 @@ public partial class TerrainNode : Node3D
         var origins = ChunkOrigins(world.Terrain);
         var arrays = new (Vector3[], Vector3[], Vector2[], Vector2[], int[])[origins.Count];
         // a playtest of the map editor builds the ground it already built for its editor from the same heights: the arrays are kept for the session
-        string scope = I76.Formats.Vfs.SessionStore.Active ? $"terrain97|{world.Terrain.ContentHash():x}|" : "";
+        string scope = I76.Formats.Vfs.SessionStore.Active ? $"terrain97|{world.Terrain.ContentHash():x}|{world.Outside?.Key ?? "-"}|" : "";
         Parallel.For(0, origins.Count, i =>
         {
             var (x0, z0) = origins[i];
@@ -179,9 +189,10 @@ public partial class TerrainNode : Node3D
         var seeds = TerrainSurface.Seeds(world).ToList();
         var cache = MissionBuilder.HeightCache;
         bool session = I76.Formats.Vfs.SessionStore.Active;
-        string? key = cache is null && !session ? null : TerrainSurface.CacheKey(world.Terrain, seeds);
+        var outside = world.Outside;
+        string? key = cache is null && !session ? null : TerrainSurface.CacheKey(world.Terrain, seeds, outside);
         if (cache is not null && key is not null && cache.Read("surface", key) is { } blobs && TerrainSurface.FromBlobs(blobs) is { } hit) { hit.Key = key; return hit; }
-        var surf = new TerrainSurface(world.Terrain, seeds) { Key = key };
+        var surf = new TerrainSurface(world.Terrain, seeds, outside) { Key = key };
         if (cache is not null && key is not null) MissionBuilder.Background(() => cache.Write("surface", key, surf.ToBlobs()));
         return surf;
     }
@@ -280,12 +291,19 @@ public partial class TerrainNode : Node3D
     /// <summary>The 1997 mesh's arrays for the chunk at (x0, z0): pure CPU, any thread.</summary>
     private sealed record Boxed((Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) A);
 
-    private static (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) FaithfulArrays(MissionWorld w, int x0, int z0)
+    /// <summary>
+    /// The 1997 mesh's arrays for the chunk at sample origin (x0, z0), chunk-local: one vertex per sample, as the engine's terrain is lit.
+    /// Off the map's tiles the outside ground's samples (the simulation's), so a chunk at the map's edge runs into it and a chunk of the
+    /// outside ground (OutsideTerrain) is drawn the same way.
+    /// </summary>
+    internal static (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) FaithfulArrays(MissionWorld w, int x0, int z0)
     {
         int tileX = x0 - x0 % TerrainTiles.Tile, tileZ = z0 - z0 % TerrainTiles.Tile;
+        var outside = w.Outside;
         int Sample(int sx, int sz)
         {
             if (w.Terrain.Sample(sx, sz) is { } v) return v & MissionFile.HeightMask;
+            if (outside is not null) return outside.Raw(sx, sz);
             sx = Math.Clamp(sx, tileX, tileX + TerrainTiles.Tile - 1);
             sz = Math.Clamp(sz, tileZ, tileZ + TerrainTiles.Tile - 1);
             return (w.Terrain.Sample(sx, sz) ?? 0) & MissionFile.HeightMask;
@@ -332,7 +350,7 @@ public partial class TerrainNode : Node3D
 
     private void AddChunk(int x0, int z0, (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) a)
     {
-        var arrays = new Godot.Collections.Array();
+        using var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
         arrays[(int)Mesh.ArrayType.Vertex] = a.V;
         arrays[(int)Mesh.ArrayType.Normal] = a.N;
@@ -341,7 +359,7 @@ public partial class TerrainNode : Node3D
         arrays[(int)Mesh.ArrayType.Index] = a.I;
         var origin = new Vector3(x0 * SampleSize, 0, -z0 * SampleSize);
         var mesh = new ArrayMesh();
-        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        mesh.AddSurfaceArrays(Mesh.PrimitiveType.Triangles, arrays);
         var modern = Deferred ? null : ModernFor!(x0, z0);
         var mi = new MeshInstance3D { Mesh = mesh, Position = origin, MaterialOverride = modern, Name = $"chunk_{x0}_{z0}", Layers = TerrainLayer };
         AddChild(mi);
@@ -450,7 +468,12 @@ public partial class TerrainNode : Node3D
         {
             if (c.X0 > sx1 + 1 || c.X0 + Chunk < sx0 - 1 || c.Z0 > sz1 + 1 || c.Z0 + Chunk < sz0 - 1) continue;
             if (c.Modern is ShaderMaterial m && m.GetShaderParameter("has_cavity").AsBool())
-                m.SetShaderParameter("cavity_tex", ImageTexture.CreateFromImage(TerrainMaterials.Cavity(world, c.X0, c.Z0)));
+            {
+                // the image held past the call that copies it (an argument's wrapper is the caller's to keep: see MeshArrays)
+                var img = TerrainMaterials.Cavity(world, c.X0, c.Z0);
+                m.SetShaderParameter("cavity_tex", ImageTexture.CreateFromImage(img));
+                GC.KeepAlive(img);
+            }
         }
     }
 
@@ -463,6 +486,7 @@ public partial class TerrainNode : Node3D
     private void PumpEdits()
     {
         if (_world is null) return;
+        MainThread.Check("terrain edits");
         PumpRefresh();
         int stale = _refreshing is not null || _toRefresh is not null ? 1 : 0;
         if (_modern && Surface is { } surf)
@@ -512,12 +536,12 @@ public partial class TerrainNode : Node3D
             for (int i = 0; i < todo.Length; i++)
             {
                 var a = arrays[i];
-                var ar = new Godot.Collections.Array();
+                using var ar = new Godot.Collections.Array();
                 ar.Resize((int)Mesh.ArrayType.Max);
                 ar[(int)Mesh.ArrayType.Vertex] = a.V; ar[(int)Mesh.ArrayType.Normal] = a.N; ar[(int)Mesh.ArrayType.TexUV] = a.Uv;
                 ar[(int)Mesh.ArrayType.TexUV2] = a.Uv2; ar[(int)Mesh.ArrayType.Index] = a.I;
                 todo[i].FaithfulMesh.ClearSurfaces();
-                todo[i].FaithfulMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, ar);
+                todo[i].FaithfulMesh.AddSurfaceArrays(Mesh.PrimitiveType.Triangles, ar);
                 todo[i].FaithfulStale = false;
             }
             stale += _chunks.Count(c => c.FaithfulStale);
@@ -743,7 +767,7 @@ public partial class TerrainNode : Node3D
                 // (past the 5 m grid the drawn level itself: the sun's shadows end well inside the 800 m level)
                 var m = c.Lod[Math.Min(c.Level + 1, Math.Max(c.Level, CasterCoarsest))] ?? c.Lod[c.Level];
                 if (c.CasterMesh != m) c.Caster.Mesh = c.CasterMesh = m;   // (reading Mesh back is an engine call)
-                // none past the shadow map's reach (1.5 km) and the longest shadow that can fall into it: half the Far draw's calls were these
+                // none past the shadow map's reach and the longest shadow that can fall into it (CasterReach)
                 bool cast = c.Distance < CasterReach;
                 if (c.Casting != cast) c.Caster.Visible = c.Casting = cast;
             }

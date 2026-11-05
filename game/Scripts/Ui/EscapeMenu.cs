@@ -199,14 +199,16 @@ public sealed partial class EscapeMenu : Control
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Control Configuration", 6, OpenControls, "$7.65"),
+            Action("Mouse Options", 7, OpenMouse, "$6.50"),
             CancelButton("Resume"),
         ] : [
             Action("Abort Mission", 1, () => Switch(_abort), "$6.78"),
             Action("Play Options", 3, () => Switch(_play), "$5.34"),
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
-            // the port's own, on the free ruled line (row 6) under Audio Control: the Options Menu's Control Configuration, over the paused game
+            // the port's own, on the free ruled lines (rows 6 and 7) under Audio Control: Control Configuration and Mouse Options, over the paused game
             Action("Control Configuration", 6, OpenControls, "$7.65"),
+            Action("Mouse Options", 7, OpenMouse, "$6.50"),
             CancelButton("Exit"),
         ];
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
@@ -286,6 +288,17 @@ public sealed partial class EscapeMenu : Control
                 else if (m == 9) { Settings.AutoReverse = _snap.AutoReverse; it.Value = Settings.AutoReverse ? 1 : 0; }
             },
         });
+        // Chase Crosshair: the F2 chase view's aiming mark, from the resume on (Play Options is not on a network game's pad)
+        _play.Items.Add(new Item
+        {
+            Flags = Check, Label = "Chase Crosshair", Pair = 33, N = 2,
+            Cb = (it, m) =>
+            {
+                if (m == 6) it.Value = Settings.ChaseCrosshair ? 1 : 0;
+                else if (m == 8) { Settings.ChaseCrosshair = it.Value != 0; _snap.ChaseCrosshair = Settings.ChaseCrosshair; }
+                else if (m == 9) { Settings.ChaseCrosshair = _snap.ChaseCrosshair; it.Value = Settings.ChaseCrosshair ? 1 : 0; }
+            },
+        });
         _play.Items.Add(Setting(Cycle, "Difficulty Level", 24, 3, ["Wimp", "Champ", "Badass"], s => s.Difficulty, (s, v) => s.Difficulty = v));
         _play.Items.Add(DoneButton());
         _play.Items.Add(CancelButton());
@@ -302,13 +315,13 @@ public sealed partial class EscapeMenu : Control
         // are its own rows'.
         int sheetRow = 1;
         List<GraphicsRow> sheetOffered = [];
-        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); }
+        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
         for (int p = GraphicsPages.Look; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
             List<GraphicsRow> offered = [];
-            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); }
+            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
             page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); Switch(page); } } });
             page.Items.Add(DoneButton());
@@ -341,8 +354,7 @@ public sealed partial class EscapeMenu : Control
         if (Net)
         {
             // the port's own, on the row under the levels: the CB voice chat's microphone (the same setting as the shell's Audio Control), live
-            var mics = new List<string> { "" };
-            try { mics.AddRange(Godot.AudioServer.GetInputDeviceList().Where(d => d != "Default")); } catch { }
+            var mics = PlayOptionsScreen.MicChoices();
             if (!mics.Contains(Settings.CbMic)) mics.Add(Settings.CbMic);
             var names = mics.Select(PlayOptionsScreen.MicLabel).ToArray();
             _audio.Items.Insert(3, Setting(Cycle, "CB Microphone", 32, mics.Count, names, s => Math.Max(0, mics.IndexOf(s.CbMic)), (s, v) => s.CbMic = mics[v],
@@ -385,7 +397,7 @@ public sealed partial class EscapeMenu : Control
     }
 
     /// <summary>A row over a key that may be absent or over two keys (Visibility Range, HD Textures): Done and Cancel copy the row's keys whole (GraphicsPages.Copy).</summary>
-    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply) => new()
+    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply, Func<ShellSettings, string[]>? namesNow = null) => new()
     {
         Flags = Cycle, Label = label, N = names.Length, Names = names,
         Cb = (it, m) =>
@@ -397,6 +409,8 @@ public sealed partial class EscapeMenu : Control
                 case 8: GraphicsPages.Copy(r, Settings, _snap); break;
                 case 9: GraphicsPages.Copy(r, _snap, Settings); it.Value = get(Settings); apply(); break;
             }
+            // a row whose words follow the keys (HD Textures: a size set in the file shows as itself until the row is changed)
+            if (namesNow is not null) it.Names = namesNow(Settings);
         },
     };
 
@@ -421,11 +435,13 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
             // the port's MSAA in +0x8 (the shell's list, 8x too), live
             case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
-                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return null;
-                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live);
+                bool anyPack = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
+                if (HdTextureRow.Names(sizes, anyPack, Settings.HdTextureSize) is not { } hd) return null;
+                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live,
+                    s => HdTextureRow.Names(sizes, anyPack, s.HdTextureSize) ?? hd);
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             case GraphicsRow.VSync: return Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live);
             case GraphicsRow.MaxFps: return Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live);
@@ -435,6 +451,8 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
             // the modern look's plants, live
             case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
+            // the modern look's SSAO ([port] ambient_occlusion), live
+            case GraphicsRow.AmbientOcclusion: return Setting(Cycle, "Ambient Occlusion", 0, 2, ["Off", "On" + mark], s => s.AmbientOcclusion ? 1 : 0, (s, v) => s.AmbientOcclusion = v != 0, apply: live);
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             case GraphicsRow.FieldOfView: return Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live);
             // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row
@@ -444,12 +462,6 @@ public sealed partial class EscapeMenu : Control
                     (s, v) => { if (I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss) != v) s.HoodGloss = I76.Sim.Views.PaintFinish.Steps[v]; }, apply: live);
             // the modern look's cabin and driver behind a car's windows, live
             case GraphicsRow.CarInteriors: return Setting(Cycle, "Car Interiors", 0, 2, ["Off", "On" + mark], s => s.CarInteriors ? 1 : 0, (s, v) => s.CarInteriors = v != 0, apply: live);
-            // the mouse orbiting the chase view, and the hidden mouse kept inside the window, live
-            case GraphicsRow.MouseCamera: return Setting(Cycle, "Mouse Camera", 0, I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: live);
-            case GraphicsRow.MouseInWindow: return Setting(Cycle, "Keep Mouse In Window", 0, 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: live);
-            // the chase view easing back behind the car, and the wheel zoom back to the original's framing at a switch of view, live
-            case GraphicsRow.CameraReturn: return Setting(Cycle, "Camera Return", 0, 2, offOn, s => s.CameraReturn ? 1 : 0, (s, v) => s.CameraReturn = v != 0, apply: live);
-            case GraphicsRow.ZoomReset: return Setting(Cycle, "View Zoom Reset", 0, 2, offOn, s => s.ZoomReset ? 1 : 0, (s, v) => s.ZoomReset = v != 0, apply: live);
             // the 1997 look: off, the original's 3D card or its software renderer, applied on resume (as F2)
             case GraphicsRow.Look1997: return Setting(Cycle, "1997 Mode", 0, 3, ["Off" + mark, "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false);
             // the modern look's palette grade (SoftwareLook), live
@@ -573,9 +585,14 @@ public sealed partial class EscapeMenu : Control
     /// <summary>
     /// Control Configuration (and from it the controller screen) as the shell's own screens: a shell with nothing but that overlay
     /// on the pad's place over the paused game. The pad hides while it is up and takes no input; Done saves and applies the bindings
-    /// (Controls.Save puts them in use), Cancel and Esc come back unchanged.
+    /// (Controls.Save puts them in use), Cancel and Esc come back unchanged. Mouse Options (from here or from Control Configuration)
+    /// saves its own settings on its Done; the menu commits nothing of its own on the way there and takes only those settings back
+    /// (<see cref="MouseOptionsScreen.CopyMouse"/>), so its own Done and Cancel still decide the rest.
     /// </summary>
-    private void OpenControls()
+    private void OpenControls() => OpenHosted(new ControlsScreen());
+    private void OpenMouse() => OpenHosted(new MouseOptionsScreen());
+
+    private void OpenHosted(ShellScreen screen)
     {
         if (_host is not null || GetParent() is not { } parent) return;
         Visible = false;
@@ -583,7 +600,7 @@ public sealed partial class EscapeMenu : Control
         _host = new I76.Game.Shell.Shell
         {
             Install = new GameInstall(InstallDir), OnLaunch = _ => { }, Faithful = Faithful, Name = "ControlsHost",
-            Hosted = new ControlsScreen(),
+            Hosted = screen,
             HostDone = () => Callable.From(CloseControls).CallDeferred(),
         };
         parent.AddChild(_host);
@@ -591,6 +608,12 @@ public sealed partial class EscapeMenu : Control
 
     private void CloseControls()
     {
+        if (_host?.Settings is { } hosted)
+        {
+            // the mouse's settings as Mouse Options left them (its Done saved them; its Cancel put them back), into what the menu holds
+            MouseOptionsScreen.CopyMouse(hosted, Settings);
+            MouseOptionsScreen.CopyMouse(hosted, _snap);
+        }
         _host?.QueueFree();
         _host = null;
         _padNav.Settle();
@@ -612,6 +635,12 @@ public sealed partial class EscapeMenu : Control
             if (_pressed is not null || _screen.MaxScroll == 0) return;
             _screen.Scroll = Math.Clamp(_screen.Scroll + (wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1), 0, _screen.MaxScroll);
             QueueRedraw();
+        }
+        else if (e is InputEventMouseMotion mm)
+        {
+            // the help line follows the mouse over Graphic Detail's rows (GraphicsHelp), else the selection
+            var (over, _) = Hit(ToPad(mm.Position));
+            if (over != _hover) { _hover = over; if (_rowOf.ContainsKey(over ?? _noItem) || HelpShown) QueueRedraw(); }
         }
         else if (e is InputEventMouseButton { ButtonIndex: MouseButton.Left } mb)
         {
@@ -728,9 +757,10 @@ public sealed partial class EscapeMenu : Control
         17 => (new(87, 407, 147, 426), null),
         >= 18 and <= 23 => Box(1 + (p - 18)),          // the original's six check rows, on rows 1..6 (the original spaced them every other row)
         26 => Box(7),                                  // the port's own after them: Modern Physics, (Simulation Rate on row 8), Checkpoints,
-        31 => Box(9),                                  // Force Feedback, Auto Reverse
+        31 => Box(9),                                  // Force Feedback, Auto Reverse, Chase Crosshair
         30 => Box(10),
         25 => Box(11),
+        33 => Box(12),
         32 => (RowA(11), new Rect4(24, RowY(12), 301, RowY(12) + 24)),   // the net game's CB Microphone: the label on the row, the device's name under it
         24 => (RowA(13), new Rect4(226, 360, 301, 384)),
         27 => (new(40, 245, 80, 269), null),
@@ -898,6 +928,38 @@ public sealed partial class EscapeMenu : Control
         if (_screen.Order > 0) Print(_arial, 16, 226, 60, $"{_screen.Order / 1000:00000}-{_screen.Order % 1000:000}");
         for (int i = 0; i < _screen.Items.Count; i++) DrawItem(_screen.Items[i], i == _screen.Selected);
         DrawScrollMark();
+        DrawHelp();
+    }
+
+    // ---- Graphic Detail's help line (GraphicsHelp) ----
+
+    /// <summary>Graphic Detail's items and the rows they are, for the help line.</summary>
+    private readonly Dictionary<Item, GraphicsRow> _rowOf = [];
+    private Item? _hover;
+    private static readonly Item _noItem = new();
+    private bool HelpShown;
+
+    /// <summary>The help's first pad row and how many it may take, a line of text to a ruled row: rows 11 to 14 are free on Graphic Detail's pads (the sheet's entries end on row 10), the buttons start at 407.</summary>
+    private const int HelpRow = 11, HelpCell = 13, HelpMaxLines = 4;
+
+    /// <summary>
+    /// The row under the mouse, else the selected one, said on the pad's free rows in Arial (the order's and the titles' face), the pad's ink;
+    /// nothing on any other pad, or for a row without help.
+    /// </summary>
+    private void DrawHelp()
+    {
+        HelpShown = false;
+        if (_screen != _graphics && !_graphicsPages.Contains(_screen)) return;
+        var it = _hover is not null && _screen.Items.Contains(_hover) && _rowOf.ContainsKey(_hover) ? _hover
+            : _screen.Selected >= 0 && _screen.Selected < _screen.Items.Count ? _screen.Items[_screen.Selected] : null;
+        if (it is null || !_rowOf.TryGetValue(it, out var row) || GraphicsHelp.Text(row, Faithful) is not { } text) return;
+        int n = 0;
+        foreach (var line in GraphicsHelp.Wrap(text, s => Width(_arial, HelpCell, s), 296 - 24))
+        {
+            if (n >= HelpMaxLines) break;
+            Print(_arial, HelpCell, 24, RowY(HelpRow + n++) + 6, line);   // between the row's rules
+        }
+        HelpShown = true;
     }
 
     /// <summary>

@@ -94,6 +94,10 @@ gave them to its own car:
 - the weapon click;
 - no wreck 10 s after death.
 
+The difficulty's factor on the player's rounds and flame (Wimp ×2, Champion ×1, Badass ×0.75) is not one of them:
+the original applies it outside a network session only, so every network game, melee or co-op, plays ×1 for
+everyone (`Combat.NetworkGame`), whatever each player's Play Options say.
+
 `Combat.UnlimitedAmmo` stays with `World.Player` alone. It is a play option.
 
 The difficulty's damage factor (Play Options' Difficulty Level: a human's rounds and flame ×2.0 at Wimp, ×0.75 at Badass) is
@@ -210,8 +214,8 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   (`UprightReset`: the terrain under the car, upright, heading kept, at rest; the car's `NetGeneration` bumps so every client snaps to it, and a prediction does not run it itself) unless the host turned it off
   (`ServerOptions.AllowCarReset`, the host form's Car Reset, `--no-car-reset`; default on; listed in `SessionInfo.CarReset`, the discovery answer's last byte, an older host's missing byte reading as off). It never works in a cut-scene (a co-op player's own camera scene too) or while dead.
 - **Ignition stays on** (I26, #108; protocol 22): the host's rule that nobody switches their engine off in the game, so no car
-  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's IGNITION: Lock
-  beside TURRETS, IGNITION STAYS ON in the Nitro and co-op forms' game options (shell.cfg `[port] ignition_stays_on`,
+  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's Ignition Lock
+  row (the left table's spare rows), IGNITION STAYS ON in the Nitro and co-op forms' game options (shell.cfg `[port] ignition_stays_on`,
   written only when on), `--no-ignition-off` for a listen host and `i26-server`. A melee's rules carry it
   (`MeleeRules.IgnitionStaysOn`, saved in the savestate's build, so a migration's successor keeps it), a co-op host sets it on its
   session; the session's input handling (`SimSession.IgnitionStaysOn`) drops the ignition key while the engine runs, and still
@@ -223,6 +227,15 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   go to `user://gamekeys.cfg` (game key id → key text) and `GameKeyMap.Load(text, mine)` lays them over it (a game key's own keys
   go, the key leaves any other game key); Restore goes back to gamekey.map's. The other game keys (views, Pause, Ctrl+Q ...)
   stay gamekey.map's.
+- **Weapon cycle back**: Mouse Options' Wheel Up / Down on Cycle Weapon sends the wheel's step back as `CarCommands.WeaponCyclePrev` (bit 28 of the
+  commands the wire already carries, so no protocol change of its own), which the server's input check lets through and a client's prediction runs, as
+  `WeaponCycle`.
+- **Chase crosshair** (protocol 28 in the play fork, upstream's 22): the port's aiming aid in the F2 chase view (Mouse Options' Chase Crosshair, `CrosshairPolicy`) shows in a
+  network game, melee or co-op, only where the host allows it: the host form's CHASE CROSSHAIR (the base form's Chase Crosshair row, CHASE CROSSHAIR in the Nitro form's game options; shell.cfg `[port] host_crosshair`, written only when
+  on; `--crosshair` / `--no-crosshair` for a listen host and `i26-server --crosshair`; `ServerOptions.AllowCrosshair`, off by default, also in
+  the migration's options). `JoinAccept.Crosshair` (last byte, after the play fork's build id) tells the clients, and each player's own setting then decides; the listing
+  carries it (`SessionInfo.Crosshair`, the discovery answer's last byte, a missing byte reading as not allowed) and the session popup says
+  `Chase crosshair allowed`. The server does nothing with it and nothing in the simulation reads it.
 - **Console lines**, `NetLines`:
   "*** %s has joined the game" / "*** %s has left the game" (Nitro "*** Player %s ...", "*** A %s team member has joined
   the game!"), "*** %s has been killed" (no killer), "*** %1:s was killed by %2:s", chat "From %s: ", the entry "Say: ".
@@ -311,7 +324,7 @@ seat's car keeps its player's paint through the mission's respawns.
 ### Handicaps (protocol 23)
 
 I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
-form's HCP on the options box's last line (between RATE and PASS), HANDICAPS in the Nitro and co-op forms' game
+form's Handicaps row (the left table, under Ignition Lock), HANDICAPS in the Nitro and co-op forms' game
 options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
 says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
 join accept carries it (`JoinAccept.Handicaps`, after `Cb` and the ignition lock's byte).
@@ -352,7 +365,7 @@ host's machine the picked player's level in brackets, "Name [0]". Protocol 23.
 
 I26's (docs/deviations.md). The host rule's third setting: Off, Manual (above: the host sets the levels), Auto: the game sets them from
 the standings, so a mixed table (a family, bots of different skill) plays toward the same number of kills by the end without anyone
-having to be told their level. The host form's `Hcp` steps through the three (shell.cfg `[port] handicaps`, "manual" or "auto"; an older
+having to be told their level. The host form's Handicaps row steps through the three (shell.cfg `[port] handicaps`, "manual" or "auto"; an older
 file's `true` is manual), HANDICAPS in the Nitro form's game options (the co-op form offers Off and Manual: Auto needs a melee's
 kills), `--handicaps auto` for a listen host and `i26-server`. The listing says "Auto handicaps" (`SessionInfo.Handicaps`, the flags
 byte's 16 with the 8) and the join accept carries the mode (`JoinAccept.Handicaps`, a byte in the bool's place: 0 off, 1 manual, 2 auto).
@@ -442,8 +455,8 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   with " (bot)" after it: the name is the mark on the scoreboard and in the feed, since the wire has no field for it (`BotNames.IsBot`). A car at
   random from `ServerOptions.BotCars`, stock cars first variants (Piranha, Courier, Eagle, Aztec, Stag, Marx, Pony, Royal, Amazon on the base game's
   list; the Nitro Pack's models are the same stems) the install has and the game's hidden-content rules let in. Under WEAPON RESTRICTIONS a bot (and the AI fill) drives its rolled car with the restricted weapons taken off, all of them under All Weapons (`MeleeHost.Legal`): never another model or a stand-in, and served by content as a player's own variant is (`CarInfo.Vcf`), so every machine, the host's own screen included, builds the same car, and a successor host gets the same file from the savestate's served cars and the options' restrictions. The original had no server-driven cars to restrict, so this is the port's reading of its rule: a game that allows no weapons has none on any car.
-- **A.I. cars.** The host picks each bot seat's car (`ServerOptions.BotChoices`, one car file per seat, empty for Random): on the host form the BOTS line's
-  A.I. CARS (the Nitro form's GAME OPTIONS has an A.I. CARS line) opens the A.I. CARS popup (`BotCarsPopup`; mouse and pad), a row for each bot seat up to Bots, each with the
+- **A.I. cars.** The host picks each bot seat's car (`ServerOptions.BotChoices`, one car file per seat, empty for Random): on the host form the A.I. Cars
+  row (the Nitro form's GAME OPTIONS has an A.I. CARS line) opens the A.I. CARS popup (`BotCarsPopup`; mouse and pad), a row for each bot seat up to Bots, each with the
   instant melee's MAKE / MODEL and VARIANT (stock cars, the host's saved variants, hidden models when Hidden Wpns & Cars is on). The choices are kept in
   melee.cfg (`bot_cars`), not in the original's .mel files; i26-server takes `--bot-car N=MODEL[:VARIANT]`. Bot seat N is the Nth bot slot counting down from `MaxSeats - 1`
   (`MeleeMode.AddBot`), and whenever a bot enters that seat, at the start or when a human leaves, it drives choice N; so a bot sent away for a human and its seat's
@@ -468,8 +481,9 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   is 30 s past its last regen goes to the nearest pad, shooting what is in its way. The tactic table, the avoidance, the escapes
   are the original's.
 - **Race.** `AiOrder.Race` along the checkpoints from the one the car's `RaceTracker` wants next, two laps' worth in the order list (the AI loops
-  it), through the planner (`PlanPath`: the road route where the car and the point are on one road, else the A*). The tracker counts at 30 m and the
-  AI moves on at 40: a bot that is a point ahead of the tracker for 2.5 s is sent back for the one it missed. It fires at whatever is ahead and near, as
+  it), through the planner (`PlanPath`: the road route where the car and the point are on one road, else the A*). The tracker counts in a 30 m sphere and
+  a racing bot's AI moves on at 25 m across the ground (`Entity.NavReach`; the AI's own 40 would turn it for the next checkpoint before it was in
+  this one); a bot that is still a point ahead of the tracker for 2.5 s (a checkpoint well above or below the car) is sent back for the one it missed. It fires at whatever is ahead and near, as
   a human may (weapons are as free in a race as in combat). A new order starts at its first point (the AI's racer scan, would otherwise pick the nearest).
 - **Capture the flag.** Roles by seat order in the team's bots: raider, defender, raider, escort, defender, and again. A carrier goes for the stand
   of its colour. A raider goes to the nearest enemy flag at its stand (`CtfGame` has no dropped flag: a carried flag goes home when its carrier is
@@ -477,12 +491,12 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   escort follows its team's carrier (`AiOrder.Follow`), else attacks. Whoever is not a raider on the way hunts the carrier of its team's flag (when it is alive:
   a dead one's flag waits for its respawn).
 
-- **Ramps.** A bot uses a ramp as a way across the map when its car can take it and it is a clearly shorter way (the port's own; combat and capture the flag, not races, and not the story missions' cars). `JumpLinks.Find` (`src/I76.Sim/Ai/JumpLinks.cs`) takes every standing type-0xb structure whose drive-on surface climbs (`StructureAttach.Ends`, shared with the map editor: foot, lip, direction, so stock and editor-made maps alike) and keeps the ones with something beyond the lip a car cannot drive over (impassable ground or a drop of more than 6 m within 90 m: a ramp that only throws a car over flat ground is a bump). It measures the straight, open run-up before the foot (terrain, and rays at car height against the scenery) up to 220 m. What a ramp does is found by driving a copy of the car (its mass, engine, tyres and suspension; no weapons or damage) over it in a world of its own (the map's ground and statics, its own random stream, no damage model, a 20 Hz step like the game's), so nothing touches the mission's state or `World.Rand` and every machine gets the same answer: `Profile` flies it at speeds from 10 m/s in steps of 2.5, starting from the fastest the healthy car reaches and going down while the landings stay good, and keeps for each the landing point, the time in the air, the landing's impact, and whether it was *good* (no scenery hit, upright, a landing no harder than 17 m/s into the ground, not on impassable ground, still moving, not floating); the longest run of good speeds is the *window*. `Reach` drives the car flat out along the axis from the line-up point (at most 200 m before the foot, at 10 m/s) and reads its speed at the foot: that is the feasibility test, so a weak or damaged engine (`Engine.Damage` is part of the cache key) or a short run-up gives a lower speed and the ramp is not used when `0.97 x reach - 0.3` leaves less than 0.7 m/s of the window's low end; the speed to hit it at is the middle of the window, capped by that. The landing for that speed is read between its samples. A ramp's profile is cached per car build and its reach per build and engine damage in tenths; the ramps are flown for the bots' cars when the game is built (about 0.2 to 1.6 s of loading on the stock arenas, with eight bots), and a build met later is flown when a bot first looks at the ramp (a reach is a drive of 3 to 8 ms).
-  The *routing* is the grid's (`GridRoute`, the 12 m grid over the impassable cells that the bots already use when a goto is not getting nearer): `GridRoute.Find` takes hops, an extra edge for each usable ramp from its line-up point to where this car comes down, costing the flight plus 45 m for the lining up. A bot looks at ramps every 3 to 5 s, when its goal (its target, or a goto's destination) is over 100 m away and the straight line to it crosses impassable ground, at most one bot a frame; it keeps the ramp plan only when the route over a hop is at least 60 m and 20% shorter than the one over the ground. The bot then drives the route to the line-up point with the AI as any goto (`Order`), takes the wheel itself within 30 m of that point or when it is on the ramp's axis (`DriveJump`): it steers onto the axis, holds the speed (the AI's own steering and throttle controllers at their best skill), slows to 12 m/s while it is more than 4 m off the axis or 0.35 rad off its heading, and 22 m before the foot it must be within 2 m of the axis, 0.1 rad of its heading and inside the window, or it gives the ramp up and the AI drives on (the same ramp is left alone for 20 s). On the run it keeps the wheel on the axis and then straight over the ramp, in the air it steers and brakes nothing, and on landing the order is made again from where it came down. A ramp destroyed meanwhile, a goal that has moved 150 m, or 80 s without getting there also end the plan. The savestate does not carry a ramp plan (format and protocol stay as they were): a bot on its way drives on by its saved path, one on the run or in the air is the AI's again.
-
 **What is the port's own** (each is in docs/deviations.md as one line):
 - *Road routes are not taken the long way round* (`Entity.DetourLimit`, a bot's 2.5 times the straight line plus 100 m; `RoadRoute.TryRoute` and
   `ExpandRoadPairs`'s `detour`). Nitro's race roads are open at the start line, and a goal across the seam is the whole road away; the A* takes it. The original's AI has no limit.
+- *A racer drives into a checkpoint before it turns for the next* (`Entity.NavReach`, 25 m across the ground in a race, the AI's 40 m otherwise):
+  with the AI's 40 m, a checkpoint less than about 50 m from the one before it and off the line was left before its 30 m sphere took the car, and
+  the bot went back and forth between the two.
 - *The collision test is off in a race* (`Entity.Avoid`, the speculative test of `Candidate`, which slows a fast car at every bump) until the
   car has hardly moved for 4 s, when it is on for 10 s to back out (`StuckCheck`).
 - *A goto that is not getting nearer is given the grid's route* (`Ai.GridRoute`; `MeleeGame.Go`): the AI's A* has a pool of 1000 nodes, so a goal
@@ -508,7 +522,7 @@ ordered along, its race route and timers: `BotBrain.Save`) and its entity's `Own
 (12 game minutes at most, the tests' way): N23, N34, N21, N31, N26 and N35 finish in 2 to 5 minutes (best laps 25, 51, 66, 73, 35 and 90 s; a person's would be shorter, but nobody has measured one), N28, N22, N29 and N30 in 5 to 11 (laps of 92 to 217 s), N27 is a 5.8 km out-and-back whose 223 s laps do not fit three in twelve, and N24 and N25 do not finish (a pinch and a hazard
 the A* does not see, the stuck bot blowing itself up again and again: 35 to 40 deaths in the run). Deaths are at walls, drops and water (3 to 40 in a run on four bots). A barricade a track means a player to shoot (N28's) is a wall to the A*: a
 bot goes round. In CTF the bots capture on the three- and four-team arenas (N12 116 s, N14 116 s, N17 111 s for the first, ten or more in ten minutes) and on the two-team arenas mostly not (N11, N13, N20, N41, N43, N44, N46; N40
-sometimes): the long way round a wall the A* and the grid do not manage, or a jam at a narrow place. Ramps are used rarely on the stock arenas (a bot has to want to cross a gap and have the speed for it: n20 and similar CTF arenas show a few jumps in ten minutes of eight Hard bots, most arenas none), and a bot that cannot jump a gap still drives at it as before when it is attacking across it (the grid's way round is for gotos). Only ramps are links, not the natural jumps of the terrain. In combat a fight is a long one: the bots spend a good part of their time in the AI's avoid and back-away states,
+sometimes): the long way round a wall the A* and the grid do not manage, or a jam at a narrow place. In combat a fight is a long one: the bots spend a good part of their time in the AI's avoid and back-away states,
 regenerate when hurt, and kill about one car a minute with eight on m05 (one in six with six on m02).
 
 ## The Nitro Pack's race and capture the flag
@@ -545,8 +559,8 @@ class (`WeaponRestrictions`). It is kept for the shell's run, not saved, as the 
 - **Wire** (protocol 12, appended to `SessionInfo` after the locked flag): a flags byte (1 hidden content allowed, 2 every
   weapon restricted), a pair count (at most 64) and the pairs (class `i8`, tier `i16`). An older answer ends before them
   and reads as no restrictions.
-- **Unlim. Turrets.** The host forms' UNLIM. TURRETS (the I76 form's GAME OPTIONS box too, the co-op form's; saved in the host settings, off by default; `i26-server --turrets`) lets the game's cars carry several turrets, each on a roof mount (docs/deviations.md). Off, `CarConfigCheck` refuses a configuration with a second turret (DONE's notice 26) and `Strict` a joining car's; a bot's car keeps its first turret and loses the rest (`MeleeHost.Legal`). The listing's direct answer carries it as flag 4 beside Hidden and All Weapons (`SessionInfo.Turrets`), the session popup says "Unlimited turrets", and a joiner's own check names it before connecting.
-- **The host's switch.** Hidden Weapons & Cars is Play Options' setting, and also a row on the host forms: the I76 form's HIDDEN CARS box (hotspot 28), the Nitro form's GAME OPTIONS popup (last row). It flips the same setting; the form's MAKE / MODEL list gains or loses the hidden models at once. Joiners bring hidden models and weapons when their own setting shows them and the game's answer says allowed.
+- **Unlim. Turrets.** The host forms' UNLIM. TURRETS (the Nitro form's GAME OPTIONS, the I76 form's Unlimited Turrets row; saved in the host settings, off by default; `i26-server --turrets`) lets the game's cars carry several turrets, each on a roof mount (docs/deviations.md). Off, `CarConfigCheck` refuses a configuration with a second turret (DONE's notice 26) and `Strict` a joining car's; a bot's car keeps its first turret and loses the rest (`MeleeHost.Legal`). The listing's direct answer carries it as flag 4 beside Hidden and All Weapons (`SessionInfo.Turrets`), the session popup says "Unlimited turrets", and a joiner's own check names it before connecting.
+- **The host's switch.** Hidden Weapons & Cars is Play Options' setting, and also a row on the host forms: the I76 form's Hidden Weapons & Cars row (hotspot 28), the Nitro form's GAME OPTIONS popup. It flips the same setting; the form's MAKE / MODEL list gains or loses the hidden models at once. Joiners bring hidden models and weapons when their own setting shows them and the game's answer says allowed.
 - **Armour rule** (`CarConfigCheck`). The garage's DEFENSE buttons move 10 units between a zone, the chassis and the unassigned pool; the total never grows. So a variant passes when no value is negative and armour + chassis + pool is at most that of the model's heaviest stock variant (it used to compare each zone with the stock maximum, refusing what the garage makes by moving everything into one zone). With the host's hidden content on, the Rattler's secret bodies (`HiddenContent.SecretBodies`) are accepted with their own armour (stock + the secret's, no tyre or garage checks, their tracks are no garage part); off, the refusal says the body is a hidden car. Specials are 0..9 (0..11 on Nitro).
 - **Joiners.** The join form's game popup prints the restrictions (by the checklist's names) and "Hidden weapons & cars
   allowed" under the drivers; JOIN checks the player's car against the game's answer first and says what is not allowed,
@@ -596,7 +610,7 @@ the original; single player stays the base melee. They are here server-side
   car (`SimSession.EndBrake`), and a client's prediction from the end event's server tick (`MeleeClient.EndTick`), so
   the predicted car does not snap back. The original holds its car the same way while a network regen's fresh car is
   pending; here a regen's car comes at once.
-- **Wire.** Protocol version 27 adds a car death's cause and seed to `KilledEvent` (a byte and a u16 after `DriverKilled`), so every machine draws the modern look's death by cause the same (DeathVariety); the savestate is format 25 (`VehicleKilled.Cause` and `Seed` in a pending death event). Protocol version 26 adds the build id (`BuildId`: the commit's short id, from the assembly's source revision in a checkout or the archive's export-subst in a `git archive`): a string at the end of the join request, the join accept and the session list's answer (a missing one reading as not known). The roster shows the host's build, the host form the own, and a game on another build gets a one-line notice in the roster; a join on another build than the host's is let in (the protocol decides who can play) and the server says so to everyone once, as a `***` line (a co-op lobby's chat line); the joiner, whose copy comes while it loads, puts up its own from the accept. Protocol version 22 adds the host's ignition lock (below, "Ignition stays on"): `JoinAccept.IgnitionStaysOn` (a bool after `Cb`, the last byte) and the session list's answer's last byte (an older host's missing byte reading as off); the savestate is format 19 (`MeleeRules.IgnitionStaysOn` in the build's melee rules). Protocol version 21 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 14, which has no co-op gate hold (format 15, above, "Gates shut behind the player"), and the other way round. Protocol version 20 adds the co-op lobby: `MsgType.LobbyState` (server → client; the mission, the seats, the receiver's id and the host's, the players' ids, names, cars and ready marks, and the mission's own car), `LobbySet` (client → server: the ready mark and a car's file, .vcf and paint), `LobbyStart` (the host's start, forced or not), `LobbyChat`; the session list's answer ends with a byte for a game in its lobby and the anet tag's kind-3 goal nibble has bit 3 for it. The join accept is unchanged; it comes when the host starts the mission. Protocol version 19 adds the co-op camera scenes and movie pause: the snapshot tail's script byte has bit 4, the seats' personal cameras (a count, then a seat byte and a `CameraState` each); `MsgType.MovieDone` (client → server, reliable: the movie's name); `EventKind.MovieEnd`; and `CoopInfo` ends with the movie being played (a string, empty for none). The savestate is format 14 (a personal camera per seat and the scene a thread is in). Protocol version 18 raises a co-op game's seats from 4 to 8: the join accept's `CoopInfo` names up to 8 seats' cars (a version 17 reader refuses more than 4), and nothing else on the wire changes (the savestate's co-op build and the formation are counts, not masks: format 13 stays). Protocol version 17 adds the car's paint (below, "Car paint"): `JoinRequest.Paint` (after the password and the rejoin byte, which is now always written: 0 when the request is no rejoin), `Reconfigure.Paint` and `CarInfo.Paint` (after `Vcf`), each a u16-length blob of `CarPaint.ToBytes` (empty: the factory paint); a request or reconfigure without it still ends cleanly and reads as no paint. The host-migration record is format 2 (the seats' and invites' join records carry the paint) and the savestate is format 13. Protocol version 16 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 11, which a bot game's snapshot can fail to write (a bot given a new route while the AI's nav path walks the old one: format 12 writes such a path by its points), and the other way round. Protocol version 15 adds co-op story missions (above, "Co-op over the network"): their events, the join
+- **Wire.** Protocol version 28 (the play fork's pass 19 reconcile) is upstream's 22 on top of the play fork's 27: the join accept ends with the chase crosshair's byte after the build id, and the session answer's tail carries the ignition lock and the build, then the crosshair and the arena's name, then the drivers' makes and models; a play client and an upstream server (22) refuse each other by version. Protocol version 27 adds a car death's cause and seed to `KilledEvent` (a byte and a u16 after `DriverKilled`), so every machine draws the modern look's death by cause the same (DeathVariety); the savestate is format 25 (`VehicleKilled.Cause` and `Seed` in a pending death event). Protocol version 26 adds the build id (`BuildId`: the commit's short id, from the assembly's source revision in a checkout or the archive's export-subst in a `git archive`): a string at the end of the join request, the join accept and the session list's answer (a missing one reading as not known). The roster shows the host's build, the host form the own, and a game on another build gets a one-line notice in the roster; a join on another build than the host's is let in (the protocol decides who can play) and the server says so to everyone once, as a `***` line (a co-op lobby's chat line); the joiner, whose copy comes while it loads, puts up its own from the accept. Protocol version 22 adds the host's ignition lock (below, "Ignition stays on"): `JoinAccept.IgnitionStaysOn` (a bool after `Cb`, the last byte) and the session list's answer's last byte (an older host's missing byte reading as off); the savestate is format 19 (`MeleeRules.IgnitionStaysOn` in the build's melee rules). Protocol version 21 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 14, which has no co-op gate hold (format 15, above, "Gates shut behind the player"), and the other way round. Protocol version 20 adds the co-op lobby: `MsgType.LobbyState` (server → client; the mission, the seats, the receiver's id and the host's, the players' ids, names, cars and ready marks, and the mission's own car), `LobbySet` (client → server: the ready mark and a car's file, .vcf and paint), `LobbyStart` (the host's start, forced or not), `LobbyChat`; the session list's answer ends with a byte for a game in its lobby and the anet tag's kind-3 goal nibble has bit 3 for it. The join accept is unchanged; it comes when the host starts the mission. Protocol version 19 adds the co-op camera scenes and movie pause: the snapshot tail's script byte has bit 4, the seats' personal cameras (a count, then a seat byte and a `CameraState` each); `MsgType.MovieDone` (client → server, reliable: the movie's name); `EventKind.MovieEnd`; and `CoopInfo` ends with the movie being played (a string, empty for none). The savestate is format 14 (a personal camera per seat and the scene a thread is in). Protocol version 18 raises a co-op game's seats from 4 to 8: the join accept's `CoopInfo` names up to 8 seats' cars (a version 17 reader refuses more than 4), and nothing else on the wire changes (the savestate's co-op build and the formation are counts, not masks: format 13 stays). Protocol version 17 adds the car's paint (below, "Car paint"): `JoinRequest.Paint` (after the password and the rejoin byte, which is now always written: 0 when the request is no rejoin), `Reconfigure.Paint` and `CarInfo.Paint` (after `Vcf`), each a u16-length blob of `CarPaint.ToBytes` (empty: the factory paint); a request or reconfigure without it still ends cleanly and reads as no paint. The host-migration record is format 2 (the seats' and invites' join records carry the paint) and the savestate is format 13. Protocol version 16 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 11, which a bot game's snapshot can fail to write (a bot given a new route while the AI's nav path walks the old one: format 12 writes such a path by its points), and the other way round. Protocol version 15 adds co-op story missions (above, "Co-op over the network"): their events, the join
   accept's co-op part, a byte at the end of every snapshot's tail (a melee's 0) and of the session list's answer (whether
   the game is co-op, then the game's simulation rate), and the anet tag's kind 3 (a co-op game; an older build passes it over). Protocol version 14 (0.7.0) changes nothing on the wire: it keeps 0.7 out of games with 0.5/0.6 builds, whose host migration hands over a savestate of format 9, which 0.7 (format 10: the bots) cannot read, and the other way round. Protocol version 9 adds the car's file to the cars the join accept and the spawn event carry when it is a player's own variant (`CarInfo.Vcf`), and the join request's configuration is that file. Protocol version 8 adds the arena's fingerprint to the join accept (the mission file's and the terrain's sizes and CRCs: a client without the host's map, or with another copy, refuses before building). Protocol version 6 (6 sends a structure's whole destroyed state, root and nodes, with the explosions that went with it, in the structure event and the join accept; 5 packs the jammer's "on" into bit 7 of each special's charges byte in the own-car block, so the cockpit plate lights for a client; version 3 had a ten-byte `CarInput`, its commands a u16: 4 widens them to a u32 for the hotkey commands). The join accept carries kind, goal, goal value
   and the team count; every snapshot ends with the flags (team, state, position
@@ -646,12 +660,15 @@ may hear you does.
   microphone's grit), a steady hiss at about −36 dBFS under the voice, and the band again over it all; a squelch burst of static when a
   talk opens and a click with a fading tail when it closes. The game has no CB click or static of its own (its CB lines are plain speech), so the
   squelch is synthesised. The sender hears the same click at its own key, not its own voice.
-- **Capture.** `AudioStreamMicrophone` on a muted `CbMic` bus with an `AudioEffectCapture` (`audio/driver/enable_input` is on in the project, but
-  Godot opens the device only when the stream plays; on macOS it is off in the project and turned on at the first press, because the CoreAudio driver sets the input up, and macOS asks for the microphone, as soon as the driver starts with it on): nothing is opened until the key is first pressed, the device is closed again after 30 s of
-  silence, and the device is the system default or the one chosen in Audio Control (`CB Microphone` under the three levels, a click steps through the input devices; shell.cfg `[port] cb_mic`). Without any input
+- **Capture.** `AudioStreamMicrophone` on a muted `CbMic` bus with an `AudioEffectCapture`. `CB Microphone` (Audio Control, under the three levels, in the
+  front end and live in a network game; a click steps none, the system's default, each input device; shell.cfg `[port] cb_mic`) starts on **None**:
+  a file with no choice is None, a saved device stays. With None the game never opens the audio input: `audio/driver/enable_input` is off in the
+  project (macOS asks for microphone access when it is on at start-up) and is switched on at run time only when a device is first opened; the key does
+  nothing but say once a session to choose a microphone, and receiving other players' voice is unaffected. With a device chosen nothing is opened
+  until the key is first pressed, the device is closed again after 30 s of silence, and switching back to None closes it at once. Without any input
   device the first press says so in the console. The sound card's rate is brought to 8 kHz by `VoiceResampler`. The macOS export asks for the
   microphone with a usage description and the hardened runtime's audio-input entitlement. On macOS the permission prompt therefore comes at the first press of the CB key (and again at the first press of each new build, since macOS keys the answer to an ad hoc signed app's code hash), not when the game starts.
-- **Settings and commands.** Play Options' second page: `CB Voice` (shell.cfg `[port] cb_voice`, on by default; off neither sends nor plays); Audio Control has `CB Microphone` (the incoming voice's level is the Voice Level there). In the chat line: `/mute NAME`, `/unmute NAME` (a name, or a unique start or part of one; kept for the session, not by slot),
+- **Settings and commands.** Play Options: `CB Voice` (shell.cfg `[port] cb_voice`, on by default; off neither sends nor plays); Audio Control has `CB Microphone` (the incoming voice's level is the Voice Level there). In the chat line: `/mute NAME`, `/unmute NAME` (a name, or a unique start or part of one; kept for the session, not by slot),
   `/cb on` and `/cb off` (for this game), `/mute` alone lists who is muted.
 - **Muting.** Three levels. (1) *For yourself*: `/mute NAME` / `/unmute NAME` (and `/cb off`, which mutes everybody). The client plays nothing of that
   player and also tells the server (`MsgType.VoiceIgnore`, reliable: a flag for everyone, else the slots; resent when the set or the roster
@@ -665,7 +682,7 @@ may hear you does.
   everybody, the muted player included, and sends the player `MsgType.VoiceMuted` (reliable, one byte, also at the seat) so the client stops
   sending, and the HUD says `CB: you are muted by the host` (the modern look's `MUTED BY HOST` panel). A muted player never appears in the others'
   on-air list. The set rides in the host-migration extras (after the shot counts), so a successor keeps it. (3) *The game's CB radio off*:
-  the host form's CB RADIO (the base form's CB RADIO box beside CAR RESET, CB RADIO in the Nitro and co-op forms' game options; shell.cfg
+  the host form's CB RADIO (the base form's CB Radio row, CB RADIO in the Nitro form's game options; shell.cfg
   `[port] cb_radio`, written only when off; `--no-cb` for a listen host and `i26-server --no-cb`; `ServerOptions.AllowCb`, on by default,
   also in the migration's options): the server relays no voice, `JoinAccept.Cb` (last byte) tells the clients, which neither send nor open
   the microphone, show no CB hint and say `CB is off in this game` on a key press; the listing carries it (`SessionInfo.Cb`, the discovery
@@ -1018,14 +1035,14 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
 MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 4, above) with a way to make it a co-op game:
 
 - **The Nitro Pack's form** has Co-op in its GAME TYPE list beside Combat, Race and CTF; **the base game's** form has a
-  MELEE / CO-OP button (RENAME's look) at the right end of its AREA OF PLAY bar, showing the game type; a click switches.
+  Game Type row, Melee or Co-op; a click switches.
 - A co-op form lists the install's story missions by their titles instead of arenas (`MissionTitles.Coop`: the stock
   scripted missions, `MapFileSet.IsStockMission`: I76's A01 ("Training"), T01–T17 ("Scene 5: Save Taurus": the scene number the original shows and the port's name for it, docs/deviations.md "Scene names") and the scenarios S01–S07 by
   their shell names in the shell's own order; the Nitro Pack's campaign in SCENARIO.DAT's order, then B01 and the P
   missions SCENARIO.DAT does not list). It keeps the host form's GAME NAME (the mission's title until renamed), NO. DRIVERS
   (1–8), INVITE ONLY, the password, WEAPON RESTRICTIONS (Nitro's form) and Hidden Weapons & Cars, which apply to the cars
   the players choose; it has no TEAM PLAY, score or other limit, Bots or Share Maps (a stock mission is on every install).
-  The base form's options box has the co-op rules (Foes, Dmg, Roll) on the BOTS line.
+  The base form leaves those rows out and the rest close up.
 - The car panel shows "Mission's own car" (the default) or the player's pick (above).
 - Hosting opens the lobby (above, "The co-op lobby"), where the host starts the mission. BROADCAST GAME hosts it as `--host-listen --coop MISSION --coop-lobby` does (`NetLaunch.Coop`, `MainNet.ApplyNetLaunch`).
 - The roster (JOIN) lists a co-op game with a "co-op" tag after its name, "co-op lobby" while the host has not started it (the anet tag's kind bits 3 and the session
@@ -1254,30 +1271,25 @@ entry picked lists that server's games in the roster; CANCEL there keeps the
 roster as it was instead of going back to the main menu. A join that fails
 comes back to the roster with its notice and the book, as before.
 
-**The host form** (the original's modes 3 and 4):
+**The host form** (the original's modes 3 and 4). The base game's is drawn by the port (`HostFormLayout`, `HostSheet`): the
+original's form (record 19) had room for its own fields only, and the port's options had come to share four short lines under
+its options box. It is a ruled sheet in Mouse Options' style, in both looks (the 1997 look's rules, title and buttons in the
+palette, the modern look's as vectors), a labelled row for each field: on the left LOCAL DRIVER, Game Type, AREA OF PLAY with
+its six-row list and arrows, GAME NAME, NO. DRIVERS, TEAM PLAY, INVITE ONLY, MAX SCORE (On / Off, - and +), Password, Bots,
+Bot Skill and A.I. Cars, then the play fork's Ignition Lock and Handicaps (and on the co-op form Co-op Scaling, Co-op Damage and Rolling Start), with rows to spare; on the right Sim Rate, Share Maps, Hidden Weapons & Cars, Unlimited Turrets, Car
+Reset, CB Radio and Chase Crosshair, then the car: MAKE / MODEL, VARIANT, its weapons and parts and the blueprint's side view;
+CONFIGURE CHASSIS, BROADCAST GAME and CANCEL are its buttons. Every row keeps the form's hotspot id, so a click (the row, or
+its - and +), the pad's regions and the text entry do what the original's controls did. The Nitro Pack's form keeps its art.
 - LOCAL DRIVER (RENAME), the area of play (the 15 arenas, as the instant
-  melee lists them; the port's scroll bar down the list's right edge, Graphic Detail's look), GAME NAME (the area's name until RENAME gives it one; left
+  melee lists them), GAME NAME (the area's name until RENAME gives it one; left
   empty it is the area's again);
 - NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
   what the wire, the screens and i26-server take): the server's seats (below, "Bandwidth"). The form has no room for a note on the upload a
   big game needs, so `MeleeScreen.UploadMbit(players)` (a small table, placeholders until measured) goes to the log line a listen server writes;
-- the options box (the port's layout of the original's: the box runs from NO. DRIVERS' foot rule to the sheet's foot, its paper a
-  blank part of the same art; the labels are printed in Arial, the values in the form's handwriting, the boxes, steppers, rules and
-  buttons pieces of the record's own art), row by row:
-  - BOTS (the port's: ⊟ ⊞, the skill, Easy, Normal or Hard on a click, and A.I. CARS; Nitro's form has them in its GAME OPTIONS):
-    how many players the server drives (0 to the seats NO. DRIVERS leaves besides the host's own) and how well (below, "Bots"; kept in melee.cfg);
-  - the switches as check boxes of TEAM PLAY's own: TEAM PLAY, INVITE ONLY, SHARE MAPS, HIDDEN CARS, CAR RESET, CB RADIO;
-  - MAX SCORE with its box and ⊟ ⊞ (1000–100000 in steps of 1000, 20000 to start; the score counts only when its box is ticked);
-  - the stepped rules on ruled blanks, a click steps each: TURRETS (One, Unlim.), IGNITION (Free, Lock), RATE, HCP (Off, Manual,
-    Auto) and PASS (the password prompt);
-  the co-op form's box has Foes, Dmg and Roll in BOTS' place and no TEAM PLAY, SHARE MAPS or MAX SCORE; the pointer resting
-  half a second on a rule shows a line on what it does, on a slip of the form's paper by the pointer (`RuleHelp`);
-- the arena's sketch (the port's, `ArenaSketch`), between the car's views, on a scrap of the form's paper lightened, its
-  edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
-  the space (a small one centred, then 20 px to the left; a large one from the panel's rule): the arena from above, its floor as paper,
-  a band of the ground that rises round it hatched with an inked edge, the roads as lines, each start point an x, built from
-  the terrain and the mission's placements when the area (or the co-op mission) is picked; the span small under the drawing, centred, as a
-  map's legend ("1.5 x 1.0 km"; the starts are not counted, they are no limit on the players);
+- BOTS (the port's: the Bots row's `-` `+`, Bot Skill's Easy, Normal or Hard on a click; Nitro's form has them in its GAME OPTIONS):
+  how many players the server drives (0 to the seats NO. DRIVERS leaves besides the host's own) and how well (below, "Bots"; kept in melee.cfg);
+- TEAM PLAY, INVITE ONLY, and MAX SCORE with its ⊟ ⊞ (1000–100000 in steps
+  of 1000, 20000 to start; the score counts only when its box is ticked);
 - the car: MAKE / MODEL, VARIANT and CONFIGURE CHASSIS, as on the instant
   melee form;
 - BROADCAST GAME: CHOOSE A TEAM first with team play, then the launch: a
@@ -1339,7 +1351,19 @@ messages; `src/I76.Net/Discovery.cs`):
 | Message | Way | What |
 |---|---|---|
 | query | anyone → server: a LAN broadcast to ports 7676–7679, the same at 127.0.0.1, or one address | `"I76Q"`, protocol version |
-| session | server → asker | `"I76S"`, protocol version, session id (random per server), game name, arena, players, seats, team play, invite only, score and time limits, whether it is over, each player's name, car and team, the Nitro kind, goal and team count, a custom map's hash, whether it is shared and its size, whether the game is locked (protocol 12; the password itself is never sent) |
+| session | server → asker | `"I76S"`, protocol version, session id (random per server), game name, arena, players, seats, team play, invite only, score and time limits, whether it is over, each player's name, car and team, the Nitro kind, goal and team count, a custom map's hash, whether it is shared and its size, whether the game is locked (protocol 12; the password itself is never sent), ...; protocol 22 ends with the arena's name and each listed player's make and model where the host says it (below) |
+
+**The names on the roster** (`SessionDriver`, `NetLines.GameName`, `NetLines.AreaName`). The game popup's MAKE / MODEL is the car's
+make and model as the original's shows it (its body's VDFC name, "Courcheval Courchel"), read by the asker from its own files: the host
+lists an install's car by its file (vppirna3.vcf) and a car it serves by its content (a player's own variant, a bot's car with weapons
+taken off; served as n&lt;hash&gt;&lt;stem&gt;.vcf, a name that means nothing to a player) by its body (vppirnha.vdf). Only for a body that
+is not the install's archive's (a community car) does the host add the make and model in its own words, in a list after the tail (a
+string per listed driver, empty for the others), which the asker uses when its own files do not name the car. A co-op seat in the
+mission's own car (`*mission`) reads "Mission's own car". The STANDINGS read a served car's body from the file the join accept carries.
+The answer also ends with the arena's name as the host's lists give it (its AREA OF PLAY: the base game's table or the file's WRLD
+name; a co-op game's mission title), since an asker without a custom map has no other. The popup's AREA OF PLAY is the host's name for
+a custom map and the asker's own for the rest; a game listed with no name, or with a mission file's name, is shown by its area's name
+(a host given no name lists it so itself), never by the file.
 
 `SessionBrowser` asks and collects the answers, one per game by its session
 id. A game that stops answering drops out after 3.5 s. Answers of another
@@ -1352,7 +1376,7 @@ shows on a LAN roster.
 A game may have a password (protocol 12). Blank is an open game; the password is never saved (not in shell.cfg or any
 file), so a host sets it again each time.
 
-- **Hosting.** The base host form's PASS blank (the options box's last line) and the Nitro form's PASSWORD button open a small
+- **Hosting.** The base host form's Password row (None or Set) and the Nitro form's PASSWORD button open a small
   prompt (`PasswordPopup`, the notice's blank sprite with a line to type in through the shell's text entry; Enter or OK
   takes it, Esc leaves it as it was, an empty entry clears it). `i26-server --password WORD` and
   `--host-listen --password WORD` set it from the command line (`ServerOptions.Password`).
@@ -1432,7 +1456,7 @@ meanwhile searches it before addon\ for missions and terrains, and the VFS puts 
 so a different local copy of the same name is not used. It is cleared when the game ends; downloaded maps are not listed
 in the shell. A server never plays from it (`MeleeHost` opens its install with no map folder).
 
-**The host.** The host forms' **Share maps** (the Nitro Pack's GAME OPTIONS row, a check box in the base form's options box;
+**The host.** The host forms' **Share maps** (the Nitro Pack's GAME OPTIONS row, the base form's Share Maps row;
 `[port] share_maps`, on), `--share-maps`/`--no-share-maps` on `--host-listen` and i26-server. A map over 16 MiB
 (`--map-max-mb`) or 16 files is offered unshared ("too big"). The server reads the files once at start and sends those
 bytes (hashed again if they changed in between). It logs the map at start ("custom map xfermap.lvl: 3 files, 186 KiB,
@@ -1564,8 +1588,8 @@ listen server's is the host form's choice, the dedicated one's `--rate 20|24|25|
 from it and refuses a rate it does not offer; its own setting is ignored while connected (the session's rate is built into the client's session; Play Options' `[port] sim_rate`, which its
 single-player games use, is neither read nor written by a network game).
 
-**The host form.** GAME OPTIONS' SIM RATE row on the Nitro form and the co-op form, RATE on the base game's host form's last
-line (a click steps it); kept in melee.cfg (`host_rate`) apart from Play Options' rate, the first time starting at
+**The host form.** GAME OPTIONS' SIM RATE row on the Nitro form and the co-op form, the Sim Rate row of the base
+game's host form (a click steps it); kept in melee.cfg (`host_rate`) apart from Play Options' rate, the first time starting at
 that one. `--host-listen --rate HZ` sets it from the command line. The session list's answer carries it (`SessionInfo.RateHz`, a
 byte appended to its tail: 0 from a build that does not say), and the roster shows it beside the selected game and in its popup
 (the Nitro popup at its foot, the base game's in the rules line). The join accept already carried it: no protocol change beyond

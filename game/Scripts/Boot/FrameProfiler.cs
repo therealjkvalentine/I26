@@ -22,6 +22,12 @@ namespace I76.Game.Boot;
 /// I76_HIDE=Name,Name hides the 3D nodes of those names (Terrain, HorizonTerrain, Placements, Vegetation, ...) as soon as they exist (set I76_FRAME_PROFILE_SKIP past that), to cost a part of the scene.
 /// The last line, <c>frame-profile-result:</c>, is key=value medians for
 /// tools/frame-profile.sh.
+///
+/// For a timed window in a live run (vsync off, no fixed fps): I76_FRAME_PROFILE_SKIP_MS=N skips every frame until N ms after
+/// the mission counted as loaded (<see cref="MarkLoaded"/>; from the first frame when nothing is loaded), I76_FRAME_PROFILE_RUN_MS=N
+/// quits the game N ms after the first measured frame, printing the table and the result line as a quit does; I76_FRAME_PROFILE_CSV=PATH
+/// writes every measured frame's values (one row a frame, a column a key) and I76_FRAME_PROFILE_SHOT=PATH saves the last measured
+/// frame as a PNG. The VRAM monitors (vram_tex_mb, vram_video_mb) and the process step (cpu.process) are in the series too.
 /// </summary>
 public partial class FrameProfiler : Node
 {
@@ -32,6 +38,14 @@ public partial class FrameProfiler : Node
     public static double TerrainUpdateMs;
 
     private readonly int _skip = Env("I76_FRAME_PROFILE_SKIP", 30), _every = Env("I76_FRAME_PROFILE_EVERY", 60);
+    private readonly int _skipMs = Env("I76_FRAME_PROFILE_SKIP_MS", 0), _runMs = Env("I76_FRAME_PROFILE_RUN_MS", 0);
+    private readonly string? _csv = System.Environment.GetEnvironmentVariable("I76_FRAME_PROFILE_CSV"), _shot = System.Environment.GetEnvironmentVariable("I76_FRAME_PROFILE_SHOT");
+    private static double _loadedAt;
+    private double _firstMeasured;
+    private bool _quitting;
+
+    /// <summary>The mission is built and its first tick done (Main): I76_FRAME_PROFILE_SKIP_MS counts from here.</summary>
+    public static void MarkLoaded() => _loadedAt = Now();
     private readonly Dictionary<string, List<double>> _series = [];
     private readonly Dictionary<string, double> _frame = [];
     private readonly List<string> _order = [];
@@ -99,7 +113,9 @@ public partial class FrameProfiler : Node
         var vp = GetViewport().GetViewportRid();
         _frame.Clear();
         double gpuTotal = ReadTimestamps();
-        if (_frames <= _skip) { _simMs = 0; _gc0 = GC.CollectionCount(0); return; }
+        bool warm = _skipMs > 0 && now - (_loadedAt > 0 ? _loadedAt : _start) < _skipMs;
+        if (_frames <= _skip || warm) { _simMs = 0; _gc0 = GC.CollectionCount(0); return; }
+        if (_firstMeasured == 0) _firstMeasured = now;
         int n0 = _frames - _skip - 1;   // frames measured before this one: the collections so far, per 100 frames
         foreach (var p in Passes) Add("gpu." + p, _frame.GetValueOrDefault(p));
         foreach (var (k, v) in _frame) if (k.StartsWith("vp")) Add("gpu." + k, v);
@@ -115,7 +131,19 @@ public partial class FrameProfiler : Node
         Add("prims_k", Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1000);
         Add("gc0_per_100", (GC.CollectionCount(0) - _gc0) * 100.0 / (n0 + 1));
         Add("draws", Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame));
+        Add("objects", Performance.GetMonitor(Performance.Monitor.RenderTotalObjectsInFrame));
+        Add("cpu.process", Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000);
+        Add("vram_tex_mb", Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576.0);
+        Add("vram_video_mb", Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576.0);
+        Add("t_ms", now - _firstMeasured);
         _simMs = 0;
+        if (_runMs > 0 && !_quitting && now - _firstMeasured >= _runMs)
+        {
+            _quitting = true;
+            if (_shot is { Length: > 0 }) GetViewport().GetTexture().GetImage().SavePng(_shot);
+            GetTree().Quit();
+            return;
+        }
         int n = _series["gpu.total"].Count;
         if (n % _every == 0) GD.Print($"frame-profile: {n} frames, " + Line(k => k is "gpu.total" or "gpu.viewport" or "cpu.render" or "cpu.wall" or "cpu.nodes" or "cpu.sim" || k.StartsWith("gpu.") && Median(_series[k]) >= 0.05));
     }
@@ -173,6 +201,13 @@ public partial class FrameProfiler : Node
         // the slow frames too: hitches show in the 95th percentile, not the median
         string P95(string k) { var s = _series[k].Order().ToList(); return s[(int)(0.95 * (s.Count - 1))].ToString("0.000", CultureInfo.InvariantCulture); }
         GD.Print("frame-profile-result: frames=" + tot.Count + " " + Line(_ => true) + $" cpu.wall.p95={P95("cpu.wall")} cpu.nodes.p95={P95("cpu.nodes")} gpu.total.p95={P95("gpu.total")}");
+        if (_csv is { Length: > 0 })
+        {
+            using var w = new System.IO.StreamWriter(_csv);
+            w.WriteLine(string.Join(",", _order));
+            for (int i = 0; i < tot.Count; i++)
+                w.WriteLine(string.Join(",", _order.Select(k => i < _series[k].Count ? _series[k][i].ToString("0.###", CultureInfo.InvariantCulture) : "")));
+        }
     }
 
     /// <summary>A node that only calls back when it processes.</summary>

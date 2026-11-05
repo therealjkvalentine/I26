@@ -1,0 +1,78 @@
+{
+ "textures": [
+  "fp11bkb1"
+ ],
+ "note": "fp11bkb1's tail: badge PALOMINO; written by gen/car_tails.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    36,
+    28,
+    93,
+    39
+   ],
+   "where": {
+    "keyed": true
+   },
+   "fill": "key",
+   "under": [
+    22,
+    22,
+    26
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    37,
+    30,
+    92,
+    38
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key",
+   "under": [
+    22,
+    22,
+    26
+   ]
+  },
+  {
+   "op": "text",
+   "text": "PALOMINO",
+   "font": "RussoOne",
+   "cap": 6,
+   "center": [
+    64.5,
+    34.0
+   ],
+   "width": 53,
+   "tracking": 0.75,
+   "alpha": "set",
+   "gradient": [
+    [
+     240,
+     240,
+     244
+    ],
+    [
+     130,
+     132,
+     140
+    ]
+   ],
+   "stroke": {
+    "width": 0.35,
+    "colour": [
+     18,
+     18,
+     22
+    ]
+   }
+  }
+ ]
+}

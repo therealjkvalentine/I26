@@ -26,6 +26,9 @@ public partial class Hud : CanvasLayer
     public Func<bool>? Cutscene { get; set; }
     /// <summary>The player is talking on the CB in a network game (the push-to-talk key is held): the handset is raised, as for the player's own line in a mission.</summary>
     public Func<bool>? Transmitting { get; set; }
+    /// <summary>A network game (melee or co-op), and whether its host allows the chase crosshair (<see cref="I76.Sim.Views.CrosshairPolicy"/>).</summary>
+    public Func<bool>? Network { get; set; }
+    public Func<bool>? HostAllowsCrosshair { get; set; }
     /// <summary>A texture member by its stem (the CB handset's frames), or null.</summary>
     public Func<string, Texture2D?>? Texture { get; set; }
     /// <summary>The driver variant (1-5): picks the handset art ZCBH6{v}01.</summary>
@@ -48,15 +51,18 @@ public partial class Hud : CanvasLayer
 
     public override void _Ready()
     {
-        // the panels first: the target brackets are drawn over them (drawn after the panels), the handset over both
+        // the crosshair under the 2D instrument panels, the target brackets over them, the handset over all
+        if (Combat is not null && Origin is not null)
+            AddChild(new ChaseCrosshair { Player = () => Car?.Invoke(), Combat = Combat, Origin = Origin, CarOf = CarOf, Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Faithful = () => Faithful?.Invoke() == true, Name = "Crosshair" });
         if (Pit is not null) AddChild(_instruments = new ExtInstruments { Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Name = "ExtInstruments", Visible = false });
         _cb = Label(18);
         _cb.HorizontalAlignment = HorizontalAlignment.Left;
         _cb.AnchorTop = _cb.AnchorBottom = 1;
         _cb.OffsetLeft = 244; _cb.OffsetTop = -60;
         AddChild(_cb);
-        if (Combat is not null && Origin is not null) AddChild(new TargetIndicator { Player = () => Car?.Invoke(), Combat = Combat, Origin = Origin, CarOf = CarOf, Name = "Target",
-            Look1997 = new TargetIndicator1997 { On = () => Faithful?.Invoke() == true, Combat = Combat, Origin = Origin, CarOf = CarOf, Texture = n => Texture?.Invoke(n), Palette = Palette } });
+        if (Combat is not null && Origin is not null)
+            AddChild(new TargetIndicator { Player = () => Car?.Invoke(), Combat = Combat, Origin = Origin, CarOf = CarOf, Name = "Target",
+                Look1997 = new TargetIndicator1997 { On = () => Faithful?.Invoke() == true, Combat = Combat, Origin = Origin, CarOf = CarOf, Texture = n => Texture?.Invoke(n), Palette = Palette } });
         // the binoculars' frame: over the view, the brackets and the handset, under the text (drawn after the
         // frame and before the text panes)
         if (BinocularMaskMaterial() is { } bm)
@@ -167,6 +173,8 @@ public partial class Hud : CanvasLayer
             _instruments.Visible = Car?.Invoke() is not null && !cut && (inCar ? pit is { Binoculars: false } && (!pit.Dash3D || pit.Ghost) : ExtInstruments?.Invoke() == true);
         }
         if (GetNodeOrNull<CanvasItem>("Target") is { } target) target.Visible = !cut;
+        if (GetNodeOrNull<CanvasItem>("Crosshair") is { } ch)
+            ch.Visible = !cut && I76.Sim.Views.CrosshairPolicy.Shown(ChaseCrosshair.Enabled, Network?.Invoke() == true, HostAllowsCrosshair?.Invoke() == true);
         if (_binoMask is not null)
         {
             _binoMask.Visible = !cut && InCockpit?.Invoke() == true && Pit?.Invoke() is { Binoculars: true };
@@ -219,5 +227,98 @@ public partial class Hud : CanvasLayer
                 o[y * w + x] = (byte)System.Math.Round(255 * s / n);
             }
         return o;
+    }
+}
+
+/// <summary>
+/// A 3D-projected aiming crosshair for the F2 chase view (Mouse Options -> Chase Crosshair): where a round of the selected weapon
+/// fired now would land, as the simulation's own hit test finds it (<see cref="I76.Sim.Weapons.Combat.LineOfFire"/>: the first
+/// car, structure or ground along the muzzle's line, out to the weapon's reach), drawn on the car as it is shown. Red when that
+/// round (or, with the weapons linked, one of the linked ones') would hit a car. Only for a weapon whose rounds fly straight from
+/// the muzzle (<see cref="I76.Sim.Weapons.Combat.FliesStraight"/>: guns, cannons, the FireRite, the Ball O'Flame); none for a
+/// lobbed, guided, flame or dropped one, where a line would mislead. View only: it asks and changes nothing.
+/// </summary>
+public partial class ChaseCrosshair : Control
+{
+    /// <summary>The player's choice, Play Options' Chase Crosshair (shell.cfg [port] chase_crosshair); online the host must allow it too.</summary>
+    public static bool Enabled;
+    public required Func<Vehicle?> Player { get; init; }
+    public required I76.Sim.Weapons.Combat Combat { get; init; }
+    public required Func<System.Numerics.Vector3> Origin { get; init; }
+    public Func<Vehicle, Node3D?>? CarOf { get; init; }
+    public Func<I76.Game.Sim.Cockpit?>? Pit { get; init; }
+    public Func<bool>? InCockpit { get; init; }
+    public Func<bool>? Faithful { get; init; }
+
+    public override void _Ready()
+    {
+        AnchorRight = 1;
+        AnchorBottom = 1;
+        MouseFilter = MouseFilterEnum.Ignore;
+        TextureFilter = TextureFilterEnum.Nearest;
+    }
+
+    public override void _Process(double delta) => QueueRedraw();
+
+    /// <summary>The weapons that fire with the trigger now: the selected one, and with the link on the ones linked to it.</summary>
+    private static IEnumerable<I76.Sim.Weapons.Weapon> Firing(I76.Sim.Weapons.Armory a)
+    {
+        if (a.Selected < 0 || a.Selected >= a.Weapons.Count) yield break;
+        yield return a.Weapons[a.Selected];
+        if (!a.Link) yield break;
+        foreach (int i in a.Group)
+            if (i != a.Selected && i >= 0 && i < a.Weapons.Count) yield return a.Weapons[i];
+    }
+
+    public override void _Draw()
+    {
+        if (!Enabled || InCockpit?.Invoke() == true || Player() is not { } p || I76.Sim.Weapons.Combat.IsDead(p) || p.Armory is not { } a) return;
+        var cam = GetViewport().GetCamera3D();
+        if (cam is not I76.Game.Camera.ChaseCamera { Fixed: null }) return;
+
+        // the selected weapon's line, unless a linked one's would hit a car where it would not (the nearest such)
+        I76.Sim.Weapons.Weapon? w = null;
+        I76.Sim.Weapons.FireLine line = default;
+        foreach (var f in Firing(a))
+        {
+            if (f.HpRatio <= 0 || Combat.LineOfFire(p, f) is not { } l) continue;
+            if (w is null || (l.Car && (!line.Car || l.Distance < line.Distance))) (w, line) = (f, l);
+        }
+        if (w is null) return;
+
+        // the line as the car is drawn (the view's pose of it, which the simulation's lags by up to a tick), at the distance found
+        var node = CarOf?.Invoke(p) is { } n && IsInstanceValid(n) ? n : null;
+        Vector3 muzzleG = node is not null ? node.GlobalTransform * I76.Game.Sim.Coords.ToGodot(w.MuzzlePos)
+            : I76.Game.Sim.Coords.ToGodot(p.Pos.ToVector3() + p.Rot.ToWorld(w.MuzzlePos) - Origin());
+        Vector3 dirG = node is not null ? (node.GlobalTransform.Basis * I76.Game.Sim.Coords.ToGodot(w.MuzzleRot.Forward)).Normalized()
+            : I76.Game.Sim.Coords.ToGodot(p.Rot.ToWorld(w.MuzzleRot.Forward)).Normalized();
+        if (dirG.LengthSquared() < 1e-4f) return;
+        float dist = line.Distance;
+        bool onTarget = line.Car;
+
+        Vector3 aimG = muzzleG + dirG * dist;
+        if (cam.IsPositionBehind(aimG)) return;
+        var size = GetViewportRect().Size;
+        var pos = cam.UnprojectPosition(aimG);
+        if (pos.X < 0 || pos.Y < 0 || pos.X > size.X || pos.Y > size.Y) return;
+        pos = pos.Round();
+
+        float u = Mathf.Max(1f, size.Y / 480f);
+        float gap = Mathf.Round(3.5f * u), len = Mathf.Round(4f * u), hw = Mathf.Max(1f, Mathf.Round(0.85f * u));
+        var col = onTarget ? new Color(1f, 0.25f, 0.2f, 0.72f) : new Color(0.95f, 0.95f, 0.95f, 0.48f);
+        var border = new Color(0f, 0f, 0f, onTarget ? 0.35f : 0.22f);
+
+        ReadOnlySpan<Rect2> bars =
+        [
+            new(pos.X - gap - len, pos.Y - hw, len, hw * 2f),
+            new(pos.X + gap, pos.Y - hw, len, hw * 2f),
+            new(pos.X - hw, pos.Y - gap - len, hw * 2f, len),
+            new(pos.X - hw, pos.Y + gap, hw * 2f, len),
+        ];
+        foreach (var b in bars)
+        {
+            DrawRect(b.Grow(1f), border);
+            DrawRect(b, col);
+        }
     }
 }

@@ -1,39 +1,151 @@
+using I76.Formats.Input;
 using I76.Game.Shell;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace I76.Game.Tests;
 
-/// <summary>The base host form's options box (the port's layout): every rule's hotspot inside the box and none over another.</summary>
-public class HostFormLayoutTests
+/// <summary>The base game's network host form as the port draws it: a labelled row for every field, the form's own hotspot ids, the pad reaching them all.</summary>
+public class HostFormLayoutTests(ITestOutputHelper output)
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void HotspotsSitInsideTheBoxApart(bool coop)
+    private static readonly HostFormLayout.State Melee = new()
     {
-        var hot = MeleeScreen.HostBoxHotspots(coop);
-        var (x0, x1, y0, y1) = MeleeScreen.HostBoxInside;
-        // a hotspot is hit strictly inside its rectangle: the pixels x0+1..x1-1, y0+1..y1-1
-        foreach (var (id, r) in hot)
+        Driver = "Unnamed", Area = "The Crater", GameName = "The Crater", Drivers = 4, MaxScore = 20000, BotSkill = "Normal", BotCars = "Random",
+        Rate = 20, ShareMaps = true, CarReset = true, Cb = true, MakeModel = "ABX Leprechaun", Variant = "Econo",
+    };
+    private static readonly HostFormLayout.State Coop = Melee with { Coop = true };
+
+    // the ids the form had before it was drawn by the port (less 7, the original's driver box, which on a host form only showed the host's own car again)
+    // (and the play fork's: 39 the ignition lock, 43 Handicaps, 40..42 the co-op form's Co-op Scaling, Co-op Damage and Rolling Start)
+    private static readonly int[] MeleeIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43];
+    private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43];
+
+    private static string Value(List<HostFormLayout.Row> rows, string label) =>
+        string.Join(" ", rows.Single(r => r.Label == label).Cells.Select(c => c.Text));
+
+    [Fact]
+    public void EveryFieldHasALabelledRowOfItsOwn()
+    {
+        var rows = HostFormLayout.RowsOf(Melee);
+        string[] labels =
+        [
+            "Local Driver", "Game Type", "Area of Play", "Game Name", "No. Drivers", "Team Play", "Invite Only", "Max Score", "Password", "Bots",
+            "Bot Skill", "A.I. Cars", "Sim Rate", "Share Maps", "Hidden Weapons & Cars", "Unlimited Turrets", "Car Reset", "CB Radio",
+            "Chase Crosshair", "Make / Model", "Variant", "Ignition Lock", "Handicaps",
+        ];
+        Assert.Equal(labels.Order(), rows.Select(r => r.Label).Order());
+        // one row each, inside the tables, the car's rows clear of the rules above them, the left table with rows to spare
+        foreach (var side in new[] { false, true })
         {
-            Assert.True(r.X0 + 1 >= x0 && r.X1 - 1 <= x1 && r.Y0 + 1 >= y0 && r.Y1 - 1 <= y1, $"{id} {r} outside the box");
-            Assert.True(r.X1 - r.X0 >= 10 && r.Y1 - r.Y0 >= 10, $"{id} {r} too small to hit");
+            var at = rows.Where(r => r.Right == side).Select(r => r.Index).ToList();
+            Assert.Equal(at.Count, at.Distinct().Count());
+            Assert.All(at, k => Assert.InRange(k, 0, HostFormLayout.Rows - 1));
         }
-        foreach (var (a, ra) in hot)
-            foreach (var (b, rb) in hot)
-                if (a < b)
-                    Assert.False(ra.X0 + 1 < rb.X1 && rb.X0 + 1 < ra.X1 && ra.Y0 + 1 < rb.Y1 && rb.Y0 + 1 < ra.Y1, $"{a} {ra} overlaps {b} {rb}");
+        Assert.True(rows.Where(r => r.Right).Where(r => r.Label is not ("Make / Model" or "Variant")).All(r => r.Index < HostFormLayout.CarRow));
+        // upstream keeps four spare rows; the play fork's Ignition Lock and Handicaps take two of them and leave three
+        Assert.True(HostFormLayout.Rows - 1 - rows.Where(r => !r.Right).Max(r => r.Index) >= 3, "the left table keeps rows for more options");
     }
 
     [Fact]
-    public void TheCoopBoxKeepsItsOwnSwitches()
+    public void ACoopGameLeavesOutWhatItHasNot()
     {
-        var melee = MeleeScreen.HostBoxHotspots(false);
-        var coop = MeleeScreen.HostBoxHotspots(true);
-        Assert.DoesNotContain(16, coop.Keys);   // TEAM PLAY
-        Assert.DoesNotContain(18, coop.Keys);   // MAX SCORE
-        Assert.DoesNotContain(29, coop.Keys);   // BOTS
-        // INVITE ONLY moves to the first column's first row (TEAM PLAY's place)
-        Assert.Equal(melee[16], coop[17]);
+        var labels = HostFormLayout.RowsOf(Coop).Select(r => r.Label).ToList();
+        foreach (var gone in new[] { "Team Play", "Max Score", "Bots", "Bot Skill", "A.I. Cars", "Share Maps" }) Assert.DoesNotContain(gone, labels);
+        foreach (var kept in new[] { "Invite Only", "Password", "Hidden Weapons & Cars", "Unlimited Turrets", "Car Reset", "CB Radio", "Chase Crosshair", "Sim Rate" }) Assert.Contains(kept, labels);
+        // the rows close up: no gap in the left table under the area list
+        var left = HostFormLayout.RowsOf(Coop).Where(r => !r.Right && r.Index > HostFormLayout.ListRow).Select(r => r.Index).Order().ToList();
+        Assert.Equal(Enumerable.Range(HostFormLayout.ListRow + HostFormLayout.ListRows, left.Count), left);
+    }
+
+    [Fact]
+    public void TheHotspotsAreTheFormsOwnIds()
+    {
+        Assert.Equal(MeleeIds, HostFormLayout.Hot(HostFormLayout.RowsOf(Melee)).Keys.Order());
+        Assert.Equal(CoopIds, HostFormLayout.Hot(HostFormLayout.RowsOf(Coop)).Keys.Order());
+    }
+
+    [Fact]
+    public void TheHotspotsLieOnTheSheetApart()
+    {
+        foreach (var s in new[] { Melee, Coop })
+        {
+            var hot = HostFormLayout.Hot(HostFormLayout.RowsOf(s)).Values.ToList();
+            foreach (var (x0, x1, y0, y1) in hot)
+            {
+                Assert.True(0 <= x0 && x0 < x1 && x1 <= 640 && 0 <= y0 && y0 < y1 && y1 <= 480);
+                Assert.True(x1 - x0 >= 18 && y1 - y0 >= 16, "big enough to hit");
+            }
+            // strict rectangles (x0 < x < x1) may share an edge, never inside room
+            for (int i = 0; i < hot.Count; i++)
+                for (int j = i + 1; j < hot.Count; j++)
+                {
+                    var (a, b) = (hot[i], hot[j]);
+                    bool overlap = Math.Max(a.X0, b.X0) + 1 < Math.Min(a.X1, b.X1) && Math.Max(a.Y0, b.Y0) + 1 < Math.Min(a.Y1, b.Y1);
+                    Assert.False(overlap, $"{a} and {b} overlap");
+                }
+        }
+    }
+
+    [Fact]
+    public void TheValuesFollowTheSettings()
+    {
+        (string Label, Func<HostFormLayout.State, bool, HostFormLayout.State> Set)[] toggles =
+        [
+            ("Team Play", (s, v) => s with { TeamPlay = v }), ("Invite Only", (s, v) => s with { InviteOnly = v }),
+            ("Share Maps", (s, v) => s with { ShareMaps = v }), ("Hidden Weapons & Cars", (s, v) => s with { Hidden = v }),
+            ("Unlimited Turrets", (s, v) => s with { Turrets = v }), ("Car Reset", (s, v) => s with { CarReset = v }),
+            ("CB Radio", (s, v) => s with { Cb = v }), ("Chase Crosshair", (s, v) => s with { Crosshair = v }),
+        ];
+        foreach (var (label, set) in toggles)
+        {
+            Assert.Equal("On", Value(HostFormLayout.RowsOf(set(Melee, true)), label));
+            Assert.Equal("Off", Value(HostFormLayout.RowsOf(set(Melee, false)), label));
+        }
+        Assert.Equal("On - 35000 +", Value(HostFormLayout.RowsOf(Melee with { ScoreOn = true, MaxScore = 35000 }), "Max Score"));
+        Assert.Equal("- 07 +", Value(HostFormLayout.RowsOf(Melee with { Drivers = 7 }), "No. Drivers"));
+        Assert.Equal("- 03 +", Value(HostFormLayout.RowsOf(Melee with { Bots = 3 }), "Bots"));
+        Assert.Equal("60 Hz", Value(HostFormLayout.RowsOf(Melee with { Rate = 60 }), "Sim Rate"));
+        Assert.Equal("Set", Value(HostFormLayout.RowsOf(Melee with { Password = true }), "Password"));
+        Assert.Equal("None", Value(HostFormLayout.RowsOf(Melee), "Password"));
+        Assert.Equal("Co-op", Value(HostFormLayout.RowsOf(Coop), "Game Type"));
+        Assert.Equal("Melee", Value(HostFormLayout.RowsOf(Melee), "Game Type"));
+        Assert.Equal("Bob_", Value(HostFormLayout.RowsOf(Melee with { GameName = "Bob", Naming = true }), "Game Name"));
+    }
+
+    [Fact]
+    public void ThePadReachesEveryField()
+    {
+        foreach (var (name, s) in new[] { ("melee", Melee), ("co-op", Coop) })
+        {
+            var rows = HostFormLayout.RowsOf(s);
+            var regions = HostFormLayout.PadOrder(HostFormLayout.Hot(rows), HostFormLayout.ListRows);
+            var rects = regions.Select(r => new NavRect(r.Rect.X0, r.Rect.Y0, r.Rect.X1 - r.Rect.X0, r.Rect.Y1 - r.Rect.Y0)).ToList();
+            string Name(int i)
+            {
+                var (id, listRow, (x0, x1, y0, y1)) = regions[i];
+                if (listRow >= 0) return $"area list row {listRow}";
+                var row = rows.FirstOrDefault(r => r.RowId == id || r.Cells.Any(c => c.Id == id));
+                if (row is null) return HostFormLayout.SlotId.Contains(id) ? HostFormLayout.SlotText[Array.IndexOf(HostFormLayout.SlotId, id)] : id == 12 ? "list up" : id == 13 ? "list down" : $"id {id}";
+                return row.Cells.Where(c => c.Id == id).Select(c => $"{row.Label} [{c.Text}]").FirstOrDefault() ?? row.Label;
+            }
+            int start = PadNav.Pick(rects, -1, NavDir.Down);
+            var seen = new HashSet<int> { start };
+            var queue = new Queue<int>([start]);
+            while (queue.Count > 0)
+            {
+                int at = queue.Dequeue();
+                foreach (var d in new[] { NavDir.Up, NavDir.Down, NavDir.Left, NavDir.Right })
+                    if (PadNav.Pick(rects, at, d) is >= 0 and var to && seen.Add(to)) queue.Enqueue(to);
+            }
+            Assert.True(seen.Count == regions.Count, $"{name}: unreachable {string.Join(", ", Enumerable.Range(0, regions.Count).Where(i => !seen.Contains(i)).Select(Name))}");
+            // the walk a player makes: down each table from its top, then across to the buttons
+            output.WriteLine($"{name}: the pad starts on {Name(start)}");
+            foreach (int top in new[] { start, PadNav.Pick(rects, start, NavDir.Right) is var r && r >= 0 ? r : start })
+            {
+                var walk = new List<string>();
+                for (int at = top, n = 0; at >= 0 && n < 40; at = PadNav.Pick(rects, at, NavDir.Down), n++) walk.Add(Name(at));
+                output.WriteLine($"  down from {Name(top)}: {string.Join(" > ", walk)}");
+            }
+        }
     }
 }

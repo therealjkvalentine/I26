@@ -1,0 +1,65 @@
+{
+  "Anton": {
+    "name": "Anton",
+    "file": "Anton/Anton-Regular.ttf",
+    "by": "Vernon Adams, The Anton Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/anton"
+  },
+  "ArchivoNarrow": {
+    "name": "Archivo Narrow",
+    "file": "ArchivoNarrow/ArchivoNarrow[wght].ttf",
+    "by": "Omnibus-Type, The Archivo Narrow Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow"
+  },
+  "Cinzel": {
+    "name": "Cinzel",
+    "file": "Cinzel/Cinzel[wght].ttf",
+    "by": "Natanael Gama, The Cinzel Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/cinzel"
+  },
+  "DDINCondensed": {
+    "name": "D-DIN Condensed Bold",
+    "file": "DDINCondensed/D-DINCondensed-Bold.otf",
+    "by": "Datto Inc.",
+    "license": "SIL OFL 1.1",
+    "source": "https://www.datto.com/fonts/d-din"
+  },
+  "LeagueGothic": {
+    "name": "League Gothic",
+    "file": "LeagueGothic/LeagueGothic[wdth].ttf",
+    "by": "The League of Moveable Type, The League Gothic Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/leaguegothic"
+  },
+  "Lobster": {
+    "name": "Lobster",
+    "file": "Lobster/Lobster-Regular.ttf",
+    "by": "Pablo Impallari, The Lobster Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/lobster"
+  },
+  "MrDafoe": {
+    "name": "Mr Dafoe",
+    "file": "MrDafoe/MrDafoe-Regular.ttf",
+    "by": "Alejandro Paul (Sudtipos)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/mrdafoe"
+  },
+  "PermanentMarker": {
+    "name": "Permanent Marker",
+    "file": "PermanentMarker/PermanentMarker-Regular.ttf",
+    "by": "Font Diner",
+    "license": "Apache 2.0",
+    "source": "https://github.com/google/fonts/tree/main/apache/permanentmarker"
+  },
+  "RussoOne": {
+    "name": "Russo One",
+    "file": "RussoOne/RussoOne-Regular.ttf",
+    "by": "Jovanny Lemonad",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/russoone"
+  }
+}

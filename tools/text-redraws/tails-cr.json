@@ -1,0 +1,67 @@
+{
+ "textures": [
+  "cr11bkb1"
+ ],
+ "note": "cr11bkb1's tail: plate 500 WPL; written by gen/car_tails.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    53.5,
+    35.5,
+    76.5,
+    44.5
+   ],
+   "where": {
+    "lum_below": 128
+   },
+   "grow": 0.9,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 125
+   }
+  },
+  {
+   "op": "text",
+   "text": "500 WPL",
+   "font": "Anton",
+   "cap": 4,
+   "center": [
+    64.5,
+    42.0
+   ],
+   "width": 17,
+   "colour": [
+    28,
+    28,
+    34
+   ],
+   "shadow": {
+    "dx": 0.25,
+    "dy": 0.25,
+    "colour": [
+     235,
+     235,
+     238
+    ],
+    "opacity": 0.5
+   }
+  },
+  {
+   "op": "text",
+   "text": "TEXAS",
+   "font": "Anton",
+   "cap": 1.8,
+   "center": [
+    65.0,
+    37.0
+   ],
+   "width": 8.74,
+   "colour": [
+    40,
+    40,
+    48
+   ]
+  }
+ ]
+}
