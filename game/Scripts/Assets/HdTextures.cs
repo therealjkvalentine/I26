@@ -65,9 +65,14 @@ public static class HdTextures
     /// <summary><see cref="DefaultOn"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb).</summary>
     public static bool FirstStartDefault => DefaultOn(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), I76.Game.Boot.RenderBackend.VideoMemoryMb);
 
-    /// <summary>Video memory from this (MiB) starts with the 8x pack when it is there (FirstStartSize): HIGH8X_PLACEHOLDER</summary>
-    public const long High8xVideoMemoryMb = 7680;
-    /// <summary>The same for a GPU that shares the machine's memory (Apple silicon, whose VideoMemoryMb is the machine's): HIGH8X_UNIFIED_PLACEHOLDER</summary>
+    /// <summary>
+    /// Video memory from this (MiB) starts with the 8x pack when it is there (FirstStartSize): a "6 GB" card. The 8x of the cockpit and
+    /// the cars adds ~0.55 GB of textures over the 4x (T01 +0.54, T05 +0.59 GB at 3440x1440), the game's whole use coming to ~2.5 GB in
+    /// T01 and ~3.0 GB in T05 (docs/perf/costs.md's hd-8x section): on a 4 GB card that leaves too little for the desktop, other
+    /// missions and the driver; on 6 GB, half the card is spare.
+    /// </summary>
+    public const long High8xVideoMemoryMb = 5760;
+    /// <summary>The same for a GPU that shares the machine's memory (Apple silicon, whose VideoMemoryMb is the machine's): 16 GB (Metal's working set is about two thirds of it, ~10.7 GB, against ~3 GB of game); an 8 GB Mac's ~5.3 GB is shared with the game's own memory and the system, so it keeps the 4x.</summary>
     public const long High8xUnifiedMemoryMb = 15360;
 
     /// <summary>
