@@ -42,7 +42,7 @@ cd game && dotnet build && cd ..
 
 The `_console.exe` shows the log; the other one does not. Useful game options after the `--`: `--1997` (the original's
 look), `--dev` (the Developer panel: Ctrl+F2 or the Escape menu), `--melee --mission m01`, `--skip-movies`,
-`--screenshot out.png --quit-after 300`. The full list is at the top of `game/Scripts/Boot/InstallLocator.cs`.
+`--screenshot out.png --quit-after 300` (with `I76_QUIET_WINDOW=1` set and `--windowed --resolution 1280x720` before the `--`, such a run stays behind your other windows: docs/dev-hooks.md). The full list is at the top of `game/Scripts/Boot/InstallLocator.cs`.
 User data (settings, bookmarks) lives in `%APPDATA%\I26` (the project sets its own user folder name); to test with a scratch copy set `APPDATA`
 to an empty folder for that run.
 

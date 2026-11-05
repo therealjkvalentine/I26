@@ -11,7 +11,9 @@ in results.tsv (end time, config, res, rep, scene, the GPU's state before the ru
 the profile's result line, start and end times). The game runs in an isolated user folder under the output folder (the
 APPDATA override: Godot's user:// on Windows): make it once with FRAME_COST_APPDATA pointing at a folder holding I26/ with
 junctions to the live user folder's tex-world-Nx/, tex-menu/, cache/ and copies of shader_cache/ and build-rules.cfg
-(nothing is written to the player's data). shell.cfg is written from BASE plus --cfg before each run. Before a run it
+(nothing is written to the player's data). The game starts in the quiet window (I76_QUIET_WINDOW=1 unless the caller's environment or
+--env sets it; 0 is the old borderless fullscreen in front): a window of exactly --res behind the others, a desktop-sized one borderless
+at the screen's corner, so a run never takes the screen or the keyboard from someone at the desktop. shell.cfg is written from BASE plus --cfg before each run. Before a run it
 waits for the GPU to be under 10 % with no other Godot or compute process, samples other GPU users every 2 s during the run
 (the row's `others` column: rerun a row that is not 0), and leaves GAP_S idle after each run for other lanes' idle checks.
 """
@@ -24,6 +26,7 @@ GAME = os.path.normpath(os.path.join(HERE, "..", "..", "game"))
 INSTALL = os.environ.get("I76_INSTALL", "")
 APPDATA = os.environ.get("FRAME_COST_APPDATA") or os.path.join(OUT, "appdata")
 CFG = os.path.join(APPDATA, "I26", "shell.cfg")
+QUIET = os.environ.get("I76_QUIET_WINDOW", "1")   # the game's window behind the others by default (docs/dev-hooks.md); 0: fullscreen in front
 GAP_S = 20   # idle seconds left after each run for the other lanes' idle checks
 
 # Everything on: the modern look with every port feature at its costliest offered value.
@@ -110,6 +113,11 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     cfg_over.setdefault("resolution", '""' if res == "3440x1440" else f'"{res}"')
     write_cfg(cfg_over, graphics_over)
     engine = [GODOT, "--path", GAME, "--gpu-profile"]
+    # the quiet window (I76_QUIET_WINDOW, docs/dev-hooks.md), the default: a window of exactly RES behind the others, never the foreground
+    # (a desktop-sized one is borderless at the screen's corner, drawn at full cost); I76_QUIET_WINDOW=0 for the old start in front
+    quiet = env_over.get("I76_QUIET_WINDOW", QUIET)
+    if quiet not in ("", "0"):
+        engine += ["--windowed", "--resolution", res]
     game = ["--install", INSTALL, "--mute"] + SCENES[scene] + (["--1997"] if look1997 else []) + extra
     env = dict(os.environ)
     env["APPDATA"] = APPDATA
@@ -121,6 +129,7 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     env["I76_FRAME_PROFILE_CSV"] = stem + ".csv"
     env["I76_FRAME_PROFILE_SHOT"] = stem + ".png"
     env["I76_HITCH_MS"] = "100000"
+    env["I76_QUIET_WINDOW"] = quiet
     env.update(env_over)
     u, m, p, t = wait_idle()
     t0 = time.time()
