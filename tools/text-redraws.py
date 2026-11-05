@@ -28,7 +28,8 @@ A spec (coordinates in the original's texels, upright, so the same spec serves a
 erase: the texels of rect (all, or those of the original matching "where": lum_below / lum_above on the original's brightness,
 opaque / keyed on its alpha), grown by "grow" texels, with the pack's texels within "halo": {"within": texels, "lum_below" or
 "lum_above"} of them that still look like ink (the upscale's soft edge), filled: "inpaint" (smoothly from the texels round them), "key" (cut out of
-the colour key: alpha 0, its colour "under", default black, as the cockpit's opaque faces draw the key), or an [r, g, b].
+the colour key: alpha 0, its colour "under" when given, else its neighbours'; a car panel shows a keyed texel's colour, the
+cockpit's opaque faces draw the key black), or an [r, g, b].
 text: the string at cap height "cap" (the font's H), its cap band's middle at "center", squeezed or stretched to "width" texels
 (optional), turned "rotate" degrees anticlockwise, slanted "skew" (x shift per unit of height), letters spaced "tracking" caps
 apart; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
@@ -185,6 +186,7 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
     H, W = px.shape[:2]; s = W / orig.shape[1]
     rgb = px[..., :3].astype(np.float32); alpha = px[..., 3].copy()
     pending = None      # consecutive inpaint erasures fill as one hole, so none fills from another's letters
+    rebleed = np.zeros(alpha.shape, bool)   # texels newly cut into the key with no colour given: coloured from round them at the end
     for i, op in enumerate(ops):
         kind = op["op"]
         if kind == "erase":
@@ -208,7 +210,9 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 if not (nxt and nxt["op"] == "erase" and nxt.get("fill", "inpaint") == "inpaint"):
                     rgb = inpaint(rgb, pending); pending = None
             elif fill == "key":
-                alpha[hole] = 0; rgb[hole] = op.get("under", [0, 0, 0])
+                alpha[hole] = 0
+                if "under" in op: rgb[hole] = op["under"]; rebleed &= ~hole
+                else: rebleed |= hole
             else:
                 rgb[hole] = fill
         elif kind == "text":
@@ -216,6 +220,7 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
             mode = op.get("alpha", "keep")
             allc = np.maximum(cov, st) if st is not None else cov
             if sh is not None: allc = np.maximum(allc, sh * float(op["shadow"].get("opacity", 0.6)))
+            rebleed &= ~(allc > 0.02)          # the lettering's own edge colour stays
             if mode == "cover":
                 under = np.array(op.get("under", [0, 0, 0]), np.float32)
                 newly = (alpha == 0) & (allc > 0.02)
@@ -240,7 +245,9 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 raise ValueError(f"alpha {mode!r}: keep, set or cover")
         else:
             raise ValueError(f"op {kind!r}: erase or text")
-    rgb = bleed(rgb, alpha)
+    # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
+    # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
+    if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))
     return np.dstack([np.clip(rgb + 0.5, 0, 255).astype(np.uint8), alpha.astype(np.uint8)])
 
 def bleed(rgb, alpha, passes=64):
