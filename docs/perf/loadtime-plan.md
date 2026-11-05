@@ -148,7 +148,9 @@ prints the per-run table; outputs `_scratch/r3-loadtime/r2/` (before the merge),
   frames apart), the worst gap 1.05-1.23 s, and the audio ran dry for 281-422 sample frames (13-19 ms). The per-frame budget
   does not help: 22 steps are over 50 ms on their own (the player's dashboard and cockpit panels 1.1-1.2 s, the rehearsal's
   first drawn frame 0.75-0.78 s with ~54 pipeline compilations, the combat view 0.48-0.58 s, the explosions' flipbooks 0.38-0.43 s,
-  the drop shadows 0.36 s, the vegetation's prewarm 0.35 s, ...), and a step runs whole. <!-- SWEEP -->
+  the drop shadows 0.36 s, the vegetation's prewarm 0.35 s, ...), and a step runs whole. After the merge, T01 watched 25 s at a budget of 30, 10 and 3 ms a frame: 16, 17 and 16
+  frames dropped, 15, 14 and 12 late, worst gaps 1.23, 2.01 and 1.49 s, audio underruns 479, 931 and 419 sample frames: the
+  budget changes nothing, as the steps over it are single calls.
 - The user's requirement is a briefing with no dropped or late frame and no audio gap, so it stays off: the rest of the
   load runs after the briefing behind the card, as in round 1. To turn it on, every step must fit the movie's frame: the
   cockpit's panels and the dashboard on the build's thread (their textures and meshes are CPU work), the rehearsal's
@@ -170,11 +172,25 @@ prints the per-run table; outputs `_scratch/r3-loadtime/r2/` (before the merge),
   effects (`ModernFx`: the explosion, fire and smoke flipbooks into its static texture cache, their materials' pipelines,
   their code run once) on an unseen stage far below the menu, a part a frame, stopped when the menu is left.
 - The menu's frames while it runs: in one piece (before the merge), 152-173 ms over 5 frames, the longest frame 100-111 ms,
-  2 over 33 ms: a visible hitch. A part a frame (after): <!-- MENUFRAME -->
+  2 over 33 ms: a visible hitch. A part a frame (after): the warm-up takes 75-115 ms over 7 frames and the menu's longest frame is
+  still 48-69 ms, 1-2 frames over 33 ms a run (4 runs): smaller, not gone (the explosion's part is one call).
 - The saving (before the merge, 2 reps, interleaved on/off, the launch hook 400 frames into the menu): a melee (M01, no
   briefing) 9.06 / 12.43 s with it against 12.69 / 13.16 s without (0.7-3.6 s, noisy); T01 from the menu with its briefing
   skipped at 3 s, 17.84 / 18.43 against 17.95 / 18.26 s (no saving: the rehearsal is after the briefing either way, and
-  what it saves is ~0.4 s of pipelines). <!-- MENUSAVE -->
+  what it saves is ~0.4 s of pipelines). After the merge, with the warm-up in parts, M01 from the menu: 9.74 / 9.14 s with it
+  against 9.34 / 9.84 s without: **no saving measurable** (under the noise, well under 1 s). The code is kept, on by
+  default, for the coordinator's decision; with no measured saving and a 48-69 ms menu frame, off is the safer default.
+
+### The first explosion and death (#116) after these changes
+
+T01 from the command line, briefing skipped at 3 s, `I76_BOOM=30;50,kill-ai` (an explosion at tick 30, the nearest other
+car killed at tick 50), `I76_HITCH_MS=40`, 2 reps, and one run with the rehearsal off (`I76_NO_WARMUP=1`) as the control
+(`r2f/runs/boom*.log`). With the rehearsal (the default path, after the briefing behind the card): the explosion's frame
+120 / 51 ms (13 / 0 pipeline compilations), the death's 68 / 46 ms (8), the first frames of play 115+149+96+70 / 87+148 ms
+(42 compilations). Without it: the explosion 151 ms (18 compilations, 110 ms in the effect views), the death 106, 63 and
+226 ms, the first frames of play 1481 ms. So the rehearsal still does its work and the stutter is not back; residual
+50-150 ms frames remain at the first play frames and the explosion. Not compared with a run of the play tip itself (none
+under the lock budget), and the CPU was at 60-100 % from other lanes.
 
 ### Before and after (round 1 + round 2, the 4x pack)
 
