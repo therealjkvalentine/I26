@@ -145,8 +145,13 @@ public partial class MoviePlayer : CanvasLayer
         return o;
     }
 
+    /// <summary>I76_MOVIE_SKIP_MS=N: a skippable movie is skipped N ms after it was put up, as a key would (the load-time harness's skip path).</summary>
+    private static readonly int SkipAfterMs = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MOVIE_SKIP_MS"), out int sk) ? sk : -1;
+    private readonly ulong _upAt = Time.GetTicksMsec();
+
     public override void _Process(double delta)
     {
+        if (SkipAfterMs >= 0 && Skippable && !_done && Time.GetTicksMsec() - _upAt >= (ulong)SkipAfterMs) { Finish(); return; }
         if (_video is not null) { ReplacementStep(); return; }
         if (_done || _movie is null) return;
         // the clock starts with the first frame, so a slow first decode does not eat into the picture
