@@ -284,7 +284,7 @@ def finish(big, ow, oh, scale, alpha=None):
         A = alpha if alpha.shape == (h, w) else np.array(Image.fromarray(alpha.astype(np.float32), "F").resize((w, h), Image.BILINEAR))
         a = np.where(A >= 0.5, 255, 0)
     a = np.where(a >= 128, 255, 0).astype(np.uint8)
-    rgb = bleed(rgb, a, passes=64)
+    rgb = bleed(rgb, a, passes=16 * max(4, scale))   # 16 original texels at any scale (64 passes at 4x)
     if (a == 0).any() and (a > 0).any():
         left = (a == 0) & (rgb.sum(axis=2) == 0)
         if left.any(): rgb[left] = rgb[a > 0].mean(axis=0)
