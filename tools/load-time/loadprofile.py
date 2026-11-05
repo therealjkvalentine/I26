@@ -139,7 +139,8 @@ def run_once(out, name, mission, pack, cache, rep, tag, briefing, shell, env_ove
             for k in seen: seen[k] = max(seen[k], q.get(k, 0))
             loads.append(cpu_load())
     th = threading.Thread(target=sample, daemon=True); th.start()
-    cmd = [GODOT, "--path", game, "--", "--install", INSTALL, "--mute"] + args
+    # windowed, never fullscreen (the user reviews on this console); I76_QUIET_WINDOW may adapt this line
+    cmd = [GODOT, "--path", game, "--windowed", "--", "--install", os.environ.get("LOADTIME_INSTALL", INSTALL), "--mute"] + args
     with open(stem + ".log", "w", encoding="utf-8", errors="replace") as log:
         log.write("# " + " ".join(cmd) + "\n# env: " + " ".join(f"{k}={v}" for k, v in sorted(env_over.items())) + f" APPDATA={root}\n")
         log.flush()
