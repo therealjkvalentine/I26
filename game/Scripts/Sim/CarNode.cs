@@ -883,6 +883,41 @@ public partial class CarNode : Node3D
         float along = System.Numerics.Vector3.Dot(moved, _rot.Forward);
         if (MathF.Abs(along) < 20f) _roll += along;
         CaptureAnim();
+        if (_kept is { } k)
+        {
+            // an early tick (TickPacer): it is drawn from where the car was on screen, not from the tick before
+            (_prevRot, _prevPos, _prevRoll) = (k.Rot, k.Pos, k.Roll);
+            for (int i = 0; i < _aimPrev.Length && i < k.Aim.Length; i++) _aimPrev[i] = k.Aim[i];
+            for (int i = 0; i < _wheelPrev.Length && i < k.Wheel.Length; i++) _wheelPrev[i] = k.Wheel[i];
+            _kept = null;
+        }
+    }
+
+    /// <summary>
+    /// Before an early tick (SimDriver, TickPacer): keep the pose drawn at <paramref name="alpha"/> (the body, the turrets, the
+    /// wheels' steer, travel and roll) to draw from when the next <see cref="Snapshot"/> comes, in place of the tick before.
+    /// </summary>
+    public void KeepDrawn(float alpha)
+    {
+        var (rot, pos) = Between(alpha);
+        var aim = new (float, float)[_aimCur.Length];
+        for (int i = 0; i < aim.Length && i < _aimPrev.Length; i++)
+            aim[i] = (LerpAngle(_aimPrev[i].Yaw, _aimCur[i].Yaw, alpha), _aimPrev[i].Pitch + (_aimCur[i].Pitch - _aimPrev[i].Pitch) * alpha);
+        var wheel = new (float, float)[_wheelCur.Length];
+        for (int i = 0; i < wheel.Length && i < _wheelPrev.Length; i++)
+            wheel[i] = (LerpAngle(_wheelPrev[i].Steer, _wheelCur[i].Steer, alpha), _wheelPrev[i].Travel + (_wheelCur[i].Travel - _wheelPrev[i].Travel) * alpha);
+        _kept = (rot, pos, _prevRoll + (_roll - _prevRoll) * alpha, aim, wheel);
+    }
+
+    private (Rows Rot, Double3 Pos, double Roll, (float Yaw, float Pitch)[] Aim, (float Steer, float Travel)[] Wheel)? _kept;
+
+    /// <summary>The tick interpolation alone (no other model's pose): the body between the last two ticks at alpha.</summary>
+    private (Rows Rot, Double3 Pos) Between(float alpha)
+    {
+        double Lerp(double a, double b) => a + (b - a) * alpha;
+        var rows = new Rows(System.Numerics.Vector3.Lerp(_prevRot.Right, _rot.Right, alpha), System.Numerics.Vector3.Lerp(_prevRot.Up, _rot.Up, alpha),
+            System.Numerics.Vector3.Lerp(_prevRot.Forward, _rot.Forward, alpha)).Orthonormalized();
+        return (rows, new Double3(Lerp(_prevPos.X, _pos.X), Lerp(_prevPos.Y, _pos.Y), Lerp(_prevPos.Z, _pos.Z)));
     }
 
     private double _roll, _prevRoll;
