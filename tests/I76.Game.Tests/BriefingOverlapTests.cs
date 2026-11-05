@@ -41,6 +41,10 @@ public class BriefingOverlapTests
     [Fact]
     public void TheCardLeadsByDefault() => Assert.Equal(CardOrder.CardFirst, new ShellSettings().CardOrder);
 
+    /// <summary>The menu's warm-up measured no saving (docs/perf/loadtime-plan.md, round 2): off unless shell.cfg says on.</summary>
+    [Fact]
+    public void TheMenuWarmupIsOffByDefault() => Assert.False(new ShellSettings().MenuWarmup);
+
     [Theory]
     [InlineData("card_first", CardOrder.CardFirst)]
     [InlineData("movie_first", CardOrder.MovieFirst)]

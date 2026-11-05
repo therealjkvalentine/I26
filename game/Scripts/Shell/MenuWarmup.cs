@@ -3,7 +3,7 @@ using Godot;
 namespace I76.Game.Shell;
 
 /// <summary>
-/// What every mission start shares, made once a run while the main menu stands idle ([port] menu_warmup, on by default;
+/// What every mission start shares, made once a run while the main menu stands idle ([port] menu_warmup, off by default: no measurable saving;
 /// docs/perf/loadtime-plan.md): the modern look's effects (the explosion and fire flipbooks, their textures kept in
 /// ModernFx's cache, their materials' pipelines, the code behind them run once) made on an unseen stage far below the
 /// menu for a few frames and taken away, as the mission's effects rehearsal makes them behind the loading card. It starts
