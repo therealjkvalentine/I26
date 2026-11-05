@@ -282,3 +282,10 @@ feat/death-variety-2                  # section Q: two-stage deaths: the failed 
 
 # R. pass 18 (2026-11-04): the pack tool's family table; stacked on play
 feat/hd-pack-alpha                    # section R: upscale-textures.py --families: a colour model per cockpit family and an alpha step (4xHDcube-Alpha) for keyed art; --family-table, --models-dir, --gpu-share; licences listed in pack.json and ATTRIBUTION.txt
+
+# S. performance round 2 (frame-cost survey and the graphics defaults it led to; 2026-11-05)
+perf/frame-cost-survey                # section S: FrameProfiler timed window, I76_SMOOTH_KEY / I76_MIRROR_* hooks, tools/frame-cost harness, docs/perf/costs.md + plan.md
+perf/graphics-defaults                # section S, stacked on frame-cost-survey (merges play 74d7ab5): Ambient Occlusion row (off), mirror alternate-frame + own no-SSAO environment + fog at the original's reach, terrain shader distance tiers, Shadow Detail Low = 2 splits / 600 m, MSAA 2x default, HD Textures Off/4x with 4x the modern default, help line for the top eight rows (GraphicsHelp.cs), FOV on Display, horizon ring depth split re-ported onto upstream's shader
+
+# T. font redraws (2026-11-05)
+feat/font-redraws                     # section T: tools/text-redraws.py + per-texture specs: lettering re-drawn from OFL fonts into the 4x pack (dials of four dash families, damage panel, MR.DAMAGE, Piranha plate and badge incl. dented, police doors, seven cars' tails); the step runs on each machine's pack
