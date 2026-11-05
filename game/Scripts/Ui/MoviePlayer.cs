@@ -145,8 +145,13 @@ public partial class MoviePlayer : CanvasLayer
         return o;
     }
 
+    /// <summary>I76_MOVIE_SKIP_MS=N: a skippable movie is skipped N ms after it was put up, as a key would (the load-time harness's skip path).</summary>
+    private static readonly int SkipAfterMs = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MOVIE_SKIP_MS"), out int sk) ? sk : -1;
+    private readonly ulong _upAt = Time.GetTicksMsec();
+
     public override void _Process(double delta)
     {
+        if (SkipAfterMs >= 0 && Skippable && !_done && Time.GetTicksMsec() - _upAt >= (ulong)SkipAfterMs) { Finish(); return; }
         if (_video is not null) { ReplacementStep(); return; }
         if (_done || _movie is null) return;
         // the clock starts with the first frame, so a slow first decode does not eat into the picture
@@ -160,6 +165,7 @@ public partial class MoviePlayer : CanvasLayer
                 return;
             }
             _started = true;
+            _skipsAtStart = _out?.GetSkips() ?? 0;
             I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
         }
         else _clock += delta;
@@ -169,7 +175,17 @@ public partial class MoviePlayer : CanvasLayer
         PushSound();
         int want = (int)(_clock / _movie.FrameDuration);
         (int Index, byte[] Rgba, byte[]? Pal)? show = null;
-        while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; }
+        int taken = 0;
+        while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; taken++; }
+        if (taken > 1) _dropped += taken - 1;   // frames whose turn passed between two of the game's frames: never shown
+        if (show is not null)
+        {
+            // the picture's pace: a frame shown more than two of the movie's frames after the one before it is late
+            double nowS = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+            if (_lastShown > 0 && nowS - _lastShown > 2 * _movie.FrameDuration) { _late++; _worstShowGap = Math.Max(_worstShowGap, nowS - _lastShown); }
+            _lastShown = nowS;
+            _shown++;
+        }
         if (show is { } s)
         {
             if (s.Pal is not null)
@@ -239,6 +255,12 @@ public partial class MoviePlayer : CanvasLayer
         if (_done) return;
         _done = true;
         _stop = true;
+        if (_movie is not null && _video is null)
+        {
+            long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;
+            Last = (_shown, _dropped, _late, _worstShowGap * 1000, skips);
+            GD.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} frames");
+        }
         if (_video is not null)
             GD.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
         _video?.Stop();
@@ -261,6 +283,11 @@ public partial class MoviePlayer : CanvasLayer
     private VideoStreamPlayer? _video;
     private double _videoStart, _shotAt = -1, _lastStep, _worstGap;
     private int _lateFrames;
+    private int _shown, _dropped, _late;
+    private long _skipsAtStart;
+    private double _lastShown, _worstShowGap;
+    /// <summary>The last Smacker movie's pace: frames shown, dropped (their turn passed unseen), late (over two frames after the one before), the worst gap, the audio generator's underrun frames.</summary>
+    public static (int Shown, int Dropped, int Late, double WorstMs, long AudioSkips) Last;
     private readonly bool _videoLog = System.Environment.GetEnvironmentVariable("I76_MOVIE_LOG") == "1";
     private string? _shotPath;
 

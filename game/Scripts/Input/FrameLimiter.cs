@@ -29,18 +29,19 @@ public static class FrameLimiter
     }
 
     /// <summary>
-    /// The main thread's frames while a mission builds on another thread under its briefing (Main.BuildUnderBriefing): the
-    /// renderer takes that thread's calls that return a value once a frame, so a frame held to the display's refresh makes
-    /// the build three times as long. Mailbox (no tearing; plain VSync where the driver has none) at up to
-    /// <see cref="BuildFps"/>; <see cref="Apply"/> puts the player's settings back.
+    /// The main thread's frames while a mission builds on another thread behind the card or the briefing (Main.BuildBehindCard):
+    /// the renderer takes that thread's calls that return a value once a frame, so the frame rate sets the build's pace (t01's
+    /// terrain chunks: 4.6 s at 240 fps, 1.3 s at 1000, 1.1 s uncapped; docs/perf/loadtime.md). Mailbox (no tearing; plain VSync
+    /// where the driver has none) at up to <see cref="BuildFps"/> (I76_BUILD_FPS overrides it); <see cref="Apply"/> puts the
+    /// player's settings back.
     /// </summary>
     public static void ForBuild()
     {
-        Engine.MaxFps = BuildFps;
+        Engine.MaxFps = int.TryParse(System.Environment.GetEnvironmentVariable("I76_BUILD_FPS"), out int f) ? f : BuildFps;
         DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
     }
 
-    public const int BuildFps = 240;
+    public const int BuildFps = 1000;
 
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {

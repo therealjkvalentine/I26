@@ -832,6 +832,12 @@ public partial class Shell : CanvasLayer
                 LaunchTrip(Trip.StockCar(this, tc));
             }
             // capture hook: "overlay:controls@frame" opens the Control Configuration over the screen
+            // capture hook: "garage@frame" opens CONFIGURE CHASSIS (the 3D garage, or the 2D form) on the melee form's saved car, as its button does
+            if (kind == "garage")
+            {
+                var st = MeleeSetup.Load();
+                Go(ChassisForm.Create(this, new MeleeChassis(st.Model, st.Variant, _ => Go(new MainMenuScreen()), () => Go(new MainMenuScreen()))));
+            }
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
             if (kind == "overlay" && arg == "mouse") Overlay(new MouseOptionsScreen());
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
@@ -1346,12 +1352,18 @@ public sealed class ShellSettings
     public int VegetationDensity { get; set; } = I76.Formats.Vegetation.VegetationDensity.Default;
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's effects made while the main menu stands idle, so a mission's start finds them made (MenuWarmup; [port] menu_warmup, written only when on). Off by default: no measurable saving and a 48-69 ms menu frame (docs/perf/loadtime-plan.md).</summary>
+    public bool MenuWarmup { get; set; }
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
     public bool GarageRadio { get; set; }
     /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
     public bool DeathVariety { get; set; } = true;
-    /// <summary>The port's own, without a row: the modern look's briefing plays while the mission builds (I76.Game.Boot.BriefingOverlap; [port] briefing_while_loading, written only when off). Off: the build behind the loading card, then the briefing, as the original's.</summary>
-    public bool BriefingWhileLoading { get; set; } = true;
+    /// <summary>
+    /// The port's own, without a row: what leads while the modern look builds a mission on its own thread (I76.Game.Boot.BriefingOverlap;
+    /// [port] briefing_while_loading, written only when not the default): card_first, the loading card for the retail game's time and
+    /// then the briefing, as the original's order; movie_first, the briefing at once and the card after it. The older on/off read as card_first.
+    /// </summary>
+    public I76.Game.Boot.CardOrder CardOrder { get; set; } = I76.Game.Boot.CardOrder.CardFirst;
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
     /// <summary>
@@ -1576,9 +1588,10 @@ public sealed class ShellSettings
         s.VegetationDensity = I76.Formats.Vegetation.VegetationDensity.Parse(Pct("vegetation_density"));
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
+        s.MenuWarmup = string.Equals(c.GetValue("port", "menu_warmup", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
-        s.BriefingWhileLoading = !string.Equals(c.GetValue("port", "briefing_while_loading", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.CardOrder = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", "card_first").ToString());
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
@@ -1705,9 +1718,10 @@ public sealed class ShellSettings
         if (EffectsOpacity != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_opacity", EffectsOpacity);
         if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
+        if (MenuWarmup) c.SetValue("port", "menu_warmup", "on");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!DeathVariety) c.SetValue("port", "death_variety", "off");
-        if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", "off");
+        if (CardOrder != I76.Game.Boot.CardOrder.CardFirst) c.SetValue("port", "briefing_while_loading", I76.Game.Boot.BriefingOverlap.Name(CardOrder));
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
