@@ -385,7 +385,7 @@ public sealed partial class EscapeMenu : Control
     }
 
     /// <summary>A row over a key that may be absent or over two keys (Visibility Range, HD Textures): Done and Cancel copy the row's keys whole (GraphicsPages.Copy).</summary>
-    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply) => new()
+    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply, Func<ShellSettings, string[]>? namesNow = null) => new()
     {
         Flags = Cycle, Label = label, N = names.Length, Names = names,
         Cb = (it, m) =>
@@ -397,6 +397,8 @@ public sealed partial class EscapeMenu : Control
                 case 8: GraphicsPages.Copy(r, Settings, _snap); break;
                 case 9: GraphicsPages.Copy(r, _snap, Settings); it.Value = get(Settings); apply(); break;
             }
+            // a row whose words follow the keys (HD Textures: a size set in the file shows as itself until the row is changed)
+            if (namesNow is not null) it.Names = namesNow(Settings);
         },
     };
 
@@ -421,11 +423,13 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
             // the port's MSAA in +0x8 (the shell's list, 8x too), live
             case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
-                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return null;
-                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live);
+                bool anyPack = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
+                if (HdTextureRow.Names(sizes, anyPack, Settings.HdTextureSize) is not { } hd) return null;
+                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live,
+                    s => HdTextureRow.Names(sizes, anyPack, s.HdTextureSize) ?? hd);
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             case GraphicsRow.VSync: return Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live);
             case GraphicsRow.MaxFps: return Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live);

@@ -7,7 +7,7 @@ namespace I76.Game.Assets;
 /// <summary>
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a whole
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
-/// user://tex-world-Nx/ for the chosen size N (4, 3 or 2; else the plain user://tex-world/, else the nearest size present), then the newest i76-hd-*.zip next to the executable or in user:// that has a
+/// user://tex-world-Nx/ for the chosen size N (4, the HD Textures row's; any whole multiple a file or the Developer panel names; else the plain user://tex-world/, else the nearest size present), then the newest i76-hd-*.zip next to the executable or in user:// that has a
 /// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (Graphic Detail's HD Textures row) switches them off (Enabled); the 1997 look
 /// never draws them (TextureFactory.Hd).
 /// </summary>
@@ -20,7 +20,7 @@ public static class HdTextures
     public static bool Enabled { get; set; } = true;
 
     private static int _size = HdPackFolders.DefaultSize;
-    /// <summary>The pack size chosen (ShellSettings.HdTextureSize: 4, 3 or 2): tex-world-Nx. A change is picked up by the next mission's textures, not by those already built.</summary>
+    /// <summary>The pack size chosen (ShellSettings.HdTextureSize: 4, the row's, or 3 or 2 from the file or the Developer panel): tex-world-Nx. A change is picked up by the next mission's textures, not by those already built.</summary>
     public static int Size
     {
         get => _size;
@@ -37,10 +37,23 @@ public static class HdTextures
     public static int[] AvailableSizes => HdPackFolders.Available(UserHas);
 
     /// <summary>
-    /// shell.cfg's [port] hd_textures. Absent (a file from before the row, when HD Menu Art switched these too), it follows
-    /// hd_menu_art, so a player who had turned the menu art off keeps the textures off.
+    /// shell.cfg's [port] hd_textures. Absent (a first start, or a file from before the row, when HD Menu Art switched these too),
+    /// the first start's default (<see cref="DefaultOn"/>), and off if hd_menu_art is: a player who had turned the menu art off keeps
+    /// the textures off.
     /// </summary>
-    public static bool FromFile(bool? hdTextures, bool hdMenuArt) => hdTextures ?? hdMenuArt;
+    public static bool FromFile(bool? hdTextures, bool hdMenuArt, bool firstStart = true) => hdTextures ?? (hdMenuArt && firstStart);
+
+    /// <summary>Video memory under this (MiB) starts with the pack off: the 4x pack adds ~0.7 GB in T01 (docs/perf/costs.md); a 4 GB card reports about 4096.</summary>
+    public const long LowVideoMemoryMb = 3840;
+
+    /// <summary>
+    /// The first start's HD Textures: 4x when the user folder has tex-world-4x, else Off; Off too on a GPU with under 4 GB of video
+    /// memory (<see cref="LowVideoMemoryMb"/>; unknown memory counts as enough). The player's choice is saved from then on.
+    /// </summary>
+    public static bool DefaultOn(bool has4x, long? videoMemoryMb) => has4x && !(videoMemoryMb < LowVideoMemoryMb);
+
+    /// <summary><see cref="DefaultOn"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb).</summary>
+    public static bool FirstStartDefault => DefaultOn(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), I76.Game.Boot.RenderBackend.VideoMemoryMb);
 
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>

@@ -35,15 +35,15 @@ On Linux, ensure Microsoft core fonts are installed for Impact and Arial.
 
 # HD textures (optional)
 
-The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world-4x/`, `tex-world-3x/` or `tex-world-2x/`
+The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world-4x/`
 (`%APPDATA%\I26\tex-world-4x` on Windows, `~/.local/share/I26/tex-world-4x` on Linux, `~/Library/Application Support/I26/tex-world-4x`
-on macOS; an older plain `tex-world/` is still read, and the Developer panel's `hd_texture_size` picks among the sizes present), named after the texture (`pp11ftf1.png`) at 2x, 4x or 8x. None ships with I26, and no game art is in this
+on macOS; an older plain `tex-world/` is still read; a `tex-world-3x/` or `-2x/` made with `--scale 3` or `2` loads only when the Developer panel's `hd_texture_size` names it), named after the texture (`pp11ftf1.png`). Graphic Detail's HD Textures row is Off or 4x. None ships with I26, and no game art is in this
 repository: `tools/upscale-textures.py` makes them on your own machine from your own install. Export the textures
 (`i26 -- --install DIR --export-textures SRC_DIR`, which quits when done), install Python 3.10+ with
 `pip install torch spandrel numpy pillow etcpak`, and run `python3 tools/upscale-textures.py SRC_DIR`. It downloads the model
 4xTextures_GTAV_rgt-s_dither (Philip Hofmann, CC-BY-4.0) once, takes about half a second a texture on a graphics card
-and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. World and car
-textures come out at twice the original's size and the cockpit's art at four times, as compressed `.dds` files the game
+and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. World, car
+and cockpit textures come out at four times the original's size, as compressed `.dds` files the game
 loads about as fast as its own; the cockpit's pixel lettering (the weapon labels, the ammunition digits) and the mirror's
 frame are scaled in their own colours rather than by the model. The model darkens or lightens broad areas and shifts
 their tint, so its output is matched back to the original's colour: the upscale's blurred picture is brought to the

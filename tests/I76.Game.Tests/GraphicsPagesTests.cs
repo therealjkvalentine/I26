@@ -273,60 +273,66 @@ public class GraphicsPagesTests
 
     // ---- HD Textures ----
 
+    /// <summary>Off or 4x: the 2x and 3x folders are no longer offered by the row (the loader still reads them).</summary>
     [Fact]
-    public void HdTexturesListsOnlyTheSizesWhoseFoldersExist()
+    public void HdTexturesIsOffOr4x()
     {
-        Assert.Equal(["Off", "4x*", "3x*", "2x*"], HdTextureRow.Names([4, 3, 2], true)!);
-        Assert.Equal(["Off", "3x*"], HdTextureRow.Names([3], true)!);
-        Assert.Equal(["Off", "4x*", "2x*"], HdTextureRow.Names([4, 2], true)!);
-        // a pack with no sized folder (the plain tex-world, or a zip): on or off
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 3, 2], true)!);
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4], true)!);
+        // no tex-world-4x: a pack of another size, a plain tex-world or a zip is on or off
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3], true)!);
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3, 2], false)!);
         Assert.Equal(["Off", "On*"], HdTextureRow.Names([], true)!);
         // no pack: no row
         Assert.Null(HdTextureRow.Names([], false));
     }
 
+    /// <summary>A size the file or the Developer panel names shows as itself while its folder is there, until the row is clicked.</summary>
     [Fact]
-    public void HdTexturesShowsTheSizeLoaded()
+    public void HdTexturesShowsAnotherSizeAsItself()
     {
-        var s = new ShellSettings();                     // on, 4x
+        Assert.Equal(["Off", "3x*"], HdTextureRow.Names([4, 3, 2], true, 3)!);
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 2], true, 3)!);   // no 3x folder: the 4x loads (HdPackFolders.Choose)
+        Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(3, f => f is "tex-world-4x" or "tex-world-2x"));
+        var s = new ShellSettings { HdTextureSize = 3 };
         Assert.Equal(1, HdTextureRow.Index(s, [4, 3, 2]));
-        s.HdTextureSize = 2;
-        Assert.Equal(3, HdTextureRow.Index(s, [4, 3, 2]));
-        // the 4x folder gone: the 3x is what loads (HdPackFolders.Choose's nearest)
-        s.HdTextureSize = 4;
-        Assert.Equal(1, HdTextureRow.Index(s, [3, 2]));
-        Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
-        Assert.Equal(1, HdTextureRow.Index(s, []));
-        s.HdTextures = false;
-        Assert.Equal(0, HdTextureRow.Index(s, [4, 3, 2]));
+        HdTextureRow.Step(s, [4, 3, 2], true);      // Off, the size kept
+        Assert.False(s.HdTextures);
+        Assert.Equal(3, s.HdTextureSize);
+        HdTextureRow.Step(s, [4, 3, 2], true);      // on again: 4x
+        Assert.True(s.HdTextures);
+        Assert.Equal(4, s.HdTextureSize);
     }
 
-    /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; a size writes true and the size.</summary>
+    /// <summary>The loader keeps every whole multiple: the 3x and 2x folders are still found and chosen.</summary>
+    [Fact]
+    public void TheLoaderStillServesEverySize()
+    {
+        Assert.Equal([4, 3, 2], I76.Formats.Shell.HdPackFolders.Sizes);
+        Assert.Equal("tex-world-2x", I76.Formats.Shell.HdPackFolders.Choose(2, f => f is "tex-world-4x" or "tex-world-2x"));
+        Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
+    }
+
+    /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; On writes true and 4 (with its folder).</summary>
     [Fact]
     public void HdTexturesWritesItsTwoKeys()
     {
         int[] have = [4, 3, 2];
-        var s = new ShellSettings { HdTextureSize = 3 };
+        var s = new ShellSettings { HdTextureSize = 4 };
         HdTextureRow.Put(s, have, 0);
         Assert.False(s.HdTextures);
-        Assert.Equal(3, s.HdTextureSize);
-        HdTextureRow.Put(s, have, 3);
-        Assert.True(s.HdTextures);
-        Assert.Equal(2, s.HdTextureSize);
-        // a click steps round: 2x, then Off, then 4x
-        HdTextureRow.Step(s, have, true);
-        Assert.False(s.HdTextures);
-        HdTextureRow.Step(s, have, true);
+        Assert.Equal(4, s.HdTextureSize);
+        HdTextureRow.Put(s, have, 1);
         Assert.True(s.HdTextures);
         Assert.Equal(4, s.HdTextureSize);
-        // with only a plain pack the size is left alone
+        // with no 4x folder the size is left alone
         var p = new ShellSettings { HdTextureSize = 3, HdTextures = false };
-        HdTextureRow.Step(p, [], true);
+        HdTextureRow.Step(p, [3], true);
         Assert.True(p.HdTextures);
         Assert.Equal(3, p.HdTextureSize);
-        // the size the row shows for a missing folder is not written until a value is picked
-        var q = new ShellSettings { HdTextureSize = 4 };
-        HdTextureRow.Put(q, [3, 2], 1);
-        Assert.Equal(4, q.HdTextureSize);
+        // picking what shows writes nothing
+        var q = new ShellSettings { HdTextureSize = 3 };
+        HdTextureRow.Put(q, have, 1);
+        Assert.Equal(3, q.HdTextureSize);
     }
 }

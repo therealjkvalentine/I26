@@ -6,7 +6,7 @@ namespace I76.Formats.Shell;
 /// </summary>
 public static class HdPackFolders
 {
-    /// <summary>The sizes offered, largest first; the first is the default.</summary>
+    /// <summary>The sizes the loader looks for, largest first; the first is the default and the only one Graphic Detail's HD Textures row offers (HdTextureRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
     public static readonly int[] Sizes = [4, 3, 2];
     public const int DefaultSize = 4;
     public const string Plain = "tex-world";

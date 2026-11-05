@@ -1153,7 +1153,7 @@ public sealed class ShellSettings
     public bool HdMenuArt { get; set; } = true;
     /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
-    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, the HD Textures row; HdTextures.Size). Applies from the next mission.</summary>
+    /// <summary>The port's own: which size of the texture pack to draw, 4 (the HD Textures row's; the user folder's tex-world-4x) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_texture_size; HdTextures.Size). Applies from the next mission.</summary>
     public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1402,7 +1402,13 @@ public sealed class ShellSettings
     {
         var s = new ShellSettings();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return s;
+        if (c.Load(Path) != Error.Ok)
+        {
+            // a first start: the HD textures by the user folder and the adapter (HdTextures.FirstStartDefault)
+            s.HdTextures = I76.Game.Assets.HdTextures.FirstStartDefault;
+            I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
+            return s;
+        }
         var g = (byte[])c.GetValue("shell", "graphics", s.Graphics);
         if (g.Length == 16) Array.Copy(g, s.Graphics, 16);
         // files from before the mirror and the external instruments did anything carry the shipped Low / Off: the port's defaults instead
@@ -1419,7 +1425,8 @@ public sealed class ShellSettings
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
-        s.HdTextures = I76.Game.Assets.HdTextures.FromFile(c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt);
+        s.HdTextures = c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures")
+            : I76.Game.Assets.HdTextures.FromFile(null, s.HdMenuArt, I76.Game.Assets.HdTextures.FirstStartDefault);
         // no version step: absent, 4 (a plain tex-world from before the sizes is used whatever the size)
         s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Normalize((int)c.GetValue("port", "hd_texture_size", I76.Formats.Shell.HdPackFolders.DefaultSize));
         // version 5 added Auto Reverse: older files have none, so it is off
