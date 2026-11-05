@@ -107,6 +107,7 @@ Network games use protocol 28: this version does not play with 0.11.0 or earlier
 - Map editor: F12 switches between the modern and the 1997 look, as in a mission (F2 still works too).
 - Map editor: the game's soundtrack plays while you edit, a random track after another at the Music level of Audio Control; a MUSIC button in the top bar turns it off and on, and a playtest hands over to the mission's own music.
 - I26 tells you when a newer release is out: at start-up it quietly checks GitHub and shows "version X available" under the version in the corner of the game chooser and the main menu (click it to open the release page). Play Options has a Check for Updates row to turn it off (#138).
+- Dev hook: `I76_QUIET_WINDOW=1` starts the game in a window of the size asked for (`--resolution`, else the saved Resolution, else 1280x720) behind your other windows, without taking the foreground, the keyboard or the pointer, so test runs and captures leave the desktop to whoever is using it; `min` starts it minimised. The frame-cost scripts and `tools/shot.sh` use it by default (docs/dev-hooks.md).
 
 ### Changed
 - The modern look's distant ring (the ground past the map) is drawn in two passes again, as before the outside ground arrived: the main pass writes no depth, so the GPU skips it wherever the map's ground hides it, and a rim pass alone keeps the backstop behind the terrain's edge (2.2 ms of a T01 cockpit frame at 3440x1440, 1.2 ms at 1920x1080).

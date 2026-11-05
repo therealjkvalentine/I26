@@ -204,6 +204,7 @@ public partial class Main : Node3D
     public override async void _Ready()
     {
         I76.Game.Editor.SwitchTimer.Mark("scene ready");
+        QuietWindow.Early();   // I76_QUIET_WINDOW: the foreground given back, the window to the back, before anything else
         HeapTrim.Configure();
         GcStress.Install();
         MainThread.Mark();
@@ -239,7 +240,8 @@ public partial class Main : Node3D
         var first = I76.Game.Shell.ShellSettings.Load();
         FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
         FpsOverlay.Apply(GetTree(), first.DevFps);   // Show FPS, over the menus too
-        WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
+        if (QuietWindow.Active) QuietWindow.Apply(first, needsFrames: _opt.Screenshot is not null || FrameProfiler.Enabled);   // I76_QUIET_WINDOW: a window of the size asked for, behind the others
+        else WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
         I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
         RenderScale.Apply(first);
         if (ShaderSmoke.Requested) { SetProcess(false); AddChild(new ShaderSmoke()); return; }
@@ -2777,7 +2779,8 @@ public partial class Main : Node3D
             && _opt.Install is not null;
         bool chase = !CameraHeld && _chase is { Current: true, Fixed: null };
         bool cockpit = !CameraHeld && _car?.CockpitCamera?.Current == true && _pit is { Binoculars: false } && I76.Formats.Input.DashToggle.FreeLookAllowed(_pit.Dash3D);
-        bool focused = DisplayServer.WindowIsFocused() || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;   // (a capture's off-screen window is never focused)
+        // (a capture's off-screen window is never focused; I76_QUIET_WINDOW's counts as unfocused, whatever Windows says, but for I76_MOUSE's scripted motion)
+        bool focused = (!QuietWindow.Active && DisplayServer.WindowIsFocused()) || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;
         // the network game's standings locked up show the pointer, as a menu does (the view's zoom is left as it is)
         var mode = CursorPolicy.For(inMission && _netHud?.Pointer != true, chase, MouseCamera.Level, focused, MouseCamera.Confine, cockpit, MouseCamera.CockpitLook);
         // the mouse orbits the chase view (or turns the head in the 3D cockpit) only while captured, unpaused and no orbit key is held
@@ -2786,7 +2789,7 @@ public partial class Main : Node3D
         // the wheel zooms the external view on screen, whether or not the mouse orbits it
         MouseCamera.WheelView = inMission && !CameraHeld && !_gamePaused && _chase!.Orbit?.Invoke() != true ? WheelViewNow() : null;
         TrackViewForZoom(inMission);
-        ApplyCursor(mode);
+        ApplyCursor(QuietWindow.Active ? CursorMode.Visible : mode);   // the quiet window never confines or captures the pointer (scripted motion still orbits)
     }
 
     /// <summary>The zoom the wheel turns in the view on screen; null in the cockpit (and binoculars), where the wheel stays free.</summary>
