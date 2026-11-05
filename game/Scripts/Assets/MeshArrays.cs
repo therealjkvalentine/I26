@@ -41,13 +41,19 @@ public static class MainThread
 {
     private static int _id;
 
+    /// <summary>
+    /// The calling thread may do engine work: the mission's build under the briefing (Main.StartBuildJob), whose engine calls the
+    /// renderer queues for the main loop (its meshes and materials made outside the tree, nothing in it touched).
+    /// </summary>
+    [System.ThreadStatic] public static bool Allowed;
+
     /// <summary>Called once on the main thread (Main._Ready).</summary>
     public static void Mark() => _id = System.Environment.CurrentManagedThreadId;
 
     [System.Diagnostics.Conditional("DEBUG")]
     public static void Check(string what)
     {
-        if (_id != 0 && System.Environment.CurrentManagedThreadId != _id)
+        if (_id != 0 && !Allowed && System.Environment.CurrentManagedThreadId != _id)
             throw new System.InvalidOperationException($"{what}: engine work off the main thread (thread {System.Environment.CurrentManagedThreadId})");
     }
 }

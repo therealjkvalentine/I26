@@ -204,6 +204,9 @@ public partial class Main : Node3D
     public override async void _Ready()
     {
         I76.Game.Editor.SwitchTimer.Mark("scene ready");
+        QuietWindow.Early();   // I76_QUIET_WINDOW: the foreground given back, the window to the back, before anything else
+        LoadProfiler.SetMain();
+        LoadProfiler.Mark("scene ready");
         HeapTrim.Configure();
         GcStress.Install();
         MainThread.Mark();
@@ -239,7 +242,8 @@ public partial class Main : Node3D
         var first = I76.Game.Shell.ShellSettings.Load();
         FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
         FpsOverlay.Apply(GetTree(), first.DevFps);   // Show FPS, over the menus too
-        WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
+        if (QuietWindow.Active) QuietWindow.Apply(first, needsFrames: _opt.Screenshot is not null || FrameProfiler.Enabled);   // I76_QUIET_WINDOW: a window of the size asked for, behind the others
+        else WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
         I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
         RenderScale.Apply(first);
         if (ShaderSmoke.Requested) { SetProcess(false); AddChild(new ShaderSmoke()); return; }
@@ -347,7 +351,7 @@ public partial class Main : Node3D
                 Install = install, Name = "Shell", Faithful = _opt.Mode1997,
                 Developer = _opt.Dev || System.Environment.GetEnvironmentVariable("I76_DEV") == "1",
                 LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError,
-                OnLaunch = l => { GD.Print($"shell: launch {l.Mission} ({l.Kind})"); _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene(); },
+                OnLaunch = l => { LoadProfiler.Click(); GD.Print($"shell: launch {l.Mission} ({l.Kind})"); _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene(); },
                 OnEditor = () =>
                 {
                     GetNodeOrNull("Shell")?.QueueFree();
@@ -376,19 +380,34 @@ public partial class Main : Node3D
             _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
             return;
         }
-        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
-        // thread under the movie, the rest of the load after it behind the card, which comes up only then (movie, card, mission)
-        string? briefing = loading is null && _opt.Install is not null && _opt.Mission is not null ? BriefingDuringLoad() : null;
-        // up, and drawn once, before the build
+        // a single-player start in the modern look builds its world on a thread of its own from here, before the card is drawn, behind
+        // the card and the briefing (briefing_while_loading, docs/deviations.md: card_first, the card for the retail game's time, then
+        // the movie, the card again until the mission is ready; movie_first: black, the movie, the card); the rest of the load follows
+        // on the main thread behind the card
+        bool threaded = loading is null && _opt.Install is not null && _opt.Mission is not null
+            && BriefingOverlap.Threaded(_opt.Mode1997, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        string? briefing = threaded ? BriefingDuringLoad() : null;
+        // with no briefing to build under, the main thread builds behind the card as the original loads: the thread would only add its
+        // queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
+        threaded &= briefing is not null;
+        var order = I76.Game.Shell.ShellSettings.Load().CardOrder;
+        BuildJob? job = threaded ? StartBuildJob() : null;
+        // up, and drawn once, before the build (a threaded build: already going)
         if (_opt.Install is not null && _opt.Mission is not null)
         {
             _loading = true;
             if (loading is null)
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
-                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) await loading.FadeIn();   // (else its black only, until the movie is over)
+                MissionBuilder.Trace("loading card made");
+                if (!(briefing is not null && order == CardOrder.MovieFirst))
+                {
+                    _cardClock = System.Diagnostics.Stopwatch.StartNew();
+                    OnNextDraw(() => LoadProfiler.Event("card first frame"));
+                    await loading.FadeIn();   // (movie_first: its black only, until the movie is over)
+                }
             }
-            MissionBuilder.Trace(briefing is null ? "loading card up" : "loading card black: the briefing first");
+            MissionBuilder.Trace(briefing is not null && order == CardOrder.MovieFirst ? "loading card black: the briefing first" : "loading card up");
             BootSplash.Dismiss(now: true);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -422,76 +441,26 @@ public partial class Main : Node3D
             return;
         }
         (Load Start, Node3D? World, System.Exception? Error)? built = null;
-        if (briefing is not null && loading is not null)
+        if (job is not null && loading is not null)
         {
-            built = await BuildUnderBriefing(briefing);
+            built = await BuildBehindCard(job, briefing, order, loading);
             if (!IsInsideTree()) return;
-            // the briefing over: the card fades in for the rest of the load, as the original's comes up before the mission's
-            await loading.FadeIn();
-            MissionBuilder.Trace("loading card up, after the briefing");
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
         }
-        // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
-        var load = Hitch.Time(Hitch.Phase.Load);
-        try
+        // the rest of the load: under the briefing it ran already, a few milliseconds a frame (BuildBehindCard, AttachSteps); else here
+        if (built is null || !_attachedUnderMovie)
+            await RunSteps(AttachSteps(built, loading), 0);
+        if (!IsInsideTree() || _attachFailed) return;
+        MissionBuilder.Trace("effects rehearsal");
+        if (loading is not null && _cardDown)
         {
-            if (built is not { } b) LoadMission();
-            else if (b.Error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(b.Error).Throw();
-            else AttachWorld(b.Start, b.World!);
+            // the briefing over and the load done under it: the mission at once (the card was never brought back)
+            GetTree().Paused = false;
+            loading.QueueFree();
+            MissionBuilder.Trace("loading card gone");
         }
-        catch (System.Exception ex)
-        {
-            _status = $"failed to load: {ex.Message}";
-            GD.PrintErr(ex.ToString());
-            // from the shell, back to it saying why, rather than an empty world (a custom map missing its terrain)
-            if (_launch is { Kind: not I76.Game.Shell.GameKind.Multiplayer })
-            {
-                load.Dispose();
-                if (loading is not null) loading.QueueFree();
-                _loading = false;
-                BackFromLoadFailure(ex is System.IO.FileNotFoundException ? ex.Message : $"{_opt.Mission} could not be loaded: {ex.Message}");
-                return;
-            }
-        }
-        MissionBuilder.Trace("mission loaded");
-        AddDropShadows();
-        MissionBuilder.Trace("drop shadows");
-        var loaded = I76.Game.Shell.ShellSettings.Load();
-        _drawChoice = loaded.DrawDistanceChoice;
-        _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
-        SetMode1997(_opt.Mode1997);
-        MissionBuilder.Trace("look set");
-        if (_opt.Drive is not null && _builder?.World is not null)
-        {
-            SpawnCar(_opt.Drive);
-            MissionBuilder.Trace("car spawned");
-            if (_car is { } drv && _damageView is not null) _damageView.Prewarm(drv);   // as a mission's own car gets it (the capture path)
-            MissionBuilder.Trace("damage view prewarmed");
-            if (_builder.Scenery is { } sc) sc.Markers.Visible = false;   // the original draws no marker for its keywords
-        }
-        if (_editorMode && _builder?.World is not null) { StartEditor(); StartRingBuild(); }
-        // From the menu the scene is rebuilt after the frame's _Process calls and that frame is still
-        // drawn, so tick 0 and the camera choice happen here, or the chase view flashes before a cut-scene.
-        if (_sim is not null)
-        {
-            if (_resumed) { _sim.Resume(); _sim.Hold = System.Environment.GetEnvironmentVariable("I76_CHECKPOINT_HOLD") == "1"; }
-            else { if (_net is null) _sim.Session.SettleCars(); _sim.FirstTick(); }
-            UpdateScriptCamera();
-        }
-        // the plants about the first view, behind the loading card
-        _loaded = true;
-        FrameProfiler.MarkLoaded();
-        MissionBuilder.Trace("first tick done");
-        _veg?.Prewarm();
-        MissionBuilder.Trace("vegetation prewarmed");
-        _builder?.Scenery?.Trees.Prewarm();
-        MissionBuilder.Trace("trees prewarmed");
-        load.Dispose();
-        MissionBuilder.Trace("car, first tick");
-        if (MissionBuilder.TraceOn) TraceFrames(6);
-        if (loading is not null) await WarmEffects();
-        if (loading is not null)
+        else if (loading is not null)
         {
             // back out to black with the mission held still, then the briefing or the mission itself
             GetTree().Paused = true;
@@ -501,6 +470,8 @@ public partial class Main : Node3D
             loading.QueueFree();
             MissionBuilder.Trace("loading card gone");
         }
+        LoadProfiler.Finish(_opt.Mission ?? "-");
+        if (LoadProfiler.QuitAfter) QuitSoon();
         _loading = false;
         if (_playtestNote is { } note && _opt.Install is not null) { AddChild(new CheckpointNotice { InstallDir = _opt.Install, Faithful = _mode1997, Text = note, Hold = 4.0, Name = "PlaytestNote" }); _playtestNote = null; }
         // a checkpoint's retry goes on from where it was: the music there, no briefing
@@ -781,6 +752,13 @@ public partial class Main : Node3D
         ApplySoftware(s);   // MainSoftware.cs
     }
 
+    /// <summary>
+    /// The multisampling in a look: the Anti-Aliasing row's in the modern one; in the 1997 look the same unless [port] aa_1997 is off
+    /// (the 3D card drew none) or the Software renderer draws (its 480-line palette grid), docs/deviations.md "Anti-aliasing (1997 look)".
+    /// </summary>
+    private Viewport.Msaa Msaa1997(bool look1997) =>
+        look1997 && (!I76.Game.Sim.OriginalBehavior.Antialias1997 || SoftwareLook.Active) ? Viewport.Msaa.Disabled : RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+
     // Graphic Detail's rows that trade the modern look's cost: Shadow Detail (+0x6: Off, Low, High), Terrain Detail
     // (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
     private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
@@ -1004,9 +982,15 @@ public partial class Main : Node3D
     /// the player's at its placement (or the requested car), and the mission
     /// script running the rest unless --ai says otherwise.
     /// </summary>
-    private void SpawnCar(string requested)
+    private void SpawnCar(string requested) { foreach (var _ in SpawnCarSteps(requested)) { } }
+
+    /// <summary>
+    /// <see cref="SpawnCar"/> as steps (a <c>null</c> between them: where a caller with a frame budget may let a frame be drawn,
+    /// AttachSteps under the briefing); run straight through it is SpawnCar.
+    /// </summary>
+    private IEnumerable<object?> SpawnCarSteps(string requested)
     {
-        if (_net is not null && _netAccept is { } accept) { SpawnNetwork(accept); return; }
+        if (_net is not null && _netAccept is { } accept) { SpawnNetwork(accept); yield break; }
         // capture hook I76_ADDON_CARS=a.vcf,b.vcf (paths): those car files in the addon overlay under their file names (a saved variant to --drive)
         if (System.Environment.GetEnvironmentVariable("I76_ADDON_CARS") is { Length: > 0 } addons)
             foreach (var path in addons.Split(',', System.StringSplitOptions.RemoveEmptyEntries)) AssetVfs.Addon[System.IO.Path.GetFileName(path)] = System.IO.File.ReadAllBytes(path);
@@ -1032,6 +1016,7 @@ public partial class Main : Node3D
             // one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
             seed: unchecked((int)randSeed));
         MissionBuilder.Trace("spawn: sim world set up");
+        yield return null;
         var world = setup.World;
         _devStart = world.Player is { } startCar ? (startCar.Pos.X, startCar.Pos.Z, I76.Sim.Session.DevTools.HeadingOf(startCar.Rot.Forward)) : null;
         var session = new I76.Sim.Session.SimSession(setup, I76.Sim.Session.SessionOptions.SinglePlayer,
@@ -1071,6 +1056,8 @@ public partial class Main : Node3D
         if (world.Player is { } driven) session.AddDriver(driven);
         if (session.Options.DebugHooks) session.DebugBoom = System.Environment.GetEnvironmentVariable("I76_BOOM");
         _sim = new SimDriver { Session = session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio };
+        // the 1997 look's Early Tick (TickPacer), not under Modern Physics (its own steps read the keys live)
+        _sim.EarlyTick = () => _mode1997 && I76.Game.Sim.OriginalBehavior.EarlyTick && _modern?.Enabled != true;
         // the sim ticks before Main reads the script camera, so a cut-scene owns the very first frame
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;
@@ -1112,30 +1099,38 @@ public partial class Main : Node3D
         ApplyPlayOptions(playSettings);
         ApplyGraphics(playSettings);
         MissionBuilder.Trace("spawn: settings applied");
+        yield return null;
         var carNodes = _carNodes = new System.Collections.Generic.Dictionary<I76.Sim.Vehicles.Vehicle, CarNode>();
         _audio = audio;
         AddCombatView(setup.Combat);
         MissionBuilder.Trace("spawn: combat view");
+        yield return null;
         System.Numerics.Vector3 pos = default;
         string def = "";
         CarNode MakeNode(I76.Sim.Vehicles.Vehicle vehicle, string carDef) => MakeCarNode(vehicle, carDef, ground);
         foreach (var (p, carDef, vehicle) in setup.Cars)
         {
             var node = MakeNode(vehicle, carDef);
+            MissionBuilder.Trace($"spawn: car {carDef}");
+            yield return null;   // a car a step
             if (vehicle != world.Player) continue;
             pos = vehicle.Pos.ToVector3(); def = carDef;
-            SetupPlayerCar(node, vehicle, carDef, setup.Combat, handguns: true);
+            foreach (var step in SetupPlayerCarSteps(node, vehicle, carDef, setup.Combat, handguns: true)) yield return step;
+            MissionBuilder.Trace("spawn: the player's car set up");
+            yield return null;
         }
         MissionBuilder.Trace("spawn: cars made");
-        if (_car is null) { _status += "\nno drivable car"; return; }
+        if (_car is null) { _status += "\nno drivable car"; yield break; }
         var damageView = new DamageView { Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Fx = () => _combatView?.Fx, Alpha = () => _sim?.Alpha ?? 1f, Name = "Damage" };
         AddChild(damageView);
         _damageView = damageView;
         MissionBuilder.Trace("spawn: damage view");
         if (_car is { } warm) damageView.Prewarm(warm);
         MissionBuilder.Trace("spawn: car prewarmed");
+        yield return null;
         damageView.PrewarmWrecks(setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);   // and the other cars' wrecks, built once
         MissionBuilder.Trace("spawn: wrecks prewarmed");
+        yield return null;
         // the gates the script slides (type-7 nodes): their meshes follow the sim's colliders
         if (_builder.Scenery is { } gateScenery)
         {
@@ -1265,11 +1260,14 @@ public partial class Main : Node3D
     /// (and the game the first run of the code behind them): hundreds of milliseconds in the frame that showed them. Rehearsed here
     /// for a few frames, behind the loading card (the world is paused and drawn under it), then taken away: nothing of it is left.
     /// </summary>
-    private async System.Threading.Tasks.Task WarmEffects()
+    private System.Threading.Tasks.Task WarmEffects() => RunSteps(WarmEffectsSteps(), 0);
+
+    /// <summary><see cref="WarmEffects"/> as steps: a <c>null</c> between the rehearsal's parts, <see cref="DrawnFrame"/> for its frames.</summary>
+    private IEnumerable<object?> WarmEffectsSteps()
     {
-        if (System.Environment.GetEnvironmentVariable("I76_NO_WARMUP") == "1" || GetViewport().GetCamera3D() is not { } cam) return;
+        if (System.Environment.GetEnvironmentVariable("I76_NO_WARMUP") == "1" || GetViewport().GetCamera3D() is not { } cam) yield break;
         // a second playtest in a run: the renderer has made these pipelines and the views' code has run, in this look, once already
-        if (I76.Game.Editor.EditorSession.Playtest && (_warmedLooks & (_mode1997 ? 2 : 1)) != 0 && System.Environment.GetEnvironmentVariable("I76_WARM_AGAIN") != "1") { GD.Print("effects warm-up: done already in this look"); return; }
+        if (I76.Game.Editor.EditorSession.Playtest && (_warmedLooks & (_mode1997 ? 2 : 1)) != 0 && System.Environment.GetEnvironmentVariable("I76_WARM_AGAIN") != "1") { GD.Print("effects warm-up: done already in this look"); yield break; }
         _warmedLooks |= _mode1997 ? 2 : 1;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         GetTree().Paused = true;
@@ -1277,8 +1275,14 @@ public partial class Main : Node3D
         // or not), and on stand-ins of its own: nothing of the game's is touched, nothing is left to take away but what was made
         var away = cam.GlobalPosition + Vector3.Down * 400f;
         _combatView?.Warm(away);
+        MissionBuilder.Trace("rehearsal: combat");
+        yield return null;
         _combatView?.WarmImpacts(away);
+        MissionBuilder.Trace("rehearsal: impacts");
+        yield return null;
         _combatView?.WarmExplosions();
+        MissionBuilder.Trace("rehearsal: explosions");
+        yield return null;
         // the death is rehearsed on a stand-in for the player's car (never in the sim's list, freed after)
         // so the real car is never burnt and restored
         CarNode? stage = null;
@@ -1305,11 +1309,12 @@ public partial class Main : Node3D
         Collect(this);
         var was = views.Select(v => v.ProcessMode).ToList();
         foreach (var v in views) v.ProcessMode = Node.ProcessModeEnum.Always;
-        for (int i = 0; i < 4; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        MissionBuilder.Trace("rehearsal: made");
+        for (int i = 0; i < 4; i++) { yield return DrawnFrame; MissionBuilder.Trace($"rehearsal: frame {i}"); }
         for (int i = 0; i < views.Count; i++) if (IsInstanceValid(views[i])) views[i].ProcessMode = was[i];
         if (stage is not null) { _damageView?.EndWarm(stage); stage.QueueFree(); }
         _combatView?.EndWarm();
-        GetTree().Paused = false;
+        GetTree().Paused = _holdPaused;
         GD.Print($"effects warmed up in {(System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms");
     }
 
@@ -1426,9 +1431,14 @@ public partial class Main : Node3D
     /// <paramref name="handguns"/>, the driver's handguns.
     /// </summary>
     private void SetupPlayerCar(CarNode node, I76.Sim.Vehicles.Vehicle vehicle, string carDef, I76.Sim.Weapons.Combat combat, bool handguns)
+    { foreach (var _ in SetupPlayerCarSteps(node, vehicle, carDef, combat, handguns)) { } }
+
+    /// <summary>The player's car's cockpit, collider and dashboard, as steps (a <c>null</c> where a frame may be drawn: AttachSteps).</summary>
+    private IEnumerable<object?> SetupPlayerCarSteps(CarNode node, I76.Sim.Vehicles.Vehicle vehicle, string carDef, I76.Sim.Weapons.Combat combat, bool handguns)
     {
         var builder = _builder!;
-        var model = new I76.Formats.Assembly.ModelAssembler(builder.Vfs) { SkipParts = [] }.Assemble(carDef)!;
+        // the intact model as the car's parts assembled it (CarPartsCache, made on the build's thread under a briefing), else made here
+        var model = builder.CarParts.Has(carDef) ? builder.CarParts.Get(carDef).Model : new I76.Formats.Assembly.ModelAssembler(builder.Vfs) { SkipParts = [] }.Assemble(carDef)!;
         _car = node; _sim!.Player = node;
         _playerCollider = Collider(model, vehicle);
         if (System.Environment.GetEnvironmentVariable("I76_DEBUG_CAM") is not null)
@@ -1436,6 +1446,8 @@ public partial class Main : Node3D
             GD.Print($"collider centre {_playerCollider.Centre} radius {_playerCollider.Radius}");
         }
         var interior = new I76.Formats.Assembly.ModelAssembler(builder.Vfs) { Detail = '5' }.Assemble(carDef);
+        MissionBuilder.Trace("spawn: cockpit assembled");
+        yield return null;
         var vloc = model.Locations.FirstOrDefault(l => l.Tag == "VLOC" && l.Index == 40) ?? model.Locations.FirstOrDefault(l => l.Tag == "VLOC");
         var eye = vloc is null ? new System.Numerics.Vector3(-0.4f, 1.25f, 0) : new System.Numerics.Vector3(vloc.Transform.Translation[0], vloc.Transform.Translation[1], vloc.Transform.Translation[2]);
         static bool Ring(I76.Formats.Assembly.ModelPart p, char n) => p.NodeName.Length == 8 && p.NodeName[4..7].Equals("RTC", System.StringComparison.OrdinalIgnoreCase) && p.NodeName[7] == n;
@@ -1450,6 +1462,8 @@ public partial class Main : Node3D
             interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1')),
             interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6')),
             interior is null ? null : frameOf => builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && Hood(p), frameOf: frameOf));
+        MissionBuilder.Trace("spawn: cockpit meshes");
+        yield return null;
         // the gauge needles: needle.geo at the VLOCs of kind 35 (speedo) and 36 (tacho), turned every frame
         if (interior is not null && builder.Assembler?.Geo("needle") is { } needleGeo)
         {
@@ -1472,6 +1486,7 @@ public partial class Main : Node3D
             foreach (var l in model.Locations.Where(l => l.Tag == "VLOC" && l.Index is 35 or 36))
                 node.AddNeedle(l.Index - 35, needleMesh, Coords.ToGodot(I76.Formats.Assembly.Affine.From(l.Transform)));
         }
+        yield return null;
         // the live dashboard: the layout the car's VDF names at VDFC +0x40, vpit_1.elt for every car
         string eltName = "vpit_1.elt";
         if (builder.Vfs.TryRead(carDef) is { } vcfData && new I76.Formats.Bwd2.Bwd2File(vcfData).First("VCFC") is { } vc
@@ -1667,49 +1682,396 @@ public partial class Main : Node3D
                 name = I76.Formats.Mission.WorldSettings.Read(new I76.Formats.Mission.MissionFile(path))?.Briefing;
         }
         catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.ArgumentException) { return null; }
-        bool on = BriefingOverlap.Plan(I76.Game.Shell.ShellSettings.Load().BriefingWhileLoading, _opt.Mode1997, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null,
-            _opt.SkipMovies, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        bool on = BriefingOverlap.Plan(true, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null, _opt.SkipMovies);
         return on ? name : null;
     }
 
+    /// <summary>A step that must end the frame: the next one is drawn first (the effects rehearsal's frames).</summary>
+    private static readonly object DrawnFrame = new();
+
+    /// <summary>The rest of the load ran under the briefing (BuildBehindCard): _Ready goes on from the rehearsal's end.</summary>
+    private bool _attachedUnderMovie;
+    /// <summary>The load failed in AttachSteps and went back to the shell (or on to an empty world).</summary>
+    private bool _attachFailed;
+    /// <summary>What the rehearsal leaves the tree's pause at: held under the briefing, else running.</summary>
+    private bool _holdPaused;
+
     /// <summary>
-    /// The mission's world built on a thread of its own while its briefing plays (the movie draws on the main thread, the
-    /// build makes nodes outside the tree and touches none in it); both over, the world comes back for <see cref="AttachWorld"/>
-    /// on the main thread. A briefing ended early leaves the loading card up until the build is done.
+    /// The load after the build, on the main thread: the world into the tree, the sky, the look, the cars and the views, the first
+    /// tick, the prewarms and the effects rehearsal, as steps. A <c>null</c> is a point where a frame may be drawn; a
+    /// <see cref="DrawnFrame"/> must be; a Task is waited for. Run straight through (<see cref="RunSteps"/> with no budget) it is
+    /// the load as it always was; under the briefing it runs a few milliseconds a frame.
     /// </summary>
-    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildUnderBriefing(string briefing)
+    private IEnumerable<object?> AttachSteps((Load Start, Node3D? World, System.Exception? Error)? built, LoadingScreen? loading)
     {
-        // the builder is the game's (_builder, which the overlay and the views read each frame) only once the thread is done with it
+        // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
+        var load = Hitch.Time(Hitch.Phase.Load);
+        System.Exception? failed = null;
+        try
+        {
+            if (built is not { } b) LoadMission();
+            else if (b.Error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(b.Error).Throw();
+            else AttachWorld(b.Start, b.World!);
+        }
+        catch (System.Exception caught) { failed = caught; }
+        if (failed is { } ex)
+        {
+            _status = $"failed to load: {ex.Message}";
+            GD.PrintErr(ex.ToString());
+            // from the shell, back to it saying why, rather than an empty world (a custom map missing its terrain)
+            if (_launch is { Kind: not I76.Game.Shell.GameKind.Multiplayer })
+            {
+                load.Dispose();
+                if (loading is not null) loading.QueueFree();
+                _loading = false;
+                BackFromLoadFailure(ex is System.IO.FileNotFoundException ? ex.Message : $"{_opt.Mission} could not be loaded: {ex.Message}");
+                _attachFailed = true;
+                yield break;
+            }
+        }
+        MissionBuilder.Trace("mission loaded");
+        yield return null;
+        AddDropShadows();
+        MissionBuilder.Trace("drop shadows");
+        yield return null;
+        var loaded = I76.Game.Shell.ShellSettings.Load();
+        _drawChoice = loaded.DrawDistanceChoice;
+        _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
+        SetMode1997(_opt.Mode1997);
+        MissionBuilder.Trace("look set");
+        yield return null;
+        if (_opt.Drive is not null && _builder?.World is not null)
+        {
+            foreach (var step in SpawnCarSteps(_opt.Drive)) yield return step;
+            MissionBuilder.Trace("car spawned");
+            if (_car is { } drv && _damageView is not null) _damageView.Prewarm(drv);   // as a mission's own car gets it (the capture path)
+            MissionBuilder.Trace("damage view prewarmed");
+            if (_builder.Scenery is { } sc) sc.Markers.Visible = false;   // the original draws no marker for its keywords
+        }
+        if (_editorMode && _builder?.World is not null) { StartEditor(); StartRingBuild(); }
+        // From the menu the scene is rebuilt after the frame's _Process calls and that frame is still
+        // drawn, so tick 0 and the camera choice happen here, or the chase view flashes before a cut-scene.
+        if (_sim is not null)
+        {
+            if (_resumed) { _sim.Resume(); _sim.Hold = System.Environment.GetEnvironmentVariable("I76_CHECKPOINT_HOLD") == "1"; }
+            else { if (_net is null) _sim.Session.SettleCars(); _sim.FirstTick(); }
+            UpdateScriptCamera();
+        }
+        // the plants about the first view, behind the loading card
+        _loaded = true;
+        FrameProfiler.MarkLoaded();
+        MissionBuilder.Trace("first tick done");
+        yield return null;
+        _veg?.Prewarm();
+        MissionBuilder.Trace("vegetation prewarmed");
+        yield return null;
+        _builder?.Scenery?.Trees.Prewarm();
+        MissionBuilder.Trace("trees prewarmed");
+        load.Dispose();
+        MissionBuilder.Trace("car, first tick");
+        yield return FinishLightingCalibration();
+        MissionBuilder.Trace("lighting calibration applied");
+        if (MissionBuilder.TraceOn) TraceFrames(6);
+        if (loading is not null) foreach (var step in WarmEffectsSteps()) yield return step;
+    }
+
+    /// <summary>The longest a step ran past its frame's budget under the briefing, and how many steps did (the movie's late frames' cause).</summary>
+    public static double AttachWorstStepMs, AttachStepsOverBudget;
+
+    /// <summary>
+    /// Runs <paramref name="steps"/>: a Task is waited for a frame at a time, a <see cref="DrawnFrame"/> waits a frame, and with a
+    /// <paramref name="budgetMs"/> over 0 a frame is let through whenever the steps since the last one took that long
+    /// (<see cref="_stepBudget"/> may change it meanwhile). With no budget the steps run in the same frame, as plain code would.
+    /// </summary>
+    private async System.Threading.Tasks.Task RunSteps(IEnumerable<object?> steps, double budgetMs, System.Func<bool>? gate = null)
+    {
+        if (budgetMs > 0) _stepBudget = budgetMs;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        double last = 0;
+        using var e = steps.GetEnumerator();
+        while (true)
+        {
+            // the gate shut (the card fading, the briefing playing): no step until it opens, the frames drawn meanwhile
+            if (gate is not null && !gate())
+            {
+                while (!gate()) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+                sw.Restart(); last = 0;
+            }
+            _stepRunning = true;
+            bool more = e.MoveNext();
+            _stepRunning = false;
+            if (!more) break;
+            var step = e.Current;
+            double now = sw.Elapsed.TotalMilliseconds, took = now - last;
+            last = now;
+            if (budgetMs > 0 && took > AttachWorstStepMs) AttachWorstStepMs = took;
+            if (budgetMs > 0 && took > _stepBudget) AttachStepsOverBudget++;
+            if (step is System.Threading.Tasks.Task t)
+            {
+                while (!t.IsCompleted) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+                sw.Restart(); last = 0;
+            }
+            else if (step == DrawnFrame || (budgetMs > 0 && sw.Elapsed.TotalMilliseconds >= _stepBudget))
+            {
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!IsInsideTree()) return;
+                sw.Restart(); last = 0;
+            }
+            if (_holdPaused) GetTree().Paused = true;
+        }
+    }
+
+    private double _stepBudget;
+    /// <summary>A step of AttachSteps is running (the card's hold is held past its time for it, never cut: BuildBehindCard).</summary>
+    private bool _stepRunning;
+
+    /// <summary>A mission's world being built on a thread of its own (<see cref="StartBuildJob"/>); <see cref="World"/> and <see cref="Error"/> once it is done.</summary>
+    private sealed class BuildJob(Load start, System.Threading.Thread thread)
+    {
+        public Load Start { get; } = start;
+        public System.Threading.Thread Thread { get; } = thread;
+        public Node3D? World;
+        public System.Exception? Error;
+        public bool Done => !Thread.IsAlive;
+        public bool Noted;
+    }
+
+    private System.Diagnostics.Stopwatch? _cardClock;
+
+    /// <summary>Runs <paramref name="then"/> after the next frame is drawn (once).</summary>
+    private static void OnNextDraw(System.Action then)
+        => RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(then), (uint)GodotObject.ConnectFlags.OneShot);
+
+    /// <summary>
+    /// The mission's world built on a thread of its own from now, before the card is drawn (the build makes nodes outside the tree
+    /// and touches none in it; the props' material maps are held and put on after, on the main thread). The builder is the game's
+    /// (_builder, which the overlay and the views read each frame) only once the thread is done with it.
+    /// </summary>
+    private BuildJob StartBuildJob()
+    {
         var start = StartLoad();
         var builder = start.Builder;
         builder.OffMainThread = true;
-        Node3D? world = null;
-        System.Exception? error = null;
-        MissionBuilder.Trace("build: on its own thread, under the briefing");
+        MissionBuilder.Trace("build: on its own thread");
+        BuildJob? job = null;
+        string? requested = _opt.Drive is { Length: > 0 } d ? (d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase) ? d : d + ".vcf") : null;
+        int variant = DriverVariant();
         var thread = new System.Threading.Thread(() =>
         {
-            try { world = builder.Build(start.Msn); }
-            catch (System.Exception ex) { error = ex; }
-            start.Clock.Stop();   // the status line's time is the build's, not the movie's
-        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
+            LoadProfiler.Open();
+            MainThread.Allowed = true;   // (the debug builds' check of the map editor's workers: this thread's engine work is the renderer's queued calls)
+            I76.Game.Assets.TextureFactory.PrefetchThreads = System.Math.Max(1, System.Environment.ProcessorCount / 2);   // the briefing's frames first
+            try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); PrefetchCockpitArt(builder, variant); }
+            catch (System.Exception ex) { job!.Error = ex; }
+            start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
+            LoadProfiler.Event("build done");
+        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.Normal, Name = "mission-build" };
+        job = new BuildJob(start, thread);
         if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
         thread.Start();
-        var over = new System.Threading.Tasks.TaskCompletionSource();
-        try { PlayMovies(start.Install, [briefing], () => over.TrySetResult()); }
-        catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
-        bool built = false;
-        while (thread.IsAlive || !over.Task.IsCompleted)
+        return job;
+    }
+
+    /// <summary>
+    /// The mission's cars' parts (the assembled model, the body, weapon, lamp and wheel meshes and their textures: CarPartsCache), made
+    /// on the build's thread after the world, so that the spawn on the main thread only makes their nodes (it was 3 to 6 s of the
+    /// main thread's load in t01 and t05, docs/perf/loadtime.md): every placement's .vcf and the car asked for. A car the spawn does
+    /// not use costs its parts' memory for the mission; a helicopter's are made again at the spawn (its node edits its rotor).
+    /// I76_CAR_PREFETCH=0 leaves them to the spawn.
+    /// </summary>
+    private static void PrefetchCars(MissionBuilder builder, string? requested)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_CAR_PREFETCH") == "0" || builder.World is not { } w || builder.Meshes is null) return;
+        var defs = w.Placements.Select(p => p.Definition).Where(d => d is not null && d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase)).Cast<string>()
+            .Append(requested).OfType<string>().Distinct(System.StringComparer.OrdinalIgnoreCase).ToList();
+        int made = 0;
+        foreach (var def in defs)
         {
-            if (!built && !thread.IsAlive) { built = true; FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load()); MissionBuilder.Trace($"build: done under the briefing ({start.Clock.ElapsedMilliseconds} ms)"); }
+            try { if (builder.Vfs.Exists(def) && !builder.CarParts.Has(def)) { builder.CarParts.Get(def); made++; } }
+            catch (System.Exception ex) { GD.Print($"car prefetch {def}: {ex.Message}"); }   // the spawn makes it, or says why
+        }
+        MissionBuilder.Trace($"cars prefetched ({made} of {defs.Count})");
+    }
+
+    /// <summary>
+    /// The player's cockpit's frames (the wheel, the arms, the radar: ~130 pictures, a pack's upscales decoded) on the build's thread
+    /// after the cars, which the cockpit's first frame decoded on the main thread (most of the player's car's 1.1 s set-up).
+    /// </summary>
+    private static void PrefetchCockpitArt(MissionBuilder builder, int variant)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_CAR_PREFETCH") == "0" || builder.Textures is not { } tf || builder.Resolver is not { } res) return;
+        tf.Prefetch(I76.Game.Sim.Cockpit.ArtStems(variant).Select(res.FindByStem).OfType<string>(), rgba: true);
+        MissionBuilder.Trace("cockpit art prefetched");
+    }
+
+    /// <summary>
+    /// The modern look's effects (ModernFx: the explosion, fire and smoke flipbooks into its texture cache, their pipelines) made
+    /// under the card while the world builds, a part a frame on a stage far below: none of it needs the mission's world, and the
+    /// card is a still picture, so the frames it takes show nothing. The rehearsal after the build finds them made.
+    /// </summary>
+    private async void WarmModernFxUnderCard()
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_NO_WARMUP") == "1" || _mode1997) return;
+        var stage = new Node3D { Name = "CardFxStage", Position = new Vector3(0, -20000, 0) };
+        AddChild(stage);
+        try
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var fx = new I76.Game.Sim.ModernFx { Name = "WarmFx", SceneLight = 1f, ProcessMode = ProcessModeEnum.Always };
+            stage.AddChild(fx);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            foreach (var _ in fx.WarmSteps(stage.GlobalPosition)) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            for (int i = 0; i < 3; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            MissionBuilder.Trace("card: modern effects made");
+        }
+        catch (System.Exception ex) { GD.PushWarning($"effects under the card: {ex.Message}"); }
+        finally { if (IsInstanceValid(stage)) stage.QueueFree(); }
+    }
+
+    /// <summary>
+    /// The card and the briefing while the world builds (CardSequence): card_first, the card for the retail game's time, then the
+    /// movie, then the card again until the build is done; movie_first, the movie at once, then the card; no briefing, the card
+    /// until the build is done (and the retail time at least). The card is up when this returns, for the rest of the load.
+    /// </summary>
+    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, CardOrder order, LoadingScreen loading)
+    {
+        var seq = new CardSequence(order, briefing is not null);
+        var over = new System.Threading.Tasks.TaskCompletionSource();
+        _cardClock ??= System.Diagnostics.Stopwatch.StartNew();
+        bool cardUp = !(briefing is not null && order == CardOrder.MovieFirst), movieStarted = false;
+        System.Threading.Tasks.Task? attach = null;
+        void Noted()
+        {
+            if (job.Noted || !job.Done) return;
+            job.Noted = true;
+            FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
+            MissionBuilder.Trace($"build: done ({job.Start.Clock.ElapsedMilliseconds} ms)");
+        }
+        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: behind the card (a still picture: a
+        // long step shows nothing), never under the briefing unless I76_ATTACH_UNDER_MOVIE=1 (its steps are single calls of 50 ms to
+        // 1.2 s, and the movie must play clean: round 2, docs/perf/loadtime-plan.md), then behind the card again after it.
+        // I76_ATTACH_EARLY=0: all of it after the briefing, as round 1.
+        bool early = System.Environment.GetEnvironmentVariable("I76_ATTACH_EARLY") != "0";
+        bool underMovie = System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE") == "1";
+        double budget = double.TryParse(System.Environment.GetEnvironmentVariable("I76_ATTACH_BUDGET_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bm) ? bm : AttachBudgetMs;
+        bool fading = false;
+        // a step may run: the card up and still (not fading), or the briefing over; under the briefing only with the hook
+        bool Gate() => !fading && (cardUp || over.Task.IsCompleted || (underMovie && movieStarted));
+        WarmModernFxUnderCard();
+        void StartAttach()
+        {
+            if (attach is not null || !early || !job.Done || job.Error is not null) return;
+            job.Thread.Join();
+            Noted();
+            Adopt(job);
+            _holdPaused = true;
+            GetTree().Paused = true;
+            _attachedUnderMovie = true;
+            MissionBuilder.Trace($"attach: begins ({(cardUp ? "behind the card" : "under the briefing")})");
+            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate);
+        }
+        while (true)
+        {
+            Noted();
+            StartAttach();
+            var was = seq.Now;
+            // the card's time is to the movie's first frame: it starts fading out that much before
+            var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted);
+            if (now == CardSequence.Stage.Movie && !movieStarted)
+            {
+                if (cardUp)
+                {
+                    // (a step in flight finished first: the steps run between frames, so the hold ends at the frame after it)
+                    double late = _cardClock.Elapsed.TotalSeconds + loading.FadeSeconds - BriefingOverlap.RetailCardSeconds;
+                    CardOverrunMs = System.Math.Max(0, late * 1000);
+                    MissionBuilder.Trace($"card: held {CardOverrunMs:0} ms past its time");
+                    fading = true;
+                    await loading.FadeOut(); cardUp = false; fading = false;
+                    if (!IsInsideTree()) break;
+                }
+                movieStarted = true;
+                // under the movie the build gives way to its decoding (at the normal priority behind the card)
+                try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.BelowNormal; } catch (System.Threading.ThreadStateException) { }
+                MissionBuilder.Trace("briefing starts");
+                OnNextDraw(() => LoadProfiler.Event("movie start"));
+                try { PlayMovies(job.Start.Install, [briefing!], () => over.TrySetResult()); }
+                catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
+            }
+            if (was == CardSequence.Stage.Movie && now != CardSequence.Stage.Movie)
+            {
+                try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.Normal; } catch (System.Threading.ThreadStateException) { }
+                LoadProfiler.Event("movie over");
+                MissionBuilder.Trace("briefing over");
+                _stepBudget = AttachAfterMovieBudgetMs;   // nothing to keep smooth now but the card's ramp
+            }
+            // the briefing over and the rest of the load done under it: straight on to the mission, no card
+            if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && attach is { IsCompleted: true } && !cardUp) break;
+            // the card back: the briefing over before the mission is ready
+            if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && !cardUp)
+            {
+                cardUp = true;
+                OnNextDraw(() => LoadProfiler.Event("card again"));
+                fading = true;
+                await loading.FadeIn();
+                fading = false;
+                MissionBuilder.Trace("loading card up, after the briefing");
+                if (!IsInsideTree()) break;
+                continue;
+            }
+            if (now == CardSequence.Stage.Attach && (attach is null || attach.IsCompleted)) break;
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!IsInsideTree()) break;
         }
-        thread.Join();
-        if (!built) FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
+        _cardDown = !cardUp;
+        if (attach is not null)
+        {
+            await attach;   // (done, or the briefing's end found it short of its end: it finishes behind the card, at the after-movie budget)
+            _holdPaused = false;
+            MissionBuilder.Trace("attach: done");
+            return (job.Start, job.World, job.Error);
+        }
+        job.Thread.Join();
+        Noted();
+        Adopt(job);
+        MissionBuilder.Trace("build: behind the card, over");
+        return (job.Start, job.World, job.Error);
+    }
+
+    /// <summary>The main thread's milliseconds a frame for the rest of the load under the briefing with I76_ATTACH_UNDER_MOVIE=1 (I76_ATTACH_BUDGET_MS).</summary>
+    public const double AttachBudgetMs = 4;
+    /// <summary>How long the card stayed past the retail time, the last start (a step finishing): the load profile's line.</summary>
+    public static double CardOverrunMs;
+    /// <summary>... and after it, behind the card: long enough to finish soon, short enough for the card's ramp.</summary>
+    public const double AttachAfterMovieBudgetMs = 250;
+    /// <summary>The briefing ended with the rest of the load done: no card after it (_Ready skips the card's fade out).</summary>
+    private bool _cardDown;
+
+    /// <summary>The thread's builder becomes the game's, the props' maps put on (here as at the end of a built frame).</summary>
+    private void Adopt(BuildJob job)
+    {
+        if (_builder == job.Start.Builder) return;
+        var builder = job.Start.Builder;
         _builder = builder;
-        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
-        MissionBuilder.Trace("build: briefing and build both over");
-        return (start, world, error);
+        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }
+    }
+
+    /// <summary>I76_LOAD_PROFILE_QUIT=1: quits 3 s into the mission (the harness's run is its load).</summary>
+    private async void QuitSoon()
+    {
+        await ToSignal(GetTree().CreateTimer(3.0, processAlways: true), SceneTreeTimer.SignalName.Timeout);
+        // I76_LOAD_PROFILE_NEXT=t05,t01: those missions after it in the same run (the command line's kind: --melee stays), as the shell launches one: what a second load finds made
+        if (System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_NEXT") is { Length: > 0 } next)
+        {
+            var rest = next.Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+            System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_NEXT", string.Join(',', rest.Skip(1)));
+            var csv = System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_CSV");
+            if (csv is { Length: > 0 }) System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_CSV", csv.Replace(".csv", $".{rest[0]}.csv"));
+            LoadProfiler.Click();
+            NextMission = rest[0];
+            GetTree().ReloadCurrentScene();
+            return;
+        }
+        GetTree().Quit();
     }
 
     /// <summary>The rest of the load on the main thread: the built world into the tree, the sky, the music, the camera.</summary>
@@ -1955,7 +2317,10 @@ public partial class Main : Node3D
         // the sky itself is drawn every frame either way. I76_SKY_REALTIME=1 for the old way.
         _calibratedSky = modernSky;
         _calibratedLight = light;
-        SolveLightingCalibration();
+        MissionBuilder.Trace("sky materials");
+        // at a load: its arithmetic beside the rest of the load (I76_CALIBRATION_BESIDE=0: here, as before)
+        SolveLightingCalibration(background: System.Environment.GetEnvironmentVariable("I76_CALIBRATION_BESIDE") != "0");
+        MissionBuilder.Trace("lighting calibration");
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
         AddSkyFog(modernSky);
@@ -1999,9 +2364,10 @@ public partial class Main : Node3D
     /// colours (linear) from above the horizon and the horizon panels' foot (what the radiance map holds there) from below.
     /// By day only: a night's light is the cars' and the moon's (left as tuned).
     /// </summary>
-    private void SolveLightingCalibration()
+    private void SolveLightingCalibration(bool background = false)
     {
         _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
+        _calibrationJob = null;
         if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || !light.IsDay || _builder?.World is not { } world
             || _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLightingCalibration(); return; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -2019,13 +2385,56 @@ public partial class Main : Node3D
         var sun = Lin(_sun.LightColor, _sun.LightEnergy);
         var curve = _lighting == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
         bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
-        var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, LumaBytes(), light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
-        var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, LumaBytes(), light.Intensity, light.Ambient, sun, skyUp, skyDown,
-            card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
-        var c = _calibration = I76.Formats.Imaging.LightingCalibration.Solve(img.GetData(), ground, objects, curve);
-        GD.Print($"lighting calibration ({curve}): {ground.Count} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
-            + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms");
-        ApplyLightingCalibration();
+        var luma = LumaBytes();
+        var pixels = img.GetData();
+        // the cells and the solve are the Formats library's arithmetic: at a mission's load on a worker while the rest of the load
+        // goes on behind the card (FinishLightingCalibration applies it before the card goes), else here
+        I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
+        {
+            var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
+            var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, luma, light.Intensity, light.Ambient, sun, skyUp, skyDown,
+                card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
+            kinds = ground.Count;
+            return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
+        }
+        void Done(I76.Formats.Imaging.LightingCalibration.Result c, int kinds)
+        {
+            _calibration = c;
+            GD.Print($"lighting calibration ({curve}): {kinds} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
+                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms{(background ? " (beside the load)" : "")}");
+            ApplyLightingCalibration();
+        }
+        if (background)
+        {
+            var job = System.Threading.Tasks.Task.Run(() => { var r = Solve(out int k); return (r, k); });
+            _calibrationJob = job;
+            _calibrationDone = () => { if (job.IsCompletedSuccessfully) Done(job.Result.r, job.Result.k); else GD.PrintErr($"lighting calibration: {job.Exception?.GetBaseException().Message}"); };
+            ApplyLightingCalibration();   // (uncalibrated until it is done: behind the card)
+            return;
+        }
+        var res = Solve(out int n);
+        Done(res, n);
+    }
+
+    private System.Threading.Tasks.Task? _calibrationJob;
+    private System.Action? _calibrationDone;
+
+    /// <summary>The load's lighting calibration (solved beside the rest of the load, SolveLightingCalibration) applied, once it is done.</summary>
+    private async System.Threading.Tasks.Task FinishLightingCalibration()
+    {
+        if (_calibrationJob is not { } job) return;
+        if (!job.IsCompleted)
+        {
+            // the world held still meanwhile, as under the effects rehearsal: the mission does not start behind the card
+            bool was = GetTree().Paused;
+            GetTree().Paused = true;
+            while (!job.IsCompleted) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+            GetTree().Paused = was;
+        }
+        if (_calibrationJob != job) return;   // (solved again meanwhile: a setting changed)
+        _calibrationJob = null;
+        _calibrationDone?.Invoke();
+        _calibrationDone = null;
     }
 
     private bool _horizonFootFound;
@@ -2745,7 +3154,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("look: materials, scenery");
         if (_pit is not null) _pit.Faithful = on;
         if (_sim is not null) foreach (var c in _sim.Cars) { c.Modern = !on; if (c.Wrecked) _damageView?.Rebuild(c); }   // the wreck's shape: modern shell or the 1997 box
-        GetViewport().Msaa3D = on ? Viewport.Msaa.Disabled : RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+        GetViewport().Msaa3D = Msaa1997(on);
         MissionBuilder.Trace("look: msaa");
         ApplyModernQuality();
         MissionBuilder.Trace("look: modern quality");
@@ -2777,7 +3186,8 @@ public partial class Main : Node3D
             && _opt.Install is not null;
         bool chase = !CameraHeld && _chase is { Current: true, Fixed: null };
         bool cockpit = !CameraHeld && _car?.CockpitCamera?.Current == true && _pit is { Binoculars: false } && I76.Formats.Input.DashToggle.FreeLookAllowed(_pit.Dash3D);
-        bool focused = DisplayServer.WindowIsFocused() || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;   // (a capture's off-screen window is never focused)
+        // (a capture's off-screen window is never focused; I76_QUIET_WINDOW's counts as unfocused, whatever Windows says, but for I76_MOUSE's scripted motion)
+        bool focused = (!QuietWindow.Active && DisplayServer.WindowIsFocused()) || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;
         // the network game's standings locked up show the pointer, as a menu does (the view's zoom is left as it is)
         var mode = CursorPolicy.For(inMission && _netHud?.Pointer != true, chase, MouseCamera.Level, focused, MouseCamera.Confine, cockpit, MouseCamera.CockpitLook);
         // the mouse orbits the chase view (or turns the head in the 3D cockpit) only while captured, unpaused and no orbit key is held
@@ -2786,7 +3196,7 @@ public partial class Main : Node3D
         // the wheel zooms the external view on screen, whether or not the mouse orbits it
         MouseCamera.WheelView = inMission && !CameraHeld && !_gamePaused && _chase!.Orbit?.Invoke() != true ? WheelViewNow() : null;
         TrackViewForZoom(inMission);
-        ApplyCursor(mode);
+        ApplyCursor(QuietWindow.Active ? CursorMode.Visible : mode);   // the quiet window never confines or captures the pointer (scripted motion still orbits)
     }
 
     /// <summary>The zoom the wheel turns in the view on screen; null in the cockpit (and binoculars), where the wheel stays free.</summary>

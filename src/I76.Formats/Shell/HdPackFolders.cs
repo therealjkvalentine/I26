@@ -1,27 +1,29 @@
 namespace I76.Formats.Shell;
 
 /// <summary>
-/// Which folder of the user directory holds the world texture pack: tex-world-4x, tex-world-3x and tex-world-2x side by side (pack.json's
-/// "scale" says each one's size), or the plain tex-world of a pack made before the sizes had folders.
+/// Which folders of the user directory hold the world texture pack: tex-world-8x, tex-world-4x, tex-world-3x and tex-world-2x side
+/// by side (pack.json's "scale" says each one's size), or the plain tex-world of a pack made before the sizes had folders. A folder
+/// may hold only some textures (pack.json's "partial" and "covers": the 8x pack of the cockpit and the cars), so the loader reads a
+/// chain of them (<see cref="Chain"/>), per texture: the chosen size's file when that folder has it, else the next size down's.
 /// </summary>
 public static class HdPackFolders
 {
-    /// <summary>The sizes the loader looks for, largest first; the first is the default and the only one Graphic Detail's HD Textures row offers (HdTextureRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
-    public static readonly int[] Sizes = [4, 3, 2];
+    /// <summary>The sizes the loader looks for, largest first. The HD Textures row offers 4x (the default) and 8x (HdTextureRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
+    public static readonly int[] Sizes = [8, 4, 3, 2];
     public const int DefaultSize = 4;
     public const string Plain = "tex-world";
 
     public static string Folder(int size) => $"{Plain}-{size}x";
 
-    /// <summary>A stored size in the offered set, else the default (a hand-edited file).</summary>
+    /// <summary>A stored size in the set, else the default (a hand-edited file).</summary>
     public static int Normalize(int size) => Array.IndexOf(Sizes, size) >= 0 ? size : DefaultSize;
 
     /// <summary>The sizes whose folders exist, largest first (<paramref name="exists"/> takes a folder name).</summary>
     public static int[] Available(Func<string, bool> exists) => [.. Sizes.Where(s => exists(Folder(s)))];
 
     /// <summary>
-    /// The folder to load: the chosen size's when it exists, else the plain tex-world, else (an install with only other sizes) the
-    /// nearest size present; null for none.
+    /// The first folder to load: the chosen size's when it exists, else the plain tex-world, else (an install with only other sizes) the
+    /// nearest size present (a tie takes the larger); null for none.
     /// </summary>
     public static string? Choose(int size, Func<string, bool> exists)
     {
@@ -31,4 +33,21 @@ public static class HdPackFolders
         var have = Available(exists);
         return have.Length == 0 ? null : Folder(have.MinBy(s => Math.Abs(s - size)));
     }
+
+    /// <summary>
+    /// The folders a texture is looked for in, in order: <see cref="Choose"/>'s, then every smaller size present, largest first. A
+    /// texture missing from a partial pack (an 8x of the cockpit and the cars) comes from the next size down (the 4x); a full pack
+    /// has every texture, so the rest of the chain is never read. The plain tex-world has no size: nothing follows it. Empty for none.
+    /// </summary>
+    public static string[] Chain(int size, Func<string, bool> exists)
+    {
+        if (Choose(size, exists) is not { } first) return [];
+        if (first == Plain) return [first];
+        int top = SizeOf(first);
+        return [first, .. Available(exists).Where(s => s < top).Select(Folder)];
+    }
+
+    /// <summary>The size a chain's first folder serves (0 for the plain tex-world or none).</summary>
+    public static int SizeOf(string? folder) =>
+        folder is not null && folder.StartsWith(Plain + "-") && folder.EndsWith('x') && int.TryParse(folder.AsSpan(Plain.Length + 1, folder.Length - Plain.Length - 2), out int s) ? s : 0;
 }

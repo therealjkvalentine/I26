@@ -435,13 +435,14 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
             // the port's MSAA in +0x8 (the shell's list, 8x too), live
             case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x; Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off, 4x and 8x when their folders are there; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
                 bool anyPack = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
-                if (HdTextureRow.Names(sizes, anyPack, Settings.HdTextureSize) is not { } hd) return null;
+                var covers8 = I76.Game.Assets.HdTextures.CoversOf(HdTextureRow.Large);
+                if (HdTextureRow.Names(sizes, anyPack, Settings.HdTextureSize, covers8) is not { } hd) return null;
                 return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live,
-                    s => HdTextureRow.Names(sizes, anyPack, s.HdTextureSize) ?? hd);
+                    s => HdTextureRow.Names(sizes, anyPack, s.HdTextureSize, covers8) ?? hd);
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             case GraphicsRow.VSync: return Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live);
             case GraphicsRow.MaxFps: return Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live);

@@ -117,6 +117,12 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// materials ask for them one at a time). Nothing touches the renderer.
     /// <paramref name="rgba"/>: they are painted on the CPU (GetRgba), so a .dds is decompressed there too.
     /// </summary>
+    /// <summary>
+    /// The workers a Prefetch from this thread may use (0: as many as the pool gives). The mission's build sets half the cores:
+    /// its prefetches run under the briefing, whose frames the main thread must still draw on time (Main.StartBuildJob).
+    /// </summary>
+    [System.ThreadStatic] public static int PrefetchThreads;
+
     public void Prefetch(IEnumerable<string> members, bool rgba = false)
     {
         if (!Hd || HdTextures.Source is null) return;
@@ -133,7 +139,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         }
         if (todo.Count == 0) return;
         var made = new HdPic?[todo.Count];
-        System.Threading.Tasks.Parallel.For(0, todo.Count, i =>
+        System.Threading.Tasks.Parallel.For(0, todo.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
         {
             if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
             made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
@@ -194,11 +200,15 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 
     private Entry? Make(string member)
     {
+        long t0 = I76.Game.Boot.LoadProfiler.On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         if (Original(member) is not { } o) return null;
         var b = Bled(member)!;
-        var img = Hd && HdOf(member) is { } h ? Picture(h) : Prepare(b).Img;
+        bool hd = Hd && HdOf(member) is not null;
+        var img = hd ? Picture(HdOf(member)!) : Prepare(b).Img;
         // keyed as the original is: an upscale carries the original's key
-        return new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        var e = new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        if (t0 != 0) { double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds; I76.Game.Boot.LoadProfiler.Texture(hd, img.GetDataSize(), ms); }
+        return e;
     }
 
     private readonly Dictionary<string, byte[]?> _edgeField = new(StringComparer.OrdinalIgnoreCase);

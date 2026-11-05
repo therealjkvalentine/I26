@@ -27,6 +27,8 @@
 #   GODOT=/path/to/godot names the Godot .NET binary (default: godot-mono, else godot on PATH).
 #   The two agree to within run-to-run noise but for one seen difference: the modern look's car side windows
 #   are solid black on lavapipe and dark glass on the GPU (which is right isn't settled).
+# The game runs with I76_QUIET_WINDOW=1 (docs/dev-hooks.md) unless it is set (empty or 0: off): a window of exactly I76_SHOT_SIZE that never
+#   confines or captures the pointer; on a private display that changes nothing else, and run by hand on a desktop it stays out of the way.
 # Each run gets its own display / compositor and its own user:// (see below), so several can run at once.
 # Godot 4.7 on Wayland can hang in its own exit (about one run in twenty-five here); the game's ExitWatchdog
 #   wakes it ("exit watchdog: ..." on stderr), so a run ends; I76_EXIT_WATCHDOG=0 leaves that out.
@@ -51,7 +53,7 @@ elif [ -n "${I76_SHOT_GL:-}" ]; then render_args=(--rendering-driver opengl3 --r
 else render_args=(--rendering-driver vulkan); gpu_ok='^Vulkan .* Using Device'; fi
 
 godot() { # godot [display args...]: the game, with the shot args
-    timeout ${I76_SHOT_TIMEOUT:-600} "$godot_bin" --audio-driver Dummy ${I76_SHOT_FPS:+--fixed-fps $I76_SHOT_FPS} ${I76_SHOT_MAX_FPS:+--max-fps $I76_SHOT_MAX_FPS} ${I76_FRAME_PROFILE:+--gpu-profile} "$@" --path "$here/game" --windowed --resolution "$size" -- \
+    I76_QUIET_WINDOW=${I76_QUIET_WINDOW-1} timeout ${I76_SHOT_TIMEOUT:-600} "$godot_bin" --audio-driver Dummy ${I76_SHOT_FPS:+--fixed-fps $I76_SHOT_FPS} ${I76_SHOT_MAX_FPS:+--max-fps $I76_SHOT_MAX_FPS} ${I76_FRAME_PROFILE:+--gpu-profile} "$@" --path "$here/game" --windowed --resolution "$size" -- \
         "${install_args[@]}" $([ -n "${I76_SHOT_MOVIES:-}" ] || echo --skip-movies) --screenshot "$out" --quit-after "${I76_SHOT_FRAMES:-12}" "${game_args[@]}"
 }
 

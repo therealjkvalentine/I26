@@ -44,7 +44,7 @@
   {
    "op": "text",
    "text": "PALOMINO",
-   "font": "RussoOne",
+   "font": "Bitter",
    "cap": 6,
    "center": [
     64.5,
@@ -72,6 +72,9 @@
      18,
      22
     ]
+   },
+   "variation": {
+    "Weight": 700
    }
   }
  ]

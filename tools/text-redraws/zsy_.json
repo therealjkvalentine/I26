@@ -1,11 +1,13 @@
 {
   "textures": ["zsy_"],
-  "note": "the damage panel's maker's plate, 'MR.DAMAGE by Ramone' (the signature as read from the painted texels)",
+  "note": "the damage panel's maker's plate: '(c) 1971' (a 3-texel line: its last two glyphs read as a 7, a bar with a stem, and a 1, a lone stem; the first two are not resolvable), 'MR.DAMAGE', 'by Rammo' (the signature)",
   "ops": [
+    {"op": "erase", "rect": [189, 42, 205, 47.5], "where": {"lum_below": 45}, "grow": 0.6},
     {"op": "erase", "rect": [186, 49, 222, 60], "where": {"lum_below": 45}, "grow": 0.7},
     {"op": "erase", "rect": [186, 59, 220, 83], "where": {"lum_below": 45}, "grow": 0.7},
+    {"op": "text", "text": "© 1971", "font": "LeagueGothic", "cap": 3.1, "center": [197.0, 45.0], "width": 14, "colour": [17, 17, 14]},
     {"op": "text", "text": "MR.DAMAGE", "font": "LeagueGothic", "cap": 7, "center": [203.5, 54.5], "width": 33, "colour": [17, 17, 14]},
     {"op": "text", "text": "by", "font": "MrDafoe", "cap": 6, "center": [197.5, 62.5], "colour": [17, 17, 14]},
-    {"op": "text", "text": "Ramone", "font": "MrDafoe", "cap": 9, "center": [201, 71.5], "width": 31, "rotate": 22, "colour": [17, 17, 14]}
+    {"op": "text", "text": "Rammo", "font": "MrDafoe", "cap": 9, "center": [201, 71.5], "width": 29, "rotate": 22, "colour": [17, 17, 14]}
   ]
 }

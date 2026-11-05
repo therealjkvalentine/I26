@@ -18,6 +18,8 @@ public static class GarageWarmup
     public const int DrawFrames = 3;
 
     private static AssetsKey? _done;
+    /// <summary>It is under way (the menu's own warm-up, MenuWarmup, waits for it).</summary>
+    public static bool Running { get; private set; }
     private sealed record AssetsKey(object Vfs, bool Faithful);
 
     public static bool Wanted(Shell shell) =>
@@ -32,6 +34,7 @@ public static class GarageWarmup
         if (_done == key) return;
         _done = key;
         GarageRoom.Prepare();
+        Running = true;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         GarageStage? stage = null;
         try
@@ -67,6 +70,7 @@ public static class GarageWarmup
         catch (Exception ex) { GD.PushWarning($"garage warm-up: {ex.Message}"); }
         finally
         {
+            Running = false;
             if (stage is not null && GodotObject.IsInstanceValid(stage)) stage.QueueFree();
         }
     }

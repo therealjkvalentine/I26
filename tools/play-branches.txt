@@ -1,5 +1,5 @@
 # The patch stack, in merge order (= the order to offer upstream). One branch a line; # starts a comment.
-# tools/sync-play.ps1 rebuilds `play` from origin/master + play-meta + these. See docs/play-tracker.md.
+# tools/sync-play.ps1 merges the new ones of these onto `play`; this file and docs/play-tracker.md live on play (pass 19). See docs/play-tracker.md.
 
 # A. reported upstream
 fix/wheel-suspension-prime            # #141 spawn bob
@@ -289,3 +289,22 @@ perf/graphics-defaults                # section S, stacked on frame-cost-survey 
 
 # T. font redraws (2026-11-05)
 feat/font-redraws                     # section T: tools/text-redraws.py + per-texture specs: lettering re-drawn from OFL fonts into the 4x pack (dials of four dash families, damage panel, MR.DAMAGE, Piranha plate and badge incl. dented, police doors, seven cars' tails); the step runs on each machine's pack
+
+# U. console hygiene (2026-11-05)
+feat/quiet-test-window                # section U: I76_QUIET_WINDOW: test and capture runs start windowed, hand focus back and sit behind the user's windows (=min minimised); bench.py, matrix.py, shot.sh default to it; the game reads --resolution from the process command line
+feat/font-redraws-3                   # section T, after font-redraws: damage lights centred on their boxes, "by Rammo" + "(c) 1971", badges matched to the real cars ('Cuda Comfortaa, Mustang Bitter), I76_DYMO_FONT hook, Comfortaa/Bitter licences
+
+# V. load time (2026-11-05)
+perf/load-time                        # section V: load-time survey (docs/perf/loadtime.md, loadtime-plan.md, tools/load-time), I76_LOAD_PROFILE; the card first for the retail's 6.5 s with the build running, the briefing, the card again until ready (briefing_while_loading=card_first|movie_first); cars' parts, cockpit art and lighting calibration off the main thread; modern effects made under the card; menu_warmup key (off); MainThread.Check passes the build thread (play's debug builds failed every briefed start)
+
+# W. the 1997 look against i76-everywhere (2026-11-05)
+feat/1997-parity                      # section W: docs/1997-parity.md (ten differences, measured); early_tick (a key change runs the next sim tick at once, borrowed from the following one; off online, under Modern Physics and in replays): throttle key-to-screen 50 -> 22 ms against i76-e's 17; aa_1997 (the 1997 look takes the Anti-Aliasing row); even machine-gun flashes tried and withdrawn
+
+# X. the host form, ours as master (2026-11-05)
+feat/host-form-master                 # section X: our host form restored over upstream 56373bd (options box, arena scrap with its size, rule tips, list bar) with upstream's improvements folded in: a labelled rules table (Sim Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair) where the front view was, the co-op rows full width, every hotspot id upstream's, HostFormLayout with its tests; Nitro form unchanged
+
+# Y. HD pack tooling from the 8x trial (2026-11-05; the 8x pack itself is not shipped: no visible difference to 4x)
+feat/hd-pack-8x                       # section Y: the loader serves each texture from the largest size that has it (a partial pack over 4x); the row lists a partial size as "8x (cockpit & cars)*"; a first start never picks 8x; upscale-textures.py --scale 8 with separate GPU/CPU steps and --covers, bleed reach scaled with the size, bleed 18x faster; text-redraws at any scale; docs/perf/costs.md 8x section
+
+# Z. HD pack seams (2026-11-05)
+fix/hd-pack-seams                     # section Z: `i76 tex-seams` finds every texture adjacency and wrap (27,952 segments) and scores the 4x pack's seams; upscale-textures.py --neighbours/--context/--then upscales border-meeting and repeating textures inside a canvas of their neighbours' texels; 115 textures re-upscaled into the live pack (border seams 2.26 -> 0.52); the remaining top seams are UV islands inside one texture

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The survey: every configuration against the baseline, reps interleaved (rep 1 of each, then rep 2, ...).
   python matrix.py SET RES REPS [SCENE]     SET: all | quick | a name list separated by commas
+Each run is bench.run_once's, so in the quiet window (behind the others, never the foreground) unless I76_QUIET_WINDOW=0 is set.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
