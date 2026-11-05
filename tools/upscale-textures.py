@@ -41,6 +41,22 @@ under the new key as always. Models run on tiles (--tile, 128 px by default, the
 precision on a GPU where the model allows it; --gpu-share F idles F times each tile's time after it, for a GPU shared
 with other work. pack.json and ATTRIBUTION.txt name every model used. Lettering painted a few texels high stays soft from any
 model: tools/text-redraws.py sets it again from fonts in the finished pack (its --help says how).
+
+Seams (--neighbours FILE): each texture is upscaled on its own, so where two meet in the game (a hood against its fender, a
+road texture against the next one down the road, the horizon's panels) or a texture repeats against itself (the ground,
+the sky, a wall), the model saw a mirror of the texture at its border instead of what is drawn there, and the two upscales
+can disagree at the edge (a line, a colour step). Make the adjacency file from the install, then give it to the run:
+           i76 --install DIR tex-seams adjacency.json
+           python3 tools/upscale-textures.py SRC_DIR --neighbours adjacency.json [--context 32] [--only "a,b,c"] ...
+Every texture that meets a neighbour along one of its borders, or repeats, is then upscaled inside a canvas --context
+source texels wider on every side (default 32, past the model's reach): the neighbours' facing texels where the file says
+a border meets one (scaled to the texture's density along the edge, turned the way the two meet), its own picture wrapped
+along the axes it repeats, mirrored elsewhere as before. The second model (--then), the colour match and the resize to
+--scale keep 16 of those texels, and the canvas is cropped to the texture last, so the result is the texture's own size
+and place. A seam inside a texture (two UV islands meeting away from its border) is the model's to keep and is not
+changed. --then MODEL runs a second model over the run's own colour model's output: the shipped pack's world and car
+textures are 4xTextures_GTAV then 2xHDCube_Compact.pth (--then 2xHDCube_Compact.pth, from --models-dir), the 8x
+brought down to --scale. tools/test_upscale_context.py tests the padding, the crop and the plan.
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -105,6 +121,96 @@ def bleed(rgb, alpha, passes=8):
         fill = (~m) & (cnt > 0)
         rgb[fill] = acc[fill] / cnt[fill][..., None]; m = m | fill
     return rgb
+
+CONTEXT = 32    # --context: source texels of neighbour (or wrapped) picture round a texture the model sees, cropped off after
+CONTEXT_LATE = 16  # the context kept for the second model (--then), the colour match and the resize, cropped off last
+NEIGHBOURS = {}    # --neighbours: stem -> its plan (neighbour_plan)
+
+def side_of(uv0, uv1, bottom_up, eps=1e-3):
+    """Which border of the upright picture an edge from uv0 to uv1 runs along, and where it starts and ends along that
+    border (0..1: down a left or right side, across a top or bottom); None for an edge off the borders, or one that runs
+    past the picture's corners (a face that repeats the texture: --neighbours wraps those). v = 0 is the first stored row:
+    the bottom of the picture for a texture stored bottom up."""
+    (u0, v0), (u1, v1) = uv0, uv1
+    if not all(-eps <= c <= 1 + eps for c in (u0, v0, u1, v1)): return None
+    def on(a, b, k): return abs(a - k) < eps and abs(b - k) < eps
+    def y(v): return 1 - v if bottom_up else v
+    if on(u0, u1, 0): return "left", y(v0), y(v1)
+    if on(u0, u1, 1): return "right", y(v0), y(v1)
+    if on(v0, v1, 0): return ("bottom" if bottom_up else "top"), u0, u1
+    if on(v0, v1, 1): return ("top" if bottom_up else "bottom"), u0, u1
+    return None
+
+def neighbour_plan(adj, bottom_up=frozenset()):
+    """From an `i76 tex-seams` file (parsed): each texture's context plan, {stem: {"wrap": (x, y), "sides": {side:
+    [(s0, s1, neighbour, its side, t0, t1), ...]}}}. Wrap: the axes it repeats along (the tiles list: u is x, v is y).
+    Sides: a seam that runs along a border of both textures, from s0 to s1 along this one's border and t0 to t1 along the
+    neighbour's, taken both ways round; where several seams claim a stretch of border the first wins, a neighbour of the
+    same model (the first four letters) and the most letters in common first: the intact panel's own neighbour."""
+    plan = {}
+    def entry(stem): return plan.setdefault(stem, {"wrap": (False, False), "sides": {}})
+    for stem, t in adj.get("tiles", {}).items():
+        e = entry(stem); e["wrap"] = (e["wrap"][0] or bool(t.get("u")), e["wrap"][1] or bool(t.get("v")))
+    cands = []
+    for sm in adj.get("seams", []):
+        a, b = sm["a"], sm["b"]
+        sa = side_of(sm["auv"][:2], sm["auv"][2:], a in bottom_up); sb = side_of(sm["buv"][:2], sm["buv"][2:], b in bottom_up)
+        if sa is None or sb is None: continue
+        if a == b and sa[0] == sb[0]: continue                                     # a border against itself
+        cands.append((a, sa, b, sb)); cands.append((b, sb, a, sa))
+    def rank(c):
+        a, b = c[0], c[2]
+        return (a, c[1][0], a[:4] != b[:4], -sum(1 for p, q in zip(a, b) if p == q), b, min(c[1][1], c[1][2]))
+    for a, sa, b, sb in sorted(cands, key=rank):
+        side, s0, s1 = sa
+        lo, hi = min(s0, s1), max(s0, s1)
+        if hi - lo < 1e-6: continue
+        have = entry(a)["sides"].setdefault(side, [])
+        if any(min(x[0], x[1]) < hi - 1e-6 and max(x[0], x[1]) > lo + 1e-6 for x in have): continue
+        have.append((s0, s1, b, sb[0], sb[1], sb[2]))
+    return {k: v for k, v in plan.items() if any(v["wrap"]) or v["sides"]}
+
+def border_texel(side, t, depth, w, h):
+    """Where (x, y, continuous, upright) a point `depth` texels in from `side` of a w x h picture lies, `t` (0..1) along it;
+    a point on a line between two texels goes to the one nearer the border."""
+    e = 1e-6
+    if side == "left": return depth - e, t * h
+    if side == "right": return w - depth + e, t * h
+    if side == "top": return t * w, depth - e
+    return t * w, h - depth + e
+
+def context_canvas(im, plan, m, load):
+    """The texture with m texels of context on every side (upright RGBA): wrapped along the axes it repeats, its
+    neighbours' facing texels where the plan's sides say (each neighbour's texels taken nearest, scaled to this texture's
+    density along the shared edge), mirrored elsewhere (as the model's own padding). load(stem) gives a neighbour's RGBA."""
+    h, w = im.shape[:2]
+    wx, wy = plan.get("wrap", (False, False)) if plan else (False, False)
+    def mode(rep, n): return "wrap" if rep else ("reflect" if m < n else "symmetric")
+    c = np.pad(im, ((0, 0), (m, m), (0, 0)), mode=mode(wx, w))
+    c = np.pad(c, ((m, m), (0, 0), (0, 0)), mode=mode(wy, h))
+    for side, runs in (plan or {}).get("sides", {}).items():
+        along = h if side in ("left", "right") else w
+        for s0, s1, nb, nside, t0, t1 in runs:
+            o = load(nb)
+            if o is None: continue
+            nh, nw = o.shape[:2]
+            k = abs(t1 - t0) * (nh if nside in ("left", "right") else nw) / max(abs(s1 - s0) * along, 1e-9)   # its texels per ours
+            idx = np.arange(along); p = (idx + 0.5) / along
+            sel = idx[(p >= min(s0, s1)) & (p <= max(s0, s1))]
+            if sel.size == 0: continue
+            tt = t0 + (p[sel] - s0) * (t1 - t0) / (s1 - s0)
+            for d in range(1, m + 1):
+                bx, by = border_texel(nside, tt, (d - 0.5) * k, nw, nh)
+                px = o[np.clip(np.floor(by).astype(int), 0, nh - 1), np.clip(np.floor(bx).astype(int), 0, nw - 1)]
+                if side == "left": c[m + sel, m - d] = px
+                elif side == "right": c[m + sel, m + w - 1 + d] = px
+                elif side == "top": c[m - d, m + sel] = px
+                else: c[m + h - 1 + d, m + sel] = px
+    return c
+
+def trim(a, k):
+    """a with k texels cut off every side."""
+    return a[k:a.shape[0] - k, k:a.shape[1] - k] if k > 0 else a
 
 TILE = 128      # --tile: model input tiles (each with PAD of context), so no pass is larger than TILE + 2 PAD
 GPU_SHARE = 0.0  # --gpu-share: idle this many times each tile's time after it
@@ -281,10 +387,11 @@ def write_dds(path, rgba, etcpak):
 class Runner:
     """The models of a run, loaded when first needed (two kept at a time, the jobs sorted by family): run(im, file) is
     upscale() through that colour model (None: the run's own, --model), alpha(a) the alpha step."""
-    def __init__(self, device, default, models_dir, alpha_file):
+    def __init__(self, device, default, models_dir, alpha_file, then_file=None):
         import torch, spandrel
         self.torch, self.spandrel, self.device = torch, spandrel, device
         self.default, self.models_dir, self.alpha_file, self.loaded, self.used = default, models_dir, alpha_file, {}, []
+        self.then_file = then_file
     def model(self, f):
         if f is None: f = self.default = model_file(self.default)       # the run's own model (downloaded once if needed)
         path = f if os.path.isabs(f) or f == self.default else os.path.join(self.models_dir, f)
@@ -299,6 +406,11 @@ class Runner:
         return self.loaded[path]
     def run(self, im, f=None):
         return upscale(self.model(f), self.device, self.torch, im)
+    def then(self, big):
+        """The second model (--then) over the first's RGBA: the colour bled under the key, through the model; the alpha nearest."""
+        m = self.model(self.then_file); k = m.scale
+        y = run_tiled(m, self.device, self.torch, np.clip(bleed(big[..., :3], big[..., 3]) + 0.5, 0, 255).astype(np.uint8) / 255.0)
+        return np.dstack([(y * 255 + 0.5).astype(np.uint8), np.repeat(np.repeat(big[..., 3], k, 0), k, 1)])
     def alpha(self, a):
         return alpha_up(self.model(self.alpha_file), self.device, self.torch, a)
 
@@ -314,6 +426,16 @@ def one(job, run_model=None):
     pix = matches(stem, pixel) and not (fam and fam[2])
     if max(ow, oh) > max_size and not pix: return n, False
     run = run_model.run if isinstance(run_model, Runner) else (lambda im, f=None: run_model(im))
+    plan = NEIGHBOURS.get(stem)
+    if plan and not pix and not (frm and not (fam and fam[0])) and isinstance(run_model, Runner) and CONTEXT > 0:
+        big = with_context(im, plan, run_model, fam[0] if fam else None, cm, 4 if matches(stem, full) else scale, src)
+        a = im[..., 3]; alpha = None
+        if fam and fam[1] and (a == 0).any() and (a > 0).any():
+            c = context_canvas(im, plan, CONTEXT, lambda nb: neighbour_rgba(src, nb))[..., 3]
+            al = run_model.alpha(c); alpha = trim(al, CONTEXT * (al.shape[1] // c.shape[1]))
+        px = finish(big, ow, oh, big.shape[1] // ow, alpha)
+        write_out(px, os.path.join(out_dir, stem), flip, dds)
+        return n, True
     if pix:
         big = pixel_scale(im, 4)
     elif fam and fam[0]:
@@ -324,18 +446,48 @@ def one(job, run_model=None):
         big = np.array(Image.open(p).convert("RGBA"))
     else:
         big = run(im)
+        if isinstance(run_model, Runner) and run_model.then_file: big = run_model.then(big)
     if cm and not pix: big = colour_match(big, im)
     a = im[..., 3]
     alpha = run_model.alpha(a) if fam and fam[1] and not pix and (a == 0).any() and (a > 0).any() else None
     scale = min(4 if matches(stem, full) else scale, big.shape[1] // ow)
     px = finish(big, ow, oh, scale, alpha)
-    out = os.path.join(out_dir, stem)
+    write_out(px, os.path.join(out_dir, stem), flip, dds)
+    return n, True
+
+def write_out(px, out, flip, dds):
+    """The finished RGBA (upright) as out.dds (BC7, in the stored row order) or out.png."""
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
         import etcpak
         write_dds(out + ".part", px[::-1] if flip else px, etcpak); os.replace(out + ".part", out + ".dds")
     else:
         Image.fromarray(px, "RGBA").save(out + ".part.png"); os.replace(out + ".part.png", out + ".png")
-    return n, True
+
+_neighbours_seen = {}
+def neighbour_rgba(src, stem):
+    """A neighbour's original (upright RGBA) from the export, or None."""
+    if stem not in _neighbours_seen:
+        p = os.path.join(src, stem + ".png")
+        _neighbours_seen[stem] = np.array(Image.open(p).convert("RGBA")) if os.path.exists(p) else None
+    return _neighbours_seen[stem]
+
+def with_context(im, plan, runner, colour, cm, scale, src):
+    """--neighbours: the texture upscaled inside its context canvas (context_canvas, CONTEXT texels a side), so the model
+    sees at each border the picture that meets it in the game, not a mirror of itself; then the second model (--then, for
+    the run's own colour model), the colour match and the resize to `scale` with CONTEXT_LATE texels of context still on,
+    cropped to the texture last. RGBA at `scale` times the original (finish cuts the alpha and bleeds)."""
+    m = CONTEXT; late = min(CONTEXT_LATE, m)
+    canvas = context_canvas(im, plan, m, lambda nb: neighbour_rgba(src, nb))
+    big = runner.run(canvas, colour)
+    f = big.shape[1] // canvas.shape[1]
+    big, canvas = trim(big, (m - late) * f), trim(canvas, m - late)
+    if runner.then_file and not colour: big = runner.then(big)
+    if cm: big = colour_match(big, canvas)
+    if big.shape[1] != canvas.shape[1] * scale:
+        W, H = canvas.shape[1] * scale, canvas.shape[0] * scale
+        big = np.dstack([np.array(Image.fromarray(big[..., :3]).resize((W, H), Image.LANCZOS)),
+                         np.array(Image.fromarray(big[..., 3]).resize((W, H), Image.BOX))])
+    return trim(big, late * scale)
 
 def family_of(stem, table, alpha_all):
     """(colour model file or None, alpha step, listed) for a texture: its row of the family table, else the run's."""
@@ -368,10 +520,15 @@ def main():
     ap.add_argument("--alpha", action="store_true", help="the alpha step for every keyed texture (default: only the families whose row says so)")
     ap.add_argument("--alpha-model", default=ALPHA_MODEL, help="the alpha model's file (default " + ALPHA_MODEL + " in --models-dir)")
     ap.add_argument("--tile", type=int, default=128, help="model input tile size in texels (default 128; each tile also gets 16 texels of context)")
+    ap.add_argument("--neighbours", help="an `i76 tex-seams` file: each texture that meets another along a border, or repeats, is upscaled"
+                    " inside a canvas of its neighbours' facing texels (or its own, wrapped), --context texels a side, cropped after")
+    ap.add_argument("--context", type=int, default=32, help="the context (source texels a side) --neighbours gives the model (default 32)")
+    ap.add_argument("--then", dest="then_model", help="a second model over the run's own colour model's output (the route the shipped pack's"
+                    " world textures took: 4xTextures_GTAV then 2xHDCube_Compact.pth, the 8x brought down to --scale); a file in --models-dir")
     ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
-    global TILE, GPU_SHARE
-    TILE, GPU_SHARE = max(16, args.tile), max(0.0, args.gpu_share)
+    global TILE, GPU_SHARE, CONTEXT
+    TILE, GPU_SHARE, CONTEXT = max(16, args.tile), max(0.0, args.gpu_share), max(0, args.context)
     if args.out is None: args.out = user_dir(args.scale)
     if args.self_check: sys.exit(0 if self_check() else 1)
     if not args.src: ap.error("the folder --export-textures wrote is needed")
@@ -387,16 +544,19 @@ def main():
     if os.path.exists(os.path.join(args.src, "bottom-up.txt")):
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
-    names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and fnmatch.fnmatch(n.lower(), args.only.lower()))
+    if args.neighbours:
+        with open(args.neighbours) as f: NEIGHBOURS.update(neighbour_plan(json.load(f), frozenset(bottom_up)))
+        print(f"--neighbours: {len(NEIGHBOURS)} textures get {CONTEXT} texels of context")
+    names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and matches(n[:-4].lower(), args.only.lower()))
     fams = {n: family_of(n[:-4].lower(), table, args.alpha) for n in names}
     order = {row[0]: i for i, row in enumerate(table)}
     names.sort(key=lambda n: (order.get(fams[n][1], len(order)), n))              # a family's textures together: its model loads once
-    needs_model = not args.frm or any(f and (f[0] or f[1]) for f, _ in fams.values())
+    needs_model = not args.frm or any(f and (f[0] or f[1]) for f, _ in fams.values()) or bool(NEIGHBOURS)
     runner = None
     if needs_model:
         import torch
         device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-        runner = Runner(device, args.model, args.models_dir, args.alpha_model)
+        runner = Runner(device, args.model, args.models_dir, args.alpha_model, args.then_model)
         print(f"models on {device}, {TILE} px tiles" + (f", families: {', '.join(r[0] for r in table)}" if table else "") + (", alpha step on every keyed texture" if args.alpha else ""))
     os.makedirs(args.out, exist_ok=True)
     jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, args.pixel, n[:-4].lower() in bottom_up, etcpak is not None, args.cm)
