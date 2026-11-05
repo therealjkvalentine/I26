@@ -12,6 +12,24 @@ namespace I76.Sim.Vehicles;
 /// </summary>
 public static class VehicleFactory
 {
+    /// <summary>
+    /// An aircraft's collider sphere in its own frame, as the original makes its record: the middle of the assembled
+    /// model's bounds (every part of the .vcf, its weapons' gizmos and rotors included), the radius the farthest model
+    /// point from there, raised to the farthest COLP corner {x0,x3}×{y1,y3}×{z0,z3} + 0.1 if that is larger. Measured in
+    /// the original game: the Huey (0, 2.882, −3.397) r 9.868, the Cobra (0, 2.017, −1.127) r 8.414.
+    /// </summary>
+    public static (Vector3 Centre, float Radius)? ModelSphere(AssetVfs vfs, string vcfName, Vehicle v)
+    {
+        if (new I76.Formats.Assembly.ModelAssembler(vfs).Assemble(vcfName) is not { } m) return null;
+        var pts = m.Parts.SelectMany(p => p.Mesh.Vertices.Select(p.ToModel.Apply)).ToList();
+        if (pts.Count == 0) return null;
+        var c = (pts.Aggregate(Vector3.Min) + pts.Aggregate(Vector3.Max)) * 0.5f;
+        float r = pts.Max(x => Vector3.Distance(x, c));
+        for (int i = 0; i < 8; i++)
+            r = MathF.Max(r, Vector3.Distance(c, new Vector3(v.BoxX[(i & 4) != 0 ? 3 : 0], v.BoxY[(i & 2) != 0 ? 3 : 1], v.BoxZ[(i & 1) != 0 ? 3 : 0])) + 0.1f);
+        return (c, r);
+    }
+
     /// <summary>A compnent.cdf record: A, B and C are its three values, Hp the hit points.</summary>
     public sealed record Component(float A, float B, float C, int Hp);
 
@@ -43,7 +61,9 @@ public static class VehicleFactory
     /// sounded like a V-10 and the police car had no siren (docs/deviations.md).
     /// </summary>
     /// <param name="meleeBrakes">An Auto Melee or a network game: the brake is scaled by the car's BRAK part (1.0 / 1.3 / 1.6 / 2.0). A mission ignores the part.</param>
-    public static Vehicle Create(AssetVfs vfs, string vcfName, bool meleeBrakes = false, bool bodySound = false)
+    /// <param name="specials">False for an Auto Melee's opponents: the game writes their cars with three empty SPEC slots,
+    /// so they have no specials and none of the specials' load-time effects (the blower among them).</param>
+    public static Vehicle Create(AssetVfs vfs, string vcfName, bool meleeBrakes = false, bool bodySound = false, bool specials = true)
     {
         var vcf = new Bwd2File(vfs.Read(vcfName));
         var vcfc = vcf.First("VCFC") ?? throw new InvalidDataException($"{vcfName}: no VCFC");
@@ -70,6 +90,7 @@ public static class VehicleFactory
             v.BoxY = [C(11), C(10), C(9), C(8)];
             v.P.RideOffset = v.BoxY[3];          // the roof, for the ground query when upside down
         }
+        if (v.ObjectClass == 9) v.ModelSphere = ModelSphere(vfs, vcfName, v);
 
         // wheels: WLOC slot k → the wheel object (0 FR, 1 FL, 2/3 middle, 4 RR, 5 RL)
         var wloc = vdf.Locations().Where(l => l.Tag == "WLOC").Select(l => new Vector3(l.Transform.Translation[0], l.Transform.Translation[1], l.Transform.Translation[2])).ToArray();
@@ -129,16 +150,14 @@ public static class VehicleFactory
         v.Flags |= VehicleFlags.EngineOn | VehicleFlags.CommandedYaw;   // |= 0x1001
         foreach (var w in v.Wheels.Concat(v.MiddleWheels)) w.InitSuspension();
         // damage: The VCFC armour and chassis reinforcement (front, left, right, rear), component HP, specials
-        var specials = vcf.All("SPEC").Select(c => (int)Bin.U32(vcf.Data, c.PayloadOffset)).Take(3).ToList();
+        var spec = specials ? vcf.All("SPEC").Select(c => (int)Bin.U32(vcf.Data, c.PayloadOffset)).Take(3).ToList() : [];
+        // the specials that act once, at the post-load: the blower, Heated Seats, Nitro's Dashboard Mary and Tire Covers
+        Specials.AtLoad(v, spec, vfs.Install.IsNitro, wheelHp);
         v.Build = new Damage.VehicleBuild(
             [.. Enumerable.Range(0, 4).Select(z => Bin.I32(d, p + 0x5d + 4 * z))],
             [.. Enumerable.Range(0, 4).Select(z => Bin.I32(d, p + 0x6d + 4 * z))],
-            wheelHp, eng.Hp, brak.Hp, susp.Hp, (100f - susp.B) * 0.01f, specials);
-        v.Loadout = new Loadout(wdfNames, engId, suspId, brakeId, [.. specials]);
-        // SPEC type 3 (blower) → engine scale 1.25; type 8 (Heated Seats) → every mounted weapon's ammo x1.1
-        foreach (var c in vcf.All("SPEC"))
-            if (Bin.U32(vcf.Data, c.PayloadOffset) == 3) v.P.EngineScale = 1.25f;
-            else if (Bin.U32(vcf.Data, c.PayloadOffset) == 8 && v.Armory is { } heated) heated.HeatedSeats();
+            wheelHp, eng.Hp, brak.Hp, susp.Hp, (100f - susp.B) * 0.01f, spec);
+        v.Loadout = new Loadout(wdfNames, engId, suspId, brakeId, [.. spec]);
         return v;
     }
 

@@ -130,6 +130,7 @@ public sealed class OptionsScreen : OverlayScreen
             Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
             Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
             Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
+            Add(202, 234, "Mouse Options", () => Shell.Overlay(new MouseOptionsScreen()));
             Add(202, 280, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
             if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Add(202, 303, "Switch Game", () => Shell.SwitchGame());
             Add(202, 326, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
@@ -140,6 +141,7 @@ public sealed class OptionsScreen : OverlayScreen
         Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
         Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
         Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
+        Add(202, 234, "Mouse Options", () => Shell.Overlay(new MouseOptionsScreen()));
         Add(202, 280, "Load Bookmark", () => Shell.Overlay(new LoadBookmarkScreen()));
         if (inTrip) Add(202, 303, "Save Bookmark", () => Shell.Overlay(new SaveBookmarkScreen()));
         Add(202, 349, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
@@ -152,12 +154,75 @@ public sealed class OptionsScreen : OverlayScreen
     protected override void Escape() => Shell.Overlay(null);
 }
 
+/// <summary>
+/// An overlay whose port rows scroll in the sheet's free lines under the original's (Graphic Detail, Play Options): the mouse
+/// wheel, Up/Down and Page Up/Down, or the pad past the first or last visible row move the list; a thin bar in the sheet's ink,
+/// with an arrow at an end where there is more, marks it. The rest of the sheet (the original's rows, Done, Cancel) stays put.
+/// </summary>
+public abstract class ScrollingOverlayScreen : OverlayScreen
+{
+    protected readonly ScrollRows<Item> List = new();
+    /// <summary>The scroll mark's x: a thumb 5 px wide, its track on x + 2.</summary>
+    protected abstract int MarkX { get; }
+
+    /// <summary>An item of the scrolling list, in its slot, <paramref name="dy"/> px below its line.</summary>
+    protected Item Listed(Item it, int slot, int dy = 0) => List.Add(it, slot, dy);
+
+    protected override void Redraw()
+    {
+        foreach (var (it, y, shows) in List.Layout()) { it.Y = y; it.Hidden = !shows; }
+        PrepareLines();
+        base.Redraw();
+    }
+
+    /// <summary>The sheet under the visible lines made ready for the rows now on them (before anything is drawn).</summary>
+    protected virtual void PrepareLines() { }
+
+    protected override bool Wheeled(int rows) => List.ScrollBy(Math.Sign(rows));
+
+    public override void Tick()
+    {
+        var k = Shell.Keys;
+        int by = List.KeyStep(k.Contains(Key.Up), k.Contains(Key.Down), k.Contains(Key.Pageup), k.Contains(Key.Pagedown));
+        bool moved = by != 0 && List.ScrollBy(by);
+        base.Tick();
+        if (moved && Shell.Current == this) Redraw();
+    }
+
+    // a press past the top or bottom visible row scrolls the list a row
+    public override IReadOnlyList<PadRegion> PadRegions =>
+        [.. Items.Where(i => i.Click is not null && i.W > 0 && !i.Hidden)
+            .Select(i => PadRegion.Of(i.X, i.Y, i.W, i.H, List.SlotOf(i) < 0 ? null : d => List.EdgeStep(i, d) is var by && by != 0 && ScrollThenDraw(by)))];
+
+    private bool ScrollThenDraw(int by)
+    {
+        if (!List.ScrollBy(by)) return false;
+        Redraw();
+        return true;
+    }
+
+    protected override void DrawExtra()
+    {
+        if (List.Mark() is not { } m) return;
+        int x = MarkX;
+        Frame.Fill(x + 2, m.Top, 1, m.H, 200);
+        Frame.Fill(x, m.ThumbAt, 5, m.Thumb, 200);
+        for (int k = 0; k < 4; k++)
+        {
+            if (m.MoreAbove) Frame.Fill(x + 2 - k, m.Top - 7 + k, 1 + 2 * k, 1, 200);
+            if (m.MoreBelow) Frame.Fill(x + 2 - (3 - k), m.Top + m.H + 3 + k, 1 + 2 * (3 - k), 1, 200);
+        }
+    }
+}
+
 /// <summary>Play Options, overlay 4: record 10, the cheat and salvage flags and the difficulty.</summary>
-public sealed class PlayOptionsScreen : OverlayScreen
+public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 {
     protected override int Record => 10;
+    // in the value column's right end: the labels run up to the column's rule
+    protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb;
+    private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair;
     private int _savedStrength;
     private I76.Formats.Input.RumbleMode _savedRumble;
     private int _savedRumbleStrength, _savedOrdnance;
@@ -165,9 +230,6 @@ public sealed class PlayOptionsScreen : OverlayScreen
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
     private float _savedHeadSens;
-    /// <summary>0 the sheet, 1 its second page (the port's rows past the sheet's fourteen lines: Unlim. Turrets), a click on More / Back turns it.</summary>
-    public int Page { get; init; }
-    private static PlayOptionsScreen? _first;       // the first page's snapshot, which Cancel restores from either page
     private static readonly (int Y, string Label, int Bit)[] Rows =
     [
         (139, "Arcade Phys.", 0x01), (162, "No Salv. Manag.", 0x02), (185, "Unlim. Ammo", 0x04),
@@ -180,12 +242,31 @@ public sealed class PlayOptionsScreen : OverlayScreen
         return o[(i + 1) % o.Length].Label;
     }
     private static readonly string[] Levels = ["Wimp", "Champion", "Badass"];
+    /// <summary>The list slots that are check rows (the others a value): their line gets a check box.</summary>
+    private readonly HashSet<int> _checks = [];
+
+    /// <summary>
+    /// Where the port's rows scroll: the base game's sheet has the original's six check rows on consecutive lines from 139 and
+    /// Difficulty on its last line (415), the six lines between for the list; Nitro's keeps Arcade Phys. (139), Unlim. Wiper
+    /// Fluid (185) and Difficulty (323) where its sheet has them, the five lines between the last two for the list.
+    /// </summary>
+    public static (int Top, int Shown) ListLines(bool nitro) => nitro ? (208, 5) : (277, 6);
+
+    /// <summary>
+    /// The port's rows, in the list's order (a check row, or a value row stepped by a click): upstream's, then the play fork's own
+    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Rumble Strength, Melee A.I., Wheel Strength). Force Feedback is the play
+    /// fork's value row (Off, the pad's rumble, with the port's pulses, a wheel).
+    /// </summary>
+    public static readonly string[] PortRows =
+    [
+        "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Force Feedback", "Auto Reverse", "Map Downloads",
+        "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
+        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Rumble Strength", "Melee A.I.", "Wheel Strength",
+    ];
 
     protected override void Build()
     {
         var s = Shell.Settings;
-        if (Page == 1) { BuildSecond(); return; }
-        _first = this;
         _savedFlags = s.PlayOptions;
         _savedAutoReverse = s.AutoReverse;
         _savedModern = s.ModernPhysics;
@@ -198,16 +279,19 @@ public sealed class PlayOptionsScreen : OverlayScreen
         _savedHidden = s.HiddenContent;
         _savedTurrets = s.UnlimTurrets;
         _savedCb = s.CbVoice;
+        _savedUpdate = s.UpdateCheck;
+        _savedCrosshair = s.ChaseCrosshair;
         _savedHead = s.HeadTrack;
         _savedHeadSens = s.HeadTrackSensitivity;
         _savedRumble = s.RumbleMode;
         _savedRumbleStrength = s.RumbleStrength;
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
-        // the original's six check rows first, on consecutive ruled lines, then the port's own on the lines under them. The sheet
-        // prints a check box only on every other line (where the original's rows were): the others get Arcade Phys.'s box copied
         bool nitro = Shell.Install.IsNitro;
-        foreach (int y in new[] { 116, 162, 208, 254 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
+        (List.Top, List.Shown) = ListLines(nitro);
+        // the original's six check rows on consecutive ruled lines. The sheet prints a check box only on every other line (where
+        // the original's rows were): the others get Arcade Phys.'s box copied
+        if (!nitro) foreach (int y in new[] { 162, 208, 254 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
         // Nitro's table has three rows: Arcade Phys. (222,139), Unlim. Wiper Fluid (222,185), Difficulty (222,323);
         // the salvage-management and cheat rows are the base game's
         foreach (var (y, label, bit) in Rows)
@@ -218,79 +302,76 @@ public sealed class PlayOptionsScreen : OverlayScreen
             // the check strip, x 205..404, y+1..y+12; a set bit shows "x" at (205, y+1)
             Add(205, ry + 1, () => Check((s.PlayOptions & bit) != 0), () => s.PlayOptions ^= bit, Small, w: 200, h: 12);
         }
-        void Toggle(int y, string label, Func<bool> get, Action flip)
-        {
-            Add(222, y, label, null);
-            Add(205, y + 1, () => Check(get()), flip, Small, w: 200, h: 12);
-        }
-        // Hidden Weapons & Cars (docs/hidden-content.md), on the sheet's first line, the only one free
-        Toggle(116, "Hidden Wpns & Cars", () => s.HiddenContent, () => s.HiddenContent = !s.HiddenContent);
-        Toggle(nitro ? 162 : 277, "Modern Physics", () => s.ModernPhysics, () => s.ModernPhysics = !s.ModernPhysics);   // Ctrl+F7 flips it in play
-        // Simulation Rate (docs/frame-rate.md): a click steps to the next rate
-        Add(222, 300, "Simulation Rate", null);
-        Add(205, 301, () => "", () => { s.SimRate = NextRate(s.SimRate); WarnRate(); }, Small, w: 300, h: 12);
-        Add(398, 302, () => $"{s.SimRate} Hz", null);
-        // Nitro's Difficulty sits on 323, where the base game puts Checkpoints; there Checkpoints take the free line at 208
-        Toggle(nitro ? 208 : 323, "Checkpoints", () => s.Checkpoints, () => s.Checkpoints = !s.Checkpoints);            // docs/savestate.md
-        // Force Feedback: Off, the pad's rumble (the original's effects, or with the port's pulses added), or a wheel (DirectInput, Windows
-        // only: elsewhere the click skips it); a click steps
-        int fy = nitro ? 231 : 346;
-        if (nitro) Frame.CopyBackground(300, fy, 22, 18, 200, fy);     // the sheet's own box on that line: a value row has none
-        Add(222, fy, "Force Feedback", null);
-        Add(205, fy + 1, () => "", () => s.ForceFeedbackMode = (s.ForceFeedbackMode + 1) % (I76.Game.DirectInputForce.Supported ? 4 : 3), Small, w: 300, h: 12);
-        Add(398, fy + 2, () => ShellSettings.ForceFeedbackNames[s.ForceFeedbackMode], null);
-        Toggle(nitro ? 254 : 369, "Auto Reverse", () => s.AutoReverse, () => s.AutoReverse = !s.AutoReverse);
-        // Map Downloads (docs/multiplayer.md "Custom maps"): a network host's map this game lacks is asked about, always
-        // downloaded or never; a click steps
-        Add(222, 392, "Map Downloads", null);
-        Add(205, 393, () => "", () => s.MapDownloads = (s.MapDownloads + 1) % 3, Small, w: 300, h: 12);
-        Add(398, 394, () => ShellSettings.MapDownloadNames[Math.Clamp(s.MapDownloads, 0, 2)], null);
         int dy = nitro ? 323 : 415;
         Add(222, dy, "Difficulty Level", null);
         Add(205, dy + 1, () => "", () => s.Difficulty = s.Difficulty >= 2 ? 0 : s.Difficulty + 1, Small, w: 300, h: 12);
         Add(398, dy + 2, () => Levels[Math.Clamp(s.Difficulty, 0, 2)], null);
-        Add(246, 438, "More", () => Shell.Overlay(new PlayOptionsScreen { Page = 1 }), Small);
+
+        // the port's own rows, one to a line, scrolling in the free lines
+        int slot = 0;
+        void Toggle(string label, Func<bool> get, Action flip)
+        {
+            _checks.Add(slot);
+            Listed(Add(222, 0, label, null), slot);
+            Listed(Add(205, 0, () => Check(get()), flip, Small, w: 200, h: 12), slot, 1);
+            slot++;
+        }
+        void Step(string label, Action click, Func<string> value)
+        {
+            Listed(Add(222, 0, label, null), slot);
+            Listed(Add(205, 0, () => "", click, Small, w: 300, h: 12), slot, 1);
+            Listed(Add(398, 0, value, null), slot, 2);
+            slot++;
+        }
+        // Hidden Weapons & Cars (docs/hidden-content.md)
+        Toggle(PortRows[0], () => s.HiddenContent, () => s.HiddenContent = !s.HiddenContent);
+        Toggle(PortRows[1], () => s.ModernPhysics, () => s.ModernPhysics = !s.ModernPhysics);   // Ctrl+F7 flips it in play
+        // Simulation Rate (docs/frame-rate.md): a click steps to the next rate
+        Step(PortRows[2], () => { s.SimRate = NextRate(s.SimRate); WarnRate(); }, () => $"{s.SimRate} Hz");
+        Toggle(PortRows[3], () => s.Checkpoints, () => s.Checkpoints = !s.Checkpoints);            // docs/savestate.md
+        // Force Feedback: Off, the pad's rumble (the original's effects, or with the port's pulses added), or a wheel (DirectInput, Windows
+        // only: elsewhere the click skips it); a click steps
+        Step(PortRows[4], () => s.ForceFeedbackMode = (s.ForceFeedbackMode + 1) % (I76.Game.DirectInputForce.Supported ? 4 : 3), () => ShellSettings.ForceFeedbackNames[s.ForceFeedbackMode]);
+        Toggle(PortRows[5], () => s.AutoReverse, () => s.AutoReverse = !s.AutoReverse);
+        // Map Downloads (docs/multiplayer.md "Custom maps"): a network host's map this game lacks is asked about, always
+        // downloaded or never; a click steps
+        Step(PortRows[6], () => s.MapDownloads = (s.MapDownloads + 1) % 3, () => ShellSettings.MapDownloadNames[Math.Clamp(s.MapDownloads, 0, 2)]);
+        Toggle(PortRows[7], () => s.UnlimTurrets, () => s.UnlimTurrets = !s.UnlimTurrets);
+        // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
+        Toggle(PortRows[8], () => s.CbVoice, () => s.CbVoice = !s.CbVoice);
+        // Check for Updates: whether the next start asks GitHub if a newer release exists (a line under the version says so)
+        Toggle(PortRows[9], () => s.UpdateCheck, () => s.UpdateCheck = !s.UpdateCheck);
+        // Chase Crosshair: the aiming mark in the F2 chase view (a network game shows it only when the host allows it)
+        Toggle(PortRows[10], () => s.ChaseCrosshair, () => s.ChaseCrosshair = !s.ChaseCrosshair);
+        // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
+        Toggle(PortRows[11], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
+        // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
+        Step(PortRows[12], () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3),
+            () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
+        Step(PortRows[13], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
+            () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+        // Rumble Strength (docs/playing.md): the strength of every level sent to the pad (the pad's events are Force Feedback's)
+        Step(PortRows[14], () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength),
+            () => s.RumbleStrength + (s.RumbleStrength == I76.Formats.Input.RumbleStrength.Default ? " %" : " %" + ShellSettings.PortMark));
+        // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
+        Step(PortRows[15], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+            () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
+        // the force-feedback wheel's strength (its device gain): a click steps 10 %, past 100 back to 0
+        Step(PortRows[16], () => s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10),
+            () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only");
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
 
-    /// <summary>The second page: the sheet's fourteen lines are all taken, so the port's later rows go on a page of their own (the boxes of the first page's rows wiped).</summary>
-    private void BuildSecond()
+    /// <summary>Each visible line of the list gets the sheet's check box when a check row is on it and blank paper when a value row is (or none).</summary>
+    protected override void PrepareLines()
     {
-        var s = Shell.Settings;
-        // the sheet's boxes wiped from the value rows (the second line's stays: Unlim. Ordnance's), and copied onto the check rows that have none
-        for (int k = 1; k < 14; k++) if (k != 1) Frame.CopyBackground(300, 116 + 23 * k, 22, 18, 200, 116 + 23 * k);
-        foreach (int y in new[] { 116, 162 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
-        Add(222, 116, "Unlim. Turrets", null);
-        Add(205, 117, () => Check(s.UnlimTurrets), () => s.UnlimTurrets = !s.UnlimTurrets, Small, w: 200, h: 12);
-        // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
-        Add(222, 139, "Unlim. Ordnance", null);
-        Add(205, 140, () => Check(s.OrdnanceLimit != 0), () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1, Small, w: 200, h: 12);
-        // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
-        Add(222, 162, "CB Voice", null);
-        Add(205, 163, () => Check(s.CbVoice), () => s.CbVoice = !s.CbVoice, Small, w: 200, h: 12);
-        // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
-        Add(222, 185, "Head Tracking", null);
-        Add(205, 186, () => "", () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3), Small, w: 300, h: 12);
-        Add(398, 187, () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark, null);
-        Add(222, 208, "Head Track Sens.", null);
-        Add(205, 209, () => "", () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity), Small, w: 300, h: 12);
-        Add(398, 210, () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture), null);
-        // Rumble Strength (docs/playing.md): the strength of every level sent to the pad (the pad's events are Force Feedback's)
-        Add(222, 231, "Rumble Strength", null);
-        Add(205, 232, () => "", () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength), Small, w: 300, h: 12);
-        Add(398, 233, () => s.RumbleStrength + (s.RumbleStrength == I76.Formats.Input.RumbleStrength.Default ? " %" : " %" + ShellSettings.PortMark), null);
-        // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Add(222, 254, "Melee A.I.", null);
-        Add(205, 255, () => "", () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length), Small, w: 300, h: 12);
-        Add(398, 256, () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)], null);
-        // the force-feedback wheel's strength (its device gain): a click steps 10 %, past 100 back to 0
-        Add(222, 277, "Wheel Strength", null);
-        Add(205, 278, () => "", () => s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10), Small, w: 300, h: 12);
-        Add(398, 279, () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only", null);
-        Add(246, 438, "Back", () => Shell.Overlay(new PlayOptionsScreen()), Small);
-        Add(350, 438, "Done", Done, Small);
-        Add(402, 438, "Cancel", Cancel, Small);
+        for (int line = 0; line < List.Shown; line++)
+        {
+            int y = List.Top + List.LineH * line;
+            Frame.CopyBackground(300, y, 22, 18, 200, y);
+            if (_checks.Contains(List.SlotOn(line))) Frame.CopyBackground(200, 139, 22, 18, 200, y);
+        }
     }
 
     private static float NextSensitivity(float now)
@@ -300,11 +381,16 @@ public sealed class PlayOptionsScreen : OverlayScreen
         return o[i < 0 ? 0 : i];
     }
 
-    /// <summary>The sound system's input devices after the current one (the default, then each in the list, then the default again).</summary>
+    /// <summary>The CB Microphone choices: none (the empty string), the system's default, then each input device.</summary>
+    internal static List<string> MicChoices()
+    {
+        try { return MicNames.Choices(Godot.AudioServer.GetInputDeviceList()); } catch { return MicNames.Choices([]); }
+    }
+
+    /// <summary>The choice after the current one (none, the default, each device, then none again).</summary>
     internal static string NextMic(string now)
     {
-        var all = new List<string> { "" };
-        try { all.AddRange(Godot.AudioServer.GetInputDeviceList().Where(d => d != "Default")); } catch { }
+        var all = MicChoices();
         int i = all.IndexOf(now);
         return all[(i + 1) % all.Count];
     }
@@ -318,12 +404,11 @@ public sealed class PlayOptionsScreen : OverlayScreen
     private void Cancel()
     {
         var s = Shell.Settings;
-        var f = _first ?? this;
-        s.CbVoice = f._savedCb;
-        s.HeadTrack = f._savedHead; s.HeadTrackSensitivity = f._savedHeadSens;
-        s.MeleeAi = f._savedMeleeAi; s.OrdnanceLimit = f._savedOrdnance;
-        s.PlayOptions = f._savedFlags; s.AutoReverse = f._savedAutoReverse; s.ModernPhysics = f._savedModern; s.ForceFeedback = f._savedForce; s.ForceFeedbackWheel = f._savedWheel; s.FfbStrength = f._savedStrength; s.RumbleMode = f._savedRumble; s.RumbleStrength = f._savedRumbleStrength; s.Checkpoints = f._savedCheckpoints;
-        s.SimRate = f._savedRate; s.MapDownloads = f._savedDownloads; s.HiddenContent = f._savedHidden; s.UnlimTurrets = f._savedTurrets;   // the difficulty is not restored
+        s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair;
+        s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens;
+        s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance;
+        s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.ForceFeedback = _savedForce; s.ForceFeedbackWheel = _savedWheel; s.FfbStrength = _savedStrength; s.RumbleMode = _savedRumble; s.RumbleStrength = _savedRumbleStrength; s.Checkpoints = _savedCheckpoints;
+        s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
     }
 
@@ -573,21 +658,6 @@ public sealed class GraphicsScreen : OverlayScreen
             // the modern look's cabin and driver behind a car's windows (off: plain reflective glass), live; on is the port's
             case GraphicsRow.CarInteriors:
                 Row(line, "Car Interiors", () => st.CarInteriors ? "On" + mark : "Off", () => { st.CarInteriors = !st.CarInteriors; I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors); });
-                break;
-            // the mouse orbiting the chase view: Off, Slow, Normal, Fast (Invert Y is shell.cfg's [port] mouse_invert_y)
-            case GraphicsRow.MouseCamera:
-                Row(line, "Mouse Camera", () => I76.Sim.Views.MouseLook.Names[Math.Clamp(st.MouseCamera, 0, 3)], () => st.MouseCamera = (st.MouseCamera + 1) % I76.Sim.Views.MouseLook.Names.Length);
-                break;
-            case GraphicsRow.MouseInWindow:
-                Row(line, "Keep Mouse In Window", () => st.KeepMouseInWindow ? "On" : "Off", () => { st.KeepMouseInWindow = !st.KeepMouseInWindow; I76.Game.MouseCamera.Confine = st.KeepMouseInWindow; });
-                break;
-            // the chase view easing back behind the car after the mouse or stick rests, live
-            case GraphicsRow.CameraReturn:
-                Row(line, "Camera Return", () => st.CameraReturn ? "On" : "Off", () => { st.CameraReturn = !st.CameraReturn; I76.Game.MouseCamera.Apply(st); });
-                break;
-            // the wheel zoom back to the original's framing at a switch of view, a cut-scene's end and a respawn (off: each view keeps it), live
-            case GraphicsRow.ZoomReset:
-                Row(line, "View Zoom Reset", () => st.ZoomReset ? "On" : "Off", () => { st.ZoomReset = !st.ZoomReset; I76.Game.MouseCamera.Apply(st); });
                 break;
             // CONFIGURE CHASSIS as the 3D garage (on) or the original's 2D form (off)
             case GraphicsRow.Garage3D:

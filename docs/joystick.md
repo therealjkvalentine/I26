@@ -208,7 +208,7 @@ Linux and macOS the row goes Off / Pad (a wheel chosen in a shared settings file
   DirectInput only if it claims force feedback, and is skipped if it takes none of the effects used.
 - **Which device.** With several force-feedback devices, `ffb_device` in `user://shell.cfg`, section `[port]`, picks the first whose
   name contains it (case ignored), for example `ffb_device="T300"`; empty or absent, the first. It is kept when the settings are saved.
-- **Strength.** Play Options' second page, Wheel Strength: 0 to 100 % in steps of 10 (`ffb_strength`), the device's own gain, changed
+- **Strength.** Play Options' Wheel Strength: 0 to 100 % in steps of 10 (`ffb_strength`), the device's own gain, changed
   at once. The original's effects are at their own levels under it; nothing is boosted.
 - **Behaviour.** The device is driven from a thread of its own: the frame only hands over the newest effects and never waits on the
   driver. Only what changed is sent (a changed magnitude alone is one report, not oftener than every 30 ms). The forces keep playing

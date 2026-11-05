@@ -75,6 +75,7 @@ public partial class Main
                 AllowCarReset = _opt.CarReset ?? I76.Game.Shell.ShellSettings.Load().CarReset,
                 AllowCb = _opt.Cb ?? I76.Game.Shell.ShellSettings.Load().CbRadio,
                 IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
+                AllowCrosshair = _opt.Crosshair ?? I76.Game.Shell.ShellSettings.Load().HostCrosshair,
             };
             if (_opt.Restrict is { Length: > 0 } spec)
             {
@@ -441,6 +442,7 @@ public partial class Main
         _opt.CarReset = n.CarReset;
         _opt.IgnitionStaysOn = n.IgnitionStaysOn;
         _opt.Cb = n.Cb;
+        _opt.Crosshair = n.Crosshair;
         _opt.Bots = n.Bots;
         _opt.BotSkill = n.BotSkill;
         _opt.BotCars = [.. n.BotCars];
@@ -496,10 +498,13 @@ public partial class Main
         GetTree().ReloadCurrentScene();
     }
 
-    /// <summary>The last scoreboard as STANDINGS rows, each player's car file from the mirror.</summary>
+    /// <summary>The last scoreboard as STANDINGS rows, each player's car from the mirror: its file, or the body of one served by its content (whose file name means nothing).</summary>
     private List<I76.Game.Shell.StandingRow> NetRows() =>
-        _net?.Client.Scores?.Players.Select(p => new I76.Game.Shell.StandingRow(p.Name, _netWorld?.Cars.GetValueOrDefault(p.CarSerial)?.Info.Def ?? "",
+        _net?.Client.Scores?.Players.Select(p => new I76.Game.Shell.StandingRow(p.Name, CarOf(_netWorld?.Cars.GetValueOrDefault(p.CarSerial)?.Info),
             p.Deaths, p.Kills, p.Score, p.Team)).ToList() ?? [];
+
+    private static string CarOf(CarInfo? c) =>
+        c is null ? "" : c.Vcf is { Length: > 0 } v && I76.Formats.Shell.CarNames.BodyOf(v) is { } body ? body : c.Def;
 
     /// <summary>
     /// Test hook: I76_NET_TEST=players[,seconds]. A network game does not

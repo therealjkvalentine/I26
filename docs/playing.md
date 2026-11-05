@@ -75,7 +75,7 @@ shell.cfg or `--dev`; Interstate '76 only, the Nitro Pack has no trip):
 
 Both end on Load Bookmark with the new bookmarks listed.
 
-**Update check.** At every start I26 asks GitHub (one request, nothing about you or your machine is sent) whether a newer release exists and, if so, shows "version X available" under the version in the corner of the chooser and the main menu; click it to open the release page. Options > Play Options (second page) > Check for Updates turns it off, and then nothing is requested. A build run from source never asks.
+**Update check.** At every start I26 asks GitHub (one request, nothing about you or your machine is sent) whether a newer release exists and, if so, shows "version X available" under the version in the corner of the chooser and the main menu; click it to open the release page. Options > Play Options > Check for Updates (near the end of the sheet's scrolling list) turns it off, and then nothing is requested. A build run from source never asks.
 
 **Log file.** Off by default, so it cannot grow. For a bug report, start the game once with `--log` (or the environment
 variable `I76_LOG=1`) and attach `logs/godot.log` from the user folder (the last three runs' logs are kept as
@@ -101,7 +101,7 @@ are for another game and are not listed.
 | Graphic Detail | Screen Resolution, Monitor Brightness, Visibility Range, Terrain Detail, Shadow Detail, Ext. Instrum. Disp., Rear Mirror; then Look..., Display..., Camera... |
 | Look | 1997 Mode, HD Textures, Vegetation, Hood Gloss, Car Interiors, Palette Grade, Crash Blur, 3D Garage |
 | Display | Anti-Aliasing, Render Scale, VSync, Max FPS, Show FPS; a blank line; Renderer (restart), Log File (restart) |
-| Camera | Field of View, Mouse Camera, Camera Return, View Zoom Reset, Keep Mouse In Window |
+| Camera | Field of View (the mouse rows are on Mouse Options) |
 
 The Esc menu's pad has the same sheet and pages, as pads of their own with their own Done, Cancel and Reset, and every row that applies during a mission or on resume: it leaves out Screen Resolution, Renderer, Log File and 3D Garage. The sheet's Reset is the original's (its rows back to the default profile, with Screen Resolution back to Desktop and Visibility Range back to following the look); Anti-Aliasing is Display's, so Display's Reset puts it back and the sheet's leaves it alone. Shadow Detail, Terrain Detail, Anti-Aliasing and Render Scale only change the modern look.
 
@@ -127,7 +127,7 @@ ffmpeg -framerate 30 -i frames/%05d.png -i int01f01.wav -c:v libtheora -q:v 9 -p
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
 
-**Unlim. Ordnance.** Play Options' second page, beside Unlim. Turrets: the original keeps at most 160 live rounds of a kind (40 online for mines, caltrops, Blox and fire drops) and removes the oldest past that; on, there is no cap, so a long oil or fire trail stays whole. Single-player games only: a network game keeps the original's cap for everyone.
+**Unlim. Ordnance.** A row of Play Options' scrolling list, after upstream's rows: the original keeps at most 160 live rounds of a kind (40 online for mines, caltrops, Blox and fire drops) and removes the oldest past that; on, there is no cap, so a long oil or fire trail stays whole. Single-player games only: a network game keeps the original's cap for everyone.
 
 **Output and LFE Level.** Audio Control (the main menu's and the Esc menu's) has two rows of the port's own. **LFE Level** (0 to 200 %, 0 the default) turns on a bass-shaker signal of the port's own and sets its level: the engine as a sine by rpm, the road as a rumble by surface (low and lumpy off the roads, higher and gritty on a dirt road, a faint smooth hum on asphalt, a knock as each wheel crosses onto or off a road or a bridge, and never quite the same twice: each mission draws its own randomness) and the car's speed, engine or no engine, stronger with the load on the springs (a hard turn, a stop) and with their movement over bumps, a thump per shot, per hit (by its damage, a crash the strongest thing there is, and a ram or a crash ringing the cabin for about a second and a half after, as the original's cockpit view jolts) and per explosion, all 15 to 90 Hz under a limiter; each of these sources has a level of its own in `shell.cfg` (`lfe_engine`, `lfe_road`, `lfe_hits`, `lfe_shots`, `lfe_explosions`, `lfe_offroad`, `lfe_bumps`, below) and a slider on the Developer panel (100 % is 1.5 times the synth's own level, 200 % three times; the signal has its own limiter after the level, so no setting clips it: a pile of thumps rounds off under it rather than leaning on the master limiter). At 0 nothing is added and every output plays as the original does. **Output** says where the signal goes: Stereo (the default) and Phones (the same: neither Godot nor the game has anything headphone-specific) mix it into both channels and boost the effects' own bass under the crossover (`crossover`, 90 Hz) by the level's share (100 %: twice, +6 dB well under the crossover; the boosted effects share the master limiter with the rest of the mix), for a sub or bass shaker fed from the stereo output, or whatever your rig does with the low end; **5.1**\* and **7.1**\* put the signal on the LFE channel alone, for a shaker on a receiver's or interface's sub output (the two are the same: the LFE of whatever surround layout the device has; with a stereo device nothing plays). The game cannot change the device's channels: the system's sound settings do. Explosions are felt by distance: full within 15 m, falling as 1/r (the air blast) to 120 m and as 1/√r (the ground's wave) beyond, lower and longer, to nothing at 2 km. In 5.1 the LFE also carries the game's own sounds: Godot sends every positional sound there at full level. A file from before these rows with `tactile = lfe` reads as 5.1, and one with Output 2.1 (an earlier name for the stereo mix) as Stereo; a file that chose 2.1, 5.1 or 7.1 without an LFE Level keeps 100 %, the default then. The Developer panel shows the output and the signal's peak.
 
@@ -150,14 +150,14 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `garage_radio` | `off`, `on`\* | `off` | The 3D garage: the menu track goes on, as in the original's CONFIGURE CHASSIS; `on` plays a boombox on the bench instead, a random mission track after another (I76's 2 to 14, the Nitro Pack's but its menu and credits tracks; never the title or ending). |
 | `death_variety` | `off`, `on`\* | `on` | The modern look's car deaths: `on` gives each cause of death two stages and a look of its own (the failed part first, an engine's fireball and burning hood, a wheel's burst, a weapon's ammunition cooking off; then the tank's one blast and a throw of the wreck by cause), a lighter wreck fire, and about one death in eight a catastrophe with a bigger blast and burning parts, the same on every machine of a network game; `off` draws every death alike, as the original does. The 1997 look keeps the original's death. |
 | `briefing_while_loading` | `off`, `on`\* | `on` | The modern look's mission start: `on` plays the briefing while the mission builds (the build on a thread of its own under the movie; the loading card comes up after the movie, for the rest of the load, about 3 to 4 s), so a briefing longer than the build starts the mission that much sooner; `off` builds behind the loading card first and plays the briefing after, as the original does. The 1997 look keeps the original's order. |
-| `melee_ai` | `0`, `1`\*, `2`\*, `3`\* | `0` | Play Options' Melee A.I. (second page) as a number: the opening skill of an Instant Melee's computer cars, Normal (the original's), the Difficulty Level's, Easy, Hard. Single player only. |
+| `melee_ai` | `0`, `1`\*, `2`\*, `3`\* | `0` | Play Options' Melee A.I. as a number: the opening skill of an Instant Melee's computer cars, Normal (the original's), the Difficulty Level's, Easy, Hard. Single player only. |
 | `effects_size` | `25` to `150` | `100` | The modern look's weapon effects, in percent of their drawn size: the rounds' streaks, the sparks and dust where they strike, muzzle flashes, rocket trails, smoke puffs (damage, wreck, chemical cloud) and the explosion and fireball flipbooks. The 1997 look draws the original's sprites and is not affected. |
 | `effects_brightness` | `25` to `150` | `100` | The same effects' glow, in percent: the streaks, sparks, flashes, the fire in the explosions and under the wreck smoke, and the brief lights at muzzles, impacts and blasts. |
 | `effects_opacity` | `25` to `150` | `100` | The same effects' opacity, in percent: lower lets more of the scene through the dust, smoke and fire. |
 | `vegetation_density` | `10` to `150` | `60` | The modern look's scattered plants (grass, shrubs, cacti), in percent of what Graphic Detail's Vegetation level (Low or High) places: lower thins them to a subset of the same plants. The map's own objects (its trees, bushes and buildings) and the 1997 look are not affected. |
 | `brush_impacts` | `off`, `on`\* | `on` | The modern look's scattered plants answer the fighting: rounds into a plant throw leaves and shake it, cars lay the plants they drive through down and they rise again over 15 s, blasts lay them down outward, and fire can set dry brush smouldering or burning for a few seconds. `off`: the plants only sway and part round a car, as before. The 1997 look is not affected. |
 | `lighting_calibration` | `off`, `filmic`\*, `on`\* | `on` | The modern look's lighting calibrated by day against the 1997 look's: each mission's exposure and ground colour set so the ground shows the 1997 look's colour and brightness, the cars' and buildings' sky light and colour so they do too, the frame shown through the 3D card's own curve and the sky in its texture's own colours, day and night (`on`); the same calibration under the Filmic tonemap with the modern sky's own colours, as in 0.11 builds after the calibration (`filmic`); or the modern look's own lighting as it was (`off`). The earlier `look_colour_match` key is read when this one is absent. The 1997 look is not affected. |
-| `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance (second page). Single player only: a network game keeps the original's cap. |
+| `ordnance_limit` | `original`, `unlimited`\* | `original` | Play Options' Unlim. Ordnance. Single player only: a network game keeps the original's cap. |
 | `modern_physics` | `false`, `true`\* | `false` | Play Options' Modern Physics. Not offered online. |
 | `rumble` | `original`, `enhanced`\* | `original` | Force Feedback's Pad or Pad Enhanced\*; `force_feedback=false` is Off and `ffb_wheel=true` Wheel. |
 | `hd_menu_art` | `false`, `true`\* | `true` | With an HD Menu Pack, the modern look's menus draw its upscaled backgrounds, pop-ups and fonts; `false` the original pictures. The 1997 look always draws the originals. |
@@ -192,7 +192,12 @@ keys are each player's own, online too. The hooks for a run (`I76_*`, [docs/dev-
 ### Controls
 
 Controls follow the original's keys, as set in Options > Control Configuration (which edits keys, the mouse
-and a pad).
+and a pad). Options > Mouse Options (also opened from Control Configuration and the in-mission Esc menu) holds the
+mouse's settings: Mouse Camera (the F2 chase view), Mouse Sensitivity, Invert Y Axis, Cockpit Mouse Look, Camera
+Return, View Zoom Reset, Mouse In Window, the bindings of the five mouse buttons (the two side buttons
+included) and what the wheel does (View Zoom or Cycle Weapon). Chase Crosshair, an aiming mark in the F2 chase view
+for keyboard, pad and mouse alike, is in Play Options (the last row of the shell sheet's scrolling list, and the in-mission Esc menu's
+Play Options); in a network game it shows only if the host allows it.
 
 | Action | Default |
 |---|---|
@@ -229,6 +234,12 @@ Shift or Ctrl held cancels a command, as in the original. Port keys: C poetry (i
 Modern Physics, Ctrl+F5 debug fly camera (right mouse looks, WASD/QE fly, Shift for speed), Ctrl+F9 wins the trip
 mission on the spot (debug), Ctrl+F2 or Ctrl+` the Developer panel when it is turned on (`developer=true` under `[port]` in shell.cfg; docs/dev-hooks.md).
 
+**CB voice.** In network games the CB radio sends your voice while you hold the poetry key (C). Sending needs a
+microphone, and the game does not open the audio input (so no system asks for microphone access) until you pick one:
+CB Microphone, in Audio Control (front end or in a network game), starts on None; choose Default or a device and talk.
+With None the key only says, once a session, to choose a microphone. Hearing the other players needs nothing. On macOS the
+microphone works from the next start after you pick it (macOS asks for access then).
+
 **Cheats.** The original's words, typed while holding Ctrl+Shift (single player): `getdown` stops the mission script
 and sets everyone on you; get killed (or Ctrl+Del) and the mission counts as won 5 s later, the original's level
 skip. `flflat`, `frflat`, `blflat` and `brflat` blow one of your tyres. `wiggleburger` turns a double-vision wobble
@@ -255,7 +266,7 @@ Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / 
 
 **Rumble.** A pad's rumble follows the game's own force-feedback effects: Play Options' Force Feedback row steps Off, Pad (those
 effects only, the original's and the default), Pad Enhanced\* (and short pulses for a nitrous kick, the handbrake, gear changes,
-the starter, each kind of weapon's shot and a light engine growl) and Wheel (Windows). On Play Options' second page Rumble
+the starter, each kind of weapon's shot and a light engine growl) and Wheel (Windows). In Play Options' list Rumble
 Strength sets 25 to 150 % on every level sent to the pad. Both apply when a mission starts, and from the Esc menu at once.
 
 **Joysticks.** A flight stick, wheel or any other USB device that is not a game pad is found too (it is joystick 1 when

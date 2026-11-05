@@ -90,9 +90,10 @@ public class PasswordTests
         Assert.False(w.Span.IndexOf("hunter2"u8) >= 0);
 
         // an answer from before the flag (it ends at the map hash's byte) reads as open; the flag is followed by the
-        // restrictions' flags and pair count (none here), the co-op byte, the rate's, the lobby's, the car reset's, the CB's and the ignition's, eight bytes more, and the host's build
+        // restrictions' flags and pair count (none here), the co-op byte, the rate's, the lobby's, the car reset's, the CB's, the ignition's and the crosshair's,
+        // nine bytes more, the host's build, then the arena's name and the drivers' makes and models (protocol 28; upstream's 22)
         var bytes = w.ToArray();
-        Assert.False(SessionInfo.TryRead(bytes.AsSpan(0, bytes.Length - 9 - 1 - BuildId.Current.Length))!.Locked);
+        Assert.False(SessionInfo.TryRead(bytes.AsSpan(0, bytes.Length - 10 - 1 - BuildId.Current.Length - DiscoveryTests.NamesOf(info)))!.Locked);
 
         using var browser = new SessionBrowser();
         SessionBrowser.Found? f = null;

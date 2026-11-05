@@ -1,5 +1,4 @@
-// The modern look's distant terrain (HorizonTerrain.cs; horizon_terrain.gdshader
-// and horizon_rim.gdshader include this): desert rock and sand
+// The modern look's distant terrain (HorizonTerrain.cs) and the outside ground near the camera (OutsideTerrain.cs): desert rock and sand
 // on a baked polar mesh, lit by the mission's sun with a baked sun visibility
 // (a march over the heights, COLOR.r) on top of Godot's own shadow map near
 // the map, a warm fill from the sunlit ground on the faces turned from it
@@ -12,7 +11,6 @@
 // ground texture's colour, farther out the scrub along the panels' foot. Detail
 // normals are value-noise octaves with analytic gradients, each fading out as
 // it gets finer than a pixel.
-// (shader_type and render_mode are the including shader's.)
 
 uniform sampler2D rock_by_bearing : source_color, filter_linear, repeat_enable;
 uniform vec3 rock_light : source_color = vec3(0.7, 0.5, 0.35);
@@ -33,22 +31,27 @@ uniform float haze_reach = 13000.0;  // then 1 - exp(-(d/reach)^2): 63% this far
 uniform float far_clip = 20000.0;    // wholly sky by here
 uniform float haze_floor = 0.0;      // air this much hazier from the start (night)
 
-// The original's panels stand on a ring whose foot is 10.2 x the eye's game height below the eye, so over
-// high ground they sink below the horizon. The ring's base is put on the cone from the reference eye (over the map's
-// centre at its average ground height; fixed for the mission, nothing moves with the camera) through that foot: height eye_y*(1 - foot_k*rho) at
-// horizontal distance rho from it, foot_k = 10.2/6000. The features, scaled with their radius, keep the panels' angular
-// size, so they rise and sink where the panels do. Fades in from the map's edge (800 m) so none shows between it and the ring.
-uniform float foot_k = 0.0;          // 0: no sinking
-uniform float sink_low = 0.0;        // the height the cone is counted from (HorizonEdge.Ring: 0 for a stock map, the lowest ground for a custom one)
-uniform vec3 ref_eye = vec3(0.0);    // the reference eye, centre-relative game frame (y absolute)
+// The heights come sunk as the panels sink (the cone through their foot for one reference eye per map, OutsideGround):
+// nothing here moves with the camera.
 
-// R: the lowest playable ground near each 10 m texel of the map's bounds (1e9 off the tiles; HorizonTerrain.FloorGrid): over the
-// map the ring is drawn only where it is under that, as a backstop under the terrain's edge, never poking through the ground.
-// G: 1 on a tile's outermost texels.
+// OutsideTerrain draws the outside ground's own samples near the camera with this shading (horizon_near.gdshader, the same
+// without the ring's depth and masks, so the GPU can reject hidden fragments early): the ring gives way under them (near_mask,
+// horizon_mask.gdshaderinc).
+#include "res://Shaders/horizon_mask.gdshaderinc"
+#ifndef HORIZON_RING
+// the chunks near the camera ease onto the ring's own surface (UV2.x, where UV2.y is 1) between these distances from the camera, so
+// where they end the ring goes on at their height; a little over it, so that where the ring is drawn a little higher than the chunks'
+// edge (its triangles against their points) no sky shows through the step
+uniform float morph_start = 800.0;
+uniform float morph_end = 1200.0;
+const float MORPH_LIFT = 2.5;
+// the chunks near the camera: the mission's ground texture over the flat ground's colour (its texels about its mean, ground_color),
+// repeating every 40 m as the engine's does, so the near ground has grain; its mipmaps settle to the mean, the ring's own colour
+uniform sampler2D ground_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool has_ground_tex = false;
+#endif
+
 uniform float debug_tint = 0.0;   // I76_HORIZON_TINT=1: the ring drawn magenta (to see where it shows)
-uniform sampler2D map_floor : filter_nearest, repeat_disable;
-uniform vec2 map_origin = vec2(0.0);
-uniform vec2 map_extent = vec2(0.0);   // 0: no floor
 
 varying vec3 g_pos;    // centre-relative, game frame
 varying vec3 g_nrm;
@@ -75,45 +78,26 @@ vec3 noised(vec2 x) {
 }
 
 void vertex() {
+#ifndef HORIZON_RING
+	if (UV2.y > 0.5) {
+		vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		VERTEX.y = mix(VERTEX.y, UV2.x + MORPH_LIFT, smoothstep(morph_start, morph_end, length(wp.xz - CAMERA_POSITION_WORLD.xz)));
+	}
+#endif
 	g_pos = vec3(VERTEX.x, VERTEX.y, -VERTEX.z);
 	g_nrm = vec3(NORMAL.x, NORMAL.y, -NORMAL.z);
 	v_data = COLOR;
 	v_aux = UV;
-	if (foot_k > 0.0) {
-		float rho = length(g_pos.xz - ref_eye.xz);
-		float cone = sink_low + (ref_eye.y - sink_low) * (1.0 - foot_k * rho);
-		float base = g_pos.y - UV.x;   // the ring's ground under this vertex (UV.x is the height above it)
-		VERTEX.y += smoothstep(0.0, 800.0, UV.y) * min(cone - base, 0.0);
-	}
 }
 
-// Over a tile a fragment is drawn only under the lowest ground near it (map_floor.r), except over the outermost 10 m
-// of a tile (map_floor.g), where it stays as a backstop behind the terrain's edge (which the modern surface can pull a
-// few metres in from the tile's), at twice the distance, so that nothing of the ground stands behind it. The two are
-// separate passes: this shader never writes DEPTH, so the depth pre-pass and early depth testing throw away the ring
-// under the map before it is shaded (it covers the whole lower screen, and with DEPTH written every pixel of it was
-// shaded in full: a quarter of the frame's GPU time); the rim pass (horizon_rim.gdshader, HORIZON_RIM_PASS, on
-// meshes of the cells that reach a rim texel alone) draws the pushed fragments. Every path of that pass writes
-// DEPTH: a shader that writes it on one path only leaves it undefined on the others, which some drivers take as
-// near, drawing the whole ring over the map (#69).
 void fragment() {
-#ifdef HORIZON_RIM_PASS
-	DEPTH = FRAGCOORD.z * 0.5;
-	if (map_extent.x <= 0.0) discard;
-	{
-		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
-		if (!(tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0)) discard;
-		vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
-		if (!(g_pos.y > fl.r && fl.g > 0.5)) discard;
-	}
-#else
-	if (map_extent.x > 0.0) {
-		vec2 tuv = (g_pos.xz - map_origin) / map_extent;
-		if (tuv.x >= 0.0 && tuv.y >= 0.0 && tuv.x < 1.0 && tuv.y < 1.0) {
-			vec2 fl = textureLod(map_floor, tuv, 0.0).rg;
-			if (g_pos.y > fl.r) discard;
-		}
-	}
+#ifdef HORIZON_RING
+	// every path writes DEPTH (the backstop below moves it): a shader that writes it on one path only leaves it undefined
+	// on the others, which some drivers take as near, drawing the whole ring over the map (#69)
+	DEPTH = FRAGCOORD.z;
+	int mask = horizon_mask(g_pos);
+	if (mask == 1) discard;
+	if (mask == 2) DEPTH = FRAGCOORD.z * 0.5;
 #endif
 	float dist = length(VERTEX);
 	float footprint = max(length(dFdx(g_pos)), length(dFdy(g_pos)));
@@ -121,10 +105,15 @@ void fragment() {
 	float rocky = v_data.g, style = v_data.b;
 	float above = v_aux.x, from_map = v_aux.y;
 
-	// ---- detail: a few octaves of noise, as bumps and as colour ----
+	// ---- detail: a few octaves of noise, as bumps and as colour (OutsideTerrain's chunks near the camera down to 1.25 m) ----
 	vec2 grad = vec2(0.0);
 	float detail = 0.0, cell = 320.0, amp = 1.0;
-	for (int i = 0; i < 6; i++) {
+#ifdef HORIZON_RING
+	int octaves = 6;
+#else
+	int octaves = dist < 100.0 ? 9 : 6;   // the chunks near the camera: down to 1.25 m close by
+#endif
+	for (int i = 0; i < octaves; i++) {
 		float keep = smoothstep(1.0, 4.0, cell / footprint);
 		if (keep <= 0.0) break;
 		float a = float(i) * 2.3999632;
@@ -156,6 +145,9 @@ void fragment() {
 	rock = mix(rock, rock_dark * 0.7, streak * smoothstep(0.5, 0.8, steep) * 0.35);
 	vec3 flat_col = mix(ground_color, mix(ground_color, scrub_color, 0.35), smoothstep(400.0, 4000.0, from_map));
 	flat_col *= 0.9 + 0.12 * detail;
+#ifndef HORIZON_RING
+	if (has_ground_tex) flat_col *= mix(vec3(1.0), texture(ground_tex, g_pos.xz / 40.0).rgb / max(ground_color, vec3(0.02)), 1.0 - smoothstep(300.0, 900.0, dist));
+#endif
 	float r = clamp(max(rocky * 1.2, smoothstep(0.18, 0.45, steep)), 0.0, 1.0);
 	// talus and sand collect where it flattens
 	r *= smoothstep(0.05, 0.22, steep + rocky * 0.15 + detail * 0.06);
@@ -174,7 +166,9 @@ void fragment() {
 	float f = clamp(1.0 - (1.0 - haze_floor) * exp(-t * t), 0.0, 1.0);
 	f = max(f, smoothstep(far_clip * 0.75, far_clip * 0.98, dist));
 
+#ifdef HORIZON_RING
 	if (debug_tint > 0.0) { albedo = vec3(1.0, 0.0, 1.0); f = 0.0; }
+#endif
 	ALBEDO = albedo * (1.0 - f);
 	EMISSION = haze_col * haze_gain * f;
 	ROUGHNESS = 1.0;

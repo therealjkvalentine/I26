@@ -174,6 +174,11 @@ public sealed record ServerOptions
     /// <see cref="JoinAccept.Handicaps"/>; the levels ride on the scoreboard's rows.
     /// </summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
+    /// <summary>
+    /// The chase crosshair, an aiming aid of the port's (the host form's Chase Crosshair, i26-server's --crosshair): allowed, each
+    /// player's own setting shows it; off by default. Listed in <see cref="SessionInfo.Crosshair"/> and carried in <see cref="JoinAccept.Crosshair"/>; the server itself does nothing with it.
+    /// </summary>
+    public bool AllowCrosshair { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
@@ -354,7 +359,6 @@ public sealed partial class MeleeHost : IModeHost
             foreach (var so in hs.World.Objects) _structureSerial[so] = so.NetId & 0xffffff;
         _spawned.Clear();     // the AI fill is in the roster every join gets
         Mode.Opened();
-        if (Mode is MeleeMode { BotLimit: > 0 } mm) mm.Game.PrepareJumps(Session.TickSeconds);   // the ramps the bots can use, flown behind the loading card
         _spawned.Clear();     // and so are the bots
     }
 
@@ -582,13 +586,33 @@ public sealed partial class MeleeHost : IModeHost
         return stock != car && CarExists(stock) ? stock : Options.DefaultCar;
     }
 
-    /// <summary>The game as a session list shows it.</summary>
-    public SessionInfo Info() => new(Options.SessionId, Protocol.Version, Options.Name, Arena, _seats.Count, Options.MaxPlayers,
+    /// <summary>The game as a session list shows it: its name (the arena's when it was given none), and each driver's car as <see cref="Listed"/> names it.</summary>
+    public SessionInfo Info() => new(Options.SessionId, Protocol.Version, Options.Name.Trim() is { Length: > 0 } n ? n : ArenaTitle, Arena, _seats.Count, Options.MaxPlayers,
         Mode.Rules.TeamPlay, Options.InviteOnly, Options.MaxScore, Options.TimeLimit, Over,
-        [.. _seats.Select(s => new SessionDriver(s.Name, s.Actor.CarFile, (byte)s.Actor.Team)), .. Mode.Bots.Select(b => new SessionDriver(b.Name, b.Player.CarFile, (byte)b.Player.Team))],
+        [.. _seats.Select(s => Listed(s.Name, s.Actor.CarFile, s.Actor.Team)), .. Mode.Bots.Select(b => Listed(b.Name, b.Player.CarFile, b.Player.Team))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams,
         MapOffer?.Hash, MapOffer?.Shared ?? false, (uint)(MapOffer?.TotalSize ?? 0), Options.Password.Length > 0,
-        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, IgnitionStaysOn: Options.IgnitionStaysOn) { Handicaps = Options.Handicaps, Build = BuildId.Current };
+        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, IgnitionStaysOn: Options.IgnitionStaysOn, Crosshair: Options.AllowCrosshair,
+        ArenaName: ArenaTitle) { Handicaps = Options.Handicaps, Build = BuildId.Current };
+
+    private string? _arenaTitle;
+    /// <summary>The arena's name as the host forms list it (a co-op game's: its mission's title), the file's stem when it names none.</summary>
+    public string ArenaTitle => _arenaTitle ??= Options.Coop is not null ? I76.Formats.Mission.MissionTitles.CoopTitle(Vfs.Install, Arena)
+        : I76.Formats.Mission.MissionTitles.ArenaTitle(Vfs.Install, Arena) is { Length: > 0 } t ? t : Path.GetFileNameWithoutExtension(Arena);
+
+    /// <summary>
+    /// A driver as the session list shows them (<see cref="SessionDriver"/>): an install's car by its file, which every asker's
+    /// install has; a car served by its content (<paramref name="vcf"/>, or the file's own when it is one) by its body, whose make and
+    /// model the asker reads from its own files, and in the host's words too when the body is not the archive's (a community car).
+    /// The served file's name (n&lt;hash&gt;&lt;stem&gt;.vcf) means nothing to a player.
+    /// </summary>
+    public SessionDriver Listed(string name, string car, int team, byte[]? vcf = null)
+    {
+        if (vcf is not { Length: > 0 } && !_custom.TryGetValue(car, out vcf)) return new SessionDriver(name, car, (byte)team);
+        if (I76.Formats.Shell.CarNames.BodyOf(vcf) is not { } body) return new SessionDriver(name, car, (byte)team);
+        string model = Vfs.InArchive(body) ? "" : I76.Formats.Shell.CarNames.Of(Vfs, body) ?? "";
+        return new SessionDriver(name, body, (byte)team, model);
+    }
 
     /// <summary>
     /// A player joins: the car they asked for, built from the server's own
@@ -721,7 +745,7 @@ public sealed partial class MeleeHost : IModeHost
         [.. Setup.World.Vehicles.Select(Info)],
         [.. _structureSerial.Where(kv => kv.Key.Destroyed || kv.Key.Nodes.Any(n => n.Destroyed)).Select(kv => new StructureState(kv.Value, kv.Key.DestroyedMask()))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams, (byte)Session.Rate.Label,
-        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash) { Coop = Mode.JoinState(s), Cb = Options.AllowCb, IgnitionStaysOn = Options.IgnitionStaysOn, Handicaps = Options.Handicaps, Build = BuildId.Current };
+        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash) { Coop = Mode.JoinState(s), Cb = Options.AllowCb, IgnitionStaysOn = Options.IgnitionStaysOn, Handicaps = Options.Handicaps, Build = BuildId.Current, Crosshair = Options.AllowCrosshair };
 
     private CarInfo Info(Vehicle v)
     {

@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 27;
+    public const ushort Version = 28;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -358,6 +358,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         w.U8((byte)Handicaps);
         // protocol 26: the host's build, for the joiner's own different-build notice (the server's line comes while it loads)
         w.Str(Build);
+        // protocol 28 (upstream's 22): the chase crosshair is allowed in this game (the host's Chase Crosshair option)
+        w.Bool(Crosshair);
     }
 
     /// <summary>The host's build (<see cref="BuildId"/>, protocol 26; empty when it cannot tell).</summary>
@@ -371,6 +373,13 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
 
     /// <summary>The CB radio is allowed in this game (the host form's CB Radio, i26-server's --no-cb turns it off); off, the server relays no voice and the client neither sends nor opens the microphone.</summary>
     public bool Cb { get; init; } = true;
+
+    /// <summary>
+    /// The chase crosshair is allowed in this game (protocol 28, upstream's 22; the host form's Chase Crosshair, i26-server's --crosshair): an aiming
+    /// aid the original does not have, so off unless the host allows it; allowed, each player's own Chase Crosshair setting decides.
+    /// The view's alone: nothing in the simulation reads it.
+    /// </summary>
+    public bool Crosshair { get; init; }
 
     /// <summary>A co-op story mission's part (protocol 15): the mission's seats, this player's, and its script's presentation as it stands; null in a melee.</summary>
     public CoopInfo? Coop { get; init; }
@@ -407,7 +416,8 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         var handicaps = (I76.Sim.Missions.HandicapMode)r.U8();
         if (handicaps > I76.Sim.Missions.HandicapMode.Auto) throw new WireException($"handicaps {handicaps}");
         string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
-        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps, Build = build };
+        bool crosshair = r.Remaining >= 1 && r.Bool();
+        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps, Build = build, Crosshair = crosshair };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>

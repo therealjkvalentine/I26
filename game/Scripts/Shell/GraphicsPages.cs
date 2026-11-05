@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
     Look1997, HdTextures, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
     AntiAliasing, RenderScale, VSync, MaxFps, ShowFps, Renderer, LogFile,
-    FieldOfView, MouseCamera, CameraReturn, ZoomReset, MouseInWindow,
+    FieldOfView,
 }
 
 /// <summary>
@@ -28,7 +28,8 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
         [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
         [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
-        [GraphicsRow.FieldOfView, GraphicsRow.MouseCamera, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.MouseInWindow],
+        // the mouse rows (Mouse Camera, Camera Return, View Zoom Reset, Mouse In Window) are upstream's Mouse Options screen's since pass 19
+        [GraphicsRow.FieldOfView],
     ];
 
     /// <summary>Rows with a blank line over them on the shell's sheet: Display's start-up rows apart from the live ones.</summary>
@@ -124,10 +125,6 @@ public static class GraphicsPages
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;
-            case GraphicsRow.MouseCamera: t.MouseCamera = f.MouseCamera; break;
-            case GraphicsRow.MouseInWindow: t.KeepMouseInWindow = f.KeepMouseInWindow; break;
-            case GraphicsRow.CameraReturn: t.CameraReturn = f.CameraReturn; break;
-            case GraphicsRow.ZoomReset: t.ZoomReset = f.ZoomReset; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;

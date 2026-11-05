@@ -33,10 +33,6 @@ public class GraphicsPagesTests
         GraphicsRow.FieldOfView => s.FieldOfView,
         GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.CarInteriors => s.CarInteriors,
-        GraphicsRow.MouseCamera => s.MouseCamera,
-        GraphicsRow.MouseInWindow => s.KeepMouseInWindow,
-        GraphicsRow.CameraReturn => s.CameraReturn,
-        GraphicsRow.ZoomReset => s.ZoomReset,
         GraphicsRow.Garage3D => s.Garage3D,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
@@ -89,7 +85,8 @@ public class GraphicsPagesTests
             GraphicsPages.Rows[GraphicsPages.Look]);
         Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
             GraphicsPages.Rows[GraphicsPages.Display]);
-        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.MouseCamera, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.MouseInWindow],
+        // the mouse rows are upstream's Mouse Options screen's (pass 19)
+        Assert.Equal([GraphicsRow.FieldOfView],
             GraphicsPages.Rows[GraphicsPages.Camera]);
     }
 
