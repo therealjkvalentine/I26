@@ -57,6 +57,7 @@ MODELS = {
     "4xHDcube3_500k.pth": ("4xHDcube3_500k", "Venomalia", "CC-BY-NC-SA-4.0 (non-commercial)", "https://github.com/Venomalia/HDcube/releases/download/3.0/4xHDcube3_500k.pth"),
     "4x-UltraSharpV2.safetensors": ("4x-UltraSharpV2", "Kim2091", "CC-BY-NC-SA-4.0 (non-commercial)", "https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2.safetensors"),
     "4xHDCube4Compact.pth": ("4xHDcube4Compact", "Venomalia", "HDcube licence (the author claims no rights in outputs)", "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip"),
+    "2xHDCube_Compact.pth": ("2xHDCube_Compact", "Venomalia", "CC-BY-4.0", "https://github.com/Venomalia/HDcube/releases/download/Compact/2xHDCube_Compact.pth"),
     ALPHA_MODEL: ("4xHDcube-Alpha", "Venomalia", "HDcube licence (the author claims no rights in outputs)", "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip (Alpha folder)"),
 }
 # The cockpit's families: (family, name globs, colour model file or None = the run's colour (--from, else --model), alpha step)
@@ -308,26 +309,47 @@ def one(job, run_model=None):
     n, src, out_dir, frm, max_size, scale, full, pixel, flip, dds, cm = job[:11]
     fam = job[11] if len(job) > 11 else None
     stem = n[:-4].lower()
-    if any(os.path.exists(os.path.join(out_dir, stem + e)) for e in (".dds", ".png")): return n, False
+    masters_out = OPTS["masters_out"]
+    if masters_out:
+        if os.path.exists(os.path.join(masters_out, stem + ".png")): return n, False
+    elif any(os.path.exists(os.path.join(out_dir, stem + e)) for e in (".dds", ".png")): return n, False
     im = np.array(Image.open(os.path.join(src, n)).convert("RGBA"))
     oh, ow = im.shape[:2]
     pix = matches(stem, pixel) and not (fam and fam[2])
     if max(ow, oh) > max_size and not pix: return n, False
     run = run_model.run if isinstance(run_model, Runner) else (lambda im, f=None: run_model(im))
+    full_scale = max(4, scale)                     # the cockpit's own art (--full): the model's 4x, or the --scale when larger
+    fm = os.path.join(OPTS["family_masters"], stem + ".png") if OPTS["family_masters"] else None
     if pix:
-        big = pixel_scale(im, 4)
+        if masters_out: return n, False            # no model: nothing to keep
+        big = pixel_scale(im, full_scale if matches(stem, full) else max(4, scale))
+    elif fam and fam[0] and fm and os.path.exists(fm):
+        big = np.array(Image.open(fm).convert("RGBA"))      # the family model's output kept by an earlier --masters-out run
     elif fam and fam[0]:
         big = run(im, fam[0])
+        if OPTS["x2_model"] and big.shape[1] < ow * (full_scale if matches(stem, full) else scale):
+            big = second_pass(run_model, big)
     elif frm:
         p = os.path.join(frm, stem + ".png")
         if not os.path.exists(p): return n, False
         big = np.array(Image.open(p).convert("RGBA"))
     else:
         big = run(im)
-    if cm and not pix: big = colour_match(big, im)
     a = im[..., 3]
-    alpha = run_model.alpha(a) if fam and fam[1] and not pix and (a == 0).any() and (a > 0).any() else None
-    scale = min(4 if matches(stem, full) else scale, big.shape[1] // ow)
+    keyed = fam and fam[1] and not pix and (a == 0).any() and (a > 0).any()
+    fa = os.path.join(OPTS["family_masters"], stem + ".alpha.png") if OPTS["family_masters"] else None
+    if masters_out:
+        # the model's work only (--masters-out): its colour (when the texture has a family model) and its alpha step, as PNGs
+        if fam and fam[0]: Image.fromarray(big, "RGBA").save(os.path.join(masters_out, stem + ".part.png"))
+        if keyed: Image.fromarray(np.clip(run_model.alpha(a) * 255 + 0.5, 0, 255).astype(np.uint8), "L").save(os.path.join(masters_out, stem + ".alpha.png"))
+        if fam and fam[0]: os.replace(os.path.join(masters_out, stem + ".part.png"), os.path.join(masters_out, stem + ".png"))
+        elif keyed: open(os.path.join(masters_out, stem + ".png"), "wb").close()   # done marker: the colour comes from --from
+        return n, bool((fam and fam[0]) or keyed)
+    if cm and not pix: big = colour_match(big, im)
+    if not keyed: alpha = None
+    elif fa and os.path.exists(fa): alpha = np.asarray(Image.open(fa), np.float32) / 255.0
+    else: alpha = run_model.alpha(a)
+    scale = min(full_scale if matches(stem, full) else scale, big.shape[1] // ow)
     px = finish(big, ow, oh, scale, alpha)
     out = os.path.join(out_dir, stem)
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
@@ -336,6 +358,22 @@ def one(job, run_model=None):
     else:
         Image.fromarray(px, "RGBA").save(out + ".part.png"); os.replace(out + ".part.png", out + ".png")
     return n, True
+
+# options of the run that one() reads (set by main, and in each worker of the process pool by its initializer)
+OPTS = {"masters_out": None, "family_masters": None, "x2_model": None}
+
+def set_opts(opts):
+    OPTS.update(opts)
+
+def second_pass(run_model, big):
+    """A family model's 4x taken to 8x through the --x2-model (2xHDCube_Compact: route 8b's second pass), alpha enlarged on its own."""
+    return run_model.run(big, OPTS["x2_model"])
+
+def globs_of(spec):
+    """--only / --skip: comma-separated globs, or @FILE of globs one a line."""
+    if spec.startswith("@"):
+        with open(spec[1:]) as f: return [l.strip().lower() for l in f if l.strip() and not l.startswith("#")]
+    return [g.strip().lower() for g in spec.split(",") if g.strip()]
 
 def family_of(stem, table, alpha_all):
     """(colour model file or None, alpha step, listed) for a texture: its row of the family table, else the run's."""
@@ -350,9 +388,18 @@ def main():
     ap.add_argument("--from", dest="frm", help="repack the 4x PNGs of a pack made earlier instead of running the model")
     ap.add_argument("--model", help="a spandrel-loadable model file (default: download " + MODEL + ")")
     ap.add_argument("--device", default=None, help="cuda or cpu (default: cuda when available)")
-    ap.add_argument("--only", default="*", help="a glob of texture names to do, e.g. 'pp11*' for one car")
+    ap.add_argument("--only", default="*", help="globs of texture names to do (comma-separated, or @FILE of globs one a line), e.g. 'pp11*' for one car")
+    ap.add_argument("--skip", default="", help="globs of texture names to leave out (comma-separated or @FILE)")
+    ap.add_argument("--covers", default=None, help="the pack holds only some textures and the game serves the rest from the next size down"
+                    " (tex-world-4x): pack.json's partial and covers, the words the HD Textures row shows, e.g. 'cockpit & cars'")
+    ap.add_argument("--x2-model", default=None, help="a 2x model file in --models-dir (2xHDCube_Compact.pth) taking a family model's 4x to an --scale 8 pack's 8x")
+    ap.add_argument("--masters-out", default=None, help="run only the models (the families' colour models, --x2-model, the alpha step) and keep their"
+                    " output in this folder as PNGs, for a later run's --family-masters: the GPU part of a build, apart from its CPU part")
+    ap.add_argument("--from-models", default="", help="the model files that made the --from pack's PNGs, comma-separated (for pack.json and"
+                    " ATTRIBUTION.txt: route 8b's masters-8x are 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth)")
+    ap.add_argument("--family-masters", default=None, help="a --masters-out folder: the family textures' model output and alpha step read from it instead of running the models")
     ap.add_argument("--max-size", type=int, default=512, help="skip textures wider or taller than this (the ground sheets)")
-    ap.add_argument("--scale", type=int, default=4, choices=(2, 3, 4), help="the world and car textures' size over the original (default 4, the one the HD Textures row offers; 2 and 3 for a developer's comparison)")
+    ap.add_argument("--scale", type=int, default=4, choices=(2, 3, 4, 8), help="the world and car textures' size over the original (default 4, the one the HD Textures row offers; 2 and 3 for a developer's comparison; 8 for a partial pack over the 4x, see --covers)")
     ap.add_argument("--full", default="z*", help="globs (comma-separated) of textures kept at the model's 4x (default z*: the cockpit's own art)")
     ap.add_argument("--pixel", default="zdue*,zdse*,znbe*,zmir*", help="globs of pixel art scaled 4x in its own colours instead of by the model, whatever"
                     " their size (default: the weapon and special labels, the ammunition digits, the mirror's frames)")
@@ -373,6 +420,7 @@ def main():
     global TILE, GPU_SHARE
     TILE, GPU_SHARE = max(16, args.tile), max(0.0, args.gpu_share)
     if args.out is None: args.out = user_dir(args.scale)
+    if args.x2_model and not os.path.isabs(args.x2_model): args.x2_model = os.path.join(args.models_dir, args.x2_model)
     if args.self_check: sys.exit(0 if self_check() else 1)
     if not args.src: ap.error("the folder --export-textures wrote is needed")
     table = []
@@ -387,11 +435,19 @@ def main():
     if os.path.exists(os.path.join(args.src, "bottom-up.txt")):
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
-    names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and fnmatch.fnmatch(n.lower(), args.only.lower()))
+    only, skip = globs_of(args.only), globs_of(args.skip) if args.skip else []
+    names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and any(fnmatch.fnmatch(n.lower()[:-4], g) or fnmatch.fnmatch(n.lower(), g) for g in only)
+                   and not any(fnmatch.fnmatch(n.lower()[:-4], g) for g in skip))
+    OPTS.update(masters_out=args.masters_out, family_masters=args.family_masters, x2_model=args.x2_model)
+    if args.masters_out: os.makedirs(args.masters_out, exist_ok=True)
     fams = {n: family_of(n[:-4].lower(), table, args.alpha) for n in names}
     order = {row[0]: i for i, row in enumerate(table)}
     names.sort(key=lambda n: (order.get(fams[n][1], len(order)), n))              # a family's textures together: its model loads once
-    needs_model = not args.frm or any(f and (f[0] or f[1]) for f, _ in fams.values())
+    def kept(n):   # the family model's output (and the alpha step's) already in --family-masters, or a texture the run skips (over --max-size)
+        d = args.family_masters
+        if d and os.path.exists(os.path.join(d, n[:-4].lower() + ".png")): return True
+        with Image.open(os.path.join(args.src, n)) as im: return max(im.size) > args.max_size
+    needs_model = bool(args.masters_out) or not args.frm or any(f and (f[0] or f[1]) and not kept(n) for n, (f, _) in fams.items())
     runner = None
     if needs_model:
         import torch
@@ -410,23 +466,32 @@ def main():
     if not needs_model:
         # no model: the pictures are independent, one process a core
         import multiprocessing
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.Pool(initializer=set_opts, initargs=(dict(OPTS),)) as pool:   # the workers start without main's OPTS (spawn)
             for i, (n, ok) in enumerate(pool.imap_unordered(one, jobs, chunksize=8), 1): tick(i, n, ok)
     else:
         for i, j in enumerate(jobs, 1): tick(i, j[0], one(j, runner)[1])
-    used = [MODEL + ".pth"] if not args.frm else []
+    used = [MODEL + ".pth"] if not args.frm else [f for f in args.from_models.split(",") if f]
+    if args.family_masters and os.path.exists(os.path.join(args.family_masters, "models.json")):
+        with open(os.path.join(args.family_masters, "models.json")) as f: used += [m for m in json.load(f) if m not in used]
     used += [os.path.basename(m) for m in (runner.used if runner else []) if os.path.basename(m) not in used]
+    if args.masters_out:
+        # the models' output only: the list of models that made it, for the run that packs it (--family-masters)
+        prev = []
+        if os.path.exists(os.path.join(args.masters_out, "models.json")):
+            with open(os.path.join(args.masters_out, "models.json")) as f: prev = json.load(f)
+        with open(os.path.join(args.masters_out, "models.json"), "w") as f: json.dump(prev + [m for m in (runner.used if runner else []) if m not in prev], f)
+        print(f"\n{done} kept, {skipped} skipped, in {args.masters_out}"); return
     models = [{"file": f, "model": MODELS.get(f, (f,))[0], "by": MODELS.get(f, (0, "?"))[1], "license": MODELS.get(f, (0, 0, "see its source"))[2],
                "source": MODELS.get(f, (0, 0, 0, "?"))[3]} for f in used]
     attribution = [f"{m['model']} by {m['by']}, {m['license']}, {m['source']}" for m in models]
-    if args.frm: attribution.insert(0, f"colour of the textures without a model of their own: the --from pack ({args.frm}) and its models")
+    if args.frm and not args.from_models: attribution.insert(0, f"colour of the textures without a model of their own: the --from pack ({args.frm}) and its models")
     with open(os.path.join(args.out, "pack.json"), "w") as f:
         json.dump({"name": "Upscaled textures (own machine)", "version": "2", "date": time.strftime("%Y-%m-%d"),
                    "model": MODEL, "model_license": "; ".join(f"{m['model']}: {m['license']}" for m in models) or "CC-BY-4.0",
                    "attribution": " | ".join(attribution) or ATTRIBUTION, "models": models,
                    "families": [{"family": r[0], "globs": r[1], "colour": r[2] or ("--from" if args.frm else MODEL), "alpha_step": bool(r[3])} for r in table],
                    "alpha_step_all": args.alpha, "scale": args.scale, "full_scale": args.full, "pixel": args.pixel, "colour_match": args.cm,
-                   "format": "dds-bc7" if etcpak else "png"}, f, indent=2)
+                   "format": "dds-bc7" if etcpak else "png", **({"partial": True, "covers": args.covers} if args.covers else {})}, f, indent=2)
     with open(os.path.join(args.out, "ATTRIBUTION.txt"), "w") as f: f.write("\n".join(attribution or [ATTRIBUTION]) + "\n")
     print(f"\n{done} written, {skipped} skipped, in {args.out}")
 
