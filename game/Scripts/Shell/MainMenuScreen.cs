@@ -92,6 +92,8 @@ public sealed class MainMenuScreen : ShellScreen
             RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(() => GD.Print($"load-profile: main menu's first frame at {Time.GetTicksMsec()} ms from the engine's start")), (uint)GodotObject.ConnectFlags.OneShot);
         // the 3D garage's first build, made while the menu stands (#143)
         Garage3D.GarageWarmup.Start(Shell, this);
+        // what every mission start shares, made while the menu stands idle (after the garage's)
+        MenuWarmup.Start(Shell, this);
     }
 
     /// <summary>The background and the four top buttons, every row closed.</summary>

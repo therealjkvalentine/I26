@@ -481,10 +481,15 @@ public partial class ModernFx : Node3D
     /// sparks, the fireball burst and a puff of gun smoke, all alive at once at <paramref name="at"/> (Godot coordinates), so that the
     /// renderer compiles their pipelines now and not in the frame of the first blast. <see cref="Clear"/> takes them away again.
     /// </summary>
-    public void Warm(Vector3 at)
+    public void Warm(Vector3 at) { foreach (var _ in WarmSteps(at)) { } }
+
+    /// <summary><see cref="Warm"/> a part at a time (the menu's warm-up does one a frame, MenuWarmup).</summary>
+    public System.Collections.Generic.IEnumerable<object?> WarmSteps(Vector3 at)
     {
         Explode(at, 6f, 1.0, new Color(0.3f, 0.3f, 0.3f), 1f);
+        yield return null;
         FireBurst(at);
+        yield return null;
         GunSmoke(at, Vector3.Up, 2f);
         foreach (var sp in _sprites) { sp.Start = _t; sp.Life = 10; }   // the delayed ones too: every one is drawn
     }

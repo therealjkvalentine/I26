@@ -1328,6 +1328,8 @@ public sealed class ShellSettings
     public int VegetationDensity { get; set; } = I76.Formats.Vegetation.VegetationDensity.Default;
     /// <summary>The port's own: CONFIGURE CHASSIS as a 3D garage (Graphic Detail's 3D Garage; shell.cfg [port] garage_3d, written only when off). On unless the player turned it off; off is the original's 2D form.</summary>
     public bool Garage3D { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's effects made while the main menu stands idle, so a mission's start finds them made (MenuWarmup; [port] menu_warmup, written only when off).</summary>
+    public bool MenuWarmup { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
     public bool GarageRadio { get; set; }
     /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
@@ -1528,6 +1530,7 @@ public sealed class ShellSettings
         s.VegetationDensity = I76.Formats.Vegetation.VegetationDensity.Parse(Pct("vegetation_density"));
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
+        s.MenuWarmup = !string.Equals(c.GetValue("port", "menu_warmup", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.CardOrder = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", "card_first").ToString());
@@ -1651,6 +1654,7 @@ public sealed class ShellSettings
         if (EffectsOpacity != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_opacity", EffectsOpacity);
         if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
+        if (!MenuWarmup) c.SetValue("port", "menu_warmup", "off");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!DeathVariety) c.SetValue("port", "death_variety", "off");
         if (CardOrder != I76.Game.Boot.CardOrder.CardFirst) c.SetValue("port", "briefing_while_loading", I76.Game.Boot.BriefingOverlap.Name(CardOrder));
