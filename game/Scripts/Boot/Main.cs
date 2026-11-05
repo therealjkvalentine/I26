@@ -781,6 +781,13 @@ public partial class Main : Node3D
         ApplySoftware(s);   // MainSoftware.cs
     }
 
+    /// <summary>
+    /// The multisampling in a look: the Anti-Aliasing row's in the modern one; in the 1997 look the same unless [port] aa_1997 is off
+    /// (the 3D card drew none) or the Software renderer draws (its 480-line palette grid), docs/deviations.md "Anti-aliasing (1997 look)".
+    /// </summary>
+    private Viewport.Msaa Msaa1997(bool look1997) =>
+        look1997 && (!I76.Game.Sim.OriginalBehavior.Antialias1997 || SoftwareLook.Active) ? Viewport.Msaa.Disabled : RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+
     // Graphic Detail's rows that trade the modern look's cost: Shadow Detail (+0x6: Off, Low, High), Terrain Detail
     // (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
     private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
@@ -1071,6 +1078,8 @@ public partial class Main : Node3D
         if (world.Player is { } driven) session.AddDriver(driven);
         if (session.Options.DebugHooks) session.DebugBoom = System.Environment.GetEnvironmentVariable("I76_BOOM");
         _sim = new SimDriver { Session = session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio };
+        // the 1997 look's Early Tick (TickPacer), not under Modern Physics (its own steps read the keys live)
+        _sim.EarlyTick = () => _mode1997 && I76.Game.Sim.OriginalBehavior.EarlyTick && _modern?.Enabled != true;
         // the sim ticks before Main reads the script camera, so a cut-scene owns the very first frame
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;
@@ -2745,7 +2754,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("look: materials, scenery");
         if (_pit is not null) _pit.Faithful = on;
         if (_sim is not null) foreach (var c in _sim.Cars) { c.Modern = !on; if (c.Wrecked) _damageView?.Rebuild(c); }   // the wreck's shape: modern shell or the 1997 box
-        GetViewport().Msaa3D = on ? Viewport.Msaa.Disabled : RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+        GetViewport().Msaa3D = Msaa1997(on);
         MissionBuilder.Trace("look: msaa");
         ApplyModernQuality();
         MissionBuilder.Trace("look: modern quality");

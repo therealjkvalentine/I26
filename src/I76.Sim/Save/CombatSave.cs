@@ -35,7 +35,8 @@ public sealed partial class Combat
         a.For<Flame>()
             .Saved(nameof(Flame.Owner), nameof(Flame.Weapon), nameof(Flame.Style), nameof(Flame.Damage), nameof(Flame.Count), nameof(Flame.Fired), nameof(Flame.Built),
                 nameof(Flame.PrevEnd), nameof(Flame.Cross), nameof(Flame.OwnerPos), nameof(Flame.OwnerRot), nameof(Flame.FirstHit));
-        a.For<ShotFired>().Saved(nameof(ShotFired.Shooter), nameof(ShotFired.Weapon), nameof(ShotFired.Muzzle), nameof(ShotFired.Forward));
+        a.For<ShotFired>().Saved(nameof(ShotFired.Shooter), nameof(ShotFired.Weapon), nameof(ShotFired.Muzzle), nameof(ShotFired.Forward))
+            .Transient("presentation: where in its tick the shot fell, for the 1997 look's flash; a restored shot is drawn at its tick", nameof(ShotFired.Lead));
         a.For<Impact>().Saved(nameof(Impact.Effect), nameof(Impact.Sound), nameof(Impact.At), nameof(Impact.Victim), nameof(Impact.Kind), nameof(Impact.Hit),
             nameof(Impact.N), nameof(Impact.Dir));
         a.For<Explosion>().Saved(nameof(Explosion.Effect), nameof(Explosion.At));

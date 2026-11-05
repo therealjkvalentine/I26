@@ -61,6 +61,30 @@ public partial class CombatView : Node3D
     /// voice is neither started nor kept alive 600 m or more from the
     /// player's car.
     /// </summary>
+    /// <summary>A shot's report and flash (and the modern look's light).</summary>
+    private void ShotView(ShotFired s)
+    {
+        GunSound(s);
+        // the flash rides on the muzzle (it hangs off the muzzle node), not where the car was;
+        // only weapons whose GDFC names one have it (the guns' xmuzz1), droppers and launchers none
+        if (Inside?.Invoke(s.Shooter) != true && MuzzleLook(s.Weapon.Def.MuzzleFlash) is { } ml)
+        {
+            if (IsModern) ModernMuzzle(s);
+            else Animate(ml, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f);
+        }
+        if (IsModern && !IsDropped(s.Weapon.Def.Kind) && s.Weapon.Def.Class != 5 && G(s.Muzzle).DistanceTo(CameraPos()) < 250)
+            _fx.Light(G(s.Muzzle + s.Forward * 1.2f), 0.8f, 4, 0.05, new Color(1f, 0.75f, 0.4f));
+    }
+
+    /// <summary>Shots waiting for their place in the tick (the 1997 look's even shots): when, on this node's clock.</summary>
+    private readonly List<(double Due, ShotFired S)> _lateShots = [];
+
+    private void LateShots()
+    {
+        for (int i = 0; i < _lateShots.Count; i++)
+            if (_lateShots[i].Due <= _t) { ShotView(_lateShots[i].S); _lateShots.RemoveAt(i--); }
+    }
+
     private void GunSound(ShotFired s)
     {
         var name = s.Weapon.Def.FireSound;
@@ -646,6 +670,7 @@ public partial class CombatView : Node3D
     {
         using var _view = Hitch.Time(Hitch.Phase.Views);
         _t += delta;
+        LateShots();
         bool skipBlast = false;
         foreach (var e in Combat.Events)
         {
@@ -655,16 +680,11 @@ public partial class CombatView : Node3D
             switch (e)
             {
                 case ShotFired s:
-                    GunSound(s);
-                    // the flash rides on the muzzle (it hangs off the muzzle node), not where the car was;
-                    // only weapons whose GDFC names one have it (the guns' xmuzz1), droppers and launchers none
-                    if (Inside?.Invoke(s.Shooter) != true && MuzzleLook(s.Weapon.Def.MuzzleFlash) is { } ml)
-                    {
-                        if (IsModern) ModernMuzzle(s);
-                        else Animate(ml, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f);
-                    }
-                    if (IsModern && !IsDropped(s.Weapon.Def.Kind) && s.Weapon.Def.Class != 5 && G(s.Muzzle).DistanceTo(CameraPos()) < 250)
-                        _fx.Light(G(s.Muzzle + s.Forward * 1.2f), 0.8f, 4, 0.05, new Color(1f, 0.75f, 0.4f));
+                    // the 1997 look's even shots ([port] even_shots): the report and the flash where the gun's timer put the shot in its
+                    // tick, the tick's pose being drawn from Alpha 0, rather than all on the tick (a 10/s gun at 24/s: 83 and 125 ms apart)
+                    double late = !IsModern && I76.Game.Sim.OriginalBehavior.EvenShots ? s.Lead - (Alpha?.Invoke() ?? 1f) * SimClock.Tick : 0;
+                    if (late > 0.002) _lateShots.Add((_t + late, s));
+                    else ShotView(s);
                     break;
                 case Impact i when i.Kind is 0xc or 0xe or 0x11 || (i.Kind == 0x16 && i.Victim is not null):
                     // a slick's hit test fires every frame a car is over it: one voice at a time per car (the

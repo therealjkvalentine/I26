@@ -171,4 +171,7 @@ public sealed class CommandQueue
     }
 
     public void Clear() => _pending.Clear();
+
+    /// <summary>A command waits for the next tick.</summary>
+    public bool Pending => _pending.Count > 0;
 }

@@ -39,10 +39,11 @@ public partial class Main
         bool softRenderer = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, soft1997 = _mode1997 && softRenderer;
         Wiggle.CrashBlur = EnvSwitch("I76_CRASH_BLUR") ?? I76.Sim.Views.CrashBlurMode.Resolve(s.CrashBlur);
         Wiggle.Exact = _mode1997;   // the original's whole-pixel blit in the 1997 look (either renderer), smooth in the modern look
-        if (_software is null || _cardRamp is null) return;
+        if (_software is null || _cardRamp is null) { GetViewport().Msaa3D = Msaa1997(_mode1997); return; }
         bool sw = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, grade = EnvSwitch("I76_PALETTE_GRADE") ?? s.PaletteGrade;
         int level = s.Graphics[0xc];
         _software.Apply(_mode1997, sw, grade, _cardRamp, _sky1997, _builder?.SkyTexture, _env1997, CardCurve(level), level);
+        GetViewport().Msaa3D = Msaa1997(_mode1997);   // after Apply: the Software renderer draws none
     }
 
     private System.Numerics.Vector2 _bandAt = new(float.NaN, float.NaN);

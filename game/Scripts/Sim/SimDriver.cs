@@ -365,6 +365,7 @@ public partial class SimDriver : Node
         // the stick: the throttle and steer rows are the pad's axes unless a driving key is held,
         // when the keys have both; with no stick bound the keys alone are read
         Controls.PollAxes();
+        _keysAtTick = new CarInput { Buttons = b, Steer = Controls.AxesActive ? Controls.AxisSteer : (short)0, Throttle = Controls.AxesActive ? Controls.AxisThrottle : (short)0 };
         b |= _latch;   // a key tapped and let go between two ticks still counts for the tick
         _latch = CarButtons.None;
         bool analog = Controls.AxesActive && (b & (CarButtons.ThrottleUp | CarButtons.ThrottleDown | CarButtons.SteerLeft | CarButtons.SteerRight)) == 0;
@@ -386,6 +387,40 @@ public partial class SimDriver : Node
         return input;   // while a chat line is typed Controls reads the pad alone
     }
 
+    /// <summary>The local tick's clock (the network client's runs on <see cref="Remote"/>'s): the ticks a frame owes and the draw fraction.</summary>
+    private I76.Sim.Views.TickPacer Pacer => _pacer ??= new I76.Sim.Views.TickPacer(Tick);
+    private I76.Sim.Views.TickPacer? _pacer;
+    /// <summary>Whether a change of the keys runs the next tick at once (the 1997 look's Early Tick; Main decides).</summary>
+    public Func<bool>? EarlyTick { get; set; }
+    /// <summary>Early ticks run this mission (I76_FPS_LOG).</summary>
+    public int EarlyTicks => _pacer?.Borrowed ?? 0;
+    /// <summary>The held keys (and the stick) as the last tick sampled them, before the taps between ticks were added.</summary>
+    private CarInput _keysAtTick;
+
+    /// <summary>
+    /// Whether the driving and weapon keys or the stick now differ from what the last tick sampled, or a tap or a command waits for
+    /// the next tick: the keyboard's state is read as <see cref="Sample"/> reads it, nothing taken.
+    /// </summary>
+    private bool KeysChanged()
+    {
+        if (_test is { Drives: true } || Session.Cutscene || Player?.Sim is null) return false;
+        if (_latch != CarButtons.None || _commands.Pending) return true;
+        var b = CarButtons.None;
+        if (HoldThrottle || Controls.Down("throttle_up")) b |= CarButtons.ThrottleUp;
+        if (Controls.Down("throttle_down") || _holdBrake) b |= CarButtons.ThrottleDown;
+        if (Controls.Down("steer_left") || _holdSteer == "left") b |= CarButtons.SteerLeft;
+        if (Controls.Down("steer_right") || _holdSteer == "right") b |= CarButtons.SteerRight;
+        if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
+        if (HoldFire || Controls.Down("weapon_fire")) b |= CarButtons.Fire;
+        for (int i = 0; i < 5; i++)
+            if (Controls.Down(HardpointKeys[i]) || _holdHardpoint == i + 1) b |= (CarButtons)((uint)CarButtons.Hardpoint1 << i);
+        if (Controls.Down("HONK_HORN")) b |= CarButtons.Horn;
+        if (InCockpit?.Invoke() == true && (Controls.Down(I76.Formats.Input.PistolKeys.Left) || Controls.Down(I76.Formats.Input.PistolKeys.Right))) b |= CarButtons.Pistol;
+        var now = new CarInput { Buttons = b };
+        if (Controls.AxesActive) { Controls.PollAxes(); now.Steer = Controls.AxisSteer; now.Throttle = Controls.AxisThrottle; }
+        return I76.Sim.Views.TickPacer.InputChanged(_keysAtTick, now);
+    }
+
     /// <summary>Play Options' port-only Auto Reverse (ShellSettings.AutoReverse).</summary>
     public bool AutoReverse;
     private I76.Sim.Session.AutoReverse? _autoReverse;
@@ -404,6 +439,7 @@ public partial class SimDriver : Node
     {
         _started = true;
         _acc = 0;
+        Pacer.Reset();
         if (!_hooked) HookScript();
         foreach (var c in Cars) c.SetPoses(c.Sim.Rot, c.Sim.Pos, c.Sim.Rot, c.Sim.Pos);
         if (Script?.Host.Cb is { Current: { } line } cb && _cb is not null && Audio?.Get(line.Name) is { } stream)
@@ -460,14 +496,22 @@ public partial class SimDriver : Node
         if (Hold) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
         // the Developer panel's Freeze: no ticks (Step runs them one at a time); its time scale paces the ticks against the wall clock
         if (DevFrozen) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
-        _acc += System.Math.Min(delta, 0.25) * DevTimeScale;
-        if (!_started) { _started = true; _acc = System.Math.Max(_acc, Tick); }   // tick 0 runs before the first frame is drawn
-        while (_acc >= Tick)
+        var pacer = Pacer;
+        double step = System.Math.Min(delta, 0.25) * DevTimeScale;
+        if (!_started) { _started = true; pacer.Acc = System.Math.Max(pacer.Acc + step, Tick); step = 0; }   // tick 0 runs before the first frame is drawn
+        int due = pacer.Advance(step);
+        for (int i = 0; i < due; i++) RunTick();
+        // Early Tick (the 1997 look, [port] early_tick): a change of the keys or the stick runs the next tick now, borrowed from the
+        // accumulator, and the cars blend from where they were drawn to it (TickPacer); the sim's ticks and their inputs are as ever
+        pacer.EarlyOnInput = Replay is null && EarlyTick?.Invoke() == true;
+        if (due == 0 && pacer.WantsEarly(KeysChanged()))
         {
+            float drawn = pacer.Alpha;
+            foreach (var c in Cars) c.KeepDrawn(drawn);
             RunTick();
-            _acc -= Tick;
+            pacer.Borrow();
         }
-        float alpha = Alpha = (float)(_acc / Tick);
+        float alpha = Alpha = pacer.Alpha;
         var o = Origin();
         foreach (var c in Cars) c.Place(alpha, o);
     }
@@ -518,6 +562,7 @@ public partial class SimDriver : Node
         if (Remote is not null || !_started) return;
         RunTick(keys: false);
         _acc = 0;
+        Pacer.Reset();
         Alpha = 1;
         foreach (var c in Cars) c.Place(1, Origin());
     }
