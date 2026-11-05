@@ -3,7 +3,7 @@
 ??11bkb1, the one most seen; the other schemes repaint the plate). Plates: the face's painted letters taken off (filled
 from the face round them) and set again in Anton, the main line and the state line above it, as the Piranha's plate
 (pp11bkb1.json). Badges: the chrome name on the tail panel's key (cut out of the key and lettered opaque, as the
-Piranha's badge): CAVERA in Cinzel Bold, DOVER and PALOMINO (heavy caps spaced wide) in Russo One.
+Piranha's badge, the strip's keyed texels darkened): CAVERA in Cinzel Bold, DOVER and PALOMINO (heavy caps spaced wide) in Russo One.
 
 The plate numbers are read off 4-5 texel paintings and the 4x pack's guesses at them; a reading is marked "?" where
 a character is doubtful (the plates are made up, so a near reading reads as well as the original's).
@@ -22,11 +22,11 @@ PLATES = {
     "dl11bkb1": ((55, 23, 72, 34), (24, 25), (57, 28, 71, 32), "369 JSJ"),
     "pj11bkb1": ((52, 37, 74, 51), (39, 41), (54, 44, 73, 49), "223 AYO"),
 }
-# badges: texture -> [(text, font, box x0, y0, x1, y1, tracking)]
+# badges: texture -> [(text, font, variation, letters' box x0, y0, x1, y1, tracking, the keyed strip they sit on)]
 BADGES = {
-    "cc11bkb1": [("CAVERA", "Cinzel", {"Weight": 700}, (44, 22, 82, 28), 0.0)],
-    "dl11bkb1": [("DOVER", "RussoOne", None, (31, 15, 95, 20), 1.9)],
-    "fp11bkb1": [("PALOMINO", "RussoOne", None, (38, 31, 90, 36), 0.75)],
+    "cc11bkb1": [("CAVERA", "Cinzel", {"Weight": 700}, (44, 22, 82, 28), 0.0, (5, 15, 123, 36))],
+    "dl11bkb1": [("DOVER", "RussoOne", None, (31, 15, 95, 20), 1.9, (13, 12, 114, 22))],
+    "fp11bkb1": [("PALOMINO", "RussoOne", None, (38, 31, 90, 36), 0.75, (36, 28, 93, 39))],
 }
 
 def plate(face, state, main, text):
@@ -39,12 +39,15 @@ def plate(face, state, main, text):
          "width": (fx1 - fx0) * 0.38, "colour": [40, 40, 48]},
     ]
 
-def badge(text, font, var, box, track):
+def badge(text, font, var, box, track, strip):
     x0, y0, x1, y1 = box
     t = {"op": "text", "text": text, "font": font, "cap": y1 - y0 + 1, "center": [(x0 + x1 + 1) / 2, (y0 + y1 + 1) / 2], "width": x1 - x0 + 1,
          "tracking": track, "alpha": "set", "gradient": [[240, 240, 244], [130, 132, 140]], "stroke": {"width": 0.35, "colour": [18, 18, 22]}}
     if var: t["variation"] = var
-    return [{"op": "erase", "rect": [x0 - 1, y0 - 1, x1 + 2, y1 + 2], "where": {"opaque": True}, "grow": 0.5, "fill": "key"}, t]
+    # the strip is the colour key, which a car's panel draws in the colour under it: the pack bled the old chrome letters'
+    # colour there (a pale ghost of them round the new ones), so the whole keyed strip takes the panel's dark
+    return [{"op": "erase", "rect": list(strip), "where": {"keyed": True}, "fill": "key", "under": [22, 22, 26]},
+            {"op": "erase", "rect": [x0 - 1, y0 - 1, x1 + 2, y1 + 2], "where": {"opaque": True}, "grow": 0.5, "fill": "key", "under": [22, 22, 26]}, t]
 
 if __name__ == "__main__":
     for tex in sorted(set(PLATES) | set(BADGES)):

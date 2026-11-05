@@ -66,6 +66,24 @@
   {
    "op": "erase",
    "rect": [
+    5,
+    15,
+    123,
+    36
+   ],
+   "where": {
+    "keyed": true
+   },
+   "fill": "key",
+   "under": [
+    22,
+    22,
+    26
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
     43,
     21,
     84,
@@ -75,7 +93,12 @@
     "opaque": true
    },
    "grow": 0.5,
-   "fill": "key"
+   "fill": "key",
+   "under": [
+    22,
+    22,
+    26
+   ]
   },
   {
    "op": "text",
