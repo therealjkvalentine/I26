@@ -1,0 +1,67 @@
+{
+ "textures": [
+  "pj11bkb1"
+ ],
+ "note": "pj11bkb1's tail: plate 223 AYO; written by gen/car_tails.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    52.5,
+    38.5,
+    74.5,
+    50.5
+   ],
+   "where": {
+    "lum_below": 128
+   },
+   "grow": 0.9,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 125
+   }
+  },
+  {
+   "op": "text",
+   "text": "223 AYO",
+   "font": "Anton",
+   "cap": 6,
+   "center": [
+    64.0,
+    47.0
+   ],
+   "width": 20,
+   "colour": [
+    28,
+    28,
+    34
+   ],
+   "shadow": {
+    "dx": 0.25,
+    "dy": 0.25,
+    "colour": [
+     235,
+     235,
+     238
+    ],
+    "opacity": 0.5
+   }
+  },
+  {
+   "op": "text",
+   "text": "TEXAS",
+   "font": "Anton",
+   "cap": 2.4,
+   "center": [
+    63.5,
+    40.5
+   ],
+   "width": 8.36,
+   "colour": [
+    40,
+    40,
+    48
+   ]
+  }
+ ]
+}

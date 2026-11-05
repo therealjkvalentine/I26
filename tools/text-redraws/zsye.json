@@ -1,0 +1,592 @@
+{
+ "textures": [
+  "zsye"
+ ],
+ "note": "the damage display's part labels (ENGINE, SUSP., BRAKES, WHEEL) in its five states: white, green, yellow, red, off; written by gen/damage_labels.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    10.4,
+    0.4,
+    49.6,
+    9.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 150
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    15.4,
+    12.4,
+    45.6,
+    21.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 150
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    7.4,
+    24.4,
+    54.6,
+    33.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 150
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    0.4,
+    36.4,
+    36.6,
+    45.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 150
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    71.4,
+    0.4,
+    110.6,
+    9.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 95
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    76.4,
+    12.4,
+    106.6,
+    21.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 95
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    68.4,
+    24.4,
+    115.6,
+    33.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 95
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    61.4,
+    36.4,
+    97.6,
+    45.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 95
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    132.4,
+    0.4,
+    171.6,
+    9.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 100
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    137.4,
+    12.4,
+    167.6,
+    21.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 100
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    129.4,
+    24.4,
+    176.6,
+    33.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 100
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    122.4,
+    36.4,
+    158.6,
+    45.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 100
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    193.4,
+    0.4,
+    232.6,
+    9.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 60
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    198.4,
+    12.4,
+    228.6,
+    21.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 60
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    190.4,
+    24.4,
+    237.6,
+    33.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 60
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    183.4,
+    36.4,
+    219.6,
+    45.6
+   ],
+   "halo": {
+    "within": 1.5,
+    "lum_below": 60
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    254.5,
+    0.5,
+    293.5,
+    9.5
+   ],
+   "where": {
+    "lum_above": 24,
+    "opaque": true
+   },
+   "grow": 0.9
+  },
+  {
+   "op": "erase",
+   "rect": [
+    259.5,
+    12.5,
+    289.5,
+    21.5
+   ],
+   "where": {
+    "lum_above": 24,
+    "opaque": true
+   },
+   "grow": 0.9
+  },
+  {
+   "op": "erase",
+   "rect": [
+    251.5,
+    24.5,
+    298.5,
+    33.5
+   ],
+   "where": {
+    "lum_above": 24,
+    "opaque": true
+   },
+   "grow": 0.9
+  },
+  {
+   "op": "erase",
+   "rect": [
+    244.5,
+    36.5,
+    280.5,
+    45.5
+   ],
+   "where": {
+    "lum_above": 24,
+    "opaque": true
+   },
+   "grow": 0.9
+  },
+  {
+   "op": "text",
+   "text": "ENGINE",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    30.0,
+    5.0
+   ],
+   "width": 38,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SUSP.",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    30.5,
+    17.0
+   ],
+   "width": 29,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BRAKES",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    31.0,
+    29.0
+   ],
+   "width": 46,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    18.5,
+    41.0
+   ],
+   "width": 35,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ENGINE",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    91.0,
+    5.0
+   ],
+   "width": 38,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SUSP.",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    91.5,
+    17.0
+   ],
+   "width": 29,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BRAKES",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    92.0,
+    29.0
+   ],
+   "width": 46,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    79.5,
+    41.0
+   ],
+   "width": 35,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ENGINE",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    152.0,
+    5.0
+   ],
+   "width": 38,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SUSP.",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    152.5,
+    17.0
+   ],
+   "width": 29,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BRAKES",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    153.0,
+    29.0
+   ],
+   "width": 46,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    140.5,
+    41.0
+   ],
+   "width": 35,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ENGINE",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    213.0,
+    5.0
+   ],
+   "width": 38,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SUSP.",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    213.5,
+    17.0
+   ],
+   "width": 29,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BRAKES",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    214.0,
+    29.0
+   ],
+   "width": 46,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    201.5,
+    41.0
+   ],
+   "width": 35,
+   "colour": [
+    14,
+    14,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ENGINE",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    274.0,
+    5.0
+   ],
+   "width": 38,
+   "colour": [
+    42,
+    42,
+    42
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SUSP.",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    274.5,
+    17.0
+   ],
+   "width": 29,
+   "colour": [
+    42,
+    42,
+    42
+   ]
+  },
+  {
+   "op": "text",
+   "text": "BRAKES",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    275.0,
+    29.0
+   ],
+   "width": 46,
+   "colour": [
+    42,
+    42,
+    42
+   ]
+  },
+  {
+   "op": "text",
+   "text": "WHEEL",
+   "font": "RussoOne",
+   "cap": 8,
+   "center": [
+    262.5,
+    41.0
+   ],
+   "width": 35,
+   "colour": [
+    42,
+    42,
+    42
+   ]
+  }
+ ]
+}

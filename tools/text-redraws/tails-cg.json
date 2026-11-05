@@ -1,0 +1,67 @@
+{
+ "textures": [
+  "cg11bkb1"
+ ],
+ "note": "cg11bkb1's tail: plate 616 MSB; written by gen/car_tails.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    52.5,
+    43.5,
+    75.5,
+    51.5
+   ],
+   "where": {
+    "lum_below": 128
+   },
+   "grow": 0.9,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 125
+   }
+  },
+  {
+   "op": "text",
+   "text": "616 MSB",
+   "font": "Anton",
+   "cap": 4,
+   "center": [
+    64.0,
+    49.0
+   ],
+   "width": 20,
+   "colour": [
+    28,
+    28,
+    34
+   ],
+   "shadow": {
+    "dx": 0.25,
+    "dy": 0.25,
+    "colour": [
+     235,
+     235,
+     238
+    ],
+    "opacity": 0.5
+   }
+  },
+  {
+   "op": "text",
+   "text": "TEXAS",
+   "font": "Anton",
+   "cap": 1.8,
+   "center": [
+    64.0,
+    45.0
+   ],
+   "width": 8.74,
+   "colour": [
+    40,
+    40,
+    48
+   ]
+  }
+ ]
+}

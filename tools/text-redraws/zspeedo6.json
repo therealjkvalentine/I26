@@ -1,0 +1,551 @@
+{
+ "textures": [
+  "zspeedo6"
+ ],
+ "note": "the speedometer's figures over the world (the external instruments and the 2D dash): keyed white figures; written by gen/dials.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    20,
+    58,
+    23,
+    63
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    13,
+    52,
+    19,
+    57
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10,
+    44,
+    17,
+    49
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    8,
+    35,
+    14,
+    40
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10,
+    27,
+    17,
+    32
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    14,
+    20,
+    21,
+    25
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    20,
+    14,
+    28,
+    19
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    28,
+    10,
+    35,
+    15
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    36,
+    8,
+    44,
+    13
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    46,
+    9,
+    53,
+    14
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    53,
+    13,
+    63,
+    18
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    59,
+    20,
+    68,
+    25
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    62,
+    28,
+    72,
+    33
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    64,
+    35,
+    73,
+    40
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    62,
+    43,
+    72,
+    48
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    58,
+    50,
+    68,
+    55
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.5,
+   "fill": "key"
+  },
+  {
+   "op": "text",
+   "text": "0",
+   "cap": 5,
+   "center": [
+    21.5,
+    60.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "10",
+   "cap": 5,
+   "center": [
+    16.0,
+    54.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 6
+  },
+  {
+   "op": "text",
+   "text": "20",
+   "cap": 5,
+   "center": [
+    13.5,
+    46.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 7
+  },
+  {
+   "op": "text",
+   "text": "30",
+   "cap": 5,
+   "center": [
+    11.0,
+    37.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 6
+  },
+  {
+   "op": "text",
+   "text": "40",
+   "cap": 5,
+   "center": [
+    13.5,
+    29.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 7
+  },
+  {
+   "op": "text",
+   "text": "50",
+   "cap": 5,
+   "center": [
+    17.5,
+    22.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 7
+  },
+  {
+   "op": "text",
+   "text": "60",
+   "cap": 5,
+   "center": [
+    24.0,
+    16.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 8
+  },
+  {
+   "op": "text",
+   "text": "70",
+   "cap": 5,
+   "center": [
+    31.5,
+    12.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 7
+  },
+  {
+   "op": "text",
+   "text": "80",
+   "cap": 5,
+   "center": [
+    40.0,
+    10.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 8
+  },
+  {
+   "op": "text",
+   "text": "90",
+   "cap": 5,
+   "center": [
+    49.5,
+    11.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 7
+  },
+  {
+   "op": "text",
+   "text": "100",
+   "cap": 5,
+   "center": [
+    58.0,
+    15.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 10
+  },
+  {
+   "op": "text",
+   "text": "110",
+   "cap": 5,
+   "center": [
+    63.5,
+    22.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 9
+  },
+  {
+   "op": "text",
+   "text": "120",
+   "cap": 5,
+   "center": [
+    67.0,
+    30.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 10
+  },
+  {
+   "op": "text",
+   "text": "130",
+   "cap": 5,
+   "center": [
+    68.5,
+    37.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 9
+  },
+  {
+   "op": "text",
+   "text": "140",
+   "cap": 5,
+   "center": [
+    67.0,
+    45.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 10
+  },
+  {
+   "op": "text",
+   "text": "150",
+   "cap": 5,
+   "center": [
+    63.0,
+    52.5
+   ],
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "alpha": "set",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "width": 10
+  }
+ ]
+}
