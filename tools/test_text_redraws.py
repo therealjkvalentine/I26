@@ -87,6 +87,18 @@ class CompositorTests(unittest.TestCase):
         left, right = ys[xs < xs.mean()].mean(), ys[xs > xs.mean()].mean()
         self.assertGreater((right - left) / 4, 1.5)                                     # the right end sits lower (half the 4-texel drop, by halves)
 
+    def test_hang_centres_the_letters_and_lets_the_stop_hang(self):
+        orig = blank(60, 16, (230, 230, 230)); px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
+        op = {"op": "text", "text": "SUSP.", "font": "RussoOne", "cap": 8, "center": [30, 8], "width": 28, "colour": [0, 0, 0]}
+        whole = tr.apply_ops(px, orig, [op])[..., 0] < 128
+        hung = tr.apply_ops(px, orig, [dict(op, hang=".")])[..., 0] < 128
+        xs = np.where(hung.any(0))[0] / 4
+        self.assertAlmostEqual(xs.min(), 16, delta=0.6)                  # the letters' run: 28 wide about x 30
+        self.assertGreater(xs.max(), 44.5)                                 # the stop past it
+        ys = np.where(hung.any(1))[0] / 4
+        self.assertAlmostEqual((ys.min() + ys.max() + 0.25) / 2, 8, delta=0.3)   # the cap band's middle on the centre
+        self.assertLess(np.where(whole.any(0))[0].max() / 4, xs.max())   # without it the stop is squeezed in
+
     def test_set_alpha_keys_by_half_coverage(self):
         orig = blank(24, 16, (0, 0, 0), a=0)
         px = np.repeat(np.repeat(orig, 4, 0), 4, 1)

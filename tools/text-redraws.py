@@ -33,7 +33,7 @@ the colour key: alpha 0, its colour "under" when given, else its neighbours'; a 
 cockpit's opaque faces draw the key black), or an [r, g, b].
 text: the string at cap height "cap" (the font's H), its cap band's middle at "center", squeezed or stretched to "width" texels
 (optional), turned "rotate" degrees anticlockwise, slanted "skew" (x shift per unit of height), letters spaced "tracking" caps
-apart; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
+apart, trailing "hang" characters (".") hanging outside the centred, squeezed run; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
 (the texture's own key untouched: lettering on an opaque face), "set" (opaque where the lettering covers half a texel or more:
 lettering cut into the key, as dial figures over the world) or "cover" (opaque wherever it covers, over "under": a keyed face the
 game draws in the key's colour, as the 3D dash's dials). "mirror": true reflects the lettering about its centre (the car's other side,
@@ -97,9 +97,12 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
         df.text((x, base_y), c, font=f, fill=255, anchor="ls")
         if ds: ds.text((x, base_y), c, font=f, fill=255, anchor="ls", stroke_width=sw, stroke_fill=255)
         x += a + track
-    # the mask's reference: the run's middle, the cap band's middle
-    rx, ry = pad + run / 2.0, base_y - cap_px / 2.0
-    fx = (float(op["width"]) * s * SS / run) if op.get("width") else 1.0
+    # the mask's reference: the run's middle, the cap band's middle (optical: the cap height, not the em box; trailing
+    # "hang" characters, a full stop, left out of the run that is centred and squeezed to "width", so they hang)
+    n = len(text.rstrip(op["hang"])) if op.get("hang") else len(text)
+    core = sum(adv[:n]) + track * (n - 1)
+    rx, ry = pad + core / 2.0, base_y - cap_px / 2.0
+    fx = (float(op["width"]) * s * SS / core) if op.get("width") else 1.0
     ang = math.radians(float(op.get("rotate", 0))); skew = float(op.get("skew", 0))
     cx, cy = (float(v) * s for v in op.get("center", (0, 0)))
     # output sample (u, v) at SS x the pack's resolution -> mask point: undo the rotation, the skew and the squeeze
@@ -426,6 +429,7 @@ def self_check(fonts_dir=FONTS):
     for name in table:
         op = [{"op": "erase", "rect": [2, 2, 14, 14], "where": {"lum_below": 60}, "grow": 0.5},
               {"op": "text", "text": "AB", "font": name, "cap": 6, "center": [22, 8], "colour": [10, 10, 10]}]
+        if "[" in table[name]["file"]: op[1]["variation"] = {"Weight": 700}     # a variable face at its bold, as the specs set them
         out = apply_ops(px, orig, op, fonts_dir, table).astype(int)
         left = out[8:56, 8:56, :3].mean(axis=2)
         right = out[20:44, 64:116, :3].mean(axis=2)

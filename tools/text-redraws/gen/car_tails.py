@@ -3,7 +3,7 @@
 ??11bkb1, the one most seen; the other schemes repaint the plate). Plates: the face's painted letters taken off (filled
 from the face round them) and set again in Anton, the main line and the state line above it, as the Piranha's plate
 (pp11bkb1.json). Badges: the chrome name on the tail panel's key (cut out of the key and lettered opaque, as the
-Piranha's badge, the strip's keyed texels darkened): CAVERA in Cinzel Bold, DOVER and PALOMINO (heavy caps spaced wide) in Russo One.
+Piranha's badge, the strip's keyed texels darkened): CAVERA in Cinzel Bold, DOVER (heavy caps spaced wide) in Russo One, PALOMINO in Bitter Bold (the Mustang's spaced serif capitals).
 
 The plate numbers are read off 4-5 texel paintings and the 4x pack's guesses at them; a reading is marked "?" where
 a character is doubtful (the plates are made up, so a near reading reads as well as the original's).
@@ -26,7 +26,7 @@ PLATES = {
 BADGES = {
     "cc11bkb1": [("CAVERA", "Cinzel", {"Weight": 700}, (44, 22, 82, 28), 0.0, (5, 15, 123, 36))],
     "dl11bkb1": [("DOVER", "RussoOne", None, (31, 15, 95, 20), 1.9, (13, 12, 114, 22))],
-    "fp11bkb1": [("PALOMINO", "RussoOne", None, (38, 31, 90, 36), 0.75, (36, 28, 93, 39))],
+    "fp11bkb1": [("PALOMINO", "Bitter", {"Weight": 700}, (38, 31, 90, 36), 0.75, (36, 28, 93, 39))],
 }
 
 def plate(face, state, main, text):

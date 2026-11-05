@@ -13,12 +13,26 @@
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow"
   },
+  "Bitter": {
+    "name": "Bitter",
+    "file": "Bitter/Bitter[wght].ttf",
+    "by": "Huerta Tipografica, The Bitter Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/bitter"
+  },
   "Cinzel": {
     "name": "Cinzel",
     "file": "Cinzel/Cinzel[wght].ttf",
     "by": "Natanael Gama, The Cinzel Project Authors",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/cinzel"
+  },
+  "Comfortaa": {
+    "name": "Comfortaa",
+    "file": "Comfortaa/Comfortaa[wght].ttf",
+    "by": "Johan Aakerlund, The Comfortaa Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/comfortaa"
   },
   "DDINCondensed": {
     "name": "D-DIN Condensed Bold",
