@@ -795,6 +795,11 @@ of us: none. Deployed 3f58a55 to the laptop, James's Mac, Michael's and Andrew's
 One branch as manifest section R (row I93): the pack tool's family table and alpha step (tool and docs only; the rebuilt
 packs are user data, already installed).
 
+Merged by hand after the sync (`play` af49c28): CHANGELOG.md both sides; docs/playing.md's HD textures paragraph takes the
+HD Textures row's text (pages-3) with the pack tool's family-table phrase (hd-pack-alpha). The merge commit was pushed with the
+paragraph's conflict markers still in it (the resolution script bailed and the commit ran anyway); f8022fc fixes the paragraph.
+No deploy: tool and docs only.
+
 ## Integration notes — pass 19 reconcile (2026-11-05)
 
 Upstream master 8edea2a (39 commits over play's base 32988ae) merged into `play` (f8022fc) as one `--no-ff` merge on
