@@ -1772,13 +1772,25 @@ public partial class Main : Node3D
     /// <paramref name="budgetMs"/> over 0 a frame is let through whenever the steps since the last one took that long
     /// (<see cref="_stepBudget"/> may change it meanwhile). With no budget the steps run in the same frame, as plain code would.
     /// </summary>
-    private async System.Threading.Tasks.Task RunSteps(IEnumerable<object?> steps, double budgetMs)
+    private async System.Threading.Tasks.Task RunSteps(IEnumerable<object?> steps, double budgetMs, System.Func<bool>? gate = null)
     {
         if (budgetMs > 0) _stepBudget = budgetMs;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         double last = 0;
-        foreach (var step in steps)
+        using var e = steps.GetEnumerator();
+        while (true)
         {
+            // the gate shut (the card fading, the briefing playing): no step until it opens, the frames drawn meanwhile
+            if (gate is not null && !gate())
+            {
+                while (!gate()) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+                sw.Restart(); last = 0;
+            }
+            _stepRunning = true;
+            bool more = e.MoveNext();
+            _stepRunning = false;
+            if (!more) break;
+            var step = e.Current;
             double now = sw.Elapsed.TotalMilliseconds, took = now - last;
             last = now;
             if (budgetMs > 0 && took > AttachWorstStepMs) AttachWorstStepMs = took;
@@ -1799,6 +1811,8 @@ public partial class Main : Node3D
     }
 
     private double _stepBudget;
+    /// <summary>A step of AttachSteps is running (the card's hold is held past its time for it, never cut: BuildBehindCard).</summary>
+    private bool _stepRunning;
 
     /// <summary>A mission's world being built on a thread of its own (<see cref="StartBuildJob"/>); <see cref="World"/> and <see cref="Error"/> once it is done.</summary>
     private sealed class BuildJob(Load start, System.Threading.Thread thread)
@@ -1830,11 +1844,13 @@ public partial class Main : Node3D
         MissionBuilder.Trace("build: on its own thread");
         BuildJob? job = null;
         string? requested = _opt.Drive is { Length: > 0 } d ? (d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase) ? d : d + ".vcf") : null;
+        int variant = DriverVariant();
         var thread = new System.Threading.Thread(() =>
         {
             LoadProfiler.Open();
             MainThread.Allowed = true;   // (the debug builds' check of the map editor's workers: this thread's engine work is the renderer's queued calls)
-            try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); }
+            I76.Game.Assets.TextureFactory.PrefetchThreads = System.Math.Max(1, System.Environment.ProcessorCount / 2);   // the briefing's frames first
+            try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); PrefetchCockpitArt(builder, variant); }
             catch (System.Exception ex) { job!.Error = ex; }
             start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
             LoadProfiler.Event("build done");
@@ -1867,6 +1883,41 @@ public partial class Main : Node3D
     }
 
     /// <summary>
+    /// The player's cockpit's frames (the wheel, the arms, the radar: ~130 pictures, a pack's upscales decoded) on the build's thread
+    /// after the cars, which the cockpit's first frame decoded on the main thread (most of the player's car's 1.1 s set-up).
+    /// </summary>
+    private static void PrefetchCockpitArt(MissionBuilder builder, int variant)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_CAR_PREFETCH") == "0" || builder.Textures is not { } tf || builder.Resolver is not { } res) return;
+        tf.Prefetch(I76.Game.Sim.Cockpit.ArtStems(variant).Select(res.FindByStem).OfType<string>(), rgba: true);
+        MissionBuilder.Trace("cockpit art prefetched");
+    }
+
+    /// <summary>
+    /// The modern look's effects (ModernFx: the explosion, fire and smoke flipbooks into its texture cache, their pipelines) made
+    /// under the card while the world builds, a part a frame on a stage far below: none of it needs the mission's world, and the
+    /// card is a still picture, so the frames it takes show nothing. The rehearsal after the build finds them made.
+    /// </summary>
+    private async void WarmModernFxUnderCard()
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_NO_WARMUP") == "1" || _mode1997) return;
+        var stage = new Node3D { Name = "CardFxStage", Position = new Vector3(0, -20000, 0) };
+        AddChild(stage);
+        try
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var fx = new I76.Game.Sim.ModernFx { Name = "WarmFx", SceneLight = 1f, ProcessMode = ProcessModeEnum.Always };
+            stage.AddChild(fx);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            foreach (var _ in fx.WarmSteps(stage.GlobalPosition)) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            for (int i = 0; i < 3; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            MissionBuilder.Trace("card: modern effects made");
+        }
+        catch (System.Exception ex) { GD.PushWarning($"effects under the card: {ex.Message}"); }
+        finally { if (IsInstanceValid(stage)) stage.QueueFree(); }
+    }
+
+    /// <summary>
     /// The card and the briefing while the world builds (CardSequence): card_first, the card for the retail game's time, then the
     /// movie, then the card again until the build is done; movie_first, the movie at once, then the card; no briefing, the card
     /// until the build is done (and the retail time at least). The card is up when this returns, for the rest of the load.
@@ -1885,34 +1936,48 @@ public partial class Main : Node3D
             FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
             MissionBuilder.Trace($"build: done ({job.Start.Clock.ElapsedMilliseconds} ms)");
         }
-        // I76_ATTACH_UNDER_MOVIE=1: the rest of the load (AttachSteps) under the briefing once the build is done, a few milliseconds a frame
-        // with the world held still. Off by default: its steps are not small enough yet (the player's dashboard 1.1 s, the rehearsal's
-        // first frame 0.8 s, ...) and the movie dropped 15-17 frames (docs/perf/loadtime-plan.md); the briefing must play clean
-        bool early = System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE") == "1";
+        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: behind the card (a still picture: a
+        // long step shows nothing), never under the briefing unless I76_ATTACH_UNDER_MOVIE=1 (its steps are single calls of 50 ms to
+        // 1.2 s, and the movie must play clean: round 2, docs/perf/loadtime-plan.md), then behind the card again after it.
+        // I76_ATTACH_EARLY=0: all of it after the briefing, as round 1.
+        bool early = System.Environment.GetEnvironmentVariable("I76_ATTACH_EARLY") != "0";
+        bool underMovie = System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE") == "1";
         double budget = double.TryParse(System.Environment.GetEnvironmentVariable("I76_ATTACH_BUDGET_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bm) ? bm : AttachBudgetMs;
+        bool fading = false;
+        // a step may run: the card up and still (not fading), or the briefing over; under the briefing only with the hook
+        bool Gate() => !fading && (cardUp || over.Task.IsCompleted || (underMovie && movieStarted));
+        WarmModernFxUnderCard();
         void StartAttach()
         {
-            // (not under the card before the briefing: its steps would hold the card past the retail game's time)
-            if (attach is not null || !early || !job.Done || job.Error is not null || !(movieStarted || over.Task.IsCompleted)) return;
+            if (attach is not null || !early || !job.Done || job.Error is not null) return;
             job.Thread.Join();
             Noted();
             Adopt(job);
             _holdPaused = true;
             GetTree().Paused = true;
             _attachedUnderMovie = true;
-            MissionBuilder.Trace($"attach: begins, {budget:0} ms a frame");
-            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget);
+            MissionBuilder.Trace($"attach: begins ({(cardUp ? "behind the card" : "under the briefing")})");
+            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate);
         }
         while (true)
         {
             Noted();
-            if (movieStarted) StartAttach();
+            StartAttach();
             var was = seq.Now;
             // the card's time is to the movie's first frame: it starts fading out that much before
             var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted);
             if (now == CardSequence.Stage.Movie && !movieStarted)
             {
-                if (cardUp) { await loading.FadeOut(); cardUp = false; if (!IsInsideTree()) break; }
+                if (cardUp)
+                {
+                    // (a step in flight finished first: the steps run between frames, so the hold ends at the frame after it)
+                    double late = _cardClock.Elapsed.TotalSeconds + loading.FadeSeconds - BriefingOverlap.RetailCardSeconds;
+                    CardOverrunMs = System.Math.Max(0, late * 1000);
+                    MissionBuilder.Trace($"card: held {CardOverrunMs:0} ms past its time");
+                    fading = true;
+                    await loading.FadeOut(); cardUp = false; fading = false;
+                    if (!IsInsideTree()) break;
+                }
                 movieStarted = true;
                 // under the movie the build gives way to its decoding (at the normal priority behind the card)
                 try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.BelowNormal; } catch (System.Threading.ThreadStateException) { }
@@ -1935,7 +2000,9 @@ public partial class Main : Node3D
             {
                 cardUp = true;
                 OnNextDraw(() => LoadProfiler.Event("card again"));
+                fading = true;
                 await loading.FadeIn();
+                fading = false;
                 MissionBuilder.Trace("loading card up, after the briefing");
                 if (!IsInsideTree()) break;
                 continue;
@@ -1959,8 +2026,10 @@ public partial class Main : Node3D
         return (job.Start, job.World, job.Error);
     }
 
-    /// <summary>The main thread's milliseconds a frame for the rest of the load under the briefing (I76_ATTACH_BUDGET_MS): the movie runs at 15 fps.</summary>
-    public const double AttachBudgetMs = 30;
+    /// <summary>The main thread's milliseconds a frame for the rest of the load under the briefing with I76_ATTACH_UNDER_MOVIE=1 (I76_ATTACH_BUDGET_MS).</summary>
+    public const double AttachBudgetMs = 4;
+    /// <summary>How long the card stayed past the retail time, the last start (a step finishing): the load profile's line.</summary>
+    public static double CardOverrunMs;
     /// <summary>... and after it, behind the card: long enough to finish soon, short enough for the card's ramp.</summary>
     public const double AttachAfterMovieBudgetMs = 250;
     /// <summary>The briefing ended with the rest of the load done: no card after it (_Ready skips the card's fade out).</summary>

@@ -117,6 +117,12 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// materials ask for them one at a time). Nothing touches the renderer.
     /// <paramref name="rgba"/>: they are painted on the CPU (GetRgba), so a .dds is decompressed there too.
     /// </summary>
+    /// <summary>
+    /// The workers a Prefetch from this thread may use (0: as many as the pool gives). The mission's build sets half the cores:
+    /// its prefetches run under the briefing, whose frames the main thread must still draw on time (Main.StartBuildJob).
+    /// </summary>
+    [System.ThreadStatic] public static int PrefetchThreads;
+
     public void Prefetch(IEnumerable<string> members, bool rgba = false)
     {
         if (!Hd || HdTextures.Source is null) return;
@@ -133,7 +139,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         }
         if (todo.Count == 0) return;
         var made = new HdPic?[todo.Count];
-        System.Threading.Tasks.Parallel.For(0, todo.Count, i =>
+        System.Threading.Tasks.Parallel.For(0, todo.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
         {
             if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
             made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
