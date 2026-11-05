@@ -130,6 +130,68 @@ loadtime.md).
   the bake's cold seconds go (`I76_BUILD_TRACE` splits it into the raster, the mipmaps and the compression; not done
   here) and spread that part over the workers as the raster already is, and a pipeline cache warmed at the menu (item 6a).
 
+## Round 2: the rest of the load under the briefing, and the menu's warm-up
+
+Measured on `perf/load-time` merged with play 187e255, windowed (1920x1080 before the merge, 1280x960 after), warm, the 4x
+pack, 1-2 reps a configuration under the lock-fairness rule (batches under 15 minutes); the CPU was at 60-100 % from
+other lanes in most runs, so the times are indicative and the movie counts are the result. `tools/load-time/movie.py`
+prints the per-run table; outputs `_scratch/r3-loadtime/r2/` (before the merge), `r2f/` (after), `r2fmenu/`.
+
+### 9 (done in part): AttachSteps, and why it stays after the briefing
+
+- The load after the build is now a list of steps (`Main.AttachSteps`: the world into the tree, the look, `SpawnCarSteps` a car
+  a step, `SetupPlayerCarSteps`, the first tick, the prewarms, `WarmEffectsSteps`), run straight through as before by default.
+  `I76_ATTACH_UNDER_MOVIE=1` runs them under the briefing at `I76_ATTACH_BUDGET_MS` a frame (default 30) with the world held
+  still. With it, the mission follows the briefing at once: T01 and T05 watched 25 s, the card after the briefing **0.01 s**
+  (7-9 s without); skipped at 3 s, 2.7 s (T01) and 4.7-5.3 s (T05) instead of 6.6-8.2 s.
+- But the briefing stutters: of 375 frames in 25 s, 285-298 were shown, 15-17 dropped outright, 13-14 late (over two
+  frames apart), the worst gap 1.05-1.23 s, and the audio ran dry for 281-422 sample frames (13-19 ms). The per-frame budget
+  does not help: 22 steps are over 50 ms on their own (the player's dashboard and cockpit panels 1.1-1.2 s, the rehearsal's
+  first drawn frame 0.75-0.78 s with ~54 pipeline compilations, the combat view 0.48-0.58 s, the explosions' flipbooks 0.38-0.43 s,
+  the drop shadows 0.36 s, the vegetation's prewarm 0.35 s, ...), and a step runs whole. <!-- SWEEP -->
+- The user's requirement is a briefing with no dropped or late frame and no audio gap, so it stays off: the rest of the
+  load runs after the briefing behind the card, as in round 1. To turn it on, every step must fit the movie's frame: the
+  cockpit's panels and the dashboard on the build's thread (their textures and meshes are CPU work), the rehearsal's
+  pipelines made before the briefing (the menu's warm-up, below, and the rest of the rehearsal's materials), the combat
+  view's and the vegetation's work cut into pieces. That is days of work, not a budget.
+- The default path (the build on its thread under the briefing, the rest after it), checked for the requirement: T01, T05
+  and T08 watched 25 s (T08's briefing ends at 17.4 s), 2 reps each: **0 dropped and 0 late frames** in 5 of 6 runs; T08
+  rep 1 had 1 dropped and 1 late frame (a 146 ms gap) with the CPU at 85 % from other lanes; the audio generator reported 2
+  underrun sample frames (0.09 ms) after the first frame in 4 of 6 runs, likely the generator's start (the first push follows the
+  first frame; not verified). The Nitro Pack has no mission briefings (its smk/ holds only the intro and the credits), so
+  there is no Nitro briefing to check.
+- Found on the way: play's debug-build check `MainThread.Check` (4acee3e, for the map editor's workers) threw from the
+  mission-build thread, so every briefed start in a debug build failed its build after the merge (release builds have no
+  check). The build's thread is now `MainThread.Allowed` (cc993a9).
+
+### The menu's warm-up (`[port] menu_warmup`, on)
+
+- `MenuWarmup` (Shell/MenuWarmup.cs): a second after the main menu's first frame and after the garage's warm-up, the modern
+  effects (`ModernFx`: the explosion, fire and smoke flipbooks into its static texture cache, their materials' pipelines,
+  their code run once) on an unseen stage far below the menu, a part a frame, stopped when the menu is left.
+- The menu's frames while it runs: in one piece (before the merge), 152-173 ms over 5 frames, the longest frame 100-111 ms,
+  2 over 33 ms: a visible hitch. A part a frame (after): <!-- MENUFRAME -->
+- The saving (before the merge, 2 reps, interleaved on/off, the launch hook 400 frames into the menu): a melee (M01, no
+  briefing) 9.06 / 12.43 s with it against 12.69 / 13.16 s without (0.7-3.6 s, noisy); T01 from the menu with its briefing
+  skipped at 3 s, 17.84 / 18.43 against 17.95 / 18.26 s (no saving: the rehearsal is after the briefing either way, and
+  what it saves is ~0.4 s of pipelines). <!-- MENUSAVE -->
+
+### Before and after (round 1 + round 2, the 4x pack)
+
+| Start | Play tip (f8022fc, interleaved, round 1) | This branch before the merge | This branch after the merge (1280x960, contaminated CPU) |
+|---|---|---|---|
+| T01, no briefing | 11.89 s | 11.27 s | 11.86 / 12.38 s |
+| M01, no briefing | 8.53 s | 8.27 s | 8.57 / 8.67 s |
+| T05, no briefing | 13.36 s | 12.96 s | 13.57 / 13.62 s |
+| T01, briefing skipped at 3 s | 17.85 s (card after it 14.3 s) | 16.49 / 18.00 s (card after 6.6 / 8.0 s); with the attach under it 13.87 / 13.56 s (2.7 s, stuttering) | not rerun (the lock budget) |
+| T05, briefing skipped at 3 s | 20.84 s (17.4 s) | 16.66 / 18.35 s (6.8 / 8.2 s); under it 16.16 / 14.99 s (5.3 / 4.7 s) | not rerun |
+| T01, briefing watched (25 s) | movie-first: ~28-31 s (card after 7.9-10.7 s, contaminated) | 38.82 / 39.40 s (card after 6.9 / 7.5 s); under it 31.92 / 31.96 s (0.01 s, stuttering) | 40.67 / 40.11 s (card after 8.6 / 8.0 s), clean |
+| T05, briefing watched (25 s) | movie-first: ~33-35 s (card after 12.6-14.4 s) | 39.43 / 41.39 s (7.5 / 9.4 s); under it 32.30 / 31.92 s (0.01 s) | 40.55 / 39.19 s (8.6 / 7.2 s), clean |
+| T08, briefing to its end (17.4 s) | - | - | 31.91 / 35.91 s (card after 7.4 / 11.4 s) |
+
+The watched rows include the card's 6.5 s first (the user's card_first); the old movie-first order started the briefing at
+0.6 s.
+
 ## Speculative loading from the menus
 
 The user's four ideas: (a) load the player's last choices in the background at menu idle; (b) load along the click path
