@@ -1348,7 +1348,7 @@ public sealed class ShellSettings
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
     public bool GarageRadio { get; set; }
-    /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
+    /// <summary>The port's own, without a row: the modern look's car deaths, toned down and 100 ms late after a small sign of the cause (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: the stock modern death.</summary>
     public bool DeathVariety { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's briefing plays while the mission builds (I76.Game.Boot.BriefingOverlap; [port] briefing_while_loading, written only when off). Off: the build behind the loading card, then the briefing, as the original's.</summary>
     public bool BriefingWhileLoading { get; set; } = true;

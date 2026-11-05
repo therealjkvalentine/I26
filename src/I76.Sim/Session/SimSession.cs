@@ -441,6 +441,13 @@ public sealed partial class SimSession
                 "kill-ai" => World.Vehicles.Where(v => v != bp && !Damage.DamageModel.IsDead(v)).OrderBy(v => (v.Pos.ToVector3() - bp.Pos.ToVector3()).LengthSquared()).FirstOrDefault(),
                 _ => null,
             } : null;
+            // "kill-ai:wheel[:N]": wheel slot N (default: the front right) taken to no hit points first, as a kill roll on it would leave it
+            if (kill is not null && cause == Damage.DeathCause.Wheel && kill.Health is { } wh)
+            {
+                int slot = killSpec.Length > 2 && int.TryParse(killSpec[2], out int ws) ? ws
+                    : Enumerable.Range(0, 6).Where(i => wh.Slots[i] is Damage.WheelPart).OrderByDescending(i => ((Damage.WheelPart)wh.Slots[i]!).Wheel.Offset.X + ((Damage.WheelPart)wh.Slots[i]!).Wheel.Offset.Z).FirstOrDefault();
+                if (slot is >= 0 and < 6 && wh.Slots[slot] is Damage.WheelPart wpk) wpk.Hp = 0;
+            }
             if (kill is not null && cause == Damage.DeathCause.Driver && bc.Damage is Damage.DamageModel ddm)
             {
                 kill.Flags |= (Vehicles.VehicleFlags)0x4020;

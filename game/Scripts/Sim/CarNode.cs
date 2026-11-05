@@ -314,8 +314,6 @@ public partial class CarNode : Node3D
         Wrecked = on;
         _rearLevel = -1;
         if (on) return;
-        WreckPose = Transform3D.Identity;
-        WreckThrow = null;
         _flung.Clear();
         Apply();
         SetBurn(0, 0);
@@ -335,19 +333,6 @@ public partial class CarNode : Node3D
     }
 
     private Vector2 _burn;
-
-    /// <summary>The modern look's burnt body set down on the car (DeathVariety's sag: dropped and tilted); the identity until then.</summary>
-    public Transform3D WreckPose { get; set; } = Transform3D.Identity;
-
-    /// <summary>
-    /// The modern look's drawn throw of a dying car (DeathVariety, DamageView): given the car's transform as the sim has it this
-    /// frame, where the car is drawn instead (its body, wheels, weapons and fire), or null when the throw is over. The sim's
-    /// wreck keeps the original's kick; the drawn car settles back onto it.
-    /// </summary>
-    public Func<Transform3D, Transform3D?>? WreckThrow { get; set; }
-
-    /// <summary>Where the body is drawn: the car's transform with the wreck's pose and throw on it.</summary>
-    public Transform3D BodyGlobal => _body is not null && _body.IsInsideTree() ? _body.GlobalTransform : GlobalTransform;
 
     /// <summary>
     /// The car's custom paint (a respray, object.gdshaderinc's <c>paint_a</c> and <c>paint_b</c>): per car, on its own meshes, so cars of one
@@ -383,6 +368,15 @@ public partial class CarNode : Node3D
 
     /// <summary>The body's bounds in the car's frame (Godot axes), for where the fire burns on it.</summary>
     public Aabb BodyBounds => _body?.Mesh?.GetAabb() ?? new Aabb(new Vector3(-1, 0, -2), new Vector3(2, 1.2f, 4));
+
+    /// <summary>Where wheel <paramref name="slot"/> is drawn now (Godot, global); null without one.</summary>
+    public Vector3? WheelPosition(int slot)
+    {
+        Wheel? w = Sim.WheelAt(slot);
+        foreach (var (node, ww, _, _) in _wheels)
+            if (ww == w && w is not null && node.IsInsideTree()) return node.GlobalPosition;
+        return null;
+    }
 
     /// <summary>The pieces the dying car has thrown off (rolls 0 and 1), hidden on it until it is renewed.</summary>
     private readonly HashSet<Node3D> _flung = [];
@@ -1004,7 +998,7 @@ public partial class CarNode : Node3D
         bool braking = rearOk && I76.Formats.Assembly.LampSupport.BrakeLit(Sim.Throttle, _brakeSeenMs != 0 ? nowMs - _brakeSeenMs : null, OriginalBehavior.BrakeHold(!Modern));
         // the modern look's upturned wreck lies on the ground, not on the sim's taller roof (the 1997 look keeps the original's)
         if (_body is not null)
-            _body.Transform = Wrecked && Modern ? WreckPose.TranslatedLocal(new Vector3(0, _wreckGap * Mathf.Max(0, -rows.Up.Y), 0)) : Transform3D.Identity;
+            _body.Position = Wrecked && Modern ? new Vector3(0, _wreckGap * Mathf.Max(0, -rows.Up.Y), 0) : Vector3.Zero;
         bool shown = (_body?.Visible ?? true) && !Wrecked;
         bool lit = (Sim.Flags & VehicleFlags.Lights) != 0 && frontOk;
         // The brake lamp's lit faces (BLGT) show while braking; the tail lamp (TLGT) is the headlamps' child
@@ -1059,8 +1053,6 @@ public partial class CarNode : Node3D
         double gy = far ? GroundForDisplay!(gx, gz) : Lerp(_prevPos.Y, _pos.Y);
         if (live is { } lp) (gx, gy, gz) = (lp.Pos.X, lp.Pos.Y, lp.Pos.Z);
         Transform = new Transform3D(Coords.ToGodot(rows.ToEngine()), Coords.ToGodot(gx - origin.X, gy - origin.Y, gz - origin.Z));
-        // a dying car's drawn throw, from the sim's transform of this frame (set just now)
-        if (Wrecked && Modern && WreckThrow?.Invoke(Transform) is { } thrown) Transform = thrown;
         NightLight = _lightPool is not null && lit && !Wrecked ? (Transform * _lightPoolAt, -Transform.Basis.Z.Normalized()) : null;
         // the wheel strips' clock and speed: the real frame time, and the signed speed of the last
         // grounded step (the strip update is not called in the air, so a flying car's strips keep the speed it left with)

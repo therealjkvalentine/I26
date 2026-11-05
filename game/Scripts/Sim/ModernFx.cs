@@ -440,11 +440,14 @@ public partial class ModernFx : Node3D
     /// light and sparks. <paramref name="smoke"/> tints the smoke (white
     /// phosphorus: white). False when the flipbooks are missing.
     /// </summary>
-    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f, float smokeAmount = 1f)
+    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f, float scale = 1f, float sparks = 1f)
     {
         var main = size >= 4 ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
         if (main is null) return false;
         int layers = size >= 6 ? 3 : size >= 4 ? 2 : 1;
+        // drawn at scale (the modern look's car death, DeathVariety): the stock blast's layers and timing, smaller, fewer sparks
+        int sparkCount = DeathVariety.Sparks(size, sparks);
+        size *= scale;
         for (int k = 0; k < layers; k++)
         {
             var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.35f * k;
@@ -460,7 +463,7 @@ public partial class ModernFx : Node3D
             fb.Loop = true; fb.FrameRate = 40; fb.FadeOut = 0.7f;
         }
         if (_smoke is not null)
-            for (int k = 0, puffs = Mathf.Max(1, Mathf.RoundToInt(layers * 2 * smokeAmount)); k < puffs; k++)
+            for (int k = 0; k < layers * 2; k++)
             {
                 var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.8f;
                 var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (0.35 + 0.08 * k), 3.5 + GD.Randf(), GD.Randf() * Mathf.Tau);
@@ -472,8 +475,29 @@ public partial class ModernFx : Node3D
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up * size * 0.5f;
         _flashes.Add((l, _t, 0.45 + size * 0.04, l.LightEnergy));
-        Burst(_sparkProc, _sparkMesh, (int)Mathf.Clamp(size * 6, 12, 48), 0.7, at + Vector3.Up * 0.3f, Vector3.Up);
+        Burst(_sparkProc, _sparkMesh, sparkCount, 0.7, at + Vector3.Up * 0.3f, Vector3.Up);
         return true;
+    }
+
+    /// <summary>
+    /// A small puff of smoke <paramref name="size"/> m across, tinted <paramref name="tint"/>, with a dim warm flash when
+    /// <paramref name="flash"/> &gt; 0: the modern look's pre-events of a car's death (DeathVariety.Pre), under a hood or at a cab.
+    /// </summary>
+    public void Puff(Vector3 at, float size, Color tint, float flash = 0f)
+    {
+        if (_smoke is not null)
+            for (int k = 0; k < 2; k++)
+            {
+                var sm = AddSprite(_smoke, at + new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.3f, size * 0.5f, size * 1.6f, k * 0.04, 1.0 + GD.Randf() * 0.4, GD.Randf() * Mathf.Tau);
+                sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.05f; sm.FadeOut = 0.6f; sm.Opacity = 0.5f;
+                sm.Velocity = Vector3.Up * 1.2f;
+                sm.Node.SetInstanceShaderParameter("tint", tint * 1.6f);
+            }
+        if (flash <= 0) return;
+        var l = new OmniLight3D { LightColor = new Color(1f, 0.6f, 0.28f), LightEnergy = flash * FxBright, OmniRange = size * 5f, ShadowEnabled = false };
+        AddChild(l);
+        l.GlobalPosition = at;
+        _flashes.Add((l, _t, 0.15, l.LightEnergy));
     }
 
     /// <summary>
@@ -606,42 +630,6 @@ public partial class ModernFx : Node3D
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up;
         _flashes.Add((l, _t, 0.6, l.LightEnergy));
-    }
-
-    /// <summary>
-    /// Dust thrown out low and wide, <paramref name="size"/> m round, no fire and no flash: the smoke flipbook's puffs tinted
-    /// <paramref name="tint"/>, spreading along the ground. A car's death by a fall (DeathVariety), a suspension's collapse.
-    /// </summary>
-    public void Dust(Vector3 at, float size, Color tint)
-    {
-        if (_smoke is null) return;
-        for (int k = 0; k < 6; k++)
-        {
-            float a = k * Mathf.Tau / 6 + GD.Randf() * 0.5f;
-            var dir = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
-            var sm = AddSprite(_smoke, at + dir * size * 0.25f + Vector3.Up * size * 0.15f, size * 0.5f, size * 1.4f, k * 0.02, 1.8 + GD.Randf() * 0.6, GD.Randf() * Mathf.Tau);
-            sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.05f; sm.FadeOut = 0.6f; sm.Opacity = 0.5f;
-            sm.Velocity = dir * size * 0.9f + Vector3.Up * 0.4f;
-            sm.Node.SetInstanceShaderParameter("tint", tint * 1.6f);
-        }
-    }
-
-    /// <summary>
-    /// A flare of fire <paramref name="size"/> m across: one card of the flame flipbook that swells and fades, a few sparks and a
-    /// short warm light, no smoke. A dying car's effect-roll explosions in the modern look's deaths (DeathVariety): the wreck
-    /// flaring up rather than exploding again.
-    /// </summary>
-    public void Flare(Vector3 at, float size)
-    {
-        if (_fireball is null) return;
-        var sp = AddSprite(_fireball, at + Vector3.Up * size * 0.5f, size * 0.9f, size * 1.8f, 0, 0.5, GD.Randf() * Mathf.Tau);
-        sp.Loop = true; sp.FrameRate = 34; sp.FadeOut = 0.6f; sp.Velocity = Vector3.Up * 1.0f;
-        sp.Node.SetInstanceShaderParameter("tint", new Color(1.1f, 0.75f, 0.45f));
-        Burst(_sparkProc, _sparkMesh, 8, 0.6, at + Vector3.Up * 0.3f, Vector3.Up);
-        var l = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 2.5f * FxBright, OmniRange = size * 5f, ShadowEnabled = false };
-        AddChild(l);
-        l.GlobalPosition = at + Vector3.Up * size * 0.5f;
-        _flashes.Add((l, _t, 0.35, l.LightEnergy));
     }
 
     /// <summary>The fireball is gone (it struck, or ran out): its card and light go at once, its embers fade out where they are.</summary>
