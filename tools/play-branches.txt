@@ -296,3 +296,6 @@ feat/font-redraws-3                   # section T, after font-redraws: damage li
 
 # V. load time (2026-11-05)
 perf/load-time                        # section V: load-time survey (docs/perf/loadtime.md, loadtime-plan.md, tools/load-time), I76_LOAD_PROFILE; the card first for the retail's 6.5 s with the build running, the briefing, the card again until ready (briefing_while_loading=card_first|movie_first); cars' parts, cockpit art and lighting calibration off the main thread; modern effects made under the card; menu_warmup key (off); MainThread.Check passes the build thread (play's debug builds failed every briefed start)
+
+# W. the 1997 look against i76-everywhere (2026-11-05)
+feat/1997-parity                      # section W: docs/1997-parity.md (ten differences, measured); early_tick (a key change runs the next sim tick at once, borrowed from the following one; off online, under Modern Physics and in replays): throttle key-to-screen 50 -> 22 ms against i76-e's 17; aa_1997 (the 1997 look takes the Anti-Aliasing row); even machine-gun flashes tried and withdrawn
