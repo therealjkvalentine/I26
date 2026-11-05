@@ -305,3 +305,6 @@ feat/host-form-master                 # section X: our host form restored over u
 
 # Y. HD pack tooling from the 8x trial (2026-11-05; the 8x pack itself is not shipped: no visible difference to 4x)
 feat/hd-pack-8x                       # section Y: the loader serves each texture from the largest size that has it (a partial pack over 4x); the row lists a partial size as "8x (cockpit & cars)*"; a first start never picks 8x; upscale-textures.py --scale 8 with separate GPU/CPU steps and --covers, bleed reach scaled with the size, bleed 18x faster; text-redraws at any scale; docs/perf/costs.md 8x section
+
+# Z. HD pack seams (2026-11-05)
+fix/hd-pack-seams                     # section Z: `i76 tex-seams` finds every texture adjacency and wrap (27,952 segments) and scores the 4x pack's seams; upscale-textures.py --neighbours/--context/--then upscales border-meeting and repeating textures inside a canvas of their neighbours' texels; 115 textures re-upscaled into the live pack (border seams 2.26 -> 0.52); the remaining top seams are UV islands inside one texture
