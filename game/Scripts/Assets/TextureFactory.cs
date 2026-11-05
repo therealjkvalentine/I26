@@ -194,11 +194,15 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 
     private Entry? Make(string member)
     {
+        long t0 = I76.Game.Boot.LoadProfiler.On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         if (Original(member) is not { } o) return null;
         var b = Bled(member)!;
-        var img = Hd && HdOf(member) is { } h ? Picture(h) : Prepare(b).Img;
+        bool hd = Hd && HdOf(member) is not null;
+        var img = hd ? Picture(HdOf(member)!) : Prepare(b).Img;
         // keyed as the original is: an upscale carries the original's key
-        return new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        var e = new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        if (t0 != 0) { double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds; I76.Game.Boot.LoadProfiler.Texture(hd, img.GetDataSize(), ms); }
+        return e;
     }
 
     private readonly Dictionary<string, byte[]?> _edgeField = new(StringComparer.OrdinalIgnoreCase);

@@ -204,6 +204,8 @@ public partial class Main : Node3D
     public override async void _Ready()
     {
         I76.Game.Editor.SwitchTimer.Mark("scene ready");
+        LoadProfiler.SetMain();
+        LoadProfiler.Mark("scene ready");
         HeapTrim.Configure();
         if (!I76.Game.Editor.EditorSession.Active) Stash.Drop();   // no editor session: nothing to wait for
         LogFile.InstallForced();
@@ -345,7 +347,7 @@ public partial class Main : Node3D
                 Install = install, Name = "Shell", Faithful = _opt.Mode1997,
                 Developer = _opt.Dev || System.Environment.GetEnvironmentVariable("I76_DEV") == "1",
                 LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError,
-                OnLaunch = l => { GD.Print($"shell: launch {l.Mission} ({l.Kind})"); _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene(); },
+                OnLaunch = l => { LoadProfiler.Click(); GD.Print($"shell: launch {l.Mission} ({l.Kind})"); _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene(); },
                 OnEditor = () =>
                 {
                     GetNodeOrNull("Shell")?.QueueFree();
@@ -384,7 +386,8 @@ public partial class Main : Node3D
             if (loading is null)
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
-                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) await loading.FadeIn();   // (else its black only, until the movie is over)
+                MissionBuilder.Trace("loading card made");
+                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) { OnNextDraw(() => LoadProfiler.Event("card first frame")); await loading.FadeIn(); }   // (else its black only, until the movie is over)
             }
             MissionBuilder.Trace(briefing is null ? "loading card up" : "loading card black: the briefing first");
             BootSplash.Dismiss(now: true);
@@ -425,6 +428,7 @@ public partial class Main : Node3D
             built = await BuildUnderBriefing(briefing);
             if (!IsInsideTree()) return;
             // the briefing over: the card fades in for the rest of the load, as the original's comes up before the mission's
+            OnNextDraw(() => LoadProfiler.Event("card again"));
             await loading.FadeIn();
             MissionBuilder.Trace("loading card up, after the briefing");
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -488,6 +492,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("car, first tick");
         if (MissionBuilder.TraceOn) TraceFrames(6);
         if (loading is not null) await WarmEffects();
+        MissionBuilder.Trace("effects rehearsal");
         if (loading is not null)
         {
             // back out to black with the mission held still, then the briefing or the mission itself
@@ -498,6 +503,8 @@ public partial class Main : Node3D
             loading.QueueFree();
             MissionBuilder.Trace("loading card gone");
         }
+        LoadProfiler.Finish(_opt.Mission ?? "-");
+        if (LoadProfiler.QuitAfter) QuitSoon();
         _loading = false;
         if (_playtestNote is { } note && _opt.Install is not null) { AddChild(new CheckpointNotice { InstallDir = _opt.Install, Faithful = _mode1997, Text = note, Hold = 4.0, Name = "PlaytestNote" }); _playtestNote = null; }
         // a checkpoint's retry goes on from where it was: the music there, no briefing
@@ -1678,14 +1685,17 @@ public partial class Main : Node3D
         MissionBuilder.Trace("build: on its own thread, under the briefing");
         var thread = new System.Threading.Thread(() =>
         {
+            LoadProfiler.Open();
             try { world = builder.Build(start.Msn); }
             catch (System.Exception ex) { error = ex; }
+            LoadProfiler.Event("build done");
             start.Clock.Stop();   // the status line's time is the build's, not the movie's
         }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
         if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
         thread.Start();
         var over = new System.Threading.Tasks.TaskCompletionSource();
-        try { PlayMovies(start.Install, [briefing], () => over.TrySetResult()); }
+        OnNextDraw(() => LoadProfiler.Event("movie start"));
+        try { PlayMovies(start.Install, [briefing], () => { LoadProfiler.Event("movie over"); over.TrySetResult(); }); }
         catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
         bool built = false;
         while (thread.IsAlive || !over.Task.IsCompleted)
@@ -1700,6 +1710,17 @@ public partial class Main : Node3D
         if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
         MissionBuilder.Trace("build: briefing and build both over");
         return (start, world, error);
+    }
+
+    /// <summary>Runs <paramref name="then"/> after the next frame is drawn (once).</summary>
+    private static void OnNextDraw(System.Action then)
+        => RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(then), (uint)GodotObject.ConnectFlags.OneShot);
+
+    /// <summary>I76_LOAD_PROFILE_QUIT=1: quits 3 s into the mission (the harness's run is its load).</summary>
+    private async void QuitSoon()
+    {
+        await ToSignal(GetTree().CreateTimer(3.0, processAlways: true), SceneTreeTimer.SignalName.Timeout);
+        GetTree().Quit();
     }
 
     /// <summary>The rest of the load on the main thread: the built world into the tree, the sky, the music, the camera.</summary>
@@ -1945,7 +1966,9 @@ public partial class Main : Node3D
         // the sky itself is drawn every frame either way. I76_SKY_REALTIME=1 for the old way.
         _calibratedSky = modernSky;
         _calibratedLight = light;
+        MissionBuilder.Trace("sky materials");
         SolveLightingCalibration();
+        MissionBuilder.Trace("lighting calibration");
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
         AddSkyFog(modernSky);
