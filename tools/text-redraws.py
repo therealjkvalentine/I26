@@ -37,7 +37,8 @@ apart; the font is a name from tools/text-redraws/fonts/fonts.json (optional "va
 (the texture's own key untouched: lettering on an opaque face), "set" (opaque where the lettering covers half a texel or more:
 lettering cut into the key, as dial figures over the world) or "cover" (opaque wherever it covers, over "under": a keyed face the
 game draws in the key's colour, as the 3D dash's dials). "mirror": true reflects the lettering about its centre (the car's other side,
-textured mirrored). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
+textured mirrored). "ink": {"opacity": 0.8, "feather": 1.2} draws the run as ink on paper instead: fill and stroke as one
+coverage, feathered over "feather" pack pixels and multiplied into the surface at "opacity" (tools/menu-maps.py's ink maps). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
 corners, top-left, top-right, bottom-right, bottom-left, in place of center/width/rotate/skew: a 4-point warp, for
 lettering on a bent panel.
 """

@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### New
+- The mission map (M) draws a 4x map in the modern look when the HD menu art has one: `tools/menu-maps.py` makes them from your own install (every zmap through the texture pack's model, colour matched) into `tex-menu/maps/`, the pen writing lightly cleaned so it reads as ink on the paper (the model's halo taken off, the strokes' edges softened, the paper a little through the ink). Before, the screen fell back to the 640x480 original because the menu art had no maps; an upscale in the texture pack is never drawn there.
 - The modern cockpit's ammunition counters look like drums: each wheel's face is lit at its crown and darker toward the window's top and bottom edges, its figure follows the curve, and the figures are cut in, a lit lower edge and a faint shadow along the top; the 1997 look keeps the original's strip.
 - Graphic Detail's Ambient Occlusion (Look page, Off unless chosen): the modern look's contact shadows under cars and shrubs, a row of their own. Shadow Detail High turned them on before; they are the costliest thing the modern look draws (about 29 % of a full-detail frame at 3440x1440), so a player who turned shadows up paid for them unknowingly. shell.cfg `[port] ambient_occlusion`.
 - Graphic Detail's Camera page, left with Field of View alone once the mouse rows moved to Mouse Options, is gone: Field of View is on Display, after Render Scale.
