@@ -435,6 +435,8 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
             // the modern look's plants, live
             case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
+            // the modern look's SSAO ([port] ambient_occlusion), live
+            case GraphicsRow.AmbientOcclusion: return Setting(Cycle, "Ambient Occlusion", 0, 2, ["Off", "On" + mark], s => s.AmbientOcclusion ? 1 : 0, (s, v) => s.AmbientOcclusion = v != 0, apply: live);
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             case GraphicsRow.FieldOfView: return Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live);
             // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row

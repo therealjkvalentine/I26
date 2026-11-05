@@ -78,7 +78,11 @@ public partial class TerrainNode : Node3D
     private static readonly int EnvFinest = Math.Clamp(int.TryParse(OS.GetEnvironment("I76_TERRAIN_LOD"), out int fl) ? fl : 0, 0, TerrainLodMesh.Levels - 1);
     /// <summary>The coarsest level a chunk casts its sun shadow from: the 5 m grid, as the shadows always were.</summary>
     private const int CasterCoarsest = 2;
-    private const float CasterReach = 3000f;
+    /// <summary>
+    /// How far a chunk casts its sun shadow: the shadow map's reach and the longest shadow that can fall into it (ShadowReach.CasterReach:
+    /// twice the reach, 1200 m with Shadow Detail Low's 600 m, 3000 m with High's 1500 m); half the Far draw's calls were these.
+    /// </summary>
+    public float CasterReach { get; set; } = 3000f;
     private int _finest;
     /// <summary>
     /// No level finer than this: 0 all three (Graphic Detail's Terrain Detail High), 1 none finer than 2.5 m (Low).
@@ -743,7 +747,7 @@ public partial class TerrainNode : Node3D
                 // (past the 5 m grid the drawn level itself: the sun's shadows end well inside the 800 m level)
                 var m = c.Lod[Math.Min(c.Level + 1, Math.Max(c.Level, CasterCoarsest))] ?? c.Lod[c.Level];
                 if (c.CasterMesh != m) c.Caster.Mesh = c.CasterMesh = m;   // (reading Mesh back is an engine call)
-                // none past the shadow map's reach (1.5 km) and the longest shadow that can fall into it: half the Far draw's calls were these
+                // none past the shadow map's reach and the longest shadow that can fall into it (CasterReach)
                 bool cast = c.Distance < CasterReach;
                 if (c.Casting != cast) c.Caster.Visible = c.Casting = cast;
             }

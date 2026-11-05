@@ -1135,10 +1135,12 @@ public sealed class ShellSettings
     /// rear mirror High (+0xd, full rather than objects only), the external
     /// instruments On (+0xe, the HUD readouts in the chase view), +0x8, a byte
     /// no screen of the original shows, the modern look's anti-aliasing (0 off,
-    /// 1 MSAA 2x, 2 MSAA 4x), and Terrain Detail Low (+0x2) and Shadow Detail Low
-    /// (+0x6), the lighter settings for a first start (a saved file keeps its own).
+    /// 1 MSAA 2x, the default, 2 MSAA 4x: 4x costs 12 % of a full-detail frame at
+    /// 3440x1440, 2x 3 %, docs/perf/costs.md), and Terrain Detail Low (+0x2) and Shadow Detail Low
+    /// (+0x6), the lighter settings for a first start (a saved file keeps its own,
+    /// the block whole: a 4x saved before 2x was the default stays 4x).
     /// </summary>
-    public static readonly byte[] DefaultGraphics = [5, 1, 0, 1, 1, 1, 1, 2, 2, 1, 1, 1, 3, 2, 1, 1];
+    public static readonly byte[] DefaultGraphics = [5, 1, 0, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
@@ -1245,6 +1247,12 @@ public sealed class ShellSettings
     public bool KeepMouseInWindow { get; set; }
     /// <summary>The port's own: the modern look's procedural plants (Graphic Detail; 0 Off, 1 Low, 2 High; docs/modern-vegetation.md). Low unless the player chose.</summary>
     public int Vegetation { get; set; } = 1;
+    /// <summary>
+    /// The port's own: the modern look's ambient occlusion (SSAO; Graphic Detail's Ambient Occlusion, Look page; [port] ambient_occlusion,
+    /// written only when on). Off unless the player chose: it was Shadow Detail High's until it had a row, and it is the frame's costliest
+    /// feature (docs/perf/costs.md: 29 % of a full-detail frame at 3440x1440, most of it the depth pre-pass drawing every surface's normals).
+    /// </summary>
+    public bool AmbientOcclusion { get; set; }
     /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
@@ -1400,7 +1408,7 @@ public sealed class ShellSettings
         // files from before the mirror and the external instruments did anything carry the shipped Low / Off: the port's defaults instead
         int version = (int)c.GetValue("shell", "version", 1);
         if (version < 2) { s.Graphics[0xd] = DefaultGraphics[0xd]; s.Graphics[0xe] = DefaultGraphics[0xe]; }
-        // and from before +0x8 was the anti-aliasing: the shipped 1 would read as 2x, the default is 4x
+        // and from before +0x8 was the anti-aliasing: the shipped byte is not a choice, so the default (2x)
         if (version < 3) s.Graphics[0x8] = DefaultGraphics[0x8];
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
@@ -1454,6 +1462,8 @@ public sealed class ShellSettings
         // as 0.2.0 left it, so they are Off (High, chosen, stays)
         s.Vegetation = version < 10 ? 1 : Math.Clamp((int)c.GetValue("port", "vegetation", 1), 0, 2);
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
+        // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
+        s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -1582,6 +1592,7 @@ public sealed class ShellSettings
         if (AutoReverse) c.SetValue("port", "auto_reverse", true);
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
+        if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));

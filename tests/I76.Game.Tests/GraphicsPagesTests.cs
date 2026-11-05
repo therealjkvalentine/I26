@@ -30,6 +30,7 @@ public class GraphicsPagesTests
         GraphicsRow.ShowFps => s.DevFps,
         GraphicsRow.HdTextures => (s.HdTextures, s.HdTextureSize),
         GraphicsRow.Vegetation => s.Vegetation,
+        GraphicsRow.AmbientOcclusion => s.AmbientOcclusion,
         GraphicsRow.FieldOfView => s.FieldOfView,
         GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.CarInteriors => s.CarInteriors,
@@ -53,7 +54,7 @@ public class GraphicsPagesTests
         s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
         s.HdTextures = false; s.HdTextureSize = 2;
-        s.Vegetation = 2;
+        s.Vegetation = 2; s.AmbientOcclusion = true;
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CarInteriors = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
@@ -85,7 +86,7 @@ public class GraphicsPagesTests
     public void ThePagesAreLookDisplayAndCamera()
     {
         Assert.Equal(["Graphic Detail", "Look", "Display", "Camera"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.Look]);
         Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
             GraphicsPages.Rows[GraphicsPages.Display]);
@@ -117,6 +118,7 @@ public class GraphicsPagesTests
         Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdTextureSize);
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
+        Assert.False(s.AmbientOcclusion);
         Assert.True(s.VSync);
         Assert.Equal(I76.Sim.Views.FrameLimit.Unlimited, s.MaxFps);
         Assert.Equal(I76.Sim.Views.MouseLook.Normal, s.MouseCamera);
@@ -236,6 +238,37 @@ public class GraphicsPagesTests
         Assert.Equal(1, VisibilityRange.Index(s, look1997: true));
         GraphicsPages.Reset(s, GraphicsRow.VisibilityRange);
         Assert.Null(s.DrawDistanceChoice);
+    }
+
+    // ---- Ambient Occlusion ----
+
+    /// <summary>Its own row on the Look page, Off for a first start; Look's Reset puts it back and the snapshot (Cancel) carries it.</summary>
+    [Fact]
+    public void AmbientOcclusionIsALookRowOffByDefault()
+    {
+        Assert.Equal(GraphicsPages.Look, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
+        Assert.False(new ShellSettings().AmbientOcclusion);
+        var s = new ShellSettings { AmbientOcclusion = true };
+        var snap = GraphicsPages.CopyAll(s, new ShellSettings());
+        Assert.True(snap.AmbientOcclusion);
+        GraphicsPages.Reset(s, GraphicsPages.Look);
+        Assert.False(s.AmbientOcclusion);
+        GraphicsPages.CopyAll(snap, s);
+        Assert.True(s.AmbientOcclusion);
+        // the sheet's Reset (Shadow Detail's own) leaves it alone: it is no longer Shadow Detail High's
+        GraphicsPages.Reset(s, GraphicsPages.Sheet);
+        Assert.True(s.AmbientOcclusion);
+        GraphicsPages.Reset(s, GraphicsRow.AmbientOcclusion);
+        Assert.False(s.AmbientOcclusion);
+    }
+
+    /// <summary>The first start's Anti-Aliasing is 2x (the byte 1); 4x stays offered.</summary>
+    [Fact]
+    public void AntiAliasingStartsAt2x()
+    {
+        Assert.Equal(1, ShellSettings.DefaultGraphics[0x8]);
+        Assert.Equal("2x", I76.Game.Boot.RenderScale.AntiAliasing[ShellSettings.DefaultGraphics[0x8]]);
+        Assert.Contains("4x", I76.Game.Boot.RenderScale.AntiAliasing);
     }
 
     // ---- HD Textures ----

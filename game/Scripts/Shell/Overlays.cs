@@ -561,6 +561,10 @@ public sealed class GraphicsScreen : OverlayScreen
                 string[] veg = ["Off", "Low" + mark, "High" + mark];
                 Row(line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
                 break;
+            // the modern look's SSAO ([port] ambient_occlusion), Shadow Detail High's until it had a row; applies in a mission
+            case GraphicsRow.AmbientOcclusion:
+                Row(line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
+                break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
                 Row(line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });

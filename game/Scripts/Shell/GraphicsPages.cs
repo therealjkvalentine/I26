@@ -7,6 +7,7 @@ public enum GraphicsRow
     Look1997, HdTextures, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
     AntiAliasing, RenderScale, VSync, MaxFps, ShowFps, Renderer, LogFile,
     FieldOfView, MouseCamera, CameraReturn, ZoomReset, MouseInWindow,
+    AmbientOcclusion,
 }
 
 /// <summary>
@@ -26,7 +27,7 @@ public static class GraphicsPages
     public static readonly GraphicsRow[][] Rows =
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
-        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
         [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
         [GraphicsRow.FieldOfView, GraphicsRow.MouseCamera, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.MouseInWindow],
     ];
@@ -121,6 +122,7 @@ public static class GraphicsPages
             // one row over two keys: off, or on at a size (the size kept while off)
             case GraphicsRow.HdTextures: t.HdTextures = f.HdTextures; t.HdTextureSize = f.HdTextureSize; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
+            case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;
