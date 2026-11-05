@@ -56,6 +56,7 @@ public class QuietWindowTests
         Assert.Equal((0, 0), pos);
         Assert.True(borderless);
         Assert.Equal((-3440, 0), QuietWindow.Place((3440, 1440), (-3440, 0, 3440, 1400), (-3440, 0)).Pos);   // a second screen's corner
+        Assert.True(QuietWindow.Place((3440, 1440), (0, 0, 3440, 1440), (0, 0)).Borderless);   // a hidden taskbar: the usable area is the whole screen
     }
 
     [Fact] public void MinimisedIsBehindForARunThatNeedsItsFrames()

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Godot;
 
@@ -42,11 +43,11 @@ public static class QuietWindow
         return fromArgs ?? WindowSizes.Parse(cfgResolution) ?? DefaultSize;
     }
 
-    /// <summary>Where the window goes: centred on the usable area when it fits there, else at the screen's corner (a desktop-sized measurement
-    /// window, borderless so its client area is the whole size). Returns the position and whether the window is borderless.</summary>
+    /// <summary>Where the window goes: centred on the usable area when it fits inside it, else (as large as the usable area or larger: a desktop-sized
+    /// measurement window) at the screen's corner, borderless, so its client area is the whole size, as the borderless fullscreen's is. Returns the position and whether the window is borderless.</summary>
     public static ((int X, int Y) Pos, bool Borderless) Place((int W, int H) size, (int X, int Y, int W, int H) usable, (int X, int Y) screen)
     {
-        if (size.W <= usable.W && size.H <= usable.H) return ((usable.X + (usable.W - size.W) / 2, usable.Y + (usable.H - size.H) / 2), false);
+        if (size.W < usable.W && size.H < usable.H) return ((usable.X + (usable.W - size.W) / 2, usable.Y + (usable.H - size.H) / 2), false);
         return (screen, true);
     }
 
@@ -76,7 +77,8 @@ public static class QuietWindow
             GD.Print("quiet window: min is behind for this run (a minimised window draws no frames: no screenshot, no frame profile)");
             Requested = m;
         }
-        var size = StartSize(OS.GetCmdlineArgs(), s.Resolution);
+        // Godot keeps the arguments it handled itself (--resolution among them) out of OS.GetCmdlineArgs: the process's own command line has them
+        var size = StartSize([.. OS.GetCmdlineArgs().TakeWhile(a => a is not ("--" or "++")), .. System.Environment.GetCommandLineArgs().Skip(1)], s.Resolution);
         var u = DisplayServer.ScreenGetUsableRect();
         var scr = DisplayServer.ScreenGetPosition();
         var (pos, borderless) = Place(size, (u.Position.X, u.Position.Y, u.Size.X, u.Size.Y), (scr.X, scr.Y));
