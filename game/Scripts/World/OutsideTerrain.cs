@@ -362,7 +362,7 @@ public partial class OutsideTerrain : Node3D
         if (_ground is null || (!_maskDirty && ring == _maskRing)) return;
         _maskDirty = false; _maskRing = ring;
         Drawn = _pieces.Count(kv => kv.Value.Mi is not null && kv.Value.Level != int.MinValue);
-        var mats = new[] { Modern, _ring1997 };
+        var mats = new[] { Modern, _ring1997, _ringNode?.RimMaterial };   // the ring's rim pass gives way too
         if (mats.All(m => m is null)) return;
         var drawn = _pieces.Where(kv => ring && kv.Value.Level != int.MinValue && kv.Value.Mi is not null).Select(kv => kv.Key).ToList();
         if (drawn.Count == 0) { foreach (var m in mats) m?.SetShaderParameter("near_cells", 0f); return; }

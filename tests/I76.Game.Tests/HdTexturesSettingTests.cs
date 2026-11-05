@@ -23,3 +23,26 @@ public class HdTexturesSettingTests
         Assert.False(HdTextures.FromFile(null, hdMenuArt: false));  // menu art turned off: the textures stay off
     }
 }
+
+/// <summary>The first start's HD Textures (HdTextures.DefaultOn): 4x when tex-world-4x is in the user folder, off without it, and off on a GPU with under 4 GB.</summary>
+public class HdTexturesFirstStartTests
+{
+    [Theory]
+    [InlineData(true, 11264L, true)]      // the 1080 Ti
+    [InlineData(true, 4096L, true)]       // a 4 GB laptop GTX 1650 Ti: the 4x pack fits
+    [InlineData(true, 3072L, false)]      // a 3 GB card
+    [InlineData(true, 2048L, false)]
+    [InlineData(true, null, true)]        // unknown memory (Linux) counts as enough
+    [InlineData(false, 11264L, false)]    // no tex-world-4x: off
+    [InlineData(false, null, false)]
+    public void FourXWhenItsFolderIsThereAndTheGpuHasRoom(bool has4x, long? mb, bool on) => Assert.Equal(on, HdTextures.DefaultOn(has4x, mb));
+
+    [Fact]
+    public void AFileWithoutTheKeyTakesTheFirstStartsDefaultUnlessTheMenuArtIsOff()
+    {
+        Assert.True(HdTextures.FromFile(null, hdMenuArt: true, firstStart: true));
+        Assert.False(HdTextures.FromFile(null, hdMenuArt: true, firstStart: false));
+        Assert.False(HdTextures.FromFile(null, hdMenuArt: false, firstStart: true));
+        Assert.True(HdTextures.FromFile(true, hdMenuArt: false, firstStart: false));   // the key wins
+    }
+}

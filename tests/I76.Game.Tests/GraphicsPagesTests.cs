@@ -5,7 +5,7 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order and every port row sits on
-/// exactly one of the three pages under them (Look, Display, Camera), each page fitting the sheet's lines; Reset puts back a page's
+/// exactly one of the two pages under them (Look, Display), each page fitting the sheet's lines; Reset puts back a page's
 /// own rows and no other's (the sheet's the original's block but Anti-Aliasing, which is Display's), and the snapshot Cancel restores
 /// from carries every row. Visibility Range and HD Textures, the rows over keys of their own. Without the engine.
 /// </summary>
@@ -30,6 +30,7 @@ public class GraphicsPagesTests
         GraphicsRow.ShowFps => s.DevFps,
         GraphicsRow.HdTextures => (s.HdTextures, s.HdTextureSize),
         GraphicsRow.Vegetation => s.Vegetation,
+        GraphicsRow.AmbientOcclusion => s.AmbientOcclusion,
         GraphicsRow.FieldOfView => s.FieldOfView,
         GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.CarInteriors => s.CarInteriors,
@@ -49,7 +50,7 @@ public class GraphicsPagesTests
         s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
         s.HdTextures = false; s.HdTextureSize = 2;
-        s.Vegetation = 2;
+        s.Vegetation = 2; s.AmbientOcclusion = true;
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CarInteriors = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
@@ -76,22 +77,20 @@ public class GraphicsPagesTests
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
-    /// <summary>Three pages: how it looks (1997 Mode first), how fast it runs then start-up and diagnostics, how the player looks around.</summary>
+    /// <summary>Two pages: how it looks (1997 Mode first), how it is shown (the view's rows, Field of View among them) then start-up and diagnostics.</summary>
     [Fact]
-    public void ThePagesAreLookDisplayAndCamera()
+    public void ThePagesAreLookAndDisplay()
     {
-        Assert.Equal(["Graphic Detail", "Look", "Display", "Camera"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        Assert.Equal(["Graphic Detail", "Look", "Display"], GraphicsPages.Names);
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.Look]);
-        Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
+        // the mouse rows are upstream's Mouse Options screen's (pass 19); Field of View, all the Camera page kept, is Display's
+        Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
             GraphicsPages.Rows[GraphicsPages.Display]);
-        // the mouse rows are upstream's Mouse Options screen's (pass 19)
-        Assert.Equal([GraphicsRow.FieldOfView],
-            GraphicsPages.Rows[GraphicsPages.Camera]);
     }
 
     [Fact]
-    public void DisplaysStartUpRowsSitUnderABlankLine() => Assert.Equal([1, 2, 3, 4, 5, 7, 8], GraphicsPages.LinesOf(GraphicsPages.Display));
+    public void DisplaysStartUpRowsSitUnderABlankLine() => Assert.Equal([1, 2, 3, 4, 5, 6, 8, 9], GraphicsPages.LinesOf(GraphicsPages.Display));
 
     [Fact]
     public void EveryPageFitsTheSheetsLines()
@@ -114,6 +113,7 @@ public class GraphicsPagesTests
         Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdTextureSize);
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
+        Assert.False(s.AmbientOcclusion);
         Assert.True(s.VSync);
         Assert.Equal(I76.Sim.Views.FrameLimit.Unlimited, s.MaxFps);
         Assert.Equal(I76.Sim.Views.MouseLook.Normal, s.MouseCamera);
@@ -126,7 +126,6 @@ public class GraphicsPagesTests
     [InlineData(GraphicsPages.Sheet)]
     [InlineData(GraphicsPages.Look)]
     [InlineData(GraphicsPages.Display)]
-    [InlineData(GraphicsPages.Camera)]
     public void ResetPutsBackThePagesRowsAlone(int page)
     {
         var s = Changed();
@@ -235,62 +234,99 @@ public class GraphicsPagesTests
         Assert.Null(s.DrawDistanceChoice);
     }
 
+    // ---- Ambient Occlusion ----
+
+    /// <summary>Its own row on the Look page, Off for a first start; Look's Reset puts it back and the snapshot (Cancel) carries it.</summary>
+    [Fact]
+    public void AmbientOcclusionIsALookRowOffByDefault()
+    {
+        Assert.Equal(GraphicsPages.Look, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
+        Assert.False(new ShellSettings().AmbientOcclusion);
+        var s = new ShellSettings { AmbientOcclusion = true };
+        var snap = GraphicsPages.CopyAll(s, new ShellSettings());
+        Assert.True(snap.AmbientOcclusion);
+        GraphicsPages.Reset(s, GraphicsPages.Look);
+        Assert.False(s.AmbientOcclusion);
+        GraphicsPages.CopyAll(snap, s);
+        Assert.True(s.AmbientOcclusion);
+        // the sheet's Reset (Shadow Detail's own) leaves it alone: it is no longer Shadow Detail High's
+        GraphicsPages.Reset(s, GraphicsPages.Sheet);
+        Assert.True(s.AmbientOcclusion);
+        GraphicsPages.Reset(s, GraphicsRow.AmbientOcclusion);
+        Assert.False(s.AmbientOcclusion);
+    }
+
+    /// <summary>The first start's Anti-Aliasing is 2x (the byte 1); 4x stays offered.</summary>
+    [Fact]
+    public void AntiAliasingStartsAt2x()
+    {
+        Assert.Equal(1, ShellSettings.DefaultGraphics[0x8]);
+        Assert.Equal("2x", I76.Game.Boot.RenderScale.AntiAliasing[ShellSettings.DefaultGraphics[0x8]]);
+        Assert.Contains("4x", I76.Game.Boot.RenderScale.AntiAliasing);
+    }
+
     // ---- HD Textures ----
 
+    /// <summary>Off or 4x: the 2x and 3x folders are no longer offered by the row (the loader still reads them).</summary>
     [Fact]
-    public void HdTexturesListsOnlyTheSizesWhoseFoldersExist()
+    public void HdTexturesIsOffOr4x()
     {
-        Assert.Equal(["Off", "4x*", "3x*", "2x*"], HdTextureRow.Names([4, 3, 2], true)!);
-        Assert.Equal(["Off", "3x*"], HdTextureRow.Names([3], true)!);
-        Assert.Equal(["Off", "4x*", "2x*"], HdTextureRow.Names([4, 2], true)!);
-        // a pack with no sized folder (the plain tex-world, or a zip): on or off
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 3, 2], true)!);
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4], true)!);
+        // no tex-world-4x: a pack of another size, a plain tex-world or a zip is on or off
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3], true)!);
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3, 2], false)!);
         Assert.Equal(["Off", "On*"], HdTextureRow.Names([], true)!);
         // no pack: no row
         Assert.Null(HdTextureRow.Names([], false));
     }
 
+    /// <summary>A size the file or the Developer panel names shows as itself while its folder is there, until the row is clicked.</summary>
     [Fact]
-    public void HdTexturesShowsTheSizeLoaded()
+    public void HdTexturesShowsAnotherSizeAsItself()
     {
-        var s = new ShellSettings();                     // on, 4x
+        Assert.Equal(["Off", "3x*"], HdTextureRow.Names([4, 3, 2], true, 3)!);
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 2], true, 3)!);   // no 3x folder: the 4x loads (HdPackFolders.Choose)
+        Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(3, f => f is "tex-world-4x" or "tex-world-2x"));
+        var s = new ShellSettings { HdTextureSize = 3 };
         Assert.Equal(1, HdTextureRow.Index(s, [4, 3, 2]));
-        s.HdTextureSize = 2;
-        Assert.Equal(3, HdTextureRow.Index(s, [4, 3, 2]));
-        // the 4x folder gone: the 3x is what loads (HdPackFolders.Choose's nearest)
-        s.HdTextureSize = 4;
-        Assert.Equal(1, HdTextureRow.Index(s, [3, 2]));
-        Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
-        Assert.Equal(1, HdTextureRow.Index(s, []));
-        s.HdTextures = false;
-        Assert.Equal(0, HdTextureRow.Index(s, [4, 3, 2]));
+        HdTextureRow.Step(s, [4, 3, 2], true);      // Off, the size kept
+        Assert.False(s.HdTextures);
+        Assert.Equal(3, s.HdTextureSize);
+        HdTextureRow.Step(s, [4, 3, 2], true);      // on again: 4x
+        Assert.True(s.HdTextures);
+        Assert.Equal(4, s.HdTextureSize);
     }
 
-    /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; a size writes true and the size.</summary>
+    /// <summary>The loader keeps every whole multiple: the 3x and 2x folders are still found and chosen.</summary>
+    [Fact]
+    public void TheLoaderStillServesEverySize()
+    {
+        Assert.Equal([4, 3, 2], I76.Formats.Shell.HdPackFolders.Sizes);
+        Assert.Equal("tex-world-2x", I76.Formats.Shell.HdPackFolders.Choose(2, f => f is "tex-world-4x" or "tex-world-2x"));
+        Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
+    }
+
+    /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; On writes true and 4 (with its folder).</summary>
     [Fact]
     public void HdTexturesWritesItsTwoKeys()
     {
         int[] have = [4, 3, 2];
-        var s = new ShellSettings { HdTextureSize = 3 };
+        var s = new ShellSettings { HdTextureSize = 4 };
         HdTextureRow.Put(s, have, 0);
         Assert.False(s.HdTextures);
-        Assert.Equal(3, s.HdTextureSize);
-        HdTextureRow.Put(s, have, 3);
-        Assert.True(s.HdTextures);
-        Assert.Equal(2, s.HdTextureSize);
-        // a click steps round: 2x, then Off, then 4x
-        HdTextureRow.Step(s, have, true);
-        Assert.False(s.HdTextures);
-        HdTextureRow.Step(s, have, true);
+        Assert.Equal(4, s.HdTextureSize);
+        HdTextureRow.Put(s, have, 1);
         Assert.True(s.HdTextures);
         Assert.Equal(4, s.HdTextureSize);
-        // with only a plain pack the size is left alone
+        // with no 4x folder the size is left alone
         var p = new ShellSettings { HdTextureSize = 3, HdTextures = false };
-        HdTextureRow.Step(p, [], true);
+        HdTextureRow.Step(p, [3], true);
         Assert.True(p.HdTextures);
         Assert.Equal(3, p.HdTextureSize);
-        // the size the row shows for a missing folder is not written until a value is picked
-        var q = new ShellSettings { HdTextureSize = 4 };
-        HdTextureRow.Put(q, [3, 2], 1);
-        Assert.Equal(4, q.HdTextureSize);
+        // picking what shows writes nothing
+        var q = new ShellSettings { HdTextureSize = 3 };
+        HdTextureRow.Put(q, have, 1);
+        Assert.Equal(3, q.HdTextureSize);
     }
 }

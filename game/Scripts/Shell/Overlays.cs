@@ -533,10 +533,11 @@ public sealed class GraphicsScreen : OverlayScreen
         _saved = Snapshot ?? GraphicsPages.CopyAll(Shell.Settings, new ShellSettings());
         int line = Page == GraphicsPages.Sheet ? 0 : GraphicsPages.FirstRowLine;
         if (Page != GraphicsPages.Sheet) Add(200, LineY(GraphicsPages.HeadingLine), GraphicsPages.Names[Page], null);
+        _lineRow.Clear();
         foreach (var r in GraphicsPages.Rows[Page])
         {
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
-            if (PortRow(r, line)) line++;
+            if (PortRow(r, line)) _lineRow[line++] = r;
         }
         if (Page == GraphicsPages.Sheet)
         {
@@ -551,6 +552,39 @@ public sealed class GraphicsScreen : OverlayScreen
         Add(288, 438, "Reset", Reset, Small);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+    }
+
+    // ---- the help line (GraphicsHelp): the row under the mouse, said in the sheet's small font on the free lines under the rows ----
+
+    private readonly Dictionary<int, GraphicsRow> _lineRow = [];
+    private GraphicsRow? _hover;
+    /// <summary>The help's first line and how many it may take, a line of text to a ruled line (the sheet's lines 11 to 13 are free on every page; the buttons start at 438).</summary>
+    private const int HelpLine = 11, HelpX = 200, HelpRight = 462, HelpMaxLines = 3;
+
+    /// <summary>The row whose line the mouse is on (label or value), or null.</summary>
+    private GraphicsRow? RowAt(Vector2I m)
+    {
+        if (m.X < HelpX || m.X >= HelpRight || m.Y < ListY) return null;
+        int line = (m.Y - ListY) / LineH;
+        return _lineRow.TryGetValue(line, out var r) ? r : null;
+    }
+
+    public override void Tick()
+    {
+        var h = RowAt(Shell.Mouse);
+        if (h != _hover) { _hover = h; Redraw(); }
+        base.Tick();
+    }
+
+    protected override void DrawExtra()
+    {
+        if (_hover is not { } r || GraphicsHelp.Text(r, Shell.Settings.Look1997) is not { } text) return;
+        int n = 0;
+        foreach (var l in GraphicsHelp.Wrap(text, s => Small.Measure(s), HelpRight - HelpX))
+        {
+            if (n >= HelpMaxLines) break;
+            Frame.Text(Small, HelpX, LineY(HelpLine + n++) + Math.Max(0, (LineH - Small.Height) / 2), l, ShellFrame.OverlayInk);   // between the line's rules
+        }
     }
 
     /// <summary>A row of the graphics block: the byte's value word, a click the next.</summary>
@@ -601,12 +635,12 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.AntiAliasing:
                 ByteRow(line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
                 break;
-            // [port] hd_textures and hd_texture_size (HdTextureRow): the sizes whose folder is there; Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x when its folder is there; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
                 bool any = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
-                if (HdTextureRow.Names(sizes, any) is not { } hd) return false;
-                Row(line, "HD Textures", () => hd[HdTextureRow.Index(st, sizes)], () =>
+                if (HdTextureRow.Names(sizes, any, st.HdTextureSize) is null) return false;
+                Row(line, "HD Textures", () => HdTextureRow.Names(sizes, any, st.HdTextureSize)![HdTextureRow.Index(st, sizes)], () =>
                 {
                     HdTextureRow.Step(st, sizes, any);
                     I76.Game.Assets.HdTextures.Enabled = st.HdTextures;
@@ -645,6 +679,10 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.Vegetation:
                 string[] veg = ["Off", "Low" + mark, "High" + mark];
                 Row(line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
+                break;
+            // the modern look's SSAO ([port] ambient_occlusion), Shadow Detail High's until it had a row; applies in a mission
+            case GraphicsRow.AmbientOcclusion:
+                Row(line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
@@ -703,10 +741,7 @@ public sealed class GraphicsScreen : OverlayScreen
                 I76.Game.FrameLimiter.Apply(st);
                 I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
                 I76.Game.Boot.RenderScale.Apply(st);
-                break;
-            case GraphicsPages.Camera:
                 I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
-                I76.Game.MouseCamera.Apply(st);
                 break;
         }
     }

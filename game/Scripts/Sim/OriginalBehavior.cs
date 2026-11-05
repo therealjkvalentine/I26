@@ -28,7 +28,11 @@ public static class OriginalBehavior
         DeathVariety.Enabled = s.DeathVariety;
     }
 
-    /// <summary>The mirror camera's far clip in a look: the original's 100 m, or Full, as far as the main view's camera.</summary>
+    /// <summary>
+    /// The mirror camera's far clip in a look: the original's 100 m, or Full, as far as the main view's camera. The modern look keeps
+    /// Full: with the mirror every second frame and without SSAO (docs/perf/plan.md item 2), Full measured 0.2 ms over the 100 m
+    /// (GPU frame means, the T01 cockpit, 3440x1440 and 1920x1080), and the 100 m loses the mesas behind the car even faded into the sky.
+    /// </summary>
     public static float MirrorFar(bool look1997) =>
         Resolve(MirrorRange, look1997) == Original ? MirrorCameraSettings.FarMetres : MirrorCameraSettings.FullFarMetres;
 

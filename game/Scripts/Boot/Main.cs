@@ -761,6 +761,7 @@ public partial class Main : Node3D
         if (_pit is not null) _pit.MirrorSetting = s.Graphics[0xd];
         _extInstruments = s.Graphics[0xe] != 0;
         _shadowDetail = s.Graphics[0x6];
+        _ambientOcclusion = s.AmbientOcclusion;
         _terrainDetail = s.Graphics[0x2];
         _antialias = s.Graphics[0x8];
         MouseCamera.Apply(s);
@@ -781,24 +782,29 @@ public partial class Main : Node3D
     }
 
     // Graphic Detail's rows that trade the modern look's cost: Shadow Detail (+0x6: Off, Low, High), Terrain Detail
-    // (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x). The 1997 look ignores them.
-    private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 2, _vegetation = 1;
+    // (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
+    private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
+    private bool _ambientOcclusion;
 
     /// <summary>
-    /// The modern look's quality settings: High shadow detail is the sun's shadow map and SSAO, Low the shadow
-    /// map alone (SSAO makes the depth pre-pass draw every surface's normals, the terrain's whole material for
-    /// them: 3.5-6 ms a frame on an integrated GPU at 1080p), Off neither; Terrain Detail Low leaves out the
-    /// 1.25 m level near the camera; Anti-Aliasing is the MSAA. Then the I76_* overrides (RenderTweaks).
+    /// The modern look's quality settings (docs/perf/plan.md): Shadow Detail Low is the sun's shadow map in two splits to
+    /// 600 m, High in four to 1500 m, Off none; Ambient Occlusion is the SSAO, a row of its own (it makes the depth pre-pass
+    /// draw every surface's normals, the terrain's whole material for them: 5 ms of a 17 ms frame at 3440x1440 on a 1080 Ti);
+    /// Terrain Detail Low leaves out the 1.25 m level near the camera; Anti-Aliasing is the MSAA. Then the I76_* overrides (RenderTweaks).
     /// </summary>
     private void ApplyModernQuality()
     {
         if (_mode1997 || _sun is null) return;
         _sun.ShadowEnabled = _shadowDetail > 0;
+        var (splits, reach) = ShadowReach.For(_shadowDetail);
+        _sun.DirectionalShadowMode = splits == 4 ? DirectionalLight3D.ShadowMode.Parallel4Splits : DirectionalLight3D.ShadowMode.Parallel2Splits;
+        _sun.DirectionalShadowMaxDistance = reach;
         UpdateDrops();
-        _modernEnv.SsaoEnabled = _shadowDetail > 1 && !RenderBackend.Compatibility;   // Compatibility has no SSAO
+        _modernEnv.SsaoEnabled = _ambientOcclusion && !RenderBackend.Compatibility;   // Compatibility has no SSAO
         if (_builder?.Terrain is { } t) t.FinestLevel = _terrainDetail > 0 ? 0 : 1;
         GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
         RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
+        if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
         UpdateVegetation();
     }
 
@@ -2220,7 +2226,7 @@ public partial class Main : Node3D
     {
         if (_horizonEyeSet || _horizon?.Material is not { } m || _builder?.World is not { } world) return;
         _horizonEyeSet = true;
-        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") m.SetShaderParameter("debug_tint", 1f);
+        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") _horizon.Set("debug_tint", 1f);
         if (System.Environment.GetEnvironmentVariable("I76_HORIZON_DEBUG") == "1" && world.Outside is { } o)
             GD.Print($"horizon: ring sunk for an eye at game height {o.Sink.EyeY:0.0} (counted from {o.Sink.Low:0.0})");
     }
@@ -2236,7 +2242,7 @@ public partial class Main : Node3D
         foreach (var p in new[] { "horizon_color", "sprite_dir", "light_strength" })
             _horizon.Set(p, sky.GetShaderParameter(p));
         // night air: the dark rock shows as silhouettes against the sky, as the night panels drew it
-        if (!light.IsDay) _horizon.Material.SetShaderParameter("haze_reach", 20000f);
+        if (!light.IsDay) _horizon.Set("haze_reach", 20000f);
         // the ground past the map near the camera: the ring's shading, its parameters as now set
         if (_builder?.OutsideNode is { } outside) { outside.Ring = _horizon; outside.Modern = _horizon.Material; }
         // out of view, but still in the sky's light: the ring is lit by it as the panels' scene was (sky_modern.gdshaderinc)
@@ -2732,14 +2738,14 @@ public partial class Main : Node3D
         if (_atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
         _atlasSet = on;
         _sun.ShadowBlur = on ? 0f : 1f;
-        _sun.DirectionalShadowMaxDistance = on ? 600 : 1500;
+        _sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
         MissionBuilder.Trace("look: shadows, draw distance");
         _builder?.Materials?.SetMode1997(on);
         if (_builder?.Scenery is { } scenery) scenery.Modern = !on;
         MissionBuilder.Trace("look: materials, scenery");
         if (_pit is not null) _pit.Faithful = on;
         if (_sim is not null) foreach (var c in _sim.Cars) { c.Modern = !on; if (c.Wrecked) _damageView?.Rebuild(c); }   // the wreck's shape: modern shell or the 1997 box
-        GetViewport().Msaa3D = on ? Viewport.Msaa.Disabled : Viewport.Msaa.Msaa4X;
+        GetViewport().Msaa3D = on ? Viewport.Msaa.Disabled : RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
         MissionBuilder.Trace("look: msaa");
         ApplyModernQuality();
         MissionBuilder.Trace("look: modern quality");

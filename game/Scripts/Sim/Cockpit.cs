@@ -1091,22 +1091,64 @@ public partial class Cockpit : Node
         _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(1024, 256);
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
-        _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & 0xFFFFF;
-        // I76_MIRROR_SSAO=0 (perf survey): the full mirror through the world's environment without its SSAO, so the mirror's depth pre-pass
-        // has no normals to write (a 160-pixel-tall picture shows no ambient occlusion); the environment is copied once the world has one
-        if (_mirrorMode == 2 && MirrorNoSsao && GetViewport()?.World3D?.Environment is { } we && (_mirrorNoSsaoEnv is null || _mirrorNoSsaoEnv.Sky != we.Sky))
-        {
-            _mirrorNoSsaoEnv = (Godot.Environment)we.Duplicate();
-            _mirrorNoSsaoEnv.SsaoEnabled = false;
-        }
-        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorNoSsao ? _mirrorNoSsaoEnv : null;
-        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full
+        // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
+        // material, relief or asphalt for a camera without it), as for the shadow passes
+        _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF;
+        _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full (the modern look's default)
+        _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
     }
 
-    /// <summary>Perf survey hooks (docs/perf/costs.md): I76_MIRROR_RATE=2 updates the modern look's mirror every second frame; I76_MIRROR_SSAO=0 leaves SSAO out of it.</summary>
-    private static readonly bool MirrorHalfRate = System.Environment.GetEnvironmentVariable("I76_MIRROR_RATE") == "2";
-    private static readonly bool MirrorNoSsao = System.Environment.GetEnvironmentVariable("I76_MIRROR_SSAO") == "0";
-    private Godot.Environment? _mirrorNoSsaoEnv;
+    /// <summary>
+    /// The full mirror's environment in the modern look: the world's own, copied, without its SSAO (the world's Ambient Occlusion is
+    /// not drawn in a picture 160 pixels tall, and it makes the mirror's depth pre-pass draw every surface's normals: docs/perf/costs.md,
+    /// 1 of the mirror's 3.5 ms at 3440x1440) and, at the original's 100 m reach, with a depth fog into the sky over the last stretch, so
+    /// the clip is a fade as the original's was (its fog table ends the 100 m) and not a cut. Null in the 1997 look (the world's, which has
+    /// neither). I76_MIRROR_SSAO=1 draws it through the world's environment, SSAO and all, for a measurement.
+    /// </summary>
+    private Godot.Environment? MirrorEnvironment()
+    {
+        if (_faithful || MirrorWorldEnv || GetViewport()?.World3D?.Environment is not { } we) return null;
+        if (_mirrorEnvSource != we || _mirrorEnv is null) { _mirrorEnv = (Godot.Environment)we.Duplicate(); _mirrorEnvSource = we; }
+        SyncMirrorEnvironment(we, _mirrorEnv);
+        return _mirrorEnv;
+    }
+
+    /// <summary>What the world's environment changes after the mission is built (the lighting calibration, the sky, Monitor Brightness) carried into the mirror's copy; SSAO and the fog are the mirror's own.</summary>
+    private void SyncMirrorEnvironment(Godot.Environment we, Godot.Environment me)
+    {
+        if (me.Sky != we.Sky) me.Sky = we.Sky;
+        me.AmbientLightEnergy = we.AmbientLightEnergy;
+        me.TonemapMode = we.TonemapMode;
+        me.TonemapExposure = we.TonemapExposure;
+        me.AdjustmentEnabled = we.AdjustmentEnabled;
+        me.AdjustmentBrightness = we.AdjustmentBrightness;
+        me.AdjustmentColorCorrection = we.AdjustmentColorCorrection;
+        me.SsaoEnabled = false;
+        float far = _mirrorCam?.Far ?? MirrorCameraSettings.FarMetres;
+        bool fog = MirrorFog && far <= MirrorCameraSettings.FarMetres + 1f;
+        me.FogEnabled = fog;
+        if (fog)
+        {
+            me.FogMode = Godot.Environment.FogModeEnum.Depth;
+            me.FogDepthBegin = MirrorCameraSettings.FogBeginMetres;
+            me.FogDepthEnd = far;
+            me.FogDepthCurve = 1f;
+            me.FogDensity = 1f;
+            me.FogAerialPerspective = 1f;   // the fog takes the sky's colour behind it
+            me.FogSkyAffect = 0f;
+            me.FogLightEnergy = 1f;
+        }
+    }
+
+    /// <summary>
+    /// The mirror's cadence: every second frame, as the original's (docs/deviations.md); I76_MIRROR_RATE=1 every frame in the modern
+    /// look, as it was before (perf survey). I76_MIRROR_SSAO=1 gives it the world's environment; I76_MIRROR_FOG=0 no fog at 100 m.
+    /// </summary>
+    private static readonly bool MirrorEveryFrame = System.Environment.GetEnvironmentVariable("I76_MIRROR_RATE") == "1";
+    private static readonly bool MirrorWorldEnv = System.Environment.GetEnvironmentVariable("I76_MIRROR_SSAO") == "1";
+    private static readonly bool MirrorFog = System.Environment.GetEnvironmentVariable("I76_MIRROR_FOG") != "0";
+    private Godot.Environment? _mirrorEnv, _mirrorEnvSource;
+    private int _mirrorSync;
 
     private void Mirror()
     {
@@ -1115,8 +1157,11 @@ public partial class Cockpit : Node
         if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
-        // the original redraws it every second frame; the modern look every frame (I76_MIRROR_RATE=2, perf survey: every second frame there too)
+        // the original redraws it every second frame, and so do both looks (I76_MIRROR_RATE=1: the modern look every frame)
         _mirrorTick = !_mirrorTick;
-        _mirrorView.RenderTargetUpdateMode = !_faithful && !MirrorHalfRate ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        _mirrorView.RenderTargetUpdateMode = !_faithful && MirrorEveryFrame ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        // the world's environment as it is now, about twice a second (the lighting calibration's solve ends after the mirror is made)
+        if (_mirrorEnv is not null && _mirrorEnvSource is not null && _mirrorCam.Environment == _mirrorEnv && ++_mirrorSync % 30 == 0)
+            SyncMirrorEnvironment(_mirrorEnvSource, _mirrorEnv);
     }
 }

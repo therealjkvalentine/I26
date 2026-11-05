@@ -56,6 +56,20 @@ C = {
     "mirror_nossao":   ({}, {}, {"I76_MIRROR_SSAO": "0"}, [], False),
     "mirror_both":     ({}, {}, {"I76_MIRROR_RATE": "2", "I76_MIRROR_SSAO": "0"}, [], False),
     "mirror_both_orig": ({"mirror_range": '"original"'}, {}, {"I76_MIRROR_RATE": "2", "I76_MIRROR_SSAO": "0"}, [], False),
+    # perf/graphics-defaults: a first start before and after (bench.DEFAULTS; the old drawing through bench.OLD_RENDER_ENV)
+    "defaults_old":    ({"__profile": "old_defaults", "mirror_range": '"full"'}, {}, {**bench.OLD_RENDER_ENV, "I76_HORIZON_SPLIT": "0"}, [], False),
+    "defaults_new_unsplit": ({"__profile": "defaults"}, {}, {"I76_HORIZON_SPLIT": "0"}, [], False),   # upstream's one-pass ring
+    "defaults_new":    ({"__profile": "defaults"}, {}, {}, [], False),
+    "defaults_new_full": ({"__profile": "defaults", "mirror_range": '"full"'}, {}, {}, [], False),
+    # and everything on before, then each of the plan's items 1-5 alone on top of it
+    "full_old":        ({"mirror_range": '"full"'}, {}, bench.OLD_RENDER_ENV, [], False),
+    "item1_ao_off":    ({"mirror_range": '"full"', "ambient_occlusion": "false"}, {}, bench.OLD_RENDER_ENV, [], False),
+    "item2_mirror":    ({"mirror_range": '"full"'}, {}, {k: v for k, v in bench.OLD_RENDER_ENV.items() if not k.startswith("I76_MIRROR")}, [], False),
+    "item3_tiers":     ({"mirror_range": '"full"'}, {}, {k: v for k, v in bench.OLD_RENDER_ENV.items() if k != "I76_TERRAIN_TIERS"}, [], False),
+    "item4_shadows":   ({"mirror_range": '"full"'}, {"0x6": 1}, {k: v for k, v in bench.OLD_RENDER_ENV.items() if not k.startswith("I76_SHADOW")}, [], False),
+    "item5_msaa_2x":   ({"mirror_range": '"full"'}, {"0x8": 1}, bench.OLD_RENDER_ENV, [], False),
+    "item6_ring":      ({"mirror_range": '"full"'}, {}, {k: v for k, v in bench.OLD_RENDER_ENV.items() if k != "I76_HORIZON_SPLIT"}, [], False),
+    "full_new":        ({"mirror_range": '"full"'}, {}, {}, [], False),
 }
 SETS = {
     "all": [k for k in C if k not in ("smoke", "smoke_layer_off_smoke", "shadow_dist_600", "shadow_splits_2")],
@@ -66,6 +80,8 @@ SETS = {
     "parts": ["base", "hide_veg", "hide_terrain", "hide_horizon", "hide_placements"],
     "fire": ["base", "tracers_line"],
     "chase": ["base", "hd_off", "veg_off", "sdf_off", "shadow_low", "terrain_low", "look1997", "map_edge_off"],
+    "defaults": ["defaults_old", "defaults_new", "defaults_new_unsplit", "defaults_new_full"],
+    "items": ["full_old", "item1_ao_off", "item2_mirror", "item3_tiers", "item4_shadows", "item5_msaa_2x", "item6_ring", "full_new"],
 }
 def clean_rows():
     """(name, res, rep, scene) of every row with a result and no other Godot seen, less the rows listed in runs/contaminated.tsv."""

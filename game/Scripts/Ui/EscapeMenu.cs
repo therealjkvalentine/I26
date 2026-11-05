@@ -315,13 +315,13 @@ public sealed partial class EscapeMenu : Control
         // are its own rows'.
         int sheetRow = 1;
         List<GraphicsRow> sheetOffered = [];
-        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); }
+        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
         for (int p = GraphicsPages.Look; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
             List<GraphicsRow> offered = [];
-            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); }
+            foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
             page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); Switch(page); } } });
             page.Items.Add(DoneButton());
@@ -397,7 +397,7 @@ public sealed partial class EscapeMenu : Control
     }
 
     /// <summary>A row over a key that may be absent or over two keys (Visibility Range, HD Textures): Done and Cancel copy the row's keys whole (GraphicsPages.Copy).</summary>
-    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply) => new()
+    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply, Func<ShellSettings, string[]>? namesNow = null) => new()
     {
         Flags = Cycle, Label = label, N = names.Length, Names = names,
         Cb = (it, m) =>
@@ -409,6 +409,8 @@ public sealed partial class EscapeMenu : Control
                 case 8: GraphicsPages.Copy(r, Settings, _snap); break;
                 case 9: GraphicsPages.Copy(r, _snap, Settings); it.Value = get(Settings); apply(); break;
             }
+            // a row whose words follow the keys (HD Textures: a size set in the file shows as itself until the row is changed)
+            if (namesNow is not null) it.Names = namesNow(Settings);
         },
     };
 
@@ -433,11 +435,13 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
             // the port's MSAA in +0x8 (the shell's list, 8x too), live
             case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
-                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return null;
-                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live);
+                bool anyPack = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
+                if (HdTextureRow.Names(sizes, anyPack, Settings.HdTextureSize) is not { } hd) return null;
+                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live,
+                    s => HdTextureRow.Names(sizes, anyPack, s.HdTextureSize) ?? hd);
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
             case GraphicsRow.VSync: return Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live);
             case GraphicsRow.MaxFps: return Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live);
@@ -447,6 +451,8 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
             // the modern look's plants, live
             case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
+            // the modern look's SSAO ([port] ambient_occlusion), live
+            case GraphicsRow.AmbientOcclusion: return Setting(Cycle, "Ambient Occlusion", 0, 2, ["Off", "On" + mark], s => s.AmbientOcclusion ? 1 : 0, (s, v) => s.AmbientOcclusion = v != 0, apply: live);
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             case GraphicsRow.FieldOfView: return Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live);
             // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row
@@ -629,6 +635,12 @@ public sealed partial class EscapeMenu : Control
             if (_pressed is not null || _screen.MaxScroll == 0) return;
             _screen.Scroll = Math.Clamp(_screen.Scroll + (wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1), 0, _screen.MaxScroll);
             QueueRedraw();
+        }
+        else if (e is InputEventMouseMotion mm)
+        {
+            // the help line follows the mouse over Graphic Detail's rows (GraphicsHelp), else the selection
+            var (over, _) = Hit(ToPad(mm.Position));
+            if (over != _hover) { _hover = over; if (_rowOf.ContainsKey(over ?? _noItem) || HelpShown) QueueRedraw(); }
         }
         else if (e is InputEventMouseButton { ButtonIndex: MouseButton.Left } mb)
         {
@@ -916,6 +928,38 @@ public sealed partial class EscapeMenu : Control
         if (_screen.Order > 0) Print(_arial, 16, 226, 60, $"{_screen.Order / 1000:00000}-{_screen.Order % 1000:000}");
         for (int i = 0; i < _screen.Items.Count; i++) DrawItem(_screen.Items[i], i == _screen.Selected);
         DrawScrollMark();
+        DrawHelp();
+    }
+
+    // ---- Graphic Detail's help line (GraphicsHelp) ----
+
+    /// <summary>Graphic Detail's items and the rows they are, for the help line.</summary>
+    private readonly Dictionary<Item, GraphicsRow> _rowOf = [];
+    private Item? _hover;
+    private static readonly Item _noItem = new();
+    private bool HelpShown;
+
+    /// <summary>The help's first pad row and how many it may take, a line of text to a ruled row: rows 11 to 14 are free on Graphic Detail's pads (the sheet's entries end on row 10), the buttons start at 407.</summary>
+    private const int HelpRow = 11, HelpCell = 13, HelpMaxLines = 4;
+
+    /// <summary>
+    /// The row under the mouse, else the selected one, said on the pad's free rows in Arial (the order's and the titles' face), the pad's ink;
+    /// nothing on any other pad, or for a row without help.
+    /// </summary>
+    private void DrawHelp()
+    {
+        HelpShown = false;
+        if (_screen != _graphics && !_graphicsPages.Contains(_screen)) return;
+        var it = _hover is not null && _screen.Items.Contains(_hover) && _rowOf.ContainsKey(_hover) ? _hover
+            : _screen.Selected >= 0 && _screen.Selected < _screen.Items.Count ? _screen.Items[_screen.Selected] : null;
+        if (it is null || !_rowOf.TryGetValue(it, out var row) || GraphicsHelp.Text(row, Faithful) is not { } text) return;
+        int n = 0;
+        foreach (var line in GraphicsHelp.Wrap(text, s => Width(_arial, HelpCell, s), 296 - 24))
+        {
+            if (n >= HelpMaxLines) break;
+            Print(_arial, HelpCell, 24, RowY(HelpRow + n++) + 6, line);   // between the row's rules
+        }
+        HelpShown = true;
     }
 
     /// <summary>
