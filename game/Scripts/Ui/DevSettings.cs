@@ -12,7 +12,7 @@ public enum DevWhen { Live, NextScreen, NextMission, NextStart }
 /// and when a change shows. <see cref="Apply"/> is what a change needs beyond the setting and the host's refresh.
 /// </summary>
 public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings, int> Get, Action<ShellSettings, int> Set, DevWhen When,
-    Action<ShellSettings>? Apply = null, bool Slider = false, Func<int, bool>? Offered = null);
+    Action<ShellSettings>? Apply = null, bool Slider = false, Func<int, bool>? Offered = null, string? Note = null);
 
 /// <summary>
 /// The Developer panels' Settings section (in a mission and on the main menu): every key of docs/playing.md's "Settings
@@ -46,18 +46,21 @@ public static class DevSettings
 
     /// <summary>The shaker sources' percentages (lfe_engine ...), 0 to 200 in tens on a slider; a value set by hand shows as the nearest.</summary>
     public static readonly int[] SourceSteps = [.. Enumerable.Range(0, 21).Select(i => i * 10)];
-    private static readonly string[] SourceNames = [.. SourceSteps.Select(p => p == I76.Formats.Input.TactileSources.Default ? $"{p}" : $"{p}{M}")];
+    private static string[] SourceNames(int dflt) => [.. SourceSteps.Select(p => p == dflt ? $"{p}" : $"{p}{M}")];
     public static int NearestSourceStep(int percent) => Array.IndexOf(SourceSteps, SourceSteps.MinBy(p => Math.Abs(p - percent)));
-    private static DevSetting Source(I76.Formats.Input.TactileSource src) => new(I76.Formats.Input.TactileSources.Keys[(int)src], SourceNames,
+    private static DevSetting Source(I76.Formats.Input.TactileSource src, string? note = null) => new(I76.Formats.Input.TactileSources.Keys[(int)src],
+        SourceNames(I76.Formats.Input.TactileSources.DefaultOf((int)src)),
         s => NearestSourceStep(s.LfeSources[(int)src]), (s, v) => s.LfeSources[(int)src] = SourceSteps[v], DevWhen.Live,
-        I76.Game.Boot.Main.ApplyOutput, Slider: true);
+        I76.Game.Boot.Main.ApplyOutput, Slider: true, Note: note);
+
+    /// <summary>Keys on the panel for the developer's listening only, not in docs/playing.md's table (docs/dev-hooks.md has them): the shaker's dev-only sources.</summary>
+    public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
     /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, not one of a few values.</summary>
     public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq"];
 
     public static readonly DevSetting[] All =
     [
-        new("draw_distance", ["look", "0", "1" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
         new("mirror_range", Look(OriginalRecipe.MirrorRangeNames), s => OfChoice(s.MirrorRangeChoice), (s, v) => s.MirrorRangeChoice = ToChoice(v), DevWhen.Live),
         new("brake_lamps", Look(OriginalRecipe.BrakeLampNames), s => OfChoice(s.BrakeLampChoice), (s, v) => s.BrakeLampChoice = ToChoice(v), DevWhen.Live),
         new("mg_tracers", Look(OriginalRecipe.MgTracerNames), s => OfChoice(s.MgTracerChoice), (s, v) => s.MgTracerChoice = ToChoice(v), DevWhen.Live),
@@ -66,6 +69,7 @@ public static class DevSettings
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
         new("death_variety", ["off", "on" + M], s => s.DeathVariety ? 1 : 0, (s, v) => s.DeathVariety = v != 0, DevWhen.Live),
+        new("briefing_while_loading", ["off", "on" + M], s => s.BriefingWhileLoading ? 1 : 0, (s, v) => s.BriefingWhileLoading = v != 0, DevWhen.NextMission),
         new("melee_ai", ["0", "1" + M, "2" + M, "3" + M], s => (int)s.MeleeAi, (s, v) => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)v, DevWhen.NextMission),
         new("effects_size", EffectNames, s => NearestStep(s.EffectsSize), (s, v) => s.EffectsSize = EffectSteps[v], DevWhen.Live),
         new("effects_brightness", EffectNames, s => NearestStep(s.EffectsBrightness), (s, v) => s.EffectsBrightness = EffectSteps[v], DevWhen.Live),
@@ -77,13 +81,6 @@ public static class DevSettings
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),
-        new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
-            s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
-        // 4x, 3x, 2x: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
-        new("hd_texture_size", ["4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
-            (s, v) => s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
-            s => I76.Game.Assets.HdTextures.Size = s.HdTextureSize,
-            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
         new("hd_menu_art", FalseTrue, s => s.HdMenuArt ? 1 : 0, (s, v) => s.HdMenuArt = v != 0, DevWhen.NextScreen,
             s => HdAssets.Enabled = s.HdMenuArt),
         new("lighting_calibration", ["off", "filmic" + M, "on" + M], s => !s.LightingCalibration ? 0 : s.LightingFilmic ? 1 : 2,
@@ -94,8 +91,32 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Hits),
         Source(I76.Formats.Input.TactileSource.Shots),
         Source(I76.Formats.Input.TactileSource.Explosions),
-        new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
+        Source(I76.Formats.Input.TactileSource.Offroad),
+        Source(I76.Formats.Input.TactileSource.Bumps),
+        Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
+        Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
+    ];
+
+    /// <summary>
+    /// Keys that have a menu row but are offered here too: Graphic Detail's Visibility Range (draw_distance, with "look" to go back to
+    /// following the look), HD Textures (its two keys), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
+    /// file's 0..100 on a slider. Not in docs/playing.md's table of settings without a row.
+    /// </summary>
+    public static readonly DevSetting[] WithRow =
+    [
+        new("draw_distance", ["look", "0", "1" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
+        new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
+            s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
+        // 4x, 3x, 2x: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
+        new("hd_texture_size", ["4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
+            (s, v) => s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.Size = s.HdTextureSize,
+            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
+        new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
+        new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Default ? $"{v}" : $"{v}{M}")],
+            s => I76.Sim.Views.PaintFinish.Clamp(s.HoodGloss), (s, v) => s.HoodGloss = v, DevWhen.Live,
+            s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
     ];
 
     public static string WhenText(DevWhen w) => w switch { DevWhen.Live => "live", DevWhen.NextScreen => "next screen", DevWhen.NextMission => "next mission", _ => "next start" };
@@ -124,9 +145,9 @@ public static class DevSettings
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
-        foreach (var e in All)
+        foreach (var e in All.Concat(WithRow))
         {
-            var name = DevScale.Min(new Label { Text = e.Key, TooltipText = WhenText(e.When) }, 136);
+            var name = DevScale.Min(new Label { Text = e.Note is null ? e.Key : $"{e.Key} ({e.Note})", TooltipText = WhenText(e.When) }, 136);
             name.AddThemeColorOverride("font_color", WhenColour(e.When));
             if (e.Slider)
             {

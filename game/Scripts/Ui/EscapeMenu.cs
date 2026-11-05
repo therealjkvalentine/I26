@@ -296,37 +296,29 @@ public sealed partial class EscapeMenu : Control
             Action("I'm a swinger", 13, () => Switch(_play)),
         ];
 
-        // Graphic Detail: the original's six rows the port honours (resolution, visibility and the 1997 renderer's detail levels are
-        // gone), then an entry for each page of the port's own rows, a pad of its own on the same art with the page's name as its
-        // title (GraphicsPages: the shell's sheet has the same pages). Each pad's Done, Cancel and Reset are its own rows'.
-        Item G(int flags, string label, int row, int n, string[]? names, int at) =>
-            Setting(flags, label, row, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: () => Live?.Invoke(Settings));
-        string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
-        _graphics.Items = [
-            G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 1, 11, null, 0xc),
-            G(Cycle, "Ext. Instrum. Disp.", 2, 2, offOn, 0xe),
-            G(Cycle, "Rear Mirror", 3, 3, offLowHigh, 0xd),
-            G(Cycle, "Shadow Detail", 4, 3, offLowHigh, 0x6),
-            G(Cycle, "Terrain Detail", 5, 2, ["Low", "High"], 0x2),
-            G(Cycle, "Anti-Aliasing", 6, I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8),   // the shell's list, 8x too
-        ];
-        for (int p = GraphicsPages.Display; p <= GraphicsPages.Effects; p++)
+        // Graphic Detail: the original's rows the port honours, in its order (Screen Resolution is the shell's alone: the window is not
+        // changed under a mission), then an entry for each page of the port's own rows under a blank line, a pad of its own on the same
+        // art with the page's name as its title (GraphicsPages: the shell's sheet has the same pages). Each pad's Done, Cancel and Reset
+        // are its own rows'.
+        int sheetRow = 1;
+        List<GraphicsRow> sheetOffered = [];
+        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); }
+        for (int p = GraphicsPages.Look; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
-            int row = 1;
+            int row = 1, pg = p;
             List<GraphicsRow> offered = [];
             foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); }
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
-            page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { foreach (var r in offered) GraphicsPages.Reset(Settings, r); Live?.Invoke(Settings); Switch(page); } } });
+            page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); Switch(page); } } });
             page.Items.Add(DoneButton());
             page.Items.Add(CancelButton());
             _graphicsPages.Add(page);
-            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", GraphicsPages.FirstEntryLine + 1 + p - GraphicsPages.Display, () => Switch(page)));
+            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetRow + 1 + p - GraphicsPages.Look, () => Switch(page)));
         }
-        _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) ResetGraphics(); } });
+        _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, GraphicsPages.Sheet, sheetOffered); Live?.Invoke(Settings); Switch(_graphics); } } });
         _graphics.Items.Add(DoneButton());
         _graphics.Items.Add(CancelButton());
-        // the HD packs' switches have no row: [port] hd_textures and hd_menu_art (docs/playing.md), and the Developer panel's Settings
 
         Item Level(string label, int row, int n, int at, bool live) =>
             Setting(Slider | Min1, label, row, n, null, s => Math.Clamp((int)s.Audio[at], 1, n - 1), (s, v) => s.Audio[at] = (byte)v, live,
@@ -392,45 +384,81 @@ public sealed partial class EscapeMenu : Control
         }
     }
 
-    /// <summary>Reset: the default profile, then the pad again (msg 6 reloads every value).</summary>
-    private void ResetGraphics()
+    /// <summary>A row over a key that may be absent or over two keys (Visibility Range, HD Textures): Done and Cancel copy the row's keys whole (GraphicsPages.Copy).</summary>
+    private Item Keyed(GraphicsRow r, string label, string[] names, Func<ShellSettings, int> get, Action<ShellSettings, int> put, Action apply) => new()
     {
-        GraphicsPages.Reset(Settings, GraphicsPages.Sheet);
-        Live?.Invoke(Settings);
-        Switch(_graphics);
-    }
+        Flags = Cycle, Label = label, N = names.Length, Names = names,
+        Cb = (it, m) =>
+        {
+            switch (m)
+            {
+                case 6: it.Value = get(Settings); break;
+                case 7: put(Settings, it.Value); apply(); break;
+                case 8: GraphicsPages.Copy(r, Settings, _snap); break;
+                case 9: GraphicsPages.Copy(r, _snap, Settings); it.Value = get(Settings); apply(); break;
+            }
+        },
+    };
 
-    /// <summary>One of the port's Graphic Detail rows as a pad item (its row set by the page), or null for a row the pad does not offer: the shell's start-up, window and garage rows.</summary>
+    /// <summary>One of Graphic Detail's rows as a pad item (its row set by the page), or null for a row the pad does not offer: the shell's window, start-up and garage rows, and HD Textures with no pack.</summary>
     private Item? PortRow(GraphicsRow r)
     {
-        string[] offOn = ["Off", "On"];
+        string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
         string mark = ShellSettings.PortMark;
         Action live = () => Live?.Invoke(Settings);
-        return r switch
+        Item G(int flags, string label, int n, string[]? names, int at) =>
+            Setting(flags, label, 0, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: live);
+        switch (r)
         {
+            // the original's rows in the graphics block
+            case GraphicsRow.MonitorBrightness: return G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 11, null, 0xc);
+            case GraphicsRow.TerrainDetail: return G(Cycle, "Terrain Detail", 2, ["Low", "High"], 0x2);
+            case GraphicsRow.ShadowDetail: return G(Cycle, "Shadow Detail", 3, offLowHigh, 0x6);
+            case GraphicsRow.ExtInstruments: return G(Cycle, "Ext. Instrum. Disp.", 2, offOn, 0xe);
+            case GraphicsRow.RearMirror: return G(Cycle, "Rear Mirror", 3, offLowHigh, 0xd);
+            // [port] draw_distance in the mission's look (VisibilityRange: Far the original's 600 m, Max* 20 km), live
+            case GraphicsRow.VisibilityRange:
+                return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
+            // the port's MSAA in +0x8 (the shell's list, 8x too), live
+            case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off live, a size from the next mission
+            case GraphicsRow.HdTextures:
+                var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
+                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return null;
+                return Keyed(r, "HD Textures", hd, s => HdTextureRow.Index(s, sizes), (s, v) => HdTextureRow.Put(s, sizes, v), live);
             // the frame rate limiter and vsync (drawing only; the simulation keeps its own rate), live
-            GraphicsRow.VSync => Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live),
-            GraphicsRow.MaxFps => Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live),
+            case GraphicsRow.VSync: return Setting(Cycle, "VSync", 0, 2, offOn, s => s.VSync ? 1 : 0, (s, v) => s.VSync = v != 0, apply: live);
+            case GraphicsRow.MaxFps: return Setting(Cycle, "Max FPS", 0, I76.Sim.Views.FrameLimit.Names.Length, I76.Sim.Views.FrameLimit.Names, s => s.MaxFps, (s, v) => s.MaxFps = v, apply: live);
+            // [port] dev_fps: the frame rate and frame time in the window's top right corner, live (Main's ApplyGraphics)
+            case GraphicsRow.ShowFps: return Setting(Cycle, "Show FPS", 0, 2, offOn, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, apply: live);
             // the 3D view drawn at 50 to 200 % of the window (the HUD and menus are not scaled), live: the shell's Render Scale row
-            GraphicsRow.RenderScale => Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live),
-            // the modern look's plants, and its boundary walls: Off (as they are, the original's) or On, drawn down at their foot (the 1997 look keeps them), live
-            GraphicsRow.Vegetation => Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live),
-            GraphicsRow.MapEdge => Setting(Cycle, "Hide Map Edge Cliffs", 0, I76.Game.World.MapEdge.Names.Length, I76.Game.World.MapEdge.Names, s => s.MapEdge, (s, v) => s.MapEdge = v, apply: live),
+            case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
+            // the modern look's plants, live
+            case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
-            GraphicsRow.FieldOfView => Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live),
-            // the modern look's car paint and cockpit hood: Matte (the default), Satin or Gloss, live: the shell's Hood Finish row
-            GraphicsRow.HoodFinish => Setting(Cycle, "Hood Finish", 0, I76.Sim.Views.PaintFinish.Names.Length, I76.Sim.Views.PaintFinish.Names, s => s.HoodFinish, (s, v) => s.HoodFinish = v, apply: live),
+            case GraphicsRow.FieldOfView: return Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live);
+            // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row
+            // (a level set by hand in the file shows as the nearest step and is kept unless the row is stepped)
+            case GraphicsRow.HoodGloss:
+                return Setting(Cycle, "Hood Gloss", 0, I76.Sim.Views.PaintFinish.Steps.Length, I76.Sim.Views.PaintFinish.StepNames, s => I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss),
+                    (s, v) => { if (I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss) != v) s.HoodGloss = I76.Sim.Views.PaintFinish.Steps[v]; }, apply: live);
+            // the modern look's cabin and driver behind a car's windows, live
+            case GraphicsRow.CarInteriors: return Setting(Cycle, "Car Interiors", 0, 2, ["Off", "On" + mark], s => s.CarInteriors ? 1 : 0, (s, v) => s.CarInteriors = v != 0, apply: live);
             // the mouse orbiting the chase view, and the hidden mouse kept inside the window, live
-            GraphicsRow.MouseCamera => Setting(Cycle, "Mouse Camera", 0, I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: live),
-            GraphicsRow.MouseInWindow => Setting(Cycle, "Keep Mouse In Window", 0, 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: live),
+            case GraphicsRow.MouseCamera: return Setting(Cycle, "Mouse Camera", 0, I76.Sim.Views.MouseLook.Names.Length, I76.Sim.Views.MouseLook.Names, s => s.MouseCamera, (s, v) => s.MouseCamera = v, apply: live);
+            case GraphicsRow.MouseInWindow: return Setting(Cycle, "Keep Mouse In Window", 0, 2, offOn, s => s.KeepMouseInWindow ? 1 : 0, (s, v) => s.KeepMouseInWindow = v != 0, apply: live);
+            // the chase view easing back behind the car, and the wheel zoom back to the original's framing at a switch of view, live
+            case GraphicsRow.CameraReturn: return Setting(Cycle, "Camera Return", 0, 2, offOn, s => s.CameraReturn ? 1 : 0, (s, v) => s.CameraReturn = v != 0, apply: live);
+            case GraphicsRow.ZoomReset: return Setting(Cycle, "View Zoom Reset", 0, 2, offOn, s => s.ZoomReset ? 1 : 0, (s, v) => s.ZoomReset = v != 0, apply: live);
             // the 1997 look: off, the original's 3D card or its software renderer, applied on resume (as F2)
-            GraphicsRow.Look1997 => Setting(Cycle, "1997 Mode", 0, 3, ["Off" + mark, "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false),
+            case GraphicsRow.Look1997: return Setting(Cycle, "1997 Mode", 0, 3, ["Off" + mark, "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false);
             // the modern look's palette grade (SoftwareLook), live
-            GraphicsRow.PaletteGrade => Setting(Cycle, "Palette Grade", 0, 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: live),
+            case GraphicsRow.PaletteGrade: return Setting(Cycle, "Palette Grade", 0, 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: live);
             // the software renderer's double image on a big cockpit hit (the original's in the 1997 look, smooth in the modern look), live
-            GraphicsRow.CrashBlur => Setting(Cycle, "Crash Blur", 0, 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: live),
-            _ => null,
-        };
+            case GraphicsRow.CrashBlur: return Setting(Cycle, "Crash Blur", 0, 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: live);
+            // Screen Resolution, Renderer, Log File, 3D Garage: the shell's alone
+            default: return null;
+        }
     }
 
     private void CheaterOff()

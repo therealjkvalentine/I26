@@ -28,6 +28,20 @@ public static class FrameLimiter
         _next += step;
     }
 
+    /// <summary>
+    /// The main thread's frames while a mission builds on another thread under its briefing (Main.BuildUnderBriefing): the
+    /// renderer takes that thread's calls that return a value once a frame, so a frame held to the display's refresh makes
+    /// the build three times as long. Mailbox (no tearing; plain VSync where the driver has none) at up to
+    /// <see cref="BuildFps"/>; <see cref="Apply"/> puts the player's settings back.
+    /// </summary>
+    public static void ForBuild()
+    {
+        Engine.MaxFps = BuildFps;
+        DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
+    }
+
+    public const int BuildFps = 240;
+
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {
         Engine.MaxFps = FrameLimit.Fps(s.MaxFps);

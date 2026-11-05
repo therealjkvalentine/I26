@@ -49,7 +49,14 @@ frame are scaled in their own colours rather than by the model. The model darken
 their tint, so its output is matched back to the original's colour: the upscale's blurred picture is brought to the
 original's in Oklab and the model's fine detail kept (`--no-colour-match` writes the model's colours as they come;
 `--self-check` tests the match on a made-up picture). `--from OLD_PACK` repacks a pack made by an earlier version without running the model again,
-colour matching it to your export on the way. The 1997 look
+colour matching it to your export on the way. `--families` gives the cockpit's art model by family (the dash panels, gear
+strip, compass and mirror through 4x-UltraSharpV2; the damage panel, weapon panels and hands through 4xHDcube3; the notepads
+through 4xHDcube4Compact; the radar through 4xHDcube3), and the dials, needles, reticle and binocular mask, which are shapes
+cut out of the key, get the alpha step: their transparency goes through 4xHDcube-Alpha before it is cut, so needles come
+out straight and dial numerals round instead of stair-stepped (`--alpha` does it for every keyed texture). Those models
+are not downloaded: put them in `--models-dir`; the tool's `--help` names their sources and licences (UltraSharpV2 and
+HDcube3 are non-commercial, so such a pack is for your own use), and the pack's `pack.json` and `ATTRIBUTION.txt` list
+every model used. The 1997 look
 keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
 
 # Source code

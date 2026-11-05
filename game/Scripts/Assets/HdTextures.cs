@@ -8,7 +8,7 @@ namespace I76.Game.Assets;
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a whole
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
 /// user://tex-world-Nx/ for the chosen size N (4, 3 or 2; else the plain user://tex-world/, else the nearest size present), then the newest i76-hd-*.zip next to the executable or in user:// that has a
-/// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (no row; the Developer panel's Settings) switches them off (Enabled); the 1997 look
+/// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (Graphic Detail's HD Textures row) switches them off (Enabled); the 1997 look
 /// never draws them (TextureFactory.Hd).
 /// </summary>
 public static class HdTextures

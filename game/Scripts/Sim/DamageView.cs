@@ -42,58 +42,88 @@ public partial class DamageView : Node3D
     {
         if (_fires.Remove(car, out var old)) { old.Detach(); old.QueueFree(); }
         if (!WreckFire.Enabled) return;
-        var f = new WreckFire { Car = car, SceneLight = SceneLight, Name = $"Fire_{car.Name}", At = plan?.FireAt ?? 0, Size = plan?.FireSize ?? 1, Delay = plan?.FireDelay ?? 0 };
+        bool staged = plan is not null && plan != DeathVariety.Plan.Plain;
+        var f = new WreckFire
+        {
+            Car = car, SceneLight = SceneLight, Name = $"Fire_{car.Name}", At = plan?.FireAt ?? 0, Size = plan?.FireSize ?? 1, Delay = plan?.FireDelay ?? 0,
+            Tank = staged && plan!.FireDelay <= 0 ? plan.TankAt : null, SmokeScale = staged ? plan!.Smoke : 1f, FlameScale = staged ? plan!.FlameLevel : 1f,
+            Spread = staged ? plan!.Spread : 1f, FullFor = staged ? plan!.FlamesFull : WreckFire.FlamesFull,
+        };
         AddChild(f);
         _fires[car] = f;
         GD.Print($"wreck fire: {car.Name} burning");
     }
-    /// <summary>A death's plan set going: the body's sag, the panels thrown, its blasts queued.</summary>
-    private void Stage(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
-    {
-        if (plan.Sag != 0 || plan.Pitch != 0 || plan.Roll != 0)
-            car.WreckPose = new Transform3D(Basis.FromEuler(new Vector3(plan.Pitch, 0, plan.Roll)), new Vector3(0, -plan.Sag, 0));
-        var half = car.BodyBounds.Size * 0.5f;
-        for (int i = 0; i < plan.Panels; i++)
-        {
-            // a panel off the body (the hood, a door, a boot lid): flat, charred, thrown up and out, spinning
-            float side = i % 2 == 0 ? 1 : -1;
-            var local = new System.Numerics.Vector3(side * half.X * 0.3f * i, half.Y * 1.6f, plan.PanelAt * half.Z);
-            var vel = v.Rot.ToWorld(new System.Numerics.Vector3(side * (1.5f + i * 1.5f), 9f + i * 1.5f, plan.PanelAt * 3f)) + v.Vel * 0.5f;
-            var body = new RigidBody3D { Position = G(v.Pos.ToVector3() + v.Rot.ToWorld(local)), LinearVelocity = Coords.ToGodot(vel), AngularVelocity = new Vector3(6 * side, 2, 4) };
-            body.AddChild(new MeshInstance3D { Mesh = _panel, MaterialOverride = _chunkMat });
-            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = _panel.Size } });
-            AddChild(body);
-            _debris.Add((body, _t + 8));
-        }
-        foreach (var b in plan.Blasts)
-            if (b.Delay <= 0) Go(car, v, b);
-            else _blasts.Add((_t + b.Delay, car, v, b));
-    }
+
+    /// <summary>The panels' queue: when, which car, the first panel's number and how many, from where along it, burning or not.</summary>
+    private readonly List<(double At, CarNode Car, I76.Sim.Vehicles.Vehicle Vehicle, int From, int Count, float PanelAt, bool Burning)> _panels = [];
+    /// <summary>Sounds held for their stage (the tank's vexplode.wav).</summary>
+    private readonly List<(double At, string Name, I76.Sim.Vehicles.Vehicle Vehicle, float MinDistance)> _sounds = [];
 
     /// <summary>
-    /// The death's opening blast, which CombatView leaves to us in this case: the original's (6 m, its smoke) for a catastrophic
-    /// death, otherwise 60 % of the size and half the smoke puffs.
+    /// A death's plan set going (DeathVariety): the body's sag and drawn throw, stage 1's blasts and its sound, the parts it
+    /// throws, the tank's one blast and vexplode.wav after the plan's delay, the cook-off's pops.
     /// </summary>
-    private void Opening(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
+    private void Stage(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
     {
-        if (Fx?.Invoke() is not { HasExplosions: true } fx) return;
-        var at = G(v.Pos.ToVector3());
-        var smoke = new Color(0.16f, 0.15f, 0.14f);
-        if (plan.Calm) fx.Explode(at, DeathVariety.CalmSize, 2.6, smoke, 1f, DeathVariety.CalmSmoke);
-        else fx.Explode(at, 6f, 3.2, smoke, 1f);
+        var sag = plan.Sag != 0 || plan.Pitch != 0 || plan.Roll != 0
+            ? new Transform3D(Basis.FromEuler(new Vector3(plan.Pitch, 0, plan.Roll)), new Vector3(0, -plan.Sag, 0)) : Transform3D.Identity;
+        car.WreckPose = sag;
+        if (plan.Throw.Kind != DeathVariety.ThrowKind.None) StartThrow(car, v, plan);
+        foreach (var b in plan.First ?? [])
+            if (b.Delay <= 0) Go(car, v, b);
+            else _blasts.Add((_t + b.Delay, car, v, b));
+        if (plan.Cue is { } cue) Sound(cue, v.Pos.ToVector3());
+        int first = plan.Panels - plan.TankPanels;
+        if (first > 0) _panels.Add((_t, car, v, 0, first, plan.PanelAt, plan.PanelsBurn));
+        if (plan.TankSize > 0)
+        {
+            // the tank: one blast at the rear, the death's vexplode.wav with it
+            var tank = new DeathVariety.Blast(plan.TankAt, 0, plan.TankY, -0.6f, plan.TankSize, DeathVariety.BlastKind.Fire, plan.TankSmoke);
+            if (plan.TankAt <= 0) Go(car, v, tank);
+            else
+            {
+                _blasts.Add((_t + plan.TankAt, car, v, tank));
+                _sounds.Add((_t + plan.TankAt, "vexplode.wav", v, Ds3d.LoudMinDistance));
+            }
+            if (plan.TankPanels > 0) _panels.Add((_t + plan.TankAt, car, v, first, plan.TankPanels, 0, true));
+        }
+        foreach (var b in plan.Blasts) _blasts.Add((_t + b.Delay, car, v, b));
+        GD.Print($"death-stage: {car.Name} stage1 {plan.First?.Length ?? 0} tank {plan.TankSize:0.0} m at {plan.TankAt:0.00} s pops {plan.Blasts.Length} panels {plan.Panels} throw {plan.Throw.Kind} award {plan.Award}");
     }
 
-    /// <summary>One of a death's blasts, where it is on the car now.</summary>
+    /// <summary>Panels off the body (the hood, a door, a boot lid): flat, charred, thrown up and out, spinning; burning ones trail the thrown wheel's fire.</summary>
+    private void ThrowPanels(CarNode car, I76.Sim.Vehicles.Vehicle v, int from, int count, float panelAt, bool burning)
+    {
+        var half = car.BodyBounds.Size * 0.5f;
+        var body = car.BodyGlobal;
+        for (int i = from; i < from + count; i++)
+        {
+            float side = i % 2 == 0 ? 1 : -1;
+            // body-local, Godot axes (forward is -z)
+            var local = new Vector3(side * half.X * 0.3f * i, half.Y * 1.6f, -panelAt * half.Z);
+            var vel = body.Basis * new Vector3(side * (1.5f + i * 1.5f), 9f + i * 1.5f, -panelAt * 3f) + Coords.ToGodot(v.Vel) * 0.5f;
+            var rb = new RigidBody3D { Position = body * local, LinearVelocity = vel, AngularVelocity = new Vector3(6 * side, 2, 4) };
+            rb.AddChild(new MeshInstance3D { Mesh = _panel, MaterialOverride = _chunkMat });
+            rb.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = _panel.Size } });
+            AddChild(rb);
+            _debris.Add((rb, _t + 8));
+            if (burning) WheelFire(rb);
+            GD.Print($"wreck fire: {car.Name} threw panel {i}, {(burning ? "burning" : "cold")}");
+        }
+    }
+
+    /// <summary>One of a death's blasts, where it is on the car as drawn now (a thrown body too).</summary>
     private void Go(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Blast b)
     {
         if (Fx?.Invoke() is not { HasExplosions: true } fx) return;
         var half = car.BodyBounds.Size * 0.5f;
-        var at = G(v.Pos.ToVector3() + v.Rot.ToWorld(new System.Numerics.Vector3(b.X * half.X, b.Y * half.Y * 2, b.Z * half.Z)));
+        // game axes (x right, z forward) to the body's Godot frame (forward is -z)
+        var at = car.BodyGlobal * new Vector3(b.X * half.X, b.Y * half.Y * 2, -b.Z * half.Z);
         switch (b.Kind)
         {
             case DeathVariety.BlastKind.Dust:
                 // the landing: dust thrown out low all round
-                fx.Explode(at, b.Size, 2.4, new Color(0.5f, 0.43f, 0.33f), 0.2f);
+                fx.Dust(at, b.Size, new Color(0.5f, 0.43f, 0.33f));
                 for (int i = 0; i < 8; i++)
                 {
                     float a = i * Mathf.Tau / 8;
@@ -101,14 +131,150 @@ public partial class DamageView : Node3D
                 }
                 break;
             case DeathVariety.BlastKind.Pop:
-                fx.Explode(at, b.Size, 0.7, new Color(0.3f, 0.29f, 0.28f), 1f);
+                fx.Explode(at, b.Size, 0.7, new Color(0.3f, 0.29f, 0.28f), 1f, 0.5f);
                 fx.Strike(at, Vector3.Up, false, true);
                 break;
+            case DeathVariety.BlastKind.Sparks:
+                // a brake's death: a shower of sparks off the corner and a small flare, no smoke
+                for (int i = 0; i < 5; i++) fx.Strike(at, new Vector3(GD.Randf() - 0.5f, 0.6f, GD.Randf() - 0.5f).Normalized(), true, true);
+                fx.Flare(at, b.Size);
+                break;
             default:
-                fx.Explode(at, b.Size, 1.6 + b.Size * 0.2, new Color(0.16f, 0.15f, 0.14f), 1f);
+                fx.Explode(at, b.Size, 1.6 + b.Size * 0.2, new Color(0.16f, 0.15f, 0.14f), 1f, b.Smoke);
                 break;
         }
     }
+
+    /// <summary>A dying car's drawn throw: where it died (game coordinates and the car's turn then), when, the plan's throw, and how long it runs.</summary>
+    private sealed class Thrown
+    {
+        public required System.Numerics.Vector3 At;
+        public required Basis Turn;
+        public required double Born;
+        public required float Start;
+        public required DeathVariety.Throw Throw;
+        /// <summary>The car's own way at death (Godot, horizontal; the kick only throws it up), carried on and slowed: a car killed at speed does not stop dead.</summary>
+        public required Vector3 Drift;
+        public required I76.Sim.Vehicles.Vehicle Vehicle;
+        /// <summary>The pose the throw ended in; once the sim's wreck has come to rest, the drawn one's place relative to it (horizontal) and when that was.</summary>
+        public Transform3D Last;
+        public Vector3? Anchor;
+        public float SettledAt;
+        public required float Duration;
+    }
+
+    /// <summary>The blend from the drawn throw back onto the sim's wreck (s); the drawn launch's gravity (m/s²).</summary>
+    private const float ThrowBlend = 0.5f, ThrowGravity = 9.8f, DriftFriction = 6f;
+
+    private void StartThrow(CarNode car, I76.Sim.Vehicles.Vehicle v, DeathVariety.Plan plan)
+    {
+        var th = plan.Throw;
+        float horiz = new Vector2(th.Right, th.Back).Length();
+        float dur = th.Kind switch
+        {
+            DeathVariety.ThrowKind.Slide => horiz / System.MathF.Max(th.Friction, 0.5f),
+            DeathVariety.ThrowKind.DownBack => System.MathF.Max(0.6f, horiz / System.MathF.Max(th.Friction, 0.5f)),
+            DeathVariety.ThrowKind.Launch => 2 * th.Up / ThrowGravity + 0.15f,
+            _ => 0.8f,
+        };
+        var t = new Thrown { At = v.Pos.ToVector3(), Turn = car.GlobalTransform.Basis.Orthonormalized(), Born = _t, Start = th.AtTank ? plan.TankAt : 0, Throw = th, Duration = dur,
+            Drift = Coords.ToGodot(v.Vel) with { Y = 0 }, Vehicle = v, Last = car.GlobalTransform };
+        car.WreckThrow = carT => ThrowPose(car, t, carT);
+    }
+
+    /// <summary>
+    /// After the throw: the drawn wreck stays as the throw left it (upright, turned as it slid) while the sim's wreck finishes
+    /// the original's kick; once that is at rest (or <see cref="SettleCap"/> s on) the drawn one keeps its place beside it,
+    /// a few metres off at most, follows its moves and comes down to its height over <see cref="ThrowBlend"/> s. The drawn
+    /// wreck is not the sim's: what hits it is the sim's, where the original's kick left it.
+    /// </summary>
+    private Transform3D Settled(Thrown t, Transform3D carT, float tau)
+    {
+        var v = t.Vehicle;
+        bool rest = (v.Flags & I76.Sim.Vehicles.VehicleFlags.Airborne) == 0 && v.Vel.Length() < 2f || tau > t.Duration + SettleCap;
+        if (t.Anchor is null)
+        {
+            if (!rest) return t.Last;
+            t.Anchor = (t.Last.Origin - carT.Origin) with { Y = 0 };
+            t.SettledAt = tau;
+        }
+        var target = new Transform3D(t.Last.Basis, carT.Origin + t.Anchor.Value);
+        float k = EaseInOut((tau - t.SettledAt) / ThrowBlend);
+        return new Transform3D(t.Last.Basis, t.Last.Origin.Lerp(target.Origin, k) with { X = target.Origin.X, Z = target.Origin.Z });
+    }
+
+    /// <summary>The longest the drawn wreck waits after its throw for the sim's to come to rest (s).</summary>
+    private const float SettleCap = 3f;
+
+    private static float EaseOut(float x) { x = Mathf.Clamp(x, 0, 1); return 1 - (1 - x) * (1 - x); }
+    private static float EaseInOut(float x) { x = Mathf.Clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+
+    /// <summary>Where the car is drawn this frame: held where it died until the throw starts, along the throw, then blended onto the sim's wreck.</summary>
+    private Transform3D? ThrowPose(CarNode car, Thrown t, Transform3D carT)
+    {
+        float tau = (float)(_t - t.Born) - t.Start;
+        // over: the drawn wreck lies where the throw left it, on the sim's wreck's height and following its moves (below)
+        if (tau > t.Duration) return Settled(t, carT, tau);
+        var th = t.Throw;
+        // the car's frame at death, Godot axes: right +x, back +z (forward is -z); up is the world's
+        Vector3 right = t.Turn.X.Normalized(), back = t.Turn.Z.Normalized(), up = Vector3.Up;
+        var hdir = right * th.Right + back * th.Back;
+        hdir.Y = 0;
+        float speed = hdir.Length();
+        if (speed > 1e-4f) hdir /= speed;
+        var offset = Vector3.Zero;
+        var spin = Basis.Identity;
+        float k = Mathf.Clamp(tau / System.MathF.Max(t.Duration, 0.05f), 0, 1);
+        if (tau > 0)
+            switch (th.Kind)
+            {
+                case DeathVariety.ThrowKind.Slide:
+                case DeathVariety.ThrowKind.DownBack:
+                {
+                    // sliding on the ground, slowing at the friction's rate to a stop
+                    float ts = speed / System.MathF.Max(th.Friction, 0.5f), tt = System.MathF.Min(tau, ts);
+                    offset = hdir * (speed * tt - 0.5f * th.Friction * tt * tt);
+                    if (th.Kind == DeathVariety.ThrowKind.DownBack)
+                    {
+                        // slammed down onto its springs and the nose thrown up, both springing back
+                        offset += up * -th.Dip * Mathf.Sin(Mathf.Pi * Mathf.Clamp(tau / 0.4f, 0, 1));
+                        spin = new Basis(right, th.Pitch * Mathf.Sin(Mathf.Pi * Mathf.Clamp(tau / 0.6f, 0, 1)));
+                    }
+                    spin = new Basis(up, th.Yaw * EaseOut(k)) * spin;
+                    break;
+                }
+                case DeathVariety.ThrowKind.Drop:
+                case DeathVariety.ThrowKind.Slam:
+                    // dropped onto its frame, a bounce, settling (the sag holds it there after)
+                    offset = up * (-th.Dip * Mathf.Exp(-4f * tau) * Mathf.Cos(tau * 11f) * Mathf.Clamp(tau / 0.06f, 0, 1));
+                    break;
+                case DeathVariety.ThrowKind.Launch:
+                {
+                    // thrown up by the tank, turning over once, and down again: it lands the way up it left
+                    float air = 2 * th.Up / ThrowGravity, ta = System.MathF.Min(tau, air);
+                    float h = System.MathF.Max(0, th.Up * ta - 0.5f * ThrowGravity * ta * ta);
+                    offset = hdir * speed * ta + up * h;
+                    float e = EaseInOut(ta / System.MathF.Max(air, 0.05f));
+                    spin = new Basis(up, th.Yaw * e) * new Basis(back, th.Roll * e) * new Basis(right, th.Pitch * e);
+                    break;
+                }
+            }
+        // the way it was going, slowing to a stop
+        float dv = t.Drift.Length(), td = System.MathF.Min(tau + t.Start, dv / DriftFriction);
+        if (dv > 1e-3f) offset += t.Drift / dv * (dv * td - 0.5f * DriftFriction * td * td);
+        var desired = new Transform3D(spin * t.Turn, G(t.At) + offset);
+        t.Last = desired;
+        return desired;
+    }
+
+    /// <summary>
+    /// The plans of the cars dying now in the modern look (DeathVariety), by vehicle, for CombatView to draw their effect
+    /// roll's explosions by (flares, pops, the award's small blasts): until the car is renewed.
+    /// </summary>
+    public static readonly Dictionary<I76.Sim.Vehicles.Vehicle, DeathVariety.Plan> Dying = [];
+
+    /// <summary>How many of a dying car's effect-roll chunks have come, for the share drawn (DeathVariety.Plan.Debris).</summary>
+    private readonly Dictionary<CarNode, int> _chunks = [];
 
     /// <summary>A thrown wheel on fire: flames and embers trailing off it as it flies and rolls.</summary>
     private void WheelFire(RigidBody3D wheel)
@@ -168,6 +334,10 @@ public partial class DamageView : Node3D
         System.Array.Clear(car.ZoneFrames);
         _deaths.Remove(car);
         _blasts.RemoveAll(b => b.Car == car);
+        _panels.RemoveAll(b => b.Car == car);
+        _chunks.Remove(car);
+        if (car.Sim is { } sv) { Dying.Remove(sv); _sounds.RemoveAll(x => x.Vehicle == sv); }
+        car.WreckThrow = null;
         if (_fires.Remove(car, out var fire)) { fire.Detach(); fire.QueueFree(); GD.Print($"wreck fire: {car.Name} renewed, out"); }
         car.SetWrecked(false);
         // the intact car's meshes, as the first of its kind was made (a respawn was 50 to 200 ms of assembling them again)
@@ -200,6 +370,7 @@ public partial class DamageView : Node3D
 
     private void Resync(I76.Sim.Vehicles.Vehicle v, CarNode car)
     {
+        car.WreckThrow = null;   // a restored wreck lies where the sim has it
         uint f = (uint)v.Flags;
         bool dead = (f & (uint)I76.Sim.Vehicles.VehicleFlags.Dead) != 0, slumped = dead && (f & 0x4000) != 0, dying = (f & 0x8000) != 0;
         bool changed = false;
@@ -400,6 +571,8 @@ public partial class DamageView : Node3D
 
     private static readonly int? HookLevel = int.TryParse(System.Environment.GetEnvironmentVariable("I76_CAR_DAMAGE"), out int l) ? System.Math.Clamp(l, 0, 3) : null;
     private readonly HashSet<CarNode> _hooked = [];
+    /// <summary>I76_DEATH_SEED=N: every death drawn with that seed (a capture of one draw side by side; docs/dev-hooks.md).</summary>
+    private static readonly ushort? SeedOverride = ushort.TryParse(System.Environment.GetEnvironmentVariable("I76_DEATH_SEED"), out ushort so) ? so : null;
 
     private AudioStreamPlayer? _ignition;
     private I76.Sim.Vehicles.Vehicle? _ignitionOf;
@@ -425,8 +598,11 @@ public partial class DamageView : Node3D
                 {
                     car.StopEngine();
                     // the modern look's death by its cause (DeathVariety); the 1997 look's is the original's
-                    var plan = car.Modern && !k.Vehicle.IsEmplacement && !IsHeli(car) ? DeathVariety.For(k.Cause, k.Seed, DeathVariety.Enabled) : null;
+                    var plan = car.Modern && !k.Vehicle.IsEmplacement && !IsHeli(car) ? DeathVariety.For(k.Cause, SeedOverride ?? k.Seed, DeathVariety.Enabled) : null;
                     if (plan is not null) _deaths[car] = (plan, 0);
+                    bool staged = plan is not null && plan != DeathVariety.Plan.Plain;
+                    if (staged) Dying[k.Vehicle] = plan!;
+                    if (plan is not null) GD.Print($"death-plan: {car.Name} cause {k.Cause} seed {SeedOverride ?? k.Seed} plan {(staged ? $"flaming {plan.FlamingWheels} award {plan.Award} tank {plan.TankSize:0.0} at {plan.TankAt:0.00}" : "plain")}");
                     if (k.DriverKilled)
                     {
                         // the .45's kill (the vehicle's .45-kill flag): no explosion and no wreck, the car as it was, its horn stuck on
@@ -441,11 +617,11 @@ public partial class DamageView : Node3D
                     car.SetWrecked(true);
                     Rebuild(car);
                     Burn(car, plan);
-                    if (plan is not null) Opening(car, k.Vehicle, plan);
-                    if (plan is not null) Stage(car, k.Vehicle, plan);
+                    // the variety's two stages (the tank's blast and vexplode.wav held for stage 2); off, CombatView draws the original's blast alone
+                    if (staged) Stage(car, k.Vehicle, plan!);
                     // a gun emplacement: the zones' state 3 is the burnt pole, and its gun is hidden
                     if (k.Vehicle.IsEmplacement) car.HideWeapon(0);
-                    Sound("vexplode.wav", k.Vehicle.Pos.ToVector3(), Ds3d.LoudMinDistance);   // Sound event 7
+                    if (!staged || plan!.TankSize <= 0) Sound("vexplode.wav", k.Vehicle.Pos.ToVector3(), Ds3d.LoudMinDistance);   // Sound event 7
                     break;
                 }
                 case VehicleWrecked w when Cars.TryGetValue(w.Vehicle, out var wc):
@@ -490,12 +666,29 @@ public partial class DamageView : Node3D
                         if (flaming) WheelFire(wb);
                         break;
                     }
+                    if (f.Slot < 6 && pieces.Count == 1 && fc is not null) GD.Print($"wreck fire: {fc.Name} threw wheel {f.Slot}, {(fc.Modern ? "glowing" : "1997")}");
                     foreach (var piece in pieces) ThrowPiece(piece, f.Velocity);
                     break;
                 }
                 case Debris d:
-                    Throw(d.At, d.Velocity + new System.Numerics.Vector3((float)GD.RandRange(-4, 4), 0, (float)GD.RandRange(-4, 4)));
+                {
+                    // a dying car's chunks: in an ordinary death of the variety, a share of them, slower (DeathVariety.Plan.Debris)
+                    var vel = d.Velocity + new System.Numerics.Vector3((float)GD.RandRange(-4, 4), 0, (float)GD.RandRange(-4, 4));
+                    var owner = _deaths.FirstOrDefault(kv => kv.Value.Plan.Debris < 1f && kv.Key.Sim is { } ds && System.Numerics.Vector3.DistanceSquared(ds.Pos.ToVector3(), d.At) < 64).Key;
+                    if (owner is not null)
+                    {
+                        int n = _chunks.GetValueOrDefault(owner);
+                        _chunks[owner] = n + 1;
+                        float share = _deaths[owner].Plan.Debris;
+                        if ((int)((n + 1) * share) == (int)(n * share)) break;
+                        vel *= DeathVariety.DebrisSpeed;
+                    }
+                    // from the car as drawn (a thrown one is not where the sim has it)
+                    var from = d.At;
+                    if (owner is not null && owner.Sim is { } os) from += Coords.ToGame(owner.GlobalPosition - G(os.Pos.ToVector3()));
+                    Throw(from, vel);
                     break;
+                }
                 case SignKnocked k when PlacementOf.TryGetValue(k.Object, out var sp):
                 {
                     Builder.Scenery!.Destroy(sp, null);
@@ -545,6 +738,20 @@ public partial class DamageView : Node3D
                 var b = _blasts[i];
                 _blasts.RemoveAt(i);
                 if (IsInstanceValid(b.Car) && b.Car.Modern) Go(b.Car, b.Vehicle, b.Blast);
+            }
+        for (int i = _panels.Count - 1; i >= 0; i--)
+            if (_t >= _panels[i].At)
+            {
+                var pt = _panels[i];
+                _panels.RemoveAt(i);
+                if (IsInstanceValid(pt.Car) && pt.Car.Modern) ThrowPanels(pt.Car, pt.Vehicle, pt.From, pt.Count, pt.PanelAt, pt.Burning);
+            }
+        for (int i = _sounds.Count - 1; i >= 0; i--)
+            if (_t >= _sounds[i].At)
+            {
+                var sd = _sounds[i];
+                _sounds.RemoveAt(i);
+                Sound(sd.Name, sd.Vehicle.Pos.ToVector3(), sd.MinDistance);
             }
         for (int i = _debris.Count - 1; i >= 0; i--)
             if (_t > _debris[i].Until) { _debris[i].Body.QueueFree(); _debris.RemoveAt(i); }

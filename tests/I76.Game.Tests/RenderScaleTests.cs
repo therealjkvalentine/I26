@@ -34,7 +34,7 @@ public class RenderScaleTests
 
     [Fact] public void TheAntiAliasingRowHasEightX()
     {
-        Assert.Equal(["Off", "2x", "4x", "8x"], RenderScale.AntiAliasing);
+        Assert.Equal(["Off", "2x", "4x", "8x*"], RenderScale.AntiAliasing);
         Assert.Equal(Viewport.Msaa.Disabled, RenderScale.Msaa(0, false));
         Assert.Equal(Viewport.Msaa.Msaa2X, RenderScale.Msaa(1, false));
         Assert.Equal(Viewport.Msaa.Msaa4X, RenderScale.Msaa(2, false));

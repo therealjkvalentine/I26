@@ -268,7 +268,7 @@ public partial class Shell : CanvasLayer
     {
         Settings = ShellSettings.Load();
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
         I76.Game.Sim.ModernFx.ApplyLook(Settings);
         ApplyMusicLevel();
@@ -328,7 +328,7 @@ public partial class Shell : CanvasLayer
         ShellSettings.Nitro = Install.IsNitro;
         Settings = ShellSettings.Load();
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(Settings.HoodFinish);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         // the menus keep the pointer in the window too (Main's cursor state reads it every frame)
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
         I76.Game.Sim.ModernFx.ApplyLook(Settings);
@@ -1149,9 +1149,9 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
-    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, no row; HdTextures). On unless the file says false.</summary>
+    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = true;
-    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, no row; HdTextures.Size). Applies from the next mission.</summary>
+    /// <summary>The port's own: which size of the texture pack to draw, 4, 3 or 2 (the user folder's tex-world-4x, -3x, -2x; [port] hd_texture_size, the HD Textures row; HdTextures.Size). Applies from the next mission.</summary>
     public int HdTextureSize { get; set; } = I76.Formats.Shell.HdPackFolders.DefaultSize;
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
@@ -1195,7 +1195,7 @@ public sealed class ShellSettings
     public I76.Formats.Input.AudioOutput Output { get; set; }
     /// <summary>The port's own: Audio Control's LFE Level, the shaker signal's (and the stereo mix's bass boost's) level, 0 (none, the default) to 200 % ([port] lfe_level, written when not 0 or with 5.1 and 7.1).</summary>
     public int LfeLevel { get; set; } = I76.Formats.Input.AudioOutputs.DefaultLevel;
-    /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine, lfe_road, lfe_hits, lfe_shots, lfe_explosions, 0 to 200, each written when not 100).</summary>
+    /// <summary>The port's own, no row: each source's share of the shaker signal, percent in TactileSource order ([port] lfe_engine ... lfe_strip, 0 to 200, each written when not its default: 100, the dev-only lfe_cracks and lfe_strip 0).</summary>
     public int[] LfeSources { get; set; } = I76.Formats.Input.TactileSources.Defaults();
     /// <summary>The port's own, no row: the game's sounds' and the movies' tone, "hz:db" points or "off" ([port] game_eq, movie_eq, written when set; empty is SoundEq's default).</summary>
     public string GameEq { get; set; } = "";
@@ -1216,7 +1216,7 @@ public sealed class ShellSettings
     public bool Checkpoints { get; set; }
     /// <summary>The port's own: the Developer panel in single-player missions (docs/dev-hooks.md). No menu sets it: <c>developer=true</c> under [port] in the file (<c>developer_tools</c>, its older name, is still read), or --dev / I76_DEV=1 for one run.</summary>
     public bool DeveloperTools { get; set; }
-    /// <summary>[port] dev_fps (no row; the Developer panel's Settings): the frame rate over the game. Off by default.</summary>
+    /// <summary>[port] dev_fps: Graphic Detail's Show FPS (Display page) and the Developer panel's Settings, the frame rate and frame time in the window's top right corner. Off by default.</summary>
     public bool DevFps { get; set; }
 
     /// <summary>A hand-written flag's word: true, 1, on or yes (any case) turn it on; anything else, or nothing, leaves it off.</summary>
@@ -1234,8 +1234,8 @@ public sealed class ShellSettings
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
     /// <summary>The port's own: Graphic Detail's Resolution (shell.cfg [port] resolution, "WxH", written only for a window size). Empty: the desktop, as the game starts.</summary>
     public string Resolution { get; set; } = "";
-    /// <summary>The port's own: Graphic Detail's Hood Finish, a <see cref="I76.Sim.Views.PaintFinish"/> (shell.cfg [port] hood_finish, written only when not Satin; the old hood_matte = true reads as Matte): the modern look's car paint and cockpit hood.</summary>
-    public int HoodFinish { get; set; } = I76.Sim.Views.PaintFinish.Default;
+    /// <summary>The port's own: Graphic Detail's Hood Gloss, a <see cref="I76.Sim.Views.PaintFinish"/> level 0 (Matte, the default) to 100 (Gloss), Satin at 50: the modern look's car paint and cockpit hood (shell.cfg [port] hood_gloss, any integer, written only when not 0; a file without it keeps its earlier hood_finish word, matte 0, satin 50, gloss 100, or its older hood_matte = true's Matte).</summary>
+    public int HoodGloss { get; set; } = I76.Sim.Views.PaintFinish.Default;
     /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 50 to 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
     public int RenderScale { get; set; } = I76.Game.Boot.RenderScale.Default;
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
@@ -1246,12 +1246,10 @@ public sealed class ShellSettings
     /// <summary>The port's own: the modern look's procedural plants (Graphic Detail; 0 Off, 1 Low, 2 High; docs/modern-vegetation.md). Low unless the player chose.</summary>
     public int Vegetation { get; set; } = 1;
     /// <summary>
-    /// The port's own, without a row: how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
+    /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
     public int? DrawDistanceChoice { get; set; }
-    /// <summary>The port's own: Graphic Detail's Hide Map Edge Cliffs, the modern look's boundary walls (I76.Game.World.MapEdge: 0 Off, as they are; 1 On, drawn down at their foot). Off unless the player chose.</summary>
-    public int MapEdge { get; set; } = I76.Game.World.MapEdge.Off;
     /// <summary>
     /// The port's own: a network host's custom map this game does not have (docs/multiplayer.md "Custom maps"): 0 asks
     /// (the loading screen's Download / Always / Cancel), 1 downloads it, 2 never does (Play Options' Map Downloads).
@@ -1328,6 +1326,8 @@ public sealed class ShellSettings
     public bool GarageRadio { get; set; }
     /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
     public bool DeathVariety { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's briefing plays while the mission builds (I76.Game.Boot.BriefingOverlap; [port] briefing_while_loading, written only when off). Off: the build behind the loading card, then the briefing, as the original's.</summary>
+    public bool BriefingWhileLoading { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
     /// <summary>
@@ -1438,7 +1438,7 @@ public sealed class ShellSettings
         s.LfeLevel = I76.Formats.Input.AudioOutputs.ClampLevel((int)c.GetValue("port", "lfe_level",
             I76.Formats.Input.AudioOutputs.HadShaker(output) ? I76.Formats.Input.AudioOutputs.OldDefaultLevel : I76.Formats.Input.AudioOutputs.DefaultLevel));
         // no version step: absent, 100 (each source as made)
-        s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select(k => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.Default)))];
+        s.LfeSources = [.. I76.Formats.Input.TactileSources.Keys.Select((k, i) => I76.Formats.Input.TactileSources.Clamp((int)c.GetValue("port", k, I76.Formats.Input.TactileSources.DefaultOf(i))))];
         s.TactileEq = c.GetValue("port", "tactile_eq", "").ToString();
         // no version step: absent, the defaults (the game's sounds and the movies set to sit together)
         s.GameEq = c.GetValue("port", "game_eq", "").ToString();
@@ -1456,10 +1456,7 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
-        // no version step: a file without the key draws the edge as it is, as before it existed; the four-value row's number
-        // (Plain, Haze, Fade Out, Hide) reads as Off but Hide's 3, On
-        var me = c.HasSectionKey("port", "map_edge") ? c.GetValue("port", "map_edge") : default;
-        s.MapEdge = I76.Game.World.MapEdge.Parse(me.VariantType == Variant.Type.String ? (string)me : me.VariantType == Variant.Type.Int ? (object)(int)me : null);
+        // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
         // no version step: a file without these keys has them off, which is what they were before they existed
         s.SoftwareRenderer = (bool)c.GetValue("port", "software_renderer", false);
         s.PaletteGrade = (bool)c.GetValue("port", "palette_grade", false);
@@ -1470,7 +1467,9 @@ public sealed class ShellSettings
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
         s.Resolution = I76.Game.Boot.WindowSizes.Parse((string)c.GetValue("port", "resolution", "")) is { } rs ? I76.Game.Boot.WindowSizes.Format(rs.W, rs.H) : "";
-        s.HoodFinish = I76.Sim.Views.PaintFinish.Parse(c.HasSectionKey("port", "hood_finish") ? (string)c.GetValue("port", "hood_finish") : null, (bool)c.GetValue("port", "hood_matte", false));
+        // no version step: hood_gloss, else the earlier hood_finish's word, else the older hood_matte (each read only, as look_colour_match)
+        s.HoodGloss = I76.Sim.Views.PaintFinish.Parse(c.HasSectionKey("port", "hood_gloss") ? c.GetValue("port", "hood_gloss").ToString() : null,
+            c.HasSectionKey("port", "hood_finish") ? c.GetValue("port", "hood_finish").ToString() : null, (bool)c.GetValue("port", "hood_matte", false));
         // no version step: absent, 100 %
         s.RenderScale = I76.Game.Boot.RenderScale.Parse((int)c.GetValue("port", "render_scale", 100));
         s.MaxFps = I76.Sim.Views.FrameLimit.Parse(c.HasSectionKey("port", "max_fps") ? (int)c.GetValue("port", "max_fps") : null);
@@ -1521,6 +1520,7 @@ public sealed class ShellSettings
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.BriefingWhileLoading = !string.Equals(c.GetValue("port", "briefing_while_loading", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
@@ -1562,7 +1562,6 @@ public sealed class ShellSettings
         c.SetValue("shell", "version", 13);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
-        c.SetValue("port", "map_edge", I76.Game.World.MapEdge.Key(MapEdge));
         c.SetValue("port", "checkpoints", Checkpoints);
         c.SetValue("port", "force_feedback", ForceFeedback);
         if (ForceFeedbackWheel) c.SetValue("port", "ffb_wheel", true);
@@ -1572,7 +1571,7 @@ public sealed class ShellSettings
         if (Output != I76.Formats.Input.AudioOutput.Stereo) c.SetValue("port", "output", I76.Formats.Input.AudioOutputs.Key(Output));
         if (LfeLevel != I76.Formats.Input.AudioOutputs.DefaultLevel || I76.Formats.Input.AudioOutputs.Discrete(Output)) c.SetValue("port", "lfe_level", LfeLevel);
         for (int i = 0; i < I76.Formats.Input.TactileSources.Keys.Length; i++)
-            if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.Default) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
+            if (i < LfeSources.Length && LfeSources[i] != I76.Formats.Input.TactileSources.DefaultOf(i)) c.SetValue("port", I76.Formats.Input.TactileSources.Keys[i], LfeSources[i]);
         if (TactileEq.Length > 0) c.SetValue("port", "tactile_eq", TactileEq);
         if (GameEq.Length > 0) c.SetValue("port", "game_eq", GameEq);
         if (MovieEq.Length > 0) c.SetValue("port", "movie_eq", MovieEq);
@@ -1589,7 +1588,7 @@ public sealed class ShellSettings
         c.SetValue("port", "mouse_camera", MouseCamera);
         if (MouseInvertY) c.SetValue("port", "mouse_invert_y", true);
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
-        if (HoodFinish != I76.Sim.Views.PaintFinish.Default) c.SetValue("port", "hood_finish", I76.Sim.Views.PaintFinish.Word(HoodFinish));
+        if (I76.Sim.Views.PaintFinish.FileValue(HoodGloss) is { } hoodGloss) c.SetValue("port", "hood_gloss", hoodGloss);
         if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);
@@ -1644,6 +1643,7 @@ public sealed class ShellSettings
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!DeathVariety) c.SetValue("port", "death_variety", "off");
+        if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", "off");
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");

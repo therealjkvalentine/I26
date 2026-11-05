@@ -23,8 +23,8 @@ public static class RenderScale
 
     public static float Scale(int choice) => Percents[System.Math.Clamp(choice, 0, Percents.Length - 1)] / 100f;
 
-    /// <summary>The Anti-Aliasing row's choices: Off, 2x, 4x (the original's) and the port's 8x.</summary>
-    public static readonly string[] AntiAliasing = ["Off", "2x", "4x", "8x"];
+    /// <summary>The Anti-Aliasing row's choices: Off, 2x, 4x and 8x, the last marked as the port's (the row had 2x and 4x first; the original showed no anti-aliasing).</summary>
+    public static readonly string[] AntiAliasing = ["Off", "2x", "4x", "8x" + I76.Game.Shell.ShellSettings.PortMark];
 
     /// <summary>The engine's MSAA for a row's choice; 8x is 4x where the renderer has no 8x (Compatibility, where it may be missing).</summary>
     public static Viewport.Msaa Msaa(int choice, bool compatibility) => choice switch

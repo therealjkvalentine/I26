@@ -59,6 +59,7 @@ public partial class Main : Node3D
     private bool _mode1997, _lookSaved;
     private I76.Game.Sim.Cockpit? _pit;
     private int _lastShotTick = -1;
+    private int _tickShots;
     // capture hook: I76_SHOT_PIPE=PATH sends the series frames (I76_SHOT_SERIES) there as raw RGB24, one after another, instead
     // of PNGs: a FIFO an encoder reads (ffmpeg -f rawvideo -pix_fmt rgb24 -s WxH), so no PNG is compressed on the main thread
     private static readonly string? ShotPipe = System.Environment.GetEnvironmentVariable("I76_SHOT_PIPE");
@@ -235,6 +236,7 @@ public partial class Main : Node3D
         }
         var first = I76.Game.Shell.ShellSettings.Load();
         FrameLimiter.Apply(first);   // Max FPS and VSync, from the first frame
+        FpsOverlay.Apply(GetTree(), first.DevFps);   // Show FPS, over the menus too
         WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
         I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
         RenderScale.Apply(first);
@@ -372,6 +374,9 @@ public partial class Main : Node3D
             _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
             return;
         }
+        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
+        // thread under the movie, the rest of the load after it behind the card, which comes up only then (movie, card, mission)
+        string? briefing = loading is null && _opt.Install is not null && _opt.Mission is not null ? BriefingDuringLoad() : null;
         // up, and drawn once, before the build
         if (_opt.Install is not null && _opt.Mission is not null)
         {
@@ -379,9 +384,9 @@ public partial class Main : Node3D
             if (loading is null)
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
-                await loading.FadeIn();
+                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) await loading.FadeIn();   // (else its black only, until the movie is over)
             }
-            MissionBuilder.Trace("loading card up");
+            MissionBuilder.Trace(briefing is null ? "loading card up" : "loading card black: the briefing first");
             BootSplash.Dismiss(now: true);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -414,9 +419,25 @@ public partial class Main : Node3D
             AddChild(new InstallerScreen { Message = _status, OnInstalled = _ => GetTree().ReloadCurrentScene() });
             return;
         }
+        (Load Start, Node3D? World, System.Exception? Error)? built = null;
+        if (briefing is not null && loading is not null)
+        {
+            built = await BuildUnderBriefing(briefing);
+            if (!IsInsideTree()) return;
+            // the briefing over: the card fades in for the rest of the load, as the original's comes up before the mission's
+            await loading.FadeIn();
+            MissionBuilder.Trace("loading card up, after the briefing");
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            if (!IsInsideTree()) return;
+        }
         // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
         var load = Hitch.Time(Hitch.Phase.Load);
-        try { LoadMission(); }
+        try
+        {
+            if (built is not { } b) LoadMission();
+            else if (b.Error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(b.Error).Throw();
+            else AttachWorld(b.Start, b.World!);
+        }
         catch (System.Exception ex)
         {
             _status = $"failed to load: {ex.Message}";
@@ -436,7 +457,6 @@ public partial class Main : Node3D
         MissionBuilder.Trace("drop shadows");
         var loaded = I76.Game.Shell.ShellSettings.Load();
         _drawChoice = loaded.DrawDistanceChoice;
-        _mapEdge = MapEdgeHook(loaded.MapEdge);
         _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
         SetMode1997(_opt.Mode1997);
         MissionBuilder.Trace("look set");
@@ -486,7 +506,8 @@ public partial class Main : Node3D
         if (_editorMode) return;
         // The original's start-up plays the mission's briefing (WRLD +0x04) before it starts, and the music after it
         // (a network co-op mission has none: its host's mission runs from the first player in, docs/deviations.md)
-        if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
+        if (built is not null) StartMissionMusic();   // its briefing played over the build
+        else if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
             MissionMovie(new GameInstall(_opt.Install), ws.Briefing);
         else StartMissionMusic();
     }
@@ -718,7 +739,7 @@ public partial class Main : Node3D
     {
         ApplyDevFps(s);
         I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(s.CarInteriors);
-        I76.Game.Assets.MaterialLibrary.ApplyHoodFinish(s.HoodFinish);
+        I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss);
         I76.Game.Sim.ModernFx.ApplyLook(s);
         // HD Textures: the modern look's textures swapped in place, as a flip of the look does (the 1997 look keeps the originals)
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
@@ -751,7 +772,6 @@ public partial class Main : Node3D
             if (_veg is not null && _vegLevel > 0) { _veg.SetLevel(_vegLevel); if (_loaded) _veg.Prewarm(); }
         }
         _drawChoice = s.DrawDistanceChoice;
-        _mapEdge = MapEdgeHook(s.MapEdge);
         ApplyDrawDistance();
         ApplyModernQuality();
         ApplySoftware(s);   // MainSoftware.cs
@@ -1602,14 +1622,93 @@ public partial class Main : Node3D
         }
     }
 
-    private void LoadMission()
+    /// <summary>A mission load begun: the builder made, its world still to build from <see cref="Msn"/>.</summary>
+    private sealed record Load(GameInstall Install, AssetVfs Vfs, string Msn, System.Diagnostics.Stopwatch Clock, MissionBuilder Builder);
+
+    private Load StartLoad()
     {
         var install = new GameInstall(_opt.Install!);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var vfs = new AssetVfs(install);
         var msn = MissionPath(install);
-        _builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
-        var world = _builder.Build(msn);
+        var builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
+        return new Load(install, vfs, msn, sw, builder);
+    }
+
+    private void LoadMission()
+    {
+        var start = StartLoad();
+        _builder = start.Builder;
+        AttachWorld(start, _builder.Build(start.Msn));
+    }
+
+    /// <summary>
+    /// The briefing a mission start plays while its world builds, or null for the original's order (the build, then the
+    /// briefing): the setting on, the modern look, a single-player start behind the loading card with a briefing movie that
+    /// is there, and no checkpoint to resume (BriefingOverlap.Plan).
+    /// </summary>
+    private string? BriefingDuringLoad()
+    {
+        if (_opt.Install is null || _opt.Mission is null) return null;
+        var install = new GameInstall(_opt.Install);
+        string? name = null;
+        try
+        {
+            if (install.FindMission(_opt.Mission) is { } path)
+                name = I76.Formats.Mission.WorldSettings.Read(new I76.Formats.Mission.MissionFile(path))?.Briefing;
+        }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.ArgumentException) { return null; }
+        bool on = BriefingOverlap.Plan(I76.Game.Shell.ShellSettings.Load().BriefingWhileLoading, _opt.Mode1997, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null,
+            _opt.SkipMovies, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        return on ? name : null;
+    }
+
+    /// <summary>
+    /// The mission's world built on a thread of its own while its briefing plays (the movie draws on the main thread, the
+    /// build makes nodes outside the tree and touches none in it); both over, the world comes back for <see cref="AttachWorld"/>
+    /// on the main thread. A briefing ended early leaves the loading card up until the build is done.
+    /// </summary>
+    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildUnderBriefing(string briefing)
+    {
+        // the builder is the game's (_builder, which the overlay and the views read each frame) only once the thread is done with it
+        var start = StartLoad();
+        var builder = start.Builder;
+        builder.OffMainThread = true;
+        Node3D? world = null;
+        System.Exception? error = null;
+        MissionBuilder.Trace("build: on its own thread, under the briefing");
+        var thread = new System.Threading.Thread(() =>
+        {
+            try { world = builder.Build(start.Msn); }
+            catch (System.Exception ex) { error = ex; }
+            start.Clock.Stop();   // the status line's time is the build's, not the movie's
+        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
+        if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
+        thread.Start();
+        var over = new System.Threading.Tasks.TaskCompletionSource();
+        try { PlayMovies(start.Install, [briefing], () => over.TrySetResult()); }
+        catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
+        bool built = false;
+        while (thread.IsAlive || !over.Task.IsCompleted)
+        {
+            if (!built && !thread.IsAlive) { built = true; FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load()); MissionBuilder.Trace($"build: done under the briefing ({start.Clock.ElapsedMilliseconds} ms)"); }
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInsideTree()) break;
+        }
+        thread.Join();
+        if (!built) FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
+        _builder = builder;
+        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
+        MissionBuilder.Trace("build: briefing and build both over");
+        return (start, world, error);
+    }
+
+    /// <summary>The rest of the load on the main thread: the built world into the tree, the sky, the music, the camera.</summary>
+    private void AttachWorld(Load start, Node3D world)
+    {
+        var install = start.Install;
+        var sw = start.Clock;
+        var vfs = start.Vfs;
         _worldRoot.AddChild(world);
         MissionBuilder.Trace("world in tree");
         _builder.Scenery!.Modern = !_mode1997;
@@ -2296,30 +2395,6 @@ public partial class Main : Node3D
                 m?.SetShaderParameter("ground_haze", !panels);
             }
         }
-        ApplyMapEdge();
-    }
-
-    /// <summary>I76_MAP_EDGE=0|1, a capture hook: Off or On whatever the settings say.</summary>
-    private static int MapEdgeHook(int setting) => int.TryParse(OS.GetEnvironment("I76_MAP_EDGE"), out int me) ? (me == 1 ? MapEdge.On : MapEdge.Off) : setting;
-    private int _mapEdge = MapEdge.Off;
-
-    // On's foot grid made without the ring (a mission started in the 1997 look builds the ring only on the first switch to the modern look)
-    private System.Threading.Tasks.Task<I76.Formats.Assembly.EdgeWalls?>? _edgeJob;
-    private bool _edgeGrid;
-
-    /// <summary>
-    /// Map Edge on both looks' terrain and the modern look's ring and plants (MapEdge, map_edge.gdshaderinc): On clamps the
-    /// ground to the walls' foot grid, which the ring sets, or a job of its own while there is no ring; off at Off, on a map too
-    /// big for one surface, and until the grid is up.
-    /// </summary>
-    private void ApplyMapEdge()
-    {
-        bool grid = _horizon is { HasEdgeWalls: true } || _edgeGrid;
-        if (_mapEdge == MapEdge.On && !grid && _edgeJob is null && _builder?.World is { Terrain.Huge: false } world)
-            _edgeJob = System.Threading.Tasks.Task.Run(() => MapEdge.WallsFor(world, () => World.TerrainNode.SurfaceFor(world)));
-        bool on = _mapEdge == MapEdge.On && grid;
-        RenderingServer.GlobalShaderParameterSet("i76_edge_hide", on ? 1f : 0f);
-        MissionBuilder.Trace($"map edge: {MapEdge.Names[_mapEdge]}, {(on ? "on" : "off")}");
     }
 
     /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>
@@ -2363,7 +2438,6 @@ public partial class Main : Node3D
     {
         _origin = gameOrigin;
         _worldRoot.Position = -Coords.ToGodot(gameOrigin);
-        RenderingServer.GlobalShaderParameterSet("i76_origin", new Vector3(gameOrigin.X, gameOrigin.Y, gameOrigin.Z));   // Map Edge's plants (map_edge.gdshaderinc)
         _sky1997?.SetShaderParameter("origin_y", gameOrigin.Y);   // the horizon ring sinks with the eye's game height
     }
 
@@ -3217,13 +3291,19 @@ public partial class Main : Node3D
 
         // I76_MOUSE="frame@dx,dy;..." moves the mouse by that much at those frames (a capture of the Mouse Camera)
         private readonly List<(int Frame, float Dx, float Dy)> _mouse = (System.Environment.GetEnvironmentVariable("I76_MOUSE") ?? "")
-            .Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(e => e.Split('@', ',')).Where(p => p.Length == 3)
+            .Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(e => e.Split('@', ',')).Where(p => p.Length == 3 && !p[1].StartsWith('c'))
             .Select(p => (int.Parse(p[0]), float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture))).ToList();
 
         // I76_MOUSE also takes "frame@wN": N wheel notches at that frame (positive up, nearer), the external view on screen's zoom
         private readonly List<(int Frame, int Notches)> _wheel = (System.Environment.GetEnvironmentVariable("I76_MOUSE") ?? "")
             .Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(e => e.Split('@')).Where(p => p.Length == 2 && p[1].StartsWith('w') && int.TryParse(p[1][1..], out _))
             .Select(p => (int.Parse(p[0]), int.Parse(p[1][1..]))).ToList();
+
+        // I76_MOUSE also takes "frame@cX,Y": a left click at window pixel (X, Y), pressed that frame and released the next (the Developer panel's buttons)
+        private readonly List<(int Frame, Vector2 At)> _clicks = (System.Environment.GetEnvironmentVariable("I76_MOUSE") ?? "")
+            .Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(e => e.Split('@')).Where(p => p.Length == 2 && p[1].StartsWith('c') && p[1][1..].Split(',').Length == 2)
+            .Select(p => (int.Parse(p[0]), p[1][1..].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray()))
+            .Select(x => (x.Item1, new Vector2(x.Item2[0], x.Item2[1]))).ToList();
 
         private static (Key Key, int Mods)? ParseKey(string text)
         {
@@ -3287,6 +3367,12 @@ public partial class Main : Node3D
             Record();
             Owner.UpdateMouseCapture();
             foreach (var (f, dx, dy) in _mouse.Where(e => e.Frame == _n)) Input.ParseInputEvent(new InputEventMouseMotion { Relative = new Vector2(dx, dy) });
+            foreach (var (f, at) in _clicks.Where(e => e.Frame == _n || e.Frame == _n - 1))
+            {
+                bool down = f == _n;
+                if (down) Input.ParseInputEvent(new InputEventMouseMotion { Position = at, GlobalPosition = at });
+                Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down, Position = at, GlobalPosition = at, ButtonMask = down ? MouseButtonMask.Left : 0 });
+            }
             foreach (var (f, n) in _wheel.Where(e => e.Frame == _n))
                 for (int i = 0; i < Math.Abs(n); i++) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = n > 0 ? MouseButton.WheelUp : MouseButton.WheelDown, Pressed = true, Factor = 1 });
             // each key is down for one frame, so held-key checks see it too
@@ -3353,11 +3439,6 @@ public partial class Main : Node3D
             _sim.SkipLatch = true;
         }
         PumpModernBuild();
-        if (_edgeJob is { IsCompleted: true } ej && !_edgeGrid)
-        {
-            if (ej.IsCompletedSuccessfully && ej.Result is { } ew) { MapEdge.Upload(ew); _builder?.Terrain?.ReachEdgeFoot(ew); _edgeGrid = true; ApplyMapEdge(); }
-            else if (ej.IsFaulted) GD.PrintErr($"map edge: {ej.Exception!.GetBaseException().Message}");
-        }
         if (!_horizonEyeSet) SetHorizonEye();
         _animClock += delta;
         _builder?.Materials?.Animate(_animClock);
@@ -3465,6 +3546,15 @@ public partial class Main : Node3D
         }
         // test hook: I76_NET_TEST holds the capture's frame count through a network game (MainNet.cs)
         if (_net is not null && NetTest is not null) { NetTestFrame(); return; }
+        // capture hooks: I76_QUIT_TICK=N quits at that sim tick; I76_SHOT_TICKS=from-to saves every frame drawn while the sim tick is
+        // in [from, to] (OUT_0000.png on, or down I76_SHOT_PIPE), then quits: a clip of an event at a known tick, at the --fixed-fps rate
+        if (int.TryParse(System.Environment.GetEnvironmentVariable("I76_QUIT_TICK"), out int qt) && _sim is { } sq && sq.Ticks >= qt) { GetTree().Quit(); return; }
+        if (_opt.Screenshot is not null && System.Environment.GetEnvironmentVariable("I76_SHOT_TICKS") is { } stw && stw.Split('-') is [var stA, var stB]
+            && _sim is { } sdt && sdt.Ticks >= int.Parse(stA))
+        {
+            if (sdt.Ticks > int.Parse(stB)) { GetTree().Quit(); return; }
+            SaveSeriesFrame(_opt.Screenshot.Replace(".png", $"_{_tickShots++:0000}.png"));
+        }
         // capture hook: I76_SHOT_EVERY=N saves every Nth frame as OUT_<frame>.png (frames as the sim counts them: ticks)
         if (_opt.Screenshot is not null && int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_EVERY"), out int every) && every > 0
             && _sim is { } sd && sd.Ticks != _lastShotTick && sd.Ticks % every == 0)

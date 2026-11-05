@@ -278,6 +278,20 @@ stacked ones and the integration branch are section I, after H.
 | I77 | feat/brush-impacts | modern look: the scattered plants answer rounds, cars, blasts and fire; `[port] brush_impacts` | local: Formats BrushFieldTests | - | cherry-picked (93cc458) |
 | I78 | fix/hardpoint-textures | modern look: the 3D cockpit's weapons panel, steering wheel and arms are cut by their own pixels rather than the first frame's outline (the housings, ammo plates, hands and pistol were cut away; the specials panel was never affected and keeps its smooth edges) | playtest ("hardpoint textures don't appear"); captures `_scratch/r3-hardpoint-tex/`; local: Game 336/336 | `_scratch/r3-hardpoint-tex/` | ready (5727c81, 5e04625) |
 | I79 | fix/hd-pack-3x | an HD upscale at any whole multiple of the original is served, not only a power of two (the 3x pack fell back to the originals for every car and world texture, 282 of them on M01); the log notes the first upscale served at each scale and a --screenshot run prints a count per scale | found while on I78; local: Formats HdTextureTests 9 (one new) | `_scratch/r3-hd-pack-3x/` | ready (b8162bb) |
+| I80 | fix/dymo-labels-2 | modern cockpit weapon labels: the letter-weight fix's synthetic bold removed so the tape's emboss reads (face 232/214 with lit and shaded bevel edges), letter gap 30 % tighter (mean gap 234 -> 164 font units), the ammo counters' ink darkened (41,41,20 -> 14,14,7) | playtest ("the flood of white occludes the emboss", "spacing 30 % less", "counter black darker"); local: Game 317/317 (3 new) | `_scratch/r3-dymo-2/` | ready (8997727) |
+| I81 | fix/dev-panel-2 | Developer panel at half its size (scale from window height / 1440) and 85 % opaque; the Teleport row's Go/Keep/Forget were covered by the second column (the status text widened the first after layout): status wraps, columns re-placed; Show FPS row on the Display page and the Esc pad bound to `dev_fps`, the counter top-right over menus and missions; I76_MOUSE click hook | playtest ("dev mode too big", "teleport doesn't work", "display fps in the graphics menu"); local: Game 319/319 | `_scratch/r3-dev-panel-2/shots/` | ready (79d2738, 7c04539) |
+| I82 | feat/lfe-3 | bass shaker: per-surface bands with distance-paced lumps and grit (off-road 30-34 Hz, gravel road 66 Hz + 76 Hz grit, pavement a narrow 56 Hz hum, planks 46 Hz; 60 ms crossfade), road/off-road contrast stretched (sand ~15 dB above asphalt), a per-wheel 28 Hz knock on crossing a road or bridge edge scaled by speed (front axle then rear); `[port] lfe_offroad`, `lfe_bumps`; dev readout line, I76_LFE_LOG; tools/TactileRender writes the synth to WAV; docs/lfe-surfaces.md | playtest; research with sources; local: Formats TactileSynth 23/23, Sim WheelCrossings 5/5 | `_scratch/r3-lfe-3/` (46 WAVs) | ready (5014d29, 64e18c0) |
+| I83 | fix/map-edge-slopes | Hide Map Edge Cliffs hid every unreachable slope (36-60 degrees) joined to the edge; now only ground whose way in crosses a step steeper than 60 degrees (8.66 m per 5 m sample) is hidden, drawn down to the cliff's foot, never below its old height; patches under 25 samples kept; I76_MAP_EDGE_SLOPES=0 for the old rule. T05 restores 53 % of the ground it flattened, M06 77 % | playtest ("it hides slopes we want to keep"); local: Formats EdgeWallsTests 18/18 (1 new) | `_scratch/r3-map-edge-6/edge-slopes.png` | ready (16adac5) |
+| I84 | feat/movie-while-loading | modern look: the briefing plays while MissionBuilder.Build runs on a thread (nodes outside the tree; prop material maps held and flushed after; frames capped at 240 fps during the build), then the card for the rest of the load; `[port] briefing_while_loading` (default on; 1997 look, retries, --skip-movies, co-op and the editor keep the original order); saves 5-8 s per briefed mission. HD movies: `user://movies/<stem>.ogv` (Theora + Vorbis, any fps, same duration) replaces the SMK in the modern look, same skip keys and stall watch; I76_MOVIE_SHOT, I76_MOVIE_LOG | playtest ("couldn't the movie play during loading?"); measured t01/t07/t08/m01; local: Game 342/342 (BriefingOverlap, MovieReplacement tests) | `_scratch/r3-movie-load/` | ready (1cfac51, 82a12f3, 6fb5e20) |
+| I85 | remove/map-edge-cliffs | Hide Map Edge Cliffs removed: EdgeWalls.cs and its tests, MapEdge.cs, the shader include and the draw-down code in five shaders, four shader globals, the horizon ring's hidden-state heights, the setting and both menus' row, seven I76_MAP_EDGE* hooks, the docs rows; a withdrawn note in deviations.md and a Removed line in the CHANGELOG; old shell.cfg files with `map_edge` still load (24 files, +47/-1340) | the user, after playtesting the slope fix: the walls and the slopes up to them are the maps' intended shape; removed for simplicity | `_scratch/r3-map-edge-remove/shots/` | ready (726b2e8) |
+| I86 | feat/hood-gloss-level | Hood Finish -> Hood Gloss, a 0-100 level in steps of 5 on the sheet and the Esc pad (any integer from the file and the dev slider); 0/50/100 render as the old Matte/Satin/Gloss (captured: within 2/255), levels between blend the two nearest presets' roughness, specular, clearcoat, coat roughness, metallic cap and hubcap coat; shader global `i76_hood_gloss` (float) replaces `i76_paint_finish`; `hood_finish` and `hood_matte` read for migration, not written | playtest ("a finer grained adjustment for hood gloss"); local: Game HoodGlossTests, Sim PaintFinishTests 24/24 | `_scratch/r3-hood-gloss/shots/hood-gloss-steps.png` | ready (e518ee3) |
+| I87 | feat/lfe-4 | bass shaker: hits scaled by damage on a log curve (a landing, a ram and a head-on no longer alike), a 23 Hz cabin ring after hits over 20 damage on the original's cockpit-jolt decay (1.47 s), the edge knock redone (40 Hz body + 80 Hz octave, 350 ms, 5-14 dB over the sand rumble), seeded variation on every surface (level ~2 dB, pitch ~4 %, one lump in 14 bigger), every source in its own band after measuring the game's sounds below 200 Hz (docs/lfe-bands.md); `lfe_cracks` and `lfe_strip` dev-only at 0; headroom plan (ram 0 dBFS, axle knock -6, wheel knock -12, roads -8 or under); tools/TactileRender sweeps and `eq_from_measurement.py`; measurement WAVs for the user's force readings | playtest; sweeps `_scratch/r3-lfe-3/sweeps*/`, bands `bands/`, WAVs `wavs2/`, `wavs3/`, `measure/`; local: Formats TactileSynth 30/30, Sim WheelCrossings 6/6 | `_scratch/r3-lfe-3/` | ready (0285d4e, 8b5d7cf, 3035cb7) |
+| I88 | feat/graphics-pages-3 | Graphic Detail's sheet in the original's order and words (Screen Resolution, Monitor Brightness, Visibility Range (new: Far = the original's 600 m, Max* = 20 km; the original's Near/Med./Far read from the exe's grxdet1 table), Terrain Detail, Shadow Detail, Ext. Instrum. Disp., Rear Mirror) then three pages, Look / Display / Camera, on the sheet and the Esc pad (the pad gains Visibility Range, HD Textures, Car Interiors, Camera Return, View Zoom Reset); one HD Textures row Off/4x/3x/2x listing the sizes whose folders exist (Off/On* with a pack but no size folders); Display's Reset owns Anti-Aliasing, the sheet's Reset the sheet's rows (the pad's leaves Screen Resolution alone); long labels push their value past the column; Car Interiors On* and Anti-Aliasing 8x* marked; no key renamed | the proposal `_scratch/r3-gfx-options/proposal.md`, approved by the user; local: Game 337/337 (page lists, line positions, Reset scopes, Visibility Range, HD Textures values) | `_scratch/r3-gfx-pages-3/pages-before-after.png` | ready (6c6ea9e) |
+| I89 | fix/briefing-overlap-title | with the briefing over the build the loading card (loadscr.pcx, "SOMEWHERE IN THE SOUTHWEST...") was fading in for ~0.75 s before the movie; now black until the movie's first frame, then the card with the original's 0.32 s ramp for the rest of the load; `BriefingOverlap.CardBeforeBriefing`; the original order (card, briefing, mission) unchanged; nothing else runs before the movie | playtest ("Somewhere in the Southwest plays before the video"); traces `_scratch/r3-movie-load/title-*`; local: Game 350/350 | `_scratch/r3-movie-load/title-after-sheet.jpg` | ready (0f88089) |
+| I90 | fix/counter-digits-font | modern look: the ammunition counters' digits drawn from Roboto Bold 3.016 (SIL OFL 1.1, embedded, licence shipped) at the panel's resolution on the strip's drum face with its separators, 1 texel anti-aliasing (`CounterDigits.cs`); a reverse-emboss inset built and off; the 1997 look keeps the znbe strip; font match against ten faces on the sheet | playtest ("the edges of the numbers in the ammometers are fuzzy; font-match and replace"); local: Game 334/334 (3 new) | `_scratch/r3-counter-digits/counter-digits.png` | ready (0b276b2) |
+| I91 | fix/shell-layout-2 | Save/Load Bookmark's Delete moved from the scroll arrow's line to the bottom button line left of Load/Save (the Nitro screen's spot); the host form's arena scrap 20 base px (1/32 of the 640 picture) further left, its dimensions under the drawing and centred, stopping 3 px short of the AREA OF PLAY border on wide arenas; checked on 11 arenas, 1024x768 / 1280x720 / 3440x1440, HD art on and off, 1997 look | playtest; local: Game 349/349 (BookmarkDeletePlaceTests rewritten) | `_scratch/r3-shell-fixes-2/shots/` | ready (e22f8dc) |
+| I92 | feat/death-variety-2 | two-stage deaths in the modern look: the failed part's event (hood out burning, a corner burst, sparks, the first pop, a crunch), a 200-500 ms beat, exactly one tank blast, a cause-specific drawn throw (down-and-back, slide, launch with a roll, sag, none for a driver); the original's 10 s effect roll (~25 x1_cars1) drawn as flares instead of 3 m blasts (the six-second fireball, and why brakes looked alike); variety-off's double blast fixed; the catastrophic award (1 in 8 + specials, never a driver) alone gets the 7.5 m tank, three burning panels, every wheel burning, a 20 s fire; driver smoke at a quarter rate; burning wheels 1.2 -> 0.8 per death; every number in `DeathVariety.cs`; I76_SHOT_TICKS, I76_QUIT_TICK, I76_DEATH_SEED hooks. Drawn throw only: the simulated wreck still takes the original's kick, so collisions can sit metres from the picture | the user's critique of the first clips and design brief; `_scratch/r3-death-2/design.md`, clips `deaths2-compare.mp4`, counts over 25 scripted deaths; local: Game 327/327, Sim DeathCause/Snapshot 33 | `_scratch/r3-death-2/` | ready for playtest (4b17cb8, b6b286b) |
+| I93 | feat/hd-pack-alpha | the pack tool's `--families`: each cockpit family through its own colour model (radar HDcube3; panels, gear, compass, mirror UltraSharpV2; damage, weapons, hands HDcube3; notepad HDcube4Compact; gauges, needles, misc the pack's own colour with the alpha step), the transparency upscaled with 4xHDcube-Alpha and cut at one half (`--alpha` for every keyed texture), `--family-table FILE.json`, `--models-dir`, `--gpu-share`, `--self-check` 6/6; pack.json and ATTRIBUTION.txt list every model and licence. The packs rebuilt with it (393 files each) are installed on the desktop, the lab sources, the laptop and James's Mac | the user's picks from the dash sheets (`_scratch/r3-dash-upscale/sheets/`, `dash-applied.png`) | `_scratch/r3-dash-upscale/` | ready (79864e3) |
 
 Measured corrections (the lab's 86Box rig, retail 1.0 on an emulated Pentium 166, 2026-11-02):
 - Rounds never inherit the carrier's velocity: the player's forward .50 cal at 18-26 m/s leaves at 149.99 m/s along
@@ -722,6 +736,64 @@ Test status, pass 13 (`play` c2237c7): desktop, I76_INSTALL set, the movie rende
 GogLibrary Drive_letters_map..., InstallAndMigration App_folder_is_the_one_holding_the_mac_bundle, TerrainSurface
 ParallelBuildAndCachedCopy...; the fifth is the order-dependent WeaponTests.EveryWeaponSlotHasItsHardpoint, which passes alone),
 all in the desktop baseline. New because of us: none. Deployed c2237c7 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 14 (2026-11-04)
+
+Five branches added as manifest section N (rows I80-I84), all made on play 4cac47e and merged with --no-ff. Checked but not
+changed: the T05 jump's fall (gravity 9.8 m/s^2 and no airborne drag, as the spec; clearing needs 45-47 m/s at the lip, matched
+at 120 mph; the "fell too fast" feel is most likely the nose pitching down ~90 degrees over the flight below ~110 mph, which
+the spec does not cover). Proposal only, no code: the graphics options reorganisation (`_scratch/r3-gfx-options/proposal.md`).
+
+Resolution: feat/lfe-3 conflicted with fix/dev-panel-2 in docs/playing.md (the `[port]` table's tail): both kept, the
+lfe_offroad and lfe_bumps rows above dev-panel-2's dev_fps row (rerere recorded). DevSettings.cs auto-merged.
+
+Test status, pass 14 (`play` 83408bb): desktop, I76_INSTALL set, a performance survey sharing the GPU. Game: no failures;
+Formats: 5 failures (GameDiscovery, GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in
+the desktop baseline. New because of us: none. Deployed b8e7233 (83408bb plus the play-meta merge and feat/lfe-3's sweep-harness commit 8ee9178, which the second sync
+picked up: the knock level to 0.6) to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 15 (2026-11-04)
+
+Two branches as manifest section O (rows I85-I86), both made on play after pass 14 (83408bb) and merged with --no-ff: the map
+edge cliffs option removed, Hood Gloss as a level. The old map-edge branches stay in sections F-N as history; a -Rebuild would
+merge them and then this removal, in order.
+
+Resolution: feat/hood-gloss-level conflicted with remove/map-edge-cliffs in CHANGELOG.md, docs/deviations.md, docs/playing.md,
+GraphicsPages.cs and GraphicsPagesTests.cs (the same World/Car rows): hood gloss's side taken with the map-edge row, value and
+test line dropped (rerere recorded).
+
+Test status, pass 15 (`play` ca59d29): desktop, I76_INSTALL set. Game 349, no failures; Formats 1030, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed ca59d29 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 16 (2026-11-04)
+
+Two branches as manifest section P (rows I87-I88), both made on play after pass 15 and merged with --no-ff: the shaker's
+second and third rounds (feat/lfe-3 stays as merged; its lane continued on feat/lfe-4) and the three-page Graphic Detail.
+
+Resolution: feat/graphics-pages-3 conflicted with feat/lfe-4 in DevSettings.cs (the panel's key list: lfe-4 added the
+lfe_cracks/lfe_strip sliders where pages-3 moved dev_fps up among the keys that have a row): both kept (rerere recorded).
+
+Test status, pass 16 (`play` da88d22): desktop, I76_INSTALL set. Game 356, no failures; Formats 1037, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed da88d22 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 17 (2026-11-04)
+
+Four branches as manifest section Q (rows I89-I92), merged with --no-ff: the card after the briefing, font-drawn counter
+digits, the two shell layout moves, and the two-stage deaths (for playtest; the drawn-throw trade-off is in its row).
+
+Resolution: feat/death-variety-2 conflicted with fix/briefing-overlap-title in docs/playing.md (the `[port]` table's death_variety
+and briefing_while_loading rows, adjacent): the new deaths text with the title fix's loading-card wording (rerere recorded).
+
+Test status, pass 17 (`play` 3f58a55): desktop, I76_INSTALL set. Game 363, no failures; Formats 1037, 5 failures (GameDiscovery,
+GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
+of us: none. Deployed 3f58a55 to the laptop, James's Mac, Michael's and Andrew's Macs.
+
+## Pass 18 (2026-11-04)
+
+One branch as manifest section R (row I93): the pack tool's family table and alpha step (tool and docs only; the rebuilt
+packs are user data, already installed).
 
 ## Withdrawn or answered (not offered as fixes)
 

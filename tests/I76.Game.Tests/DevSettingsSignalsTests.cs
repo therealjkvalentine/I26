@@ -27,21 +27,29 @@ public class DevSettingsSignalsTests
         var table = doc[at..doc.IndexOf("\n### ", at + 10, StringComparison.Ordinal)];
         var keys = Regex.Matches(table, @"^\| `([a-z_0-9]+)` \|", RegexOptions.Multiline).Select(m => m.Groups[1].Value).ToList();
         Assert.Contains("sky_drift", keys);
-        Assert.Contains("hd_textures", keys);
+        // the keys with a Graphic Detail row are not in the table (DevSettings.WithRow), though the panel has them too
+        foreach (var key in new[] { "draw_distance", "hd_textures", "hd_texture_size", "dev_fps" })
+        {
+            Assert.DoesNotContain(key, keys);
+            Assert.Single(DevSettings.WithRow, e => e.Key == key);
+        }
         Assert.Contains("crossover", keys);
         Assert.Contains("lighting_calibration", keys);
         // the bass shaker's sources, each a slider; the two tone curves set by hand only
         foreach (var key in TactileSources.Keys)
         {
-            Assert.Contains(key, keys);
+            Assert.Equal(!DevSettings.DevOnly.Contains(key), keys.Contains(key));
             Assert.True(DevSettings.All.Single(e => e.Key == key).Slider);
         }
+        // the dev-only keys are in docs/dev-hooks.md instead
+        var hooks = File.ReadAllText(RepoFile(Path.Combine("docs", "dev-hooks.md")));
+        foreach (var key in DevSettings.DevOnly) Assert.Contains($"`{key}`", hooks);
         foreach (var key in new[] { "tactile_eq", "game_eq", "movie_eq" })
         {
             Assert.Contains(key, keys);
             Assert.Contains(key, DevSettings.HandSetOnly);
         }
-        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Concat(DevSettings.HandSetOnly).Order());
+        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Except(DevSettings.DevOnly).Concat(DevSettings.HandSetOnly).Order());
     }
 
     [Fact]
@@ -62,7 +70,7 @@ public class DevSettingsSignalsTests
     public void TheDefaultsAreTheFilesAndTheOriginalsAreUnmarked()
     {
         var s = new ShellSettings();
-        string Shown(string key) { var e = DevSettings.All.Single(d => d.Key == key); return e.Values[e.Get(s)]; }
+        string Shown(string key) { var e = DevSettings.All.Concat(DevSettings.WithRow).Single(d => d.Key == key); return e.Values[e.Get(s)]; }
         Assert.Equal("look", Shown("draw_distance"));
         Assert.Equal("look", Shown("mirror_range"));
         Assert.Equal("steady*", Shown("sky_drift"));
@@ -73,7 +81,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("on*", Shown("lighting_calibration"));
         Assert.Equal("90", Shown("crossover"));
-        foreach (var key in TactileSources.Keys) Assert.Equal("100", Shown(key));
+        foreach (var key in TactileSources.Keys) Assert.Equal(DevSettings.DevOnly.Contains(key) ? "0" : "100", Shown(key));
         Assert.Equal("false", Shown("developer"));
         Assert.Equal("0", Shown("melee_ai"));
         foreach (var e in DevSettings.All)

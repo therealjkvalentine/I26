@@ -48,6 +48,7 @@ public partial class MoviePlayer : CanvasLayer
     {
         Layer = Skippable ? 100 : 30;   // an unskippable movie is under the menu a player's Esc opens
         ProcessMode = ProcessModeEnum.Always;
+        if (!Faithful && Replacement(Path) is { } ogv && PlayReplacement(ogv)) return;
         try { _movie = Smacker.Open(Path); }
         catch (System.Exception ex)
         {
@@ -146,6 +147,7 @@ public partial class MoviePlayer : CanvasLayer
 
     public override void _Process(double delta)
     {
+        if (_video is not null) { ReplacementStep(); return; }
         if (_done || _movie is null) return;
         // the clock starts with the first frame, so a slow first decode does not eat into the picture
         // (a decoder that died or never delivers ends the movie instead: nothing else would ever start the clock, and the
@@ -158,6 +160,7 @@ public partial class MoviePlayer : CanvasLayer
                 return;
             }
             _started = true;
+            I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
         }
         else _clock += delta;
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare
@@ -236,6 +239,9 @@ public partial class MoviePlayer : CanvasLayer
         if (_done) return;
         _done = true;
         _stop = true;
+        if (_video is not null)
+            GD.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
+        _video?.Stop();
         // a decoder stuck inside a frame is left to itself (a background thread) rather than holding the game
         if (_thread is null || _thread.Join(1000)) _movie?.Dispose();
         // gone first, whatever follows: a failure in what comes next must not leave the movie's black over the game
@@ -248,6 +254,67 @@ public partial class MoviePlayer : CanvasLayer
     {
         _stop = true;
         _thread?.Join(1000);
+    }
+
+    // ---- an upscaled replacement (docs/playing.md "HD movies"): user://movies/<the SMK's stem>.ogv, Ogg Theora with Vorbis sound,
+    // played by Godot's video player in the modern look; the 1997 look, or a file the player cannot open, plays the SMK
+    private VideoStreamPlayer? _video;
+    private double _videoStart, _shotAt = -1, _lastStep, _worstGap;
+    private int _lateFrames;
+    private readonly bool _videoLog = System.Environment.GetEnvironmentVariable("I76_MOVIE_LOG") == "1";
+    private string? _shotPath;
+
+    /// <summary>The user folder's movies/ file standing in for <paramref name="smk"/> (its stem, any case, .ogv), or null.</summary>
+    public static string? Replacement(string smk) => MovieReplacement.Find(ProjectSettings.GlobalizePath($"user://{MovieReplacement.Folder}/"), smk);
+
+    private bool PlayReplacement(string ogv)
+    {
+        var box = new AspectRatioContainer { AnchorRight = 1, AnchorBottom = 1, Ratio = 4f / 3f, MouseFilter = Control.MouseFilterEnum.Ignore };
+        var video = new VideoStreamPlayer
+        {
+            Stream = new VideoStreamTheora { File = ogv }, Bus = I76.Game.Boot.Main.MovieBus(), Expand = true,
+            MouseFilter = Control.MouseFilterEnum.Ignore, Name = "Video",
+        };
+        AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
+        box.AddChild(video);
+        AddChild(box);
+        video.Play();
+        if (!video.IsPlaying()) { GD.PrintErr($"movie {ogv}: not playable, the SMK instead"); box.QueueFree(); GetChild(0).QueueFree(); return false; }
+        var size = video.GetVideoTexture()?.GetSize() ?? Vector2.Zero;
+        if (size.Y > 0) box.Ratio = size.X / size.Y;
+        video.Finished += Finish;
+        _video = video;
+        _videoStart = Wall();
+        // capture hook: I76_MOVIE_SHOT=out.png@seconds saves the window at that point of the movie
+        if (System.Environment.GetEnvironmentVariable("I76_MOVIE_SHOT") is { } shot && shot.LastIndexOf('@') is > 0 and var at
+            && double.TryParse(shot[(at + 1)..], System.Globalization.CultureInfo.InvariantCulture, out double t)) { _shotPath = shot[..at]; _shotAt = t; }
+        GD.Print($"movie: {System.IO.Path.GetFileName(Path)} replaced by {System.IO.Path.GetFileName(ogv)} ({video.GetStreamLength():0.0} s, {size.X}x{size.Y})");
+        return true;
+    }
+
+    private static double Wall() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+
+    /// <summary>The same watch as the SMK's: the stream's position (in ms) is its progress; none for 5 s ends it.</summary>
+    private void ReplacementStep()
+    {
+        if (_done || _video is null) return;
+        double pos = _video.StreamPosition, now = Wall();
+        // the screen's pace under the video: frames that came later than two of its frames (1/15 s at 30 fps)
+        if (_lastStep > 0 && now - _lastStep > 1 / 15.0) { _lateFrames++; _worstGap = Math.Max(_worstGap, now - _lastStep); if (_videoLog) GD.Print($"movie: late frame {(now - _lastStep) * 1000:0} ms at {pos:0.000} s"); }
+        if (_videoLog && (int)(now - _videoStart) != (int)(_lastStep - _videoStart)) GD.Print($"movie: stream {pos:0.000} s at wall {now - _videoStart:0.000} s");
+        _lastStep = now;
+        if (_shotAt >= 0 && pos >= _shotAt)
+        {
+            GetViewport().GetTexture().GetImage().SavePng(_shotPath);
+            GD.Print($"movie: shot at {pos:0.000} s of the stream, {Wall() - _videoStart:0.000} s of wall clock");
+            _shotAt = -1;
+        }
+        int ms = (int)(pos * 1000);
+        switch (_watch.Step(Wall(), ms, false, false, ms > 0, 0, int.MaxValue))
+        {
+            case MovieStep.NoFirstFrame: GiveUp("no first frame"); Finish(); break;
+            case MovieStep.Stalled: GiveUp("the video stopped"); Finish(); break;
+        }
     }
 
     /// <summary>The install's smk/ file of that name (any case), or null.</summary>

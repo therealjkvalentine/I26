@@ -312,6 +312,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// <summary>The distant terrain computed off the main thread (its meshes still to make: <see cref="HorizonTerrain.Finish"/>).</summary>
     public System.Threading.Tasks.Task<HorizonTerrain>? HorizonBuild { get; private set; }
 
+    /// <summary>Build runs on a thread of its own (Main.BuildUnderBriefing): nothing is left for the end of a frame; the caller flushes <see cref="MaterialLibrary.FlushPropMaps"/> on the main thread after.</summary>
+    public bool OffMainThread { get; set; }
+
     /// <summary>Leave vehicle placements out: the simulation draws them.</summary>
     public bool SkipVehicles { get; set; }
     /// <summary>Called with the mission's world as soon as it is read, before anything is built from it: the map editor puts its heights in here.</summary>
@@ -339,7 +342,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var resolver = Resolver = new TextureResolver(vfs);
         var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 && HdTextures.Enabled,
             PackPalette = vfs.TryRead(I76.Formats.Imaging.HdTexture.PackPalette) is { Length: I76.Formats.Imaging.Palette.Size } pp ? new Palette(pp) : null };
-        var materials = Materials = new MaterialLibrary(textures);
+        var materials = Materials = new MaterialLibrary(textures) { HoldFlush = OffMainThread };
         Meshes = new MeshBuilder(resolver, materials);
         _carParts = null;
 

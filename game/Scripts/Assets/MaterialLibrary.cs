@@ -332,6 +332,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
     private readonly Dictionary<string, Task<I76.Formats.Imaging.PropMaterial.Maps>> _propJobs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(ShaderMaterial Mat, string Member)> _propPending = [];
     private bool _propFlushQueued;
+    /// <summary>The library is filled on a thread other than the main one (a build under the briefing): the maps wait for the owner's <see cref="FlushPropMaps"/> on the main thread instead of the end of a frame, which would run in the middle of the build.</summary>
+    public bool HoldFlush { get; set; }
 
     /// <summary>
     /// A prop's material maps: made on worker threads while the mission goes on building, and put on the
@@ -351,7 +353,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
             _propJobs[job] = Task.Run(() => I76.Formats.Imaging.PropMaterial.Build(rgba, w, h, stem, family));
         }
         _propPending.Add((mat, job));
-        if (!_propFlushQueued)
+        if (!_propFlushQueued && !HoldFlush)
         {
             _propFlushQueued = true;
             Callable.From(FlushPropMaps).CallDeferred();
@@ -407,8 +409,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>The glass a texture got when its material was made (null: none, or not made yet).</summary>
     /// <summary>Graphic Detail's Car Interiors, for every car's glass at once (the shaders' global i76_car_interiors).</summary>
-    /// <summary>Graphic Detail's Hood Finish (<see cref="I76.Sim.Views.PaintFinish"/>): the modern look's car paint and cockpit hood, Matte, Satin or Gloss (the shaders' global i76_paint_finish).</summary>
-    public static void ApplyHoodFinish(int finish) => RenderingServer.GlobalShaderParameterSet("i76_paint_finish", Math.Clamp(finish, 0, I76.Sim.Views.PaintFinish.Names.Length - 1));
+    /// <summary>Graphic Detail's Hood Gloss (<see cref="I76.Sim.Views.PaintFinish"/>, 0 Matte to 100 Gloss): the modern look's car paint and cockpit hood (the shaders' global i76_hood_gloss, 0..1).</summary>
+    public static void ApplyHoodGloss(int level) => RenderingServer.GlobalShaderParameterSet("i76_hood_gloss", I76.Sim.Views.PaintFinish.Shader(level));
 
     public static void ApplyCarInteriors(bool on) => RenderingServer.GlobalShaderParameterSet("i76_car_interiors", on);
 

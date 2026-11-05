@@ -206,15 +206,64 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
 
     /// <summary>
     /// The vertical twin, a T.w × T.h window at sy = T.y + round((B.y − T.y)·frac) (sy == T.y reads B.y), copied to the
-    /// anchor moved <paramref name="dx"/> pixels across. The rolling digits.
+    /// anchor moved <paramref name="dx"/> pixels across. The rolling digits; <paramref name="deepInk"/> (the modern look)
+    /// draws their dark ink deeper (<see cref="DeepenInk"/>).
     /// </summary>
-    public void VWindow(string dst, string anchor, string top, string bottom, float frac, int dx = 0)
+    public void VWindow(string dst, string anchor, string top, string bottom, float frac, int dx = 0, bool deepInk = false)
     {
         if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return;
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * frac + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         Copy(tp.Texture, sheet, tp.Label.X, sy, tp.Label.W, tp.Label.H, t, a.Label.X + dx, a.Label.Y);
+        if (deepInk) DeepenInk(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, tp.Label.W, tp.Label.H);
     }
+
+    /// <summary>
+    /// The modern look's counter drum: VWindow's cell for <paramref name="digit"/> (0..10 down the strip) with its figure
+    /// set again in the counters' font (CounterDigits), at the panel's scale, made once per cell and scale. Without the
+    /// font, the strip's cell with its ink deepened.
+    /// </summary>
+    public void Digit(string dst, string anchor, string top, string bottom, int digit, int dx = 0)
+    {
+        if (CounterDigits.Font is not { } font) { VWindow(dst, anchor, top, bottom, digit * 0.1f, dx, deepInk: true); return; }
+        if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return;
+        int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
+        if (sy == tp.Label.Y) sy = bt.Label.Y;
+        int w = tp.Label.W, h = tp.Label.H;
+        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Inset}", t.S);
+        if (!_labels.TryGetValue(key, out var cell))
+        {
+            cell = new byte[w * t.S * h * t.S * 4];
+            Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
+            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Inset);
+            _labels[key] = cell;
+        }
+        Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
+        t.Dirty = true;
+    }
+
+    /// <summary>
+    /// The counter digits' ink taken darker in a w × h rectangle (the layout's pixels) of a target at <paramref name="ds"/>
+    /// texels a pixel, rows bottom-up as Blit's: a texel under <see cref="InkKnee"/> in brightness is scaled by
+    /// (brightness / knee) ^ <see cref="InkGamma"/>, so the strip's darkest ink, (41, 41, 20), comes to about a third of
+    /// itself, its grey anti-aliasing steps less, and the white drum not at all; the hue is kept.
+    /// </summary>
+    public static void DeepenInk(byte[] dst, int dw, int dh, int ds, int x, int y, int w, int h)
+    {
+        for (int j = y * ds; j < (y + h) * ds; j++)
+            for (int i = x * ds; i < (x + w) * ds; i++)
+            {
+                if (i < 0 || j < 0 || i >= dw || j >= dh) continue;
+                int o = ((dh - 1 - j) * dw + i) * 4;
+                float l = 0.299f * dst[o] + 0.587f * dst[o + 1] + 0.114f * dst[o + 2];
+                if (l >= InkKnee) continue;
+                float k = MathF.Pow(l / InkKnee, InkGamma);
+                for (int c = 0; c < 3; c++) dst[o + c] = (byte)(dst[o + c] * k + 0.5f);
+            }
+    }
+
+    /// <summary>The brightness under which the counters' ink is deepened, and how hard (DeepenInk).</summary>
+    public const float InkKnee = 150, InkGamma = 0.8f;
 
     private void Copy(string sheetName, Image sheet, int sx, int sy, int w, int h, Target t, int dx, int dy)
     {

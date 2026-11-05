@@ -62,20 +62,6 @@ public partial class TerrainNode : Node3D
     private readonly Dictionary<(int, int), ChunkState> _byOrigin = [];
     private readonly List<ChunkState> _now = [];
     public int ChunkCount => _chunks.Count;
-
-    /// <summary>
-    /// Map Edge's On in the 1997 look before the modern share is made (its boxes reach the walls' foot already): a chunk whose
-    /// hidden ground is drawn down at the foot gets a box reaching there, or it is culled while the lowered ground is in view.
-    /// </summary>
-    public void ReachEdgeFoot(EdgeWalls walls)
-    {
-        foreach (var c in _chunks)
-        {
-            if (c.Mi.CustomAabb.Size != Vector3.Zero || walls.Lowest(c.X0, c.Z0, Chunk) is not { } foot) continue;
-            var b = c.FaithfulMesh.GetAabb();
-            if (foot - 1 < b.Position.Y) c.Mi.CustomAabb = b.Expand(new Vector3(b.Position.X, foot - 1, b.Position.Z));
-        }
-    }
     public ITerrainSurface? Surface { get; private set; }
     private bool _modern = true;
 
@@ -166,8 +152,8 @@ public partial class TerrainNode : Node3D
     private TerrainLodMesh[] _coarse = [];
     private (float Lo, float Hi)[] _range = [];
 
-    /// <summary>The modern look's pure CPU share for chunks at <paramref name="origins"/>; <paramref name="Walls"/>: Map Edge's Hide (MapEdge.WallsFor), null on a map too big for one surface.</summary>
-    public sealed record Prepared(ITerrainSurface Surface, TerrainLodMesh[] Coarse, (float Lo, float Hi)[] Range, EdgeWalls? Walls);
+    /// <summary>The modern look's pure CPU share for chunks at <paramref name="origins"/>.</summary>
+    public sealed record Prepared(ITerrainSurface Surface, TerrainLodMesh[] Coarse, (float Lo, float Hi)[] Range);
 
     /// <summary>The modern look's pure CPU share, safe off the main thread: the reachable ground seeded from every placement, and every chunk's coarsest level.</summary>
     public static Prepared Prepare(MissionWorld world, IReadOnlyList<(int X0, int Z0)> origins)
@@ -175,15 +161,12 @@ public partial class TerrainNode : Node3D
         var surf = SurfaceFor(world);
         var coarse = new TerrainLodMesh[origins.Count];
         var range = new (float, float)[origins.Count];
-        var walls = MapEdge.WallsFor(world, () => surf);
         Parallel.For(0, origins.Count, i =>
         {
             coarse[i] = TerrainLodMesh.BuildCached(surf, origins[i].X0, origins[i].Z0, TerrainLodMesh.Levels - 1);
             range[i] = surf.HeightRange(origins[i].X0, origins[i].Z0, Chunk);
-            // under Hide the chunk's hidden ground is drawn down at the walls' foot: its box reaches there whatever the setting
-            if (walls?.Lowest(origins[i].X0, origins[i].Z0, Chunk) is { } foot) range[i].Item1 = Math.Min(range[i].Item1, foot - 1);
         });
-        return new Prepared(surf, coarse, range, walls);
+        return new Prepared(surf, coarse, range);
     }
 
     /// <summary>

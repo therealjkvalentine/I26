@@ -27,6 +27,8 @@ public partial class BassShaker : Node
     private static BassShaker? _instance;
 
     public Func<Vehicle?>? Player { get; set; }
+    /// <summary>The world's ground, for the wheels' crossings onto and off a road or a bridge (none: no crossing knocks).</summary>
+    public Func<I76.Sim.Terrain.IGround?>? Ground { get; set; }
 
     private static TactileEq? _eq;
     private static float _crossover = AudioOutputs.DefaultCrossover;
@@ -65,9 +67,18 @@ public partial class BassShaker : Node
     private static bool? Playing => !On ? null : !AudioOutputs.Discrete(Output) ? true : HasLfe ? false : null;
     private bool _stereoPair;
 
-    private readonly TactileSynth _synth = new();
+    /// <summary>The synth, its randomness from a seed drawn as the mission starts (a node of the mission's SimDriver).</summary>
+    private readonly TactileSynth _synth = new((uint)System.Random.Shared.Next(1, int.MaxValue));
     private readonly TactileEvents _events = new();
     private readonly List<(int Channel, int Amount)> _hits = [];
+    private readonly WheelCrossings _crossings = new();
+    /// <summary>I76_LFE_LOG: 1 for a line every half second, or the interval in seconds (0.05: about a line a tick); 0 none.</summary>
+    private static readonly double LogEvery = System.Environment.GetEnvironmentVariable("I76_LFE_LOG") is { } l
+        && double.TryParse(l, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double sec) && sec > 0
+        ? (sec == 1 ? 0.5 : sec) : 0;
+    private double _logIn, _logSq, _logClock;
+    private int _logN;
+    private Vehicle? _crossingsOf;
     private AudioStreamPlayer? _out;
     private AudioStreamGeneratorPlayback? _playback;
     private float[] _block = [];
@@ -91,14 +102,45 @@ public partial class BassShaker : Node
             if (Playing is null) return $"bass shaker: {speakers} output, no LFE channel: silent";
             float peak = _instance?._out is null ? 0 : _instance._synth.Peak;
             string to = Playing == true ? $"both channels of {speakers}, under {_crossover:0} Hz" : $"LFE of {speakers}";
-            return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}";
+            return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}"
+                + (_instance is { } me ? "\n" + me.Readout() : "");
         }
+    }
+
+    private static readonly string[] KindLetters = ["-", "O", "D", "P", "B"];
+
+    /// <summary>The panel's second line: the surface under the car, the bed's band and level, the four wheels' ground (Off-road, Dirt road, Paved, Bridge) and the crossing knocks so far.</summary>
+    private string Readout()
+    {
+        var s = _synth;
+        string name = (uint)s.Surface < (uint)TactileSynth.SurfaceNames.Length ? TactileSynth.SurfaceNames[s.Surface] : "?";
+        string wheels = string.Concat(_crossings.Kinds.Select(k => KindLetters[(int)k]));
+        float road = s.RoadNow * _gain;
+        return $"LFE road: {name}, bed {s.BedHz:0} Hz at {(road > 1e-4f ? $"{20 * MathF.Log10(road):0.0} dB" : "off")}, wheels {wheels}{(s.Strip ? " shoulder" : "")}, bumps {s.Bumps}, lumps {s.Lumps}";
     }
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;     // it fills the stream under the pause too, with silence
         _instance = this;
+    }
+
+    /// <summary>
+    /// I76_LFE_LOG: the panel's road line on stdout, with the clock (s since the shaker opened), the car's x, z and speed (m/s),
+    /// and the signal's RMS and peak over the interval (dBFS), for a scripted drive (tools/TactileRender/plot_sweeps.py reads it).
+    /// </summary>
+    private void Log(int n, double delta)
+    {
+        _logClock += delta;
+        for (int i = 0; i < n; i++) _logSq += _block[i] * _block[i];
+        _logN += n;
+        if ((_logIn -= delta) > 0) return;
+        _logIn = LogEvery;
+        float rms = _logN > 0 ? MathF.Sqrt((float)(_logSq / _logN)) : 0;
+        _logSq = 0; _logN = 0;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string car = Player?.Invoke() is { } v ? string.Create(inv, $"x {v.Pos.X:0.0}, z {v.Pos.Z:0.0}, speed {v.Vel.Length():0.0} m/s") : "no car";
+        GD.Print(string.Create(inv, $"lfe: t {_logClock:0.000}, {car}, {Readout()}, rms {(rms > 0 ? 20 * MathF.Log10(rms) : -999):0.0} dBFS, peak {(_synth.Peak > 0 ? 20 * MathF.Log10(_synth.Peak) : -999):0.0} dBFS"));
     }
 
     public override void _ExitTree()
@@ -133,6 +175,7 @@ public partial class BassShaker : Node
         _playback = null;
         _hits.Clear();
         _synth.Reset();
+        _crossings.Reset();
     }
 
     public override void _Process(double delta)
@@ -141,12 +184,13 @@ public partial class BassShaker : Node
         if (_out is not null && want != _stereoPair) Close();
         if (want is { } pair && _out is null) Open(pair);
         if (_playback is null) { I76.Game.Ui.DevSignals.Shaker(0); return; }
-        if (GetTree().Paused || Held?.Invoke() == true) { _synth.Reset(); _hits.Clear(); }
+        if (GetTree().Paused || Held?.Invoke() == true) { _synth.Reset(); _hits.Clear(); _crossings.Reset(); }
         int n = _playback.GetFramesAvailable();
         if (n <= 0) return;
         if (_block.Length < n) { _block = new float[n]; _frames = new Vector2[n]; }
         _synth.Fill(_block.AsSpan(0, n), (int)AudioServer.GetMixRate());
         I76.Game.Ui.DevSignals.Shaker(_synth.Peak);
+        if (LogEvery > 0) Log(n, delta);
         for (int i = 0; i < n; i++) _frames[i] = new Vector2(_stereoPair ? _block[i] : 0, _block[i]);
         _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
     }
@@ -185,6 +229,9 @@ public partial class BassShaker : Node
                 e.Travel[k++] = span > 1e-4f ? Math.Clamp(w.Travel / span, -1f, 1f) : 0f;
             }
             e.TickSeconds = dt;
+            // each wheel onto or off a road or a bridge; a new car (a respawn, a car change) starts unseen
+            if (v != me._crossingsOf) { me._crossings.Reset(); me._crossingsOf = v; }
+            if (me.Ground?.Invoke() is { } ground) { me._crossings.Step(ground, v, dt, e.Crossings); e.Shoulder = me._crossings.Shoulder; }
             if (events is not null)
             {
                 var at = v.Pos.ToVector3();

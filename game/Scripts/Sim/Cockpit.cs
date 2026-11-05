@@ -606,7 +606,9 @@ public partial class Cockpit : Node
             // the 1997 look: the plate as painted; the modern look: the name embossed in the label font (docs/deviations.md)
             if (_faithful) Panels.StampAt(plate, $"dymo_{n}");
             else Panels.StampLabel(plate, row.On ? "empty_on" : "empty_off", $"dymo_{n}", DymoLabels.Text(plate, w.Def.Name), row.On);
-            for (int p = 0; p < 4; p++) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
+            for (int p = 0; p < 4; p++)
+                if (_faithful) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
+                else Panels.Digit("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p], DigitNudge);
         }
         if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
     }
@@ -672,7 +674,9 @@ public partial class Cockpit : Node
             if (_faithful) Panels.StampAt(plate, $"sp_dymo_{n}");
             else Panels.StampLabel(plate, row.On ? "sp_empty_on" : "sp_empty_off", $"sp_dymo_{n}", DymoLabels.Text(plate, null), row.On);
             if (row.Diode >= 0) Panels.StampAt(DiodeSprite[row.Diode], $"sp_diode_{n}");
-            for (int p = 0; p < 4; p++) Panels.VWindow("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
+            for (int p = 0; p < 4; p++)
+                if (_faithful) Panels.VWindow("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
+                else Panels.Digit("zbks_.map", $"sp_num_{Places[p]}_{n}", "top", "bottom", row.Digits[p], DigitNudge);
         }
     }
 

@@ -60,9 +60,9 @@ i76_car_interiors={
 "value": true
 }
 
-i76_paint_finish={
-"type": "int",
-"value": 0
+i76_hood_gloss={
+"type": "float",
+"value": 0.0
 }
 
 i76_fx_size={
@@ -275,22 +275,6 @@ i76_surface_on={
 i76_brush_style={
 "type": "vec4",
 "value": Vector4(1, 0.7, 0.2, 0)
-}
-i76_edge_foot={
-"type": "sampler2D",
-"value": ""
-}
-i76_edge_foot_rect={
-"type": "vec4",
-"value": Vector4(0, 0, 0, 0)
-}
-i76_edge_hide={
-"type": "float",
-"value": 0.0
-}
-i76_origin={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
 }
 
 [importer_defaults]
