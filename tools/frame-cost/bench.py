@@ -43,8 +43,9 @@ DEFAULT_GRAPHICS = [5, 1, 0, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1]
 OLD_DEFAULT_GRAPHICS = [5, 1, 0, 1, 1, 1, 1, 2, 2, 1, 1, 1, 3, 2, 1, 1]
 DEFAULTS = {"vsync": "false", "max_fps": 0, "hd_menu_art": "true", "hd_textures": "true", "hd_texture_size": 4}
 # The modern look as it drew before perf/graphics-defaults, through this branch's hooks: the mirror every frame through the world's
-# environment (SSAO and all), the terrain shader's one tier, four shadow splits to 1500 m whatever Shadow Detail says.
-OLD_RENDER_ENV = {"I76_MIRROR_RATE": "1", "I76_MIRROR_SSAO": "1", "I76_TERRAIN_TIERS": "0", "I76_SHADOW_SPLITS": "4", "I76_SHADOW_DIST": "1500"}
+# environment (SSAO and all), the terrain shader's one tier, four shadow splits to 1500 m whatever Shadow Detail says, and the
+# distant ring as upstream's one pass writing depth (I76_HORIZON_SPLIT=0; play 74d7ab5 has it).
+OLD_RENDER_ENV = {"I76_HORIZON_SPLIT": "0", "I76_MIRROR_RATE": "1", "I76_MIRROR_SSAO": "1", "I76_TERRAIN_TIERS": "0", "I76_SHADOW_SPLITS": "4", "I76_SHADOW_DIST": "1500"}
 PROFILE = os.environ.get("FRAME_COST_PROFILE", "full")   # full (everything on) | defaults | old_defaults
 SCENES = {
     # the T01 start, the player's car standing with its engine running while the script's cars play the opening; seed 1
