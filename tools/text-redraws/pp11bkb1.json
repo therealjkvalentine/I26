@@ -9,6 +9,6 @@
     {"op": "text", "text": "TEXAS", "font": "Anton", "cap": 2.1, "center": [63.2, 15.4], "width": 7.5, "colour": [40, 40, 48]},
     {"op": "erase", "rect": [76, 14, 95, 23], "where": {"opaque": true}, "grow": 0.5, "fill": "key"},
     {"op": "text", "text": "'rahna", "font": "Comfortaa", "variation": {"Weight": 700}, "cap": 4.7, "center": [85.4, 18.4], "width": 15, "alpha": "set",
-     "gradient": [[240, 240, 244], [130, 132, 140]], "stroke": {"width": 0.4, "colour": [18, 18, 22]}}
+     "gradient": [[244, 244, 248], [150, 152, 160]], "stroke": {"width": 0.3, "colour": [205, 205, 212]}, "shadow": {"dx": 0.35, "dy": 0.35, "colour": [12, 12, 14], "opacity": 0.8}}
   ]
 }
