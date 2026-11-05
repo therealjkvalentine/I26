@@ -5,7 +5,7 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order and every port row sits on
-/// exactly one of the three pages under them (Look, Display, Camera), each page fitting the sheet's lines; Reset puts back a page's
+/// exactly one of the two pages under them (Look, Display), each page fitting the sheet's lines; Reset puts back a page's
 /// own rows and no other's (the sheet's the original's block but Anti-Aliasing, which is Display's), and the snapshot Cancel restores
 /// from carries every row. Visibility Range and HD Textures, the rows over keys of their own. Without the engine.
 /// </summary>
@@ -34,10 +34,6 @@ public class GraphicsPagesTests
         GraphicsRow.FieldOfView => s.FieldOfView,
         GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.CarInteriors => s.CarInteriors,
-        GraphicsRow.MouseCamera => s.MouseCamera,
-        GraphicsRow.MouseInWindow => s.KeepMouseInWindow,
-        GraphicsRow.CameraReturn => s.CameraReturn,
-        GraphicsRow.ZoomReset => s.ZoomReset,
         GraphicsRow.Garage3D => s.Garage3D,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
@@ -81,21 +77,20 @@ public class GraphicsPagesTests
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
-    /// <summary>Three pages: how it looks (1997 Mode first), how fast it runs then start-up and diagnostics, how the player looks around.</summary>
+    /// <summary>Two pages: how it looks (1997 Mode first), how it is shown (the view's rows, Field of View among them) then start-up and diagnostics.</summary>
     [Fact]
-    public void ThePagesAreLookDisplayAndCamera()
+    public void ThePagesAreLookAndDisplay()
     {
-        Assert.Equal(["Graphic Detail", "Look", "Display", "Camera"], GraphicsPages.Names);
+        Assert.Equal(["Graphic Detail", "Look", "Display"], GraphicsPages.Names);
         Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.Look]);
-        Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
+        // the mouse rows are upstream's Mouse Options screen's (pass 19); Field of View, all the Camera page kept, is Display's
+        Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
             GraphicsPages.Rows[GraphicsPages.Display]);
-        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.MouseCamera, GraphicsRow.CameraReturn, GraphicsRow.ZoomReset, GraphicsRow.MouseInWindow],
-            GraphicsPages.Rows[GraphicsPages.Camera]);
     }
 
     [Fact]
-    public void DisplaysStartUpRowsSitUnderABlankLine() => Assert.Equal([1, 2, 3, 4, 5, 7, 8], GraphicsPages.LinesOf(GraphicsPages.Display));
+    public void DisplaysStartUpRowsSitUnderABlankLine() => Assert.Equal([1, 2, 3, 4, 5, 6, 8, 9], GraphicsPages.LinesOf(GraphicsPages.Display));
 
     [Fact]
     public void EveryPageFitsTheSheetsLines()
@@ -131,7 +126,6 @@ public class GraphicsPagesTests
     [InlineData(GraphicsPages.Sheet)]
     [InlineData(GraphicsPages.Look)]
     [InlineData(GraphicsPages.Display)]
-    [InlineData(GraphicsPages.Camera)]
     public void ResetPutsBackThePagesRowsAlone(int page)
     {
         var s = Changed();

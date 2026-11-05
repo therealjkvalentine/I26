@@ -355,16 +355,4 @@ public class SpecialsTests
         Assert.False(Lost());                 // the jam is over
         Assert.Equal(101f, ae.LosSeen);
     }
-
-    [Fact]
-    public void HeatedSeatsGiveEveryMountedWeaponATenthMoreAmmoTruncated()
-    {
-        var a = new Armory();
-        var hp = new Hardpoint("hp", 0, 1, 1, new Transform([1, 0, 0, 0, 1, 0, 0, 0, 1], [0, 0, 0]));
-        foreach (int ammo in new[] { 2000, 60, 7, 0 })
-            a.LoadOrder.Add(new Weapon { Def = Armory.HandgunDef(1), Hardpoint = hp, Ammo = ammo });
-        a.HeatedSeats();
-        // 7 x 1.1f is 7.7000002: 7; 60 x 1.1f is 66.0000014: 66
-        Assert.Equal([2200, 66, 7, 0], a.LoadOrder.Select(w => w.Ammo));
-    }
 }

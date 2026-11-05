@@ -124,12 +124,20 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         if (!RadarCamera.Remove(me)) RadarCamera.Add(me);
     }
     /// <summary>
-    /// Play Options' Difficulty Level: 0 Wimp, 1 Champion, 2 Badass, any other value read as Champion. The original scales
-    /// the player's rounds and flame by ×2.0 / ×1.0 / ×0.75, never the .45, and only off the network (<see cref="DifficultyFactor"/>).
-    /// The game sets it from the settings at each mission start and when the Esc menu closes.
+    /// The difficulty (Play Options' Difficulty Level: 0 Wimp, 1 Champion, 2 Badass), the factor on the player's own rounds
+    /// and flame (<see cref="DifficultyFactor"/>). The game sets it from the settings at the mission's start, on resuming from
+    /// the pad and over a checkpoint's copy.
     /// </summary>
     public int Difficulty { get; set; } = 1;
-    /// <summary>The difficulty's damage factor on what <paramref name="shooter"/> fires (<see cref="Difficulty"/>; the .45 is the caller's test).</summary>
+
+    /// <summary>A network game, melee or co-op, server or client: the difficulty's factor is 1 there.</summary>
+    public bool NetworkGame => NetSession || RemoteSim || World.Coop;
+
+    /// <summary>
+    /// The factor on a round's or a flame's damage by its shooter: a human's ×2.0 at Wimp, ×1.0 at Champion, ×0.75 at
+    /// Badass; anyone else's, and everyone's in a <see cref="NetworkGame"/> (the original applies it outside a network
+    /// session only), ×1.
+    /// </summary>
     public float DifficultyFactor(Vehicle shooter) =>
         NetworkGame || !World.IsHuman(shooter) ? 1f : Difficulty switch { 0 => 2f, 2 => 0.75f, _ => 1f };
     public bool UnlimitedAmmo { get; set; }
@@ -294,8 +302,6 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public bool MeleeActive { get; set; }
     /// <summary>A network session. E may pick team 0 only then; every car's radar fills its own arcs.</summary>
     public bool NetSession { get; set; }
-    /// <summary>A network game of either kind: a network melee (<see cref="NetSession"/>) or online co-op (<see cref="SimWorld.Coop"/>).</summary>
-    public bool NetworkGame => NetSession || World.Coop;
     /// <summary>
     /// A network melee without team play: every car is its own side for the radar's T and E. Everyone there is on
     /// team 0 (the humans and the AI fill alike), and the team test alone made no car a candidate for anyone.
@@ -1498,9 +1504,13 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         return (enter, v.Rot.ToWorld(n));
     }
 
-    /// <summary>The collider record's sphere: the box's middle, radius the farthest corner of {x0,x3}×{y1,y3}×{z0,z3} + 0.1.</summary>
+    /// <summary>
+    /// The collider record's sphere: an aircraft's from its model (<see cref="Vehicle.ModelSphere"/>); else the box's
+    /// middle, radius the farthest corner of {x0,x3}×{y1,y3}×{z0,z3} + 0.1.
+    /// </summary>
     public static (Vector3 Centre, float Radius) Collider(Vehicle v)
     {
+        if (v.ModelSphere is { } m) return (v.Pos.ToVector3() + v.Rot.ToWorld(m.Centre), m.Radius);
         var mid = ColliderMid(v);
         float r = 0;
         // the eight corners (no arrays: this runs for every round against every car each frame)
@@ -1509,7 +1519,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         return (v.Pos.ToVector3() + v.Rot.ToWorld(mid), r + 0.1f);
     }
 
-    private static Vector3 ColliderMid(Vehicle v) => new((v.BoxX[0] + v.BoxX[3]) / 2, (v.BoxY[1] + v.BoxY[3]) / 2, (v.BoxZ[0] + v.BoxZ[3]) / 2);
+    private static Vector3 ColliderMid(Vehicle v) =>
+        v.ModelSphere?.Centre ?? new((v.BoxX[0] + v.BoxX[3]) / 2, (v.BoxY[1] + v.BoxY[3]) / 2, (v.BoxZ[0] + v.BoxZ[3]) / 2);
 
     /// <summary>The collider's centre alone (<see cref="Collider"/>'s, without the radius).</summary>
     public static Vector3 ColliderCentre(Vehicle v) => v.Pos.ToVector3() + v.Rot.ToWorld(ColliderMid(v));

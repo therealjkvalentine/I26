@@ -795,6 +795,87 @@ of us: none. Deployed 3f58a55 to the laptop, James's Mac, Michael's and Andrew's
 One branch as manifest section R (row I93): the pack tool's family table and alpha step (tool and docs only; the rebuilt
 packs are user data, already installed).
 
+## Integration notes — pass 19 reconcile (2026-11-05)
+
+Upstream master 8edea2a (39 commits over play's base 32988ae) merged into `play` (f8022fc) as one `--no-ff` merge on
+branch `play-reconcile`, resolved by hand (rerere recorded every file). Nothing pushed; `play` itself unchanged.
+
+**Absorbed by upstream, dropped from the stack** (upstream's code taken, ours removed):
+- fix/difficulty-damage → be3d718. `ShellSettings.ApplyTo` and `Combat.NetworkGame` (which counts `RemoteSim`) are
+  upstream's; our duplicate `NetworkGame` is gone; `PlayOptionsCombat.Apply` now calls `ApplyTo` and adds only Unlim.
+  Ordnance; `PlayOptionsCombatTests` removed (upstream's `PlayOptionsSimTests`); `DifficultyDamageTests` kept (handgun
+  and flame cases upstream's tests do not have).
+- fix/heated-seats-ammo → a99303d (`Specials.AtLoad`). `Armory.HeatedSeats` and its SpecialsTests case removed.
+- fix/editor-tool-column-scroll → e1926cc. `EditorStyle.ColumnHeight`, our ScrollContainer and `EditorToolColumnTests` removed.
+- fix/macos-mic-opened-on-first-cb → 0f2ebef + 692c9c8. CbVoice, project.godot (`enable_input=false`) and the CB doc
+  paragraph are upstream's; the CHANGELOG's macOS-microphone bullet removed.
+
+**Superseded by upstream** (upstream does the job; ours removed):
+- feat/host-form-redesign, fix/host-form-polish, and fix/shell-layout-2's arena-scrap move → 56373bd (the base host form
+  drawn by the port as a ruled sheet). Gone: our options box (`HostBox`, `BakeBox`, `CoopHot`, `HostBoxHotspots`), the arena
+  sketch scrap, the rule tips, the arena list's bar. Kept on top of upstream's sheet: Ignition Lock (id 39) and Handicaps
+  (43) in the left table's spare rows, and on the co-op form Co-op Scaling, Co-op Damage, Rolling Start (40-42); the build
+  line (`DrawBuild`) over the drawn sheet and the Nitro form. fix/shell-layout-2's bookmark Delete move stays.
+- perf/horizon-early-z → 8625cce + 798c651 (judgment call). Upstream's outside ground rewrote HorizonTerrain and the ring's
+  shader include; its near chunks take early depth rejection, but the ring itself still writes DEPTH on every path. Taken:
+  upstream's horizon_terrain.gdshader/.gdshaderinc, HorizonTerrain.cs and HorizonEdgeTests; horizon_rim.gdshader removed.
+  Re-applied: our `haze_gain` (the modern-colours branch) in the include, a `HorizonTerrain.Set` helper (the material only),
+  and ApplySky gives `OutsideTerrain.Modern` the ring's material again so the near chunks get the new haze gain.
+  Alternative not taken: port the main/rim split onto upstream's `HORIZON_RING` path (it measured 2.8 ms of 10.4 on T01 at
+  3440x1440); a perf lane can redo it on upstream's include.
+
+**Combined (ours kept on top of upstream's structure)**:
+- Play Options: upstream's scrolling list (46924ca, d68c2ed), its eleven rows first, then ours (Unlim. Ordnance, Head
+  Tracking, Head Track Sens., Rumble Strength, Melee A.I., Wheel Strength); Force Feedback is our value row (Off / Pad /
+  Pad Enhanced / Wheel). ScrollRowsTests' order test lists the seventeen.
+- Graphic Detail: our pages (feat/graphics-pages-3) kept; the mouse rows (Mouse Camera, Camera Return, View Zoom Reset,
+  Mouse In Window) removed from the Camera page, the enum, `GraphicsPages.Copy`, the shell sheet and the Esc pad, since
+  upstream's Mouse Options (7c3dbe8) has them. The Camera page now holds Field of View alone (alternative: fold it into
+  Display and drop the page; not done, to keep the graphics-defaults lane's merge small).
+- fix/mouse-in-window-menus (#147): `CursorPolicy` keeps the menus' Confined mode alongside upstream's cockpit capture;
+  Main's call keeps the network standings' pointer and upstream's Cockpit Mouse Look.
+- Control Configuration: upstream's Mouse Options entry sits one row lower, under our Pistol Left / Right (`MouseRow`).
+- ChaseCamera: upstream's `ChaseOrbit`; our `DeathOrbit` (renamed `_death`) and `ViewFov.Main`.
+- Cockpit reticle: ours (Field of View) with upstream's non-null `tex`. SmokeLayer: ours (the cached uniform set).
+- MouseLook: upstream's sensitivity API with our `*` marks on the legacy names.
+- Salvage: ours (a superset of 9be3ffc: specials at 1, and the tier table's stop).
+- VehicleFactory / MissionSetup: upstream's `specials:` parameter and `ModelSphere`; our `HeliStep.Setup(..., network)`.
+- MeleeSave / JumpLinks.cs: upstream's revert of the bots' ramp jumps (f8db1bb) taken, JumpLinks deleted (ours only had the
+  `Rough(v, surface, dt)` signature); the CHANGELOG's "Bots use ramps" bullet removed. Nothing of ours stacks on f2ac22c.
+- CombatView's line mesh goes through `MeshArrays.AddSurfaceArrays` (upstream 4acee3e's stress test).
+
+**Formats**: protocol 28 = upstream's 22 (Chase Crosshair online, roster names) on our 27. `JoinAccept`: ours (ignition,
+handicaps, build) then the crosshair byte (read when present). The session answer's tail: ignition, build, crosshair,
+arena name, then (after the tail) each driver's make and model. A play client and an upstream server refuse each other by
+version (`protocol 28; this server speaks 22`). Snapshot stays 25 (upstream did not bump its 15). Re-pinned: WireTests
+(`TheProtocolIs28`, the tail cuts), DiscoveryTests, PasswordTests, BuildIdTests.
+
+**Conflict files and how each went**: CHANGELOG.md (ours, plus the reconcile line, protocol 28, stale bullets edited);
+docs/dev-hooks.md, docs/playing.md (both, word-merged); docs/deviations.md (both; Graphic Detail and Play Options rows
+rewritten for the merge; Specials upstream's); docs/multiplayer.md (host-form paragraphs upstream's, our rows added; CB
+microphone upstream's; protocol 28 noted); InstallLocator.cs, MainNet.cs, ShellFrame.cs, Shell.cs (both); Main.cs
+(combined: ApplyPlayOptions, cursor, Far + sky scroll; the horizon setup upstream's); ChaseCamera.cs (combined);
+MapEditorUi.cs, CbVoice.cs, project.godot (upstream); ControlsScreen.cs (combined); MeleeScreen.cs, NetForms.cs (upstream's
+drawn host + ours: roster CONNECT TO SERVER 38 in mode 8, ignition/handicap/co-op handlers, the crosshair toggle);
+Overlays.cs (Play Options combined, Graphic Detail ours less the mouse rows); Cockpit.cs, SmokeLayer.cs (ours);
+EscapeMenu.cs (ours less the mouse rows); horizon_terrain.gdshader/.gdshaderinc, HorizonEdgeTests.cs (upstream);
+Discovery.cs, InputQueue.cs, Protocol.cs, MeleeHost.cs, tools/I76.Server/Program.cs (combined); MissionSetup.cs, MeleeSave.cs
+(combined); JumpLinks.cs (deleted); Salvage.cs (ours); VehicleFactory.cs (upstream); CursorPolicy.cs, MouseLook.cs
+(combined); Combat.cs (upstream's difficulty, our impact helpers); Combat.Droppers.cs (ours on the shared factor);
+HostFormLayoutTests.cs (upstream's plus our ids; spare left rows 4 → 3); DiscoveryTests, PasswordTests, WireTests (re-pinned).
+
+**A future rebuild must redo**: the Play Options rows of feat/head-tracking, rumble strength, feat/bot-skill-from-difficulty,
+the ordnance and wheel-strength branches as rows of upstream's list (they were page-2 placements); the host-rule branches
+(ignition lock, handicaps, co-op scaling/damage/rolling start) as HostFormLayout rows; feat/graphics-submenus /
+graphics-pages-3 without the mouse rows; fix/mouse-in-window-menus against upstream's CursorPolicy; the death orbit
+(fix/death-camera-orbit-rate) on upstream's ChaseCamera; feat/net-* protocol numbers counted from upstream's 22 (play's 28);
+`HorizonTerrain.Set` and `haze_gain` on upstream's include; CombatView's `MeshArrays` call. Manifest edits:
+`_scratch/r3-reconcile/play-branches.patch` (not yet on play-meta).
+
+**Tests** on ff27ef1, desktop, I76_INSTALL set, against f8022fc built and run the same way: Sim 1154 passed / 29 failed, the same 29 names as f8022fc's (1041 / 29); Game 390 / 1, the one RoadPieceTypeTests.EveryStockPieceIsStillPainted (upstream's new test counts 392 stock pieces; this install's addon folder holds co-op pack levels, 639; not in f8022fc); Net 454 / 18 against f8022fc's 447 / 20: gone BotJumpTests x2 (reverted upstream) and AnetPunchTests x2 (fixed upstream 4e9a234), new CoopNetTests.EightPlayersShareAStoryMission (passes alone) and PredictionTests' laggy link at 50 ms (Load=Sensitive, fails alone on f8022fc too); Formats 1011 / 4, the desktop's four path and parallel-build failures, as f8022fc. Without I76_INSTALL: Game 363 / 0, Sim 1187 / 0, Net 472 / 0.
+
+**Smoke run** (Godot 4.7.2, 1280x960, `_scratch/r3-reconcile/*.jpg`): the shell's Graphic Detail sheet and its Look, Display and Camera pages, Mouse Options, Control Configuration, Play Options (top and scrolled to the end), the base host form (drawn sheet with Ignition Lock and Handicaps) and the Nitro host form, each in both looks; T01 starts; T05 and M01 at the map's edge (the ground runs on past it in both looks; `I76_CAP_CAM` did not move the cockpit view, so these are from the car). No exception in any log (only the fresh worktree's missing boot_splash import). The Hide Map Edge Cliffs row was already gone (remove/map-edge-cliffs); upstream's outside ground is the answer. Control Configuration's Mouse Options row sits on the last ruled line, just over the button bar.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.

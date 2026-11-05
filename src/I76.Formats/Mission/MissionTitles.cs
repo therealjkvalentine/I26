@@ -152,6 +152,19 @@ public static class MissionTitles
     /// <summary>"Scene 5: Save Taurus": trip mission N as the lists give it.</summary>
     public static string TripTitle(int n) => n >= 1 && n <= SceneNames.Length ? $"Scene {n}: {SceneNames[n - 1]}" : $"Scene {n}";
 
+    /// <summary>
+    /// A melee arena's name as the host forms list it (AREA OF PLAY): the base game's table for its fifteen, else the name in the
+    /// file itself; empty when the install has neither (a custom map it lacks, or one that names nothing).
+    /// </summary>
+    public static string ArenaTitle(GameInstall install, string arena)
+    {
+        string ext = Path.GetExtension(arena), stem = Path.GetFileNameWithoutExtension(arena);
+        if ((ext.Length == 0 || ext.Equals(".msn", StringComparison.OrdinalIgnoreCase))
+            && BaseArenas.FirstOrDefault(a => a.Msn.Equals(stem, StringComparison.OrdinalIgnoreCase)).Name is { } b) return b;
+        try { return FileName(install, arena); }
+        catch (UnauthorizedAccessException) { return ""; }
+    }
+
     /// <summary>The name in the mission file itself (WRLD + 0x143), as the Nitro lobby lists it; empty if none.</summary>
     private static string FileName(GameInstall install, string stem)
     {

@@ -59,8 +59,8 @@ public class BuildIdTests
         var s = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, []).Write(s);
         var bytes = s.ToArray();
-        Assert.Equal("", SessionInfo.TryRead(bytes[..^1])!.Build);     // the empty string's length byte gone: a protocol 25 answer
-        Assert.Equal(27, Protocol.Version);
+        Assert.Equal("", SessionInfo.TryRead(bytes[..^(2 + DiscoveryTests.Names)])!.Build);     // the empty string's length byte gone (and protocol 28's crosshair and names after it): a protocol 25 answer
+        Assert.Equal(28, Protocol.Version);
     }
 
     /// <summary>A joiner on another build is let in, and every player hears it once.</summary>

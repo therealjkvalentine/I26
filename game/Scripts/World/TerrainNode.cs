@@ -133,7 +133,7 @@ public partial class TerrainNode : Node3D
         var origins = ChunkOrigins(world.Terrain);
         var arrays = new (Vector3[], Vector3[], Vector2[], Vector2[], int[])[origins.Count];
         // a playtest of the map editor builds the ground it already built for its editor from the same heights: the arrays are kept for the session
-        string scope = I76.Formats.Vfs.SessionStore.Active ? $"terrain97|{world.Terrain.ContentHash():x}|" : "";
+        string scope = I76.Formats.Vfs.SessionStore.Active ? $"terrain97|{world.Terrain.ContentHash():x}|{world.Outside?.Key ?? "-"}|" : "";
         Parallel.For(0, origins.Count, i =>
         {
             var (x0, z0) = origins[i];
@@ -189,9 +189,10 @@ public partial class TerrainNode : Node3D
         var seeds = TerrainSurface.Seeds(world).ToList();
         var cache = MissionBuilder.HeightCache;
         bool session = I76.Formats.Vfs.SessionStore.Active;
-        string? key = cache is null && !session ? null : TerrainSurface.CacheKey(world.Terrain, seeds);
+        var outside = world.Outside;
+        string? key = cache is null && !session ? null : TerrainSurface.CacheKey(world.Terrain, seeds, outside);
         if (cache is not null && key is not null && cache.Read("surface", key) is { } blobs && TerrainSurface.FromBlobs(blobs) is { } hit) { hit.Key = key; return hit; }
-        var surf = new TerrainSurface(world.Terrain, seeds) { Key = key };
+        var surf = new TerrainSurface(world.Terrain, seeds, outside) { Key = key };
         if (cache is not null && key is not null) MissionBuilder.Background(() => cache.Write("surface", key, surf.ToBlobs()));
         return surf;
     }
@@ -290,12 +291,19 @@ public partial class TerrainNode : Node3D
     /// <summary>The 1997 mesh's arrays for the chunk at (x0, z0): pure CPU, any thread.</summary>
     private sealed record Boxed((Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) A);
 
-    private static (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) FaithfulArrays(MissionWorld w, int x0, int z0)
+    /// <summary>
+    /// The 1997 mesh's arrays for the chunk at sample origin (x0, z0), chunk-local: one vertex per sample, as the engine's terrain is lit.
+    /// Off the map's tiles the outside ground's samples (the simulation's), so a chunk at the map's edge runs into it and a chunk of the
+    /// outside ground (OutsideTerrain) is drawn the same way.
+    /// </summary>
+    internal static (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) FaithfulArrays(MissionWorld w, int x0, int z0)
     {
         int tileX = x0 - x0 % TerrainTiles.Tile, tileZ = z0 - z0 % TerrainTiles.Tile;
+        var outside = w.Outside;
         int Sample(int sx, int sz)
         {
             if (w.Terrain.Sample(sx, sz) is { } v) return v & MissionFile.HeightMask;
+            if (outside is not null) return outside.Raw(sx, sz);
             sx = Math.Clamp(sx, tileX, tileX + TerrainTiles.Tile - 1);
             sz = Math.Clamp(sz, tileZ, tileZ + TerrainTiles.Tile - 1);
             return (w.Terrain.Sample(sx, sz) ?? 0) & MissionFile.HeightMask;
@@ -342,7 +350,7 @@ public partial class TerrainNode : Node3D
 
     private void AddChunk(int x0, int z0, (Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) a)
     {
-        var arrays = new Godot.Collections.Array();
+        using var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
         arrays[(int)Mesh.ArrayType.Vertex] = a.V;
         arrays[(int)Mesh.ArrayType.Normal] = a.N;
@@ -351,7 +359,7 @@ public partial class TerrainNode : Node3D
         arrays[(int)Mesh.ArrayType.Index] = a.I;
         var origin = new Vector3(x0 * SampleSize, 0, -z0 * SampleSize);
         var mesh = new ArrayMesh();
-        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        mesh.AddSurfaceArrays(Mesh.PrimitiveType.Triangles, arrays);
         var modern = Deferred ? null : ModernFor!(x0, z0);
         var mi = new MeshInstance3D { Mesh = mesh, Position = origin, MaterialOverride = modern, Name = $"chunk_{x0}_{z0}", Layers = TerrainLayer };
         AddChild(mi);
@@ -460,7 +468,12 @@ public partial class TerrainNode : Node3D
         {
             if (c.X0 > sx1 + 1 || c.X0 + Chunk < sx0 - 1 || c.Z0 > sz1 + 1 || c.Z0 + Chunk < sz0 - 1) continue;
             if (c.Modern is ShaderMaterial m && m.GetShaderParameter("has_cavity").AsBool())
-                m.SetShaderParameter("cavity_tex", ImageTexture.CreateFromImage(TerrainMaterials.Cavity(world, c.X0, c.Z0)));
+            {
+                // the image held past the call that copies it (an argument's wrapper is the caller's to keep: see MeshArrays)
+                var img = TerrainMaterials.Cavity(world, c.X0, c.Z0);
+                m.SetShaderParameter("cavity_tex", ImageTexture.CreateFromImage(img));
+                GC.KeepAlive(img);
+            }
         }
     }
 
@@ -473,6 +486,7 @@ public partial class TerrainNode : Node3D
     private void PumpEdits()
     {
         if (_world is null) return;
+        MainThread.Check("terrain edits");
         PumpRefresh();
         int stale = _refreshing is not null || _toRefresh is not null ? 1 : 0;
         if (_modern && Surface is { } surf)
@@ -522,12 +536,12 @@ public partial class TerrainNode : Node3D
             for (int i = 0; i < todo.Length; i++)
             {
                 var a = arrays[i];
-                var ar = new Godot.Collections.Array();
+                using var ar = new Godot.Collections.Array();
                 ar.Resize((int)Mesh.ArrayType.Max);
                 ar[(int)Mesh.ArrayType.Vertex] = a.V; ar[(int)Mesh.ArrayType.Normal] = a.N; ar[(int)Mesh.ArrayType.TexUV] = a.Uv;
                 ar[(int)Mesh.ArrayType.TexUV2] = a.Uv2; ar[(int)Mesh.ArrayType.Index] = a.I;
                 todo[i].FaithfulMesh.ClearSurfaces();
-                todo[i].FaithfulMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, ar);
+                todo[i].FaithfulMesh.AddSurfaceArrays(Mesh.PrimitiveType.Triangles, ar);
                 todo[i].FaithfulStale = false;
             }
             stale += _chunks.Count(c => c.FaithfulStale);

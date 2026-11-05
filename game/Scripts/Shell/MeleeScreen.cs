@@ -8,8 +8,9 @@ namespace I76.Game.Shell;
 /// The melee forms:
 /// mode 0 INSTANT MELEE (record 24: an arena and up to seven A.I. drivers),
 /// mode 1 SCENARIO (record 25), and the network melees (NetForms.cs): 3 and
-/// 4 the NET MELEE HOST EVENT FORM (record 19, the LAN and an address), 7
-/// and 8 its ENTRY ROSTER (record 18). The buttons are painted in the art;
+/// 4 the NET MELEE HOST EVENT FORM (record 19, the LAN and an address; the
+/// base game's drawn by the port, HostForm.cs), 7 and 8 its ENTRY ROSTER
+/// (record 18). The buttons are painted in the art;
 /// clicks go through the hotspot table (strict), every handled click plays
 /// record 82, all text is font 0x45, lists show six 17-px rows. The car's
 /// blueprint front and side views come from bank 0x3c.
@@ -33,52 +34,28 @@ public sealed partial class MeleeScreen : ShellScreen
         [5] = (456, 616, 422, 435), [6] = (229, 369, 453, 471), [7] = (12, 165, 44, 58), [8] = (150, 166, 288, 303), [9] = (198, 213, 288, 303),
         [10] = (9, 215, 335, 454), [11] = (31, 216, 150, 270), [12] = (9, 27, 128, 144), [13] = (9, 27, 250, 268), [14] = (173, 213, 46, 57),
         [15] = (489, 630, 453, 471),
-        // the base host form's options box (the port's layout, NetForms.cs HostBox): one box from NO. DRIVERS' foot to the sheet's,
-        // its first line the port's Bots, then the switches as check boxes in two columns, MAX SCORE, and the stepped rules on ruled blanks.
-        // TEAM PLAY, INVITE ONLY, MAX SCORE's box and its ⊟ ⊞ are the original's hotspots 16, 17, 18, 20 and 21, moved with their rows
-        [16] = (12, 102, 373, 387), [17] = (109, 212, 373, 387), [18] = (12, 102, 421, 436),
-        [20] = (111, 123, 422, 435), [21] = (199, 211, 422, 435), [22] = (173, 213, 306, 317),
-        // the port's: SHARE MAPS (docs/multiplayer.md "Custom maps") and HIDDEN CARS (Hidden Weapons & Cars) under them
-        [26] = (12, 102, 387, 401), [28] = (109, 212, 387, 401),
-        // and CAR RESET (the reset-upright key) and CB RADIO (the voice chat)
-        [36] = (12, 102, 401, 415), [37] = (109, 212, 401, 415),
-        // the stepped rules: TURRETS (unlimited roof turrets) and IGNITION (its lock, #108); RATE (the simulation's), HCP (docs/multiplayer.md "Handicaps") and PASS (protocol 12)
-        [35] = (12, 118, 437, 451), [39] = (119, 214, 437, 451),
-        [33] = (12, 89, 452, 467), [43] = (89, 169, 452, 467), [27] = (169, 214, 452, 467),
-        // the port's: BOTS (docs/multiplayer.md "Bots"): fewer, more, the skill, and A.I. CARS (BotCarsPopup) at the line's right end
-        [29] = (48, 61, 357, 370), [30] = (79, 92, 357, 370), [31] = (93, 168, 356, 371), [34] = (169, 215, 356, 371),
-        // the port's: the base host form's game type, the button on the AREA OF PLAY bar's right end (RENAME's look): Melee or Co-op (a co-op game's story missions, docs/multiplayer.md "Co-op over the network")
-        [32] = (173, 213, 78, 89),
+        // (the base game's host form is the port's own sheet, its hotspots HostFormLayout's: 8, 9 and 16..38 there)
         // the port's: the internet roster's CONNECT TO SERVER, under the games' list: the address book again, for another server's games (#122)
         [38] = (31, 196, 290, 305),
-        // the port's: the co-op form's first line in the box, in place of BOTS: Co-op Scaling, Co-op Damage and Rolling Start (docs/deviations.md)
-        [40] = (12, 85, 356, 371), [41] = (85, 152, 356, 371), [42] = (152, 214, 356, 371),
         // the Nitro host form's WEAPON RESTRICTIONS (its own rectangle is NitroHost's)
         [24] = (31, 193, 310, 326),
     };
-    // The ids each mode keeps (the host forms' NO. DRIVERS ⊟ ⊞ moved down to y 338..353)
+    // The ids each mode keeps
     private int[] Live => Mode switch
     {
         0 => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         1 => [0, 1, 2, 3, 4, 5, 6, 7, 14, 15],
         3 or 4 when Nitro => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 22, 23, 24, 25, 27],
-        // a co-op game has no team play, score limit, Bots or custom map to share: the box's rows that are left are INVITE ONLY and the password
-        3 or 4 when _coopBase => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 17, 22, 27, 28, 32, 33, 35, 36, 37, 39, 40, 41, 42, 43],
-        3 or 4 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 43],
+        // the base game's: the drawn form's rows (a co-op game has no team play, score limit, Bots or custom map to share)
+        3 or 4 => [.. HostHot.Keys.Order()],
         8 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 38],
         _ => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15],
     };
-    private (int X0, int X1, int Y0, int Y1) ModeBtn => Hot[32];
-    /// <summary>The co-op form's switches, two rows of the box without TEAM PLAY and SHARE MAPS: INVITE ONLY and HIDDEN CARS, CAR RESET and CB RADIO.</summary>
-    private static readonly Dictionary<int, (int X0, int X1, int Y0, int Y1)> CoopHot = new()
-    {
-        [17] = (12, 102, 373, 387), [28] = (109, 212, 373, 387), [36] = (12, 102, 387, 401), [37] = (109, 212, 387, 401),
-    };
     private (int X0, int X1, int Y0, int Y1) Rect(int id) =>
-        !Nitro && Hosting && _coopBase && CoopHot.TryGetValue(id, out var c) ? c :
+        DrawnHost ? HostHot[id] :
         // Nitro's instant melee table is the base one's but for the driver box, 11..170: the MAKE / MODEL and VARIANT arrows are only the arrows
         Nitro && !Hosting && id == 7 ? Hot[7] with { X0 = 11, X1 = 170 } :
-        Nitro && Hosting && NitroHost.TryGetValue(id, out var r) ? r : Hosting && id is 8 or 9 ? Hot[id] with { Y0 = 338, Y1 = 353 } : Hot[id];
+        Nitro && Hosting && NitroHost.TryGetValue(id, out var r) ? r : Hot[id];
 
     private const int Row = 17, Rows = 6;
     /// <summary>The drivers' box shows seven rows (the original's whole list: the player and seven opponents fill it); I26 allows <see cref="MaxOpponents"/> opponents and scrolls the box.</summary>
@@ -196,11 +173,9 @@ public sealed partial class MeleeScreen : ShellScreen
 
     public override void Repaint()
     {
-        _modeBtnBaked = false;
-        _boxBaked = 0;
-        _art = null;
         _serverBtnBaked = false;
-        if (Nitro && Mode == 0) Frame.LoadBackground(Shell.Db.BackgroundNative(20), 24, 20);   // base 24's art, byte for byte
+        if (DrawnHost) RepaintDrawnHost();
+        else if (Nitro && Mode == 0) Frame.LoadBackground(Shell.Db.BackgroundNative(20), 24, 20);   // base 24's art, byte for byte
         else Frame.LoadBackground(Shell.Db, Mode switch { 0 => 24, 1 => 25, 3 or 4 => 19, _ => 18 });
         Draw();
     }
@@ -209,6 +184,7 @@ public sealed partial class MeleeScreen : ShellScreen
     private void Draw()
     {
         Frame.RestoreAll();
+        if (DrawnHost) { DrawDrawnHost(); DrawBuild(); return; }
         var (name, model, variant) = _slots[_shown];
         int x0 = Mode == 1 ? 40 : 34;
         Frame.Text(_font, 12, 45, _slots[0].Name + (_renaming ? "_" : ""));
@@ -222,9 +198,7 @@ public sealed partial class MeleeScreen : ShellScreen
             DrawListRow(Area, x0, Nitro && Hosting ? 130 : 109);
             for (int k = 0; k < Rows && _scroll + k < ListCount; k++) DrawListRow(_scroll + k, x0, ListRowY(k));
         }
-        if (Nitro && Hosting) DrawNitroHost();
-        else if (Hosting) DrawHost();
-        if (Hosting) DrawBuild();
+        if (Nitro && Hosting) { DrawNitroHost(); DrawBuild(); }
         if (Mode == 1 && Victory.Lightest(MeleeData.Scenarios[Area].Msn) is { } best && best.Model >= 0 && best.Model < _data.Models.Count)
             Frame.Text(_font, 16, 308, _data.Models[best.Model].MakeModel);     // after the art's "Lightest car to win:"
         if (Mode == 0)
@@ -240,8 +214,6 @@ public sealed partial class MeleeScreen : ShellScreen
             Frame.Text(_font, 292, 421, "the story's own");
         }
         else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
-        // the arena's sketch between the car's views, over them (the base host form's; the port's)
-        if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); DrawTip(); }
     }
 
     /// <summary>The car panel the melee and scenario forms share: the blueprint views, the weapons, the make and model, the variant.</summary>
@@ -289,7 +261,8 @@ public sealed partial class MeleeScreen : ShellScreen
             var l = new List<PadRegion>();
             foreach (int id in Live)
             {
-                if (id is 0 or 11)
+                if (id == 11 && DrawnHost) HostListRegions(l);
+                else if (id is 0 or 11)
                 {
                     bool games = Mode is 7 or 8;
                     int rows = games ? ListRows : Rows, y0 = id == 11 ? (games ? (Nitro ? 173 : 151) : 151) : Hot[0].Y0 + 1;
@@ -325,7 +298,6 @@ public sealed partial class MeleeScreen : ShellScreen
         // ⊞ / ⊟ and the list arrows repeat every 100 ms while the button is held
         int held = _hold.Id;
         if (_hold.Update(Shell.MouseHeld, HitId(Shell.Mouse), Shell.Delta) is var reps and > 0) { for (int r = 0; r < reps; r++) Act(held, Shell.Mouse); Draw(); }
-        TipTick();
         if (!Shell.Clicked) return;
         int id = HitId(Shell.Mouse);
         if (id < 0) return;
@@ -461,7 +433,7 @@ public sealed partial class MeleeScreen : ShellScreen
     }
 
     /// <summary>Off the screen (to the chassis form, or for good): the session search stops; it starts again on the way back.</summary>
-    public override void Leave() => StopGames();
+    public override void Leave() { StopGames(); LeaveDrawnHost(); }
 }
 
 /// <summary>
@@ -750,10 +722,10 @@ public sealed class StandingsScreen : ShellScreen
                 {
                     int t = g.Key - 1;
                     lines.Add((true, t >= 0 && t < TeamNames.Length ? TeamNames[t] : "", "", g.Sum(r => r.Deaths), g.Sum(r => r.Kills), g.Sum(r => r.Score)));
-                    foreach (var r in g) lines.Add((false, "  " + r.Driver, Shell.Melee.MakeModelOf(r.Car) ?? "", r.Deaths, r.Kills, r.Score));
+                    foreach (var r in g) lines.Add((false, "  " + r.Driver, Shell.Melee.CarName(r.Car), r.Deaths, r.Kills, r.Score));
                 }
             }
-            else foreach (var r in sorted) lines.Add((false, r.Driver, Shell.Melee.MakeModelOf(r.Car) ?? "", r.Deaths, r.Kills, r.Score));
+            else foreach (var r in sorted) lines.Add((false, r.Driver, Shell.Melee.CarName(r.Car), r.Deaths, r.Kills, r.Score));
         }
         else if (Result is { } m) lines.Add((false, m.Driver, m.Model, m.Deaths, m.Kills, m.Score));
         var f = Shell.Db.Font(0x45);

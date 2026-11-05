@@ -26,6 +26,9 @@ public partial class MapEditor
     private Button _overlayButton = null!;
     private LineEdit _height = null!;
     private Control? _menu, _help, _dialog;
+    /// <summary>The tool column's scroller: a window too short for the column scrolls it (issue 146).</summary>
+    private FitScroll? _toolScroll;
+    private VBoxContainer? _tools;
     private double _toastUntil;
     private bool _syncing;
 
@@ -89,12 +92,12 @@ public partial class MapEditor
         palette.OffsetLeft = 14 * s; palette.OffsetTop = 70 * s;
         palette.AddThemeStyleboxOverride("panel", EditorStyle.Panel(s));
         _root.AddChild(palette);
-        // the column is taller than a 16:9 window: it scrolls (the wheel over it) down to the object tools and undo (#146)
-        var toolScroll = new ScrollContainer { Name = "ToolScroll", HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-        palette.AddChild(toolScroll);
         var tools = new VBoxContainer();
         tools.AddThemeConstantOverride("separation", (int)(6 * s));
-        toolScroll.AddChild(tools);
+        _tools = tools;
+        // the column is taller than a 720 or 768 line window (and 1440 too, at its scale): it scrolls, by the wheel or the bar
+        _toolScroll = EditorStyle.Scrolling(tools, s, 70, 50);
+        palette.AddChild(_toolScroll);
         var tl = new Label { Text = "TERRAIN" };
         EditorStyle.Title(tl, 18 * s);
         tools.AddChild(tl);
@@ -104,7 +107,7 @@ public partial class MapEditor
             var b = EditorStyle.Button(key.Length == 0 ? name : $"{key}   {name}", () => SetTool(kind), s, 22, toggle: true);
             b.ButtonGroup = group; b.TooltipText = tip;
             b.Alignment = HorizontalAlignment.Left;
-            b.CustomMinimumSize = new Vector2(190 * s, 38 * s);
+            b.CustomMinimumSize = new Vector2(EditorStyle.ToolWidth * s, 38 * s);
             // the tool's colour as its brush draws
             b.AddThemeColorOverride("icon_normal_color", ToolColour(kind));
             tools.AddChild(b);
@@ -112,18 +115,16 @@ public partial class MapEditor
         }
         RoadsTool.BuildPalette(tools, s);
         Objects.BuildUi(_root, tools, group, s);
+        PathsTool.BuildPalette(tools, s);
         tools.AddChild(new HSeparator());
         var undoRow = new HBoxContainer();
         undoRow.AddThemeConstantOverride("separation", (int)(6 * s));
         undoRow.AddChild(EditorStyle.Button("UNDO", DoUndo, s, 20));
         undoRow.AddChild(EditorStyle.Button("REDO", DoRedo, s, 20));
         tools.AddChild(undoRow);
-        _undoLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(190 * s, 0) };
+        _undoLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(EditorStyle.ToolWidth * s, 0) };
         EditorStyle.Body(_undoLabel, 14 * s, dim: true);
         tools.AddChild(_undoLabel);
-        void FitTools() => toolScroll.CustomMinimumSize = new Vector2(0, EditorStyle.ColumnHeight(tools.GetCombinedMinimumSize().Y, GetViewport().GetVisibleRect().Size.Y, s));
-        tools.MinimumSizeChanged += FitTools;
-        FitTools();
 
         // ---- the brush settings, right
         var side = new PanelContainer { Name = "Brush" };
@@ -134,7 +135,7 @@ public partial class MapEditor
         Objects.SetBrushPanel(side);
         var bx = new VBoxContainer { CustomMinimumSize = new Vector2(260 * s, 0) };
         bx.AddThemeConstantOverride("separation", (int)(6 * s));
-        side.AddChild(bx);
+        side.AddChild(EditorStyle.Scrolling(bx, s, 70, 50));
         var bl = new Label { Text = "BRUSH" };
         EditorStyle.Title(bl, 18 * s);
         bx.AddChild(bl);
@@ -215,6 +216,7 @@ public partial class MapEditor
         bx.AddChild(sh); _surfaceOnly.Add(sh);
 
         RoadsTool.BuildPanel(_root, s, side);
+        PathsTool.BuildPanel(_root, s, side);
 
         // ---- the status bar
         var sb = new PanelContainer { Name = "Status" };
@@ -242,10 +244,13 @@ public partial class MapEditor
     }
 
     /// <summary>The road tool changed mode: the widgets follow.</summary>
-    public void RoadToolChanged() { if (RoadsTool.Active) Objects.Deactivate(); SyncUi(); }
+    public void RoadToolChanged() { if (RoadsTool.Active) { Objects.Deactivate(); PathsTool.Deactivate(); } SyncUi(); }
 
-    /// <summary>An object tool came on or off: the road tool gives way, the widgets follow.</summary>
-    public void ObjectToolChanged() { if (Objects.Active) RoadsTool.Deactivate(); SyncUi(); }
+    /// <summary>An object tool came on or off: the road and path tools give way, the widgets follow.</summary>
+    public void ObjectToolChanged() { if (Objects.Active) { RoadsTool.Deactivate(); PathsTool.Deactivate(); } SyncUi(); }
+
+    /// <summary>The path tool came on or off: the road and object tools give way, the widgets follow.</summary>
+    public void PathToolChanged() { if (PathsTool.Active) { RoadsTool.Deactivate(); Objects.Deactivate(); } SyncUi(); }
 
     private MapLookPanel? _style;
 
@@ -287,9 +292,10 @@ public partial class MapEditor
         _strength.SetValueNoSignal(Brush.Strength * 100);
         _radiusLabel.Text = $"RADIUS   {Brush.Radius:0} m     [ ]";
         _strengthLabel.Text = $"STRENGTH   {Brush.Strength * 100:0}%     Shift+[ ]";
-        foreach (var (k, b) in _toolButtons) b.SetPressedNoSignal(k == Brush.Kind && !RoadsTool.Active && !Objects.Active);
+        foreach (var (k, b) in _toolButtons) b.SetPressedNoSignal(k == Brush.Kind && !RoadsTool.Active && !Objects.Active && !PathsTool.Active);
         RoadsTool.SyncPanel();
         Objects.KeepBrushPanelAway();
+        PathsTool.SyncPanel();
         foreach (var (f, b) in _falloffButtons) b.SetPressedNoSignal(f == Brush.Falloff);
         bool surface = Brush.Kind == BrushKind.Surface;
         foreach (var c in _heightOnly) c.Visible = !surface;
@@ -298,7 +304,17 @@ public partial class MapEditor
         _overlayButton.SetPressedNoSignal(_overlayOn);
         if (!_height.HasFocus()) _height.Text = Brush.TargetHeight.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
         _syncing = false;
+        ShowPressedTool();
     }
+
+    /// <summary>A tool chosen by its key while its button is scrolled out of sight: the column scrolls to it.</summary>
+    private void ShowPressedTool() => Callable.From(() =>
+    {
+        // after the tools have set their buttons (the object tools set theirs after this)
+        if (_toolScroll is null || _tools is null || !IsInstanceValid(_toolScroll) || !IsInstanceValid(_tools)) return;
+        foreach (var c in _tools.GetChildren())
+            if (c is Button { ToggleMode: true, ButtonPressed: true } b) { _toolScroll.Show(b); return; }
+    }).CallDeferred();
 
     public void Toast(string text, bool error = false)
     {
@@ -319,6 +335,8 @@ public partial class MapEditor
         string ground = _hit is { } h ? $"{h.Y:0.0} m   at {h.X:0}, {h.Z:0}" : "no ground";
         if (RoadsTool.Active)
             _status.Text = $"ROAD {RoadsTool.Mode.ToString().ToUpperInvariant()}    {RoadsTool.Hint}    |    ground {ground}    |    {Engine.GetFramesPerSecond()} fps";
+        else if (PathsTool.Active)
+            _status.Text = PathsTool.StatusText(_hit) + $"    |    {Engine.GetFramesPerSecond()} fps";
         else
         {
         var tool = Tools.First(t => t.Kind == Brush.Kind).Name;
@@ -411,7 +429,8 @@ public partial class MapEditor
         _modal = true;
     }
 
-    private void Confirm(string text, Action yes)
+    /// <summary>A question over the editor with YES and CANCEL (a deletion asks first).</summary>
+    public void Confirm(string text, Action yes)
     {
         CloseModal();
         float s = _s;
@@ -459,6 +478,8 @@ public partial class MapEditor
         ("Drag, Alt+drag", "Objects: move the selection; copy it"),
         ("Del  Ctrl+C  Ctrl+V", "Objects: bulldoze; copy; paste"),
         ("N   L   T", "Objects: snap (roads, grid, off; Alt: off while held); level the ground under a building; team or finish line"),
+        ("-   =", "Path tool: edit paths (select, drag points); draw a new path (click its points; Enter, a right click or a double click finishes)"),
+        ("Paths, edit", "Double-click a path's line or Insert adds a point, Delete removes the selected point (or asks to delete the path), Esc deselects"),
         ("Ctrl+Z", "Undo a stroke, a road or an object edit"),
         ("Ctrl+Y, Ctrl+Shift+Z", "Redo"),
         ("Ctrl+S", "Save (a stock map asks for a new name: it is copied to addon)"),
@@ -486,7 +507,9 @@ public partial class MapEditor
         holder.AddChild(new ColorRect { Color = new Color(0, 0, 0, 0.5f), AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
         var panel = new PanelContainer { AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f, GrowHorizontal = Control.GrowDirection.Both, GrowVertical = Control.GrowDirection.Both };
         panel.AddThemeStyleboxOverride("panel", EditorStyle.Panel(s));
-        var box = new VBoxContainer { CustomMinimumSize = new Vector2(860 * s, 0) };
+        // as wide as the window lets it be (the descriptions wrap), and the rows scroll when the window is short (1280x720)
+        float boxW = Math.Min(860 * s, GetViewport().GetVisibleRect().Size.X - 70 * s);
+        var box = new VBoxContainer { CustomMinimumSize = new Vector2(boxW, 0) };
         box.AddThemeConstantOverride("separation", (int)(5 * s));
         var t = new Label { Text = "MAP EDITOR KEYS" };
         EditorStyle.Title(t, 30 * s);
@@ -498,11 +521,11 @@ public partial class MapEditor
         {
             var kl = new Label { Text = k, CustomMinimumSize = new Vector2(290 * s, 0) };
             EditorStyle.Body(kl, 17 * s, colour: HudStyle.Amber);
-            var wl = new Label { Text = w };
+            var wl = new Label { Text = w, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(boxW - (290 + 26 + 16) * s, 0) };
             EditorStyle.Body(wl, 17 * s);
             grid.AddChild(kl); grid.AddChild(wl);
         }
-        box.AddChild(grid);
+        box.AddChild(EditorStyle.Scrolling(grid, s, 70, 70));
         var foot = new Label { Text = "Press F1 or Esc to close." };
         EditorStyle.Body(foot, 15 * s, dim: true);
         box.AddChild(foot);

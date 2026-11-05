@@ -64,6 +64,8 @@ public class ControlsScreen : OverlayScreen
 
     /// <summary>The left's spare ruled rows: the hint, then the port's game keys (<see cref="RightGameKeys"/> on), then <see cref="PortRows"/>.</summary>
     private static int PortRowAt(int k) => LeftRows.Length + HintName.Length + (GameKeyMap.Rebindable.Length - RightGameKeys) + k;
+    /// <summary>Upstream's Mouse Options entry: the left's ruled row after <see cref="PortRows"/>.</summary>
+    private static int MouseRow => PortRowAt(PortRows.Length);
 
     /// <summary>Record 16's painted command names and their ink boxes (x, y, w, h).</summary>
     internal static readonly (string Text, int X, int Y, int W, int H)[] Names =
@@ -85,6 +87,8 @@ public class ControlsScreen : OverlayScreen
     protected override void Build()
     {
         _f = Shell.Db.Font(0x44);
+        int mouseY = 47 + MouseRow * RowH;
+        Add(35, mouseY, () => "", () => { _carried = _keys; Shell.Overlay(new MouseOptionsScreen(_map) { ReturnToControls = true }); }, w: 277, h: 12);
         // the buttons are in the art, y 450..469
         Add(9, 450, () => "", () => { _carried = _keys; Shell.Overlay(Controls.PrimaryIsGeneric ? new JoystickScreen(_map) : new ControllerScreen(_map)); }, w: 138, h: 19);       // Calibrate: the port's controller screen
         Add(168, 450, () => "", () => { _map.ResetSide(Controls.KeyboardDefaults(), false); _keys = GameKeys.Stock(); Redraw(); }, w: 140, h: 19);    // Restore: the keys and mouse only
@@ -144,6 +148,10 @@ public class ControlsScreen : OverlayScreen
             Frame.Text(_f, 40, y, Fit(PortRows[k].Name, NameW), ShellFrame.OverlayInk);
             Frame.Text(_f, 190, y, Fit(Binding(PortRows[k].Entry), LeftBindW), ShellFrame.OverlayInk);
         }
+        // upstream's Mouse Options entry, on the left's next spare ruled row under the port's commands (upstream has it where Pistol Right is)
+        int mouseY = 47 + MouseRow * RowH;
+        Frame.Text(_f, 40, mouseY, Fit("Mouse Options", NameW), ShellFrame.OverlayInk);
+        Frame.Text(_f, 190, mouseY, Fit("Configure", LeftBindW), ShellFrame.OverlayInk);
         if (Shell.Upscaled)
             foreach (var (text, x, y, w, h) in Names) Frame.Caption(new Rect2I(x, y, w, h), text, 213);
         for (int k = 0; k < LeftRows.Length; k++) Frame.Text(_f, 190, 47 + k * RowH, Fit(Binding(LeftRows[k]), LeftBindW), ShellFrame.OverlayInk);

@@ -205,6 +205,8 @@ public partial class Main : Node3D
     {
         I76.Game.Editor.SwitchTimer.Mark("scene ready");
         HeapTrim.Configure();
+        GcStress.Install();
+        MainThread.Mark();
         if (!I76.Game.Editor.EditorSession.Active) Stash.Drop();   // no editor session: nothing to wait for
         LogFile.InstallForced();
         VramWatch.Install(GetTree());   // --log / I76_LOG=1: the log file even where the setting is off
@@ -468,7 +470,7 @@ public partial class Main : Node3D
             MissionBuilder.Trace("damage view prewarmed");
             if (_builder.Scenery is { } sc) sc.Markers.Visible = false;   // the original draws no marker for its keywords
         }
-        if (_editorMode && _builder?.World is not null) StartEditor();
+        if (_editorMode && _builder?.World is not null) { StartEditor(); StartRingBuild(); }
         // From the menu the scene is rebuilt after the frame's _Process calls and that frame is still
         // drawn, so tick 0 and the camera choice happen here, or the chase view flashes before a cut-scene.
         if (_sim is not null)
@@ -714,11 +716,12 @@ public partial class Main : Node3D
         I76.Game.ForceFeedback.Enabled = s.ForceFeedback;
         I76.Game.ForceFeedback.Mode = s.RumbleMode;
         I76.Game.ForceFeedback.PadStrength = s.RumbleStrength;
+        I76.Game.Ui.ChaseCrosshair.Enabled = s.ChaseCrosshair;
         I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended;
         I76.Game.BassShaker.Held = I76.Game.ForceFeedback.Held;
         // Modern Physics, flipped from Play Options as by F7 (EnableModern keeps a network session on the original's)
         if (_modernSetup is not null && s.ModernPhysics != (_modern?.Enabled == true)) EnableModern(s.ModernPhysics);
-        // the cheats (Unlim. Ammo / Armor / Chas. Rein.) and the Difficulty Level
+        // the cheats (Unlim. Ammo / Armor / Chas. Rein.), the Difficulty Level (upstream's ShellSettings.ApplyTo) and Unlim. Ordnance
         if (_sim?.Combat is { } c) PlayOptionsCombat.Apply(s, c);
         // the rules that differ between the original's builds, user://build-rules.cfg (the 1998 build's by default)
         if (_sim?.Combat is { } bc) I76.Game.Shell.BuildRules.Load().Apply(bc, _sim.Script?.Host);
@@ -1513,7 +1516,7 @@ public partial class Main : Node3D
         var wiggle = new Wiggle { Name = "Wiggle", InCockpit = () => _car?.CockpitCamera?.Current == true, Player = () => _car?.Sim };
         AddChild(wiggle);
         if (combat.Damage is I76.Sim.Damage.DamageModel wdm) wdm.Damaging += wiggle.Damaging;
-        AddChild(new Hud { Car = () => _car?.Sim, Debug = () => _overlay?.Visible == true, Combat = combat, Origin = () => _origin, CarOf = v => _carNodes.GetValueOrDefault(v), InCockpit = () => _car?.CockpitCamera?.Current == true, ExtInstruments = () => _extInstruments, Pit = () => _pit, Cutscene = () => _scriptCam?.Current == true, Transmitting = () => _netHud?.CbTransmitting == true, Script = _script, Objectives = _objectives, Name = "Hud", Visible = System.Environment.GetEnvironmentVariable("I76_NO_OVERLAY") != "1",
+        AddChild(new Hud { Car = () => _car?.Sim, Debug = () => _overlay?.Visible == true, Combat = combat, Origin = () => _origin, CarOf = v => _carNodes.GetValueOrDefault(v), InCockpit = () => _car?.CockpitCamera?.Current == true, ExtInstruments = () => _extInstruments, Pit = () => _pit, Cutscene = () => _scriptCam?.Current == true, Transmitting = () => _netHud?.CbTransmitting == true, Network = () => _net is not null, HostAllowsCrosshair = () => _net?.Client.CrosshairAllowed == true, Script = _script, Objectives = _objectives, Name = "Hud", Visible = System.Environment.GetEnvironmentVariable("I76_NO_OVERLAY") != "1",
             Texture = n => _builder?.Resolver?.FindByStem(n) is { } m ? _builder.Textures?.Get(m)?.Texture : null, Faithful = () => _mode1997, Palette = _builder?.ActPalette, Variant = DriverVariant(), ReadFile = n => _builder?.Vfs.TryRead(n) });
         AddMirrorTarget(combat);
         // a mission (or, with View Zoom Reset, a respawn) starts every view at the original's framing
@@ -2086,6 +2089,8 @@ public partial class Main : Node3D
                 m?.SetShaderParameter("radiance_chroma", (float)RadianceChroma(_lighting));
             }
             if (_horizon?.Material is not null) { _horizon.Set("horizon_color", sc.Horizon); _horizon.Set("haze_gain", card ? sc.Gain * back : 1f); }
+            // (and the ground past the map near the camera, whose material copies the ring's parameters when given it)
+            if (_horizon?.Material is not null && _builder?.OutsideNode is { Modern: not null } outside) outside.Modern = _horizon.Material;
         }
         RenderingServer.GlobalShaderParameterSet("i76_ground_tint", new Vector3((float)c.GroundTint.R, (float)c.GroundTint.G, (float)c.GroundTint.B));
         RenderingServer.GlobalShaderParameterSet("i76_object_tint", new Vector3((float)c.ObjectTint.R, (float)c.ObjectTint.G, (float)c.ObjectTint.B));
@@ -2213,22 +2218,17 @@ public partial class Main : Node3D
     private bool _horizonEyeSet;
 
     /// <summary>
-    /// Fixes the 3D horizon ring's sink for the mission at a reference eye over the map's centre, at the map's average
-    /// ground height plus the chase eye's few metres: the original moves its ring with the eye's height (foot 10.2 x camY
-    /// below it), the modern look keeps one height for the mission. Once; nothing follows the camera after.
+    /// The 3D horizon ring's debug hooks, once it is in the scene. Its sinking for the mission (the original moves its ring with the eye's
+    /// height, foot 10.2 x camY below it; the modern look keeps one height for the mission, HorizonEdge.Ring) is in its heights already
+    /// (OutsideGround): nothing follows the camera.
     /// </summary>
     private void SetHorizonEye()
     {
-        if (_horizonEyeSet || _horizon?.Material is null || _builder?.World is not { } world) return;
+        if (_horizonEyeSet || _horizon?.Material is not { } m || _builder?.World is not { } world) return;
         _horizonEyeSet = true;
-        var (low, eyeY) = I76.Formats.Assembly.HorizonEdge.Ring(world);   // one height for the map (HorizonEdge.Ring)
-        _horizon.Set("ref_eye", new Vector3(0, eyeY, 0));
-        _horizon.Set("sink_low", low);
-        float footK = -I76.Formats.Mission.Lighting.HorizonFoot(1f) / I76.Formats.Mission.HorizonList.Radius;
-        _horizon.Set("foot_k", footK);
-        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") _horizon.Set("debug_tint", 1f);
-        _horizon.FitCullBounds(eyeY, footK, low);   // the sunk ring's own bounds, or chunks are culled that are in view
-        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_DEBUG") == "1") GD.Print($"horizon: ring sunk for an eye at game height {eyeY:0.0} (the map's average ground + 3)");
+        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_TINT") == "1") m.SetShaderParameter("debug_tint", 1f);
+        if (System.Environment.GetEnvironmentVariable("I76_HORIZON_DEBUG") == "1" && world.Outside is { } o)
+            GD.Print($"horizon: ring sunk for an eye at game height {o.Sink.EyeY:0.0} (counted from {o.Sink.Low:0.0})");
     }
 
     /// <summary>The finished ring into the scene, and the sky told it is there.</summary>
@@ -2242,7 +2242,9 @@ public partial class Main : Node3D
         foreach (var p in new[] { "horizon_color", "sprite_dir", "light_strength" })
             _horizon.Set(p, sky.GetShaderParameter(p));
         // night air: the dark rock shows as silhouettes against the sky, as the night panels drew it
-        if (!light.IsDay) _horizon.Set("haze_reach", 20000f);
+        if (!light.IsDay) _horizon.Material.SetShaderParameter("haze_reach", 20000f);
+        // the ground past the map near the camera: the ring's shading, its parameters as now set
+        if (_builder?.OutsideNode is { } outside) { outside.Ring = _horizon; outside.Modern = _horizon.Material; }
         // out of view, but still in the sky's light: the ring is lit by it as the panels' scene was (sky_modern.gdshaderinc)
         sky.SetShaderParameter("horizon_light", sky.GetShaderParameter("has_horizon"));
         sky.SetShaderParameter("has_horizon", false);
@@ -2280,7 +2282,19 @@ public partial class Main : Node3D
     private IEnumerable<object?> ModernJob()
     {
         foreach (var step in _builder!.ModernSteps()) yield return step;
-        if (_horizonSky is not { } sky || _builder.World is not { } world) yield break;
+        // the ring: the map editor's 1997 view may have it already, or be making it (StartRingBuild), which this job then finishes
+        if (_ringJob is { } ring)
+        {
+            _ringJob = null;
+            while (ring.MoveNext()) yield return ring.Current;
+        }
+        else if (_horizon is null) foreach (var step in RingJob()) yield return step;
+    }
+
+    /// <summary>The distant ring for a mission that started in the 1997 look (it waits for the modern look otherwise): its heights off the main thread, its meshes a few a frame.</summary>
+    private IEnumerable<object?> RingJob()
+    {
+        if (_horizonSky is not { } sky || _builder?.World is not { } world) yield break;
         var light = _horizonLight;
         var ground = new Color(0.5f, 0.32f, 0.2f);
         if (_builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>() is { } gt && gt.GetImage() is { } gi)
@@ -2303,6 +2317,39 @@ public partial class Main : Node3D
         _horizon?.QueueFree();
         _horizon = h;
         PlaceHorizon(sky, light);
+    }
+
+    private IEnumerator<object?>? _ringJob;
+    private System.Threading.Tasks.Task? _ringWait;
+
+    /// <summary>
+    /// The map editor's own view started in the 1997 look: the ring is made now, in the background (as the modern look's build would, a
+    /// couple of milliseconds a frame), as that view draws it too (ApplyEditorOutside).
+    /// </summary>
+    private void StartRingBuild()
+    {
+        if (!_editorMode || _ringJob is not null || _horizon is not null || _horizonSky is null || _builder is not { DeferModern: true }) return;
+        _ringJob = RingJob().GetEnumerator();
+    }
+
+    private void PumpRingBuild()
+    {
+        if (_ringJob is null || _ringWait is { IsCompleted: false }) return;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            while (_ringJob is not null)
+            {
+                if (!_ringJob.MoveNext()) { _ringJob = null; _ringWait = null; return; }
+                if (_ringJob.Current is System.Threading.Tasks.Task t) { _ringWait = t; return; }
+                if (sw.Elapsed.TotalMilliseconds >= 2) return;
+            }
+        }
+        catch (System.Exception e)
+        {
+            GD.PrintErr($"horizon ring build failed: {e}");
+            _ringJob = null; _ringWait = null;
+        }
     }
 
     private void PumpModernBuild()
@@ -2376,7 +2423,7 @@ public partial class Main : Node3D
     /// </summary>
     private void ApplyDrawDistance()
     {
-        bool original = I76.Formats.Imaging.DrawDistance.ModernFog(_drawDistance);
+        bool original = I76.Formats.Imaging.DrawDistance.ModernFog(DrawDistanceNow);
         // a map that fills the grid has ground only as far as the terrain streams (TerrainNode.StreamRadius): at Far it fades into the sky there
         bool hugeMap = _builder?.World?.Terrain.Huge == true;
         if (_skyFog is not null)
@@ -2389,12 +2436,13 @@ public partial class Main : Node3D
             }
         }
         if (_horizon is not null) _horizon.Visible = !_mode1997 && !original;
+        ApplyEditorOutside();
         if (_modernEnv?.Sky?.SkyMaterial is ShaderMaterial sky && _horizon is not null && _horizon.IsInsideTree())
         {
             // the panels stand in for the ring: the sky draws them itself, and the haze below the horizon is the ring's.
             // A mission with no panels of its own (Nitro's n01, n03, n35, n65) has none to draw, as in the original (an
             // unset texture array reads as white, a white band over the mountains' place), and the sky is plain to the ground
-            bool panels = I76.Formats.Imaging.DrawDistance.ModernPanels(_drawDistance, _builder?.Horizon is not null);
+            bool panels = I76.Formats.Imaging.DrawDistance.ModernPanels(DrawDistanceNow, _builder?.Horizon is not null);
             foreach (var m in new[] { sky, _skyFog?.MaterialOverride as ShaderMaterial })
             {
                 m?.SetShaderParameter("has_horizon", panels);
@@ -2409,6 +2457,26 @@ public partial class Main : Node3D
     /// <summary>The player's Draw Distance, null for the look's default (which follows the look as it flips).</summary>
     private int? _drawChoice;
     private int _drawDistance => DrawDistanceHook ?? I76.Formats.Imaging.DrawDistance.Resolve(_drawChoice, _mode1997);
+
+    /// <summary>The Draw Distance in use: the setting's, but Far in the map editor's own view (its playtest is a mission and keeps the setting), which shows everything.</summary>
+    private int DrawDistanceNow => _editorMode ? I76.Formats.Imaging.DrawDistance.Far : _drawDistance;
+
+    /// <summary>
+    /// The map editor's own view draws the ground past the map's tiles whole in the 1997 look too (OutsideTerrain.EditorView): the
+    /// outside ground's chunks as far as the modern look's, unclipped, and the distant ring in the 1997 terrain's light (horizon_1997.gdshader).
+    /// A mission (and the editor's playtest) keeps the original's clip.
+    /// </summary>
+    private void ApplyEditorOutside()
+    {
+        if (!_editorMode) return;
+        var outside = _builder?.OutsideNode;
+        if (outside is not null) outside.EditorView = true;
+        if (_horizon is null || _builder?.TerrainMaterial is not ShaderMaterial faithful) return;
+        var ring1997 = _horizon.Material1997(faithful);
+        if (outside is not null) outside.Ring1997 = ring1997;
+        _horizon.Use1997(_mode1997 ? ring1997 : null);
+        if (_mode1997) _horizon.Visible = true;
+    }
 
     /// <summary>
     /// The modern look's distance fog (sky_fog.gdshader). The original never
@@ -2514,6 +2582,8 @@ public partial class Main : Node3D
     private void AddDropShadows()
     {
         if (_builder?.World is not { } w) return;
+        // the bare ground the cars stand on (the outside ground's past the map's tiles), else the map's own
+        float Bare(double x, double z) => _sim?.Session?.World.Ground is { } sg ? sg.BareHeight(x, z) : (float)w.BilinearHeight(x, z);
         // a night preset: the cars' lights (NightLights), which also pick the shadows' light near them
         NightLights? night = null;
         if (!_builder.Light.IsDay)
@@ -2521,13 +2591,13 @@ public partial class Main : Node3D
             float GroundGodot(float x, float z)
             {
                 var g = Coords.ToGame(new Vector3(x, 0, z)) + _origin;
-                return (float)w.BilinearHeight(g.X, g.Z) - _origin.Y;
+                return Bare(g.X, g.Z) - _origin.Y;
             }
             AddChild(night = new NightLights { Name = "NightLights", Cars = () => _sim?.Cars ?? [], Ground = GroundGodot, MoonIntensity = _builder.Light.Intensity });
         }
         _drops = new DropShadows
         {
-            Name = "DropShadows", Ground = (x, z) => (float)w.BilinearHeight(x, z), Origin = () => _origin,
+            Name = "DropShadows", Ground = (x, z) => Bare(x, z), Origin = () => _origin,
             Casters = Casters, Light = () => _lightDir,
             Surface = (x, y, z) => _sim?.Session?.World.Ground is { } g ? g.Query(x, y, z).Height : (float)w.BilinearHeight(x, z), LightAt = night is null ? null : night.ShadowLight,
         };
@@ -2650,6 +2720,7 @@ public partial class Main : Node3D
         _mode1997 = on;
         I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
         _builder?.Terrain?.UseModern(!on);
+        _builder?.OutsideNode?.UseModern(!on);
         _builder?.Roads?.SetMode1997(on);
         _builder?.RoadsOffGround?.SetMode1997(on);
         // both looks paint the roads and the road pieces into the terrain (RoadRaster); their meshes stay hidden
@@ -2705,11 +2776,13 @@ public partial class Main : Node3D
         bool inMission = _sim is not null && !_inMenu && _menu is null && !_loading && _picture is null && !_installerOnly && _reconfig is null && _dev is null
             && _opt.Install is not null;
         bool chase = !CameraHeld && _chase is { Current: true, Fixed: null };
+        bool cockpit = !CameraHeld && _car?.CockpitCamera?.Current == true && _pit is { Binoculars: false } && I76.Formats.Input.DashToggle.FreeLookAllowed(_pit.Dash3D);
         bool focused = DisplayServer.WindowIsFocused() || System.Environment.GetEnvironmentVariable("I76_MOUSE") is not null;   // (a capture's off-screen window is never focused)
         // the network game's standings locked up show the pointer, as a menu does (the view's zoom is left as it is)
-        var mode = CursorPolicy.For(inMission && _netHud?.Pointer != true, chase, MouseCamera.Level, focused, MouseCamera.Confine);
-        // the mouse orbits the chase view only while captured, unpaused and no orbit key is held
-        MouseCamera.Active = mode == CursorMode.Captured && !_gamePaused && _chase!.Orbit?.Invoke() != true;
+        var mode = CursorPolicy.For(inMission && _netHud?.Pointer != true, chase, MouseCamera.Level, focused, MouseCamera.Confine, cockpit, MouseCamera.CockpitLook);
+        // the mouse orbits the chase view (or turns the head in the 3D cockpit) only while captured, unpaused and no orbit key is held
+        MouseCamera.CockpitActive = mode == CursorMode.Captured && !_gamePaused && cockpit;
+        MouseCamera.Active = mode == CursorMode.Captured && !_gamePaused && (cockpit || _chase!.Orbit?.Invoke() != true);
         // the wheel zooms the external view on screen, whether or not the mouse orbits it
         MouseCamera.WheelView = inMission && !CameraHeld && !_gamePaused && _chase!.Orbit?.Invoke() != true ? WheelViewNow() : null;
         TrackViewForZoom(inMission);
@@ -2767,6 +2840,7 @@ public partial class Main : Node3D
         if (Controls.Held == _held) Controls.Held = null;   // (a reloaded scene may have set its own already)
         if (I76.Game.ForceFeedback.Held?.Target == this) I76.Game.ForceFeedback.Held = null;   // it would keep this scene, and all it built, alive
         MouseCamera.Active = false;
+        MouseCamera.CockpitActive = false;
         MouseCamera.WheelView = null;
         ReleaseCursor();
         // the calibration's globals outlive the scene: the shell's garage draws its cars with the same shader
@@ -3445,6 +3519,7 @@ public partial class Main : Node3D
             _sim.SkipLatch = true;
         }
         PumpModernBuild();
+        PumpRingBuild();
         if (!_horizonEyeSet) SetHorizonEye();
         _animClock += delta;
         _builder?.Materials?.Animate(_animClock);
@@ -3457,8 +3532,8 @@ public partial class Main : Node3D
             if (_opt.QuitAfter > 0 && _frames >= _opt.QuitAfter) GetTree().Quit();
             return;
         }
-        // Draw Distance: Original clips where the original did (the world camera rebuild's 600), in either look
-        ActiveCamera.Far = I76.Formats.Imaging.DrawDistance.CameraFar(_drawDistance);
+        // Draw Distance: Original clips where the original did (the world camera rebuild's 600), in either look (not the map editor's view)
+        ActiveCamera.Far = I76.Formats.Imaging.DrawDistance.CameraFar(DrawDistanceNow);
         UpdateSkyScroll((float)delta);
         UpdateSoftwareBand();   // MainSoftware.cs
         if (_pit?.Binoculars == true && ActiveCamera == _car?.CockpitCamera) ActiveCamera.Far = System.Math.Min(ActiveCamera.Far * 8, 100000f);   // Far = zoom * far, zoom 8
