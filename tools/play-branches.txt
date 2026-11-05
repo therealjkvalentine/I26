@@ -289,3 +289,6 @@ perf/graphics-defaults                # section S, stacked on frame-cost-survey 
 
 # T. font redraws (2026-11-05)
 feat/font-redraws                     # section T: tools/text-redraws.py + per-texture specs: lettering re-drawn from OFL fonts into the 4x pack (dials of four dash families, damage panel, MR.DAMAGE, Piranha plate and badge incl. dented, police doors, seven cars' tails); the step runs on each machine's pack
+
+# U. console hygiene (2026-11-05)
+feat/quiet-test-window                # section U: I76_QUIET_WINDOW: test and capture runs start windowed, hand focus back and sit behind the user's windows (=min minimised); bench.py, matrix.py, shot.sh default to it; the game reads --resolution from the process command line
