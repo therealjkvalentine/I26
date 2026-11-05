@@ -166,7 +166,7 @@ prints the per-run table; outputs `_scratch/r3-loadtime/r2/` (before the merge),
   mission-build thread, so every briefed start in a debug build failed its build after the merge (release builds have no
   check). The build's thread is now `MainThread.Allowed` (cc993a9).
 
-### The menu's warm-up (`[port] menu_warmup`, on)
+### The menu's warm-up (`[port] menu_warmup`, off since round 3)
 
 - `MenuWarmup` (Shell/MenuWarmup.cs): a second after the main menu's first frame and after the garage's warm-up, the modern
   effects (`ModernFx`: the explosion, fire and smoke flipbooks into its static texture cache, their materials' pipelines,
@@ -178,8 +178,8 @@ prints the per-run table; outputs `_scratch/r3-loadtime/r2/` (before the merge),
   briefing) 9.06 / 12.43 s with it against 12.69 / 13.16 s without (0.7-3.6 s, noisy); T01 from the menu with its briefing
   skipped at 3 s, 17.84 / 18.43 against 17.95 / 18.26 s (no saving: the rehearsal is after the briefing either way, and
   what it saves is ~0.4 s of pipelines). After the merge, with the warm-up in parts, M01 from the menu: 9.74 / 9.14 s with it
-  against 9.34 / 9.84 s without: **no saving measurable** (under the noise, well under 1 s). The code is kept, on by
-  default, for the coordinator's decision; with no measured saving and a 48-69 ms menu frame, off is the safer default.
+  against 9.34 / 9.84 s without: **no saving measurable** (under the noise, well under 1 s). The code and the key are
+  kept; the default is off (the coordinator's decision after round 2).
 
 ### The first explosion and death (#116) after these changes
 
@@ -207,6 +207,66 @@ under the lock budget), and the CPU was at 60-100 % from other lanes.
 
 The watched rows include the card's 6.5 s first (the user's card_first); the old movie-first order started the briefing at
 0.6 s.
+
+## Round 3: the heavy steps behind the card
+
+The card's first 6.5 s are a still picture, so a long main-thread step there shows nothing. Measured after commit a9ebfea,
+merged play 187e255, windowed 1280x960, warm, the 4x pack, 2 reps, the CPU at 41-55 % (quieter than round 2's batches),
+`_scratch/r3-loadtime/r3f/` (and `r3c/` for the first look).
+
+### What depends on what
+
+- The world-independent heavy work moved before the movie: the modern effects (`ModernFx`'s flipbooks, textures and pipelines:
+  made under the card in 0.14-0.30 s of card frames while the world builds, `Main.WarmModernFxUnderCard`); the cockpit's
+  frames (the wheel, the arms, the radar, ~130 of the pack's pictures: decoded on the build's thread after the cars,
+  `PrefetchCockpitArt`; the player's car's set-up on the main thread was 1.1-1.2 s, now 0.16-1.04 s).
+- Everything else of the attach needs the finished build: the dashboard and the player's car need the sim's vehicle and
+  combat (`MissionSetup`, from the built `MissionWorld`), the builder's texture factory, materials and meshes (in use by the
+  build's thread until it is done, and not thread-safe), the camera's world; the rehearsal's sprite looks need the mission's
+  palette; the combat view needs the combat. So the attach can start behind the card only when the build is done before the
+  card's 6.5 s are over.
+
+### The schedule it ended with
+
+| Phase | What runs |
+|---|---|
+| Behind the card, while the build runs (0-6.5 s) | the card's fade; the modern effects (0.14-0.30 s); the build on its thread (the world, the cars' parts, the cockpit's frames) |
+| Behind the card, once the build is done | AttachSteps a step at a time (the world into the tree, the sky and calibration, the drop shadows, the look, the sim's world, the combat view, ...) until the card's time; a step in flight finishes first (the card is never cut) |
+| Under the briefing | nothing of the main thread's (the gate shut; `I76_ATTACH_UNDER_MOVIE=1` opens it at a 4 ms budget, with the stutter of round 2); the build's thread if not done (at below-normal priority, its decodes on half the cores) |
+| After the briefing, behind the card again | the rest of AttachSteps at 250 ms a frame (the card's fade-in first) |
+| No briefing, the 1997 look, co-op, the editor | unchanged: the build on the main thread, then the attach, behind the card |
+
+T01's build was done at 4.8-5.4 s, so behind the card ran the world into the tree, the sky, the drop shadows (0.30 s), the
+look (0.27 s) and part of the spawn; the card was held **50, 299, 630 and 718 ms** past its time in the four T01 runs (a step
+in flight: the sim's world or the combat view). T05's build was done at 7.3-13.0 s, after the card, so nothing of the attach ran
+behind it and its card was never held (0-1 ms).
+
+### The table (seconds; the card after the briefing = the mission - the movie's end)
+
+| Start | Round 2 (merged, contaminated CPU) | Round 3 rep 1 / rep 2 | Card after the briefing, round 3 |
+|---|---|---|---|
+| T01, no briefing | 11.86 / 12.38 | 9.89 / 9.90 | - |
+| M01, no briefing | 8.57 / 8.67 | 7.00 / 7.33 | - |
+| T05, no briefing | 13.57 / 13.62 | 11.43 / 11.64 | - |
+| T01, skipped at 3 s | (16.49 / 18.00 before the merge) | 14.85 / 15.29 | 4.59 / 4.28 |
+| T05, skipped at 3 s | (16.66 / 18.35) | 16.14 / 16.41 | 5.94 / 6.23 |
+| T01, watched 25 s | 40.67 / 40.11 (card after 8.6 / 8.0) | 38.24 / 36.44 | 5.50 / 4.16 |
+| T05, watched 25 s | 40.55 / 39.19 (8.6 / 7.2) | 39.33 / 39.28 | 7.20 / 7.12 |
+
+The no-briefing starts run the same code as round 2; their 2 s difference is the machine (60-70 % CPU from other lanes in
+round 2's batch, 47-55 % here), not a change.
+
+The movie: 0 dropped and 0 late frames in 7 of the 8 briefed runs, no audio underrun in any; T05 watched, rep 1: 1 dropped and
+1 late frame (a 140 ms gap), as in round 3's first look (T05 both runs, 137-138 ms) before the build's decodes were held to
+half the cores. Its cause is not found (the build's thread runs under T05's briefing: its cars' parts and the cockpit's frames;
+the main thread runs nothing of the load there).
+
+**The target (under 2 s after the briefing) is not met**: 4.2-5.5 s in T01, 5.9-7.2 s in T05. The attach is 6-8 s of the
+main thread and needs the finished build; the build takes 5-7 s (T01) and 7-13 s (T05) of the card's 6.5 s, so at most
+1-1.5 s of the attach fits behind the card, and under the briefing it cannot run without dropping frames. What would meet
+it: (1) the build done well before the card's end (its cars and cockpit decodes moved ahead of the world under the card, or
+a faster terrain upload), and (2) the attach's steps cut below a movie frame (the dashboard's panels, the rehearsal's first
+frame and the combat view first) so that they can run under the briefing at a few milliseconds a frame.
 
 ## Speculative loading from the menus
 
