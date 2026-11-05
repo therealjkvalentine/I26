@@ -376,10 +376,16 @@ public partial class Main : Node3D
             _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
             return;
         }
-        // the modern look's briefing while the world builds (briefing_while_loading, docs/deviations.md): the build off the main
-        // thread under the movie, the rest of the load after it behind the card, which comes up only then (movie, card, mission)
-        string? briefing = loading is null && _opt.Install is not null && _opt.Mission is not null ? BriefingDuringLoad() : null;
-        // up, and drawn once, before the build
+        // a single-player start in the modern look builds its world on a thread of its own from here, before the card is drawn, behind
+        // the card and the briefing (briefing_while_loading, docs/deviations.md: card_first, the card for the retail game's time, then
+        // the movie, the card again until the mission is ready; movie_first: black, the movie, the card); the rest of the load follows
+        // on the main thread behind the card
+        bool threaded = loading is null && _opt.Install is not null && _opt.Mission is not null
+            && BriefingOverlap.Threaded(_opt.Mode1997, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        string? briefing = threaded ? BriefingDuringLoad() : null;
+        var order = I76.Game.Shell.ShellSettings.Load().CardOrder;
+        BuildJob? job = threaded ? StartBuildJob() : null;
+        // up, and drawn once, before the build (a threaded build: already going)
         if (_opt.Install is not null && _opt.Mission is not null)
         {
             _loading = true;
@@ -387,9 +393,14 @@ public partial class Main : Node3D
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
                 MissionBuilder.Trace("loading card made");
-                if (BriefingOverlap.CardBeforeBriefing(briefing is not null)) { OnNextDraw(() => LoadProfiler.Event("card first frame")); await loading.FadeIn(); }   // (else its black only, until the movie is over)
+                if (!(briefing is not null && order == CardOrder.MovieFirst))
+                {
+                    _cardClock = System.Diagnostics.Stopwatch.StartNew();
+                    OnNextDraw(() => LoadProfiler.Event("card first frame"));
+                    await loading.FadeIn();   // (movie_first: its black only, until the movie is over)
+                }
             }
-            MissionBuilder.Trace(briefing is null ? "loading card up" : "loading card black: the briefing first");
+            MissionBuilder.Trace(briefing is not null && order == CardOrder.MovieFirst ? "loading card black: the briefing first" : "loading card up");
             BootSplash.Dismiss(now: true);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -423,14 +434,10 @@ public partial class Main : Node3D
             return;
         }
         (Load Start, Node3D? World, System.Exception? Error)? built = null;
-        if (briefing is not null && loading is not null)
+        if (job is not null && loading is not null)
         {
-            built = await BuildUnderBriefing(briefing);
+            built = await BuildBehindCard(job, briefing, order, loading);
             if (!IsInsideTree()) return;
-            // the briefing over: the card fades in for the rest of the load, as the original's comes up before the mission's
-            OnNextDraw(() => LoadProfiler.Event("card again"));
-            await loading.FadeIn();
-            MissionBuilder.Trace("loading card up, after the briefing");
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
         }
@@ -1664,62 +1671,152 @@ public partial class Main : Node3D
                 name = I76.Formats.Mission.WorldSettings.Read(new I76.Formats.Mission.MissionFile(path))?.Briefing;
         }
         catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.ArgumentException) { return null; }
-        bool on = BriefingOverlap.Plan(I76.Game.Shell.ShellSettings.Load().BriefingWhileLoading, _opt.Mode1997, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null,
-            _opt.SkipMovies, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
+        bool on = BriefingOverlap.Plan(true, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null, _opt.SkipMovies);
         return on ? name : null;
     }
 
-    /// <summary>
-    /// The mission's world built on a thread of its own while its briefing plays (the movie draws on the main thread, the
-    /// build makes nodes outside the tree and touches none in it); both over, the world comes back for <see cref="AttachWorld"/>
-    /// on the main thread. A briefing ended early leaves the loading card up until the build is done.
-    /// </summary>
-    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildUnderBriefing(string briefing)
+    /// <summary>A mission's world being built on a thread of its own (<see cref="StartBuildJob"/>); <see cref="World"/> and <see cref="Error"/> once it is done.</summary>
+    private sealed class BuildJob(Load start, System.Threading.Thread thread)
     {
-        // the builder is the game's (_builder, which the overlay and the views read each frame) only once the thread is done with it
-        var start = StartLoad();
-        var builder = start.Builder;
-        builder.OffMainThread = true;
-        Node3D? world = null;
-        System.Exception? error = null;
-        MissionBuilder.Trace("build: on its own thread, under the briefing");
-        var thread = new System.Threading.Thread(() =>
-        {
-            LoadProfiler.Open();
-            try { world = builder.Build(start.Msn); }
-            catch (System.Exception ex) { error = ex; }
-            LoadProfiler.Event("build done");
-            start.Clock.Stop();   // the status line's time is the build's, not the movie's
-        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
-        if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
-        thread.Start();
-        var over = new System.Threading.Tasks.TaskCompletionSource();
-        OnNextDraw(() => LoadProfiler.Event("movie start"));
-        try { PlayMovies(start.Install, [briefing], () => { LoadProfiler.Event("movie over"); over.TrySetResult(); }); }
-        catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
-        bool built = false;
-        while (thread.IsAlive || !over.Task.IsCompleted)
-        {
-            if (!built && !thread.IsAlive) { built = true; FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load()); MissionBuilder.Trace($"build: done under the briefing ({start.Clock.ElapsedMilliseconds} ms)"); }
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (!IsInsideTree()) break;
-        }
-        thread.Join();
-        if (!built) FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
-        _builder = builder;
-        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
-        MissionBuilder.Trace("build: briefing and build both over");
-        return (start, world, error);
+        public Load Start { get; } = start;
+        public System.Threading.Thread Thread { get; } = thread;
+        public Node3D? World;
+        public System.Exception? Error;
+        public bool Done => !Thread.IsAlive;
+        public bool Noted;
     }
+
+    private System.Diagnostics.Stopwatch? _cardClock;
 
     /// <summary>Runs <paramref name="then"/> after the next frame is drawn (once).</summary>
     private static void OnNextDraw(System.Action then)
         => RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(then), (uint)GodotObject.ConnectFlags.OneShot);
 
+    /// <summary>
+    /// The mission's world built on a thread of its own from now, before the card is drawn (the build makes nodes outside the tree
+    /// and touches none in it; the props' material maps are held and put on after, on the main thread). The builder is the game's
+    /// (_builder, which the overlay and the views read each frame) only once the thread is done with it.
+    /// </summary>
+    private BuildJob StartBuildJob()
+    {
+        var start = StartLoad();
+        var builder = start.Builder;
+        builder.OffMainThread = true;
+        MissionBuilder.Trace("build: on its own thread");
+        BuildJob? job = null;
+        string? requested = _opt.Drive is { Length: > 0 } d ? (d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase) ? d : d + ".vcf") : null;
+        var thread = new System.Threading.Thread(() =>
+        {
+            LoadProfiler.Open();
+            try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); }
+            catch (System.Exception ex) { job!.Error = ex; }
+            start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
+            LoadProfiler.Event("build done");
+        }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "mission-build" };
+        job = new BuildJob(start, thread);
+        if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
+        thread.Start();
+        return job;
+    }
+
+    /// <summary>
+    /// The mission's cars' parts (the assembled model, the body, weapon, lamp and wheel meshes and their textures: CarPartsCache), made
+    /// on the build's thread after the world, so that the spawn on the main thread only makes their nodes (it was 3 to 6 s of the
+    /// main thread's load in t01 and t05, docs/perf/loadtime.md): every placement's .vcf and the car asked for. A car the spawn does
+    /// not use costs its parts' memory for the mission; a helicopter's are made again at the spawn (its node edits its rotor).
+    /// I76_CAR_PREFETCH=0 leaves them to the spawn.
+    /// </summary>
+    private static void PrefetchCars(MissionBuilder builder, string? requested)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_CAR_PREFETCH") == "0" || builder.World is not { } w || builder.Meshes is null) return;
+        var defs = w.Placements.Select(p => p.Definition).Where(d => d is not null && d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase)).Cast<string>()
+            .Append(requested).OfType<string>().Distinct(System.StringComparer.OrdinalIgnoreCase).ToList();
+        int made = 0;
+        foreach (var def in defs)
+        {
+            try { if (builder.Vfs.Exists(def) && !builder.CarParts.Has(def)) { builder.CarParts.Get(def); made++; } }
+            catch (System.Exception ex) { GD.Print($"car prefetch {def}: {ex.Message}"); }   // the spawn makes it, or says why
+        }
+        MissionBuilder.Trace($"cars prefetched ({made} of {defs.Count})");
+    }
+
+    /// <summary>
+    /// The card and the briefing while the world builds (CardSequence): card_first, the card for the retail game's time, then the
+    /// movie, then the card again until the build is done; movie_first, the movie at once, then the card; no briefing, the card
+    /// until the build is done (and the retail time at least). The card is up when this returns, for the rest of the load.
+    /// </summary>
+    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, CardOrder order, LoadingScreen loading)
+    {
+        var seq = new CardSequence(order, briefing is not null);
+        var over = new System.Threading.Tasks.TaskCompletionSource();
+        _cardClock ??= System.Diagnostics.Stopwatch.StartNew();
+        bool cardUp = !(briefing is not null && order == CardOrder.MovieFirst), movieStarted = false;
+        void Noted()
+        {
+            if (job.Noted || !job.Done) return;
+            job.Noted = true;
+            FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
+            MissionBuilder.Trace($"build: done ({job.Start.Clock.ElapsedMilliseconds} ms)");
+        }
+        while (true)
+        {
+            Noted();
+            var was = seq.Now;
+            // the card's time is to the movie's first frame: it starts fading out that much before
+            var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted);
+            if (now == CardSequence.Stage.Movie && !movieStarted)
+            {
+                if (cardUp) { await loading.FadeOut(); cardUp = false; if (!IsInsideTree()) break; }
+                movieStarted = true;
+                MissionBuilder.Trace("briefing starts");
+                OnNextDraw(() => LoadProfiler.Event("movie start"));
+                try { PlayMovies(job.Start.Install, [briefing!], () => over.TrySetResult()); }
+                catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
+            }
+            if (was == CardSequence.Stage.Movie && now != CardSequence.Stage.Movie)
+            {
+                LoadProfiler.Event("movie over");
+                MissionBuilder.Trace("briefing over");
+            }
+            // the card back: the briefing over before the mission is ready, or for the rest of the load
+            if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && !cardUp)
+            {
+                cardUp = true;
+                OnNextDraw(() => LoadProfiler.Event("card again"));
+                await loading.FadeIn();
+                MissionBuilder.Trace("loading card up, after the briefing");
+                if (!IsInsideTree()) break;
+                continue;
+            }
+            if (now == CardSequence.Stage.Attach) break;
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInsideTree()) break;
+        }
+        job.Thread.Join();
+        Noted();
+        var builder = job.Start.Builder;
+        _builder = builder;
+        if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }   // the props' maps, here as at the end of a built frame
+        MissionBuilder.Trace("build: behind the card, over");
+        return (job.Start, job.World, job.Error);
+    }
+
     /// <summary>I76_LOAD_PROFILE_QUIT=1: quits 3 s into the mission (the harness's run is its load).</summary>
     private async void QuitSoon()
     {
         await ToSignal(GetTree().CreateTimer(3.0, processAlways: true), SceneTreeTimer.SignalName.Timeout);
+        // I76_LOAD_PROFILE_NEXT=t05,t01: those missions after it in the same run (the command line's kind: --melee stays), as the shell launches one: what a second load finds made
+        if (System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_NEXT") is { Length: > 0 } next)
+        {
+            var rest = next.Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+            System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_NEXT", string.Join(',', rest.Skip(1)));
+            var csv = System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_CSV");
+            if (csv is { Length: > 0 }) System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_CSV", csv.Replace(".csv", $".{rest[0]}.csv"));
+            LoadProfiler.Click();
+            NextMission = rest[0];
+            GetTree().ReloadCurrentScene();
+            return;
+        }
         GetTree().Quit();
     }
 
