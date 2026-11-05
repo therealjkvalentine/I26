@@ -34,12 +34,13 @@ BASE = {
     "mouse_camera": 2, "max_fps": 0, "vsync": "false", "developer": "true", "hd_menu_art": "true", "hd_textures": "true",
     "hd_texture_size": 4, "effects_size": 100, "effects_brightness": 100, "effects_opacity": 100, "mirror_range": '"full"',
     "brake_lamps": '"held"', "mg_tracers": '"bolts"', "hood_finish": '"gloss"', "death_variety": '"on"', "brush_impacts": '"on"',
-    "lighting_calibration": '"on"', "dash_3d": "true", "car_interiors": "true", "dev_fps": "false", "resolution": '"1920x1080"',
+    "lighting_calibration": '"on"', "dash_3d": "true", "car_interiors": "true", "dev_fps": "false", "resolution": '"1280x960"',
 }
 PACKS = {"4x": {"hd_textures": "true", "hd_texture_size": 4}, "off": {"hd_textures": "false"}}
 MISSIONS = {
     "t01": ["--mission", "t01", "--drive", "--seed", "1", "--skip-cutscenes"],
     "t05": ["--mission", "t05", "--drive", "--seed", "1", "--skip-cutscenes"],
+    "t08": ["--mission", "t08", "--drive", "--seed", "1", "--skip-cutscenes"],
     "m01": ["--melee", "--mission", "m01", "--drive", "--seed", "1"],
 }
 LINKS = ["tex-world", "tex-world-2x", "tex-world-3x", "tex-world-4x", "tex-menu"]
