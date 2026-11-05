@@ -37,6 +37,23 @@ public class HdTexturesFirstStartTests
     [InlineData(false, null, false)]
     public void FourXWhenItsFolderIsThereAndTheGpuHasRoom(bool has4x, long? mb, bool on) => Assert.Equal(on, HdTextures.DefaultOn(has4x, mb));
 
+    /// <summary>The first start's size (HdTextures.FirstStartSize): 8x only with its folder and a GPU of HdTextures.High8xVideoMemoryMb or more, else 4x.</summary>
+    [Theory]
+    [InlineData(true, 11264L, 8)]     // the 1080 Ti 11 GB
+    [InlineData(true, 8192L, 8)]      // an 8 GB card
+    [InlineData(true, 6144L, 4)]      // a 6 GB card: 4x
+    [InlineData(true, 4096L, 4)]      // the laptop GTX 1650 Ti 4 GB
+    [InlineData(true, null, 4)]       // unknown memory: the 4x
+    [InlineData(false, 11264L, 4)]    // no tex-world-8x: the 4x
+    public void EightXOnlyWithItsFolderAndAGpuWithRoom(bool has8x, long? mb, int size) => Assert.Equal(size, HdTextures.FirstStartSize(has8x, mb));
+
+    /// <summary>Apple silicon: the figure is the machine's memory, which the game, the OS and the GPU share.</summary>
+    [Theory]
+    [InlineData(16384L, 8)]   // a 16 GB Mac
+    [InlineData(8192L, 4)]    // an 8 GB Mac: the 4x
+    [InlineData(24576L, 8)]
+    public void AMacCountsItsSharedMemory(long mb, int size) => Assert.Equal(size, HdTextures.FirstStartSize(true, mb, unified: true));
+
     [Fact]
     public void AFileWithoutTheKeyTakesTheFirstStartsDefaultUnlessTheMenuArtIsOff()
     {

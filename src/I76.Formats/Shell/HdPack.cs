@@ -8,6 +8,11 @@ public sealed record HdPackInfo(string Name, string Version, string Date, string
 {
     public override string ToString() => $"{Name} {Version}";
 
+    /// <summary>A world pack that holds only some textures ("partial": true), the rest served by the next size down (HdPackFolders.Chain).</summary>
+    public bool Partial { get; init; }
+    /// <summary>What a partial pack holds, in the words the HD Textures row shows ("covers": "cockpit &amp; cars"); empty when it does not say.</summary>
+    public string Covers { get; init; } = "";
+
     public static HdPackInfo? Parse(byte[]? json)
     {
         if (json is null) return null;
@@ -16,7 +21,11 @@ public sealed record HdPackInfo(string Name, string Version, string Date, string
             using var doc = JsonDocument.Parse(json);
             var r = doc.RootElement;
             string S(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
-            return new HdPackInfo(S("name") is { Length: > 0 } n ? n : "HD Menu Pack", S("version"), S("date"), S("min_engine"));
+            return new HdPackInfo(S("name") is { Length: > 0 } n ? n : "HD Menu Pack", S("version"), S("date"), S("min_engine"))
+            {
+                Partial = r.TryGetProperty("partial", out var p) && p.ValueKind == JsonValueKind.True,
+                Covers = S("covers"),
+            };
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException) { return null; }
     }
@@ -27,6 +36,30 @@ public sealed record HdPackInfo(string Name, string Version, string Date, string
 }
 
 /// <summary>Where the HD menu art is read from: paths relative to the tex-menu layout ("shellbg1.webp", "nitro/shellbg.json").</summary>
+/// <summary>
+/// Several sources read as one, in order: a file comes from the first that has it (a partial 8x pack over the 4x: HdPackFolders.Chain).
+/// Info is the first's; the count is the files of all of them, a name counted once.
+/// </summary>
+public sealed class HdChainSource : HdSource
+{
+    private readonly HdSource[] _sources;
+    public HdChainSource(IEnumerable<HdSource> sources) { _sources = [.. sources]; Info = _sources.FirstOrDefault()?.Info; }
+    public IReadOnlyList<HdSource> Sources => _sources;
+    public override string Origin => string.Join(" over ", _sources.Select(s => s.Origin));
+    public override int Count => _sources.Sum(s => s.Count);
+    public override bool Exists(string rel) => _sources.Any(s => s.Exists(rel));
+    public override byte[]? Read(string rel)
+    {
+        foreach (var s in _sources)
+            if (s.Exists(rel) && s.Read(rel) is { } b) return b;
+        return null;
+    }
+    /// <summary>The source a file comes from, or null.</summary>
+    public HdSource? Owner(string rel) => _sources.FirstOrDefault(s => s.Exists(rel));
+    public override bool ThreadSafe => _sources.All(s => s.ThreadSafe);
+    public override void Dispose() { foreach (var s in _sources) s.Dispose(); }
+}
+
 public abstract class HdSource : IDisposable
 {
     /// <summary>A folder or a zip: what the log says.</summary>

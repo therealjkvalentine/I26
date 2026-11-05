@@ -58,4 +58,35 @@ public class HdPackTests
         Assert.Null(s.Info);
         Assert.Null(HdPackInfo.Parse("nope"u8.ToArray()));
     }
+
+    /// <summary>pack.json's partial and covers: a pack of some textures, and the HD Textures row's words for it.</summary>
+    [Fact]
+    public void APartialPackSaysWhatItCovers()
+    {
+        var i = HdPackInfo.Parse("""{"name": "Upscaled", "scale": 8, "partial": true, "covers": "cockpit & cars"}"""u8.ToArray())!;
+        Assert.True(i.Partial);
+        Assert.Equal("cockpit & cars", i.Covers);
+        var full = HdPackInfo.Parse("""{"name": "Upscaled", "scale": 4}"""u8.ToArray())!;
+        Assert.False(full.Partial);
+        Assert.Equal("", full.Covers);
+    }
+
+    /// <summary>A partial 8x over the 4x, per texture: the 8x's file where it has one, the 4x's for the rest; the 8x's pack.json is the chain's.</summary>
+    [Fact]
+    public void AChainServesEachFileFromTheFirstFolderThatHasIt()
+    {
+        string x8 = Temp(), x4 = Temp();
+        File.WriteAllText(Path.Combine(x8, "zdash101.dds"), "8x");
+        File.WriteAllText(Path.Combine(x8, "pack.json"), """{"name": "8x", "partial": true, "covers": "cockpit & cars"}""");
+        File.WriteAllText(Path.Combine(x4, "zdash101.dds"), "4x");
+        File.WriteAllText(Path.Combine(x4, "tpgrass1.dds"), "4x");
+        using var c = new HdChainSource([new HdDirSource(x8), new HdDirSource(x4)]);
+        Assert.Equal("8x", System.Text.Encoding.ASCII.GetString(c.Read("zdash101.dds")!));
+        Assert.Equal("4x", System.Text.Encoding.ASCII.GetString(c.Read("tpgrass1.dds")!));
+        Assert.Null(c.Read("nothing.dds"));
+        Assert.True(c.Exists("tpgrass1.dds"));
+        Assert.Equal(x4, c.Owner("tpgrass1.dds")!.Origin);
+        Assert.True(c.Info!.Partial);
+        Assert.True(c.ThreadSafe);
+    }
 }

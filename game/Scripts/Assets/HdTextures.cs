@@ -7,7 +7,8 @@ namespace I76.Game.Assets;
 /// <summary>
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a whole
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
-/// user://tex-world-Nx/ for the chosen size N (4, the HD Textures row's; any whole multiple a file or the Developer panel names; else the plain user://tex-world/, else the nearest size present), then the newest i76-hd-*.zip next to the executable or in user:// that has a
+/// user://tex-world-Nx/ for the chosen size N (4 or 8, the HD Textures row's; any whole multiple a file or the Developer panel names; else the plain user://tex-world/, else the nearest size present),
+/// read per texture over the smaller sizes present (HdPackFolders.Chain: a partial 8x of the cockpit and the cars over the 4x), then the newest i76-hd-*.zip next to the executable or in user:// that has a
 /// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (Graphic Detail's HD Textures row) switches them off (Enabled); the 1997 look
 /// never draws them (TextureFactory.Hd).
 /// </summary>
@@ -20,7 +21,7 @@ public static class HdTextures
     public static bool Enabled { get; set; } = true;
 
     private static int _size = HdPackFolders.DefaultSize;
-    /// <summary>The pack size chosen (ShellSettings.HdTextureSize: 4, the row's, or 3 or 2 from the file or the Developer panel): tex-world-Nx. A change is picked up by the next mission's textures, not by those already built.</summary>
+    /// <summary>The pack size chosen (ShellSettings.HdTextureSize: 4 or 8, the row's, or 3 or 2 from the file or the Developer panel): tex-world-Nx. A change is picked up by the next mission's textures, not by those already built.</summary>
     public static int Size
     {
         get => _size;
@@ -35,6 +36,15 @@ public static class HdTextures
 
     /// <summary>The sizes whose tex-world-Nx folder exists in the user folder, largest first (none: the row is greyed).</summary>
     public static int[] AvailableSizes => HdPackFolders.Available(UserHas);
+
+    /// <summary>What a size's tex-world-Nx holds when it is partial (pack.json's "covers", "cockpit &amp; cars"; "partial" when it does not say), else null: the HD Textures row's words for it.</summary>
+    public static string? CoversOf(int size)
+    {
+        var p = ProjectSettings.GlobalizePath($"user://{HdPackFolders.Folder(size)}/pack.json");
+        if (!File.Exists(p)) return null;
+        try { return HdPackInfo.Parse(File.ReadAllBytes(p)) is { Partial: true } i ? (i.Covers.Length > 0 ? i.Covers : "partial") : null; }
+        catch (IOException) { return null; }
+    }
 
     /// <summary>
     /// shell.cfg's [port] hd_textures. Absent (a first start, or a file from before the row, when HD Menu Art switched these too),
@@ -55,6 +65,22 @@ public static class HdTextures
     /// <summary><see cref="DefaultOn"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb).</summary>
     public static bool FirstStartDefault => DefaultOn(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), I76.Game.Boot.RenderBackend.VideoMemoryMb);
 
+    /// <summary>Video memory from this (MiB) starts with the 8x pack when it is there (FirstStartSize): HIGH8X_PLACEHOLDER</summary>
+    public const long High8xVideoMemoryMb = 7680;
+    /// <summary>The same for a GPU that shares the machine's memory (Apple silicon, whose VideoMemoryMb is the machine's): HIGH8X_UNIFIED_PLACEHOLDER</summary>
+    public const long High8xUnifiedMemoryMb = 15360;
+
+    /// <summary>
+    /// The first start's size: 8 when the user folder has tex-world-8x and the GPU reports <see cref="High8xVideoMemoryMb"/> or more
+    /// (<see cref="High8xUnifiedMemoryMb"/> for memory shared with the machine), else 4 (unknown memory, Linux's, counts as not enough
+    /// for 8x: the 4x is the safe default). The player's choice is saved from then on.
+    /// </summary>
+    public static int FirstStartSize(bool has8x, long? videoMemoryMb, bool unified = false) =>
+        has8x && videoMemoryMb >= (unified ? High8xUnifiedMemoryMb : High8xVideoMemoryMb) ? 8 : HdPackFolders.DefaultSize;
+
+    /// <summary><see cref="FirstStartSize"/> for this machine (a Mac's memory is unified: RenderBackend.VideoMemoryMb is the machine's).</summary>
+    public static int FirstStartSizeHere => FirstStartSize(UserHas(HdPackFolders.Folder(8)), I76.Game.Boot.RenderBackend.VideoMemoryMb, OperatingSystem.IsMacOS());
+
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>
     public static bool Installed => Source is not null;
@@ -64,10 +90,10 @@ public static class HdTextures
         if (_probed) return;
         _probed = true;
         var env = System.Environment.GetEnvironmentVariable("I76_TEX_DIR") is { Length: > 0 } d ? Path.Combine(d, "world") : null;
-        var folder = HdPackFolders.Choose(_size, UserHas);
-        var user = folder is null ? null : ProjectSettings.GlobalizePath($"user://{folder}/");
+        var chain = HdPackFolders.Chain(_size, UserHas);
         if (env is not null && Directory.Exists(env)) _source = new HdDirSource(env);
-        else if (user is not null) _source = new HdDirSource(user);
+        else if (chain.Length == 1) _source = new HdDirSource(ProjectSettings.GlobalizePath($"user://{chain[0]}/"));
+        else if (chain.Length > 1) _source = new HdChainSource(chain.Select(f => new HdDirSource(ProjectSettings.GlobalizePath($"user://{f}/"))));
         else
         {
             var exe = I76.Formats.Installers.ExtractionPlaces.AppFolder(OS.GetExecutablePath());
@@ -86,8 +112,10 @@ public static class HdTextures
     public static (string Name, byte[] Bytes)? Read(string member)
     {
         if (Source is not { } s) return null;
-        foreach (var rel in HdTexture.Candidates(member))
-            if (s.Read(rel) is { } b) return (rel, b);
+        // a chain (a partial 8x over the 4x): the first folder that has the texture in any format, so a .png of the 8x beats a .dds of the 4x
+        foreach (var src in s is HdChainSource c ? c.Sources : [s])
+            foreach (var rel in HdTexture.Candidates(member))
+                if (src.Read(rel) is { } b) return (rel, b);
         return null;
     }
 

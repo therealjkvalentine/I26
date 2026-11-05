@@ -635,12 +635,13 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.AntiAliasing:
                 ByteRow(line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
                 break;
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off or 4x when its folder is there; Off live, a size from the next mission
+            // [port] hd_textures and hd_texture_size (HdTextureRow): Off, 4x and 8x when their folders are there; Off live, a size from the next mission
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
                 bool any = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
-                if (HdTextureRow.Names(sizes, any, st.HdTextureSize) is null) return false;
-                Row(line, "HD Textures", () => HdTextureRow.Names(sizes, any, st.HdTextureSize)![HdTextureRow.Index(st, sizes)], () =>
+                var covers8 = I76.Game.Assets.HdTextures.CoversOf(HdTextureRow.Large);
+                if (HdTextureRow.Names(sizes, any, st.HdTextureSize, covers8) is null) return false;
+                Row(line, "HD Textures", () => HdTextureRow.Names(sizes, any, st.HdTextureSize, covers8)![HdTextureRow.Index(st, sizes)], () =>
                 {
                     HdTextureRow.Step(st, sizes, any);
                     I76.Game.Assets.HdTextures.Enabled = st.HdTextures;

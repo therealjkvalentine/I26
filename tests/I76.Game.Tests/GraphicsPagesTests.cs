@@ -302,9 +302,33 @@ public class GraphicsPagesTests
     [Fact]
     public void TheLoaderStillServesEverySize()
     {
-        Assert.Equal([4, 3, 2], I76.Formats.Shell.HdPackFolders.Sizes);
+        Assert.Equal([8, 4, 3, 2], I76.Formats.Shell.HdPackFolders.Sizes);
         Assert.Equal("tex-world-2x", I76.Formats.Shell.HdPackFolders.Choose(2, f => f is "tex-world-4x" or "tex-world-2x"));
         Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
+    }
+
+    /// <summary>With a tex-world-8x the row is Off, 4x and 8x, the 8x saying what a partial pack covers; a click steps Off, 4x, 8x, Off.</summary>
+    [Fact]
+    public void HdTexturesOffers8xWhenItsFolderIsThere()
+    {
+        int[] have = [8, 4];
+        Assert.Equal(["Off", "4x*", "8x (cockpit & cars)*"], HdTextureRow.Names(have, true, 4, "cockpit & cars")!);
+        Assert.Equal(["Off", "4x*", "8x*"], HdTextureRow.Names(have, true)!);   // a full 8x pack
+        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 2], true, 8)!);       // 8 in the file, no folder: the 4x loads
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([8], true)!);             // an 8x with no 4x under it: on or off
+        var s = new ShellSettings { HdTextures = true, HdTextureSize = 4 };
+        Assert.Equal(1, HdTextureRow.Index(s, have));
+        HdTextureRow.Step(s, have, true);
+        Assert.Equal((true, 8, 2), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));
+        HdTextureRow.Step(s, have, true);
+        Assert.Equal((false, 8, 0), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));   // Off keeps the size
+        HdTextureRow.Step(s, have, true);
+        Assert.Equal((true, 4, 1), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));
+        HdTextureRow.Put(s, have, 2);
+        Assert.Equal(8, s.HdTextureSize);
+        // the 8x folder gone: an 8 in the file shows as the 4x it loads, and the row is two values again
+        Assert.Equal(1, HdTextureRow.Index(s, [4]));
+        Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(8, f => f is "tex-world-4x"));
     }
 
     /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; On writes true and 4 (with its folder).</summary>
