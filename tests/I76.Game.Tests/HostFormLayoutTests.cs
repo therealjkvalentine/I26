@@ -5,129 +5,147 @@ using Xunit.Abstractions;
 
 namespace I76.Game.Tests;
 
-/// <summary>The base game's network host form as the port draws it: a labelled row for every field, the form's own hotspot ids, the pad reaching them all.</summary>
+/// <summary>
+/// The base game's network host form (the play fork's layout, HostFormLayout): the original's art with the options box and the
+/// rules table; a labelled row for every rule, the form's own hotspot ids, the pad reaching them all. Upstream's tests for its
+/// drawn sheet (56373bd), adapted where this form differs: the art's own arrows are smaller than a sheet's row, a check box's
+/// value is its X, and the labels are this form's.
+/// </summary>
 public class HostFormLayoutTests(ITestOutputHelper output)
 {
     private static readonly HostFormLayout.State Melee = new()
     {
-        Driver = "Unnamed", Area = "The Crater", GameName = "The Crater", Drivers = 4, MaxScore = 20000, BotSkill = "Normal", BotCars = "Random",
-        Rate = 20, ShareMaps = true, CarReset = true, Cb = true, MakeModel = "ABX Leprechaun", Variant = "Econo",
+        MaxScore = 20000, BotSkill = "Normal", Rate = 20, ShareMaps = true, CarReset = true, Cb = true,
     };
     private static readonly HostFormLayout.State Coop = Melee with { Coop = true };
 
-    // the ids the form had before it was drawn by the port (less 7, the original's driver box, which on a host form only showed the host's own car again)
-    // (and the play fork's: 39 the ignition lock, 43 Handicaps, 40..42 the co-op form's Co-op Scaling, Co-op Damage and Rolling Start)
+    // the ids the form had before upstream drew it, less 7 (the original's driver box, which on a host form only showed the host's own car
+    // again), and the play fork's 39 (the ignition lock), 43 (Handicaps), 40..42 (the co-op form's Co-op Scaling, Co-op Damage, Rolling Start);
+    // the same sets as upstream's sheet has
     private static readonly int[] MeleeIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43];
     private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43];
 
-    private static string Value(List<HostFormLayout.Row> rows, string label) =>
-        string.Join(" ", rows.Single(r => r.Label == label).Cells.Select(c => c.Text));
+    private static string Value(HostFormLayout.State s, string label) => HostFormLayout.Fields(s).Single(f => f.Label == label).Value;
 
     [Fact]
-    public void EveryFieldHasALabelledRowOfItsOwn()
+    public void EveryRuleHasALabelledRowOfItsOwn()
     {
-        var rows = HostFormLayout.RowsOf(Melee);
-        string[] labels =
-        [
-            "Local Driver", "Game Type", "Area of Play", "Game Name", "No. Drivers", "Team Play", "Invite Only", "Max Score", "Password", "Bots",
-            "Bot Skill", "A.I. Cars", "Sim Rate", "Share Maps", "Hidden Weapons & Cars", "Unlimited Turrets", "Car Reset", "CB Radio",
-            "Chase Crosshair", "Make / Model", "Variant", "Ignition Lock", "Handicaps",
-        ];
-        Assert.Equal(labels.Order(), rows.Select(r => r.Label).Order());
-        // one row each, inside the tables, the car's rows clear of the rules above them, the left table with rows to spare
-        foreach (var side in new[] { false, true })
-        {
-            var at = rows.Where(r => r.Right == side).Select(r => r.Index).ToList();
-            Assert.Equal(at.Count, at.Distinct().Count());
-            Assert.All(at, k => Assert.InRange(k, 0, HostFormLayout.Rows - 1));
-        }
-        Assert.True(rows.Where(r => r.Right).Where(r => r.Label is not ("Make / Model" or "Variant")).All(r => r.Index < HostFormLayout.CarRow));
-        // upstream keeps four spare rows; the play fork's Ignition Lock and Handicaps take two of them and leave three
-        Assert.True(HostFormLayout.Rows - 1 - rows.Where(r => !r.Right).Max(r => r.Index) >= 3, "the left table keeps rows for more options");
+        var fields = HostFormLayout.Fields(Melee);
+        string[] table = ["SIM RATE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "PASSWORD", "CHASE CROSSHAIR"];
+        Assert.Equal(table, fields.Where(f => f.Where == HostFormLayout.Place.Table).OrderBy(f => f.Row).Select(f => f.Label));
+        string[] checks = ["TEAM PLAY", "INVITE ONLY", "SHARE MAPS", "HIDDEN CARS", "CAR RESET", "CB RADIO"];
+        Assert.Equal(checks.Order(), fields.Where(f => f.Where is HostFormLayout.Place.CheckA or HostFormLayout.Place.CheckB).Select(f => f.Label).Order());
+        // one field a place: no two in a table row, a box row's column, or the box's stepped lines (BOTS, MAX SCORE)
+        var places = fields.Select(f => (f.Where == HostFormLayout.Place.BoxRow ? HostFormLayout.Place.CheckA : f.Where, f.Row)).ToList();
+        Assert.Equal(places.Count, places.Distinct().Count());
+        Assert.DoesNotContain(fields, f => f.Where != HostFormLayout.Place.Table && f.Row is HostFormLayout.BotsRow or HostFormLayout.ScoreRow);
+        Assert.All(fields.Where(f => f.Where == HostFormLayout.Place.Table), f => Assert.InRange(f.Row, 0, HostFormLayout.TableRows - 1));
+        Assert.All(fields.Where(f => f.Where != HostFormLayout.Place.Table), f => Assert.InRange(f.Row, 0, HostFormLayout.BoxRow.Length - 1));
+        // the table is above the arena sketch's room, the box inside its rules
+        Assert.True(HostFormLayout.TableFoot <= 183);
+        var (_, _, by0, by1) = HostFormLayout.BoxInside;
+        Assert.All(HostFormLayout.BoxRow, b => Assert.True(b - 14 >= by0 - 1 && b + 5 <= by1 + 1));
     }
 
     [Fact]
     public void ACoopGameLeavesOutWhatItHasNot()
     {
-        var labels = HostFormLayout.RowsOf(Coop).Select(r => r.Label).ToList();
-        foreach (var gone in new[] { "Team Play", "Max Score", "Bots", "Bot Skill", "A.I. Cars", "Share Maps" }) Assert.DoesNotContain(gone, labels);
-        foreach (var kept in new[] { "Invite Only", "Password", "Hidden Weapons & Cars", "Unlimited Turrets", "Car Reset", "CB Radio", "Chase Crosshair", "Sim Rate" }) Assert.Contains(kept, labels);
-        // the rows close up: no gap in the left table under the area list
-        var left = HostFormLayout.RowsOf(Coop).Where(r => !r.Right && r.Index > HostFormLayout.ListRow).Select(r => r.Index).Order().ToList();
-        Assert.Equal(Enumerable.Range(HostFormLayout.ListRow + HostFormLayout.ListRows, left.Count), left);
+        var labels = HostFormLayout.Fields(Coop).Select(f => f.Label).ToList();
+        foreach (var gone in new[] { "TEAM PLAY", "SHARE MAPS" }) Assert.DoesNotContain(gone, labels);
+        foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "UNLIMITED TURRETS", "CAR RESET", "CB RADIO", "CHASE CROSSHAIR", "SIM RATE", "IGNITION LOCK", "HANDICAPS" })
+            Assert.Contains(kept, labels);
+        // the co-op rules a labelled row each, at the box's top
+        Assert.Equal(["CO-OP SCALING", "CO-OP DAMAGE", "ROLLING START"],
+            HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).Select(f => f.Label));
+        Assert.Equal([0, 1, 2], HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).Select(f => f.Row).Order());
+        // no Bots or Max Score: their ids are not hotspots
+        foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
     }
 
     [Fact]
     public void TheHotspotsAreTheFormsOwnIds()
     {
-        Assert.Equal(MeleeIds, HostFormLayout.Hot(HostFormLayout.RowsOf(Melee)).Keys.Order());
-        Assert.Equal(CoopIds, HostFormLayout.Hot(HostFormLayout.RowsOf(Coop)).Keys.Order());
+        Assert.Equal(MeleeIds, HostFormLayout.Hot(false).Keys.Order());
+        Assert.Equal(CoopIds, HostFormLayout.Hot(true).Keys.Order());
     }
 
     [Fact]
-    public void TheHotspotsLieOnTheSheetApart()
+    public void TheHotspotsLieOnTheFormApart()
     {
-        foreach (var s in new[] { Melee, Coop })
+        foreach (bool coop in new[] { false, true })
         {
-            var hot = HostFormLayout.Hot(HostFormLayout.RowsOf(s)).Values.ToList();
-            foreach (var (x0, x1, y0, y1) in hot)
+            var hot = HostFormLayout.Hot(coop);
+            foreach (var (id, (x0, x1, y0, y1)) in hot)
             {
                 Assert.True(0 <= x0 && x0 < x1 && x1 <= 640 && 0 <= y0 && y0 < y1 && y1 <= 480);
-                Assert.True(x1 - x0 >= 18 && y1 - y0 >= 16, "big enough to hit");
+                // the art's own buttons and arrows keep the original's sizes (MAKE / MODEL's arrow is 11 x 15); the port's are bigger
+                bool art = HostFormLayout.Art.ContainsKey(id);
+                Assert.True(x1 - x0 >= (art ? 11 : 17) && y1 - y0 >= (art ? 11 : 16), $"{id} big enough to hit");
             }
             // strict rectangles (x0 < x < x1) may share an edge, never inside room
-            for (int i = 0; i < hot.Count; i++)
-                for (int j = i + 1; j < hot.Count; j++)
+            var all = hot.ToList();
+            for (int i = 0; i < all.Count; i++)
+                for (int j = i + 1; j < all.Count; j++)
                 {
-                    var (a, b) = (hot[i], hot[j]);
+                    var (a, b) = (all[i].Value, all[j].Value);
                     bool overlap = Math.Max(a.X0, b.X0) + 1 < Math.Min(a.X1, b.X1) && Math.Max(a.Y0, b.Y0) + 1 < Math.Min(a.Y1, b.Y1);
-                    Assert.False(overlap, $"{a} and {b} overlap");
+                    Assert.False(overlap, $"{all[i].Key} {a} and {all[j].Key} {b} overlap");
                 }
+            // the options box's ids inside the box, the table's inside the car panel above the sketch
+            var (bx0, bx1, by0, by1) = HostFormLayout.BoxInside;
+            foreach (var f in HostFormLayout.Fields(coop ? Coop : Melee))
+            {
+                var r = hot[f.Id];
+                if (f.Where == HostFormLayout.Place.Table) Assert.True(r.X0 >= 219 && r.X1 <= 456 && r.Y1 <= HostFormLayout.TableFoot);
+                else Assert.True(r.X0 + 1 >= bx0 && r.X1 - 1 <= bx1 && r.Y0 + 1 >= by0 && r.Y1 - 1 <= by1, $"{f.Id} {r} outside the box");
+            }
         }
     }
 
     [Fact]
     public void TheValuesFollowTheSettings()
     {
-        (string Label, Func<HostFormLayout.State, bool, HostFormLayout.State> Set)[] toggles =
+        (string Label, Func<HostFormLayout.State, bool, HostFormLayout.State> Set)[] checks =
         [
-            ("Team Play", (s, v) => s with { TeamPlay = v }), ("Invite Only", (s, v) => s with { InviteOnly = v }),
-            ("Share Maps", (s, v) => s with { ShareMaps = v }), ("Hidden Weapons & Cars", (s, v) => s with { Hidden = v }),
-            ("Unlimited Turrets", (s, v) => s with { Turrets = v }), ("Car Reset", (s, v) => s with { CarReset = v }),
-            ("CB Radio", (s, v) => s with { Cb = v }), ("Chase Crosshair", (s, v) => s with { Crosshair = v }),
+            ("TEAM PLAY", (s, v) => s with { TeamPlay = v }), ("INVITE ONLY", (s, v) => s with { InviteOnly = v }),
+            ("SHARE MAPS", (s, v) => s with { ShareMaps = v }), ("HIDDEN CARS", (s, v) => s with { Hidden = v }),
+            ("CAR RESET", (s, v) => s with { CarReset = v }), ("CB RADIO", (s, v) => s with { Cb = v }),
         ];
-        foreach (var (label, set) in toggles)
+        foreach (var (label, set) in checks)
         {
-            Assert.Equal("On", Value(HostFormLayout.RowsOf(set(Melee, true)), label));
-            Assert.Equal("Off", Value(HostFormLayout.RowsOf(set(Melee, false)), label));
+            Assert.Equal("X", Value(set(Melee, true), label));
+            Assert.Equal("", Value(set(Melee, false), label));
         }
-        Assert.Equal("On - 35000 +", Value(HostFormLayout.RowsOf(Melee with { ScoreOn = true, MaxScore = 35000 }), "Max Score"));
-        Assert.Equal("- 07 +", Value(HostFormLayout.RowsOf(Melee with { Drivers = 7 }), "No. Drivers"));
-        Assert.Equal("- 03 +", Value(HostFormLayout.RowsOf(Melee with { Bots = 3 }), "Bots"));
-        Assert.Equal("60 Hz", Value(HostFormLayout.RowsOf(Melee with { Rate = 60 }), "Sim Rate"));
-        Assert.Equal("Set", Value(HostFormLayout.RowsOf(Melee with { Password = true }), "Password"));
-        Assert.Equal("None", Value(HostFormLayout.RowsOf(Melee), "Password"));
-        Assert.Equal("Co-op", Value(HostFormLayout.RowsOf(Coop), "Game Type"));
-        Assert.Equal("Melee", Value(HostFormLayout.RowsOf(Melee), "Game Type"));
-        Assert.Equal("Bob_", Value(HostFormLayout.RowsOf(Melee with { GameName = "Bob", Naming = true }), "Game Name"));
+        (string Label, Func<HostFormLayout.State, bool, HostFormLayout.State> Set)[] rules =
+        [
+            ("UNLIMITED TURRETS", (s, v) => s with { Turrets = v }), ("IGNITION LOCK", (s, v) => s with { IgnitionStaysOn = v }),
+            ("CHASE CROSSHAIR", (s, v) => s with { Crosshair = v }), ("ROLLING START", (s, v) => s with { RollingStart = v }),
+        ];
+        foreach (var (label, set) in rules)
+        {
+            var on = set(label == "ROLLING START" ? Coop : Melee, true);
+            Assert.Equal("On", Value(on, label));
+            Assert.Equal("Off", Value(set(on, false), label));
+        }
+        Assert.Equal("60 Hz", Value(Melee with { Rate = 60 }, "SIM RATE"));
+        Assert.Equal("Set", Value(Melee with { Password = true }, "PASSWORD"));
+        Assert.Equal("None", Value(Melee, "PASSWORD"));
+        Assert.Equal("Auto", Value(Melee with { Handicaps = "Auto" }, "HANDICAPS"));
+        Assert.Equal("x2", Value(Coop with { CoopDamage = "x2" }, "CO-OP DAMAGE"));
     }
 
     [Fact]
     public void ThePadReachesEveryField()
     {
-        foreach (var (name, s) in new[] { ("melee", Melee), ("co-op", Coop) })
+        foreach (var (name, coop) in new[] { ("melee", false), ("co-op", true) })
         {
-            var rows = HostFormLayout.RowsOf(s);
-            var regions = HostFormLayout.PadOrder(HostFormLayout.Hot(rows), HostFormLayout.ListRows);
-            var rects = regions.Select(r => new NavRect(r.Rect.X0, r.Rect.Y0, r.Rect.X1 - r.Rect.X0, r.Rect.Y1 - r.Rect.Y0)).ToList();
-            string Name(int i)
-            {
-                var (id, listRow, (x0, x1, y0, y1)) = regions[i];
-                if (listRow >= 0) return $"area list row {listRow}";
-                var row = rows.FirstOrDefault(r => r.RowId == id || r.Cells.Any(c => c.Id == id));
-                if (row is null) return HostFormLayout.SlotId.Contains(id) ? HostFormLayout.SlotText[Array.IndexOf(HostFormLayout.SlotId, id)] : id == 12 ? "list up" : id == 13 ? "list down" : $"id {id}";
-                return row.Cells.Where(c => c.Id == id).Select(c => $"{row.Label} [{c.Text}]").FirstOrDefault() ?? row.Label;
-            }
+            var hot = HostFormLayout.Hot(coop);
+            // as the screen gives them: the area list (11) as its six rows, the rest by id
+            var regions = new List<(string Name, NavRect Rect)>();
+            foreach (var (id, r) in hot.OrderBy(h => h.Key))
+                if (id == 11) for (int k = 0; k < 6; k++) regions.Add(($"area list row {k}", new NavRect(r.X0 + 1, 151 + 17 * k, r.X1 - r.X0 - 2, 17)));
+                else regions.Add((HostFormLayout.Fields(new HostFormLayout.State { Coop = coop }).FirstOrDefault(f => f.Id == id)?.Label ?? $"id {id}", new NavRect(r.X0, r.Y0, r.X1 - r.X0, r.Y1 - r.Y0)));
+            var rects = regions.Select(r => r.Rect).ToList();
             int start = PadNav.Pick(rects, -1, NavDir.Down);
             var seen = new HashSet<int> { start };
             var queue = new Queue<int>([start]);
@@ -137,15 +155,11 @@ public class HostFormLayoutTests(ITestOutputHelper output)
                 foreach (var d in new[] { NavDir.Up, NavDir.Down, NavDir.Left, NavDir.Right })
                     if (PadNav.Pick(rects, at, d) is >= 0 and var to && seen.Add(to)) queue.Enqueue(to);
             }
-            Assert.True(seen.Count == regions.Count, $"{name}: unreachable {string.Join(", ", Enumerable.Range(0, regions.Count).Where(i => !seen.Contains(i)).Select(Name))}");
-            // the walk a player makes: down each table from its top, then across to the buttons
-            output.WriteLine($"{name}: the pad starts on {Name(start)}");
-            foreach (int top in new[] { start, PadNav.Pick(rects, start, NavDir.Right) is var r && r >= 0 ? r : start })
-            {
-                var walk = new List<string>();
-                for (int at = top, n = 0; at >= 0 && n < 40; at = PadNav.Pick(rects, at, NavDir.Down), n++) walk.Add(Name(at));
-                output.WriteLine($"  down from {Name(top)}: {string.Join(" > ", walk)}");
-            }
+            Assert.True(seen.Count == regions.Count, $"{name}: unreachable {string.Join(", ", Enumerable.Range(0, regions.Count).Where(i => !seen.Contains(i)).Select(i => regions[i].Name))}");
+            output.WriteLine($"{name}: the pad starts on {regions[start].Name}");
+            var walk = new List<string>();
+            for (int at = start, n = 0; at >= 0 && n < 40; at = PadNav.Pick(rects, at, NavDir.Down), n++) walk.Add(regions[at].Name);
+            output.WriteLine($"  down: {string.Join(" > ", walk)}");
         }
     }
 }
