@@ -23,6 +23,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] isect models [DIR]|survey|surface|payload NAME|strip IN OUT pieces|roads|spawn IN OUT x z yaw   the intersection pieces: geometry (and PNGs), where the stock maps place them, the ground under them
 //   i76 [--install DIR] looks                     every stock mission's WRLD look: palette, .lum, .tbl, sky, ground, horizon, hour
 //   i76 [--install DIR] seams DEF... [--all] [--reach R]  where a model's parts meet: welded, T-junctions, hairline gaps
+//   i76 [--install DIR] tex-seams OUT.json [--only GLOB]   where textures meet a neighbour or repeat (models, roads, horizon, ground, sky): the HD pack's seam audit
 //   i76 [--install DIR] props OUT [--maps]        every scenery texture over all missions, who uses it, and its prop material map
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
 //   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
@@ -611,6 +612,7 @@ switch (argv[0])
         return I76.Cli.Airtime.Run(install, argv);
     case "ground":
         return I76.Cli.Airtime.Ground(install, argv);
+    case "tex-seams": return I76.Cli.TexSeamsCommand.Run(install, argv);
     case "seams":
     {
         // i76 seams DEF... [--all] [--reach R]: where a model's parts meet -- each open-edge vertex near another part, its distance
