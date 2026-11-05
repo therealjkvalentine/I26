@@ -398,10 +398,13 @@ def second_pass(run_model, big):
     return run_model.run(big, OPTS["x2_model"])
 
 def globs_of(spec):
-    """--only / --skip: comma-separated globs, or @FILE of globs one a line."""
-    if spec.startswith("@"):
-        with open(spec[1:]) as f: return [l.strip().lower() for l in f if l.strip() and not l.startswith("#")]
-    return [g.strip().lower() for g in spec.split(",") if g.strip()]
+    """--only / --skip: comma-separated globs, each of which may be @FILE (globs one a line, # comments)."""
+    out = []
+    for g in (g.strip() for g in spec.split(",")):
+        if g.startswith("@"):
+            with open(g[1:]) as f: out += [l.strip().lower() for l in f if l.strip() and not l.startswith("#")]
+        elif g: out.append(g.lower())
+    return out
 
 def family_of(stem, table, alpha_all):
     """(colour model file or None, alpha step, listed) for a texture: its row of the family table, else the run's."""
