@@ -1833,6 +1833,7 @@ public partial class Main : Node3D
         var thread = new System.Threading.Thread(() =>
         {
             LoadProfiler.Open();
+            MainThread.Allowed = true;   // (the debug builds' check of the map editor's workers: this thread's engine work is the renderer's queued calls)
             try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); }
             catch (System.Exception ex) { job!.Error = ex; }
             start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
