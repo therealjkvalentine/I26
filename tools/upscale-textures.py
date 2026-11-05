@@ -92,7 +92,29 @@ def model_file(path):
     return p
 
 def bleed(rgb, alpha, passes=8):
-    """Give transparent (colour-keyed) texels the colour of their opaque neighbours, so the model and the mipmaps never see the key."""
+    """Give transparent (colour-keyed) texels the colour of their opaque neighbours, so the model and the mipmaps never see the key.
+    Each pass gives the keyed texels next to a coloured one the mean of their coloured 8-neighbours (the edge repeated past the
+    border); only those texels are summed, in the same order as a whole-picture pass, so the result is the same to the bit and an
+    8x picture's 64 passes take a second, not half a minute."""
+    rgb = rgb.astype(np.float32); m = alpha > 0
+    H, W = m.shape
+    offs = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), (0, 1), (1, -1), (1, 0), (1, 1))
+    for _ in range(passes):
+        if m.all() or not m.any(): break
+        mp = np.pad(m, 1, mode="edge"); near = np.zeros_like(m)
+        for dy, dx in offs: near |= mp[1 + dy:1 + dy + H, 1 + dx:1 + dx + W]
+        ys, xs = np.nonzero(near & ~m)
+        if len(ys) == 0: break
+        acc = np.zeros((len(ys), 3), np.float32); cnt = np.zeros(len(ys), np.float32)
+        for dy, dx in offs:
+            ny, nx = np.clip(ys + dy, 0, H - 1), np.clip(xs + dx, 0, W - 1)
+            k = m[ny, nx]
+            acc += rgb[ny, nx] * k[:, None]; cnt += k
+        rgb[ys, xs] = acc / cnt[:, None]; m[ys, xs] = True
+    return rgb
+
+def bleed_slow(rgb, alpha, passes=8):
+    """The whole-picture form of bleed (the reference its test compares with)."""
     rgb = rgb.astype(np.float32); m = alpha > 0
     for _ in range(passes):
         if m.all() or not m.any(): break
@@ -100,9 +122,9 @@ def bleed(rgb, alpha, passes=8):
         acc = np.zeros_like(rgb); cnt = np.zeros(m.shape, np.float32)
         for dy in (-1, 0, 1):
             for dx in (-1, 0, 1):
-                s = pad[1 + dy:1 + dy + rgb.shape[0], 1 + dx:1 + dx + rgb.shape[1]]
+                sh = pad[1 + dy:1 + dy + rgb.shape[0], 1 + dx:1 + dx + rgb.shape[1]]
                 sm = mp[1 + dy:1 + dy + m.shape[0], 1 + dx:1 + dx + m.shape[1]]
-                acc += s * sm[..., None]; cnt += sm
+                acc += sh * sm[..., None]; cnt += sm
         fill = (~m) & (cnt > 0)
         rgb[fill] = acc[fill] / cnt[fill][..., None]; m = m | fill
     return rgb
@@ -208,6 +230,11 @@ def alpha_ok(big, h, w, s):
     want = np.array(Image.fromarray(disc * 0.8, "F").resize((w * s, h * s), Image.BILINEAR)) >= 0.5
     return np.array_equal(px[..., 3] == 255, want) and set(np.unique(px[..., 3])) <= {0, 255} and px[..., :3][~want].sum() > 0
 
+def bleed_same():
+    rng = np.random.default_rng(3); rgb = rng.integers(0, 256, (61, 47, 3)).astype(np.uint8)
+    a = np.zeros((61, 47), np.uint8); a[5:20, 3:30] = 255; a[40:, 30:] = 255; a[0, 0] = 255
+    return np.array_equal(bleed(rgb, a, 64), bleed_slow(rgb, a, 64)) and np.array_equal(bleed(rgb, a, 3), bleed_slow(rgb, a, 3))
+
 def self_check():
     """Colour match on a made-up texture: a model-like upscale with a colour cast and fine detail comes back to the original's
     colour, keeps its detail and its alpha."""
@@ -235,7 +262,8 @@ def self_check():
               (f"fine detail kept (correlation {keep:.3f} > 0.95)", keep > 0.95),
               ("alpha unchanged", np.array_equal(out[..., 3], big[..., 3])),
               ("a size that is not a multiple is left alone", np.array_equal(colour_match(big[:-1], orig), big[:-1])),
-              ("the alpha step's alpha is cut at one half at the written size, colour bled under it", alpha_ok(big, h, w, s))]
+              ("the alpha step's alpha is cut at one half at the written size, colour bled under it", alpha_ok(big, h, w, s)),
+              ("bleed's rim-only passes equal the whole-picture passes to the bit", bleed_same())]
     for name, ok in checks: print(("ok   " if ok else "FAIL ") + name)
     return all(ok for _, ok in checks)
 
