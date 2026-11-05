@@ -63,6 +63,22 @@ class SpecTests(unittest.TestCase):
             self.assertTrue(near.all(), f"{name}: ink away from every text centre")
 
 class CompositorTests(unittest.TestCase):
+    def test_an_8x_pack_letters_the_same_place_as_a_4x(self):
+        # the spec is in the original's texels: the 8x pack's lettering lands on the 4x's, scaled, and the inpaint relaxes further
+        orig = blank(64, 32, (200, 200, 200)); orig[10:20, 12:40, :3] = 30
+        ops = [{"op": "erase", "rect": [10, 8, 42, 22], "where": {"lum_below": 60}, "grow": 0.5},
+               {"op": "text", "text": "AB", "font": "Anton", "cap": 8, "center": [26, 15], "colour": [10, 10, 10]}]
+        boxes = []
+        for s in (4, 8):
+            px = np.repeat(np.repeat(orig, s, 0), s, 1)
+            out = tr.apply_ops(px, orig, ops)
+            ink = out[..., :3].mean(axis=2) < 80
+            ys, xs = np.where(ink)
+            boxes.append(np.array([xs.min(), ys.min(), xs.max(), ys.max()]) / s)
+        self.assertLess(np.abs(boxes[0] - boxes[1]).max(), 1.0)
+        self.assertEqual(tr.relax_passes(4), 24)
+        self.assertEqual(tr.relax_passes(8), 96)
+
     def test_self_check(self):
         self.assertTrue(tr.self_check())
 

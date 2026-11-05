@@ -17,7 +17,7 @@ PACK/.text-base/ (a sub-folder the game does not look in), so a run can be repea
 model's files back. pack.json gets a "text_redraws" list (texture, spec, fonts) and ATTRIBUTION.txt a line per font used.
 Needs Python 3.10+, numpy, Pillow, and etcpak for .dds (pip install numpy pillow etcpak).
 
-A spec (coordinates in the original's texels, upright, so the same spec serves a 2x, 3x or 4x pack):
+A spec (coordinates in the original's texels, upright, so the same spec serves a 2x, 3x, 4x or 8x pack):
     {"textures": ["zsy_"], "note": "...",
      "ops": [
        {"op": "erase", "rect": [x0, y0, x1, y1], "where": {"lum_below": 60}, "grow": 0.6, "fill": "inpaint"},
@@ -168,6 +168,11 @@ def grow_mask(m, r):
             sh[ys, xs] = m[yd, xd]; out |= sh
     return out
 
+def relax_passes(s):
+    """The inpaint's relaxing passes at a pack scale s: 24 at 4x, growing with the square of the scale so the smoothing reaches
+    as far in the original's texels at 8x (a Jacobi pass spreads about one texel; its reach grows as the root of the passes)."""
+    return max(24, int(round(24 * (s / 4) ** 2)))
+
 def inpaint(rgb, hole, iters=None):
     """Fill the hole's texels smoothly from round it (repeated averaging of the known 4-neighbours, then relaxed)."""
     rgb = rgb.astype(np.float32).copy(); known = ~hole
@@ -236,7 +241,7 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 if op.get("texture"): grain.append((hole, op["texture"]))
                 nxt = ops[i + 1] if i + 1 < len(ops) else None
                 if not (nxt and nxt["op"] == "erase" and nxt.get("fill", "inpaint") == "inpaint"):
-                    rgb = inpaint(rgb, pending); pending = None
+                    rgb = inpaint(rgb, pending, relax_passes(s)); pending = None
                     # the inpaint is smooth: give each hole the grain of the surface beside it (the pack's own detail,
                     # its high frequencies, from the texels "texture": [dx, dy] texels away)
                     if grain:
