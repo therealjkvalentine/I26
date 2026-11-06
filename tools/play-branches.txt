@@ -314,3 +314,6 @@ fix/counter-drums-and-hd-maps         # section AA: the modern cockpit's ammunit
 
 # AB. the upstream handoff pages (2026-11-05)
 docs/upstream-handoff                 # section AB: docs/upstream-handoff.md (the fork against upstream, public-safe, with pull-request readiness) and docs/upstream-handoff-first-prs.md (the first ten PRs drafted, not opened)
+
+# AC. engine start-up from the briefing movies (2026-11-05)
+feat/engine-audio-from-movies         # section AC: [port] movie_ignition (off): the modern look's ignition plays the INT03 briefing's start-up (cut from the user's own SMK at run time, MovieClip.cs) with the catch on the engine table's start time; ignition log lines; the kit's 11 kHz 8-bit loops measured against the movies' 22 kHz audio (docs)
