@@ -649,6 +649,7 @@ public partial class DamageView : Node3D
                     wc.StopHorn();
                     break;
                 case IgnitionStarted ig:
+                    GD.Print($"ignition: {ig.Vehicle.Definition} cranks ({ig.Sound}, {Damage.Ignition(ig.Vehicle).Length:0.0} s){(MovieIgnition ? ", movie_ignition on" : "")}");
                     // The player's ignition sound, not positional; it plays for the table's time, not the file's
                     StopIgnition();
                     _ignitionOf = ig.Vehicle;
@@ -673,10 +674,12 @@ public partial class DamageView : Node3D
                     }
                     break;
                 case EngineStarted es when Cars.TryGetValue(es.Vehicle, out var ec):
+                    GD.Print($"ignition: {es.Vehicle.Definition} engine started");
                     if (es.Vehicle == _ignitionOf && !_ignitionMovie) StopIgnition();
                     ec.RestartEngine();   // the engine loop on, the ignition sound off
                     break;
                 case EngineStopped st when Cars.TryGetValue(st.Vehicle, out var sc):
+                    GD.Print($"ignition: {st.Vehicle.Definition} engine off");
                     sc.StopEngine();
                     break;
                 case TyreBlown t:
