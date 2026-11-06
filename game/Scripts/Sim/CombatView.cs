@@ -487,6 +487,36 @@ public partial class CombatView : Node3D
         return _muzzles[xdf] = def is null ? null : Sprites.Get(def);
     }
 
+    /// <summary>The 1997 look's even flash: shots waiting for their place in the tick (when, on this node's clock), and each gun's one flash.</summary>
+    private readonly List<(double Due, ShotFired S, EffectSprites.Look Look)> _evenFlashes = [];
+    private readonly Dictionary<Weapon, Sprite3D> _flashOf = [];
+    /// <summary>The even flashes' frame rate, by sprite (the others play at 10 a second).</summary>
+    private readonly Dictionary<Sprite3D, float> _flashFps = [];
+
+    /// <summary>
+    /// Lights each due shot's flash: the gun's own sprite started again from its first frame, or a new one where it has none
+    /// showing, its frames (the same ones) played through within the gun's interval: a 10/s gun's three frames at 30 a second, every
+    /// one of them each 100 ms. On the tick a new sprite at 10 a second came 83 and 125 ms apart over the last ones still playing.
+    /// </summary>
+    private void EvenFlashes()
+    {
+        for (int i = 0; i < _evenFlashes.Count; i++)
+        {
+            var (due, s, look) = _evenFlashes[i];
+            if (due > _t) continue;
+            _evenFlashes.RemoveAt(i--);
+            int at = _flashOf.TryGetValue(s.Weapon, out var sp) && IsInstanceValid(sp) ? _anims.FindIndex(a => a.Node == sp) : -1;
+            // the whole sequence within the gun's interval (never slower than the original's 10 a second), so every shot shows every frame
+            float fps = System.Math.Max(10f, look.Frames.Length * s.Weapon.Def.Rate);
+            if (at >= 0) { _anims[at] = (sp!, _anims[at].Frames, _t); sp!.Texture = _anims[at].Frames[0]; _flashFps[sp!] = fps; continue; }
+            if (Animate(look, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f))
+            {
+                _flashOf[s.Weapon] = _anims[^1].Node;
+                _flashFps[_anims[^1].Node] = fps;
+            }
+        }
+    }
+
     /// <summary>A billboard sprite playing the effect's frames at 10 per second.</summary>
     private bool Animate(EffectSprites.Look? look, System.Numerics.Vector3 at, Node3D? on = null, System.Numerics.Vector3 local = default)
     {
@@ -570,6 +600,8 @@ public partial class CombatView : Node3D
         {
             foreach (var a in _anims) if (IsInstanceValid(a.Node)) a.Node.QueueFree();
             _anims.Clear();
+            _evenFlashes.Clear();
+            _flashFps.Clear();
         }
     }
 
@@ -661,6 +693,10 @@ public partial class CombatView : Node3D
                     if (Inside?.Invoke(s.Shooter) != true && MuzzleLook(s.Weapon.Def.MuzzleFlash) is { } ml)
                     {
                         if (IsModern) ModernMuzzle(s);
+                        else if (I76.Game.Sim.OriginalBehavior.EvenFlash)
+                            // the 1997 look's even flash ([port] even_flash): the gun's one flash, lit again where the timer put the shot in its
+                            // tick (the tick's motion being drawn from Alpha 0), not a new sprite on every tick that fires
+                            _evenFlashes.Add((_t + System.Math.Max(0, s.Lead - (Alpha?.Invoke() ?? 1f) * SimClock.Tick), s, ml));
                         else Animate(ml, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f);
                     }
                     if (IsModern && !IsDropped(s.Weapon.Def.Kind) && s.Weapon.Def.Class != 5 && G(s.Muzzle).DistanceTo(CameraPos()) < 250)
@@ -754,11 +790,12 @@ public partial class CombatView : Node3D
         StopIdleGuns();
         LockTones();
 
+        EvenFlashes();
         for (int i = _anims.Count - 1; i >= 0; i--)
         {
             var (node, frames, start) = _anims[i];
-            int f = (int)((_t - start) * 10);
-            if (f >= frames.Length) { node.QueueFree(); _anims.RemoveAt(i); continue; }
+            int f = (int)((_t - start) * (_flashFps.TryGetValue(node, out var ffps) ? ffps : 10));
+            if (f >= frames.Length) { node.QueueFree(); _anims.RemoveAt(i); _flashFps.Remove(node); continue; }
             node.Texture = frames[f];
         }
 

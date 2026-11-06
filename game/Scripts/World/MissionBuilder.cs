@@ -296,6 +296,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public I76.Formats.Mission.WorldSettings? Settings { get; private set; }
     public I76.Formats.Mission.LightPreset Light { get; private set; } = I76.Formats.Mission.Lighting.ForHour(12);
     public Texture2DArray? Horizon { get; private set; }
+    /// <summary>The panels' foot colour (HorizonFade): what the 1997 look's ground fades into at the Faded draw distance; null without panels.</summary>
+    public Color? HorizonFadeColour { get; private set; }
     /// <summary>The horizon panels' images (kept for the modern look's distant terrain, which measures them off the main thread).</summary>
     public Image[]? HorizonImages { get; private set; }
     public Texture2D? Sprite { get; private set; }
@@ -377,9 +379,11 @@ public sealed class MissionBuilder(AssetVfs vfs)
         if (I76.Formats.Mission.HorizonList.Parse(Settings is { Horizon.Length: > 0 } ? vfs.TryRead(Settings.Horizon) : null) is { } hz)
         {
             var imgs = new Godot.Collections.Array<Image>();
+            var feet = new List<(byte[], int, int)>();
             foreach (var n in hz)
             {
                 if (resolver.FindByStem(n) is not { } m || textures.GetRgba(m) is not { } t) { imgs.Clear(); break; }
+                feet.Add((t.Rgba, t.Width, t.Height));
                 var im = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
                 if (imgs.Count > 0 && (im.GetWidth() != imgs[0].GetWidth() || im.GetHeight() != imgs[0].GetHeight()))
                     im.Resize(imgs[0].GetWidth(), imgs[0].GetHeight());
@@ -390,6 +394,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 Horizon = new Texture2DArray();
                 Horizon.CreateFromImages(imgs);
+                if (I76.Formats.Imaging.HorizonFade.Colour(feet) is { } hc) HorizonFadeColour = new Color(hc.R, hc.G, hc.B);
                 GC.KeepAlive(imgs);   // held past the call (see MeshArrays)
                 if (defer) HorizonImages = [.. imgs];
                 else if (EarlyHorizon && !huge) panels = [.. imgs.Select(im => (Image)im.Duplicate())];

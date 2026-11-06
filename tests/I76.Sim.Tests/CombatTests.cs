@@ -240,6 +240,46 @@ public class CombatTests
     }
 
     /// <summary>
+    /// A 10/s machine gun at the 24 Hz tick (85/2048 s) fires on ticks 2, 3, 2, 3 apart (83 and 125 ms), as the original at a 24/s
+    /// step does; each shot's Lead (where the timer put it in its tick) puts the shots 100 ms apart, give or take the timing loop's
+    /// 10 ms leftover rule, which is where the 1997 look's even flash relights.
+    /// </summary>
+    [Fact]
+    public void ATenAShotGunsShotsFallEvenlyThroughTheTicksBetween()
+    {
+        if (InstallDir is null) return;
+        const float tick = 85f / 2048f;
+        foreach (var vcf in new[] { "vppirna1.vcf", "vppirna2.vcf", "vpbmach1.vcf" })
+        {
+            var (_, car, combat, _, _) = Rig(vcf);
+            var a = car.Armory!;
+            int mg = a.Weapons.FindIndex(w => w.Def.Kind == 1 && System.Math.Abs(w.Def.Rate - 10) < 0.01f);
+            if (mg < 0) continue;
+            var keys = new bool[5]; keys[mg] = true;
+            var ticks = new List<int>(); var at = new List<double>();
+            for (int f = 0; f < 60; f++)
+            {
+                a.PlayerTriggers(false, keys);
+                combat.Frame(tick);
+                foreach (var e in combat.Events.OfType<ShotFired>().Where(e => e.Weapon == a.Weapons[mg]))
+                {
+                    Assert.InRange(e.Lead, 0f, tick);
+                    ticks.Add(f); at.Add(f * tick + e.Lead);
+                }
+                combat.Events.Clear();
+            }
+            Assert.True(ticks.Count >= 20, $"{vcf}: {ticks.Count} shots");
+            var onGrid = ticks.Zip(ticks.Skip(1), (x, y) => (y - x) * tick * 1000).Skip(1).ToList();
+            var even = at.Zip(at.Skip(1), (x, y) => (y - x) * 1000).Skip(1).ToList();
+            Assert.Contains(onGrid, d => d < 90);    // the tick grid: 83 ms ...
+            Assert.Contains(onGrid, d => d > 120);   // ... and 125 ms
+            Assert.All(even, d => Assert.InRange(d, 99.0, 111.0));
+            return;
+        }
+        Assert.Fail("no 10/s machine gun on the cars tried");
+    }
+
+    /// <summary>
     /// The napalm hose's stream: a shot starts it
     /// at two cross-sections and adds one; a frame without a shot takes two off.
     /// Deviation: a tick with the trigger held counts as a shot for the stream

@@ -2840,11 +2840,13 @@ public partial class Main : Node3D
             _skyFog.Visible = !_mode1997 && (original || hugeMap);
             if (_skyFog.MaterialOverride is ShaderMaterial fm)
             {
-                fm.SetShaderParameter("fog_begin", original ? I76.Formats.Imaging.DrawDistance.FogBegin : World.TerrainNode.StreamRadius * 0.6f);
-                fm.SetShaderParameter("fog_end", original ? I76.Formats.Imaging.DrawDistance.FogEnd : World.TerrainNode.StreamRadius * 0.95f);
+                var (fb, fe) = I76.Formats.Imaging.DrawDistance.ModernFogRange(DrawDistanceNow);
+                fm.SetShaderParameter("fog_begin", original ? fb : World.TerrainNode.StreamRadius * 0.6f);
+                fm.SetShaderParameter("fog_end", original ? fe : World.TerrainNode.StreamRadius * 0.95f);
             }
         }
         if (_horizon is not null) _horizon.Visible = !_mode1997 && !original;
+        ApplyFade1997();
         ApplyEditorOutside();
         if (_modernEnv?.Sky?.SkyMaterial is ShaderMaterial sky && _horizon is not null && _horizon.IsInsideTree())
         {
@@ -2860,7 +2862,31 @@ public partial class Main : Node3D
         }
     }
 
-    /// <summary>I76_DRAW_DISTANCE=0|1, a capture hook: Original or Far whatever the settings say.</summary>
+    /// <summary>
+    /// The 1997 look at the Faded draw distance: the ground and everything on it fade into the horizon panels' foot colour from
+    /// 1725 m to the 2300 m clip (the engine's depth fog, linear, the sky left alone), as the patch kit fades the original into its
+    /// horizon strips' colour; no fog at the other distances or in the modern look (which fades into its own sky, AddSkyFog).
+    /// </summary>
+    private void ApplyFade1997()
+    {
+        if (_env1997 is null) return;
+        bool on = _mode1997 && I76.Formats.Imaging.DrawDistance.Fade1997(DrawDistanceNow) && !SoftwareLook.Active;
+        _env1997.FogEnabled = on;
+        if (!on) return;
+        _env1997.FogMode = Environment.FogModeEnum.Depth;
+        _env1997.FogDepthBegin = I76.Formats.Imaging.DrawDistance.FadedFogBegin;
+        _env1997.FogDepthEnd = I76.Formats.Imaging.DrawDistance.FadedClip;
+        _env1997.FogDepthCurve = 1f;
+        _env1997.FogDensity = 1f;
+        _env1997.FogSkyAffect = 0f;
+        _env1997.FogAerialPerspective = 0f;
+        _env1997.FogSunScatter = 0f;
+        _env1997.FogLightEnergy = 1f;
+        // a mission without panels fades into the 1997 environment's own background
+        _env1997.FogLightColor = _builder?.HorizonFadeColour ?? _env1997.BackgroundColor;
+    }
+
+    /// <summary>I76_DRAW_DISTANCE=0|1|2, a capture hook: Original, Far or Faded whatever the settings say.</summary>
     private static readonly int? DrawDistanceHook = int.TryParse(OS.GetEnvironment("I76_DRAW_DISTANCE"), out int dd) ? I76.Formats.Imaging.DrawDistance.Parse(dd) : null;
 
     /// <summary>The player's Draw Distance, null for the look's default (which follows the look as it flips).</summary>

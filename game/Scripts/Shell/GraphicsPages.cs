@@ -144,13 +144,19 @@ public static class GraphicsPages
 /// </summary>
 public static class VisibilityRange
 {
-    /// <summary>Indexed by DrawDistance's setting: Original (600 m) is the original's Far, DrawDistance.Far (20 km) the port's Max.</summary>
-    public static readonly string[] Names = ["Far", "Max" + ShellSettings.PortMark];
+    /// <summary>
+    /// Indexed by DrawDistance's setting: Original (600 m) is the original's Far, DrawDistance.Far (20 km) the port's Max, DrawDistance.Faded
+    /// the patch kit's 2300 m faded into the horizon (2.3 km).
+    /// </summary>
+    public static readonly string[] Names = ["Far", "Max" + ShellSettings.PortMark, "2.3 km" + ShellSettings.PortMark];
+
+    /// <summary>A click's order, nearest first: Far, 2.3 km, Max.</summary>
+    private static readonly int[] Order = [I76.Formats.Imaging.DrawDistance.Original, I76.Formats.Imaging.DrawDistance.Faded, I76.Formats.Imaging.DrawDistance.Far];
 
     public static int Index(ShellSettings s, bool look1997) => I76.Formats.Imaging.DrawDistance.Resolve(s.DrawDistanceChoice, look1997);
 
-    /// <summary>A click: the other value, written as a choice (which then holds in either look).</summary>
-    public static void Step(ShellSettings s, bool look1997) => s.DrawDistanceChoice = 1 - Index(s, look1997);
+    /// <summary>A click: the next value outward (Max goes back to Far), written as a choice (which then holds in either look).</summary>
+    public static void Step(ShellSettings s, bool look1997) => s.DrawDistanceChoice = Order[(System.Array.IndexOf(Order, Index(s, look1997)) + 1) % Order.Length];
 
     /// <summary>A value picked on the pad: written only when it is not what shows, so an untouched row keeps following the look.</summary>
     public static void Put(ShellSettings s, bool look1997, int v) { if (Index(s, look1997) != v) s.DrawDistanceChoice = v; }

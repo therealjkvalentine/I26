@@ -39,8 +39,8 @@ public static class GraphicsHelp
             ? "Vegetation: the modern look's shrubs and grass. No cost in the 1997 look."
             : "Vegetation: shrubs and grass on the ground. About 4 % of a full-detail frame at High.",
         GraphicsRow.VisibilityRange => look1997
-            ? "Visibility range: Far is the original's 600 m, Max the whole map. Little cost in the 1997 look."
-            : "Visibility range: Far is the original's 600 m, Max the whole map. Under 3 % of a full-detail frame, but some 800 more draw calls.",
+            ? "Visibility range: Far is the original's 600 m, 2.3 km fades into the horizon from 1.7 km, Max the whole map. Little cost in the 1997 look."
+            : "Visibility range: Far is the original's 600 m, 2.3 km fades into the sky from 1.7 km, Max the whole map. Under 3 % of a full-detail frame at Max, but some 800 more draw calls.",
         GraphicsRow.HdTextures => look1997
             ? "HD textures: the 4x texture pack, for the modern look. Not drawn in the 1997 look."
             : "HD textures: the 4x texture pack. No frame cost; about 0.7 GB more video memory and 3 s more loading on T01.",

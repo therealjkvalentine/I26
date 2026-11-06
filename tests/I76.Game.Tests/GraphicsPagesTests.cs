@@ -208,9 +208,10 @@ public class GraphicsPagesTests
 
     /// <summary>The original's words are Near, Med. and Far (Med. and Far both the mission's 600 m); the port has the 600 m as Far and its own 20 km as Max*.</summary>
     [Fact]
-    public void VisibilityRangeIsFarOrTheMax()
+    public void VisibilityRangeIsFarTheKitsFadeOrTheMax()
     {
-        Assert.Equal(["Far", "Max*"], VisibilityRange.Names);
+        Assert.Equal(["Far", "Max*", "2.3 km*"], VisibilityRange.Names);
+        Assert.Equal("2.3 km*", VisibilityRange.Names[I76.Formats.Imaging.DrawDistance.Faded]);
         Assert.Equal("Far", VisibilityRange.Names[I76.Formats.Imaging.DrawDistance.Original]);
         Assert.Equal(I76.Formats.Imaging.DrawDistance.OriginalClip, I76.Formats.Imaging.DrawDistance.CameraFar(0));
     }
@@ -228,6 +229,9 @@ public class GraphicsPagesTests
         VisibilityRange.Step(s, false);
         Assert.Equal(I76.Formats.Imaging.DrawDistance.Original, s.DrawDistanceChoice);
         Assert.Equal(0, VisibilityRange.Index(s, look1997: false));
+        // clicks go outward: Far, 2.3 km, Max, then Far again
+        VisibilityRange.Step(s, true);
+        Assert.Equal(I76.Formats.Imaging.DrawDistance.Faded, VisibilityRange.Index(s, look1997: true));
         VisibilityRange.Step(s, true);
         Assert.Equal(1, VisibilityRange.Index(s, look1997: true));
         GraphicsPages.Reset(s, GraphicsRow.VisibilityRange);
