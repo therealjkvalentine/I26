@@ -103,8 +103,8 @@ Every `I76_*` hook is listed in [docs/dev-hooks.md](docs/dev-hooks.md). Check a 
 
 ## The play fork
 
-This checkout is the private integration fork: `play` is upstream plus every topic branch in `tools/play-branches.txt`;
-`play` also carries the fork's bookkeeping (the tracker, the manifest, the sync script). New here? [docs/play-setup.md](docs/play-setup.md) gets a developer from
+This checkout is the integration fork: `main` (called `play` until pass 19) is upstream plus every topic branch in `tools/play-branches.txt`;
+`main` also carries the fork's bookkeeping (the tracker, the manifest, the sync script). New here? [docs/play-setup.md](docs/play-setup.md) gets a developer from
 nothing to a running playtest build on Windows or macOS and explains how a branch travels to upstream;
 [docs/play-tracker.md](docs/play-tracker.md) is the ranked list of every change with its evidence and PR order;
 `tools/sync-play.ps1` rebuilds `play`. Never commit to `play` directly, never push to upstream, and keep every commit

@@ -9,7 +9,7 @@ minutes, and how a change travels from a branch to upstream.
 
 | Branch | What it is |
 |---|---|
-| `play` | upstream `master` + every topic branch in `tools/play-branches.txt`, merged in that order, plus the fork's own bookkeeping: this page, `docs/play-tracker.md` (every change with its evidence and PR order), `tools/play-branches.txt` (the merge order) and `tools/sync-play.ps1`. Build and play this one. Code changes never go on it by hand (they go on a topic branch); the bookkeeping files are edited on it directly. Upstream's master is merged into it by hand when upstream moves (pass 19 onward). |
+| `main` (called `play` until pass 19) | upstream `master` + every topic branch in `tools/play-branches.txt`, merged in that order, plus the fork's own bookkeeping: this page, `docs/play-tracker.md` (every change with its evidence and PR order), `tools/play-branches.txt` (the merge order) and `tools/sync-play.ps1`. Build and play this one. Code changes never go on it by hand (they go on a topic branch); the bookkeeping files are edited on it directly. Upstream's master is merged into it by hand when upstream moves (pass 19 onward). |
 | `fix/*`, `feat/*`, `perf/*` | one logical change each, branched from upstream `master`, PR-shaped: a test, a CHANGELOG bullet, a `docs/deviations.md` row for a deliberate difference, one squashed commit whose body says what the original does and how it was checked. These are what go upstream, one at a time. |
 
 Remotes, by convention: `origin` is upstream (read-only; set its push URL to something invalid), `play` is this
@@ -123,7 +123,7 @@ suspect alone three times before calling it. Windows Developer Mode removes the 
 3. One squashed commit: title in the present tense; body with what the original does and how that is known (in words,
    no reverse-engineering artefacts), what was wrong, what changes; a `Checked:` paragraph with the commands run and
    their counts. Nothing in the repository or a commit names a person, a machine, a private path or an address.
-4. `git push play <branch>`; add the branch to `tools/play-branches.txt` on `play` in its place in the order and a
+4. `git push play <branch>`; add the branch to `tools/play-branches.txt` on `main` in its place in the order and a
    row to `docs/play-tracker.md`; run `tools/sync-play.ps1` from the `play` worktree (PowerShell 5.1 or 7;
    `-NoPush -NoRebase` for a dry run). Conflicts in CHANGELOG.md and the docs tables are unioned automatically; others
    are listed.

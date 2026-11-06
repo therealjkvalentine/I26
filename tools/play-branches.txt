@@ -1,5 +1,5 @@
 # The patch stack, in merge order (= the order to offer upstream). One branch a line; # starts a comment.
-# tools/sync-play.ps1 merges the new ones of these onto `play`; this file and docs/play-tracker.md live on play (pass 19). See docs/play-tracker.md.
+# tools/sync-play.ps1 merges the new ones of these onto `main` (the integration branch, called `play` until pass 19); this file and docs/play-tracker.md live on it. See docs/play-tracker.md.
 
 # A. reported upstream
 fix/wheel-suspension-prime            # #141 spawn bob

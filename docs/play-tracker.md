@@ -1,7 +1,7 @@
 # Patch stack tracker
 
-The private list behind the `play` branch: every change this fork carries ahead of upstream, what it changes, the evidence
-it rests on, and the order to offer it upstream as pull requests. Lives on `play` only (on `play-meta` until pass 19); never on
+The list behind the fork's `main` branch (called `play` until pass 19): every change this fork carries ahead of upstream, what it changes, the evidence
+it rests on, and the order to offer it upstream as pull requests. Lives on `main` only (on `play-meta` until pass 19); never on
 a topic branch. `tools/play-branches.txt` is the machine-readable merge order; `tools/sync-play.ps1` merges the new
 branches onto `play`; upstream's master is merged into `play` by hand when it moves.
 

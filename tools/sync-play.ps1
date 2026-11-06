@@ -1,9 +1,9 @@
 ﻿<#
 .SYNOPSIS
-  Merges the patch stack's new topic branches onto the private `play` integration branch.
+  Merges the patch stack's new topic branches onto the fork's `main` integration branch (called `play` until pass 19).
 
 .DESCRIPTION
-  Run from a worktree whose checked-out branch is `play`. The stack is the branch list in tools/play-branches.txt on
+  Run from a worktree whose checked-out branch is `main`. The stack is the branch list in tools/play-branches.txt on
   `play` itself (one branch a line, merge order, # comments; since pass 19 the bookkeeping lives on play, the old
   `play-meta` branch is history). For each branch the script:
     1. drops it from the stack when its pull request upstream is merged (gh, --head <user>:<branch>) or its commits are
@@ -45,8 +45,8 @@ function Git { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$
 function Fail($msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
 
 $cur = (Git rev-parse --abbrev-ref HEAD) -join ''
-if ($cur -ne 'play') { Fail "run this from the worktree that has 'play' checked out (this one has '$cur')" }
-if ((Git status --porcelain) -ne $null -and (Git status --porcelain).Count -gt 0) { Fail 'the play worktree is not clean' }
+if ($cur -ne 'main') { Fail "run this from the worktree that has 'main' checked out (this one has '$cur')" }
+if ((Git status --porcelain) -ne $null -and (Git status --porcelain).Count -gt 0) { Fail 'the main worktree is not clean' }
 
 $remotes = Git remote
 foreach ($r in 'origin', 'play') { if ($remotes -notcontains $r) { Fail "remote '$r' missing" } }
@@ -159,8 +159,8 @@ if ($Rebuild) {
 }
 
 foreach ($b in $stack) {
-  if (-not $Rebuild) { Git merge-base --is-ancestor $b play | Out-Null; if ($gitExit -eq 0) { $already += $b; continue } }
-  $out = Git merge --no-ff --no-edit -m "Merge $b into play" $b
+  if (-not $Rebuild) { Git merge-base --is-ancestor $b main | Out-Null; if ($gitExit -eq 0) { $already += $b; continue } }
+  $out = Git merge --no-ff --no-edit -m "Merge $b into main" $b
   if ($gitExit -eq 0) { $merged += $b; Write-Host "  merged $b"; continue }
   $unmerged = @(Git diff --name-only --diff-filter=U)
   $ok = $true
@@ -176,7 +176,7 @@ foreach ($b in $stack) {
     }
   }
   if ($ok) {
-    $out = Git commit --no-edit -m "Merge $b into play"
+    $out = Git commit --no-edit -m "Merge $b into main"
     if ($gitExit -eq 0) { $merged += $b; Write-Host "  merged $b (changelog/docs union)"; continue }
   }
   Git merge --abort | Out-Null
@@ -186,12 +186,12 @@ foreach ($b in $stack) {
 
 if (-not $NoPush) {
   Write-Host '== push to play'
-  Git push --force-with-lease play play | Out-Null
+  Git push --force-with-lease play main | Out-Null
   foreach ($b in $stack) { Git push --force-with-lease play $b | Out-Null }
 }
 
 Write-Host ''
-Write-Host "merged into play now ($($merged.Count)):"; $merged | ForEach-Object { "  $_" }
+Write-Host "merged into main now ($($merged.Count)):"; $merged | ForEach-Object { "  $_" }
 if ($already) { Write-Host "already in play: $($already.Count)" }
 if ($Rebuild) { Write-Host 'full rebuild: redo the hand fixes listed under "Integration notes" in docs/play-tracker.md, then dotnet build I76.sln' }
 if ($rebaseSkipped) { Write-Host 'rebase skipped (merged as they stand):'; $rebaseSkipped | ForEach-Object { "  $_" } }
