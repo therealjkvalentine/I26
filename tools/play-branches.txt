@@ -330,3 +330,6 @@ fix/pass19-review                     # section AD, stacked on play: a partial H
 
 # AE. the test suites on a machine with the install (2026-11-05)
 fix/test-suite-on-this-install        # section AE: the server's armour limit reads only the archive's variants (a player's saved variant in addon\ raised it); a melee snapshot restore takes FormKd from Form; the road-piece count reads miss16 only; four Formats tests made path- and platform-honest; wall-clock tests marked Load=Sensitive; "Running the tests" in play-setup.md with the counts
+
+# AF. car deaths, round 4 (2026-11-05; a Developer-panel option, off by default)
+feat/death-variety-4                  # section AF: with death_variety on (Developer panel; off by default): upstream's stock death 100 ms late, the blast and its sparks and chunks at half, a small cause-specific sign at 0 ms (hood lifts / failed wheel bursts / cab puff / ammo crack); rounds 1-3's extras removed; I76_BOOM kill-ai:wheel
