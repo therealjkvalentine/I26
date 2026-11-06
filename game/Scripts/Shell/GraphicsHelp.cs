@@ -2,8 +2,8 @@ namespace I76.Game.Shell;
 
 /// <summary>
 /// Graphic Detail's help line (the port's: the original had no help text on its pads): for the row under the mouse on the shell's
-/// sheet, or the in-game pad's selected row, what the setting does in plain words and what it costs. Only the eight rows that cost the
-/// most have one; every other row shows a blank line. The strings live here, apart from the pages' table (GraphicsPages), so the
+/// sheet, or the in-game pad's selected row, what the setting does in plain words and what it costs. Only the ten rows that cost the
+/// most have one; every other row shows a blank line. A line fits the sheet's free lines under its page's rows (Look's two). The strings live here, apart from the pages' table (GraphicsPages), so the
 /// rows can move without touching them.
 /// <para>
 /// The costs are shares of a full-detail frame from the frame-cost survey (docs/perf/costs.md, "Features, sorted by frame cost"): the
@@ -11,7 +11,8 @@ namespace I76.Game.Shell;
 /// each share is the feature's GPU ms there over 16.9, rounded: ambient occlusion 4.96 ms (29 %), the rear mirror at Full 2.88 (17 %),
 /// MSAA 4x 2.07 over Off (12 %) and 1.52 for 2x (9 %; 4x over 2x 0.55, 3 %), the sun's shadows 1.34 (8 %), Terrain Detail High
 /// 1.03 (6 %), Vegetation High 0.74 (4 %), Visibility Range Max 0.04 at 3440x1440 and 0.47 at 1920x1080 (under 3 %) with ~800 draw
-/// calls, the 4x texture pack none (+723 MB of video memory, T01's load 11.6 s against 8.7 s). The 1997 look draws none of the modern
+/// calls, the 4x texture pack none (+723 MB of video memory, T01's load 11.6 s against 8.7 s), and the 8x of the dash and of the cars
+/// none (+482 MB and +54 MB of video memory over the 4x in T01, measured apart). The 1997 look draws none of the modern
 /// look's features, so its rows say so.
 /// </para>
 /// </summary>
@@ -43,7 +44,14 @@ public static class GraphicsHelp
             : "Visibility range: Far is the original's 600 m, 2.3 km fades into the sky from 1.7 km, Max the whole map. Under 3 % of a full-detail frame at Max, but some 800 more draw calls.",
         GraphicsRow.HdTextures => look1997
             ? "HD textures: the 4x texture pack, for the modern look. Not drawn in the 1997 look."
-            : "HD textures: the 4x texture pack. No frame cost; about 0.7 GB more video memory and 3 s more loading on T01.",
+            : "HD textures: the 4x texture pack. No frame cost; about 0.7 GB more video memory.",
+        // the Look page's help has two lines (eleven rows), so these are the short ones
+        GraphicsRow.HdDash => look1997
+            ? "8x dash: the 8x dash and gauges of the modern look. Not drawn in the 1997 look."
+            : "8x dash: the dash and gauges at 8x. No frame cost; about 0.5 GB more video memory.",
+        GraphicsRow.HdCars => look1997
+            ? "8x cars: the 8x pack's car bodies, for the modern look. Not drawn in the 1997 look."
+            : "8x cars: car bodies at 8x, yours in chase view too. About 50 MB more video memory.",
         _ => null,
     };
 
@@ -52,10 +60,10 @@ public static class GraphicsHelp
     {
         var lines = new List<string>();
         var line = "";
-        // a figure and its unit stay on one line ("29 %", "100 m", "0.7 GB")
+        // a figure and its unit stay on one line ("29 %", "100 m", "0.7 GB", "50 MB")
         var words = new List<string>();
         foreach (var w in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            if (words.Count > 0 && (w.StartsWith('%') || w is "m" or "m," or "m)" or "GB" or "s" or "ms") && char.IsDigit(words[^1][^1])) words[^1] += " " + w;
+            if (words.Count > 0 && (w.StartsWith('%') || w is "m" or "m," or "m)" or "GB" or "MB" or "s" or "ms") && char.IsDigit(words[^1][^1])) words[^1] += " " + w;
             else words.Add(w);
         foreach (var word in words)
         {

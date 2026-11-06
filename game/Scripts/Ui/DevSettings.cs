@@ -109,7 +109,7 @@ public static class DevSettings
 
     /// <summary>
     /// Keys that have a menu row but are offered here too: Graphic Detail's Visibility Range (draw_distance, with "look" to go back to
-    /// following the look), HD Textures (its two keys), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
+    /// following the look), HD Textures, 8x Dash and 8x Cars (their three keys), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
     /// file's 0..100 on a slider. Not in docs/playing.md's table of settings without a row.
     /// </summary>
     public static readonly DevSetting[] WithRow =
@@ -117,10 +117,14 @@ public static class DevSettings
         new("draw_distance", ["look", "0", "1" + M, "2" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
         new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
             s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
-        // 8x, 4x, 3x, 2x (HdPackFolders.Sizes): only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
-        new("hd_texture_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdTextureSize),
-            (s, v) => s.HdTextureSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
-            s => I76.Game.Assets.HdTextures.Size = s.HdTextureSize,
+        // 8x, 4x, 3x, 2x (HdPackFolders.Sizes) for the dash and for the cars: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
+        new("hd_dash_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdDashSize),
+            (s, v) => s.HdDashSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.DashSize = s.HdDashSize,
+            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
+        new("hd_car_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdCarSize),
+            (s, v) => s.HdCarSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.CarSize = s.HdCarSize,
             Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
         new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Default ? $"{v}" : $"{v}{M}")],

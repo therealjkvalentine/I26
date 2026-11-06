@@ -1162,15 +1162,18 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
-    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, with hd_texture_size Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
+    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
     public bool HdTextures { get; set; } = HdDefault.On;
-    /// <summary>The port's own: which size of the texture pack to draw, 4 or 8 (the HD Textures row's; the user folder's tex-world-4x, and tex-world-8x, a partial pack over it) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_texture_size; HdTextures.Size). Applies from the next mission.</summary>
-    public int HdTextureSize { get; set; } = HdDefault.Size;
+    /// <summary>The port's own: the size the cockpit's art (the dash, gauges, panels) is drawn at, 4 or 8 (the 8x Dash row's; the user folder's tex-world-4x, and tex-world-8x, a partial pack over it) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_dash_size; HdTextures.DashSize). Applies from the next mission.</summary>
+    public int HdDashSize { get; set; } = HdDefault.Dash;
+    /// <summary>The port's own: the size the cars (and everything that is not the cockpit's art) are drawn at, 4 or 8 (the 8x Cars row's; [port] hd_car_size; HdTextures.CarSize). Applies from the next mission. A file from before the two keys has one hd_texture_size, read for both.</summary>
+    public int HdCarSize { get; set; } = HdDefault.Car;
     /// <summary>
-    /// A fresh block's HD Textures, which the row's Reset puts back: this machine's first-start choice (HdTextures.FirstStartPick: 8x
-    /// with tex-world-8x and a 6 GB card or a 16 GB Mac, else 4x, else Off), set by <see cref="Load"/>; on and 4x before it runs.
+    /// A fresh block's HD Textures, 8x Dash and 8x Cars, which the rows' Reset puts back: this machine's first-start choice (HdTextures.FirstStart:
+    /// on with tex-world-4x and a 4 GB card; the cars' 8x with tex-world-8x on the same card, the dash's on a 6 GB card or a 16 GB Mac),
+    /// set by <see cref="Load"/>; on and 4x before it runs.
     /// </summary>
-    public static (bool On, int Size) HdDefault { get; set; } = (true, I76.Formats.Shell.HdPackFolders.DefaultSize);
+    public static (bool On, int Dash, int Car) HdDefault { get; set; } = (true, I76.Formats.Shell.HdPackFolders.DefaultSize, I76.Formats.Shell.HdPackFolders.DefaultSize);
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
@@ -1464,14 +1467,15 @@ public sealed class ShellSettings
 
     public static ShellSettings Load()
     {
-        // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStartPick), a fresh block's and the row's Reset's
-        HdDefault = (I76.Game.Assets.HdTextures.FirstStartDefault, I76.Game.Assets.HdTextures.FirstStartSize);
+        // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
+        HdDefault = I76.Game.Assets.HdTextures.FirstStart;
         var s = new ShellSettings();
         var c = new ConfigFile();
         if (c.Load(Path) != Error.Ok)
         {
-            // a first start: the fresh block's HD textures (8x where it fits, else 4x, else Off)
-            I76.Game.Assets.HdTextures.Size = s.HdTextureSize;
+            // a first start: the fresh block's HD textures (on where the 4x fits; the dash's and the cars' 8x each where it fits)
+            I76.Game.Assets.HdTextures.DashSize = s.HdDashSize;
+            I76.Game.Assets.HdTextures.CarSize = s.HdCarSize;
             I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
             return s;
         }
@@ -1493,8 +1497,10 @@ public sealed class ShellSettings
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
         s.HdTextures = c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures")
             : I76.Game.Assets.HdTextures.FromFile(null, s.HdMenuArt, I76.Game.Assets.HdTextures.FirstStartDefault);
-        // no version step: a saved size is kept, whatever the first start would pick; absent (never chosen), the first start's (a plain tex-world from before the sizes is used whatever the size)
-        s.HdTextureSize = I76.Game.Assets.HdTextures.SizeFromFile(c.HasSectionKey("port", "hd_texture_size") ? (int)c.GetValue("port", "hd_texture_size") : null, HdDefault.Size);
+        // no version step: a saved size is kept, whatever the first start would pick; absent (never chosen), the older single hd_texture_size
+        // when the file has it (a file from before the dash and the cars had a size each), else the first start's (a plain tex-world from before the sizes is used whatever the size)
+        int? Size(string key) => c.HasSectionKey("port", key) ? (int)c.GetValue("port", key) : null;
+        (s.HdDashSize, s.HdCarSize) = I76.Game.Assets.HdTextures.SizesFromFile(Size("hd_dash_size"), Size("hd_car_size"), Size("hd_texture_size"), HdDefault.Dash, HdDefault.Car);
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1650,7 +1656,8 @@ public sealed class ShellSettings
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
-        I76.Game.Assets.HdTextures.Size = s.HdTextureSize;
+        I76.Game.Assets.HdTextures.DashSize = s.HdDashSize;
+        I76.Game.Assets.HdTextures.CarSize = s.HdCarSize;
         return s;
     }
 
@@ -1701,7 +1708,8 @@ public sealed class ShellSettings
         if (DevFps) c.SetValue("port", "dev_fps", true);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
         c.SetValue("port", "hd_textures", HdTextures);
-        c.SetValue("port", "hd_texture_size", HdTextureSize);
+        c.SetValue("port", "hd_dash_size", HdDashSize);
+        c.SetValue("port", "hd_car_size", HdCarSize);
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
