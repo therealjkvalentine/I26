@@ -52,6 +52,7 @@ uniform bool has_ground_tex = false;
 #endif
 
 uniform float debug_tint = 0.0;   // I76_HORIZON_TINT=1: the ring drawn magenta (to see where it shows)
+#include "res://Shaders/terrain_night.gdshaderinc"
 
 varying vec3 g_pos;    // centre-relative, game frame
 varying vec3 g_nrm;
@@ -187,6 +188,8 @@ void fragment() {
 	SPECULAR = 0.0;
 	vec3 nw = vec3(nb.x, nb.y, -nb.z);   // game -> Godot
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+	// at night the ground's own light, as the map's (terrain_night.gdshaderinc), so the ground past the map goes on as it
+	if (i76_night_ground > 0.0) EMISSION += i76_night_ground_light(ALBEDO, nw, -VERTEX.z);
 	v_up = (VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
 }
 

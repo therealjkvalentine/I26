@@ -242,6 +242,10 @@ i76_ground_tint={
 "type": "vec3",
 "value": Vector3(1, 1, 1)
 }
+i76_night_ground={
+"type": "float",
+"value": 0.0
+}
 i76_terrain_tiers={
 "type": "float",
 "value": 1.0

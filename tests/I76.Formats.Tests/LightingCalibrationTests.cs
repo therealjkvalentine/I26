@@ -195,4 +195,29 @@ public class LightingCalibrationTests
         Assert.Equal(1, r.Sky);
         Assert.Equal(new M.Rgb(1, 1, 1), r.ObjectTint);
     }
+
+    // a night ramp like T06's: steep from a floor near black
+    private static readonly byte[] NightLuma = [12, 22, 22, 34, 48, 48, 63, 80, 80, 99, 99, 118, 118, 139, 139, 160, 160, 182, 182, 182, 205, 205, 230, 230, 255, 255, 255, 255, 255, 255, 255, 255];
+
+    [Fact]
+    public void TheNightMoonShowsAGreyAsTheRampLightsIt()
+    {
+        var night = Lighting.Presets[0];
+        double ly = night.Direction.Y, moon = 1.3 * night.Intensity * 0.46;
+        double k = M.NightMoon(NightLuma, night.Intensity, ly, night.Ambient, moon);
+        Assert.InRange(k, 0.4, 0.8);
+        // a mid grey on a face lit at n.L = Ly: the 1997 look's texel times LUMA[round(31 I Ly)] through the card, the modern moon through the card's curve
+        const double grey = 0.18;
+        double shown1997 = M.Card(M.ToSrgb(grey) * NightLuma[(int)Math.Round(31 * night.Intensity * ly)] / 255.0);
+        double shown = M.Card(M.ToSrgb(grey * k * moon * ly));
+        Assert.Equal(shown1997, shown, 4);
+    }
+
+    [Fact]
+    public void TheMoonIsNeverBrightened()
+    {
+        var night = Lighting.Presets[0];
+        Assert.Equal(1, M.NightMoon(NightLuma, night.Intensity, night.Direction.Y, night.Ambient, 0.001));
+        Assert.Equal(1, M.NightMoon(Luma, 1, 0.7, 0, 0.5));
+    }
 }

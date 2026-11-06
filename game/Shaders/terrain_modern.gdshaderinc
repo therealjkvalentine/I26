@@ -169,6 +169,7 @@ global uniform vec3 i76_ground_tint;
 #endif
 // The distance tiers (docs/perf/plan.md, item 3): 1 on, 0 the one tier everywhere (I76_TERRAIN_TIERS=0, for a measurement).
 global uniform float i76_terrain_tiers;
+#include "res://Shaders/terrain_night.gdshaderinc"
 
 varying vec3 g_pos;     // game-frame position: sample * 5, height
 varying vec3 g_nrm;
@@ -660,4 +661,6 @@ void fragment() {
 	vec3 bn = normalize(n - (grad - dot(grad, n) * n));
 	vec3 world_n = vec3(bn.x, bn.y, -bn.z);
 	NORMAL = normalize((VIEW_MATRIX * vec4(world_n, 0.0)).xyz);
+	// at night the ground's own light, as the original's (terrain_night.gdshaderinc); the roads keep the moon's
+	if (i76_night_ground > 0.0) EMISSION += i76_night_ground_light(ALBEDO, world_n, -VERTEX.z) * (1.0 - road);
 }

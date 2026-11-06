@@ -134,6 +134,29 @@ public static class LightingCalibration
     }
 
     /// <summary>
+    /// At night, the share of its own light the modern moon keeps (energy and colour <paramref name="moon"/>, its luminance, on
+    /// a face lit at n·L = <paramref name="ly"/>), with the sky's light, through the card's curve. The original lights its roads
+    /// and objects by the preset's intensity through the ramp, which at night is steep (T06: LUMA[3] = 34 of 255 for a flat road
+    /// at intensity 0.094): a mid grey (0.18) so lit shows as a linear light of 0.028, where the moon gave it 0.074. Its ground
+    /// takes the light's direction alone, not the intensity (<see cref="NightGround"/>). 1 when the moon is no brighter.
+    /// </summary>
+    public static double NightMoon(IReadOnlyList<byte>? luma, double intensity, double ly, double ambient, double moon)
+    {
+        const double grey = 0.18;
+        double ramp = Ramp(luma, Math.Max(intensity * ly, 0) + ambient);
+        double target = ToLinear(ToSrgb(grey) * ramp) / grey;
+        double modern = moon * Math.Max(ly, 0.05);
+        return modern <= target ? 1 : target / modern;
+    }
+
+    /// <summary>
+    /// How much of the 1997 look's night ground the modern look gives its own (terrain_night.gdshaderinc): 1, the ground's colour
+    /// times the ramp's entry for the light's direction alone (d·fade + ambient), as the 1997 look shows it. The night maps'
+    /// ground is painted dark; the original lights it as by day.
+    /// </summary>
+    public const double NightGround = 1.0;
+
+    /// <summary>
     /// The map's ground as cells, every <paramref name="stride"/>th sample each way: the engine's gradient (central
     /// differences, in sample units) and from it both looks' light; cells with the same ramp entry and nearly the same
     /// modern light (to 1/16) counted together. <paramref name="light"/>: toward the light, game frame;

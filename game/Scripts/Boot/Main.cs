@@ -2301,7 +2301,7 @@ public partial class Main : Node3D
         }
         // The mission's sun or moon: direction from the preset, strength from its intensity.
         _sun.LookAt(-l, Mathf.Abs(l.Y) > 0.99f ? Vector3.Forward : Vector3.Up);
-        _sun.LightEnergy = 1.3f * light.Intensity;
+        _sun.LightEnergy = _sunEnergy = 1.3f * light.Intensity;
         _sun.LightColor = light.IsDay ? new Color(1f, 0.96f, 0.88f) : new Color(0.6f, 0.7f, 1f);
         _modernEnv.AmbientLightEnergy = _ambientEnergy = light.IsDay ? 0.6f : 0.25f;
         I76.Game.World.ObjectLight.Set("i76_light_dir", l);
@@ -2343,6 +2343,7 @@ public partial class Main : Node3D
     private Lighting _lighting = Lighting.Card;
     private I76.Formats.Imaging.LightingCalibration.Result _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
     private float _ambientEnergy = 0.6f;
+    private float _sunEnergy = 1.3f;
     private int _brightnessLevel = I76.Formats.Imaging.MonitorBrightness.Default;
     private ShaderMaterial? _calibratedSky;
     private I76.Formats.Mission.LightPreset? _calibratedLight;
@@ -2479,6 +2480,11 @@ public partial class Main : Node3D
         bool card = _lighting == Lighting.Card;
         var sc = SkyFor(_lighting);
         float back = card ? 1f / (float)c.Exposure : 1f / Mathf.Sqrt((float)c.Exposure);
+        // at night through the card's curve: the moon (and the sky's light) at the original's light on roads and objects, the ground
+        // lit by its own, the original's (NightLight)
+        var (moon, ground) = card && _calibratedLight is { IsDay: false } night ? NightLight(night) : (1f, 0f);
+        if (_sun is not null) _sun.LightEnergy = _sunEnergy * moon;
+        RenderingServer.GlobalShaderParameterSet("i76_night_ground", ground);
         if (_modernEnv is not null)
         {
             _modernEnv.AdjustmentEnabled = true;
@@ -2486,7 +2492,7 @@ public partial class Main : Node3D
             _modernEnv.TonemapExposure = (float)(card ? c.Exposure / I76.Formats.Imaging.LightingCalibration.Headroom : c.Exposure);
             _modernEnv.AdjustmentColorCorrection = card ? CardTone(_brightnessLevel) : null;
             _modernEnv.AdjustmentBrightness = card ? 1f : ModernBrightness(_brightnessLevel);
-            if (_calibratedSky is not null) _modernEnv.AmbientLightEnergy = _ambientEnergy * sc.AmbientGain / (sc.Gain * back);
+            if (_calibratedSky is not null) _modernEnv.AmbientLightEnergy = _ambientEnergy * moon * sc.AmbientGain / (sc.Gain * back);
         }
         if (_calibratedSky is not null)
         {
@@ -2509,6 +2515,24 @@ public partial class Main : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_prelit_gain", 1f / (float)c.Exposure);
         RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
         RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);
+    }
+
+    /// <summary>
+    /// A night preset's light in the modern look through the card's curve: the share of its own light the moon and the sky's light
+    /// keep, so a road or an object shows as the original lights it by the preset's intensity through the ramp
+    /// (LightingCalibration.NightMoon), and how much of the original's light the ground takes as its own (terrain_night.gdshaderinc):
+    /// the original lights its ground by the light's direction alone, so a night map's dark-painted ground shows nearly as by day while
+    /// its roads and cars sit near the ramp's floor. The modern moon lit both alike, so the roads shone over a ground near black.
+    /// I76_NIGHT_MOON and I76_NIGHT_GROUND set either in place (1 and 0: as before), for a comparison.
+    /// </summary>
+    private (float Moon, float Ground) NightLight(I76.Formats.Mission.LightPreset light)
+    {
+        var c = (_sun?.LightColor ?? Colors.White).SrgbToLinear();
+        double lum = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
+        double moon = I76.Formats.Imaging.LightingCalibration.NightMoon(LumaBytes(), light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * lum);
+        return (Env("I76_NIGHT_MOON") ?? (float)moon, Env("I76_NIGHT_GROUND") ?? (float)I76.Formats.Imaging.LightingCalibration.NightGround);
+        static float? Env(string name) => float.TryParse(System.Environment.GetEnvironmentVariable(name), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var k) ? k : null;
     }
 
     /// <summary>How much of the sky's colour its light on the scene keeps (sky_modern.gdshaderinc radiance_chroma).</summary>
