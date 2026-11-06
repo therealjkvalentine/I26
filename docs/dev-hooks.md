@@ -77,6 +77,8 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_SIREN_LIGHTS` | tuning | How many police light bars (the nearest to the camera) cast red and blue light at night in the modern look; 4 by default, 0 for none, -1 leaves the whole modern bar out. |
 | `I76_HEADLIGHTS` | tuning | How many other cars' headlamps (the nearest to the camera) cast real light at night in the modern look; 6 by default, 0 for none. The player's always do. |
 | `I76_FPS_LOG` | test | `1`: every two seconds print `fps-log:` (frames a second, sim ticks a second and the tick, frame time mean, deviation and worst): the Max FPS cap against the sim rate. |
+| `I76_DRAW_LOG` | test | `PATH`: each frame's time, the ticks it ran, whether an early tick ran (the 1997 look's Early Tick), the draw fraction and every car's drawn position in game axes, as CSV: to check that an early tick moves nothing on screen by more than the frames around it. |
+| `I76_DRAW_DISTANCE` | capture | `0`, `1` or `2`: Visibility Range's Far (600 m), Max (20 km) or 2.3 km (the 1997 look's fade into the horizon from 1725 m) for the run, whatever the settings say. |
 | `I76_HOUR` | capture | Override the mission's hour of day for the lighting. |
 | `I76_CAR_CONDITION` | capture | `N`: every car shows damage level N. |
 | `I76_CAR_DAMAGE` | capture | `L` (0..3): every car's zones shown at damage level L, shape and textures, as a hit leaves them (DamageView). |

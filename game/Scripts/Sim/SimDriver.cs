@@ -504,16 +504,38 @@ public partial class SimDriver : Node
         // Early Tick (the 1997 look, [port] early_tick): a change of the keys or the stick runs the next tick now, borrowed from the
         // accumulator, and the cars blend from where they were drawn to it (TickPacer); the sim's ticks and their inputs are as ever
         pacer.EarlyOnInput = Replay is null && EarlyTick?.Invoke() == true;
+        bool early = false;
         if (due == 0 && pacer.WantsEarly(KeysChanged()))
         {
             float drawn = pacer.Alpha;
             foreach (var c in Cars) c.KeepDrawn(drawn);
             RunTick();
             pacer.Borrow();
+            early = true;
         }
         float alpha = Alpha = pacer.Alpha;
         var o = Origin();
         foreach (var c in Cars) c.Place(alpha, o);
+        if (DrawLog is not null) LogDrawn(delta, due, early, alpha, o);
+    }
+
+    // I76_DRAW_LOG=PATH: each frame's time, ticks run, whether an early tick ran, the draw fraction and every car's drawn position (game
+    // axes), to check that an early tick moves nothing on screen by more than its neighbours (docs/1997-parity.md)
+    private static readonly System.IO.StreamWriter? DrawLog = System.Environment.GetEnvironmentVariable("I76_DRAW_LOG") is { Length: > 0 } dl ? new System.IO.StreamWriter(dl) { AutoFlush = false } : null;
+    private double _drawClock;
+
+    private void LogDrawn(double delta, int due, bool early, float alpha, System.Numerics.Vector3 origin)
+    {
+        _drawClock += delta;
+        var sb = new System.Text.StringBuilder();
+        sb.Append(System.FormattableString.Invariant($"{_drawClock:0.00000},{due},{(early ? 1 : 0)},{alpha:0.0000}"));
+        foreach (var c in Cars)
+        {
+            var g = c.GlobalPosition;
+            sb.Append(System.FormattableString.Invariant($",{g.X + origin.X:0.0000},{g.Y + origin.Y:0.0000},{-g.Z + origin.Z:0.0000}"));
+        }
+        DrawLog!.WriteLine(sb.ToString());
+        if (Ticks % 48 == 0) DrawLog.Flush();
     }
 
     /// <summary>One tick of the session and what the game does after each: force feedback, impacts, sounds, the debug lines.</summary>
