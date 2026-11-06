@@ -58,7 +58,8 @@ public static class DevTips
         "world_textures" => "The world's textures: the 1997 originals or the 4x pack (2x and 3x only from the file or here). From the next mission.",
         "car_textures" => "The cars' and the dash's textures: 1997, 4x or 8x. The 8x needs tex-world-8x beside the 4x and about 0.5 GB more video memory, most of it the dash.",
         "cabins_behind_glass" => "The modern look draws a dim cabin and driver behind other cars' windows; false is plain reflective glass. Live.",
-        "log_file" => "Writes logs/godot<date>.log in the user folder from the next start, for bug reports.",
+        "sway_snap" => "The original head sway: a height within 0.005 of its target jumps there at once, which shakes the dash by up to a pixel while coasting through a curve. False eases every frame. Live.",
+        "log_file" =>"Writes logs/godot<date>.log in the user folder from the next start, for bug reports.",
         _ => null,
     };
 
