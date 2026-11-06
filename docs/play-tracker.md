@@ -881,6 +881,24 @@ graphics-pages-3 without the mouse rows; fix/mouse-in-window-menus against upstr
 
 **Smoke run** (Godot 4.7.2, 1280x960, `_scratch/r3-reconcile/*.jpg`): the shell's Graphic Detail sheet and its Look, Display and Camera pages, Mouse Options, Control Configuration, Play Options (top and scrolled to the end), the base host form (drawn sheet with Ignition Lock and Handicaps) and the Nitro host form, each in both looks; T01 starts; T05 and M01 at the map's edge (the ground runs on past it in both looks; `I76_CAP_CAM` did not move the cockpit view, so these are from the car). No exception in any log (only the fresh worktree's missing boot_splash import). The Hide Map Edge Cliffs row was already gone (remove/map-edge-cliffs); upstream's outside ground is the answer. Control Configuration's Mouse Options row sits on the last ruled line, just over the button bar.
 
+## Pass 23 (2026-11-06)
+
+Eight branches as manifest sections AK-AR: menus with tooltips, Advanced and Controls (AK), menu art at 4x with retyped
+lettering (AL), terrain-shadow probe hooks (AM: the T05 band is the ridge's real shadow, no player-visible change), firing
+frame rate (AN), dash shudder (AO), night lighting (AP), cockpit art round 5 (AQ), road signs and gas pumps (AR, pass 23b).
+Held for the owner: revert/explosions-to-upstream (the modern flipbooks were missing from game/vfx on every machine until
+this pass; main with them, the death_variety default and effects_* scaling explosions are the open questions).
+
+Resolution: fix/world-art-signs-pumps conflicted with fix/cockpit-art-round5 in tools/upscale-textures.py and
+tools/test_upscale_context.py (--cells and --recut, both kept). One fix on main: a tooltip for dash-shudder's sway_snap row,
+which the menus branch's tooltip test caught.
+
+Test status, pass 23 (`main` 1b6f7dbd, f2b22514 after AR), desktop, no install paths set, `--filter "Load!=Sensitive"`: Game
+552/0 (554/0 after AR; 23 install skips), Sim 1203/0, Editor 230/0, Formats 926/0 (124 skips), Net 464/0 earlier in the pass.
+Deployed f2b22514 to the laptop, James's Mac and Michael's Mac (Andrew's Mac drops its connection mid-build: still on pass 22's
+build, with pass 23's packs); 397 changed HD pack files synced (tex-menu, tex-world-4x, tex-world-8x where present).
+Laptop smoke T01 1280x960: loads and drives on the 4x pack.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
