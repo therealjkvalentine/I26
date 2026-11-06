@@ -1434,6 +1434,8 @@ public sealed class ShellSettings
     public bool EarlyTick { get; set; } = true;
     /// <summary>The port's own, without a row: the player's car (and the cameras on it) drawn at the newest sim tick carried forward by the time since it, not between the last two ticks; both looks, offline (DrawAhead; [port] draw_ahead, written when on).</summary>
     public bool DrawAhead { get; set; }
+    /// <summary>The port's own, without a row: the head sway takes a height under 0.005 from its target at once, as the original (HeadSway.SnapSmall; [port] sway_snap, written when on).</summary>
+    public bool SwaySnap { get; set; }
     /// <summary>The port's own, without a row: with VSync on, the newest finished frame is shown at each refresh (the mailbox swap) instead of each frame queued for one in turn (FrameLimit.SwapFor; [port] low_latency_present, written when off).</summary>
     public bool LowLatencyPresent { get; set; } = true;
     /// <summary>The port's own, without a row: a 5 ms audio output buffer (next start) and Godot's physics step at 240 a second, so a car's sounds start sooner (StartupSettings.AudioLatency; [port] low_latency_audio, written when off).</summary>
@@ -1649,6 +1651,7 @@ public sealed class ShellSettings
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
         s.DrawAhead = (bool)c.GetValue("port", "draw_ahead", false);
+        s.SwaySnap = (bool)c.GetValue("port", "sway_snap", false);
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
         s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
@@ -1783,6 +1786,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);
         if (DrawAhead) c.SetValue("port", "draw_ahead", true);
+        if (SwaySnap) c.SetValue("port", "sway_snap", true);
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
         if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);

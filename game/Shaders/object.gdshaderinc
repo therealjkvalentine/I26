@@ -69,6 +69,14 @@ uniform vec2 paint_luma = vec2(0.5);   // the mean luma of the scheme's primary 
 
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic;
 
+// the player's cockpit drawn in the eye's frame (CarNode.PinCockpit): the rows of the mesh-to-eye transform, made on the CPU from the
+// small transforms inside the car, and the eye in the mesh's frame (w 1 when set). The engine's own path goes through the car's place in
+// the world: hundreds of metres from the floating origin, float rounding there moved the dash on screen by up to a pixel a frame
+instance uniform vec4 pit_x = vec4(0.0);
+instance uniform vec4 pit_y = vec4(0.0);
+instance uniform vec4 pit_z = vec4(0.0);
+instance uniform vec4 pit_eye = vec4(0.0);
+
 varying vec2 v_intensity;
 // a camera-facing card (ScenerySpawner): the engine draws it turned toward the view but lights it
 // by its node's own orientation (the light is handed the node's world matrix, not the turn), so the 1997 look
@@ -269,6 +277,12 @@ void vertex() {
 		lit += night_lights((MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz, n, MODEL_MATRIX[3].xyz);
 	v_intensity = i76_ramp(lit + i76_ambient);
 #endif
+	// the cockpit camera's own pass (its eye where pit_eye puts it; not a shadow's or another camera's): the mesh by its transform to
+	// the eye; every other pass and mesh as the engine places it
+	vec4 p_eye = pit_eye.w > 0.5 && distance((MODEL_MATRIX * vec4(pit_eye.xyz, 1.0)).xyz, CAMERA_POSITION_WORLD) < 0.05
+		? vec4(dot(pit_x, vec4(VERTEX, 1.0)), dot(pit_y, vec4(VERTEX, 1.0)), dot(pit_z, vec4(VERTEX, 1.0)), 1.0)
+		: MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	POSITION = PROJECTION_MATRIX * p_eye;
 }
 
 #ifndef FAITHFUL

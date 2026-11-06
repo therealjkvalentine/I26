@@ -237,6 +237,49 @@ public partial class CarNode : Node3D
         if (Paint is not null) ApplyPaint(_hood);
     }
 
+    /// <summary>
+    /// The cockpit's meshes drawn in the eye's frame (object.gdshaderinc, pit_x..pit_eye): each mesh's transform to the eye is made
+    /// here from the transforms inside the car (the eye's head turn and sway, a needle's turn), all of them small, so the dash holds
+    /// still on screen to the pixel's thousandth. The engine's own path multiplies the car's place in the world into the mesh and
+    /// out of the camera again, and at 800 m from the floating origin that rounding moved the dash by up to a pixel a frame at
+    /// 3440x1440 (measured: 0.67 px frame to frame, p99, against 0.03 near the origin). Off: the engine's path. Call after the eye
+    /// and the needles have moved for the frame.
+    /// </summary>
+    public void PinCockpit(bool on)
+    {
+        if (_cockpit is null || CockpitCamera is null) return;
+        var eye = InCar(CockpitCamera);
+        var toEye = eye.AffineInverse();
+        Pin(_cockpit);
+        void Pin(Node n)
+        {
+            if (n is GeometryInstance3D g)
+            {
+                if (!on) g.SetInstanceShaderParameter("pit_eye", Vector4.Zero);
+                else
+                {
+                    var m = InCar(g);
+                    var r = toEye * m;
+                    var (b, o) = (r.Basis, r.Origin);
+                    g.SetInstanceShaderParameter("pit_x", new Vector4(b.X.X, b.Y.X, b.Z.X, o.X));
+                    g.SetInstanceShaderParameter("pit_y", new Vector4(b.X.Y, b.Y.Y, b.Z.Y, o.Y));
+                    g.SetInstanceShaderParameter("pit_z", new Vector4(b.X.Z, b.Y.Z, b.Z.Z, o.Z));
+                    var at = m.AffineInverse() * eye.Origin;
+                    g.SetInstanceShaderParameter("pit_eye", new Vector4(at.X, at.Y, at.Z, 1));
+                }
+            }
+            foreach (var c in n.GetChildren()) Pin(c);
+        }
+    }
+
+    /// <summary>A node's transform in the car's frame: its own and its parents' up to the car.</summary>
+    private Transform3D InCar(Node3D n)
+    {
+        var t = n.Transform;
+        for (var p = n.GetParent() as Node3D; p is not null && p != this; p = p.GetParent() as Node3D) t = p.Transform * t;
+        return t;
+    }
+
     /// <summary>The interior's bounds in the car's frame, the hood included.</summary>
     public Aabb? CockpitBounds => _cockpit?.Mesh is not { } m ? null : _hood?.Mesh is { } h ? m.GetAabb().Merge(h.GetAabb()) : m.GetAabb();
 
