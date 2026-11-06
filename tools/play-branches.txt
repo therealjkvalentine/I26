@@ -363,3 +363,6 @@ fix/firing-framerate                  # section AN: a gun's rolling ammo counter
 
 # AO. dash shudder (2026-11-06)
 fix/dash-shudder                      # section AO: the cockpit meshes are drawn in the eye's frame for the cockpit camera (CarNode.PinCockpit + object.gdshaderinc), so the dash no longer jumps up to ~1 px per frame from float precision far from the floating origin; the head sway eases into its target instead of the original's snap ([port] sway_snap=true restores it; Dev panel); p99 0.83 -> 0.03 px
+
+# AP. night lighting (2026-11-06)
+fix/night-lighting                    # section AP: night presets in the modern look (lighting_calibration on): the moon and sky scaled to the original's road level (0.58 on T06/T12/M04), the ground, outside ground and horizon ring get the original's own ground light as emission on the modern normal, so the road is the darker band and headlights matter as in 1997; LightingCalibration.NightGround (1.0 = 1997 level; I76_NIGHT_GROUND to compare); shader global i76_night_ground; day, 1997 look, off/filmic unchanged
