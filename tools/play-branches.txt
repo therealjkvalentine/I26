@@ -317,6 +317,7 @@ docs/upstream-handoff                 # section AB: docs/upstream-handoff.md (th
 
 # AC. engine start-up from the briefing movies (2026-11-05)
 feat/engine-audio-from-movies         # section AC: [port] movie_ignition (off): the modern look's ignition plays the INT03 briefing's start-up (cut from the user's own SMK at run time, MovieClip.cs) with the catch on the engine table's start time; ignition log lines; the kit's 11 kHz 8-bit loops measured against the movies' 22 kHz audio (docs)
+fix/movie-ignition-dev-key            # section AC, stacked on play: the Developer panel entry for movie_ignition
 
 # AD. pass 19 code review (2026-11-05): the first five are cut from upstream's master and PR-ready
 fix/grid-route-same-cell              # section AD: GridRoute.Between with start and goal in one open cell no longer indexes an empty route (server-tick crash for a melee bot)
