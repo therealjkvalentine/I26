@@ -164,7 +164,8 @@ public static class VisibilityRange
 
 /// <summary>
 /// HD Textures: one row over [port] hd_textures and hd_texture_size, Off, 4x* and, when its folder is there, 8x* (the port's, so
-/// marked): the 4x pack is the one the modern look is made for; an 8x pack is partial (the cockpit and the cars: pack.json's covers,
+/// marked): the 4x pack is the one the modern look is made for and the 8x the default where it fits (a fresh block's, so Reset's:
+/// ShellSettings.HdDefault, HdTextures.Pick: a 6 GB card or a 16 GB Mac); an 8x pack is partial (the cockpit and the cars: pack.json's covers,
 /// shown in the value, "8x (cockpit &amp; cars)*"), the rest served from the 4x (HdPackFolders.Chain). A 2x or 3x pack saves video memory
 /// and a second of loading but no frame time (docs/perf/costs.md). The loader still serves any whole multiple (HdPackFolders.Choose:
 /// the chosen size's tex-world-Nx, else the plain tex-world, else the nearest size present), and a size set in the file or on the

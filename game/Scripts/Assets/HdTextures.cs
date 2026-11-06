@@ -56,21 +56,48 @@ public static class HdTextures
     /// <summary>Video memory under this (MiB) starts with the pack off: the 4x pack adds ~0.7 GB in T01 (docs/perf/costs.md); a 4 GB card reports about 4096.</summary>
     public const long LowVideoMemoryMb = 3840;
 
-    /// <summary>
-    /// The first start's HD Textures: 4x when the user folder has tex-world-4x, else Off; Off too on a GPU with under 4 GB of video
-    /// memory (<see cref="LowVideoMemoryMb"/>; unknown memory counts as enough). The player's choice is saved from then on.
-    /// </summary>
-    public static bool DefaultOn(bool has4x, long? videoMemoryMb) => has4x && !(videoMemoryMb < LowVideoMemoryMb);
+    /// <summary>A graphics card's video memory (MiB) from which a first start takes the 8x of the cockpit and the cars: a 6 GB card (reports about 6144). With the 8x the game's whole use is ~2.5-3.0 GB (docs/perf/costs.md, the 8x section), so a 4 GB card stays on the 4x.</summary>
+    public const long LargeVideoMemoryMb = 5888;
 
-    /// <summary><see cref="DefaultOn"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb).</summary>
-    public static bool FirstStartDefault => DefaultOn(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), I76.Game.Boot.RenderBackend.VideoMemoryMb);
+    /// <summary>The same where the GPU shares the machine's memory (Apple silicon: RenderBackend.VideoMemoryMb is the machine's memory): a 16 GB Mac (16384); an 8 GB Mac stays on the 4x.</summary>
+    public const long LargeSharedMemoryMb = 15872;
 
     /// <summary>
-    /// The first start never picks the 8x of the cockpit and the cars, even with its folder and the room for it: it would fit a 6 GB
-    /// card (the game's whole use ~2.5-3.0 GB with it, docs/perf/costs.md) or a 16 GB Mac, but costs ~0.55 GB and ~2 s of load and
-    /// shows no difference at play (docs/perf/costs.md, the 8x section), so it is the player's to pick on the row.
+    /// The first start's HD Textures (also the row's Reset): 8 (the 8x of the cockpit and the cars over the 4x) when the user folder has
+    /// tex-world-8x and tex-world-4x and the GPU has room (<see cref="LargeVideoMemoryMb"/>, or <see cref="LargeSharedMemoryMb"/> where
+    /// it shares the machine's memory), else 4 when it has tex-world-4x and at least <see cref="LowVideoMemoryMb"/>, else 0 (Off).
+    /// Unknown memory (Linux) counts as enough for the 4x, not for the 8x. A saved shell.cfg keeps its own choice.
     /// </summary>
-    public static int FirstStartSize => HdPackFolders.DefaultSize;
+    public static int Pick(bool has4x, bool has8x, long? memoryMb, bool sharedMemory)
+    {
+        if (!has4x) return 0;
+        if (memoryMb is not { } mb) return HdPackFolders.DefaultSize;
+        if (has8x && mb >= (sharedMemory ? LargeSharedMemoryMb : LargeVideoMemoryMb)) return HdTextureLarge;
+        return mb >= LowVideoMemoryMb ? HdPackFolders.DefaultSize : 0;
+    }
+
+    private const int HdTextureLarge = 8;
+
+    /// <summary>Whether the first start turns the textures on with the 4x (<see cref="Pick"/> without an 8x: kept for a file with no hd_textures key).</summary>
+    public static bool DefaultOn(bool has4x, long? videoMemoryMb) => Pick(has4x, false, videoMemoryMb, false) > 0;
+
+    private static int? _pick;
+    /// <summary><see cref="Pick"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb; macOS shares the machine's memory), read once.</summary>
+    public static int FirstStartPick => _pick ??= Pick(UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), UserHas(HdPackFolders.Folder(HdTextureLarge)),
+        I76.Game.Boot.RenderBackend.VideoMemoryMb, OperatingSystem.IsMacOS());
+
+    /// <summary>The first start's switch: on unless <see cref="FirstStartPick"/> is Off.</summary>
+    public static bool FirstStartDefault => FirstStartPick > 0;
+
+    /// <summary>The first start's size: the 8x where <see cref="FirstStartPick"/> takes it, else the 4x (also while Off, the size the row's 4x writes).</summary>
+    public static int FirstStartSize => FirstStartPick == HdTextureLarge ? HdTextureLarge : HdPackFolders.DefaultSize;
+
+    /// <summary>
+    /// shell.cfg's [port] hd_texture_size: the saved size as it is (a 4 stays 4 on a machine whose first start would take the 8x), the
+    /// default for one not in the set; absent (a file from before the key, which never chose a size), the first start's (<paramref name="firstStart"/>:
+    /// <see cref="FirstStartSize"/>, the 8x where it fits).
+    /// </summary>
+    public static int SizeFromFile(int? saved, int firstStart) => saved is { } v ? HdPackFolders.Normalize(v) : HdPackFolders.Normalize(firstStart);
 
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>
