@@ -87,7 +87,7 @@ public class RoadPieceTypeTests(ITestOutputHelper log)
         Assert.True(bridge.Parts.Count > 1);
     }
 
-    /// <summary>The stock maps' pieces are all painted as before: every road-piece placement a flat piece, its one node its whole model.</summary>
+    /// <summary>The stock maps' pieces (miss16\, not a player's addon levels) are all painted as before: every road-piece placement a flat piece, its one node its whole model.</summary>
     [InstallFact]
     public void EveryStockPieceIsStillPainted()
     {
@@ -99,22 +99,24 @@ public class RoadPieceTypeTests(ITestOutputHelper log)
             var asm = new ModelAssembler(vfs);
             var models = new Dictionary<string, AssembledModel?>(StringComparer.OrdinalIgnoreCase);
             int pieces = 0, painted = 0, maps = 0;
-            foreach (var d in new[] { install.MissionDir, install.AddonDir }.Where(d => d is not null).Select(d => d!).Distinct())
-                foreach (var f in Directory.EnumerateFiles(d).Where(GameInstall.IsMissionFile).Order())
+            // Only the stock missions: neither GOG install ships a mission file in addon\, so an addon level there is the
+            // player's (this desktop's lab installs hold the co-op pack's auto*/coop*.lvl, 247 more pieces), not stock.
+            if (install.MissionDir is not { } d) continue;
+            foreach (var f in Directory.EnumerateFiles(d).Where(GameInstall.IsMissionFile).Order())
+            {
+                MissionWorld w;
+                try { w = new MissionWorld(vfs, asm, f); } catch (FileNotFoundException) { continue; }
+                maps++;
+                foreach (var p in w.Placements.Concat(w.LinePlacements).Where(p => p.Definition is not null && RoadPieceObjects.IsRoadPiece(p.Object.ObjectType)))
                 {
-                    MissionWorld w;
-                    try { w = new MissionWorld(vfs, asm, f); } catch (FileNotFoundException) { continue; }
-                    maps++;
-                    foreach (var p in w.Placements.Concat(w.LinePlacements).Where(p => p.Definition is not null && RoadPieceObjects.IsRoadPiece(p.Object.ObjectType)))
-                    {
-                        pieces++;
-                        if (!models.TryGetValue(p.Definition!, out var m)) models[p.Definition!] = m = asm.Assemble(p.Definition!);
-                        Assert.NotNull(m);
-                        Assert.True(RoadPieceObjects.Painted(p.Object.ObjectType, m), $"{Path.GetFileName(f)} {p.Object.Name} ({p.Object.ObjectType:x}) is no longer painted");
-                        Assert.Equal(m!.Parts.Count, RoadPieceObjects.Drawn(m).Parts.Count);
-                        painted++;
-                    }
+                    pieces++;
+                    if (!models.TryGetValue(p.Definition!, out var m)) models[p.Definition!] = m = asm.Assemble(p.Definition!);
+                    Assert.NotNull(m);
+                    Assert.True(RoadPieceObjects.Painted(p.Object.ObjectType, m), $"{Path.GetFileName(f)} {p.Object.Name} ({p.Object.ObjectType:x}) is no longer painted");
+                    Assert.Equal(m!.Parts.Count, RoadPieceObjects.Drawn(m).Parts.Count);
+                    painted++;
                 }
+            }
             log.WriteLine($"{env}: {maps} maps, {pieces} road-piece placements, {painted} painted");
             Assert.Equal(total, pieces);
         }
