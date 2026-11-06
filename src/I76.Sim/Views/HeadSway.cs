@@ -20,23 +20,31 @@ public sealed class HeadSway
     public float Left, Right, Back;
 
     /// <summary>
+    /// The original takes a height less than 0.005 from its target at once. Drawn once a tick at 640x480 that step is a fifth of a
+    /// pixel; drawn between ticks at today's resolutions it is about one, and the acceleration's small tick-to-tick changes keep the
+    /// heights inside it, so the view shook by a pixel at the tick rate while coasting. False eases every distance ([port] sway_snap).
+    /// </summary>
+    public bool SnapSmall { get; set; } = true;
+
+    /// <summary>
     /// One render frame: a = −0.008·acc·forward, b = −0.008·acc·right; the targets a − b (left), a + b (right), −16a
-    /// (back), each eased at f = 2·dt while 0 ≤ f ≤ 0.95 and it is at least 0.005 away, else taken at once.
+    /// (back), each eased at f = 2·dt while 0 ≤ f ≤ 0.95 and it is at least 0.005 away (any distance without
+    /// <see cref="SnapSmall"/>), else taken at once.
     /// </summary>
     public void Step(float accForward, float accRight, float dt)
     {
-        float a = accForward * Gain, b = accRight * Gain, f = 2 * dt;
-        Left = Ease(Left, a - b, f);
-        Right = Ease(Right, a + b, f);
-        Back = Ease(Back, BackGain * a, f);
+        float a = accForward * Gain, b = accRight * Gain, f = 2 * dt, snap = SnapSmall ? 0.005f : 0;
+        Left = Ease(Left, a - b, f, snap);
+        Right = Ease(Right, a + b, f, snap);
+        Back = Ease(Back, BackGain * a, f, snap);
     }
 
     /// <summary>The same, from a world acceleration and the body's right and forward axes.</summary>
     public void Step(Vector3 accel, Vector3 right, Vector3 forward, float dt) =>
         Step(Vector3.Dot(accel, forward), Vector3.Dot(accel, right), dt);
 
-    private static float Ease(float x, float target, float f) =>
-        f >= 0 && f <= 0.95f && MathF.Abs(target - x) >= 0.005f ? x + f * (target - x) : target;
+    private static float Ease(float x, float target, float f, float snap) =>
+        f >= 0 && f <= 0.95f && MathF.Abs(target - x) >= snap ? x + f * (target - x) : target;
 
     /// <summary>Back to level (a new car, or the view entered afresh).</summary>
     public void Reset() => Left = Right = Back = 0;

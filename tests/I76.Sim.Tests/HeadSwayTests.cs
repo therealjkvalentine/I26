@@ -79,4 +79,39 @@ public class HeadSwayTests
         Assert.Equal(0, Vector3.Dot(f, u), 5);
         Assert.Equal(1, f.Z, 5);
     }
+
+    [Fact]
+    public void Without_the_snap_a_small_step_is_eased_too()
+    {
+        // the same frame as the test above: the left height's 0.0027 to go is eased, not taken at once
+        var s = new HeadSway { SnapSmall = false, Left = 0.0568f, Right = -0.0470f, Back = 0.1260f };
+        s.Step(1.596f, 9.029f, 0.0357f);
+        Assert.Equal(0.0568f + 0.0714f * (0.0595f - 0.0568f), s.Left, 0.00005f);
+        Assert.Equal(-0.0497f, s.Right, 0.0002f);
+    }
+
+    [Fact]
+    public void Coasting_at_180_fps_moves_the_heights_by_far_less_than_the_snap_in_any_frame()
+    {
+        // 24 Hz ticks drawn at 180 frames a second; the forward acceleration wanders by up to 0.2 m/s² a tick, as T01's coast does,
+        // so the back height's target moves by up to 0.026 a tick. With the snap a frame took up to 0.005 at once (about 0.47 mrad
+        // of pitch, a pixel at 3440x1440); eased, no frame moves a height by more than f times what is left
+        float frame = 1 / 180f;
+        float MaxStep(bool snap)
+        {
+            var s = new HeadSway { SnapSmall = snap };
+            var rng = new System.Random(1);
+            float acc = -0.1f, worst = 0, back = 0;
+            for (int i = 0; i < 180 * 4; i++)
+            {
+                if (i % 7 == 0 || i % 15 == 7) acc = -0.1f + (float)(rng.NextDouble() - 0.5) * 0.2f;   // a new tick: 7 or 8 frames
+                s.Step(acc, -1.88f, frame);
+                if (i > 180) worst = MathF.Max(worst, MathF.Abs(s.Back - back));
+                back = s.Back;
+            }
+            return worst;
+        }
+        Assert.True(MaxStep(true) > 0.002f);
+        Assert.True(MaxStep(false) < 0.0004f);
+    }
 }

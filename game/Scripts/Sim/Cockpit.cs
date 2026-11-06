@@ -198,6 +198,9 @@ public partial class Cockpit : Node
             Needles();
             Mirror();
         }
+        // the dash in the eye's frame, the eye and the needles moved for the frame; once more on leaving the car, to let it go
+        if (pit || _pinned) Node3D.PinCockpit(pit);
+        _pinned = pit;
         Panels.Commit();
     }
 
@@ -215,6 +218,7 @@ public partial class Cockpit : Node
     private int _binoYaw;
     private float _binoAcc;
     private int _steps, _lastTick = SimClock.Now;
+    private bool _pinned;
 
     private void Zoom(float dt)
     {
@@ -445,6 +449,7 @@ public partial class Cockpit : Node
     private Basis Sway(float dt)
     {
         var rot = Car.Rot;
+        _sway.SnapSmall = OriginalBehavior.SwaySnap;
         _sway.Step(Car.Accel, rot.Right, rot.Forward, dt);
         var (r, u, f) = _sway.Basis(Car.P.Track, Car.P.Wheelbase);
         // the game's rows as columns, conjugated by the Z mirror: x and y keep their axes' z negated, z is negated whole
