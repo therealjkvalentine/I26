@@ -27,21 +27,6 @@ public partial class WreckFire : Node3D
     public required CarNode Car { get; init; }
     /// <summary>The mission's light for the smoke: 1 by day, lower at night (as ModernFx's).</summary>
     public float SceneLight { get; init; } = 1f;
-    /// <summary>The death's look (DeathVariety): where along the body the fire burns (−1 rear … 1 front), its size, and the seconds before it catches (a driver's death: smoke first, the body charring as it takes).</summary>
-    public float At { get; init; }
-    public float Size { get; init; } = 1f;
-    public float Delay { get; init; }
-    /// <summary>
-    /// The variety's two-stage death (DeathVariety): the seconds to the tank's blast, when the fire starts at
-    /// <see cref="DeathVariety.FlameStart"/> of full and grows over <see cref="DeathVariety.FlameRamp"/> s, its smoke
-    /// <see cref="DeathVariety.SmokeAfter"/> s later; null: lit at once, as before.
-    /// </summary>
-    public float? Tank { get; init; }
-    /// <summary>The smoke's rate (1 as before), the flames' strength, how far they spread round the body, and how long they stay full (s).</summary>
-    public float SmokeScale { get; init; } = 1f;
-    public float FlameScale { get; init; } = 1f;
-    public float Spread { get; init; } = 1f;
-    public float FullFor { get; init; } = FlamesFull;
 
     // the burn-down, in seconds since the death
     public const float FlamesFull = 10, FlamesOut = 40, HeatOut = 75, SmokeThin = 45, SmokeGone = 240;
@@ -58,7 +43,6 @@ public partial class WreckFire : Node3D
     private GpuParticles3D _flames = null!, _smoke = null!, _embers = null!;
     private OmniLight3D _light = null!;
     private double _age, _gone = -1;
-    private float _slow = 1f;
     private float _phase;
     private Vector3 _centre;
     private float _width, _length;
@@ -80,23 +64,16 @@ public partial class WreckFire : Node3D
     public override void _Ready()
     {
         Shared.Init();
-        ProcessPriority = 100;   // after the cars are placed this frame: the fire is on the body as drawn, a thrown one too
         _phase = GD.Randf() * 100f;
         var b = Car.BodyBounds;
         _centre = b.GetCenter();
         _width = Mathf.Clamp(b.Size.X, 1f, 4f);
         _length = Mathf.Clamp(b.Size.Z, 2f, 12f);
-        // the car's forward is game +z, Godot −z in the car's frame (Coords.ToGodot)
-        _centre.Z -= At * b.Size.Z * 0.35f;
-        _age = -Delay - (Tank ?? 0);
-        _slow = FlamesFull / Mathf.Max(FullFor, 1f);
-        float wide = 1f + (Spread - 1f) * 0.6f;
-        var box = new Vector3(_width * 0.32f * Mathf.Min(Size, 1.15f) * wide, 0.12f, _length * (At == 0 ? 0.32f : 0.16f) * wide);
+        var box = new Vector3(_width * 0.32f, 0.12f, _length * 0.32f);
         float topY = b.Size.Y * 0.15f;
-        _flames = Emitter(Shared.FlameProc, Shared.FlameMesh, (int)(30 * Size * Spread), 0.85, box, topY);
-        if (Spread > 1f) ((ParticleProcessMaterial)_flames.ProcessMaterial).Spread = 10f * Spread * 2f;
+        _flames = Emitter(Shared.FlameProc, Shared.FlameMesh, 30, 0.85, box, topY);
         _smoke = Emitter(Shared.SmokeProc, Shared.SmokeMesh, 36, 8.0, box * 0.8f, topY + 0.5f);
-        _embers = Emitter(Shared.EmberProc, Shared.EmberMesh, (int)(14 * Size), 1.8, box, topY + 0.2f);
+        _embers = Emitter(Shared.EmberProc, Shared.EmberMesh, 14, 1.8, box, topY + 0.2f);
         _smoke.SetInstanceShaderParameter("scene_light", SceneLight);
         _light = new OmniLight3D
         {
@@ -123,11 +100,11 @@ public partial class WreckFire : Node3D
         return p;
     }
 
-    /// <summary>On the wreck's middle as it is drawn (a dying car's throw too), turned with its heading only: the fire burns up whichever way up the car lies.</summary>
+    /// <summary>On the wreck's middle, turned with its heading only: the fire burns up whichever way up the car lies.</summary>
     private void Follow()
     {
         if (!IsInstanceValid(Car) || !Car.IsInsideTree()) return;
-        var t = Car.BodyGlobal;
+        var t = Car.GlobalTransform;
         var fwd = t.Basis.Z with { Y = 0 };
         float yaw = fwd.LengthSquared() > 1e-4f ? Mathf.Atan2(fwd.X, fwd.Z) : 0f;
         GlobalTransform = new Transform3D(new Basis(Vector3.Up, yaw), t * _centre);
@@ -147,15 +124,9 @@ public partial class WreckFire : Node3D
     {
         bool modern = !IsInstanceValid(Car) || Car.Modern;
         bool carGone = _gone >= 0;
-        // a delayed fire: smoke for the second half of the wait, then flames, heat and char taking over three seconds;
-        // the variety's (Tank): nothing until the tank goes, then the flames from a fraction of full, the smoke a moment later
-        float kindle = _age < 0 ? 0 : Delay > 0 ? Mathf.Clamp((float)_age / 3f, 0, 1) : Tank is not null ? Mathf.Lerp(DeathVariety.FlameStart, 1f, Mathf.Clamp((float)_age / DeathVariety.FlameRamp, 0, 1)) : 1;
-        double burnt = System.Math.Max(_age, 0) * _slow;
-        float flames = carGone ? 0 : Flames(burnt) * kindle * FlameScale, heat = carGone ? 0 : (HeldHeat ?? Heat(burnt)) * (Tank is not null && _age >= 0 ? 1 : kindle);
-        float smoke = carGone ? 0 : _age < 0 ? (Delay > 0 && _age > -Delay * 0.5 ? 0.3f : 0) : Tank is not null && _age < DeathVariety.SmokeAfter ? 0 : Smoke(burnt);
-        smoke *= SmokeScale;
+        float flames = carGone ? 0 : Flames(_age), heat = carGone ? 0 : HeldHeat ?? Heat(_age), smoke = carGone ? 0 : Smoke(_age);
         if (_detached) return;
-        if (!carGone) Car.SetBurn(Tank is not null ? (_age >= 0 ? 1 : 0) : kindle, heat);
+        if (!carGone) Car.SetBurn(1f, heat);
         // the burning wreck can catch the brush round it (World/BrushImpacts.cs)
         if (!carGone && modern && flames > 0.3f) I76.Game.World.BrushImpacts.Heat(Car.GlobalPosition, 4f, 0.12f * flames);
         if (modern != _wasModern)
@@ -169,21 +140,20 @@ public partial class WreckFire : Node3D
         _embers.Emitting = modern && flames > 0.15f;
         _embers.AmountRatio = flames;
         // the smoke layer draws the smoke capped (DamageSmoke.Burn, black puffs of its own look) when it can; the particles when not
-        bool layered = modern && smoke > 0.02f && DamageSmoke.Current?.Burn(this, GlobalPosition + Vector3.Up * (Car.BodyBounds.Size.Y * 0.15f + 0.5f), Mathf.Clamp(smoke, 0.25f * SmokeScale, 1f), delta, MathF.Min(_width, _length) * 0.5f) == true;
+        bool layered = modern && smoke > 0.02f && DamageSmoke.Current?.Burn(this, GlobalPosition + Vector3.Up * (Car.BodyBounds.Size.Y * 0.15f + 0.5f), Mathf.Clamp(smoke, 0.25f, 1f), delta, MathF.Min(_width, _length) * 0.5f) == true;
         if (!layered) DamageSmoke.Current?.Extinguish(this);
         _smoke.Emitting = modern && smoke > 0.02f && !layered;
-        _smoke.AmountRatio = Mathf.Clamp(smoke, 0.25f * SmokeScale, 1f);
+        _smoke.AmountRatio = Mathf.Clamp(smoke, 0.25f, 1f);
         _smoke.SetInstanceShaderParameter("thick", Mathf.Clamp((smoke - 0.35f) / 0.65f, 0, 1));
         _smoke.SetInstanceShaderParameter("fire", flames);
         // a fire's flicker: three unrelated sines, never quite repeating; dimmer, steadier embers after the flames
         float t = (float)_age * 1f + _phase;
         float flick = 0.72f + 0.12f * Mathf.Sin(t * 13.1f) + 0.09f * Mathf.Sin(t * 7.3f + 1.3f) + 0.07f * Mathf.Sin(t * 23.7f + 4.1f);
-        _light.LightEnergy = (flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f))) * Size;
-        if (_age < 0 && Tank is not null) _light.LightEnergy = 0;
+        _light.LightEnergy = flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f));
         _light.OmniRange = 6f + 5f * flames;
         _light.Visible = modern && _light.LightEnergy > 0.02f;
         // the smoke in the air has drifted off: done
-        if (carGone && _age - _gone > _smoke.Lifetime + 0.5 || !carGone && burnt > SmokeGone + _smoke.Lifetime && heat <= 0) Finished = true;
+        if (carGone && _age - _gone > _smoke.Lifetime + 0.5 || !carGone && _age > SmokeGone + _smoke.Lifetime && heat <= 0) Finished = true;
     }
 
     /// <summary>The process materials and meshes every wreck shares (the shaders compile once).</summary>

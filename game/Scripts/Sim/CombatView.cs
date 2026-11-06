@@ -394,6 +394,9 @@ public partial class CombatView : Node3D
         return null;
     }
 
+    /// <summary>The modern look's car death blasts waiting out DeathVariety.Delay: when, the car (it is drawn where the car is then), the blast's place on it, its look.</summary>
+    private readonly List<(double At, I76.Sim.Vehicles.Vehicle Vehicle, System.Numerics.Vector3 Offset, (float Size, double Life, Color Smoke, float Fire) Look)> _lateBlasts = [];
+
     /// <summary>The car whose death blast is at <paramref name="at"/> (it may have moved on a few ticks since): the nearest killed car within 8 m.</summary>
     private I76.Sim.Vehicles.Vehicle? DyingAt(System.Numerics.Vector3 at) =>
         Combat.World.Vehicles.Where(v => (v.Flags & (I76.Sim.Vehicles.VehicleFlags)0x80000000) != 0 && !v.Pos.ToVector3().Equals(default) && System.Numerics.Vector3.DistanceSquared(v.Pos.ToVector3(), at) < 64)
@@ -742,23 +745,11 @@ public partial class CombatView : Node3D
                 // the napalm stream hit burst (xflht1): the modern look draws the fire on the target itself (NapalmModern)
                 case Explosion x when IsModern && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xflht", StringComparison.OrdinalIgnoreCase):
                     break;
-                // a car's death in the modern look with the variety on: DamageView draws its two stages (DeathVariety)
+                // a car's death in the modern look (DeathVariety): its blast a moment later, on the car, smaller and with fewer sparks
                 case Explosion x when IsModern && _fx.HasExplosions && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xcarx", StringComparison.OrdinalIgnoreCase)
-                    && DyingAt(x.At) is { } dv && DeathVariety.Owns(dv, (CarOf?.Invoke(dv) as CarNode)?.Modern == true):
+                    && DyingAt(x.At) is { } dv && DeathVariety.Owns(dv, (CarOf?.Invoke(dv) as CarNode)?.Modern == true) && Blast(x.Effect) is { } db:
+                    _lateBlasts.Add((_t + DeathVariety.Delay, dv, x.At - dv.Pos.ToVector3(), db));
                     break;
-                // a dying car's effect roll (x1_cars1, 1 tick in 8 for 10 s) in the variety's deaths: the wreck flaring up, a cook-off's
-                // pop, the award's small blast; one big blast a death is the tank's (DamageView.Stage; docs/deviations.md "Car deaths")
-                case Explosion x when IsModern && _fx.HasExplosions && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xcars", StringComparison.OrdinalIgnoreCase)
-                    && DyingAt(x.At) is { } rv && CarOf?.Invoke(rv) is CarNode { Modern: true } rc && DeathVariety.Owns(rv, true)
-                    && (DamageView.Dying.TryGetValue(rv, out var rp) ? rp.Roll2 : DeathVariety.RollBlast.Flare) is var roll && roll != DeathVariety.RollBlast.Blast:
-                {
-                    // on the car as drawn (its throw is drawn, the sim's kick is not); the death's own first roll comes before DamageView has its plan: a flare
-                    var ra = G(x.At) + (rc.GlobalPosition - G(rv.Pos.ToVector3()));
-                    if (roll == DeathVariety.RollBlast.Flare) _fx.Flare(ra, DeathVariety.FlareSize);
-                    else if (roll == DeathVariety.RollBlast.Pop) { _fx.Explode(ra, DeathVariety.PopSize, 0.7, new Color(0.3f, 0.29f, 0.28f), 1f, 0.5f); _fx.Strike(ra, Vector3.Up, false, true); }
-                    else _fx.Explode(ra, DeathVariety.SmallSize, 2.0, new Color(0.16f, 0.15f, 0.14f), 1f, DeathVariety.SmallSmoke);
-                    break;
-                }
                 case Explosion x when IsModern && _fx.HasExplosions && Blast(x.Effect) is { } bl:
                     _fx.Explode(G(x.At), bl.Size, bl.Life, bl.Smoke, bl.Fire);
                     if (System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).Equals("xbldx2", StringComparison.OrdinalIgnoreCase)) _fx.Fireworks(G(x.At));
@@ -787,6 +778,13 @@ public partial class CombatView : Node3D
             }
         }
         Combat.Events.Clear();
+        for (int i = _lateBlasts.Count - 1; i >= 0; i--)
+            if (_t >= _lateBlasts[i].At - DeathVariety.Slack)
+            {
+                var (_, lv, off, lb) = _lateBlasts[i];
+                _lateBlasts.RemoveAt(i);
+                if (IsModern) _fx.Explode(G(lv.Pos.ToVector3() + off), lb.Size, lb.Life, lb.Smoke, lb.Fire, DeathVariety.SizeFactor, DeathVariety.ShrapnelFactor);
+            }
         StopIdleGuns();
         LockTones();
 
