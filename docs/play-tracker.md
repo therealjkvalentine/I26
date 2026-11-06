@@ -735,7 +735,7 @@ Test status, pass 13 (`play` c2237c7): desktop, I76_INSTALL set, the movie rende
 (30 skipped, 5 failures in the first run, 4 when rerun to list them: GameDiscovery ServerPlacesFindTheGameNextToTheExecutable,
 GogLibrary Drive_letters_map..., InstallAndMigration App_folder_is_the_one_holding_the_mac_bundle, TerrainSurface
 ParallelBuildAndCachedCopy...; the fifth is the order-dependent WeaponTests.EveryWeaponSlotHasItsHardpoint, which passes alone),
-all in the desktop baseline. New because of us: none. Deployed c2237c7 to the laptop, James's Mac, Michael's and Andrew's Macs.
+all in the desktop baseline. New because of us: none. Deployed c2237c7 to the laptop, the three Macs.
 
 ## Pass 14 (2026-11-04)
 
@@ -750,7 +750,7 @@ lfe_offroad and lfe_bumps rows above dev-panel-2's dev_fps row (rerere recorded)
 Test status, pass 14 (`play` 83408bb): desktop, I76_INSTALL set, a performance survey sharing the GPU. Game: no failures;
 Formats: 5 failures (GameDiscovery, GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in
 the desktop baseline. New because of us: none. Deployed b8e7233 (83408bb plus the play-meta merge and feat/lfe-3's sweep-harness commit 8ee9178, which the second sync
-picked up: the knock level to 0.6) to the laptop, James's Mac, Michael's and Andrew's Macs.
+picked up: the knock level to 0.6) to the laptop, the three Macs.
 
 ## Pass 15 (2026-11-04)
 
@@ -764,7 +764,7 @@ test line dropped (rerere recorded).
 
 Test status, pass 15 (`play` ca59d29): desktop, I76_INSTALL set. Game 349, no failures; Formats 1030, 5 failures (GameDiscovery,
 GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
-of us: none. Deployed ca59d29 to the laptop, James's Mac, Michael's and Andrew's Macs.
+of us: none. Deployed ca59d29 to the laptop, the three Macs.
 
 ## Pass 16 (2026-11-04)
 
@@ -776,7 +776,7 @@ lfe_cracks/lfe_strip sliders where pages-3 moved dev_fps up among the keys that 
 
 Test status, pass 16 (`play` da88d22): desktop, I76_INSTALL set. Game 356, no failures; Formats 1037, 5 failures (GameDiscovery,
 GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
-of us: none. Deployed da88d22 to the laptop, James's Mac, Michael's and Andrew's Macs.
+of us: none. Deployed da88d22 to the laptop, the three Macs.
 
 ## Pass 17 (2026-11-04)
 
@@ -788,7 +788,7 @@ and briefing_while_loading rows, adjacent): the new deaths text with the title f
 
 Test status, pass 17 (`play` 3f58a55): desktop, I76_INSTALL set. Game 363, no failures; Formats 1037, 5 failures (GameDiscovery,
 GogLibrary, InstallAndMigration, TerrainSurface ParallelBuild, Vegetation T02Sward), all in the desktop baseline. New because
-of us: none. Deployed 3f58a55 to the laptop, James's Mac, Michael's and Andrew's Macs.
+of us: none. Deployed 3f58a55 to the laptop, the three Macs.
 
 ## Pass 18 (2026-11-04)
 
