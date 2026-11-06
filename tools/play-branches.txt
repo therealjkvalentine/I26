@@ -345,3 +345,6 @@ fix/counter-drum-fade                 # section AH, after counter-drum-feather: 
 
 # AI. the co-op host form (2026-11-06)
 feat/coop-host-form                   # section AI, after host-form-options-box: the co-op form's box holds what a story mission can use (EXTRA ENEMIES, default +1 per player = the cap 3; DAMAGE TAKEN; Invite Only, Hidden Cars, Car Reset, CB Radio, Sim Rate, Password) and hides the melee rules (turrets allowed, ignition lock off, handicaps off, crosshair allowed); Rolling Start on by default, no row ([port] coop_rolling_start written when off; Developer panel); HostFormHelp: a help line under the car panel for every row on both forms
+
+# AJ. the 8x pack split: dash and cars (2026-11-06)
+feat/hd-8x-dash-and-cars              # section AJ, after hd-8x-default: [port] hd_dash_size and hd_car_size (4 or 8) in place of hd_texture_size (migrated); a texture's kind (the cockpit's z* stems or a car's) picks its chain; measured T01 1280x960: dash 8x +482 MB, cars 8x +54 MB, so cars 8x wherever the 4x fits and dash 8x on 6 GB cards / 16 GB Macs; rows HD Textures Off/On, 8x Dash, 8x Cars with help lines; Developer panel keys; the shell sheet's help under the page's last row
