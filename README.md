@@ -68,7 +68,11 @@ same checkout: the specs are committed, so every machine gets the same lettering
 not in the user folder, and running it again after the pack is rebuilt redraws the new model files (delete the pack's
 `.text-base/` first, so the new upscales become the base). The specs are written by the scripts in
 `tools/text-redraws/gen/` (the dials, the damage labels, the police doors, the cars' tails, the dented Piranha, the maps),
-which hold each label's place as read off the original.
+which hold each label's place as read off the original. The mission map screen (M) draws its map from the HD menu art, not
+from this pack: `python3 tools/menu-maps.py SRC_DIR` (the same export) runs every map through the same model (GPU, a few
+seconds a map) into `tex-menu/maps/`, its pen writing cleaned (the model's halo off, the strokes' edges softened and a little
+of the paper through the ink; `--writing plain` or `ink` for the alternatives); the plain upscales are kept, so a re-run
+needs no GPU.
 
 An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's HD Textures row then offers
 `8x (cockpit & cars)`) holds only those textures at eight times the original's size and leaves the rest to the 4x, which

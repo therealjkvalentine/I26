@@ -37,7 +37,8 @@ apart, trailing "hang" characters (".") hanging outside the centred, squeezed ru
 (the texture's own key untouched: lettering on an opaque face), "set" (opaque where the lettering covers half a texel or more:
 lettering cut into the key, as dial figures over the world) or "cover" (opaque wherever it covers, over "under": a keyed face the
 game draws in the key's colour, as the 3D dash's dials). "mirror": true reflects the lettering about its centre (the car's other side,
-textured mirrored). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
+textured mirrored). "ink": {"opacity": 0.8, "feather": 1.2} draws the run as ink on paper instead: fill and stroke as one
+coverage, feathered over "feather" pack pixels and multiplied into the surface at "opacity" (tools/menu-maps.py's ink maps). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
 corners, top-left, top-right, bottom-right, bottom-left, in place of center/width/rotate/skew: a 4-point warp, for
 lettering on a bent panel.
 """
@@ -275,9 +276,18 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 nonlocal rgb
                 a = (c * opacity)[..., None]
                 rgb = rgb * (1 - a) + np.asarray(colour, np.float32) * a
-            if sh is not None: comp(sh, op["shadow"].get("colour", [0, 0, 0]), float(op["shadow"].get("opacity", 0.6)))
-            if st is not None: comp(st, op["stroke"].get("colour", [0, 0, 0]))
-            if op.get("gradient"):
+            if op.get("ink"):
+                # ink on paper: fill and stroke as one coverage, feathered, multiplied into the surface at the ink's opacity
+                ik = op["ink"]; a = np.maximum(cov, st) if st is not None else cov
+                fe = float(ik.get("feather", 0))
+                if fe > 0: a = np.asarray(Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(fe / 2.0)), np.float32) / 255.0
+                a = (a * float(ik.get("opacity", 1.0)))[..., None]
+                rgb = rgb * (1 - a * (1 - np.asarray(op.get("colour", [0, 0, 0]), np.float32) / 255.0))
+            else:
+                if sh is not None: comp(sh, op["shadow"].get("colour", [0, 0, 0]), float(op["shadow"].get("opacity", 0.6)))
+                if st is not None: comp(st, op["stroke"].get("colour", [0, 0, 0]))
+            if op.get("ink"): pass
+            elif op.get("gradient"):
                 g0, g1 = (np.asarray(c, np.float32) for c in op["gradient"])
                 col = g0 * (1 - t[..., None]) + g1 * t[..., None]
                 a = cov[..., None]; rgb = rgb * (1 - a) + col * a

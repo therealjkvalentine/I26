@@ -230,12 +230,12 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         int w = tp.Label.W, h = tp.Label.H;
-        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Inset}", t.S);
+        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}", t.S);
         if (!_labels.TryGetValue(key, out var cell))
         {
             cell = new byte[w * t.S * h * t.S * 4];
             Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
-            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Inset);
+            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style);
             _labels[key] = cell;
         }
         Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
