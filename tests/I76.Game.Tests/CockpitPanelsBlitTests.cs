@@ -132,9 +132,9 @@ public class CockpitPanelsBlitTests
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var drum = Cell(s); var inset = Cell(s); var raised = Cell(s);
-        CounterDigits.Paint(drum, s, 2, CounterDigits.Font!, DrumStyle.Drum, 0, false);
-        CounterDigits.Paint(inset, s, 2, CounterDigits.Font!, DrumStyle.Inset, 0, false);
-        CounterDigits.Paint(raised, s, 2, CounterDigits.Font!, DrumStyle.Raised, 0, false);
+        CounterDigits.Paint(drum, s, 2, CounterDigits.Font!, DrumStyle.Drum, Edge(0), Housing);
+        CounterDigits.Paint(inset, s, 2, CounterDigits.Font!, DrumStyle.Inset, Edge(0), Housing);
+        CounterDigits.Paint(raised, s, 2, CounterDigits.Font!, DrumStyle.Raised, Edge(0), Housing);
         // the 2's foot (column 4): its lowest dark row lifted toward the face inset, two rows up the same as the plain drum
         int foot = -1, top = -1;
         for (int y = h - 1; y >= 0 && foot < 0; y--) if (Rgb(drum, w, h, 4 * s, y).R < 30) foot = y;
@@ -177,7 +177,7 @@ public class CockpitPanelsBlitTests
     [InlineData(DrumStyle.Gaps)]
     public void EveryFigureStaysLegibleOnTheShadedDrum(DrumStyle style)
     {
-        foreach (float feather in new[] { 0f, 0.10f, 0.15f, 0.20f }) Legible(style, feather);
+        foreach (float feather in new[] { 0f, 0.15f, 0.25f, 0.30f }) Legible(style, feather);
     }
 
     private static void Legible(DrumStyle style, float feather)
@@ -190,7 +190,7 @@ public class CockpitPanelsBlitTests
         {
             var flat = Cell(s); var drum = Cell(s);
             CounterDigits.Paint(flat, s, d, CounterDigits.Font!, DrumStyle.Flat);
-            CounterDigits.Paint(drum, s, d, CounterDigits.Font!, style, feather, false);
+            CounterDigits.Paint(drum, s, d, CounterDigits.Font!, style, Edge(feather), Housing);
             (int Top, int Bottom) Extent(byte[] c, int y0, int y1)
             {
                 int t = -1, b = -1;
@@ -222,8 +222,8 @@ public class CockpitPanelsBlitTests
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var drum = Cell(s); var gaps = Cell(s);
-        CounterDigits.Paint(drum, s, 8, CounterDigits.Font!, DrumStyle.Drum, 0, false);
-        CounterDigits.Paint(gaps, s, 8, CounterDigits.Font!, DrumStyle.Gaps, 0, false);
+        CounterDigits.Paint(drum, s, 8, CounterDigits.Font!, DrumStyle.Drum, Edge(0), Housing);
+        CounterDigits.Paint(gaps, s, 8, CounterDigits.Font!, DrumStyle.Gaps, Edge(0), Housing);
         int Dark(byte[] c, int y) { int n = 0; for (int x = 2 * s; x < w - s; x++) if (Rgb(c, w, h, x, y).R < 140) n++; return n; }
         // the 7 above shows its foot in the top row, the 9 below its top in the bottom row; the plain drum shows neither
         Assert.Equal(0, Dark(drum, 0)); Assert.Equal(0, Dark(drum, h - 1));
@@ -240,24 +240,38 @@ public class CockpitPanelsBlitTests
     [InlineData("7", DrumStyle.Inset)]
     [InlineData("bogus", DrumStyle.Inset)]
     public void TheDrumStyleHookParses(string? v, DrumStyle want) => Assert.Equal(want, CounterDigits.FromEnv(v));
+    /// <summary>The cockpit's edge with the band given (and the lip lit or not).</summary>
+    private static EdgeFade Edge(float feather, bool lip = false) => EdgeFade.Default with { Fraction = feather, Lip = lip };
+
+    /// <summary>The housing a counter window sits in, as the weapons panel's chrome bezel reads at the seat: a grey a shade warm.</summary>
+    private static readonly (byte R, byte G, byte B) Housing = (146, 146, 141);
+
     [Theory]
-    [InlineData(0.10f)]
     [InlineData(0.15f)]
-    [InlineData(0.20f)]
+    [InlineData(0.25f)]
+    [InlineData(0.30f)]
     public void TheWindowsEdgesFadeIntoTheHousingsShadow(float feather)
     {
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var sharp = Cell(s); var soft = Cell(s);
-        CounterDigits.Paint(sharp, s, 0, CounterDigits.Font!, DrumStyle.Inset, 0, false);
-        CounterDigits.Paint(soft, s, 0, CounterDigits.Font!, DrumStyle.Inset, feather, false);
+        CounterDigits.Paint(sharp, s, 0, CounterDigits.Font!, DrumStyle.Inset, Edge(0), Housing);
+        CounterDigits.Paint(soft, s, 0, CounterDigits.Font!, DrumStyle.Inset, Edge(feather), Housing);
         int face = w - 2;            // a face column right of the figure
-        // the middle band untouched, the lip rows near the shadow, the band in between easing (never brighter, darker toward the lip)
+        var target = CounterDigits.FadeTarget(Edge(feather), Housing);
+        // the middle band untouched; the lip rows close to the target, which is the housing darkened, not black; the band
+        // between easing toward it, never brighter than the row inside it and never past the target
         int band = (int)MathF.Ceiling(feather * h);
         for (int y = band; y < h - band; y++) Assert.Equal(Rgb(sharp, w, h, face, y), Rgb(soft, w, h, face, y));
-        Assert.InRange((int)Rgb(soft, w, h, face, 0).R, CounterDigits.ShadowRgb.R, CounterDigits.ShadowRgb.R + 45);
-        Assert.InRange((int)Rgb(soft, w, h, face, h - 1).R, CounterDigits.ShadowRgb.R, CounterDigits.ShadowRgb.R + 45);
+        Assert.InRange(Rgb(soft, w, h, face, 0).R, target.R, target.R + 25);
+        Assert.InRange(Rgb(soft, w, h, face, h - 1).R, target.R, target.R + 25);
+        Assert.True(target.R >= 0.4f * Housing.R && target.R > 3 * CounterDigits.ShadowRgb.R, $"target {target}");
         for (int y = 1; y < band; y++) Assert.True(Rgb(soft, w, h, face, y).R >= Rgb(soft, w, h, face, y - 1).R, $"row {y}");
+        for (int y = h - band; y < h - 1; y++) Assert.True(Rgb(soft, w, h, face, y).R >= Rgb(soft, w, h, face, y + 1).R, $"row {y}");
+        // most of the darkening in the last rows: at the band's middle less than a third of the drop has happened
+        int mid = band / 2;
+        float drop = Rgb(sharp, w, h, face, mid).R - Rgb(soft, w, h, face, mid).R, full = Rgb(sharp, w, h, face, 0).R - target.R;
+        Assert.InRange(drop / full, 0.05f, 0.34f);
         // the figure's ink thins into the band: the 0's foot row has less contrast than the sharp drum's
         int foot = -1;
         for (int y = h - 1; y >= 0 && foot < 0; y--) if (Rgb(sharp, w, h, 4 * s, y).R < 40) foot = y;
@@ -268,14 +282,91 @@ public class CockpitPanelsBlitTests
         }
     }
 
+    [Theory]
+    [InlineData(FeatherCurve.Ease)]
+    [InlineData(FeatherCurve.Cos)]
+    [InlineData(FeatherCurve.Pow2)]
+    [InlineData(FeatherCurve.Pow3)]
+    public void TheEdgeWeightIsFullAtTheLipOnlyAndFallsWithoutAStep(FeatherCurve curve)
+    {
+        const int h = 40; const float feather = 0.25f;
+        int band = (int)(feather * h);
+        // nothing outside the band, the lip row nearly full (the edge itself is half a row out), every row in strictly less
+        for (int y = band; y < h - band; y++) Assert.Equal(0, CounterDigits.EdgeWeight(y, h, feather, curve));
+        Assert.InRange(CounterDigits.EdgeWeight(0, h, feather, curve), 0.8f, 1f);
+        for (int y = 1; y < band; y++) Assert.True(CounterDigits.EdgeWeight(y, h, feather, curve) < CounterDigits.EdgeWeight(y - 1, h, feather, curve), $"row {y}");
+        // the same from the bottom, and no step: no row-to-row rise over 0.3
+        for (int y = 0; y < h; y++)
+        {
+            Assert.Equal(CounterDigits.EdgeWeight(y, h, feather, curve), CounterDigits.EdgeWeight(h - 1 - y, h, feather, curve), 5);
+            if (y > 0) Assert.InRange(MathF.Abs(CounterDigits.EdgeWeight(y - 1, h, feather, curve) - CounterDigits.EdgeWeight(y, h, feather, curve)), 0, 0.3f);
+        }
+        // the ease-in curves put less than a third of the weight at the band's middle row; the smoothstep about half
+        float mid = CounterDigits.EdgeWeight(band / 2, h, feather, curve);
+        if (curve == FeatherCurve.Ease) Assert.InRange(mid, 0.35f, 0.6f); else Assert.InRange(mid, 0.05f, 0.34f);
+        Assert.Equal(0, CounterDigits.EdgeWeight(0, h, 0, curve));
+    }
+
+    [Fact]
+    public void TheFadeTargetIsTheHousingDarkenedNotBlack()
+    {
+        var t = CounterDigits.FadeTarget(EdgeFade.Default, Housing);
+        Assert.Equal(Housing.R * EdgeFade.DefaultDepth, t.R, 3);
+        Assert.Equal(Housing.B * EdgeFade.DefaultDepth, t.B, 3);
+        Assert.True(t.R > 80 && t.R < Housing.R);
+        // an olive panel fades toward a darker olive, the hue kept
+        var o = CounterDigits.FadeTarget(EdgeFade.Default, (88, 96, 53));
+        Assert.True(o.G > o.R && o.R > o.B && o.G > 50);
+        // deep and light take the housing lower and higher; black is the earlier near-black whatever the housing
+        Assert.True(CounterDigits.FadeTarget(EdgeFade.Parse("25deep"), Housing).R < t.R && CounterDigits.FadeTarget(EdgeFade.Parse("25light"), Housing).R > t.R);
+        Assert.Equal((CounterDigits.ShadowRgb.R, CounterDigits.ShadowRgb.G, CounterDigits.ShadowRgb.B), CounterDigits.FadeTarget(EdgeFade.Parse("20black"), Housing));
+    }
+
+    [Fact]
+    public void TheDrumWordShadesTheCylinderDarkerTowardTheEdges()
+    {
+        const int s = 4;
+        int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
+        var plain = Cell(s); var drum = Cell(s);
+        CounterDigits.Paint(plain, s, 1, CounterDigits.Font!, DrumStyle.Inset, EdgeFade.Parse("15"), Housing);
+        CounterDigits.Paint(drum, s, 1, CounterDigits.Font!, DrumStyle.Inset, EdgeFade.Parse("15drum"), Housing);
+        int face = w - 2, inner = h - (int)MathF.Ceiling(0.15f * h) - 1;   // the last row before the feather's band
+        Assert.True(Rgb(drum, w, h, face, inner).R < Rgb(plain, w, h, face, inner).R - 10, $"{Rgb(drum, w, h, face, inner)} {Rgb(plain, w, h, face, inner)}");
+        Assert.True(Rgb(drum, w, h, face, h - 1).R < Rgb(plain, w, h, face, h - 1).R);
+        Assert.True(Rgb(drum, w, h, face, h / 2).R >= Rgb(plain, w, h, face, h / 2).R - 3);
+        Assert.True(CounterDigits.Shade(h - 1, h, EdgeFade.DrumAmbient) < CounterDigits.Shade(h - 1, h) - 0.1f);
+    }
+
+    [Fact]
+    public void TheHousingIsReadRoundTheWindow()
+    {
+        // a panel at 2 texels a pixel: olive, a white window 8 x 10 at (5, 5) with a chrome row above and below it
+        const int ds = 2, W = 20, H = 24;
+        int dw = W * ds, dh = H * ds;
+        var panel = new byte[dw * dh * 4];
+        for (int j = 0; j < dh; j++)
+            for (int i = 0; i < dw; i++)
+            {
+                int x = i / ds, y = j / ds, o = ((dh - 1 - j) * dw + i) * 4;
+                bool win = x is >= 5 and < 13 && y is >= 5 and < 15, chrome = x is >= 5 and < 13 && (y == 4 || y == 15);
+                (panel[o], panel[o + 1], panel[o + 2], panel[o + 3]) = win ? ((byte)255, (byte)255, (byte)255, (byte)255) : chrome ? ((byte)170, (byte)170, (byte)170, (byte)255) : ((byte)88, (byte)96, (byte)52, (byte)255);
+            }
+        // two rows above and below: half chrome, half olive, the window itself never read
+        var c = CockpitPanels.HousingAround(panel, dw, dh, ds, 5, 5, 8, 10);
+        Assert.Equal(((byte)129, (byte)133, (byte)111), c);
+        // off the panel's top: what is there of the band, and nothing at all gives the default grey
+        Assert.Equal(((byte)88, (byte)96, (byte)52), CockpitPanels.HousingAround(panel, dw, dh, ds, 0, 1, 4, 2));
+        Assert.Equal(CounterDigits.DefaultHousing, CockpitPanels.HousingAround(panel, dw, dh, ds, 0, 0, 4, H));
+    }
+
     [Fact]
     public void TheLipCatchesAFaintLightAtTheWindowsTop()
     {
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var plain = Cell(s); var lip = Cell(s);
-        CounterDigits.Paint(plain, s, 5, CounterDigits.Font!, DrumStyle.Inset, 0.15f, false);
-        CounterDigits.Paint(lip, s, 5, CounterDigits.Font!, DrumStyle.Inset, 0.15f, true);
+        CounterDigits.Paint(plain, s, 5, CounterDigits.Font!, DrumStyle.Inset, Edge(0.15f), Housing);
+        CounterDigits.Paint(lip, s, 5, CounterDigits.Font!, DrumStyle.Inset, Edge(0.15f, lip: true), Housing);
         int face = w - 2;
         Assert.InRange(Rgb(lip, w, h, face, 0).R - Rgb(plain, w, h, face, 0).R, 20, 80);
         Assert.True(Rgb(lip, w, h, face, h - 1).R > Rgb(plain, w, h, face, h - 1).R);
@@ -283,17 +374,30 @@ public class CockpitPanelsBlitTests
     }
 
     [Theory]
-    [InlineData(null, 0.20f, false)]
-    [InlineData("0", 0f, false)]
-    [InlineData("10", 0.10f, false)]
-    [InlineData("20lip", 0.20f, true)]
-    [InlineData(" 15LIP ", 0.15f, true)]
-    [InlineData("99", 0.20f, false)]
-    [InlineData("soft", 0.20f, false)]
-    public void TheFeatherHookParses(string? v, float fraction, bool lip)
+    [InlineData(null, 0.25f, FeatherCurve.Pow2, 0.6f, 0.5f, false, false)]
+    [InlineData("0", 0f, FeatherCurve.Pow2, 0.6f, 0.5f, false, false)]
+    [InlineData("10", 0.10f, FeatherCurve.Pow2, 0.6f, 0.5f, false, false)]
+    [InlineData("20lip", 0.20f, FeatherCurve.Pow2, 0.6f, 0.5f, true, false)]
+    [InlineData(" 15LIP ", 0.15f, FeatherCurve.Pow2, 0.6f, 0.5f, true, false)]
+    [InlineData("99", 0.25f, FeatherCurve.Pow2, 0.6f, 0.5f, false, false)]
+    [InlineData("soft", 0.25f, FeatherCurve.Pow2, 0.6f, 0.5f, false, false)]
+    [InlineData("20black", 0.20f, FeatherCurve.Ease, 0.6f, 0.5f, false, true)]
+    [InlineData("20black-pow2", 0.20f, FeatherCurve.Pow2, 0.6f, 0.5f, false, true)]
+    [InlineData("25cos", 0.25f, FeatherCurve.Cos, 0.6f, 0.5f, false, false)]
+    [InlineData("30pow3deep", 0.30f, FeatherCurve.Pow3, 0.45f, 0.5f, false, false)]
+    [InlineData("15drum", 0.15f, FeatherCurve.Pow2, 0.6f, 0.3f, false, false)]
+    [InlineData("25-light+lip", 0.25f, FeatherCurve.Pow2, 0.75f, 0.5f, true, false)]
+    [InlineData("25 ease lip", 0.25f, FeatherCurve.Ease, 0.6f, 0.5f, true, false)]
+    public void TheFeatherHookParses(string? v, float fraction, FeatherCurve curve, float depth, float ambient, bool lip, bool black)
     {
-        var f = CounterDigits.FeatherFromEnv(v);
-        Assert.Equal(fraction, f.Fraction, 3);
-        Assert.Equal(lip, f.Lip);
+        var e = EdgeFade.Parse(v);
+        Assert.Equal(fraction, e.Fraction, 3);
+        Assert.Equal(curve, e.Curve);
+        Assert.Equal(depth, e.Depth, 3);
+        Assert.Equal(ambient, e.Ambient, 3);
+        Assert.Equal(lip, e.Lip);
+        Assert.Equal(black, e.Black);
+        // the spelling reads back the same (the cache key)
+        Assert.Equal(e, EdgeFade.Parse(e.ToString()));
     }
 }
