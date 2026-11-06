@@ -339,3 +339,6 @@ fix/host-form-options-box             # section X, after host-form-master: every
 
 # AG. control latency, round 3 (2026-11-05)
 feat/control-latency                  # section AG, after 1997-parity-2: with VSync on the newest finished frame is shown at each refresh ([port] low_latency_present, on; 1997 look 22 -> 11 ms key-to-photon); a 5 ms audio output buffer and Godot's physics step at 240/s ([port] low_latency_audio, on; the gun report 89 -> 64 ms); the player's car drawn at the newest tick carried forward ([port] draw_ahead, off; Developer panel); I76_VSYNC; the round 3 note in docs/1997-parity.md with the camera-lag survey
+
+# AH. counter drum window fade (2026-11-06)
+fix/counter-drum-fade                 # section AH, after counter-drum-feather: the window's edge fades the face toward the housing's own colour behind it at 60 % by an ease-in over the top and bottom quarter (no black band, no inner edge); CockpitPanels samples the housing round each window; I76_COUNTER_FEATHER grammar: percent + cos|pow2|pow3|ease, deep|light, drum, lip, black
