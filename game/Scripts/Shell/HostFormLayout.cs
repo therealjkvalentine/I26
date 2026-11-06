@@ -6,10 +6,12 @@ namespace I76.Game.Shell;
 /// NO. DRIVERS, the car panel (front and side views, the arena's scrap between them) and the buttons where the original has
 /// them, and every one of the port's settings in the options box under NO. DRIVERS, drawn in the form's own paper and lines.
 /// The box is grown upward to hold them: the area list shows four rows (it scrolls, with its bar), and GAME NAME and NO.
-/// DRIVERS close up under it. In the box, one setting a line: BOTS, the switches as check boxes two to a line, MAX SCORE (on a
-/// co-op form its Co-op Scaling, Co-op Damage and Rolling Start in their place), then the host's rules as labelled rows: Sim
-/// Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair. Pure layout, no engine: the hotspot ids are the
-/// form's own (MeleeScreen's table), every one kept from the form before (and from upstream's drawn sheet, 56373bd).
+/// DRIVERS close up under it. In the box, one setting a line: BOTS, the switches as check boxes two to a line, MAX SCORE, then
+/// the host's rules as labelled rows: Sim Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair. A co-op
+/// form's box has only what means something in a story mission (<see cref="Fields"/>): Extra Enemies and Damage Taken, the check
+/// boxes, Sim Rate and Password, on the box's first lines, and the box closes under them. Pure layout, no engine: the
+/// hotspot ids are the form's own (MeleeScreen's table), every one kept from the form before (and from upstream's drawn sheet,
+/// 56373bd). The help line under the car panel says what each is (<see cref="HostFormHelp"/>).
 /// </summary>
 public static class HostFormLayout
 {
@@ -85,7 +87,6 @@ public static class HostFormLayout
         public bool Crosshair { get; init; }
         public string CoopScale { get; init; } = "Off";
         public string CoopDamage { get; init; } = "x1";
-        public bool RollingStart { get; init; }
     }
 
     /// <summary>Where a setting is drawn in the box: a labelled row, or a check box (column A or B).</summary>
@@ -95,35 +96,42 @@ public static class HostFormLayout
     public sealed record Field(Place Where, int Row, string Label, string Value, int Id);
 
     private static string OnOff(bool on) => on ? "On" : "Off";
+    /// <summary>
+    /// Extra Enemies' cap in a player's words: Off, Up to +1, Up to +2, and at the cap (<see cref="I76.Sim.Missions.CoopSetup.MaxExtraEnemies"/>,
+    /// the default) "+1/player": every player past the first brings one more of each enemy car.
+    /// </summary>
+    public static string CoopScaleWord(int n) => n <= 0 ? "Off" : n >= I76.Sim.Missions.CoopSetup.MaxExtraEnemies ? "+1/player" : $"Up to +{n}";
     private static string Tick(bool on) => on ? "X" : "";
 
     /// <summary>
     /// The settings with a label of their own, by where they go. BOTS and MAX SCORE (melee) are the box's stepped lines, drawn
-    /// with their own ⊟ ⊞ (<see cref="Hot"/> has their parts). A co-op game has no team play, score limit, bots or maps to share:
-    /// those are left out, and the co-op rules take the box's first rows. The host's rules follow, a labelled row each.
+    /// with their own ⊟ ⊞ (<see cref="Hot"/> has their parts). A co-op game has no team play, score limit, bots or maps to share,
+    /// and no use for a melee's fairness rules either (a turret limit, the ignition lock, handicaps, the crosshair's leave: a story
+    /// mission's players are on one side, in the mission's own cars), so a co-op form shows only what a host would set: the co-op
+    /// rules (Extra Enemies, Damage Taken) on the box's first lines, then who may join and the players' conveniences as check boxes,
+    /// then Sim Rate and Password. Rolling Start is on unless shell.cfg turns it off, and has no row.
     /// </summary>
     public static List<Field> Fields(State s)
     {
         var l = new List<Field>();
         if (s.Coop)
         {
-            l.Add(new(Place.BoxRow, 0, "CO-OP SCALING", s.CoopScale, 40));
-            l.Add(new(Place.BoxRow, 1, "CO-OP DAMAGE", s.CoopDamage, 41));
-            l.Add(new(Place.BoxRow, 2, "ROLLING START", OnOff(s.RollingStart), 42));
-            l.Add(new(Place.CheckA, 3, "INVITE ONLY", Tick(s.InviteOnly), 17));
-            l.Add(new(Place.CheckB, 3, "HIDDEN CARS", Tick(s.Hidden), 28));
-            l.Add(new(Place.CheckA, 4, "CAR RESET", Tick(s.CarReset), 36));
-            l.Add(new(Place.CheckB, 4, "CB RADIO", Tick(s.Cb), 37));
-        }
-        else
-        {
-            l.Add(new(Place.CheckA, 1, "TEAM PLAY", Tick(s.TeamPlay), 16));
-            l.Add(new(Place.CheckB, 1, "INVITE ONLY", Tick(s.InviteOnly), 17));
-            l.Add(new(Place.CheckA, 2, "SHARE MAPS", Tick(s.ShareMaps), 26));
+            l.Add(new(Place.BoxRow, 0, "EXTRA ENEMIES", s.CoopScale, 40));
+            l.Add(new(Place.BoxRow, 1, "DAMAGE TAKEN", s.CoopDamage, 41));
+            l.Add(new(Place.CheckA, 2, "INVITE ONLY", Tick(s.InviteOnly), 17));
             l.Add(new(Place.CheckB, 2, "HIDDEN CARS", Tick(s.Hidden), 28));
             l.Add(new(Place.CheckA, 3, "CAR RESET", Tick(s.CarReset), 36));
             l.Add(new(Place.CheckB, 3, "CB RADIO", Tick(s.Cb), 37));
+            l.Add(new(Place.BoxRow, 4, "SIM RATE", $"{s.Rate} Hz", 33));
+            l.Add(new(Place.BoxRow, 5, "PASSWORD", s.Password ? "Set" : "None", 27));
+            return l;
         }
+        l.Add(new(Place.CheckA, 1, "TEAM PLAY", Tick(s.TeamPlay), 16));
+        l.Add(new(Place.CheckB, 1, "INVITE ONLY", Tick(s.InviteOnly), 17));
+        l.Add(new(Place.CheckA, 2, "SHARE MAPS", Tick(s.ShareMaps), 26));
+        l.Add(new(Place.CheckB, 2, "HIDDEN CARS", Tick(s.Hidden), 28));
+        l.Add(new(Place.CheckA, 3, "CAR RESET", Tick(s.CarReset), 36));
+        l.Add(new(Place.CheckB, 3, "CB RADIO", Tick(s.Cb), 37));
         int k = ScoreRow + 1;
         void Rule(string label, string value, int id) => l.Add(new(Place.BoxRow, k++, label, value, id));
         Rule("SIM RATE", $"{s.Rate} Hz", 33);
@@ -134,6 +142,10 @@ public static class HostFormLayout
         Rule("CHASE CROSSHAIR", OnOff(s.Crosshair), 38);
         return l;
     }
+
+    /// <summary>The co-op form's lines: the first <see cref="CoopLines"/> of the box, whose foot rule then closes it under them (<see cref="CoopBoxFoot"/>); the sheet's paper goes on below.</summary>
+    public const int CoopLines = 6;
+    public static int CoopBoxFoot => BoxRow[CoopLines - 1] + Below;
 
     /// <summary>The melee box's stepped lines: BOTS (row 0: its ⊟ ⊞ at x 50 and 81, the skill, A.I. CARS) and MAX SCORE (row 4: its box, ⊟ at 112, ⊞ at 200).</summary>
     public const int BotsRow = 0, ScoreRow = 4;

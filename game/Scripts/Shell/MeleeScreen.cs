@@ -46,7 +46,8 @@ public sealed partial class MeleeScreen : ShellScreen
         0 => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         1 => [0, 1, 2, 3, 4, 5, 6, 7, 14, 15],
         3 or 4 when Nitro => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 8, 9, 22, 23, 24, 25, 27],
-        // the base game's (HostFormLayout): a co-op game has no team play, score limit, Bots or custom map to share
+        // the base game's (HostFormLayout): a co-op form has only what a story mission has a use for (no team play, score limit,
+        // Bots, map to share, or melee fairness rules)
         3 or 4 => [.. HostFormLayout.Hot(_coopBase).Keys.Order()],
         8 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 38],
         _ => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15],

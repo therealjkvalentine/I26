@@ -80,6 +80,8 @@ public static class DevSettings
         new("brush_impacts", ["off", "on" + M], s => s.BrushImpacts ? 1 : 0, (s, v) => s.BrushImpacts = v != 0, DevWhen.Live),
         new("ordnance_limit", Words(OriginalRecipe.OrdnanceNames), s => s.OrdnanceLimit, (s, v) => s.OrdnanceLimit = v, DevWhen.Live),
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
+        // a co-op game hosted from the shell (false, a melee respawn's standing start, is the unmarked one: the original has no co-op)
+        new("coop_rolling_start", FalseTrue, s => s.CoopRollingStart ? 1 : 0, (s, v) => s.CoopRollingStart = v != 0, DevWhen.NextMission),
         new("early_tick", FalseTrue, s => s.EarlyTick ? 1 : 0, (s, v) => s.EarlyTick = v != 0, DevWhen.Live),
         new("draw_ahead", FalseTrue, s => s.DrawAhead ? 1 : 0, (s, v) => s.DrawAhead = v != 0, DevWhen.Live),
         new("low_latency_present", FalseTrue, s => s.LowLatencyPresent ? 1 : 0, (s, v) => s.LowLatencyPresent = v != 0, DevWhen.Live,
