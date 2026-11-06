@@ -53,6 +53,63 @@ public class CockpitPanelsBlitTests
         Assert.Equal(((byte)0, (byte)0, (byte)0), At(panel, 4, 4, 2, 2));
     }
 
+    /// <summary>The stamp texel by texel, as it was before it copied rows: what the faster one must give exactly.</summary>
+    private static void SlowBlit(byte[] src, int sw, int sh, int ss, int sx, int sy, int w, int h, byte[] dst, int dw, int dh, int ds, int dx, int dy, bool keyed)
+    {
+        for (int j = 0; j < h * ds; j++)
+            for (int i = 0; i < w * ds; i++)
+            {
+                int x = sx * ss + i * ss / ds, y = sy * ss + j * ss / ds, ox = dx * ds + i, oy = dy * ds + j;
+                if (x >= sw || y >= sh || ox < 0 || oy < 0 || ox >= dw || oy >= dh) continue;
+                int so = ((sh - 1 - y) * sw + x) * 4;
+                if (keyed && src[so + 3] < 128) continue;
+                System.Buffer.BlockCopy(src, so, dst, ((dh - 1 - oy) * dw + ox) * 4, 4);
+            }
+    }
+
+    [Fact]
+    public void TheRowCopyGivesTheSameTexelsAsTheTexelByTexelOne()
+    {
+        // every scale pairing the packs make (1, 2, 4, 8 texels a pixel), keyed or not, rectangles inside, across and off the edges
+        var rng = new Random(76);
+        foreach (int ss in new[] { 1, 2, 4, 8 })
+            foreach (int ds in new[] { 1, 2, 4, 8 })
+                for (int n = 0; n < 40; n++)
+                {
+                    int sw = 24 * ss + rng.Next(3), sh = 20 * ss + rng.Next(3), dw = 30 * ds + rng.Next(3), dh = 26 * ds + rng.Next(3);
+                    var src = new byte[sw * sh * 4];
+                    rng.NextBytes(src);
+                    var a = new byte[dw * dh * 4];
+                    rng.NextBytes(a);
+                    var b = (byte[])a.Clone();
+                    int sx = rng.Next(0, 26), sy = rng.Next(0, 22), w = rng.Next(1, 14), h = rng.Next(1, 14), dx = rng.Next(-6, 34), dy = rng.Next(-6, 30);
+                    bool keyed = rng.Next(2) == 0;
+                    SlowBlit(src, sw, sh, ss, sx, sy, w, h, a, dw, dh, ds, dx, dy, keyed);
+                    CockpitPanels.Blit(src, sw, sh, ss, sx, sy, w, h, b, dw, dh, ds, dx, dy, keyed);
+                    Assert.True(a.AsSpan().SequenceEqual(b), $"ss {ss} ds {ds} rect {sx},{sy} {w}x{h} to {dx},{dy} keyed {keyed}");
+                }
+    }
+
+    [Fact]
+    public void ACounterRollsADigitAStepAnUpdateAndSaysWhichMoved()
+    {
+        int[] shown = [10, 10, 10, 10];
+        // the first draw sets every digit at once
+        Assert.Equal(0b1111, Cockpit.Roll(shown, 250, 0, force: true));
+        Assert.Equal(new[] { 0, 5, 2, 0 }, shown);
+        // nothing to do: nothing moved, so the panel is not drawn again
+        Assert.Equal(0, Cockpit.Roll(shown, 250, 1, force: false));
+        // a shot: every digit that differs steps down one an update (the ones through 9), the rest stay
+        Assert.Equal(0b0011, Cockpit.Roll(shown, 249, 1, force: false));
+        Assert.Equal(new[] { 9, 4, 2, 0 }, shown);
+        Assert.Equal(0, Cockpit.Roll(shown, 249, 1, force: false));
+        // no update (no tick) steps nothing; two in one frame step twice, a digit stopping where it is due
+        Assert.Equal(0, Cockpit.Roll(shown, 230, 0, force: false));
+        Assert.Equal(0b0011, Cockpit.Roll(shown, 230, 2, force: false));
+        Assert.Equal(new[] { 7, 3, 2, 0 }, shown);
+        Assert.Equal(0b0001, Cockpit.Roll(shown, 230, 1, force: false));
+    }
+
     [Fact]
     public void TheCountersInkIsDeepenedAndTheDrumLeftWhite()
     {

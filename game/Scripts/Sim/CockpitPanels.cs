@@ -133,15 +133,27 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// </summary>
     public static void Blit(byte[] src, int sw, int sh, int ss, int sx, int sy, int w, int h, byte[] dst, int dw, int dh, int ds, int dx, int dy, bool keyed)
     {
+        // the target's columns this rectangle reaches: on the target and, through the nearest mapping, on the sheet
+        int i0 = System.Math.Max(0, -dx * ds), i1 = System.Math.Min(w * ds, dw - dx * ds);
+        while (i1 > i0 && sx * ss + (i1 - 1) * ss / ds >= sw) i1--;
+        if (i1 <= i0) return;
+        // a texel is four bytes: copied as one 32-bit word, row by row (a whole row at once where nothing is keyed or resampled)
+        var s32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(src.AsSpan(0, src.Length & ~3));
+        var d32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(dst.AsSpan(0, dst.Length & ~3));
+        bool same = ss == ds;
         for (int j = 0; j < h * ds; j++)
-            for (int i = 0; i < w * ds; i++)
+        {
+            int y = sy * ss + j * ss / ds, oy = dy * ds + j;
+            if (y >= sh || oy < 0 || oy >= dh) continue;
+            int srow = (sh - 1 - y) * sw, drow = (dh - 1 - oy) * dw + dx * ds;
+            if (same && !keyed) { s32.Slice(srow + sx * ss + i0, i1 - i0).CopyTo(d32.Slice(drow + i0, i1 - i0)); continue; }
+            for (int i = i0; i < i1; i++)
             {
-                int x = sx * ss + i * ss / ds, y = sy * ss + j * ss / ds, ox = dx * ds + i, oy = dy * ds + j;
-                if (x >= sw || y >= sh || ox < 0 || oy < 0 || ox >= dw || oy >= dh) continue;
-                int so = ((sh - 1 - y) * sw + x) * 4;
-                if (keyed && src[so + 3] < 128) continue;
-                System.Buffer.BlockCopy(src, so, dst, ((dh - 1 - oy) * dw + ox) * 4, 4);
+                int so = srow + sx * ss + (same ? i : i * ss / ds);
+                if (keyed && src[so * 4 + 3] < 128) continue;
+                d32[drow + i] = s32[so];
             }
+        }
     }
 
     /// <summary>Starts a redraw of a dst texture from its original image.</summary>
@@ -221,27 +233,29 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// <summary>
     /// The modern look's counter drum: VWindow's cell for <paramref name="digit"/> (0..10 down the strip) with its figure
     /// set again in the counters' font (CounterDigits), at the panel's scale, made once per cell and scale. Without the
-    /// font, the strip's cell with its ink deepened.
+    /// font, the strip's cell with its ink deepened. <paramref name="housing"/>: the housing colour read when the panel was last
+    /// drawn whole (a redraw of the counters alone, where what is round the window now may differ); returns the one used.
     /// </summary>
-    public void Digit(string dst, string anchor, string top, string bottom, int digit, int dx = 0)
+    public (byte R, byte G, byte B)? Digit(string dst, string anchor, string top, string bottom, int digit, int dx = 0, (byte R, byte G, byte B)? housing = null)
     {
-        if (CounterDigits.Font is not { } font) { VWindow(dst, anchor, top, bottom, digit * 0.1f, dx, deepInk: true); return; }
-        if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return;
+        if (CounterDigits.Font is not { } font) { VWindow(dst, anchor, top, bottom, digit * 0.1f, dx, deepInk: true); return null; }
+        if (TargetOf(dst) is not { } t || layout.Find(anchor) is not { } a || layout.Find(top) is not { } tp || layout.Find(bottom) is not { } bt || Sheet(tp.Texture) is not { } sheet) return null;
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         int w = tp.Label.W, h = tp.Label.H;
         // the housing round the window as the panel stands (its bracket stamped before the digits): what the window's edges fade toward
-        var housing = HousingAround(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, w, h);
+        housing ??= HousingAround(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, w, h);
         var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}|{CounterDigits.Edge}|{housing}", t.S);
         if (!_labels.TryGetValue(key, out var cell))
         {
             cell = new byte[w * t.S * h * t.S * 4];
             Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
-            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style, CounterDigits.Edge, housing);
+            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style, CounterDigits.Edge, housing.Value);
             _labels[key] = cell;
         }
         Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
         t.Dirty = true;
+        return housing;
     }
 
     /// <summary>
