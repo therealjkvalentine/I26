@@ -1,0 +1,8 @@
+{
+  "textures": ["zmiri101"],
+  "note": "the rear-view mirror's frame: its greys shaded again from the original, smooth (the model made the bevel's stair steps a white zigzag), and the surround round it the original's one colour again (the model blended it into the frame, and the modern look's soft outline drew the blend as light marks round the frame); the glass and its cross-hair untouched",
+  "ops": [
+    {"op": "smooth", "rect": [0, 0, 256, 64], "sigma": 0.7, "where": {"lum_below": 180, "opaque": true}, "only": true},
+    {"op": "erase", "rect": [0, 0, 256, 64], "where": {"lum_above": 180, "lum_below": 240}, "fill": [240, 224, 176]}
+  ]
+}

@@ -1,0 +1,691 @@
+{
+ "textures": [
+  "shellbg16"
+ ],
+ "note": "Control Configuration's page: the title CONTROLS and the buttons' words set again, the painted row names taken off (the game captions them); written by gen/control_config.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    138,
+    6,
+    250,
+    35
+   ],
+   "where": {
+    "lum_below": 120
+   },
+   "grow": 1.6,
+   "texture": [
+    -130,
+    0
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    250,
+    6,
+    410,
+    35
+   ],
+   "where": {
+    "lum_below": 120
+   },
+   "grow": 1.6
+  },
+  {
+   "op": "erase",
+   "rect": [
+    410,
+    6,
+    522,
+    35
+   ],
+   "where": {
+    "lum_below": 120
+   },
+   "grow": 1.6,
+   "texture": [
+    112,
+    0
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    44,
+    105,
+    58
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    61,
+    73,
+    75
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    78,
+    107,
+    92
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    95,
+    113,
+    109
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    112,
+    149,
+    126
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    129,
+    155,
+    143
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    146,
+    163,
+    160
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    163,
+    157,
+    177
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    180,
+    176,
+    194
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    197,
+    129,
+    211
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    214,
+    109,
+    228
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    34,
+    231,
+    160,
+    246
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    249,
+    90,
+    263
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    266,
+    61,
+    280
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    283,
+    88,
+    297
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    300,
+    103,
+    314
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    317,
+    68,
+    331
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    30,
+    334,
+    141,
+    348
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    31,
+    351,
+    104,
+    365
+   ],
+   "texture": [
+    0,
+    17
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    44,
+    415,
+    58
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    61,
+    399,
+    75
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    78,
+    405,
+    92
+   ],
+   "texture": [
+    0,
+    324
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    95,
+    397,
+    109
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    112,
+    431,
+    126
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    129,
+    363,
+    143
+   ],
+   "texture": [
+    0,
+    273
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    146,
+    419,
+    160
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    163,
+    439,
+    177
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    180,
+    434,
+    194
+   ],
+   "texture": [
+    0,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    197,
+    438,
+    211
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    214,
+    438,
+    228
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    231,
+    437,
+    246
+   ],
+   "texture": [
+    0,
+    171
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    249,
+    439,
+    263
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    266,
+    417,
+    280
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    283,
+    422,
+    297
+   ],
+   "texture": [
+    0,
+    119
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    300,
+    422,
+    314
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    330,
+    317,
+    367,
+    331
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    329,
+    334,
+    448,
+    348
+   ],
+   "texture": [
+    0,
+    68
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    332,
+    351,
+    431,
+    365
+   ],
+   "texture": [
+    0,
+    17
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    42,
+    453,
+    117,
+    466.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 1.6
+  },
+  {
+   "op": "erase",
+   "rect": [
+    208,
+    453,
+    271,
+    466.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 1.6
+  },
+  {
+   "op": "erase",
+   "rect": [
+    381,
+    453,
+    419,
+    466.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 1.6
+  },
+  {
+   "op": "erase",
+   "rect": [
+    534,
+    453,
+    590,
+    466.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 1.6
+  },
+  {
+   "op": "text",
+   "text": "CONTROLS",
+   "font": "Arimo",
+   "cap": 21,
+   "center": [
+    329.5,
+    20.5
+   ],
+   "colour": [
+    58,
+    48,
+    24
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "CALIBRATE",
+   "font": "Arimo",
+   "cap": 9,
+   "center": [
+    79.5,
+    460.0
+   ],
+   "colour": [
+    58,
+    48,
+    24
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "RESTORE",
+   "font": "Arimo",
+   "cap": 9,
+   "center": [
+    239.5,
+    460.0
+   ],
+   "colour": [
+    58,
+    48,
+    24
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "DONE",
+   "font": "Arimo",
+   "cap": 9,
+   "center": [
+    400.0,
+    460.0
+   ],
+   "colour": [
+    58,
+    48,
+    24
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  },
+  {
+   "op": "text",
+   "text": "CANCEL",
+   "font": "Arimo",
+   "cap": 9,
+   "center": [
+    562.0,
+    460.0
+   ],
+   "colour": [
+    58,
+    48,
+    24
+   ],
+   "variation": {
+    "Weight": 700
+   }
+  }
+ ]
+}

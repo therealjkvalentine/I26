@@ -547,6 +547,8 @@ public partial class Cockpit : Node
     /// <summary>The panel's five bands: 100 exactly is the unlit plate, then green, yellow, red, and dark at 0.</summary>
     private static int Band(int pct) => pct == 100 ? 0 : pct >= 67 ? 1 : pct >= 34 ? 2 : pct >= 1 ? 3 : pct == 0 ? 4 : -1;
     private static readonly string[] PartSuffix = ["_off", "_grn", "_ylw", "_red", "_drk"];
+    /// <summary>I76_DAMAGE_PANEL=0..4: every part of the damage panel shown in that band (unlit, green, yellow, red, dark), whatever the car's damage; for captures of the panel's art.</summary>
+    private static readonly int? PanelBand = int.TryParse(System.Environment.GetEnvironmentVariable("I76_DAMAGE_PANEL"), out int b) && b is >= 0 and <= 4 ? b : null;
 
     private void DamagePanel()
     {
@@ -578,7 +580,7 @@ public partial class Cockpit : Node
         bool changed = false;
         foreach (var it in items)
         {
-            int band = Band(it.Pct);
+            int band = PanelBand ?? Band(it.Pct);
             if (band < 0 || _parts.TryGetValue(it.Anchor, out int was) && was == band) continue;
             if (_parts.ContainsKey(it.Anchor) && band == 4) Sound("cwstat.wav");
             _parts[it.Anchor] = band;

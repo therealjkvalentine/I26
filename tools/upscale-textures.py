@@ -57,6 +57,13 @@ and place. A seam inside a texture (two UV islands meeting away from its border)
 changed. --then MODEL runs a second model over the run's own colour model's output: the shipped pack's world and car
 textures are 4xTextures_GTAV then 2xHDCube_Compact.pth (--then 2xHDCube_Compact.pth, from --models-dir), the 8x
 brought down to --scale. tools/test_upscale_context.py tests the padding, the crop and the plan.
+
+Sprite sheets (--cells LAYOUT): the cockpit stamps its live panels from sheets of sprites packed edge to edge (the damage panel's
+lights, five states of each part, a texel apart or none). A model run over the whole sheet reaches across each cell's border:
+the front armour's chevron, which touches its cell's top, came out with its point spilling into the cell above and the next
+state's point showing under it. With the install's cockpit layout (`i76 --install DIR cat vpit_1.elt > vpit_1.elt`) every sheet it names
+is upscaled whole and then each cell again on its own, mirrored at its own border, and put back at its place:
+           python3 tools/upscale-textures.py SRC_DIR --families --cells vpit_1.elt --only "zsye,zsye320" ...
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -148,6 +155,37 @@ def bleed_slow(rgb, alpha, passes=8):
 CONTEXT = 32    # --context: source texels of neighbour (or wrapped) picture round a texture the model sees, cropped off after
 CONTEXT_LATE = 16  # the context kept for the second model (--then), the colour match and the resize, cropped off last
 NEIGHBOURS = {}    # --neighbours: stem -> its plan (neighbour_plan)
+CELLS = {}         # --cells: sheet stem -> its sprite cells [(x, y, w, h), ...] in the original's texels, upright
+
+def layout_cells(text):
+    """A cockpit layout's (.elt) sprite cells by sheet: each `src NAME.map` section's labels with a size (`label name x y w h`,
+    w and h over 0; the dst sections' anchors have none), rows counted from the picture's top as shown, duplicates once."""
+    cells, cur = {}, None
+    for line in text.splitlines():
+        f = line.split()
+        if len(f) >= 2 and f[0] in ("src", "dst"):
+            cur = os.path.splitext(f[1])[0].lower() if f[0] == "src" else None
+        elif cur and len(f) >= 6 and f[0] == "label":
+            try: x, y, w, h = (int(v) for v in f[2:6])
+            except ValueError: continue
+            if w > 0 and h > 0 and (x, y, w, h) not in cells.setdefault(cur, []): cells[cur].append((x, y, w, h))
+    return cells
+
+def by_cells(im, cells, model):
+    """A sprite sheet through `model` (upright RGBA -> RGBA at its scale) whole, then each cell again on its own and put back at
+    its place: the cockpit draws a sheet's cells one at a time (a damage light's five states, packed edge to edge), and a model
+    run over the whole sheet reaches across a cell's border, so a shape at a cell's edge took in its neighbour's (the next
+    state's colour under the front armour's chevron) and lost what spilled over. On its own a cell is padded with its own
+    picture mirrored, as a whole texture is at its border. Texels in no cell keep the whole run's."""
+    big = model(im)
+    f = big.shape[1] // im.shape[1]
+    h, w = im.shape[:2]
+    for x, y, cw, ch in cells:
+        x1, y1 = min(x + cw, w), min(y + ch, h)
+        if x >= w or y >= h or x1 - x < 1 or y1 - y < 1: continue
+        c = model(np.ascontiguousarray(im[y:y1, x:x1]))
+        big[y * f:y1 * f, x * f:x1 * f] = c[:(y1 - y) * f, :(x1 - x) * f]
+    return big
 
 def side_of(uv0, uv1, bottom_up, eps=1e-3):
     """Which border of the upright picture an edge from uv0 to uv1 runs along, and where it starts and ends along that
@@ -473,19 +511,24 @@ def one(job, run_model=None):
     if pix:
         if masters_out: return n, False            # no model: nothing to keep
         big = pixel_scale(im, full_scale if matches(stem, full) else max(4, scale))
-    elif fam and fam[0] and fm and os.path.exists(fm):
+    elif fam and fam[0] and fm and os.path.exists(fm) and stem not in CELLS:
         big = np.array(Image.open(fm).convert("RGBA"))      # the family model's output kept by an earlier --masters-out run
     elif fam and fam[0]:
-        big = run(im, fam[0])
-        if OPTS["x2_model"] and big.shape[1] < ow * (full_scale if matches(stem, full) else scale):
-            big = second_pass(run_model, big)
+        def model(p):
+            b = run(p, fam[0])
+            if OPTS["x2_model"] and b.shape[1] < p.shape[1] * (full_scale if matches(stem, full) else scale):
+                b = second_pass(run_model, b)
+            return b
+        big = by_cells(im, CELLS[stem], model) if stem in CELLS else model(im)
     elif frm:
         p = os.path.join(frm, stem + ".png")
         if not os.path.exists(p): return n, False
         big = np.array(Image.open(p).convert("RGBA"))
     else:
-        big = run(im)
-        if isinstance(run_model, Runner) and run_model.then_file: big = run_model.then(big)
+        def model(p):
+            b = run(p)
+            return run_model.then(b) if isinstance(run_model, Runner) and run_model.then_file else b
+        big = by_cells(im, CELLS[stem], model) if stem in CELLS else model(im)
     a = im[..., 3]
     keyed = fam and fam[1] and not pix and (a == 0).any() and (a > 0).any()
     fa = os.path.join(OPTS["family_masters"], stem + ".alpha.png") if OPTS["family_masters"] else None
@@ -600,6 +643,8 @@ def main():
     ap.add_argument("--tile", type=int, default=128, help="model input tile size in texels (default 128; each tile also gets 16 texels of context)")
     ap.add_argument("--neighbours", help="an `i76 tex-seams` file: each texture that meets another along a border, or repeats, is upscaled"
                     " inside a canvas of its neighbours' facing texels (or its own, wrapped), --context texels a side, cropped after")
+    ap.add_argument("--cells", help="a cockpit layout (the install's vpit_1.elt): each sprite sheet it names is also upscaled a cell at a time, so"
+                    " no cell takes in its neighbour's picture (the damage panel's lights, packed edge to edge)")
     ap.add_argument("--context", type=int, default=32, help="the context (source texels a side) --neighbours gives the model (default 32)")
     ap.add_argument("--then", dest="then_model", help="a second model over the run's own colour model's output (the route the shipped pack's"
                     " world textures took: 4xTextures_GTAV then 2xHDCube_Compact.pth, the 8x brought down to --scale); a file in --models-dir")
@@ -626,6 +671,9 @@ def main():
     if args.neighbours:
         with open(args.neighbours) as f: NEIGHBOURS.update(neighbour_plan(json.load(f), frozenset(bottom_up)))
         print(f"--neighbours: {len(NEIGHBOURS)} textures get {CONTEXT} texels of context")
+    if args.cells:
+        with open(args.cells, encoding="latin-1") as f: CELLS.update(layout_cells(f.read()))
+        print(f"--cells: {len(CELLS)} sprite sheets, {sum(map(len, CELLS.values()))} cells")
     only, skip = globs_of(args.only), globs_of(args.skip) if args.skip else []
     names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and any(fnmatch.fnmatch(n.lower()[:-4], g) or fnmatch.fnmatch(n.lower(), g) for g in only)
                    and not any(fnmatch.fnmatch(n.lower()[:-4], g) for g in skip))
@@ -636,7 +684,7 @@ def main():
     names.sort(key=lambda n: (order.get(fams[n][1], len(order)), n))              # a family's textures together: its model loads once
     def kept(n):   # the family model's output (and the alpha step's) already in --family-masters, or a texture the run skips (over --max-size)
         d = args.family_masters
-        if d and os.path.exists(os.path.join(d, n[:-4].lower() + ".png")): return True
+        if d and os.path.exists(os.path.join(d, n[:-4].lower() + ".png")) and n[:-4].lower() not in CELLS: return True
         with Image.open(os.path.join(args.src, n)) as im: return max(im.size) > args.max_size
     needs_model = bool(args.masters_out) or not args.frm or any(f and (f[0] or f[1]) and not kept(n) for n, (f, _) in fams.items()) or bool(NEIGHBOURS)
     runner = None

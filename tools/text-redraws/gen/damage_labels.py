@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes zsye.json: the damage display's part labels (ENGINE, SUSP., BRAKES, WHEEL) in its five states, columns 61
-texels apart: white, green, yellow, red (dark letters on the colour; the label's box taken off whole, the upscale's
-soft edge with it) and off (dark grey letters on black: only the letters taken off).
+texels apart: white, green, yellow, red (each light shaded again from the original, its dither blurred into a smooth fade,
+then dark letters on the colour; the label's box taken off whole, the upscale's soft edge with it) and off (dark grey letters on black: only the letters taken off).
 
 Each word is centred on its light, not on where the 1997 art painted it (which sits 1-2 texels high): the light is the
 sprite the cockpit stamps into the panel's window (vpit_1.elt's engine_off ... tire_drk: 61 x 12 texels for ENGINE, SUSP.
@@ -21,9 +21,15 @@ LABELS = [("ENGINE", (11, 1, 50, 9), 40, (0, 0, 61, 12)),
           ("WHEEL", (1, 37, 36, 45), 34, (0, 37, 38, 11))]
 INK = [150, 95, 100, 60]        # the four lit states' brightness under which a texel is ink
 CAP = 8                         # the painted capitals' height
+SIGMA = 1.5                     # the lit lights' fade: the blur (texels) that takes the original's dither to a smooth shade
 
 def spec():
     ops, txt = [], []
+    # the four lit states' lights shaded again from the original: its few dithered levels blurred into a fade (a model made
+    # the dither at the lights' ends a mottle, torn fringes in the colours); the letters are left out and set again below
+    for c in range(4):
+        for s, _, _, (bx, by, bw, bh) in LABELS:
+            ops.append({"op": "smooth", "rect": [bx + 61 * c, by, bx + 61 * c + bw, by + bh], "sigma": SIGMA, "where": {"lum_above": 40}})
     for c in range(5):
         dx, dark = 61 * c, c == 4
         for s, (x0, y0, x1, y1), width, (bx, by, bw, bh) in LABELS:

@@ -75,5 +75,12 @@
     "by": "Jovanny Lemonad",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/russoone"
+  },
+  "Arimo": {
+    "name": "Arimo",
+    "file": "Arimo/Arimo[wght].ttf",
+    "by": "The Arimo Project Authors (Steve Matteson)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/arimo"
   }
 }

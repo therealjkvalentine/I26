@@ -33,7 +33,7 @@ class SpecTests(unittest.TestCase):
         for name, spec in specs:
             self.assertTrue(spec["textures"], name)
             for op in spec["ops"]:
-                self.assertIn(op["op"], ("erase", "text"), name)
+                self.assertIn(op["op"], ("erase", "text", "smooth"), name)
                 if op["op"] == "text":
                     self.assertIn(op["font"], table, name)
                     self.assertGreater(op["cap"], 0, name)
@@ -123,6 +123,18 @@ class CompositorTests(unittest.TestCase):
         self.assertTrue(set(np.unique(a)) <= {0, 255})
         self.assertGreater((a == 255).sum(), 200)
         self.assertGreater(out[a == 255][:, :3].mean(), 180)
+
+    def test_smooth_fades_a_dithered_light_and_leaves_out_its_letters_and_the_rest(self):
+        # a light dithered between two levels (a checkerboard), dark letters in its middle, a red cell beside it
+        orig = blank(24, 8, (200, 200, 0)); orig[::2, ::2, :3] = (120, 120, 0); orig[1::2, 1::2, :3] = (120, 120, 0)
+        orig[3:5, 8:12, :3] = 10; orig[:, 16:, :3] = (255, 0, 0)
+        rng = np.random.default_rng(1)
+        px = np.repeat(np.repeat(orig, 4, 0), 4, 1).copy(); px[..., :3] = np.clip(px[..., :3] + rng.integers(-40, 40, px[..., :3].shape), 0, 255)
+        out = tr.apply_ops(px, orig, [{"op": "smooth", "rect": [0, 0, 16, 8], "sigma": 1.5, "where": {"lum_above": 40}}])
+        light = out[:32, :64, :3].astype(float)
+        self.assertLess(np.abs(light[:, :, 0] - 160).max(), 12, "the dither's two levels become their mean, the model's mottle gone")
+        self.assertGreater(light[12:20, 32:48, 0].min(), 140, "the letters are left out: the light's shade under them")
+        self.assertTrue((out[:, 64:] == px[:, 64:]).all(), "nothing outside the rect, and nothing from it")
 
     def test_note_pack_attributes_fonts_once(self):
         import tempfile
