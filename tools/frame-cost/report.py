@@ -54,7 +54,6 @@ FEATURES = [
     ("Brush impacts", "brush_off", "brush_impacts=off", "nothing was fighting in the scene"),
     ("Lighting calibration (original colours)", "lighting_off", "lighting_calibration=off", "a one-time solve at load; no per-frame work"),
     ("Hood finish Gloss (vs Matte)", "hood_matte", "hood_finish=matte", ""),
-    ("Death variety", "death_off", "death_variety=off", "nothing died in the scene: costs only at a death"),
     ("Smoke depth layer", "smoke_layer_off", "I76_SMOKE_LAYER=0", "no smoke in the standing scene; see the smoke table"),
     ("Hide Map Edge Cliffs On", "map_edge_off", "map_edge=off", "a uniform branch in the terrain vertex shader"),
     ("MG tracers as bolts (vs the line)", "tracers_line", "mg_tracers=original", "no firing in the standing scene; see the fire table"),

@@ -51,8 +51,8 @@ public partial class SmokeLayer : Node3D
             {
                 int o = j * 16, q = j * Floats;
                 var d = slot.Data;
-                d[q] = buf[o + 3]; d[q + 1] = buf[o + 7]; d[q + 2] = buf[o + 11]; d[q + 3] = buf[o] * ModernFx.FxSize;
-                d[q + 4] = buf[o + 12]; d[q + 5] = buf[o + 13] * ModernFx.FxAlpha;   // the effects keys: the puff's size and density d[q + 6] = buf[o + 14]; d[q + 7] = buf[o + 15];
+                d[q] = buf[o + 3]; d[q + 1] = buf[o + 7]; d[q + 2] = buf[o + 11]; d[q + 3] = buf[o];
+                d[q + 4] = buf[o + 12]; d[q + 5] = buf[o + 13]; d[q + 6] = buf[o + 14]; d[q + 7] = buf[o + 15];
                 d[q + 8] = tint.X; d[q + 9] = tint.Y; d[q + 10] = tint.Z; d[q + 11] = SoftDistance;
             }
             Slots[owner] = (slot.Data, count);

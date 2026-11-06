@@ -644,7 +644,7 @@ public sealed class ClientWorld
                 combat.Events.Add(new WeaponClick(v, c.Sound));
                 break;
             case ZoneEvent z when Car(z.Car) is { } v: damage.Add(new ZoneDamaged(v, z.Zone, z.Level)); break;
-            case KilledEvent k when Car(k.Car) is { } v: damage.Add(new VehicleKilled(v, k.DriverKilled, (DeathCause)k.Cause, k.Seed)); News?.Invoke(e); break;
+            case KilledEvent k when Car(k.Car) is { } v: damage.Add(new VehicleKilled(v, k.DriverKilled)); News?.Invoke(e); break;
             case WreckedEvent w when Car(w.Car) is { } v: damage.Add(new VehicleWrecked(v)); break;
             case TyreEvent t when Car(t.Car) is { } v: damage.Add(new TyreBlown(v, t.Slot)); break;
             case FlungEvent f when Car(f.Car) is { } v: damage.Add(new PartFlung(v, f.Slot, f.Velocity)); break;

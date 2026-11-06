@@ -269,7 +269,7 @@ public class WireTests
         NetEvent[] evs =
         [
             new ShotEvent(4, 1, new(1, 2, 3), Vector3.UnitZ), new ImpactEvent("xbulc1.xdf", "wmgr1.wav", new(5, 6, 7), 1, 6, new(1, 1, 1), Vector3.UnitY, -Vector3.UnitZ),
-            new ExplosionEvent("xcarx1.xdf", new(9, 9, 9)), new ZoneEvent(4, 3, 2), new KilledEvent(4, true, 9, 0xbeef), new SpawnEvent(new CarInfo(9, "a.vcf", -1, 0, "x")),
+            new ExplosionEvent("xcarx1.xdf", new(9, 9, 9)), new ZoneEvent(4, 3, 2), new KilledEvent(4, true), new SpawnEvent(new CarInfo(9, "a.vcf", -1, 0, "x")),
             new RemoveEvent(9), new ScoreEvent(1, 1500, 2, 1), new KillEvent(4, 5, 1066), new RenewedEvent(4, true), new ChatEvent(-1, "hello"),
             new GameOverEvent([(1, 5000), (0, 200)], 15), new MisfireEvent(4, 2), new SoundEvent(4, "vland.wav"), new StructureEvent(77, [0x0b], [-1, 2]), new SignEvent(78, Vector3.One),
         ];
@@ -283,6 +283,25 @@ public class WireTests
             if (evs[i] is not GameOverEvent) Assert.Equal(evs[i], batch.Events[i]);
         Assert.Equal(((GameOverEvent)evs[11]).Standings, ((GameOverEvent)batch.Events[11]).Standings);
         Assert.Equal(15, ((GameOverEvent)batch.Events[11]).NextRoundSeconds);
+    }
+
+    /// <summary>
+    /// A car's death keeps protocol 27's layout with the withdrawn death cause and seed: the flag, then three bytes written as
+    /// zero; a death written by a build that set them still reads, with them dropped.
+    /// </summary>
+    [Fact]
+    public void ADeathKeepsItsTwoUnusedFields()
+    {
+        var w = new NetWriter();
+        new KilledEvent(300, true).Write(w);
+        var mine = w.ToArray();
+        Assert.Equal([0, 0, 0], mine[^3..]);
+        w.Clear();
+        w.U8((byte)EventKind.Killed); w.VarU(300); w.Bool(true); w.U8(2); w.U16(0xbeef);
+        Assert.Equal(mine.Length, w.Length);
+        var r = new NetReader(w.Span);
+        Assert.Equal(new KilledEvent(300, true), NetEvent.Read(ref r));
+        Assert.Equal(0, r.Remaining);
     }
 
     [Fact]

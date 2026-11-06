@@ -28,6 +28,9 @@ public abstract record NetEvent
 
     public void Write(NetWriter w) { w.U8((byte)Kind); Body(w); }
 
+    /// <summary>A car's death as read: the two bytes after the flag (see <see cref="KilledEvent"/>) are read and dropped.</summary>
+    private static KilledEvent Killed(int car, bool driverKilled, byte unusedCause, ushort unusedSeed) => new(car, driverKilled);
+
     public static NetEvent Read(ref NetReader r)
     {
         var k = (EventKind)r.U8();
@@ -38,7 +41,7 @@ public abstract record NetEvent
             EventKind.Explosion => new ExplosionEvent(r.Name(), r.Vec()),
             EventKind.Click => new ClickEvent((int)r.VarU(), r.Name()),
             EventKind.ZoneDamaged => new ZoneEvent((int)r.VarU(), r.U8(), r.U8()),
-            EventKind.Killed => new KilledEvent((int)r.VarU(), r.Bool(), r.U8(), r.U16()),
+            EventKind.Killed => Killed((int)r.VarU(), r.Bool(), r.U8(), r.U16()),
             EventKind.Wrecked => new WreckedEvent((int)r.VarU()),
             EventKind.TyreBlown => new TyreEvent((int)r.VarU(), r.U8()),
             EventKind.PartFlung => new FlungEvent((int)r.VarU(), r.U8(), r.HalfVec()),
@@ -103,11 +106,14 @@ public sealed record ZoneEvent(int Car, byte Zone, byte Level) : NetEvent
     protected override void Body(NetWriter w) { w.VarU((uint)Car); w.U8(Zone); w.U8(Level); }
 }
 
-/// <summary>A car died: <see cref="I76.Sim.Damage.VehicleKilled"/>'s cause and seed travel with it, so every machine draws the same death.</summary>
-public sealed record KilledEvent(int Car, bool DriverKilled, byte Cause = 0, ushort Seed = 0) : NetEvent
+/// <summary>
+/// A car died. Protocol 27 added a death cause byte and a seed (two bytes) after the flag, for a modern-look death since
+/// withdrawn: they stay on the wire, written as zero and skipped when read, so the protocol version is unchanged.
+/// </summary>
+public sealed record KilledEvent(int Car, bool DriverKilled) : NetEvent
 {
     public override EventKind Kind => EventKind.Killed;
-    protected override void Body(NetWriter w) { w.VarU((uint)Car); w.Bool(DriverKilled); w.U8(Cause); w.U16(Seed); }
+    protected override void Body(NetWriter w) { w.VarU((uint)Car); w.Bool(DriverKilled); w.U8(0); w.U16(0); }
 }
 
 public sealed record WreckedEvent(int Car) : NetEvent

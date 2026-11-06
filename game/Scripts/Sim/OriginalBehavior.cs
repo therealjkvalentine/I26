@@ -37,7 +37,6 @@ public static class OriginalBehavior
         DrawAhead = s.DrawAhead;
         Antialias1997 = s.Antialias1997;
         EvenFlash = s.EvenFlash;
-        DeathVariety.Enabled = s.DeathVariety;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 

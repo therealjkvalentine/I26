@@ -68,7 +68,6 @@ public static class DevSettings
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
-        new("death_variety", ["off" + M, "on"], s => s.DeathVariety ? 1 : 0, (s, v) => s.DeathVariety = v != 0, DevWhen.Live),
         new("menu_warmup", ["off", "on" + M], s => s.MenuWarmup ? 1 : 0, (s, v) => s.MenuWarmup = v != 0, DevWhen.NextScreen),
         new("movie_ignition", ["off", "on" + M], s => s.MovieIgnition ? 1 : 0, (s, v) => s.MovieIgnition = v != 0, DevWhen.Live),
         new("briefing_while_loading", ["card_first", "movie_first" + M], s => (int)s.CardOrder, (s, v) => s.CardOrder = (I76.Game.Boot.CardOrder)v, DevWhen.NextMission),
