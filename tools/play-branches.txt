@@ -308,3 +308,6 @@ feat/hd-pack-8x                       # section Y: the loader serves each textur
 
 # Z. HD pack seams (2026-11-05)
 fix/hd-pack-seams                     # section Z: `i76 tex-seams` finds every texture adjacency and wrap (27,952 segments) and scores the 4x pack's seams; upscale-textures.py --neighbours/--context/--then upscales border-meeting and repeating textures inside a canvas of their neighbours' texels; 115 textures re-upscaled into the live pack (border seams 2.26 -> 0.52); the remaining top seams are UV islands inside one texture
+
+# AA. counter drums and the map screen's HD maps (2026-11-05)
+fix/counter-drums-and-hd-maps         # section AA: the modern cockpit's ammunition counters shaded as drums with the figures cut in (I76_COUNTER_DRUM selects flat/drum/inset/raised/gaps); tools/menu-maps.py builds tex-menu/maps (the M screen's 91 maps at 4x, the pen writing lightly cleaned: halo off, edges feathered, ink 88 %); an ink option in text-redraws
