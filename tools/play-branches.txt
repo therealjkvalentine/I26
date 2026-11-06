@@ -360,3 +360,6 @@ fix/terrain-shadow-rollout            # section AM: no player-visible change; th
 
 # AN. firing frame rate (2026-11-06)
 fix/firing-framerate                  # section AN: a gun's rolling ammo counter redraws only the digits that roll (and re-stamps the separator bar) instead of the whole 8x weapons panel per texel; stamps copy a row at a time; T01 3440x1440 firing: frames over 33 ms 13.6 -> 2.3 % (MG, 8x), mean +5.1 -> +1.0 ms
+
+# AO. dash shudder (2026-11-06)
+fix/dash-shudder                      # section AO: the cockpit meshes are drawn in the eye's frame for the cockpit camera (CarNode.PinCockpit + object.gdshaderinc), so the dash no longer jumps up to ~1 px per frame from float precision far from the floating origin; the head sway eases into its target instead of the original's snap ([port] sway_snap=true restores it; Dev panel); p99 0.83 -> 0.03 px
