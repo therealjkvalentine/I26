@@ -860,14 +860,11 @@ public sealed partial class MeleeScreen
     private static string LocalArea(I76.Formats.Vfs.GameInstall install, SessionInfo g)
     {
         if (g.Coop) return I76.Formats.Mission.MissionTitles.CoopTitle(install, g.Arena);
-        // (read once an arena: the roster draws again with every answer; a map downloaded later is read then)
-        string key = $"{install.Root}|{g.Arena}";
-        if (AreaNames.TryGetValue(key, out var known)) return known;
-        string n = I76.Formats.Mission.MissionTitles.ArenaTitle(install, g.Arena);
-        if (n.Length > 0) AreaNames[key] = n;
-        return n;
+        // (read once an arena, and a map this install lacks looked for again after a few seconds: the roster draws again with every
+        // answer, and each look probes the mission folders; a map downloaded later is read then)
+        return AreaNames.Get($"{install.Root}|{g.Arena}", () => I76.Formats.Mission.MissionTitles.ArenaTitle(install, g.Arena));
     }
-    private static readonly Dictionary<string, string> AreaNames = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly LookupCache AreaNames = new(TimeSpan.FromSeconds(5));
 
     /// <summary>A listed game's AREA OF PLAY (<see cref="NetLines.AreaName"/>), never its file name.</summary>
     internal static string AreaOf(I76.Formats.Vfs.GameInstall install, SessionInfo g) => NetLines.AreaName(g, LocalArea(install, g));

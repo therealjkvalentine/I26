@@ -189,7 +189,8 @@ public sealed class MeleeData
     /// <summary>The make and model, VDFC's first 20 bytes (the shell's vehicle +0x00, 0x14 long: "Courcheval Courchel").</summary>
     private static string? MakeModel(Bwd2File vdf) => CarNames.OfBody(vdf);
 
-    private readonly Dictionary<string, string> _carNames = new(StringComparer.OrdinalIgnoreCase);
+    // a car this install lacks is looked for again after a few seconds (the popup draws again with every answer)
+    private readonly LookupCache _carNames = new(TimeSpan.FromSeconds(5));
 
     /// <summary>
     /// A car's MAKE / MODEL as the network names it (the roster's game popup, a network game's STANDINGS): a car file of this list's
@@ -201,9 +202,8 @@ public sealed class MeleeData
     {
         if (car == I76.Net.Protocol.MissionCar) return "Mission's own car";
         if (car.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) && MakeModelOf(car) is { } m) return m;
-        if (_carNames.TryGetValue(car, out var named)) return named;
-        // (read once a name: the popup draws again with every answer)
-        if (car.Length > 0 && CarNames.Of(_vfs, car) is { Length: > 0 } n) return _carNames[car] = n;
+        // (read once a name, a miss kept for a few seconds: the popup draws again with every answer, and a miss read the files each time)
+        if (car.Length > 0 && _carNames.Get(car, () => CarNames.Of(_vfs, car) ?? "") is { Length: > 0 } n) return n;
         return sent?.Trim() ?? "";
     }
 

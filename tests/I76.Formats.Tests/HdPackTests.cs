@@ -89,4 +89,19 @@ public class HdPackTests
         Assert.True(c.Info!.Partial);
         Assert.True(c.ThreadSafe);
     }
+
+    [Fact]
+    public void AChainCountsAFileBothFoldersHaveOnce()
+    {
+        string x8 = Temp(), x4 = Temp();
+        File.WriteAllText(Path.Combine(x8, "zdash101.dds"), "8x");
+        File.WriteAllText(Path.Combine(x8, "TPGRASS1.DDS"), "8x");   // a folder's names as written: the same file whatever the case
+        File.WriteAllText(Path.Combine(x4, "zdash101.dds"), "4x");
+        File.WriteAllText(Path.Combine(x4, "tpgrass1.dds"), "4x");
+        File.WriteAllText(Path.Combine(x4, "tpdirt01.dds"), "4x");
+        using var c = new HdChainSource([new HdDirSource(x8), new HdDirSource(x4)]);
+        // the start-up log's count: zdash101, tpgrass1, tpdirt01 (the sum of the two folders was 5)
+        Assert.Equal(3, c.Count);
+        Assert.Equal(3, c.Names.Count());
+    }
 }

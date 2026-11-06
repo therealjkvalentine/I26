@@ -46,7 +46,10 @@ public sealed class HdChainSource : HdSource
     public HdChainSource(IEnumerable<HdSource> sources) { _sources = [.. sources]; Info = _sources.FirstOrDefault()?.Info; }
     public IReadOnlyList<HdSource> Sources => _sources;
     public override string Origin => string.Join(" over ", _sources.Select(s => s.Origin));
-    public override int Count => _sources.Sum(s => s.Count);
+    // a file the 8x and the 4x both have is one file (the 8x's): the names of all of them, each once, counted once
+    private int? _count;
+    public override int Count => _count ??= Names.Count();
+    public override IEnumerable<string> Names => _sources.SelectMany(s => s.Names).Distinct(StringComparer.OrdinalIgnoreCase);
     public override bool Exists(string rel) => _sources.Any(s => s.Exists(rel));
     public override byte[]? Read(string rel)
     {
@@ -65,6 +68,8 @@ public abstract class HdSource : IDisposable
     /// <summary>A folder or a zip: what the log says.</summary>
     public abstract string Origin { get; }
     public abstract int Count { get; }
+    /// <summary>The files' paths in the layout (<see cref="Count"/> of them).</summary>
+    public abstract IEnumerable<string> Names { get; }
     public HdPackInfo? Info { get; protected set; }
     public abstract bool Exists(string rel);
     public abstract byte[]? Read(string rel);
@@ -92,6 +97,7 @@ public sealed class HdDirSource : HdSource
     }
     public override string Origin => _dir;
     public override int Count => _names.Value.Count;
+    public override IEnumerable<string> Names => _names.Value;
     private string P(string rel) => Path.Combine(_dir, rel.Replace('/', Path.DirectorySeparatorChar));
     public override bool Exists(string rel) => _names.Value.Contains(rel);
     public override byte[]? Read(string rel) { if (!Exists(rel)) return null; try { return File.ReadAllBytes(P(rel)); } catch (IOException) { return null; } }
@@ -122,6 +128,7 @@ public sealed class HdZipSource : HdSource
 
     public override string Origin => _path;
     public override int Count => _entries.Count;
+    public override IEnumerable<string> Names => _entries.Keys;
     public override bool Exists(string rel) => _entries.ContainsKey(Norm(rel));
     public override byte[]? Read(string rel) => _entries.TryGetValue(Norm(rel), out var e) ? Slurp(e) : null;
 
