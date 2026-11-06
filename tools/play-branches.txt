@@ -348,3 +348,6 @@ feat/coop-host-form                   # section AI, after host-form-options-box:
 
 # AJ. the 8x pack split: dash and cars (2026-11-06)
 feat/hd-8x-dash-and-cars              # section AJ, after hd-8x-default: [port] hd_dash_size and hd_car_size (4 or 8) in place of hd_texture_size (migrated); a texture's kind (the cockpit's z* stems or a car's) picks its chain; measured T01 1280x960: dash 8x +482 MB, cars 8x +54 MB, so cars 8x wherever the 4x fits and dash 8x on 6 GB cards / 16 GB Macs; rows HD Textures Off/On, 8x Dash, 8x Cars with help lines; Developer panel keys; the shell sheet's help under the page's last row
+
+# AK. menus: tooltips, Advanced, Controls (2026-11-06)
+feat/menus-tooltips-advanced          # section AK: one tooltip component (0.5 s hover delay) on every shell, Esc, host-form and Dev-panel row, tested; Graphic Detail sheet + one Advanced page (1997 Mode first, 1997 Palette Grade, World Textures 1997/4x, Car & Dash Textures 1997/4x/8x); Terrain and Shadow High and Hood Gloss 5 by default (old Low defaults migrate once); Car Interiors -> Cabins Behind Glass (key cabins_behind_glass, Dev panel); Log File -> log_file key; Options -> Controls (force feedback, rumble, wheel strength, mouse, key map); shell settings v14
