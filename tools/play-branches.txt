@@ -354,3 +354,6 @@ feat/menus-tooltips-advanced          # section AK: one tooltip component (0.5 s
 
 # AL. menu art at 4x everywhere (2026-11-06)
 fix/menu-art-4k-coverage              # section AL, after menus-tooltips-advanced: the rear weapons on the Build & Repair blueprint (drawn turned half a turn) take the HD sprite path like the rest; tex-menu pack: banks 33-35/37-56/58 part sprites added, blueprint art traced to smooth lines, printed lettering retyped on Build & Repair, Field Salvage, Parts Catalog, Auto Melee, host/join forms, Standings and the Esc pads (pack files synced separately: _scratch/r5-menu-art/shots/changed-pack-files.txt)
+
+# AM. terrain shadow probe hooks (2026-11-06)
+fix/terrain-shadow-rollout            # section AM: no player-visible change; the T05 hillside band is the ridge's real sun shadow uncovered as the car rounds the slope; debug hooks I76_SHADOW_BIAS, I76_SHADOW_NBIAS, I76_SHADOW_PANCAKE, I76_DEBUG_DRAW=pssm (RenderTweaks, inert unless set) and their dev-hooks.md row
