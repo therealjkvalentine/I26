@@ -44,6 +44,7 @@ public partial class Main
         int level = s.Graphics[0xc];
         _software.Apply(_mode1997, sw, grade, _cardRamp, _sky1997, _builder?.SkyTexture, _env1997, CardCurve(level), level);
         GetViewport().Msaa3D = Msaa1997(_mode1997);   // after Apply: the Software renderer draws none
+        ApplyFade1997();   // the Software renderer has no fade
     }
 
     private System.Numerics.Vector2 _bandAt = new(float.NaN, float.NaN);

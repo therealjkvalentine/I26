@@ -18,6 +18,7 @@ public class DrawDistanceTests
     [Theory]
     [InlineData(DrawDistance.Original)]
     [InlineData(DrawDistance.Far)]
+    [InlineData(DrawDistance.Faded)]
     public void AChosenValueRoundTrips(int setting) => Assert.Equal(setting, DrawDistance.Parse(setting));
 
     [Fact]
@@ -35,6 +36,54 @@ public class DrawDistanceTests
     {
         Assert.Equal(600f, DrawDistance.CameraFar(DrawDistance.Original));
         Assert.Equal(20000f, DrawDistance.CameraFar(DrawDistance.Far));
+    }
+
+    /// <summary>Faded is the patch kit's picture: a 2300 m clip, the ground fading into the horizon from 0.75 of it.</summary>
+    [Fact]
+    public void FadedClipsAtTheKitsDistanceAndFadesFromThreeQuartersOfIt()
+    {
+        Assert.Equal(2300f, DrawDistance.CameraFar(DrawDistance.Faded));
+        Assert.Equal(0.75f * DrawDistance.FadedClip, DrawDistance.FadedFogBegin);
+        Assert.True(DrawDistance.Fade1997(DrawDistance.Faded));
+        Assert.False(DrawDistance.Fade1997(DrawDistance.Original));
+        Assert.False(DrawDistance.Fade1997(DrawDistance.Far));
+        // the modern look fades into its sky there too, ending inside the clip, and keeps its panels
+        Assert.True(DrawDistance.ModernFog(DrawDistance.Faded));
+        var (b, e) = DrawDistance.ModernFogRange(DrawDistance.Faded);
+        Assert.True(b == DrawDistance.FadedFogBegin && e > b && e < DrawDistance.FadedClip);
+        Assert.Equal((DrawDistance.FogBegin, DrawDistance.FogEnd), DrawDistance.ModernFogRange(DrawDistance.Original));
+        Assert.True(DrawDistance.ModernPanels(DrawDistance.Faded, true));
+        // a saved Faded holds in either look
+        Assert.Equal(DrawDistance.Faded, DrawDistance.Resolve(DrawDistance.Faded, look1997: true));
+        Assert.Equal(DrawDistance.Faded, DrawDistance.Resolve(DrawDistance.Faded, look1997: false));
+        Assert.Equal(DrawDistance.Faded, DrawDistance.FromFile(DrawDistance.Faded, 13));
+    }
+
+    /// <summary>The fade's colour: the panels' foot rows (the first four of the data), the opaque texels only, over every panel.</summary>
+    [Fact]
+    public void TheFadeColourIsThePanelsFootRowsMean()
+    {
+        static byte[] Panel(int w, int h, byte r, byte g, byte b, byte topRowsAlpha = 255)
+        {
+            var px = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int i = (y * w + x) * 4;
+                    bool foot = y < HorizonFade.Rows;
+                    (px[i], px[i + 1], px[i + 2], px[i + 3]) = foot ? (r, g, b, topRowsAlpha) : ((byte)0, (byte)0, (byte)255, (byte)255);
+                }
+            return px;
+        }
+        var c = HorizonFade.Colour([(Panel(8, 16, 255, 0, 0), 8, 16), (Panel(8, 16, 0, 255, 0), 8, 16)]);
+        Assert.NotNull(c);
+        Assert.Equal(0.5f, c!.Value.R, 3);
+        Assert.Equal(0.5f, c.Value.G, 3);
+        Assert.Equal(0f, c.Value.B, 3);   // the rows above the foot (blue) are not in it
+        // a keyed (transparent) foot is left out
+        var k = HorizonFade.Colour([(Panel(8, 16, 255, 0, 0), 8, 16), (Panel(8, 16, 0, 255, 0, 0), 8, 16)]);
+        Assert.Equal(1f, k!.Value.R, 3);
+        Assert.Null(HorizonFade.Colour([]));
     }
 
     [Fact]
