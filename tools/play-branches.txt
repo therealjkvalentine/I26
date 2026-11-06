@@ -342,3 +342,6 @@ feat/control-latency                  # section AG, after 1997-parity-2: with VS
 
 # AH. counter drum window fade (2026-11-06)
 fix/counter-drum-fade                 # section AH, after counter-drum-feather: the window's edge fades the face toward the housing's own colour behind it at 60 % by an ease-in over the top and bottom quarter (no black band, no inner edge); CockpitPanels samples the housing round each window; I76_COUNTER_FEATHER grammar: percent + cos|pow2|pow3|ease, deep|light, drum, lip, black
+
+# AI. the co-op host form (2026-11-06)
+feat/coop-host-form                   # section AI, after host-form-options-box: the co-op form's box holds what a story mission can use (EXTRA ENEMIES, default +1 per player = the cap 3; DAMAGE TAKEN; Invite Only, Hidden Cars, Car Reset, CB Radio, Sim Rate, Password) and hides the melee rules (turrets allowed, ignition lock off, handicaps off, crosshair allowed); Rolling Start on by default, no row ([port] coop_rolling_start written when off; Developer panel); HostFormHelp: a help line under the car panel for every row on both forms
