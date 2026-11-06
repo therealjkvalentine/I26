@@ -9,13 +9,15 @@
 shader_type spatial;
 render_mode unshaded, cull_back, depth_draw_always;
 
-uniform sampler2D art : source_color, filter_nearest;
+// the art and its outline are not tiled: sampled at the picture's edge, a repeating texture blends in the opposite edge's
+// texels (the frame's top row under the bottom row's surround drew thin lines under the mirror's bottom corners)
+uniform sampler2D art : source_color, filter_nearest, repeat_disable;
 uniform sampler2D view : source_color, filter_linear;
 uniform sampler2D view_nearest : source_color, filter_nearest;
 uniform bool faithful = false;
 uniform bool hidden = false;
-uniform sampler2D edge : filter_linear;
-uniform sampler2D fill : source_color, filter_nearest;
+uniform sampler2D edge : filter_linear, repeat_disable;
+uniform sampler2D fill : source_color, filter_nearest, repeat_disable;
 uniform bool smooth_edge = false;
 
 // a field's 0.5 contour over one screen pixel

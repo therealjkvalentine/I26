@@ -10,6 +10,10 @@ pack, is untouched.
 
     python3 tools/text-redraws.py SRC_DIR [--pack DIR] [--only GLOB] [--list] [--restore] [--self-check]
 
+The HD menu art's pages (--menu: the shell's records as user://tex-menu holds them, shellbg<N>.webp, specs in
+tools/text-redraws/menu/) are lettered the same way, from SRC_DIR as `i76 --install DIR bg SRC_DIR` writes the records (bg<NN>.ppm), and
+written back as WebP; their base is kept in tex-menu/.text-base/ alike.
+
 SRC_DIR is the folder --export-textures wrote (the originals at their own size, and bottom-up.txt, the textures' stored row
 order); --pack the pack folder (default: the game's tex-world-4x). One spec a texture family in tools/text-redraws/*.json
 (below); each texture it lists is redrawn from its base: the pack's file as the model left it, copied the first time into
@@ -31,6 +35,11 @@ opaque / keyed on its alpha), grown by "grow" texels, with the pack's texels wit
 ("texture": [dx, dy] gives an inpainted hole the grain of the surface that far away: paper, paint): "inpaint" (smoothly from the texels round them), "key" (cut out of
 the colour key: alpha 0, its colour "under" when given, else its neighbours'; a car panel shows a keyed texel's colour, the
 cockpit's opaque faces draw the key black), or an [r, g, b].
+smooth: the rect's texels made again from the original's (those matching "where": a dithered light without its letters), each
+original texel spread over its pack texels and blurred by a Gaussian of "sigma" texels within the rect (texels not matching
+take the blur from round them; with "only": true they keep the pack's): a light the 1997 art shades with a few dithered levels
+comes out a smooth fade, where a model makes the dither a mottle; a frame drawn in a few greys comes out smooth, where a model
+makes its stair-stepped bevel a white zigzag.
 text: the string at cap height "cap" (the font's H), its cap band's middle at "center", squeezed or stretched to "width" texels
 (optional), turned "rotate" degrees anticlockwise, slanted "skew" (x shift per unit of height), letters spaced "tracking" caps
 apart, trailing "hang" characters (".") hanging outside the centred, squeezed run; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
@@ -199,6 +208,16 @@ def inpaint(rgb, hole, iters=None):
         rgb[hole] = avg[hole]
     return rgb
 
+def gauss2(a, sigma):
+    """a (H x W x C float) blurred by a Gaussian of sigma texels, mirrored at its own border (nothing from outside it)."""
+    r = max(1, int(math.ceil(3 * sigma))); x = np.arange(-r, r + 1, dtype=np.float32)
+    g = np.exp(-x * x / (2 * sigma * sigma)); g /= g.sum()
+    for ax in (0, 1):
+        n = a.shape[ax]; pad = [(0, 0)] * a.ndim; pad[ax] = (r, r)
+        p = np.pad(a, pad, mode="symmetric" if r >= n else "reflect")
+        a = sum(g[i] * np.take(p, np.arange(i, i + n), axis=ax) for i in range(2 * r + 1))
+    return a
+
 def where_mask(orig, rect, where):
     """The original's texels in rect matching `where` (all of rect for none), as a boolean mask at the original's size."""
     h, w = orig.shape[:2]
@@ -299,8 +318,19 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                 # a texel the lettering half covers stays in the key: its colour is the lettering's, for the filter
             elif mode not in ("keep", "cover"):
                 raise ValueError(f"alpha {mode!r}: keep, set or cover")
+        elif kind == "smooth":
+            x0, y0, x1, y1 = (int(round(v * s)) for v in op["rect"])
+            m = where_mask(orig, op["rect"], op.get("where"))
+            k = int(round(s))
+            o = np.repeat(np.repeat(orig[..., :3].astype(np.float32), k, axis=0), k, axis=1)[y0:y1, x0:x1]
+            w = np.repeat(np.repeat(m, k, axis=0), k, axis=1)[y0:y1, x0:x1].astype(np.float32)
+            sig = float(op.get("sigma", 1.2)) * s
+            num = gauss2(o * w[..., None], sig); den = gauss2(w[..., None], sig)
+            sm = num / np.maximum(den, 1e-6)
+            if op.get("only"): sub = rgb[y0:y1, x0:x1]; sub[w > 0] = sm[w > 0]
+            else: rgb[y0:y1, x0:x1] = sm
         else:
-            raise ValueError(f"op {kind!r}: erase or text")
+            raise ValueError(f"op {kind!r}: erase, text or smooth")
     # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
     # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
     if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))
@@ -346,7 +376,7 @@ def read_pack_file(path):
     return np.array(im.convert("RGBA"))
 
 def pack_file(pack, stem):
-    for e in (".dds", ".png"):
+    for e in (".dds", ".png", ".webp"):
         p = os.path.join(pack, stem + e)
         if os.path.exists(p): return p
     return None
@@ -368,13 +398,23 @@ def redraw(src, pack, name, stem, spec, etcpak, table, fonts_dir=FONTS, bottom_u
     px = read_pack_file(base)
     flip = stem in bottom_up and base.endswith(".dds")
     if flip: px = px[::-1]
-    orig = np.array(Image.open(os.path.join(src, stem + ".png")).convert("RGBA"))
+    orig = np.array(Image.open(original_file(src, stem)).convert("RGBA"))
     out = apply_ops(px, orig, spec["ops"], fonts_dir, table)
-    if base.endswith(".dds") and etcpak is not None and out.shape[0] % 4 == 0 and out.shape[1] % 4 == 0:
+    if base.endswith(".webp"):
+        # the HD menu art's format: lossy WebP at quality 95, opaque
+        Image.fromarray(out[..., :3], "RGB").save(cur + ".part", "WEBP", quality=95, method=6); os.replace(cur + ".part", cur)
+    elif base.endswith(".dds") and etcpak is not None and out.shape[0] % 4 == 0 and out.shape[1] % 4 == 0:
         write_dds(cur + ".part", out[::-1] if flip else out, etcpak); os.replace(cur + ".part", cur)
     else:
         Image.fromarray(out, "RGBA").save(cur + ".part.png"); os.replace(cur + ".part.png", os.path.splitext(cur)[0] + ".png")
     return f"{stem}: {name}"
+
+def original_file(src, stem):
+    """The original of a texture (SRC/<stem>.png, as --export-textures writes it) or of a shell record (shellbg<N>: SRC/bg<NN>.ppm,
+    as `i76 bg SRC` writes it)."""
+    p = os.path.join(src, stem + ".png")
+    if not os.path.exists(p) and stem.startswith("shellbg") and stem[7:].isdigit(): p = os.path.join(src, f"bg{int(stem[7:]):02d}.ppm")
+    return p
 
 def fonts_of(spec):
     return sorted({op["font"] for op in spec["ops"] if op["op"] == "text"})
@@ -485,8 +525,13 @@ def main():
     ap.add_argument("--menu-maps", metavar="DIR", help="the mission maps instead (specs in tools/text-redraws/maps/): the pack's upscale of each"
                     " map redrawn and written as DIR/maps/<map>.png, where the map screen (M) looks for an HD map (DIR: the HD menu art's"
                     " folder, user://tex-menu, or I76_TEX_DIR); the world pack is not changed")
+    ap.add_argument("--menu", action="store_true", help="the HD menu art's pages instead (specs in tools/text-redraws/menu/, SRC_DIR the folder"
+                    " `i76 --install DIR bg SRC_DIR` writes the shell's records to, --pack default the game's tex-menu)")
     args = ap.parse_args()
     if args.self_check: sys.exit(0 if self_check() else 1)
+    if args.menu:
+        if args.specs == SPECS: args.specs = os.path.join(SPECS, "menu")
+        if not args.pack: args.pack = os.path.join(os.path.dirname(user_pack()), "tex-menu")
     pack = args.pack or user_pack()
     if args.restore: print(f"{restore(pack, args.only)} textures restored in {pack}"); return
     if args.menu_maps:

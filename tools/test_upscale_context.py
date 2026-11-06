@@ -115,5 +115,35 @@ class CropTests(unittest.TestCase):
         self.assertGreater(wrap_step(plain), 3.0)
         self.assertLess(wrap_step(ctx), 2.0)
 
+class CellTests(unittest.TestCase):
+    LAYOUT = """dst zpanel.map
+    label anchor              10   20       0    0
+src zsheet.map
+    label lamp_off             0    0       4    3
+    label lamp_on              0    3       4    3
+    label lamp_on_too          0    3       4    3
+    label past_the_foot        4    5       2    9
+"""
+
+    def test_a_layouts_cells_by_sheet(self):
+        cells = ut.layout_cells(self.LAYOUT)
+        self.assertEqual(set(cells), {"zsheet"}, "a dst section's anchors are not cells")
+        self.assertEqual(cells["zsheet"], [(0, 0, 4, 3), (0, 3, 4, 3), (4, 5, 2, 9)], "a cell named twice is run once")
+
+    def test_no_cell_takes_in_its_neighbours_picture(self):
+        im = np.zeros((6, 6, 4), np.uint8); im[..., 3] = 255
+        im[0:3, 0:4, :3] = (250, 250, 250); im[3:6, 0:4, :3] = (0, 200, 0)
+        blur = Runner(4, blur=True)
+        def vblur(p):     # the stand-in's blur turned down the columns: reaches across the cells' shared row
+            t = np.ascontiguousarray(p.transpose(1, 0, 2))
+            return np.ascontiguousarray(blur.run(t).transpose(1, 0, 2))
+        whole = vblur(im)
+        cells = ut.by_cells(im, [(0, 0, 4, 3), (0, 3, 4, 3)], vblur)
+        self.assertLess(int(whole[11, 0, 0]), 240, "the whole run mixes the next cell into the first's foot")
+        self.assertTrue((cells[0:12, 0:16, :3] == 250).all(), "the first cell on its own is its own white to its foot")
+        self.assertTrue((cells[12:24, 0:16, 1] == 200).all() and (cells[12:24, 0:16, 0] == 0).all(), "the second its own green")
+        self.assertTrue((cells[:, 16:] == whole[:, 16:]).all(), "texels in no cell keep the whole run's")
+        self.assertEqual(cells.shape, whole.shape)
+
 if __name__ == "__main__":
     unittest.main()
