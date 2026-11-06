@@ -21,6 +21,9 @@ boot_splash/use_filter=true
 ; the CB voice chat's microphone: the audio input is off (so no system asks for microphone access at start-up) until the player
 ; chooses a CB Microphone; the game then switches it on at run time (CbVoice)
 driver/enable_input=false
+; [port] low_latency_audio (docs/1997-parity.md, round 3): a 5 ms output buffer (Godot's stock 15 gets 10 on WASAPI); the key off writes
+; the stock 15 into the override file (StartupSettings.AudioLatency)
+driver/output_latency=5
 
 [debug]
 

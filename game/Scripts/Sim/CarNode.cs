@@ -875,6 +875,7 @@ public partial class CarNode : Node3D
     public void Snapshot()
     {
         _prevRot = _rot; _prevPos = _pos;
+        (_tickPrevRot, _tickPrevPos) = (_prevRot, _prevPos);
         _rot = Sim.Rot; _pos = Sim.Pos;
         // the wheels roll by the distance the car moved along its nose, signed (the sim's own wheel spin adds the
         // speed's size, so it turns forward in reverse too); a jump (a respawn) is not rolled
@@ -922,6 +923,17 @@ public partial class CarNode : Node3D
 
     private double _roll, _prevRoll;
 
+    /// <summary>The tick before the newest, as the sim had it (not the early tick's kept drawn pose): Draw Ahead's motion.</summary>
+    private Rows _tickPrevRot = Rows.Identity;
+    private Double3 _tickPrevPos;
+
+    /// <summary>
+    /// Draw Ahead ([port] draw_ahead, the player's car only; SimDriver sets it each frame): the seconds since the newest tick, the body
+    /// drawn there carried forward at the last tick's motion (DrawAhead) instead of between the last two ticks; null interpolates.
+    /// The wheels and turrets stay interpolated. Drawing only.
+    /// </summary>
+    public double? Ahead { get; set; }
+
     // what else the tick moves, kept for the tick before as well so that it is drawn between the two (at 20 Hz a
     // 50 ms snap of a turret or a steered wheel would show): each turret's yaw and pitch, each wheel's steer and travel
     private (float Yaw, float Pitch)[] _aimPrev = [], _aimCur = [];
@@ -962,6 +974,7 @@ public partial class CarNode : Node3D
     public void SetPoses(Rows prevRot, Double3 prevPos, Rows rot, Double3 pos)
     {
         _prevRot = prevRot; _prevPos = prevPos;
+        (_tickPrevRot, _tickPrevPos) = (prevRot, prevPos);
         _rot = rot; _pos = pos;
         _prevRoll = _roll;
         var moved = new System.Numerics.Vector3((float)(_pos.X - _prevPos.X), (float)(_pos.Y - _prevPos.Y), (float)(_pos.Z - _prevPos.Z));
@@ -1020,6 +1033,9 @@ public partial class CarNode : Node3D
             System.Numerics.Vector3.Lerp(_prevRot.Right, _rot.Right, alpha),
             System.Numerics.Vector3.Lerp(_prevRot.Up, _rot.Up, alpha),
             System.Numerics.Vector3.Lerp(_prevRot.Forward, _rot.Forward, alpha)).Orthonormalized();
+        (Rows Rot, Double3 Pos)? ahead = Ahead is { } sinceTick && live is null && !far
+            ? I76.Sim.Views.DrawAhead.Pose(_tickPrevRot, _tickPrevPos, _rot, _pos, I76.Game.Sim.SimClock.Tick, sinceTick) : null;
+        if (ahead is { } ap) rows = ap.Rot.Orthonormalized();
         if (far && live is null) rows = FarRows(rows);
         else _farHeading = null;
         for (int ti = 0; ti < _turrets.Count && ti < _aimCur.Length; ti++)
@@ -1093,6 +1109,7 @@ public partial class CarNode : Node3D
         double gx = Lerp(_prevPos.X, _pos.X), gz = Lerp(_prevPos.Z, _pos.Z);
         double gy = far ? GroundForDisplay!(gx, gz) : Lerp(_prevPos.Y, _pos.Y);
         if (live is { } lp) (gx, gy, gz) = (lp.Pos.X, lp.Pos.Y, lp.Pos.Z);
+        else if (ahead is { } aq) (gx, gy, gz) = (aq.Pos.X, aq.Pos.Y, aq.Pos.Z);
         Transform = new Transform3D(Coords.ToGodot(rows.ToEngine()), Coords.ToGodot(gx - origin.X, gy - origin.Y, gz - origin.Z));
         // a dying car's drawn throw, from the sim's transform of this frame (set just now)
         if (Wrecked && Modern && WreckThrow?.Invoke(Transform) is { } thrown) Transform = thrown;

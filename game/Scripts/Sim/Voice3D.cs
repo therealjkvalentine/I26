@@ -90,7 +90,7 @@ public partial class Voice3D : AudioStreamPlayer3D
     /// <summary>I76_AUDIO_LOG=1: every start and stop of the voices this port's sound rules make is printed (audio cannot be heard in a capture).</summary>
     public static readonly bool LogEnabled = System.Environment.GetEnvironmentVariable("I76_AUDIO_LOG") == "1";
 
-    public static void Trace(string what) { if (LogEnabled) GD.Print($"[audio] {what}"); }
+    public static void Trace(string what) { if (LogEnabled) GD.Print(System.FormattableString.Invariant($"[audio] {what} qpc={System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency:0.000000}")); }
 
     /// <summary>
     /// Stops the voice for good until its owner starts it again: also a loop the 600 m cull parked, which would otherwise start

@@ -19,6 +19,8 @@ public static class OriginalBehavior
     public static bool SteadySky = true, SmoothOrbit;
     /// <summary>The 1997 look's Early Tick: a change of the keys runs the next tick at once ([port] early_tick, on unless false; SimDriver, TickPacer).</summary>
     public static bool EarlyTick = true;
+    /// <summary>Draw Ahead: the player's car drawn at the newest tick carried forward, not a tick behind ([port] draw_ahead, off unless true; SimDriver, CarNode).</summary>
+    public static bool DrawAhead;
     /// <summary>The 1997 look takes the Anti-Aliasing row ([port] aa_1997, on unless false); off, no multisampling, as the 3D card drew it.</summary>
     public static bool Antialias1997 = true;
     /// <summary>The 1997 look's even flash: each gun's one flash sprite lit again at the shot's place in its tick ([port] even_flash, on unless false).</summary>
@@ -32,6 +34,7 @@ public static class OriginalBehavior
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
         EarlyTick = s.EarlyTick;
+        DrawAhead = s.DrawAhead;
         Antialias1997 = s.Antialias1997;
         EvenFlash = s.EvenFlash;
         DeathVariety.Enabled = s.DeathVariety;

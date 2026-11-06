@@ -119,6 +119,7 @@ public partial class ModernPhysics : Node
         Active = want;
         // Jolt at 120 Hz while the body drives (the suspension and tyres want short steps), the project's rate otherwise
         Engine.PhysicsTicksPerSecond = want ? PhysicsRate : _oldRate;
+        I76.Game.FrameLimiter.ModernPhysicsOwnsRate = want;
         if (want) { MoveOrigin(Car.Pos); _car.Freeze = false; _car.TakeOver(); }
         else _car.Freeze = true;
     }
@@ -126,6 +127,7 @@ public partial class ModernPhysics : Node
     public override void _ExitTree()
     {
         Engine.PhysicsTicksPerSecond = _oldRate;
+        I76.Game.FrameLimiter.ModernPhysicsOwnsRate = false;
         World.External = null;
         World.ExternalFrame = null;
     }
