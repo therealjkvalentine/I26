@@ -6,8 +6,8 @@ using Xunit.Abstractions;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The base game's network host form (the play fork's layout, HostFormLayout): the original's art with the options box and the
-/// rules table; a labelled row for every rule, the form's own hotspot ids, the pad reaching them all. Upstream's tests for its
+/// The base game's network host form (the play fork's layout, HostFormLayout): the original's art with every setting in the
+/// options box; a labelled row for every rule, the form's own hotspot ids, the pad reaching them all. Upstream's tests for its
 /// drawn sheet (56373bd), adapted where this form differs: the art's own arrows are smaller than a sheet's row, a check box's
 /// value is its X, and the labels are this form's.
 /// </summary>
@@ -31,20 +31,28 @@ public class HostFormLayoutTests(ITestOutputHelper output)
     public void EveryRuleHasALabelledRowOfItsOwn()
     {
         var fields = HostFormLayout.Fields(Melee);
-        string[] table = ["SIM RATE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "PASSWORD", "CHASE CROSSHAIR"];
-        Assert.Equal(table, fields.Where(f => f.Where == HostFormLayout.Place.Table).OrderBy(f => f.Row).Select(f => f.Label));
+        // adapted: the rules are labelled rows of the box under MAX SCORE (the rules table is gone, the car's front view back)
+        string[] rules = ["SIM RATE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "PASSWORD", "CHASE CROSSHAIR"];
+        Assert.Equal(rules, fields.Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).Select(f => f.Label));
+        Assert.All(fields.Where(f => f.Where == HostFormLayout.Place.BoxRow), f => Assert.True(f.Row > HostFormLayout.ScoreRow));
         string[] checks = ["TEAM PLAY", "INVITE ONLY", "SHARE MAPS", "HIDDEN CARS", "CAR RESET", "CB RADIO"];
         Assert.Equal(checks.Order(), fields.Where(f => f.Where is HostFormLayout.Place.CheckA or HostFormLayout.Place.CheckB).Select(f => f.Label).Order());
-        // one field a place: no two in a table row, a box row's column, or the box's stepped lines (BOTS, MAX SCORE)
+        // one field a place: no two in a box row's column, or on the box's stepped lines (BOTS, MAX SCORE)
         var places = fields.Select(f => (f.Where == HostFormLayout.Place.BoxRow ? HostFormLayout.Place.CheckA : f.Where, f.Row)).ToList();
         Assert.Equal(places.Count, places.Distinct().Count());
-        Assert.DoesNotContain(fields, f => f.Where != HostFormLayout.Place.Table && f.Row is HostFormLayout.BotsRow or HostFormLayout.ScoreRow);
-        Assert.All(fields.Where(f => f.Where == HostFormLayout.Place.Table), f => Assert.InRange(f.Row, 0, HostFormLayout.TableRows - 1));
-        Assert.All(fields.Where(f => f.Where != HostFormLayout.Place.Table), f => Assert.InRange(f.Row, 0, HostFormLayout.BoxRow.Length - 1));
-        // the table is above the arena sketch's room, the box inside its rules
-        Assert.True(HostFormLayout.TableFoot <= 183);
+        Assert.DoesNotContain(fields, f => f.Row is HostFormLayout.BotsRow or HostFormLayout.ScoreRow);
+        Assert.All(fields, f => Assert.InRange(f.Row, 0, HostFormLayout.BoxRow.Length - 1));
+        // every line of the box used: the fields' and the stepped lines'
+        Assert.Equal(HostFormLayout.BoxLines, fields.Select(f => f.Row).Append(HostFormLayout.BotsRow).Append(HostFormLayout.ScoreRow).Distinct().Count());
+        // adapted: the box's lines (15 apart, was 22) inside its rules, filling it from NO. DRIVERS' rule to its foot
         var (_, _, by0, by1) = HostFormLayout.BoxInside;
-        Assert.All(HostFormLayout.BoxRow, b => Assert.True(b - 14 >= by0 - 1 && b + 5 <= by1 + 1));
+        Assert.All(HostFormLayout.BoxRow, b => Assert.True(b - HostFormLayout.Above >= by0 - 1 && b + HostFormLayout.Below <= by1 + 1));
+        Assert.Equal(by1 + 1, HostFormLayout.BoxRow[^1] + HostFormLayout.Below);
+        // the closed-up column: its pieces in order, each laid higher, the last (NO. DRIVERS) ending on the box's top
+        var pieces = HostFormLayout.ColumnPieces;
+        for (int i = 1; i < pieces.Length; i++) Assert.Equal(pieces[i - 1].To + pieces[i - 1].H, pieces[i].To);
+        Assert.Equal(147 + 17 * HostFormLayout.ListRows, pieces[0].To);     // the down arrow's piece starts on the cut row's rule
+        Assert.Equal(HostFormLayout.BoxTop, pieces[^1].To + pieces[^1].H - 1);
     }
 
     [Fact]
@@ -54,10 +62,12 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         foreach (var gone in new[] { "TEAM PLAY", "SHARE MAPS" }) Assert.DoesNotContain(gone, labels);
         foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "UNLIMITED TURRETS", "CAR RESET", "CB RADIO", "CHASE CROSSHAIR", "SIM RATE", "IGNITION LOCK", "HANDICAPS" })
             Assert.Contains(kept, labels);
-        // the co-op rules a labelled row each, at the box's top
-        Assert.Equal(["CO-OP SCALING", "CO-OP DAMAGE", "ROLLING START"],
-            HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).Select(f => f.Label));
-        Assert.Equal([0, 1, 2], HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).Select(f => f.Row).Order());
+        // the co-op rules a labelled row each, at the box's top (adapted: the host's rules are labelled rows too, under them)
+        var coopRows = HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).ToList();
+        Assert.Equal(["CO-OP SCALING", "CO-OP DAMAGE", "ROLLING START"], coopRows.Take(3).Select(f => f.Label));
+        Assert.Equal([0, 1, 2], coopRows.Take(3).Select(f => f.Row));
+        // the same box: every line used, none past it
+        Assert.Equal(HostFormLayout.BoxLines, HostFormLayout.Fields(Coop).Select(f => f.Row).Distinct().Count());
         // no Bots or Max Score: their ids are not hotspots
         foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
     }
@@ -79,8 +89,9 @@ public class HostFormLayoutTests(ITestOutputHelper output)
             {
                 Assert.True(0 <= x0 && x0 < x1 && x1 <= 640 && 0 <= y0 && y0 < y1 && y1 <= 480);
                 // the art's own buttons and arrows keep the original's sizes (MAKE / MODEL's arrow is 11 x 15); the port's are bigger
+                // (adapted: a box line is 15 high, was 16+, so all eleven fit)
                 bool art = HostFormLayout.Art.ContainsKey(id);
-                Assert.True(x1 - x0 >= (art ? 11 : 17) && y1 - y0 >= (art ? 11 : 16), $"{id} big enough to hit");
+                Assert.True(x1 - x0 >= (art ? 11 : 17) && y1 - y0 >= (art ? 11 : HostFormLayout.LineH), $"{id} big enough to hit");
             }
             // strict rectangles (x0 < x < x1) may share an edge, never inside room
             var all = hot.ToList();
@@ -91,13 +102,12 @@ public class HostFormLayoutTests(ITestOutputHelper output)
                     bool overlap = Math.Max(a.X0, b.X0) + 1 < Math.Min(a.X1, b.X1) && Math.Max(a.Y0, b.Y0) + 1 < Math.Min(a.Y1, b.Y1);
                     Assert.False(overlap, $"{all[i].Key} {a} and {all[j].Key} {b} overlap");
                 }
-            // the options box's ids inside the box, the table's inside the car panel above the sketch
+            // every setting's id inside the options box (adapted: the rules too, the table gone), none in the car panel
             var (bx0, bx1, by0, by1) = HostFormLayout.BoxInside;
             foreach (var f in HostFormLayout.Fields(coop ? Coop : Melee))
             {
                 var r = hot[f.Id];
-                if (f.Where == HostFormLayout.Place.Table) Assert.True(r.X0 >= 219 && r.X1 <= 456 && r.Y1 <= HostFormLayout.TableFoot);
-                else Assert.True(r.X0 + 1 >= bx0 && r.X1 - 1 <= bx1 && r.Y0 + 1 >= by0 && r.Y1 - 1 <= by1, $"{f.Id} {r} outside the box");
+                Assert.True(r.X0 + 1 >= bx0 && r.X1 - 1 <= bx1 && r.Y0 + 1 >= by0 && r.Y1 - 1 <= by1, $"{f.Id} {r} outside the box");
             }
         }
     }
@@ -140,10 +150,10 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         foreach (var (name, coop) in new[] { ("melee", false), ("co-op", true) })
         {
             var hot = HostFormLayout.Hot(coop);
-            // as the screen gives them: the area list (11) as its six rows, the rest by id
+            // as the screen gives them: the area list (11) as its rows (adapted: four on the host form, was six), the rest by id
             var regions = new List<(string Name, NavRect Rect)>();
             foreach (var (id, r) in hot.OrderBy(h => h.Key))
-                if (id == 11) for (int k = 0; k < 6; k++) regions.Add(($"area list row {k}", new NavRect(r.X0 + 1, 151 + 17 * k, r.X1 - r.X0 - 2, 17)));
+                if (id == 11) for (int k = 0; k < HostFormLayout.ListRows; k++) regions.Add(($"area list row {k}", new NavRect(r.X0 + 1, 151 + 17 * k, r.X1 - r.X0 - 2, 17)));
                 else regions.Add((HostFormLayout.Fields(new HostFormLayout.State { Coop = coop }).FirstOrDefault(f => f.Id == id)?.Label ?? $"id {id}", new NavRect(r.X0, r.Y0, r.X1 - r.X0, r.Y1 - r.Y0)));
             var rects = regions.Select(r => r.Rect).ToList();
             int start = PadNav.Pick(rects, -1, NavDir.Down);

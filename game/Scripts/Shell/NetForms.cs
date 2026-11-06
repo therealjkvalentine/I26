@@ -353,18 +353,20 @@ public sealed partial class MeleeScreen
         Frame.Fill(x, y + 4, 7, 6, ink);            // the body
     }
 
-    // ---- the base host form's options box and rules table (the port's layout, HostFormLayout; docs/multiplayer.md "The host form") ----
-    // The original's box (TEAM PLAY, INVITE ONLY, MAX SCORE) is drawn again taller: its top is NO. DRIVERS' foot rule, its
-    // foot a rule of its own over the sheet's bottom margin, and inside it the paper of a blank part of the same art (under
-    // the side view), so the grain goes on. Its rows: BOTS (the co-op form: Co-op Scaling, Co-op Damage, Rolling Start, a
-    // labelled row each), the switches as check boxes of TEAM PLAY's own, MAX SCORE. The host's rules are a table of
-    // labelled rows at the car panel's top, where the original drew the car's front view: printed labels and handwritten
-    // values on ruled blanks (upstream's labelled row for every rule, 56373bd, in this form's own paper and lines). The
-    // boxes, steppers, rules and the A.I. CARS button are pieces of the record's own art; the labels are set in Arial.
+    // ---- the base host form's options box (the port's layout, HostFormLayout; docs/multiplayer.md "The host form") ----
+    // Every setting is in the box under NO. DRIVERS. The left column closes up to make it room: the area list is cut to four
+    // rows and the art under it (the list's foot, GAME NAME, NO. DRIVERS) laid higher. The original's box (TEAM PLAY, INVITE
+    // ONLY, MAX SCORE) is drawn again taller: its top is NO. DRIVERS' foot rule, its foot a rule of its own over the sheet's
+    // bottom margin, and inside it the paper of a blank part of the same art (under the side view), so the grain goes on.
+    // Its lines: BOTS (the co-op form: Co-op Scaling, Co-op Damage, Rolling Start, a labelled row each), the switches as check
+    // boxes of TEAM PLAY's own, MAX SCORE, then the host's rules as labelled rows, printed labels and handwritten values on
+    // ruled blanks (upstream's labelled row for every rule, 56373bd, in this form's own paper and lines). The car panel keeps
+    // the original's front view. The boxes, steppers, rules and the A.I. CARS button are pieces of the record's own art; the
+    // labels are set in Arial.
 
     /// <summary>The blank paper copied into the box (a plain part of the same art, under the side view).</summary>
     private static readonly (int X, int Y) BlankPaper = (356, 298);
-    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the rules table's foot to the side view's roof.</summary>
+    /// <summary>The arena sketch's box, and the space it is centred in: from the panel's rule to PARTS' lines, from the front view's foot to the side view's roof.</summary>
     private static readonly Vector2I SketchSize = new(200, 120);
     private static readonly Rect2I SketchSpace = new(219, 183, 237, 122);
     /// <summary>The labels in about the ink of the form's rules (they are thinner); the box's handwriting a little darker than those, lighter than the hand elsewhere.</summary>
@@ -405,21 +407,32 @@ public sealed partial class MeleeScreen
         for (int x = x0; x <= x1; x += 60) Frame.PasteBackground(art, 104, 413, Math.Min(60, x1 - x + 1), 1, x, baseline + 2);
     }
 
-    /// <summary>The box's and the table's art for the form's kind (melee 1, co-op 2), once per background load and kind: the paper, the rules, the boxes, the steppers.</summary>
+    /// <summary>The closed-up left column and the box's art for the form's kind (melee 1, co-op 2), once per background load and kind: the paper, the rules, the boxes, the steppers.</summary>
     private void BakeBox()
     {
         int kind = _coopBase ? 2 : 1;
         if (_boxBaked == kind) return;
         _boxBaked = kind;
         var art = _art ??= Frame.CleanCopy();
-        int foot = HostFormLayout.BoxFoot;
+        int foot = HostFormLayout.BoxFoot, top = HostFormLayout.BoxTop + 1;
         int[] row = HostFormLayout.BoxRow;
-        // the paper, then the box's edges: the left and right rules run on down, the foot is the original box's own
-        Frame.CopyBackground(BlankPaper.X, BlankPaper.Y, 206, foot - 356, 10, 356);
+        // the column under the list's last row laid higher (x 0..215: the car panel's rule at 216 stays)
+        foreach (var (y, h, to) in HostFormLayout.ColumnPieces) Frame.PasteBackground(art, 0, y, 216, h, 0, to);
+        // the paper (the blank under the side view, 110 rows clear of MAKE / MODEL's rule and the light rows over it: a taller
+        // box takes it again upside down for the rest, so no seam shows), then the box's edges: the left and right rules run on
+        // down in pieces of the art's own, the foot is the original box's
+        const int blank = 110;
+        for (int y = top; y < foot; y++)
+        {
+            int r = (y - top) % (2 * blank);
+            Frame.CopyBackground(BlankPaper.X, BlankPaper.Y + (r < blank ? r : 2 * blank - 1 - r), 206, 1, 10, y);
+        }
         Frame.PasteBackground(art, 10, 425, 206, 2, 10, foot);
-        Frame.PasteBackground(art, 8, 372, 2, 13, 8, 356);
-        Frame.PasteBackground(art, 8, 372, 2, foot + 2 - 427, 8, 427);
-        Frame.PasteBackground(art, 216, 380, 2, foot + 2 - 444, 216, 444);
+        for (int y = top; y < foot + 2; y += 13)
+        {
+            Frame.PasteBackground(art, 8, 372, 2, Math.Min(13, foot + 2 - y), 8, y);
+            Frame.PasteBackground(art, 216, 380, 2, Math.Min(13, foot + 2 - y), 216, y);
+        }
         // TEAM PLAY's box (its ring only: the paper inside stays the new paper), NO. DRIVERS' minus and plus
         void Check(int x, int r) => Frame.PasteBackground(art, 87, 381, 11, 11, x, row[r] - 10, (c, rr) => c is 0 or 10 || rr is 0 or 10);
         void Minus(int x, int r) => Frame.PasteBackground(art, 155, 341, 10, 10, x, row[r] - 9);
@@ -430,7 +443,6 @@ public sealed partial class MeleeScreen
                 case HostFormLayout.Place.CheckA: Check(HostFormLayout.CheckA, f.Row); break;
                 case HostFormLayout.Place.CheckB: Check(HostFormLayout.CheckB, f.Row); break;
                 case HostFormLayout.Place.BoxRow: Blank(art, HostFormLayout.BoxBlank0, HostFormLayout.BoxBlank1, row[f.Row]); break;
-                case HostFormLayout.Place.Table: Blank(art, HostFormLayout.TableBlank0, HostFormLayout.TableX1 - 2, HostFormLayout.TableBaseline(f.Row)); break;
             }
         if (!_coopBase)
         {
@@ -441,12 +453,13 @@ public sealed partial class MeleeScreen
         }
     }
 
-    /// <summary>The game name, NO. DRIVERS, the options box and the rules table: their labels, X marks and values.</summary>
+    /// <summary>The game name, NO. DRIVERS and the options box: their labels, X marks and values.</summary>
     private void DrawHost()
     {
-        Frame.Text(_font, 11, 305, AddressBookPopup.Fit(_font, _gameName + (_naming ? "_" : ""), 160));
-        Frame.Text(_font, 172, 338, $"{_drivers:00}");
+        // first: on a fresh background the bake lays the column's art over what is drawn there
         BakeBox();
+        Frame.Text(_font, 11, HostFormLayout.GameNameY, AddressBookPopup.Fit(_font, _gameName + (_naming ? "_" : ""), 160));
+        Frame.Text(_font, 172, HostFormLayout.DriversY, $"{_drivers:00}");
         // the bar's right end switches the game type (the Nitro form's GAME TYPE row is its own)
         DrawModeButton();
         var hand = Shell.Db.Font(0x44);
@@ -459,11 +472,6 @@ public sealed partial class MeleeScreen
         foreach (var f in HostFormLayout.Fields(HostState()))
             switch (f.Where)
             {
-                case HostFormLayout.Place.Table:
-                    int y = HostFormLayout.TableBaseline(f.Row);
-                    Label(HostFormLayout.TableX0 + 4, y, f.Label + ":");
-                    Value(HostFormLayout.TableBlank0 + 3, y, f.Value, HostFormLayout.TableX1 - HostFormLayout.TableBlank0 - 6);
-                    break;
                 case HostFormLayout.Place.BoxRow:
                     Label(HostFormLayout.LabelA, row[f.Row], f.Label + ":");
                     Value(HostFormLayout.BoxBlank0 + 3, row[f.Row], f.Value, HostFormLayout.BoxBlank1 - HostFormLayout.BoxBlank0 - 4);
@@ -535,7 +543,8 @@ public sealed partial class MeleeScreen
     {
         int total = ListCount;
         if (total <= Rows) return;
-        const int x = 211, top = 149, h = Rows * Row - 4;
+        const int x = 211, top = 149;
+        int h = Rows * Row - 4;
         int th = Math.Max(6, h * Rows / total), max = total - Rows, at = top + (h - th) * Math.Clamp(_scroll, 0, max) / max;
         var pal = Frame.Palette;
         var faint = new Dictionary<byte, byte>();
@@ -578,7 +587,7 @@ public sealed partial class MeleeScreen
         [38] = "Players with the chase crosshair on may see it",
     };
     /// <summary>The BOTS label's own help area (the line's buttons have theirs).</summary>
-    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, HostFormLayout.BoxRow[HostFormLayout.BotsRow] - 14, HostFormLayout.BoxRow[HostFormLayout.BotsRow] + 5);
+    private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, HostFormLayout.BoxRow[HostFormLayout.BotsRow] - HostFormLayout.Above, HostFormLayout.BoxRow[HostFormLayout.BotsRow] + HostFormLayout.Below);
     private int _tipHover = int.MinValue, _tip = int.MinValue;
     private double _tipWait;
     private Vector2I _tipAt;

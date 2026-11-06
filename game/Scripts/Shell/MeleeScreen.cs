@@ -59,7 +59,9 @@ public sealed partial class MeleeScreen : ShellScreen
         Nitro && !Hosting && id == 7 ? Hot[7] with { X0 = 11, X1 = 170 } :
         Nitro && Hosting && NitroHost.TryGetValue(id, out var r) ? r : Hosting && id is 8 or 9 ? Hot[id] with { Y0 = 338, Y1 = 353 } : Hot[id];
 
-    private const int Row = 17, Rows = 6;
+    private const int Row = 17;
+    /// <summary>The area list's rows shown: the art's six, or on the base host form four (HostFormLayout: its box takes the room).</summary>
+    private int Rows => BaseHost ? HostFormLayout.ListRows : 6;
     /// <summary>The drivers' box shows seven rows (the original's whole list: the player and seven opponents fill it); I26 allows <see cref="MaxOpponents"/> opponents and scrolls the box.</summary>
     private const int DriverRows = 7;
     /// <summary>
@@ -218,8 +220,7 @@ public sealed partial class MeleeScreen : ShellScreen
             Frame.Text(_font, 330, 399, "Mission's own car");
             Frame.Text(_font, 292, 421, "the story's own");
         }
-        // the base host form draws no front view: its room is the rules table's (HostFormLayout)
-        else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts, front: !BaseHost);
+        else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
         // the arena's sketch between the car's views, over them (the base host form's; the port's)
         if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); DrawTip(); }
     }
@@ -321,7 +322,7 @@ public sealed partial class MeleeScreen : ShellScreen
         switch (id)
         {
             case 0 or 11:      // a list row
-                // Row = scroll + (y - 151) / 17, refused past the six drawn rows
+                // Row = scroll + (y - 151) / 17, refused past the drawn rows
                 if (p.Y < 151 || ListRowAt(p.Y) >= Rows) break;
                 int row = _scroll + ListRowAt(p.Y);
                 if (row >= 0 && row < ListCount) Area = row;
