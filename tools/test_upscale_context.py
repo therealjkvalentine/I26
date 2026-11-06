@@ -115,5 +115,22 @@ class CropTests(unittest.TestCase):
         self.assertGreater(wrap_step(plain), 3.0)
         self.assertLess(wrap_step(ctx), 2.0)
 
+class Recut(unittest.TestCase):
+    def test_the_alpha_is_the_fields_cut_and_the_edge_the_originals_colour(self):
+        # a disc's original (dark rim texels round a white face) and a model's 4x with a lumpy alpha and a light fringe
+        yy, xx = np.mgrid[0:16, 0:16]; r = np.hypot(yy - 7.5, xx - 7.5)
+        orig = np.zeros((16, 16, 4), np.uint8); orig[r < 6.5] = (255, 255, 255, 255); orig[(r >= 5.5) & (r < 6.5)] = (16, 16, 16, 255)
+        Y, X = np.mgrid[0:64, 0:64]; R = np.hypot(Y - 31.5, X - 31.5)
+        px = np.zeros((64, 64, 4), np.uint8); px[..., :3] = 230
+        px[..., 3] = np.where(R + 3 * np.sin(np.arctan2(Y - 31.5, X - 31.5) * 7) < 26, 255, 0)
+        field = np.clip(128 + (26 - R) / 4 / 2 * 127, 0, 255).astype(np.uint8)      # 26 texels at 4x: the circle the outline makes
+        out = ut.recut(px, field, orig)
+        self.assertTrue(np.array_equal(out[..., 3] > 0, field >= 128))
+        self.assertEqual(set(np.unique(out[..., 3])), {0, 255})
+        rim = (out[..., 3] > 0) & (R > 24.5)
+        self.assertLess(out[..., :3][rim].mean(), 120, "the cut's edge is the original's dark rim, not the model's light fringe")
+        self.assertGreater(out[..., :3][R < 12].mean(), 200, "inside, the model's colour is kept")
+        self.assertTrue((out[..., :3][out[..., 3] == 0].sum(axis=1) > 0).all(), "colour is bled under the key")
+
 if __name__ == "__main__":
     unittest.main()

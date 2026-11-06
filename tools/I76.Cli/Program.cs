@@ -25,6 +25,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] seams DEF... [--all] [--reach R]  where a model's parts meet: welded, T-junctions, hairline gaps
 //   i76 [--install DIR] tex-seams OUT.json [--only GLOB]   where textures meet a neighbour or repeat (models, roads, horizon, ground, sky): the HD pack's seam audit
 //   i76 [--install DIR] props OUT [--maps]        every scenery texture over all missions, who uses it, and its prop material map
+//   i76 [--install DIR] key-edge OUT SCALE NAME...   each keyed texture's smooth outline (the modern look's cut-out edge) as a PGM field at SCALE texels a pixel, 128 on the edge
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
 //   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
 
@@ -237,6 +238,28 @@ switch (argv[0])
             for (int k = 0; k < t.Width * t.Height; k++)
                 o.Write(rgba[k * 4 + 3] == 0 ? [(byte)255, (byte)0, (byte)255] : [rgba[k * 4], rgba[k * 4 + 1], rgba[k * 4 + 2]]);
             Console.WriteLine($"{stem}\t{t.Width}x{t.Height}");
+        }
+        return 0;
+    }
+    case "key-edge":
+    {
+        // i76 key-edge OUT SCALE NAME...: the field the game cuts a keyed texture by (KeyEdge.Field), at any scale, upright, for a
+        // pack's alpha to follow the same outline (tools/upscale-textures.py --key-edges)
+        var vfs = new AssetVfs(install);
+        var res = new I76.Formats.Assembly.TextureResolver(vfs);
+        int scale = int.Parse(Arg(2));
+        Directory.CreateDirectory(Arg(1));
+        foreach (var n in argv.Skip(3))
+        {
+            var name = res.FindByStem(n) ?? n;
+            if (res.Load(name) is not { } t) { Console.WriteLine($"{n}\tnot loaded"); continue; }
+            var mask = I76.Formats.Imaging.KeyEdge.Opaque(I76.Formats.Imaging.TextureReader.ToRgba(t, null), t.Width, t.Height);
+            if (Array.IndexOf(mask, false) < 0) { Console.WriteLine($"{n}\tnothing keyed"); continue; }
+            var f = I76.Formats.Imaging.KeyEdge.Field(mask, t.Width, t.Height, scale);
+            using var o = File.Create(Path.Combine(Arg(1), n.ToLowerInvariant() + ".pgm"));
+            o.Write(System.Text.Encoding.ASCII.GetBytes($"P5 {t.Width * scale} {t.Height * scale} 255\n"));
+            o.Write(f);
+            Console.WriteLine($"{n}\t{t.Width}x{t.Height}");
         }
         return 0;
     }
