@@ -1058,6 +1058,9 @@ public partial class Main : Node3D
         _sim = new SimDriver { Session = session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio };
         // the 1997 look's Early Tick (TickPacer), not under Modern Physics (its own steps read the keys live)
         _sim.EarlyTick = () => _mode1997 && I76.Game.Sim.OriginalBehavior.EarlyTick && _modern?.Enabled != true;
+        // Draw Ahead (both looks): the player's car at the newest tick carried forward; not under Modern Physics (its body is drawn live)
+        // nor online (the client's own car is placed by its prediction, SimDriver's remote path)
+        _sim.DrawAhead = () => I76.Game.Sim.OriginalBehavior.DrawAhead && _modern?.Enabled != true;
         // the sim ticks before Main reads the script camera, so a cut-scene owns the very first frame
         _sim.ProcessPriority = -1;
         _sim.FlyCameraActive = () => _cam.Current;

@@ -392,6 +392,8 @@ public partial class SimDriver : Node
     private I76.Sim.Views.TickPacer? _pacer;
     /// <summary>Whether a change of the keys runs the next tick at once (the 1997 look's Early Tick; Main decides).</summary>
     public Func<bool>? EarlyTick { get; set; }
+    /// <summary>Whether the player's car is drawn ahead of the newest tick rather than between the last two (Draw Ahead; Main decides).</summary>
+    public Func<bool>? DrawAhead { get; set; }
     /// <summary>Early ticks run this mission (I76_FPS_LOG).</summary>
     public int EarlyTicks => _pacer?.Borrowed ?? 0;
     /// <summary>The held keys (and the stick) as the last tick sampled them, before the taps between ticks were added.</summary>
@@ -405,6 +407,12 @@ public partial class SimDriver : Node
     {
         if (_test is { Drives: true } || Session.Cutscene || Player?.Sim is null) return false;
         if (_latch != CarButtons.None || _commands.Pending) return true;
+        return I76.Sim.Views.TickPacer.InputChanged(_keysAtTick, HeldNow());
+    }
+
+    /// <summary>The driving and weapon keys and the stick as they are held now, nothing taken (<see cref="KeysChanged"/>, the draw log).</summary>
+    private CarInput HeldNow()
+    {
         var b = CarButtons.None;
         if (HoldThrottle || Controls.Down("throttle_up")) b |= CarButtons.ThrottleUp;
         if (Controls.Down("throttle_down") || _holdBrake) b |= CarButtons.ThrottleDown;
@@ -418,7 +426,7 @@ public partial class SimDriver : Node
         if (InCockpit?.Invoke() == true && (Controls.Down(I76.Formats.Input.PistolKeys.Left) || Controls.Down(I76.Formats.Input.PistolKeys.Right))) b |= CarButtons.Pistol;
         var now = new CarInput { Buttons = b };
         if (Controls.AxesActive) { Controls.PollAxes(); now.Steer = Controls.AxisSteer; now.Throttle = Controls.AxisThrottle; }
-        return I76.Sim.Views.TickPacer.InputChanged(_keysAtTick, now);
+        return now;
     }
 
     /// <summary>Play Options' port-only Auto Reverse (ShellSettings.AutoReverse).</summary>
@@ -458,7 +466,13 @@ public partial class SimDriver : Node
 
     private void LogFrames(double delta)
     {
-        if (_logTicks0 < 0) _logTicks0 = Ticks;
+        if (_logTicks0 < 0)
+        {
+            _logTicks0 = Ticks;
+            // what the presentation and the sound run with (docs/1997-parity.md, round 3)
+            var rd = RenderingServer.GetRenderingDevice();
+            GD.Print(System.FormattableString.Invariant($"fps-log: present frame delay {rd?.GetFrameDelay() ?? 0}, swapchain {ProjectSettings.GetSetting("rendering/rendering_device/vsync/swapchain_image_count")}, frame queue {ProjectSettings.GetSetting("rendering/rendering_device/vsync/frame_queue_size")}, vsync {DisplayServer.WindowGetVsyncMode()}, max fps {Engine.MaxFps}; audio output latency {AudioServer.GetOutputLatency() * 1000:0.0} ms (asked {ProjectSettings.GetSetting("audio/driver/output_latency")}), mix rate {AudioServer.GetMixRate()}; physics {Engine.PhysicsTicksPerSecond}/s"));
+        }
         _logT += delta; _logFrames++; _logSum += delta; _logSq += delta * delta; _logMax = System.Math.Max(_logMax, delta);
         if (_logT < 2) return;
         double mean = _logSum / _logFrames, sd = System.Math.Sqrt(System.Math.Max(0, _logSq / _logFrames - mean * mean));
@@ -487,12 +501,14 @@ public partial class SimDriver : Node
             for (int i = 0; i < ticks; i++) { ForceFeedback.Tick(i == 0 ? Combat?.Events : null, shots, Tick); BassShaker.Tick(i == 0 ? Combat?.Events : null, shots, Tick); }
             if (ticks > 0) TickRan?.Invoke(Combat?.Events, shots);
             var ro = Origin();
+            if (Player is { } rp0) rp0.Ahead = null;
             foreach (var c in Cars) c.Place(Alpha, ro);
             TyreSounds();
             _voices.Frame();
             return;
         }
         if (!_hooked) HookScript();
+        if (Player is { } held && (Hold || DevFrozen)) held.Ahead = null;
         if (Hold) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
         // the Developer panel's Freeze: no ticks (Step runs them one at a time); its time scale paces the ticks against the wall clock
         if (DevFrozen) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
@@ -514,6 +530,9 @@ public partial class SimDriver : Node
             early = true;
         }
         float alpha = Alpha = pacer.Alpha;
+        // Draw Ahead ([port] draw_ahead): the player's car (and so the cameras on it) at the newest tick carried forward by the time
+        // since it, the other cars between their ticks as ever; the accumulator is that time (negative while an early tick is ahead)
+        if (Player is { } me) me.Ahead = DrawAhead?.Invoke() == true ? pacer.Acc : null;
         var o = Origin();
         foreach (var c in Cars) c.Place(alpha, o);
         if (DrawLog is not null) LogDrawn(delta, due, early, alpha, o);
@@ -528,14 +547,20 @@ public partial class SimDriver : Node
     {
         _drawClock += delta;
         var sb = new System.Text.StringBuilder();
-        sb.Append(System.FormattableString.Invariant($"{_drawClock:0.00000},{due},{(early ? 1 : 0)},{alpha:0.0000}"));
+        // the performance counter (the same clock as a script's QueryPerformanceCounter / Python's perf_counter), the keys held as read
+        // this frame, and the headings (radians, Godot's frame) of the camera and of the player's drawn car: key-to-read and camera lag
+        double qpc = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+        uint keys = Player?.Sim is null || Session.Cutscene ? 0u : (uint)(HeldNow().Buttons & I76.Sim.Views.TickPacer.Keys);
+        static double Heading(Basis b) => System.Math.Atan2(-b.Z.X, -b.Z.Z);
+        double camYaw = GetViewport()?.GetCamera3D() is { } cam ? Heading(cam.GlobalTransform.Basis) : 0, carYaw = Player is { } pc ? Heading(pc.GlobalTransform.Basis) : 0;
+        sb.Append(System.FormattableString.Invariant($"{_drawClock:0.00000},{due},{(early ? 1 : 0)},{alpha:0.0000},{qpc:0.000000},{keys},{camYaw:0.00000},{carYaw:0.00000}"));
         foreach (var c in Cars)
         {
             var g = c.GlobalPosition;
             sb.Append(System.FormattableString.Invariant($",{g.X + origin.X:0.0000},{g.Y + origin.Y:0.0000},{-g.Z + origin.Z:0.0000}"));
         }
         DrawLog!.WriteLine(sb.ToString());
-        if (Ticks % 48 == 0) DrawLog.Flush();
+        if ((int)_drawClock != (int)(_drawClock - delta)) DrawLog.Flush();   // once a second (a run is often ended by a kill)
     }
 
     /// <summary>One tick of the session and what the game does after each: force feedback, impacts, sounds, the debug lines.</summary>
@@ -585,6 +610,7 @@ public partial class SimDriver : Node
         RunTick(keys: false);
         _acc = 0;
         Pacer.Reset();
+        if (Player is { } stepped) stepped.Ahead = null;
         Alpha = 1;
         foreach (var c in Cars) c.Place(1, Origin());
     }
@@ -592,6 +618,7 @@ public partial class SimDriver : Node
     /// <summary>After an outside write to the cars (a teleport, a restore): each drawn where it is now, with no slide from where it was.</summary>
     public void Jumped()
     {
+        if (Player is { } jumped) jumped.Ahead = null;
         foreach (var c in Cars) c.SetPoses(c.Sim.Rot, c.Sim.Pos, c.Sim.Rot, c.Sim.Pos);
         foreach (var c in Cars) c.Place(1, Origin());
     }

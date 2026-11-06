@@ -1421,6 +1421,12 @@ public sealed class ShellSettings
     public int DeathOrbit { get; set; }
     /// <summary>The port's own, without a row: in the 1997 look a change of the keys runs the next sim tick at once instead of waiting for it (TickPacer; [port] early_tick, written when off).</summary>
     public bool EarlyTick { get; set; } = true;
+    /// <summary>The port's own, without a row: the player's car (and the cameras on it) drawn at the newest sim tick carried forward by the time since it, not between the last two ticks; both looks, offline (DrawAhead; [port] draw_ahead, written when on).</summary>
+    public bool DrawAhead { get; set; }
+    /// <summary>The port's own, without a row: with VSync on, the newest finished frame is shown at each refresh (the mailbox swap) instead of each frame queued for one in turn (FrameLimit.SwapFor; [port] low_latency_present, written when off).</summary>
+    public bool LowLatencyPresent { get; set; } = true;
+    /// <summary>The port's own, without a row: a 5 ms audio output buffer (next start) and Godot's physics step at 240 a second, so a car's sounds start sooner (StartupSettings.AudioLatency; [port] low_latency_audio, written when off).</summary>
+    public bool LowLatencyAudio { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look takes Graphic Detail's Anti-Aliasing as the modern one does; off, none, as the 3D card drew it ([port] aa_1997, written when off).</summary>
     public bool Antialias1997 { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look's muzzle flash, each gun's one sprite lit again at the shot's place in its tick ([port] even_flash, written when off).</summary>
@@ -1628,6 +1634,9 @@ public sealed class ShellSettings
         s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
+        s.DrawAhead = (bool)c.GetValue("port", "draw_ahead", false);
+        s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
+        s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
@@ -1757,6 +1766,9 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);
+        if (DrawAhead) c.SetValue("port", "draw_ahead", true);
+        if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
+        if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
@@ -1765,6 +1777,6 @@ public sealed class ShellSettings
         if (LogFile) c.SetValue("port", "log_file", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         c.Save(Path);
-        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic));
+        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
     }
 }

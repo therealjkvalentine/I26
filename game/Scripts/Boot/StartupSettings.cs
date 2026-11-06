@@ -19,10 +19,10 @@ public static class StartupSettings
     public static bool D3D12Offered => OS.GetName() == "Windows";
 
     /// <summary>The next start's settings: the override file, or none when the log is off and the renderer is Auto.</summary>
-    public static void Write(bool log, RendererChoice renderer, bool micInput = false)
+    public static void Write(bool log, RendererChoice renderer, bool micInput = false, bool lowLatencyAudio = true)
     {
         string path = ProjectSettings.GlobalizePath(OverridePath);
-        string text = Text(log, renderer, D3D12Offered, micInput);
+        string text = Text(log, renderer, D3D12Offered, micInput, lowLatencyAudio);
         try
         {
             if (text.Length == 0) { if (File.Exists(path)) File.Delete(path); return; }
@@ -33,7 +33,7 @@ public static class StartupSettings
     }
 
     /// <summary>The override file's text ("" for none).</summary>
-    public static string Text(bool log, RendererChoice renderer, bool d3d12Offered, bool micInput = false)
+    public static string Text(bool log, RendererChoice renderer, bool d3d12Offered, bool micInput = false, bool lowLatencyAudio = true)
     {
         string s = "";
         if (log) s += "[debug]\n\nfile_logging/enable_file_logging=true\nfile_logging/enable_file_logging.pc=true\nfile_logging/max_log_files=3\n\n";
@@ -50,9 +50,26 @@ public static class StartupSettings
                 s += "[rendering]\n\nrenderer/rendering_method=\"gl_compatibility\"\nrenderer/rendering_method.mobile=\"gl_compatibility\"\ngl_compatibility/driver=\"opengl3\"\n";
                 break;
         }
-        if (micInput) s += (s.Length > 0 ? "\n" : "") + "[audio]\n\ndriver/enable_input=true\n";
+        string audio = (micInput ? "driver/enable_input=true\n" : "")
+            // [port] low_latency_audio=false: Godot's stock output latency instead of project.godot's short one (AudioLatency)
+            + (lowLatencyAudio ? "" : $"driver/output_latency={AudioLatency.StockMs}\n");
+        if (audio.Length > 0) s += (s.Length > 0 ? "\n" : "") + "[audio]\n\n" + audio;
         return s;
     }
+}
+
+/// <summary>
+/// [port] low_latency_audio (docs/1997-parity.md, round 3): project.godot asks the audio driver for a 5 ms output buffer (Godot's stock 15
+/// gets 10 on WASAPI) and the game runs Godot's physics step at 240 a second, not 60: a positional voice (AudioStreamPlayer3D, every
+/// sound on a car) starts only at the next physics step, so a gun's report waited up to 16.7 ms for it. Off: the stock 15 ms (in the
+/// override file, for the next start) and 60 steps. Modern Physics still steps Jolt at its own 120 while it drives.
+/// </summary>
+public static class AudioLatency
+{
+    public const int Ms = 5, StockMs = 15, PhysicsRate = 240, StockPhysicsRate = 60;
+
+    /// <summary>The physics steps a second for the setting (applied at start and live).</summary>
+    public static int PhysicsFor(bool lowLatency) => lowLatency ? PhysicsRate : StockPhysicsRate;
 }
 
 /// <summary>Graphic Detail's Renderer (restart): Auto leaves it to Godot (Vulkan, Direct3D 12 on Windows where it prefers it, OpenGL where neither runs).</summary>

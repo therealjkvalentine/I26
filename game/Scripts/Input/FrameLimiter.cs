@@ -4,7 +4,7 @@ using I76.Sim.Views;
 namespace I76.Game;
 
 /// <summary>
-/// Graphic Detail's Max FPS and VSync, applied to the engine (live, from the shell sheet and the in-game menu, and at start). Only the
+/// Graphic Detail's Max FPS and VSync (with [port] low_latency_present's mailbox swap), applied to the engine (live, from the shell sheet and the in-game menu, and at start). Only the
 /// drawing is limited: the simulation steps on its own clock (SimDriver's accumulator takes the frame's delta, however long, up to a
 /// quarter second) and the cars are drawn interpolated between its ticks, so a cap under the tick rate runs several ticks a frame.
 /// </summary>
@@ -46,6 +46,23 @@ public static class FrameLimiter
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {
         Engine.MaxFps = FrameLimit.Fps(s.MaxFps);
-        DisplayServer.WindowSetVsyncMode(s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
+        // [port] low_latency_audio: the physics step a positional voice waits for to start (Modern Physics sets its own while it drives)
+        if (!ModernPhysicsOwnsRate) Engine.PhysicsTicksPerSecond = I76.Game.Boot.AudioLatency.PhysicsFor(s.LowLatencyAudio);
+        DisplayServer.WindowSetVsyncMode(VSyncOverride ?? FrameLimit.SwapFor(s.VSync, s.LowLatencyPresent) switch
+        {
+            FrameLimit.Swap.Mailbox => DisplayServer.VSyncMode.Mailbox,
+            FrameLimit.Swap.Fifo => DisplayServer.VSyncMode.Enabled,
+            _ => DisplayServer.VSyncMode.Disabled,
+        });
     }
+
+    /// <summary>Set while Modern Physics drives Jolt at its own rate: the setting's rate waits until it hands the rate back.</summary>
+    public static bool ModernPhysicsOwnsRate { get; set; }
+
+    /// <summary>I76_VSYNC=enabled|disabled|adaptive|mailbox (a test hook): the swap mode for the run, whatever VSync says (latency measurements).</summary>
+    private static readonly DisplayServer.VSyncMode? VSyncOverride = System.Environment.GetEnvironmentVariable("I76_VSYNC")?.ToLowerInvariant() switch
+    {
+        "enabled" => DisplayServer.VSyncMode.Enabled, "disabled" => DisplayServer.VSyncMode.Disabled,
+        "adaptive" => DisplayServer.VSyncMode.Adaptive, "mailbox" => DisplayServer.VSyncMode.Mailbox, _ => null,
+    };
 }

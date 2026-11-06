@@ -20,4 +20,15 @@ public static class FrameLimit
     /// caps (a hand edit) keeps today's behaviour, no cap.
     /// </summary>
     public static int Parse(int? fps) => fps is { } f && System.Array.IndexOf(Caps, f) is var i and >= 0 ? i : Unlimited;
+
+    /// <summary>How the window hands its frames to the display.</summary>
+    public enum Swap { Immediate, Fifo, Mailbox }
+
+    /// <summary>
+    /// The swap mode for Graphic Detail's VSync and [port] low_latency_present: VSync off draws at once (Immediate); VSync on queues each
+    /// frame for a refresh in turn (Fifo), or, with Low Latency Present, shows the newest finished frame at each refresh and drops the
+    /// older (Mailbox: no tearing, and a frame drawn just before the refresh is not kept waiting behind the queue; docs/1997-parity.md,
+    /// round 3). Where the driver has no mailbox Godot falls back to Fifo.
+    /// </summary>
+    public static Swap SwapFor(bool vsync, bool lowLatency) => !vsync ? Swap.Immediate : lowLatency ? Swap.Mailbox : Swap.Fifo;
 }
