@@ -357,3 +357,6 @@ fix/menu-art-4k-coverage              # section AL, after menus-tooltips-advance
 
 # AM. terrain shadow probe hooks (2026-11-06)
 fix/terrain-shadow-rollout            # section AM: no player-visible change; the T05 hillside band is the ridge's real sun shadow uncovered as the car rounds the slope; debug hooks I76_SHADOW_BIAS, I76_SHADOW_NBIAS, I76_SHADOW_PANCAKE, I76_DEBUG_DRAW=pssm (RenderTweaks, inert unless set) and their dev-hooks.md row
+
+# AN. firing frame rate (2026-11-06)
+fix/firing-framerate                  # section AN: a gun's rolling ammo counter redraws only the digits that roll (and re-stamps the separator bar) instead of the whole 8x weapons panel per texel; stamps copy a row at a time; T01 3440x1440 firing: frames over 33 ms 13.6 -> 2.3 % (MG, 8x), mean +5.1 -> +1.0 ms
