@@ -87,9 +87,9 @@ difference. Rows marked *same* or *I26 closer* need nothing.
 |---|---|---|---|---|---|---|
 | 1 | Waiting for the tick | a key change runs the next tick now (borrowed), drawn from the pose on screen | the keys wait for the tick (0-41.5 ms) | 33 ms median, throttle from rest (50 against 17) | **large**: every press, every turn-in | **Done**: Early Tick (`TickPacer`), `[port] early_tick`. Small (a pacer class, a key-change test, a kept drawn pose per car). Risk low: the ticks and their inputs are unchanged; rounds and effects drawn between ticks can move on up to a tick at a press |
 | 2 | Polygon edges | 4x MSAA (and 2x supersampling full screen) | no multisampling | pillars, horizon and road lines crawl in I26 | **medium**: the clean look in motion | **Done**: the 1997 look takes the Anti-Aliasing row, `[port] aa_1997`. A few lines; no measurable cost (179 fps either way). Risk: keyed texture cut-outs stay stepped (MSAA smooths geometry, not texels) |
-| 3 | Machine-gun cadence | each shot's flash and sound on the display frame where its timer put it (`I76_MG_EVEN`): 100 ms apart | the shot on the tick: 83 and 125 ms apart at 24 Hz; the looping report already steady; each flash a 10-frames-a-second sprite of its own | the shot grid's 21 ms swing; the visible flash is dominated by the sprites' own 100 ms frames | small | **Tried and withdrawn**: each shot's flash drawn at its place in the tick. In the chase view the flash re-lit every 206 ms (sd 14) before and irregularly after (sd 138, fewer re-lights): shifting overlapping 10 fps sprites off the tick made the pattern less even, not more. Evening it out would need the 1997 flash itself redrawn per shot (one sprite, restarted), a separate change |
+| 3 | Machine-gun flash cadence | each shot's flash and sound on the display frame where its timer put it (`I76_MG_EVEN`) | a new 10 fps three-frame sprite on each tick that fires (83 / 125 ms at 24 Hz); overlapping, they read as a flash every second shot | flash re-light every 206 ms (robust sd 16) | small to medium | **Done in round 2** (the round-1 attempt was withdrawn): each gun's one sprite re-lit at the shot's place in its tick, its same frames played within the gun's interval: re-light every 106 ms, robust sd 9. It reads as a crisp flash per shot rather than the overlapping glow, a change of impression the user should judge (sheet 6); `[port] even_flash` |
 | 4 | Supersampling | full screen: drawn at 2x per axis (6880x2880 on 3440x1440); none in a window | Render Scale 100 % | texture shimmer, sub-pixel detail | small to medium, full screen only | none needed: Render Scale 200 % does it (a 1997-look frame is 1.6-2.4 ms of GPU at 1080p); worth a word in the help line |
-| 5 | Distance | 2300 m, terrain LOD x24 with morphing, a fog to the horizon colour from 0.75 of the clip | 600 m with the horizon panels (Far) or 20 km drawn crisp to the map's end (Max\*), no fade | i76-e's far ground melts into the horizon; I26 shows more, with an edge | small for feel, visible in the horizon shots | proposed: a fade to the horizon colour over the last quarter of the draw distance in the 1997 terrain and object shaders at Max\*, or a 2.3 km setting. Medium cost, low risk |
+| 5 | Distance | 2300 m, terrain LOD x24 with morphing, a fog to the horizon colour from 0.75 of the clip | 600 m with the horizon panels (Far) or 20 km drawn crisp to the map's end (Max\*) | at T05's start the kit's road ends in the horizon's mountains, I26 Max\* in the map's edge wall | small for feel, visible on long views | **Done in round 2**: Visibility Range 2.3 km\* (`draw_distance=2`), the engine's depth fog from 1725 m in the panels' foot colour; GPU 1.42 / 1.61 / 1.86 ms at Far / 2.3 km / Max\* (1997 look, 1920x1080), 180 fps at each |
 | 6 | Frame rate and pacing | 110-118 fps, 1 % low 63-76, uneven on a 179 Hz display | 179 fps, sd 1.0 ms, 1 % low 83 | **I26 ahead** | none in i76-e's favour | none |
 | 7 | Rear-view mirror | every second frame (60 a second), to 1000 m, a 256x64 8-bit texture | every second frame (about 90 a second at 179), 1024x256, to Rear Mirror Range | same rule; I26 sharper | none | none |
 | 8 | Cameras: chase, head look, head sway, field of view | the original's code at the display rate: chase distance and heading ease 2·dt, head look 4·dt, acceleration sway 2·dt; 90 at 4:3 widened to 106 at 16:9 | the same formulas on the render clock; Monitor = 106 at 16:9 | *same* | none | none |
@@ -112,3 +112,37 @@ the modern look (which keeps its own Anti-Aliasing as before) and, for Early Tic
 input replay. The remaining distance to i76-e in the throttle test, about one 5.6 ms display frame, is within the method's
 resolution. The rows above that need a change and are not made here: supersampling (a setting, Render Scale 200 %) and
 the far fade to the horizon colour (row 5).
+
+## Round 2
+
+**The distance.** Visibility Range's third value, 2.3 km\* (`[port] draw_distance=2`): the 2300 m clip and, in the 1997 look,
+the ground and everything on it fading linearly from 1725 m into the horizon panels' foot colour (the mean of their bottom four
+rows, the colour the kit's own fog uses), the sky left alone. At T05's start, the one view both games share exactly, the
+road through the canyon now ends in the panels' mountains, as in the kit; at Max\* the map's edge wall closes it. Frame cost
+(T05, driving 30 s, 1997 look with 4x MSAA, 1920x1080, median GPU per frame / draw calls): Far 1.42 ms / 185, 2.3 km 1.61 ms
+/ 488, Max\* 1.86 ms / 658; all three hold the display's 180 fps.
+
+**The machine-gun flash.** Each gun's flash is one sprite lit again where the gun's timer put the shot within its tick, playing
+the same three frames within the gun's interval (30 a second for a 10/s gun). Chase view, a 10/s gun held, 180 Hz capture of
+the gun's region: before, a re-light every 206 ms (robust sd 16 ms, 33; plain sd 14.8), the overlapping 10 fps sprites showing
+every second shot; after, every 106 ms (robust sd 9 ms, 65; plain sd 15.1 with one missed re-light, 7.5 without it). The
+spread halves at the gun's own cadence; relative to the interval it is the same (8 %). The look changes from an overlapping
+glow with dips to a crisp flash per shot.
+
+**Early Tick, by eye and by numbers.** A per-frame log of every car's drawn position (`I76_DRAW_LOG`; M01, three computer
+cars, A and D tapped every 0.8 s at full throttle, 27 early ticks): the change in drawn velocity from one frame to the next on
+the frames at an early tick, per car, median 1.77-1.80 m/s, p99 1.8-4.5, largest 5.4, against 1.74-1.80, 3.6 and 7.1 on all
+other frames: an early tick moves nothing on screen by more than an ordinary tick boundary does. No computer car came nearer
+than 74 m in the run, so the slow-motion clips (180 Hz captures played 6x slower) show the player's car only.
+
+**Anti-aliasing on keyed textures.** T05 and M01, the same view with `aa_1997` off and on, 2x crops: polygon edges (pillars,
+walls, the arena's rim) are smoothed, the keyed cut-outs (the arena's fence boards) stay stepped as they were, with no fringe or
+seam at their edges. The 1997 look has no plants and no sign stood near either start, so those were not seen.
+
+**Sound** (both unmuted; key pressed with SendInput and the default output recorded by WASAPI loopback on one clock, each 5 ms
+block stamped; the figure is key to the sound reaching the system's mix, so the device's own latency is not in it). Gun report
+(Enter, 10 presses, the mean energy above 1 kHz first 6 dB over the 300 ms before): I26 before 102 ms, after 86 ms; i76-e 186
+ms. Engine pitch (W tapped 300 ms from rest): I26's spectral centroid leaves its idle by 1.5 sd at a median 79 ms before, 60
+after (noisy: a 300 ms tap moves the rpm little); i76-e's shows no detectable change within the tap. So the sound does not
+explain i76-e feeling snappier: I26's reports come about 100 ms sooner. (The loopback lost data 98 times in 20 s while i76-e
+played and 16 times for I26; the per-block stamps keep the times right across the gaps.)
