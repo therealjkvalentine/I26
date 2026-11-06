@@ -1348,7 +1348,7 @@ public sealed class ShellSettings
     public bool Garage3D { get; set; } = true;
     /// <summary>The port's own, without a row: the 3D garage's boombox ([port] garage_radio, written only when on). Off: the menu track goes on through the garage, as through the original's form.</summary>
     public bool GarageRadio { get; set; }
-    /// <summary>The port's own, without a row: the modern look's car deaths, toned down and 100 ms late after a small sign of the cause (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: the stock modern death.</summary>
+    /// <summary>The port's own, without a row: the modern look's car deaths, toned down and 100 ms late after a small sign of the cause (I76.Game.Sim.DeathVariety; [port] death_variety, written only when on; off by default while it is judged from the Developer panel). Off: the stock modern death.</summary>
     public bool DeathVariety { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's briefing plays while the mission builds (I76.Game.Boot.BriefingOverlap; [port] briefing_while_loading, written only when off). Off: the build behind the loading card, then the briefing, as the original's.</summary>
     public bool BriefingWhileLoading { get; set; } = true;
@@ -1577,7 +1577,7 @@ public sealed class ShellSettings
         // no version step: absent, the 3D garage is on
         s.Garage3D = (bool)c.GetValue("port", "garage_3d", true);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
-        s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.DeathVariety = string.Equals(c.GetValue("port", "death_variety", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.BriefingWhileLoading = !string.Equals(c.GetValue("port", "briefing_while_loading", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
@@ -1706,7 +1706,7 @@ public sealed class ShellSettings
         if (VegetationDensity != I76.Formats.Vegetation.VegetationDensity.Default) c.SetValue("port", "vegetation_density", VegetationDensity);
         if (!Garage3D) c.SetValue("port", "garage_3d", false);
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
-        if (!DeathVariety) c.SetValue("port", "death_variety", "off");
+        if (DeathVariety) c.SetValue("port", "death_variety", "on");
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", "off");
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");

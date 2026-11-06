@@ -68,7 +68,7 @@ public static class DevSettings
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
-        new("death_variety", ["off", "on" + M], s => s.DeathVariety ? 1 : 0, (s, v) => s.DeathVariety = v != 0, DevWhen.Live),
+        new("death_variety", ["off" + M, "on"], s => s.DeathVariety ? 1 : 0, (s, v) => s.DeathVariety = v != 0, DevWhen.Live),
         new("briefing_while_loading", ["off", "on" + M], s => s.BriefingWhileLoading ? 1 : 0, (s, v) => s.BriefingWhileLoading = v != 0, DevWhen.NextMission),
         new("melee_ai", ["0", "1" + M, "2" + M, "3" + M], s => (int)s.MeleeAi, (s, v) => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)v, DevWhen.NextMission),
         new("effects_size", EffectNames, s => NearestStep(s.EffectsSize), (s, v) => s.EffectsSize = EffectSteps[v], DevWhen.Live),
