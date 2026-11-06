@@ -24,8 +24,9 @@ public class CarAcceptanceTests(ITestOutputHelper output)
     private static MeleeHost Host(string install, bool hidden) =>
         new(new ServerOptions { Install = install, Arena = install == HostTests.InstallDir ? "m01" : "N01.CBT", AllowHidden = hidden });
 
+    /// <summary>The install's stock variants: the archive's, not a car its player saved into addon\ (valepre4.vcf and the like, which a stock install has none of).</summary>
     private static IEnumerable<string> StockCars(AssetVfs vfs) =>
-        vfs.Names.Select(n => n.ToLowerInvariant()).Where(n => Regex.IsMatch(n, @"^v[a-z]+\d\.vcf$")).Distinct().Order();
+        vfs.Names.Select(n => n.ToLowerInvariant()).Where(n => Regex.IsMatch(n, @"^v[a-z]+\d\.vcf$") && vfs.InArchive(n)).Distinct().Order();
 
     /// <summary>Every stock variant, sent as a player's own saved copy (a name the server lacks), is accepted wherever the model is allowed.</summary>
     [Fact]

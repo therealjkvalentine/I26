@@ -106,18 +106,20 @@ public class VariantTests
     {
         if (HostTests.InstallDir is null) return;
         var (host, vfs) = Host();
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", [1, 2, 3]));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", new byte[5000]));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Armour[0] = 99999)));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Weapons.Add((77, "cannon.gdf")))));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Weapons[0] = (c.Weapons[0].Hardpoint, "nosuchgun"))));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Vdf = "vcgcour.vdf")));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Suspension = 99)));
-        Assert.NotNull(host.CheckJoin("vppirna4.vcf", Custom(vfs, c => c.Wdf = ["null", "null", "null"])));
+        // a variant name the install lacks (a stock install has vppirna1-3; one that was played has the player's vppirna4.vcf in addon\)
+        var own = Enumerable.Range(4, 6).Select(n => $"vppirna{n}.vcf").First(n => !vfs.Exists(n));
+        Assert.NotNull(host.CheckJoin(own, [1, 2, 3]));
+        Assert.NotNull(host.CheckJoin(own, new byte[5000]));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Armour[0] = 99999)));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Weapons.Add((77, "cannon.gdf")))));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Weapons[0] = (c.Weapons[0].Hardpoint, "nosuchgun"))));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Vdf = "vcgcour.vdf")));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Suspension = 99)));
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Wdf = ["null", "null", "null"])));
         Assert.NotNull(host.CheckJoin("../x.vcf", Custom(vfs)));
         // no configuration at all: the old way, the model's first variant
-        Assert.Null(host.CheckJoin("vppirna4.vcf", null));
-        Assert.Equal("vppirna1.vcf", host.Join("x", "vppirna4.vcf", 0).Player.CarFile);
+        Assert.Null(host.CheckJoin(own, null));
+        Assert.Equal("vppirna1.vcf", host.Join("x", own, 0).Player.CarFile);
     }
 
     [Fact]
