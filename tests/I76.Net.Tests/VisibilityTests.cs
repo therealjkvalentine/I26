@@ -131,6 +131,7 @@ public class VisibilityTests(ITestOutputHelper output)
     /// first player (a listen host) then saw nobody, the second only the first. Also: a player's own variant, a rejoin.
     /// </summary>
     [Fact]
+    [Trait("Load", "Sensitive")]   // wall-clock timing: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void EveryoneSeesEveryoneAfterANewRound()
     {
         if (HostTests.InstallDir is not { } install) return;

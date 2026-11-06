@@ -25,7 +25,7 @@ public sealed partial class MeleeGame
             .Saved(nameof(MeleePlayer.Car), nameof(MeleePlayer.Entity), nameof(MeleePlayer.CarFile), nameof(MeleePlayer.Name), nameof(MeleePlayer.Score),
                 nameof(MeleePlayer.Kills), nameof(MeleePlayer.Deaths), nameof(MeleePlayer.Destroyed), nameof(MeleePlayer.RespawnAt), nameof(MeleePlayer.RegenAt),
                 nameof(MeleePlayer.OffPad), nameof(MeleePlayer.Death), nameof(MeleePlayer.BotSkill), nameof(MeleePlayer.BotSlot), nameof(MeleePlayer.NextCar), nameof(MeleePlayer.CarEpoch), nameof(MeleePlayer.RespawnWanted), nameof(MeleePlayer.Paint), nameof(MeleePlayer.Form))
-            .Derived("kills minus deaths as of the last frame, which Form has taken in", nameof(MeleePlayer.FormKd));
+            .Derived("kills minus deaths as Form last took them in: Form itself, whose steps are whole kills and deaths from 0", nameof(MeleePlayer.FormKd));
         a.For<CtfGame>()
             .Saved(nameof(CtfGame.Flags), nameof(CtfGame.TeamCaptures))
             .Transient("the host's hooks", nameof(CtfGame.Message), nameof(CtfGame.Captured));
@@ -82,7 +82,7 @@ public sealed partial class MeleeGame
             var paint = I76.Formats.Imaging.CarPaint.FromBytes(r.Bytes());
             float form = r.F32();
             var p = new MeleePlayer { Car = car, Entity = ent, CarFile = file, Name = name, BotSkill = skill, BotSlot = botSlot, Paint = paint };
-            p.Score = score; p.Kills = kills; p.Deaths = deaths; p.Form = form; p.FormKd = kills - deaths; p.Destroyed = destroyed; p.RespawnAt = respawnAt; p.RegenAt = regenAt; p.OffPad = offPad;
+            p.Score = score; p.Kills = kills; p.Deaths = deaths; p.Form = form; p.FormKd = (int)form; p.Destroyed = destroyed; p.RespawnAt = respawnAt; p.RegenAt = regenAt; p.OffPad = offPad;
             p.Death = death; p.NextCar = next; p.CarEpoch = epoch; p.RespawnWanted = wanted;
             if (r.Bool()) p.Brain = BotBrain.Load(r);
             Players.Add(p);

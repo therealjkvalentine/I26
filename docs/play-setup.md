@@ -77,10 +77,43 @@ dotnet test tests/I76.Game.Tests       # the shell and HUD logic that has no God
 dotnet test tests/I76.Formats.Tests    # needs I76_INSTALL (skipped without it)
 ```
 
-On Windows a few dozen tests fail on a clean upstream checkout (symlink privilege, path separators, network flakes under
-load); record that baseline once (`dotnet test ... --logger trx` and list the failed names) and judge a branch by the
-failures that are not in it. Windows Developer Mode removes the symlink ones. The tracker's "Integration notes" lists
-the known test moves on `play`.
+### Running the tests on a machine with the install
+
+Set both installs (the base game and the Nitro Pack, as played copies are fine) and leave out the wall-clock tests,
+as upstream's CI does; they carry `[Trait("Load", "Sensitive")]` and fail when other builds share the machine:
+
+```
+set I76_INSTALL=C:\Games\Interstate 76
+set I76_NITRO_INSTALL=C:\Games\Interstate 76 Nitro Pack
+set I76_QUIET_WINDOW=1
+dotnet test tests/I76.Sim.Tests --filter "Load!=Sensitive"
+dotnet test tests/I76.Net.Tests --filter "Load!=Sensitive"
+dotnet test tests/I76.Formats.Tests --filter "Load!=Sensitive"
+dotnet test tests/I76.Game.Tests --filter "Load!=Sensitive"
+dotnet test tests/I76.Editor.Tests
+```
+
+A release check runs everything without the filter, on a quiet machine. Tests that need stock content take it from the
+archive (`AssetVfs.InArchive`) or from `miss16\`, not from `addon\`, where a played install keeps the player's cars
+(`vppirna4.vcf`, `valepre4.vcf`) and the co-op pack's levels.
+
+Expected on `fix/test-suite-on-this-install` (2026-11-05, Windows 10, two played installs, the filter above), passed / failed:
+
+| suite | with both installs | without |
+| --- | --- | --- |
+| Editor | 227 / 0 | 227 / 0 |
+| Game | 467 / 0 | 439 / 0 (23 skipped) |
+| Formats | 1045 / 0 (15 skipped) | 907 / 0 (123 skipped) |
+| Sim | 1189 / 4 | 1191 / 0 |
+| Net | 462 / 2 | 464 / 0 |
+
+The six failures left with the install are `play`'s own: deterministic, the same on a pristine GOG copy, passing on master
+(or play-only tests): Sim AiBlockedAheadTests.TheT02OpeningLetsTheCameraGoWhenTheOriginalDoes,
+AiPathTests.TheMilkToastSemiDoesNotCircle(20), AiStuckTests.AStoppedCarWithItsTargetAlongsideTurnsOnIt(-5, 0),
+CheckpointTests.ARetryFromTheObjectivesCheckpointIsTheStateItWasTakenIn; Net
+AutoHandicapSimTests.SixBotsOfMixedSkillForFiveMinutesWithTheRuleOffAndOn (to re-pin) and
+PredictionTests.AWonGameBrakesEveryCar. Net tests on a live server that are not marked can still fail under load: run a
+suspect alone three times before calling it. Windows Developer Mode removes the symlink failures.
 
 ## Making a change
 

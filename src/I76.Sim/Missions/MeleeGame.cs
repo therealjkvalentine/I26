@@ -104,7 +104,7 @@ public sealed class MeleePlayer
     /// the table's average each tick. Its own field, so that a fading or windowed standing could be tried without touching the counters.
     /// </summary>
     public float Form { get; internal set; }
-    /// <summary>Kills minus deaths when <see cref="Form"/> last took them in (derived: the counters themselves after any frame).</summary>
+    /// <summary>Kills minus deaths when <see cref="Form"/> last took them in: always Form itself (both start at 0 and step together), which a restore sets it from.</summary>
     internal int FormKd;
 }
 

@@ -36,7 +36,8 @@ dotnet run --project tools/I76.Cli -- run t01 30  # a mission headless for 30 s,
 godot-mono --path game -- --install "$I76_INSTALL" --mission t01 --drive
 ```
 
-Nitro Pack tests read `I76_NITRO_INSTALL` and skip without it. Game command-line options (after `--`) are listed at the
+Nitro Pack tests read `I76_NITRO_INSTALL` and skip without it. On a busy machine add `--filter "Load!=Sensitive"`: the
+wall-clock tests carry that trait and CI skips them the same way (a release check on a quiet machine runs them). Game command-line options (after `--`) are listed at the
 top of `game/Scripts/Boot/InstallLocator.cs`: `--mission`, `--drive [car.vcf]`, `--chase` (missions start in the cockpit, as the original's), `--melee`, `--1997`,
 `--modern-physics`, `--seed`, `--skip-movies`, the network ones, ...
 
