@@ -64,12 +64,13 @@ public class HdTexturesFirstStartTests
 
     /// <summary>A saved shell.cfg size is kept as it is: a 4 stays the 4x on a machine whose first start would take the 8x, and an 8 stays the 8x on one that would not.</summary>
     [Theory]
-    [InlineData(4, 4)]
-    [InlineData(8, 8)]
-    [InlineData(3, 3)]
-    [InlineData(5, 4)]      // not a size: the default
-    [InlineData(null, 4)]   // a file from before the key
-    public void ASavedSizeIsKept(int? saved, int size) => Assert.Equal(size, HdTextures.SizeFromFile(saved));
+    [InlineData(4, 8, 4)]      // saved 4x on a machine that would start on the 8x: kept
+    [InlineData(8, 4, 8)]      // saved 8x on one that would start on the 4x: kept
+    [InlineData(3, 8, 3)]
+    [InlineData(5, 8, 4)]      // not a size: the default
+    [InlineData(null, 8, 8)]   // a file from before the key (never chose a size): the first start's
+    [InlineData(null, 4, 4)]
+    public void ASavedSizeIsKept(int? saved, int firstStart, int size) => Assert.Equal(size, HdTextures.SizeFromFile(saved, firstStart));
 
     [Fact]
     public void AFileWithoutTheKeyTakesTheFirstStartsDefaultUnlessTheMenuArtIsOff()

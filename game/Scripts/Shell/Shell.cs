@@ -1487,8 +1487,8 @@ public sealed class ShellSettings
         // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
         s.HdTextures = c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures")
             : I76.Game.Assets.HdTextures.FromFile(null, s.HdMenuArt, I76.Game.Assets.HdTextures.FirstStartDefault);
-        // no version step: absent, 4 (a plain tex-world from before the sizes is used whatever the size); a saved size is kept, whatever the first start would pick
-        s.HdTextureSize = I76.Game.Assets.HdTextures.SizeFromFile(c.HasSectionKey("port", "hd_texture_size") ? (int)c.GetValue("port", "hd_texture_size") : null);
+        // no version step: a saved size is kept, whatever the first start would pick; absent (never chosen), the first start's (a plain tex-world from before the sizes is used whatever the size)
+        s.HdTextureSize = I76.Game.Assets.HdTextures.SizeFromFile(c.HasSectionKey("port", "hd_texture_size") ? (int)c.GetValue("port", "hd_texture_size") : null, HdDefault.Size);
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off

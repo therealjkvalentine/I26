@@ -92,8 +92,12 @@ public static class HdTextures
     /// <summary>The first start's size: the 8x where <see cref="FirstStartPick"/> takes it, else the 4x (also while Off, the size the row's 4x writes).</summary>
     public static int FirstStartSize => FirstStartPick == HdTextureLarge ? HdTextureLarge : HdPackFolders.DefaultSize;
 
-    /// <summary>shell.cfg's [port] hd_texture_size: the saved size as it is (a 4 stays 4 on a machine whose first start would take the 8x), the default for one not in the set; absent (a file from before the key), 4.</summary>
-    public static int SizeFromFile(int? saved) => saved is { } v ? HdPackFolders.Normalize(v) : HdPackFolders.DefaultSize;
+    /// <summary>
+    /// shell.cfg's [port] hd_texture_size: the saved size as it is (a 4 stays 4 on a machine whose first start would take the 8x), the
+    /// default for one not in the set; absent (a file from before the key, which never chose a size), the first start's (<paramref name="firstStart"/>:
+    /// <see cref="FirstStartSize"/>, the 8x where it fits).
+    /// </summary>
+    public static int SizeFromFile(int? saved, int firstStart) => saved is { } v ? HdPackFolders.Normalize(v) : HdPackFolders.Normalize(firstStart);
 
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>
