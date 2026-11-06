@@ -42,15 +42,17 @@ public sealed class InstallAndMigrationTests : IDisposable
     [Fact]
     public void App_folder_is_the_one_holding_the_mac_bundle()
     {
-        Assert.Equal("/Users/p/Games/i26-1", ExtractionPlaces.AppFolder("/Users/p/Games/i26-1/I26.app/Contents/MacOS/I26"));
-        Assert.Equal("/opt/i26", ExtractionPlaces.AppFolder("/opt/i26/i26.x86_64"));
-        Assert.Equal("/opt/MacOS", ExtractionPlaces.AppFolder("/opt/MacOS/i26"));   // not in a bundle
-        Assert.Equal("/a/Contents/MacOS", ExtractionPlaces.AppFolder("/a/Contents/MacOS/x"));   // no .app above
+        // the paths as this system spells them (on Windows "/Users/p" is C:\Users\p): the code goes through Path, as it should
+        static string P(string unix) => Path.GetFullPath(unix);
+        Assert.Equal(P("/Users/p/Games/i26-1"), ExtractionPlaces.AppFolder("/Users/p/Games/i26-1/I26.app/Contents/MacOS/I26"));
+        Assert.Equal(P("/opt/i26"), ExtractionPlaces.AppFolder("/opt/i26/i26.x86_64"));
+        Assert.Equal(P("/opt/MacOS"), ExtractionPlaces.AppFolder("/opt/MacOS/i26"));   // not in a bundle
+        Assert.Equal(P("/a/Contents/MacOS"), ExtractionPlaces.AppFolder("/a/Contents/MacOS/x"));   // no .app above
         Assert.Null(ExtractionPlaces.AppFolder(null));
         var seen = new List<string>();
         InstallSearch.Find(null, null, "/Users/p/Games/i26-1/I26.app/Contents/MacOS/I26", seen);
-        Assert.Equal(["/Users/p/Games/i26-1", "/Users/p/Games"], seen);
-        Assert.Equal("/Users/p/Games/i26-1/i76", ExtractionPlaces.Inside("/Users/p/Games/i26-1/I26.app/Contents/MacOS/I26", GogGame.I76));
+        Assert.Equal([P("/Users/p/Games/i26-1"), P("/Users/p/Games")], seen);
+        Assert.Equal(P("/Users/p/Games/i26-1/i76"), ExtractionPlaces.Inside("/Users/p/Games/i26-1/I26.app/Contents/MacOS/I26", GogGame.I76));
     }
 
     [Fact]

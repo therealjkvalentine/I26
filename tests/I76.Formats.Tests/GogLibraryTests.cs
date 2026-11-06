@@ -46,8 +46,12 @@ public sealed class GogLibraryTests : IDisposable
         var log = new List<string>();
         var env = new GogEnvironment { Roots = [new(c, null), new(f, null)] };
         var found = GogLibrary.Find(env, log.Add);
-        Assert.Equal([g1, g2], found.OrderBy(x => x));
-        Assert.Contains(log, l => l.StartsWith("gog: config.json on ") && l.Contains("F:\\games\\interstate2") && l.Contains(g1));
+        // on a case-insensitive file system (Windows, macOS) the walk's exact step already finds "games" for "Games", so the
+        // path keeps the config's spelling, the same folder; on Linux the walk must give the disk's own spelling
+        var ci = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+        Assert.Equal([g1, g2], found.OrderBy(x => x, StringComparer.OrdinalIgnoreCase), ci ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        Assert.Contains(log, l => l.StartsWith("gog: config.json on ") && l.Contains("F:\\games\\interstate2")
+            && l.Contains(g1, ci ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
     }
 
     [Fact]
