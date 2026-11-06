@@ -134,6 +134,7 @@ public class SettingsWithoutARowTests
             (I76.Game.Boot.RenderScale.AntiAliasing, ["Off", "2x", "4x"]),
             (VisibilityRange.Names, ["Far"]),
             (HdTextureRow.Names([4, 3, 2], true)!, ["Off"]),
+            (Hd8xRow.Names, ["Off"]),
         })
         {
             Assert.Equal(originals, names.Where(n => !n.EndsWith(ShellSettings.PortMark, System.StringComparison.Ordinal)));

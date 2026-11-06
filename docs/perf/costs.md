@@ -176,6 +176,36 @@ the player's car at 3 m and close up, a car at 10 m, at 3440x1440 and 1920x1080)
 (and the row's Reset) takes it on a card of 6 GB or more (HdTextures.LargeVideoMemoryMb) or an Apple-silicon Mac of 16 GB or
 more (LargeSharedMemoryMb), the 4x on a 4 GB card or an 8 GB Mac (HdTextures.Pick).
 
+### The 8x dash and the 8x cars apart
+
+The player asked for the dash's 8x and the cars' 8x as two settings (2026-11-06: `[port] hd_dash_size` and `hd_car_size`,
+Graphic Detail's 8x Dash and 8x Cars rows), so each half was measured on its own: T01's start (`--drive`; the cockpit's textures are built whatever the view, as the served counts show), windowed
+1280x960, GTX 1080 Ti at 180 W, branch `feat/hd-8x-dash-and-cars`, one run per configuration (the figures are texture memory,
+which does not vary run to run; the machine was shared with other lanes' CPU work). The dash is the cockpit's own art
+(every `z*` texture: 458 of the 8x folder's 2,556 files), the cars everything else it holds (2,098, the 23 cars'
+bodies with their dented stages). "Textures" is the engine's texture memory (Performance.RenderTextureMemUsed) 20 s in;
+"GPU used" is nvidia-smi's used memory for the whole card at its peak during the run less the figure before the launch, so it
+includes the render targets and the driver's share. "Served" is the loader's count of textures drawn at each scale
+(`HD textures served`, the capture's check that the chosen size loads).
+
+| Dash | Cars | Textures MB | over 4x/4x | GPU used MB | over 4x/4x | Served |
+|---|---|---|---|---|---|---|
+| 4x | 4x | 1146 | | 1757 | | 4x 769 |
+| 8x | 4x | 1628 | **+482** | 2169 | +412 | 4x 625, 8x 144 |
+| 4x | 8x | 1199 | **+54** | 1657 | -100 | 4x 641, 8x 128 |
+| 8x | 8x | 1656 | +510 | 2169 | +412 | 4x 497, 8x 272 |
+| 8x | 4x (second run) | 1628 | +482 | | | 4x 625, 8x 144 |
+| 4x | 8x (second run) | 1225 | +79 | | | 4x 641, 8x 128 |
+
+In a player's words: the dash's 8x costs 482 MB (0.5 GB) more video memory, the cars' 54 MB more (79 in a second run: the cars near the camera differ from moment to moment), both together 510 MB more (the sum within the
+noise of two disjoint sets of textures; the whole-card figure is coarser, other processes' use moving under it), none of it frame
+time (the earlier section). The dash is the costly half though it is the smaller one, because the cockpit's art is drawn near full
+screen and so is large (a panel of 640x480 is 5120x3840 at 8x), while a car's texture is 64 px across in the original and only the
+cars in the scene are loaded; the whole 8x cost T05 +610 MB against T01's +536 (the table above), so the cars' share grows with the
+cars present, to about 130 MB there. So the cars' 8x fits wherever the 4x does and is the default from a card of about 4 GB
+(HdTextures.PickCar: LowVideoMemoryMb) or any Apple-silicon Mac, while the dash's 8x keeps the 6 GB card / 16 GB Mac rule (PickDash:
+LargeVideoMemoryMb, LargeSharedMemoryMb). An old shell.cfg's single `hd_texture_size` sets both until the two keys are written.
+
 ## The other scenes and the follow-ups
 
 The mirror's follow-ups update the mirror on alternate frames, which makes a run's frames bimodal; the medians in those

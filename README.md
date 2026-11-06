@@ -37,7 +37,7 @@ On Linux, ensure Microsoft core fonts are installed for Impact and Arial.
 
 The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world-4x/`
 (`%APPDATA%\I26\tex-world-4x` on Windows, `~/.local/share/I26/tex-world-4x` on Linux, `~/Library/Application Support/I26/tex-world-4x`
-on macOS; an older plain `tex-world/` is still read; a `tex-world-3x/` or `-2x/` made with `--scale 3` or `2` loads only when the Developer panel's `hd_texture_size` names it), named after the texture (`pp11ftf1.png`). Graphic Detail's HD Textures row is Off or 4x. None ships with I26, and no game art is in this
+on macOS; an older plain `tex-world/` is still read; a `tex-world-3x/` or `-2x/` made with `--scale 3` or `2` loads only when the Developer panel's `hd_dash_size` or `hd_car_size` names it), named after the texture (`pp11ftf1.png`). Graphic Detail's HD Textures row is Off or On, with an 8x Dash and an 8x Cars row under it when an 8x pack is there. None ships with I26, and no game art is in this
 repository: `tools/upscale-textures.py` makes them on your own machine from your own install. Export the textures
 (`i26 -- --install DIR --export-textures SRC_DIR`, which quits when done), install Python 3.10+ with
 `pip install torch spandrel numpy pillow etcpak`, and run `python3 tools/upscale-textures.py SRC_DIR`. It downloads the model
@@ -77,9 +77,12 @@ needs no GPU.
 An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's HD Textures row then offers
 `8x (cockpit & cars)`) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
 the game reads for every texture the 8x does not have; it needs the 4x pack and adds 2.9 GB on disk (2,556 textures), ~0.55-0.6 GB of video memory and ~2 s to a
-mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Where it fits it is the default: a first start
-(and the row's Reset) picks the 8x when the folder is there and the graphics card has 6 GB of video memory or more (an Apple-silicon
-Mac, 16 GB of memory or more), else the 4x (docs/playing.md, HD textures); a shell.cfg with `hd_texture_size` keeps it. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
+mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Graphic Detail's 8x Dash and 8x Cars rows take
+it half by half, each where it fits by default: a first start (and the rows' Reset) draws the cars at 8x (~54 MB of video memory
+at T01's start: a car's textures are small and only the scene's cars are loaded) wherever the 4x fits, and the dash at 8x (~482 MB:
+the cockpit's art is drawn near full screen, so its textures are large) when the graphics card has 6 GB of video memory or more (an
+Apple-silicon Mac, 16 GB of memory or more), else at the 4x (docs/playing.md, HD textures); a shell.cfg with `hd_dash_size` and
+`hd_car_size` (or the older single `hd_texture_size`) keeps them. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
 2xHDCube_Compact), the cockpit's families taken from their own 4x models to 8x by 2xHDCube_Compact (`--x2-model`, in
 `--models-dir`), in three steps: the models on the graphics card (about 15 minutes on a GTX 1080 Ti), then the packing on the
 CPU (about half an hour on 8 cores), then the lettering:

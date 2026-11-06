@@ -4,7 +4,7 @@ namespace I76.Game.Shell;
 public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
-    Look1997, HdTextures, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
+    Look1997, HdTextures, HdDash, HdCars, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
     AntiAliasing, RenderScale, VSync, MaxFps, ShowFps, Renderer, LogFile,
     FieldOfView,
     AmbientOcclusion,
@@ -27,7 +27,7 @@ public static class GraphicsPages
     public static readonly GraphicsRow[][] Rows =
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
-        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.HdDash, GraphicsRow.HdCars, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
         // Field of View, the Camera page's last row once the mouse rows (Mouse Camera, Camera Return, View Zoom Reset, Mouse In Window) became
         // upstream's Mouse Options screen's (pass 19), with the live view rows; the Camera page is gone
         [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
@@ -120,8 +120,10 @@ public static class GraphicsPages
             case GraphicsRow.Renderer: t.Renderer = f.Renderer; break;
             case GraphicsRow.LogFile: t.LogFile = f.LogFile; break;
             case GraphicsRow.ShowFps: t.DevFps = f.DevFps; break;
-            // one row over two keys: off, or on at a size (the size kept while off)
-            case GraphicsRow.HdTextures: t.HdTextures = f.HdTextures; t.HdTextureSize = f.HdTextureSize; break;
+            // the switch, and the two sizes (kept while off)
+            case GraphicsRow.HdTextures: t.HdTextures = f.HdTextures; break;
+            case GraphicsRow.HdDash: t.HdDashSize = f.HdDashSize; break;
+            case GraphicsRow.HdCars: t.HdCarSize = f.HdCarSize; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
             case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
@@ -163,57 +165,58 @@ public static class VisibilityRange
 }
 
 /// <summary>
-/// HD Textures: one row over [port] hd_textures and hd_texture_size, Off, 4x* and, when its folder is there, 8x* (the port's, so
-/// marked): the 4x pack is the one the modern look is made for and the 8x the default where it fits (a fresh block's, so Reset's:
-/// ShellSettings.HdDefault, HdTextures.Pick: a 6 GB card or a 16 GB Mac); an 8x pack is partial (the cockpit and the cars: pack.json's covers,
-/// shown in the value, "8x (cockpit &amp; cars)*"), the rest served from the 4x (HdPackFolders.Chain). A 2x or 3x pack saves video memory
-/// and a second of loading but no frame time (docs/perf/costs.md). The loader still serves any whole multiple (HdPackFolders.Choose:
-/// the chosen size's tex-world-Nx, else the plain tex-world, else the nearest size present), and a size set in the file or on the
-/// Developer panel shows as itself until the row is clicked. A pack with no tex-world-4x (a plain tex-world, a zip, or only a 2x or
-/// 3x folder) gives Off and On*; no pack at all, no row. Off keeps the size; a size change applies from the next mission.
+/// HD Textures: the row over [port] hd_textures, Off or On* (the port's, so marked): the pack's upscales, the 4x pack the modern look is
+/// made for (a 2x or 3x pack named in the file or on the Developer panel saves video memory and a second of loading but no frame
+/// time, docs/perf/costs.md; the loader serves any whole multiple, HdPackFolders.Choose). Shown when a pack of any kind was found:
+/// no pack, no row. Off swaps the originals in at once and keeps the sizes.
 /// </summary>
 public static class HdTextureRow
 {
     public const string On = "On" + ShellSettings.PortMark;
-    /// <summary>The size the row offers first (the default).</summary>
+    /// <summary>The size the pack is drawn at unless the 8x rows say otherwise (the default).</summary>
     public const int Size = I76.Formats.Shell.HdPackFolders.DefaultSize;
-    /// <summary>The larger size the row offers when its folder is there.</summary>
+    /// <summary>The larger size the 8x rows offer when its folder is there.</summary>
     public const int Large = 8;
 
-    /// <summary>The 8x value's words: "8x (cockpit &amp; cars)*" for a partial pack that says what it covers, else "8x*".</summary>
-    public static string LargeName(string? covers) => $"{Large}x{(covers is { Length: > 0 } c ? $" ({c})" : "")}{ShellSettings.PortMark}";
+    /// <summary>The row's values when a pack was found (<paramref name="available"/>: the sizes whose folders are there; <paramref name="anyPack"/>: a plain folder or a zip too); null for no row.</summary>
+    public static string[]? Names(int[] available, bool anyPack) => anyPack || available.Length > 0 ? ["Off", On] : null;
 
-    /// <summary>
-    /// The row's values for the sizes present (largest first), whether a pack of any kind was found, the size the file asks for and
-    /// what the 8x pack covers (null: a full pack, or none); null for no row.
-    /// </summary>
-    public static string[]? Names(int[] available, bool anyPack, int size = Size, string? covers8 = null)
+    public static int Index(ShellSettings s) => s.HdTextures ? 1 : 0;
+
+    public static void Put(ShellSettings s, int v) => s.HdTextures = v != 0;
+
+    /// <summary>A click: Off, On, Off ...</summary>
+    public static void Step(ShellSettings s) => Put(s, (Index(s) + 1) % 2);
+}
+
+/// <summary>
+/// 8x Dash and 8x Cars: two rows under HD Textures over [port] hd_dash_size and hd_car_size, Off (the 4x) or On* (the 8x), shown when
+/// tex-world-8x is beside the 4x (an 8x pack is partial: the cockpit's art and the cars, each read from the 8x only when its row is
+/// on, HdPackFolders.ChainFor). Each has its own first-start choice, which Reset puts back (ShellSettings.HdDefault: the cars' 8x fits
+/// where the 4x does, the dash's needs a 6 GB card or a 16 GB Mac; HdTextures.PickDash, PickCar) and its own cost (GraphicsHelp). A 2x or
+/// 3x in the file shows as Off and a click writes 4 or 8. A size applies from the next mission; HD Textures Off leaves both as they are.
+/// </summary>
+public static class Hd8xRow
+{
+    public static readonly string[] Names = ["Off", HdTextureRow.On];
+
+    /// <summary>The rows are shown when the 8x folder is beside the 4x.</summary>
+    public static bool Offered(int[] available) => available.Contains(HdTextureRow.Large) && available.Contains(HdTextureRow.Size);
+
+    public static string Label(GraphicsRow r) => r == GraphicsRow.HdDash ? "8x Dash" : "8x Cars";
+
+    public static int SizeOf(ShellSettings s, GraphicsRow r) => r == GraphicsRow.HdDash ? s.HdDashSize : s.HdCarSize;
+
+    public static int Index(ShellSettings s, GraphicsRow r) => SizeOf(s, r) == HdTextureRow.Large ? 1 : 0;
+
+    /// <summary>A value picked: On writes 8, Off 4; nothing when it is what shows (a 2x or 3x stays until the row is clicked).</summary>
+    public static void Put(ShellSettings s, GraphicsRow r, int v)
     {
-        if (available.Contains(Size))
-        {
-            var mid = $"{(size is not Size and not Large && available.Contains(size) ? size : Size)}x{ShellSettings.PortMark}";
-            return available.Contains(Large) ? ["Off", mid, LargeName(covers8)] : ["Off", mid];
-        }
-        return anyPack || available.Length > 0 ? ["Off", On] : null;
+        if (Index(s, r) == v) return;
+        int size = v != 0 ? HdTextureRow.Large : HdTextureRow.Size;
+        if (r == GraphicsRow.HdDash) s.HdDashSize = size; else s.HdCarSize = size;
     }
 
-    /// <summary>The value showing: Off, the 4x (or the file's size), or the 8x when that is the size and its folder is there.</summary>
-    public static int Index(ShellSettings s, int[] available) =>
-        !s.HdTextures ? 0 : s.HdTextureSize == Large && available.Contains(Large) && available.Contains(Size) ? 2 : 1;
-
-    /// <summary>A value picked: Off writes hd_textures=false and keeps the size, 4x writes true and 4 (when its folder is there), 8x true and 8; nothing when it is what shows.</summary>
-    public static void Put(ShellSettings s, int[] available, int v)
-    {
-        if (Index(s, available) == v) return;
-        s.HdTextures = v != 0;
-        if (v == 2 && available.Contains(Large)) s.HdTextureSize = Large;
-        else if (v > 0 && available.Contains(Size)) s.HdTextureSize = Size;
-    }
-
-    /// <summary>A click: the next value (Off, 4x, 8x, Off ...).</summary>
-    public static void Step(ShellSettings s, int[] available, bool anyPack)
-    {
-        if (Names(available, anyPack, s.HdTextureSize) is not { } names) return;
-        Put(s, available, (Index(s, available) + 1) % names.Length);
-    }
+    /// <summary>A click: Off, On, Off ...</summary>
+    public static void Step(ShellSettings s, GraphicsRow r) => Put(s, r, (Index(s, r) + 1) % 2);
 }

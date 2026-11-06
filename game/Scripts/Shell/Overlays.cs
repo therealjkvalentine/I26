@@ -558,8 +558,8 @@ public sealed class GraphicsScreen : OverlayScreen
 
     private readonly Dictionary<int, GraphicsRow> _lineRow = [];
     private GraphicsRow? _hover;
-    /// <summary>The help's first line and how many it may take, a line of text to a ruled line (the sheet's lines 11 to 13 are free on every page; the buttons start at 438).</summary>
-    private const int HelpLine = 11, HelpX = 200, HelpRight = 462, HelpMaxLines = 3;
+    /// <summary>The help's first line, a line of text to a ruled line: line 11, or the line under a longer page's last row (Look's eleven rows end on line 11, so its help has lines 12 and 13 and its lines are the short ones); the buttons start at 438.</summary>
+    private const int HelpLine = 11, HelpX = 200, HelpRight = 462;
 
     /// <summary>The row whose line the mouse is on (label or value), or null.</summary>
     private GraphicsRow? RowAt(Vector2I m)
@@ -579,11 +579,11 @@ public sealed class GraphicsScreen : OverlayScreen
     protected override void DrawExtra()
     {
         if (_hover is not { } r || GraphicsHelp.Text(r, Shell.Settings.Look1997) is not { } text) return;
-        int n = 0;
+        int first = Math.Max(HelpLine, _lineRow.Count == 0 ? 0 : _lineRow.Keys.Max() + 1), n = 0;
         foreach (var l in GraphicsHelp.Wrap(text, s => Small.Measure(s), HelpRight - HelpX))
         {
-            if (n >= HelpMaxLines) break;
-            Frame.Text(Small, HelpX, LineY(HelpLine + n++) + Math.Max(0, (LineH - Small.Height) / 2), l, ShellFrame.OverlayInk);   // between the line's rules
+            if (first + n >= GraphicsPages.Lines) break;
+            Frame.Text(Small, HelpX, LineY(first + n++) + Math.Max(0, (LineH - Small.Height) / 2), l, ShellFrame.OverlayInk);   // between the line's rules
         }
     }
 
@@ -635,17 +635,25 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.AntiAliasing:
                 ByteRow(line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
                 break;
-            // [port] hd_textures and hd_texture_size (HdTextureRow): Off, 4x and 8x when their folders are there; Off live, a size from the next mission
+            // [port] hd_textures (HdTextureRow): Off or On when a pack is there, live
             case GraphicsRow.HdTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
-                bool any = sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed;
-                var covers8 = I76.Game.Assets.HdTextures.CoversOf(HdTextureRow.Large);
-                if (HdTextureRow.Names(sizes, any, st.HdTextureSize, covers8) is null) return false;
-                Row(line, "HD Textures", () => HdTextureRow.Names(sizes, any, st.HdTextureSize, covers8)![HdTextureRow.Index(st, sizes)], () =>
+                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return false;
+                Row(line, "HD Textures", () => hd[HdTextureRow.Index(st)], () =>
                 {
-                    HdTextureRow.Step(st, sizes, any);
+                    HdTextureRow.Step(st);
                     I76.Game.Assets.HdTextures.Enabled = st.HdTextures;
-                    I76.Game.Assets.HdTextures.Size = st.HdTextureSize;
+                });
+                break;
+            // [port] hd_dash_size and hd_car_size (Hd8xRow): Off (the 4x) or On (the 8x) when tex-world-8x is beside the 4x, from the next mission
+            case GraphicsRow.HdDash:
+            case GraphicsRow.HdCars:
+                if (!Hd8xRow.Offered(I76.Game.Assets.HdTextures.AvailableSizes)) return false;
+                Row(line, Hd8xRow.Label(r), () => Hd8xRow.Names[Hd8xRow.Index(st, r)], () =>
+                {
+                    Hd8xRow.Step(st, r);
+                    I76.Game.Assets.HdTextures.DashSize = st.HdDashSize;
+                    I76.Game.Assets.HdTextures.CarSize = st.HdCarSize;
                 });
                 break;
             // the frame rate limiter and vsync: drawing only, the simulation keeps the Play Options rate; both live (the engine's, so the shell shows it too)
@@ -734,7 +742,8 @@ public sealed class GraphicsScreen : OverlayScreen
                 break;
             case GraphicsPages.Look:
                 I76.Game.Assets.HdTextures.Enabled = st.HdTextures;
-                I76.Game.Assets.HdTextures.Size = st.HdTextureSize;
+                I76.Game.Assets.HdTextures.DashSize = st.HdDashSize;
+                I76.Game.Assets.HdTextures.CarSize = st.HdCarSize;
                 I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
                 I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors);
                 break;

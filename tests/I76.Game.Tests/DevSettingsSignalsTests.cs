@@ -28,7 +28,7 @@ public class DevSettingsSignalsTests
         var keys = Regex.Matches(table, @"^\| `([a-z_0-9]+)` \|", RegexOptions.Multiline).Select(m => m.Groups[1].Value).ToList();
         Assert.Contains("sky_drift", keys);
         // the keys with a Graphic Detail row are not in the table (DevSettings.WithRow), though the panel has them too
-        foreach (var key in new[] { "draw_distance", "hd_textures", "hd_texture_size", "dev_fps" })
+        foreach (var key in new[] { "draw_distance", "hd_textures", "hd_dash_size", "hd_car_size", "dev_fps" })
         {
             Assert.DoesNotContain(key, keys);
             Assert.Single(DevSettings.WithRow, e => e.Key == key);

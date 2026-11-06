@@ -5,10 +5,12 @@ namespace I76.Formats.Shell;
 /// by side (pack.json's "scale" says each one's size), or the plain tex-world of a pack made before the sizes had folders. A folder
 /// may hold only some textures (pack.json's "partial" and "covers": the 8x pack of the cockpit and the cars), so the loader reads a
 /// chain of them (<see cref="Chain"/>), per texture: the chosen size's file when that folder has it, else the next size down's.
+/// The size is chosen twice, for the dash and for the cars ([port] hd_dash_size and hd_car_size): a texture's chain starts at the
+/// size its kind asks for (<see cref="ChainFor"/>).
 /// </summary>
 public static class HdPackFolders
 {
-    /// <summary>The sizes the loader looks for, largest first. The HD Textures row offers 4x (the default) and 8x (HdTextureRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
+    /// <summary>The sizes the loader looks for, largest first. The HD Textures row draws the 4x (the default) and the 8x Dash and 8x Cars rows the 8x of each (HdTextureRow, Hd8xRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
     public static readonly int[] Sizes = [8, 4, 3, 2];
     public const int DefaultSize = 4;
     public const string Plain = "tex-world";
@@ -46,6 +48,23 @@ public static class HdPackFolders
         int top = SizeOf(first);
         return [first, .. Available(exists).Where(s => s < top).Select(Folder)];
     }
+
+    /// <summary>
+    /// Whether a texture is the cockpit's own art (the dash, its gauges, panels, hands, mirror and radar: every stem that starts with z,
+    /// as tools/upscale-textures.py keeps at full scale) or a car's or the world's (everything else; an 8x pack of the cockpit and the
+    /// cars holds no world texture, so the cars' size governs what else it has). The mission maps are z* too but no 8x pack holds them.
+    /// </summary>
+    public static bool IsCockpit(string member)
+    {
+        var stem = Path.GetFileName(member);
+        return stem.Length > 0 && (stem[0] == 'z' || stem[0] == 'Z');
+    }
+
+    /// <summary>The size a texture is looked for at first: the dash's for the cockpit's art, the cars' for everything else.</summary>
+    public static int SizeFor(string member, int dashSize, int carSize) => IsCockpit(member) ? dashSize : carSize;
+
+    /// <summary><see cref="Chain"/> from the size the texture's kind asks for (<see cref="SizeFor"/>): a car texture reads the 8x folder only when the cars' size is 8.</summary>
+    public static string[] ChainFor(string member, int dashSize, int carSize, Func<string, bool> exists) => Chain(SizeFor(member, dashSize, carSize), exists);
 
     /// <summary>The size a chain's first folder serves (0 for the plain tex-world or none).</summary>
     public static int SizeOf(string? folder) =>

@@ -4,25 +4,26 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's help line (GraphicsHelp): the eight rows that cost the most say what they do and what they cost, in both looks,
+/// Graphic Detail's help line (GraphicsHelp): the ten rows that cost the most say what they do and what they cost, in both looks,
 /// every other row nothing; the costs are the survey's (docs/perf/costs.md) and the 1997 look's lines say they cost nothing there.
 /// </summary>
 public class GraphicsHelpTests
 {
-    private static readonly GraphicsRow[] TopEight =
+    private static readonly GraphicsRow[] TopTen =
     [
         GraphicsRow.AmbientOcclusion, GraphicsRow.RearMirror, GraphicsRow.AntiAliasing, GraphicsRow.ShadowDetail,
         GraphicsRow.TerrainDetail, GraphicsRow.Vegetation, GraphicsRow.VisibilityRange, GraphicsRow.HdTextures,
+        GraphicsRow.HdDash, GraphicsRow.HdCars,
     ];
 
     [Fact]
-    public void TheTopEightHaveALineInBothLooksAndNoOtherRowDoes()
+    public void TheTopTenHaveALineInBothLooksAndNoOtherRowDoes()
     {
         foreach (var r in Enum.GetValues<GraphicsRow>())
             foreach (bool look1997 in new[] { false, true })
             {
                 var t = GraphicsHelp.Text(r, look1997);
-                if (TopEight.Contains(r)) Assert.False(string.IsNullOrWhiteSpace(t), $"{r} has no help");
+                if (TopTen.Contains(r)) Assert.False(string.IsNullOrWhiteSpace(t), $"{r} has no help");
                 else Assert.Null(t);
             }
     }
@@ -36,7 +37,19 @@ public class GraphicsHelpTests
     [InlineData(GraphicsRow.Vegetation, "4 %")]
     [InlineData(GraphicsRow.VisibilityRange, "3 %")]
     [InlineData(GraphicsRow.HdTextures, "0.7 GB")]
+    [InlineData(GraphicsRow.HdDash, "0.5 GB")]
+    [InlineData(GraphicsRow.HdCars, "50 MB")]
     public void TheModernLookSaysTheCost(GraphicsRow r, string cost) => Assert.Contains(cost, GraphicsHelp.Text(r, false));
+
+    /// <summary>The 8x rows say which half of the pack they are: the dash's gauges and panels, the cars' bodies (your own in the chase view).</summary>
+    [Fact]
+    public void The8xRowsNameTheirHalf()
+    {
+        Assert.Contains("gauges", GraphicsHelp.Text(GraphicsRow.HdDash, false));
+        Assert.Contains("chase view", GraphicsHelp.Text(GraphicsRow.HdCars, false));
+        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.HdDash, true));
+        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.HdCars, true));
+    }
 
     [Fact]
     public void TheMirrorsLineNamesItsTwoReaches()
@@ -59,7 +72,7 @@ public class GraphicsHelpTests
     [Fact]
     public void TheLinesArePrintableAscii()
     {
-        foreach (var r in TopEight)
+        foreach (var r in TopTen)
             foreach (bool look1997 in new[] { false, true })
                 Assert.All(GraphicsHelp.Text(r, look1997)!, c => Assert.InRange(c, ' ', '~'));
     }

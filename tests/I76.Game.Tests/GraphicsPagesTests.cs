@@ -7,7 +7,7 @@ namespace I76.Game.Tests;
 /// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order and every port row sits on
 /// exactly one of the two pages under them (Look, Display), each page fitting the sheet's lines; Reset puts back a page's
 /// own rows and no other's (the sheet's the original's block but Anti-Aliasing, which is Display's), and the snapshot Cancel restores
-/// from carries every row. Visibility Range and HD Textures, the rows over keys of their own. Without the engine.
+/// from carries every row. Visibility Range, HD Textures, 8x Dash and 8x Cars, the rows over keys of their own. Without the engine.
 /// </summary>
 public class GraphicsPagesTests
 {
@@ -28,7 +28,9 @@ public class GraphicsPagesTests
         GraphicsRow.Renderer => s.Renderer,
         GraphicsRow.LogFile => s.LogFile,
         GraphicsRow.ShowFps => s.DevFps,
-        GraphicsRow.HdTextures => (s.HdTextures, s.HdTextureSize),
+        GraphicsRow.HdTextures => s.HdTextures,
+        GraphicsRow.HdDash => s.HdDashSize,
+        GraphicsRow.HdCars => s.HdCarSize,
         GraphicsRow.Vegetation => s.Vegetation,
         GraphicsRow.AmbientOcclusion => s.AmbientOcclusion,
         GraphicsRow.FieldOfView => s.FieldOfView,
@@ -49,7 +51,7 @@ public class GraphicsPagesTests
         s.Resolution = "1280x720"; s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.Original;
         s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
-        s.HdTextures = false; s.HdTextureSize = 2;
+        s.HdTextures = false; s.HdDashSize = 2; s.HdCarSize = 3;
         s.Vegetation = 2; s.AmbientOcclusion = true;
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CarInteriors = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
@@ -82,7 +84,7 @@ public class GraphicsPagesTests
     public void ThePagesAreLookAndDisplay()
     {
         Assert.Equal(["Graphic Detail", "Look", "Display"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.HdDash, GraphicsRow.HdCars, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.Look]);
         // the mouse rows are upstream's Mouse Options screen's (pass 19); Field of View, all the Camera page kept, is Display's
         Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
@@ -110,7 +112,8 @@ public class GraphicsPagesTests
         Assert.Equal("", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
         Assert.True(s.HdTextures);
-        Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdTextureSize);
+        Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdDashSize);
+        Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdCarSize);
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
         Assert.False(s.AmbientOcclusion);
@@ -269,37 +272,82 @@ public class GraphicsPagesTests
         Assert.Contains("4x", I76.Game.Boot.RenderScale.AntiAliasing);
     }
 
-    // ---- HD Textures ----
+    // ---- HD Textures, 8x Dash, 8x Cars ----
 
-    /// <summary>Off or 4x: the 2x and 3x folders are no longer offered by the row (the loader still reads them).</summary>
+    /// <summary>Off or On: the switch over the pack, whatever its sizes (the 8x rows choose those); with no pack no row.</summary>
     [Fact]
-    public void HdTexturesIsOffOr4x()
+    public void HdTexturesIsOffOrOn()
     {
-        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 3, 2], true)!);
-        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4], true)!);
-        // no tex-world-4x: a pack of another size, a plain tex-world or a zip is on or off
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([8, 4], true)!);
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([4, 3, 2], true)!);
+        Assert.Equal(["Off", "On*"], HdTextureRow.Names([4], true)!);
+        // no tex-world-4x: a pack of another size, a plain tex-world or a zip is on or off too
         Assert.Equal(["Off", "On*"], HdTextureRow.Names([3], true)!);
         Assert.Equal(["Off", "On*"], HdTextureRow.Names([3, 2], false)!);
         Assert.Equal(["Off", "On*"], HdTextureRow.Names([], true)!);
         // no pack: no row
         Assert.Null(HdTextureRow.Names([], false));
+        var s = new ShellSettings { HdDashSize = 8, HdCarSize = 3 };
+        Assert.Equal(1, HdTextureRow.Index(s));
+        HdTextureRow.Step(s);      // Off, the sizes kept
+        Assert.Equal((false, 0, 8, 3), (s.HdTextures, HdTextureRow.Index(s), s.HdDashSize, s.HdCarSize));
+        HdTextureRow.Step(s);
+        Assert.Equal((true, 1, 8, 3), (s.HdTextures, HdTextureRow.Index(s), s.HdDashSize, s.HdCarSize));
+        HdTextureRow.Put(s, 0);
+        Assert.False(s.HdTextures);
     }
 
-    /// <summary>A size the file or the Developer panel names shows as itself while its folder is there, until the row is clicked.</summary>
+    /// <summary>The 8x rows are shown when tex-world-8x is beside the 4x, and are Off (4) or On (8) each over its own key.</summary>
     [Fact]
-    public void HdTexturesShowsAnotherSizeAsItself()
+    public void The8xRowsAreOfferedWithThe8xFolderBesideThe4x()
     {
-        Assert.Equal(["Off", "3x*"], HdTextureRow.Names([4, 3, 2], true, 3)!);
-        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 2], true, 3)!);   // no 3x folder: the 4x loads (HdPackFolders.Choose)
-        Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(3, f => f is "tex-world-4x" or "tex-world-2x"));
-        var s = new ShellSettings { HdTextureSize = 3 };
-        Assert.Equal(1, HdTextureRow.Index(s, [4, 3, 2]));
-        HdTextureRow.Step(s, [4, 3, 2], true);      // Off, the size kept
-        Assert.False(s.HdTextures);
-        Assert.Equal(3, s.HdTextureSize);
-        HdTextureRow.Step(s, [4, 3, 2], true);      // on again: 4x
-        Assert.True(s.HdTextures);
-        Assert.Equal(4, s.HdTextureSize);
+        Assert.True(Hd8xRow.Offered([8, 4]));
+        Assert.True(Hd8xRow.Offered([8, 4, 2]));
+        Assert.False(Hd8xRow.Offered([4, 3, 2]));   // no 8x folder
+        Assert.False(Hd8xRow.Offered([8]));         // an 8x with no 4x under it: the HD Textures row alone, On or Off
+        Assert.False(Hd8xRow.Offered([]));
+        Assert.Equal(["Off", "On*"], Hd8xRow.Names);
+        Assert.Equal("8x Dash", Hd8xRow.Label(GraphicsRow.HdDash));
+        Assert.Equal("8x Cars", Hd8xRow.Label(GraphicsRow.HdCars));
+    }
+
+    /// <summary>Each 8x row reads and writes its own key and leaves the other's alone: a click is Off, On, Off; On writes 8 and Off 4.</summary>
+    [Fact]
+    public void The8xRowsAreEachOverTheirOwnKey()
+    {
+        var s = new ShellSettings { HdDashSize = 8, HdCarSize = 4 };
+        Assert.Equal((1, 0), (Hd8xRow.Index(s, GraphicsRow.HdDash), Hd8xRow.Index(s, GraphicsRow.HdCars)));
+        Hd8xRow.Step(s, GraphicsRow.HdCars);
+        Assert.Equal((8, 8), (s.HdDashSize, s.HdCarSize));
+        Hd8xRow.Step(s, GraphicsRow.HdDash);
+        Assert.Equal((4, 8), (s.HdDashSize, s.HdCarSize));
+        Hd8xRow.Step(s, GraphicsRow.HdDash);
+        Assert.Equal((8, 8), (s.HdDashSize, s.HdCarSize));
+        Hd8xRow.Put(s, GraphicsRow.HdCars, 0);
+        Assert.Equal((8, 4), (s.HdDashSize, s.HdCarSize));
+        // a 3x or 2x in the file shows as Off and stays until the row is clicked; a click writes 4 or 8
+        var p = new ShellSettings { HdDashSize = 3, HdCarSize = 2 };
+        Assert.Equal((0, 0), (Hd8xRow.Index(p, GraphicsRow.HdDash), Hd8xRow.Index(p, GraphicsRow.HdCars)));
+        Hd8xRow.Put(p, GraphicsRow.HdDash, 0);
+        Assert.Equal(3, p.HdDashSize);
+        Hd8xRow.Step(p, GraphicsRow.HdDash);
+        Assert.Equal((8, 2), (p.HdDashSize, p.HdCarSize));
+        Hd8xRow.Step(p, GraphicsRow.HdDash);
+        Assert.Equal((4, 2), (p.HdDashSize, p.HdCarSize));
+        // the switch's row leaves both alone
+        HdTextureRow.Put(p, 0);
+        Assert.Equal((false, 4, 2), (p.HdTextures, p.HdDashSize, p.HdCarSize));
+    }
+
+    /// <summary>The loader reads each texture from its kind's size: the cockpit's art (z*) from the dash's, every other from the cars'.</summary>
+    [Fact]
+    public void TheChainIsPerKind()
+    {
+        Func<string, bool> has = f => f is "tex-world-8x" or "tex-world-4x";
+        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zdash101.map", 8, 4, has));
+        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("pp11bkb1.map", 8, 4, has));
+        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zspeedo6.vqm", 4, 8, has));
+        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("pp11bkb1.map", 4, 8, has));
     }
 
     /// <summary>The loader keeps every whole multiple: the 3x and 2x folders are still found and chosen.</summary>
@@ -311,50 +359,12 @@ public class GraphicsPagesTests
         Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
     }
 
-    /// <summary>With a tex-world-8x the row is Off, 4x and 8x, the 8x saying what a partial pack covers; a click steps Off, 4x, 8x, Off.</summary>
+    /// <summary>An 8 in the file with the 8x folder gone loads the 4x (HdPackFolders.Choose) and the 8x rows are not shown.</summary>
     [Fact]
-    public void HdTexturesOffers8xWhenItsFolderIsThere()
+    public void An8WithoutItsFolderLoadsThe4x()
     {
-        int[] have = [8, 4];
-        Assert.Equal(["Off", "4x*", "8x (cockpit & cars)*"], HdTextureRow.Names(have, true, 4, "cockpit & cars")!);
-        Assert.Equal(["Off", "4x*", "8x*"], HdTextureRow.Names(have, true)!);   // a full 8x pack
-        Assert.Equal(["Off", "4x*"], HdTextureRow.Names([4, 2], true, 8)!);       // 8 in the file, no folder: the 4x loads
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([8], true)!);             // an 8x with no 4x under it: on or off
-        var s = new ShellSettings { HdTextures = true, HdTextureSize = 4 };
-        Assert.Equal(1, HdTextureRow.Index(s, have));
-        HdTextureRow.Step(s, have, true);
-        Assert.Equal((true, 8, 2), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));
-        HdTextureRow.Step(s, have, true);
-        Assert.Equal((false, 8, 0), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));   // Off keeps the size
-        HdTextureRow.Step(s, have, true);
-        Assert.Equal((true, 4, 1), (s.HdTextures, s.HdTextureSize, HdTextureRow.Index(s, have)));
-        HdTextureRow.Put(s, have, 2);
-        Assert.Equal(8, s.HdTextureSize);
-        // the 8x folder gone: an 8 in the file shows as the 4x it loads, and the row is two values again
-        Assert.Equal(1, HdTextureRow.Index(s, [4]));
         Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(8, f => f is "tex-world-4x"));
-    }
-
-    /// <summary>The two keys kept as they were: Off writes hd_textures=false and keeps the size; On writes true and 4 (with its folder).</summary>
-    [Fact]
-    public void HdTexturesWritesItsTwoKeys()
-    {
-        int[] have = [4, 3, 2];
-        var s = new ShellSettings { HdTextureSize = 4 };
-        HdTextureRow.Put(s, have, 0);
-        Assert.False(s.HdTextures);
-        Assert.Equal(4, s.HdTextureSize);
-        HdTextureRow.Put(s, have, 1);
-        Assert.True(s.HdTextures);
-        Assert.Equal(4, s.HdTextureSize);
-        // with no 4x folder the size is left alone
-        var p = new ShellSettings { HdTextureSize = 3, HdTextures = false };
-        HdTextureRow.Step(p, [3], true);
-        Assert.True(p.HdTextures);
-        Assert.Equal(3, p.HdTextureSize);
-        // picking what shows writes nothing
-        var q = new ShellSettings { HdTextureSize = 3 };
-        HdTextureRow.Put(q, have, 1);
-        Assert.Equal(3, q.HdTextureSize);
+        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zdash101.map", 8, 8, f => f is "tex-world-4x"));
+        Assert.False(Hd8xRow.Offered([4]));
     }
 }
