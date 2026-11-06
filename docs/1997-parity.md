@@ -146,3 +146,81 @@ ms. Engine pitch (W tapped 300 ms from rest): I26's spectral centroid leaves its
 after (noisy: a 300 ms tap moves the rpm little); i76-e's shows no detectable change within the tap. So the sound does not
 explain i76-e feeling snappier: I26's reports come about 100 ms sooner. (The loopback lost data 98 times in 20 s while i76-e
 played and 16 times for I26; the per-block stamps keep the times right across the gaps.)
+
+## Round 3: control latency
+
+The question after rounds 1 and 2: what else shortens the time from a key to the screen and to the speakers? Each candidate was
+measured as before (a script presses the key with `SendInput` at the instant it lights a marker, a 180 Hz desktop capture finds the
+first frame that answers; T01, `--drive`, the 1997 look, Early Tick on, windowed 1920x1080), with two additions: `I76_DRAW_LOG` now
+stamps each frame with the performance counter the script's key times use, and logs the keys as that frame read them and the drawn
+headings, so the key-to-read time and the drawn car's answer are measured to the frame without the capture's 5.6 ms steps; and
+`I76_AUDIO_LOG` stamps the gun loop's start the same way. Throttle from rest, 11 or 12 presses a run, each run's first press left out;
+several runs per configuration at different minutes, pooled, because one configuration's run medians spread from 11 to 33 ms between
+runs (the desktop's composition state, which the game does not control): a single run cannot separate anything under about 10 ms.
+Three other lanes shared the machine; no run was marked contaminated (GPU idle and no other game process at each start), but a
+Windows Security Alert from another lane's test host stood over part of the captured band in every run, the same in all. The game came up paused (its Esc menu open, cause not found)
+about 52 s into T01 in every run, so each run was kept inside that.
+
+| Candidate | Key to photon before (median, IQR, presses) | After | Pacing (frames drawn: fps, sd, 1 % low) | Verdict | Key |
+|---|---|---|---|---|---|
+| Swap: VSync on, queued (FIFO), Godot's stock 3 images, frame queue 2 | **22.2 ms**, 13.9-27.8, n 67 (six runs: 11.1-33.3) | (the reference) | 171-180 fps, sd 0.7-2.0 ms, 1 % low 56-109 | | |
+| `frame_queue_size` 1 | 22.2 | 22.2 ms, 13.9-30.6, n 11 | 162 fps in that run | **no effect**: Godot 4.7.2 keeps two frames whatever is asked (`RenderingDevice.GetFrameDelay()` reads 2) | not shipped |
+| `swapchain_image_count` 2 | 22.2 | 16.7 ms, 11.1-26.4, n 22 (runs 13.9, 22.2); with queue 1: 11.1, 8.3-16.7, n 11 | 169-179 fps, sd 0.7-1.5, 1 % low 78-110 | inside the reference's run-to-run spread: not shown to pay | not shipped |
+| VSync off (Max FPS 240) | 22.2 | 11.1 ms, 0.0-19.4, n 11 | 177 fps, sd 1.8, 1 % low 76 | as fast as mailbox, but tears and paces worse | the existing VSync row |
+| VSync adaptive | 22.2 | 27.8 ms, 22.2-33.3, n 11 | 179 fps, sd 0.9, 1 % low 98 | the same as FIFO while no frame is late | not shipped |
+| **Swap: mailbox** (the newest finished frame at each refresh, no tearing) | 22.2 | **11.1 ms**, 5.6-11.1, n 56 (five runs, all 8.3-11.1) | 236-248 fps, sd 1.0-1.2, 1 % low 106-118 | **pays, in every run**: about 11 ms, the queued display frames. It costs power where the game outruns the display: GPU 149 W median against 83 W in the 1997 look (GTX 1080 Ti at its 180 W cap). In the modern look, GPU-bound at 145-154 fps, no gain (38.9 ms, 27.8-44.4, n 9, against FIFO's 30.6, 27.8-38.9, n 10) and no cost (162 W against 165) | **shipped, on**: VSync On swaps by mailbox (Godot falls back to FIFO where the driver has none); live | `[port] low_latency_present` |
+| Input sampling point | key to the frame that reads it: median 3.6 ms (run medians 2.2-5.2), worst 6-12 ms | — | — | already the latest point Godot offers: the window's messages are pumped at the top of each frame and `SimDriver` (process priority −1) reads the live key state (`Input.IsPhysicalKeyPressed`) and decides the early tick in the same call, so the wait is half a 5.6 ms frame on average. `Input.UseAccumulatedInput` merges mouse motion only, never keys. The remaining 3 ms on average could only be had by reading the keyboard again in mid-frame, which Godot does not do | nothing to ship |
+| Draw Ahead: the player's car drawn at the newest tick carried forward (both looks) | throttle from rest 22.2 ms; steering, the drawn heading's answer after the key (draw log, 20 presses a run): 0.2° at 42 ms, 0.5° at 68-74, 1° at 95-107 (two runs) | throttle 22.2 ms, 22.2-27.8, n 22 (the first change there is the cockpit's needle, not the car's pose); steering 0.2° at **16 ms**, 0.5° at **35**, 1° at **69** | 179 fps, unchanged | **pays for steering, about 30 ms** (a tick less of drawing behind). Its corrections at the ticks, M01 chase view with a hard turn: the drawn velocity's frame-to-frame kink at the frames a tick runs, median 3.2 m/s, p99 24, largest 30, against 1.5, 9.6 and 17 interpolated (a p99 step about 8 cm larger); the slow-motion clips are for the eye | **shipped, off** until judged | `[port] draw_ahead` |
+| Camera smoothing | — | — | — | the original's rules (below): proposed, not changed | — |
+| Sound: the gun report (Enter, the Piranha's machine gun, key to the loopback) | **88.8 ms**, 81.8-102.7, n 12 | 5 ms buffer: 77.5 (73.8-84.0); physics 240: 80.2 (78.3-85.6); **both: 73.4**, 66.7-74.9 | 179-180 fps; no dropout in 2 x 25 s with the LFE synth on | **pays, about 15 ms** | `[port] low_latency_audio` |
+
+**Shipped on by default**: the mailbox swap (`low_latency_present`) and the short sound path (`low_latency_audio`: Godot's audio
+output latency 5 ms, which WASAPI gives as 4.7 against 10.0 for the stock 15, and Godot's physics step at 240 a second). **Behind an
+off key**: Draw Ahead (`draw_ahead`), which departs from the original's drawing (docs/deviations.md) and wants a look at its
+corrections. Early Tick (`early_tick`) remains the 1997 look's only: the modern look waits for the tick as before (Main.cs), which is
+most of the modern look's 30.6 ms; giving it Early Tick too would be the next step there.
+
+**The camera.** What follows the car with a delay, all on the render clock as the original's (round 1, row 8); none changed here:
+
+| Smoothing | Rule | Time constant | Measured |
+|---|---|---|---|
+| Chase view (F2) heading | slerped to the car's flattened heading at 2·dt a frame | 0.5 s (first order) | M01, a hard turn: the camera's heading trails the car's by a median 10.6° while it turns; the delay that best lines the two headings up is 290 ms |
+| Chase pitch, yaw and distance (the track keys) | eased at 2·dt | 0.5 s | — (answers the camera keys only) |
+| Chase position | none: the collider centre of the car as drawn | 0 | — |
+| Mouse orbit (Mouse Camera), wheel zoom, return behind | 18·dt; 1 − e^(−9·dt); 3.5/s after 4.5 s idle | 56 ms; 111 ms; 0.29 s | — |
+| Cockpit head look (glances, the stick's head) | 4·dt (the mouse's head 18·dt) | 0.25 s (56 ms) | — |
+| Head sway | three heights eased at 2·dt to the sim's acceleration (which steps a tick) | 0.5 s | — |
+| The driver's lean (modern body) | a spring, 70/s², damping 10/s | ω 8.4 rad/s, ζ 0.6 | — |
+| Binocular glance | 2·dt | 0.5 s | — |
+
+The chase heading is the one that reads as lag on turn-in: half a second of first-order easing puts the car visibly across the
+screen in a hard turn. It is the original's rule (docs/deviations.md), so it stays; a proposal for a port key, not made here: the
+heading eased at 4·dt (0.25 s), or followed by a critically damped spring of the same settling time, which halves the angle the
+camera trails by and keeps the swing. The cockpit's view turns with the car rigidly; its sway is a feel effect of 0.5 s that does not
+move the view's heading.
+
+**The sound: where the 89 ms go** (the gun report, stock settings; the key and the loopback on one clock):
+
+| Stage | Time | How known |
+|---|---|---|
+| key to the frame that reads it | 4.4 ms (median) | draw log |
+| the early tick fires the gun, `CombatView` starts the voice | 0.7 ms (key to `Play` 5.1) | the audio log's stamp |
+| a positional voice (`AudioStreamPlayer3D`) starts only at Godot's next physics step | 0-16.7 ms at 60 a second (8.3 on average); 0-4.2 at 240 | Godot's source (the start is in `NOTIFICATION_INTERNAL_PHYSICS_PROCESS`); 240 a second measured 8.6 ms sooner |
+| Godot's output buffer | 10.0 ms (stock: 15 asked, WASAPI gives 10); 4.7 at 5 | `AudioServer.GetOutputLatency()`; 5 measured 11.3 ms sooner |
+| Windows' mixer and the loopback recorder | about 5 ms | a test tone played through WASAPI and recorded the same way: 5.1 ms median |
+| the sample's own build-up | the report reaches its body 25-35 ms in (wmmgun: 2.5 ms of silence, a quiet lead, the bang from 30 ms) | the sample's envelope; the detector (6 dB over the noise above 1 kHz) fires somewhere on that rise |
+| the rest (Godot's mix steps, the device period) | about 20-30 ms | by difference |
+
+The tick costs nothing here any more (Early Tick fires the gun in the frame that reads the key), and 15 ms of the rest are now
+taken. The sample's lead-in is the original's sound and stays.
+
+**The display, and the floor.** The desktop's display is an AW3425DWM, 3440x1440 at 180 Hz: a refresh every 5.56 ms, scanned top to
+bottom, so the captured band (54-84 % of the screen's height) lights 3.0-4.7 ms after its refresh begins. The marker that times the
+press goes through the same compositor and the same scanout, so every figure above is the game's own delay over a window that redraws
+at once; the absolute key-to-photon time adds the compositor's frame (one refresh, 5.6 ms), the scanout to that line, the panel's
+response, and a USB keyboard's polling (1-8 ms) before Windows has the key at all. With the mailbox swap the game answers 11 ms after
+a window that redraws at once: two display frames, one to draw the frame after the key is read (a 1997-look frame takes about 4 ms)
+and one waiting for the refresh. The method's resolution is one capture frame (5.6 ms); the floor of this measure is about one frame.
+
+Recordings (the lane's scratch folder, not the repository): slow-motion clips of a hard turn in M01's arena with Draw Ahead off and on
+(`da-off-m01-slowmo.mp4`, `da-on-m01-slowmo.mp4`, 180 Hz played 6x slower, about 1 MB each).
