@@ -369,3 +369,6 @@ fix/night-lighting                    # section AP: night presets in the modern 
 
 # AQ. cockpit art, round 5 (2026-11-06)
 fix/cockpit-art-round5                # section AQ: upscale-textures.py --cells (each sprite cell alone; front armour and brakes rebuilt at 4x/8x, no chevron bleed); text-redraws.py `smooth` step (equipment lights as smooth fades); mirror frame spec + clamped outline sampling (no lines, no white edge); Control Configuration art reads CONTROLS (Arimo Bold, painted row names removed); I76_DAMAGE_PANEL hook; 18 pack files synced separately (_scratch/r5-cockpit-art/changed-files.txt)
+
+# AR. world art: signs and pumps (2026-11-06)
+fix/world-art-signs-pumps             # section AR: back-to-back cut-out faces (road signs) use object_back_key.gdshader (back-culled, alpha-to-coverage, keyed by the smooth 1x outline) in the modern look; `i76 key-edge` + upscale-textures.py --recut make the game's own outline each 4x cut-out's alpha with an edge colour band (67 cut-outs recut: shields, fences, pine card, wrecks, barns); gas pumps redone (HDcube3 + colour match, counter windows from the original); 75 tex-world-4x files synced separately (_scratch/r5-world-art/changed-files.txt)
