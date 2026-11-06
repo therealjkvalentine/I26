@@ -4,10 +4,10 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order and every port row sits on
-/// exactly one of the two pages under them (Look, Display), each page fitting the sheet's lines; Reset puts back a page's
-/// own rows and no other's (the sheet's the original's block but Anti-Aliasing, which is Display's), and the snapshot Cancel restores
-/// from carries every row. Visibility Range, HD Textures, 8x Dash and 8x Cars, the rows over keys of their own. Without the engine.
+/// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order, the port's most used under
+/// them, and every other port row on Advanced, each page fitting the sheet's lines with one to spare; Reset puts back a page's own
+/// rows and no other's (the sheet's the original's whole block), and the snapshot Cancel restores from carries every row. Visibility
+/// Range, World Textures and Car &amp; Dash Textures, the rows over keys of their own. Without the engine.
 /// </summary>
 public class GraphicsPagesTests
 {
@@ -26,16 +26,13 @@ public class GraphicsPagesTests
         GraphicsRow.MaxFps => s.MaxFps,
         GraphicsRow.RenderScale => s.RenderScale,
         GraphicsRow.Renderer => s.Renderer,
-        GraphicsRow.LogFile => s.LogFile,
         GraphicsRow.ShowFps => s.DevFps,
-        GraphicsRow.HdTextures => s.HdTextures,
-        GraphicsRow.HdDash => s.HdDashSize,
-        GraphicsRow.HdCars => s.HdCarSize,
+        GraphicsRow.WorldTextures => s.WorldTextures,
+        GraphicsRow.CarTextures => s.CarTextures,
         GraphicsRow.Vegetation => s.Vegetation,
         GraphicsRow.AmbientOcclusion => s.AmbientOcclusion,
         GraphicsRow.FieldOfView => s.FieldOfView,
         GraphicsRow.HoodGloss => s.HoodGloss,
-        GraphicsRow.CarInteriors => s.CarInteriors,
         GraphicsRow.Garage3D => s.Garage3D,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
@@ -51,9 +48,9 @@ public class GraphicsPagesTests
         s.Resolution = "1280x720"; s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.Original;
         s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
-        s.HdTextures = false; s.HdDashSize = 2; s.HdCarSize = 3;
+        s.WorldTextures = 2; s.CarTextures = 3;
         s.Vegetation = 2; s.AmbientOcclusion = true;
-        s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CarInteriors = false;
+        s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CabinsBehindGlass = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
         return s;
@@ -73,35 +70,33 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail).</summary>
+    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), then the port's four most used.</summary>
     [Fact]
     public void TheSheetKeepsTheOriginalsRowsInTheirOrder() => Assert.Equal(
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
+         GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
-    /// <summary>Two pages: how it looks (1997 Mode first), how it is shown (the view's rows, Field of View among them) then start-up and diagnostics.</summary>
+    /// <summary>One page under the sheet, Advanced (Look and Display until round 5): 1997 Mode first, its palette grade after it.</summary>
     [Fact]
-    public void ThePagesAreLookAndDisplay()
+    public void ThePageIsAdvanced()
     {
-        Assert.Equal(["Graphic Detail", "Look", "Display"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.HdDash, GraphicsRow.HdCars, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
-            GraphicsPages.Rows[GraphicsPages.Look]);
-        // the mouse rows are upstream's Mouse Options screen's (pass 19); Field of View, all the Camera page kept, is Display's
-        Assert.Equal([GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
-            GraphicsPages.Rows[GraphicsPages.Display]);
+        Assert.Equal(["Graphic Detail", "Advanced"], GraphicsPages.Names);
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
+            GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsPages.Rows[GraphicsPages.Advanced]);
     }
 
+    /// <summary>Each page fits the sheet's fourteen lines with at least one to spare: the sheet with its blank line and Advanced's entry, Advanced with its name.</summary>
     [Fact]
-    public void DisplaysStartUpRowsSitUnderABlankLine() => Assert.Equal([1, 2, 3, 4, 5, 6, 8, 9], GraphicsPages.LinesOf(GraphicsPages.Display));
-
-    [Fact]
-    public void EveryPageFitsTheSheetsLines()
+    public void EveryPageFitsTheSheetsLinesWithOneToSpare()
     {
-        // the sheet: its rows, a blank line, then the three entries; a page: its name, then its rows
-        Assert.Equal(GraphicsPages.FirstEntryLine, GraphicsPages.Rows[GraphicsPages.Sheet].Length + 1);
-        Assert.True(GraphicsPages.FirstEntryLine + (GraphicsPages.Rows.Length - 1) <= GraphicsPages.Lines);
-        for (int p = 0; p < GraphicsPages.Rows.Length; p++)
-            Assert.True(GraphicsPages.LinesOf(p)[^1] < GraphicsPages.Lines, $"{GraphicsPages.Names[p]} overflows the sheet");
+        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length + 1, GraphicsPages.FirstEntryLine);
+        int sheetLast = GraphicsPages.FirstEntryLine + (GraphicsPages.Rows.Length - 1) - 1;
+        Assert.True(sheetLast < GraphicsPages.Lines - 1, "the sheet has no line to spare");
+        for (int p = 1; p < GraphicsPages.Rows.Length; p++)
+            Assert.True(GraphicsPages.LinesOf(p)[^1] < GraphicsPages.Lines - 1, $"{GraphicsPages.Names[p]} has no line to spare");
+        Assert.Equal(Enumerable.Range(1, 12), GraphicsPages.LinesOf(GraphicsPages.Advanced));
     }
 
     [Fact]
@@ -112,8 +107,10 @@ public class GraphicsPagesTests
         Assert.Equal("", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
         Assert.True(s.HdTextures);
-        Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdDashSize);
-        Assert.Equal(I76.Formats.Shell.HdPackFolders.DefaultSize, s.HdCarSize);
+        Assert.Equal(ShellSettings.HdDefault, (s.WorldTextures, s.CarTextures));
+        // Terrain Detail and Shadow Detail start High (round 5)
+        Assert.Equal(1, s.Graphics[0x2]);
+        Assert.Equal(2, s.Graphics[0x6]);
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
         Assert.False(s.AmbientOcclusion);
@@ -127,8 +124,7 @@ public class GraphicsPagesTests
 
     [Theory]
     [InlineData(GraphicsPages.Sheet)]
-    [InlineData(GraphicsPages.Look)]
-    [InlineData(GraphicsPages.Display)]
+    [InlineData(GraphicsPages.Advanced)]
     public void ResetPutsBackThePagesRowsAlone(int page)
     {
         var s = Changed();
@@ -139,22 +135,15 @@ public class GraphicsPagesTests
             Assert.Equal(Read(r, GraphicsPages.PageOf(r) == page ? defaults : was), Read(r, s));
     }
 
-    /// <summary>
-    /// The sheet's Reset is the original's (the graphics block back to the default profile, the bytes no row shows too) with the sheet's
-    /// own rows: Screen Resolution back to Desktop and Visibility Range back to following the look. Anti-Aliasing, which moved to Display,
-    /// keeps its byte; Display's Reset puts it back.
-    /// </summary>
+    /// <summary>The sheet's Reset is the original's (the graphics block back to the default profile, the bytes no row shows too, Anti-Aliasing's with them) with its port rows: Screen Resolution back to Desktop and Visibility Range back to following the look.</summary>
     [Fact]
-    public void TheSheetsResetIsTheDefaultProfileButAntiAliasing()
+    public void TheSheetsResetIsTheDefaultProfile()
     {
         var s = Changed();
         GraphicsPages.Reset(s, GraphicsPages.Sheet);
-        for (int i = 0; i < 16; i++)
-            Assert.Equal(i == 0x8 ? (byte)(ShellSettings.DefaultGraphics[i] + 1) : ShellSettings.DefaultGraphics[i], s.Graphics[i]);
+        Assert.Equal(ShellSettings.DefaultGraphics, s.Graphics);
         Assert.Equal("", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
-        GraphicsPages.Reset(s, GraphicsPages.Display);
-        Assert.Equal(ShellSettings.DefaultGraphics, s.Graphics);
     }
 
     /// <summary>The in-game pad's sheet has no Screen Resolution (the window is the shell's): its Reset leaves the window alone.</summary>
@@ -167,7 +156,7 @@ public class GraphicsPagesTests
         Assert.Equal("1280x720", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
         Assert.Equal(ShellSettings.DefaultGraphics[0xc], s.Graphics[0xc]);
-        Assert.Equal((byte)(ShellSettings.DefaultGraphics[0x8] + 1), s.Graphics[0x8]);
+        Assert.Equal(ShellSettings.DefaultGraphics[0x8], s.Graphics[0x8]);
     }
 
     [Fact]
@@ -201,10 +190,10 @@ public class GraphicsPagesTests
     public void APagesCopyLeavesTheOthersAlone()
     {
         var to = new ShellSettings();
-        GraphicsPages.Copy(GraphicsPages.Look, Changed(), to);
+        GraphicsPages.Copy(GraphicsPages.Advanced, Changed(), to);
         var defaults = new ShellSettings();
         foreach (var r in AllRows)
-            Assert.Equal(Read(r, GraphicsPages.PageOf(r) == GraphicsPages.Look ? Changed() : defaults), Read(r, to));
+            Assert.Equal(Read(r, GraphicsPages.PageOf(r) == GraphicsPages.Advanced ? Changed() : defaults), Read(r, to));
     }
 
     // ---- Visibility Range ----
@@ -243,16 +232,16 @@ public class GraphicsPagesTests
 
     // ---- Ambient Occlusion ----
 
-    /// <summary>Its own row on the Look page, Off for a first start; Look's Reset puts it back and the snapshot (Cancel) carries it.</summary>
+    /// <summary>Its own row on Advanced, Off for a first start; Advanced's Reset puts it back and the snapshot (Cancel) carries it.</summary>
     [Fact]
     public void AmbientOcclusionIsALookRowOffByDefault()
     {
-        Assert.Equal(GraphicsPages.Look, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
+        Assert.Equal(GraphicsPages.Advanced, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
         Assert.False(new ShellSettings().AmbientOcclusion);
         var s = new ShellSettings { AmbientOcclusion = true };
         var snap = GraphicsPages.CopyAll(s, new ShellSettings());
         Assert.True(snap.AmbientOcclusion);
-        GraphicsPages.Reset(s, GraphicsPages.Look);
+        GraphicsPages.Reset(s, GraphicsPages.Advanced);
         Assert.False(s.AmbientOcclusion);
         GraphicsPages.CopyAll(snap, s);
         Assert.True(s.AmbientOcclusion);
@@ -272,99 +261,60 @@ public class GraphicsPagesTests
         Assert.Contains("4x", I76.Game.Boot.RenderScale.AntiAliasing);
     }
 
-    // ---- HD Textures, 8x Dash, 8x Cars ----
+    // ---- World Textures, Car & Dash Textures ----
 
-    /// <summary>Off or On: the switch over the pack, whatever its sizes (the 8x rows choose those); with no pack no row.</summary>
+    /// <summary>World Textures is 1997 or 4x*; Car &amp; Dash Textures the 8x* too when its folder is beside the 4x; 1997, the install's own, is the original's and unmarked. No pack, no rows.</summary>
     [Fact]
-    public void HdTexturesIsOffOrOn()
+    public void TheTextureRowsOfferTheirSizes()
     {
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([8, 4], true)!);
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([4, 3, 2], true)!);
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([4], true)!);
-        // no tex-world-4x: a pack of another size, a plain tex-world or a zip is on or off too
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3], true)!);
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([3, 2], false)!);
-        Assert.Equal(["Off", "On*"], HdTextureRow.Names([], true)!);
-        // no pack: no row
-        Assert.Null(HdTextureRow.Names([], false));
-        var s = new ShellSettings { HdDashSize = 8, HdCarSize = 3 };
-        Assert.Equal(1, HdTextureRow.Index(s));
-        HdTextureRow.Step(s);      // Off, the sizes kept
-        Assert.Equal((false, 0, 8, 3), (s.HdTextures, HdTextureRow.Index(s), s.HdDashSize, s.HdCarSize));
-        HdTextureRow.Step(s);
-        Assert.Equal((true, 1, 8, 3), (s.HdTextures, HdTextureRow.Index(s), s.HdDashSize, s.HdCarSize));
-        HdTextureRow.Put(s, 0);
+        var s = new ShellSettings { WorldTextures = 4, CarTextures = 8 };
+        Assert.Equal(["1997", "4x*"], TextureRow.Names(s, GraphicsRow.WorldTextures, [8, 4]));
+        Assert.Equal(["1997", "4x*", "8x*"], TextureRow.Names(s, GraphicsRow.CarTextures, [8, 4]));
+        Assert.Equal("World Textures", TextureRow.Label(GraphicsRow.WorldTextures));
+        Assert.Equal("Car & Dash Textures", TextureRow.Label(GraphicsRow.CarTextures));
+        Assert.True(TextureRow.Offered([4], false));
+        Assert.True(TextureRow.Offered([], true));
+        Assert.False(TextureRow.Offered([], false));
+        // no 8x folder: the 8 in the file shows as itself in the 4x's place until stepped (the loader serves the 4x)
+        Assert.Equal(["1997", "8x*"], TextureRow.Names(s, GraphicsRow.CarTextures, [4]));
+        Assert.Equal(1, TextureRow.Index(s, GraphicsRow.CarTextures, [4]));
+    }
+
+    /// <summary>Each row steps its own key: 1997, 4x, (8x,) 1997 again; a size set by hand stays until the row is stepped.</summary>
+    [Fact]
+    public void TheTextureRowsStepTheirOwnKey()
+    {
+        int[] both = [8, 4];
+        var s = new ShellSettings { WorldTextures = 4, CarTextures = 4 };
+        TextureRow.Step(s, GraphicsRow.CarTextures, both);
+        Assert.Equal((4, 8), (s.WorldTextures, s.CarTextures));
+        TextureRow.Step(s, GraphicsRow.CarTextures, both);
+        Assert.Equal((4, 0), (s.WorldTextures, s.CarTextures));
+        Assert.True(s.HdTextures);
+        TextureRow.Step(s, GraphicsRow.WorldTextures, both);
+        Assert.Equal((0, 0), (s.WorldTextures, s.CarTextures));
         Assert.False(s.HdTextures);
+        TextureRow.Step(s, GraphicsRow.WorldTextures, both);
+        Assert.Equal((4, 0), (s.WorldTextures, s.CarTextures));
+        var p = new ShellSettings { WorldTextures = 3, CarTextures = 2 };
+        Assert.Equal(["1997", "3x*"], TextureRow.Names(p, GraphicsRow.WorldTextures, both));
+        TextureRow.Put(p, GraphicsRow.WorldTextures, both, 1);
+        Assert.Equal(3, p.WorldTextures);
+        TextureRow.Step(p, GraphicsRow.CarTextures, both);
+        Assert.Equal(8, p.CarTextures);
     }
 
-    /// <summary>The 8x rows are shown when tex-world-8x is beside the 4x, and are Off (4) or On (8) each over its own key.</summary>
-    [Fact]
-    public void The8xRowsAreOfferedWithThe8xFolderBesideThe4x()
-    {
-        Assert.True(Hd8xRow.Offered([8, 4]));
-        Assert.True(Hd8xRow.Offered([8, 4, 2]));
-        Assert.False(Hd8xRow.Offered([4, 3, 2]));   // no 8x folder
-        Assert.False(Hd8xRow.Offered([8]));         // an 8x with no 4x under it: the HD Textures row alone, On or Off
-        Assert.False(Hd8xRow.Offered([]));
-        Assert.Equal(["Off", "On*"], Hd8xRow.Names);
-        Assert.Equal("8x Dash", Hd8xRow.Label(GraphicsRow.HdDash));
-        Assert.Equal("8x Cars", Hd8xRow.Label(GraphicsRow.HdCars));
-    }
-
-    /// <summary>Each 8x row reads and writes its own key and leaves the other's alone: a click is Off, On, Off; On writes 8 and Off 4.</summary>
-    [Fact]
-    public void The8xRowsAreEachOverTheirOwnKey()
-    {
-        var s = new ShellSettings { HdDashSize = 8, HdCarSize = 4 };
-        Assert.Equal((1, 0), (Hd8xRow.Index(s, GraphicsRow.HdDash), Hd8xRow.Index(s, GraphicsRow.HdCars)));
-        Hd8xRow.Step(s, GraphicsRow.HdCars);
-        Assert.Equal((8, 8), (s.HdDashSize, s.HdCarSize));
-        Hd8xRow.Step(s, GraphicsRow.HdDash);
-        Assert.Equal((4, 8), (s.HdDashSize, s.HdCarSize));
-        Hd8xRow.Step(s, GraphicsRow.HdDash);
-        Assert.Equal((8, 8), (s.HdDashSize, s.HdCarSize));
-        Hd8xRow.Put(s, GraphicsRow.HdCars, 0);
-        Assert.Equal((8, 4), (s.HdDashSize, s.HdCarSize));
-        // a 3x or 2x in the file shows as Off and stays until the row is clicked; a click writes 4 or 8
-        var p = new ShellSettings { HdDashSize = 3, HdCarSize = 2 };
-        Assert.Equal((0, 0), (Hd8xRow.Index(p, GraphicsRow.HdDash), Hd8xRow.Index(p, GraphicsRow.HdCars)));
-        Hd8xRow.Put(p, GraphicsRow.HdDash, 0);
-        Assert.Equal(3, p.HdDashSize);
-        Hd8xRow.Step(p, GraphicsRow.HdDash);
-        Assert.Equal((8, 2), (p.HdDashSize, p.HdCarSize));
-        Hd8xRow.Step(p, GraphicsRow.HdDash);
-        Assert.Equal((4, 2), (p.HdDashSize, p.HdCarSize));
-        // the switch's row leaves both alone
-        HdTextureRow.Put(p, 0);
-        Assert.Equal((false, 4, 2), (p.HdTextures, p.HdDashSize, p.HdCarSize));
-    }
-
-    /// <summary>The loader reads each texture from its kind's size: the cockpit's art (z*) from the dash's, every other from the cars'.</summary>
+    /// <summary>The loader reads each kind from its row's size: the world's from World Textures, a car's and the cockpit's from Car &amp; Dash Textures.</summary>
     [Fact]
     public void TheChainIsPerKind()
     {
         Func<string, bool> has = f => f is "tex-world-8x" or "tex-world-4x";
-        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zdash101.map", 8, 4, has));
-        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("pp11bkb1.map", 8, 4, has));
-        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zspeedo6.vqm", 4, 8, has));
-        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("pp11bkb1.map", 4, 8, has));
-    }
-
-    /// <summary>The loader keeps every whole multiple: the 3x and 2x folders are still found and chosen.</summary>
-    [Fact]
-    public void TheLoaderStillServesEverySize()
-    {
-        Assert.Equal([8, 4, 3, 2], I76.Formats.Shell.HdPackFolders.Sizes);
-        Assert.Equal("tex-world-2x", I76.Formats.Shell.HdPackFolders.Choose(2, f => f is "tex-world-4x" or "tex-world-2x"));
-        Assert.Equal("tex-world-3x", I76.Formats.Shell.HdPackFolders.Choose(4, f => f is "tex-world-3x" or "tex-world-2x"));
-    }
-
-    /// <summary>An 8 in the file with the 8x folder gone loads the 4x (HdPackFolders.Choose) and the 8x rows are not shown.</summary>
-    [Fact]
-    public void An8WithoutItsFolderLoadsThe4x()
-    {
-        Assert.Equal("tex-world-4x", I76.Formats.Shell.HdPackFolders.Choose(8, f => f is "tex-world-4x"));
-        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor("zdash101.map", 8, 8, f => f is "tex-world-4x"));
-        Assert.False(Hd8xRow.Offered([4]));
+        var k = I76.Formats.Shell.TextureKind.World;
+        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor(k, 4, 8, has));
+        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor(I76.Formats.Shell.TextureKind.Car, 4, 8, has));
+        Assert.Equal(["tex-world-8x", "tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor(I76.Formats.Shell.TextureKind.Dash, 4, 8, has));
+        Assert.Empty(I76.Formats.Shell.HdPackFolders.ChainFor(k, 0, 8, has));
+        // an 8 without its folder loads the 4x
+        Assert.Equal(["tex-world-4x"], I76.Formats.Shell.HdPackFolders.ChainFor(I76.Formats.Shell.TextureKind.Dash, 4, 8, f => f is "tex-world-4x"));
     }
 }

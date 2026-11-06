@@ -106,30 +106,35 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Bumps),
         Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
         Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
+        // the modern look's dim cabin and driver behind the other cars' windows (Car Interiors' row until round 5)
+        new("cabins_behind_glass", ["false", "true" + M], s => s.CabinsBehindGlass ? 1 : 0, (s, v) => s.CabinsBehindGlass = v != 0, DevWhen.Live,
+            s => I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(s.CabinsBehindGlass)),
+        // the log file (Graphic Detail's Log File row until round 5): Godot reads it at start
+        new("log_file", ["false", "true" + M], s => s.LogFile ? 1 : 0, (s, v) => s.LogFile = v != 0, DevWhen.NextStart),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
 
     /// <summary>
     /// Keys that have a menu row but are offered here too: Graphic Detail's Visibility Range (draw_distance, with "look" to go back to
-    /// following the look), HD Textures, 8x Dash and 8x Cars (their three keys), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
+    /// following the look), World Textures and Car &amp; Dash Textures (with the 3x and 2x the rows do not offer), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
     /// file's 0..100 on a slider. Not in docs/playing.md's table of settings without a row.
     /// </summary>
+    private static readonly int[] WorldSizes = [0, 4, 3, 2], CarSizes = [0, 8, 4, 3, 2];
+    private static readonly string[] WorldWords = ["1997", "4x" + M, "3x" + M, "2x" + M], CarWords = ["1997", "8x" + M, "4x" + M, "3x" + M, "2x" + M];
+
     public static readonly DevSetting[] WithRow =
     [
         new("draw_distance", ["look", "0", "1" + M, "2" + M], s => s.DrawDistanceChoice is { } d ? d + 1 : 0, (s, v) => s.DrawDistanceChoice = v == 0 ? null : v - 1, DevWhen.Live),
-        new("hd_textures", FalseTrue, s => s.HdTextures ? 1 : 0, (s, v) => s.HdTextures = v != 0, DevWhen.Live,
-            s => I76.Game.Assets.HdTextures.Enabled = s.HdTextures),
-        // 8x, 4x, 3x, 2x (HdPackFolders.Sizes) for the dash and for the cars: only the sizes whose tex-world-Nx folder exists are stepped to; none, the row is greyed. Textures already built keep their size.
-        new("hd_dash_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdDashSize),
-            (s, v) => s.HdDashSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
-            s => I76.Game.Assets.HdTextures.DashSize = s.HdDashSize,
-            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
-        new("hd_car_size", ["8x", "4x", "3x" + M, "2x" + M], s => Array.IndexOf(I76.Formats.Shell.HdPackFolders.Sizes, s.HdCarSize),
-            (s, v) => s.HdCarSize = I76.Formats.Shell.HdPackFolders.Sizes[v], DevWhen.NextMission,
-            s => I76.Game.Assets.HdTextures.CarSize = s.HdCarSize,
-            Offered: v => I76.Game.Assets.HdTextures.AvailableSizes.Contains(I76.Formats.Shell.HdPackFolders.Sizes[v])),
+        // 1997 (the install's own) and 4x, 3x, 2x for the world; 1997, 8x, 4x, 3x, 2x for the cars and the dash (HdPackFolders.Sizes): only the
+        // sizes whose tex-world-Nx folder exists are stepped to. Textures already built keep their size.
+        new("world_textures", WorldWords, s => Math.Max(0, Array.IndexOf(WorldSizes, s.WorldTextures)), (s, v) => s.WorldTextures = WorldSizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures,
+            Offered: v => v == 0 || I76.Game.Assets.HdTextures.AvailableSizes.Contains(WorldSizes[v])),
+        new("car_textures", CarWords, s => Math.Max(0, Array.IndexOf(CarSizes, s.CarTextures)), (s, v) => s.CarTextures = CarSizes[v], DevWhen.NextMission,
+            s => I76.Game.Assets.HdTextures.CarSize = s.CarTextures,
+            Offered: v => v == 0 || I76.Game.Assets.HdTextures.AvailableSizes.Contains(CarSizes[v])),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
-        new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Default ? $"{v}" : $"{v}{M}")],
+        new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Original ? $"{v}" : $"{v}{M}")],
             s => I76.Sim.Views.PaintFinish.Clamp(s.HoodGloss), (s, v) => s.HoodGloss = v, DevWhen.Live,
             s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
     ];

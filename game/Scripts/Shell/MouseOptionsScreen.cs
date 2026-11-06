@@ -18,6 +18,8 @@ public sealed class MouseOptionsScreen : OverlayScreen
 
     /// <summary>When opened from <see cref="ControlsScreen"/>, Done and Cancel return there instead of <see cref="Shell.Options"/>.</summary>
     public bool ReturnToControls { get; init; }
+    /// <summary>When opened from <see cref="ControlsMenuScreen"/> (the Controls sheet), Done and Cancel return there.</summary>
+    public bool ReturnToControlsMenu { get; init; }
     private readonly BindingTable? _given;
     private readonly BindingTable _map;
 
@@ -242,6 +244,19 @@ public sealed class MouseOptionsScreen : OverlayScreen
         });
     }
 
+    /// <summary>The tooltips: each row's (the left table's by its name, the buttons' and the wheel's), and the restore button's.</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        for (int i = 0; i < Items.Count && i <= WheelRow + 1; i++)
+        {
+            var it = Items[i];
+            if (!it.Hit(m)) continue;
+            string label = i < LeftCount ? LeftRow(Shell.Settings, i).Name : i < WheelRow ? "Mouse Button" : i == WheelRow ? "Mouse Wheel" : "Restore Defaults";
+            return MenuTips.Of(label) is { } t ? (t, new Rect2I(it.X, it.Y, it.W, it.H)) : null;
+        }
+        return null;
+    }
+
     private static (string Name, string Value) LeftRow(ShellSettings st, int row) => row switch
     {
         0 => ("Mouse Camera", st.MouseCamera != MouseLook.Off ? "On" : "Off"),
@@ -265,6 +280,7 @@ public sealed class MouseOptionsScreen : OverlayScreen
     private void Close(BindingTable? handBack)
     {
         if (ReturnToControls) Shell.Overlay(new ControlsScreen(handBack));
+        else if (ReturnToControlsMenu) Shell.Overlay(new ControlsMenuScreen());
         else Shell.Options();
     }
 

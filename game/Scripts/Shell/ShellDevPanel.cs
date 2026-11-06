@@ -44,6 +44,7 @@ public partial class ShellDevPanel : Control
         // the settings without a row (docs/playing.md), saved at once, in a second column; the signals are the mission panel's
         col2.AddChild(Heading("Settings (shell.cfg [port], saved at once)"));
         DevSettings.Build(col2, Shell.Settings, null);
+        DevTips.Annotate(col2);
         col2.AddChild(Note("Signals (force feedback, rumble, telemetry) are on the mission's panel."));
         col.AddChild(Row(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill }, Button("Close", Close, true)));
         _rescale();
@@ -102,7 +103,7 @@ public partial class ShellDevPanel : Control
 
     private static Button Button(string text, System.Action pressed, bool enabled)
     {
-        var b = new Button { Text = text, FocusMode = FocusModeEnum.None, Disabled = !enabled, };
+        var b = new Button { Text = text, FocusMode = FocusModeEnum.None, Disabled = !enabled, TooltipText = DevTips.Control(text) ?? "" };
         DevScale.Min(b, 120);
         b.Pressed += pressed;
         return b;

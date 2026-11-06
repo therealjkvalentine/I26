@@ -36,6 +36,8 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         var members = model.Parts.SelectMany(part => part.Mesh.Faces)
             .Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps)).OfType<string>().ToList();
+        // a car's textures are read at the cars' size (Car & Dash Textures), the world's at theirs: marked before any is asked for
+        I76.Game.Assets.HdTextures.MarkCar(members);
         materials.Prefetch(members);
         return _paints[model.Definition] = materials.PaintOf(members);
     }
@@ -110,9 +112,12 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     public ArrayMesh? Build(AssembledModel model, bool wheels = true, Func<ModelPart, bool>? include = null, System.Numerics.Vector3 origin = default,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null)
     {
+        var members = model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
+            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>().ToList();
+        // a vehicle's textures (its damaged stages too) are a car's, read at Car & Dash Textures' size: marked before any is read
+        if (model.Kind == "vcf") { I76.Game.Assets.HdTextures.MarkCar(members); PaintOf(model); }
         // a pack's upscales of the model's textures, decoded together on worker threads rather than one by one as its faces ask
-        materials.Prefetch(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
-            .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
+        materials.Prefetch(members);
         // and the smooth outlines of its cut-out faces' textures (the modern look's keyed edges), likewise
         materials.PrefetchKeyEdges(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces)
             .Where(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) == MaterialLibrary.FaceMode.Cutout)

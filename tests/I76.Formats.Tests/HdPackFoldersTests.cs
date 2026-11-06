@@ -81,21 +81,34 @@ public class HdPackFoldersTests
     [InlineData("", false)]
     public void TheCockpitsArtStartsWithZ(string member, bool cockpit) => Assert.Equal(cockpit, HdPackFolders.IsCockpit(member));
 
-    /// <summary>Each kind reads from its own size: a car texture reads the 8x folder only when the cars' size is 8, the cockpit's only when the dash's is.</summary>
+    /// <summary>Three kinds: the cockpit's art (z*) is the dash's whatever asks; a car's texture is a car's only when the model builder marked it; the rest is the world's.</summary>
+    [Fact]
+    public void AKindIsTheDashsACarsOrTheWorlds()
+    {
+        Assert.Equal(TextureKind.Dash, HdPackFolders.KindOf("zdash101.map", car: false));
+        Assert.Equal(TextureKind.Dash, HdPackFolders.KindOf("zdash101.map", car: true));
+        Assert.Equal(TextureKind.Car, HdPackFolders.KindOf("pp11bkb1.map", car: true));
+        Assert.Equal(TextureKind.World, HdPackFolders.KindOf("wa11rd01.map", car: false));
+    }
+
+    /// <summary>The world reads from its size; the cars and the dash from theirs, one size; a kind at 0 (1997) reads no folder.</summary>
     [Fact]
     public void TheChainStartsAtTheKindsSize()
     {
         var has = Has("tex-world-8x", "tex-world-4x", "tex-world-2x");
-        Assert.Equal(8, HdPackFolders.SizeFor("zdash101.map", 8, 4));
-        Assert.Equal(4, HdPackFolders.SizeFor("pp11bkb1.map", 8, 4));
-        Assert.Equal(["tex-world-8x", "tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor("zdash101.map", 8, 4, has));
-        Assert.Equal(["tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor("pp11bkb1.map", 8, 4, has));
-        Assert.Equal(["tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor("zdash101.map", 4, 8, has));
-        Assert.Equal(["tex-world-8x", "tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor("pp11bkb1.map", 4, 8, has));
-        // both at the 4x: the 8x folder is never read
-        Assert.Equal(["tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor("zdash101.map", 4, 4, has));
-        // the dash's 8 with no 8x folder: the 4x (HdPackFolders.Choose), the same as the cars'
-        Assert.Equal(["tex-world-4x"], HdPackFolders.ChainFor("zdash101.map", 8, 4, Has("tex-world-4x")));
-        Assert.Empty(HdPackFolders.ChainFor("zdash101.map", 8, 8, Has()));
+        Assert.Equal(4, HdPackFolders.SizeFor(TextureKind.World, 4, 8));
+        Assert.Equal(8, HdPackFolders.SizeFor(TextureKind.Car, 4, 8));
+        Assert.Equal(8, HdPackFolders.SizeFor(TextureKind.Dash, 4, 8));
+        Assert.Equal(["tex-world-8x", "tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor(TextureKind.Dash, 4, 8, has));
+        Assert.Equal(["tex-world-8x", "tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor(TextureKind.Car, 4, 8, has));
+        Assert.Equal(["tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor(TextureKind.World, 4, 8, has));
+        // the cars and the dash at the 4x: the 8x folder is never read
+        Assert.Equal(["tex-world-4x", "tex-world-2x"], HdPackFolders.ChainFor(TextureKind.Car, 4, 4, has));
+        // 1997: none, the install's own
+        Assert.Empty(HdPackFolders.ChainFor(TextureKind.World, 0, 8, has));
+        Assert.Empty(HdPackFolders.ChainFor(TextureKind.Dash, 4, 0, has));
+        // an 8 with no 8x folder: the 4x (HdPackFolders.Choose)
+        Assert.Equal(["tex-world-4x"], HdPackFolders.ChainFor(TextureKind.Dash, 4, 8, Has("tex-world-4x")));
+        Assert.Empty(HdPackFolders.ChainFor(TextureKind.Car, 8, 8, Has()));
     }
 }

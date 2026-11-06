@@ -30,6 +30,17 @@ public abstract class OverlayScreen : ShellScreen
         public bool Hidden;
         /// <summary>The right edge a text may reach (the value column before the scroll bar): a longer one moves left to end there.</summary>
         public int Right = -1;
+        /// <summary>The row's tooltip (MenuTooltip), over its zone: x from TipX0 to TipX1 (the item's own when -1), TipDy below the item's y, TipH high (the item's when -1).</summary>
+        public Func<string?>? Tip;
+        public int TipX0 = -1, TipX1 = -1, TipDy, TipH = -1;
+        public Rect2I TipZone
+        {
+            get
+            {
+                int x0 = TipX0 >= 0 ? TipX0 : X, x1 = TipX1 >= 0 ? TipX1 : X + Math.Max(W, 1);
+                return new Rect2I(x0, Y + TipDy, x1 - x0, TipH > 0 ? TipH : Math.Max(H, 1));
+            }
+        }
         public bool Hit(Vector2I m) => Click is not null && !Hidden && X <= m.X && m.X < X + W && Y <= m.Y && m.Y < Y + H;
     }
 
@@ -43,6 +54,27 @@ public abstract class OverlayScreen : ShellScreen
     private readonly I76.Formats.Input.HoldRepeat _hold = new();
 
     protected Item Add(int x, int y, string text, Action? click, ShellFont? font = null) => Add(x, y, () => text, click, font);
+
+    /// <summary>A tooltip on an item, over its zone (see <see cref="Item.Tip"/>).</summary>
+    protected Item Tip(Item it, Func<string?> text, int x0 = -1, int x1 = -1, int dy = 0, int h = -1)
+    {
+        (it.Tip, it.TipX0, it.TipX1, it.TipDy, it.TipH) = (text, x0, x1, dy, h);
+        return it;
+    }
+
+    /// <summary>A tooltip by the row's label (<see cref="MenuTips"/>) over a sheet's ruled line, x 200 to 462.</summary>
+    protected Item TipLine(Item it, string label, int dy = -2) => Tip(it, () => MenuTips.Of(label), 200, 462, dy, 23);
+
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        foreach (var it in Items)
+        {
+            if (it.Tip is null || it.Hidden) continue;
+            var z = it.TipZone;
+            if (z.HasPoint(m) && it.Tip() is { Length: > 0 } t) return (t, z);
+        }
+        return null;
+    }
 
     public override void Enter()
     {
@@ -126,30 +158,32 @@ public sealed class OptionsScreen : OverlayScreen
         if (Shell.Install.IsNitro)
         {
             // Nitro's one table: Play Options wherever it is opened, no bookmarks, no trip
-            Add(202, 119, "Play Options", () => Shell.Overlay(new PlayOptionsScreen()));
-            Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
-            Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
-            Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
-            Add(202, 234, "Mouse Options", () => Shell.Overlay(new MouseOptionsScreen()));
-            Add(202, 280, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
-            if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Add(202, 303, "Switch Game", () => Shell.SwitchGame());
-            Add(202, 326, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
+            Entry(119, "Play Options", () => Shell.Overlay(new PlayOptionsScreen()));
+            Entry(142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
+            Entry(165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
+            Entry(211, "Controls", () => Shell.Overlay(new ControlsMenuScreen()));
+            Entry(280, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
+            if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Entry(303, "Switch Game", () => Shell.SwitchGame());
+            Entry(326, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
             Add(402, 438, () => "Done", () => Shell.Overlay(null), Small, w: 100);
             return;
         }
-        if (inTrip || fromMain) Add(202, 119, "Play Options", () => Shell.Overlay(new PlayOptionsScreen()));
-        Add(202, 142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
-        Add(202, 165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
-        Add(202, 211, "Control Configuration", () => Shell.Overlay(new ControlsScreen()));
-        Add(202, 234, "Mouse Options", () => Shell.Overlay(new MouseOptionsScreen()));
-        Add(202, 280, "Load Bookmark", () => Shell.Overlay(new LoadBookmarkScreen()));
-        if (inTrip) Add(202, 303, "Save Bookmark", () => Shell.Overlay(new SaveBookmarkScreen()));
-        Add(202, 349, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
-        if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Add(202, 372, "Switch Game", () => Shell.SwitchGame());
-        Add(202, 395, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
-        if (inTrip) Add(202, 418, "Exit\tTrip".Replace('\t', ' '), () => { Shell.Overlay(null); Shell.Go(new MainMenuScreen()); });
+        if (inTrip || fromMain) Entry(119, "Play Options", () => Shell.Overlay(new PlayOptionsScreen()));
+        Entry(142, "Graphic Detail", () => Shell.Overlay(new GraphicsScreen()));
+        Entry(165, "Audio Control", () => Shell.Overlay(new AudioScreen()));
+        // the original's Control Configuration, now the port's Controls sheet: force feedback, then Mouse Options and the key map under it
+        Entry(211, "Controls", () => Shell.Overlay(new ControlsMenuScreen()));
+        Entry(280, "Load Bookmark", () => Shell.Overlay(new LoadBookmarkScreen()));
+        if (inTrip) Entry(303, "Save Bookmark", () => Shell.Overlay(new SaveBookmarkScreen()));
+        Entry(349, "Credits", () => Shell.Overlay(new CreditsScreen { FromOptions = true }));
+        if (fromMain && I76.Game.Boot.GameChooser.SwitchAvailable) Entry(372, "Switch Game", () => Shell.SwitchGame());
+        Entry(395, "Exit Interstate '76", () => Shell.Overlay(new ExitScreen()));
+        if (inTrip) Entry(418, "Exit Trip", () => { Shell.Overlay(null); Shell.Go(new MainMenuScreen()); });
         Add(402, 438, () => "Done", () => Shell.Overlay(null), Small, w: 100);
     }
+
+    /// <summary>An entry of the menu on its line, with its tooltip.</summary>
+    private void Entry(int y, string label, Action open) => Tip(Add(202, y, label, open), () => MenuTips.Of(label), 200, 462, -2, 23);
 
     protected override void Escape() => Shell.Overlay(null);
 }
@@ -222,10 +256,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedForce, _savedWheel, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair;
-    private int _savedStrength;
-    private I76.Formats.Input.RumbleMode _savedRumble;
-    private int _savedRumbleStrength, _savedOrdnance;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair;
+    private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
@@ -254,14 +286,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order (a check row, or a value row stepped by a click): upstream's, then the play fork's own
-    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Rumble Strength, Melee A.I., Wheel Strength). Force Feedback is the play
-    /// fork's value row (Off, the pad's rumble, with the port's pulses, a wheel).
+    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I.). Force Feedback, Rumble Strength and Wheel Strength are the
+    /// Controls sheet's (<see cref="ControlsMenuScreen"/>).
     /// </summary>
     public static readonly string[] PortRows =
     [
-        "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Force Feedback", "Auto Reverse", "Map Downloads",
+        "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
-        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Rumble Strength", "Melee A.I.", "Wheel Strength",
+        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.",
     ];
 
     protected override void Build()
@@ -270,9 +302,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedFlags = s.PlayOptions;
         _savedAutoReverse = s.AutoReverse;
         _savedModern = s.ModernPhysics;
-        _savedForce = s.ForceFeedback;
-        _savedWheel = s.ForceFeedbackWheel;
-        _savedStrength = s.FfbStrength;
         _savedCheckpoints = s.Checkpoints;
         _savedRate = s.SimRate;
         _savedDownloads = s.MapDownloads;
@@ -283,8 +312,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedCrosshair = s.ChaseCrosshair;
         _savedHead = s.HeadTrack;
         _savedHeadSens = s.HeadTrackSensitivity;
-        _savedRumble = s.RumbleMode;
-        _savedRumbleStrength = s.RumbleStrength;
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
         bool nitro = Shell.Install.IsNitro;
@@ -300,11 +327,11 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             int ry = nitro && bit == 0x20 ? 185 : y;
             Add(222, ry, label, null);
             // the check strip, x 205..404, y+1..y+12; a set bit shows "x" at (205, y+1)
-            Add(205, ry + 1, () => Check((s.PlayOptions & bit) != 0), () => s.PlayOptions ^= bit, Small, w: 200, h: 12);
+            TipLine(Add(205, ry + 1, () => Check((s.PlayOptions & bit) != 0), () => s.PlayOptions ^= bit, Small, w: 200, h: 12), label, -3);
         }
         int dy = nitro ? 323 : 415;
         Add(222, dy, "Difficulty Level", null);
-        Add(205, dy + 1, () => "", () => s.Difficulty = s.Difficulty >= 2 ? 0 : s.Difficulty + 1, Small, w: 300, h: 12);
+        TipLine(Add(205, dy + 1, () => "", () => s.Difficulty = s.Difficulty >= 2 ? 0 : s.Difficulty + 1, Small, w: 300, h: 12), "Difficulty Level", -3);
         Add(398, dy + 2, () => Levels[Math.Clamp(s.Difficulty, 0, 2)], null);
 
         // the port's own rows, one to a line, scrolling in the free lines
@@ -313,13 +340,13 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         {
             _checks.Add(slot);
             Listed(Add(222, 0, label, null), slot);
-            Listed(Add(205, 0, () => Check(get()), flip, Small, w: 200, h: 12), slot, 1);
+            Listed(TipLine(Add(205, 0, () => Check(get()), flip, Small, w: 200, h: 12), label, -3), slot, 1);
             slot++;
         }
         void Step(string label, Action click, Func<string> value)
         {
             Listed(Add(222, 0, label, null), slot);
-            Listed(Add(205, 0, () => "", click, Small, w: 300, h: 12), slot, 1);
+            Listed(TipLine(Add(205, 0, () => "", click, Small, w: 300, h: 12), label, -3), slot, 1);
             Listed(Add(398, 0, value, null), slot, 2);
             slot++;
         }
@@ -329,36 +356,27 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Simulation Rate (docs/frame-rate.md): a click steps to the next rate
         Step(PortRows[2], () => { s.SimRate = NextRate(s.SimRate); WarnRate(); }, () => $"{s.SimRate} Hz");
         Toggle(PortRows[3], () => s.Checkpoints, () => s.Checkpoints = !s.Checkpoints);            // docs/savestate.md
-        // Force Feedback: Off, the pad's rumble (the original's effects, or with the port's pulses added), or a wheel (DirectInput, Windows
-        // only: elsewhere the click skips it); a click steps
-        Step(PortRows[4], () => s.ForceFeedbackMode = (s.ForceFeedbackMode + 1) % (I76.Game.DirectInputForce.Supported ? 4 : 3), () => ShellSettings.ForceFeedbackNames[s.ForceFeedbackMode]);
-        Toggle(PortRows[5], () => s.AutoReverse, () => s.AutoReverse = !s.AutoReverse);
+        Toggle(PortRows[4], () => s.AutoReverse, () => s.AutoReverse = !s.AutoReverse);
         // Map Downloads (docs/multiplayer.md "Custom maps"): a network host's map this game lacks is asked about, always
         // downloaded or never; a click steps
-        Step(PortRows[6], () => s.MapDownloads = (s.MapDownloads + 1) % 3, () => ShellSettings.MapDownloadNames[Math.Clamp(s.MapDownloads, 0, 2)]);
-        Toggle(PortRows[7], () => s.UnlimTurrets, () => s.UnlimTurrets = !s.UnlimTurrets);
+        Step(PortRows[5], () => s.MapDownloads = (s.MapDownloads + 1) % 3, () => ShellSettings.MapDownloadNames[Math.Clamp(s.MapDownloads, 0, 2)]);
+        Toggle(PortRows[6], () => s.UnlimTurrets, () => s.UnlimTurrets = !s.UnlimTurrets);
         // CB Voice: push-to-talk in network games (the Poem key); its microphone is chosen in Audio Control
-        Toggle(PortRows[8], () => s.CbVoice, () => s.CbVoice = !s.CbVoice);
+        Toggle(PortRows[7], () => s.CbVoice, () => s.CbVoice = !s.CbVoice);
         // Check for Updates: whether the next start asks GitHub if a newer release exists (a line under the version says so)
-        Toggle(PortRows[9], () => s.UpdateCheck, () => s.UpdateCheck = !s.UpdateCheck);
+        Toggle(PortRows[8], () => s.UpdateCheck, () => s.UpdateCheck = !s.UpdateCheck);
         // Chase Crosshair: the aiming mark in the F2 chase view (a network game shows it only when the host allows it)
-        Toggle(PortRows[10], () => s.ChaseCrosshair, () => s.ChaseCrosshair = !s.ChaseCrosshair);
+        Toggle(PortRows[9], () => s.ChaseCrosshair, () => s.ChaseCrosshair = !s.ChaseCrosshair);
         // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
-        Toggle(PortRows[11], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
+        Toggle(PortRows[10], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
         // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
-        Step(PortRows[12], () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3),
+        Step(PortRows[11], () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3),
             () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
-        Step(PortRows[13], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
+        Step(PortRows[12], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
             () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
-        // Rumble Strength (docs/playing.md): the strength of every level sent to the pad (the pad's events are Force Feedback's)
-        Step(PortRows[14], () => s.RumbleStrength = I76.Formats.Input.RumbleStrength.Next(s.RumbleStrength),
-            () => s.RumbleStrength + (s.RumbleStrength == I76.Formats.Input.RumbleStrength.Default ? " %" : " %" + ShellSettings.PortMark));
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Step(PortRows[15], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+        Step(PortRows[13], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
-        // the force-feedback wheel's strength (its device gain): a click steps 10 %, past 100 back to 0
-        Step(PortRows[16], () => s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10),
-            () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only");
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -407,7 +425,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair;
         s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens;
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance;
-        s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.ForceFeedback = _savedForce; s.ForceFeedbackWheel = _savedWheel; s.FfbStrength = _savedStrength; s.RumbleMode = _savedRumble; s.RumbleStrength = _savedRumbleStrength; s.Checkpoints = _savedCheckpoints;
+        s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());
     }
@@ -460,7 +478,8 @@ public sealed class AudioScreen : OverlayScreen
             int row = r;
             var (y, label, boxes) = Rows[r];
             Add(204, y, label, null);
-            Add(400, y, () => s.Audio[row] < 2 ? "Off" : $"{s.Audio[row]}.00", () => { s.Audio[row] = (byte)(s.Audio[row] >= boxes ? 0 : s.Audio[row] + 1); Apply(row); });
+            Tip(Add(400, y, () => s.Audio[row] < 2 ? "Off" : $"{s.Audio[row]}.00", () => { s.Audio[row] = (byte)(s.Audio[row] >= boxes ? 0 : s.Audio[row] + 1); Apply(row); }),
+                () => MenuTips.Of(label), 200, 462, -2, 46);
             for (int i = 1; i <= boxes; i++)
             {
                 int n = i;
@@ -470,18 +489,18 @@ public sealed class AudioScreen : OverlayScreen
         // the port's: the microphone the CB voice chat uses (network games), under the levels; a click steps through the input devices
         Frame.CopyBackground(200, 324, 150, 18, 200, 371);      // (the sheet's unused check boxes on that line, wiped)
         Add(204, 347, "CB Microphone", null);
-        Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18);
+        Tip(Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18), () => MenuTips.Of("CB Microphone"), 200, 462, -26, 46);
         // the port's: what the output carries (the bass shaker's signal mixed into stereo, or on the LFE of 5.1 and 7.1) and that signal's level (0 none), live; a click steps each
         // in the dotted box under the sheet's rows, its two unused check boxes wiped
         Frame.CopyBackground(250, 403, 22, 20, 202, 403);
         Frame.CopyBackground(250, 403, 22, 20, 330, 403);
         var levels = I76.Formats.Input.AudioOutputs.Levels;
         Add(204, 395, "Output", null);
-        Add(400, 395, () => I76.Formats.Input.AudioOutputs.Names[(int)s.Output],
-            () => { s.Output = (I76.Formats.Input.AudioOutput)(((int)s.Output + 1) % I76.Formats.Input.AudioOutputs.Names.Length); I76.Game.Boot.Main.ApplyOutput(s); });
+        TipLine(Add(400, 395, () => I76.Formats.Input.AudioOutputs.Names[(int)s.Output],
+            () => { s.Output = (I76.Formats.Input.AudioOutput)(((int)s.Output + 1) % I76.Formats.Input.AudioOutputs.Names.Length); I76.Game.Boot.Main.ApplyOutput(s); }), "Output", -1).TipH = 19;
         Add(204, 414, "LFE Level", null);
-        Add(400, 414, () => $"{s.LfeLevel} %",
-            () => { s.LfeLevel = levels[(Math.Max(0, Array.IndexOf(levels, s.LfeLevel)) + 1) % levels.Length]; I76.Game.Boot.Main.ApplyOutput(s); });
+        TipLine(Add(400, 414, () => $"{s.LfeLevel} %",
+            () => { s.LfeLevel = levels[(Math.Max(0, Array.IndexOf(levels, s.LfeLevel)) + 1) % levels.Length]; I76.Game.Boot.Main.ApplyOutput(s); }), "LFE Level", 0).TipH = 19;
         Add(350, 438, "Done", () => { s.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
         // Cancel puts the four bytes back but resets only the music live (as written)
         Add(402, 438, "Cancel", () =>
@@ -501,10 +520,10 @@ public sealed class AudioScreen : OverlayScreen
 
 /// <summary>
 /// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The sheet keeps the original's rows the port honours, in
-/// the original's order and words, and, under them, an entry for each page of the port's own rows (<see cref="GraphicsPages"/>); a
-/// page is the same sheet with its name on the first line, its rows under it and a Back. Reset puts the page's rows back (the
-/// sheet's: the default profile, as the original's, but for Anti-Aliasing, which is Display's); Done and Cancel, on any page, save or
-/// restore every page.
+/// the original's order and words, the port's rows a player reaches for most under them and, under a blank line, an entry for
+/// Advanced (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back.
+/// Reset puts the page's rows back (the sheet's: the default profile, as the original's); Done and Cancel, on any page, save or
+/// restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>).
 /// </summary>
 public sealed class GraphicsScreen : OverlayScreen
 {
@@ -518,14 +537,18 @@ public sealed class GraphicsScreen : OverlayScreen
     // the sheet's fourteen 23 px lines
     private const int ListY = 118, LineH = 23;
     private static int LineY(int line) => ListY + LineH * line;
+    /// <summary>A row's tooltip zone: the whole ruled line, label and value.</summary>
+    private const int RowX0 = 200, RowX1 = 462;
 
-    /// <summary>One row on a line: its label and its value (a click on the value is <paramref name="click"/>).</summary>
-    private void Row(int line, string label, Func<string> value, Action click)
+    /// <summary>One row on a line: its label and its value (a click on the value is <paramref name="click"/>), the row's tooltip over the line.</summary>
+    private void Row(GraphicsRow r, int line, string label, Func<string> value, Action click)
     {
         Add(200, LineY(line), label, null);
         // a long value ("Monitor*") ends short of the sheet's edge; a label longer than its column ("Keep Mouse In Window") pushes
         // its value along past the rule
-        Add(Math.Max(397, 200 + Label.Measure(label) + 16), LineY(line), value, click).Right = 461;
+        var it = Add(Math.Max(397, 200 + Label.Measure(label) + 16), LineY(line), value, click);
+        it.Right = 461;
+        Tip(it, () => GraphicsHelp.Text(r, Shell.Settings.Look1997), RowX0, RowX1, -2, LineH);
     }
 
     protected override void Build()
@@ -533,68 +556,35 @@ public sealed class GraphicsScreen : OverlayScreen
         _saved = Snapshot ?? GraphicsPages.CopyAll(Shell.Settings, new ShellSettings());
         int line = Page == GraphicsPages.Sheet ? 0 : GraphicsPages.FirstRowLine;
         if (Page != GraphicsPages.Sheet) Add(200, LineY(GraphicsPages.HeadingLine), GraphicsPages.Names[Page], null);
-        _lineRow.Clear();
         foreach (var r in GraphicsPages.Rows[Page])
         {
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
-            if (PortRow(r, line)) _lineRow[line++] = r;
+            if (PortRow(r, line)) line++;
         }
         if (Page == GraphicsPages.Sheet)
         {
             // the pages' entries under a blank line, each the whole line
-            for (int p = GraphicsPages.Look; p < GraphicsPages.Names.Length; p++)
+            for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
             {
                 int page = p;
-                Add(200, LineY(GraphicsPages.FirstEntryLine + p - GraphicsPages.Look), () => GraphicsPages.Names[page] + "...", () => Shell.Overlay(new GraphicsScreen { Page = page, Snapshot = _saved }), w: 262, h: 18);
+                var entry = Add(200, LineY(GraphicsPages.FirstEntryLine + p - GraphicsPages.Advanced), () => GraphicsPages.Names[page] + "...", () => Shell.Overlay(new GraphicsScreen { Page = page, Snapshot = _saved }), w: 262, h: 18);
+                Tip(entry, () => GraphicsHelp.AdvancedEntry, RowX0, RowX1, -2, LineH);
             }
         }
         else Add(246, 438, "Back", Back, Small);
-        Add(288, 438, "Reset", Reset, Small);
+        Tip(Add(288, 438, "Reset", Reset, Small), () => GraphicsHelp.Reset);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
 
-    // ---- the help line (GraphicsHelp): the row under the mouse, said in the sheet's small font on the free lines under the rows ----
-
-    private readonly Dictionary<int, GraphicsRow> _lineRow = [];
-    private GraphicsRow? _hover;
-    /// <summary>The help's first line, a line of text to a ruled line: line 11, or the line under a longer page's last row (Look's eleven rows end on line 11, so its help has lines 12 and 13 and its lines are the short ones); the buttons start at 438.</summary>
-    private const int HelpLine = 11, HelpX = 200, HelpRight = 462;
-
-    /// <summary>The row whose line the mouse is on (label or value), or null.</summary>
-    private GraphicsRow? RowAt(Vector2I m)
-    {
-        if (m.X < HelpX || m.X >= HelpRight || m.Y < ListY) return null;
-        int line = (m.Y - ListY) / LineH;
-        return _lineRow.TryGetValue(line, out var r) ? r : null;
-    }
-
-    public override void Tick()
-    {
-        var h = RowAt(Shell.Mouse);
-        if (h != _hover) { _hover = h; Redraw(); }
-        base.Tick();
-    }
-
-    protected override void DrawExtra()
-    {
-        if (_hover is not { } r || GraphicsHelp.Text(r, Shell.Settings.Look1997) is not { } text) return;
-        int first = Math.Max(HelpLine, _lineRow.Count == 0 ? 0 : _lineRow.Keys.Max() + 1), n = 0;
-        foreach (var l in GraphicsHelp.Wrap(text, s => Small.Measure(s), HelpRight - HelpX))
-        {
-            if (first + n >= GraphicsPages.Lines) break;
-            Frame.Text(Small, HelpX, LineY(first + n++) + Math.Max(0, (LineH - Small.Height) / 2), l, ShellFrame.OverlayInk);   // between the line's rules
-        }
-    }
-
     /// <summary>A row of the graphics block: the byte's value word, a click the next.</summary>
-    private void ByteRow(int line, string label, int at, string[] values)
+    private void ByteRow(GraphicsRow r, int line, string label, int at, string[] values)
     {
         var g = Shell.Settings.Graphics;
-        Row(line, label, () => values[Math.Min(g[at], values.Length - 1)], () => g[at] = (byte)((g[at] + 1) % values.Length));
+        Row(r, line, label, () => values[Math.Min(g[at], values.Length - 1)], () => g[at] = (byte)((g[at] + 1) % values.Length));
     }
 
-    /// <summary>A row on a line; false for a row not shown (HD Textures with no pack).</summary>
+    /// <summary>A row on a line; false for a row not shown (the texture rows with no pack).</summary>
     private bool PortRow(GraphicsRow r, int line)
     {
         var st = Shell.Settings;
@@ -603,7 +593,7 @@ public sealed class GraphicsScreen : OverlayScreen
         {
             // the original's first row: Desktop (fullscreen, as the game starts) or a window of that size, applied at once
             case GraphicsRow.Resolution:
-                Row(line, "Screen Resolution", () => I76.Game.Boot.WindowSizes.Label(I76.Game.Boot.WindowSizes.Parse(st.Resolution)), () =>
+                Row(r, line, "Screen Resolution", () => I76.Game.Boot.WindowSizes.Label(I76.Game.Boot.WindowSizes.Parse(st.Resolution)), () =>
                 {
                     var (dw, dh) = I76.Game.Boot.WindowApplier.Desktop;
                     var n = I76.Game.Boot.WindowSizes.Next(I76.Game.Boot.WindowSizes.Parse(st.Resolution), dw, dh);
@@ -612,120 +602,104 @@ public sealed class GraphicsScreen : OverlayScreen
                 });
                 break;
             case GraphicsRow.MonitorBrightness:
-                ByteRow(line, "Monitor Brightness", 0xc, ["0.00", "1.00", "2.00", "3.00", "4.00", "5.00", "6.00", "7.00", "8.00", "9.00", "10.00"]);
+                ByteRow(r, line, "Monitor Brightness", 0xc, ["0.00", "1.00", "2.00", "3.00", "4.00", "5.00", "6.00", "7.00", "8.00", "9.00", "10.00"]);
                 break;
             // [port] draw_distance (VisibilityRange): Far the original's 600 m, Max* 20 km; with no key the look the next mission starts in
             case GraphicsRow.VisibilityRange:
-                Row(line, "Visibility Range", () => VisibilityRange.Names[VisibilityRange.Index(st, st.Look1997)], () => VisibilityRange.Step(st, st.Look1997));
+                Row(r, line, "Visibility Range", () => VisibilityRange.Names[VisibilityRange.Index(st, st.Look1997)], () => VisibilityRange.Step(st, st.Look1997));
                 break;
             // the modern look's cost (Main.ApplyModernQuality), the original's own rows and bytes
             case GraphicsRow.TerrainDetail:
-                ByteRow(line, "Terrain Detail", 0x2, ["Low", "High"]);
+                ByteRow(r, line, "Terrain Detail", 0x2, ["Low", "High"]);
                 break;
             case GraphicsRow.ShadowDetail:
-                ByteRow(line, "Shadow Detail", 0x6, ["Off", "Low", "High"]);
+                ByteRow(r, line, "Shadow Detail", 0x6, ["Off", "Low", "High"]);
                 break;
             case GraphicsRow.ExtInstruments:
-                ByteRow(line, "Ext. Instrum. Disp.", 0xe, ["Off", "On"]);
+                ByteRow(r, line, "Ext. Instrum. Disp.", 0xe, ["Off", "On"]);
                 break;
             case GraphicsRow.RearMirror:
-                ByteRow(line, "Rear Mirror", 0xd, ["Off", "Low", "High"]);
+                ByteRow(r, line, "Rear Mirror", 0xd, ["Off", "Low", "High"]);
                 break;
             // the port's MSAA in +0x8, a byte no screen of the original showed
             case GraphicsRow.AntiAliasing:
-                ByteRow(line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
+                ByteRow(r, line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
                 break;
-            // [port] hd_textures (HdTextureRow): Off or On when a pack is there, live
-            case GraphicsRow.HdTextures:
+            // [port] world_textures and car_textures (TextureRow): 1997 or a size, shown when a pack is there; both to or from 1997 at
+            // once (Main's ApplyGraphics swaps the pictures), a size from the next mission
+            case GraphicsRow.WorldTextures:
+            case GraphicsRow.CarTextures:
                 var sizes = I76.Game.Assets.HdTextures.AvailableSizes;
-                if (HdTextureRow.Names(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed) is not { } hd) return false;
-                Row(line, "HD Textures", () => hd[HdTextureRow.Index(st)], () =>
+                if (!TextureRow.Offered(sizes, sizes.Length > 0 || I76.Game.Assets.HdTextures.Installed)) return false;
+                Row(r, line, TextureRow.Label(r), () => TextureRow.Names(st, r, sizes)[TextureRow.Index(st, r, sizes)], () =>
                 {
-                    HdTextureRow.Step(st);
-                    I76.Game.Assets.HdTextures.Enabled = st.HdTextures;
-                });
-                break;
-            // [port] hd_dash_size and hd_car_size (Hd8xRow): Off (the 4x) or On (the 8x) when tex-world-8x is beside the 4x, from the next mission
-            case GraphicsRow.HdDash:
-            case GraphicsRow.HdCars:
-                if (!Hd8xRow.Offered(I76.Game.Assets.HdTextures.AvailableSizes)) return false;
-                Row(line, Hd8xRow.Label(r), () => Hd8xRow.Names[Hd8xRow.Index(st, r)], () =>
-                {
-                    Hd8xRow.Step(st, r);
-                    I76.Game.Assets.HdTextures.DashSize = st.HdDashSize;
-                    I76.Game.Assets.HdTextures.CarSize = st.HdCarSize;
+                    TextureRow.Step(st, r, sizes);
+                    I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
+                    I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
                 });
                 break;
             // the frame rate limiter and vsync: drawing only, the simulation keeps the Play Options rate; both live (the engine's, so the shell shows it too)
             case GraphicsRow.VSync:
-                Row(line, "VSync", () => st.VSync ? "On" : "Off", () => { st.VSync = !st.VSync; I76.Game.FrameLimiter.Apply(st); });
+                Row(r, line, "VSync", () => st.VSync ? "On" : "Off", () => { st.VSync = !st.VSync; I76.Game.FrameLimiter.Apply(st); });
                 break;
             case GraphicsRow.MaxFps:
-                Row(line, "Max FPS", () => I76.Sim.Views.FrameLimit.Names[Math.Clamp(st.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)], () => { st.MaxFps = (st.MaxFps + 1) % I76.Sim.Views.FrameLimit.Names.Length; I76.Game.FrameLimiter.Apply(st); });
+                Row(r, line, "Max FPS", () => I76.Sim.Views.FrameLimit.Names[Math.Clamp(st.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)], () => { st.MaxFps = (st.MaxFps + 1) % I76.Sim.Views.FrameLimit.Names.Length; I76.Game.FrameLimiter.Apply(st); });
                 break;
             // [port] dev_fps: the frame rate and frame time in the window's top right corner (FpsOverlay), over the menus too, live
             case GraphicsRow.ShowFps:
-                Row(line, "Show FPS", () => st.DevFps ? "On" : "Off", () => { st.DevFps = !st.DevFps; I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps); });
+                Row(r, line, "Show FPS", () => st.DevFps ? "On" : "Off", () => { st.DevFps = !st.DevFps; I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps); });
                 break;
             // the 3D view drawn at 50 to 200 % of the window, live (the HUD and menus are not scaled)
             case GraphicsRow.RenderScale:
-                Row(line, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
+                Row(r, line, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
                 break;
             // the renderer: Auto, Vulkan, D3D12 (Windows only) or OpenGL, read by Godot at start (an unavailable choice falls back there)
             case GraphicsRow.Renderer:
-                Row(line, "Renderer (restart)", () => st.Renderer == I76.Game.Boot.RendererChoice.D3D12 && !I76.Game.Boot.StartupSettings.D3D12Offered ? "Auto" : st.Renderer.ToString(), () =>
+                Row(r, line, "Renderer (restart)", () => st.Renderer == I76.Game.Boot.RendererChoice.D3D12 && !I76.Game.Boot.StartupSettings.D3D12Offered ? "Auto" : st.Renderer.ToString(), () =>
                 {
                     var all = I76.Game.Boot.StartupSettings.D3D12Offered ? new[] { I76.Game.Boot.RendererChoice.Auto, I76.Game.Boot.RendererChoice.Vulkan, I76.Game.Boot.RendererChoice.D3D12, I76.Game.Boot.RendererChoice.OpenGL }
                         : new[] { I76.Game.Boot.RendererChoice.Auto, I76.Game.Boot.RendererChoice.Vulkan, I76.Game.Boot.RendererChoice.OpenGL };
                     st.Renderer = all[(Math.Max(0, Array.IndexOf(all, st.Renderer)) + 1) % all.Length];
                 });
                 break;
-            // the log file: Godot reads it only at start, so a change shows from the next start (docs/dev-hooks.md: --log forces it for a run)
-            case GraphicsRow.LogFile:
-                Row(line, "Log File (restart)", () => st.LogFile ? "On" : "Off", () => st.LogFile = !st.LogFile);
-                break;
             // the modern look's plants (docs/modern-vegetation.md)
             case GraphicsRow.Vegetation:
                 string[] veg = ["Off", "Low" + mark, "High" + mark];
-                Row(line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
+                Row(r, line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
                 break;
-            // the modern look's SSAO ([port] ambient_occlusion), Shadow Detail High's until it had a row; applies in a mission
+            // the modern look's SSAO ([port] ambient_occlusion); applies in a mission
             case GraphicsRow.AmbientOcclusion:
-                Row(line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
+                Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
-                Row(line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
+                Row(r, line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
                 break;
-            // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss, the full clear coat) in fives, Satin at 50,
-            // live; a level set by hand in the file shows as it is and a click goes to the next step above it
+            // the modern look's car paint and cockpit hood: 0 (Matte, the original's) to 100 (Gloss, the full clear coat) in fives, 5 by
+            // default, Satin at 50, live; a level set by hand in the file shows as it is and a click goes to the next step above it
             case GraphicsRow.HoodGloss:
-                Row(line, "Hood Gloss", () => I76.Sim.Views.PaintFinish.Name(st.HoodGloss), () => { st.HoodGloss = I76.Sim.Views.PaintFinish.NextStep(st.HoodGloss); I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss); });
-                break;
-            // the modern look's cabin and driver behind a car's windows (off: plain reflective glass), live; on is the port's
-            case GraphicsRow.CarInteriors:
-                Row(line, "Car Interiors", () => st.CarInteriors ? "On" + mark : "Off", () => { st.CarInteriors = !st.CarInteriors; I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors); });
+                Row(r, line, "Hood Gloss", () => I76.Sim.Views.PaintFinish.Name(st.HoodGloss), () => { st.HoodGloss = I76.Sim.Views.PaintFinish.NextStep(st.HoodGloss); I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss); });
                 break;
             // CONFIGURE CHASSIS as the 3D garage (on) or the original's 2D form (off)
             case GraphicsRow.Garage3D:
-                Row(line, "3D Garage", () => st.Garage3D ? "On" + mark : "Off", () => st.Garage3D = !st.Garage3D);
+                Row(r, line, "3D Garage", () => st.Garage3D ? "On" + mark : "Off", () => st.Garage3D = !st.Garage3D);
                 break;
             // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
-            // from the next start or mission), with the modern look's palette grade (SoftwareLook) after it
+            // from the next start or mission), the first row of Advanced, with its palette grade for the modern look after it
             case GraphicsRow.Look1997:
                 string[] modes = ["Off" + mark, "3D Card", "Software"];
-                Row(line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
+                Row(r, line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
                 {
                     int m = ((!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1) + 1) % 3;
                     st.Look1997 = m != 0; st.SoftwareRenderer = m == 2;
                 });
                 break;
             case GraphicsRow.PaletteGrade:
-                Row(line, "Palette Grade", () => st.PaletteGrade ? "On" : "Off", () => st.PaletteGrade = !st.PaletteGrade);
+                Row(r, line, "1997 Palette Grade", () => st.PaletteGrade ? "On" : "Off", () => st.PaletteGrade = !st.PaletteGrade);
                 break;
             // the software renderer's double image on a big cockpit hit: Off, On
             case GraphicsRow.CrashBlur:
-                Row(line, "Crash Blur", () => I76.Sim.Views.CrashBlurMode.Names[Math.Clamp(st.CrashBlur, 0, 1)], () => st.CrashBlur = 1 - Math.Clamp(st.CrashBlur, 0, 1));
+                Row(r, line, "Crash Blur", () => I76.Sim.Views.CrashBlurMode.Names[Math.Clamp(st.CrashBlur, 0, 1)], () => st.CrashBlur = 1 - Math.Clamp(st.CrashBlur, 0, 1));
                 break;
         }
         return true;
@@ -739,19 +713,15 @@ public sealed class GraphicsScreen : OverlayScreen
         {
             case GraphicsPages.Sheet:
                 I76.Game.Boot.WindowApplier.Apply(st);
-                break;
-            case GraphicsPages.Look:
-                I76.Game.Assets.HdTextures.Enabled = st.HdTextures;
-                I76.Game.Assets.HdTextures.DashSize = st.HdDashSize;
-                I76.Game.Assets.HdTextures.CarSize = st.HdCarSize;
-                I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
-                I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(st.CarInteriors);
-                break;
-            case GraphicsPages.Display:
                 I76.Game.FrameLimiter.Apply(st);
+                I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
+                break;
+            case GraphicsPages.Advanced:
+                I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
+                I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
+                I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
                 I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
                 I76.Game.Boot.RenderScale.Apply(st);
-                I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
                 break;
         }
     }

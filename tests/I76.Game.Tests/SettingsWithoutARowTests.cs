@@ -133,8 +133,9 @@ public class SettingsWithoutARowTests
             (I76.Sim.Views.MouseLook.Names, ["Off"]),
             (I76.Game.Boot.RenderScale.AntiAliasing, ["Off", "2x", "4x"]),
             (VisibilityRange.Names, ["Far"]),
-            (HdTextureRow.Names([4, 3, 2], true)!, ["Off"]),
-            (Hd8xRow.Names, ["Off"]),
+            // World Textures and Car & Dash Textures: 1997, the install's own, is the original's
+            (TextureRow.Names(new ShellSettings { WorldTextures = 4 }, GraphicsRow.WorldTextures, [8, 4]), ["1997"]),
+            (TextureRow.Names(new ShellSettings { CarTextures = 8 }, GraphicsRow.CarTextures, [8, 4]), ["1997"]),
         })
         {
             Assert.Equal(originals, names.Where(n => !n.EndsWith(ShellSettings.PortMark, System.StringComparison.Ordinal)));

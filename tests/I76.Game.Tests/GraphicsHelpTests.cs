@@ -4,28 +4,22 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's help line (GraphicsHelp): the ten rows that cost the most say what they do and what they cost, in both looks,
-/// every other row nothing; the costs are the survey's (docs/perf/costs.md) and the 1997 look's lines say they cost nothing there.
+/// Graphic Detail's tooltips (GraphicsHelp): every row says what it does in both looks, and the costly ones what they cost; the costs
+/// are the survey's (docs/perf/costs.md) and the 1997 look's lines say they cost nothing there.
 /// </summary>
 public class GraphicsHelpTests
 {
-    private static readonly GraphicsRow[] TopTen =
-    [
-        GraphicsRow.AmbientOcclusion, GraphicsRow.RearMirror, GraphicsRow.AntiAliasing, GraphicsRow.ShadowDetail,
-        GraphicsRow.TerrainDetail, GraphicsRow.Vegetation, GraphicsRow.VisibilityRange, GraphicsRow.HdTextures,
-        GraphicsRow.HdDash, GraphicsRow.HdCars,
-    ];
-
+    /// <summary>A row with no tooltip fails here: every row of both pages, in both looks.</summary>
     [Fact]
-    public void TheTopTenHaveALineInBothLooksAndNoOtherRowDoes()
+    public void EveryRowHasATooltipInBothLooks()
     {
         foreach (var r in Enum.GetValues<GraphicsRow>())
             foreach (bool look1997 in new[] { false, true })
-            {
-                var t = GraphicsHelp.Text(r, look1997);
-                if (TopTen.Contains(r)) Assert.False(string.IsNullOrWhiteSpace(t), $"{r} has no help");
-                else Assert.Null(t);
-            }
+                Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Text(r, look1997)), $"{r} has no tooltip");
+        foreach (var page in GraphicsPages.Rows)
+            foreach (var r in page) Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Text(r, false)));
+        Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.AdvancedEntry));
+        Assert.Equal(GraphicsHelp.AdvancedEntry, MenuTips.Of("Advanced..."));
     }
 
     [Theory]
@@ -36,19 +30,21 @@ public class GraphicsHelpTests
     [InlineData(GraphicsRow.TerrainDetail, "6 %")]
     [InlineData(GraphicsRow.Vegetation, "4 %")]
     [InlineData(GraphicsRow.VisibilityRange, "3 %")]
-    [InlineData(GraphicsRow.HdTextures, "0.7 GB")]
-    [InlineData(GraphicsRow.HdDash, "0.5 GB")]
-    [InlineData(GraphicsRow.HdCars, "50 MB")]
+    [InlineData(GraphicsRow.WorldTextures, "0.7 GB")]
+    [InlineData(GraphicsRow.CarTextures, "0.5 GB")]
     public void TheModernLookSaysTheCost(GraphicsRow r, string cost) => Assert.Contains(cost, GraphicsHelp.Text(r, false));
 
-    /// <summary>The 8x rows say which half of the pack they are: the dash's gauges and panels, the cars' bodies (your own in the chase view).</summary>
+    /// <summary>The texture rows say what they cover and how they differ: the world's ground and buildings; the cars and the dash, 4x against 8x.</summary>
     [Fact]
-    public void The8xRowsNameTheirHalf()
+    public void TheTextureRowsSayTheDifference()
     {
-        Assert.Contains("gauges", GraphicsHelp.Text(GraphicsRow.HdDash, false));
-        Assert.Contains("chase view", GraphicsHelp.Text(GraphicsRow.HdCars, false));
-        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.HdDash, true));
-        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.HdCars, true));
+        Assert.Contains("ground", GraphicsHelp.Text(GraphicsRow.WorldTextures, false));
+        var car = GraphicsHelp.Text(GraphicsRow.CarTextures, false);
+        Assert.Contains("dash", car);
+        Assert.Contains("8x", car);
+        Assert.Contains("1997", car);
+        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.WorldTextures, true));
+        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.CarTextures, true));
     }
 
     [Fact]
@@ -62,7 +58,6 @@ public class GraphicsHelpTests
 
     [Theory]
     [InlineData(GraphicsRow.AmbientOcclusion)]
-    [InlineData(GraphicsRow.AntiAliasing)]
     [InlineData(GraphicsRow.ShadowDetail)]
     [InlineData(GraphicsRow.TerrainDetail)]
     [InlineData(GraphicsRow.Vegetation)]
@@ -72,7 +67,7 @@ public class GraphicsHelpTests
     [Fact]
     public void TheLinesArePrintableAscii()
     {
-        foreach (var r in TopTen)
+        foreach (var r in Enum.GetValues<GraphicsRow>())
             foreach (bool look1997 in new[] { false, true })
                 Assert.All(GraphicsHelp.Text(r, look1997)!, c => Assert.InRange(c, ' ', '~'));
     }

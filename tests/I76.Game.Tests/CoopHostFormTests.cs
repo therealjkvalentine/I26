@@ -48,15 +48,15 @@ public class CoopHostFormTests
     }
 
     [Fact]
-    public void TheHelpNamesTheSettingAndFitsTheLine()
+    public void TheTooltipNamesTheSettingInAPlayersWords()
     {
         foreach (bool coop in new[] { false, true })
             foreach (var f in HostFormLayout.Fields(new HostFormLayout.State { Coop = coop }))
             {
                 var t = HostFormHelp.Text(f.Id)!;
-                // the line starts with the setting's name (the strip is far from the row), in a player's words, and fits the strip
+                // the tooltip starts with the setting's name, in a player's words, and stays a short sentence or two
                 Assert.StartsWith(f.Label.Split(' ')[0], t.ToUpperInvariant());
-                Assert.InRange(t.Length, 10, 52);
+                Assert.InRange(t.Length, 10, 200);
                 Assert.All(t, ch => Assert.InRange(ch, ' ', '~'));
                 Assert.DoesNotContain("=", t);   // no config key shown to the player
             }

@@ -31,7 +31,7 @@ public static class RenderBackend
     /// <summary>
     /// The adapter's video memory in MiB, or null where it is not known: on Windows the display driver's own figure for the adapter
     /// the renderer runs on (its registry entry's HardwareInformation.qwMemorySize, matched by name); on macOS the machine's memory,
-    /// which Apple silicon's GPU shares; elsewhere null. For the first start's defaults (HdTextures.FirstStartDefault), read once.
+    /// which Apple silicon's GPU shares; elsewhere null. For the first start's defaults (HdTextures.FirstStart), read once.
     /// </summary>
     public static long? VideoMemoryMb
     {

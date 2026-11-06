@@ -223,7 +223,7 @@ public sealed partial class MeleeScreen : ShellScreen
         }
         else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
         // the arena's sketch between the car's views, over them (the base host form's; the port's)
-        if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); DrawTip(); }
+        if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); }
     }
 
     /// <summary>The car panel the melee and scenario forms share: the blueprint views, the weapons, the make and model, the variant.</summary>
@@ -307,7 +307,6 @@ public sealed partial class MeleeScreen : ShellScreen
         // ⊞ / ⊟ and the list arrows repeat every 100 ms while the button is held
         int held = _hold.Id;
         if (_hold.Update(Shell.MouseHeld, HitId(Shell.Mouse), Shell.Delta) is var reps and > 0) { for (int r = 0; r < reps; r++) Act(held, Shell.Mouse); Draw(); }
-        TipTick();
         if (!Shell.Clicked) return;
         int id = HitId(Shell.Mouse);
         if (id < 0) return;

@@ -31,7 +31,7 @@ splits.
 - Ours. `ApplyModernQuality`: Shadow Detail High = shadow map + SSAO, Low = shadow map alone. The pad calls the row Shadow
   Detail, so a player turning shadows up pays for AO without knowing.
 - Change. An Ambient Occlusion row of its own (Off / On) on Graphic Detail's World page, Off by default; Shadow Detail High
-  keeps only the longer shadow reach. (The first-start default `DefaultGraphics[0x6] = 1` is already Low; the survey's
+  keeps only the longer shadow reach. (The first-start default `DefaultGraphics[0x6]` was Low then; High since round 5, docs/perf/costs.md; the survey's
   baseline took High as "everything on".)
 - Saving. 5.0 ms at 1440p, 3.1 ms at 1080p (16.9 -> 12.0; 10.7 -> 7.6). In the chase view 5.9 ms.
 - Faithfulness. None: the original has no ambient occlusion. The modern look loses the contact darkening under cars and

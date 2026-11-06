@@ -363,7 +363,7 @@ public sealed partial class MeleeScreen
     // and lines); the co-op form's box has only what a story mission has a use for (HostFormLayout.Fields: Extra Enemies, Damage
     // Taken, the check boxes, Sim Rate, Password) on its first lines and closes under them. The car panel keeps the original's front view. The boxes,
     // steppers, rules and the A.I. CARS button are pieces of the record's own art; the labels are set in Arial. The free line
-    // under the car panel says what the setting under the pointer does (HostFormHelp).
+    // every setting has a tooltip (HostFormHelp).
 
     /// <summary>The blank paper copied into the box (a plain part of the same art, under the side view).</summary>
     private static readonly (int X, int Y) BlankPaper = (356, 298);
@@ -567,45 +567,25 @@ public sealed partial class MeleeScreen
     }
 
 
-    // ---- the options box's help line (the port's; Graphic Detail's pattern): the setting under the pointer, or under the pad's
-    // focus (the focus puts the pointer on its region), is explained on the free line under the car panel, between VARIANT and
-    // the buttons, in the box's handwriting (HostFormHelp has the lines)
+    // ---- the options box's tooltips (the port's; MenuTooltip): the setting under the pointer, or under the pad's focus (the focus
+    // puts the pointer on its region), explained in a tooltip by it (HostFormHelp has the lines)
 
-    /// <summary>The help line's place: the paper between VARIANT's rule and the buttons, from DRIVER:'s x to CANCEL's right end.</summary>
-    private static readonly (int X0, int X1, int Y0, int Y1) HelpStrip = (229, 630, 439, 452);
-    /// <summary>The BOTS label's own help area (the line's buttons have theirs).</summary>
+    /// <summary>The BOTS label's own tooltip area (the line's buttons have theirs).</summary>
     private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, HostFormLayout.BoxRow[HostFormLayout.BotsRow] - HostFormLayout.Above, HostFormLayout.BoxRow[HostFormLayout.BotsRow] + HostFormLayout.Below);
-    private int _tip = int.MinValue;
 
-    /// <summary>The setting under the pointer that has help, or int.MinValue.</summary>
-    private int TipAt(Vector2I p)
+    /// <summary>The setting under the pointer that has a tooltip, with its zone: a hotspot of the form, or the BOTS label.</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
     {
-        if (!Hosting || Nitro) return int.MinValue;
+        if (!Hosting || Nitro) return null;
         int id = HitId(p);
-        if (id >= 0 && HostFormHelp.Text(id) is not null) return id;
-        var r = BotsLabel;
-        return !_coopBase && r.X0 < p.X && p.X < r.X1 && r.Y0 < p.Y && p.Y < r.Y1 ? HostFormHelp.BotsLabel : int.MinValue;
-    }
-
-    /// <summary>The help follows the pointer from setting to setting; off them the line is blank. Called every tick of the form.</summary>
-    private void TipTick()
-    {
-        int at = TipAt(Shell.Mouse);
-        if (at == _tip) return;
-        _tip = at;
-        Draw();
-    }
-
-    /// <summary>The help line on its strip, in the box's handwriting, cut to the strip's width.</summary>
-    private void DrawTip()
-    {
-        if (_tip == int.MinValue || HostFormHelp.Text(_tip) is not { } text) return;
-        var hand = Shell.Db.Font(0x44);
-        var ink = new byte[256];
-        byte handInk = Frame.Nearest(HandInk);
-        for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
-        var (x0, x1, y0, y1) = HelpStrip;
-        Frame.Text(hand, x0, y0, AddressBookPopup.Fit(hand, text, x1 - x0), ink);
+        if (id >= 0 && HostFormHelp.Text(id) is { } t)
+        {
+            var r = Rect(id);
+            return (t, new Rect2I(r.X0, r.Y0, r.X1 - r.X0, r.Y1 - r.Y0));
+        }
+        var b = BotsLabel;
+        return !_coopBase && b.X0 < p.X && p.X < b.X1 && b.Y0 < p.Y && p.Y < b.Y1 && HostFormHelp.Text(HostFormHelp.BotsLabel) is { } bt
+            ? (bt, new Rect2I(b.X0, b.Y0, b.X1 - b.X0, b.Y1 - b.Y0)) : null;
     }
 
     /// <summary>The span's capitals: 7 px, under the box's handwriting's 9, still clear at 640x480.</summary>
