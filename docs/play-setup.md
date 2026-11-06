@@ -95,7 +95,10 @@ the known test moves on `play`.
    `-NoPush -NoRebase` for a dry run). Conflicts in CHANGELOG.md and the docs tables are unioned automatically; others
    are listed.
 5. Opening a pull request upstream: push that one branch to the public fork and open it; when it merges, the sync
-   script drops it from `play` by itself.
+   script drops it from `play` by itself. What is ready to offer, in what order and against which upstream commit is
+   [upstream-handoff.md](upstream-handoff.md) (the living page for upstream's lead: every branch with its evidence,
+   size and merge state, and a "Pull-request readiness" section); the first ten pull requests are written out, title,
+   description and commands, in [upstream-handoff-first-prs.md](upstream-handoff-first-prs.md).
 
 ## A playtest build on another machine
 
