@@ -299,6 +299,7 @@ perf/load-time                        # section V: load-time survey (docs/perf/l
 
 # W. the 1997 look against i76-everywhere (2026-11-05)
 feat/1997-parity                      # section W: docs/1997-parity.md (ten differences, measured); early_tick (a key change runs the next sim tick at once, borrowed from the following one; off online, under Modern Physics and in replays): throttle key-to-screen 50 -> 22 ms against i76-e's 17; aa_1997 (the 1997 look takes the Anti-Aliasing row); even machine-gun flashes tried and withdrawn
+feat/1997-parity-2                    # section W, after 1997-parity: Visibility Range 2.3 km (draw_distance=2: the ground fades into the horizon colour from 1725 m, as i76-e), even machine-gun flashes (even_flash: one sprite per gun re-lit per shot), I76_DRAW_LOG, gun-report latency 86 ms vs i76-e 186 ms
 
 # X. the host form, ours as master (2026-11-05)
 feat/host-form-master                 # section X: our host form restored over upstream 56373bd (options box, arena scrap with its size, rule tips, list bar) with upstream's improvements folded in: a labelled rules table (Sim Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair) where the front view was, the co-op rows full width, every hotspot id upstream's, HostFormLayout with its tests; Nitro form unchanged
