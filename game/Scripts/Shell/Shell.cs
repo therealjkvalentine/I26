@@ -1333,12 +1333,20 @@ public sealed class ShellSettings
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
     public bool CoopOwnCar { get; set; } = true;
-    /// <summary>The port's own: a hosted co-op game's Co-op Scaling (the host form's; shell.cfg [port] coop_scale, written only when on): each enemy car gets a copy per player past the first, up to this many.</summary>
-    public int CoopScale { get; set; }
-    /// <summary>The port's own: a hosted co-op game's Co-op Damage (the host form's; shell.cfg [port] coop_damage, written only when not 1): the players' cars take this times the damage.</summary>
+    /// <summary>
+    /// The port's own: a hosted co-op game's Extra Enemies (the host form's; Co-op Scaling in docs/deviations.md; shell.cfg [port] coop_scale,
+    /// written only when not the cap): each enemy car gets a copy per player past the first, up to this many. The cap by default: every
+    /// extra player brings one more of each enemy; 0 is the mission as written.
+    /// </summary>
+    public int CoopScale { get; set; } = I76.Sim.Missions.CoopSetup.MaxExtraEnemies;
+    /// <summary>The port's own: a hosted co-op game's Damage Taken (the host form's; Co-op Damage in docs/deviations.md; shell.cfg [port] coop_damage, written only when not 1): the players' cars take this times the damage.</summary>
     public float CoopDamage { get; set; } = 1f;
-    /// <summary>The port's own: a hosted co-op game's Rolling Start (the host form's; shell.cfg [port] coop_rolling_start, written only when on).</summary>
-    public bool CoopRollingStart { get; set; }
+    /// <summary>
+    /// The port's own: a hosted co-op game's Rolling Start (docs/deviations.md "Co-op Rolling Start"): a respawn or a joiner beside a
+    /// teammate driving along comes in at the teammate's speed. On by default; no row on any form (docs/playing.md "Settings without a
+    /// row"): shell.cfg [port] coop_rolling_start, written only when off.
+    /// </summary>
+    public bool CoopRollingStart { get; set; } = true;
     /// <summary>
     /// The port's own: Play Options' Melee A.I. (shell.cfg [port] melee_ai, written only when not Original): the skill an
     /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
@@ -1592,12 +1600,12 @@ public sealed class ShellSettings
         s.HeadTrackBind = (string)c.GetValue("port", "head_track_bind", "127.0.0.1");
         s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
-        // no version step: absent, off (the mission's own cars alone)
-        s.CoopScale = Math.Clamp((int)c.GetValue("port", "coop_scale", 0), 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies);
+        // no version step: absent, the cap (one more of each enemy car per extra player)
+        s.CoopScale = Math.Clamp((int)c.GetValue("port", "coop_scale", I76.Sim.Missions.CoopSetup.MaxExtraEnemies), 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies);
         // no version step: absent, the original's damage
         s.CoopDamage = (float)(double)c.GetValue("port", "coop_damage", 1.0) is var cd && System.Array.IndexOf(I76.Sim.Missions.CoopSetup.DamageFactors, cd) >= 0 ? cd : 1f;
-        // no version step: absent, off (a fresh car stands still)
-        s.CoopRollingStart = (bool)c.GetValue("port", "coop_rolling_start", false);
+        // no version step: absent, on (a fresh car beside a moving teammate goes at its speed)
+        s.CoopRollingStart = (bool)c.GetValue("port", "coop_rolling_start", true);
         // no version step: absent, the original's opening skill
         s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
         // no version step: absent, the effects as drawn (100)
@@ -1737,9 +1745,9 @@ public sealed class ShellSettings
         if (HeadTrackBind != "127.0.0.1") c.SetValue("port", "head_track_bind", HeadTrackBind);
         if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
-        if (CoopScale != 0) c.SetValue("port", "coop_scale", CoopScale);
+        if (CoopScale != I76.Sim.Missions.CoopSetup.MaxExtraEnemies) c.SetValue("port", "coop_scale", CoopScale);
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
-        if (CoopRollingStart) c.SetValue("port", "coop_rolling_start", true);
+        if (!CoopRollingStart) c.SetValue("port", "coop_rolling_start", false);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
         if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);

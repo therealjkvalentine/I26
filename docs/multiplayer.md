@@ -324,8 +324,8 @@ seat's car keeps its player's paint through the mission's respawns.
 ### Handicaps (protocol 23)
 
 I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
-form's Handicaps row (its options box, under Ignition Lock), HANDICAPS in the Nitro and co-op forms' game
-options (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
+form's Handicaps row (its options box, under Ignition Lock), HANDICAPS in the Nitro form's game options (a melee's rule: a co-op game
+hosted from either form has none) (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
 says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
 join accept carries it (`JoinAccept.Handicaps`, after `Cb` and the ignition lock's byte).
 
@@ -812,16 +812,18 @@ else the first living human), rebuilt in place as a network melee's reconfigured
 driver's handguns kept and loaded, the engine started, `NetGeneration` up, the driver's keys at rest). With nobody
 alive it waits: the script then sees the group dead. Seats' deaths and timers are saved.
 
-The fresh car (a respawn's or a joiner's) stands still. **Co-op Rolling Start** (`CoopSetup.RollingStart`, the port's: the host
-form's Rolling Start, `--coop-rolling-start`) gives it the teammate's speed when the teammate is driving along: on the ground,
+Without Rolling Start the fresh car (a respawn's or a joiner's) stands still. **Co-op Rolling Start** (`CoopSetup.RollingStart`, the
+port's: on in a game hosted from the shell unless shell.cfg's `[port] coop_rolling_start` is false, no row on any form; the dedicated
+server's `--coop-rolling-start`) gives it the teammate's speed when the teammate is driving along: on the ground,
 1 m/s or faster (`ScriptHost.RollingMinSpeed`), not reversing and no more than 15 degrees between its way and its heading
 (`RollingMaxSlip`); the car faces as the teammate does and goes along that heading at the teammate's speed over the ground
 (`ScriptHost.Rolling`). Otherwise it stands still as before. It is part of the savestate's build.
 
 ### Co-op Scaling
 
-The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the host form's Co-op Scaling, `--coop-scale N`; off
-by default). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
+The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the host form's EXTRA ENEMIES row, `[port] coop_scale`,
+`--coop-scale N`; the cap, "+1/player", by default from the shell, so every player past the first brings one more of each enemy
+car; the dedicated server's is 0 unless given). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
 copies, the cap 1–3 (`CoopSetup.MaxExtraEnemies`), decided once, the first time the script orders it (most stock enemies are given
 their sit or hide order on the first tick, so in a game that started from its lobby the copies are there from the start; a game
 whose players came later has the copies of the humans present when each car was first ordered). A copy is the same car file
@@ -939,7 +941,7 @@ from the server.
   successor builds the mission from the options (`ServerOptions.Coop`), restores, and replays the host's inputs; the seats'
   names come from the migration extras (`IHostMode.Restore(drivers, names)`).
 - **Listing.** A co-op game is listed with its mission as the arena (`SessionInfo.Coop`; the anet tag's kind bits 3).
-- **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the host form's, i26-server's and `--host-listen`'s
+- **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the host form's DAMAGE TAKEN row, i26-server's and `--host-listen`'s
   `--coop-damage 0.5|0.75|1|1.5`): the humans' cars take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
   fraction carried per car to its next packet, so small ticks are not lost); x1 by default. It is the server's alone (the clients take damage from the server) and part of the savestate's build,
   so a successor builds it again from the options. Not listed in the game's info.
@@ -1041,7 +1043,9 @@ MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 
   their shell names in the shell's own order; the Nitro Pack's campaign in SCENARIO.DAT's order, then B01 and the P
   missions SCENARIO.DAT does not list). It keeps the host form's GAME NAME (the mission's title until renamed), NO. DRIVERS
   (1–8), INVITE ONLY, the password, WEAPON RESTRICTIONS (Nitro's form) and Hidden Weapons & Cars, which apply to the cars
-  the players choose; it has no TEAM PLAY, score or other limit, Bots or Share Maps (a stock mission is on every install).
+  the players choose; it has no TEAM PLAY, score or other limit, Bots or Share Maps (a stock mission is on every install), and
+  none of a melee's fairness rules: a co-op game hosted from either form has no turret limit, ignition lock or handicaps, and the
+  chase crosshair is each player's own setting (`NetLaunch` carries them so; the dedicated server's flags still apply to its games).
   The base form leaves those out of its options box, and the co-op rules take its first rows.
 - The car panel shows "Mission's own car" (the default) or the player's pick (above).
 - Hosting opens the lobby (above, "The co-op lobby"), where the host starts the mission. BROADCAST GAME hosts it as `--host-listen --coop MISSION --coop-lobby` does (`NetLaunch.Coop`, `MainNet.ApplyNetLaunch`).
@@ -1293,9 +1297,14 @@ its art.
   - the host's rules, a labelled row each, the name printed, the value handwritten on a ruled blank, a click steps it: SIM RATE,
     UNLIMITED TURRETS (On, Off), IGNITION LOCK (On, Off), HANDICAPS (Off, Manual, Auto), PASSWORD (None or Set; the password
     prompt), CHASE CROSSHAIR (On, Off);
-  the co-op form's box has CO-OP SCALING, CO-OP DAMAGE and ROLLING START, a labelled row each on a ruled blank, then INVITE ONLY,
-  HIDDEN CARS, CAR RESET and CB RADIO, then the host's rules, and no BOTS, TEAM PLAY, SHARE MAPS or MAX SCORE; the pointer resting
-  half a second on a rule of the box shows a line on what it does, on a slip of the form's paper by the pointer (`RuleHelp`);
+  the co-op form's box has only what a story mission has a use for, on its first six lines (the rest blank paper): EXTRA ENEMIES
+  (Off, Up to +1, Up to +2, +1/player: "Co-op Scaling" above) and DAMAGE TAKEN (x0.5, x0.75, x1, x1.5: "Co-op Damage" above), a
+  labelled row each on a ruled blank, then INVITE ONLY, HIDDEN CARS, CAR RESET and CB RADIO, then SIM RATE and PASSWORD; no BOTS,
+  TEAM PLAY, SHARE MAPS or MAX SCORE, none of a melee's fairness rules (UNLIMITED TURRETS, IGNITION LOCK, HANDICAPS, CHASE
+  CROSSHAIR: a co-op game is hosted without them, and its listing does not mention them), and no ROLLING START row (on, `[port]
+  coop_rolling_start`); the free line under the car panel, between VARIANT's rule and the buttons, says what the setting under the
+  pointer, or under the pad's focus, does, in the box's handwriting (`HostFormHelp`: every row and check box of the box, melee and
+  co-op, and the game type button; Graphic Detail's help line's pattern);
 - the arena's sketch (the port's, `ArenaSketch`), between the car's front and side views, on a scrap of the form's paper
   lightened, its edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
   the space (a small one centred, then 20 px to the left; a large one from the panel's rule): the arena from above, its floor as paper,

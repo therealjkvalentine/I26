@@ -20,10 +20,11 @@ public class HostFormLayoutTests(ITestOutputHelper output)
     private static readonly HostFormLayout.State Coop = Melee with { Coop = true };
 
     // the ids the form had before upstream drew it, less 7 (the original's driver box, which on a host form only showed the host's own car
-    // again), and the play fork's 39 (the ignition lock), 43 (Handicaps), 40..42 (the co-op form's Co-op Scaling, Co-op Damage, Rolling Start);
-    // the same sets as upstream's sheet has
+    // again), and the play fork's 39 (the ignition lock), 43 (Handicaps), 40 and 41 (the co-op form's Extra Enemies and Damage Taken); the
+    // melee set is upstream's sheet's. The co-op form keeps only what a story mission has a use for: no melee fairness rule (35, 38, 39,
+    // 43) and no Rolling Start row (42: on unless shell.cfg says otherwise)
     private static readonly int[] MeleeIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43];
-    private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43];
+    private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 36, 37, 40, 41];
 
     private static string Value(HostFormLayout.State s, string label) => HostFormLayout.Fields(s).Single(f => f.Label == label).Value;
 
@@ -59,17 +60,20 @@ public class HostFormLayoutTests(ITestOutputHelper output)
     public void ACoopGameLeavesOutWhatItHasNot()
     {
         var labels = HostFormLayout.Fields(Coop).Select(f => f.Label).ToList();
-        foreach (var gone in new[] { "TEAM PLAY", "SHARE MAPS" }) Assert.DoesNotContain(gone, labels);
-        foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "UNLIMITED TURRETS", "CAR RESET", "CB RADIO", "CHASE CROSSHAIR", "SIM RATE", "IGNITION LOCK", "HANDICAPS" })
+        // no team, score or map to share; none of a melee's fairness rules; Rolling Start has no row (on unless shell.cfg says otherwise)
+        foreach (var gone in new[] { "TEAM PLAY", "SHARE MAPS", "MAX SCORE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "CHASE CROSSHAIR", "ROLLING START", "CO-OP SCALING", "CO-OP DAMAGE" })
+            Assert.DoesNotContain(gone, labels);
+        foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "CAR RESET", "CB RADIO", "SIM RATE" })
             Assert.Contains(kept, labels);
-        // the co-op rules a labelled row each, at the box's top (adapted: the host's rules are labelled rows too, under them)
+        // the co-op rules a labelled row each, at the box's top, named in a player's words
         var coopRows = HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).ToList();
-        Assert.Equal(["CO-OP SCALING", "CO-OP DAMAGE", "ROLLING START"], coopRows.Take(3).Select(f => f.Label));
-        Assert.Equal([0, 1, 2], coopRows.Take(3).Select(f => f.Row));
-        // the same box: every line used, none past it
-        Assert.Equal(HostFormLayout.BoxLines, HostFormLayout.Fields(Coop).Select(f => f.Row).Distinct().Count());
-        // no Bots or Max Score: their ids are not hotspots
-        foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
+        Assert.Equal(["EXTRA ENEMIES", "DAMAGE TAKEN"], coopRows.Take(2).Select(f => f.Label));
+        Assert.Equal([0, 1], coopRows.Take(2).Select(f => f.Row));
+        // the same box: the first CoopLines lines used, in order, the rest blank paper
+        Assert.Equal(Enumerable.Range(0, HostFormLayout.CoopLines), HostFormLayout.Fields(Coop).Select(f => f.Row).Distinct().Order());
+        Assert.True(HostFormLayout.CoopLines < HostFormLayout.BoxLines);
+        // no Bots, Max Score or melee rule: their ids are not hotspots
+        foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34, 35, 38, 39, 42, 43 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
     }
 
     [Fact]
@@ -129,11 +133,11 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         (string Label, Func<HostFormLayout.State, bool, HostFormLayout.State> Set)[] rules =
         [
             ("UNLIMITED TURRETS", (s, v) => s with { Turrets = v }), ("IGNITION LOCK", (s, v) => s with { IgnitionStaysOn = v }),
-            ("CHASE CROSSHAIR", (s, v) => s with { Crosshair = v }), ("ROLLING START", (s, v) => s with { RollingStart = v }),
+            ("CHASE CROSSHAIR", (s, v) => s with { Crosshair = v }),
         ];
         foreach (var (label, set) in rules)
         {
-            var on = set(label == "ROLLING START" ? Coop : Melee, true);
+            var on = set(Melee, true);
             Assert.Equal("On", Value(on, label));
             Assert.Equal("Off", Value(set(on, false), label));
         }
@@ -141,7 +145,10 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         Assert.Equal("Set", Value(Melee with { Password = true }, "PASSWORD"));
         Assert.Equal("None", Value(Melee, "PASSWORD"));
         Assert.Equal("Auto", Value(Melee with { Handicaps = "Auto" }, "HANDICAPS"));
-        Assert.Equal("x2", Value(Coop with { CoopDamage = "x2" }, "CO-OP DAMAGE"));
+        Assert.Equal("x1.5", Value(Coop with { CoopDamage = "x1.5" }, "DAMAGE TAKEN"));
+        Assert.Equal("+1/player", Value(Coop with { CoopScale = "+1/player" }, "EXTRA ENEMIES"));
+        Assert.Equal("20 Hz", Value(Coop with { Rate = 20 }, "SIM RATE"));
+        Assert.Equal("Set", Value(Coop with { Password = true }, "PASSWORD"));
     }
 
     [Fact]
