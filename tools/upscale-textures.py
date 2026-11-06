@@ -64,6 +64,16 @@ the front armour's chevron, which touches its cell's top, came out with its poin
 state's point showing under it. With the install's cockpit layout (`i76 --install DIR cat vpit_1.elt > vpit_1.elt`) every sheet it names
 is upscaled whole and then each cell again on its own, mirrored at its own border, and put back at its place:
            python3 tools/upscale-textures.py SRC_DIR --families --cells vpit_1.elt --only "zsye,zsye320" ...
+
+Cut-out edges (--recut FIELDS): a keyed texture's alpha enlarged by any model follows the original's stair steps and the
+model's lumps, and the model blurs the art's outermost texels into the colour bled round it (a light fringe on a dark-edged
+road sign). The game cuts such faces by its own smooth outline of the original's key (the modern look); --recut gives the
+pack's keyed textures that outline as their alpha, so every path that reads the alpha agrees with it:
+           i76 --install DIR key-edge FIELDS 4 NAME...       (the outline as a field at 4 texels a pixel, stored row order)
+           python3 tools/upscale-textures.py SRC_DIR --recut FIELDS [--out PACK] [--only ...]
+Each texture of --out with a field is rewritten in place: its alpha the field cut at half, the band within --recut-edge
+original texels of the cut (default 0.9) faded to the original's own colours smoothly enlarged (pixel_scale), and the colour
+bled under the new key. The file it replaces is moved to PACK/.recut-prev/ first (kept once: a second run keeps the first's).
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -548,6 +558,40 @@ def one(job, run_model=None):
     write_out(px, os.path.join(out_dir, stem), flip, dds)
     return n, True
 
+def recut(px, field, orig, edge=0.9):
+    """--recut: a keyed upscale (RGBA, any row order) given the outline of a field (uint8, the same order and size, 128 on the
+    edge, reaching 2 original texels each way) as its alpha, 0 or 255; the band within `edge` original texels inside the cut
+    faded to `orig` (the original's RGBA in the same order) enlarged by pixel_scale; the colour bled under the new key."""
+    a = np.where(field >= 128, 255, 0).astype(np.uint8)
+    s = px.shape[1] // orig.shape[1]
+    rgb = bleed(px[..., :3], np.where(px[..., 3] >= 128, 255, 0), passes=16 * s)   # the new edge takes the old edge's colour
+    if edge > 0:
+        ps = pixel_scale(orig, s)
+        ps = bleed(ps[..., :3], ps[..., 3], passes=16 * s)
+        inside = (field.astype(np.float32) - 128) / 127 * 2
+        w = (np.clip(1 - inside / edge, 0, 1) * (a > 0))[..., None]
+        rgb = rgb * (1 - w) + ps * w
+    rgb = bleed(rgb, a, passes=16 * s)
+    return np.dstack([np.clip(rgb + 0.5, 0, 255).astype(np.uint8), a])
+
+def recut_pack(src, fields, out, only, edge, bottom_up, etcpak):
+    """--recut over a pack: each texture with a field in `fields` (STEM.pgm) and a .dds in `out` rewritten in place."""
+    import shutil
+    prev = os.path.join(out, ".recut-prev"); os.makedirs(prev, exist_ok=True); done = 0
+    for fn in sorted(os.listdir(fields)):
+        stem = fn[:-4].lower()
+        if not fn.endswith(".pgm") or not any(fnmatch.fnmatch(stem, g) for g in only): continue
+        dds, png = os.path.join(out, stem + ".dds"), os.path.join(src, stem + ".png")
+        if not os.path.exists(dds) or not os.path.exists(png): continue
+        field = np.array(Image.open(os.path.join(fields, fn)))
+        px = np.array(Image.open(dds).convert("RGBA"))
+        orig = np.array(Image.open(png).convert("RGBA"))
+        if stem in bottom_up: orig = orig[::-1]                    # the field and the .dds are in the stored order
+        if px.shape[:2] != field.shape or field.shape[1] % orig.shape[1]: print(f"{stem}: sizes differ, left"); continue
+        if not os.path.exists(os.path.join(prev, stem + ".dds")): shutil.copy2(dds, os.path.join(prev, stem + ".dds"))
+        write_dds(dds + ".part", recut(px, field, orig, edge), etcpak); os.replace(dds + ".part", dds); done += 1
+    print(f"{done} recut in {out} (the files replaced in {prev})")
+
 def write_out(px, out, flip, dds):
     """The finished RGBA (upright) as out.dds (BC7, in the stored row order) or out.png."""
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
@@ -648,6 +692,9 @@ def main():
     ap.add_argument("--context", type=int, default=32, help="the context (source texels a side) --neighbours gives the model (default 32)")
     ap.add_argument("--then", dest="then_model", help="a second model over the run's own colour model's output (the route the shipped pack's"
                     " world textures took: 4xTextures_GTAV then 2xHDCube_Compact.pth, the 8x brought down to --scale); a file in --models-dir")
+    ap.add_argument("--recut", default=None, help="a folder of `i76 key-edge FIELDS 4` fields: the pack's keyed textures (in --out) take the game's"
+                    " smooth outline as their alpha, their edge the original's colours; nothing is upscaled")
+    ap.add_argument("--recut-edge", type=float, default=0.9, help="--recut's band, in original texels inside the cut, faded to the original's colours (default 0.9; 0 none)")
     ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
     global TILE, GPU_SHARE, CONTEXT
@@ -668,6 +715,9 @@ def main():
     if os.path.exists(os.path.join(args.src, "bottom-up.txt")):
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
+    if args.recut:
+        if not etcpak: sys.exit("--recut writes .dds: etcpak and bottom-up.txt are needed")
+        recut_pack(args.src, args.recut, args.out, globs_of(args.only), args.recut_edge, bottom_up, etcpak); return
     if args.neighbours:
         with open(args.neighbours) as f: NEIGHBOURS.update(neighbour_plan(json.load(f), frozenset(bottom_up)))
         print(f"--neighbours: {len(NEIGHBOURS)} textures get {CONTEXT} texels of context")

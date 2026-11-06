@@ -13,9 +13,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
     private readonly Dictionary<string, Material> _cache = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The materials of back-to-back faces: never drawn from both sides, where the pair's two faces would z-fight.</summary>
     private readonly HashSet<Material> _oneSided = [];
-    private static Shader? _back, _both, _open, _translucent, _back97, _both97, _open97, _translucent97, _translucentBack97;
+    private static Shader? _back, _backKey, _both, _open, _translucent, _back97, _both97, _open97, _translucent97, _translucentBack97;
     private static Shader Translucent => _translucent ??= GD.Load<Shader>("res://Shaders/object_translucent.gdshader");
     private static Shader Back => _back ??= GD.Load<Shader>("res://Shaders/object_back.gdshader");
+    /// <summary>The modern look's back-to-back cut-out faces: from the front only, keyed with alpha-to-coverage as <see cref="Both"/> keys.</summary>
+    private static Shader BackKey => _backKey ??= GD.Load<Shader>("res://Shaders/object_back_key.gdshader");
     private static Shader Both => _both ??= GD.Load<Shader>("res://Shaders/object_disabled.gdshader");
     private static Shader Open => _open ??= GD.Load<Shader>("res://Shaders/object_open.gdshader");
     private static Shader Open97 => _open97 ??= GD.Load<Shader>("res://Shaders/object_open_1997.gdshader");
@@ -24,7 +26,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     private static Shader Both97 => _both97 ??= GD.Load<Shader>("res://Shaders/object_disabled_1997.gdshader");
     private static Shader TranslucentBack97 => _translucentBack97 ??= GD.Load<Shader>("res://Shaders/object_translucent_back_1997.gdshader");
 
-    /// <summary>The materials drawn from both sides in the modern look but from the front only in the 1997 look (ForTexture's oneSided1997): their shader in each.</summary>
+    /// <summary>The materials whose shader in each look is their own: drawn from both sides in the modern look but from the front only in the 1997 look (ForTexture's oneSided1997), and the back-to-back cut-out faces (BackKey, Back97).</summary>
     private readonly Dictionary<ShaderMaterial, (Shader Modern, Shader Faithful)> _oneSided1997 = [];
 
     /// <summary>Whether materials run the 1997 variants (new ones too).</summary>
@@ -183,9 +185,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
         if (_cache.TryGetValue(key, out var m)) return m;
         var t = textures.Get(member);
         bool keyed = mode != FaceMode.Opaque && t is { HasKey: true };
-        var modern = mode == FaceMode.Translucent ? Translucent : oneSided ? Back : keyed ? Both : bothSides ? Open : Back;
+        // a back-to-back pair's cut-out faces (a sign's) are keyed as the rest are, from their front only
+        var modern = mode == FaceMode.Translucent ? Translucent : oneSided ? (keyed ? BackKey : Back) : keyed ? Both : bothSides ? Open : Back;
         var mat = new ShaderMaterial { Shader = Pick(modern) };
         if (oneSided) _oneSided.Add(mat);
+        if (modern == BackKey) _oneSided1997[mat] = (BackKey, Back97);
         if (oneSided1997 && !bothSides && (modern == Translucent || modern == Both))
         {
             var faithful = modern == Translucent ? TranslucentBack97 : Back97;
@@ -199,7 +203,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
             mat.SetShaderParameter("alpha_key", keyed);
             // a wheel's face (WA<dd><ll><dd>): a disc filling its square, in the modern look edged by a true circle
             mat.SetShaderParameter("round_key", keyed && IsWheelFace(member));
-            if (keyed && !IsWheelFace(member) && modern == Both)
+            if (keyed && !IsWheelFace(member) && (modern == Both || modern == BackKey))
             {
                 if (Mode1997) _smoothKeyPending.Add((mat, member));
                 else SmoothKey(mat, member);
