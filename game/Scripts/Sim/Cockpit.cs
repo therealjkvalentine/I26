@@ -597,6 +597,8 @@ public partial class Cockpit : Node
         public int Housing, Diode = -1, Value = -1;
         public bool On;
         public int[] Digits = [10, 10, 10, 10];
+        /// <summary>The housing colour each counter window read when the panel was last drawn whole (the modern look's drums).</summary>
+        public (byte R, byte G, byte B)?[] Housings = new (byte, byte, byte)?[4];
     }
     private Row[]? _rows;
     private int _separator = -1;
@@ -619,15 +621,26 @@ public partial class Cockpit : Node
             _separator = lastFront + 1;
             dirty = force = true;
         }
+        int counters = 0;   // the counter digits that rolled, four bits a row
         for (int i = 0; i < ws.Count; i++)
         {
             var w = ws[i]; var row = _rows[i];
             bool on = i == a.Selected || a.Group.Contains(i);
             int diode = Band(w.MaxHp <= 0 ? 0 : (int)((float)w.Hp / w.MaxHp * 100));
             if (on != row.On || diode != row.Diode) { row.On = on; row.Diode = diode; dirty = true; }
-            if (Roll(row.Digits, w.Ammo, force)) dirty = true;
+            counters |= Roll(row.Digits, w.Ammo, _steps, force) << (4 * i);
         }
-        if (!dirty && !_repaintWeapons) return;
+        if (!dirty && !_repaintWeapons)
+        {
+            // only counters rolled (every shot of a gun): those digits' windows are drawn again over the panel as it stands, then
+            // the separator bar that is stamped over them, which gives the same texels as the whole panel drawn again
+            if (counters == 0) return;
+            for (int i = 0; i < ws.Count; i++)
+                for (int p = 0; p < 4; p++)
+                    if ((counters >> (4 * i + p) & 1) != 0) CounterWindow(_rows[i], i + 1, p);
+            if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
+            return;
+        }
         _repaintWeapons = false;
         Panels.Clear("zbk_.map");
         for (int i = 0; i < ws.Count; i++)
@@ -639,30 +652,40 @@ public partial class Cockpit : Node
             // the 1997 look: the plate as painted; the modern look: the name embossed in the label font (docs/deviations.md)
             if (_faithful) Panels.StampAt(plate, $"dymo_{n}");
             else Panels.StampLabel(plate, row.On ? "empty_on" : "empty_off", $"dymo_{n}", DymoLabels.Text(plate, w.Def.Name), row.On);
-            for (int p = 0; p < 4; p++)
-                if (_faithful) Panels.VWindow("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
-                else Panels.Digit("zbk_.map", $"num_{Places[p]}_{n}", "top", "bottom", row.Digits[p], DigitNudge);
+            System.Array.Clear(row.Housings);
+            for (int p = 0; p < 4; p++) CounterWindow(row, n, p);
         }
         if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
     }
 
+    private static readonly string[,] CounterAnchors = new string[5, 4];
+
+    /// <summary>One counter digit's window on the weapons panel (row n, place p): the strip's cell, or the modern look's drum.</summary>
+    private void CounterWindow(Row row, int n, int p)
+    {
+        var anchor = CounterAnchors[n - 1, p] ??= $"num_{Places[p]}_{n}";
+        if (_faithful) Panels.VWindow("zbk_.map", anchor, "top", "bottom", row.Digits[p] * 0.1f, DigitNudge);
+        else row.Housings[p] = Panels.Digit("zbk_.map", anchor, "top", "bottom", row.Digits[p], DigitNudge, row.Housings[p]);
+    }
+
     /// <summary>
     /// The rolling counter: each digit that differs from the value's steps down
-    /// by one per update (an increase rolls down through 9). True if
-    /// any digit moved.
+    /// by one per update (an increase rolls down through 9), <paramref name="steps"/>
+    /// updates; <paramref name="force"/> sets every digit at once. Returns the
+    /// digits that moved, a bit a place (ones first).
     /// </summary>
-    private bool Roll(int[] shown, int value, bool force)
+    public static int Roll(int[] shown, int value, int steps, bool force)
     {
-        bool moved = false;
+        int moved = 0;
         value = System.Math.Clamp(value, 0, 9999);
-        for (int step = 0; step < System.Math.Max(_steps, force ? 1 : 0); step++)
-            for (int p = 0; p < 4; p++)
+        for (int step = 0; step < System.Math.Max(steps, force ? 1 : 0); step++)
+            for (int p = 0, k = 1; p < 4; p++, k *= 10)
             {
-                int d = value / (int)System.Math.Pow(10, p) % 10;
+                int d = value / k % 10;
                 if (shown[p] == d && !force) continue;
                 if (force) shown[p] = d;
                 else { shown[p] -= 1; if (shown[p] < 0) shown[p] = 9; }
-                moved = true;
+                moved |= 1 << p;
             }
         return moved;
     }
@@ -686,7 +709,7 @@ public partial class Cockpit : Node
             bool on = s is not null && s.Charges >= 1 && s.Unk_0x10 != 0;
             int diode = s is null ? -1 : Band(s.Max <= 0 ? 0 : (int)((float)s.Hp / s.Max * 100));
             if (on != row.On || diode != row.Diode) { row.On = on; row.Diode = diode; dirty = true; }
-            if (Roll(row.Digits, s?.Charges ?? 0, force)) dirty = true;
+            if (Roll(row.Digits, s?.Charges ?? 0, _steps, force) != 0) dirty = true;
         }
         if (!dirty && !_repaintSpecials) return;
         _repaintSpecials = false;
