@@ -351,3 +351,6 @@ feat/hd-8x-dash-and-cars              # section AJ, after hd-8x-default: [port] 
 
 # AK. menus: tooltips, Advanced, Controls (2026-11-06)
 feat/menus-tooltips-advanced          # section AK: one tooltip component (0.5 s hover delay) on every shell, Esc, host-form and Dev-panel row, tested; Graphic Detail sheet + one Advanced page (1997 Mode first, 1997 Palette Grade, World Textures 1997/4x, Car & Dash Textures 1997/4x/8x); Terrain and Shadow High and Hood Gloss 5 by default (old Low defaults migrate once); Car Interiors -> Cabins Behind Glass (key cabins_behind_glass, Dev panel); Log File -> log_file key; Options -> Controls (force feedback, rumble, wheel strength, mouse, key map); shell settings v14
+
+# AL. menu art at 4x everywhere (2026-11-06)
+fix/menu-art-4k-coverage              # section AL, after menus-tooltips-advanced: the rear weapons on the Build & Repair blueprint (drawn turned half a turn) take the HD sprite path like the rest; tex-menu pack: banks 33-35/37-56/58 part sprites added, blueprint art traced to smooth lines, printed lettering retyped on Build & Repair, Field Salvage, Parts Catalog, Auto Melee, host/join forms, Standings and the Esc pads (pack files synced separately: _scratch/r5-menu-art/shots/changed-pack-files.txt)
