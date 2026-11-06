@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### New
+- `[port] movie_ignition=on` (off by default): the modern look's ignition plays the engine start-up from the INT03 briefing movie, read at run time from the install's own smk/ folder, in place of the kit's 11 kHz ignition sound; the catch lands on the engine table's time (`I76.Formats.Audio.MovieClip`).
 - The 1997 look answers the keys sooner: a press or release of a driving or weapon key runs the next simulation tick at once instead of waiting up to a tick for it (Early Tick, as i76-everywhere's kit does). Throttle from rest, key to the first changed frame: 50 ms median before, 22 ms after (i76-everywhere 17 ms), at 24 Hz on a 179 Hz display. The ticks, their length and the physics are unchanged; single player only. shell.cfg `[port] early_tick=false` waits for the tick as before.
 - The 1997 look takes Graphic Detail's Anti-Aliasing (the polygon edges, the horizon and the road lines no longer crawl at today's resolutions), as i76-everywhere draws the original with 4x MSAA; no measurable cost (179 fps either way at 1920x1080). `[port] aa_1997=false` draws it without, as the 3D card did.
 - docs/1997-parity.md compares the 1997 look with i76-everywhere's engine-native picture, measured side by side, and ranks what differs.
