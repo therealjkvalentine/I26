@@ -317,3 +317,11 @@ docs/upstream-handoff                 # section AB: docs/upstream-handoff.md (th
 
 # AC. engine start-up from the briefing movies (2026-11-05)
 feat/engine-audio-from-movies         # section AC: [port] movie_ignition (off): the modern look's ignition plays the INT03 briefing's start-up (cut from the user's own SMK at run time, MovieClip.cs) with the catch on the engine table's start time; ignition log lines; the kit's 11 kHz 8-bit loops measured against the movies' 22 kHz audio (docs)
+
+# AD. pass 19 code review (2026-11-05): the first five are cut from upstream's master and PR-ready
+fix/grid-route-same-cell              # section AD: GridRoute.Between with start and goal in one open cell no longer indexes an empty route (server-tick crash for a melee bot)
+fix/fsm-paths-unparsable              # section AD: a map whose script chunk cannot hold paths refuses path edits with a message instead of throwing in the editor's event and on save
+fix/outside-terrain-job-count         # section AD: chunk jobs left running by Clear() stay counted until they finish (no 8 concurrent jobs after a look toggle)
+fix/outside-ground-forget             # section AD: the editor forgets the outside ground when it refreshes edited terrain; the lazy getter reads its field once
+fix/model-sphere-cache                # section AD: a helicopter's model sphere is assembled once per file, not on every spawn
+fix/pass19-review                     # section AD, stacked on play: a partial HD pack's texture count is distinct names; the roster caches misses for 5 s (LookupCache)
