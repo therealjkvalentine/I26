@@ -326,3 +326,6 @@ fix/outside-terrain-job-count         # section AD: chunk jobs left running by C
 fix/outside-ground-forget             # section AD: the editor forgets the outside ground when it refreshes edited terrain; the lazy getter reads its field once
 fix/model-sphere-cache                # section AD: a helicopter's model sphere is assembled once per file, not on every spawn
 fix/pass19-review                     # section AD, stacked on play: a partial HD pack's texture count is distinct names; the roster caches misses for 5 s (LookupCache)
+
+# AE. the test suites on a machine with the install (2026-11-05)
+fix/test-suite-on-this-install        # section AE: the server's armour limit reads only the archive's variants (a player's saved variant in addon\ raised it); a melee snapshot restore takes FormKd from Form; the road-piece count reads miss16 only; four Formats tests made path- and platform-honest; wall-clock tests marked Load=Sensitive; "Running the tests" in play-setup.md with the counts
