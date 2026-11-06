@@ -230,7 +230,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         int w = tp.Label.W, h = tp.Label.H;
-        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}", t.S);
+        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}|{CounterDigits.Feather}|{CounterDigits.Lip}", t.S);
         if (!_labels.TryGetValue(key, out var cell))
         {
             cell = new byte[w * t.S * h * t.S * 4];

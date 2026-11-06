@@ -132,9 +132,9 @@ public class CockpitPanelsBlitTests
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var drum = Cell(s); var inset = Cell(s); var raised = Cell(s);
-        CounterDigits.Paint(drum, s, 2, CounterDigits.Font!, DrumStyle.Drum);
-        CounterDigits.Paint(inset, s, 2, CounterDigits.Font!, DrumStyle.Inset);
-        CounterDigits.Paint(raised, s, 2, CounterDigits.Font!, DrumStyle.Raised);
+        CounterDigits.Paint(drum, s, 2, CounterDigits.Font!, DrumStyle.Drum, 0, false);
+        CounterDigits.Paint(inset, s, 2, CounterDigits.Font!, DrumStyle.Inset, 0, false);
+        CounterDigits.Paint(raised, s, 2, CounterDigits.Font!, DrumStyle.Raised, 0, false);
         // the 2's foot (column 4): its lowest dark row lifted toward the face inset, two rows up the same as the plain drum
         int foot = -1, top = -1;
         for (int y = h - 1; y >= 0 && foot < 0; y--) if (Rgb(drum, w, h, 4 * s, y).R < 30) foot = y;
@@ -177,6 +177,11 @@ public class CockpitPanelsBlitTests
     [InlineData(DrumStyle.Gaps)]
     public void EveryFigureStaysLegibleOnTheShadedDrum(DrumStyle style)
     {
+        foreach (float feather in new[] { 0f, 0.10f, 0.15f, 0.20f }) Legible(style, feather);
+    }
+
+    private static void Legible(DrumStyle style, float feather)
+    {
         // legibility: on every row the figure crosses, the face beside it is at least 130 levels brighter than the
         // figure's ink (the inset's lit lower edge included), and the figure keeps the flat one's place (top and foot within half a pixel, centred alike)
         const int s = 4;
@@ -185,7 +190,7 @@ public class CockpitPanelsBlitTests
         {
             var flat = Cell(s); var drum = Cell(s);
             CounterDigits.Paint(flat, s, d, CounterDigits.Font!, DrumStyle.Flat);
-            CounterDigits.Paint(drum, s, d, CounterDigits.Font!, style);
+            CounterDigits.Paint(drum, s, d, CounterDigits.Font!, style, feather, false);
             (int Top, int Bottom) Extent(byte[] c, int y0, int y1)
             {
                 int t = -1, b = -1;
@@ -194,15 +199,19 @@ public class CockpitPanelsBlitTests
             }
             var f = Extent(flat, 0, h);
             // the neighbours' ends (Gaps) lie outside the flat figure's rows: measure inside them
-            var g = Extent(drum, f.Top - s / 2, f.Bottom + s / 2 + 1);
-            Assert.InRange(g.Top, f.Top - s / 2, f.Top + s / 2);
-            Assert.InRange(g.Bottom, f.Bottom - s / 2, f.Bottom + s / 2);
+            if (feather == 0)
+            {
+                var g = Extent(drum, f.Top - s / 2, f.Bottom + s / 2 + 1);
+                Assert.InRange(g.Top, f.Top - s / 2, f.Top + s / 2);
+                Assert.InRange(g.Bottom, f.Bottom - s / 2, f.Bottom + s / 2);
+            }
             for (int y = f.Top; y <= f.Bottom; y++)
             {
+                if (CounterDigits.EdgeWeight(y, h, feather) > 0) continue;   // the window's feathered edges: the middle band is what must read
                 int ink = 255, face = 0;
                 for (int x = s; x < w; x++) { int r = Rgb(drum, w, h, x, y).R; ink = Math.Min(ink, r); face = Math.Max(face, r); }
                 if (ink > 100) continue;       // a row the figure only grazes
-                Assert.True(face - ink >= 130, $"{style} {d} row {y}: face {face}, ink {ink}");
+                Assert.True(face - ink >= 130, $"{style} {feather} {d} row {y}: face {face}, ink {ink}");
             }
         }
     }
@@ -213,8 +222,8 @@ public class CockpitPanelsBlitTests
         const int s = 4;
         int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
         var drum = Cell(s); var gaps = Cell(s);
-        CounterDigits.Paint(drum, s, 8, CounterDigits.Font!, DrumStyle.Drum);
-        CounterDigits.Paint(gaps, s, 8, CounterDigits.Font!, DrumStyle.Gaps);
+        CounterDigits.Paint(drum, s, 8, CounterDigits.Font!, DrumStyle.Drum, 0, false);
+        CounterDigits.Paint(gaps, s, 8, CounterDigits.Font!, DrumStyle.Gaps, 0, false);
         int Dark(byte[] c, int y) { int n = 0; for (int x = 2 * s; x < w - s; x++) if (Rgb(c, w, h, x, y).R < 140) n++; return n; }
         // the 7 above shows its foot in the top row, the 9 below its top in the bottom row; the plain drum shows neither
         Assert.Equal(0, Dark(drum, 0)); Assert.Equal(0, Dark(drum, h - 1));
@@ -231,4 +240,60 @@ public class CockpitPanelsBlitTests
     [InlineData("7", DrumStyle.Inset)]
     [InlineData("bogus", DrumStyle.Inset)]
     public void TheDrumStyleHookParses(string? v, DrumStyle want) => Assert.Equal(want, CounterDigits.FromEnv(v));
+    [Theory]
+    [InlineData(0.10f)]
+    [InlineData(0.15f)]
+    [InlineData(0.20f)]
+    public void TheWindowsEdgesFadeIntoTheHousingsShadow(float feather)
+    {
+        const int s = 4;
+        int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
+        var sharp = Cell(s); var soft = Cell(s);
+        CounterDigits.Paint(sharp, s, 0, CounterDigits.Font!, DrumStyle.Inset, 0, false);
+        CounterDigits.Paint(soft, s, 0, CounterDigits.Font!, DrumStyle.Inset, feather, false);
+        int face = w - 2;            // a face column right of the figure
+        // the middle band untouched, the lip rows near the shadow, the band in between easing (never brighter, darker toward the lip)
+        int band = (int)MathF.Ceiling(feather * h);
+        for (int y = band; y < h - band; y++) Assert.Equal(Rgb(sharp, w, h, face, y), Rgb(soft, w, h, face, y));
+        Assert.InRange((int)Rgb(soft, w, h, face, 0).R, CounterDigits.ShadowRgb.R, CounterDigits.ShadowRgb.R + 45);
+        Assert.InRange((int)Rgb(soft, w, h, face, h - 1).R, CounterDigits.ShadowRgb.R, CounterDigits.ShadowRgb.R + 45);
+        for (int y = 1; y < band; y++) Assert.True(Rgb(soft, w, h, face, y).R >= Rgb(soft, w, h, face, y - 1).R, $"row {y}");
+        // the figure's ink thins into the band: the 0's foot row has less contrast than the sharp drum's
+        int foot = -1;
+        for (int y = h - 1; y >= 0 && foot < 0; y--) if (Rgb(sharp, w, h, 4 * s, y).R < 40) foot = y;
+        if (CounterDigits.EdgeWeight(foot, h, feather) > 0.2f)
+        {
+            int c0 = Rgb(sharp, w, h, face, foot).R - Rgb(sharp, w, h, 4 * s, foot).R, c1 = Rgb(soft, w, h, face, foot).R - Rgb(soft, w, h, 4 * s, foot).R;
+            Assert.True(c1 < c0, $"{c1} {c0}");
+        }
+    }
+
+    [Fact]
+    public void TheLipCatchesAFaintLightAtTheWindowsTop()
+    {
+        const int s = 4;
+        int w = CounterDigits.CellW * s, h = CounterDigits.CellH * s;
+        var plain = Cell(s); var lip = Cell(s);
+        CounterDigits.Paint(plain, s, 5, CounterDigits.Font!, DrumStyle.Inset, 0.15f, false);
+        CounterDigits.Paint(lip, s, 5, CounterDigits.Font!, DrumStyle.Inset, 0.15f, true);
+        int face = w - 2;
+        Assert.InRange(Rgb(lip, w, h, face, 0).R - Rgb(plain, w, h, face, 0).R, 20, 80);
+        Assert.True(Rgb(lip, w, h, face, h - 1).R > Rgb(plain, w, h, face, h - 1).R);
+        Assert.Equal(Rgb(plain, w, h, face, h / 2), Rgb(lip, w, h, face, h / 2));
+    }
+
+    [Theory]
+    [InlineData(null, 0.20f, false)]
+    [InlineData("0", 0f, false)]
+    [InlineData("10", 0.10f, false)]
+    [InlineData("20lip", 0.20f, true)]
+    [InlineData(" 15LIP ", 0.15f, true)]
+    [InlineData("99", 0.20f, false)]
+    [InlineData("soft", 0.20f, false)]
+    public void TheFeatherHookParses(string? v, float fraction, bool lip)
+    {
+        var f = CounterDigits.FeatherFromEnv(v);
+        Assert.Equal(fraction, f.Fraction, 3);
+        Assert.Equal(lip, f.Lip);
+    }
 }
