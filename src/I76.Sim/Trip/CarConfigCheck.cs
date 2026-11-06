@@ -45,10 +45,12 @@ public static class CarConfigCheck
         if (car.Variant.Length == 0 || car.Variant.Any(char.IsControl)) { error = "a nameless variant"; return null; }
 
         // armour and chassis: the garage conserves their total (Defense: +-10 between a zone and the pool), so no more than the
-        // heaviest stock variant carries, or than the secret body is given; none negative
+        // heaviest stock variant carries, or than the secret body is given; none negative. Stock: the archive's variants (and the first);
+        // a variant the install's player saved (CONFIGURE CHASSIS writes addon\vppirna4.vcf and the like) does not raise the limit
         int Total(TripCar c) => c.Armour.Sum() + c.Chassis.Sum() + c.Ninth;
         int allowed = 0;
-        for (int n = 1; n < 10 && vfs.TryRead($"{stem}{n}.vcf") is { } sd; n++) allowed = System.Math.Max(allowed, Total(TripCar.FromVcf(sd)));
+        for (int n = 1; n < 10 && vfs.TryRead($"{stem}{n}.vcf") is { } sd; n++)
+            if (n == 1 || vfs.InArchive($"{stem}{n}.vcf")) allowed = System.Math.Max(allowed, Total(TripCar.FromVcf(sd)));
         if (secret is { } body) allowed += body.Total;      // the secret replaces the zones it names, keeping the rest of the Rattler's
         if (car.Armour.Any(a => a < 0) || car.Chassis.Any(c => c < 0) || car.Ninth < 0 || Total(car) > allowed) { error = "armour beyond the model's"; return null; }
 
