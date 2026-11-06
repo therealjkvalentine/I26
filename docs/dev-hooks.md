@@ -121,6 +121,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_LOADING_ANSWER` | capture | `N`: answer the loading screen's question (a host's custom map: 0 Download, 1 Always, 2 Cancel) with that button once it has been up 60 frames. |
 | `I76_PIT_DUMP` | capture | `DIR`: dump the cockpit panel textures once, at frame 15. |
 | `I76_COUNTER_DRUM` | capture | `flat`, `drum`, `inset`, `raised` or `gaps`: the modern cockpit's ammunition counter drums drawn that way instead of the default (inset: shaded as a drum under the window, the figures cut in; CounterDigits.cs), for comparisons. |
+| `I76_COUNTER_FEATHER` | capture | `0`, `10`, `15`, `20` (percent of the window's height, the default 20), optionally followed by `lip` (`15lip`): the counter drums' top and bottom edges fading into the housing's shadow over that much of the window, with a faint light on the lip, for comparisons. |
 | `I76_NO_OVERLAY` | capture | Leave the debug overlay out. |
 | `I76_NO_SCRIPT_CAM` | capture | `1`: ignore the mission script's camera moves (keep the cockpit view). |
 | `I76_MOVIE_HOLD` | capture | Hold a movie on a frame number. |

@@ -63,14 +63,51 @@ public static class CounterDigits
     public static DrumStyle FromEnv(string? v) => Enum.TryParse<DrumStyle>(v, true, out var s) && Enum.IsDefined(s) ? s : DrumStyle.Inset;
 
     /// <summary>
+    /// The window's edges on a drum style: over the top and bottom <see cref="Feather"/> of the window's height the face
+    /// and the figure fade into the housing's shadow (<see cref="ShadowRgb"/>, at most <see cref="ShadowDepth"/> at the
+    /// lip), the figure's ink thinning first (to <see cref="InkFade"/> at the lip) as it curves away under the window;
+    /// with <see cref="Lip"/>, the lip's edge catches a faint light. I76_COUNTER_FEATHER ("0", "10", "15", "20", each
+    /// optionally with "lip": "15lip") sets another, for comparisons (docs/dev-hooks.md).
+    /// </summary>
+    public static float Feather { get; set; } = FeatherFromEnv(System.Environment.GetEnvironmentVariable("I76_COUNTER_FEATHER")).Fraction;
+    public static bool Lip { get; set; } = FeatherFromEnv(System.Environment.GetEnvironmentVariable("I76_COUNTER_FEATHER")).Lip;
+    public const float DefaultFeather = 0.20f, ShadowDepth = 0.85f, InkFade = 0.5f, LipLight = 0.3f;
+    public const bool DefaultLip = false;
+    public static readonly (byte R, byte G, byte B) ShadowRgb = (24, 24, 20);
+
+    public static (float Fraction, bool Lip) FeatherFromEnv(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return (DefaultFeather, DefaultLip);
+        v = v.Trim().ToLowerInvariant();
+        bool lip = v.EndsWith("lip");
+        if (lip) v = v[..^3];
+        return int.TryParse(v, out int pct) && pct is >= 0 and <= 40 ? (pct / 100f, lip) : (DefaultFeather, DefaultLip);
+    }
+
+    /// <summary>The window-edge weight of row <paramref name="y"/> (from the top) of a window <paramref name="h"/> high: 1 at
+    /// the lip, easing to 0 at <paramref name="feather"/> of the height in from it.</summary>
+    public static float EdgeWeight(int y, int h, float feather)
+    {
+        if (feather <= 0) return 0;
+        float d = Math.Min(y + 0.5f, h - y - 0.5f) / (feather * h);
+        if (d >= 1) return 0;
+        float t = 1 - d;
+        return t * t * (3 - 2 * t);
+    }
+
+    /// <summary>
     /// Paints figure <paramref name="digit"/> (0..9) over a cell: <paramref name="rgba"/> is the strip's cell at
     /// <paramref name="s"/> texels a pixel (CellW·s × CellH·s RGBA8, stored bottom-up as the panels are). Right of the
     /// separator column every row takes its face colour (the cell's rightmost texel, the face in every cell of the
     /// strip), taking the painted figure off; then the font's figure is filled at the strip's figure height and place,
     /// on the drum's curve for the drum styles, and the face shaded.
     /// </summary>
-    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style)
+    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style) => Paint(rgba, s, digit, font, style, Feather, Lip);
+
+    /// <summary>Paint with the window's feather and lip given (the drum styles only; Flat has no window edge).</summary>
+    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style, float feather, bool lip)
     {
+        if (style == DrumStyle.Flat) feather = 0;
         int w = CellW * s, h = CellH * s;
         for (int y = 0; y < h; y++)
         {
@@ -95,6 +132,8 @@ public static class CounterDigits
                     _ => 0,
                 };
                 if (sh > 0) for (int c = 0; c < 3; c++) rgba[i + c] = (byte)(rgba[i + c] * (1 - EmbossShade * sh) + 0.5f);
+                // the figure curving away under the window: its ink thins toward the lip
+                a *= 1 - InkFade * EdgeWeight(y, h, feather);
                 if (a <= 0) continue;
                 var (cr, cg, cb) = ((float)Ink.R, (float)Ink.G, (float)Ink.B);
                 // the lit edge inside the figure: cut in, the groove's lower wall; standing proud, its top
@@ -113,8 +152,21 @@ public static class CounterDigits
         if (style == DrumStyle.Gaps) Gap(rgba, w, h, s);
         for (int y = 0; y < h; y++)
         {
-            float k = Shade(y, h);
-            for (int x = s; x < w; x++) { int i = ((h - 1 - y) * w + x) * 4; for (int c = 0; c < 3; c++) rgba[i + c] = (byte)(rgba[i + c] * k + 0.5f); }
+            float k = Shade(y, h), sw = ShadowDepth * EdgeWeight(y, h, feather);
+            // the lip: the window's top edge lit from above, the bottom one less
+            float lw = !lip || feather <= 0 ? 0 : y < Math.Max(1, s / 2) ? LipLight : y >= h - Math.Max(1, s / 2) ? LipLight / 2 : 0;
+            for (int x = s; x < w; x++)
+            {
+                int i = ((h - 1 - y) * w + x) * 4;
+                for (int c = 0; c < 3; c++)
+                {
+                    byte sc = c == 0 ? ShadowRgb.R : c == 1 ? ShadowRgb.G : ShadowRgb.B;
+                    float v = rgba[i + c] * k;
+                    v += (sc - v) * sw;
+                    v += (200 - v) * lw;
+                    rgba[i + c] = (byte)Math.Clamp(v + 0.5f, 0, 255);
+                }
+            }
         }
     }
 
