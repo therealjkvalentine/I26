@@ -1232,7 +1232,7 @@ godot-mono --path game -- --connect HOST:PORT [--name N] [--car X.vcf] [--team T
 
 - The server chooses the arena and answers with the car it actually built.
   A car file it does not have becomes its default car, the Piranha.
-- Esc opens the menu (Leave Match, Self Destruct (new car), Exit I76, Graphic Detail, Audio Control, Control Configuration, Resume); the game runs on under it and the car is held neutral. Self Destruct sends Ctrl+Del's command (in the original, the network menu's Replay item): a death with no killer, -500 to a floor of 0, then Space for a new car; greyed while dead and once the game is decided. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
+- Esc opens the menu (Leave Match, Self Destruct (new car), Exit I76, Graphic Detail, Audio Control, Controls, Resume); the game runs on under it and the car is held neutral. Self Destruct sends Ctrl+Del's command (in the original, the network menu's Replay item): a death with no killer, -500 to a floor of 0, then Space for a new car; greyed while dead and once the game is decided. Ctrl+F10 or Ctrl+Q also leave. There is no pause, and the
   map and notepad are off, because they would pause the game.
 
 ### A listen server
@@ -1302,9 +1302,8 @@ its art.
   labelled row each on a ruled blank, then INVITE ONLY, HIDDEN CARS, CAR RESET and CB RADIO, then SIM RATE and PASSWORD; no BOTS,
   TEAM PLAY, SHARE MAPS or MAX SCORE, none of a melee's fairness rules (UNLIMITED TURRETS, IGNITION LOCK, HANDICAPS, CHASE
   CROSSHAIR: a co-op game is hosted without them, and its listing does not mention them), and no ROLLING START row (on, `[port]
-  coop_rolling_start`); the free line under the car panel, between VARIANT's rule and the buttons, says what the setting under the
-  pointer, or under the pad's focus, does, in the box's handwriting (`HostFormHelp`: every row and check box of the box, melee and
-  co-op, and the game type button; Graphic Detail's help line's pattern);
+  coop_rolling_start`); every setting has a tooltip saying what it does, by the pointer or beside the pad's focus (`HostFormHelp`:
+  every row and check box of the box, melee and co-op, and the game type button; the menus' MenuTooltip);
 - the arena's sketch (the port's, `ArenaSketch`), between the car's front and side views, on a scrap of the form's paper
   lightened, its edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
   the space (a small one centred, then 20 px to the left; a large one from the panel's rule): the arena from above, its floor as paper,

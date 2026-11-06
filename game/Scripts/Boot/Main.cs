@@ -712,13 +712,12 @@ public partial class Main : Node3D
     private void ApplyGraphics(I76.Game.Shell.ShellSettings s)
     {
         ApplyDevFps(s);
-        I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(s.CarInteriors);
+        I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(s.CabinsBehindGlass);
         I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss);
         I76.Game.Sim.ModernFx.ApplyLook(s);
         // HD Textures: the modern look's textures swapped in place, as a flip of the look does (the 1997 look keeps the originals)
-        I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
-        I76.Game.Assets.HdTextures.DashSize = s.HdDashSize;
-        I76.Game.Assets.HdTextures.CarSize = s.HdCarSize;
+        I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
+        I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         _brightnessLevel = s.Graphics[0xc];
         if (_lighting != LightingOf(s)) { _lighting = LightingOf(s); SolveLightingCalibration(); }

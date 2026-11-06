@@ -11,7 +11,7 @@ namespace I76.Game.Shell;
 /// form's box has only what means something in a story mission (<see cref="Fields"/>): Extra Enemies and Damage Taken, the check
 /// boxes, Sim Rate and Password, on the box's first lines, and the box closes under them. Pure layout, no engine: the
 /// hotspot ids are the form's own (MeleeScreen's table), every one kept from the form before (and from upstream's drawn sheet,
-/// 56373bd). The help line under the car panel says what each is (<see cref="HostFormHelp"/>).
+/// 56373bd). Each has a tooltip saying what it is (<see cref="HostFormHelp"/>).
 /// </summary>
 public static class HostFormLayout
 {

@@ -269,7 +269,7 @@ public partial class Shell : CanvasLayer
     public void ReloadSettings()
     {
         Settings = ShellSettings.Load();
-        I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
+        I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(Settings.CabinsBehindGlass);
         I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
         I76.Game.Sim.ModernFx.ApplyLook(Settings);
@@ -329,7 +329,7 @@ public partial class Shell : CanvasLayer
         Trip = TripState.Load();
         ShellSettings.Nitro = Install.IsNitro;
         Settings = ShellSettings.Load();
-        I76.Game.Assets.MaterialLibrary.ApplyCarInteriors(Settings.CarInteriors);
+        I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(Settings.CabinsBehindGlass);
         I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(Settings.HoodGloss);
         // the menus keep the pointer in the window too (Main's cursor state reads it every frame)
         I76.Game.MouseCamera.Confine = Settings.KeepMouseInWindow;
@@ -343,6 +343,7 @@ public partial class Shell : CanvasLayer
         AddChild(_view);
         ApplyLook();
         AddChild(_focusLayer = new PadFocusLayer { Shell = this, Name = "PadFocus" });
+        AddChild(_tip = new MenuTooltip { Faithful = Faithful, Name = "Tooltip" });
         // the version, small and dim, in the main menu's lower right corner
         _build = new Label { Text = I76.Game.Boot.BuildInfo.Line, Name = "Build", MouseFilter = Control.MouseFilterEnum.Ignore,
             HorizontalAlignment = HorizontalAlignment.Right, Modulate = new Color(1, 1, 1, 0.35f) };
@@ -593,6 +594,26 @@ public partial class Shell : CanvasLayer
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_THROW") == where) throw new InvalidOperationException($"I76_SHELL_THROW={where}");
     }
 
+    private MenuTooltip? _tip;
+
+    /// <summary>
+    /// The menus' tooltip (MenuTooltip): the current screen's row under the pointer, near the pointer, or under the pad's focus,
+    /// beside the row; kept on top of the shell's layers, in window pixels over the 4:3 frame however the window is shaped.
+    /// </summary>
+    private void TrackTip(double delta)
+    {
+        if (_tip is null) return;
+        if (_tip.GetIndex() != GetChildCount() - 1) MoveChild(_tip, -1);
+        if (Clicked || RightClicked || Capture is not null) _tip.Restart();
+        var cur = Current;
+        var t = Capture is null ? cur?.TipAt(Mouse) : null;
+        var size = GetViewport().GetVisibleRect().Size;
+        float scale = Math.Min(size.X / ShellFrame.W, size.Y / ShellFrame.H);
+        var off = (size - new Vector2(ShellFrame.W, ShellFrame.H) * scale) / 2;
+        var box = t is { } z ? new TipBox(off.X + z.Zone.Position.X * scale, off.Y + z.Zone.Position.Y * scale, z.Zone.Size.X * scale, z.Zone.Size.Y * scale) : default;
+        _tip.Track(t is { } k ? (cur, k.Zone) : null, t?.Text, box, off + new Vector2(Mouse.X, Mouse.Y) * scale, PadFocus is not null, scale, delta);
+    }
+
     /// <summary>Puts an overlay (the notepad screens) over the current screen, or takes it away (null): the screen underneath repaints.</summary>
     public void Overlay(ShellScreen? overlay)
     {
@@ -840,6 +861,10 @@ public partial class Shell : CanvasLayer
             }
             if (kind == "overlay" && arg == "controls") Overlay(new ControlsScreen());
             if (kind == "overlay" && arg == "mouse") Overlay(new MouseOptionsScreen());
+            if (kind == "overlay" && arg == "controlsmenu") Overlay(new ControlsMenuScreen());
+            if (kind == "overlay" && arg == "play") Overlay(new PlayOptionsScreen());
+            if (kind == "overlay" && arg == "options") Overlay(new OptionsScreen());
+            if (kind == "overlay" && arg == "advanced") Overlay(new GraphicsScreen { Page = GraphicsPages.Advanced });
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());
             if (kind == "type") _typed.Append(arg);
@@ -892,6 +917,7 @@ public partial class Shell : CanvasLayer
         bool seeThrough = _screen is { TransparentFrame: true };
         Frame.Transparent = Upscaled || seeThrough;
         Frame.Keep = seeThrough ? _screen!.FrameKeep : Kept(Frame.Record, Frame.Native);
+        TrackTip(delta);
         if (Frame.Present() is { } img)
         {
             if (_tex is null) { _tex = ImageTexture.CreateFromImage(img); _view.Texture = _tex; }
@@ -942,6 +968,8 @@ public abstract class ShellScreen
     public virtual bool[]? FrameKeep => null;
     /// <summary>Redraws after an overlay came off it (the repaint hook).</summary>
     public virtual void Repaint() { }
+    /// <summary>The tooltip for the point (the pointer, or the pad's focus, which puts the pointer on its region): its text and the row's zone, in shell coordinates; null for none.</summary>
+    public virtual (string Text, Rect2I Zone)? TipAt(Vector2I m) => null;
 }
 
 /// <summary>
@@ -1147,11 +1175,12 @@ public sealed class ShellSettings
     /// instruments On (+0xe, the HUD readouts in the chase view), +0x8, a byte
     /// no screen of the original shows, the modern look's anti-aliasing (0 off,
     /// 1 MSAA 2x, the default, 2 MSAA 4x: 4x costs 12 % of a full-detail frame at
-    /// 3440x1440, 2x 3 %, docs/perf/costs.md), and Terrain Detail Low (+0x2) and Shadow Detail Low
-    /// (+0x6), the lighter settings for a first start (a saved file keeps its own,
-    /// the block whole: a 4x saved before 2x was the default stays 4x).
+    /// 3440x1440, 2x 3 %, docs/perf/costs.md), and Terrain Detail High (+0x2) and Shadow Detail High
+    /// (+0x6): the finest ground near the car and the sun's shadows to 1500 m, about 1.2 ms a frame over Low at 3440x1440 on a
+    /// GTX 1080 Ti (docs/perf/costs.md). A saved file keeps its own block whole (a 4x saved before 2x was the default stays 4x),
+    /// but for the two bytes still at the earlier Low defaults, which version 14 moves to High.
     /// </summary>
-    public static readonly byte[] DefaultGraphics = [5, 1, 0, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
+    public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
@@ -1162,18 +1191,26 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
-    /// <summary>The port's own: a texture pack's upscaled world, car and cockpit textures (the dash, gauges and panels among them) in the modern look ([port] hd_textures, Graphic Detail's HD Textures row; HdTextures). On unless the file says false.</summary>
-    public bool HdTextures { get; set; } = HdDefault.On;
-    /// <summary>The port's own: the size the cockpit's art (the dash, gauges, panels) is drawn at, 4 or 8 (the 8x Dash row's; the user folder's tex-world-4x, and tex-world-8x, a partial pack over it) or another whole multiple the file or the Developer panel names (tex-world-3x, -2x; [port] hd_dash_size; HdTextures.DashSize). Applies from the next mission.</summary>
-    public int HdDashSize { get; set; } = HdDefault.Dash;
-    /// <summary>The port's own: the size the cars (and everything that is not the cockpit's art) are drawn at, 4 or 8 (the 8x Cars row's; [port] hd_car_size; HdTextures.CarSize). Applies from the next mission. A file from before the two keys has one hd_texture_size, read for both.</summary>
-    public int HdCarSize { get; set; } = HdDefault.Car;
     /// <summary>
-    /// A fresh block's HD Textures, 8x Dash and 8x Cars, which the rows' Reset puts back: this machine's first-start choice (HdTextures.FirstStart:
-    /// on with tex-world-4x and a 4 GB card; the cars' 8x with tex-world-8x on the same card, the dash's on a 6 GB card or a 16 GB Mac),
-    /// set by <see cref="Load"/>; on and 4x before it runs.
+    /// The port's own: the size the texture pack's world textures (the ground, buildings, props, sky) are drawn at in the modern look,
+    /// 0 for the install's own (1997) or 4 (Graphic Detail's World Textures; the user folder's tex-world-4x), or another whole multiple
+    /// the file or the Developer panel names (tex-world-3x, -2x; [port] world_textures; HdTextures.WorldSize). Applies from the next mission.
     /// </summary>
-    public static (bool On, int Dash, int Car) HdDefault { get; set; } = (true, I76.Formats.Shell.HdPackFolders.DefaultSize, I76.Formats.Shell.HdPackFolders.DefaultSize);
+    public int WorldTextures { get; set; } = HdDefault.World;
+    /// <summary>
+    /// The port's own: the size the cars' textures and the cockpit's own art (the dash, gauges, panels) are drawn at, 0 (1997), 4 or 8
+    /// (Graphic Detail's Car &amp; Dash Textures; tex-world-8x, a partial pack over the 4x; [port] car_textures; HdTextures.CarSize).
+    /// Applies from the next mission. Files from before the key have hd_textures and the dash's and the cars' sizes (HdTextures.FromFile).
+    /// </summary>
+    public int CarTextures { get; set; } = HdDefault.Car;
+    /// <summary>Any texture pack drawn: either row not 1997.</summary>
+    public bool HdTextures => WorldTextures != 0 || CarTextures != 0;
+    /// <summary>
+    /// A fresh block's World Textures and Car &amp; Dash Textures, which the rows' Reset puts back: this machine's first-start choice
+    /// (HdTextures.FirstStart: 4x with tex-world-4x and a 4 GB card, else 1997; the cars' and the dash's 8x with tex-world-8x on a 6 GB
+    /// card or a 16 GB Mac, where the dash's half gigabyte fits), set by <see cref="Load"/>; 4x and 4x before it runs.
+    /// </summary>
+    public static (int World, int Car) HdDefault { get; set; } = (I76.Formats.Shell.HdPackFolders.DefaultSize, I76.Formats.Shell.HdPackFolders.DefaultSize);
     /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
     public bool AutoReverse { get; set; }
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
@@ -1263,7 +1300,7 @@ public sealed class ShellSettings
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
     /// <summary>The port's own: Graphic Detail's Resolution (shell.cfg [port] resolution, "WxH", written only for a window size). Empty: the desktop, as the game starts.</summary>
     public string Resolution { get; set; } = "";
-    /// <summary>The port's own: Graphic Detail's Hood Gloss, a <see cref="I76.Sim.Views.PaintFinish"/> level 0 (Matte, the default) to 100 (Gloss), Satin at 50: the modern look's car paint and cockpit hood (shell.cfg [port] hood_gloss, any integer, written only when not 0; a file without it keeps its earlier hood_finish word, matte 0, satin 50, gloss 100, or its older hood_matte = true's Matte).</summary>
+    /// <summary>The port's own: Graphic Detail's Hood Gloss, a <see cref="I76.Sim.Views.PaintFinish"/> level 0 (Matte, the original's) to 100 (Gloss), Satin at 50, 5 by default: the modern look's car paint and cockpit hood (shell.cfg [port] hood_gloss, any integer, written only when not 5, so a file from when Matte was the default and wrote no key starts at 5; a file without it keeps its earlier hood_finish word, matte 0, satin 50, gloss 100, or its older hood_matte = true's Matte).</summary>
     public int HoodGloss { get; set; } = I76.Sim.Views.PaintFinish.Default;
     /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 50 to 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
     public int RenderScale { get; set; } = I76.Game.Boot.RenderScale.Default;
@@ -1401,8 +1438,12 @@ public sealed class ShellSettings
     /// <summary>[port] lighting_calibration's word, or when absent the earlier look_colour_match's: on unless "off".</summary>
     public static bool LightingCalibrationOn(string? word, string? earlier) =>
         !string.Equals((word ?? earlier)?.Trim(), "off", StringComparison.OrdinalIgnoreCase);
-    /// <summary>The port's own: the modern look's cars show a cabin and driver behind their glass (Graphic Detail's Car Interiors; shell.cfg [port] car_interiors, written only when off). Off: the windows are plain reflective glass.</summary>
-    public bool CarInteriors { get; set; } = true;
+    /// <summary>
+    /// The port's own: the modern look draws a dim cabin and a driver behind the other cars' windows (a shader's box behind the glass, not
+    /// a model). No row (Car Interiors' until round 5): a key, shell.cfg [port] cabins_behind_glass, written only when off (its earlier
+    /// name car_interiors still read). Off: the windows are plain reflective glass.
+    /// </summary>
+    public bool CabinsBehindGlass { get; set; } = true;
     /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Mouse Options' Camera Return); off, it stays where it was left.</summary>
     public bool CameraReturn { get; set; } = true;
     /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Mouse Options' View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
@@ -1473,6 +1514,17 @@ public sealed class ShellSettings
         c.Difficulty = c.NetworkGame ? 1 : Math.Clamp(Difficulty, 0, 2);
     }
 
+    /// <summary>
+    /// A file from before version 14, when Terrain Detail and Shadow Detail started Low: a byte still at that earlier default is not a
+    /// choice, so it moves to the new default (High); Off, or High already, is kept.
+    /// </summary>
+    public static void RaiseOldDetailDefaults(byte[] g, int version)
+    {
+        if (version >= 14) return;
+        if (g[0x2] == 0) g[0x2] = DefaultGraphics[0x2];
+        if (g[0x6] == 1) g[0x6] = DefaultGraphics[0x6];
+    }
+
     public static ShellSettings Load()
     {
         // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
@@ -1481,10 +1533,9 @@ public sealed class ShellSettings
         var c = new ConfigFile();
         if (c.Load(Path) != Error.Ok)
         {
-            // a first start: the fresh block's HD textures (on where the 4x fits; the dash's and the cars' 8x each where it fits)
-            I76.Game.Assets.HdTextures.DashSize = s.HdDashSize;
-            I76.Game.Assets.HdTextures.CarSize = s.HdCarSize;
-            I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
+            // a first start: the fresh block's textures (4x where the 4x fits; the cars' and the dash's 8x where the dash's fits)
+            I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
+            I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
             return s;
         }
         var g = (byte[])c.GetValue("shell", "graphics", s.Graphics);
@@ -1494,6 +1545,7 @@ public sealed class ShellSettings
         if (version < 2) { s.Graphics[0xd] = DefaultGraphics[0xd]; s.Graphics[0xe] = DefaultGraphics[0xe]; }
         // and from before +0x8 was the anti-aliasing: the shipped byte is not a choice, so the default (2x)
         if (version < 3) s.Graphics[0x8] = DefaultGraphics[0x8];
+        RaiseOldDetailDefaults(s.Graphics, version);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
         (int, int)? Read(string section) => c.HasSectionKey(section, "play") || c.HasSectionKey(section, "difficulty")
@@ -1502,13 +1554,14 @@ public sealed class ShellSettings
         s.ModernPhysics = (bool)c.GetValue("port", "modern_physics", false);
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
-        // no version step: absent, the menu art's switch, which turned these off too before they had a row of their own
-        s.HdTextures = c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures")
-            : I76.Game.Assets.HdTextures.FromFile(null, s.HdMenuArt, I76.Game.Assets.HdTextures.FirstStartDefault);
-        // no version step: a saved size is kept, whatever the first start would pick; absent (never chosen), the older single hd_texture_size
-        // when the file has it (a file from before the dash and the cars had a size each), else the first start's (a plain tex-world from before the sizes is used whatever the size)
+        // no version step: world_textures and car_textures when the file has them; a file from before them has hd_textures (absent, the
+        // menu art's switch, which turned the textures off too before they had a row), the dash's and the cars' sizes or the older
+        // single hd_texture_size, read as HdTextures.FromFile says; a saved size is kept, whatever the first start would pick
+        string? Word(string key) => c.HasSectionKey("port", key) ? c.GetValue("port", key).ToString() : null;
         int? Size(string key) => c.HasSectionKey("port", key) ? (int)c.GetValue("port", key) : null;
-        (s.HdDashSize, s.HdCarSize) = I76.Game.Assets.HdTextures.SizesFromFile(Size("hd_dash_size"), Size("hd_car_size"), Size("hd_texture_size"), HdDefault.Dash, HdDefault.Car);
+        (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.FromFile(Word("world_textures"), Word("car_textures"),
+            c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt,
+            Size("hd_dash_size"), Size("hd_car_size"), Size("hd_texture_size"), HdDefault);
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1632,7 +1685,8 @@ public sealed class ShellSettings
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
-        s.CarInteriors = (bool)c.GetValue("port", "car_interiors", true) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
+        // cabins_behind_glass, else its earlier name car_interiors (read, never written)
+        s.CabinsBehindGlass = (bool)c.GetValue("port", "cabins_behind_glass", c.GetValue("port", "car_interiors", true)) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
         // no version step: absent, Monitor (the original's height, which is what a file without the key meant before; a value from
@@ -1663,17 +1717,17 @@ public sealed class ShellSettings
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         HdAssets.Enabled = s.HdMenuArt;
-        I76.Game.Assets.HdTextures.Enabled = s.HdTextures;
-        I76.Game.Assets.HdTextures.DashSize = s.HdDashSize;
-        I76.Game.Assets.HdTextures.CarSize = s.HdCarSize;
+        I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
+        I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         return s;
     }
 
     public void Save()
     {
         var c = new ConfigFile();
-        // version 13: the sky's drift is Steady unless the file says original, and the Rumble row is folded into Force Feedback (the keys are the same)
-        c.SetValue("shell", "version", 13);
+        // version 13: the sky's drift is Steady unless the file says original, and the Rumble row is folded into Force Feedback (the keys are the same);
+        // version 14: Terrain Detail and Shadow Detail start High
+        c.SetValue("shell", "version", 14);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
         c.SetValue("port", "checkpoints", Checkpoints);
@@ -1715,9 +1769,8 @@ public sealed class ShellSettings
         if (DeveloperTools) c.SetValue("port", "developer", true);
         if (DevFps) c.SetValue("port", "dev_fps", true);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
-        c.SetValue("port", "hd_textures", HdTextures);
-        c.SetValue("port", "hd_dash_size", HdDashSize);
-        c.SetValue("port", "hd_car_size", HdCarSize);
+        c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
+        c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
@@ -1770,7 +1823,7 @@ public sealed class ShellSettings
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
-        if (!CarInteriors) c.SetValue("port", "car_interiors", false);
+        if (!CabinsBehindGlass) c.SetValue("port", "cabins_behind_glass", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
         if (FieldOfView != 0) c.SetValue("port", "fov", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);

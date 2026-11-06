@@ -7,33 +7,46 @@ namespace I76.Game.Assets;
 /// <summary>
 /// Where upscaled world, car and cockpit textures are found (HdTexture: by the member's stem, at a whole
 /// multiple of the original). None ships with the port; sources in order: $I76_TEX_DIR/world/ (development),
-/// user://tex-world-Nx/ for the chosen size N (4 or 8, chosen apart for the dash and for the cars: the 8x Dash and 8x Cars rows; any whole multiple a file or the Developer panel names; else the plain user://tex-world/, else the nearest size present),
-/// read per texture over the smaller sizes present (HdPackFolders.ChainFor: a partial 8x of the cockpit and the cars over the 4x, each kind from its own size), then the newest i76-hd-*.zip next to the executable or in user:// that has a
-/// tex-world/ folder (read in place). shell.cfg's [port] hd_textures (Graphic Detail's HD Textures row) switches them off (Enabled); the 1997 look
-/// never draws them (TextureFactory.Hd).
+/// user://tex-world-Nx/ for the chosen size N (chosen apart for the world, 4, and for the cars and the cockpit's art, 4 or 8: Graphic Detail's
+/// World Textures and Car &amp; Dash Textures; any whole multiple a file or the Developer panel names; else the plain user://tex-world/, else the
+/// nearest size present), read per texture over the smaller sizes present (HdPackFolders.ChainFor: a partial 8x of the cockpit and the cars
+/// over the 4x, each kind from its own size), then the newest i76-hd-*.zip next to the executable or in user:// that has a tex-world/ folder
+/// (read in place). A kind at 0 (the row's 1997) is served the install's own; both at 0, nothing is (Enabled); the 1997 look never draws
+/// them (TextureFactory.Hd).
 /// </summary>
 public static class HdTextures
 {
     private static HdSource? _source;
     private static bool _probed;
 
-    /// <summary>The player's switch (ShellSettings.HdTextures): the modern look draws the pack's upscales.</summary>
-    public static bool Enabled { get; set; } = true;
+    /// <summary>Any upscale is served: either size not 0 (the modern look draws the pack's upscales; the 1997 look never does).</summary>
+    public static bool Enabled => _world != 0 || _car != 0;
 
-    private static int _dash = HdPackFolders.DefaultSize, _car = HdPackFolders.DefaultSize;
-    /// <summary>The size the cockpit's art is read at (ShellSettings.HdDashSize: 4 or 8, the 8x Dash row's, or 3 or 2 from the file or the Developer panel): tex-world-Nx first. A change is picked up by the next mission's textures, not by those already built.</summary>
-    public static int DashSize
+    private static int _world = HdPackFolders.DefaultSize, _car = HdPackFolders.DefaultSize;
+    /// <summary>A size as stored: 0 (the install's own) or a size in the set (anything else the default).</summary>
+    public static int Normalize(int size) => size == 0 ? 0 : HdPackFolders.Normalize(size);
+    /// <summary>The size the world's textures are read at (ShellSettings.WorldTextures: 0, 4, or 3 or 2 from the file or the Developer panel): tex-world-Nx first. A change is picked up by the next mission's textures, not by those already built.</summary>
+    public static int WorldSize
     {
-        get => _dash;
-        set { value = HdPackFolders.Normalize(value); if (value != _dash) { _dash = value; Forget(); } }
+        get => _world;
+        set { value = Normalize(value); if (value != _world) { _world = value; Forget(); } }
     }
-    /// <summary>The size every other texture is read at (ShellSettings.HdCarSize: the cars, the 8x Cars row's; a full pack's world textures too).</summary>
+    /// <summary>The size the cars' textures and the cockpit's art are read at (ShellSettings.CarTextures: 0, 4 or 8, Car &amp; Dash Textures').</summary>
     public static int CarSize
     {
         get => _car;
-        set { value = HdPackFolders.Normalize(value); if (value != _car) { _car = value; Forget(); } }
+        set { value = Normalize(value); if (value != _car) { _car = value; Forget(); } }
     }
-    private static void Forget() { _probed = false; _source = null; _dashChain = _carChain = []; }
+    private static void Forget() { _probed = false; _source = null; _worldChain = _carChain = []; }
+
+    // the textures of the vehicles' models (MeshBuilder marks them as it loads a car): a car's kind, not the world's
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Cars = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A car model's textures: read at the cars' size (call before they are first asked for).</summary>
+    public static void MarkCar(IEnumerable<string> members) { foreach (var m in members) Cars.TryAdd(m, 0); }
+
+    /// <summary>A texture's kind, as the loader reads it.</summary>
+    public static TextureKind KindOf(string member) => HdPackFolders.KindOf(member, Cars.ContainsKey(member));
 
     private static bool UserHas(string folder)
     {
@@ -44,12 +57,47 @@ public static class HdTextures
     /// <summary>The sizes whose tex-world-Nx folder exists in the user folder, largest first (none: the row is greyed).</summary>
     public static int[] AvailableSizes => HdPackFolders.Available(UserHas);
 
+    /// <summary>A size as shell.cfg's world_textures and car_textures write it: 1997 for 0, else 4x, 8x ...</summary>
+    public static string Word(int size) => size == 0 ? "1997" : $"{size}x";
+
+    /// <summary>A stored word (1997, 4x, 8, off ...) as a size; null when it is none.</summary>
+    public static int? ParseWord(string? word)
+    {
+        var w = (word ?? "").Trim().ToLowerInvariant().TrimEnd('x');
+        if (w is "1997" or "0" or "off" or "false" or "original") return 0;
+        return int.TryParse(w, out int n) && Array.IndexOf(HdPackFolders.Sizes, n) >= 0 ? n : null;
+    }
+
     /// <summary>
-    /// shell.cfg's [port] hd_textures. Absent (a first start, or a file from before the row, when HD Menu Art switched these too),
-    /// the first start's default (<see cref="DefaultOn"/>), and off if hd_menu_art is: a player who had turned the menu art off keeps
-    /// the textures off.
+    /// shell.cfg's world_textures and car_textures, each a size or 1997. A file from before them (Graphic Detail's HD Textures, 8x Dash
+    /// and 8x Cars rows) is read as those rows meant: hd_textures false, both 1997 (absent, the menu art's switch, off when it is off, as
+    /// before the key; else on); on, the world at the cars' old size (hd_car_size, or the single hd_texture_size before it; an 8 is the
+    /// 4x, since an 8x pack holds no world texture) and the cars and the dash as <see cref="OldCarAndDash"/> says. A key or size absent
+    /// takes the first start's.
     /// </summary>
-    public static bool FromFile(bool? hdTextures, bool hdMenuArt, bool firstStart = true) => hdTextures ?? (hdMenuArt && firstStart);
+    /// <summary>
+    /// The old dash's and cars' sizes as one: the dash's 8x, a choice that took the memory, is kept; the cars' 8x alone (the first start
+    /// of a 4 GB card, which took the cars' 8x and the dash's 4x) is the 8x only where this machine's first start takes it, the dash's
+    /// rule, else the 4x; otherwise the larger of the two (a 3x or 2x as it is). Neither: the first start's.
+    /// </summary>
+    public static int OldCarAndDash(int? dash, int? car, int firstStart)
+    {
+        if (dash is null && car is null) return firstStart != 0 ? firstStart : HdPackFolders.DefaultSize;
+        int d = dash is { } dv ? HdPackFolders.Normalize(dv) : 0, c = car is { } cv ? HdPackFolders.Normalize(cv) : 0;
+        if (d == 8) return 8;
+        if (c == 8) return firstStart == 8 ? 8 : HdPackFolders.DefaultSize;
+        return Math.Max(d, c);
+    }
+
+    public static (int World, int Car) FromFile(string? world, string? car, bool? hdTextures, bool hdMenuArt, int? dash, int? carOld, int? single, (int World, int Car) firstStart)
+    {
+        int? w = ParseWord(world), c = ParseWord(car);
+        bool on = hdTextures ?? (hdMenuArt && (firstStart.World != 0 || firstStart.Car != 0));
+        int Or4(int first) => first != 0 ? first : HdPackFolders.DefaultSize;
+        w ??= !on ? 0 : (carOld ?? single) is { } o ? (o is 2 or 3 ? o : HdPackFolders.DefaultSize) : Or4(firstStart.World);
+        c ??= !on ? 0 : OldCarAndDash(dash ?? single, carOld ?? single, firstStart.Car);
+        return (w.Value, c.Value);
+    }
 
     /// <summary>Video memory under this (MiB) starts with the pack off: the 4x pack adds ~0.7 GB in T01 (docs/perf/costs.md); a 4 GB card reports about 4096.</summary>
     public const long LowVideoMemoryMb = 3840;
@@ -67,87 +115,66 @@ public static class HdTextures
     public static bool DefaultOn(bool has4x, long? videoMemoryMb) => has4x && (videoMemoryMb is not { } mb || mb >= LowVideoMemoryMb);
 
     /// <summary>
-    /// The first start's dash size (the 8x Dash row's Reset): 8 when tex-world-8x is beside the 4x and the GPU has room for the
+    /// The first start's Car &amp; Dash Textures (the row's Reset): 8 when tex-world-8x is beside the 4x and the GPU has room for the
     /// cockpit's art at 8x (<see cref="LargeVideoMemoryMb"/>, or <see cref="LargeSharedMemoryMb"/> where it shares the machine's
-    /// memory): drawn near full screen, its 144 textures of a mission are large, +482 MB over the 4x (docs/perf/costs.md); else 4.
-    /// Unknown memory never takes an 8x.
-    /// </summary>
-    public static int PickDash(bool has4x, bool has8x, long? memoryMb, bool sharedMemory) =>
-        has4x && has8x && memoryMb is { } mb && mb >= (sharedMemory ? LargeSharedMemoryMb : LargeVideoMemoryMb) ? HdTextureLarge : HdPackFolders.DefaultSize;
-
-    /// <summary>
-    /// The first start's cars size (the 8x Cars row's Reset): 8 when tex-world-8x is beside the 4x and the GPU has room for the 4x
-    /// (<see cref="LowVideoMemoryMb"/>): a car's textures are small and only the cars in the scene are loaded, +54 MB over the 4x
-    /// at T01's start (docs/perf/costs.md); else 4. Unknown memory never takes an 8x.
+    /// memory): drawn near full screen, its 144 textures of a mission are large, +482 MB over the 4x of the 510 MB the cars' and the
+    /// dash's 8x take together (docs/perf/costs.md); else 4. Unknown memory never takes an 8x.
     /// </summary>
     public static int PickCar(bool has4x, bool has8x, long? memoryMb, bool sharedMemory) =>
-        has4x && has8x && memoryMb is { } mb && mb >= LowVideoMemoryMb ? HdTextureLarge : HdPackFolders.DefaultSize;
+        has4x && has8x && memoryMb is { } mb && mb >= (sharedMemory ? LargeSharedMemoryMb : LargeVideoMemoryMb) ? HdTextureLarge : HdPackFolders.DefaultSize;
 
     private const int HdTextureLarge = 8;
 
-    private static (bool On, int Dash, int Car)? _pick;
-    /// <summary><see cref="DefaultOn"/>, <see cref="PickDash"/> and <see cref="PickCar"/> for this machine: the user folder and the adapter (RenderBackend.VideoMemoryMb; macOS shares the machine's memory), read once.</summary>
-    public static (bool On, int Dash, int Car) FirstStart
+    private static (int World, int Car)? _pick;
+    /// <summary>The first start's World Textures and Car &amp; Dash Textures for this machine (4x, and <see cref="PickCar"/>, where <see cref="DefaultOn"/>; else 1997 both): the user folder and the adapter (RenderBackend.VideoMemoryMb; macOS shares the machine's memory), read once.</summary>
+    public static (int World, int Car) FirstStart
     {
         get
         {
             if (_pick is { } p) return p;
             bool has4x = UserHas(HdPackFolders.Folder(HdPackFolders.DefaultSize)), has8x = UserHas(HdPackFolders.Folder(HdTextureLarge));
             long? mb = I76.Game.Boot.RenderBackend.VideoMemoryMb;
-            bool mac = OperatingSystem.IsMacOS();
-            return (_pick = (DefaultOn(has4x, mb), PickDash(has4x, has8x, mb, mac), PickCar(has4x, has8x, mb, mac))).Value;
+            return (_pick = Pick(has4x, has8x, mb, OperatingSystem.IsMacOS())).Value;
         }
     }
 
-    /// <summary>The first start's switch: on when the 4x is there and fits.</summary>
-    public static bool FirstStartDefault => FirstStart.On;
-
-    /// <summary>
-    /// A saved size as it is (a 4 stays 4 on a machine whose first start would take the 8x), the default for one not in the set; absent
-    /// (a file from before the key, which never chose a size), the first start's (<paramref name="firstStart"/>).
-    /// </summary>
-    public static int SizeFromFile(int? saved, int firstStart) => saved is { } v ? HdPackFolders.Normalize(v) : HdPackFolders.Normalize(firstStart);
-
-    /// <summary>
-    /// shell.cfg's [port] hd_dash_size and hd_car_size, each <see cref="SizeFromFile"/>; one that is absent takes the older single
-    /// hd_texture_size when the file has it (a file from before the two keys: its 8 set both to 8, its 4 both to 4), else the first
-    /// start's for that kind. The two keys are written from then on.
-    /// </summary>
-    public static (int Dash, int Car) SizesFromFile(int? dash, int? car, int? single, int firstStartDash, int firstStartCar) =>
-        (SizeFromFile(dash ?? single, firstStartDash), SizeFromFile(car ?? single, firstStartCar));
+    /// <summary>The first start's pair: 4x and the cars' and the dash's pick where the 4x fits, else 1997 both.</summary>
+    public static (int World, int Car) Pick(bool has4x, bool has8x, long? memoryMb, bool sharedMemory) =>
+        DefaultOn(has4x, memoryMb) ? (HdPackFolders.DefaultSize, PickCar(has4x, has8x, memoryMb, sharedMemory)) : (0, 0);
 
     public static HdSource? Source { get { Probe(); return _source; } }
     /// <summary>A pack was found.</summary>
     public static bool Installed => Source is not null;
 
-    // the folders a cockpit texture and any other are looked in, in order (HdPackFolders.ChainFor); one source each for I76_TEX_DIR or a zip
-    private static HdSource[] _dashChain = [], _carChain = [];
+    // the folders a world texture and a car's or the cockpit's are looked in, in order (HdPackFolders.ChainFor); one source each for I76_TEX_DIR or a zip
+    private static HdSource[] _worldChain = [], _carChain = [];
 
     private static void Probe()
     {
         if (_probed) return;
         _probed = true;
         var env = System.Environment.GetEnvironmentVariable("I76_TEX_DIR") is { Length: > 0 } d ? Path.Combine(d, "world") : null;
-        var dash = HdPackFolders.Chain(_dash, UserHas);
-        var car = HdPackFolders.Chain(_car, UserHas);
+        // a kind at 0 (1997) reads nothing, but the pack is still found (the rows are shown when one is there)
+        var world = HdPackFolders.Chain(_world == 0 ? HdPackFolders.DefaultSize : _world, UserHas);
+        var car = HdPackFolders.Chain(_car == 0 ? HdPackFolders.DefaultSize : _car, UserHas);
         if (env is not null && Directory.Exists(env)) _source = new HdDirSource(env);
-        else if (dash.Length + car.Length > 0)
+        else if (world.Length + car.Length > 0)
         {
             // one source per folder, shared by the two chains; the log's source is every folder, largest first
-            var folders = dash.Concat(car).Distinct().OrderByDescending(HdPackFolders.SizeOf).ToArray();
+            var folders = world.Concat(car).Distinct().OrderByDescending(HdPackFolders.SizeOf).ToArray();
             var sources = folders.ToDictionary(f => f, f => (HdSource)new HdDirSource(ProjectSettings.GlobalizePath($"user://{f}/")));
             _source = folders.Length == 1 ? sources[folders[0]] : new HdChainSource(folders.Select(f => sources[f]));
-            _dashChain = [.. dash.Select(f => sources[f])];
-            _carChain = [.. car.Select(f => sources[f])];
+            _worldChain = _world == 0 ? [] : [.. world.Select(f => sources[f])];
+            _carChain = _car == 0 ? [] : [.. car.Select(f => sources[f])];
         }
         else
         {
             var exe = I76.Formats.Installers.ExtractionPlaces.AppFolder(OS.GetExecutablePath());
             _source = HdPackFinder.Newest(new[] { exe, ProjectSettings.GlobalizePath("user://") }.OfType<string>(), w => GD.Print($"HD textures: {w}"), "i76-hd-*.zip", "tex-world/");
         }
-        if (_dashChain.Length == 0 && _source is { } one) _dashChain = _carChain = [one];
+        if (world.Length + car.Length == 0 && _source is { } one) { _worldChain = _world == 0 ? [] : [one]; _carChain = _car == 0 ? [] : [one]; }
         GD.Print(_source is null ? "HD textures: none (no I76_TEX_DIR/world, user://tex-world-Nx/, user://tex-world/ or i76-hd-*.zip with tex-world/)"
-            : $"HD textures: {_source.Origin} ({_source.Count} files); dash {string.Join(" over ", dash)}, cars {string.Join(" over ", car)}");
+            : $"HD textures: {_source.Origin} ({_source.Count} files); world {(_world == 0 ? "1997" : string.Join(" over ", world))}, cars and dash {(_car == 0 ? "1997" : string.Join(" over ", car))}");
     }
 
     /// <summary>The member's upscale decoded to RGBA8 (rows top-down), or null for none or one that does not decode (whatever the switch: the factory decides what it serves).</summary>
@@ -160,9 +187,9 @@ public static class HdTextures
     public static (string Name, byte[] Bytes)? Read(string member)
     {
         if (Source is null) return null;
-        // the texture's kind's chain (a partial 8x over the 4x, from the dash's or the cars' size): the first folder that has the texture
-        // in any format, so a .png of the 8x beats a .dds of the 4x
-        foreach (var src in HdPackFolders.IsCockpit(member) ? _dashChain : _carChain)
+        // the texture's kind's chain (a partial 8x over the 4x for the cars and the dash; none for a kind at 1997): the first folder that
+        // has the texture in any format, so a .png of the 8x beats a .dds of the 4x
+        foreach (var src in KindOf(member) == TextureKind.World ? _worldChain : _carChain)
             foreach (var rel in HdTexture.Candidates(member))
                 if (src.Read(rel) is { } b) return (rel, b);
         return null;

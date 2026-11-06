@@ -2,8 +2,8 @@ namespace I76.Sim.Views;
 
 /// <summary>
 /// The port's Hood Gloss (Graphic Detail): how much the modern look's car paint and cockpit hood shine, a level 0 to 100. The
-/// original's hood is a flat texture with no reflection; the modern look's clear-coated paint mirrors the sky across it. 0 (Matte),
-/// the default, takes the coat off, so the paint shows the original's colours (the sky it mirrors washed an orange paint 7 degrees
+/// original's hood is a flat texture with no reflection; the modern look's clear-coated paint mirrors the sky across it. 0 (Matte,
+/// the original's) takes the coat off, so the paint shows the original's colours (the sky it mirrors washed an orange paint 7 degrees
 /// toward the sky's hue, measured against the 1997 look); 50 (Satin) thins the coat; 100 (Gloss) is the full coat (as before the
 /// setting). Between them the shader blends the two neighbouring presets' material values (object.gdshaderinc, i76_hood_gloss).
 /// </summary>
@@ -11,7 +11,11 @@ public static class PaintFinish
 {
     /// <summary>The three named levels: the earlier Hood Finish's Matte, Satin and Gloss.</summary>
     public const int Matte = 0, Satin = 50, Gloss = 100;
-    public const int Min = 0, Max = 100, Default = Matte;
+    /// <summary>
+    /// The level a fresh settings file starts at: 5 of 100, a hint of the clear coat's sheen (the shader blends Matte toward Satin over
+    /// 0..50, so 5 is a tenth of the way to Satin). The original's flat paint is Matte, the unmarked value.
+    /// </summary>
+    public const int Min = 0, Max = 100, Default = 5, Original = Matte;
     /// <summary>The menu rows' step; the file takes any integer in 0..100.</summary>
     public const int Step = 5;
     /// <summary>The menu rows' levels, 0, 5, ... 100.</summary>

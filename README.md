@@ -74,15 +74,15 @@ seconds a map) into `tex-menu/maps/`, its pen writing cleaned (the model's halo 
 of the paper through the ink; `--writing plain` or `ink` for the alternatives); the plain upscales are kept, so a re-run
 needs no GPU.
 
-An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's HD Textures row then offers
-`8x (cockpit & cars)`) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
+An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then offers
+8x) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
 the game reads for every texture the 8x does not have; it needs the 4x pack and adds 2.9 GB on disk (2,556 textures), ~0.55-0.6 GB of video memory and ~2 s to a
-mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Graphic Detail's 8x Dash and 8x Cars rows take
-it half by half, each where it fits by default: a first start (and the rows' Reset) draws the cars at 8x (~54 MB of video memory
-at T01's start: a car's textures are small and only the scene's cars are loaded) wherever the 4x fits, and the dash at 8x (~482 MB:
-the cockpit's art is drawn near full screen, so its textures are large) when the graphics card has 6 GB of video memory or more (an
-Apple-silicon Mac, 16 GB of memory or more), else at the 4x (docs/playing.md, HD textures); a shell.cfg with `hd_dash_size` and
-`hd_car_size` (or the older single `hd_texture_size`) keeps them. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
+mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Graphic Detail's Car & Dash Textures row
+(1997, 4x or 8x) takes it for the cars and the dash together, World Textures (1997 or 4x) the rest: a first start (and the rows' Reset)
+draws the world at 4x and the cars and the dash at 8x (~510 MB of video memory over the 4x, ~482 MB of it the dash: the cockpit's
+art is drawn near full screen, so its textures are large) when the graphics card has 6 GB of video memory or more (an
+Apple-silicon Mac, 16 GB of memory or more), else at the 4x (docs/playing.md, HD textures); a shell.cfg from before keeps its
+choice (`hd_dash_size` and `hd_car_size`, or the older single `hd_texture_size`, give the cars and the dash one size). It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
 2xHDCube_Compact), the cockpit's families taken from their own 4x models to 8x by 2xHDCube_Compact (`--x2-model`, in
 `--models-dir`), in three steps: the models on the graphics card (about 15 minutes on a GTX 1080 Ti), then the packing on the
 CPU (about half an hour on 8 cores), then the lettering:
@@ -94,7 +94,7 @@ CPU (about half an hour on 8 cores), then the lettering:
 
 (`--out` defaults to the user folder's `tex-world-8x/`; the mission maps, `zmap*`, stay at 4x: 1.4 GB more for a picture
 already finer than the screen.) The 1997 look
-keeps the originals; `hd_textures=false` in shell.cfg's `[port]` section (or the Developer panel's Settings) switches the upscales off.
+keeps the originals; World Textures and Car & Dash Textures at 1997 (shell.cfg's `[port] world_textures=1997` and `car_textures=1997`) switch the upscales off.
 
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).

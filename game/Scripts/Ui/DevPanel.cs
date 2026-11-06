@@ -110,13 +110,13 @@ public partial class DevPanel : Control
 
         col.AddChild(Heading("Scene"));
         _missionList = Host.DevMissions();
-        _missions = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
+        _missions = new OptionButton { TooltipText = DevTips.Control("mission") ?? "", SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
         foreach (var m in _missionList) _missions.AddItem(m.Label);
         int here = _missionList.Select(m => m.Id).ToList().IndexOf(Host.DevMission);
         if (_missionList.Count == 0) { _missions.AddItem("(no missions found)"); _missions.Disabled = true; }
         else _missions.Selected = System.Math.Max(0, here);
         // the current car, the mission's own, then every car file
-        _cars = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
+        _cars = new OptionButton { TooltipText = DevTips.Control("car") ?? "", SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
         if (Host.DevCurrentCar is { } current) { _cars.AddItem($"this car ({current})"); _carFiles.Add(current); }
         _cars.AddItem("the mission's own car"); _carFiles.Add("");
         foreach (var c in Host.DevCars()) { _cars.AddItem(c); _carFiles.Add(c); }
@@ -124,24 +124,24 @@ public partial class DevPanel : Control
         col.AddChild(Row(_missions, _cars, Button("Start", StartMission)));
 
         col.AddChild(Heading("Teleport"));
-        _points = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
+        _points = new OptionButton { TooltipText = DevTips.Control("place") ?? "", SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
         FillPoints(_lastPoint);
         col.AddChild(Row(_points, Button("Go", GoPoint)));
-        _keepName = new LineEdit { PlaceholderText = "name for this place", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        _keepName = new LineEdit { PlaceholderText = "name for this place", TooltipText = DevTips.Control("place name") ?? "", SizeFlagsHorizontal = SizeFlags.ExpandFill };
         col.AddChild(Row(_keepName, Button("Keep", Keep), Button("Forget", Forget)));
         _x = Field("x"); _z = Field("z"); _heading = Field("heading");
         col.AddChild(Row(_x, _z, _heading, Button("Go", GoCoords), Button("Here", FillHere)));
         FillHere();
 
         col.AddChild(Heading("Car"));
-        _god = new CheckBox { Text = "God mode", ButtonPressed = Host.DevGodOn };
+        _god = new CheckBox { Text = "God mode", TooltipText = DevTips.Control("God mode") ?? "", ButtonPressed = Host.DevGodOn };
         _god.Toggled += on => Say(Host.DevGod(on));
         col.AddChild(Row(Button("Repair & refill", () => Say(Host.DevRepair())), _god, Button("Bring nearest car", () => Say(Host.DevBring()))));
 
         col.AddChild(Heading("Loadout"));
         foreach (var m in Host.DevMounts())
         {
-            var pick = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
+            var pick = new OptionButton { TooltipText = DevTips.Control("loadout") ?? "", SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
             for (int i = 0; i < m.Options.Count; i++)
             {
                 pick.AddItem($"{m.Options[i].Name}  ({m.Options[i].File})");
@@ -159,22 +159,23 @@ public partial class DevPanel : Control
         ShowStored();
 
         col.AddChild(Heading("Time"));
-        _freeze = new CheckBox { Text = "Freeze", ButtonPressed = Host.DevFrozen };
+        _freeze = new CheckBox { Text = "Freeze", TooltipText = DevTips.Control("Freeze") ?? "", ButtonPressed = Host.DevFrozen };
         _freeze.Toggled += on => { Host.DevFrozen = on; Say(on ? "frozen: no ticks run until Freeze is off (Step runs one)" : "running"); };
-        _scale = new OptionButton();
+        _scale = new OptionButton { TooltipText = DevTips.Control("speed") ?? "" };
         foreach (var s in Scales) _scale.AddItem($"x{s:0.##}");
         _scale.Selected = System.Math.Max(0, System.Array.IndexOf(Scales, Host.DevScale));
         _scale.ItemSelected += i => { Host.DevScale = Scales[i]; Say($"time scale x{Scales[i]:0.##} (the ticks are the same; only their pace changes)"); };
-        col.AddChild(Row(_freeze, Button("Step 1 tick", () => Say(Host.DevStep(1))), Button("Step 10", () => Say(Host.DevStep(10))), new Label { Text = "speed" }, _scale));
+        col.AddChild(Row(_freeze, Button("Step 1 tick", () => Say(Host.DevStep(1))), Button("Step 10", () => Say(Host.DevStep(10))), new Label { Text = "speed", TooltipText = DevTips.Control("speed") ?? "", MouseFilter = MouseFilterEnum.Stop }, _scale));
 
         // the devices' signals over the last seconds before the panel opened, and the settings without a row (docs/playing.md)
         col2.AddChild(Heading($"Signals (the last {DevSignals.Window:0} s)"));
-        var shown = new CheckBox { Text = "show over the game when this panel is closed", ButtonPressed = Host.DevSignalsShown };
+        var shown = new CheckBox { Text = "show over the game when this panel is closed", TooltipText = DevTips.Control("show over the game when this panel is closed") ?? "", ButtonPressed = Host.DevSignalsShown };
         shown.Toggled += on => Host.DevSignalsShown = on;
         col2.AddChild(shown);
         col2.AddChild(new SignalsView());
         col2.AddChild(Heading("Settings (shell.cfg [port], saved at once)"));
         DevSettings.Build(col2, I76.Game.Shell.ShellSettings.Load(), (s, e) => { Host.DevSettingChanged(s); Say(DevSettings.Line(e, s)); });
+        DevTips.Annotate(col2);
 
         _message = DevScale.Min(new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart }, 400);
         _message.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.5f));
@@ -283,12 +284,12 @@ public partial class DevPanel : Control
 
     private static Button Button(string text, System.Action pressed)
     {
-        var b = new Button { Text = text, FocusMode = FocusModeEnum.None };
+        var b = new Button { Text = text, FocusMode = FocusModeEnum.None, TooltipText = DevTips.Control(text) ?? "" };
         b.Pressed += pressed;
         return b;
     }
 
-    private static LineEdit Field(string hint) => DevScale.Min(new LineEdit { PlaceholderText = hint }, 76);
+    private static LineEdit Field(string hint) => DevScale.Min(new LineEdit { PlaceholderText = hint, TooltipText = DevTips.Control(hint) ?? "" }, 76);
 
     private static HBoxContainer Row(params Control[] items)
     {

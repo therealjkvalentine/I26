@@ -119,10 +119,10 @@ public class ScrollRowsTests
     public void Play_options_keep_their_order_with_the_former_second_page_last()
     {
         Assert.Equal(
-            ["Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Force Feedback", "Auto Reverse", "Map Downloads",
+            ["Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
              "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
-             // the play fork's own rows after upstream's
-             "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Rumble Strength", "Melee A.I.", "Wheel Strength"],
+             // the play fork's own rows after upstream's (force feedback and its strengths are the Controls sheet's)
+             "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I."],
             PlayOptionsScreen.PortRows);
     }
 }

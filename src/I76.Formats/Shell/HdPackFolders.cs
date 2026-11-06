@@ -5,12 +5,15 @@ namespace I76.Formats.Shell;
 /// by side (pack.json's "scale" says each one's size), or the plain tex-world of a pack made before the sizes had folders. A folder
 /// may hold only some textures (pack.json's "partial" and "covers": the 8x pack of the cockpit and the cars), so the loader reads a
 /// chain of them (<see cref="Chain"/>), per texture: the chosen size's file when that folder has it, else the next size down's.
-/// The size is chosen twice, for the dash and for the cars ([port] hd_dash_size and hd_car_size): a texture's chain starts at the
-/// size its kind asks for (<see cref="ChainFor"/>).
+/// The size is chosen twice ([port] world_textures and car_textures): for the world, and for the cars and the cockpit's art together; a
+/// texture's chain starts at the size its kind asks for (<see cref="ChainFor"/>), and a kind at 0 (1997) has none: the install's own.
 /// </summary>
+public enum TextureKind { World, Car, Dash }
+
+/// <summary>The texture pack's folders and how a texture is looked for in them (see <see cref="TextureKind"/>).</summary>
 public static class HdPackFolders
 {
-    /// <summary>The sizes the loader looks for, largest first. The HD Textures row draws the 4x (the default) and the 8x Dash and 8x Cars rows the 8x of each (HdTextureRow, Hd8xRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
+    /// <summary>The sizes the loader looks for, largest first. World Textures draws the 4x and Car &amp; Dash Textures the 4x or the 8x (TextureRow); 3x and 2x packs are still loaded when a file or the Developer panel names them, or when they are all there is.</summary>
     public static readonly int[] Sizes = [8, 4, 3, 2];
     public const int DefaultSize = 4;
     public const string Plain = "tex-world";
@@ -60,11 +63,18 @@ public static class HdPackFolders
         return stem.Length > 0 && (stem[0] == 'z' || stem[0] == 'Z');
     }
 
-    /// <summary>The size a texture is looked for at first: the dash's for the cockpit's art, the cars' for everything else.</summary>
-    public static int SizeFor(string member, int dashSize, int carSize) => IsCockpit(member) ? dashSize : carSize;
+    /// <summary>
+    /// A texture's kind: the cockpit's art (<see cref="IsCockpit"/>), a car's (<paramref name="car"/>: a texture of a vehicle's model, as
+    /// the model builder marks them when it loads a car, HdTextures.MarkCar) or the world's (the ground, buildings, props, sky, effects).
+    /// </summary>
+    public static TextureKind KindOf(string member, bool car) => IsCockpit(member) ? TextureKind.Dash : car ? TextureKind.Car : TextureKind.World;
 
-    /// <summary><see cref="Chain"/> from the size the texture's kind asks for (<see cref="SizeFor"/>): a car texture reads the 8x folder only when the cars' size is 8.</summary>
-    public static string[] ChainFor(string member, int dashSize, int carSize, Func<string, bool> exists) => Chain(SizeFor(member, dashSize, carSize), exists);
+    /// <summary>The size a kind is looked for at first: the world's, or the one size of the cars and the dash; 0 for the install's own.</summary>
+    public static int SizeFor(TextureKind kind, int worldSize, int carSize) => kind == TextureKind.World ? worldSize : carSize;
+
+    /// <summary><see cref="Chain"/> from the size the texture's kind asks for: none (the original) at 0; a car's texture reads the 8x folder only at 8.</summary>
+    public static string[] ChainFor(TextureKind kind, int worldSize, int carSize, Func<string, bool> exists) =>
+        SizeFor(kind, worldSize, carSize) is var size && size == 0 ? [] : Chain(size, exists);
 
     /// <summary>The size a chain's first folder serves (0 for the plain tex-world or none).</summary>
     public static int SizeOf(string? folder) =>

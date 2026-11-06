@@ -98,7 +98,7 @@ varying flat vec4 v_cab_b;
 varying flat vec4 v_eye;   // the F1 view's eye in the mesh's frame (w 1), CUSTOM2: where the driver sits
 varying vec3 v_cam_l;
 global uniform bool i76_car_materials;   // Ctrl+F8 (a debug key): off, every car without its glass (to compare)
-global uniform bool i76_car_interiors;   // Graphic Detail's Car Interiors: the proxy cabin and driver behind the glass (off: the glass alone)
+global uniform bool i76_car_interiors;   // [port] cabins_behind_glass: the proxy cabin and driver behind the glass (off: the glass alone)
 global uniform float i76_hood_gloss;   // Graphic Detail's Hood Gloss (PaintFinish) as 0..1: 0 Matte, 0.5 Satin, 1 Gloss, the cars' paint and the cockpit's hood (hood_surface)
 instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
 // the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): lit faces take i76_object_sky

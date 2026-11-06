@@ -408,11 +408,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
     private readonly Dictionary<string, GlassEntry?> _glass = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The glass a texture got when its material was made (null: none, or not made yet).</summary>
-    /// <summary>Graphic Detail's Car Interiors, for every car's glass at once (the shaders' global i76_car_interiors).</summary>
     /// <summary>Graphic Detail's Hood Gloss (<see cref="I76.Sim.Views.PaintFinish"/>, 0 Matte to 100 Gloss): the modern look's car paint and cockpit hood (the shaders' global i76_hood_gloss, 0..1).</summary>
     public static void ApplyHoodGloss(int level) => RenderingServer.GlobalShaderParameterSet("i76_hood_gloss", I76.Sim.Views.PaintFinish.Shader(level));
 
-    public static void ApplyCarInteriors(bool on) => RenderingServer.GlobalShaderParameterSet("i76_car_interiors", on);
+    /// <summary>[port] cabins_behind_glass (no row), for every car's glass at once (the shaders' global i76_car_interiors).</summary>
+    public static void ApplyCabinsBehindGlass(bool on) => RenderingServer.GlobalShaderParameterSet("i76_car_interiors", on);
 
     /// <summary>A debug key (Ctrl+F8, in a mission and in the 3D garage): every car's material map and glass off, the all-over clear coat back, to compare; returns the new state.</summary>
     public static bool ToggleCarMaterials()

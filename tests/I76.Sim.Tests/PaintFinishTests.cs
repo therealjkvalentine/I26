@@ -17,9 +17,9 @@ public class PaintFinishTests
     [InlineData(null, "Satin", false, 50)]
     [InlineData(null, "gloss", true, 100)]          // hood_finish wins over hood_matte
     [InlineData(null, "glossy", false, 100)]
-    [InlineData(null, null, false, 0)]              // nothing saved: the default, the original's flat paint
+    [InlineData(null, null, false, 5)]              // nothing saved: the default, a hint of sheen (round 5; Matte before)
     [InlineData(null, null, true, 0)]               // the older hood_matte = true carries forward
-    [InlineData(null, "nonsense", false, 0)]
+    [InlineData(null, "nonsense", false, 5)]
     public void Parse(string? gloss, string? word, bool legacyMatte, int expect) => Assert.Equal(expect, PaintFinish.Parse(gloss, word, legacyMatte));
 
     [Fact]

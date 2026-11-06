@@ -5,7 +5,7 @@ using I76.Formats.Shell;
 namespace I76.Game.Shell;
 
 /// <summary>
-/// Control Configuration, overlay 7:
+/// Control Configuration, overlay 7 (the port's Key Map, under the Controls sheet):
 /// record 16 with the command names printed on it, each binding in font 0x44
 /// beside its name — entries 1, 2 and 4..20 at x 190, 21..39 at x 486, from
 /// y 47 a row apart (the font's height + 5). A left click on a row opens
@@ -13,7 +13,7 @@ namespace I76.Game.Shell;
 /// mouse's inputs; a right click waits for the next key or button
 /// ("Press any key or button..."). Either way the input leaves any other
 /// command it was on. Restore loads KEYBOARD.MAP, Done writes input.map,
-/// Cancel and Esc go back to the Options Menu. The screen edits the keyboard and the mouse only (a pad is the port's controller screen, opened by Calibrate, which
+/// Cancel and Esc go back to the Options Menu (here to the Controls sheet, <see cref="ControlsMenuScreen"/>). The screen edits the keyboard and the mouse only (a pad is the port's controller screen, opened by Calibrate, which
 /// ran Windows' joystick panel in the original): an input replaces only the command's keyboard and mouse blocks, Restore loads the keys' defaults alone.
 ///
 /// The command names are not text but part of the picture. An upscale of it
@@ -96,7 +96,8 @@ public class ControlsScreen : OverlayScreen
         Add(490, 450, () => "", Back, w: 140, h: 19);                                        // Cancel
     }
 
-    private void Back() => Shell.Options();
+    /// <summary>Back to the Controls sheet, which the key map sits under (in the Esc menu too).</summary>
+    private void Back() => Shell.Overlay(new ControlsMenuScreen());
 
     protected override void Escape() => Back();
 
@@ -156,6 +157,21 @@ public class ControlsScreen : OverlayScreen
             foreach (var (text, x, y, w, h) in Names) Frame.Caption(new Rect2I(x, y, w, h), text, 213);
         for (int k = 0; k < LeftRows.Length; k++) Frame.Text(_f, 190, 47 + k * RowH, Fit(Binding(LeftRows[k]), LeftBindW), ShellFrame.OverlayInk);
         for (int k = 0; k < RightRows.Length; k++) Frame.Text(_f, 486, 47 + k * RowH, Fit(Binding(RightRows[k]), RightBindW), ShellFrame.OverlayInk);
+    }
+
+    /// <summary>The tooltips: a command's row (how to bind it), a network game's key, Mouse Options, Calibrate and Restore.</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        if (RowAt(m) is >= 0 and var entry)
+        {
+            int k = (m.Y - 47) / RowH;
+            var zone = new Rect2I(m.X >= 330 ? 330 : 30, 47 + k * RowH, 282, 16);
+            return MenuTips.Of(entry >= GameEntry ? "Game Key" : "Key Binding") is { } t ? (t, zone) : null;
+        }
+        string?[] labels = ["Mouse Options...", "Calibrate", "Restore"];
+        for (int i = 0; i < labels.Length && i < Items.Count; i++)
+            if (Items[i].Hit(m) && MenuTips.Of(labels[i]) is { } t) return (t, new Rect2I(Items[i].X, Items[i].Y, Items[i].W, Items[i].H));
+        return null;
     }
 
     /// <summary>The row under the point: the left column's hit boxes are x 177..312, the right's 475..612, each y..y+16.</summary>

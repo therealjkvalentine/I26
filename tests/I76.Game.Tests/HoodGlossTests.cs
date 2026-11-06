@@ -30,10 +30,14 @@ public class HoodGlossTests
         Assert.Equal(level, PaintFinish.Parse(PaintFinish.FileValue(level)?.ToString(), null, false));
     }
 
+    /// <summary>A fresh settings file starts at 5 (a hint of sheen); the original's flat paint, Matte (0), stays the unmarked value, and a file with no key (from when Matte was the default) starts at 5.</summary>
     [Fact]
-    public void AFreshSettingsIsMatte()
+    public void AFreshSettingsIsFive()
     {
-        Assert.Equal(PaintFinish.Matte, new ShellSettings().HoodGloss);
+        Assert.Equal(5, new ShellSettings().HoodGloss);
+        Assert.Equal(5, PaintFinish.Parse(null, null, false));
+        Assert.Equal(PaintFinish.Matte, PaintFinish.Original);
+        Assert.Equal("5*", PaintFinish.Name(PaintFinish.Default));
         Assert.Equal(0, PaintFinish.Matte);
         Assert.Equal(50, PaintFinish.Satin);
         Assert.Equal(100, PaintFinish.Gloss);
@@ -49,7 +53,8 @@ public class HoodGlossTests
         Assert.Equal(101, e.Values.Length);
         Assert.Single(e.Values, v => !v.EndsWith(ShellSettings.PortMark, StringComparison.Ordinal));
         var s = new ShellSettings();
-        Assert.Equal("0", e.Values[e.Get(s)]);
+        Assert.Equal("5*", e.Values[e.Get(s)]);
+        Assert.Equal("0", e.Values[0]);
         for (int i = 0; i < e.Values.Length; i++) { e.Set(s, i); Assert.Equal(i, e.Get(s)); Assert.Equal(i, s.HoodGloss); }
         // a key with a row is not one of the settings without a row
         Assert.DoesNotContain(DevSettings.All, d => d.Key == "hood_gloss");

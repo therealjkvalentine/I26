@@ -1,11 +1,10 @@
 namespace I76.Game.Shell;
 
 /// <summary>
-/// The base host form's help line (the port's; Graphic Detail's pattern, <see cref="GraphicsHelp"/>): for the setting under the
-/// pointer, or the one the pad's focus is on, what it does in a player's words, on the free line under the car panel between
-/// VARIANT and the buttons, in the form's handwriting. Every row and check box of the options box has one, melee and co-op, and
-/// the game type button. The strings live here, apart from the layout (<see cref="HostFormLayout"/>), so the rows can move
-/// without touching them; each fits the line (52 of the hand's characters at most).
+/// The base host form's tooltips (the port's; <see cref="MenuTooltip"/>, as every menu's): for the setting under the pointer, or the
+/// one the pad's focus is on, what it does in a player's words, in a tooltip by it. Every row and check box of the options box has
+/// one, melee and co-op, and the game type button. The strings live here, apart from the layout (<see cref="HostFormLayout"/>), so
+/// the rows can move without touching them.
 /// </summary>
 public static class HostFormHelp
 {

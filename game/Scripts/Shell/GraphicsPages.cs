@@ -1,48 +1,50 @@
 namespace I76.Game.Shell;
 
-/// <summary>A row of Graphic Detail: the original's rows the port honours (on the sheet, in the original's order), then the port's own on the pages (the shell's sheet has them all; the in-game pad the ones a mission can take).</summary>
+/// <summary>A row of Graphic Detail: the original's rows the port honours (on the sheet, in the original's order) and the port's own (on the sheet under them, or on Advanced; the shell's sheet has them all, the in-game pad the ones a mission can take).</summary>
 public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
-    Look1997, HdTextures, HdDash, HdCars, Vegetation, HoodGloss, CarInteriors, PaletteGrade, CrashBlur, Garage3D,
-    AntiAliasing, RenderScale, VSync, MaxFps, ShowFps, Renderer, LogFile,
-    FieldOfView,
-    AmbientOcclusion,
+    AntiAliasing, FieldOfView, VSync, MaxFps,
+    Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, HoodGloss,
+    RenderScale, ShowFps, Renderer, Garage3D,
 }
 
 /// <summary>
 /// Graphic Detail's pages (the port's): the sheet keeps the original's rows in the original's order and words (grxdet1.map: Screen
 /// Resolution, Monitor Brightness, Visibility Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the
-/// 1997 renderer's own detail rows are gone) and, under them, an entry for each page of the port's own rows: how the game looks, how
-/// fast it runs (then start-up and diagnostics), how the player looks around. A page is the same sheet with its name, its rows and a
-/// way back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel
-/// and the shell's snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the
-/// tests check the table and the copies without one.
+/// 1997 renderer's own detail rows are gone), then the port's rows a player reaches for most (Anti-Aliasing, Field of View, VSync,
+/// Max FPS) and, under a blank line, an entry for Advanced: the look (1997 Mode first), the textures, the modern look's extras and
+/// start-up. Each fits one sheet with a line to spare. A page is the same sheet with its name, its rows and a way back. The shell's
+/// sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and the shell's
+/// snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the tests check the
+/// table and the copies without one.
 /// </summary>
 public static class GraphicsPages
 {
-    public const int Sheet = 0, Look = 1, Display = 2;
-    public static readonly string[] Names = ["Graphic Detail", "Look", "Display"];
-    /// <summary>Each page's rows in order; the sheet's are the original's, as the original has them.</summary>
+    public const int Sheet = 0, Advanced = 1;
+    public static readonly string[] Names = ["Graphic Detail", "Advanced"];
+    /// <summary>Each page's rows in order; the sheet's start with the original's, as the original has them.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror],
-        [GraphicsRow.Look1997, GraphicsRow.HdTextures, GraphicsRow.HdDash, GraphicsRow.HdCars, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.CarInteriors, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Garage3D],
-        // Field of View, the Camera page's last row once the mouse rows (Mouse Camera, Camera Return, View Zoom Reset, Mouse In Window) became
-        // upstream's Mouse Options screen's (pass 19), with the live view rows; the Camera page is gone
-        [GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.LogFile],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
+            GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
+        [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
+            GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
     ];
 
-    /// <summary>Rows with a blank line over them on the shell's sheet: Display's start-up rows apart from the live ones.</summary>
-    public static readonly GraphicsRow[] BlankBefore = [GraphicsRow.Renderer];
+    /// <summary>The original's rows: the sheet's first seven.</summary>
+    public const int OriginalRows = 7;
 
-    /// <summary>The graphics block's bytes that are a page's row, not the sheet's: Anti-Aliasing (+0x8, the port's) on Display.</summary>
-    public static readonly int[] PageBytes = [0x8];
+    /// <summary>Rows with a blank line over them on the shell's sheet (none: Advanced fits with a line to spare without one).</summary>
+    public static readonly GraphicsRow[] BlankBefore = [];
+
+    /// <summary>The graphics block's bytes that are a page's row, not the sheet's (none: Anti-Aliasing, +0x8, is the sheet's again).</summary>
+    public static readonly int[] PageBytes = [];
 
     /// <summary>The sheet's lines: fourteen, 23 px apart from y 118 on the shell's sheet, the pad's rows 1 to 14.</summary>
     public const int Lines = 14;
-    /// <summary>The sheet's entries: one line per page from here (0-based), a blank line under the original's seven.</summary>
-    public const int FirstEntryLine = 8;
+    /// <summary>The sheet's entry for Advanced: its line (0-based), a blank line under the sheet's rows.</summary>
+    public static int FirstEntryLine => Rows[Sheet].Length + 1;
     /// <summary>A page on the shell's sheet: its name on the first line, its rows from the next; the pad prints the name over the art's title and starts its rows on row 1.</summary>
     public const int HeadingLine = 0, FirstRowLine = 1;
 
@@ -68,8 +70,7 @@ public static class GraphicsPages
 
     /// <summary>
     /// A page's rows copied from one settings block to another. The sheet's take the graphics block with them (the original's Reset and
-    /// Cancel treat it whole) but for the bytes a page owns (<see cref="PageBytes"/>): the sheet's Reset leaves Anti-Aliasing alone,
-    /// Display's puts it back.
+    /// Cancel treat it whole) but for the bytes a page owns (<see cref="PageBytes"/>, none now).
     /// </summary>
     public static void Copy(int page, ShellSettings from, ShellSettings to)
     {
@@ -85,7 +86,7 @@ public static class GraphicsPages
         return to;
     }
 
-    /// <summary>Reset on a page: its rows to the defaults (the sheet's the default profile, as the original's Reset, Anti-Aliasing apart).</summary>
+    /// <summary>Reset on a page: its rows to the defaults (the sheet's the default profile, as the original's Reset).</summary>
     public static void Reset(ShellSettings s, int page) => Copy(page, new ShellSettings(), s);
 
     /// <summary>Reset of one row: the in-game pad's pages, which offer only some of a page's rows, reset only those.</summary>
@@ -118,17 +119,14 @@ public static class GraphicsPages
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;
             case GraphicsRow.RenderScale: t.RenderScale = f.RenderScale; break;
             case GraphicsRow.Renderer: t.Renderer = f.Renderer; break;
-            case GraphicsRow.LogFile: t.LogFile = f.LogFile; break;
             case GraphicsRow.ShowFps: t.DevFps = f.DevFps; break;
-            // the switch, and the two sizes (kept while off)
-            case GraphicsRow.HdTextures: t.HdTextures = f.HdTextures; break;
-            case GraphicsRow.HdDash: t.HdDashSize = f.HdDashSize; break;
-            case GraphicsRow.HdCars: t.HdCarSize = f.HdCarSize; break;
+            // the texture packs' sizes, 0 for the originals
+            case GraphicsRow.WorldTextures: t.WorldTextures = f.WorldTextures; break;
+            case GraphicsRow.CarTextures: t.CarTextures = f.CarTextures; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
             case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
-            case GraphicsRow.CarInteriors: t.CarInteriors = f.CarInteriors; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
@@ -165,58 +163,59 @@ public static class VisibilityRange
 }
 
 /// <summary>
-/// HD Textures: the row over [port] hd_textures, Off or On* (the port's, so marked): the pack's upscales, the 4x pack the modern look is
-/// made for (a 2x or 3x pack named in the file or on the Developer panel saves video memory and a second of loading but no frame
-/// time, docs/perf/costs.md; the loader serves any whole multiple, HdPackFolders.Choose). Shown when a pack of any kind was found:
-/// no pack, no row. Off swaps the originals in at once and keeps the sizes.
+/// World Textures and Car &amp; Dash Textures: the texture pack in two rows ([port] world_textures and car_textures), each the size its
+/// textures are drawn at or 1997, the install's own (the original's, so unmarked). World Textures is 1997 or 4x* (the ground, the
+/// buildings, the props and the sky); Car &amp; Dash Textures is 1997, 4x* or 8x* (the cars and the cockpit's own art, the dash, its
+/// gauges and panels: one row, since the cars' 8x is tens of megabytes and the dash's half a gigabyte), the 8x when tex-world-8x is
+/// beside the 4x. Shown when a pack of any kind was found: no pack, no rows. A size the file names that the row does not offer (a 2x
+/// or 3x, an 8x whose folder has gone) shows as itself in the 4x's place until the row is stepped. The defaults (ShellSettings.HdDefault,
+/// HdTextures.FirstStart) are 4x and 8x, the 8x only where the dash's half gigabyte fits; Reset puts them back. Both going to or from
+/// 1997 swaps the pictures at once; a size applies from the next mission.
 /// </summary>
-public static class HdTextureRow
+public static class TextureRow
 {
-    public const string On = "On" + ShellSettings.PortMark;
-    /// <summary>The size the pack is drawn at unless the 8x rows say otherwise (the default).</summary>
-    public const int Size = I76.Formats.Shell.HdPackFolders.DefaultSize;
-    /// <summary>The larger size the 8x rows offer when its folder is there.</summary>
-    public const int Large = 8;
+    /// <summary>The install's own textures: the original's, unmarked.</summary>
+    public const string Original = "1997";
+    /// <summary>The size the pack is drawn at by default, and the larger one Car &amp; Dash Textures offers when its folder is there.</summary>
+    public const int Size = I76.Formats.Shell.HdPackFolders.DefaultSize, Large = 8;
 
-    /// <summary>The row's values when a pack was found (<paramref name="available"/>: the sizes whose folders are there; <paramref name="anyPack"/>: a plain folder or a zip too); null for no row.</summary>
-    public static string[]? Names(int[] available, bool anyPack) => anyPack || available.Length > 0 ? ["Off", On] : null;
+    public static string Label(GraphicsRow r) => r == GraphicsRow.WorldTextures ? "World Textures" : "Car & Dash Textures";
 
-    public static int Index(ShellSettings s) => s.HdTextures ? 1 : 0;
+    /// <summary>The rows are shown when a pack was found (<paramref name="available"/>: the sizes whose folders are there; <paramref name="anyPack"/>: a plain folder or a zip too).</summary>
+    public static bool Offered(int[] available, bool anyPack) => anyPack || available.Length > 0;
 
-    public static void Put(ShellSettings s, int v) => s.HdTextures = v != 0;
+    /// <summary>The sizes a row steps through (0 the originals): World 1997 and 4x; Car &amp; Dash the 8x too when its folder is beside the 4x.</summary>
+    public static int[] Sizes(GraphicsRow r, int[] available) =>
+        r == GraphicsRow.CarTextures && available.Contains(Large) && available.Contains(Size) ? [0, Size, Large] : [0, Size];
 
-    /// <summary>A click: Off, On, Off ...</summary>
-    public static void Step(ShellSettings s) => Put(s, (Index(s) + 1) % 2);
-}
+    public static int SizeOf(ShellSettings s, GraphicsRow r) => r == GraphicsRow.WorldTextures ? s.WorldTextures : s.CarTextures;
 
-/// <summary>
-/// 8x Dash and 8x Cars: two rows under HD Textures over [port] hd_dash_size and hd_car_size, Off (the 4x) or On* (the 8x), shown when
-/// tex-world-8x is beside the 4x (an 8x pack is partial: the cockpit's art and the cars, each read from the 8x only when its row is
-/// on, HdPackFolders.ChainFor). Each has its own first-start choice, which Reset puts back (ShellSettings.HdDefault: the cars' 8x fits
-/// where the 4x does, the dash's needs a 6 GB card or a 16 GB Mac; HdTextures.PickDash, PickCar) and its own cost (GraphicsHelp). A 2x or
-/// 3x in the file shows as Off and a click writes 4 or 8. A size applies from the next mission; HD Textures Off leaves both as they are.
-/// </summary>
-public static class Hd8xRow
-{
-    public static readonly string[] Names = ["Off", HdTextureRow.On];
+    public static string Word(int size) => size == 0 ? Original : $"{size}x" + ShellSettings.PortMark;
 
-    /// <summary>The rows are shown when the 8x folder is beside the 4x.</summary>
-    public static bool Offered(int[] available) => available.Contains(HdTextureRow.Large) && available.Contains(HdTextureRow.Size);
-
-    public static string Label(GraphicsRow r) => r == GraphicsRow.HdDash ? "8x Dash" : "8x Cars";
-
-    public static int SizeOf(ShellSettings s, GraphicsRow r) => r == GraphicsRow.HdDash ? s.HdDashSize : s.HdCarSize;
-
-    public static int Index(ShellSettings s, GraphicsRow r) => SizeOf(s, r) == HdTextureRow.Large ? 1 : 0;
-
-    /// <summary>A value picked: On writes 8, Off 4; nothing when it is what shows (a 2x or 3x stays until the row is clicked).</summary>
-    public static void Put(ShellSettings s, GraphicsRow r, int v)
+    /// <summary>The value shown: the size's place among <see cref="Sizes"/>, a size not among them in the 4x's.</summary>
+    public static int Index(ShellSettings s, GraphicsRow r, int[] available)
     {
-        if (Index(s, r) == v) return;
-        int size = v != 0 ? HdTextureRow.Large : HdTextureRow.Size;
-        if (r == GraphicsRow.HdDash) s.HdDashSize = size; else s.HdCarSize = size;
+        int i = Array.IndexOf(Sizes(r, available), SizeOf(s, r));
+        return i >= 0 ? i : 1;
     }
 
-    /// <summary>A click: Off, On, Off ...</summary>
-    public static void Step(ShellSettings s, GraphicsRow r) => Put(s, r, (Index(s, r) + 1) % 2);
+    /// <summary>The row's words: the sizes', the 4x's place showing a size set by hand (3x*) until the row is stepped.</summary>
+    public static string[] Names(ShellSettings s, GraphicsRow r, int[] available)
+    {
+        var sizes = Sizes(r, available);
+        var names = sizes.Select(Word).ToArray();
+        if (Array.IndexOf(sizes, SizeOf(s, r)) < 0) names[1] = Word(SizeOf(s, r));
+        return names;
+    }
+
+    /// <summary>A value picked: nothing when it is what shows (a size set by hand stays until the row is changed).</summary>
+    public static void Put(ShellSettings s, GraphicsRow r, int[] available, int v)
+    {
+        if (Index(s, r, available) == v) return;
+        int size = Sizes(r, available)[v];
+        if (r == GraphicsRow.WorldTextures) s.WorldTextures = size; else s.CarTextures = size;
+    }
+
+    /// <summary>A click: the next size, past the last back to 1997.</summary>
+    public static void Step(ShellSettings s, GraphicsRow r, int[] available) => Put(s, r, available, (Index(s, r, available) + 1) % Sizes(r, available).Length);
 }

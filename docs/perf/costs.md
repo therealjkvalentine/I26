@@ -202,9 +202,19 @@ noise of two disjoint sets of textures; the whole-card figure is coarser, other 
 time (the earlier section). The dash is the costly half though it is the smaller one, because the cockpit's art is drawn near full
 screen and so is large (a panel of 640x480 is 5120x3840 at 8x), while a car's texture is 64 px across in the original and only the
 cars in the scene are loaded; the whole 8x cost T05 +610 MB against T01's +536 (the table above), so the cars' share grows with the
-cars present, to about 130 MB there. So the cars' 8x fits wherever the 4x does and is the default from a card of about 4 GB
-(HdTextures.PickCar: LowVideoMemoryMb) or any Apple-silicon Mac, while the dash's 8x keeps the 6 GB card / 16 GB Mac rule (PickDash:
-LargeVideoMemoryMb, LargeSharedMemoryMb). An old shell.cfg's single `hd_texture_size` sets both until the two keys are written.
+cars present, to about 130 MB there.
+
+Since round 5 (2026-11-06) the player has one row for the two, Car & Dash Textures (1997, 4x, 8x; `[port] car_textures`), and one
+for the world, World Textures (1997, 4x; `world_textures`): the cars' 54 MB is too little to deserve a row of its own. Its 8x
+default keeps the dash's rule, since the dash is most of the 510 MB: 8x on a card of 6 GB or more or a 16 GB Apple-silicon Mac
+(HdTextures.PickCar: LargeVideoMemoryMb, LargeSharedMemoryMb), else the 4x; the world's 4x where the 4x fits (LowVideoMemoryMb). An old
+shell.cfg's `hd_dash_size` and `hd_car_size` (or single `hd_texture_size`) give the new key one size: the dash's 8x is kept, the cars' 8x alone only where the dash's rule allows it.
+
+**Defaults since round 5.** Terrain Detail and Shadow Detail start High (they started Low): Terrain Detail High is +1.03 ms a frame
+at 3440x1440 (+0.91 at 1920x1080, the table above), Shadow Detail High over Low, the reach from 600 to 1500 m and four splits, +0.18
+ms at 1920x1080 (shadow_dist_600 above; SSAO, which High used to carry, is Ambient Occlusion's own row and stays Off). So a first
+start costs about 1.2 ms a frame more on the 1080 Ti at 3440x1440, some 7 % of the full-detail frame; not measured again for this
+change. Hood Gloss starts at 5 (0, Matte, before), which costs nothing (a uniform in the paint's shader).
 
 ## The other scenes and the follow-ups
 

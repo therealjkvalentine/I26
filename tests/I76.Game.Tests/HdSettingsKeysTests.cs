@@ -5,7 +5,7 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The HD packs' switches ([port] hd_textures, Graphic Detail's HD Textures row; hd_menu_art, no row): on by default, a saved Off kept, files from before the
+/// The menu art's and the cabins' switches ([port] hd_menu_art and cabins_behind_glass, no rows) and the texture pack (on by default): a saved Off kept, files from before the
 /// menu art's switch on; both on the Developer panel's Settings, applied live.
 /// </summary>
 public class HdSettingsKeysTests
@@ -26,7 +26,7 @@ public class HdSettingsKeysTests
     }
 
     [Theory]
-    [InlineData("hd_textures")]
+    [InlineData("cabins_behind_glass")]
     [InlineData("hd_menu_art")]
     public void TheDeveloperPanelTogglesThem(string key)
     {
@@ -35,7 +35,7 @@ public class HdSettingsKeysTests
         Assert.Equal(1, e.Get(s));
         e.Set(s, 0);
         Assert.Equal(0, e.Get(s));
-        Assert.False(key == "hd_textures" ? s.HdTextures : s.HdMenuArt);
+        Assert.False(key == "cabins_behind_glass" ? s.CabinsBehindGlass : s.HdMenuArt);
         Assert.Equal(["false", "true*"], e.Values);
     }
 }
