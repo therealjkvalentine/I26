@@ -104,7 +104,7 @@ public sealed class MeleePlayer
     /// the table's average each tick. Its own field, so that a fading or windowed standing could be tried without touching the counters.
     /// </summary>
     public float Form { get; internal set; }
-    /// <summary>Kills minus deaths when <see cref="Form"/> last took them in (derived: the counters themselves after any frame).</summary>
+    /// <summary>Kills minus deaths when <see cref="Form"/> last took them in: always Form itself (both start at 0 and step together), which a restore sets it from.</summary>
     internal int FormKd;
 }
 
@@ -545,26 +545,9 @@ public sealed partial class MeleeGame
         foreach (var p in Players) if (!p.Destroyed) Regen(p);
         if (Rules.Kind == MeleeKind.Race) RaceFrame();
         Ctf?.Update(Players, p => !p.Destroyed && !Damage.DamageModel.IsDead(p.Car), p => Radius(p.Car));
-        // every frame, so FormKd is the counters after any frame, as the snapshot (which derives it) has it
-        TakeInForm();
         if (Rules.AutoHandicaps && Rules.Kind == MeleeKind.Combat && !Ended) AutoHandicapFrame();
         if (_overAt is null) CheckEnd();
         else if (Host.Now >= _overAt) _over = true;
-    }
-
-    /// <summary>
-    /// Each player's standing takes in the kills and deaths booked since the last frame. Run every frame of every melee (not only an
-    /// Auto-handicap combat, nor only with two players), so <see cref="MeleePlayer.FormKd"/> is always the counters after a frame, which
-    /// is what a restored snapshot sets it to; the levels see the same Form as before, the sum of the steps being the same.
-    /// </summary>
-    private void TakeInForm()
-    {
-        foreach (var p in Players)
-        {
-            int kd = p.Kills - p.Deaths;
-            p.Form += kd - p.FormKd;
-            p.FormKd = kd;
-        }
     }
 
     /// <summary>
@@ -574,10 +557,15 @@ public sealed partial class MeleeGame
     /// </summary>
     internal void AutoHandicapFrame()
     {
-        TakeInForm();
         if (Players.Count < 2) return;
         float sum = 0;
-        foreach (var p in Players) sum += p.Form;
+        foreach (var p in Players)
+        {
+            int kd = p.Kills - p.Deaths;
+            p.Form += kd - p.FormKd;
+            p.FormKd = kd;
+            sum += p.Form;
+        }
         float mean = sum / Players.Count;
         foreach (var p in Players)
         {
