@@ -230,17 +230,46 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * digit * 0.1f + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         int w = tp.Label.W, h = tp.Label.H;
-        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}|{CounterDigits.Feather}|{CounterDigits.Lip}", t.S);
+        // the housing round the window as the panel stands (its bracket stamped before the digits): what the window's edges fade toward
+        var housing = HousingAround(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, w, h);
+        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}|{CounterDigits.Edge}|{housing}", t.S);
         if (!_labels.TryGetValue(key, out var cell))
         {
             cell = new byte[w * t.S * h * t.S * 4];
             Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
-            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style);
+            if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style, CounterDigits.Edge, housing);
             _labels[key] = cell;
         }
         Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
         t.Dirty = true;
     }
+
+    /// <summary>
+    /// The mean colour of a target's texels in the <see cref="HousingBand"/> layout pixels above and below a w × h window
+    /// at (x, y) of the layout, over the window's width (rows bottom-up as Blit's; off the target left out): the housing
+    /// the counter window sits in, which CounterDigits fades the drum's edges toward. The default housing grey where
+    /// nothing is there to read.
+    /// </summary>
+    public static (byte R, byte G, byte B) HousingAround(byte[] dst, int dw, int dh, int ds, int x, int y, int w, int h)
+    {
+        long r = 0, g = 0, b = 0; int n = 0;
+        void Rows(int j0, int j1)
+        {
+            for (int j = Math.Max(0, j0); j < Math.Min(dh, j1); j++)
+                for (int i = Math.Max(0, x * ds); i < Math.Min(dw, (x + w) * ds); i++)
+                {
+                    int o = ((dh - 1 - j) * dw + i) * 4;
+                    if (dst[o + 3] < 128) continue;
+                    r += dst[o]; g += dst[o + 1]; b += dst[o + 2]; n++;
+                }
+        }
+        Rows((y - HousingBand) * ds, y * ds);
+        Rows((y + h) * ds, (y + h + HousingBand) * ds);
+        return n == 0 ? CounterDigits.DefaultHousing : ((byte)((r + n / 2) / n), (byte)((g + n / 2) / n), (byte)((b + n / 2) / n));
+    }
+
+    /// <summary>How far above and below the counter window the housing is read, in layout pixels (the bezel's own two).</summary>
+    public const int HousingBand = 2;
 
     /// <summary>
     /// The counter digits' ink taken darker in a w × h rectangle (the layout's pixels) of a target at <paramref name="ds"/>

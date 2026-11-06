@@ -16,6 +16,85 @@ public enum DrumStyle
     Gaps,
 }
 
+/// <summary>How the window's edge weight falls off across the feather band (CounterDigits.EdgeWeight).</summary>
+public enum FeatherCurve
+{
+    /// <summary>Smoothstep: symmetric, half the darkening at the band's middle (the earlier look, which read as a band with an inner edge).</summary>
+    Ease,
+    /// <summary>1 - cos: eases in from nothing at the band's inner end, steepest at the lip.</summary>
+    Cos,
+    /// <summary>The square of the way in: a quarter of the darkening at the band's middle.</summary>
+    Pow2,
+    /// <summary>The cube: an eighth at the middle, nearly all of it in the last rows.</summary>
+    Pow3,
+}
+
+/// <summary>
+/// The counter window's edge treatment (CounterDigits.Edge): the band's <see cref="Fraction"/> of the window's height, the
+/// <see cref="Curve"/> across it, how dark the housing's colour is taken at the lip (<see cref="Depth"/> of itself), the
+/// drum's <see cref="Ambient"/> light (CounterDigits.Ambient, or less with "drum"), a <see cref="Lip"/> light, and
+/// <see cref="Black"/> for the earlier fade to a near-black. Spelled as I76_COUNTER_FEATHER spells it.
+/// </summary>
+public readonly record struct EdgeFade(float Fraction, FeatherCurve Curve, float Depth, float Ambient, bool Lip, bool Black)
+{
+    public const float DefaultFraction = 0.25f, DefaultDepth = 0.6f, DeepDepth = 0.45f, LightDepth = 0.75f, DrumAmbient = 0.3f;
+    public const FeatherCurve DefaultCurve = FeatherCurve.Pow2;
+
+    /// <summary>The cockpit's: a quarter of the window, squared, the housing at six tenths.</summary>
+    public static readonly EdgeFade Default = new(DefaultFraction, DefaultCurve, DefaultDepth, CounterDigits.Ambient, false, false);
+
+    /// <summary>
+    /// The hook's grammar: a percent of the window's height (0 to 50), then any of the words, in any order, run together or
+    /// separated by "-", "+", "," or spaces: "lip" (the lip lit), "black" (the earlier near-black target), "ease", "cos",
+    /// "pow2", "pow3" (the curve), "deep" or "light" (the housing at 45 % or 75 % instead of 60 %), "drum" (the drum's ambient
+    /// light 0.3 instead of 0.5: its own shading darker toward the edges). "20black" is the earlier look (its smoothstep
+    /// unless a curve is named). Empty or unreadable: the default; a word not known is ignored.
+    /// </summary>
+    public static EdgeFade Parse(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return Default;
+        v = v.Trim().ToLowerInvariant();
+        int n = 0;
+        while (n < v.Length && char.IsDigit(v[n])) n++;
+        var e = Default;
+        if (n > 0 && int.TryParse(v[..n], out int pct) && pct is >= 0 and <= 50) e = e with { Fraction = pct / 100f };
+        bool curveNamed = false;
+        foreach (var w in v[n..].Split(new[] { '-', '+', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var rest = w;
+            while (rest.Length > 0)
+            {
+                string? word = Array.Find(Words, rest.StartsWith);
+                if (word is null) break;
+                e = word switch
+                {
+                    "lip" => e with { Lip = true },
+                    "black" => e with { Black = true },
+                    "ease" => e with { Curve = FeatherCurve.Ease },
+                    "cos" => e with { Curve = FeatherCurve.Cos },
+                    "pow2" => e with { Curve = FeatherCurve.Pow2 },
+                    "pow3" => e with { Curve = FeatherCurve.Pow3 },
+                    "deep" => e with { Depth = DeepDepth },
+                    "light" => e with { Depth = LightDepth },
+                    "drum" => e with { Ambient = DrumAmbient },
+                    _ => e,
+                };
+                curveNamed |= word is "ease" or "cos" or "pow2" or "pow3";
+                rest = rest[word.Length..];
+            }
+        }
+        if (e.Black && !curveNamed) e = e with { Curve = FeatherCurve.Ease };
+        return e;
+    }
+
+    private static readonly string[] Words = { "lip", "black", "ease", "cos", "pow2", "pow3", "deep", "light", "drum" };
+
+    /// <summary>The hook's spelling of this edge (a cache key).</summary>
+    public override string ToString() =>
+        $"{(int)MathF.Round(Fraction * 100)}{Curve.ToString().ToLowerInvariant()}" + (Depth == DeepDepth ? "-deep" : Depth == LightDepth ? "-light" : "") +
+        (Ambient != CounterDigits.Ambient ? "-drum" : "") + (Lip ? "-lip" : "") + (Black ? "-black" : "");
+}
+
 /// <summary>
 /// The modern look's ammunition counter digits: each drum's figure set in a font (Roboto Bold, game/Fonts) on the strip's
 /// own cell, in place of the strip's painted 8-pixel figures, which an upscale leaves soft-edged. The cell keeps the
@@ -63,37 +142,45 @@ public static class CounterDigits
     public static DrumStyle FromEnv(string? v) => Enum.TryParse<DrumStyle>(v, true, out var s) && Enum.IsDefined(s) ? s : DrumStyle.Inset;
 
     /// <summary>
-    /// The window's edges on a drum style: over the top and bottom <see cref="Feather"/> of the window's height the face
-    /// and the figure fade into the housing's shadow (<see cref="ShadowRgb"/>, at most <see cref="ShadowDepth"/> at the
-    /// lip), the figure's ink thinning first (to <see cref="InkFade"/> at the lip) as it curves away under the window;
-    /// with <see cref="Lip"/>, the lip's edge catches a faint light. I76_COUNTER_FEATHER ("0", "10", "15", "20", each
-    /// optionally with "lip": "15lip") sets another, for comparisons (docs/dev-hooks.md).
+    /// The window's edges on a drum style: over the top and bottom <see cref="EdgeFade.Fraction"/> of the window's height
+    /// the face and the figure fade into the housing's shadow, as the drum curves away under the lip: toward the colour of
+    /// the housing behind the window (sampled round it where the panel is composed, <see cref="DefaultHousing"/> without)
+    /// darkened to <see cref="EdgeFade.Depth"/> of itself, never to black, by an ease-in curve (<see cref="EdgeFade.Curve"/>:
+    /// most of the darkening in the last rows, no inner edge), the figure's ink thinning as well (to <see cref="InkFade"/> at
+    /// the lip). <see cref="EdgeFade.Lip"/> lights the lip's edge faintly; <see cref="EdgeFade.Black"/> is the earlier look,
+    /// the fade to a near-black (<see cref="ShadowRgb"/>) by <see cref="ShadowDepth"/>, for comparisons.
+    /// I76_COUNTER_FEATHER sets another (<see cref="EdgeFade.Parse"/>; docs/dev-hooks.md).
     /// </summary>
-    public static float Feather { get; set; } = FeatherFromEnv(System.Environment.GetEnvironmentVariable("I76_COUNTER_FEATHER")).Fraction;
-    public static bool Lip { get; set; } = FeatherFromEnv(System.Environment.GetEnvironmentVariable("I76_COUNTER_FEATHER")).Lip;
-    public const float DefaultFeather = 0.20f, ShadowDepth = 0.85f, InkFade = 0.5f, LipLight = 0.3f;
-    public const bool DefaultLip = false;
+    public static EdgeFade Edge { get; set; } = EdgeFade.Parse(System.Environment.GetEnvironmentVariable("I76_COUNTER_FEATHER"));
+
+    public const float ShadowDepth = 0.85f, InkFade = 0.5f, LipLight = 0.3f;
     public static readonly (byte R, byte G, byte B) ShadowRgb = (24, 24, 20);
+    /// <summary>The housing's colour when no panel is behind the cell: the strip's chrome bezel's grey.</summary>
+    public static readonly (byte R, byte G, byte B) DefaultHousing = (150, 150, 145);
 
-    public static (float Fraction, bool Lip) FeatherFromEnv(string? v)
-    {
-        if (string.IsNullOrWhiteSpace(v)) return (DefaultFeather, DefaultLip);
-        v = v.Trim().ToLowerInvariant();
-        bool lip = v.EndsWith("lip");
-        if (lip) v = v[..^3];
-        return int.TryParse(v, out int pct) && pct is >= 0 and <= 40 ? (pct / 100f, lip) : (DefaultFeather, DefaultLip);
-    }
-
-    /// <summary>The window-edge weight of row <paramref name="y"/> (from the top) of a window <paramref name="h"/> high: 1 at
-    /// the lip, easing to 0 at <paramref name="feather"/> of the height in from it.</summary>
-    public static float EdgeWeight(int y, int h, float feather)
+    /// <summary>
+    /// The weight of the window's edge on row <paramref name="y"/> (from the top) of a window <paramref name="h"/> high: 1
+    /// at the lip's edge (half a row above row 0), falling to 0 at <paramref name="feather"/> of the height in from it, by
+    /// <paramref name="curve"/> (<see cref="FeatherCurve"/>).
+    /// </summary>
+    public static float EdgeWeight(int y, int h, float feather, FeatherCurve curve = EdgeFade.DefaultCurve)
     {
         if (feather <= 0) return 0;
         float d = Math.Min(y + 0.5f, h - y - 0.5f) / (feather * h);
         if (d >= 1) return 0;
         float t = 1 - d;
-        return t * t * (3 - 2 * t);
+        return curve switch
+        {
+            FeatherCurve.Ease => t * t * (3 - 2 * t),
+            FeatherCurve.Cos => 1 - MathF.Cos(MathF.PI * t / 2),
+            FeatherCurve.Pow3 => t * t * t,
+            _ => t * t,
+        };
     }
+
+    /// <summary>The colour a feathered row goes toward: the housing behind the window at the fade's depth, or the earlier near-black.</summary>
+    public static (float R, float G, float B) FadeTarget(EdgeFade edge, (byte R, byte G, byte B) housing) =>
+        edge.Black ? (ShadowRgb.R, ShadowRgb.G, ShadowRgb.B) : (housing.R * edge.Depth, housing.G * edge.Depth, housing.B * edge.Depth);
 
     /// <summary>
     /// Paints figure <paramref name="digit"/> (0..9) over a cell: <paramref name="rgba"/> is the strip's cell at
@@ -102,12 +189,18 @@ public static class CounterDigits
     /// strip), taking the painted figure off; then the font's figure is filled at the strip's figure height and place,
     /// on the drum's curve for the drum styles, and the face shaded.
     /// </summary>
-    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style) => Paint(rgba, s, digit, font, style, Feather, Lip);
+    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style) => Paint(rgba, s, digit, font, style, Edge, DefaultHousing);
 
-    /// <summary>Paint with the window's feather and lip given (the drum styles only; Flat has no window edge).</summary>
-    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style, float feather, bool lip)
+    /// <summary>
+    /// Paint with the window's edge given (the drum styles only; Flat has no window edge) and the colour of the
+    /// <paramref name="housing"/> behind the window, which the edges fade toward.
+    /// </summary>
+    public static void Paint(byte[] rgba, int s, int digit, DymoFont font, DrumStyle style, EdgeFade edge, (byte R, byte G, byte B) housing)
     {
-        if (style == DrumStyle.Flat) feather = 0;
+        float feather = style == DrumStyle.Flat ? 0 : edge.Fraction;
+        var curve = edge.Curve;
+        bool lip = edge.Lip;
+        var (tr, tg, tb) = FadeTarget(edge, housing);
         int w = CellW * s, h = CellH * s;
         for (int y = 0; y < h; y++)
         {
@@ -133,7 +226,7 @@ public static class CounterDigits
                 };
                 if (sh > 0) for (int c = 0; c < 3; c++) rgba[i + c] = (byte)(rgba[i + c] * (1 - EmbossShade * sh) + 0.5f);
                 // the figure curving away under the window: its ink thins toward the lip
-                a *= 1 - InkFade * EdgeWeight(y, h, feather);
+                a *= 1 - InkFade * EdgeWeight(y, h, feather, curve);
                 if (a <= 0) continue;
                 var (cr, cg, cb) = ((float)Ink.R, (float)Ink.G, (float)Ink.B);
                 // the lit edge inside the figure: cut in, the groove's lower wall; standing proud, its top
@@ -152,7 +245,7 @@ public static class CounterDigits
         if (style == DrumStyle.Gaps) Gap(rgba, w, h, s);
         for (int y = 0; y < h; y++)
         {
-            float k = Shade(y, h), sw = ShadowDepth * EdgeWeight(y, h, feather);
+            float k = Shade(y, h, edge.Ambient), sw = (edge.Black ? ShadowDepth : 1) * EdgeWeight(y, h, feather, curve);
             // the lip: the window's top edge lit from above, the bottom one less
             float lw = !lip || feather <= 0 ? 0 : y < Math.Max(1, s / 2) ? LipLight : y >= h - Math.Max(1, s / 2) ? LipLight / 2 : 0;
             for (int x = s; x < w; x++)
@@ -160,7 +253,7 @@ public static class CounterDigits
                 int i = ((h - 1 - y) * w + x) * 4;
                 for (int c = 0; c < 3; c++)
                 {
-                    byte sc = c == 0 ? ShadowRgb.R : c == 1 ? ShadowRgb.G : ShadowRgb.B;
+                    float sc = c == 0 ? tr : c == 1 ? tg : tb;
                     float v = rgba[i + c] * k;
                     v += (sc - v) * sw;
                     v += (200 - v) * lw;
@@ -177,11 +270,14 @@ public static class CounterDigits
     /// The light on row <paramref name="y"/> (from the top) of a cell <paramref name="h"/> high, 0..1: the face's angle to
     /// the line of sight there, Lambert from a light a little above, with the ambient share; 1 where it faces the light.
     /// </summary>
-    public static float Shade(int y, int h)
+    public static float Shade(int y, int h) => Shade(y, h, Ambient);
+
+    /// <summary>Shade with the ambient share given (EdgeFade "drum": less of it, the cylinder's own shading carrying more of the edge).</summary>
+    public static float Shade(int y, int h, float ambient)
     {
         float v = Math.Clamp((y + 0.5f - h / 2f) / Radius(h), -1, 1);
         float th = MathF.Asin(v), l = -LightAngle * MathF.PI / 180;
-        return Ambient + (1 - Ambient) * Math.Max(0, MathF.Cos(th - l));
+        return ambient + (1 - ambient) * Math.Max(0, MathF.Cos(th - l));
     }
 
     private static float[]? FlatMask(DymoFont font, int digit, int w, int h, int s)
