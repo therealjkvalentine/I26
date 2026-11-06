@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world-4x/; Graphic Detail's HD Textures row offers Off or 4x. --scale 2 or 3 still writes tex-world-2x/-3x, which the game loads only when shell.cfg's hd_texture_size or the Developer panel names them).
+"""Upscale the game's textures on your own machine into the folder I26 reads them from (user://tex-world-4x/; Graphic Detail's HD Textures row offers Off or 4x, and 8x with an --scale 8 pack of the cockpit and the cars beside it, the first start's choice on a 6 GB card or a 16 GB Mac. --scale 2 or 3 still writes tex-world-2x/-3x, which the game loads only when shell.cfg's hd_texture_size or the Developer panel names them).
 
     1. Export the install's textures as PNGs (the game does it, then quits):
            i26 -- --install DIR --export-textures SRC_DIR

@@ -172,8 +172,9 @@ no frame time (GPU deltas from -0.3 to +0.5 ms, inside or at the edge of
 the runs' spread, the frame unchanged). The rest of the video memory (total minus textures: render targets, buffers) is
 220-320 MB and grows ~30 MB with the 8x. So the 8x fits a 6 GB card with half of it spare (on a 4 GB card the 3 GB of T05 leaves
 too little for the desktop and the driver), and a 16 GB Apple-silicon Mac; but an A/B of the same frames (the dash, the gauges,
-the player's car at 3 m and close up, a car at 10 m, at 3440x1440 and 1920x1080) shows no difference, so the first start keeps
-the 4x (HdTextures.FirstStartSize) and the 8x is only the row's, when its folder is there.
+the player's car at 3 m and close up, a car at 10 m, at 3440x1440 and 1920x1080) shows no difference. The player asked for the 8x as the default where it fits (2026-11-05), so a first start
+(and the row's Reset) takes it on a card of 6 GB or more (HdTextures.LargeVideoMemoryMb) or an Apple-silicon Mac of 16 GB or
+more (LargeSharedMemoryMb), the 4x on a 4 GB card or an 8 GB Mac (HdTextures.Pick).
 
 ## The other scenes and the follow-ups
 

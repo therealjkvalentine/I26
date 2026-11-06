@@ -77,7 +77,9 @@ needs no GPU.
 An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's HD Textures row then offers
 `8x (cockpit & cars)`) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
 the game reads for every texture the 8x does not have; it needs the 4x pack and adds 2.9 GB on disk (2,556 textures), ~0.55-0.6 GB of video memory and ~2 s to a
-mission's load, and in our A/B shows no difference at play (docs/perf/costs.md), so it is an experiment, not a recommendation. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
+mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Where it fits it is the default: a first start
+(and the row's Reset) picks the 8x when the folder is there and the graphics card has 6 GB of video memory or more (an Apple-silicon
+Mac, 16 GB of memory or more), else the 4x (docs/playing.md, HD textures); a saved shell.cfg keeps its size. It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
 2xHDCube_Compact), the cockpit's families taken from their own 4x models to 8x by 2xHDCube_Compact (`--x2-model`, in
 `--models-dir`), in three steps: the models on the graphics card (about 15 minutes on a GTX 1080 Ti), then the packing on the
 CPU (about half an hour on 8 cores), then the lettering:
