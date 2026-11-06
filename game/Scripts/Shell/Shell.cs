@@ -1358,6 +1358,8 @@ public sealed class ShellSettings
     public bool GarageRadio { get; set; }
     /// <summary>The port's own, without a row: the modern look's car deaths by cause, burning wheels drawn per death (I76.Game.Sim.DeathVariety; [port] death_variety, written only when off). Off: one death for every cause, as the original's.</summary>
     public bool DeathVariety { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's ignition plays the engine start-up cut from the INT03 briefing movie (I76.Formats.Audio.MovieClip) in place of the kit's ignition sound ([port] movie_ignition, written only when on). Off by default until listened to.</summary>
+    public bool MovieIgnition { get; set; }
     /// <summary>
     /// The port's own, without a row: what leads while the modern look builds a mission on its own thread (I76.Game.Boot.BriefingOverlap;
     /// [port] briefing_while_loading, written only when not the default): card_first, the loading card for the retail game's time and
@@ -1597,6 +1599,7 @@ public sealed class ShellSettings
         s.MenuWarmup = string.Equals(c.GetValue("port", "menu_warmup", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.DeathVariety = !string.Equals(c.GetValue("port", "death_variety", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.CardOrder = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", "card_first").ToString());
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
@@ -1729,6 +1732,7 @@ public sealed class ShellSettings
         if (MenuWarmup) c.SetValue("port", "menu_warmup", "on");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (!DeathVariety) c.SetValue("port", "death_variety", "off");
+        if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
         if (CardOrder != I76.Game.Boot.CardOrder.CardFirst) c.SetValue("port", "briefing_while_loading", I76.Game.Boot.BriefingOverlap.Name(CardOrder));
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");

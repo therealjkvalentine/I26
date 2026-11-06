@@ -577,8 +577,29 @@ public partial class DamageView : Node3D
     private AudioStreamPlayer? _ignition;
     private I76.Sim.Vehicles.Vehicle? _ignitionOf;
 
+    /// <summary>[port] movie_ignition (OriginalBehavior.Apply): the modern look's ignition is the INT03 movie's start-up.</summary>
+    public static bool MovieIgnition;
+    private bool _ignitionMovie;
+    private static AudioStreamWav? _movieStartUp;
+    private static bool _movieStartUpRead;
+
+    /// <summary>The start-up cut from the install's own INT03F01.SMK, read once (about 3 s of audio decoded, no video).</summary>
+    private AudioStreamWav? MovieStartUp()
+    {
+        if (_movieStartUpRead) return _movieStartUp;
+        _movieStartUpRead = true;
+        try
+        {
+            if (Builder.Vfs.Install is { } inst && I76.Formats.Audio.MovieClip.StartUp(inst) is { } pcm) _movieStartUp = Assets.AudioBank.ToStream(pcm);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or IndexOutOfRangeException) { GD.Print($"movie ignition: {e.Message}"); }
+        GD.Print($"movie ignition: {(_movieStartUp is null ? "no INT03F01.SMK start-up, the kit's sound" : "INT03F01.SMK 52.45-55.8 s")}");
+        return _movieStartUp;
+    }
+
     private void StopIgnition()
     {
+        _ignitionMovie = false;
         _ignition?.Stop();
         _ignition?.QueueFree();
         _ignition = null;
@@ -628,10 +649,24 @@ public partial class DamageView : Node3D
                     wc.StopHorn();
                     break;
                 case IgnitionStarted ig:
+                    GD.Print($"ignition: {ig.Vehicle.Definition} cranks ({ig.Sound}, {Damage.Ignition(ig.Vehicle).Length:0.0} s){(MovieIgnition ? ", movie_ignition on" : "")}");
                     // The player's ignition sound, not positional; it plays for the table's time, not the file's
                     StopIgnition();
                     _ignitionOf = ig.Vehicle;
-                    if (Audio?.Get(ig.Sound!) is { } igs)
+                    _ignitionMovie = false;
+                    if (MovieIgnition && Cars.TryGetValue(ig.Vehicle, out var igc) && igc.Modern && MovieStartUp() is { } ms)
+                    {
+                        // [port] movie_ignition: the INT03 start-up, its catch on the table's time (when EngineStarted comes and the
+                        // loop starts), left to ring out over the loop
+                        float table = Damage.Ignition(ig.Vehicle).Length;
+                        _ignition = new AudioStreamPlayer { Bus = "SFX", Stream = ms, VolumeDb = -4 };
+                        AddChild(_ignition);
+                        _ignitionMovie = true;
+                        float lead = table - (float)I76.Formats.Audio.MovieClip.StartUpCatch;
+                        if (lead > 0) GetTree().CreateTimer(lead).Timeout += () => { if (_ignitionMovie && IsInstanceValid(_ignition)) _ignition?.Play(); };
+                        else _ignition.Play(-lead);
+                    }
+                    else if (Audio?.Get(ig.Sound!) is { } igs)
                     {
                         _ignition = new AudioStreamPlayer { Bus = "SFX", Stream = igs, VolumeDb = -4 };
                         AddChild(_ignition);
@@ -639,10 +674,12 @@ public partial class DamageView : Node3D
                     }
                     break;
                 case EngineStarted es when Cars.TryGetValue(es.Vehicle, out var ec):
-                    if (es.Vehicle == _ignitionOf) StopIgnition();
+                    GD.Print($"ignition: {es.Vehicle.Definition} engine started");
+                    if (es.Vehicle == _ignitionOf && !_ignitionMovie) StopIgnition();
                     ec.RestartEngine();   // the engine loop on, the ignition sound off
                     break;
                 case EngineStopped st when Cars.TryGetValue(st.Vehicle, out var sc):
+                    GD.Print($"ignition: {st.Vehicle.Definition} engine off");
                     sc.StopEngine();
                     break;
                 case TyreBlown t:

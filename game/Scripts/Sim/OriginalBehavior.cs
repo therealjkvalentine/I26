@@ -32,6 +32,7 @@ public static class OriginalBehavior
         EarlyTick = s.EarlyTick;
         Antialias1997 = s.Antialias1997;
         DeathVariety.Enabled = s.DeathVariety;
+        DamageView.MovieIgnition = s.MovieIgnition;
     }
 
     /// <summary>
