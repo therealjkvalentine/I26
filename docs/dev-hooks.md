@@ -261,6 +261,7 @@ the car's `VehicleFlags` in hex).
 | `I76_HORIZON_SPLIT` | tuning | `0`: the modern look's distant ring drawn as upstream's one pass that writes depth on every path (horizon_ring_depth.gdshader, no rim meshes), to measure the main/rim split (the main pass writes no depth so the GPU tests it early; only the rim pass, on the cells over a tile's outermost 10 m, does). |
 | `I76_SHADOW_DIST`, `I76_SHADOW_SPLITS`, `I76_SHADOW_ATLAS`, `I76_MSAA` | tuning | Shadow distance (m), cascades (1, 2 or 4), atlas size, MSAA level, over Shadow Detail's (Low two splits to 600 m, High four to 1500 m) and Anti-Aliasing's; the terrain's casters reach twice the distance. |
 | `I76_MODERN_MOON` | tuning | `0`: the modern look's night sky shows the mission's moon sprite instead of the drawn moon. |
+| `I76_NIGHT_MOON`, `I76_NIGHT_GROUND` | tuning | A night mission in the modern look (lighting_calibration on): the share of its own light the moon and the sky's light keep (solved from the ramp, 0.58 on T06) and how much of the original's light the ground takes as its own (1); `I76_NIGHT_MOON=1 I76_NIGHT_GROUND=0` as before. |
 | `I76_CAM_AT_LIGHT` | capture | `1`: the free camera (a mission without `--drive`) starts looking at the mission's sun or moon. |
 | `I76_DROP_SHADOWS` | tuning | `0`: cars and scenery cast into the sun's shadow map again. |
 | `I76_DROP_REACH` | tuning | `M`: the modern look's drop shadows reach M metres (Shadow Detail Low 250, High 500 by default; 130 was the old reach). |
