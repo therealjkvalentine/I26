@@ -372,3 +372,6 @@ fix/cockpit-art-round5                # section AQ: upscale-textures.py --cells 
 
 # AR. world art: signs and pumps (2026-11-06)
 fix/world-art-signs-pumps             # section AR: back-to-back cut-out faces (road signs) use object_back_key.gdshader (back-culled, alpha-to-coverage, keyed by the smooth 1x outline) in the modern look; `i76 key-edge` + upscale-textures.py --recut make the game's own outline each 4x cut-out's alpha with an edge colour band (67 cut-outs recut: shields, fences, pine card, wrecks, barns); gas pumps redone (HDcube3 + colour match, counter windows from the original); 75 tex-world-4x files synced separately (_scratch/r5-world-art/changed-files.txt)
+
+# AS. T05 performance (2026-11-06)
+perf/t05-60fps                        # section AS: radar redrawn only on change (no per-frame 2048x1024 upload, full GCs 65 -> 2 per run); smoke lighting keeps a light list; drop-shadow scenery scan spread over frames; [port] target_fps (off by default, lowers Render Scale to 67% at most while GPU-bound); bench cfg version fix; docs/perf/plan.md 120 fps ladder. T05 3440x1440 median 62.5 -> 100.3 fps
