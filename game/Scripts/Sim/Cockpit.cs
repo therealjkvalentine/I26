@@ -779,7 +779,7 @@ public partial class Cockpit : Node
         // the radar object (class 0x22) is built switched on at range 1 with the cockpit's radar part, special or not
         bool has = RadarOn;
         Image? frame;
-        if (WeaponCamera() is { } cam) { UploadRadar(cam); return; }
+        if (WeaponCamera() is { } cam) { UploadRadar(cam); _radarDrawn.Forget(); return; }
         var locked = has ? Combat.RadarTarget.GetValueOrDefault(Car) : null;
         if (!has) frame = _radarF[30];
         else if (locked is not null)
@@ -796,10 +796,12 @@ public partial class Cockpit : Node
             frame = _radarF[_radarCur];
         }
         if (frame is null) return;
+        bool redraw = _radarRedraw;
         _radarRedraw = false;
-        var img = (Image)frame.Duplicate();
+        var bytes = RadarBytes(frame);
+        int w = frame.GetWidth(), h = frame.GetHeight();
         // the frames' texels per original pixel (a pack's upscale): the layout's anchors and the scope's are the original's pixels
-        int k = System.Math.Max(1, img.GetWidth() / _radarBaseW);
+        int k = System.Math.Max(1, w / _radarBaseW);
         // a newly picked target's byte is 0 (the target pick and the GOG build's E/Q: the one it replaces goes back to 0x69)
         if (locked != _radarPicked)
         {
@@ -807,9 +809,13 @@ public partial class Cockpit : Node
             if (locked is not null) _sweptAt[locked] = _t;
             _radarPicked = locked;
         }
+        // what the scope shows: the range plate, the blips (their squares and colours) and the LED. With a target held this runs
+        // every frame; the picture is made and uploaded again only when one of them changed
+        _radarOps.Clear();
+        string? range = null, led = null;
         if (has)
         {
-            Panels.StampInto(img, k, "zrad.map", RadarRange == 0 ? "range_1" : "range_3", "range_pos");
+            range = RadarRange == 0 ? "range_1" : "range_3";
             float R = RadarRange == 0 ? 100 : 600;
             bool any = false, pinged = false;
             foreach (var v in Combat.World.Vehicles)
@@ -825,19 +831,28 @@ public partial class Cockpit : Node
                 bool soft = I76.Game.World.SoftwareLook.Active;
                 int ci = !soft && Combat.RadarTarget.GetValueOrDefault(Car) == v ? 0xff
                     : _sweptAt.TryGetValue(v, out var st) ? System.Math.Min(0x69, (int)(3 * (_t - st))) : 0x69;
-                img.FillRect(BlipRect(nx, nz, 2, img.GetWidth(), img.GetHeight(), k), soft ? SoftwareBlip(ci) : BlipColour(ci));
+                _radarOps.Add((BlipRect(nx, nz, 2, w, h, k), soft ? SoftwareBlip(ci) : BlipColour(ci)));
             }
             if (Blips is { } blips)
                 foreach (var (fp, fc) in blips())
                 {
                     if (I76.Sim.Weapons.RadarScope.Project(Car.Rot, Car.Pos.ToVector3(), fp, R) is not var (nx, nz)) continue;
-                    img.FillRect(BlipRect(nx, nz, 3, img.GetWidth(), img.GetHeight(), k), fc);
+                    _radarOps.Add((BlipRect(nx, nz, 3, w, h, k), fc));
                 }
             if (any && !_ledAny) Sound("cgrowl.wav");
             _ledAny = any;
-            Panels.StampInto(img, k, "zrad.map", any ? "radled_1" : "radled_2", "led_pos");
+            led = any ? "radled_1" : "radled_2";
         }
-        UploadRadar(img);
+        if (!_radarDrawn.Update(frame, range, led, _radarOps, redraw)) return;
+        // drawn into one buffer and one image kept from frame to frame: the frame's texels, the range plate, the blips, the LED
+        if (_radarWork?.Length != bytes.Length) _radarWork = new byte[bytes.Length];
+        System.Buffer.BlockCopy(bytes, 0, _radarWork, 0, bytes.Length);
+        if (range is not null) Panels.StampInto(_radarWork, w, h, k, "zrad.map", range, "range_pos");
+        foreach (var (rect, colour) in _radarOps) FillRgba(_radarWork, w, h, rect, Rgba8(colour));
+        if (led is not null) Panels.StampInto(_radarWork, w, h, k, "zrad.map", led, "led_pos");
+        if (_radarImg is null || _radarImg.GetWidth() != w || _radarImg.GetHeight() != h) _radarImg = Godot.Image.CreateFromData(w, h, false, Godot.Image.Format.Rgba8, _radarWork);
+        else _radarImg.SetData(w, h, false, Godot.Image.Format.Rgba8, _radarWork);
+        UploadRadar(_radarImg);
     }
 
     /// <summary>
@@ -852,6 +867,62 @@ public partial class Cockpit : Node
     }
 
     private Vehicle? _radarPicked;
+    private readonly List<(Rect2I Rect, Color Colour)> _radarOps = [];
+    private readonly ScopePicture _radarDrawn = new();
+    private Image? _radarImg;
+    private byte[]? _radarWork;
+    private readonly Dictionary<Image, byte[]> _radarBytes = [];
+    private readonly Dictionary<Color, uint> _rgba8 = [];
+
+    /// <summary>A radar frame's texels as RGBA8 without mipmaps, read from the image once.</summary>
+    private byte[] RadarBytes(Image frame)
+    {
+        if (_radarBytes.TryGetValue(frame, out var b)) return b;
+        var f = frame;
+        if (f.GetFormat() != Godot.Image.Format.Rgba8 || f.HasMipmaps()) { f = (Image)f.Duplicate(); f.ClearMipmaps(); f.Convert(Godot.Image.Format.Rgba8); }
+        return _radarBytes[frame] = f.GetData();
+    }
+
+    /// <summary>A colour's RGBA8 bytes as Image.FillRect writes them (a 1x1 fill once a colour, kept).</summary>
+    private uint Rgba8(Color c)
+    {
+        if (_rgba8.TryGetValue(c, out uint px)) return px;
+        var one = Godot.Image.CreateEmpty(1, 1, false, Godot.Image.Format.Rgba8);
+        one.FillRect(new Rect2I(0, 0, 1, 1), c);
+        return _rgba8[c] = System.BitConverter.ToUInt32(one.GetData(), 0);
+    }
+
+    /// <summary>Image.FillRect on raw RGBA8 bytes of a w x h picture: the square, clipped to the picture, set to the pixel's bytes.</summary>
+    public static void FillRgba(byte[] d, int w, int h, Rect2I r, uint px)
+    {
+        int x0 = System.Math.Max(0, r.Position.X), y0 = System.Math.Max(0, r.Position.Y);
+        int x1 = System.Math.Min(w, r.End.X), y1 = System.Math.Min(h, r.End.Y);
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan((y * w + x) * 4, 4), px);
+    }
+
+    /// <summary>
+    /// What the radar screen was last drawn with: the frame, the range plate, the LED and the blips (squares and colours).
+    /// <see cref="Update"/> says whether this frame's differs (and keeps it), so an unchanged scope is not made and uploaded again.
+    /// </summary>
+    public sealed class ScopePicture
+    {
+        private object? _frame;
+        private string? _range, _led;
+        private readonly List<(Rect2I, Color)> _ops = [];
+
+        public bool Update(object frame, string? range, string? led, IReadOnlyList<(Rect2I, Color)> ops, bool force)
+        {
+            if (!force && ReferenceEquals(frame, _frame) && range == _range && led == _led && ops.SequenceEqual(_ops)) return false;
+            (_frame, _range, _led) = (frame, range, led);
+            _ops.Clear(); _ops.AddRange(ops);
+            return true;
+        }
+
+        /// <summary>Something else was shown on the screen (the weapon camera): the next frame is drawn whatever it holds.</summary>
+        public void Forget() => _frame = null;
+    }
     private readonly Color?[] _softBlips = new Color?[256];
 
     /// <summary>

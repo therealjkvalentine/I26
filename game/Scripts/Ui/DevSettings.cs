@@ -34,6 +34,11 @@ public static class DevSettings
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
 
+    /// <summary>target_fps's frame rates offered (0: off, the default); a value set by hand shows as the nearest.</summary>
+    public static readonly int[] TargetSteps = [0, 60, 90, 120, 144];
+    private static readonly string[] TargetNames = [.. TargetSteps.Select(f => f == 0 ? "0" : $"{f}{M}")];
+    public static int NearestTargetStep(int fps) => Array.IndexOf(TargetSteps, TargetSteps.MinBy(f => Math.Abs(f - fps)));
+
     /// <summary>vegetation_density's percentages offered, in the key's 10..150 range; a value set by hand shows as the nearest.</summary>
     public static readonly int[] VegetationSteps = [10, 30, 60, 100, 150];
     private static readonly string[] VegetationNames = [.. VegetationSteps.Select(p => p == I76.Formats.Vegetation.VegetationDensity.Default ? $"{p}" : $"{p}{M}")];
@@ -87,6 +92,7 @@ public static class DevSettings
         new("low_latency_present", FalseTrue, s => s.LowLatencyPresent ? 1 : 0, (s, v) => s.LowLatencyPresent = v != 0, DevWhen.Live,
             s => I76.Game.FrameLimiter.Apply(s)),
         new("low_latency_audio", FalseTrue, s => s.LowLatencyAudio ? 1 : 0, (s, v) => s.LowLatencyAudio = v != 0, DevWhen.NextStart),
+        new("target_fps", TargetNames, s => NearestTargetStep(s.TargetFps), (s, v) => s.TargetFps = TargetSteps[v], DevWhen.Live),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
         new("even_flash", FalseTrue, s => s.EvenFlash ? 1 : 0, (s, v) => s.EvenFlash = v != 0, DevWhen.Live),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,

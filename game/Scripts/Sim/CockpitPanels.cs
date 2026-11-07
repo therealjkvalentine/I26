@@ -312,11 +312,17 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// </summary>
     public void StampInto(Image img, int ds, string dst, string sprite, string anchor)
     {
-        if (layout.FindIn(dst, anchor) is not { } a || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return;
-        var r = s.Label;
         var d = img.GetData();
-        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, d, img.GetWidth(), img.GetHeight(), ds, a.X, a.Y, keyed: true);
-        img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, d);
+        if (StampInto(d, img.GetWidth(), img.GetHeight(), ds, dst, sprite, anchor)) img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, d);
+    }
+
+    /// <summary>The same into an RGBA8 picture's bytes (w x h), with no image in between; false if the sprite or its anchor is missing.</summary>
+    public bool StampInto(byte[] d, int w, int h, int ds, string dst, string sprite, string anchor)
+    {
+        if (layout.FindIn(dst, anchor) is not { } a || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return false;
+        var r = s.Label;
+        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, d, w, h, ds, a.X, a.Y, keyed: true);
+        return true;
     }
 
     /// <summary>Uploads the textures redrawn since the last call.</summary>

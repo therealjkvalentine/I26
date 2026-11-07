@@ -26,6 +26,7 @@ public sealed class DriveTest
     private List<N.Vector2>? _route;
     private int _rk = -1;
     private float _routeSpeed = 1000;
+    private N.Vector2 _routeLast;
     private float? _boost;
     private N.Vector3? _startFwd;
     private float _prevHeading = float.NaN;
@@ -65,7 +66,9 @@ public sealed class DriveTest
         if (_route is { } r)
         {
             var p = new N.Vector2((float)v.Pos.X, (float)v.Pos.Z);
-            if (_rk < 0) _rk = (Enumerable.Range(0, r.Count).MinBy(i => N.Vector2.Distance(p, r[i])) + 1) % r.Count;
+            // a jump of more than 50 m in a tick is a teleport (I76_SPAWN_AT's timed stops): aim again from the nearest point
+            if (_rk < 0 || N.Vector2.Distance(p, _routeLast) > 50) _rk = (Enumerable.Range(0, r.Count).MinBy(i => N.Vector2.Distance(p, r[i])) + 1) % r.Count;
+            _routeLast = p;
             while (N.Vector2.Distance(p, r[_rk]) < 20) _rk = (_rk + 1) % r.Count;
             var to = r[_rk] - p;
             float err = Wrap(MathF.Atan2(to.X, to.Y) - MathF.Atan2(v.Rot.Forward.X, v.Rot.Forward.Z));
