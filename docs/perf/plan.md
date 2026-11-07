@@ -198,3 +198,130 @@ otherwise varies frame to frame reports frame means as well as medians.
 Resolution scaling is the sanity check: a pixel-bound cost roughly halves from 1440p ultrawide to 1080p (2.4x fewer pixels);
 a draw-bound cost does not (the mirror: 2.9 vs 3.4 ms). A feature whose cost does not shrink with resolution is adding
 draws or CPU work and should be looked at as such.
+
+## T05 at a playtest's settings: 60 fps, and what 120 fps needs (round 5)
+
+A playtest of T05 in the modern look at 3440x1440 ran at about 42 fps. Measured here on the same card (GTX 1080 Ti at 180 W,
+a 179 Hz display) with the playtester's settings: the modern look, Terrain and Shadow Detail High, Anti-Aliasing 4x, Vegetation
+Medium, Visibility Range Max, the mirror's full reach, the world's textures at 4x and the cars' at 8x, Ambient Occlusion off,
+VSync off for the measurement (`FRAME_COST_PROFILE=owner`). The run is `tools/frame-cost/bench.py --scene t05`: 170 s of T05's
+busy parts, the car driven along the roads (`I76_TEST_ROUTE`) and moved between them at set mission seconds (`I76_SPAWN_AT`),
+firing at the nearest car with Unlim. Ammo, Armor and Chas. Rein. so it lives through every fight. Sections: the start and the
+first car's attack on the road east (0-45 s), the mountain pass with the two cars that wait on it (45-105 s), the four-car
+group north of the junction (105-145 s), Skeeter at Fisher's Field (145-170 s). One run per row; two runs of one build differ by
+about 3 % in the median.
+
+Until this round bench.py wrote shell.cfg as version 13, which since version 14 raises Terrain Detail Low and Shadow Detail Low to
+High as it loads: a `terrain_low` or `shadow_low` run on a build with that step (this round's) measured High. It writes version
+14 now; the earlier surveys predate the step.
+
+The harness's `--gpu-profile` (the pass times) prints a table once a second, and that print is a stutter of its own (a 10 ms
+frame every second, in the 1 % lows). The before/after table is measured without it (`FRAME_COST_GPU_PROFILE=0`); the pass
+times below come from runs with it.
+
+### Before and after
+
+| T05, 3440x1440 | before: median fps | 1 % low | frames over 16.7 ms | after: median fps | 1 % low | frames over 16.7 ms |
+|---|---|---|---|---|---|---|
+| whole route | 62.5 | 25.0 | 43.5 % | 100.3 | 33.8 | 4.4 % |
+| start, first car | 61.0 | 22.9 | 47.4 % | 96.0 | 34.5 | 3.2 % |
+| mountain pass | 56.5 | 25.0 | 62.1 % | 106.9 | 33.4 | 6.5 % |
+| the group | 59.7 | 26.6 | 50.9 % | 95.4 | 36.5 | 3.9 % |
+| Fisher's Field | 102.5 | 30.1 | 6.4 % | 103.2 | 32.0 | 2.2 % |
+| worst 5 s | 47 (the pass, 95-100 s) | | | 83 (the pass, 90-95 s) | | |
+
+The 1 % low is the mean frame rate of the slowest 1 % of frames. Two game instances sharing the card, as in the playtest,
+share the card and the main thread's cores with it; the 42 fps seen is within what that does to a build that ran at 57-62 fps
+alone.
+
+### Where the frame went
+
+The GPU was not the limit: the main view took 8.0 ms and the mirror 1.8 ms every second frame. The main thread's nodes took
+11-15 ms in the fights against 4 ms at Fisher's Field, where nobody is near. A sampling trace of the main thread
+(dotnet-trace, 70 s of the first two sections) put 56 % of its managed time in the cockpit's radar, and the finalizer thread
+was busy the whole time releasing Godot images:
+
+- The radar. With a target held the scope is drawn every frame (the sweep's 0.2 s step applies only without one): the frame
+  duplicated, the range plate and the LED each stamped through a managed copy of the whole picture (`Image.GetData` and
+  `SetData`), the blips filled, the picture uploaded. With the dash's 4x art that is several megabytes of short-lived arrays a
+  frame, and a full (generation 2) collection every 2-3 s: 65 of them in the run. Now the scope's content (frame, range plate,
+  LED, each blip's square and colour) is compared with what was last drawn, and only a change makes a new picture, in one
+  buffer and one image kept from frame to frame, the frames' texels read once. Full collections in the run: 65 -> 2.
+- The smoke's lamps (`SmokeLayer.GatherLights`): a search of the whole scene tree (thousands of plant, ground and scenery
+  nodes) for lights every sixth frame, 7 % of the managed time. Now one search, then the tree's node-added and node-removed
+  signals keep the list.
+- The drop shadows' scenery list was gathered in one frame every second; that walk is now spread over frames at 0.5 ms each,
+  and the scenery meshes' bounds are kept instead of asked of the engine for every caster every frame. Not measured apart.
+
+After the fixes the main thread's nodes take 3.0 ms, the renderer's CPU side 2.0 ms, the physics steps ~0.17 ms each. What is
+left in managed time: the drop shadows' per-frame caster loop (17 %), the cockpit (16 %, the radar 7 % of it when a blip
+moves), the bass shaker's synthesis (12 %, with a 14-band `tactile_eq`; it runs per sample on the main thread), the combat
+view (8 %). A second trace of the mountain pass's fight (75-105 s) finds the same parts: the radar 13 % there (blips move
+every few frames at close range), the drop shadows 13 % (most of it asking each car part whether it is visible), the shaker 12 %.
+
+### The new defaults
+
+- Physics at 240/s (`low_latency_audio`): Godot moves every positional sound in its physics step, about 0.17 ms a step. Before
+  the fixes, when the main thread was the limit, 240/s cost about 1 ms a frame (54.9 and 57.1 fps against 58.6 and 60.9 at
+  60/s); after them, with the GPU the limit, nothing measurable (100.3 against 100.0). At 120 fps it is two steps a frame,
+  0.35 ms.
+- The mailbox present (`low_latency_present`, VSync on): 100.4 fps against 100.3 with VSync off; no cost here.
+
+### What 120 fps costs
+
+8.3 ms a frame. After the fixes, the playtester's settings at 3440x1440 on this card:
+
+| Part | ms a frame | at 120 fps |
+|---|---|---|
+| GPU, main view (opaque 5.6, sky 0.7, depth 0.6, shadows 0.6, transparent 0.6, MSAA resolve 0.4, tonemap 0.2) | 8.0-8.9 | over budget alone |
+| GPU, mirror (every second frame) | 1.8 (0.9 a frame) | |
+| main thread: nodes | 3.0 | fits |
+| main thread: the renderer's CPU side (1600 draws) | 2.0 | fits |
+| physics steps (240/s) | 0.17 a step | 0.35 |
+| the simulation (24 Hz) | 0.35 | fits |
+
+The GPU is the limit: about 9.5 ms a frame with the mirror, so 100-105 fps. The main thread would allow ~150 fps on a typical
+frame, but its spikes (effects starting in a fight, new pipelines, the terrain's level changes after a jump) are 20-40 ms and
+are what the 1 % low is made of.
+
+### The optimisations that would get there
+
+1. The opaque pass (5.6 ms): the terrain shader's near tier is most of it at 3440x1440. The tiers (item 3) could start sooner
+   (near tier to 150 m rather than 250 m); expected 0.5-1 ms, not measured.
+2. The mirror (0.9 ms a frame): its far clip to 2 km with `mirror_range=full` instead of 20 km, the far chunks out of its cull
+   mask (item 2c); expected 0.3-0.5 ms, not measured.
+3. Anti-Aliasing 2x (the default since round 2; this playtest kept the earlier 4x): 0.6 ms.
+4. The main thread's spikes: the first explosion and death of each kind already rehearse behind the loading card; the rest
+   are the effects' pipelines compiled in a fight (`hitch:` lines name them) and the terrain's level rebuild after a teleport.
+   Each wants its own trace; none is a steady cost.
+5. The radar's redraw when a blip moves (still a whole-frame copy and upload each time a blip moves a pixel; 7-13 % of the main thread's
+   managed time in a fight): the blips and the LED as a small layer of their own over the static frame would make it a few
+   hundred bytes.
+
+### Settings fallback ladder
+
+Each step keeps the ones before it, measured on the route (one run each, ±3 %; with the pass times, so with the once-a-second
+print: compare within the table). Step 1's gain is inside the noise on this route, though it takes 0.6 ms off the GPU:
+
+| Step | What drops | median fps | GPU ms (main view) | What it costs to the eye |
+|---|---|---|---|---|
+| 0 | the playtester's settings, after the fixes | 98.3 | 8.91 | |
+| 1 | Anti-Aliasing 4x -> 2x | 98.3, 101.2, 102.1 (three runs) | 8.28 | stair-steps on thin edges (fences, poles, wires) a little more visible |
+| 2 | Shadow Detail High -> Low (two splits to 600 m) | 107.8 | 8.08 | distant mesas' and buildings' shadows past 600 m gone; near shadows softer |
+| 3 | Terrain Detail High -> Low (no 1.25 m level near the car) | 110.0 | 7.52 | the ground's shape within 100 m a little coarser |
+| 4 | Render Scale 100 -> 85 % (FSR 1.0 up) | 120.4 | 6.75 (FSR's pass 0.5 of it) | the ground's fine detail and thin edges a little soft |
+| 5 | Vegetation Medium -> Off | 131.5 | 6.57 | no scattered brush and grass (the map's own trees stay); also 0.5 ms of nodes, 0.4 ms of the renderer's CPU, 270 draws |
+
+The order is the least visible saving per millisecond first. Ambient Occlusion (off here; 5 ms at this size, item 1) goes
+before all of them for anyone who turned it on. Visibility Range Far (600 m, the original's) and the 1997 look are the floor
+below the ladder: each changes what the game looks like rather than how finely, so they are the player's choice, not a fallback.
+
+### A target frame rate
+
+`[port] target_fps` (off by default, docs/playing.md; `Boot/FrameTarget.cs`) is the ladder's step 4 taken for the player, live: every 30 frames it takes the medians of the main view's GPU time and the frame time; when the target is missed and the
+GPU took more than 85 % of the frame, the 3D view drops one Render Scale step (85, 75, then 67 %, upscaled by FSR as the row's
+steps are); when the next step up would fit inside 80 % of the frame (its GPU time scaled by its pixels) three windows in a row,
+it goes back up, never past the player's own Render Scale. A frame the main thread holds is left alone. On the route with
+`target_fps=120` and the playtester's settings: median 116.8 fps (113-123 by section), the main view's GPU 6.9 ms against 8.9;
+its 1 % low (24.7, with the harness's once-a-second print) is the main thread's spikes, which no scale reaches. The cost to the eye is FSR's: the ground's fine detail
+and thin edges a little soft at 75-85 %. It is not the default because a changing sharpness is a deviation a player should ask for.

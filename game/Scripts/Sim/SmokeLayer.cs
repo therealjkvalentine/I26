@@ -84,10 +84,14 @@ public partial class SmokeLayer : Node3D
     private static int _lightCount;
     private static readonly Vector4[] LightVec = new Vector4[MaxLights * 3];
     private readonly List<Light3D> _lamps = [];
-    private int _lampScan;
+    private bool _lampsFound;
 
     public override void _Ready()
     {
+        // the lamps: one search of the tree, then kept as lights come and go (a search of the whole tree, thousands of plant and
+        // ground nodes, cost a millisecond a frame on average when it ran every sixth frame)
+        GetTree().NodeAdded += OnNodeAdded;
+        GetTree().NodeRemoved += OnNodeRemoved;
         _off = System.Environment.GetEnvironmentVariable("I76_SMOKE_LAYER") == "0";
         if (_off || RenderingServer.GetCurrentRenderingMethod() != "forward_plus" || RenderingServer.GetRenderingDevice() is null) { _failed = true; return; }
         _compositor = new Compositor { CompositorEffects = [new SmokeEffect()] };
@@ -99,6 +103,22 @@ public partial class SmokeLayer : Node3D
         };
         AddChild(_quad);
         _enabled = true;
+    }
+
+    private void OnNodeAdded(Node n)
+    {
+        if (_lampsFound && n is SpotLight3D or OmniLight3D && !_lamps.Contains((Light3D)n)) _lamps.Add((Light3D)n);
+    }
+
+    private void OnNodeRemoved(Node n)
+    {
+        if (n is SpotLight3D or OmniLight3D) _lamps.Remove((Light3D)n);
+    }
+
+    public override void _ExitTree()
+    {
+        GetTree().NodeAdded -= OnNodeAdded;
+        GetTree().NodeRemoved -= OnNodeRemoved;
     }
 
     public override void _Process(double delta)
@@ -425,8 +445,9 @@ public partial class SmokeLayer : Node3D
     private void GatherLights(Camera3D? cam)
     {
         if (cam is null) { lock (Lock) _lightCount = 0; return; }
-        if (_lampScan++ % 6 == 0)
+        if (!_lampsFound)
         {
+            _lampsFound = true;
             _lamps.Clear();
             foreach (var n in GetTree().Root.FindChildren("*", "Light3D", true, false))
                 if (n is SpotLight3D or OmniLight3D) _lamps.Add((Light3D)n);

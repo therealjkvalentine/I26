@@ -739,6 +739,9 @@ public partial class Main : Node3D
         FrameLimiter.Apply(s);
         I76.Sim.Views.ViewFov.Apply(s.FieldOfView);
         RenderScale.Apply(s);
+        // [port] target_fps: the 3D scale lowered while the graphics card holds the frame rate under it (off by default)
+        if (s.TargetFps > 0) { if (_frameTarget is null) AddChild(_frameTarget = new FrameTargetNode()); _frameTarget.Reset(s); }
+        else if (_frameTarget is not null) { _frameTarget.QueueFree(); _frameTarget = null; }
         _vegetation = s.Vegetation;
         float vegDensity = I76.Formats.Vegetation.VegetationDensity.Factor(s.VegetationDensity);
         if (vegDensity != VegetationNode.DensityFactor)
@@ -823,6 +826,7 @@ public partial class Main : Node3D
     }
 
     private bool _extInstruments = true;
+    private FrameTargetNode? _frameTarget;
     private int _skippedTick = int.MinValue;
 
     /// <summary>The Voice level last applied (8 until audio is set).</summary>
@@ -3035,6 +3039,10 @@ public partial class Main : Node3D
     private Vector3 _lightDir = new(0.7071f, 0.7071f, 0);
     private List<(Mesh, Transform3D, bool)> _sceneryCasters = [];
     private double _sceneryAt = -1;
+    private List<(Mesh, Transform3D, bool)> _sceneryNext = [];
+    private readonly StepWalk<Node> _sceneryWalk = new(n => n.GetChildren());
+    /// <summary>The main thread's time a frame for the drop shadows' walk of the scenery after the first (Casters).</summary>
+    private const double WalkBudgetMs = 0.5;
 
     /// <summary>
     /// The 1997 look's drop shadows (DropShadows): the scenery's meshes (gathered
@@ -3090,16 +3098,24 @@ public partial class Main : Node3D
     private IEnumerable<(Mesh, Transform3D, bool)> Casters()
     {
         double now = Time.GetTicksMsec() / 1000.0;
-        if (now - _sceneryAt > 1 && _builder?.Scenery is { } sc)
+        if (!_sceneryWalk.Walking && now - _sceneryAt > 1 && _builder?.Scenery is { } sc)
         {
             _sceneryAt = now;
-            _sceneryCasters = [];
-            void Walk(Node n)
+            _sceneryNext = [];
+            _sceneryWalk.Start(sc);
+        }
+        if (_sceneryWalk.Walking && _builder?.Scenery is { } sc2)
+        {
+            // the scenery's tree in the tree's order: the first walk whole, the later ones (once a second) spread over frames at
+            // WalkBudgetMs each (T05's scenery took 10 ms in one frame, a stutter every second)
+            bool whole = _sceneryCasters.Count == 0;
+            long until = System.Diagnostics.Stopwatch.GetTimestamp() + (long)(WalkBudgetMs * System.Diagnostics.Stopwatch.Frequency / 1000);
+            bool Visit(Node n)
             {
-                if (n == sc.Markers || n == sc.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadow)) return;
+                if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadow)) return false;
                 if (n is MeshInstance3D { Visible: true, Mesh: { } m } mi)
                 {
-                    _sceneryCasters.Add((m, mi.GlobalTransform, true));
+                    _sceneryNext.Add((m, mi.GlobalTransform, true));
                     if (_dropsOffMap) mi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
                 }
                 else if (n is MultiMeshInstance3D { Visible: true, Multimesh: { Mesh: { } mm } multi } mmi)
@@ -3108,12 +3124,12 @@ public partial class Main : Node3D
                     for (int i = 0; i < multi.InstanceCount; i++)
                     {
                         var t = multi.GetInstanceTransform(i);
-                        if (t.Basis.Determinant() != 0) _sceneryCasters.Add((mm, mmi.GlobalTransform * t, true));
+                        if (t.Basis.Determinant() != 0) _sceneryNext.Add((mm, mmi.GlobalTransform * t, true));
                     }
                 }
-                foreach (var ch in n.GetChildren()) Walk(ch);
+                return true;
             }
-            Walk(sc);
+            if (_sceneryWalk.Step(Visit, () => whole || System.Diagnostics.Stopwatch.GetTimestamp() < until)) _sceneryCasters = _sceneryNext;
         }
         foreach (var x in _sceneryCasters) yield return x;
         if (_sim is null) yield break;

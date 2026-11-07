@@ -16,13 +16,18 @@ junctions to the live user folder's tex-world-Nx/, tex-menu/, cache/ and copies 
 at the screen's corner, so a run never takes the screen or the keyboard from someone at the desktop. shell.cfg is written from BASE plus --cfg before each run. Before a run it
 waits for the GPU to be under 10 % with no other Godot or compute process, samples other GPU users every 2 s during the run
 (the row's `others` column: rerun a row that is not 0), and leaves GAP_S idle after each run for other lanes' idle checks.
+
+FRAME_COST_PROFILE=owner is a playtest's settings (OWNER); --scene t05 drives T05's busy parts (T05_SECTIONS) for 170 s
+(--skip-ms 2000 --run-ms 168000). FRAME_COST_GAME runs another checkout's game/ (a before build), FRAME_COST_GPU_PROFILE=0 leaves out
+--gpu-profile (its table, printed once a second, is a stutter of its own: no gpu.* columns then), FRAME_COST_IGNORE_PIDS lists
+compute processes that sit idle while their lane waits for the GPU lock.
 """
 import argparse, os, re, subprocess, sys, time, datetime, shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("FRAME_COST_OUT") or os.path.join(os.environ.get("TEMP", HERE), "frame-cost")
 GODOT = os.environ.get("GODOT", "godot")
-GAME = os.path.normpath(os.path.join(HERE, "..", "..", "game"))
+GAME = os.environ.get("FRAME_COST_GAME") or os.path.normpath(os.path.join(HERE, "..", "..", "game"))   # FRAME_COST_GAME: another checkout's game/ (a before build)
 INSTALL = os.environ.get("I76_INSTALL", "")
 APPDATA = os.environ.get("FRAME_COST_APPDATA") or os.path.join(OUT, "appdata")
 CFG = os.path.join(APPDATA, "I26", "shell.cfg")
@@ -49,14 +54,43 @@ DEFAULTS = {"vsync": "false", "max_fps": 0, "hd_menu_art": "true", "hd_textures"
 # environment (SSAO and all), the terrain shader's one tier, four shadow splits to 1500 m whatever Shadow Detail says, and the
 # distant ring as upstream's one pass writing depth (I76_HORIZON_SPLIT=0; play 74d7ab5 has it).
 OLD_RENDER_ENV = {"I76_HORIZON_SPLIT": "0", "I76_MIRROR_RATE": "1", "I76_MIRROR_SSAO": "1", "I76_TERRAIN_TIERS": "0", "I76_SHADOW_SPLITS": "4", "I76_SHADOW_DIST": "1500"}
-PROFILE = os.environ.get("FRAME_COST_PROFILE", "full")   # full (everything on) | defaults | old_defaults
+# The owner's playtest settings (docs/perf/plan.md, "T05 at 60 fps"): the modern look, Terrain and Shadow High, MSAA 4x, the world's
+# textures 4x, the cars' 8x, vegetation Medium, the 20 km view, the mirror's full reach; no Ambient Occlusion (its own row, off).
+OWNER = {
+    "vegetation": 1, "draw_distance": 1, "checkpoints": "false", "force_feedback": "false", "lfe_level": 200, "sim_rate": 24,
+    "crash_blur": '"off"', "mouse_camera": 2, "max_fps": 0, "vsync": "false", "developer": "true", "dev_fps": "true",
+    "hd_menu_art": "true", "hd_textures": "true", "hd_dash_size": 4, "hd_car_size": 8, "effects_size": 80,
+    "effects_brightness": 70, "effects_opacity": 70, "mirror_range": '"full"', "brake_lamps": '"original"', "mg_tracers": '"original"',
+}
+PROFILE = os.environ.get("FRAME_COST_PROFILE", "full")   # full (everything on) | defaults | old_defaults | owner
 SCENES = {
     # the T01 start, the player's car standing with its engine running while the script's cars play the opening; seed 1
     "cockpit": ["--mission", "t01", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes"],
     "chase": ["--mission", "t01", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--chase"],
     "fire": ["--mission", "t01", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--hold-fire"],
     "drive": ["--mission", "t01", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--hold-throttle", "--chase"],
+    # T05's busy parts in one run (T05_SECTIONS), the car driven along the roads by I76_TEST_ROUTE, moved between them by
+    # I76_SPAWN_AT's timed stops, firing at the nearest car; Play Options' Unlim. Ammo, Armor and Chas. Rein. keep it alive
+    "t05": ["--mission", "t05", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--hold-fire"],
 }
+# T05's sections: (name, mission second it starts, the teleport there or None, the road points driven at 15 m/s). The start and
+# the first car on the road east (the first attacker comes at ~26 s), the mountain pass west over the ridge (two cars hide on it),
+# the four-car group north of the junction, Skeeter at Fisher's Field.
+T05_SECTIONS = [
+    ("start", 0, None, "8083,44520 8240,44520 8411,44520 8586,44520 8756,44520 8910,44520 9050,44520 9186,44520 9305,44541 9417,44588 9525,44643 9633,44699 9744,44750 9858,44793 9975,44828"),
+    ("pass", 45, "8945,44070,-90", "8905,44070 8860,44062 8825,44039 8800,44005 8791,43965 8786,43924 8777,43883 8753,43850 8715,43840 8677,43855 8653,43889 8638,43927 8623,43966 8606,44004 8577,44032 8538,44029 8515,43997 8481,43975 8442,43983 8411,44009 8377,44032 8338,44031 8318,43996 8304,43958 8268,43946 8240,43973 8230,44012 8223,44053 8204,44089 8166,44099 8132,44080 8115,44043 8106,44004"),
+    ("group", 105, "10470,45063,0", "10470,45109 10470,45202 10470,45294 10461,45417 10433,45493 10397,45566 10373,45643 10362,45724 10362,45806 10371,45894 10380,45990 10530,45965 10690,45930"),
+    ("field", 145, "6455,43700,180", "6449,43687 6446,43647 6445,43606 6447,43565 6449,43525 6452,43484 6455,43444 6455,43405 6455,43365 6455,43325 6455,43285 6455,43245"),
+]
+T05_END_S = 170
+SCENE_ENV = {
+    "t05": {
+        "I76_SPAWN_AT": ";".join(f"{at}@{t}" for _, t, at, _ in T05_SECTIONS if at),
+        "I76_TEST_ROUTE": "15;" + " ".join(pts for _, _, _, pts in T05_SECTIONS),
+        "I76_AUTO_TARGET": "1",
+    },
+}
+SCENE_PLAY = {"t05": 0x1C}   # [shell] play: Unlim. Ammo (0x04), Armor (0x08), Chas. Rein. (0x10)
 
 def gpu_state():
     try:
@@ -73,7 +107,9 @@ def other_godot():
     try:
         import re
         smi = subprocess.check_output(["nvidia-smi"], text=True, stderr=subprocess.DEVNULL)
-        found += ["compute:" + m.group(1) for m in re.finditer(r"^\|\s+\d+\s+\S+\s+\S+\s+(\d+)\s+C\s+", smi, re.M)]
+        # FRAME_COST_IGNORE_PIDS: compute processes known to sit idle while another lane holds the GPU lock (their context, no work)
+        idle = set(os.environ.get("FRAME_COST_IGNORE_PIDS", "").split(","))
+        found += ["compute:" + m.group(1) for m in re.finditer(r"^\|\s+\d+\s+\S+\s+\S+\s+(\d+)\s+C\s+", smi, re.M) if m.group(1) not in idle]
     except Exception:
         pass
     return found
@@ -98,8 +134,10 @@ def write_cfg(over, graphics_over):
     g = list({"defaults": DEFAULT_GRAPHICS, "old_defaults": OLD_DEFAULT_GRAPHICS}.get(profile, BASE_GRAPHICS))
     for k, v in graphics_over.items():
         g[int(k, 0)] = int(v)
-    port = dict(DEFAULTS if profile in ("defaults", "old_defaults") else BASE); port.update({k: v for k, v in over.items() if k != "__profile"})
-    lines = ["[shell]", "", "version=13", "graphics=PackedByteArray(" + ", ".join(map(str, g)) + ")", "audio=PackedByteArray(8, 8, 8, 8)", "play=0", "difficulty=0", "", "[port]", ""]
+    port = dict(DEFAULTS if profile in ("defaults", "old_defaults") else OWNER if profile == "owner" else BASE)
+    port.update({k: v for k, v in over.items() if not k.startswith("__")})
+    # version 14: an older file has Terrain Detail Low and Shadow Detail Low raised to High as it loads (ShellSettings.RaiseOldDetailDefaults)
+    lines = ["[shell]", "", "version=14", "graphics=PackedByteArray(" + ", ".join(map(str, g)) + ")", "audio=PackedByteArray(8, 8, 8, 8)", f"play={over.get('__play', 0)}", "difficulty=0", "", "[port]", ""]
     lines += [f"{k}={v}" for k, v in port.items()]
     with open(CFG, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
@@ -111,8 +149,10 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     # the window: the game's own Resolution setting (a centred window of that size; empty is the desktop's borderless fullscreen)
     cfg_over = dict(cfg_over)
     cfg_over.setdefault("resolution", '""' if res == "3440x1440" else f'"{res}"')
+    if scene in SCENE_PLAY: cfg_over.setdefault("__play", SCENE_PLAY[scene])
     write_cfg(cfg_over, graphics_over)
-    engine = [GODOT, "--path", GAME, "--gpu-profile"]
+    # --gpu-profile gives the passes' GPU times, and prints a table a second; FRAME_COST_GPU_PROFILE=0 leaves it out (no gpu.* columns)
+    engine = [GODOT, "--path", GAME] + ([] if os.environ.get("FRAME_COST_GPU_PROFILE") == "0" else ["--gpu-profile"])
     # the quiet window (I76_QUIET_WINDOW, docs/dev-hooks.md), the default: a window of exactly RES behind the others, never the foreground
     # (a desktop-sized one is borderless at the screen's corner, drawn at full cost); I76_QUIET_WINDOW=0 for the old start in front
     quiet = env_over.get("I76_QUIET_WINDOW", QUIET)
@@ -130,6 +170,7 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     env["I76_FRAME_PROFILE_SHOT"] = stem + ".png"
     env["I76_HITCH_MS"] = "100000"
     env["I76_QUIET_WINDOW"] = quiet
+    env.update(SCENE_ENV.get(scene, {}))
     env.update(env_over)
     u, m, p, t = wait_idle()
     t0 = time.time()

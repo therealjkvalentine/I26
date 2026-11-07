@@ -122,6 +122,16 @@ public partial class DropShadows : Node3D
         return Ground(g.X, g.Z) - o.Y;
     }
 
+    private readonly Dictionary<Mesh, Aabb> _bounds = [];
+
+    /// <summary>A mesh's bounds; a scenery mesh's kept (they do not change; a car's part may be reshaped by a hit, so it is asked each time).</summary>
+    private Aabb BoundsOf(Mesh mesh, bool isStatic)
+    {
+        if (!isStatic) return mesh.GetAabb();
+        if (!_bounds.TryGetValue(mesh, out var b)) _bounds[mesh] = b = mesh.GetAabb();
+        return b;
+    }
+
     public override void _Process(double delta)
     {
         int used = 0;
@@ -140,12 +150,13 @@ public partial class DropShadows : Node3D
             foreach (var (mesh, xf, isStatic) in Casters())
             {
                 bool far = false;
-                var centre = xf * mesh.GetAabb().GetCenter();
+                var box = BoundsOf(mesh, isStatic);
+                var centre = xf * box.GetCenter();
                 if (_soft)
                 {
                     // the modern look: how near the caster's bounds come to the eye, whichever way it looks. The original's view depth of the centre
                     // (below) dropped a bridge's or a building's shadow whenever the camera turned and the centre fell behind it, though the shadow lay in view (#91)
-                    var world = xf * mesh.GetAabb();
+                    var world = xf * box;
                     var closest = new Vector3(Mathf.Clamp(eye.X, world.Position.X, world.End.X), Mathf.Clamp(eye.Y, world.Position.Y, world.End.Y), Mathf.Clamp(eye.Z, world.Position.Z, world.End.Z));
                     float dist = closest.DistanceTo(eye);
                     if (dist >= reach) continue;
