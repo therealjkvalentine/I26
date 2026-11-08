@@ -205,6 +205,10 @@ public partial class Main : Node3D
     {
         I76.Game.Editor.SwitchTimer.Mark("scene ready");
         QuietWindow.Early();   // I76_QUIET_WINDOW: the foreground given back, the window to the back, before anything else
+        // the port's own text in Godot's controls (the Developer panel and its tooltips, the loading screen's status line, the
+        // frame-rate counter, the build line) in Arial, the menus' face, rather than Godot's own: a theme on the root window, which
+        // every control without a font of its own inherits and which outlives the scene's reloads
+        GetWindow().Theme ??= new Theme { DefaultFont = I76.Game.Net.HudStyle.Bold };
         LoadProfiler.SetMain();
         LoadProfiler.Mark("scene ready");
         HeapTrim.Configure();
