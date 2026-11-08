@@ -19,7 +19,6 @@ public static class DevTips
         "death_orbit" => "The camera's orbit after your car is destroyed: the original's 8 degrees a tick, or a steady 20 degrees a second.",
         "music_tracks" => "Mission music plays disc tracks 2 to 14 in turn, as the original; all goes on into the title and ending tracks.",
         "garage_radio" => "The 3D garage: the menu music goes on, as the original's, or a boombox on the bench plays mission tracks.",
-        "death_variety" => "Modern look car deaths: on shows a small first sign of what killed the car (hood, wheel, cab, ammo) before a smaller blast.",
         "menu_warmup" => "While the main menu stands idle, the modern look's effects are made in advance. It measured no saving; off by default.",
         "movie_ignition" => "Modern look ignition: the engine start-up from the INT03 briefing movie, cut from your own install, plays instead of the kit's sound.",
         "briefing_while_loading" => "Mission start: the loading card first (as long as the original shows it), then the briefing; or the briefing movie first.",
