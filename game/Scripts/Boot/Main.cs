@@ -4055,6 +4055,7 @@ public partial class Main : Node3D
             _cam.SetYawPitch(fa[3], fa[4]);
         }
         LeaveDeadCockpit();
+        if (PlayerDead && _net is null && FrameProfiler.Enabled) FrameProfiler.PlayerDied();
         if (_car is not null) _car.HoodView = _preset is { Current: true, Mode: PresetCamera.View.Orbit };   // F6 does not draw the player's car
         TrackLatestRound();
         CheckpointFrame();
