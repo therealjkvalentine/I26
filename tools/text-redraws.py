@@ -71,9 +71,25 @@ def user_pack():
 def font_table(fonts_dir=FONTS):
     with open(os.path.join(fonts_dir, "fonts.json"), encoding="utf-8") as f: return json.load(f)
 
+# a face fonts.json marks "system" is not shipped (Arial, the shell's own face: the game also takes it from the machine);
+# its file is looked for in the system's font folders, Windows' first, then the Microsoft core fonts' places elsewhere
+SYSTEM_FONT_DIRS = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"), "/usr/share/fonts/truetype/msttcorefonts",
+                    "/usr/share/fonts/msttcore", "/usr/share/fonts/corefonts", os.path.expanduser("~/Library/Fonts"),
+                    "/Library/Fonts", "/System/Library/Fonts/Supplemental"]
+
+def font_path(t, fonts_dir=FONTS):
+    """The face's file: fonts_dir's copy, or for a "system" face the first system font folder that has it (None if none)."""
+    if not t.get("system"): return os.path.join(fonts_dir, t["file"])
+    for d in SYSTEM_FONT_DIRS:
+        for f in (t["file"], t["file"].lower(), t["file"].upper()):
+            if os.path.exists(os.path.join(d, f)): return os.path.join(d, f)
+    return None
+
 def load_font(name, px, variation=None, fonts_dir=FONTS, table=None):
     t = (table or font_table(fonts_dir))[name]
-    f = ImageFont.truetype(os.path.join(fonts_dir, t["file"]), max(1, int(round(px))))
+    path = font_path(t, fonts_dir)
+    if path is None: raise SystemExit(f"{name}: {t['file']} is not installed (a system face, not shipped: {t.get('source', '')})")
+    f = ImageFont.truetype(path, max(1, int(round(px))))
     if variation:
         axes = f.get_variation_axes()
         names = [a["name"].decode() if isinstance(a["name"], bytes) else a["name"] for a in axes]
@@ -482,6 +498,7 @@ def self_check(fonts_dir=FONTS):
     for i in range(8): orig[4 + i, 4 + i, :3] = 20; orig[4 + i, 11 - i, :3] = 20
     s = 4; px = np.repeat(np.repeat(orig, s, 0), s, 1)
     for name in table:
+        if font_path(table[name], fonts_dir) is None: print(f"{name}: not installed, skipped"); continue
         op = [{"op": "erase", "rect": [2, 2, 14, 14], "where": {"lum_below": 60}, "grow": 0.5},
               {"op": "text", "text": "AB", "font": name, "cap": 6, "center": [22, 8], "colour": [10, 10, 10]}]
         if "[" in table[name]["file"]: op[1]["variation"] = {"Weight": 700}     # a variable face at its bold, as the specs set them
