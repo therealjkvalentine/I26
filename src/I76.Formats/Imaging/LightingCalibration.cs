@@ -134,27 +134,86 @@ public static class LightingCalibration
     }
 
     /// <summary>
-    /// At night, the share of its own light the modern moon keeps (energy and colour <paramref name="moon"/>, its luminance, on
-    /// a face lit at n·L = <paramref name="ly"/>), with the sky's light, through the card's curve. The original lights its roads
-    /// and objects by the preset's intensity through the ramp, which at night is steep (T06: LUMA[3] = 34 of 255 for a flat road
-    /// at intensity 0.094): a mid grey (0.18) so lit shows as a linear light of 0.028, where the moon gave it 0.074. Its ground
-    /// takes the light's direction alone, not the intensity (<see cref="NightGround"/>). 1 when the moon is no brighter.
+    /// How much of the 1997 look's night ground the modern look adds to its own (terrain_night.gdshaderinc): the ground's colour
+    /// times the ramp's entry for the light's direction alone (d·fade + ambient), as the 1997 look shows it, which the night maps'
+    /// dark-painted ground shows nearly as by day. 0: the ground keeps the moon's light alone (<see cref="NightMoon"/>), a tenth of
+    /// the 1997 look's (T06, Oklab L 0.10 against 0.26), chosen at the console over the 1997 level: the night is dark and the
+    /// headlamps are what shows the road. 1 (I76_NIGHT_GROUND=1) is the 1997 look's level.
     /// </summary>
-    public static double NightMoon(IReadOnlyList<byte>? luma, double intensity, double ly, double ambient, double moon)
+    public const double NightGround = 0;
+
+    /// <summary>
+    /// The moon's glint on the ground at night: its specular reflection, which does not scale with the ground's colour and so is
+    /// most of what shows of a night map's near-black ground (T06: about three times its diffuse light). Godot's lobe on the
+    /// terrain (roughness 0.9, specular 0.5, the moon's specular amount 0.5) seen a few metres up across the ground: the GGX
+    /// distribution about 0.3 over the lobe's width, its visibility 0.76, F0 0.04, times PI as the renderer scales a light's
+    /// colour; times the moon's colour and energy and n·L.
+    /// </summary>
+    public const double GroundGlint = 0.3 * 0.76 * 0.04 * 0.5 * Math.PI;
+
+    /// <summary>
+    /// At night, the share of its own light the moon keeps through the card's curve, so the ground shows as the modern look's own
+    /// night shows it (lighting_calibration off: the whole moon through Filmic): the card's curve is the brighter in the darks
+    /// (2.3 times Filmic at a scene light of 0.001, 1.6 at 0.02), so the moon-lit ground, near black under Filmic and chosen so at the
+    /// console, came out a third lighter through it. The share that gives the ground's cells (<see cref="Cells"/>, lit by the moon
+    /// and the sky's light) and texels, with the moon's <paramref name="glint"/> on them (<see cref="GroundGlint"/>, in the moon's
+    /// colour, times n·L), the mean luminance Filmic shows them at under the whole moon; 1 where Filmic is no darker.
+    /// </summary>
+    public static double NightMoon(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, Rgb glint)
     {
-        const double grey = 0.18;
-        double ramp = Ramp(luma, Math.Max(intensity * ly, 0) + ambient);
-        double target = ToLinear(ToSrgb(grey) * ramp) / grey;
-        double modern = moon * Math.Max(ly, 0.05);
-        return modern <= target ? 1 : target / modern;
+        if (ground.Count == 0 || texels.Length < 3) return 1;
+        var tx = Linear(texels);
+        double moonY = Math.Max(glint.Luminance / GroundGlint, 1e-9);
+        double Shown(double k, ToneCurve curve)
+        {
+            Func<double, double> show = curve == ToneCurve.Card ? CardTone : Filmic;
+            double[] s = new double[3];
+            int n = tx.Length / 3;
+            double m = 0;
+            foreach (var cell in ground)
+            {
+                var l = cell.Light(1);
+                double gl = Math.Min(cell.Sun.Luminance / moonY, 1);   // n·L: the cell's share of the moon's light
+                for (int i = 0; i < n; i++)
+                    for (int c = 0; c < 3; c++) s[c] += cell.Count * show(k * (l[c] * tx[3 * i + c] + glint[c] * gl));
+                m += n * cell.Count;
+            }
+            m = Math.Max(m, 1e-9);
+            return new Rgb(s[0] / m, s[1] / m, s[2] / m).Luminance;
+        }
+        double want = Shown(1, ToneCurve.Filmic);
+        if (want >= Shown(1, ToneCurve.Card)) return 1;
+        return Bisect(k => Shown(k, ToneCurve.Card), want, 0.01, 1);
     }
 
     /// <summary>
-    /// How much of the 1997 look's night ground the modern look gives its own (terrain_night.gdshaderinc): 1, the ground's colour
-    /// times the ramp's entry for the light's direction alone (d·fade + ambient), as the 1997 look shows it. The night maps'
-    /// ground is painted dark; the original lights it as by day.
+    /// The share of the ground's light a road keeps at night, so a road shows against the flat ground beside it as the original
+    /// shows it: the original lights a road by the preset's intensity through the ramp, LUMA[round(31·(I·Ly + ambient))] (T06: 34 of
+    /// 255), and flat ground by the light's direction alone, LUMA[round(31·(Ly·fade + ambient))] (205 of 255), so a night road is
+    /// the darker band and its own texture, lighter than the night ground's, does not make it shine. The modern moon lights both
+    /// alike, so a road at the same light was twice the ground's lightness (T06: L 0.26 against 0.11; at the share, 0.05 against 0.10,
+    /// as the 1997 look's 0.23 against 0.26 is in its ramp's terms). Solved through the card's
+    /// curve for a mid grey (0.18) at the ground's moonlight <paramref name="moon"/> (energy times luminance, times Ly): the share
+    /// that shows the grey as the road's ramp entry shows it against the ground's. 1 when the road's entry is no darker.
     /// </summary>
-    public const double NightGround = 1.0;
+    public static double NightRoad(IReadOnlyList<byte>? luma, double intensity, double ly, double ambient, double moon)
+    {
+        const double grey = 0.18;
+        double road = Ramp(luma, Math.Max(intensity * ly, 0) + ambient);
+        double ground = Ramp(luma, Math.Min(Math.Max(ly, 0) * TypicalFade + ambient, 1));
+        if (road >= ground) return 1;
+        double want = ToLinear(ToSrgb(grey) * road) / Math.Max(ToLinear(ToSrgb(grey) * ground), 1e-9);
+        double v = grey * moon * Math.Max(ly, 0.05);
+        double shown = CardTone(v);
+        return Bisect(k => CardTone(k * v) / Math.Max(shown, 1e-9), want, 1e-4, 1);
+    }
+
+    /// <summary>
+    /// The modern night sky's gain through the card's curve (sky_modern.gdshaderinc sky_gain; the moon's disc is not scaled): 1 is the
+    /// texture as the 1997 dome shows it (T06, Oklab L 0.28 against the 1997 look's 0.24); darker to sit over a ground at a tenth
+    /// of the 1997 look's light (<see cref="NightGround"/>), chosen at the console (I76_NIGHT_SKY to compare).
+    /// </summary>
+    public const double NightSky = 0.25;
 
     /// <summary>
     /// The map's ground as cells, every <paramref name="stride"/>th sample each way: the engine's gradient (central
@@ -257,8 +316,11 @@ public static class LightingCalibration
         return new(s[0] / m, s[1] / m, s[2] / m);
     }
 
-    /// <summary>The solved calibration: the exposure, the objects' share of the sky light, the ground's tint and the objects'.</summary>
-    public readonly record struct Result(double Exposure, double Sky, Rgb GroundTint, Rgb ObjectTint)
+    /// <summary>
+    /// The solved calibration: the exposure, the objects' share of the sky light, the ground's tint and the objects'; at night
+    /// through the card's curve, none of those but the moon's share (<see cref="NightMoon"/>).
+    /// </summary>
+    public readonly record struct Result(double Exposure, double Sky, Rgb GroundTint, Rgb ObjectTint, double Moon = 1)
     {
         public static readonly Result None = new(1, 1, new(1, 1, 1), new(1, 1, 1));
     }

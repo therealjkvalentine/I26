@@ -78,12 +78,25 @@ float fbm(vec2 p, int octaves) {
 	return s;
 }
 
-// the texture at a dome coordinate, linear, with a small blur: its texels span tens of metres on the dome, and the
-// ramp in density() would sharpen their edges
+// the texture at a dome coordinate, linear, read through a cubic B-spline (four bilinear reads at the weights' centroids):
+// its texels span tens of metres on the dome, where a bilinear read is a quilt of squares with straight edges, each a
+// plateau with a linear ramp to the next, and the ramp in density() sharpened them; the spline is smooth across the
+// texels (its second derivative too), so the clouds' colour and density show no texel edge
 vec3 sky_texel(vec2 uv) {
-	const float r = 0.006;
-	return i76_sky_tex(texture(clouds, uv)).rgb * 0.4 + (i76_sky_tex(texture(clouds, uv + vec2(r, 0))).rgb + i76_sky_tex(texture(clouds, uv - vec2(r, 0))).rgb
-		+ i76_sky_tex(texture(clouds, uv + vec2(0, r))).rgb + i76_sky_tex(texture(clouds, uv - vec2(0, r))).rgb) * 0.15;
+	vec2 size = vec2(textureSize(clouds, 0));
+	vec2 p = uv * size - 0.5;
+	vec2 f = fract(p);
+	vec2 i = p - f;
+	vec2 f2 = f * f, f3 = f2 * f;
+	vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0;
+	vec2 w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0;
+	vec2 w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0;
+	vec2 w3 = f3 / 6.0;
+	vec2 s0 = w0 + w1, s1 = w2 + w3;
+	vec2 t0 = (i - 0.5 + w1 / s0) / size;   // the two reads along each axis (texel centres at i + 0.5): between texels i-1 and i, and i+1 and i+2
+	vec2 t1 = (i + 1.5 + w3 / s1) / size;
+	return (i76_sky_tex(texture(clouds, vec2(t0.x, t0.y))).rgb * s0.x + i76_sky_tex(texture(clouds, vec2(t1.x, t0.y))).rgb * s1.x) * s0.y
+		+ (i76_sky_tex(texture(clouds, vec2(t0.x, t1.y))).rgb * s0.x + i76_sky_tex(texture(clouds, vec2(t1.x, t1.y))).rgb * s1.x) * s1.y;
 }
 
 // the texture's cloudiness at a dome coordinate (c its colour there), reshaped by noise

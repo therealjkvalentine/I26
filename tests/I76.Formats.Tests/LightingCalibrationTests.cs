@@ -199,25 +199,44 @@ public class LightingCalibrationTests
     // a night ramp like T06's: steep from a floor near black
     private static readonly byte[] NightLuma = [12, 22, 22, 34, 48, 48, 63, 80, 80, 99, 99, 118, 118, 139, 139, 160, 160, 182, 182, 182, 205, 205, 230, 230, 255, 255, 255, 255, 255, 255, 255, 255];
 
+    // a night map's ground texture: 64 texels of two dark navies
+    private static readonly byte[] Navy = Enumerable.Range(0, 64).SelectMany(i => i % 3 == 0 ? new byte[] { 10, 12, 28 } : [16, 19, 40]).ToArray();
+
     [Fact]
-    public void TheNightMoonShowsAGreyAsTheRampLightsIt()
+    public void TheNightMoonShowsADarkGroundThroughTheCardAsFilmicShowsIt()
     {
         var night = Lighting.Presets[0];
-        double ly = night.Direction.Y, moon = 1.3 * night.Intensity * 0.46;
-        double k = M.NightMoon(NightLuma, night.Intensity, ly, night.Ambient, moon);
-        Assert.InRange(k, 0.4, 0.8);
-        // a mid grey on a face lit at n.L = Ly: the 1997 look's texel times LUMA[round(31 I Ly)] through the card, the modern moon through the card's curve
-        const double grey = 0.18;
-        double shown1997 = M.Card(M.ToSrgb(grey) * NightLuma[(int)Math.Round(31 * night.Intensity * ly)] / 255.0);
-        double shown = M.Card(M.ToSrgb(grey * k * moon * ly));
-        Assert.Equal(shown1997, shown, 4);
+        var moon = new M.Rgb(0.318 * 0.122, 0.448 * 0.122, 0.122);   // the modern moon's colour times 1.3 times the preset's intensity
+        var sky = new M.Rgb(0.002, 0.002, 0.006);
+        var cells = M.Cells(Tile((x, z) => (x * 7 + z * 3) % 40), 8, night.Direction, NightLuma, night.Ambient, moon, sky, M.CardFlatWeight);
+        var glint = moon * M.GroundGlint;
+        double k = M.NightMoon(Navy, cells, glint);
+        Assert.InRange(k, 0.2, 0.8);
+        // the glint is most of the night ground's light, so it lifts the share: without it the solve sits deeper in the card's toe
+        Assert.True(k > M.NightMoon(Navy, cells, new M.Rgb(0, 0, 0)));
+        // by day, in the brights, the card's curve is the darker: the sun keeps its whole light
+        Assert.Equal(1, M.NightMoon(Sand, M.Cells(Tile((_, _) => 1000), 8, Sun(0.785), Luma, 0, SunLight, SkyLight), new M.Rgb(0, 0, 0)));
     }
 
     [Fact]
-    public void TheMoonIsNeverBrightened()
+    public void TheNightRoadShowsAGreyAgainstTheFlatGroundAsTheRampDoes()
     {
         var night = Lighting.Presets[0];
-        Assert.Equal(1, M.NightMoon(NightLuma, night.Intensity, night.Direction.Y, night.Ambient, 0.001));
-        Assert.Equal(1, M.NightMoon(Luma, 1, 0.7, 0, 0.5));
+        double ly = night.Direction.Y, moon = 1.3 * night.Intensity * 0.46;
+        double k = M.NightRoad(NightLuma, night.Intensity, ly, night.Ambient, moon);
+        Assert.InRange(k, 0.005, 0.1);
+        // a mid grey as the 1997 look shows a road (LUMA[round(31 I Ly)]) against flat ground (LUMA[round(31 (Ly fade + ambient))]), each
+        // through the card; the modern road at that share of the ground's moonlight, through the card's curve
+        const double grey = 0.18;
+        double road = NightLuma[(int)Math.Round(31 * night.Intensity * ly)] / 255.0, ground = NightLuma[(int)Math.Round(31 * (ly * M.TypicalFade + night.Ambient))] / 255.0;
+        double want = M.ToLinear(M.ToSrgb(grey) * road) / M.ToLinear(M.ToSrgb(grey) * ground);
+        double v = grey * moon * ly;
+        Assert.Equal(want, M.CardTone(k * v) / M.CardTone(v), 3);
+    }
+
+    [Fact]
+    public void ARoadLitNoDarkerThanTheGroundKeepsTheGroundsLight()
+    {
+        Assert.Equal(1, M.NightRoad(Luma, 1, 0.7, 0, 0.5));
     }
 }
