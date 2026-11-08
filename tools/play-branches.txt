@@ -378,3 +378,6 @@ perf/t05-60fps                        # section AS: radar redrawn only on change
 
 # AT. shadows Low by default (2026-11-08)
 fix/shadows-low-default               # section AT: Shadow Detail's fresh-install/Reset default Low (DefaultGraphics 2 -> 1); the v14 migration step no longer raises Low shadows to High (Terrain only); ShellSettings.ReadGraphics split out; ShadowReachTests
+
+# AU. menu fonts matched (2026-11-08)
+fix/menu-fonts-match                  # section AU: Control Configuration art (shellbg16) re-lettered in Arial Bold with the menu pages' treatment (original's ink, size and squeeze); text-redraws.py looks up system faces (Arial not shipped); 3 tex-menu files synced separately (_scratch/r6-fonts/changed-files.txt)
