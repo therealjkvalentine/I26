@@ -393,3 +393,6 @@ feat/settings-fps-estimate            # section AX: Graphic Detail's last line: 
 
 # AY. car deaths and explosions back to upstream (2026-11-08)
 revert/explosions-to-upstream         # section AY: the modern look's car deaths, explosions, fire and smoke are upstream's again (ModernFx and the flipbook, fireball_tail, wreck_smoke, damage_smoke_modern shaders line for line); DeathVariety, [port] death_variety, the cause pre-events and the sim's death cause/seed removed (wire and snapshot unchanged, the fields written as zero); effects_size/brightness/opacity scale only the weapons' own effects; clears the fresh-install death_variety=true fault. The owner's call 2026-11-08 ("back to main for now"); the fork's death work stays on its branches
+
+# AZ. form rules cleaned (2026-11-08)
+fix/form-line-fringes                 # section AZ: tools/menu-rules.py remakes the pale band the upscale and lossy WebP left along every ruled line, frame, check box and underline of the HD menu pack's notepad forms (BUILD AND REPAIR, the host form, the 2D CONFIGURE CHASSIS: 18 ochre pages and the two text bases, now lossless WebP, ~50 MB more); lettering untouched; 21 pack files synced separately (_scratch/r7-form-lines/changed-files.txt)
