@@ -10,18 +10,13 @@ uniform sampler2D atlas : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform float scene_light = 1.0;
 
-// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
-global uniform float i76_fx_size;
-global uniform float i76_fx_bright;
-global uniform float i76_fx_alpha;
-
 varying vec3 life_frame;
 
 void vertex() {
 	float spin = INSTANCE_CUSTOM.z;
 	float c = cos(spin), s = sin(spin);
 	VERTEX.xy = mat2(vec2(c, s), vec2(-s, c)) * VERTEX.xy;
-	float sc = length(MODEL_MATRIX[0].xyz) * i76_fx_size;
+	float sc = length(MODEL_MATRIX[0].xyz);
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0] * sc, INV_VIEW_MATRIX[1] * sc, INV_VIEW_MATRIX[2] * sc, MODEL_MATRIX[3]);
 	life_frame = INSTANCE_CUSTOM.xyz;
 }
@@ -42,5 +37,5 @@ void fragment() {
 	float l = clamp(life_frame.x, 0.0, 1.0);
 	vec3 ramp = mix(vec3(1.0, 0.5, 0.2), vec3(0.55, 0.08, 0.03), l);
 	float fade = 0.8 * (1.0 - l) * (1.0 - l);
-	ALBEDO = t * ramp * fade * soft * i76_fx_bright * i76_fx_alpha;
+	ALBEDO = t * ramp * fade * soft;
 }

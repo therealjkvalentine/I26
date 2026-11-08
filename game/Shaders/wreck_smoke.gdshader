@@ -18,11 +18,6 @@ instance uniform float scene_light = 1.0;
 instance uniform float fire = 1.0;    // how strongly the fire under it lights the smoke
 instance uniform float thick = 1.0;   // 1 thick black smoke, 0 a smouldering grey wisp
 
-// the config-only effects_size / effects_brightness / effects_opacity (ModernFx.ApplyLook), as factors
-global uniform float i76_fx_size;
-global uniform float i76_fx_bright;
-global uniform float i76_fx_alpha;
-
 varying float v_life;
 varying float v_seed;
 
@@ -40,7 +35,7 @@ void vertex() {
 	v_seed = fract(float(INSTANCE_ID) * 0.7548777 + INSTANCE_CUSTOM.w * 3.17);
 	float c = cos(INSTANCE_CUSTOM.x), s = sin(INSTANCE_CUSTOM.x);
 	VERTEX.xy = mat2(vec2(c, s), vec2(-s, c)) * VERTEX.xy;
-	float sc = length(MODEL_MATRIX[0].xyz) * i76_fx_size;
+	float sc = length(MODEL_MATRIX[0].xyz);
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0] * sc, INV_VIEW_MATRIX[1] * sc, INV_VIEW_MATRIX[2] * sc, MODEL_MATRIX[3]);
 }
 
@@ -68,12 +63,12 @@ void fragment() {
 	vec3 col = vec3(mix(mix(0.006, 0.035, smoothstep(0.0, 0.9, v_life)), mix(0.09, 0.16, v_life), 1.0 - thick)) * (0.75 + 0.5 * shade);
 	col *= scene_light;
 	// lit from below by the fire while young
-	col += vec3(1.0, 0.3, 0.06) * fire * (1.0 - smoothstep(0.0, 0.2, v_life)) * (0.5 + 0.5 * shade) * 0.5 * i76_fx_bright;
+	col += vec3(1.0, 0.3, 0.06) * fire * (1.0 - smoothstep(0.0, 0.2, v_life)) * (0.5 + 0.5 * shade) * 0.5;
 
 	float depth = texture(depth_tex, SCREEN_UV).r;
 	vec4 vp = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, i76_ndc_depth(depth), 1.0);
 	float soft = clamp((-vp.z / vp.w + VERTEX.z) / soft_distance, 0.0, 1.0);
-	a *= soft * i76_fx_alpha;
+	a *= soft;
 	ALBEDO = col * a;
 	ALPHA = a;
 }

@@ -46,7 +46,7 @@ BASE = {
     "force_feedback": "true", "lfe_level": 100, "sim_rate": 24, "palette_grade": "true", "crash_blur": '"on"',
     "mouse_camera": 2, "max_fps": 0, "vsync": "false", "developer": "true", "hd_menu_art": "true", "hd_textures": "true",
     "hd_texture_size": 4, "effects_size": 100, "effects_brightness": 100, "effects_opacity": 100, "mirror_range": '"full"',
-    "brake_lamps": '"held"', "mg_tracers": '"bolts"', "hood_finish": '"gloss"', "death_variety": '"on"', "brush_impacts": '"on"',
+    "brake_lamps": '"held"', "mg_tracers": '"bolts"', "hood_finish": '"gloss"', "brush_impacts": '"on"',
     "lighting_calibration": '"on"', "dash_3d": "true", "car_interiors": "true", "dev_fps": "false",
     "ambient_occlusion": "true",   # its own row since perf/graphics-defaults (Shadow Detail High's before)
 }

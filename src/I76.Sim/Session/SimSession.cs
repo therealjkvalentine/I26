@@ -285,7 +285,7 @@ public sealed partial class SimSession
                     // a client's prediction plays its sound when it first runs the press (the server's click for it is not played)
                     else if (Specials.Activate(p, i, World.Time) is { } sound && fresh) Combat?.Events.Add(new WeaponClick(p, sound));
                 }
-        if ((c & CarCommands.SelfDestruct) != 0 && (p.Flags & VehicleFlags.Dead) == 0) (Combat?.Damage as Damage.DamageModel)?.Destroy(p, Damage.DeathCause.SelfDestruct);
+        if ((c & CarCommands.SelfDestruct) != 0 && (p.Flags & VehicleFlags.Dead) == 0) (Combat?.Damage as Damage.DamageModel)?.Destroy(p);
         // RESET_UPRIGHT: not in a cut-scene (the script holds the car), not dead, and where the host allows it
         if ((c & CarCommands.ResetUpright) != 0 && ResetUprightAllowed && !CutsceneOf(p) && UprightReset.Can(p)) UprightReset.Apply(World, p);
         // the typed cheats, the player's own car only (the network never carries them)
@@ -432,28 +432,12 @@ public sealed partial class SimSession
                 continue;
             }
             // "kill" destroys the player's car there and then, "kill-ai" the nearest other one still alive (the FSM's destroy), for captures of a wreck
-            // "kill-ai:CAUSE" (a DeathCause: engine, wheel, driver, fall, ...): the nearest other car dies of that cause, for captures of each death's look
-            var killSpec = parts.Length > 1 ? parts[1].Split(':') : [];
-            var cause = killSpec.Length > 1 && Enum.TryParse<Damage.DeathCause>(killSpec[1], true, out var kc) ? kc : Damage.DeathCause.Destroyed;
-            var kill = killSpec.Length > 0 ? killSpec[0] switch
+            var kill = parts.Length > 1 ? parts[1] switch
             {
                 "kill" => bp,
                 "kill-ai" => World.Vehicles.Where(v => v != bp && !Damage.DamageModel.IsDead(v)).OrderBy(v => (v.Pos.ToVector3() - bp.Pos.ToVector3()).LengthSquared()).FirstOrDefault(),
                 _ => null,
             } : null;
-            // "kill-ai:wheel[:N]": wheel slot N (default: the front right) taken to no hit points first, as a kill roll on it would leave it
-            if (kill is not null && cause == Damage.DeathCause.Wheel && kill.Health is { } wh)
-            {
-                int slot = killSpec.Length > 2 && int.TryParse(killSpec[2], out int ws) ? ws
-                    : Enumerable.Range(0, 6).Where(i => wh.Slots[i] is Damage.WheelPart).OrderByDescending(i => ((Damage.WheelPart)wh.Slots[i]!).Wheel.Offset.X + ((Damage.WheelPart)wh.Slots[i]!).Wheel.Offset.Z).FirstOrDefault();
-                if (slot is >= 0 and < 6 && wh.Slots[slot] is Damage.WheelPart wpk) wpk.Hp = 0;
-            }
-            if (kill is not null && cause == Damage.DeathCause.Driver && bc.Damage is Damage.DamageModel ddm)
-            {
-                kill.Flags |= (Vehicles.VehicleFlags)0x4020;
-                ddm.VehicleSlot(kill, null, System.Numerics.Vector3.Zero);
-                continue;
-            }
             // "hit-ai[:N]": the nearest other one takes an N-point (default 1) round from the player (its recorder: attacked by the player)
             if (parts.Length > 1 && parts[1].Split(':') is ["hit-ai", ..] hitArgs
                 && World.Vehicles.Where(v => v != bp && !Damage.DamageModel.IsDead(v)).OrderBy(v => (v.Pos.ToVector3() - bp.Pos.ToVector3()).LengthSquared()).FirstOrDefault() is { } hit)
@@ -511,7 +495,7 @@ public sealed partial class SimSession
                 bc.Damage?.Apply(gun, pk, System.Numerics.Vector3.Zero);
                 continue;
             }
-            if (kill is not null) (bc.Damage as Damage.DamageModel)?.Destroy(kill, cause);
+            if (kill is not null) (bc.Damage as Damage.DamageModel)?.Destroy(kill);
             else if (parts.Length < 2 || !parts[1].StartsWith("kill")) bc.Explode(parts.Length > 1 ? parts[1] : "x1_carx1", bp.Pos.ToVector3() + bp.Rot.Forward * 15f, null);
         }
         _boomTick++;

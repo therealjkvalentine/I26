@@ -15,7 +15,6 @@ C = {
     "brush_off":       ({"brush_impacts": '"off"'}, {}, {}, [], False),
     "lighting_off":    ({"lighting_calibration": '"off"'}, {}, {}, [], False),
     "hood_matte":      ({"hood_finish": '"matte"'}, {}, {}, [], False),
-    "death_off":       ({"death_variety": '"off"'}, {}, {}, [], False),
     "hd_3x":           ({"hd_texture_size": 3}, {}, {}, [], False),
     "hd_2x":           ({"hd_texture_size": 2}, {}, {}, [], False),
     "hd_off":          ({"hd_textures": "false"}, {}, {}, [], False),

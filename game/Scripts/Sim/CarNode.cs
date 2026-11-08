@@ -415,15 +415,6 @@ public partial class CarNode : Node3D
     /// <summary>The body's bounds in the car's frame (Godot axes), for where the fire burns on it.</summary>
     public Aabb BodyBounds => _body?.Mesh?.GetAabb() ?? new Aabb(new Vector3(-1, 0, -2), new Vector3(2, 1.2f, 4));
 
-    /// <summary>Where wheel <paramref name="slot"/> is drawn now (Godot, global); null without one.</summary>
-    public Vector3? WheelPosition(int slot)
-    {
-        Wheel? w = Sim.WheelAt(slot);
-        foreach (var (node, ww, _, _) in _wheels)
-            if (ww == w && w is not null && node.IsInsideTree()) return node.GlobalPosition;
-        return null;
-    }
-
     /// <summary>The pieces the dying car has thrown off (rolls 0 and 1), hidden on it until it is renewed.</summary>
     private readonly HashSet<Node3D> _flung = [];
 

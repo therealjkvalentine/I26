@@ -40,7 +40,6 @@ public static class OriginalBehavior
         SwaySnap = s.SwaySnap;
         Antialias1997 = s.Antialias1997;
         EvenFlash = s.EvenFlash;
-        DeathVariety.Enabled = s.DeathVariety;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 
