@@ -72,7 +72,10 @@ which hold each label's place as read off the original. The mission map screen (
 from this pack: `python3 tools/menu-maps.py SRC_DIR` (the same export) runs every map through the same model (GPU, a few
 seconds a map) into `tex-menu/maps/`, its pen writing cleaned (the model's halo off, the strokes' edges softened and a little
 of the paper through the ink; `--writing plain` or `ink` for the alternatives); the plain upscales are kept, so a re-run
-needs no GPU.
+needs no GPU. The forms' ruled lines (the tables, frames, check boxes and underlines of the notepad pages) come out of the
+model with a pale, greyish band along them: `python3 tools/menu-rules.py SRC_DIR` (the records as `bg SRC_DIR` writes them)
+finds every rule in the original and makes the band round it the paper again and the rule the original's ink, the
+lettering untouched, in seconds on the CPU; the model's pages are kept in `tex-menu/.rules-prev/` (`--restore`).
 
 An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then offers
 8x) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
