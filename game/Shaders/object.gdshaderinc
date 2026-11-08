@@ -25,6 +25,10 @@ global uniform sampler2D i76_night_lights : filter_nearest;
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D albedo_cockpit : source_color, filter_nearest_mipmap, repeat_disable;   // the cockpit art, read at its full-size level, point-sampled as the original drew it (every look); clamped, so a face edge sampled a hair past 1.0 (MSAA) never wraps to the far row (the steering wheel quad drew its rim as a 1px line)
+// the steering wheel's and the arms' frames from a pack (Cockpit.Frames), in the modern look: finer than the screen's pixels, so filtered with their mipmaps
+// (point-sampled from the full-size level they shimmered as the wheel turned, every texel a step); clamped as albedo_cockpit is
+uniform sampler2D albedo_frames : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform bool frames_filtered = false;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform bool use_texture = false;
 uniform bool alpha_key = false;
@@ -562,6 +566,7 @@ void fragment() {
 	vec4 c = use_texture ? i76_tex(prelit ? textureLod(albedo_cockpit, tuv, 0.0) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : albedo_color;
 #else
 	vec4 c = use_texture ? (prelit ? textureLod(albedo_cockpit, tuv, 0.0) : texture(albedo_tex, tuv)) : albedo_color;
+	if (frames_filtered) c = texture(albedo_frames, tuv);
 	vec2 tuv_dx = dFdx(tuv), tuv_dy = dFdy(tuv);
 	if (wheel_face && use_texture && wheel_turn.z != 0.0) c.rgb = wheel_still_light(c.rgb, tuv, wheel_turn, tuv_dx, tuv_dy);
 #endif
