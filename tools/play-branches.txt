@@ -396,3 +396,6 @@ revert/explosions-to-upstream         # section AY: the modern look's car deaths
 
 # AZ. form rules cleaned (2026-11-08)
 fix/form-line-fringes                 # section AZ: tools/menu-rules.py remakes the pale band the upscale and lossy WebP left along every ruled line, frame, check box and underline of the HD menu pack's notepad forms (BUILD AND REPAIR, the host form, the 2D CONFIGURE CHASSIS: 18 ochre pages and the two text bases, now lossless WebP, ~50 MB more); lettering untouched; 21 pack files synced separately (_scratch/r7-form-lines/changed-files.txt)
+
+# BA. cockpit wheel and hand (2026-11-08)
+fix/cockpit-wheel-hand                # section BA: the pack's steering wheel and arm frames (zswls*, zhr/zhl/zsr/zsl) read through a filtered, clamped, mipmapped sampler in the modern look (albedo_frames in object.gdshaderinc; I76_FRAMES_POINT=1 for the old read); all 270 frames of tex-world-4x and -8x recut by key-edge (edge 0.9, as AR's signs) so the enlarged key stair is gone; pack.json recut_frames; 542 pack files synced separately (_scratch/r7-wheel-hand/changed-files.txt). The hand's remaining blockiness is the original's painting
