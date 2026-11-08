@@ -384,3 +384,6 @@ fix/menu-fonts-match                  # section AU: Control Configuration art (s
 
 # AV. rolling wheels keep their light (2026-11-08)
 fix/wheel-textures                    # section AV: the modern look's turning wheel face keeps its painted light still (object.gdshaderinc ring split: detail turns, broad light read at rest; SmoothWheel.UvTurn, per-wheel centre + angle each frame); no pack files changed; WheelStillLightTests
+
+# AW. dash per element (2026-11-08)
+perf/dash-per-element                 # section AW: each dash panel and the radar its own texture (LiveTexture.cs); changed rectangles only, through a kept staging texture and a GPU copy (counter roll 64x80, gear arrow, damage plate, needle square, radar bands); 2D gauges drawn only where shown; per-frame allocations removed; I76_DASH_STATS=1|verify. T05 firing cockpit 1.55 -> 0.36 ms/frame
