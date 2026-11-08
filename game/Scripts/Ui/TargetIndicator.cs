@@ -73,7 +73,7 @@ public partial class TargetIndicator : Control
                     visible++;
                 }
         float dist = (t.Pos.ToVector3() - p.Pos.ToVector3()).Length();
-        var font = ThemeDB.FallbackFont;
+        var font = GetThemeDefaultFont();   // the root window's theme: Arial, the menus' face (Godot's own without it)
 
         bool onScreen = visible == 8 && max.X > 0 && max.Y > 0 && min.X < size.X && min.Y < size.Y;
         if (!onScreen && Mirror) return;
