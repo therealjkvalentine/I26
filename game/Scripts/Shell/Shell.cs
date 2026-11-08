@@ -1175,12 +1175,13 @@ public sealed class ShellSettings
     /// instruments On (+0xe, the HUD readouts in the chase view), +0x8, a byte
     /// no screen of the original shows, the modern look's anti-aliasing (0 off,
     /// 1 MSAA 2x, the default, 2 MSAA 4x: 4x costs 12 % of a full-detail frame at
-    /// 3440x1440, 2x 3 %, docs/perf/costs.md), and Terrain Detail High (+0x2) and Shadow Detail High
-    /// (+0x6): the finest ground near the car and the sun's shadows to 1500 m, about 1.2 ms a frame over Low at 3440x1440 on a
-    /// GTX 1080 Ti (docs/perf/costs.md). A saved file keeps its own block whole (a 4x saved before 2x was the default stays 4x),
-    /// but for the two bytes still at the earlier Low defaults, which version 14 moves to High.
+    /// 3440x1440, 2x 3 %, docs/perf/costs.md), Terrain Detail High (+0x2), the finest ground near the car (about 1 ms a frame over
+    /// Low at 3440x1440 on a GTX 1080 Ti, docs/perf/costs.md), and Shadow Detail Low (+0x6), the sun's shadows to 600 m (High's
+    /// 1500 m cost about 6 % of the frame rate on T05 at 3440x1440, docs/perf/plan.md's ladder; it was the default in round 5). A
+    /// saved file keeps its own block whole (a 4x saved before 2x was the default stays 4x, a High Shadow Detail stays High), but
+    /// for a Terrain Detail still at the earlier Low default, which version 14 moves to High.
     /// </summary>
-    public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 3, 2, 1, 1];
+    public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
@@ -1519,14 +1520,31 @@ public sealed class ShellSettings
     }
 
     /// <summary>
-    /// A file from before version 14, when Terrain Detail and Shadow Detail started Low: a byte still at that earlier default is not a
-    /// choice, so it moves to the new default (High); Off, or High already, is kept.
+    /// A file from before version 14, when Terrain Detail started Low: a byte still at that earlier default is not a choice, so it
+    /// moves to the new default (High). Shadow Detail is never moved: Low is its default again (version 14 raised it to High, which
+    /// a version 14 file cannot tell from a choice, so its High is kept), and any other value is the player's.
     /// </summary>
     public static void RaiseOldDetailDefaults(byte[] g, int version)
     {
         if (version >= 14) return;
         if (g[0x2] == 0) g[0x2] = DefaultGraphics[0x2];
-        if (g[0x6] == 1) g[0x6] = DefaultGraphics[0x6];
+    }
+
+    /// <summary>The version <see cref="Save"/> writes.</summary>
+    public const int Version = 14;
+
+    /// <summary>
+    /// A file's graphics block onto <paramref name="into"/> (a fresh block's defaults), with the steps for its version; a block that is not
+    /// 16 bytes leaves the defaults. Engine-free, for the tests: <see cref="Load"/>'s reading of [shell] graphics.
+    /// </summary>
+    public static void ReadGraphics(byte[] into, byte[] file, int version)
+    {
+        if (file.Length == 16) Array.Copy(file, into, 16);
+        // files from before the mirror and the external instruments did anything carry the shipped Low / Off: the port's defaults instead
+        if (version < 2) { into[0xd] = DefaultGraphics[0xd]; into[0xe] = DefaultGraphics[0xe]; }
+        // and from before +0x8 was the anti-aliasing: the shipped byte is not a choice, so the default (2x)
+        if (version < 3) into[0x8] = DefaultGraphics[0x8];
+        RaiseOldDetailDefaults(into, version);
     }
 
     public static ShellSettings Load()
@@ -1542,14 +1560,8 @@ public sealed class ShellSettings
             I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
             return s;
         }
-        var g = (byte[])c.GetValue("shell", "graphics", s.Graphics);
-        if (g.Length == 16) Array.Copy(g, s.Graphics, 16);
-        // files from before the mirror and the external instruments did anything carry the shipped Low / Off: the port's defaults instead
         int version = (int)c.GetValue("shell", "version", 1);
-        if (version < 2) { s.Graphics[0xd] = DefaultGraphics[0xd]; s.Graphics[0xe] = DefaultGraphics[0xe]; }
-        // and from before +0x8 was the anti-aliasing: the shipped byte is not a choice, so the default (2x)
-        if (version < 3) s.Graphics[0x8] = DefaultGraphics[0x8];
-        RaiseOldDetailDefaults(s.Graphics, version);
+        ReadGraphics(s.Graphics, (byte[])c.GetValue("shell", "graphics", s.Graphics), version);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
         (int, int)? Read(string section) => c.HasSectionKey(section, "play") || c.HasSectionKey(section, "difficulty")
@@ -1732,8 +1744,8 @@ public sealed class ShellSettings
     {
         var c = new ConfigFile();
         // version 13: the sky's drift is Steady unless the file says original, and the Rumble row is folded into Force Feedback (the keys are the same);
-        // version 14: Terrain Detail and Shadow Detail start High
-        c.SetValue("shell", "version", 14);
+        // version 14: Terrain Detail starts High (Shadow Detail did too, until it went back to Low with no step: a saved byte is kept)
+        c.SetValue("shell", "version", Version);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
         c.SetValue("port", "checkpoints", Checkpoints);
