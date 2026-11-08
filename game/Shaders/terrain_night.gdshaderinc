@@ -4,8 +4,12 @@
 // roads and cars sit near the ramp's floor. The modern moon is the roads' and objects' light (Main.ApplyLightingCalibration
 // sets it so); the ground takes, besides, the 1997 look's own light as emission: its colour (sRGB) times the ramp's entry,
 // read between the ramp's steps (the card interpolates a face's vertex light across it), on the modern normal, so the
-// relief still shows. i76_night_ground is how much of it (0 by day, and with lighting_calibration off or filmic).
+// relief still shows. i76_night_ground is how much of it (0 by day, and with lighting_calibration off or filmic; 0 by default at
+// night too: the night is kept dark, the ground by moonlight alone). i76_night_road is the share of the ground's light a road
+// keeps (LightingCalibration.NightRoad; 1 by day and with the calibration off or filmic): the original lights a road by the
+// preset's intensity through the ramp, near its floor at night, so the road is the darker band, and the headlamps show it.
 global uniform float i76_night_ground;
+global uniform float i76_night_road;
 global uniform vec3 i76_light_dir;
 global uniform vec2 i76_fade;
 global uniform float i76_ambient;

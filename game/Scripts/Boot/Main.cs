@@ -2385,7 +2385,7 @@ public partial class Main : Node3D
     {
         _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
         _calibrationJob = null;
-        if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || !light.IsDay || _builder?.World is not { } world
+        if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || (!light.IsDay && _lighting != Lighting.Card) || _builder?.World is not { } world
             || _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLightingCalibration(); return; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         if (img.IsCompressed()) img.Decompress();
@@ -2399,7 +2399,7 @@ public partial class Main : Node3D
         static I76.Formats.Imaging.LightingCalibration.Rgb Grey(I76.Formats.Imaging.LightingCalibration.Rgb c, double k) { double l = c.Luminance * (1 - k); return new(l + c.R * k, l + c.G * k, l + c.B * k); }
         var skyUp = Grey(Lin(sc.Zenith, gain) + Lin(sc.Horizon, gain) + Lin(sc.Cloud, gain), chroma);
         var skyDown = Grey(Lin(HorizonFoot() ?? sc.Horizon * 0.8f, _horizonFootFound ? _ambientEnergy : sc.AmbientGain * _ambientEnergy), chroma);
-        var sun = Lin(_sun.LightColor, _sun.LightEnergy);
+        var sun = Lin(_sun.LightColor, _sunEnergy);
         var curve = _lighting == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
         bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
         var luma = LumaBytes();
@@ -2409,6 +2409,9 @@ public partial class Main : Node3D
         I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
         {
             var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
+            kinds = ground.Count;
+            // a night through the card's curve: the moon's share alone (NightLight)
+            if (!light.IsDay) return I76.Formats.Imaging.LightingCalibration.Result.None with { Moon = I76.Formats.Imaging.LightingCalibration.NightMoon(pixels, ground, sun * I76.Formats.Imaging.LightingCalibration.GroundGlint) };
             var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, luma, light.Intensity, light.Ambient, sun, skyUp, skyDown,
                 card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
             kinds = ground.Count;
@@ -2418,7 +2421,7 @@ public partial class Main : Node3D
         {
             _calibration = c;
             GD.Print($"lighting calibration ({curve}): {kinds} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
-                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, {sw.ElapsedMilliseconds} ms{(background ? " (beside the load)" : "")}");
+                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, moon {c.Moon:0.000}, {sw.ElapsedMilliseconds} ms{(background ? " (beside the load)" : "")}");
             ApplyLightingCalibration();
         }
         if (background)
@@ -2493,11 +2496,13 @@ public partial class Main : Node3D
         bool card = _lighting == Lighting.Card;
         var sc = SkyFor(_lighting);
         float back = card ? 1f / (float)c.Exposure : 1f / Mathf.Sqrt((float)c.Exposure);
-        // at night through the card's curve: the moon (and the sky's light) at the original's light on roads and objects, the ground
-        // lit by its own, the original's (NightLight)
-        var (moon, ground) = card && _calibratedLight is { IsDay: false } night ? NightLight(night) : (1f, 0f);
+        // at night through the card's curve: the moon the ground's light, the roads at the original's share of it, the sky darkened
+        // over it (NightLight)
+        var (moon, ground, road, nightSky) = card && _calibratedLight is { IsDay: false } night ? NightLight(night, c.Moon) : (1f, 0f, 1f, 1f);
         if (_sun is not null) _sun.LightEnergy = _sunEnergy * moon;
         RenderingServer.GlobalShaderParameterSet("i76_night_ground", ground);
+        RenderingServer.GlobalShaderParameterSet("i76_night_road", road);
+        back *= nightSky;
         if (_modernEnv is not null)
         {
             _modernEnv.AdjustmentEnabled = true;
@@ -2531,19 +2536,24 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// A night preset's light in the modern look through the card's curve: the share of its own light the moon and the sky's light
-    /// keep, so a road or an object shows as the original lights it by the preset's intensity through the ramp
-    /// (LightingCalibration.NightMoon), and how much of the original's light the ground takes as its own (terrain_night.gdshaderinc):
-    /// the original lights its ground by the light's direction alone, so a night map's dark-painted ground shows nearly as by day while
-    /// its roads and cars sit near the ramp's floor. The modern moon lit both alike, so the roads shone over a ground near black.
-    /// I76_NIGHT_MOON and I76_NIGHT_GROUND set either in place (1 and 0: as before), for a comparison.
+    /// A night preset's light in the modern look through the card's curve: the moon's share of its own light (<paramref name="solved"/>,
+    /// LightingCalibration.NightMoon: what shows the map's ground under the moon as the modern look's own night shows it through
+    /// Filmic, the ground near black, as chosen at the console), how much of the original's light the ground takes besides
+    /// (LightingCalibration.NightGround: 0; 1 is the 1997 look's level, which lights a night map's dark-painted ground nearly as by
+    /// day), the share of the ground's light a road keeps (LightingCalibration.NightRoad: the original lights its roads by the
+    /// preset's intensity through the ramp, near its floor, and the ground by the light's direction alone, so the road is the darker
+    /// band and the headlamps show it; the modern moon lit both alike, so the roads shone over the ground) and the sky's gain over
+    /// the texture's own (LightingCalibration.NightSky). I76_NIGHT_MOON, I76_NIGHT_GROUND, I76_NIGHT_ROAD and I76_NIGHT_SKY set each
+    /// in place for a comparison (1, 0, 1, 1: the modern look's own night but for the tone curve; 1, 1, 1, 1: the 1997 look's levels).
     /// </summary>
-    private (float Moon, float Ground) NightLight(I76.Formats.Mission.LightPreset light)
+    private (float Moon, float Ground, float Road, float Sky) NightLight(I76.Formats.Mission.LightPreset light, double solved)
     {
         var c = (_sun?.LightColor ?? Colors.White).SrgbToLinear();
         double lum = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
-        double moon = I76.Formats.Imaging.LightingCalibration.NightMoon(LumaBytes(), light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * lum);
-        return (Env("I76_NIGHT_MOON") ?? (float)moon, Env("I76_NIGHT_GROUND") ?? (float)I76.Formats.Imaging.LightingCalibration.NightGround);
+        float moon = Env("I76_NIGHT_MOON") ?? (float)solved;
+        double road = I76.Formats.Imaging.LightingCalibration.NightRoad(LumaBytes(), light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * moon * lum);
+        return (moon, Env("I76_NIGHT_GROUND") ?? (float)I76.Formats.Imaging.LightingCalibration.NightGround, Env("I76_NIGHT_ROAD") ?? (float)road,
+            Env("I76_NIGHT_SKY") ?? (float)I76.Formats.Imaging.LightingCalibration.NightSky);
         static float? Env(string name) => float.TryParse(System.Environment.GetEnvironmentVariable(name), System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture, out var k) ? k : null;
     }

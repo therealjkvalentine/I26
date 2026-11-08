@@ -175,6 +175,8 @@ varying vec3 g_pos;     // game-frame position: sample * 5, height
 varying vec3 g_nrm;
 varying vec3 g_broad;   // the surface's normal over a broad span (CUSTOM2: TerrainSurface.BroadNormal), for paved road
 varying vec2 road_uv;
+varying float v_road;   // the road's coverage and the surface's specular, from fragment() for light()
+varying float v_spec;
 
 // Level-of-detail morph (TerrainLodMesh, TerrainNode.Range): a vertex of level 0 to 3 carries where the next
 // coarser level has its point (CUSTOM0.xyz, chunk-local; CUSTOM0.w = level + 1, 0 for none) and that level's
@@ -622,6 +624,16 @@ void fragment() {
 	}
 	if (debug_view == 2) ALBEDO = vec3(0.35);   // the light alone, on a grey ground (against the plants' I76_VEG_DEBUG=1)
 	if (use_materials && procedural) { AO = ao; AO_LIGHT_AFFECT = 0.35; }
+	v_road = road;
+	v_spec = spec;
+#ifdef I76_NIGHT_ROADS
+	// at night a road keeps i76_night_road of the ground's light (terrain_night.gdshaderinc): the sky's here, the moon's in light();
+	// the headlamps' and the other lamps' stay whole, so the occlusion must not touch the direct light on it
+	if (i76_night_road < 1.0 && road > 0.0) {
+		AO = mix(use_materials && procedural ? ao : 1.0, i76_night_road, road);
+		AO_LIGHT_AFFECT = 0.35 * (1.0 - road);
+	}
+#endif
 
 	// ---- the relief ----
 	float fine = 1.0 - smoothstep(bump_far * 0.3, bump_far, dist);
@@ -664,3 +676,28 @@ void fragment() {
 	// at night the ground's own light, as the original's (terrain_night.gdshaderinc); the roads keep the moon's
 	if (i76_night_ground > 0.0) EMISSION += i76_night_ground_light(ALBEDO, world_n, -VERTEX.z) * (1.0 - road);
 }
+
+#ifdef I76_NIGHT_ROADS
+// Under a night preset (terrain_modern_night.gdshader): the moon's light on a road at its share, the lamps' whole. Otherwise
+// Godot's own model as its forward renderer computes it for a shader that names no diffuse mode (Lambert diffuse, not the
+// Burley its documentation calls the default: Burley is compiled only when named, and lit the headlamps' grazing beam half as
+// bright again; Schlick-GGX specular with its F0 from the surface's specular, its visibility term and the light's own specular
+// amount), so the ground by moonlight is as the day shader's; the day keeps that shader and this function out of it.
+float i76_schlick(float u) { float m = 1.0 - u; float m2 = m * m; return m2 * m2 * m; }
+void light() {
+	float share = LIGHT_IS_DIRECTIONAL ? mix(1.0, i76_night_road, v_road) : 1.0;
+	vec3 h = normalize(VIEW + LIGHT);
+	float ndl = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	float ndv = max(dot(NORMAL, VIEW), 1e-4);
+	float ndh = clamp(dot(NORMAL, h), 0.0, 1.0);
+	float ldh = clamp(dot(LIGHT, h), 0.0, 1.0);
+	DIFFUSE_LIGHT += ndl * ATTENUATION * LIGHT_COLOR * share / PI;
+	float a = ROUGHNESS * ROUGHNESS;
+	float k = a / (1.0 - ndh * ndh + ndh * ndh * a * a);
+	float D = k * k / PI;
+	float G = 0.5 / mix(2.0 * ndl * ndv, ndl + ndv, a);
+	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
+	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
+	SPECULAR_LIGHT += ndl * D * G * F * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT * share;
+}
+#endif

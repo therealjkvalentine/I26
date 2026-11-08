@@ -466,7 +466,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
             // a painted ground (M15's parking lot): asphalt with the texture's own layout instead, the shader's lot variant (GroundPaint)
             var paint = gimg is null ? null : GroundPaint.Find(gimg);
             painted = paint is not null;
-            sharedModern = new ShaderMaterial { Shader = GD.Load<Shader>(painted ? GroundPaint.Shader : "res://Shaders/terrain_modern.gdshader") };
+            // a night preset's roads keep a share of the moon's light (terrain_night.gdshaderinc): the night shader's light()
+            sharedModern = new ShaderMaterial { Shader = GD.Load<Shader>(painted ? GroundPaint.Shader : Light.IsDay ? "res://Shaders/terrain_modern.gdshader" : "res://Shaders/terrain_modern_night.gdshader") };
             GroundNoise.ApplyNoise(sharedModern);
             if (ground is not null)
             {
