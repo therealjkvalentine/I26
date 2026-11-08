@@ -405,3 +405,6 @@ fix/night-lighting-2                  # section BB: modern look at night under l
 
 # BC. every Arial-like is Arial (2026-11-08)
 fix/menu-fonts-arial                  # section BC: the seven Esc pads' titles (Options Menu, Graphic Detail, Play Options, Audio Control, Save Points, Abort Mission, Exit Game) re-lettered from Verdana Bold to Arial Bold (7 tex-menu pads synced separately, _scratch/r7-fonts-arial/changed-files.txt); a Theme on the root window with DefaultFont = Arial Bold so Godot's own controls (Developer panel and its tooltips, fps counter, loading status, build line, target distance) leave Open Sans; inventory in _scratch/r7-fonts-arial/inventory.md (Impact, Dymo, drum digits, world lettering are deliberate faces, left)
+
+# BD. the title logo as flat art (2026-11-08)
+fix/menu-logo-flat                    # section BD: tools/flat-art.py unmixes the 1x original's anti-aliased texels into its four flat colours, traces each region with potrace, strokes the keyline and sets the TM from Arial Italic, rendered at 4x lossless (no model); applied to shell backgrounds 26 (main menu) and 14 (mission select, a page the port never draws); the owner's Capture5 (wobble, halo, smeared TM) was the model upscale; pack.json flat_art; 3 pack files synced separately (_scratch/r7-logo/changed-files.txt); needs potracer and resvg-py
