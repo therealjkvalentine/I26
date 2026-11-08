@@ -381,3 +381,6 @@ fix/shadows-low-default               # section AT: Shadow Detail's fresh-instal
 
 # AU. menu fonts matched (2026-11-08)
 fix/menu-fonts-match                  # section AU: Control Configuration art (shellbg16) re-lettered in Arial Bold with the menu pages' treatment (original's ink, size and squeeze); text-redraws.py looks up system faces (Arial not shipped); 3 tex-menu files synced separately (_scratch/r6-fonts/changed-files.txt)
+
+# AV. rolling wheels keep their light (2026-11-08)
+fix/wheel-textures                    # section AV: the modern look's turning wheel face keeps its painted light still (object.gdshaderinc ring split: detail turns, broad light read at rest; SmoothWheel.UvTurn, per-wheel centre + angle each frame); no pack files changed; WheelStillLightTests
