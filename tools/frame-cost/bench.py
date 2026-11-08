@@ -20,7 +20,12 @@ waits for the GPU to be under 10 % with no other Godot or compute process, sampl
 FRAME_COST_PROFILE=owner is a playtest's settings (OWNER); --scene t05 drives T05's busy parts (T05_SECTIONS) for 170 s
 (--skip-ms 2000 --run-ms 168000). FRAME_COST_GAME runs another checkout's game/ (a before build), FRAME_COST_GPU_PROFILE=0 leaves out
 --gpu-profile (its table, printed once a second, is a stutter of its own: no gpu.* columns then), FRAME_COST_IGNORE_PIDS lists
-compute processes that sit idle while their lane waits for the GPU lock.
+compute processes that sit idle while their lane waits for the GPU lock. FRAME_COST_CPU_IDLE=N waits before a run until the machine's
+processor load is N % or less (three samples 5 s apart: another lane's build takes the main thread's cores and the frame with them), and
+FRAME_COST_CPU_MAX=N runs a row again (at most three times) whose median load during the run was over N %. A run whose player car is destroyed ends there (the game quits at the death, printing its partial
+result): its row's result starts with DIED and it is not run again. FRAME_COST_PRIORITY=above
+starts the game above normal priority, so the processes of the same priority other lanes leave running (encoders, builds) give way to its
+main thread as they would to a game on a player's machine.
 """
 import argparse, os, re, subprocess, sys, time, datetime, shutil
 
@@ -114,6 +119,25 @@ def other_godot():
         pass
     return found
 
+def cpu_load():
+    try:
+        o = subprocess.check_output(["wmic", "cpu", "get", "loadpercentage", "/value"], text=True, stderr=subprocess.DEVNULL)
+        return int(o.strip().split("=")[1])
+    except Exception:
+        return -1
+
+def wait_cpu(limit=3600):
+    """FRAME_COST_CPU_IDLE: the processor's load at or under it in three samples in a row, 5 s apart (or the limit passes)."""
+    want = int(os.environ.get("FRAME_COST_CPU_IDLE", "0") or 0)
+    if want <= 0: return
+    t0 = time.time(); ok = 0; said = 0
+    while ok < 3 and time.time() - t0 < limit:
+        ok = ok + 1 if 0 <= cpu_load() <= want else 0
+        if ok < 3: time.sleep(5)
+        if time.time() - t0 > said + 120:
+            said = time.time() - t0
+            print(f"waiting: processor over {want} %, {said:.0f} s", flush=True)
+
 def wait_idle(limit=4 * 3600):
     t0 = time.time(); said = 0
     while True:
@@ -172,6 +196,7 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     env["I76_QUIET_WINDOW"] = quiet
     env.update(SCENE_ENV.get(scene, {}))
     env.update(env_over)
+    wait_cpu()
     u, m, p, t = wait_idle()
     t0 = time.time()
     # other lanes' Godot runs during ours: sampled every 2 s (ours are two processes: the console wrapper and the engine)
@@ -197,18 +222,23 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
                   + "\n# cfg: " + " ".join(f"{k}={v}" for k, v in sorted(cfg_over.items())) + " graphics " + " ".join(f"{k}={v}" for k, v in sorted(graphics_over.items())) + "\n")
         log.flush()
         try:
-            proc = subprocess.run(engine + ["--"] + game, stdout=log, stderr=subprocess.STDOUT, env=env, timeout=timeout)
+            flags = getattr(subprocess, "ABOVE_NORMAL_PRIORITY_CLASS", 0) if os.environ.get("FRAME_COST_PRIORITY") == "above" else 0
+            proc = subprocess.run(engine + ["--"] + game, stdout=log, stderr=subprocess.STDOUT, env=env, timeout=timeout, creationflags=flags)
             code = proc.returncode
         except subprocess.TimeoutExpired:
             code = "timeout"
             subprocess.run(["taskkill", "/IM", os.path.basename(GODOT), "/F"], capture_output=True)
     stop.set(); th.join()
     wall = time.time() - t0
-    res_line = ""
+    res_line = ""; died = False
     with open(stem + ".log", encoding="utf-8", errors="replace") as f:
         for line in f:
             if line.startswith("frame-profile-result:"):
                 res_line = line.strip()[len("frame-profile-result:"):].strip()
+            elif line.startswith("frame-profile-death:"):
+                died = True
+    # the player's car destroyed: the game ended the window there (FrameProfiler.PlayerDied); a partial result, not run again
+    if died: res_line = "DIED " + res_line
     if res_line and clocks:
         import statistics
         res_line += f" gpu_mhz={statistics.median(clocks):.0f} gpu_w={statistics.median(watts):.0f}"
@@ -222,7 +252,13 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
         f.write("\t".join(row) + "\n")
     time.sleep(GAP_S)   # a clear gap after every run, so other lanes' idle checks can pass between ours
     print("\t".join(row[1:5] + [row[-1][:160]]), flush=True)
-    return res_line, others_max[0]
+    return res_line, others_max[0] + (1 if cpu_max and cpu_loads and statistics_median(cpu_loads) > cpu_max else 0)
+
+cpu_max = int(os.environ.get("FRAME_COST_CPU_MAX", "0") or 0)
+
+def statistics_median(v):
+    import statistics
+    return statistics.median(v)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -245,7 +281,8 @@ def main():
     for r in range(1, a.reps + 1):
         for attempt in range(3):   # a run another Godot shared the GPU with, or one with no result, is done again
             res_line, others = run_once(a.name, a.res, r, a.scene, cfg, gr, env, a.args, a.skip_ms, a.run_ms, a.look1997, a.timeout)
-            if res_line and others == 0: break
+            if res_line and (others == 0 or res_line.startswith("DIED")): break
+            if res_line.startswith("DIED"): break
 
 if __name__ == "__main__":
     main()

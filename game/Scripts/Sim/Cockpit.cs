@@ -1392,6 +1392,9 @@ public partial class Cockpit : Node
     private Godot.Environment? _mirrorEnv, _mirrorEnvSource;
     private int _mirrorSync;
 
+    /// <summary>The mirror drawn on its cadence while the tree is paused under the Esc menu, so the frame rate measured there is play's (the picture is the same frozen view).</summary>
+    public void MirrorWhilePaused() { if (Active) Mirror(); }
+
     private void Mirror()
     {
         if (_mirrorView is null || _mirrorCam is null) return;

@@ -44,6 +44,10 @@ public partial class FrameProfiler : Node
     private double _firstMeasured;
     private bool _quitting;
 
+    /// <summary>The player's car was destroyed (Main): a timed window ends there, as a partial result (<c>frame-profile-death:</c> before the result line), rather than measuring the death orbit to its end.</summary>
+    public static void PlayerDied() => _died = true;
+    private static bool _died;
+
     /// <summary>The mission is built and its first tick done (Main): I76_FRAME_PROFILE_SKIP_MS counts from here.</summary>
     public static void MarkLoaded() => _loadedAt = Now();
     private readonly Dictionary<string, List<double>> _series = [];
@@ -137,9 +141,10 @@ public partial class FrameProfiler : Node
         Add("vram_video_mb", Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576.0);
         Add("t_ms", now - _firstMeasured);
         _simMs = 0;
-        if (_runMs > 0 && !_quitting && now - _firstMeasured >= _runMs)
+        if (_runMs > 0 && !_quitting && (now - _firstMeasured >= _runMs || _died))
         {
             _quitting = true;
+            if (_died) GD.Print($"frame-profile-death: the player's car destroyed {now - _firstMeasured:0} ms into the window");
             if (_shot is { Length: > 0 }) GetViewport().GetTexture().GetImage().SavePng(_shot);
             GetTree().Quit();
             return;

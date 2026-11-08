@@ -27,6 +27,9 @@ public sealed class FrameStats
         while (_count > 1 && _sum > Window) Drop();
     }
 
+    /// <summary>Every frame dropped (the Graphic Detail pads' reading after a change).</summary>
+    public void Clear() { _head = _count = 0; _sum = 0; }
+
     private void Drop()
     {
         _sum -= _ring[_head];

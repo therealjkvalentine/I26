@@ -89,6 +89,10 @@ public sealed partial class EscapeMenu : Control
     public bool Developer { get; init; }
     /// <summary>A network game: Self Destruct is refused now (the car dead, or the game decided).</summary>
     public Func<bool>? SelfDestructRefused { get; init; }
+    /// <summary>Once a frame while the tree is paused under the menu: what play would draw that a paused node does not (the rear mirror), so the measured frame rate is play's.</summary>
+    public Action? PausedFrame { get; init; }
+    /// <summary>The frame rate of the last seconds played before the menu opened (Graphic Detail's frame-rate tooltip), null without one.</summary>
+    public Func<double?>? PlayFps { get; init; }
 
     public ShellSettings Settings { get; private set; } = null!;
     private ShellSettings _snap = null!;
@@ -132,6 +136,7 @@ public sealed partial class EscapeMenu : Control
         AddChild(_tip = new MenuTooltip { Faithful = Faithful, Name = "Tooltip" });
         _x = Art("x1", key: true);
         Build();
+        _playFps = PlayFps?.Invoke();
         _padNav.Settle();    // the Start that opened it
         Switch(End is null ? _main : _end);
     }
@@ -320,13 +325,21 @@ public sealed partial class EscapeMenu : Control
             List<GraphicsRow> offered = [];
             foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
-            page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); Switch(page); } } });
+            page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); _fps.Changed(); Switch(page); } } });
             page.Items.Add(DoneButton());
             page.Items.Add(CancelButton());
             _graphicsPages.Add(page);
             _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetRow + 1 + p - GraphicsPages.Advanced, () => Switch(page)));
         }
-        _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, GraphicsPages.Sheet, sheetOffered); Live?.Invoke(Settings); Switch(_graphics); } } });
+        _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, GraphicsPages.Sheet, sheetOffered); Live?.Invoke(Settings); _fps.Changed(); Switch(_graphics); } } });
+        // the frame rate measured behind the pad, on the last line of the sheet and of each page ([port] menu_fps)
+        if (Settings.MenuFps)
+            foreach (var pad in _graphicsPages.Prepend(_graphics))
+            {
+                var line = new Item { Flags = Static, Label = FpsLabels.Measured(null, null), Pair = 14 };
+                pad.Items.Add(line);
+                _fpsLines.Add(line);
+            }
         _graphics.Items.Add(DoneButton());
         _graphics.Items.Add(CancelButton());
 
@@ -416,7 +429,7 @@ public sealed partial class EscapeMenu : Control
     {
         string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
         string mark = ShellSettings.PortMark;
-        Action live = () => Live?.Invoke(Settings);
+        Action live = () => { Live?.Invoke(Settings); _fps.Changed(); };
         Item G(int flags, string label, int n, string[]? names, int at) =>
             Setting(flags, label, 0, n, names, s => s.Graphics[at], (s, v) => s.Graphics[at] = (byte)v, apply: live);
         switch (r)
@@ -636,6 +649,8 @@ public sealed partial class EscapeMenu : Control
         {
             // the tooltip follows the mouse over the rows (else the selection, for the keys and the pad)
             (_hover, _) = Hit(ToPad(mm.Position));
+            // the frame rate's line is not a row to pick, but it has a tooltip
+            if (_hover is null && _fpsLines.FirstOrDefault(_screen.Items.Contains) is { } fl && Inside(Rects(fl).A, ToPad(mm.Position))) _hover = fl;
             _pointer = mm.Position;
             _byPointer = true;
         }
@@ -706,6 +721,7 @@ public sealed partial class EscapeMenu : Control
     {
         if (_closed) return;
         using var _ = Hitch.Time(Hitch.Phase.Shell);
+        MeasureFps();
         // the game runs on under a network menu: Self Destruct greys out the moment the car dies or the game is decided
         if (SelfDestructRefused?.Invoke() is { } refused && refused != _sdRefused)
         {
@@ -931,6 +947,28 @@ public sealed partial class EscapeMenu : Control
         DrawScrollMark();
     }
 
+    // ---- the frame rate behind Graphic Detail's pads (LiveFps): measured from the menu's opening, shown on their last line ----
+
+    private readonly LiveFps _fps = new();
+    /// <summary>The play's frame rate as the menu opened (the recorder runs on in a network game, so it is read once).</summary>
+    private double? _playFps;
+    private readonly List<Item> _fpsLines = [];
+    private ulong _fpsLast;
+
+    /// <summary>Every frame: the real time since the last one into the reading; the pads' line follows it. Paused, the mirror is kept drawing.</summary>
+    private void MeasureFps()
+    {
+        ulong now = Time.GetTicksUsec();
+        if (_fpsLast != 0) _fps.Add((now - _fpsLast) / 1e6);
+        _fpsLast = now;
+        if (GetTree().Paused) PausedFrame?.Invoke();
+        if (_fpsLines.Count == 0) return;
+        var text = FpsLabels.Measured(_fps.Fps, _fps.First);
+        if (text == _fpsLines[0].Label) return;
+        foreach (var l in _fpsLines) l.Label = text;
+        if (_fpsLines.Any(_screen.Items.Contains)) QueueRedraw();
+    }
+
     // ---- the tooltips (MenuTooltip): every row's, by the pointer, or beside the selected row for the keys and the pad ----
 
     /// <summary>Graphic Detail's items and the rows they are (GraphicsHelp has their tooltips; every other item's is MenuTips', by its label).</summary>
@@ -942,7 +980,8 @@ public sealed partial class EscapeMenu : Control
     private MenuTooltip? _tip;
 
     /// <summary>An item's tooltip: Graphic Detail's row's, else its label's; none for the buttons (Done, Cancel) and the pads' text.</summary>
-    private string? TipOf(Item it) => _rowOf.TryGetValue(it, out var row) ? GraphicsHelp.Text(row, Faithful)
+    private string? TipOf(Item it) => _fpsLines.Contains(it) ? GraphicsHelp.MeasuredFps(Net, _playFps)
+        : _rowOf.TryGetValue(it, out var row) ? GraphicsHelp.Text(row, Faithful)
         : it.Type is Static or Button ? null : MenuTips.Of(it.Label);
 
     private void TrackTip(double delta)

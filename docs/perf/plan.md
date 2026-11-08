@@ -412,3 +412,73 @@ picture (`I76_DASH_STATS=verify`): 2905 uploads, no texel different; screenshots
 same ticks; for the comparison both builds had the housings' and the effects' random numbers seeded and `I76_VEG_PLANTS=0`, a local change
 not in the branch): the 1997 look zero differing pixels, the modern look zero on the dash, the differences all in the world's hit
 effects and smoke at the target (which two runs of the before build also differ in, 66 pixels at 29 s).
+## Settings and the frame rate (round 6)
+
+Graphic Detail's last line (docs/playing.md, "Frame rate on Graphic Detail") measures the frame rate behind the Esc menu's pads and,
+on the main menu, estimates it from the last mission's (`game/Scripts/Ui/FrameRateEstimate.cs`). The estimate's model was measured
+here: the same card (GTX 1080 Ti at 180 W), a 4-core processor, T05's route for 88 s (the start, the first car's attack and the
+mountain pass: `bench.py --scene t05 --skip-ms 2000 --run-ms 88000`), the playtester's settings but for the graphics rows, each row
+changed alone from the defaults (Terrain High, Shadow Low, Anti-Aliasing 2x, Rear Mirror High, Vegetation Low, Visibility Range Max,
+Render Scale 100 %, Ambient Occlusion off), one run each, the game above normal priority (`FRAME_COST_PRIORITY=above`) and started
+only with no other lane's encoder running. The figure is the game's own record of the run (`frame-rate.cfg`: the median of its
+seconds past the first ten), which runs about 9 % under the harness's median frame (the slow seconds of a fight weigh more); the main
+view's time on the card is the engine's own measure of the root viewport.
+
+| Row changed (3440x1440 unless said) | fps | main view on the card, ms |
+|---|---|---|
+| the defaults | 97.7 | 7.26 |
+| 1920x1080 | 112.7 | 3.77 |
+| Render Scale 67 % | 106.9 | 4.82 |
+| Ambient Occlusion On | 76.3 | 11.19 |
+| Anti-Aliasing Off / 4x | 103.2 / 90.0 | 6.30 / 7.78 |
+| Shadow Detail Off / High | 110.2 / 94.6 | 6.70 / 7.43 |
+| Terrain Detail Low | 98.8 | 6.78 |
+| Vegetation High | 91.0 | 7.47 |
+| Rear Mirror Off / Low | 110.0 / 105.3 | 7.35 / 7.22 |
+| Visibility Range Far | 109.5 | 6.92 |
+
+The card was not the whole story: at 1920x1080 the main view takes half the time and the frame rate rises 15 %. The frame is the
+main thread (its nodes and the renderer's commands, about 8.75 ms here) and the card (the main view plus the mirror's second scene,
+1.2 ms a frame at High) overlapping, the slower one mostly: their power mean with power 4 fits the defaults, the two resolutions,
+Render Scale 67 %, Anti-Aliasing Off and Ambient Occlusion to within 2 %. From there each row's change is split between the two: what
+the card's measured time says, the rest of the frame change to the main thread (the shadows off take 1.4 ms of draw calls off it,
+the 600 m range 1.6, the mirror off 0.8; Vegetation High adds 1.0). The main view's pixel part (6.0 ms at 3440x1440, 1.3 fixed) goes
+with the pixels drawn, the window's times the Render Scale squared, Anti-Aliasing's and Ambient Occlusion's with it; FSR's upscale
+under 100 % is 0.9 ms at 3440x1440's window. Not measured: Anti-Aliasing 8x (4x's step doubled), Visibility Range 2.3 km (halfway to
+Far), Vegetation Off (round 5's ladder: 0.18 ms of the card, about 1 ms of the main thread).
+
+A machine is fitted from its last mission: the card's speed against this one's is the main view's measured time over the model's at
+those settings, the main thread's is what the frame leaves over the card's part; a frame the card held whole scales by the model's
+ratio. Then the frame at other settings is the two parts' power mean again.
+
+### Estimate against measure
+
+Rows the model was not fitted on, several settings changed at once, each estimated from a record of the defaults made by the same
+build just before (T05; the T01 rows the harness's median frames, the car driving off in the chase view, estimated from T01's
+defaults; one run each, about ±3 %):
+
+| Settings (from the defaults) | measured fps | estimated | error |
+|---|---|---|---|
+| 1920x1080, Shadow High, Anti-Aliasing 4x, Vegetation High | 98.2 | 97.1 | -1 % |
+| Ambient Occlusion On, Render Scale 85 %, Terrain Low | 90.0 | 91.5 | +2 % |
+| 2560x1080, Render Scale 75 %, Vegetation Off, Ambient Occlusion On | 125.9 | 128.0 | +2 % |
+| Shadow Off, Anti-Aliasing Off, Rear Mirror Low, Visibility Range Far (the build before) | 141.2 | 155.2 | +10 % |
+| the playtester's: Shadow High, Anti-Aliasing 4x (the build before) | 90.2 | 91.7 | +2 % |
+| T01: Ambient Occlusion On, Render Scale 85 %, Terrain Low | 91.4 | 86.7 | -5 % |
+| T01: 1920x1080, Shadow High, Anti-Aliasing 4x, Vegetation High | 143.6 | 130.5 | -9 % |
+
+What it cannot know is the machine's other work: the first two rows measured while another lane's processes held the processor
+(its load 68-72 % against 33-42 %, the main thread's nodes 4.6-5.2 ms against 3.1) came in at 66.6 and 60.7 fps, 34 and 47 % under the
+estimate from a quiet record. The estimate is the settings' frame rate on the machine as it was when the record was made.
+
+### The measure behind the paused menu
+
+The Esc menu pauses a single-player game: the nodes stop, the sim stops, the card draws the same frozen view. Measured in T05 at the
+defaults (the menu opened 40-odd seconds in, Graphic Detail open for 15 s, the line's readings logged; quiet machine): the five
+seconds of play before the menu 80-102 fps, the line 105-110 fps over 15 s (readings twice a second, within 3 % of each other). With
+the rear mirror left frozen as a paused node leaves it the line read 120-125: the mirror's second scene is a sixth of the card's frame,
+so under the paused menu it is kept drawing on its every-second-frame cadence (the picture is the same) and the figure stays near
+play's. What is left is the main thread's own work, which the pause removes: the line reads about 10-15 % over play here, more where
+the main thread holds the frame (a busy fight, a slower processor, another program on it: on a loaded machine the line read 150 with
+play at 90). Hence the tooltip says the game is paused and gives the rate of the seconds before the menu opened. The pad itself is one
+picture and a few lines of text; the 2D pass with the HUD is 0.02 ms of the card's frame.
