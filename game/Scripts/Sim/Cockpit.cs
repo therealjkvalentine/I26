@@ -143,12 +143,23 @@ public partial class Cockpit : Node
     /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
     public bool LookingBack => Active && (_state >= 6 || _pose == FreeLook.Pose.Rear);
 
-    private (string? Member, ImageTexture?[] Tex) Frames(string pattern, int n)
+    /// <summary>
+    /// A strip's frames as textures. A pack's frames (wider than the original's) get their mipmaps and are read filtered in the modern
+    /// look (MaterialLibrary.OverrideTexture filtered, object.gdshaderinc albedo_frames): point-sampled from the full-size level, the
+    /// 8x wheel's rim and the arms' edges stepped and shimmered as they turned. The originals stay point-sampled, as the rest of the art.
+    /// </summary>
+    private (string? Member, ImageTexture?[] Tex, bool Filtered) Frames(string pattern, int n)
     {
+        var member = Resolver.FindByStem(string.Format(pattern, 1, 1));
+        int baseW = member is not null && Textures.GetOriginalRgba(member) is { } o ? o.Width : int.MaxValue;
+        var imgs = new Image?[n + 1];
+        for (int i = 1; i <= n; i++) imgs[i] = Image(string.Format(pattern, LightVariant, i));
+        // I76_FRAMES_POINT=1: a pack's frames point-sampled as before (a capture's before | after)
+        bool filtered = System.Environment.GetEnvironmentVariable("I76_FRAMES_POINT") != "1" && imgs.Any(im => im is not null && im.GetWidth() > baseW);
+        if (filtered) System.Threading.Tasks.Parallel.ForEach(imgs.OfType<Image>(), im => im.GenerateMipmaps());
         var tex = new ImageTexture?[n + 1];
-        for (int i = 1; i <= n; i++)
-            if (Image(string.Format(pattern, LightVariant, i)) is { } img) tex[i] = ImageTexture.CreateFromImage(img);
-        return (Resolver.FindByStem(string.Format(pattern, 1, 1)), tex);
+        for (int i = 1; i <= n; i++) if (imgs[i] is { } img) tex[i] = ImageTexture.CreateFromImage(img);
+        return (member, tex, filtered);
     }
 
     private Image? Image(string stem) =>
@@ -804,7 +815,7 @@ public partial class Cockpit : Node
 
     // ---- steering wheel and arms ----
 
-    private (string? Member, ImageTexture?[] Tex) _wheelFrames, _armR, _armL;
+    private (string? Member, ImageTexture?[] Tex, bool Filtered) _wheelFrames, _armR, _armL;
     private float _wheel = 9;
     private int _wheelShown = -1;
 
@@ -818,10 +829,10 @@ public partial class Cockpit : Node
         if (frame == _wheelShown || _wheelFrames.Member is null || _wheelFrames.Tex[frame] is not { } t) return;
         _wheelShown = frame;
         // each frame has its own key: the smooth outline of the first frame would cut the others
-        Materials.OverrideTexture(_wheelFrames.Member, t, ownKey: true);
+        Materials.OverrideTexture(_wheelFrames.Member, t, ownKey: true, filtered: _wheelFrames.Filtered);
     }
 
-    private (string? Member, ImageTexture?[] Tex) _shotR, _shotL;
+    private (string? Member, ImageTexture?[] Tex, bool Filtered) _shotR, _shotL;
     private readonly bool[] _wantArm = new bool[2];
     private readonly (int Axis, int Frame)[] _armShown = [(-1, -1), (-1, -1)];
 
@@ -840,7 +851,7 @@ public partial class Cockpit : Node
             var tex = a.Axis == 1 ? shot.Tex[frame] : raise.Tex[frame];
             if (tex is null) continue;
             _armShown[i] = (a.Axis, frame);
-            Materials.OverrideTexture(raise.Member, tex, ownKey: true);
+            Materials.OverrideTexture(raise.Member, tex, ownKey: true, filtered: a.Axis == 1 ? shot.Filtered : raise.Filtered);
         }
     }
 

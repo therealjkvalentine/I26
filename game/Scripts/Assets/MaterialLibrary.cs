@@ -685,8 +685,10 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// the texture's key is not the original's (the weapons panel's housings are stamped where the bare art is keyed; the wheel's and
     /// arms' frames each have their own), so its
     /// materials cut by its texels, not by the smooth outline traced from the original's key (SmoothKey), which would cut the stamps away.
+    /// <paramref name="filtered"/>: the wheel's and arms' frames say whether the modern look reads them filtered with mipmaps (a pack's,
+    /// finer than the screen) or point-sampled from the full-size level as the rest of the cockpit's art (the originals).
     /// </summary>
-    public void OverrideTexture(string member, Texture2D texture, bool ownKey = false)
+    public void OverrideTexture(string member, Texture2D texture, bool ownKey = false, bool? filtered = null)
     {
         if (ownKey) _ownKey.Add(member);
         foreach (var sm in MadeForShaded(member))
@@ -694,6 +696,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
             sm.SetShaderParameter("albedo_tex", texture);
             sm.SetShaderParameter("albedo_cockpit", texture);
             if (ownKey) sm.SetShaderParameter("smooth_key", false);
+            if (filtered is { } f) { sm.SetShaderParameter("albedo_frames", texture); sm.SetShaderParameter("frames_filtered", f); }
         }
     }
 
