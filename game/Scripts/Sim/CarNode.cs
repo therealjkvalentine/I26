@@ -249,27 +249,30 @@ public partial class CarNode : Node3D
     {
         if (_cockpit is null || CockpitCamera is null) return;
         var eye = InCar(CockpitCamera);
-        var toEye = eye.AffineInverse();
-        Pin(_cockpit);
-        void Pin(Node n)
+        Pin(_cockpit, on, eye, eye.AffineInverse());
+    }
+
+    // the parameters' names made once (a string parameter is a new StringName at every call: four a part a frame)
+    private static readonly StringName PitX = "pit_x", PitY = "pit_y", PitZ = "pit_z", PitEye = "pit_eye";
+
+    private void Pin(Node n, bool on, Transform3D eye, Transform3D toEye)
+    {
+        if (n is GeometryInstance3D g)
         {
-            if (n is GeometryInstance3D g)
+            if (!on) g.SetInstanceShaderParameter(PitEye, Vector4.Zero);
+            else
             {
-                if (!on) g.SetInstanceShaderParameter("pit_eye", Vector4.Zero);
-                else
-                {
-                    var m = InCar(g);
-                    var r = toEye * m;
-                    var (b, o) = (r.Basis, r.Origin);
-                    g.SetInstanceShaderParameter("pit_x", new Vector4(b.X.X, b.Y.X, b.Z.X, o.X));
-                    g.SetInstanceShaderParameter("pit_y", new Vector4(b.X.Y, b.Y.Y, b.Z.Y, o.Y));
-                    g.SetInstanceShaderParameter("pit_z", new Vector4(b.X.Z, b.Y.Z, b.Z.Z, o.Z));
-                    var at = m.AffineInverse() * eye.Origin;
-                    g.SetInstanceShaderParameter("pit_eye", new Vector4(at.X, at.Y, at.Z, 1));
-                }
+                var m = InCar(g);
+                var r = toEye * m;
+                var (b, o) = (r.Basis, r.Origin);
+                g.SetInstanceShaderParameter(PitX, new Vector4(b.X.X, b.Y.X, b.Z.X, o.X));
+                g.SetInstanceShaderParameter(PitY, new Vector4(b.X.Y, b.Y.Y, b.Z.Y, o.Y));
+                g.SetInstanceShaderParameter(PitZ, new Vector4(b.X.Z, b.Y.Z, b.Z.Z, o.Z));
+                var at = m.AffineInverse() * eye.Origin;
+                g.SetInstanceShaderParameter(PitEye, new Vector4(at.X, at.Y, at.Z, 1));
             }
-            foreach (var c in n.GetChildren()) Pin(c);
         }
+        for (int i = 0, k = n.GetChildCount(); i < k; i++) Pin(n.GetChild(i), on, eye, toEye);
     }
 
     /// <summary>A node's transform in the car's frame: its own and its parents' up to the car.</summary>

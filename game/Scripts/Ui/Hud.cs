@@ -45,6 +45,7 @@ public partial class Hud : CanvasLayer
     /// <summary>True while the debug text shows (Ctrl+F3): the port's CB line rides with it.</summary>
     public Func<bool>? Debug { get; set; }
     private Label _banner = null!, _cb = null!;
+    private object? _cbLine;
     /// <summary>A file from the game's data by name (the binoculars' masks), or null.</summary>
     public Func<string, byte[]?>? ReadFile { get; set; }
     private ColorRect? _binoMask;
@@ -88,7 +89,9 @@ public partial class Hud : CanvasLayer
         if (Script is null) { _banner.Visible = _cb.Visible = false; return; }
         var h = Script.Host;
         _cb.Visible = h.Cb.Current is not null && Debug?.Invoke() != false;
-        if (h.Cb.Current is { } l) _cb.Text = $"CB: {(l.Speaker as I76.Sim.Missions.Entity)?.Name ?? "radio"} ({l.Name})";
+        // the label's text made when the line changes, not every frame
+        if (h.Cb.Current is { } l && !ReferenceEquals(l, _cbLine)) _cb.Text = $"CB: {(l.Speaker as I76.Sim.Missions.Entity)?.Name ?? "radio"} ({l.Name})";
+        _cbLine = h.Cb.Current;
         _banner.Visible = false;      // the end of a mission is the outro or the end menu (EscapeMenu), as the original's start-up does
     }
 

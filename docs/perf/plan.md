@@ -325,3 +325,90 @@ it goes back up, never past the player's own Render Scale. A frame the main thre
 `target_fps=120` and the playtester's settings: median 116.8 fps (113-123 by section), the main view's GPU 6.9 ms against 8.9;
 its 1 % low (24.7, with the harness's once-a-second print) is the main thread's spikes, which no scale reaches. The cost to the eye is FSR's: the ground's fine detail
 and thin edges a little soft at 75-85 %. It is not the default because a changing sharpness is a deviation a player should ask for.
+
+## The dash: every element updates only itself (round 6)
+
+The cockpit's panels are textures drawn on the CPU (CockpitPanels: the original's panel image, sprites from the sheets stamped
+at the layout's anchors) and uploaded to the GPU. Until this round an upload was always the whole texture, and with the dash's
+8x art (the default on a 6 GB card) a panel is 2048x1024, 8 MB: every roll of an ammunition counter sent the weapons panel's
+8 MB (the firing fix of round 5 had made the roll redraw only the digits on the CPU, but the upload stayed whole), a gear change
+2 MB, every half degree of heading the compass's 1 MB, every needle step of the 2D speedometer and tachometer 4 MB (also under
+the 3D dash, which never shows them), and every step of the radar's sweep 8 MB.
+
+### The audit (888af090, the dash at 8x)
+
+| Element (texture, size at 8x) | What redraws it | Redrawn on the CPU | Uploaded | How often | Managed allocations per update |
+|---|---|---|---|---|---|
+| Radar (zrad frames, 2048x1024) | the sweep's 0.2 s step; with a target held, any blip, the range plate or the LED changing | the whole picture (frame copied, stamps, blips) | whole, 8 MB | 5/s sweeping; with a target held up to every frame | none (the round-5 fix), but each of the 62 frames' texels read once into a kept 8 MB array |
+| Weapons panel and ammo counters (zbk_, 2048x1024) | a counter digit rolling (each shot, at the tick rate); a plate lit or a diode band changing | the digits' windows and the separator bar; the whole panel for a plate or diode | whole, 8 MB, plus an 8 MB copy into an Image | up to 24/s while firing; a weapon switch | `Take(5).ToList()` every frame; a key string per digit drawn |
+| Specials panel (zbks_, 2048x1024) | a charge counter rolling, a plate or diode | the whole panel | whole, 8 MB | a special used | an array of the three specials every frame |
+| Damage panel, Mr Damage (zsy_, 2048x1024) | any part changing band | the whole panel (put back, 15 stamps) | whole, 8 MB | a few times a fight | a list and two arrays every frame, changed or not |
+| Gear strip PRND21 (zgear101, 2048x256) | a gear change | the whole strip | whole, 2 MB | a shift | none |
+| Compass (zcm_, 512x512) | heading moving half a degree | the window | whole, 1 MB | every frame while turning | none |
+| 2D speedometer and tachometer (zspeedo6, ztach6, 1024x1024) | the needle's frame changing | the whole dial | whole, 4 MB each | several a second while the speed or the revs change, also under the 3D dash, where they are not drawn | a sprite name string per step |
+| Equipment lights (the plates' lit state, the diodes, the radar LED) | part of the weapons, specials and radar pictures above | as their panel | as their panel | as their panel | as their panel |
+| 3D needles, steering wheel, arms | the needle's angle; the wheel's or an arm's frame | nothing (a transform; a texture swap) | nothing | every frame; each frame change | each swap searched the whole material cache by name |
+| Messages (the CB line) | a line on the air | a Label | Godot's text | the text set every frame while a line plays | a string every frame |
+| PinCockpit (the dash held in the eye's frame) | every frame in the car | nothing | instance parameters | every frame | four parameter names made a part a frame, a child array a node |
+
+### What changed
+
+- `LiveTexture`: on a RenderingDevice (Forward+, Mobile) each panel and the radar is a texture of its own that the GPU can copy
+  into. A changed rectangle goes up through a small staging texture (a power of two up to 256 texels a side, then a multiple of
+  256; kept) and is copied into place by the GPU, byte for byte; a picture that changed over three quarters of its staging size goes up
+  whole. The Compatibility renderer has no texture copy: there it uploads whole, as before.
+- `CockpitPanels`: every draw notes the rectangle it wrote; Commit uploads those. `Region` redraws one element: the original image
+  put back in its rectangle and the panel's draws replayed clipped to it (every draw is a stamp or copy that writes its own texels
+  from its own source, so that gives the whole redraw's texels there). A redraw that keeps most of a panel (a plate lit, a diode,
+  the specials) is drawn whole on the CPU as before and uploads what differs from the panel the GPU holds.
+- Per element: a counter roll uploads its digit's window (64 x 80 texels, 32 KB through the staging texture) and the separator
+  bar is restamped only inside that window; a gear change the arrow's old and new places; a damage band the part's plate; the
+  compass its window; a needle step its square; the radar the rectangles where the new frame differs from the last (in bands of
+  32 rows, so the sweep line is a staircase, not its bounding box), the blips' old and new squares and the range plate or LED if they
+  changed. The 2D speedometer and tachometer are drawn only where they are shown (the 2D dash, the external instruments).
+- Allocations: the damage, weapons and specials panels read the car into kept arrays; the counter cells are found by a value key;
+  the material swaps of the wheel and arms use a per-texture list; PinCockpit's parameter names are made once; the CB label is set
+  when the line changes.
+
+### The ammunition counters: text or blit
+
+A Label (or Label3D) in the counters' font cannot be what the 3D dash shows: the counters are part of the weapons panel's texture
+on the cockpit model, so text would need a SubViewport rendered into the panel (a whole render target a frame, far dearer than the
+blit) or quads over the model, which miss the drum's shading, the housing's fade at the window's edges (sampled from the panel
+round each window) and the panel's own filtering, so they could not match today's pixels. Glyph quads from a digit atlas sampled
+by the panel's shader would differ at the window's edges, where filtering reads the atlas's neighbouring cell instead of the
+housing. The blit is already a glyph atlas: each drum cell (figure, style, edge, housing colour, scale) is made once and kept; a
+roll copies one 64 x 80 cell on the CPU (20 KB) and sends that cell's 32 KB staging texture to the GPU, a few microseconds. Kept
+as a blit; the drum and its feathered edge are unchanged.
+
+### Before and after
+
+The perf bench (`tools/frame-cost/bench.py`, `FRAME_COST_PROFILE=owner`, 3440x1440, the dash's and the cars' textures at 8x,
+`I76_DASH_STATS=1`), one run of each build. On T05 (`--scene t05`) and T01 (`--scene fire`) the firing used real ammunition (Play Options' Armor and Chas.
+Rein. on, Unlim. Ammo off), so the counters roll through every fight. The cockpit's cost is its update on the main thread (the
+panels drawn and committed, the radar, the head and wheel); upload is the texture bytes sent to the GPU; the garbage collections
+are the whole process's.
+
+| | cockpit ms a frame (mean) | worst frame ms | texture upload MB/s | uploads/s | cockpit managed KB/s | GC gen0 / gen1 / gen2 a minute |
+|---|---|---|---|---|---|---|
+| T05 whole route, before | 1.55 | 23.8 | 159 | 28.5 | 3405 | 135 / 93 / 0.4 |
+| T05 whole route, after | 0.36 | 13.5 | 25 | 141 | 3224 | 130 / 93 / 0.7 |
+| T05 mountain pass (fights), before | 1.85 | 22.0 | 188 | 34.5 | 3976 | 101 / 86 / 1.0 |
+| T05 mountain pass, after | 0.38 | 13.5 | 28 | 167 | 3393 | 101 / 87 / 0 |
+| T01, the car standing, the guns held firing (51 s, until the car was destroyed), before | 0.76 | 13.4 | 122 | 17.1 | 4859 | 80 / 33 / 0 |
+| T01 firing, after | 0.26 | 12.2 | 27 | 170 | 4190 | 93 / 9 / 0 |
+
+The frame (bench result lines, T05 whole route): median frame 11.6 -> 10.3 ms, its 95th percentile 24.0 -> 16.5 ms, the main
+thread's nodes 4.35 -> 3.42 ms; one run each, with the machine's other load different between them (70 % and 52 % CPU), so the frame
+numbers carry that noise; the cockpit's own numbers do not depend on it. Uploads are more but smaller (a digit's window each).
+Most of what is left of the upload is the radar's sweep: each step's frame differs from the last over the sweep's wedge and its fading trail. The cockpit's managed
+allocations left are the radar's frames read once each (8 MB a frame at 8x, the first time each is shown: most of the KB/s above
+in a run's first minute) and about 2 KB a frame in the head's input lookups (Controls.Down); the garbage collections are the
+process's, the cockpit not the cause of them.
+
+Pixel identity: every panel's CPU picture hashed at every change, before against after, the same tick for tick in both looks
+(T05 from the start to 108 s with the gun firing: 1046 changes of the weapons panel, 787 of the compass, 27 of the damage panel); every upload read back from the GPU against the CPU's
+picture (`I76_DASH_STATS=verify`): 2905 uploads, no texel different; screenshots at 3440x1440 (16 frames at 29 s, 9 at 108 s, the
+same ticks; for the comparison both builds had the housings' and the effects' random numbers seeded and `I76_VEG_PLANTS=0`, a local change
+not in the branch): the 1997 look zero differing pixels, the modern look zero on the dash, the differences all in the world's hit
+effects and smoke at the target (which two runs of the before build also differ in, 66 pixels at 29 s).

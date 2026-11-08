@@ -57,7 +57,7 @@ public partial class Cockpit : Node
     public Func<bool>? Instruments { get; set; }
 
     /// <summary>The radar's current frame, as the 2D panel shows it (rows bottom-up), or null before the first sweep.</summary>
-    public Texture2D? RadarTexture => _radarTex;
+    public Texture2D? RadarTexture => _radarLive?.Texture;
     /// <summary>The radar's current picture's texels per original pixel (a pack's upscaled frames; the weapon camera's is 1).</summary>
     public int RadarScale { get; private set; } = 1;
     /// <summary>The original radar frame's width, which the scope's and the layout's pixels count in.</summary>
@@ -96,6 +96,8 @@ public partial class Cockpit : Node
             _radarB[i] = Image("zradb" + i.ToString("000"));
         }
         _radarMember = Resolver.FindByStem("zradf000");
+        _radarBytes.Clear();
+        _radarDiffs.Clear();
         if (_radarMember is not null && Textures.GetOriginalRgba(_radarMember) is { } r0) _radarBaseW = r0.Width;
         // the weapon camera is composed at the original's 256x128 under the original's mask
         _radarMask = Resolver.FindByStem("zradmask") is { } rm && Textures.GetOriginalRgba(rm) is { } mo ? Godot.Image.CreateFromData(mo.Width, mo.Height, false, Godot.Image.Format.Rgba8, mo.Rgba) : null;
@@ -134,6 +136,8 @@ public partial class Cockpit : Node
     {
         Controls.LookingBack = null;
         Textures.Swapped -= ArtSwapped;
+        Panels.Free();
+        _radarLive?.Free();
     }
 
     /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
@@ -157,6 +161,7 @@ public partial class Cockpit : Node
 
     public override void _Process(double delta)
     {
+        DashStats.Begin();
         float dt = (float)System.Math.Clamp(delta, 0.001, 0.2);
         _steps = SimClock.Take(ref _lastTick);   // the ammo digits and the binocular glance step once a frame of the original: a sim tick
         bool pit = Active;
@@ -188,7 +193,9 @@ public partial class Cockpit : Node
             DamagePanel();
             SpecialsPanel();
             Radar();
-            Gauges();
+            // the 2D speedometer and tachometer are drawn by the 2D dash and the external instruments, never over the 3D dash
+            // (the ghost cockpit's three panels are not they) or in the binoculars: drawn when they show, from where they were
+            if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
         }
         WeaponsPanel();
         if (pit)
@@ -202,6 +209,7 @@ public partial class Cockpit : Node
         if (pit || _pinned) Node3D.PinCockpit(pit);
         _pinned = pit;
         Panels.Commit();
+        DashStats.End();
     }
 
     // ---- binoculars ----
@@ -263,7 +271,7 @@ public partial class Cockpit : Node
     /// <summary>Redraw everything the next update (the weapons panel, updated in every view, keeps its rows and housings).</summary>
     private void ResetPanels()
     {
-        _gear = -1; _compass = float.NaN; _parts.Clear(); _specRows = null; _speedFrame = _tachFrame = -1;
+        _gear = -1; _compass = float.NaN; System.Array.Fill(_parts, -1); _specRows = null; _speedFrame = _tachFrame = -1;
     }
 
     // ---- head ----
@@ -495,10 +503,23 @@ public partial class Cockpit : Node
         int g = Car.DriveState;
         if (g == _gear || g < 0 || g >= GearAnchors.Length) return;
         if (_gear >= 0) Sound("vshif1a.wav");
+        int was = _gear;
         _gear = g;
-        Panels.Clear("zgear101.map");
+        if (was < 0) { Panels.Clear("zgear101.map"); GearDraw(); return; }
+        // the arrow moves: where it was and where it goes drawn again, the rest of the strip left as it is
+        foreach (var at in new[] { GearAnchors[was], GearAnchors[g] })
+        {
+            if (Panels.Footprint("arrow", at) is not { } r) continue;
+            Panels.Region("zgear101.map", r);
+            GearDraw();
+            Panels.EndClip("zgear101.map");
+        }
+    }
+
+    private void GearDraw()
+    {
         Panels.StampAt("prndback", "prnd");
-        Panels.StampAt("arrow", GearAnchors[g]);
+        Panels.StampAt("arrow", GearAnchors[_gear]);
     }
 
     // ---- compass ----
@@ -547,7 +568,19 @@ public partial class Cockpit : Node
 
     // ---- damage panel ----
 
-    private readonly Dictionary<string, int> _parts = [];
+    /// <summary>The band each part is drawn in (DamageParts' order), -1 before it is first drawn.</summary>
+    private readonly int[] _parts = [.. Enumerable.Repeat(-1, DamageParts.Length)];
+    private readonly int[] _partPct = new int[DamageParts.Length];
+    private readonly int[] _partWas = new int[DamageParts.Length];
+
+    /// <summary>The damage panel's parts in drawing order: anchor and sprite (the tyres share one).</summary>
+    private static readonly (string Anchor, string Sprite)[] DamageParts =
+    [
+        ("engine", "engine"), ("suspen", "suspen"), ("brakes", "brakes"),
+        ("rrtire", "tire"), ("rltire", "tire"), ("frtire", "tire"), ("fltire", "tire"),
+        ("farm", "farm"), ("fchas", "fchas"), ("larm", "larm"), ("lchas", "lchas"), ("rarm", "rarm"), ("rchas", "rchas"), ("barm", "barm"), ("bchas", "bchas"),
+    ];
+    private static readonly int[] TireSlots = [4, 5, 0, 1];
 
     /// <summary>The panel's five bands: 100 exactly is the unlit plate, then green, yellow, red, and dark at 0.</summary>
     private static int Band(int pct) => pct == 100 ? 0 : pct >= 67 ? 1 : pct >= 34 ? 2 : pct >= 1 ? 3 : pct == 0 ? 4 : -1;
@@ -559,42 +592,50 @@ public partial class Cockpit : Node
     {
         if (Car.Health is not { } h) return;
         static int Pct(int cur, int max) => max <= 0 ? 0 : (int)(cur * (100f / max) + 0.5f);
-        var items = new List<(string Anchor, string Sprite, int Pct)>
-        {
-            ("engine", "engine", h.Engine is { } e ? Pct(e.Hp, e.Max) : 100),
-            ("suspen", "suspen", h.Suspension is { } s ? Pct(s.Hp, s.Max) : 100),
-            ("brakes", "brakes", h.Brake is { } b ? Pct(b.Hp, b.Max) : 100),
-        };
-        foreach (var (anchor, slot) in new[] { ("rrtire", 4), ("rltire", 5), ("frtire", 0), ("fltire", 1) })
-            items.Add((anchor, "tire", h.Slots[slot] is { } w ? Pct(w.Hp, w.Max) : 100));
-        string[] arm = ["farm", "larm", "rarm", "barm"], chas = ["fchas", "lchas", "rchas", "bchas"];
+        var pct = _partPct;
+        pct[0] = h.Engine is { } e ? Pct(e.Hp, e.Max) : 100;
+        pct[1] = h.Suspension is { } s ? Pct(s.Hp, s.Max) : 100;
+        pct[2] = h.Brake is { } b ? Pct(b.Hp, b.Max) : 100;
+        for (int i = 0; i < 4; i++) pct[3 + i] = h.Slots[TireSlots[i]] is { } w ? Pct(w.Hp, w.Max) : 100;
         for (int z = 0; z < 4; z++)
         {
             // a helicopter's hits take its one pool (the helicopter's damage), never the zones, so the original's plates stay unlit
             // however hurt it is; ours show the pool on every armour and chassis plate (docs/deviations.md, #38)
-            if (Car.Heli is { } heli)
-            {
-                int pool = Pct(heli.Hp, heli.MaxHp);
-                items.Add((arm[z], arm[z], pool));
-                items.Add((chas[z], chas[z], pool));
-                continue;
-            }
-            items.Add((arm[z], arm[z], Pct(h.Armour[z], h.ArmourMax[z])));
-            items.Add((chas[z], chas[z], Pct(h.Chassis[z], h.ChassisMax[z])));
+            if (Car.Heli is { } heli) pct[7 + 2 * z] = pct[8 + 2 * z] = Pct(heli.Hp, heli.MaxHp);
+            else { pct[7 + 2 * z] = Pct(h.Armour[z], h.ArmourMax[z]); pct[8 + 2 * z] = Pct(h.Chassis[z], h.ChassisMax[z]); }
         }
-        bool changed = false;
-        foreach (var it in items)
+        bool changed = false, fresh = true;
+        for (int i = 0; i < DamageParts.Length; i++)
         {
-            int band = PanelBand ?? Band(it.Pct);
-            if (band < 0 || _parts.TryGetValue(it.Anchor, out int was) && was == band) continue;
-            if (_parts.ContainsKey(it.Anchor) && band == 4) Sound("cwstat.wav");
-            _parts[it.Anchor] = band;
+            _partWas[i] = _parts[i];
+            if (_parts[i] >= 0) fresh = false;
+            int band = PanelBand ?? Band(pct[i]);
+            if (band < 0 || _parts[i] == band) continue;
+            if (_parts[i] >= 0 && band == 4) Sound("cwstat.wav");
+            _parts[i] = band;
             changed = true;
         }
         if (!changed) return;
-        Panels.Clear("zsy_.map");
-        foreach (var it in items)
-            if (_parts.TryGetValue(it.Anchor, out int band)) Panels.StampAt(it.Sprite + PartSuffix[band], it.Anchor);
+        if (fresh) { Panels.Clear("zsy_.map"); DamageDraw(); return; }
+        // each part that changed band: its plate's place drawn again (the old plate's and the new one's), every part stamped
+        // there in order, the rest of the panel left as it is
+        for (int i = 0; i < DamageParts.Length; i++)
+        {
+            if (_partWas[i] == _parts[i]) continue;
+            var (anchor, sprite) = DamageParts[i];
+            var r = Panels.Footprint(sprite + PartSuffix[_parts[i]], anchor);
+            if (_partWas[i] >= 0 && Panels.Footprint(sprite + PartSuffix[_partWas[i]], anchor) is { } old) r = r is { } n ? n.Merge(old) : old;
+            if (r is null) continue;
+            Panels.Region("zsy_.map", r.Value);
+            DamageDraw();
+            Panels.EndClip("zsy_.map");
+        }
+    }
+
+    private void DamageDraw()
+    {
+        for (int i = 0; i < DamageParts.Length; i++)
+            if (_parts[i] >= 0) Panels.StampAt(DamageParts[i].Sprite + PartSuffix[_parts[i]], DamageParts[i].Anchor);
     }
 
     // ---- weapons panel ----
@@ -617,19 +658,21 @@ public partial class Cockpit : Node
     private void WeaponsPanel()
     {
         if (Car.Armory is not { } a) return;
-        var ws = a.Weapons.Take(5).ToList();
+        var ws = a.Weapons;
+        int count = System.Math.Min(5, ws.Count);
         bool dirty = false, force = false;
-        if (_rows is null || _rows.Length != ws.Count)
+        if (_rows is null || _rows.Length != count)
         {
             // one of five housings per row, chosen at random once
-            _rows = ws.Select(_ => new Row { Housing = 1 + _rng.Next(5) }).ToArray();
+            _rows = new Row[count];
+            for (int i = 0; i < count; i++) _rows[i] = new Row { Housing = 1 + _rng.Next(5) };
             int lastFront = -1;
-            for (int i = 0; i < ws.Count; i++) if (ws[i].MountKind is 1 or 4) lastFront = i;
+            for (int i = 0; i < count; i++) if (ws[i].MountKind is 1 or 4) lastFront = i;
             _separator = lastFront + 1;
             dirty = force = true;
         }
         int counters = 0;   // the counter digits that rolled, four bits a row
-        for (int i = 0; i < ws.Count; i++)
+        for (int i = 0; i < count; i++)
         {
             var w = ws[i]; var row = _rows[i];
             bool on = i == a.Selected || a.Group.Contains(i);
@@ -640,17 +683,25 @@ public partial class Cockpit : Node
         if (!dirty && !_repaintWeapons)
         {
             // only counters rolled (every shot of a gun): those digits' windows are drawn again over the panel as it stands, then
-            // the separator bar that is stamped over them, which gives the same texels as the whole panel drawn again
+            // the separator bar that is stamped over them, held to each window (elsewhere it is on the panel already), which gives
+            // the same texels as the whole panel drawn again; only the windows go up
             if (counters == 0) return;
-            for (int i = 0; i < ws.Count; i++)
+            for (int i = 0; i < count; i++)
                 for (int p = 0; p < 4; p++)
-                    if ((counters >> (4 * i + p) & 1) != 0) CounterWindow(_rows[i], i + 1, p);
-            if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
+                {
+                    if ((counters >> (4 * i + p) & 1) == 0) continue;
+                    CounterWindow(_rows[i], i + 1, p);
+                    if (_separator < 0 || _separator >= 5 || CounterRect(i + 1, p) is not { } r) continue;
+                    Panels.ClipTo("zbk_.map", r);
+                    Panels.StampAt("sepbar", SeparatorAnchors[_separator]);
+                    Panels.EndClip("zbk_.map");
+                }
             return;
         }
         _repaintWeapons = false;
-        Panels.Clear("zbk_.map");
-        for (int i = 0; i < ws.Count; i++)
+        // a plate lit or a diode changed: the panel drawn again, and only what differs from it goes up
+        Panels.Clear("zbk_.map", diff: true);
+        for (int i = 0; i < count; i++)
         {
             var w = ws[i]; var row = _rows[i]; int n = i + 1;
             Panels.StampAt("housing" + row.Housing, $"bracket_{n}");
@@ -662,10 +713,14 @@ public partial class Cockpit : Node
             System.Array.Clear(row.Housings);
             for (int p = 0; p < 4; p++) CounterWindow(row, n, p);
         }
-        if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", $"separator_{_separator + 1}");
+        if (_separator >= 0 && _separator < 5) Panels.StampAt("sepbar", SeparatorAnchors[_separator]);
     }
 
+    private static readonly string[] SeparatorAnchors = ["separator_1", "separator_2", "separator_3", "separator_4", "separator_5"];
     private static readonly string[,] CounterAnchors = new string[5, 4];
+
+    /// <summary>A counter digit's window on the weapons panel (row n, place p), in the layout's pixels, or null.</summary>
+    private Rect2I? CounterRect(int n, int p) => Panels.Footprint("top", CounterAnchors[n - 1, p] ??= $"num_{Places[p]}_{n}", DigitNudge);
 
     /// <summary>One counter digit's window on the weapons panel (row n, place p): the strip's cell, or the modern look's drum.</summary>
     private void CounterWindow(Row row, int n, int p)
@@ -702,14 +757,17 @@ public partial class Cockpit : Node
     private static readonly string[] SpecialNames = ["sp_empty", "radar", "nitrous", "blower", "xaust", "structo", "curb", "mud", "heated", "cuphldr", "dash_mary", "tire_covr"];
     private Row[]? _specRows;
 
+    private readonly I76.Sim.Damage.SpecialPart?[] _specs = new I76.Sim.Damage.SpecialPart?[3];
+
     private void SpecialsPanel()
     {
         if (Car.Health is not { } h) return;
-        var specs = Enumerable.Range(0, 3).Select(i => h.Slots[17 + i] as I76.Sim.Damage.SpecialPart).ToArray();
+        var specs = _specs;
+        for (int i = 0; i < 3; i++) specs[i] = h.Slots[17 + i] as I76.Sim.Damage.SpecialPart;
         bool dirty = false, force = false;
         // one of the weapons panel's five housings per row, chosen at random on the first draw: the olive plate
         // the dymo label and the counters sit on
-        if (_specRows is null) { _specRows = specs.Select(_ => new Row { Housing = 1 + _rng.Next(5) }).ToArray(); dirty = force = true; }
+        if (_specRows is null) { _specRows = [new Row { Housing = 1 + _rng.Next(5) }, new Row { Housing = 1 + _rng.Next(5) }, new Row { Housing = 1 + _rng.Next(5) }]; dirty = force = true; }
         for (int i = 0; i < 3; i++)
         {
             var s = specs[i]; var row = _specRows[i];
@@ -720,7 +778,8 @@ public partial class Cockpit : Node
         }
         if (!dirty && !_repaintSpecials) return;
         _repaintSpecials = false;
-        Panels.Clear("zbks_.map");
+        // drawn again whole (a counter's drum reads the housing round it as the panel stands); only what differs goes up
+        Panels.Clear("zbks_.map", diff: true);
         for (int i = 0; i < 3; i++)
         {
             var s = specs[i]; var row = _specRows[i]; int n = i + 1;
@@ -809,7 +868,7 @@ public partial class Cockpit : Node
         // the radar object (class 0x22) is built switched on at range 1 with the cockpit's radar part, special or not
         bool has = RadarOn;
         Image? frame;
-        if (WeaponCamera() is { } cam) { UploadRadar(cam); _radarDrawn.Forget(); return; }
+        if (WeaponCamera() is { } cam) { UploadRadar(cam.GetData(), cam.GetWidth(), cam.GetHeight(), null); _radarDrawn.Forget(); return; }
         var locked = has ? Combat.RadarTarget.GetValueOrDefault(Car) : null;
         if (!has) frame = _radarF[30];
         else if (locked is not null)
@@ -873,16 +932,69 @@ public partial class Cockpit : Node
             _ledAny = any;
             led = any ? "radled_1" : "radled_2";
         }
+        // what changed since the screen was last drawn, as rectangles (raw rows): where the frame differs from the last one, the
+        // blips' squares before and after, the range plate and the LED if they changed. The whole screen when nothing is there
+        // to build on (the first frame, a size change, the weapon camera's picture shown since)
+        var was = _radarDrawn.Frame as Image;
+        bool whole = redraw || was is null || _radarWork?.Length != bytes.Length || _radarLive is null || _radarLive.Width != w || _radarLive.Height != h;
+        _radarRects.Clear();
+        if (!whole)
+        {
+            if (!ReferenceEquals(was, frame)) foreach (var r in RadarDiff(was!, frame, w, h)) CockpitPanels.AddRect(_radarRects, r);
+            if (!_radarDrawn.SameOps(_radarOps))
+            {
+                foreach (var (r, _) in _radarDrawn.Ops) CockpitPanels.AddRect(_radarRects, r);
+                foreach (var (r, _) in _radarOps) CockpitPanels.AddRect(_radarRects, r);
+            }
+            if (range != _radarDrawn.Range) { RadarStampRect(_radarDrawn.Range, "range_pos", k, h); RadarStampRect(range, "range_pos", k, h); }
+            if (led != _radarDrawn.Led) { RadarStampRect(_radarDrawn.Led, "led_pos", k, h); RadarStampRect(led, "led_pos", k, h); }
+        }
         if (!_radarDrawn.Update(frame, range, led, _radarOps, redraw)) return;
-        // drawn into one buffer and one image kept from frame to frame: the frame's texels, the range plate, the blips, the LED
-        if (_radarWork?.Length != bytes.Length) _radarWork = new byte[bytes.Length];
-        System.Buffer.BlockCopy(bytes, 0, _radarWork, 0, bytes.Length);
-        if (range is not null) Panels.StampInto(_radarWork, w, h, k, "zrad.map", range, "range_pos");
-        foreach (var (rect, colour) in _radarOps) FillRgba(_radarWork, w, h, rect, Rgba8(colour));
-        if (led is not null) Panels.StampInto(_radarWork, w, h, k, "zrad.map", led, "led_pos");
-        if (_radarImg is null || _radarImg.GetWidth() != w || _radarImg.GetHeight() != h) _radarImg = Godot.Image.CreateFromData(w, h, false, Godot.Image.Format.Rgba8, _radarWork);
-        else _radarImg.SetData(w, h, false, Godot.Image.Format.Rgba8, _radarWork);
-        UploadRadar(_radarImg);
+        // drawn into one buffer kept from frame to frame: the frame's texels, the range plate, the blips, the LED; in the changed
+        // rectangles only, each drawn as the whole screen would be there
+        if (whole)
+        {
+            if (_radarWork?.Length != bytes.Length) _radarWork = new byte[bytes.Length];
+            RadarCompose(bytes, w, h, k, range, led, new Rect2I(0, 0, w, h));
+            UploadRadar(_radarWork, w, h, null);
+            return;
+        }
+        if (_radarRects.Count == 0) return;
+        foreach (var r in _radarRects) RadarCompose(bytes, w, h, k, range, led, r.Intersection(new Rect2I(0, 0, w, h)));
+        UploadRadar(_radarWork!, w, h, _radarRects);
+    }
+
+    private readonly List<Rect2I> _radarRects = [];
+    /// <summary>Where two radar frames differ (raw rows), found once a pair.</summary>
+    private readonly Dictionary<(Image, Image), List<Rect2I>> _radarDiffs = [];
+
+    private List<Rect2I> RadarDiff(Image a, Image b, int w, int h)
+    {
+        if (_radarDiffs.TryGetValue((a, b), out var d)) return d;
+        d = [];
+        var ab = RadarBytes(a);
+        if (ab.Length == w * h * 4) CockpitPanels.Differ(ab, RadarBytes(b), w, h, d);
+        else d.Add(new Rect2I(0, 0, w, h));
+        return _radarDiffs[(a, b)] = d;
+    }
+
+    /// <summary>Adds a stamped sprite's rectangle on the radar screen (raw rows) to the changed ones.</summary>
+    private void RadarStampRect(string? sprite, string anchor, int k, int h)
+    {
+        if (sprite is not null && Panels.StampRect(k, "zrad.map", sprite, anchor) is { } r)
+            CockpitPanels.AddRect(_radarRects, new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y));
+    }
+
+    /// <summary>The radar screen drawn in one rectangle <paramref name="r"/> (raw rows) of the kept buffer: the frame, the range plate, the blips, the LED.</summary>
+    private void RadarCompose(byte[] frame, int w, int h, int k, string? range, string? led, Rect2I r)
+    {
+        if (r.Size.X <= 0 || r.Size.Y <= 0) return;
+        for (int y = r.Position.Y; y < r.End.Y; y++) System.Buffer.BlockCopy(frame, (y * w + r.Position.X) * 4, _radarWork!, (y * w + r.Position.X) * 4, r.Size.X * 4);
+        // the stamps count rows from the top of the picture
+        var top = new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y);
+        if (range is not null) Panels.StampInto(_radarWork!, w, h, k, "zrad.map", range, "range_pos", top);
+        foreach (var (rect, colour) in _radarOps) FillRgba(_radarWork!, w, h, rect.Intersection(r), Rgba8(colour));
+        if (led is not null) Panels.StampInto(_radarWork!, w, h, k, "zrad.map", led, "led_pos", top);
     }
 
     /// <summary>
@@ -899,7 +1011,6 @@ public partial class Cockpit : Node
     private Vehicle? _radarPicked;
     private readonly List<(Rect2I Rect, Color Colour)> _radarOps = [];
     private readonly ScopePicture _radarDrawn = new();
-    private Image? _radarImg;
     private byte[]? _radarWork;
     private readonly Dictionary<Image, byte[]> _radarBytes = [];
     private readonly Dictionary<Color, uint> _rgba8 = [];
@@ -942,11 +1053,25 @@ public partial class Cockpit : Node
         private string? _range, _led;
         private readonly List<(Rect2I, Color)> _ops = [];
 
+        /// <summary>What was last drawn (the frame null when nothing was, or something else was shown since).</summary>
+        public object? Frame => _frame;
+        public string? Range => _range;
+        public string? Led => _led;
+        public IReadOnlyList<(Rect2I, Color)> Ops => _ops;
+
         public bool Update(object frame, string? range, string? led, IReadOnlyList<(Rect2I, Color)> ops, bool force)
         {
-            if (!force && ReferenceEquals(frame, _frame) && range == _range && led == _led && ops.SequenceEqual(_ops)) return false;
+            if (!force && ReferenceEquals(frame, _frame) && range == _range && led == _led && SameOps(ops)) return false;
             (_frame, _range, _led) = (frame, range, led);
             _ops.Clear(); _ops.AddRange(ops);
+            return true;
+        }
+
+        /// <summary>Whether <paramref name="ops"/> are the blips last drawn (compared without an enumerator made).</summary>
+        public bool SameOps(IReadOnlyList<(Rect2I, Color)> ops)
+        {
+            if (ops.Count != _ops.Count) return false;
+            for (int i = 0; i < ops.Count; i++) if (ops[i] != _ops[i]) return false;
             return true;
         }
 
@@ -971,15 +1096,17 @@ public partial class Cockpit : Node
         return (_softBlips[ci] = c).Value;
     }
 
-    private void UploadRadar(Image img)
+    /// <summary>The radar screen's picture (w x h RGBA8, raw rows) to its texture: whole, or only <paramref name="rects"/> (raw rows) of it.</summary>
+    private void UploadRadar(byte[] px, int w, int h, List<Rect2I>? rects)
     {
-        // a frame of another size (the art made again at another scale) is a new picture in the same texture
-        RadarScale = System.Math.Max(1, img.GetWidth() / _radarBaseW);
-        if (_radarTex is null) _radarTex = ImageTexture.CreateFromImage(img);
-        else if (_radarTex.GetSize() != img.GetSize()) _radarTex.SetImage(img);
-        else _radarTex.Update(img);
-        if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() >= 15 && !_radarDumped) { img.SavePng(System.IO.Path.Combine(dir, "radar.png")); _radarDumped = true; }
-        if (!_radarBound) { Materials.OverrideTexture(_radarMember!, _radarTex); _radarBound = true; }
+        // a frame of another size (the art made again at another scale, the weapon camera's) is a new picture in the same texture
+        RadarScale = System.Math.Max(1, w / _radarBaseW);
+        if (_radarLive is null) _radarLive = new LiveTexture(px, w, h);
+        else if (rects is null || _radarLive.Width != w || _radarLive.Height != h) _radarLive.Set(px, w, h);
+        else _radarLive.Update(px, rects);
+        if (DashStats.Verify) DashStats.Check("radar", px, _radarLive.ReadBack());
+        if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() >= 15 && !_radarDumped) { Godot.Image.CreateFromData(w, h, false, Godot.Image.Format.Rgba8, px).SavePng(System.IO.Path.Combine(dir, "radar.png")); _radarDumped = true; }
+        if (!_radarBound) { Materials.OverrideTexture(_radarMember!, _radarLive.Texture); _radarBound = true; }
     }
 
     // ---- Toggle Weapon Cam: the turret's view in the radar screen ----
@@ -1055,7 +1182,7 @@ public partial class Cockpit : Node
         return img;
     }
 
-    private ImageTexture? _radarTex;
+    private LiveTexture? _radarLive;
     private bool _radarBound, _radarDumped;
 
     // ---- gauge needles ----
@@ -1086,6 +1213,7 @@ public partial class Cockpit : Node
     // ---- the 2D gauges ----
 
     private int _speedFrame = -1, _tachFrame = -1;
+    private static readonly string[] NeedleSprites = [.. Enumerable.Range(0, 40).Select(i => $"needle_{i}")];
 
     /// <summary>
     /// The external instruments' speedometer and tachometer: the dial
@@ -1106,9 +1234,19 @@ public partial class Cockpit : Node
         void Needle(string dial, string anchor, int frame, ref int shown)
         {
             if (frame == shown || Panels.Layout.FindIn(dial, anchor) is not { } a) return;
+            int was = shown;
             shown = frame;
+            // the needle's square drawn again (the old frame's and the new one's), the dial round it left as it is
+            if (was >= 0 && Panels.Texture(dial) is not null && Panels.FootprintIn(dial, NeedleSprites[frame], anchor) is { } r)
+            {
+                if (Panels.FootprintIn(dial, NeedleSprites[was], anchor) is { } o) r = r.Merge(o);
+                Panels.Region(dial, r);
+                Panels.Stamp(dial, NeedleSprites[frame], a.X, a.Y);
+                Panels.EndClip(dial);
+                return;
+            }
             Panels.Clear(dial);
-            Panels.Stamp(dial, $"needle_{frame}", a.X, a.Y);
+            Panels.Stamp(dial, NeedleSprites[frame], a.X, a.Y);
         }
     }
 
