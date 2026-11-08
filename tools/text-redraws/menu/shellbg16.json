@@ -600,92 +600,82 @@
   {
    "op": "text",
    "text": "CONTROLS",
-   "font": "Arimo",
-   "cap": 21,
+   "font": "Arial",
+   "cap": 21.26,
    "center": [
     329.5,
-    20.5
+    21.0
    ],
+   "width": 154.76,
    "colour": [
-    58,
-    48,
-    24
-   ],
-   "variation": {
-    "Weight": 700
-   }
+    82,
+    66,
+    41
+   ]
   },
   {
    "op": "text",
    "text": "CALIBRATE",
-   "font": "Arimo",
-   "cap": 9,
+   "font": "Arial",
+   "cap": 9.66,
    "center": [
-    79.5,
+    79.49,
     460.0
    ],
+   "width": 72.99,
    "colour": [
-    58,
-    48,
-    24
-   ],
-   "variation": {
-    "Weight": 700
-   }
+    82,
+    66,
+    41
+   ]
   },
   {
    "op": "text",
    "text": "RESTORE",
-   "font": "Arimo",
-   "cap": 9,
+   "font": "Arial",
+   "cap": 9.66,
    "center": [
-    239.5,
+    239.0,
     460.0
    ],
+   "width": 62.0,
    "colour": [
-    58,
-    48,
-    24
-   ],
-   "variation": {
-    "Weight": 700
-   }
+    82,
+    66,
+    41
+   ]
   },
   {
    "op": "text",
    "text": "DONE",
-   "font": "Arimo",
-   "cap": 9,
+   "font": "Arial",
+   "cap": 9.66,
    "center": [
     400.0,
     460.0
    ],
+   "width": 36.0,
    "colour": [
-    58,
-    48,
-    24
-   ],
-   "variation": {
-    "Weight": 700
-   }
+    82,
+    66,
+    41
+   ]
   },
   {
    "op": "text",
    "text": "CANCEL",
-   "font": "Arimo",
-   "cap": 9,
+   "font": "Arial",
+   "cap": 9.66,
    "center": [
     562.0,
     460.0
    ],
+   "width": 54.0,
    "colour": [
-    58,
-    48,
-    24
-   ],
-   "variation": {
-    "Weight": 700
-   }
+    82,
+    66,
+    41
+   ]
   }
  ]
 }

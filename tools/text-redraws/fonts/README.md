@@ -21,7 +21,8 @@ https://github.com/google/fonts (the font's folder; D-DIN Condensed Bold from Da
 | League Gothic (variable) | `LeagueGothic/` | The League Gothic Project Authors (The League of Moveable Type) | the damage panel's maker's plate (`zsy_`: MR.DAMAGE) |
 | Lobster | `Lobster/` | The Lobster Project Authors (Pablo Impallari), Reserved Font Name "Lobster" | (no longer used for 'rahna; kept for reference) |
 | Mr Dafoe | `MrDafoe/` | Alejandro Paul (Sudtipos) | the maker's signature on the damage panel's plate (`zsy_`: by Ramone) |
-| Arimo (variable, set to Bold) | `Arimo/` | The Arimo Project Authors (Steve Matteson) | Control Configuration's page in the HD menu art (`shellbg16`: the title, CONTROLS, and the buttons' words; the original's heavy grotesque) |
+| Arimo (variable, set to Bold) | `Arimo/` | The Arimo Project Authors (Steve Matteson) | (no longer used for Control Configuration's page, now Arial like the rest of the menu art; kept for reference) |
+| Arial Bold (**not shipped**: `"system": true`) | the system's fonts folder | Monotype | Control Configuration's page in the HD menu art (`shellbg16`: the title, CONTROLS, and the buttons' words), in the original's own face as every retyped menu page is; the tool takes the machine's `arialbd.ttf` (Windows' Fonts folder, the Microsoft core fonts elsewhere) and stops with a message if there is none |
 | Russo One | `RussoOne/` | Jovanny Lemonad, Reserved Font Name "Russo" | the damage display's labels (`zsye`), the DOVER and PALOMINO badges |
 
 `fonts.json` names each face's file, author, licence and source for the tool.

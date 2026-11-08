@@ -15,9 +15,21 @@ class FontsTests(unittest.TestCase):
     def test_every_font_loads_and_ships_its_licence(self):
         table = tr.font_table()
         for name, t in table.items():
+            if t.get("system"): continue                 # not shipped: the machine's own copy (test_system_font_...)
             self.assertTrue(os.path.exists(os.path.join(tr.FONTS, t["file"])), name)
             d=os.path.join(tr.FONTS, os.path.dirname(t["file"])); self.assertTrue(os.path.exists(os.path.join(d, "OFL.txt")) or os.path.exists(os.path.join(d, "LICENSE.txt")), name)
             self.assertTrue("OFL" in t["license"] or "Apache" in t["license"], name)
+            self.assertGreater(tr.cap_ratio(name), 0.4, name)
+
+    def test_system_font_is_not_shipped_and_resolves_where_installed(self):
+        table = tr.font_table()
+        for name, t in table.items():
+            if not t.get("system"): continue
+            self.assertFalse(os.path.exists(os.path.join(tr.FONTS, t["file"])), name)    # never a copy in the repo
+            self.assertIn("not shipped", t["license"], name)
+            p = tr.font_path(t)
+            if p is None: continue                       # not installed here: the tool says so when a spec needs it
+            self.assertTrue(os.path.isabs(p) and os.path.exists(p), name)
             self.assertGreater(tr.cap_ratio(name), 0.4, name)
 
 class SpecTests(unittest.TestCase):
@@ -46,6 +58,7 @@ class SpecTests(unittest.TestCase):
         near where the spec's text centres are."""
         for name, spec in self.specs():
             texts = [op for op in spec["ops"] if op["op"] == "text"]
+            if not texts: continue                       # an erase-only spec (zmiri101: the mirror's frame) letters nothing
             for op in texts:
                 if "quad" in op: op.setdefault("center", [sum(p[0] for p in op["quad"]) / 4, sum(p[1] for p in op["quad"]) / 4])
             w = int(max(max(op["center"][0] + op["cap"] * 4 for op in texts), max((op["rect"][2] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
