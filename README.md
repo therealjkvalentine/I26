@@ -75,7 +75,11 @@ of the paper through the ink; `--writing plain` or `ink` for the alternatives); 
 needs no GPU. The forms' ruled lines (the tables, frames, check boxes and underlines of the notepad pages) come out of the
 model with a pale, greyish band along them: `python3 tools/menu-rules.py SRC_DIR` (the records as `bg SRC_DIR` writes them)
 finds every rule in the original and makes the band round it the paper again and the rule the original's ink, the
-lettering untouched, in seconds on the CPU; the model's pages are kept in `tex-menu/.rules-prev/` (`--restore`).
+lettering untouched, in seconds on the CPU; the model's pages are kept in `tex-menu/.rules-prev/` (`--restore`). The title logo (the main menu's, and its small copy on the mission-select card) is flat art of four colours, which a
+model upscales with wobbling outlines and a ringing band: `python3 tools/flat-art.py SRC_DIR` draws it again as vector art
+from the original (each colour's edge read from the anti-aliasing to a fraction of a texel, traced with potrace, the TM mark
+set from Arial), no model, lossless; the model's pages are kept in `tex-menu/.flat-prev/` (`--restore`), and `--image FILE
+--colours ...` traces any other flat stamp.
 
 An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then offers
 8x) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
