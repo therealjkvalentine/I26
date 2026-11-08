@@ -412,3 +412,49 @@ picture (`I76_DASH_STATS=verify`): 2905 uploads, no texel different; screenshots
 same ticks; for the comparison both builds had the housings' and the effects' random numbers seeded and `I76_VEG_PLANTS=0`, a local change
 not in the branch): the 1997 look zero differing pixels, the modern look zero on the dash, the differences all in the world's hit
 effects and smoke at the target (which two runs of the before build also differ in, 66 pixels at 29 s).
+## Settings and the frame rate (round 6)
+
+Graphic Detail's last line (docs/playing.md, "Frame rate on Graphic Detail") measures the frame rate behind the Esc menu's pads and,
+on the main menu, estimates it from the last mission's (`game/Scripts/Ui/FrameRateEstimate.cs`). The estimate's model was measured
+here: the same card (GTX 1080 Ti at 180 W), a 4-core processor, T05's route for 88 s (the start, the first car's attack and the
+mountain pass: `bench.py --scene t05 --skip-ms 2000 --run-ms 88000`), the playtester's settings but for the graphics rows, each row
+changed alone from the defaults (Terrain High, Shadow Low, Anti-Aliasing 2x, Rear Mirror High, Vegetation Low, Visibility Range Max,
+Render Scale 100 %, Ambient Occlusion off), one run each, the game above normal priority (`FRAME_COST_PRIORITY=above`) and started
+only with no other lane's encoder running. The figure is the game's own record of the run (`frame-rate.cfg`: the median of its
+seconds past the first ten), which runs about 9 % under the harness's median frame (the slow seconds of a fight weigh more); the main
+view's time on the card is the engine's own measure of the root viewport.
+
+| Row changed (3440x1440 unless said) | fps | main view on the card, ms |
+|---|---|---|
+| the defaults | 97.7 | 7.26 |
+| 1920x1080 | 112.7 | 3.77 |
+| Render Scale 67 % | 106.9 | 4.82 |
+| Ambient Occlusion On | 76.3 | 11.19 |
+| Anti-Aliasing Off / 4x | 103.2 / 90.0 | 6.30 / 7.78 |
+| Shadow Detail Off / High | 110.2 / 94.6 | 6.70 / 7.43 |
+| Terrain Detail Low | 98.8 | 6.78 |
+| Vegetation High | 91.0 | 7.47 |
+| Rear Mirror Off / Low | 110.0 / 105.3 | 7.35 / 7.22 |
+| Visibility Range Far | 109.5 | 6.92 |
+
+The card was not the whole story: at 1920x1080 the main view takes half the time and the frame rate rises 15 %. The frame is the
+main thread (its nodes and the renderer's commands, about 8.75 ms here) and the card (the main view plus the mirror's second scene,
+1.2 ms a frame at High) overlapping, the slower one mostly: their power mean with power 4 fits the defaults, the two resolutions,
+Render Scale 67 %, Anti-Aliasing Off and Ambient Occlusion to within 2 %. From there each row's change is split between the two: what
+the card's measured time says, the rest of the frame change to the main thread (the shadows off take 1.4 ms of draw calls off it,
+the 600 m range 1.6, the mirror off 0.8; Vegetation High adds 1.0). The main view's pixel part (6.0 ms at 3440x1440, 1.3 fixed) goes
+with the pixels drawn, the window's times the Render Scale squared, Anti-Aliasing's and Ambient Occlusion's with it; FSR's upscale
+under 100 % is 0.9 ms at 3440x1440's window. Not measured: Anti-Aliasing 8x (4x's step doubled), Visibility Range 2.3 km (halfway to
+Far), Vegetation Off (round 5's ladder: 0.18 ms of the card, about 1 ms of the main thread).
+
+A machine is fitted from its last mission: the card's speed against this one's is the main view's measured time over the model's at
+those settings, the main thread's is what the frame leaves over the card's part; a frame the card held whole scales by the model's
+ratio. Then the frame at other settings is the two parts' power mean again.
+
+### Estimate against measure
+
+VALTABLE
+
+### The measure behind the paused menu
+
+PAUSETEXT

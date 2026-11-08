@@ -513,6 +513,7 @@ public partial class Main : Node3D
         {
             Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
             Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
+            PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
             SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
@@ -740,6 +741,7 @@ public partial class Main : Node3D
         I76.Sim.Views.ViewFov.Apply(s.FieldOfView);
         RenderScale.Apply(s);
         // [port] target_fps: the 3D scale lowered while the graphics card holds the frame rate under it (off by default)
+        _fpsRecorder?.Apply(s);
         if (s.TargetFps > 0) { if (_frameTarget is null) AddChild(_frameTarget = new FrameTargetNode()); _frameTarget.Reset(s); }
         else if (_frameTarget is not null) { _frameTarget.QueueFree(); _frameTarget = null; }
         _vegetation = s.Vegetation;
@@ -827,6 +829,7 @@ public partial class Main : Node3D
 
     private bool _extInstruments = true;
     private FrameTargetNode? _frameTarget;
+    private PlayFpsRecorder? _fpsRecorder;
     private int _skippedTick = int.MinValue;
 
     /// <summary>The Voice level last applied (8 until audio is set).</summary>
@@ -1767,6 +1770,12 @@ public partial class Main : Node3D
         // the plants about the first view, behind the loading card
         _loaded = true;
         FrameProfiler.MarkLoaded();
+        // the mission's frame rate for the main menu's estimate (Graphic Detail's last line)
+        if (!_editorMode && _fpsRecorder is null)
+        {
+            AddChild(_fpsRecorder = new PlayFpsRecorder { Mission = _opt.Mission ?? "", Look1997 = () => _mode1997 });
+            _fpsRecorder.Apply(I76.Game.Shell.ShellSettings.Load());
+        }
         MissionBuilder.Trace("first tick done");
         yield return null;
         _veg?.Prewarm();

@@ -94,6 +94,7 @@ public static class DevSettings
             s => I76.Game.FrameLimiter.Apply(s)),
         new("low_latency_audio", FalseTrue, s => s.LowLatencyAudio ? 1 : 0, (s, v) => s.LowLatencyAudio = v != 0, DevWhen.NextStart),
         new("target_fps", TargetNames, s => NearestTargetStep(s.TargetFps), (s, v) => s.TargetFps = TargetSteps[v], DevWhen.Live),
+        new("menu_fps", ["false", "true" + M], s => s.MenuFps ? 1 : 0, (s, v) => s.MenuFps = v != 0, DevWhen.NextScreen),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
         new("even_flash", FalseTrue, s => s.EvenFlash ? 1 : 0, (s, v) => s.EvenFlash = v != 0, DevWhen.Live),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,

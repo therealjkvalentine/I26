@@ -73,6 +73,19 @@ public static class GraphicsHelp
     /// <summary>The sheet's entry for the Advanced page.</summary>
     public const string AdvancedEntry = "Advanced: 1997 Mode and its palette, the texture packs, the modern look's extras, render scale and the start-up rows.";
 
+    /// <summary>The Esc menu's frame-rate line (FrameRateEstimate's LiveFps): paused in single player, the game running on in a network game.</summary>
+    public static string MeasuredFps(bool net, double? play = null) => (net
+        ? "Measured: the frames a second drawn now, over the last second, with these settings; in brackets the change since the menu opened. The game runs on under the menu."
+        : "Measured: the frames a second drawn now behind the paused game, with these settings; in brackets the change since the menu opened. Paused, the game's own work stops, so play runs slower.")
+        + (play is { } p && p > 0 ? $" In play just before the menu: {p:0} fps." : "");
+
+    /// <summary>The main menu's frame-rate line: estimated from the last mission measured (<paramref name="from"/>: its mission, size and figure), or how to get one.</summary>
+    public static string EstimatedFps(I76.Game.Ui.FpsRecord? from)
+    {
+        if (from is not { } r) return "Estimated frame rate: play a mission in the modern look and this line estimates your frame rate for the settings you pick here.";
+        return $"Estimated: your last mission ({r.Mission.ToUpperInvariant()}, {r.At.Width}x{r.At.Height}, {r.Fps:0} fps) worked out for these settings from what each costs on a test machine. A guide; the Esc menu's Graphic Detail measures it in a mission.";
+    }
+
     /// <summary>Reset on a page.</summary>
     public const string Reset = "Reset: this page's rows back to their defaults.";
 

@@ -572,9 +572,24 @@ public sealed class GraphicsScreen : OverlayScreen
             }
         }
         else Add(246, 438, "Back", Back, Small);
+        // the last line: the frame rate these settings would give, from the last mission's ([port] menu_fps; the modern look's only)
+        if (Shell.Settings.MenuFps)
+        {
+            var record = I76.Game.Ui.FpsRecord.Read(ProjectSettings.GlobalizePath(I76.Game.Ui.FpsRecord.File));
+            var fps = Add(200, LineY(GraphicsPages.Lines - 1), () => Shell.Settings.Look1997 ? "" : I76.Game.Ui.FpsLabels.Estimated(Estimate(record)), null);
+            Tip(fps, () => Shell.Settings.Look1997 ? null : GraphicsHelp.EstimatedFps(record), RowX0, RowX1, -2, LineH);
+        }
         Tip(Add(288, 438, "Reset", Reset, Small), () => GraphicsHelp.Reset);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
+    }
+
+    /// <summary>The frame rate the settings now would give in the window now, from <paramref name="record"/> (FrameCostModel); null without one.</summary>
+    private double? Estimate(I76.Game.Ui.FpsRecord? record)
+    {
+        var size = DisplayServer.WindowGetSize();
+        var now = I76.Game.Ui.FrameCostSettings.Of(Shell.Settings, size.X, size.Y);
+        return I76.Game.Ui.FrameCostModel.Estimate(record, now) is { } f ? Math.Min(f, I76.Game.Ui.FrameCostModel.Cap(Shell.Settings, DisplayServer.ScreenGetRefreshRate()) ?? f) : null;
     }
 
     /// <summary>A row of the graphics block: the byte's value word, a click the next.</summary>
