@@ -1196,6 +1196,10 @@ public partial class CarNode : Node3D
             // rolling forward the tyre's top goes toward the nose, Godot's -Z: a negative turn about +X
             float spin = look is { Rolls: false } ? 0f : (float)(Lerp(_prevRoll, _roll) / (w.Rest > 0.05f ? w.Rest : 0.33f));
             var basis = new Basis(Vector3.Right, -spin);
+            // the face's painted light stays where the engine's hubcap frames kept it: the shader reads it turned back by the
+            // picture's own turn (Basis(Right, -spin) is a turn by +spin in wheel space, UvTurn's sense in the texture)
+            if (look is { StillLight: { } still, Smooth: { } sm } && node is MeshInstance3D swi && swi.Mesh == sm)
+                swi.SetInstanceShaderParameter("wheel_turn", new Vector3(still.X, still.Y, Mathf.PosMod(still.Z * spin, Mathf.Tau)));
             if (front) basis = new Basis(Vector3.Up, -steerA) * basis;
             node.Transform = new Transform3D(basis, Coords.ToGodot(centre with { Y = centre.Y + travelA }));
         }

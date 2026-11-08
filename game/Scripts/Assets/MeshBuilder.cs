@@ -428,7 +428,10 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// surface whose face names a .tmt, its own material copy and every name's texture in the .tmt's order.
     /// </summary>
     /// <param name="Smooth">The modern look's round wheel in place of the original polygon (<see cref="Original"/>), where one fits.</param>
-    public sealed record WheelLook(bool Rolls, IReadOnlyList<(ShaderMaterial Material, Texture2D[] Frames)> Strips, ArrayMesh? Original = null, ArrayMesh? Smooth = null);
+    /// <param name="StillLight">The smooth wheel's face: its texture's centre (x, y) and the sense its picture turns with the wheel
+    /// (z, <see cref="SmoothWheel.UvTurn"/>), for the shader's wheel_turn (CarNode); null where the face is no wheel face.</param>
+    public sealed record WheelLook(bool Rolls, IReadOnlyList<(ShaderMaterial Material, Texture2D[] Frames)> Strips, ArrayMesh? Original = null, ArrayMesh? Smooth = null,
+        Vector3? StillLight = null);
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Mesh, WheelLook> WheelLooks = new();
 
@@ -473,8 +476,9 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
             if (Build(part, false, null, default, null, PaintOf(model)) is { } mesh)
             {
                 bool rolls = Wheels.RollsAboutHub(geo, w.Node);
-                var smooth = rolls ? SmoothWheelMesh(model, geo, w.Node) : null;
-                var wl = new WheelLook(rolls, rolls ? [] : Strips(mesh, part, geo, PaintOf(model)), mesh, smooth);
+                Vector3? still = null;
+                var smooth = rolls ? SmoothWheelMesh(model, geo, w.Node, out still) : null;
+                var wl = new WheelLook(rolls, rolls ? [] : Strips(mesh, part, geo, PaintOf(model)), mesh, smooth, still);
                 WheelLooks.AddOrUpdate(mesh, wl);
                 if (smooth is not null) WheelLooks.AddOrUpdate(smooth, wl);
                 return mesh;
@@ -511,15 +515,20 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// (<see cref="SmoothWheel"/>), in the face's own material and the tread's flat colour. Null where the texture
     /// is no tyre in a keyed square.
     /// </summary>
-    private ArrayMesh? SmoothWheelMesh(AssembledModel model, I76.Formats.Geo.GeoMesh geo, Affine node)
+    private ArrayMesh? SmoothWheelMesh(AssembledModel model, I76.Formats.Geo.GeoMesh geo, Affine node, out Vector3? stillLight)
     {
+        stillLight = null;
         var face = geo.Faces.FirstOrDefault(f => f.Texture.Length > 0 && f.Unk_0x20 != 0);
         if (face is null || resolver.ResolveFace(face.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps) is not { } member
             || resolver.Load(member) is not { } tex || SmoothWheel.Build(geo, node, tex, Wheels.SmoothSegments) is not { } w) return null;
         var paint = PaintOf(model);
         var family = I76.Formats.Imaging.PropMaterial.FamilyOf(model.Definition);
         var faceMat = materials.ForTexture(member, MaterialLibrary.ModeOf(face.Unk_0x20, face.Unk_0x21), paint, family, unlit: I76.Formats.Geo.FaceLight.Unlit(face));
-        if (paint is not null) faceMat = materials.ForWheelFace(faceMat);
+        if (paint is not null)
+        {
+            faceMat = materials.ForWheelFace(faceMat);
+            if (w.UvTurn != 0) stillLight = new Vector3(w.CentreUv.X, w.CentreUv.Y, w.UvTurn);
+        }
         var treadMat = materials.ForTread(w.R, w.G, w.B);
         var disc = new Surface(); var tread = new Surface();
         int n = w.Rim.Length;
