@@ -899,6 +899,26 @@ Deployed f2b22514 to the laptop, James's Mac and Michael's Mac (Andrew's Mac dro
 build, with pass 23's packs); 397 changed HD pack files synced (tex-menu, tex-world-4x, tex-world-8x where present).
 Laptop smoke T01 1280x960: loads and drives on the 4x pack.
 
+## Pass 24 (2026-11-06)
+
+One branch as manifest section AS: T05 performance (the radar redrawn only on change, smoke lighting keeps a light list,
+the drop-shadow scenery scan spread over frames, `[port] target_fps`; T05 3440x1440 median 62.5 -> 100.3 fps). Merged with no
+conflicts. Test status (`main` 888af090): Game 563/0 (23 skips), Sim 1203/0, Editor 230/0, Formats 926/0 (124 skips), Net 464/0.
+Deployed to the laptop, James's Mac and Michael's Mac. HD movies: all 29 rendered with the r5 pick (desktop plus James's Mac)
+and installed on the desktop only; the intro was checked in game.
+
+## Pass 25 (2026-11-08)
+
+Five branches as manifest sections AT-AX: Shadow Detail Low by default, with migration that keeps Low (AT); the Control
+Configuration art lettered in Arial Bold like the other menu pages (AU, 3 tex-menu files synced); rolling wheels keep their painted
+light still in the modern look (AV, a shader change, no pack files); each dash element uploads only its own changed rectangle (AW,
+T05 firing cockpit 1.55 -> 0.36 ms/frame); Graphic Detail shows the measured fps in a mission and an estimate on the main menu
+(AX). All merged with no conflicts.
+
+Test status (`main` 26f114b6), desktop, `--filter "Load!=Sensitive"`: Game 614/0 (23 skips), and after AW Sim 1203/0, Editor
+230/0, Formats 927/0 (124 skips), Net 464/0. Deployed 26f114b6 to the laptop, James's Mac and Michael's Mac; Andrew's Mac
+unreachable (still on pass 22's build). Laptop smoke T01 1280x960 after AW: exits 0.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
