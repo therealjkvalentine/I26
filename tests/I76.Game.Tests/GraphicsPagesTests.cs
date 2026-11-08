@@ -108,9 +108,9 @@ public class GraphicsPagesTests
         Assert.Null(s.DrawDistanceChoice);
         Assert.True(s.HdTextures);
         Assert.Equal(ShellSettings.HdDefault, (s.WorldTextures, s.CarTextures));
-        // Terrain Detail and Shadow Detail start High (round 5)
+        // Terrain Detail starts High (round 5), Shadow Detail Low (High in round 5)
         Assert.Equal(1, s.Graphics[0x2]);
-        Assert.Equal(2, s.Graphics[0x6]);
+        Assert.Equal(1, s.Graphics[0x6]);
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
         Assert.False(s.AmbientOcclusion);

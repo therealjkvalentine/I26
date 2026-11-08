@@ -210,11 +210,11 @@ default keeps the dash's rule, since the dash is most of the 510 MB: 8x on a car
 (HdTextures.PickCar: LargeVideoMemoryMb, LargeSharedMemoryMb), else the 4x; the world's 4x where the 4x fits (LowVideoMemoryMb). An old
 shell.cfg's `hd_dash_size` and `hd_car_size` (or single `hd_texture_size`) give the new key one size: the dash's 8x is kept, the cars' 8x alone only where the dash's rule allows it.
 
-**Defaults since round 5.** Terrain Detail and Shadow Detail start High (they started Low): Terrain Detail High is +1.03 ms a frame
-at 3440x1440 (+0.91 at 1920x1080, the table above), Shadow Detail High over Low, the reach from 600 to 1500 m and four splits, +0.18
-ms at 1920x1080 (shadow_dist_600 above; SSAO, which High used to carry, is Ambient Occlusion's own row and stays Off). So a first
-start costs about 1.2 ms a frame more on the 1080 Ti at 3440x1440, some 7 % of the full-detail frame; not measured again for this
-change. Hood Gloss starts at 5 (0, Matte, before), which costs nothing (a uniform in the paint's shader).
+**Defaults since round 5.** Terrain Detail starts High (it started Low): +1.03 ms a frame at 3440x1440 (+0.91 at 1920x1080, the
+table above). Shadow Detail started High in round 5 too and is Low again since round 6: High over Low, the reach from 600 to 1500 m
+and four splits, is +0.18 ms at 1920x1080 here (shadow_dist_600 above; SSAO, which High used to carry, is Ambient Occlusion's own
+row and stays Off), but 102 to 108 fps on T05's fights at 3440x1440 (docs/perf/plan.md's ladder, step 2), more than the survey's
+scene showed. A saved High stays High. Hood Gloss starts at 5 (0, Matte, before), which costs nothing (a uniform in the paint's shader).
 
 ## The other scenes and the follow-ups
 

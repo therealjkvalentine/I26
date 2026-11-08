@@ -136,7 +136,7 @@ def write_cfg(over, graphics_over):
         g[int(k, 0)] = int(v)
     port = dict(DEFAULTS if profile in ("defaults", "old_defaults") else OWNER if profile == "owner" else BASE)
     port.update({k: v for k, v in over.items() if not k.startswith("__")})
-    # version 14: an older file has Terrain Detail Low and Shadow Detail Low raised to High as it loads (ShellSettings.RaiseOldDetailDefaults)
+    # version 14: an older file has Terrain Detail Low raised to High as it loads (ShellSettings.RaiseOldDetailDefaults; Shadow Detail is kept)
     lines = ["[shell]", "", "version=14", "graphics=PackedByteArray(" + ", ".join(map(str, g)) + ")", "audio=PackedByteArray(8, 8, 8, 8)", f"play={over.get('__play', 0)}", "difficulty=0", "", "[port]", ""]
     lines += [f"{k}={v}" for k, v in port.items()]
     with open(CFG, "w", encoding="utf-8") as f:
