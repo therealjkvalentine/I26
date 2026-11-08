@@ -149,16 +149,18 @@ public static class FrameCostModel
     /// <summary>
     /// The frame rate at <paramref name="now"/> from one measured at <paramref name="measured"/>; null for the 1997 look or no measure. The
     /// card's speed against the model's is the main view's measured time over the model's there; the main thread's is what the frame
-    /// leaves. A frame the card held whole, or a measure without the card's time, scales by the model's ratio alone.
+    /// leaves. A measure without the card's time scales by the model's ratio alone.
     /// </summary>
     public static double? Estimate(FpsRecord? measured, FrameCostSettings now)
     {
         if (measured is not { } m || m.Fps <= 0 || now.Look1997 || m.At.Look1997) return null;
         double frame = 1000 / m.Fps;
-        double card = m.GpuMs > 0 ? m.GpuMs / MainMs(m.At) : 0, cardThen = card * CardMs(m.At);
-        if (card <= 0 || frame <= cardThen * 1.01) return m.Fps * Ms(m.At) / Ms(now);
-        double thread = Math.Pow(Math.Pow(frame, Power) - Math.Pow(cardThen, Power), 1 / Power) / ThreadMs(m.At);
-        return 1000 / Combine(thread * ThreadMs(now), card * CardMs(now));
+        if (m.GpuMs <= 0) return m.Fps * Ms(m.At) / Ms(now);
+        // the card's part of the measured frame, at most nearly all of it (a frame the card held whole leaves the main thread
+        // about half the frame: what the power mean gives for 98 %)
+        double cardThen = Math.Min(m.GpuMs / MainMs(m.At) * CardMs(m.At), frame * 0.98);
+        double threadThen = Math.Pow(Math.Pow(frame, Power) - Math.Pow(cardThen, Power), 1 / Power);
+        return 1000 / Combine(threadThen / ThreadMs(m.At) * ThreadMs(now), cardThen / CardMs(m.At) * CardMs(now));
     }
 }
 

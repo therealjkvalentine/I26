@@ -453,8 +453,32 @@ ratio. Then the frame at other settings is the two parts' power mean again.
 
 ### Estimate against measure
 
-VALTABLE
+Rows the model was not fitted on, several settings changed at once, each estimated from a record of the defaults made by the same
+build just before (T05; the T01 rows the harness's median frames, the car driving off in the chase view, estimated from T01's
+defaults; one run each, about ±3 %):
+
+| Settings (from the defaults) | measured fps | estimated | error |
+|---|---|---|---|
+| 1920x1080, Shadow High, Anti-Aliasing 4x, Vegetation High | 98.2 | 97.1 | -1 % |
+| Ambient Occlusion On, Render Scale 85 %, Terrain Low | 90.0 | 91.5 | +2 % |
+| 2560x1080, Render Scale 75 %, Vegetation Off, Ambient Occlusion On | 125.9 | 128.0 | +2 % |
+| Shadow Off, Anti-Aliasing Off, Rear Mirror Low, Visibility Range Far (the build before) | 141.2 | 155.2 | +10 % |
+| the playtester's: Shadow High, Anti-Aliasing 4x (the build before) | 90.2 | 91.7 | +2 % |
+| T01: Ambient Occlusion On, Render Scale 85 %, Terrain Low | 91.4 | 86.7 | -5 % |
+| T01: 1920x1080, Shadow High, Anti-Aliasing 4x, Vegetation High | 143.6 | 130.5 | -9 % |
+
+What it cannot know is the machine's other work: the first two rows measured while another lane's processes held the processor
+(its load 68-72 % against 33-42 %, the main thread's nodes 4.6-5.2 ms against 3.1) came in at 66.6 and 60.7 fps, 34 and 47 % under the
+estimate from a quiet record. The estimate is the settings' frame rate on the machine as it was when the record was made.
 
 ### The measure behind the paused menu
 
-PAUSETEXT
+The Esc menu pauses a single-player game: the nodes stop, the sim stops, the card draws the same frozen view. Measured in T05 at the
+defaults (the menu opened 40-odd seconds in, Graphic Detail open for 15 s, the line's readings logged; quiet machine): the five
+seconds of play before the menu 80-102 fps, the line 105-110 fps over 15 s (readings twice a second, within 3 % of each other). With
+the rear mirror left frozen as a paused node leaves it the line read 120-125: the mirror's second scene is a sixth of the card's frame,
+so under the paused menu it is kept drawing on its every-second-frame cadence (the picture is the same) and the figure stays near
+play's. What is left is the main thread's own work, which the pause removes: the line reads about 10-15 % over play here, more where
+the main thread holds the frame (a busy fight, a slower processor, another program on it: on a loaded machine the line read 150 with
+play at 90). Hence the tooltip says the game is paused and gives the rate of the seconds before the menu opened. The pad itself is one
+picture and a few lines of text; the 2D pass with the HUD is 0.02 ms of the card's frame.

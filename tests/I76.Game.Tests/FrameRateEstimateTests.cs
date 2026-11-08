@@ -162,11 +162,12 @@ public class FrameRateEstimateTests
         Assert.Equal(80, FrameCostModel.Estimate(cpu, Defaults)!.Value, 6);
         // a dearer one that makes the card the slower part does lower it
         Assert.InRange(FrameCostModel.Estimate(cpu, Defaults with { Ao = true })!.Value, 60, 75);
-        // with the card holding the frame whole, the estimate goes by the model's ratio alone
+        // with the card holding the frame whole, the main thread is taken as about half of it: a smaller window gains nearly by the pixels
         var gpu = new FpsRecord(80, Defaults, "t05", GpuMs: 11.5);
         var ao = Defaults with { Ao = true };
-        Assert.Equal(80 * FrameCostModel.Ms(Defaults) / FrameCostModel.Ms(ao), FrameCostModel.Estimate(gpu, ao)!.Value, 6);
-        // and so without the card's time
+        Assert.True(FrameCostModel.Estimate(gpu, ao) < 70);
+        Assert.InRange(FrameCostModel.Estimate(gpu, Defaults with { Width = 1920, Height = 1080 })!.Value, 110, 160);
+        // without the card's time the estimate goes by the model's ratio alone
         var old = new FpsRecord(80, Defaults, "t05");
         Assert.Equal(80 * FrameCostModel.Ms(Defaults) / FrameCostModel.Ms(ao), FrameCostModel.Estimate(old, ao)!.Value, 6);
     }

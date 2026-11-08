@@ -5,7 +5,7 @@ namespace I76.Game.Boot;
 
 /// <summary>
 /// The mission's frame rate as it is played, kept with the settings it ran at (FpsRecord, user://frame-rate.cfg) for the main menu's
-/// estimate: the median of its seconds (PlayFps), written once a minute and when the mission ends, in the modern look only and not while
+/// estimate: the median of its seconds (PlayFps), written every 10 s of play (a quit does not reach the node's exit) and when the mission ends, in the modern look only and not while
 /// [port] target_fps moves the Render Scale. A change of the settings or the window starts the count again. Paused, it does not run.
 /// </summary>
 public partial class PlayFpsRecorder : Node
@@ -50,7 +50,7 @@ public partial class PlayFpsRecorder : Node
         if (size.X != _at.Width || size.Y != _at.Height) { Save(); _at = _at with { Width = size.X, Height = size.Y }; _play = new PlayFps(); return; }
         _play.Add(dt, Cap(), RenderingServer.ViewportGetMeasuredRenderTimeGpu(GetViewport().GetViewportRid()));
         _sinceSave += dt;
-        if (_sinceSave >= 60) { _sinceSave = 0; Save(); }
+        if (_sinceSave >= 10) { _sinceSave = 0; Save(); }
     }
 
     public override void _ExitTree() => Save();
