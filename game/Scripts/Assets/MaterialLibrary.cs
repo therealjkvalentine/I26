@@ -689,14 +689,29 @@ public sealed class MaterialLibrary(TextureFactory textures)
     public void OverrideTexture(string member, Texture2D texture, bool ownKey = false)
     {
         if (ownKey) _ownKey.Add(member);
-        foreach (var (key, m) in _cache)
-            if (m is ShaderMaterial sm && key.StartsWith(member + "|", StringComparison.OrdinalIgnoreCase))
-            {
-                sm.SetShaderParameter("albedo_tex", texture);
-                sm.SetShaderParameter("albedo_cockpit", texture);
-                if (ownKey) sm.SetShaderParameter("smooth_key", false);
-            }
+        foreach (var sm in MadeForShaded(member))
+        {
+            sm.SetShaderParameter("albedo_tex", texture);
+            sm.SetShaderParameter("albedo_cockpit", texture);
+            if (ownKey) sm.SetShaderParameter("smooth_key", false);
+        }
     }
+
+    /// <summary>
+    /// A member's shader materials, found in the whole cache once and kept until the cache grows (it only grows): the steering
+    /// wheel's and the arms' frames are swapped in this way as they turn, and the cache holds every material of the mission.
+    /// </summary>
+    private List<ShaderMaterial> MadeForShaded(string member)
+    {
+        if (_byMember.TryGetValue(member, out var e) && e.Count == _cache.Count) return e.List;
+        var list = new List<ShaderMaterial>();
+        foreach (var (key, m) in _cache)
+            if (m is ShaderMaterial sm && key.StartsWith(member + "|", StringComparison.OrdinalIgnoreCase)) list.Add(sm);
+        _byMember[member] = (_cache.Count, list);
+        return list;
+    }
+
+    private readonly Dictionary<string, (int Count, List<ShaderMaterial> List)> _byMember = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A flat-coloured face's material; a prop's (not a car's) weighed as PropMaterial weighs a texel, in the modern look.</summary>
     public Material ForColour(byte r, byte g, byte b, bool prop = false,

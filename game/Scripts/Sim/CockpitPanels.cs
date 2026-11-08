@@ -14,20 +14,34 @@ namespace I76.Game.Sim;
 /// upscaled (TextureFactory.Scale) is worked at its own scale, the sheet's
 /// texels mapped nearest onto the panel's where the two differ. When what is served changes (the HD Textures row,
 /// a flip of the look) Reload makes every panel again at the new scale, in the same textures.
+/// Each draw notes the rectangle it wrote; Commit uploads only those (LiveTexture), the whole panel only when it was
+/// started again from its original image. A redraw of one element (Region) puts the original image back in the element's
+/// rectangle and replays the panel's draws clipped to it, which gives there the texels of the whole panel drawn again.
 /// </summary>
 public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.TextureResolver resolver, Assets.TextureFactory textures, Assets.MaterialLibrary materials)
 {
     private sealed class Target
     {
-        public required Image Base, Work;
-        public required ImageTexture Texture;
+        public required LiveTexture Live;
         /// <summary>The image's pixels as RGBA8 bytes, so a stamp is array copies, not one engine call per pixel.</summary>
         public required byte[] BaseBytes, WorkBytes;
         public int W, H;
         /// <summary>Its texels per original pixel.</summary>
         public int S;
-        public bool Dirty;
+        /// <summary>Started again from its original image since the last upload: it goes up whole (or by its difference, Diff).</summary>
+        public bool Whole;
+        /// <summary>Whole by a redraw that keeps most of the panel: the upload is the rows and columns that differ from <see cref="Before"/>.</summary>
+        public bool Diff;
+        public byte[]? Before;
+        /// <summary>Uploaded since it was made or reloaded: the GPU holds WorkBytes as they stood at the last Commit.</summary>
+        public bool Uploaded;
+        /// <summary>The rectangles written since the last upload, in texels, rows from the top of the picture.</summary>
+        public readonly List<Rect2I> Dirty = [];
+        /// <summary>The rectangle (texels, rows from the top) the draws are held to while an element is redrawn (Region, ClipTo).</summary>
+        public Rect2I? Clip;
     }
+
+    private readonly List<Rect2I> _upload = [];
 
     private readonly Dictionary<string, Target?> _targets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Image?> _sheets = new(StringComparer.OrdinalIgnoreCase);
@@ -35,6 +49,8 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     private readonly Dictionary<string, int> _scales = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The modern look's labels, made once per plate, text and scale: RGBA8 at the target's scale, stored bottom-up.</summary>
     private readonly Dictionary<(string, string, int), byte[]> _labels = new();
+    /// <summary>The modern look's counter drum cells, per strip, cell row, drum style, edge, housing colour and scale.</summary>
+    private readonly Dictionary<(string, int, DrumStyle, EdgeFade, (byte, byte, byte), int), byte[]> _cells = new();
 
     /// <summary>The panels the modern look's labels are drawn on (the weapons and the specials panels).</summary>
     private static readonly HashSet<string> Labelled = new(["zbk_.map", "zbks_.map"], StringComparer.OrdinalIgnoreCase);
@@ -56,7 +72,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     private static readonly HashSet<string> Unbound = new(["zspeedo6.map", "ztach6.map", "zspeedo3.map", "ztach3.map"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A dst texture's live copy, or null until it is first drawn (the original's empty descriptor). Rows bottom-up, as stored.</summary>
-    public Texture2D? Texture(string dst) => _targets.GetValueOrDefault(dst)?.Texture;
+    public Texture2D? Texture(string dst) => _targets.GetValueOrDefault(dst)?.Live.Texture;
 
     /// <summary>A live panel's texels per original pixel (1 until it is first drawn).</summary>
     public int Scale(string dst) => _targets.GetValueOrDefault(dst)?.S ?? 1;
@@ -79,14 +95,15 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// </summary>
     public void Reload()
     {
-        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear(); _labels.Clear();
+        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear(); _labels.Clear(); _cells.Clear();
         foreach (var (dst, t) in _targets)
         {
             if (t is null || LoadTarget(dst) is not { } img) continue;
             var bytes = img.GetData();
-            t.Base = img; t.Work = (Image)img.Duplicate(); t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone();
-            t.W = img.GetWidth(); t.H = img.GetHeight(); t.S = ScaleOf(dst); t.Dirty = false;
-            t.Texture.SetImage(t.Work);
+            t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone(); t.Before = null;
+            t.W = img.GetWidth(); t.H = img.GetHeight(); t.S = ScaleOf(dst); t.Whole = t.Diff = false; t.Dirty.Clear(); t.Clip = null;
+            t.Live.Set(t.WorkBytes, t.W, t.H);
+            t.Uploaded = true;
         }
     }
 
@@ -96,11 +113,11 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         t = null;
         if (Member(dst) is { } member && LoadTarget(dst) is { } img)
         {
-            var tex = ImageTexture.CreateFromImage(img);
-            // the weapons panel's housings hang where the bare art is keyed: its texels key it (the specials' sit on the dash's opaque art)
-            if (!Unbound.Contains(dst)) materials.OverrideTexture(member, tex, ownKey: dst.Equals("zbk_.map", StringComparison.OrdinalIgnoreCase));
             var bytes = img.GetData();
-            t = new Target { Base = img, Work = (Image)img.Duplicate(), Texture = tex, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = img.GetWidth(), H = img.GetHeight(), S = ScaleOf(dst) };
+            var live = new LiveTexture(bytes, img.GetWidth(), img.GetHeight());
+            // the weapons panel's housings hang where the bare art is keyed: its texels key it (the specials' sit on the dash's opaque art)
+            if (!Unbound.Contains(dst)) materials.OverrideTexture(member, live.Texture, ownKey: dst.Equals("zbk_.map", StringComparison.OrdinalIgnoreCase));
+            t = new Target { Live = live, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = img.GetWidth(), H = img.GetHeight(), S = ScaleOf(dst), Uploaded = true };
         }
         return _targets[dst] = t;
     }
@@ -130,18 +147,25 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// own scale, the sheet's texels mapped nearest onto the target's; <paramref name="keyed"/>: a texel under alpha
     /// 0.5 leaves the target alone. The .elt counts rows from the top of the picture as shown, the maps store them
     /// bottom-up (a DIB's order): row y of the layout is image row h − 1 − y, in the sheets and the panels alike.
+    /// <paramref name="clip"/>: only the target's texels inside it (texels, rows from the top of the picture) are written.
     /// </summary>
-    public static void Blit(byte[] src, int sw, int sh, int ss, int sx, int sy, int w, int h, byte[] dst, int dw, int dh, int ds, int dx, int dy, bool keyed)
+    public static void Blit(byte[] src, int sw, int sh, int ss, int sx, int sy, int w, int h, byte[] dst, int dw, int dh, int ds, int dx, int dy, bool keyed, Rect2I? clip = null)
     {
         // the target's columns this rectangle reaches: on the target and, through the nearest mapping, on the sheet
         int i0 = System.Math.Max(0, -dx * ds), i1 = System.Math.Min(w * ds, dw - dx * ds);
         while (i1 > i0 && sx * ss + (i1 - 1) * ss / ds >= sw) i1--;
-        if (i1 <= i0) return;
+        int j0 = 0, j1 = h * ds;
+        if (clip is { } c)
+        {
+            i0 = System.Math.Max(i0, c.Position.X - dx * ds); i1 = System.Math.Min(i1, c.End.X - dx * ds);
+            j0 = System.Math.Max(0, c.Position.Y - dy * ds); j1 = System.Math.Min(j1, c.End.Y - dy * ds);
+        }
+        if (i1 <= i0 || j1 <= j0) return;
         // a texel is four bytes: copied as one 32-bit word, row by row (a whole row at once where nothing is keyed or resampled)
         var s32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(src.AsSpan(0, src.Length & ~3));
         var d32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(dst.AsSpan(0, dst.Length & ~3));
         bool same = ss == ds;
-        for (int j = 0; j < h * ds; j++)
+        for (int j = j0; j < j1; j++)
         {
             int y = sy * ss + j * ss / ds, oy = dy * ds + j;
             if (y >= sh || oy < 0 || oy >= dh) continue;
@@ -156,21 +180,119 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         }
     }
 
-    /// <summary>Starts a redraw of a dst texture from its original image.</summary>
-    public void Clear(string dst)
+    /// <summary>
+    /// Starts a redraw of a dst texture from its original image. <paramref name="diff"/>: the redraw will change little of it
+    /// (a plate lit, a diode, a counter): the upload is what differs from the panel as the GPU holds it, found at Commit.
+    /// </summary>
+    public void Clear(string dst, bool diff = false)
     {
         if (TargetOf(dst) is not { } t) return;
+        if (!t.Whole)
+        {
+            t.Diff = diff && t.Uploaded && t.Dirty.Count == 0;
+            if (t.Diff)
+            {
+                // the panel as it stood at the last upload (what the GPU holds), kept to compare with
+                if (t.Before?.Length != t.WorkBytes.Length) t.Before = new byte[t.WorkBytes.Length];
+                System.Buffer.BlockCopy(t.WorkBytes, 0, t.Before, 0, t.WorkBytes.Length);
+            }
+        }
+        else if (!diff) t.Diff = false;
         System.Array.Copy(t.BaseBytes, t.WorkBytes, t.BaseBytes.Length);
-        t.Dirty = true;
+        t.Whole = true;
+        t.Dirty.Clear();
+        t.Clip = null;
     }
+
+    /// <summary>
+    /// Starts a redraw of one element: the original image put back in the layout's rectangle of a dst texture, and every draw
+    /// after it held to that rectangle until <see cref="EndClip"/>. The caller then replays the panel's draws in their order,
+    /// which leaves there what the whole panel drawn again would (each draw writes its own texels from its source alone).
+    /// </summary>
+    public void Region(string dst, Rect2I rect)
+    {
+        if (TargetOf(dst) is not { } t) return;
+        if (Texels(t, rect) is not { } r) { t.Clip = new Rect2I(); return; }
+        for (int j = r.Position.Y; j < r.End.Y; j++)
+        {
+            int o = ((t.H - 1 - j) * t.W + r.Position.X) * 4;
+            System.Buffer.BlockCopy(t.BaseBytes, o, t.WorkBytes, o, r.Size.X * 4);
+        }
+        Mark(t, r);
+        t.Clip = r;
+    }
+
+    /// <summary>Holds the draws on a dst texture to the layout's rectangle until <see cref="EndClip"/>, nothing put back.</summary>
+    public void ClipTo(string dst, Rect2I rect)
+    {
+        if (TargetOf(dst) is { } t) t.Clip = Texels(t, rect) ?? new Rect2I();
+    }
+
+    public void EndClip(string dst)
+    {
+        if (_targets.GetValueOrDefault(dst) is { } t) t.Clip = null;
+    }
+
+    /// <summary>A layout rectangle in a target's texels (rows from the top), cut to the texture; null if nothing is left.</summary>
+    private static Rect2I? Texels(Target t, Rect2I rect)
+    {
+        var r = new Rect2I(rect.Position * t.S, rect.Size * t.S).Intersection(new Rect2I(0, 0, t.W, t.H));
+        return r.Size.X > 0 && r.Size.Y > 0 ? r : null;
+    }
+
+    /// <summary>Notes the layout's rectangle (x, y, w, h) as written on a target (within its clip).</summary>
+    private static void Mark(Target t, int x, int y, int w, int h)
+    {
+        if (t.Whole || Texels(t, new Rect2I(x, y, w, h)) is not { } r) return;
+        if (t.Clip is { } c) { r = r.Intersection(c); if (r.Size.X <= 0 || r.Size.Y <= 0) return; }
+        Mark(t, r);
+    }
+
+    private static void Mark(Target t, Rect2I r)
+    {
+        if (!t.Whole) AddRect(t.Dirty, r);
+    }
+
+    /// <summary>
+    /// Adds a rectangle to a list of them, merged with any it overlaps (again until none do); past <paramref name="max"/>
+    /// rectangles the list becomes their bounding box.
+    /// </summary>
+    public static void AddRect(List<Rect2I> list, Rect2I r, int max = 32)
+    {
+        if (r.Size.X <= 0 || r.Size.Y <= 0) return;
+        for (int i = 0; i < list.Count; i++)
+        {
+            var o = list[i];
+            if (r.Position.X < o.End.X && o.Position.X < r.End.X && r.Position.Y < o.End.Y && o.Position.Y < r.End.Y)
+            {
+                r = r.Merge(o);
+                list.RemoveAt(i);
+                i = -1;
+            }
+        }
+        list.Add(r);
+        if (list.Count <= max) return;
+        var all = list[0];
+        foreach (var o in list) all = all.Merge(o);
+        list.Clear();
+        list.Add(all);
+    }
+
+    /// <summary>A sprite's rectangle in the layout's pixels with its top-left at an anchor (moved dx), or null if either is missing.</summary>
+    public Rect2I? Footprint(string sprite, string anchor, int dx = 0) =>
+        layout.Find(anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.Label.X + dx, a.Label.Y, s.Label.W, s.Label.H) : null;
+
+    /// <summary>The same at a dst block's anchor (an anchor name the layout repeats across its blocks, as the 2D gauges' are).</summary>
+    public Rect2I? FootprintIn(string dst, string sprite, string anchor) =>
+        layout.FindIn(dst, anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.X, a.Y, s.Label.W, s.Label.H) : null;
 
     /// <summary>Stamps the sprite <paramref name="sprite"/> (a src label) with its top-left at (x, y) of its dst texture.</summary>
     public void Stamp(string dst, string sprite, int x, int y)
     {
         if (TargetOf(dst) is not { } t || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return;
         var r = s.Label;
-        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, x, y, keyed: true);
-        t.Dirty = true;
+        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, x, y, keyed: true, t.Clip);
+        Mark(t, x, y, r.W, r.H);
     }
 
     /// <summary>Stamps a sprite at a dst anchor label (its texture is the anchor's).</summary>
@@ -199,8 +321,8 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
             DymoLabels.Paint(label, r.W, r.H, t.S, font, text, lit);
             _labels[key] = label;
         }
-        Blit(label, r.W * t.S, r.H * t.S, t.S, 0, 0, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, a.Label.X, a.Label.Y, keyed: true);
-        t.Dirty = true;
+        Blit(label, r.W * t.S, r.H * t.S, t.S, 0, 0, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, a.Label.X, a.Label.Y, keyed: true, t.Clip);
+        Mark(t, a.Label.X, a.Label.Y, r.W, r.H);
     }
 
     /// <summary>
@@ -227,7 +349,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         int sy = tp.Label.Y + (int)((bt.Label.Y - tp.Label.Y) * frac + 0.5f);
         if (sy == tp.Label.Y) sy = bt.Label.Y;
         Copy(tp.Texture, sheet, tp.Label.X, sy, tp.Label.W, tp.Label.H, t, a.Label.X + dx, a.Label.Y);
-        if (deepInk) DeepenInk(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, tp.Label.W, tp.Label.H);
+        if (deepInk) DeepenInk(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, tp.Label.W, tp.Label.H, t.Clip);
     }
 
     /// <summary>
@@ -245,16 +367,17 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         int w = tp.Label.W, h = tp.Label.H;
         // the housing round the window as the panel stands (its bracket stamped before the digits): what the window's edges fade toward
         housing ??= HousingAround(t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, w, h);
-        var key = (tp.Texture.ToLowerInvariant(), $"digit{sy}|{CounterDigits.Style}|{CounterDigits.Edge}|{housing}", t.S);
-        if (!_labels.TryGetValue(key, out var cell))
+        // made once per strip, cell, look, housing and scale; found again without a string made
+        var key = (tp.Texture, sy, CounterDigits.Style, CounterDigits.Edge, housing.Value, t.S);
+        if (!_cells.TryGetValue(key, out var cell))
         {
             cell = new byte[w * t.S * h * t.S * 4];
             Blit(SheetBytes(tp.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(tp.Texture), tp.Label.X, sy, w, h, cell, w * t.S, h * t.S, t.S, 0, 0, keyed: false);
             if (w == CounterDigits.CellW && h == CounterDigits.CellH) CounterDigits.Paint(cell, t.S, digit % 10, font, CounterDigits.Style, CounterDigits.Edge, housing.Value);
-            _labels[key] = cell;
+            _cells[key] = cell;
         }
-        Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false);
-        t.Dirty = true;
+        Blit(cell, w * t.S, h * t.S, t.S, 0, 0, w, h, t.WorkBytes, t.W, t.H, t.S, a.Label.X + dx, a.Label.Y, keyed: false, t.Clip);
+        Mark(t, a.Label.X + dx, a.Label.Y, w, h);
         return housing;
     }
 
@@ -291,12 +414,13 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// (brightness / knee) ^ <see cref="InkGamma"/>, so the strip's darkest ink, (41, 41, 20), comes to about a third of
     /// itself, its grey anti-aliasing steps less, and the white drum not at all; the hue is kept.
     /// </summary>
-    public static void DeepenInk(byte[] dst, int dw, int dh, int ds, int x, int y, int w, int h)
+    public static void DeepenInk(byte[] dst, int dw, int dh, int ds, int x, int y, int w, int h, Rect2I? clip = null)
     {
         for (int j = y * ds; j < (y + h) * ds; j++)
             for (int i = x * ds; i < (x + w) * ds; i++)
             {
                 if (i < 0 || j < 0 || i >= dw || j >= dh) continue;
+                if (clip is { } cr && !cr.HasPoint(new Vector2I(i, j))) continue;
                 int o = ((dh - 1 - j) * dw + i) * 4;
                 float l = 0.299f * dst[o] + 0.587f * dst[o + 1] + 0.114f * dst[o + 2];
                 if (l >= InkKnee) continue;
@@ -310,8 +434,8 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
 
     private void Copy(string sheetName, Image sheet, int sx, int sy, int w, int h, Target t, int dx, int dy)
     {
-        Blit(SheetBytes(sheetName)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(sheetName), sx, sy, w, h, t.WorkBytes, t.W, t.H, t.S, dx, dy, keyed: false);
-        t.Dirty = true;
+        Blit(SheetBytes(sheetName)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(sheetName), sx, sy, w, h, t.WorkBytes, t.W, t.H, t.S, dx, dy, keyed: false, t.Clip);
+        Mark(t, dx, dy, w, h);
     }
 
     private byte[]? SheetBytes(string src)
@@ -330,24 +454,100 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         if (StampInto(d, img.GetWidth(), img.GetHeight(), ds, dst, sprite, anchor)) img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, d);
     }
 
-    /// <summary>The same into an RGBA8 picture's bytes (w x h), with no image in between; false if the sprite or its anchor is missing.</summary>
-    public bool StampInto(byte[] d, int w, int h, int ds, string dst, string sprite, string anchor)
+    /// <summary>
+    /// The same into an RGBA8 picture's bytes (w x h), with no image in between, and only inside <paramref name="clip"/> (texels,
+    /// rows from the top) if one is given; false if the sprite or its anchor is missing.
+    /// </summary>
+    public bool StampInto(byte[] d, int w, int h, int ds, string dst, string sprite, string anchor, Rect2I? clip = null)
     {
         if (layout.FindIn(dst, anchor) is not { } a || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return false;
         var r = s.Label;
-        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, d, w, h, ds, a.X, a.Y, keyed: true);
+        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, d, w, h, ds, a.X, a.Y, keyed: true, clip);
         return true;
     }
 
-    /// <summary>Uploads the textures redrawn since the last call.</summary>
+    /// <summary>A sprite's rectangle stamped at a dst block's anchor, in texels at <paramref name="ds"/> a pixel (rows from the top), or null.</summary>
+    public Rect2I? StampRect(int ds, string dst, string sprite, string anchor) =>
+        layout.FindIn(dst, anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.X * ds, a.Y * ds, s.Label.W * ds, s.Label.H * ds) : null;
+
+    /// <summary>
+    /// Uploads what was redrawn since the last call: a panel started again whole (or, for a redraw that keeps most of it, the
+    /// rows and columns that differ from what the GPU holds), otherwise only the rectangles its draws wrote.
+    /// </summary>
     public void Commit()
     {
-        foreach (var t in _targets.Values)
-            if (t is { Dirty: true }) { t.Work.SetData(t.W, t.H, false, Image.Format.Rgba8, t.WorkBytes); t.Texture.Update(t.Work); t.Dirty = false; }
+        foreach (var (name, t) in _targets)
+        {
+            if (t is null) continue;
+            t.Clip = null;
+            _upload.Clear();
+            if (t.Whole)
+            {
+                if (!t.Diff) t.Live.Set(t.WorkBytes, t.W, t.H);
+                else
+                {
+                    Differ(t.Before!, t.WorkBytes, t.W, t.H, _upload);
+                    if (_upload.Count > 0) t.Live.Update(t.WorkBytes, _upload);
+                }
+                t.Whole = t.Diff = false;
+            }
+            else if (t.Dirty.Count > 0)
+            {
+                // the texture's rows are stored bottom-up: a rectangle's rows from the top become stored rows
+                foreach (var r in t.Dirty) _upload.Add(new Rect2I(r.Position.X, t.H - r.End.Y, r.Size.X, r.Size.Y));
+                t.Live.Update(t.WorkBytes, _upload);
+                t.Dirty.Clear();
+            }
+            else continue;
+            t.Uploaded = true;
+            if (DashStats.Verify) DashStats.Check(name, t.WorkBytes, t.Live.ReadBack());
+        }
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() == 15)
         {
-            foreach (var (name, t) in _targets) t?.Work.SavePng(System.IO.Path.Combine(dir, name + ".png"));
+            foreach (var (name, t) in _targets) if (t is not null) Image.CreateFromData(t.W, t.H, false, Image.Format.Rgba8, t.WorkBytes).SavePng(System.IO.Path.Combine(dir, name + ".png"));
             foreach (var (name, s) in _sheets) s?.SavePng(System.IO.Path.Combine(dir, "src_" + name + ".png"));
         }
+    }
+
+    /// <summary>
+    /// The rectangles (rows as stored) where two w x h RGBA8 pictures differ: each run of differing rows, cut into bands of at
+    /// most <paramref name="band"/> rows, with the columns from the band's leftmost to its rightmost difference (a diagonal
+    /// change, the radar's sweep line, is a staircase of narrow bands rather than its whole bounding box).
+    /// </summary>
+    public static void Differ(byte[] a, byte[] b, int w, int h, List<Rect2I> into, int band = 32)
+    {
+        var a32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(a.AsSpan(0, w * h * 4));
+        var b32 = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(b.AsSpan(0, w * h * 4));
+        int run = -1, lo = 0, hi = 0;
+        for (int y = 0; y <= h; y++)
+        {
+            int l = -1, r = -1;
+            if (y < h)
+            {
+                var ra = a32.Slice(y * w, w);
+                var rb = b32.Slice(y * w, w);
+                if (!ra.SequenceEqual(rb))
+                {
+                    l = 0; while (ra[l] == rb[l]) l++;
+                    r = w - 1; while (ra[r] == rb[r]) r--;
+                }
+            }
+            if (run >= 0 && (l < 0 || y - run >= band))
+            {
+                AddRect(into, new Rect2I(lo, run, hi - lo + 1, y - run));
+                run = -1;
+            }
+            if (l >= 0)
+            {
+                if (run < 0) (run, lo, hi) = (y, l, r);
+                else (lo, hi) = (System.Math.Min(lo, l), System.Math.Max(hi, r));
+            }
+        }
+    }
+
+    /// <summary>Lets the panels' GPU textures go (the cockpit leaving the tree).</summary>
+    public void Free()
+    {
+        foreach (var t in _targets.Values) t?.Live.Free();
     }
 }
