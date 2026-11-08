@@ -18,6 +18,31 @@ public class SmoothWheelTests
         if (NitroFactAttribute.Dir is not null) yield return new AssetVfs(new GameInstall(NitroFactAttribute.Dir));
     }
 
+    /// <summary>A face mapped straight turns its picture with the wheel (+1); one mirrored in u (a wheel on the far side) against it (-1).</summary>
+    [Fact]
+    public void UvTurnFollowsTheFacesMapping()
+    {
+        static SmoothWheel Disc(float su)
+        {
+            var rim = new System.Numerics.Vector3[8]; var uv = new System.Numerics.Vector2[8];
+            for (int k = 0; k < 8; k++)
+            {
+                float a = MathF.Tau * k / 8, y = 0.3f * MathF.Cos(a), z = 0.3f * MathF.Sin(a);
+                rim[k] = new(0.1f, 0.5f + y, 2 + z);
+                uv[k] = new(0.5f + su * y, 0.5f + z);
+            }
+            return new SmoothWheel(rim, uv, rim, new(0.1f, 0.5f, 2), new(0.5f, 0.5f), 0.1f, 0, 0, 0, 0, true, 0.3f);
+        }
+        Assert.Equal(1, Disc(1).UvTurn);
+        Assert.Equal(-1, Disc(-1).UvTurn);
+        // turning the wheel by a turns its picture by UvTurn * a: the rim point at angle 0 goes to the uv of the point at angle a
+        var d = Disc(-1);
+        float t = MathF.Tau / 8;
+        var p0 = d.RimUv[0] - d.CentreUv; var p1 = d.RimUv[1] - d.CentreUv;
+        float turned = MathF.Atan2(p1.Y, p1.X) - MathF.Atan2(p0.Y, p0.X);
+        Assert.Equal(d.UvTurn * t, turned, 3);
+    }
+
     [InstallFact]
     public void EveryRoundWheelIsFittedToItsHubAndTexture()
     {
@@ -39,6 +64,7 @@ public class SmoothWheelTests
                         var vs = geo.Vertices.Select(w.Node.Apply).ToArray();
                         float y0 = vs.Min(p => p.Y), y1 = vs.Max(p => p.Y), z0 = vs.Min(p => p.Z), z1 = vs.Max(p => p.Z);
                         string who = $"{n} slot {slot} {mem}";
+                        Assert.True(s.UvTurn != 0, $"{who}: the face's mapping gives no sense to turn its light by");
                         // the rim lies on the original's own outer face, inside the box the original spans (a little over for the texture's edge)
                         foreach (var p in s.Rim)
                         {

@@ -36,6 +36,28 @@ public sealed record SmoothWheel(Vector3[] Rim, Vector2[] RimUv, Vector3[] RimNo
     public const float RoundKeySolid = 0.46f;
 
     /// <summary>
+    /// Which way the face's picture turns about <see cref="CentreUv"/> as the wheel turns: a turn by a about +x (wheel space,
+    /// y toward z) turns the picture by <c>UvTurn * a</c> (uv as stored, angles from +u toward +v); -1 where the face's
+    /// mapping is mirrored. The modern look turns the face itself where the engine stepped hubcap frames under a fixed light
+    /// (object.gdshaderinc's wheel_turn keeps the painted light still), so it needs the sense. 0: no rim to tell.
+    /// </summary>
+    public int UvTurn
+    {
+        get
+        {
+            // the sign of the uv-from-(y, z) map's determinant: its least-squares fit is M (Σ p pᵀ)⁻¹, whose inverse factor is positive definite
+            float m00 = 0, m01 = 0, m10 = 0, m11 = 0;
+            for (int k = 0; k < Rim.Length; k++)
+            {
+                float py = Rim[k].Y - Centre.Y, pz = Rim[k].Z - Centre.Z, du = RimUv[k].X - CentreUv.X, dv = RimUv[k].Y - CentreUv.Y;
+                m00 += du * py; m01 += du * pz; m10 += dv * py; m11 += dv * pz;
+            }
+            float det = m00 * m11 - m01 * m10;
+            return det > 0 ? 1 : det < 0 ? -1 : 0;
+        }
+    }
+
+    /// <summary>
     /// Fit a smooth wheel to a .wdf wheel mesh: its textured face is a polygon (an octagon) laid on a texture whose
     /// tyre is a disc in the square (a keyed disc, the rest index 255), so the polygon's flat edges cut across the
     /// tyre or show the key's surroundings. The outline is the tyre as the texture draws it: ray-marched from its
