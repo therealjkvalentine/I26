@@ -1463,6 +1463,18 @@ public sealed class ShellSettings
     /// it follows the look, Original in the 1997 look and Full in the modern one.
     /// </summary>
     public int? MirrorRangeChoice { get; set; }
+    /// <summary>The port's own, without a row: the modern look's side-view mirrors, two more glasses of the rear mirror's render (I76.Game.Sim.MirrorBands; shell.cfg [port] side_mirrors, off; written only when on).</summary>
+    public bool SideMirrors { get; set; }
+    /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
+    public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
+    /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
+    public int SideMirrorShare { get; set; } = 100;
+    /// <summary>Where the side mirrors sit, degrees from straight ahead, kept inside the window's view ([port] side_mirror_angle, 45; written only when not 45).</summary>
+    public int SideMirrorAngle { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultYaw;
+    /// <summary>How far below the rear mirror's row the side mirrors hang, percent of the rear mirror's height ([port] side_mirror_drop, 125; written only when not 125).</summary>
+    public int SideMirrorDrop { get; set; } = (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100);
+    /// <summary>How far into the rear mirror's view each side mirror reaches, degrees in from the rear's edge ([port] side_mirror_overlap, 6; written only when not 6).</summary>
+    public int SideMirrorOverlap { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultOverlap;
     /// <summary>The port's own, without a row: the brake lamps, 0 Original (lit only while braking), 1 Held (0.15 s after); null follows the look ([port] brake_lamps).</summary>
     public int? BrakeLampChoice { get; set; }
     /// <summary>The port's own, without a row: a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
@@ -1713,6 +1725,13 @@ public sealed class ShellSettings
         // the settings without a row (docs/playing.md). No version step: absent, the original's (the look's for the three that follow it),
         // but the sky's drift, Steady: version 13 made that the default, and the key was only ever written for Steady before it
         s.MirrorRangeChoice = OriginalRecipe.ReadChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames);
+        // no version step: absent, the rear mirror alone (the original's), 90 degrees across, the whole outer band, 45 degrees to each side
+        s.SideMirrors = string.Equals(c.GetValue("port", "side_mirrors", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
+        s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
+        s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
+        s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
+        s.SideMirrorDrop = Math.Clamp((int)c.GetValue("port", "side_mirror_drop", (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100)), 0, 400);
+        s.SideMirrorOverlap = Math.Clamp((int)c.GetValue("port", "side_mirror_overlap", (int)I76.Game.Sim.MirrorBands.DefaultOverlap), 0, (int)I76.Game.Sim.MirrorBands.MaxOverlap);
         s.BrakeLampChoice = OriginalRecipe.ReadChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames);
         s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
         s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
@@ -1849,6 +1868,12 @@ public sealed class ShellSettings
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
+        if (SideMirrors) c.SetValue("port", "side_mirrors", "on");
+        if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
+        if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
+        if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);
+        if (SideMirrorDrop != (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100)) c.SetValue("port", "side_mirror_drop", SideMirrorDrop);
+        if (SideMirrorOverlap != (int)I76.Game.Sim.MirrorBands.DefaultOverlap) c.SetValue("port", "side_mirror_overlap", SideMirrorOverlap);
         OriginalRecipe.WriteChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames, BrakeLampChoice);
         OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
         OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);

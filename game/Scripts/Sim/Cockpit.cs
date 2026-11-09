@@ -350,6 +350,8 @@ public partial class Cockpit : Node
     private ImageTexture? _mirrorEdge, _mirrorFill;
     /// <summary>The mirror as the 2D dash shows it (slot 7): its live view, its art and the smooth outline's two pictures, or null with the mirror off.</summary>
     public (Texture2D View, Texture2D Art, Texture2D? Edge, Texture2D? Fill)? MirrorFace => _mirrorView is not null && _mirrorMode != 0 && _mirrorArt is not null ? (_mirrorView.GetTexture(), _mirrorArt, _mirrorEdge, _mirrorFill) : null;
+    /// <summary>The view's columns the rear mirror shows: the whole picture, or its middle band with the side-view mirrors on (MirrorBands), for the 2D dash's slot 7.</summary>
+    public Vector2 MirrorBand { get; private set; } = new(0, 1);
 
     /// <summary>The pilot's glance as it stands (yaw, pitch down-positive, roll; radians): what the F6 view reads.</summary>
     public (float Yaw, float Pitch, float Roll) HeadAngles => (_viewYaw, _viewPitch, _viewRoll);
@@ -1297,6 +1299,7 @@ public partial class Cockpit : Node
         _mirrorMat.SetShaderParameter("view", vt);
         _mirrorMat.SetShaderParameter("view_nearest", vt);
         foreach (int i in surfaces) mi.SetSurfaceOverrideMaterial(i, _mirrorMat);
+        _mirrorHost = mi; _mirrorSurface = surfaces[0];
         _mirrorMode = _mirrorSetting;
         ApplyMirrorMode();
     }
@@ -1341,9 +1344,17 @@ public partial class Cockpit : Node
     private void ApplyMirrorMode()
     {
         if (_mirrorView is null || _mirrorCam is null || _mirrorMat is null) return;
-        _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(1024, 256);
+        // the side-view mirrors' one wide render (MirrorBands): the rear mirror's band keeps its 1024 columns across its 45 degrees
+        bool wide = !_faithful && _sideMirrors;
+        float fov = wide ? MirrorBands.Fov(_mirrorFov) : MirrorCameraSettings.FovDegrees;
+        _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(wide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
+        _mirrorCam.Fov = fov;
+        var rear = wide ? MirrorBands.Rear(fov) : (0f, 1f);
+        MirrorBand = new Vector2(rear.Item1, rear.Item2);
+        _mirrorMat.SetShaderParameter("band", MirrorBand);
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
+        SideMirrors(wide, fov);
         // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
         // material, relief or asphalt for a camera without it), as for the shadow passes
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF;
@@ -1413,11 +1424,123 @@ public partial class Cockpit : Node
         if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
+        if (_sideL is { Visible: true }) SideMirrorYaw();
         // the original redraws it every second frame, and so do both looks (I76_MIRROR_RATE=1: the modern look every frame)
         _mirrorTick = !_mirrorTick;
         _mirrorView.RenderTargetUpdateMode = !_faithful && MirrorEveryFrame ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
         // the world's environment as it is now, about twice a second (the lighting calibration's solve ends after the mirror is made)
         if (_mirrorEnv is not null && _mirrorEnvSource is not null && _mirrorCam.Environment == _mirrorEnv && ++_mirrorSync % 30 == 0)
             SyncMirrorEnvironment(_mirrorEnvSource, _mirrorEnv);
+    }
+
+    // ---- side-view mirrors (the port's own, docs/deviations.md: two more glasses of the one render, MirrorBands) ----
+
+    private MeshInstance3D? _sideL, _sideR;
+    private ShaderMaterial? _sideMatL, _sideMatR;
+    private MeshInstance3D? _mirrorHost;
+    private int _mirrorSurface = -1;
+    private Vector3 _mirrorCentre;
+    private float _mirrorHeight;
+    private bool _sideMirrors;
+    private float _mirrorFov = MirrorBands.DefaultFov, _sideShare = 1f, _sideAngle = MirrorBands.DefaultYaw, _sideDrop = MirrorBands.DefaultDrop, _sideOverlap = MirrorBands.DefaultOverlap, _sideYaw = float.NaN;
+    /// <summary>I76_MIRROR_WIDTH: the wide render's width in pixels instead of the one keeping the rear mirror's pixels per degree (a cost measurement); I76_SIDE_MIRROR_MAP=cylinder: the side glasses' columns spread by angle (docs/dev-hooks.md).</summary>
+    private static readonly int? MirrorWidthOverride = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_WIDTH"), out int w) && w >= 256 ? w : null;
+    private static readonly bool SideCylindrical = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_MAP") == "cylinder";
+
+    /// <summary>[port] side_mirrors, mirror_fov, side_mirror_share, side_mirror_angle, side_mirror_drop, side_mirror_overlap (docs/playing.md), applied with the settings.</summary>
+    public void ApplySideMirrors(I76.Game.Shell.ShellSettings s)
+    {
+        _sideMirrors = s.SideMirrors;
+        _mirrorFov = s.MirrorFov;
+        _sideShare = s.SideMirrorShare / 100f;
+        _sideAngle = s.SideMirrorAngle;
+        _sideDrop = s.SideMirrorDrop / 100f;
+        _sideOverlap = s.SideMirrorOverlap;
+        _sideYaw = float.NaN;
+        ApplyMirrorMode();
+    }
+
+    /// <summary>The side mirrors shown or hidden and their bands of the render set; made on first use from the rear mirror's own face.</summary>
+    private void SideMirrors(bool on, float fov)
+    {
+        if (on && _sideL is null) MakeSideMirrors();
+        if (_sideL is null || _sideR is null || _sideMatL is null || _sideMatR is null) return;
+        _sideL.Visible = _sideR.Visible = on;
+        if (!on) return;
+        float t = MathF.Tan(MirrorBands.Fov(fov) * MathF.PI / 360f);
+        foreach (var (m, left) in new[] { (_sideMatL, true), (_sideMatR, false) })
+        {
+            var band = MirrorBands.Side(fov, _sideShare, _sideOverlap, left);
+            var angles = MirrorBands.Angles(band, fov);
+            m.SetShaderParameter("band", new Vector2(band.From, band.To));
+            m.SetShaderParameter("band_angles", new Vector2(angles.From, angles.To));
+            m.SetShaderParameter("fov_tan", t);
+            m.SetShaderParameter("cylindrical", SideCylindrical);
+            m.SetShaderParameter("hidden", _mirrorMode == 0);
+        }
+        _sideYaw = float.NaN;
+        SideMirrorYaw();
+    }
+
+    /// <summary>
+    /// The two side mirrors from the rear mirror's face: the same quad half as wide about its middle (the art's two end quarters,
+    /// the shader's art_crop) in the car's frame, each turned about the eye to its side by SideMirrorYaw. On the cockpit's layer, so
+    /// the mirror camera does not see them, and under the interior's node, so they go with it.
+    /// </summary>
+    private void MakeSideMirrors()
+    {
+        if (_mirrorHost is not { Mesh: ArrayMesh mesh } host || _mirrorSurface < 0 || _mirrorMat is null) return;
+        var arrays = mesh.SurfaceGetArrays(_mirrorSurface);
+        var v = arrays[(int)Mesh.ArrayType.Vertex].AsVector3Array();
+        if (v.Length < 3) return;
+        var centre = Vector3.Zero;
+        foreach (var p in v) centre += p;
+        centre /= v.Length;
+        // the quad about its own middle, half as wide: SideMirrorYaw puts it where it goes
+        var half = new Vector3[v.Length];
+        for (int i = 0; i < v.Length; i++) half[i] = (v[i] - centre) * new Vector3(0.5f, 1, 1);
+        _mirrorCentre = centre;
+        _mirrorHeight = v.Max(p => p.Y) - v.Min(p => p.Y);
+        var side = new ArrayMesh();
+        var a = new Godot.Collections.Array();
+        a.Resize((int)Mesh.ArrayType.Max);
+        a[(int)Mesh.ArrayType.Vertex] = half;
+        a[(int)Mesh.ArrayType.Normal] = arrays[(int)Mesh.ArrayType.Normal];
+        a[(int)Mesh.ArrayType.TexUV] = arrays[(int)Mesh.ArrayType.TexUV];
+        I76.Game.MeshArrays.AddSurfaceArrays(side, Mesh.PrimitiveType.Triangles, a);   // the arrays held while the engine reads them
+        _sideMatL = (ShaderMaterial)_mirrorMat.Duplicate();
+        _sideMatR = (ShaderMaterial)_mirrorMat.Duplicate();
+        _sideMatL.SetShaderParameter("art_crop", true);
+        _sideMatR.SetShaderParameter("art_crop", true);
+        _sideL = new MeshInstance3D { Mesh = side, MaterialOverride = _sideMatL, Layers = CarNode.CockpitLayer, Name = "MirrorL" };
+        _sideR = new MeshInstance3D { Mesh = side, MaterialOverride = _sideMatR, Layers = CarNode.CockpitLayer, Name = "MirrorR" };
+        host.AddChild(_sideL);
+        host.AddChild(_sideR);
+    }
+
+    /// <summary>
+    /// Where the side mirrors sit: the wanted yaw from straight ahead, kept inside the window's view (MirrorBands.Yaw: the view's
+    /// half field across follows the window's shape and the Field of View row), each the rear mirror's place turned about the eye's
+    /// vertical axis from straight ahead (the rear mirror itself hangs to the right of the driver's eye, and on a wide window its
+    /// right end reaches 50 degrees: a side mirror in its row would lie over it), hung below the rear mirror's row by side_mirror_drop
+    /// of its height, at its distance, the sides facing the eye as the rear does.
+    /// </summary>
+    private void SideMirrorYaw()
+    {
+        if (_sideL is null || _sideR is null || Node3D.CockpitCamera is not { } cam) return;
+        var size = cam.GetViewport()?.GetVisibleRect().Size ?? new Vector2(4, 3);
+        float half = cam.KeepAspect == Camera3D.KeepAspectEnum.Width ? cam.Fov / 2 : MirrorBands.HalfFovAcross(cam.Fov, size.X / MathF.Max(size.Y, 1));
+        float yaw = MirrorBands.Yaw(_sideAngle, half);
+        if (MathF.Abs(yaw - _sideYaw) < 0.05f) return;
+        _sideYaw = yaw;
+        var eye = Node3D.Eye;
+        var o = _mirrorCentre - eye;
+        // the rear mirror's height and distance put straight ahead of the eye (forward is -Z here), then turned to each side: a
+        // point ahead turned about the eye's up by a positive angle goes to the driver's left in this frame
+        var ahead = new Vector3(0, o.Y - _sideDrop * _mirrorHeight, -MathF.Sqrt(o.X * o.X + o.Z * o.Z));
+        var l = new Basis(Vector3.Up, Mathf.DegToRad(yaw));
+        var r = new Basis(Vector3.Up, Mathf.DegToRad(-yaw));
+        _sideL.Transform = new Transform3D(l, eye + l * ahead);
+        _sideR.Transform = new Transform3D(r, eye + r * ahead);
     }
 }

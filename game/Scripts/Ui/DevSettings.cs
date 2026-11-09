@@ -34,6 +34,15 @@ public static class DevSettings
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
 
+    /// <summary>The side-view mirrors' keys' values offered (I76.Game.Sim.MirrorBands): the one render's field across (45 is the rear mirror alone, the original's), each side mirror's share of the band outside the rear's, and where it sits; a value set by hand shows as the nearest.</summary>
+    public static readonly int[] MirrorFovSteps = [45, 60, 75, 90, 105, 120], MirrorShareSteps = [25, 50, 75, 100], MirrorYawSteps = [30, 35, 40, 45, 50, 55, 60], MirrorDropSteps = [0, 50, 100, 125, 150, 200, 300], MirrorOverlapSteps = [0, 3, 6, 9, 12, 15, 20];
+    private static readonly string[] MirrorFovNames = [.. MirrorFovSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
+    private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
+    private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
+    private static readonly string[] MirrorDropNames = [.. MirrorDropSteps.Select(p => p == 125 ? $"{p}" : $"{p}{M}")];
+    private static readonly string[] MirrorOverlapNames = [.. MirrorOverlapSteps.Select(d => d == 6 ? $"{d}" : $"{d}{M}")];
+    public static int Nearest(int[] steps, int value) => Array.IndexOf(steps, steps.MinBy(p => Math.Abs(p - value)));
+
     /// <summary>target_fps's frame rates offered (0: off, the default); a value set by hand shows as the nearest.</summary>
     public static readonly int[] TargetSteps = [0, 60, 90, 120, 144];
     private static readonly string[] TargetNames = [.. TargetSteps.Select(f => f == 0 ? "0" : $"{f}{M}")];
@@ -67,6 +76,12 @@ public static class DevSettings
     public static readonly DevSetting[] All =
     [
         new("mirror_range", Look(OriginalRecipe.MirrorRangeNames), s => OfChoice(s.MirrorRangeChoice), (s, v) => s.MirrorRangeChoice = ToChoice(v), DevWhen.Live),
+        new("side_mirrors", ["off", "on" + M], s => s.SideMirrors ? 1 : 0, (s, v) => s.SideMirrors = v != 0, DevWhen.Live),
+        new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
+        new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),
+        new("side_mirror_angle", MirrorYawNames, s => Nearest(MirrorYawSteps, s.SideMirrorAngle), (s, v) => s.SideMirrorAngle = MirrorYawSteps[v], DevWhen.Live),
+        new("side_mirror_drop", MirrorDropNames, s => Nearest(MirrorDropSteps, s.SideMirrorDrop), (s, v) => s.SideMirrorDrop = MirrorDropSteps[v], DevWhen.Live),
+        new("side_mirror_overlap", MirrorOverlapNames, s => Nearest(MirrorOverlapSteps, s.SideMirrorOverlap), (s, v) => s.SideMirrorOverlap = MirrorOverlapSteps[v], DevWhen.Live),
         new("brake_lamps", Look(OriginalRecipe.BrakeLampNames), s => OfChoice(s.BrakeLampChoice), (s, v) => s.BrakeLampChoice = ToChoice(v), DevWhen.Live),
         new("mg_tracers", Look(OriginalRecipe.MgTracerNames), s => OfChoice(s.MgTracerChoice), (s, v) => s.MgTracerChoice = ToChoice(v), DevWhen.Live),
         new("sky_drift", Words(OriginalRecipe.SkyDriftNames), s => s.SkyDrift, (s, v) => s.SkyDrift = v, DevWhen.Live),

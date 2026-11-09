@@ -734,7 +734,7 @@ public partial class Main : Node3D
             _env1997.AdjustmentColorCorrection = CardCurve(s.Graphics[0xc]);
         }
         I76.Game.Sim.OriginalBehavior.Apply(s);   // before the mirror: its far clip is one of them
-        if (_pit is not null) _pit.MirrorSetting = s.Graphics[0xd];
+        if (_pit is not null) { _pit.MirrorSetting = s.Graphics[0xd]; _pit.ApplySideMirrors(s); }
         _extInstruments = s.Graphics[0xe] != 0;
         _shadowDetail = s.Graphics[0x6];
         _ambientOcclusion = s.AmbientOcclusion;
@@ -1518,6 +1518,7 @@ public partial class Main : Node3D
                 MirrorBackground = builder.ActPalette is { } ap ? Color.Color8(ap[0xea].R, ap[0xea].G, ap[0xea].B) : Colors.Black,
             };
             pit.MirrorSetting = I76.Game.Shell.ShellSettings.Load().Graphics[0xd];
+            pit.ApplySideMirrors(I76.Game.Shell.ShellSettings.Load());
             node.Dash3D = I76.Game.Shell.ShellSettings.Load().Dash3D;
             AddChild(pit);
             pit.Faithful = _mode1997;

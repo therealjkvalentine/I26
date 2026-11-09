@@ -100,6 +100,7 @@ public partial class ExtInstruments : Control
         _mirrorMat!.SetShaderParameter("art", art);
         _mirrorMat.SetShaderParameter("view", view);
         _mirrorMat.SetShaderParameter("view_nearest", view);
+        _mirrorMat.SetShaderParameter("band", pit.MirrorBand);
         _mirrorMat.SetShaderParameter("faithful", pit.Faithful);
         _mirrorMat.SetShaderParameter("edge", edge);
         _mirrorMat.SetShaderParameter("fill", fill);
