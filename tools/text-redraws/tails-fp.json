@@ -16,11 +16,7 @@
     "keyed": true
    },
    "fill": "key",
-   "under": [
-    22,
-    22,
-    26
-   ]
+   "under": "original"
   },
   {
    "op": "erase",
@@ -35,42 +31,40 @@
    },
    "grow": 0.5,
    "fill": "key",
-   "under": [
-    22,
-    22,
-    26
-   ]
+   "under": "original"
   },
   {
    "op": "text",
    "text": "PALOMINO",
    "font": "Bitter",
-   "cap": 6,
-   "center": [
-    64.5,
-    34.0
+   "cap": 3.08,
+   "box": [
+    39,
+    32.98,
+    91,
+    36.06
    ],
-   "width": 53,
    "tracking": 0.75,
+   "embolden": 0.2,
    "alpha": "set",
    "gradient": [
     [
-     240,
-     240,
-     244
+     200,
+     198,
+     201
     ],
     [
-     130,
-     132,
-     140
+     115,
+     112,
+     116
     ]
    ],
    "stroke": {
     "width": 0.35,
     "colour": [
-     18,
-     18,
-     22
+     31,
+     31,
+     34
     ]
    },
    "variation": {

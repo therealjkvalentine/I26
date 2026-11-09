@@ -34,7 +34,7 @@ opaque / keyed on its alpha), grown by "grow" texels, with the pack's texels wit
 "lum_above"} of them that still look like ink (the upscale's soft edge), made opaque with "opaque": true, filled
 ("texture": [dx, dy] gives an inpainted hole the grain of the surface that far away: paper, paint): "inpaint" (smoothly from the texels round them), "key" (cut out of
 the colour key: alpha 0, its colour "under" when given, else its neighbours'; a car panel shows a keyed texel's colour, the
-cockpit's opaque faces draw the key black), or an [r, g, b].
+cockpit's opaque faces draw the key black; "under": "original" the colour the original keeps under its key round there), or an [r, g, b].
 smooth: the rect's texels made again from the original's (those matching "where": a dithered light without its letters), each
 original texel spread over its pack texels and blurred by a Gaussian of "sigma" texels within the rect (texels not matching
 take the blur from round them; with "only": true they keep the pack's): a light the 1997 art shades with a few dithered levels
@@ -49,7 +49,11 @@ game draws in the key's colour, as the 3D dash's dials). "mirror": true reflects
 textured mirrored). "ink": {"opacity": 0.8, "feather": 1.2} draws the run as ink on paper instead: fill and stroke as one
 coverage, feathered over "feather" pack pixels and multiplied into the surface at "opacity" (tools/menu-maps.py's ink maps). "quad": [[x, y] x 4] sets the run's box (first letter to last, cap line to baseline) on those four
 corners, top-left, top-right, bottom-right, bottom-left, in place of center/width/rotate/skew: a 4-point warp, for
-lettering on a bent panel.
+lettering on a bent panel. "box": [x0, y0, x1, y1] sets the run's ink (the fill's extent, ascenders and an apostrophe
+included) on that box, the painted letters' own box read off the original, so the lettering is the original's size and in its
+place; "fit": "ink" does the same for a "quad". "cap" then only sets the size the font is drawn at (about the box's height).
+"embolden": texels added to each side of the letters' strokes (the stroke goes round the thickened letters), where the face's
+boldest weight is thinner than the painted letters.
 """
 import argparse, fnmatch, glob, json, math, os, shutil, struct, sys, time
 import numpy as np
@@ -113,6 +117,8 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
     adv = [f.getlength(c) for c in text]
     run = sum(adv) + track * (len(text) - 1)
     stroke = op.get("stroke"); sw = int(round(float(stroke["width"]) * s * SS)) if stroke else 0
+    # "embolden": the letters' strokes thickened by that many texels a side (a face's boldest weight thinner than the painting's)
+    eb = int(round(float(op.get("embolden", 0)) * s * SS)); sw = sw + eb if stroke else 0
     pad = int(px) + sw + 4
     Wm, Hm = int(run) + 2 * pad, int(px * 2) + 2 * pad
     base_y = pad + int(px * 1.2)
@@ -120,7 +126,7 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
     strk = Image.new("L", (Wm, Hm), 0) if sw else None; ds = ImageDraw.Draw(strk) if sw else None
     x = pad
     for c, a in zip(text, adv):
-        df.text((x, base_y), c, font=f, fill=255, anchor="ls")
+        df.text((x, base_y), c, font=f, fill=255, anchor="ls", stroke_width=eb, stroke_fill=255)
         if ds: ds.text((x, base_y), c, font=f, fill=255, anchor="ls", stroke_width=sw, stroke_fill=255)
         x += a + track
     # the mask's reference: the run's middle, the cap band's middle (optical: the cap height, not the em box; trailing
@@ -147,11 +153,19 @@ def text_layers(op, W, H, s, fonts_dir=FONTS, table=None):
         X = 2 * cx * SS
         A = (-A[0], A[1], A[2] + A[0] * X, -A[3], A[4], A[5] + A[3] * X)
     Pc = tuple(A) + (0.0, 0.0)          # output sample -> mask point, as a projective map (affine so far)
-    if op.get("quad"):
+    quad = op.get("quad")
+    if op.get("box"):
+        x0, y0, x1, y1 = (float(v) for v in op["box"]); quad = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    if quad:
         # a 4-point warp: the run's box (cap line to baseline, first letter to last) onto the quad's corners (TL, TR, BR,
-        # BL, the original's texels), for lettering on a bent or tilted panel
-        src = [(pad, base_y - cap_px), (pad + run, base_y - cap_px), (pad + run, base_y), (pad, base_y)]
-        dst = [(float(x) * s * SS, float(y) * s * SS) for x, y in op["quad"]]
+        # BL, the original's texels), for lettering on a bent or tilted panel; with "box", or "fit": "ink", the run's own
+        # ink (the fill's extent: ascenders, descenders, an apostrophe) goes on the corners, the painted letters' extent
+        if op.get("box") or op.get("fit") == "ink":
+            l, t_, r, b = fill.getbbox()
+            src = [(l, t_), (r, t_), (r, b), (l, b)]
+        else:
+            src = [(pad, base_y - cap_px), (pad + run, base_y - cap_px), (pad + run, base_y), (pad, base_y)]
+        dst = [(float(x) * s * SS, float(y) * s * SS) for x, y in quad]
         Pc = perspective(dst, src)
     def proj(P, ox=0.0, oy=0.0):
         """P with the output shifted by (ox, oy) pack px (u -> u - ox), normalised."""
@@ -293,7 +307,13 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
                         grain = []
             elif fill == "key":
                 alpha[hole] = 0
-                if "under" in op: rgb[hole] = op["under"]; rebleed &= ~hole
+                if op.get("under") == "original":
+                    # the colour the original keeps under its key (what the 1997 look shows round its letters), its keyed texels'
+                    # spread over the opaque ones, each texel over its pack texels: no pale ghost of the model's chrome bled there
+                    k = int(round(s)); o = bleed(orig[..., :3], (orig[..., 3] == 0).astype(np.uint8), passes=max(orig.shape[:2]))
+                    o = np.repeat(np.repeat(o, k, axis=0), k, axis=1)[:H, :W]
+                    rgb[hole] = o[hole]; rebleed &= ~hole
+                elif "under" in op: rgb[hole] = op["under"]; rebleed &= ~hole
                 else: rebleed |= hole
             else:
                 rgb[hole] = fill

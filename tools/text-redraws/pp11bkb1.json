@@ -1,14 +1,13 @@
 {
   "textures": ["pp11bkb1"],
-  "note": "the Piranha's tail (Groove Champion's car, undamaged): the licence plate 'CHAMP' under 'TEXAS', and the chrome badge \"'rahna\"",
+  "note": "the Piranha's tail (Groove Champion's car, undamaged): the licence plate 'CHAMP' under 'TEXAS', and the chrome badge \"'rahna\" (its letters' ink on the painted letters' box, their dark rim and greys; the keyed strip round it the original's black)",
   "ops": [
     {"op": "erase", "rect": [54.5, 17, 71.5, 24], "where": {"lum_below": 128}, "grow": 0.9},
     {"op": "erase", "rect": [58, 13.5, 69, 17], "where": {"lum_below": 130}, "grow": 0.9},
-    {"op": "text", "text": "CHAMP", "font": "Anton", "cap": 5, "center": [63, 20.2], "width": 15.2, "colour": [28, 28, 34],
-     "shadow": {"dx": 0.25, "dy": 0.25, "colour": [235, 235, 238], "opacity": 0.5}},
+    {"op": "text", "text": "CHAMP", "font": "Anton", "cap": 5, "center": [63, 20.2], "width": 15.2, "colour": [28, 28, 34], "shadow": {"dx": 0.25, "dy": 0.25, "colour": [235, 235, 238], "opacity": 0.5}},
     {"op": "text", "text": "TEXAS", "font": "Anton", "cap": 2.1, "center": [63.2, 15.4], "width": 7.5, "colour": [40, 40, 48]},
-    {"op": "erase", "rect": [76, 14, 95, 23], "where": {"opaque": true}, "grow": 0.5, "fill": "key"},
-    {"op": "text", "text": "'rahna", "font": "Comfortaa", "variation": {"Weight": 700}, "cap": 4.7, "center": [85.4, 18.4], "width": 15, "alpha": "set",
-     "gradient": [[244, 244, 248], [150, 152, 160]], "stroke": {"width": 0.3, "colour": [205, 205, 212]}, "shadow": {"dx": 0.35, "dy": 0.35, "colour": [12, 12, 14], "opacity": 0.8}}
+    {"op": "erase", "rect": [73, 13, 121, 26], "where": {"keyed": true}, "fill": "key", "under": "original"},
+    {"op": "erase", "rect": [76, 14, 95, 23], "where": {"opaque": true}, "grow": 0.5, "fill": "key", "under": "original"},
+    {"op": "text", "text": "'rahna", "font": "Comfortaa", "variation": {"Weight": 700}, "cap": 4.4, "box": [79, 16.64, 92, 21], "embolden": 0.25, "alpha": "set", "gradient": [[215, 213, 217], [135, 134, 137]], "stroke": {"width": 0.35, "colour": [43, 42, 43]}}
   ]
 }
