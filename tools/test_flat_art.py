@@ -94,19 +94,21 @@ class FlatArtTests(unittest.TestCase):
             self.assertEqual(len(lengths), 2, f"row {r}: a black line each side of the stem")
             self.assertTrue(all(2 <= n <= 7 for n in lengths), f"row {r}: about a texel wide, got {lengths}")
 
-    def test_a_dark_fringe_between_two_colours_goes_to_the_one_named(self):
-        """Where the band's edge texels against the white are a darker blue (a texel of near-black between), the blue
-        reaches the white: no black pixel between them in the render."""
-        o = original()
-        # the band's top edge (y 20) against a white bar laid just above it, with a near-black texel row between
-        o[17:19, 4:60] = WHITE.astype(np.uint8)
-        o[19, 4:60] = (0, 0, 33)
+    def test_a_dark_fringe_goes_to_the_band_and_the_arts_own_black_stays(self):
+        """Between the band and a white bar: a row of darker blue (the band's anti-aliased edge) is the band reaching the
+        white, no black pixel between them; a row of pure black is the art's own gap and stays black."""
         fringe = dict(colour="#000000", width=0, on=("#0042ce",), of=("#ffffff",))
-        for lines, want in (((), False), ((fringe,), True)):
-            out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, lines=lines)
+        for row, want_black in (((0, 41, 166), False), ((0, 0, 0), True)):
+            o = original()
+            o[17:19, 4:60] = WHITE.astype(np.uint8)            # a white bar just above the band (y 20)
+            o[19, 4:60] = row
+            out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, lines=[fringe])
             col = out[17 * 4 + 2:22 * 4, 30 * 4, :3]                 # from inside the white bar into the band
-            black = (col.max(-1) < 60).any()
-            self.assertEqual(not black, want, f"black between blue and white: {black} with lines={bool(lines)}")
+            black = int((col.max(-1) < 60).sum())
+            if want_black:
+                self.assertGreaterEqual(black, 3, f"a texel of black kept between band and white ({row})")
+            else:
+                self.assertEqual(black, 0, f"no black between band and white ({row})")
 
     def test_a_stroked_line_follows_its_own_colour_not_the_layers_above(self):
         """The lettering's keyline is stroked along the yellow's own outline: a white bar on the band gets none."""
@@ -117,19 +119,30 @@ class FlatArtTests(unittest.TestCase):
         col = out[22 * 4:30 * 4, 75 * 4, :3]
         self.assertFalse((col.max(-1) < 60).any(), "no black stroked round the white bar")
 
-    def test_a_mark_is_set_to_its_ink_box_and_blanks_nothing_else(self):
-        if fa.find_font() is None:
+    def test_a_mark_is_fitted_to_the_originals_letters_and_blanks_nothing_else(self):
+        """A TM drawn rotated and slanted at a known size, box-filtered to texels as the original's is: the fit finds its
+        height and angle (not the ink box's, which a rotated mark overfills), and a blue post in the box is kept."""
+        fonts = fa.find_fonts()
+        if not fonts:
             self.skipTest("no Arial")
+        truth = (6.5, -18.0, 0.0, 0.05, 14.0, 8.0)
+        cover = fa.place(fonts[0], "TM", truth, (16, 28), 8)
+        cover = cover.reshape(16, 8, 28, 8).mean((1, 3))
+        f, p, e = fa.fit_mark(cover, "TM", fonts)
+        # (the face itself is not asserted: a bold face sheared and its italic draw nearly the same texels)
+        self.assertLess(abs(p[0] - truth[0]), 0.5, f"the cap height, {p[0]:.2f} texels")
+        self.assertLess(abs(p[1] - truth[1]), 5.0, f"the angle, {p[1]:.1f} degrees (a slant trades a few degrees with it)")
+        self.assertLess(e, 0.002, "the texels matched")
         o = original()
-        o[50:58, 70:82] = YELLOW.astype(np.uint8)          # a 12x8 blob standing for the mark, below the band
-        o[48:60, 86:90] = BLUE.astype(np.uint8)            # a blue post 4 texels right of the mark, inside the mark's box
-        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, marks=[dict(box=(66, 46, 94, 62), text="TM", colour="#ffbd00")])
-        rgb = out[..., :3]
-        yel = (np.abs(rgb.astype(int) - YELLOW.astype(int)).max(-1) < 60)
-        ys, xs = np.nonzero(yel[44 * 4:64 * 4, 64 * 4:96 * 4])
-        self.assertLessEqual(abs((xs.max() - xs.min() + 1) / 4 - 12), 0.5, "the mark as wide as its ink box")
-        self.assertLessEqual(abs((ys.max() - ys.min() + 1) / 4 - 8), 0.5, "and as high")
-        post = rgb[50 * 4:58 * 4, 87 * 4]
+        box = (66, 46, 94, 62)
+        mark = (cover[..., None] * YELLOW).astype(np.uint8)
+        o[box[1]:box[3], box[0]:box[2]] = mark
+        o[48:60, 90:93] = BLUE.astype(np.uint8)            # a blue post right of the mark, inside the mark's box
+        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, marks=[dict(box=box, text="TM", colour="#ffbd00")])
+        drawn = out[box[1] * 4:box[3] * 4, box[0] * 4:box[2] * 4, :3].astype(np.float32)
+        got = (drawn @ YELLOW / (YELLOW @ YELLOW)).reshape(16, 4, 28, 4).mean((1, 3))
+        self.assertLess(float(np.abs(got[:, :22] - cover[:, :22]).mean()), 0.03, "the drawn mark, box-filtered, is the original's")
+        post = out[50 * 4:58 * 4, 91 * 4, :3]
         self.assertTrue((np.abs(post.astype(int) - BLUE.astype(int)).max(-1) < 10).all(), "the post beside it is untouched")
 
     def test_a_stamp_on_a_picture_keeps_the_picture(self):

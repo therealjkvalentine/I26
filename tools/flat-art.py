@@ -46,8 +46,11 @@ NEAR = 48
 PURE = 24
 # a hole in a stamp on a picture up to this many texels is the stamp's own (a letter's counter), not the picture
 HOLE = 40
-# lettering a few texels high (a TM mark) is set again from this face, as high as the mark's ink box
-MARK_FONTS = ("ariali.ttf", "Arial Italic.ttf", "arial.ttf", "Arial.ttf")
+# a texel at least this share of a fringe's colour is that colour's own (the art's black between band and outline)
+FRINGE = 0.5
+# lettering a few texels high (a TM mark) is set again from one of these faces, whichever fits the mark best
+MARK_FONTS = ("arialbd.ttf", "Arial Bold.ttf", "arialbi.ttf", "Arial Bold Italic.ttf", "ariali.ttf", "Arial Italic.ttf",
+              "arial.ttf", "Arial.ttf")
 FONT_DIRS = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"), "/usr/share/fonts/truetype/msttcorefonts",
              "/usr/share/fonts/msttcore", "/usr/share/fonts/corefonts", os.path.expanduser("~/Library/Fonts"),
              "/Library/Fonts", "/System/Library/Fonts/Supplemental"]
@@ -215,9 +218,9 @@ def vectorise(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=Fals
             # a stroked line: the texels of its colour within two of both regions, whole ones kept (the stroke covers them)
             band = near(on, 2) & near(of, 2) & (W[..., kc] > 0) & (W[..., kc] < 1)
         else:
-            # a fringe: the texels of its colour next to both regions, a line one texel wide at most (a gap of two
-            # texels, each next to one region only, is the art's and stays)
-            band = near(on, 1) & near(of, 1) & (W[..., kc] > 0)
+            # a fringe: the darkened texels of the `on` colour's edge next to both regions (a darker blue, less than
+            # FRINGE black); a texel mostly black, or a grey between black and the `of` colour, is the art's own gap
+            band = near(on, 1) & near(of, 1) & (W[..., kc] > 0) & (W[..., kc] < FRINGE) & (W[..., on].sum(-1) > 0)
         W[band, on[0]] += W[band, kc]
         W[band, kc] = 0
     layers = []
@@ -264,13 +267,22 @@ def render(svg):
     return np.array(Image.open(io.BytesIO(png)).convert("RGBA"))
 
 
-def find_font():
-    for d in FONT_DIRS:
-        for f in MARK_FONTS:
+def find_fonts():
+    """The mark faces present, one path a face (the first folder that has it)."""
+    out, seen = [], set()
+    for f in MARK_FONTS:
+        key = f.lower().replace(" ", "").replace(".ttf", "")
+        for d in FONT_DIRS:
             p = os.path.join(d, f)
-            if os.path.exists(p):
-                return p
-    return None
+            if os.path.exists(p) and key not in seen:
+                out.append(p); seen.add(key)
+                break
+    return out
+
+
+def find_font():
+    fonts = find_fonts()
+    return fonts[0] if fonts else None
 
 
 def mark_ink(img, box, ground_col, colour, least):
@@ -294,25 +306,114 @@ def ink_box(img, box, ground_col, colour):
     return xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
 
 
-def set_marks(out, img, marks, ground_col, scale, font=None):
-    """Lettering a few texels high is set again from the face (`font`, or the system's Arial Italic), each mark's text
-    stretched to its ink box exactly (the original's mark's size and slant), in its colour, over the picture already drawn."""
+def mark_cover(img, box, ground_col, colour):
+    """The mark's coverage in its box, 0-1 a texel: each texel's share of the mark's colour against the ground (texels
+    off that line, a picture's or another colour's, count as none)."""
+    x0, y0, x1, y1 = box
+    reg = img[y0:y1, x0:x1].astype(np.float32)
+    d = colour - ground_col
+    t = np.clip(((reg - ground_col) * d).sum(-1) / max((d * d).sum(), 1e-6), 0, 1)
+    off = np.sqrt(((reg - (ground_col + t[..., None] * d)) ** 2).sum(-1))
+    return np.where(off < NEAR, t, 0).astype(np.float32)
+
+
+_GLYPHS = {}
+
+
+def glyphs(font, text, track):
+    """The text drawn large (cap height CAP px) letter by letter, `track` em between letters; L array and its cap height."""
     from PIL import ImageDraw, ImageFont
-    font = font or find_font()
-    if font is None:
+    key = (font, text, round(track, 3))
+    if key not in _GLYPHS:
+        f = ImageFont.truetype(font, 200)
+        cap = f.getbbox("T")[3] - f.getbbox("T")[1]
+        pieces, x = [], 0
+        for ch in text:
+            bb = f.getbbox(ch)
+            pieces.append((ch, x - bb[0]))
+            x += bb[2] - bb[0] + track * 200
+        can = Image.new("L", (int(x + 80), 320), 0)
+        dr = ImageDraw.Draw(can)
+        top = f.getbbox("T")[1]
+        for ch, px in pieces:
+            dr.text((40 + px, 60 - top), ch, fill=255, font=f)
+        _GLYPHS[key] = (can, cap)
+    return _GLYPHS[key]
+
+
+def place(font, text, p, shape, scale):
+    """The text placed in a box of `shape` texels at `scale` px a texel: p = (cap height in texels, rotation in degrees,
+    shear, tracking in em, centre x, centre y in texels). Coverage 0-1 at the scale."""
+    H, ang, shear, track, cx, cy = p
+    can, cap = glyphs(font, text, track)
+    a = np.array(can.getbbox(), np.float32)
+    sc = np.array([(a[0] + a[2]) / 2, (a[1] + a[3]) / 2])                    # the ink's centre in the drawing
+    k = H * scale / cap
+    t = np.radians(ang)
+    M = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]]) @ np.array([[1, -shear], [0, 1]]) * k
+    Mi = np.linalg.inv(M)
+    o = np.array([cx * scale, cy * scale])
+    # output (x, y) -> drawing: Mi (xy - o) + sc
+    c = sc - Mi @ o
+    w, h = shape[1] * scale, shape[0] * scale
+    im = can.transform((w, h), Image.AFFINE, (Mi[0, 0], Mi[0, 1], c[0], Mi[1, 0], Mi[1, 1], c[1]), Image.BICUBIC)
+    return np.array(im).astype(np.float32) / 255
+
+
+def fit_mark(cover, text, fonts):
+    """The face and placement whose drawing, box-filtered to texels, is nearest the original's coverage: a search over
+    face, rotation, shear, tracking and height, the drawing's ink centre on the mark's, then each continuous value refined.
+    Returns (font, params, error per texel)."""
+    from scipy.optimize import minimize
+    ys, xs = np.nonzero(cover > 0.05)
+    wts = cover[ys, xs]
+    cy, cx = (ys * wts).sum() / wts.sum() + 0.5, (xs * wts).sum() / wts.sum() + 0.5
+    S = 4
+
+    def err(font, p):
+        r = place(font, text, p, cover.shape, S * 2)
+        r = r.reshape(r.shape[0] // 2, 2, r.shape[1] // 2, 2).mean((1, 3))
+        r = r.reshape(cover.shape[0], S, cover.shape[1], S).mean((1, 3))
+        return float(((r - cover) ** 2).mean())
+
+    grid = []
+    for font in fonts:
+        for ang in range(-30, 9, 3):
+            for shear in (0.0, 0.15, 0.3):
+                for track in (0.0, 0.08, 0.16):
+                    for H in np.arange(5.0, 10.5, 0.5):
+                        p = (H, ang, shear, track, cx, cy)
+                        grid.append((err(font, p), font, p))
+    grid.sort(key=lambda g: g[0])
+    starts = [g for f in fonts for g in [g for g in grid if g[1] == f][:2]]   # each face's two best: a slant trades
+    best = (None, None, np.inf)                                             # with the angle, one face with another
+    for _, font, p0 in starts:
+        res = minimize(lambda q: err(font, q), np.array(p0, np.float64), method="Nelder-Mead",
+                       options=dict(xatol=0.01, fatol=1e-7, maxiter=800))
+        if res.fun < best[2]:
+            best = (font, tuple(float(v) for v in res.x), float(res.fun))
+    return best
+
+
+def set_marks(out, img, marks, ground_col, scale, font=None):
+    """Lettering a few texels high is set again from a face (`font`, or the best fitting of the system's Arial faces):
+    the face, height, rotation, slant and letter spacing that, box-filtered to texels, best match the original mark's own
+    texels, so each letter keeps the face's proportions; in its colour, over the picture already drawn."""
+    fonts = [font] if font else find_fonts()
+    if not fonts:
         return out
     for mk in marks:
         colour = rgb(mk["colour"])
-        ib = ink_box(img, mk["box"], ground_col, colour)
-        if ib is None:
+        x0, y0, x1, y1 = mk["box"]
+        cover = mark_cover(img, mk["box"], ground_col, colour)
+        if cover.max() < 0.25:
             continue
-        x0, y0, x1, y1 = ib
-        f = ImageFont.truetype(font, 256)
-        bb = f.getbbox(mk["text"])
-        can = Image.new("L", (bb[2] - bb[0] + 8, bb[3] - bb[1] + 8), 0)
-        ImageDraw.Draw(can).text((4 - bb[0], 4 - bb[1]), mk["text"], fill=255, font=f)
-        can = can.crop(can.getbbox()).resize(((x1 - x0) * scale, (y1 - y0) * scale), Image.LANCZOS)
-        a = np.array(can).astype(np.float32)[..., None] / 255
+        f, p, e = fit_mark(cover, mk["text"], fonts)
+        mk["fitted"] = dict(font=os.path.basename(f), height=round(p[0], 2), angle=round(p[1], 1), shear=round(p[2], 3),
+                            track=round(p[3], 3), error=round(e, 4))
+        ss = 4                                              # drawn at four times and box-filtered: anti-aliased edges
+        a = place(f, mk["text"], p, cover.shape, scale * ss)
+        a = a.reshape(a.shape[0] // ss, ss, a.shape[1] // ss, ss).mean((1, 3))[..., None]
         X0, Y0 = x0 * scale, y0 * scale
         reg = out[Y0:Y0 + a.shape[0], X0:X0 + a.shape[1]].astype(np.float32)
         reg[..., :3] = colour * a + reg[..., :3] * (1 - a)
