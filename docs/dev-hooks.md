@@ -336,8 +336,13 @@ of the map's edge is still higher than the inside, that outer ring is dropped to
 lone hill east of the river, and a car put there stands on it (`DevLandmarksTests`).
 
 The sim's side is `src/I76.Sim/Session/DevTools.cs` (tests: `DevToolsTests`, the in-place restore replaying the stored
-run tick for tick). Any action but Store marks the attempt a cheater's, as the Play Options cheats do; the end menu's
-Turn off Cheater Options clears it. Not there yet: freezing the AI and spawning new cars (a melee's Bot Cars and
+run tick for tick). An action that changes the attempt's simulation (Teleport, Repair & refill, God mode on, Bring nearest
+car, a loadout Apply, Refill, Restore, Freeze on, a Step, a speed other than x1) marks that attempt a cheater's, as the Play
+Options cheats do: a win gets the cheater's end menu and no advance. The mark is the attempt's alone: a mission started fresh
+(a launch from the shell, Replay, the panel's Start) starts clear, a checkpoint's retry keeps it, and the end menu's Turn off
+Cheater Options clears it; the Play Options' own marker keeps the original's rule (set at every read-back with a cheat on,
+cleared by Turn off Cheater Options alone). The Settings section, Store, Keep and Forget, the Signals and Start never mark
+anything (`CheatMarkerTests`). Not there yet: freezing the AI and spawning new cars (a melee's Bot Cars and
 `I76_MELEE_OPPONENTS` make cars; `I76_SPAWN_AI_AT` places them for captures).
 
 ## Debug output

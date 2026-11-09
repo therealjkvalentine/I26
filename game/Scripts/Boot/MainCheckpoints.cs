@@ -104,7 +104,7 @@ public partial class Main
     {
         if (_retry is not { } cp) return false;
         _retry = null;
-        if (!cp.Mission.Equals(_opt.Mission ?? "", System.StringComparison.OrdinalIgnoreCase)) return false;
+        if (!cp.Mission.Equals(_opt.Mission ?? "", System.StringComparison.OrdinalIgnoreCase)) { I76.Game.Shell.CheatMarker.NewAttempt(); return false; }   // the mission starts over
         var sw = System.Diagnostics.Stopwatch.StartNew();
         I76.Sim.Session.RestoreResult r;
         try { r = session.Restore(cp.Snapshot); }
