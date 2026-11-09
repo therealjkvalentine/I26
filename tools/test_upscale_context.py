@@ -145,6 +145,57 @@ src zsheet.map
         self.assertTrue((cells[:, 16:] == whole[:, 16:]).all(), "texels in no cell keep the whole run's")
         self.assertEqual(cells.shape, whole.shape)
 
+    PLACED = """dst zpanel.map
+    label lamp                10   20       0    0
+    label rrtyre              40   20       0    0
+    label rltyre               2   20       0    0
+dst zpanel320.map
+    label 3lamp                5   10       0    0
+    label 3rrtyre             20   10       0    0
+src zsheet.map
+    label lamp_off             0    0       4    3
+    label lamp_on              0    3       4    3
+    label tyre_off             4    0       2    2
+    label tyre_on              4    0       2    2
+    label nowhere_on           8    0       2    2
+src zsheet320.map
+    label 3lamp_off            0    0       2    2
+    label 3tyre_on             2    0       2    2
+"""
+
+    def test_a_cells_place_is_its_anchor_on_the_panel(self):
+        places = ut.layout_places(self.PLACED)
+        self.assertEqual(places["zsheet"][(0, 0, 4, 3)], ("zpanel", 10, 20), "the label's name without its state is the anchor")
+        self.assertEqual(places["zsheet"][(0, 3, 4, 3)], ("zpanel", 10, 20))
+        self.assertEqual(places["zsheet"][(4, 0, 2, 2)], ("zpanel", 40, 20), "a cell stamped at several anchors takes the first named")
+        self.assertNotIn((8, 0, 2, 2), places["zsheet"], "a cell with no anchor has no place")
+        self.assertEqual(places["zsheet320"][(0, 0, 2, 2)], ("zpanel320", 5, 10), "the low-resolution set among its own anchors")
+        self.assertEqual(places["zsheet320"][(2, 0, 2, 2)], ("zpanel320", 20, 10))
+
+    def test_a_cell_is_set_in_the_panel_round_it_not_its_mirror(self):
+        # a cell whose shape touches its top (a white point over grey): mirrored, the model (a vertical blur) sees the point
+        # continue upward and keeps it white to the edge; set in the panel's green, the edge takes the green the game shows there
+        cell = np.zeros((3, 4, 4), np.uint8); cell[..., :3] = 100; cell[..., 3] = 255; cell[0, 1:3, :3] = 250
+        panel = np.zeros((40, 40, 4), np.uint8); panel[..., 1] = 200; panel[..., 3] = 255
+        blur = Runner(4, blur=True)
+        def vblur(p):
+            t = np.ascontiguousarray(p.transpose(1, 0, 2))
+            return np.ascontiguousarray(blur.run(t).transpose(1, 0, 2))
+        mirrored = ut.by_cells(cell, [(0, 0, 4, 3)], vblur, m=2)
+        placed = ut.by_cells(cell, [(0, 0, 4, 3)], vblur, lambda c: ut.panel_around(panel, 10, 20, c[2], c[3], 2), m=2)
+        self.assertEqual(int(mirrored[0, 6, 0]), int(mirrored[0, 6, 1]), "mirrored, the point's edge mixes only the cell's own greys")
+        self.assertGreater(int(placed[0, 6, 1]), int(placed[0, 6, 0]) + 20, "placed, the point's edge blends toward the panel's green")
+        self.assertTrue((placed[..., 3] == 255).all() and placed.shape == (12, 16, 4), "the cell's own alpha and size")
+        # a keyed texel shows the panel through to the model and stays keyed in the output
+        cell[2, 0, 3] = 0
+        placed = ut.by_cells(cell, [(0, 0, 4, 3)], vblur, lambda c: ut.panel_around(panel, 10, 20, c[2], c[3], 2), m=2)
+        self.assertTrue((placed[8:12, 0:4, 3] == 0).all() and (placed[0:8, :, 3] == 255).all())
+        # no anchor: the cell's own border colour round it, the point blending toward the grey, not the green
+        alone = ut.by_cells(cell, [(0, 0, 4, 3)], vblur, lambda c: None, m=2)
+        self.assertLess(int(alone[0, 6, 0]), 250); self.assertEqual(int(alone[0, 6, 0]), int(alone[0, 6, 1]))
+        # a place off the panel: none
+        self.assertIsNone(ut.panel_around(panel, 39, 20, 4, 3, 2))
+
 
 class Recut(unittest.TestCase):
     def test_the_alpha_is_the_fields_cut_and_the_edge_the_originals_colour(self):

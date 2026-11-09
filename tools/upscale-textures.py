@@ -62,8 +62,13 @@ Sprite sheets (--cells LAYOUT): the cockpit stamps its live panels from sheets o
 lights, five states of each part, a texel apart or none). A model run over the whole sheet reaches across each cell's border:
 the front armour's chevron, which touches its cell's top, came out with its point spilling into the cell above and the next
 state's point showing under it. With the install's cockpit layout (`i76 --install DIR cat vpit_1.elt > vpit_1.elt`) every sheet it names
-is upscaled whole and then each cell again on its own, mirrored at its own border, and put back at its place:
+is upscaled whole and then each cell again on its own and put back at its place:
            python3 tools/upscale-textures.py SRC_DIR --families --cells vpit_1.elt --only "zsye,zsye320" ...
+A cell on its own is set in the picture that surrounds it in the game: the panel's art (the layout's dst texture, from SRC_DIR)
+round the anchor the cell is stamped at, CELL_CONTEXT texels each way, the cell's keyed texels showing it as the stamp does.
+Mirrored at its own border instead (the first cut), a chevron touching its cell's top met its own reflection and the model
+drew a shadow line over its arms and a crossed point; the thin side and bottom bars met theirs and came out mottled at their
+ends. A cell no anchor is found for is set in its own border's colour.
 
 Cut-out edges (--recut FIELDS): a keyed texture's alpha enlarged by any model follows the original's stair steps and the
 model's lumps, and the model blurs the art's outermost texels into the colour bled round it (a light fringe on a dark-edged
@@ -166,6 +171,37 @@ CONTEXT = 32    # --context: source texels of neighbour (or wrapped) picture rou
 CONTEXT_LATE = 16  # the context kept for the second model (--then), the colour match and the resize, cropped off last
 NEIGHBOURS = {}    # --neighbours: stem -> its plan (neighbour_plan)
 CELLS = {}         # --cells: sheet stem -> its sprite cells [(x, y, w, h), ...] in the original's texels, upright
+PLACES = {}        # --cells: sheet stem -> {cell: (panel stem, x, y)}, where the cockpit stamps the cell (layout_places)
+CELL_CONTEXT = 12  # the panel's texels round a cell the model sees (by_cells), cropped off after
+
+def layout_places(text):
+    """Where a layout's sprite cells are stamped: by sheet, each cell to the dst texture and anchor of the label whose name
+    is the cell's without its state suffix (`farm_off` at `farm`), or ends with it (the one `tire` cell at `rrtire`, `rltire`,
+    ...: the first anchor named); the low-resolution set (`3farm_off`) likewise among the `3` anchors. A cell named twice
+    takes its first name's anchor; a cell with no anchor is left out."""
+    anchors, cells, cur, src = {}, {}, None, False
+    for line in text.splitlines():
+        f = line.split()
+        if len(f) >= 2 and f[0] in ("src", "dst"):
+            cur, src = os.path.splitext(f[1])[0].lower(), f[0] == "src"
+        elif cur and len(f) >= 6 and f[0] == "label":
+            try: x, y, w, h = (int(v) for v in f[2:6])
+            except ValueError: continue
+            name = f[1].lower()
+            if not src: anchors.setdefault(name, (cur, x, y))
+            elif w > 0 and h > 0: cells.setdefault(cur, {}).setdefault((x, y, w, h), name)
+    places = {}
+    for sheet, named in cells.items():
+        for cell, name in named.items():
+            base = name.rsplit("_", 1)[0] if "_" in name else name
+            low = base.startswith("3")
+            stem = base[1:] if low else base
+            found = anchors.get(base)
+            if found is None:
+                for a, at in anchors.items():
+                    if a.startswith("3") == low and a.endswith(stem): found = at; break
+            if found is not None: places.setdefault(sheet, {})[cell] = found
+    return places
 
 def layout_cells(text):
     """A cockpit layout's (.elt) sprite cells by sheet: each `src NAME.map` section's labels with a size (`label name x y w h`,
@@ -181,21 +217,56 @@ def layout_cells(text):
             if w > 0 and h > 0 and (x, y, w, h) not in cells.setdefault(cur, []): cells[cur].append((x, y, w, h))
     return cells
 
-def by_cells(im, cells, model):
+def cell_canvas(cell, around, m=CELL_CONTEXT):
+    """A cell set in what surrounds it in the game, m texels each way: `around`, the panel's RGBA where the cell is stamped
+    (its (h + 2m) x (w + 2m) texels round the place, or None: a flat fill of the cell's own border colour), the cell's opaque
+    texels over it as the stamp leaves them, the keyed ones showing the panel through. Opaque throughout: the cell's own
+    alpha is put back on the model's output (by_cells)."""
+    h, w = cell.shape[:2]
+    k = cell[..., 3] >= 128
+    if around is None:
+        edge = np.concatenate([cell[0], cell[-1], cell[:, 0], cell[:, -1]])
+        edge = edge[edge[..., 3] >= 128]
+        fill = np.median(edge[:, :3], axis=0) if len(edge) else np.zeros(3)
+        around = np.empty((h + 2 * m, w + 2 * m, 4), np.uint8); around[..., :3] = np.clip(fill + 0.5, 0, 255).astype(np.uint8)
+    canvas = around.copy()
+    canvas[..., 3] = 255
+    canvas[m:m + h, m:m + w][k] = cell[k]
+    canvas[m:m + h, m:m + w, 3] = 255
+    return canvas
+
+def panel_around(panel, x, y, w, h, m=CELL_CONTEXT):
+    """A panel's RGBA round the w x h place at (x, y), m texels each way; past the panel's edge, its edge texels again."""
+    p = np.pad(panel, ((m, m), (m, m), (0, 0)), mode="edge")
+    return p[y:y + h + 2 * m, x:x + w + 2 * m] if 0 <= y <= panel.shape[0] - h and 0 <= x <= panel.shape[1] - w else None
+
+def by_cells(im, cells, model, around=None, m=CELL_CONTEXT):
     """A sprite sheet through `model` (upright RGBA -> RGBA at its scale) whole, then each cell again on its own and put back at
     its place: the cockpit draws a sheet's cells one at a time (a damage light's five states, packed edge to edge), and a model
     run over the whole sheet reaches across a cell's border, so a shape at a cell's edge took in its neighbour's (the next
-    state's colour under the front armour's chevron) and lost what spilled over. On its own a cell is padded with its own
-    picture mirrored, as a whole texture is at its border. Texels in no cell keep the whole run's."""
+    state's colour under the front armour's chevron) and lost what spilled over. On its own a cell is set in what the game
+    shows round it: `around(cell)` gives the panel's texels round its place (panel_around), m each way, else its own border's
+    colour (cell_canvas); its alpha is the original's at the scale, nearest. Texels in no cell keep the whole run's."""
     big = model(im)
     f = big.shape[1] // im.shape[1]
     h, w = im.shape[:2]
     for x, y, cw, ch in cells:
         x1, y1 = min(x + cw, w), min(y + ch, h)
         if x >= w or y >= h or x1 - x < 1 or y1 - y < 1: continue
-        c = model(np.ascontiguousarray(im[y:y1, x:x1]))
-        big[y * f:y1 * f, x * f:x1 * f] = c[:(y1 - y) * f, :(x1 - x) * f]
+        cell = np.ascontiguousarray(im[y:y1, x:x1])
+        a = around((x, y, cw, ch)) if around else None
+        if a is not None and a.shape[:2] != (y1 - y + 2 * m, x1 - x + 2 * m): a = a[:y1 - y + 2 * m, :x1 - x + 2 * m] if a.shape[0] >= y1 - y + 2 * m and a.shape[1] >= x1 - x + 2 * m else None
+        c = model(cell_canvas(cell, a, m))[m * f:(m + y1 - y) * f, m * f:(m + x1 - x) * f]
+        c[..., 3] = np.repeat(np.repeat(np.where(cell[..., 3] >= 128, 255, 0).astype(np.uint8), f, 0), f, 1)
+        big[y * f:y1 * f, x * f:x1 * f] = c
     return big
+
+def cell_surroundings(stem, cell, src, m=CELL_CONTEXT):
+    """The panel's texels round the place a sheet's cell is stamped at (PLACES), from the originals in `src`; None without one."""
+    if (at := PLACES.get(stem, {}).get(cell)) is None: return None
+    panel, x, y = at
+    p = neighbour_rgba(src, panel)
+    return None if p is None else panel_around(p, x, y, cell[2], cell[3], m)
 
 def side_of(uv0, uv1, bottom_up, eps=1e-3):
     """Which border of the upright picture an edge from uv0 to uv1 runs along, and where it starts and ends along that
@@ -529,7 +600,7 @@ def one(job, run_model=None):
             if OPTS["x2_model"] and b.shape[1] < p.shape[1] * (full_scale if matches(stem, full) else scale):
                 b = second_pass(run_model, b)
             return b
-        big = by_cells(im, CELLS[stem], model) if stem in CELLS else model(im)
+        big = by_cells(im, CELLS[stem], model, lambda c: cell_surroundings(stem, c, src)) if stem in CELLS else model(im)
     elif frm:
         p = os.path.join(frm, stem + ".png")
         if not os.path.exists(p): return n, False
@@ -538,7 +609,7 @@ def one(job, run_model=None):
         def model(p):
             b = run(p)
             return run_model.then(b) if isinstance(run_model, Runner) and run_model.then_file else b
-        big = by_cells(im, CELLS[stem], model) if stem in CELLS else model(im)
+        big = by_cells(im, CELLS[stem], model, lambda c: cell_surroundings(stem, c, src)) if stem in CELLS else model(im)
     a = im[..., 3]
     keyed = fam and fam[1] and not pix and (a == 0).any() and (a > 0).any()
     fa = os.path.join(OPTS["family_masters"], stem + ".alpha.png") if OPTS["family_masters"] else None
@@ -722,8 +793,9 @@ def main():
         with open(args.neighbours) as f: NEIGHBOURS.update(neighbour_plan(json.load(f), frozenset(bottom_up)))
         print(f"--neighbours: {len(NEIGHBOURS)} textures get {CONTEXT} texels of context")
     if args.cells:
-        with open(args.cells, encoding="latin-1") as f: CELLS.update(layout_cells(f.read()))
-        print(f"--cells: {len(CELLS)} sprite sheets, {sum(map(len, CELLS.values()))} cells")
+        with open(args.cells, encoding="latin-1") as f: text = f.read()
+        CELLS.update(layout_cells(text)); PLACES.update(layout_places(text))
+        print(f"--cells: {len(CELLS)} sprite sheets, {sum(map(len, CELLS.values()))} cells, {sum(map(len, PLACES.values()))} with a place on a panel")
     only, skip = globs_of(args.only), globs_of(args.skip) if args.skip else []
     names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and any(fnmatch.fnmatch(n.lower()[:-4], g) or fnmatch.fnmatch(n.lower(), g) for g in only)
                    and not any(fnmatch.fnmatch(n.lower()[:-4], g) for g in skip))
