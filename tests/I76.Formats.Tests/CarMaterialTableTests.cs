@@ -174,6 +174,22 @@ public class CarMaterialTableTests
 public class CarMaterialTableUpscaleTests
 {
     [InstallFact]
+    public void TheSchoolBusWindshieldIsGlassAndTheBlackBandsBelowAndAboveItAreNot()
+    {
+        var vfs = new AssetVfs(new GameInstall(TestInstall.Dir));
+        var res = new TextureResolver(vfs);
+        var member = res.FindByStem("xb11ftf1")!;
+        var t = res.Load(member)!;
+        var rgba = TextureReader.ToRgba(t, new Palette(vfs.TryRead("t01.act")!));
+        var ids = CarMaterialTable.Default.Ids(member, rgba, t.Width, t.Height)!;
+        double Glass(int y0, int y1) => Enumerable.Range(y0, y1 - y0).SelectMany(y => Enumerable.Range(0, t.Width).Select(x => ids[y * t.Width + x])).Average(i => i == CarMaterialTable.GlassId ? 1.0 : 0.0);
+        // the band under the windshield and the strip over it are the key's black in the original (drawn black there), not glass
+        Assert.Equal(0.0, Glass(57, 67));
+        Assert.Equal(0.0, Glass(103, 107));
+        Assert.True(Glass(68, 102) > 0.95);
+    }
+
+    [InstallFact]
     public void ThePiranhasWindowsAreFoundOnTheOriginalsGridAndNotOnAnUpscales()
     {
         var vfs = new AssetVfs(new GameInstall(TestInstall.Dir));

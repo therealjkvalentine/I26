@@ -45,6 +45,10 @@ XB11FTF1	gloss-paint	0,0,128,15	*
 XB11FTF1	gloss-paint	43,15,41,34	*
 XB11FTF1	gloss-paint	0,48,128,9	*
 XB11FTF1	gloss-paint	0,107,128,21	!red
+# and the black bands below and above the windshield (rows 58-66, 103-106: the segmentation ran the pane into them; the original
+# draws them black, the windshield between)
+XB11FTF1	gloss-paint	0,57,128,10	*
+XB11FTF1	gloss-paint	0,103,128,4	*
 XB11BKB1	gloss-paint	0,0,128,32	*
 XB11BKB1	gloss-paint	0,56,128,17	*
 XB11BKB1	gloss-paint	0,103,128,25	!red

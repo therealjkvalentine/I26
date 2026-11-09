@@ -177,6 +177,10 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>The face's mode from its +0x20 / +0x21 bytes: +0x21 ≠ 0 translucent, +0x20 bit 2 cut-out, else opaque.</summary>
     public static FaceMode ModeOf(byte b20, byte b21) => b21 != 0 ? FaceMode.Translucent : (b20 & 4) != 0 ? FaceMode.Cutout : FaceMode.Opaque;
 
+    /// <summary>Whether a face draws its texture's keyed texels (index 255) in that index's colour: an opaque face of a keyed texture,
+    /// which the original draws like any other texel (the key is honoured by cut-out and translucent faces only).</summary>
+    public static bool DrawsKeyColour(FaceMode mode, bool hasKey) => mode == FaceMode.Opaque && hasKey;
+
     /// <summary>
     /// A texture's material for a face mode. Only cut-out and translucent
     /// faces key palette index 255 (drawn from both sides); opaque faces draw
@@ -235,6 +239,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
         // clear-coated paint over the whole car
         else if (car is { } paint && t is not null)
         {
+            // an opaque face draws index 255 as its palette colour (the limo's black roof, the bus's black bands and lettering), not the
+            // neighbours bled under the key; the filtered key's coverage blends the two at its edges
+            if (DrawsKeyColour(mode, t.HasKey)) { mat.SetShaderParameter("key_under", true); mat.SetShaderParameter("key_fill_color", t.KeyColour); }
             if (CarMaps) SetMaps(mat, member, t, paint);
             else
             {

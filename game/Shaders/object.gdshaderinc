@@ -42,6 +42,7 @@ uniform vec4 uv_fit = vec4(1.0, 1.0, 0.0, 0.0);   // the modern look's texture c
 uniform float uv_floor = -1e9;   // with uv_fit: below this v (the art's last row) the face is not drawn
 uniform bool key_fill = false;     // the cockpit's art on an opaque face: its keyed texels (index 255) in that index's colour
 uniform vec4 key_fill_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+uniform bool key_under = false;    // a car's opaque face: its keyed texels in key_fill_color (index 255's colour), blended by the filtered key's coverage
 #ifdef KEY_COVERAGE
 // a keyed face's smooth outline (TextureFactory.KeyEdge; the compass's MirrorEdge.KeyField): the key's outline as a signed
 // distance field, cut at half over one screen pixel; inside it a keyed texel keeps the colour bled under the key or, with
@@ -580,6 +581,7 @@ void fragment() {
 	if (wheel_face && use_texture && wheel_turn.z != 0.0) c.rgb = wheel_still_light(c.rgb, tuv, wheel_turn);
 #endif
 	if (key_fill && c.a < 0.5) c = vec4(key_fill_color.rgb, 1.0);
+	if (key_under) c = vec4(mix(key_fill_color.rgb, c.rgb, c.a), 1.0);
 #ifdef KEY_COVERAGE
 	float key_f = smooth_key ? texture(key_edge, tuv).r : 1.0;
 	float key_w = fwidth(key_f);
