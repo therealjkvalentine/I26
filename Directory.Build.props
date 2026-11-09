@@ -15,4 +15,12 @@
   <PropertyGroup Condition="'$(Configuration)' == 'ExportRelease'">
     <Optimize>true</Optimize>
   </PropertyGroup>
+  <!-- A game run from source (Godot's editor binary pointed at game/: the desktop's launchers, tools/shot.sh, the frame-cost bench) loads
+       the Debug build, and Debug code is not optimised: the main thread's tight loops (the bass shaker's synthesis, the drop shadows'
+       casters, the smoke, the radar's decode) ran several times slower than a release's, and a frame the processor holds slower with
+       them (docs/perf/plan.md, "Debug code and the owner's frame rate"). Optimised here too; `dotnet build -p:Optimize=false` gives
+       code a debugger steps through line by line. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
 </Project>

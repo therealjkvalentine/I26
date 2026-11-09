@@ -17,7 +17,8 @@ at the screen's corner, so a run never takes the screen or the keyboard from som
 waits for the GPU to be under 10 % with no other Godot or compute process, samples other GPU users every 2 s during the run
 (the row's `others` column: rerun a row that is not 0), and leaves GAP_S idle after each run for other lanes' idle checks.
 
-FRAME_COST_PROFILE=owner is a playtest's settings (OWNER); --scene t05 drives T05's busy parts (T05_SECTIONS) for 170 s
+FRAME_COST_PROFILE=owner is a playtest's settings (OWNER); FRAME_COST_PROFILE=file takes a player's own shell.cfg (FRAME_COST_SHELL_CFG)
+as the base, VSync and Max FPS included; --scene t06 drives off from T06's start by night; --scene t05 drives T05's busy parts (T05_SECTIONS) for 170 s
 (--skip-ms 2000 --run-ms 168000). FRAME_COST_GAME runs another checkout's game/ (a before build), FRAME_COST_GPU_PROFILE=0 leaves out
 --gpu-profile (its table, printed once a second, is a stutter of its own: no gpu.* columns then), FRAME_COST_IGNORE_PIDS lists
 compute processes that sit idle while their lane waits for the GPU lock. FRAME_COST_CPU_IDLE=N waits before a run until the machine's
@@ -67,7 +68,22 @@ OWNER = {
     "hd_menu_art": "true", "hd_textures": "true", "hd_dash_size": 4, "hd_car_size": 8, "effects_size": 80,
     "effects_brightness": 70, "effects_opacity": 70, "mirror_range": '"full"', "brake_lamps": '"original"', "mg_tracers": '"original"',
 }
-PROFILE = os.environ.get("FRAME_COST_PROFILE", "full")   # full (everything on) | defaults | old_defaults | owner
+PROFILE = os.environ.get("FRAME_COST_PROFILE", "full")   # full (everything on) | defaults | old_defaults | owner | file
+# FRAME_COST_PROFILE=file: a player's own shell.cfg (FRAME_COST_SHELL_CFG) as the base, its Graphic Detail block and [port] keys as
+# written (VSync and Max FPS too: pass --cfg vsync=false to measure past the refresh); --cfg and --graphics change it as for the others
+SHELL_CFG = os.environ.get("FRAME_COST_SHELL_CFG", "")
+
+def read_shell_cfg(path):
+    graphics, port, section = None, {}, ""
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("["): section = line; continue
+            if "=" not in line: continue
+            k, v = line.split("=", 1)
+            if section == "[shell]" and k == "graphics": graphics = [int(x) for x in re.findall(r"\d+", v)]
+            elif section == "[port]": port[k] = v
+    return graphics, port
 SCENES = {
     # the T01 start, the player's car standing with its engine running while the script's cars play the opening; seed 1
     "cockpit": ["--mission", "t01", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes"],
@@ -77,6 +93,8 @@ SCENES = {
     # T05's busy parts in one run (T05_SECTIONS), the car driven along the roads by I76_TEST_ROUTE, moved between them by
     # I76_SPAWN_AT's timed stops, firing at the nearest car; Play Options' Unlim. Ammo, Armor and Chas. Rein. keep it alive
     "t05": ["--mission", "t05", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--hold-fire"],
+    # T06 by night from its start, the cockpit, the car driven off down the road (the headlamps, the night terrain shader)
+    "t06": ["--mission", "t06", "--drive", "--seed", "1", "--skip-movies", "--skip-cutscenes", "--hold-throttle"],
 }
 # T05's sections: (name, mission second it starts, the teleport there or None, the road points driven at 15 m/s). The start and
 # the first car on the road east (the first attacker comes at ~26 s), the mountain pass west over the ridge (two cars hide on it),
@@ -156,9 +174,10 @@ def wait_idle(limit=4 * 3600):
 def write_cfg(over, graphics_over):
     profile = over.get("__profile", PROFILE)
     g = list({"defaults": DEFAULT_GRAPHICS, "old_defaults": OLD_DEFAULT_GRAPHICS}.get(profile, BASE_GRAPHICS))
+    if profile == "file": g, file_port = read_shell_cfg(SHELL_CFG)
     for k, v in graphics_over.items():
         g[int(k, 0)] = int(v)
-    port = dict(DEFAULTS if profile in ("defaults", "old_defaults") else OWNER if profile == "owner" else BASE)
+    port = dict(file_port if profile == "file" else DEFAULTS if profile in ("defaults", "old_defaults") else OWNER if profile == "owner" else BASE)
     port.update({k: v for k, v in over.items() if not k.startswith("__")})
     # version 14: an older file has Terrain Detail Low raised to High as it loads (ShellSettings.RaiseOldDetailDefaults; Shadow Detail is kept)
     lines = ["[shell]", "", "version=14", "graphics=PackedByteArray(" + ", ".join(map(str, g)) + ")", "audio=PackedByteArray(8, 8, 8, 8)", f"play={over.get('__play', 0)}", "difficulty=0", "", "[port]", ""]
