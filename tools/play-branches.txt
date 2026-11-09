@@ -441,3 +441,6 @@ fix/menu-logo-flat-2                  # section BN: the TM set to the original's
 
 # BO. Report a Bug and Developer at the foot of the Options pad (2026-11-09; lane on Sonnet 5.5)
 fix/options-pad-rows                  # section BO: Report a Bug on row 13 and Developer on row 14 of the Esc menu's Options Menu pad (single-player and network), away from the original's rows 1-6; navigation steps down to them in order; EscapeMenuRowsTests. Evidence: _scratch/r7-menu-rows/sheet.png
+
+# BP. sky and death orbit at half speed (2026-11-09; lane on Sonnet 5.5)
+feat/sky-orbit-speeds                 # section BP: [port] sky_speed and death_orbit_speed, percent 0-200, default 50: the clouds' drift in both looks and the camera's orbit after a death or a network match's end at half today's rate; drawn only (camera and shader), no sim or snapshot change; Developer panel rows; PresentationSpeedTests. Evidence: _scratch/r7-speeds/sheet.png, orbit-100.mp4, orbit-50.mp4
