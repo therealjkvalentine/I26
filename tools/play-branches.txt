@@ -444,3 +444,6 @@ fix/options-pad-rows                  # section BO: Report a Bug on row 13 and D
 
 # BP. sky and death orbit at half speed (2026-11-09; lane on Sonnet 5.5)
 feat/sky-orbit-speeds                 # section BP: [port] sky_speed and death_orbit_speed, percent 0-200, default 50: the clouds' drift in both looks and the camera's orbit after a death or a network match's end at half today's rate; drawn only (camera and shader), no sim or snapshot change; Developer panel rows; PresentationSpeedTests. Evidence: _scratch/r7-speeds/sheet.png, orbit-100.mp4, orbit-50.mp4
+
+# BQ. jumps explained (2026-11-09; lane on Opus 5.5)
+docs/jump-physics                     # section BQ: docs/jumps.md for players: take-off, the in-air rules (gravity only, no drag, keys do nothing, the nose-down rate held at or eased toward 9 deg/s), why the nose drops (the front wheels past the lip on the last ground tick: 18 or 36 deg/s), the landing rules, T05's numbers (leave the lip at 49-56 m/s; 40% land within 9 deg of flat at rate 20), Simulation Rate and Modern Physics; JumpFlightTests; 672 probe jumps checked against the i76-everywhere 86Box records. Evidence: _scratch/r7-jumps/t05-jump-landing-pitch.png, JumpProbe/ CSVs, sim-tests.log
