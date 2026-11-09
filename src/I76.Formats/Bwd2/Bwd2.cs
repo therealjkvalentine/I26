@@ -165,6 +165,10 @@ public sealed class Bwd2File
         return o;
     }
 
+    /// <summary>The definition's own night lights (LOBJ chunks), in the order they stand in the file.</summary>
+    public List<ObjectLight> ObjectLights() =>
+        [.. Chunks.Where(c => c.Tag == "LOBJ" && c.PayloadSize >= ObjectLight.Size).Select(c => ObjectLight.Read(Data, c.PayloadOffset))];
+
     private static bool Printable(ReadOnlySpan<byte> b)
     {
         int n = b.IndexOf((byte)0);

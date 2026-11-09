@@ -750,6 +750,7 @@ public partial class Main : Node3D
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         _brightnessLevel = s.Graphics[0xc];
         _nightDial = s.Night;
+        I76.Game.World.StationLight.Percent = s.NightStationLight;
         if (_lighting != LightingOf(s)) { _lighting = LightingOf(s); SolveLightingCalibration(); }
         else ApplyLightingCalibration();
         if (_env1997 is not null)
@@ -2609,6 +2610,8 @@ public partial class Main : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_ground_tint", new Vector3((float)c.GroundTint.R, (float)c.GroundTint.G, (float)c.GroundTint.B));
         RenderingServer.GlobalShaderParameterSet("i76_object_tint", new Vector3((float)c.ObjectTint.R, (float)c.ObjectTint.G, (float)c.ObjectTint.B));
         RenderingServer.GlobalShaderParameterSet("i76_prelit_gain", 1f / (float)c.Exposure);
+        // the scenery's own night lights and its full-bright faces (StationLight): the faces as painted, through the exposure as the prelit art is
+        I76.Game.World.StationLight.Apply(night: _calibratedLight is { IsDay: false }, gain: 1f / (float)c.Exposure);
         RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
         RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);
     }
@@ -3166,7 +3169,8 @@ public partial class Main : Node3D
                 var g = Coords.ToGame(new Vector3(x, 0, z)) + _origin;
                 return Bare(g.X, g.Z) - _origin.Y;
             }
-            AddChild(night = new NightLights { Name = "NightLights", Cars = () => _sim?.Cars ?? [], Ground = GroundGodot, MoonIntensity = _builder.Light.Intensity });
+            AddChild(night = new NightLights { Name = "NightLights", Cars = () => _sim?.Cars ?? [], Ground = GroundGodot, MoonIntensity = _builder.Light.Intensity,
+                Statics = _builder.Scenery?.Lights ?? [] });
         }
         _drops = new DropShadows
         {

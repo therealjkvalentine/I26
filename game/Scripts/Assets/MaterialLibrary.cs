@@ -225,6 +225,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
         }
         else mat.SetShaderParameter("albedo_color", Colors.Magenta);
         if (unlit) mat.SetShaderParameter("unlit_1997", true);
+        // scenery's full-bright face (a night station's lit parts): as painted at night in the modern look (StationLight); a car's lamps and
+        // windows keep the modern look's own lamps and glass
+        if (unlit && car is null && mode != FaceMode.Translucent) mat.SetShaderParameter("night_glow", true);
         // the cockpit's own art (z*: panels, wheel, arms, dash) carries its lighting: the engine applies none
         string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
         if (stem.StartsWith('z') || stem.StartsWith('Z'))
@@ -735,15 +738,17 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>A flat-coloured face's material; a prop's (not a car's) weighed as PropMaterial weighs a texel, in the modern look.</summary>
     public Material ForColour(byte r, byte g, byte b, bool prop = false,
-        I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool oneSided = false)
+        I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool oneSided = false, bool unlit = false)
     {
         prop &= PropMaps;
         bothSides &= !oneSided;
-        var key = (prop ? $"#{r:x2}{g:x2}{b:x2}|prop{(int)family}" : $"#{r:x2}{g:x2}{b:x2}") + (bothSides ? "|2" : "") + (oneSided ? "|1" : "");
+        var key = (prop ? $"#{r:x2}{g:x2}{b:x2}|prop{(int)family}" : $"#{r:x2}{g:x2}{b:x2}") + (bothSides ? "|2" : "") + (oneSided ? "|1" : "") + (unlit ? "|u" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
         var mat = new ShaderMaterial { Shader = Pick(bothSides ? Open : Back) };
         if (oneSided) _oneSided.Add(mat);
         mat.SetShaderParameter("albedo_color", Color.Color8(r, g, b));
+        // a plain-coloured face the engine draws at full brightness (a night station's pump island): as the textured ones (FaceLight)
+        if (unlit) { mat.SetShaderParameter("unlit_1997", true); if (prop) mat.SetShaderParameter("night_glow", true); }
         if (prop)
         {
             var (rough, metal, spec) = I76.Formats.Imaging.PropMaterial.ForColour(r, g, b, family);

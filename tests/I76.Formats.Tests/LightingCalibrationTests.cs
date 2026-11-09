@@ -278,16 +278,20 @@ public class LightingCalibrationTests
     [Fact]
     public void TheWarmMoonTurnsAGreyGroundBrownAtTheSameLuminance()
     {
-        // T06's ground is a near-neutral grey: kept as it is by default, a dark brown-grey toward moonlight's warm white
+        // T06's ground is a near-neutral grey: kept as it is with warm 0, the cutscene's dark brown at 1 (the default), moonlight's
+        // warm white, the first target, about half way
         var grey = new M.Rgb(0.010, 0.010, 0.011);
         var moon = new M.Rgb(0.318, 0.448, 1.0) * 0.045;
         var kept = M.NightGroundLight(grey, moon, M.GroundGlint, 1);
         var warm = M.NightGroundLight(grey, moon, M.GroundGlint, 1, 1);
+        var half = M.NightGroundLight(grey, moon, M.GroundGlint, 1, 0.5);
         Assert.True(Oklab(kept).CL < 0.06);
-        Assert.True(Oklab(warm).CL > 0.07);
-        Assert.InRange(Oklab(warm).Hue, 30, 90);
+        Assert.InRange(Oklab(warm).CL, 0.13, 0.20);
+        Assert.InRange(Oklab(warm).Hue, 60, 80);
+        Assert.InRange(Oklab(half).CL, 0.05, 0.10);   // moonlight's own gave 0.06 to 0.07 on this ground
         Assert.InRange(warm.Luminance / kept.Luminance, 0.95, 1.05);
         Assert.Equal(1, M.Moonlight.Luminance, 2);
+        Assert.Equal(1, M.CutsceneBrown.Luminance, 2);
         Assert.Equal(1, M.NightWarm);
     }
 

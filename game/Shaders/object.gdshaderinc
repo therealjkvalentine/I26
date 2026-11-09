@@ -53,6 +53,10 @@ uniform sampler2D key_edge : hint_default_white, filter_linear_mipmap, repeat_en
 uniform sampler2D key_edge_fill : source_color, filter_nearest, repeat_disable;
 #endif
 uniform bool unlit_1997 = false;   // the 1997 look: a face the engine draws at full brightness (FaceLight: lamps, lit windows, translucent faces)
+// the modern look at night: such a face of scenery (a night gas station's canopy underside, pumps, pad) shows as painted, as emission
+// at i76_night_glow (StationLight: the painted colour's gain through the exposure, times the night_station_light percent; 0 by day)
+uniform bool night_glow = false;
+global uniform float i76_night_glow;
 // material maps (modern look): roughness, metallic, clear coat, specular; a car's (CarMaterial) with a tangent-space
 // normal, scenery's and props' (PropMaterial) without
 uniform bool has_maps = false;
@@ -797,6 +801,12 @@ void fragment() {
 		SPECULAR = s;
 		CLEARCOAT = CLEARCOAT * (1.0 - wreck.x);
 		EMISSION = g;
+	}
+	if (night_glow && i76_night_glow > 0.0) {
+		// as painted at the full level, the moon's and the lamps' light on it given up in step; part way, both
+		float painted = clamp(i76_night_glow / max(i76_prelit_gain, 1e-6), 0.0, 1.0);
+		EMISSION += c.rgb * i76_night_glow;
+		ALBEDO *= 1.0 - painted;
 	}
 	if (!prelit) { ALBEDO *= i76_object_tint; AO = i76_object_sky; }
 	if (dash_lamp) EMISSION += c.rgb * DASH_LAMP * i76_dash_light * i76_prelit_gain;

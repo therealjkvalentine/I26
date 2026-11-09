@@ -184,7 +184,8 @@ public static class DevSettings
     /// <summary>
     /// The Night group: the modern look's night levels on sliders, live in a night mission (I76.Game.World.NightDial; docs/playing.md):
     /// night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as solved
-    /// for the mission (1), night_chroma and night_warm set the moon light's colour on the ground (1, 1). The I76_NIGHT_ hooks win.
+    /// for the mission (1), night_chroma and night_warm set the moon light's colour on the ground (1, 1), night_station_light the
+    /// scenery's own night lights and lit faces in percent (100, StationLight). The I76_NIGHT_ hooks win.
     /// </summary>
     public static readonly DevSetting[] Night =
     [
@@ -193,6 +194,8 @@ public static class DevSettings
         Scale("night_sky", d => d.Sky, (d, v) => d with { Sky = v }),
         Mix("night_chroma", I76.Formats.Imaging.LightingCalibration.NightChroma, d => d.Chroma, (d, v) => d with { Chroma = v }),
         Mix("night_warm", I76.Formats.Imaging.LightingCalibration.NightWarm, d => d.Warm, (d, v) => d with { Warm = v }),
+        new("night_station_light", [.. I76.Game.World.StationLight.Steps.Select(p => p == I76.Game.World.StationLight.Default ? $"{p}" : $"{p}{M}")],
+            s => I76.Game.World.StationLight.Nearest(s.NightStationLight), (s, v) => s.NightStationLight = I76.Game.World.StationLight.Steps[v], DevWhen.Live, Slider: true),
     ];
 
     private static string Num(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
