@@ -82,6 +82,20 @@ variable `I76_LOG=1`) and attach `logs/godot.log` from the user folder (the last
 `logs/godot<date>.log`); `log_file = true` under `[port]` in shell.cfg (or the Developer panel's Settings) keeps it on for every start (it had a Graphic Detail row until round 5). Logs from older versions
 stay where they are and can be deleted.
 
+**Reporting a bug.** The Esc menu's Options Menu has a **Report a Bug** row (Ctrl+F11 does the same, on the pad or in play). It
+writes a folder `bug-reports/<date-time>/` in your user folder and zips it beside the folder as `i26-bug-<date-time>.zip`
+(under 5 MB as a rule); the pad shows the name, with **Open Folder** to show it in your file browser. Drag the zip into Discord
+or a GitHub issue, with a line on what went wrong. It holds `report.txt` (the build and network protocol, your system and
+renderer, the game, mission, simulation tick and car with its place and heading, your settings in short, the texture packs'
+versions, a network game's roster by car), `state.sav` (a save state of that moment, which a developer can load and step
+through, since the simulation is deterministic), `shell.cfg` (a copy of your settings), `screenshot.png` (the frame you saw as
+the menu opened, no wider than 1920), `log.txt` (the last 400 lines of the game's own output, kept in memory whether or not the
+log file is on) and `inputs.csv` (the last ten seconds of your keys and stick; `[port] bug_report_inputs=false` leaves it out).
+Nothing personal goes in: the user folder, your home folder, your user name, your machine's name and the install's and the
+program's folders are blanked wherever they would appear; a network game's player names and addresses are left out. In a
+network game the report is written while the game runs on, so the frame may hitch for a moment. A developer reopens the
+report's moment with `--bug-report-open <zip>` ([docs/dev-hooks.md](dev-hooks.md)).
+
 **Custom maps.** Install community maps as for the original game: unzip them into the game's own folders. For the
 Nitro Pack, the map files (`.cbt` combat, `.rac` race, `.cf2`/`.cf3`/`.cf4` capture the flag, with their `.ter`) go
 into `miss16` (and `miss8`), or into `addon`; for Interstate '76, a level's `.lvl` and `.ter` go into `addon`. Car
@@ -182,6 +196,7 @@ has its default, and a key the game writes itself is left as you set it. A value
 | `lfe_bumps` | `0` to `200` (%) | `100` | The knock as a wheel crosses onto or off a road or a bridge (each wheel its own, by the car's speed: full at 50 mph), in percent of what the synth makes (0 leaves it out). |
 | `cabins_behind_glass` | `false`, `true`\* | `true` | The modern look draws a dim cabin and a driver behind the other cars' windows (a shader's box behind the glass, not a model; under 0.4 ms a frame either way, docs/perf/costs.md); `false` is plain reflective glass. Graphic Detail's Car Interiors row until round 5; its key `car_interiors` is still read. |
 | `log_file` | `false`, `true`\* | `false` | Keeps the log file (`logs/godot.log` in the user folder) on for every start, from the next start; `--log` turns it on for one run. Graphic Detail's Log File row until round 5. |
+| `bug_report_inputs` | `false`, `true`\* | `true` | A bug report's `inputs.csv` ("Reporting a bug" above): the last ten seconds of your keys and stick, kept in memory while a mission runs (a few kilobytes), from the next mission start; `false` leaves them out of the report. |
 | `developer` | `false`, `true`\* | `false` | The Developer panel ([docs/dev-hooks.md](dev-hooks.md)): a Developer entry at the bottom of the Esc menu's Options Menu, and Ctrl+F2 or Ctrl+` in a mission, open it; on the main menu the same keys open its Saves tools (Import Saves, All Scenes). The older name `developer_tools` is read too. Single player only. |
 | `turret_slew` (in `build-rules.cfg`) | `1998`, `1997` | `1998` | How fast a turret turns toward its target (car turrets, gun emplacements, helicopters; yours and the AI's). `1998`, the build GOG sells (Gold 1.2, i76.exe md5 9a232dcc; the Nitro Pack's the same): 1.7 rad/s (a helicopter's 6.8) times 0.75 + 0.25 of the turret's health, so a half-dead turret turns at 88 %. `1997`, the March 1997 CD release (retail 1.0, md5 6cc509ad): 1.5 rad/s (6.0) times the health itself, 12 % slower whole and half speed at half health. Read in both builds' code. Here, a car's 7.62 turret on a car circling it 25 m off at 25 m/s hits with 77 % / 75 % of its rounds (whole / half health) at `1998`, 75 % / 7 % at `1997`. Single player only. |
 | `ai_tactics` (in `build-rules.cfg`) | `1998`, `1997` | `1998` | How an attacking AI car picks its tactic. `1998`: a draw from the tactics table weighted by the car's aggression, a candidate whose conditions fail struck. `1997`: always dirt_gunner (guns from off road), never a road tactic; measured in that build (T14, n = 7), the lead cop circles an idle player 10 to 90 m off, mostly out of sight, and fires 3 to 19 rounds in its first 20 s, then a few a minute, where under the 1998 draw it patrols the road in view and fires steadily. Single player only. |
@@ -230,6 +245,7 @@ Play Options); in a network game it shows only if the host allows it.
 | Rear-view mirror / outside instruments | `` ` `` / `[` |
 | Pause / back to the menu | Pause / Ctrl+Q |
 | Screenshot (to the user folder) | Ctrl+P |
+| Bug report (a zip in the user folder, "Reporting a bug" above) | Ctrl+F11 |
 | Self-destruct | Ctrl+Del or Ctrl+Alt+X |
 | Put the car back on its wheels | U (can be turned off by a network host) |
 | Standings (network games) | hold Tab |

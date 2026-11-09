@@ -158,6 +158,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `--voices LANG\|FOLDER`, `I76_VOICES` | test | The voice overlay: the sound files of `voices/LANG` in the user folder (or of that folder) are read over the install's of the same name (`VoiceOverlay`); `en`, `off`, `0` and an absent folder mean none. |
 | `--music-extra FOLDER\|off`, `I76_MUSIC_EXTRA`, `I76_MUSIC_EXTRA_EVERY` | test | The player's own songs in the mission music (`ExtraMusic`): the folder (default `music-extra` in the user folder), and N, one song start in N (1 to 20, default 3). Log lines `music-extra: N songs` and `music: track T (your own song)`. |
 | `I76_END_MISSION` | test | `win@frame` or `fail@frame`: end the mission as the script would (on a network co-op listen host, the server's mission: every player gets the end). |
+| `--bug-report-open ZIP` | test | A bug report's moment (docs/playing.md "Reporting a bug"): the report's zip (or its unpacked folder) names the mission, the car, the tick rate and an auto melee's roster in its `state.sav` header; the run starts that mission in that car as `--mission X --drive car` would, builds it and restores the state at its tick as a checkpoint's retry does (no tick 0, no briefing; `Boot/MainBugReport.cs`). The look, the settings and the texture packs are not in the state: read them off `report.txt` and set them by hand (`--1997`, a scratch user folder with the report's `shell.cfg`). A network or co-op state cannot be rebuilt here: the mission starts plain and the log says so. To reproduce in one command, from the game's folder: `i26 -- --install "<install>" --bug-report-open <path>\i26-bug-<stamp>.zip --dev --skip-movies` (`--1997` if the report says so), then the Developer panel's Freeze and Step walk the ticks from the report's; `report.txt`'s Inputs line and `inputs.csv` (the input trace format, below) say what the player held over the last ten seconds. |
 | `I76_SCRIPT_MOVIE` | test | `name.smk@frame`: ask for that movie as a script's playMovie does (T05's `Ang05f01.smk`, T06's `ang06f01.smk`), the game paused under it; needs `I76_SHOT_MOVIES=1`. |
 | `I76_CHECKPOINTS` | test | `1`: Checkpoints on for the run, whatever the setting (docs/savestate.md). |
 | `I76_CHECKPOINT_AT` | capture | A checkpoint at that tick as well (once; not in a retry). |
@@ -339,6 +340,11 @@ The sim's side is `src/I76.Sim/Session/DevTools.cs` (tests: `DevToolsTests`, the
 run tick for tick). Any action but Store marks the attempt a cheater's, as the Play Options cheats do; the end menu's
 Turn off Cheater Options clears it. Not there yet: freezing the AI and spawning new cars (a melee's Bot Cars and
 `I76_MELEE_OPPONENTS` make cars; `I76_SPAWN_AI_AT` places them for captures).
+
+A bug report's `state.sav` (the Esc menu's Report a Bug, Ctrl+F11; docs/playing.md "Reporting a bug") is the same snapshot, with the
+trip's salvage as its host bytes: `--bug-report-open ZIP` (above) starts the report's mission and car and restores it, and the
+panel's Store, Restore, Freeze and Step work from there as from any state. The report's `log.txt` is the last 400 lines of the
+engine's output from a ring the game keeps in memory for every run (`Main.BugReportLog`), whether or not the log file is on.
 
 ## Debug output
 
