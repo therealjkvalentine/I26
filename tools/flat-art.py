@@ -29,9 +29,12 @@ from scipy import ndimage
 # record: the stamp's box in the record's texels (None: the whole picture), its colours (the first is the ground, drawn
 # behind), whether it lies on a picture (the ground is then the picture, kept transparent and the pack's own shown)
 STAMPS = {
-    # the main menu's logo: the lettering keeps a black outline about a texel wide where it crosses the blue band
+    # the main menu's logo: the lettering keeps a black outline about a texel wide where it crosses the blue band; where
+    # the band meets the white outline its edge texels are a darker blue, which is the band reaching the outline, not a
+    # line, so that share goes to the blue (width 0: no stroke). The TM is an 11x10-texel mark.
     26: dict(box=None, colours=("#000000", "#0042ce", "#ffbd00", "#ffffff"), picture=False,
-             keyline=dict(colour="#000000", width=0.9, on=("#0042ce",), of=("#ffbd00", "#ffffff")),
+             lines=[dict(colour="#000000", width=0.9, on=("#0042ce",), of=("#ffbd00",)),
+                    dict(colour="#000000", width=0, on=("#0042ce",), of=("#ffffff",))],
              marks=[dict(box=(466, 179, 497, 197), text="TM", colour="#ffbd00")]),
     # mission select's: a yellow ring and lettering edged in teal over the fire photo, the ring's inner edge half a texel
     14: dict(box=(136, 0, 494, 154), colours=("#000000", "#007fb2", "#ffd900", "#ffffff"), picture=True,
@@ -177,13 +180,14 @@ def hexc(c):
     return f"#{int(c[0]):02x}{int(c[1]):02x}{int(c[2]):02x}"
 
 
-def vectorise(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=False, keyline=None):
+def vectorise(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=False, lines=()):
     """The stamp in `img` (H, W, 3) drawn again at `scale` as SVG: the colours' regions from the ground up, each layer's
     region its own and every layer's above it (so no hairline shows between two), each traced from its coverage. With
-    `picture` the ground is the picture under the stamp, left clear. A `keyline` (colour, width in texels, the colours
-    `on` which it shows, the colours `of` whose outline it is) is a line too thin to trace, drawn as a stroke along the
-    `of` regions' edges where they meet an `on` region; its texels' share of its colour goes to the `on` colour first.
-    Returns (svg, mask) where mask is the stamp's texels (all of them without `picture`)."""
+    `picture` the ground is the picture under the stamp, left clear. Each of `lines` (colour, width in texels, the
+    colours `on` which it shows, the colours `of` whose outline it is) is a line too thin to trace between an `on` and an
+    `of` region: its texels' share of its colour goes to the `on` colour, and with a width it is drawn again as a stroke
+    along the `of` regions' edges where they meet an `on` region (width 0: a dark fringe that is no line, the `on` colour
+    then reaches the `of` one). Returns (svg, mask) where mask is the stamp's texels (all of them without `picture`)."""
     C = [rgb(c) for c in cols]
     names = list(cols)
     h, w = img.shape[:2]
@@ -202,12 +206,18 @@ def vectorise(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=Fals
         mask = np.ones((h, w), bool)
         W, _ = unmix(img, C)
         order = list(range(len(C)))
-    if keyline:
-        kc = names.index(keyline["colour"])
-        on = [names.index(n) for n in keyline["on"]]
-        of = [names.index(n) for n in keyline["of"]]
-        near = lambda idx: ndimage.binary_dilation(W[..., idx].sum(-1) > 0.5, iterations=2)
-        band = near(on) & near(of) & (W[..., kc] > 0) & (W[..., kc] < 1)
+    near = lambda idx, r: ndimage.binary_dilation(W[..., idx].sum(-1) > 0.5, iterations=r)
+    for ln in lines:
+        kc = names.index(ln["colour"])
+        on = [names.index(n) for n in ln["on"]]
+        of = [names.index(n) for n in ln["of"]]
+        if ln["width"]:
+            # a stroked line: the texels of its colour within two of both regions, whole ones kept (the stroke covers them)
+            band = near(on, 2) & near(of, 2) & (W[..., kc] > 0) & (W[..., kc] < 1)
+        else:
+            # a fringe: the texels of its colour next to both regions, a line one texel wide at most (a gap of two
+            # texels, each next to one region only, is the art's and stays)
+            band = near(on, 1) & near(of, 1) & (W[..., kc] > 0)
         W[band, on[0]] += W[band, kc]
         W[band, kc] = 0
     layers = []
@@ -218,28 +228,31 @@ def vectorise(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=Fals
     parts = [f'<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="{w * scale}" height="{h * scale}" viewBox="0 0 {w * scale} {h * scale}">']
     if not picture:
         parts.append(f'<rect width="{w * scale}" height="{h * scale}" fill="{hexc(C[0])}"/>')
-    stroke = None
-    if keyline:
+    strokes = []
+    for n, ln in enumerate(ln for ln in lines if ln["width"]):
         # the stroke, twice the width (its inner half lies under the `of` fills), clipped to where it shows: the `on`
         # layer's region, or the picture (everything outside the stamp)
-        ds = [d for i, d in layers if i in of and d]
+        kc = names.index(ln["colour"])
+        on = [names.index(c) for c in ln["on"]]
+        of = [names.index(c) for c in ln["of"]]
+        # the `of` colours' own regions (a layer's path takes in every layer above it, and the stroke must not run
+        # along those: the white outline's edge is not the lettering's)
+        ds = [d for d in (trace(W[..., i], scale, smooth, alphamax) for i in of) if d]
         if on[0] == len(C):
             d0 = next((d for i, d in layers if d), "")
-            clip = f'<clipPath id="k"><path clip-rule="evenodd" d="M0,0H{w * scale}V{h * scale}H0Z{d0}"/></clipPath>'
+            clip = f'<clipPath id="k{n}"><path clip-rule="evenodd" d="M0,0H{w * scale}V{h * scale}H0Z{d0}"/></clipPath>'
             at = -1
         else:
             d0 = next((d for i, d in layers if i == on[0]), None) or ""
-            clip = f'<clipPath id="k"><path d="{d0}"/></clipPath>'
+            clip = f'<clipPath id="k{n}"><path d="{d0}"/></clipPath>'
             at = on[0]
-        stroke = (at, clip + '<g clip-path="url(#k)">' + "".join(
-            f'<path fill="none" stroke="{hexc(C[kc])}" stroke-width="{2 * keyline["width"] * scale:.2f}" stroke-miterlimit="3" d="{d}"/>' for d in ds) + "</g>")
-    if stroke and stroke[0] == -1:
-        parts.append(stroke[1])
+        strokes.append((at, clip + f'<g clip-path="url(#k{n})">' + "".join(
+            f'<path fill="none" stroke="{hexc(C[kc])}" stroke-width="{2 * ln["width"] * scale:.2f}" stroke-miterlimit="3" d="{d}"/>' for d in ds) + "</g>"))
+    parts += [sv for at, sv in strokes if at == -1]
     for i, d in layers:
         if d:
             parts.append(f'<path fill="{hexc(C[i])}" fill-rule="nonzero" d="{d}"/>')
-        if stroke and stroke[0] == i:
-            parts.append(stroke[1])
+        parts += [sv for at, sv in strokes if at == i]
     parts.append("</svg>")
     return "\n".join(parts), mask
 
@@ -260,22 +273,30 @@ def find_font():
     return None
 
 
-def ink_box(img, box, ground_col, colour):
-    """Where a mark's ink is within its box: the texels at least a quarter of the way from the ground to its colour."""
+def mark_ink(img, box, ground_col, colour, least):
+    """Within a mark's box, the texels at least `least` of the way from the ground to the mark's colour (and near that
+    line: a picture's or another colour's texels are not its ink)."""
     x0, y0, x1, y1 = box
     reg = img[y0:y1, x0:x1].astype(np.float32)
     d = colour - ground_col
     t = ((reg - ground_col) * d).sum(-1) / max((d * d).sum(), 1e-6)
-    off = np.sqrt(((reg - (ground_col + t[..., None] * d)) ** 2).sum(-1))     # a picture's own colours are not ink
-    ys, xs = np.nonzero((t >= 0.25) & (off < NEAR))
+    off = np.sqrt(((reg - (ground_col + t[..., None] * d)) ** 2).sum(-1))
+    m = np.zeros(img.shape[:2], bool)
+    m[y0:y1, x0:x1] = (t >= least) & (off < NEAR)
+    return m
+
+
+def ink_box(img, box, ground_col, colour):
+    """The mark's ink box: the texels at least half the mark's colour (its strokes, not their anti-aliased fringe)."""
+    ys, xs = np.nonzero(mark_ink(img, box, ground_col, colour, 0.5))
     if len(ys) == 0:
         return None
-    return x0 + xs.min(), y0 + ys.min(), x0 + xs.max() + 1, y0 + ys.max() + 1
+    return xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
 
 
 def set_marks(out, img, marks, ground_col, scale, font=None):
-    """Lettering a few texels high is set again from the face (`font`, or the system's Arial Bold Italic), each mark's
-    text fitted into its ink box, in its colour, over the picture already drawn."""
+    """Lettering a few texels high is set again from the face (`font`, or the system's Arial Italic), each mark's text
+    stretched to its ink box exactly (the original's mark's size and slant), in its colour, over the picture already drawn."""
     from PIL import ImageDraw, ImageFont
     font = font or find_font()
     if font is None:
@@ -290,13 +311,9 @@ def set_marks(out, img, marks, ground_col, scale, font=None):
         bb = f.getbbox(mk["text"])
         can = Image.new("L", (bb[2] - bb[0] + 8, bb[3] - bb[1] + 8), 0)
         ImageDraw.Draw(can).text((4 - bb[0], 4 - bb[1]), mk["text"], fill=255, font=f)
-        can = can.crop(can.getbbox())
-        H = (y1 - y0) * scale
-        can = can.resize((max(1, round(can.width * H / can.height)), H), Image.LANCZOS)    # the face's own width
+        can = can.crop(can.getbbox()).resize(((x1 - x0) * scale, (y1 - y0) * scale), Image.LANCZOS)
         a = np.array(can).astype(np.float32)[..., None] / 255
-        X0, Y0 = ((x0 + x1) * scale - a.shape[1]) // 2, y0 * scale
-        if X0 < 0 or X0 + a.shape[1] > out.shape[1] or Y0 + a.shape[0] > out.shape[0]:
-            continue
+        X0, Y0 = x0 * scale, y0 * scale
         reg = out[Y0:Y0 + a.shape[0], X0:X0 + a.shape[1]].astype(np.float32)
         reg[..., :3] = colour * a + reg[..., :3] * (1 - a)
         reg[..., 3:] = np.maximum(reg[..., 3:], a * 255)
@@ -304,18 +321,17 @@ def set_marks(out, img, marks, ground_col, scale, font=None):
     return out
 
 
-def redraw(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=False, marks=(), font=None, keyline=None):
+def redraw(img, cols, scale=4, smooth=SMOOTH, alphamax=ALPHAMAX, picture=False, marks=(), font=None, lines=()):
     """The stamp redrawn at `scale`: RGBA pixels (clear where the picture shows through) and the SVG. `marks` (each a
-    box in the picture's texels, a text and a colour) are blanked to the ground before the trace and set from a font
-    after it."""
+    box in the picture's texels, a text and a colour) have their own texels (the ink and its fringe, nothing else in the
+    box) blanked to the ground before the trace and are set from a font after it."""
     src = img
     ground_col = rgb(cols[0])
     if marks:
         src = img.copy()
         for mk in marks:
-            x0, y0, x1, y1 = mk["box"]
-            src[y0:y1, x0:x1] = ground_col.astype(np.uint8)
-    svg, _ = vectorise(src, cols, scale, smooth, alphamax, picture, keyline)
+            src[mark_ink(img, mk["box"], ground_col, rgb(mk["colour"]), 0.05)] = ground_col.astype(np.uint8)
+    svg, _ = vectorise(src, cols, scale, smooth, alphamax, picture, lines)
     out = render(svg)
     if marks:
         out = set_marks(out, img, marks, ground_col, scale, font)
@@ -353,7 +369,7 @@ def apply(orig, page, a, spec, smooth, alphamax):
     x0, y0, x1, y1 = box
     crop = orig[y0:y1, x0:x1]
     marks = [dict(mk, box=(mk["box"][0] - x0, mk["box"][1] - y0, mk["box"][2] - x0, mk["box"][3] - y0)) for mk in spec.get("marks", ())]
-    out, svg = redraw(crop, spec["colours"], scale, smooth, alphamax, spec["picture"], marks, keyline=spec.get("keyline"))
+    out, svg = redraw(crop, spec["colours"], scale, smooth, alphamax, spec["picture"], marks, lines=spec.get("lines", ()))
     page = page.astype(np.float32).copy()
     X0, Y0 = x0 * scale, y0 * scale
     H, W = out.shape[:2]

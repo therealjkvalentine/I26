@@ -84,7 +84,7 @@ class FlatArtTests(unittest.TestCase):
     def test_keyline_is_one_continuous_line(self):
         o = original()
         key = dict(colour="#000000", width=1.0, on=("#0042ce",), of=("#ffbd00",))
-        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, keyline=key)
+        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, lines=[key])
         rgb = out[..., :3]
         for r in range(22 * 4, 42 * 4):
             row = rgb[r, 20 * 4:56 * 4]
@@ -93,6 +93,44 @@ class FlatArtTests(unittest.TestCase):
             lengths = np.flatnonzero(runs == -1) - np.flatnonzero(runs == 1)
             self.assertEqual(len(lengths), 2, f"row {r}: a black line each side of the stem")
             self.assertTrue(all(2 <= n <= 7 for n in lengths), f"row {r}: about a texel wide, got {lengths}")
+
+    def test_a_dark_fringe_between_two_colours_goes_to_the_one_named(self):
+        """Where the band's edge texels against the white are a darker blue (a texel of near-black between), the blue
+        reaches the white: no black pixel between them in the render."""
+        o = original()
+        # the band's top edge (y 20) against a white bar laid just above it, with a near-black texel row between
+        o[17:19, 4:60] = WHITE.astype(np.uint8)
+        o[19, 4:60] = (0, 0, 33)
+        fringe = dict(colour="#000000", width=0, on=("#0042ce",), of=("#ffffff",))
+        for lines, want in (((), False), ((fringe,), True)):
+            out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, lines=lines)
+            col = out[17 * 4 + 2:22 * 4, 30 * 4, :3]                 # from inside the white bar into the band
+            black = (col.max(-1) < 60).any()
+            self.assertEqual(not black, want, f"black between blue and white: {black} with lines={bool(lines)}")
+
+    def test_a_stroked_line_follows_its_own_colour_not_the_layers_above(self):
+        """The lettering's keyline is stroked along the yellow's own outline: a white bar on the band gets none."""
+        o = original()
+        o[24:28, 60:90] = WHITE.astype(np.uint8)           # a white bar on the blue band, away from the stem
+        key = dict(colour="#000000", width=1.0, on=("#0042ce",), of=("#ffbd00",))
+        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, lines=[key])
+        col = out[22 * 4:30 * 4, 75 * 4, :3]
+        self.assertFalse((col.max(-1) < 60).any(), "no black stroked round the white bar")
+
+    def test_a_mark_is_set_to_its_ink_box_and_blanks_nothing_else(self):
+        if fa.find_font() is None:
+            self.skipTest("no Arial")
+        o = original()
+        o[50:58, 70:82] = YELLOW.astype(np.uint8)          # a 12x8 blob standing for the mark, below the band
+        o[48:60, 86:90] = BLUE.astype(np.uint8)            # a blue post 4 texels right of the mark, inside the mark's box
+        out, _ = fa.redraw(o, COLS, 4, 0.5, 0.75, marks=[dict(box=(66, 46, 94, 62), text="TM", colour="#ffbd00")])
+        rgb = out[..., :3]
+        yel = (np.abs(rgb.astype(int) - YELLOW.astype(int)).max(-1) < 60)
+        ys, xs = np.nonzero(yel[44 * 4:64 * 4, 64 * 4:96 * 4])
+        self.assertLessEqual(abs((xs.max() - xs.min() + 1) / 4 - 12), 0.5, "the mark as wide as its ink box")
+        self.assertLessEqual(abs((ys.max() - ys.min() + 1) / 4 - 8), 0.5, "and as high")
+        post = rgb[50 * 4:58 * 4, 87 * 4]
+        self.assertTrue((np.abs(post.astype(int) - BLUE.astype(int)).max(-1) < 10).all(), "the post beside it is untouched")
 
     def test_a_stamp_on_a_picture_keeps_the_picture(self):
         o, stamp = original(region=True)
