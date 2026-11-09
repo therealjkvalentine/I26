@@ -182,6 +182,29 @@ public sealed record SmoothWheel(Vector3[] Rim, Vector2[] RimUv, Vector3[] RimNo
             tr, tg, tb, circle, radius);
     }
 
+    /// <summary>
+    /// The face's painted light, as the engine's hubcap strip defines it: the mean of the strip's frames, texel by texel
+    /// (RGBA8, the first frame's key as alpha 0). The frames turn the hubcap (holes, spokes, bolts, a dome's reflection) under
+    /// one still light, so over a strip the hubcap averages out into rings and the light stays: the modern look turns the face
+    /// and reads this at the texel's place at rest (object.gdshaderinc wheel_still_light). A face with no strip is its own light,
+    /// and so is held still whole, as the engine showed it. Null where the frames' sizes differ.
+    /// </summary>
+    public static byte[]? StillLight(IReadOnlyList<IndexedTexture> frames, Palette? act = null)
+    {
+        if (frames.Count == 0 || frames.Any(f => f.Width != frames[0].Width || f.Height != frames[0].Height)) return null;
+        int n = frames[0].Indices.Length;
+        var sum = new int[n * 3];
+        var o = TextureReader.ToRgba(frames[0], act);
+        foreach (var f in frames)
+        {
+            var rgba = TextureReader.ToRgba(f, act);
+            for (int i = 0; i < n; i++) { sum[i * 3] += rgba[i * 4]; sum[i * 3 + 1] += rgba[i * 4 + 1]; sum[i * 3 + 2] += rgba[i * 4 + 2]; }
+        }
+        for (int i = 0; i < n; i++)
+            for (int c = 0; c < 3; c++) o[i * 4 + c] = (byte)((sum[i * 3 + c] + frames.Count / 2) / frames.Count);
+        return o;
+    }
+
     private static Vector2 YZ(Vector3 p) => new(p.Y, p.Z);
     private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
 }
