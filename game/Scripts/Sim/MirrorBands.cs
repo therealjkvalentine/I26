@@ -10,6 +10,18 @@ namespace I76.Game.Sim;
 /// </summary>
 public static class MirrorBands
 {
+    /// <summary>
+    /// Glass and Quads: whether the door mirrors' painted glass (MirrorGlass: the Piranha's two, the CC cars' left one) shows the view
+    /// and whether a car without any gets the two added glasses. Off: neither (the original's); On: the glass where the car has it, the
+    /// added glasses where it has none; Auto (the default): the glass where the car has it, nothing added.
+    /// </summary>
+    public static (bool Glass, bool Quads) Shown(SideMirrorMode mode, bool hasGlass) => mode switch
+    {
+        SideMirrorMode.Off => (false, false),
+        SideMirrorMode.On => (hasGlass, !hasGlass),
+        _ => (hasGlass, false),
+    };
+
     /// <summary>The render's width across by default, degrees: the rear mirror's 45 and about 22 a side, a real car's.</summary>
     public const float DefaultFov = 90f;
     /// <summary>Where a side mirror sits by default: degrees from straight ahead, and the margin kept to the window's edge.</summary>
@@ -54,6 +66,18 @@ public static class MirrorBands
         return left ? (from - s, 0.5f - inner) : (0.5f + inner, to + s);
     }
 
+    /// <summary>
+    /// A door mirror's glass band: from <paramref name="overlap"/> degrees inside the rear band's edge outward, as many columns as the
+    /// glass is wide for the picture's height (<paramref name="aspect"/> its width over its height as the driver sees it,
+    /// <paramref name="renderAspect"/> the render's), so the view is not stretched in the glass; within the render.
+    /// </summary>
+    public static (float From, float To) Glass(float fov, float overlap, float aspect, float renderAspect, bool left)
+    {
+        float inner = Share(fov, MirrorCameraSettings.FovDegrees - 2 * Math.Clamp(overlap, 0f, MaxOverlap)) / 2;
+        float w = Math.Clamp(aspect / MathF.Max(renderAspect, 1e-3f), 0.01f, 0.5f - inner);
+        return left ? (0.5f - inner - w, 0.5f - inner) : (0.5f + inner, 0.5f + inner + w);
+    }
+
     /// <summary>The angles off the render's axis a band's edges see, radians (the cylindrical remap draws a glass's columns evenly in angle): a column's angle is atan of its offset from the middle times tan of the half field.</summary>
     public static (float From, float To) Angles((float From, float To) band, float fov)
     {
@@ -70,3 +94,6 @@ public static class MirrorBands
     private static float Rad(float d) => d * MathF.PI / 180f;
     private static float Deg(float r) => r * 180f / MathF.PI;
 }
+
+/// <summary>[port] side_mirrors: off (the original's), on, auto (the default): MirrorBands.Shown.</summary>
+public enum SideMirrorMode { Off, On, Auto }
