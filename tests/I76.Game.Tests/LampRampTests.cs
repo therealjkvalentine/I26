@@ -24,12 +24,12 @@ public class LampRampTests
     [Fact]
     public void AFilamentWarmsOverItsRiseConstantAndCoolsOverItsLongerFall()
     {
-        // a 21 W tail or brake bulb: 63 % at one time constant (60 ms), full within a fifth of a second
-        Assert.InRange(After(0, 1, LampRamp.RearRiseMs, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.60f, 0.66f);
-        Assert.InRange(After(0, 1, 200, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.95f, 1f);
-        // and dies away slower: 37 % left at 200 ms, an orange tail under 10 % by half a second, out well within a second
+        // a 21 W tail or brake bulb: 63 % at one time constant (30 ms), full within a tenth of a second
+        Assert.InRange(After(0, 1, LampRamp.RearRiseMs, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.60f, 0.69f);
+        Assert.InRange(After(0, 1, 100, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.95f, 1f);
+        // and dies away slower: 37 % left at 100 ms, an orange tail under 10 % by 250 ms, out well within a second
         Assert.InRange(After(1, 0, LampRamp.RearFallMs, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.34f, 0.40f);
-        Assert.InRange(After(1, 0, 500, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.01f, 0.1f);
+        Assert.InRange(After(1, 0, 250, LampRamp.RearRiseMs, LampRamp.RearFallMs), 0.01f, 0.1f);
         Assert.Equal(0f, After(1, 0, 1500, LampRamp.RearRiseMs, LampRamp.RearFallMs));
         // a 55 W sealed beam is slower both ways
         Assert.True(LampRamp.HeadRiseMs > LampRamp.RearRiseMs && LampRamp.HeadFallMs > LampRamp.RearFallMs);

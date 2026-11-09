@@ -4,8 +4,8 @@ namespace I76.Game.Sim;
 /// The modern look's incandescent lamps warm up and cool down instead of switching in one frame ([port] lamp_ramp, on by
 /// default; I76_LAMP_RAMP=0|1 overrides it, I76_LAMP_RAMP_SCALE stretches the times for A/B). The original draws a lamp lit
 /// or unlit from the frame its flag changes, and so does the 1997 look. A 1976 car's lamps are 12 V incandescent bulbs: a
-/// tail or brake filament (a 21 W bulb) reaches full brightness in roughly a hundred to two hundred milliseconds, a 55 W
-/// sealed-beam headlamp a little slower, and each dies away over roughly two to four hundred milliseconds with a visible
+/// tail or brake filament (a 21 W bulb) reaches about 90 % in roughly 50 to 150 milliseconds, a sealed-beam or H4
+/// headlamp a little slower, and each dies away over roughly 100 to 250 milliseconds with a visible
 /// orange tail as the filament cools: the colour temperature drops before the light is gone, so the lamp goes red-shifted
 /// and dimmer. Each lamp's drawn level is an exponential approach to its switch with a time constant for the rise and a longer
 /// one for the fall; below <see cref="CoolBelow"/> of full the colour is pulled toward <see cref="Cool"/> (a white lamp's
@@ -15,9 +15,9 @@ namespace I76.Game.Sim;
 public static class LampRamp
 {
     /// <summary>The headlamps' time constants (ms): the rise, the fall.</summary>
-    public const float HeadRiseMs = 120f, HeadFallMs = 300f;
+    public const float HeadRiseMs = 60f, HeadFallMs = 150f;
     /// <summary>The brake and tail lamps' (ms).</summary>
-    public const float RearRiseMs = 60f, RearFallMs = 200f;
+    public const float RearRiseMs = 30f, RearFallMs = 100f;
     /// <summary>Below this share of full the colour cools toward <see cref="Cool"/>.</summary>
     public const float CoolBelow = 0.4f;
     /// <summary>The cooling filament's colour, the lamp's own at <see cref="CoolBelow"/> and above.</summary>
