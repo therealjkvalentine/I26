@@ -82,7 +82,7 @@ variable `I76_LOG=1`) and attach `logs/godot.log` from the user folder (the last
 `logs/godot<date>.log`); `log_file = true` under `[port]` in shell.cfg (or the Developer panel's Settings) keeps it on for every start (it had a Graphic Detail row until round 5). Logs from older versions
 stay where they are and can be deleted.
 
-**Reporting a bug.** The Esc menu's Options Menu has a **Report a Bug** row (Ctrl+F11 does the same, on the pad or in play). It
+**Reporting a bug.** The Esc menu's Options Menu has a **Report a Bug** row, near the foot of the pad (Ctrl+F11 does the same, on the pad or in play). It
 writes a folder `bug-reports/<date-time>/` in your user folder and zips it beside the folder as `i26-bug-<date-time>.zip`
 (under 5 MB as a rule); the pad shows the name, with **Open Folder** to show it in your file browser. Drag the zip into Discord
 or a GitHub issue, with a line on what went wrong. It holds `report.txt` (the build and network protocol, your system and
