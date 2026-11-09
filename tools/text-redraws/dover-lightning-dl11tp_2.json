@@ -1,0 +1,65 @@
+{
+ "textures": [
+  "dl11tp_2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl11tp_2: the STB badge; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    53,
+    0,
+    70,
+    128
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    26.5,
+    58.5,
+    45.5,
+    64.5
+   ],
+   "where": {
+    "lum_above": 60
+   },
+   "grow": 0.4,
+   "halo": {
+    "within": 0.5,
+    "lum_above": 55
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "STB",
+   "font": "Bitter",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 5,
+   "box": [
+    27,
+    59,
+    45,
+    64
+   ],
+   "colour": [
+    100,
+    100,
+    104
+   ],
+   "alpha": "set"
+  }
+ ]
+}

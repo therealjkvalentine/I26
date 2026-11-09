@@ -1,0 +1,73 @@
+{
+ "textures": [
+  "dl13mdl2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl13mdl2: XYZZY; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    17,
+    56,
+    119,
+    62
+   ],
+   "where": {
+    "opaque": true
+   },
+   "grow": 0.3
+  },
+  {
+   "op": "text",
+   "text": "XYZZY",
+   "font": "AlfaSlabOne",
+   "cap": 6,
+   "box": [
+    18,
+    56,
+    118,
+    62
+   ],
+   "tracking": 0.12,
+   "gradient": [
+    [
+     226,
+     116,
+     30
+    ],
+    [
+     176,
+     88,
+     4
+    ]
+   ],
+   "stroke": {
+    "width": 0.35,
+    "colour": [
+     26,
+     30,
+     52
+    ]
+   },
+   "alpha": "set"
+  }
+ ]
+}

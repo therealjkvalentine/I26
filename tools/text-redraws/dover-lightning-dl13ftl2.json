@@ -1,0 +1,157 @@
+{
+ "textures": [
+  "dl13ftl2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl13ftl2: CRACK and PYRO; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    45,
+    21,
+    92,
+    31
+   ],
+   "where": {
+    "lum_below": 150
+   },
+   "grow": 0.4,
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "CRACK",
+   "font": "AlfaSlabOne",
+   "cap": 8,
+   "quad": [
+    [
+     48.5,
+     22
+    ],
+    [
+     90,
+     22
+    ],
+    [
+     87.5,
+     30
+    ],
+    [
+     46,
+     30
+    ]
+   ],
+   "fit": "ink",
+   "gradient": [
+    [
+     44,
+     140,
+     52
+    ],
+    [
+     22,
+     104,
+     36
+    ]
+   ],
+   "stroke": {
+    "width": 1.0,
+    "colour": [
+     8,
+     26,
+     14
+    ]
+   },
+   "alpha": "set"
+  },
+  {
+   "op": "marks",
+   "rect": [
+    46,
+    22,
+    90,
+    30
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    8,
+    22,
+    14
+   ],
+   "sigma": 0.45,
+   "level": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10,
+    43,
+    38,
+    54
+   ],
+   "where": {
+    "lum_below": 90
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.6,
+    "lum_below": 110
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "PYRO",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 500
+   },
+   "cap": 9,
+   "quad": [
+    [
+     9.5,
+     44
+    ],
+    [
+     35.5,
+     44
+    ],
+    [
+     37,
+     53
+    ],
+    [
+     11,
+     53
+    ]
+   ],
+   "fit": "ink",
+   "colour": [
+    34,
+    32,
+    36
+   ],
+   "alpha": "set"
+  }
+ ]
+}

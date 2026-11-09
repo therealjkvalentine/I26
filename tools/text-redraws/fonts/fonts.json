@@ -90,5 +90,12 @@
     "by": "Monotype (Robin Nicholas, Patricia Saunders)",
     "license": "the machine's own copy (Microsoft core fonts), not shipped",
     "source": "the system's fonts folder"
+  },
+  "AlfaSlabOne": {
+    "name": "Alfa Slab One",
+    "file": "AlfaSlabOne/AlfaSlabOne-Regular.ttf",
+    "by": "JM Sole, The Alfa Slab One Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/alfaslabone"
   }
 }

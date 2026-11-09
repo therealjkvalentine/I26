@@ -778,15 +778,16 @@ def paint_cut(px, field, s, edge=0.9, valid=None, keyed=None):
     the upscale is kept. `valid` (bool, the original's size): the band only where the original's texels are of the two flat
     tones on both sides (not where the region meets a decal or a chrome strip, whose edge stays the model's). `keyed` (bool,
     the original's size): the texture's keyed texels, which a car's opaque faces show (the original's are the key's colour, the
-    pack's the colour bled under them); within three texels outside the outline they take the dark side's own colour, from
-    beyond the key, so a panel that ends at a keyed strip ends cleanly against it."""
+    pack's the colour bled under them); within the field's two texels outside the outline they take the dark side's own colour, from
+    beyond the key, so a panel that ends at a keyed strip ends cleanly against it; keyed texels further out (a chequered band
+    across the panel) keep the pack's colour."""
     inside = (field.astype(np.float32) - 128) / 127 * 2
     band = np.abs(inside) < edge
     if valid is not None: band &= np.repeat(np.repeat(valid, s, 0), s, 1)
     outer = inside <= -edge
     if keyed is not None:
         k = np.repeat(np.repeat(keyed, s, 0), s, 1)
-        band |= k & (inside > -3) & (inside < 0); outer &= ~k
+        band |= k & (field > 0) & (inside < 0); outer &= ~k   # where the field reaches (it stops 2 texels out), not every keyed texel beyond
     if not band.any(): return px
     rgb = px[..., :3].astype(np.float32)
     a = bleed(rgb, np.where(inside >= edge, 255, 0), passes=int(edge * s) + 4)

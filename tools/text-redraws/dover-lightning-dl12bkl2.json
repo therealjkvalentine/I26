@@ -1,0 +1,97 @@
+{
+ "textures": [
+  "dl12bkl2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl12bkl2: NEMESIS and the STB badge; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    69,
+    12,
+    121,
+    22
+   ],
+   "where": {
+    "lum_below": 60
+   },
+   "grow": 0.5,
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "NEMESIS",
+   "font": "AlfaSlabOne",
+   "cap": 8,
+   "box": [
+    70,
+    13,
+    120,
+    21
+   ],
+   "colour": [
+    6,
+    10,
+    22
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "erase",
+   "rect": [
+    33.5,
+    10.5,
+    48.5,
+    18.5
+   ],
+   "where": {
+    "lum_above": 100
+   },
+   "grow": 0.4,
+   "halo": {
+    "within": 0.5,
+    "lum_above": 95
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "STB",
+   "font": "Bitter",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 7,
+   "box": [
+    34,
+    11,
+    48,
+    18
+   ],
+   "colour": [
+    150,
+    150,
+    156
+   ],
+   "alpha": "set"
+  }
+ ]
+}

@@ -45,7 +45,7 @@ class SpecTests(unittest.TestCase):
         for name, spec in specs:
             self.assertTrue(spec["textures"], name)
             for op in spec["ops"]:
-                self.assertIn(op["op"], ("erase", "text", "smooth"), name)
+                self.assertIn(op["op"], ("erase", "text", "smooth", "marks"), name)
                 if op["op"] == "text":
                     self.assertIn(op["font"], table, name)
                     self.assertGreater(op["cap"], 0, name)
@@ -64,8 +64,8 @@ class SpecTests(unittest.TestCase):
                 if "box" in op:
                     op.setdefault("center", [(op["box"][0] + op["box"][2]) / 2, (op["box"][1] + op["box"][3]) / 2])
                     op.setdefault("width", op["box"][2] - op["box"][0])
-            w = int(max(max(op["center"][0] + op["cap"] * 4 for op in texts), max((op["rect"][2] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
-            h = int(max(max(op["center"][1] + op["cap"] * 2 for op in texts), max((op["rect"][3] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
+            w = int(max(max(op["center"][0] + op["cap"] * 4 for op in texts), max((op["rect"][2] for op in spec["ops"] if op["op"] in ("erase", "marks")), default=0))) + 2
+            h = int(max(max(op["center"][1] + op["cap"] * 2 for op in texts), max((op["rect"][3] for op in spec["ops"] if op["op"] in ("erase", "marks")), default=0))) + 2
             orig = blank(w, h, (128, 128, 128))
             px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
             out = tr.apply_ops(px, orig, spec["ops"]).astype(int)
@@ -118,6 +118,23 @@ class CompositorTests(unittest.TestCase):
         ys, xs = np.where(tilt)
         left, right = ys[xs < xs.mean()].mean(), ys[xs > xs.mean()].mean()
         self.assertGreater((right - left) / 4, 1.5)                                     # the right end sits lower (half the 4-texel drop, by halves)
+
+    def test_marks_draw_the_originals_keyed_texels_in_place_with_a_smooth_outline(self):
+        # a distressed word's cracks: keyed texels inside a painted letter, which a car's panel shows black; the pack bled the
+        # panel's colour under them. marks: each in its place, its size, the given colour, at 4x as at 8x; a lone texel kept at a low level
+        orig = blank(24, 12, (40, 160, 50)); orig[4:6, 6:8, 3] = 0; orig[8, 16, 3] = 0
+        for s in (4, 8):
+            px = np.repeat(np.repeat(orig, s, 0), s, 1).copy(); px[orig.repeat(s, 0).repeat(s, 1)[..., 3] == 0, :3] = (30, 60, 200)
+            out = tr.apply_ops(px, orig, [{"op": "marks", "rect": [0, 0, 24, 12], "where": {"keyed": True}, "colour": [0, 0, 0], "sigma": 0.45, "level": 0.3}])
+            dark = out[..., :3].max(axis=2) < 60
+            lab = dark[: 7 * s]; ys, xs = np.where(lab)
+            box = np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
+            self.assertLess(np.abs(box - np.array([6, 4, 8, 6])).max(), 0.5, f"{s}x: {box}")     # the 2 x 2 mark where it was painted
+            self.assertTrue(dark[8 * s + s // 2, 16 * s + s // 2], f"{s}x: the lone texel's mark kept")
+            self.assertFalse((out[..., 2] > 150).any(), f"{s}x: no blue left under the key")
+            corner = out[4 * s, 6 * s, :3].max(); middle = out[5 * s, 7 * s, :3].max()
+            self.assertGreater(int(corner), int(middle), f"{s}x: the corners rounded, not the texels' squares")
+            self.assertTrue((out[..., 3] == px[..., 3]).all(), "the key itself untouched")
 
     def test_box_sets_the_runs_ink_on_the_box_at_any_scale(self):
         # a badge's letters on the painted letters' own box: the ink (an apostrophe's and an ascender's tops to the baseline,
