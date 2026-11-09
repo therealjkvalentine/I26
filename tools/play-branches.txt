@@ -507,3 +507,6 @@ fix/limo-bus-textures                 # section CJ: the Discord bus report (blac
 
 # CK. the compass strip relettered (2026-11-09; lane on Opus 5.5)
 fix/compass-lettering                 # section CK: the one compass strip zcme (303x18) every dash slides under its window: letters set in Arimo on the original's measured boxes (N E S W ~11x13, the in-between points 5x7), the ticks sharp one-texel columns, the background from the original, at 4x and 8x (compass-zcme.json, gen/compass.py); tests pin every letter's centre and both N's columns at 19.5 and 283.5 times the scale; 7 pack files synced separately (_scratch/r8-compass/changed-files.txt). Evidence: _scratch/r8-compass/sheet-compass.png, texture-sheet.png
+
+# CL. the gunsight ring bevelled (2026-11-09; lane on Opus 5.5)
+fix/crosshair-bevel                   # section CL: the sprite's ring is a polished tube (a lit rim on each edge about a dark core, darkest at the upper left and lower right, a bright glint across the lower left and upper right; the ticks bevelled across their width), not BX's flat band: ReticleArt draws a 48-by-7 shading table fitted to the 128x128's texels (error 0.046 of full scale against 0.159 flat; 0.081 for the 32x32); centre and size unchanged; the binocular view draws no ring on main either (noted). Evidence: _scratch/r8-crosshair-2/shots/sheet-bevel.png
