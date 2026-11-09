@@ -139,7 +139,7 @@ public static class BugReport
                 string trimmed = secret.TrimEnd('\\', '/');
                 if (trimmed.Length == 0) continue;
                 // the same folder written with either separator
-                string pattern = string.Join(@"[\\/]+", trimmed.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
+                string pattern = string.Join(@"[\\/]+", trimmed.Split(new[] { '\\', '/' },StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
                 text = Regex.Replace(text, pattern, mask, RegexOptions.IgnoreCase);
             }
             else

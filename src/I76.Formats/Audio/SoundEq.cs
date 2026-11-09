@@ -39,7 +39,7 @@ public static class SoundEq
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         var num = System.Globalization.NumberStyles.Float;
         var pts = new List<Shelf>();
-        foreach (var part in text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var part in text.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var kv = part.Split(':', StringSplitOptions.TrimEntries);
             if (kv.Length == 2 && float.TryParse(kv[0], num, inv, out float hz) && float.TryParse(kv[1], num, inv, out float db)
