@@ -64,19 +64,34 @@ public sealed class RadarFrames
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<I76.Game.Assets.TextureFactory, RadarFrames> Made = new();
     private static readonly object Checking = new();
 
-    /// <summary>Makes the frames for what the factory serves now, for <see cref="Take"/> (the mission's build, on its thread).</summary>
-    public static void Prefetch(I76.Game.Assets.TextureFactory textures, I76.Formats.Assembly.TextureResolver resolver) =>
-        Made.AddOrUpdate(textures, Make(textures, resolver));
+    /// <summary>The frames a cockpit took, by factory: a factory the restart cache keeps (World.RestartCache) serves the same frames to the next.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<I76.Game.Assets.TextureFactory, RadarFrames> Taken = new();
 
-    /// <summary>The frames for what the factory serves now: those the build made, or made here.</summary>
+    /// <summary>Makes the frames for what the factory serves now, for <see cref="Take"/> (the mission's build, on its thread), unless a cockpit took them already.</summary>
+    public static void Prefetch(I76.Game.Assets.TextureFactory textures, I76.Formats.Assembly.TextureResolver resolver)
+    {
+        if (Taken.TryGetValue(textures, out var t) && t._hd == textures.Hd) return;
+        Made.AddOrUpdate(textures, Make(textures, resolver));
+    }
+
+    /// <summary>The frames for what the factory serves now: those the build made, those a cockpit took before (with buffers of its own), or made here.</summary>
     public static RadarFrames Take(I76.Game.Assets.TextureFactory textures, I76.Formats.Assembly.TextureResolver resolver)
     {
-        if (Made.TryGetValue(textures, out var r) && r._hd == textures.Hd)
-        {
-            Made.Remove(textures);
-            return r;
-        }
-        return Make(textures, resolver);
+        RadarFrames r;
+        if (Made.TryGetValue(textures, out var m) && m._hd == textures.Hd) { Made.Remove(textures); r = m; }
+        else if (Taken.TryGetValue(textures, out var t) && t._hd == textures.Hd) r = t.Again();
+        else r = Make(textures, resolver);
+        Taken.AddOrUpdate(textures, r);
+        return r;
+    }
+
+    /// <summary>The same frames (read only) with decode buffers of their own.</summary>
+    private RadarFrames Again()
+    {
+        var r = new RadarFrames { _hd = _hd };
+        Sweep.CopyTo(r.Sweep, 0);
+        Locked.CopyTo(r.Locked, 0);
+        return r;
     }
 
     private bool _hd;

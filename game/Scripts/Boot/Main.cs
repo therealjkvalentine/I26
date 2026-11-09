@@ -354,6 +354,12 @@ public partial class Main : Node3D
             var loadError = _lastLoadError;
             _lastLoadError = null;
             I76.Game.Shell.Shell.DropCarriedMusic(GetTree());
+            // the last mission's kit stays for the mission chosen again, unless it is over its ceiling or memory is short (World.RestartCache)
+            if (MissionBuilder.Kept.Trim())
+            {
+                if (!I76.Game.Editor.EditorSession.Active) SessionStore.Clear();
+                GD.Print($"restart cache: dropped ({MissionBuilder.Kept.Dropped})");
+            }
             PlayMovies(install, startup, () => AddChild(new I76.Game.Shell.Shell
             {
                 Install = install, Name = "Shell", Faithful = _opt.Mode1997,
@@ -641,6 +647,7 @@ public partial class Main : Node3D
                 RetryCheckpoint();
                 break;
             case MenuOutcome.Replay:
+                LoadProfiler.Again("replay");
                 _ended = true;
                 _checkpoint = null;   // a new attempt
                 // the same mission, car and launch kind; a shell launch lost from here goes back to the shell, never to a default mission
@@ -2110,9 +2117,7 @@ public partial class Main : Node3D
         {
             var rest = next.Split(',', System.StringSplitOptions.RemoveEmptyEntries);
             System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_NEXT", string.Join(',', rest.Skip(1)));
-            var csv = System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_CSV");
-            if (csv is { Length: > 0 }) System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_CSV", csv.Replace(".csv", $".{rest[0]}.csv"));
-            LoadProfiler.Click();
+            LoadProfiler.Again(rest[0]);
             NextMission = rest[0];
             GetTree().ReloadCurrentScene();
             return;
@@ -2439,7 +2444,19 @@ public partial class Main : Node3D
         var pixels = img.GetData();
         // the cells and the solve are the Formats library's arithmetic: at a mission's load on a worker while the rest of the load
         // goes on behind the card (FinishLightingCalibration applies it before the card goes), else here
+        // kept in the bake cache by everything the solve reads (CalibrationCache): a mission started again skips it; I76_CALIBRATION_CACHE=0 solves every time
+        var cache = System.Environment.GetEnvironmentVariable("I76_CALIBRATION_CACHE") == "0" ? null : MissionBuilder.Cache;
+        long solveMs = 0;
         I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
+        {
+            string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve);
+            int n = 0;
+            var r = I76.Formats.Imaging.CalibrationCache.GetOrSolve(cache, key, () => Solved(out n), out bool hit);
+            kinds = hit ? -1 : n;
+            solveMs = sw.ElapsedMilliseconds;
+            return r;
+        }
+        I76.Formats.Imaging.LightingCalibration.Result Solved(out int kinds)
         {
             var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
             kinds = ground.Count;
@@ -2453,8 +2470,8 @@ public partial class Main : Node3D
         void Done(I76.Formats.Imaging.LightingCalibration.Result c, int kinds)
         {
             _calibration = c;
-            GD.Print($"lighting calibration ({curve}): {kinds} kinds of cell, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
-                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, moon {c.Moon:0.000}, {sw.ElapsedMilliseconds} ms{(background ? " (beside the load)" : "")}");
+            GD.Print($"lighting calibration ({curve}): {(kinds < 0 ? "kept" : $"{kinds} kinds of cell")}, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
+                + $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, moon {c.Moon:0.000}, {solveMs} ms{(background ? $" (beside the load, applied at {sw.ElapsedMilliseconds} ms)" : "")}");
             ApplyLightingCalibration();
         }
         if (background)

@@ -9,6 +9,47 @@ namespace I76.Game.World;
 /// <summary>Builds a mission's world from the install: terrain, ground material, placements.</summary>
 public sealed class MissionBuilder(AssetVfs vfs)
 {
+    /// <summary>A build's textures, materials, meshes and cars' parts: what the restart cache keeps.</summary>
+    public sealed record Kit(TextureResolver Resolver, TextureFactory Textures, MaterialLibrary Materials, MeshBuilder Meshes, I76.Game.Sim.CarPartsCache CarParts)
+    {
+        /// <summary>What the build measured from its textures (the sky's colours, the ground's noise fit and paint), by what it read.</summary>
+        public System.Collections.Concurrent.ConcurrentDictionary<string, object?> Measured { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private Kit? _kit;
+
+    /// <summary><paramref name="make"/>'s result, kept with the kit for the same mission's next build (made each time without a kit).</summary>
+    private T Measure<T>(string key, Func<T> make) => _kit is null ? make() : (T)_kit.Measured.GetOrAdd(key, _ => make())!;
+
+    /// <summary>The ceiling of what the restart cache holds, MB (I76_RESTART_CACHE_MB; default 3072: a mission's 8x cars and dash with a 4x world).</summary>
+    private static long CeilingMb => long.TryParse(System.Environment.GetEnvironmentVariable("I76_RESTART_CACHE_MB"), out long mb) && mb > 0 ? mb : 3072;
+
+    /// <summary>
+    /// The last mission's kit (RestartCache), for the same mission's next build (Replay, the mission chosen again); dropped by another
+    /// mission's build, past its ceiling, or when the machine's memory is short (the runtime's high memory load).
+    /// </summary>
+    public static readonly RestartCache<Kit> Kept = new(CeilingMb << 20, k => k.Textures.Bytes, MemoryShort);
+
+    private static bool MemoryShort()
+    {
+        var gc = System.GC.GetGCMemoryInfo();
+        return gc.HighMemoryLoadThresholdBytes > 0 && gc.MemoryLoadBytes >= gc.HighMemoryLoadThresholdBytes;
+    }
+
+    /// <summary>
+    /// The restart cache's key: the install and the map's folder, the mission file (path, size and time), its palette and the pack's, the
+    /// look it starts in and the pack sizes served; null (nothing kept) in the map editor, whose maps change between builds, or with
+    /// I76_RESTART_CACHE=0.
+    /// </summary>
+    private string? KitKey(string msnPath, Palette? pal, Palette? packPalette)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_RESTART_CACHE") == "0" || I76.Game.Editor.EditorSession.Active) return null;
+        var f = new System.IO.FileInfo(msnPath);
+        static string Hash(Palette? p) => p is null ? "-" : System.Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(p.Rgb));
+        return RestartCache.KeyOf(vfs.Install.Root, vfs.Install.MapDir, f.FullName, f.Exists ? f.Length : -1, f.Exists ? f.LastWriteTimeUtc.Ticks : 0, Hash(pal), Hash(packPalette),
+            Look1997, HdTextures.Enabled, HdTextures.WorldSize, HdTextures.CarSize, HdTextures.Source?.GetType().Name ?? "-");
+    }
+
     public AssetVfs Vfs => vfs;
     public MissionWorld? World { get; private set; }
     public TerrainNode? Terrain { get; private set; }
@@ -345,12 +386,32 @@ public sealed class MissionBuilder(AssetVfs vfs)
         if (world.PaletteName is { } pn && vfs.TryRead(pn) is { } pd) ActPalette = pal = new Palette(pd);
         else Notes.Add($"palette {world.PaletteName} not found");
 
-        var resolver = Resolver = new TextureResolver(vfs);
-        var textures = Textures = new TextureFactory(resolver, pal) { Hd = !Look1997 && HdTextures.Enabled,
-            PackPalette = vfs.TryRead(I76.Formats.Imaging.HdTexture.PackPalette) is { Length: I76.Formats.Imaging.Palette.Size } pp ? new Palette(pp) : null };
-        var materials = Materials = new MaterialLibrary(textures) { HoldFlush = OffMainThread };
-        Meshes = new MeshBuilder(resolver, materials);
-        _carParts = null;
+        // the textures, materials, meshes and cars' parts the same mission's last build made, taken as they are (RestartCache), else made
+        var packPalette = vfs.TryRead(I76.Formats.Imaging.HdTexture.PackPalette) is { Length: I76.Formats.Imaging.Palette.Size } pp ? new Palette(pp) : null;
+        string? kitKey = KitKey(msnPath, pal, packPalette);
+        if (kitKey is not null && Kept.Take(kitKey) is { } kit)
+        {
+            (Resolver, Textures, Materials, Meshes, _carParts, _kit) = (kit.Resolver, kit.Textures, kit.Materials, kit.Meshes, kit.CarParts, kit);
+            kit.Materials.HoldFlush = OffMainThread;
+            GD.Print($"restart cache: {world.Mission.Name}'s textures ({kit.Textures.Made}, {kit.Textures.Bytes >> 20} MB), materials, meshes and cars' parts kept from its last build");
+        }
+        else
+        {
+            if (kitKey is not null && Kept.Dropped is { } why) GD.Print($"restart cache: dropped ({why})");
+            // and what the build decodes and computes from the map (the terrain's arrays and meshes, the road layers, the distant terrain:
+            // the map editor's session store, keyed by content) is kept for the same mission's next build; another mission starts it empty
+            if (kitKey is not null) { if (SessionStore.Active) SessionStore.Clear(); else SessionStore.Begin(); }
+            Resolver = new TextureResolver(vfs);
+            Textures = new TextureFactory(Resolver, pal) { Hd = !Look1997 && HdTextures.Enabled, PackPalette = packPalette };
+            Materials = new MaterialLibrary(Textures) { HoldFlush = OffMainThread };
+            var meshes = Meshes = new MeshBuilder(Resolver, Materials);
+            // (the parts' cache holds the meshes, not this builder: a kit kept holds nothing of the mission's world)
+            _carParts = new I76.Game.Sim.CarPartsCache(vfs, () => meshes);
+            _kit = kitKey is null ? null : new Kit(Resolver, Textures, Materials, meshes, _carParts);
+            if (kitKey is not null) Kept.Keep(kitKey, _kit!);
+        }
+        var (resolver, textures, materials) = (Resolver, Textures, Materials);
+        Trace("textures, materials, meshes");
 
         var root = new Node3D { Name = world.Mission.Name };
 
@@ -405,11 +466,14 @@ public sealed class MissionBuilder(AssetVfs vfs)
         if (SkyName is not null && resolver.FindByStem(SkyName) is { } skyMember && textures.Get(skyMember) is { } sky)
         {
             SkyTexture = sky.Texture;
-            var img = sky.Texture.GetImage();
-            if (img.IsCompressed()) img.Decompress();   // a pack's .dds
-            Palette = MeasureSky(img);
-            img.Resize(1, 1, Image.Interpolation.Lanczos);
-            SkyAverage = img.GetPixel(0, 0);
+            (Palette, SkyAverage) = Measure("sky|" + skyMember, () =>
+            {
+                var img = sky.Texture.GetImage();
+                if (img.IsCompressed()) img.Decompress();   // a pack's .dds
+                var palette = MeasureSky(img);
+                img.Resize(1, 1, Image.Interpolation.Lanczos);
+                return (palette, img.GetPixel(0, 0));
+            });
         }
 
         if (EarlyHorizon && !defer && !huge)   // (a map too big for the 3D ring keeps the panels' horizon, as the original draws it)
@@ -461,10 +525,15 @@ public sealed class MissionBuilder(AssetVfs vfs)
         {
             GroundNoise.NoiseTexture();
             yield return null;
-            var gimg = ground?.GetImage();
-            if (gimg is not null && gimg.IsCompressed()) gimg.Decompress();
+            // the ground's picture, read back and measured once for the kit
+            Image? gimg = null;
+            Image? Ground()
+            {
+                if (gimg is null && ground is not null) { gimg = ground.GetImage(); if (gimg.IsCompressed()) gimg.Decompress(); }
+                return gimg;
+            }
             // a painted ground (M15's parking lot): asphalt with the texture's own layout instead, the shader's lot variant (GroundPaint)
-            var paint = gimg is null ? null : GroundPaint.Find(gimg);
+            var paint = ground is null ? null : Measure("paint|" + GroundTexture, () => GroundPaint.Find(Ground()!));
             painted = paint is not null;
             // a night preset's roads keep a share of the moon's light (terrain_night.gdshaderinc): the night shader's light()
             sharedModern = new ShaderMaterial { Shader = GD.Load<Shader>(painted ? GroundPaint.Shader : Light.IsDay ? "res://Shaders/terrain_modern.gdshader" : "res://Shaders/terrain_modern_night.gdshader") };
@@ -473,7 +542,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 sharedModern.SetShaderParameter("ground_tex", ground);
                 yield return null;
-                var fit = GroundNoise.Measure(gimg!, 40f);
+                var fit = Measure("noise|" + GroundTexture, () => GroundNoise.Measure(Ground()!, 40f));
                 yield return null;
                 GroundNoise.Apply(sharedModern, fit);
                 bool mats = TerrainMaterials.Apply(sharedModern);
