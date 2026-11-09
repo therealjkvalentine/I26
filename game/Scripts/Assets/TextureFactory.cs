@@ -148,6 +148,28 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         for (int i = 0; i < todo.Count; i++) _hd[todo[i].Member] = made[i];
     }
 
+    /// <summary>
+    /// The pack's upscales of <paramref name="members"/> as the GPU would take them (a .dds as stored, with its mipmaps; a fitted
+    /// picture as RGBA8), decoded on worker threads and not kept here: art the caller keeps in its own form (the radar's frames,
+    /// RadarFrames). Null where the original is served.
+    /// </summary>
+    public Image?[] Pictures(IReadOnlyList<string?> members)
+    {
+        var made = new Image?[members.Count];
+        if (!Hd || HdTextures.Source is null) return made;
+        bool anywhere = HdTextures.ReadAnywhere;
+        var todo = new ((string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed)?[members.Count];
+        for (int i = 0; i < members.Count; i++)
+            if (members[i] is { } m && Bled(m) is { } b && (anywhere || HdTextures.Read(m) is not null)) todo[i] = (anywhere ? null : HdTextures.Read(m), b, GreyedOf(m));
+        System.Threading.Tasks.Parallel.For(0, members.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
+        {
+            if (todo[i] is not { } t || (t.File ?? HdTextures.Read(members[i]!)) is not { } f) return;
+            if (Fitted(members[i]!, f.Name, f.Bytes, t.Base, t.Greyed) is { } h)
+                made[i] = h.Gpu ?? Image.CreateFromData(h.Width, h.Height, false, Image.Format.Rgba8, h.Rgba.Rgba);
+        });
+        return made;
+    }
+
     /// <summary>The member's palette indices when it uses an entry the mission's palette greys (PackPalette), else null.</summary>
     private byte[]? GreyedOf(string member) =>
         _greyed is { } g && resolver.Load(member) is { Palette: null } t && HdTexture.Uses(t.Indices, g) ? t.Indices : null;

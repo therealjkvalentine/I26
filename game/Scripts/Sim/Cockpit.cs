@@ -75,11 +75,13 @@ public partial class Cockpit : Node
     }
 
     /// <summary>The frames the cockpit swaps in (wheel, arms, radar), from what the factory serves: the originals or a pack's upscales.</summary>
-    /// <summary>The frames LoadArt makes (wheel, arms, shots, radar), as stems: a mission's build prefetches them on its thread (Main.PrefetchCars).</summary>
+    /// <summary>
+    /// The frames LoadArt makes (wheel, arms, shots), as stems: a mission's build prefetches them on its thread (Main.PrefetchCars), with
+    /// the radar's (RadarFrames.Prefetch), which are kept in their own form.
+    /// </summary>
     public static IEnumerable<string> ArtStems(int lightVariant) =>
         new[] { ("zswls{0}{1:00}", 36), ("zhr45{0}{1:00}", 6), ("zhl45{0}{1:00}", 6), ("zsr45{0}{1:00}", 3), ("zsl45{0}{1:00}", 3) }
-            .SelectMany(f => Enumerable.Range(1, f.Item2).Select(i => string.Format(f.Item1, lightVariant, i)))
-            .Concat(Enumerable.Range(0, 31).SelectMany(i => new[] { "zradf" + i.ToString("000"), "zradb" + i.ToString("000") })).Append("zradmask");
+            .SelectMany(f => Enumerable.Range(1, f.Item2).Select(i => string.Format(f.Item1, lightVariant, i))).Append("zradmask");
 
     private void LoadArt()
     {
@@ -90,13 +92,8 @@ public partial class Cockpit : Node
         _armL = Frames("zhl45{0}{1:00}", 6);
         _shotR = Frames("zsr45{0}{1:00}", 3);
         _shotL = Frames("zsl45{0}{1:00}", 3);
-        for (int i = 0; i <= 30; i++)
-        {
-            _radarF[i] = Image("zradf" + i.ToString("000"));
-            _radarB[i] = Image("zradb" + i.ToString("000"));
-        }
+        _radarFrames = RadarFrames.Take(Textures, Resolver);
         _radarMember = Resolver.FindByStem("zradf000");
-        _radarBytes.Clear();
         _radarDiffs.Clear();
         if (_radarMember is not null && Textures.GetOriginalRgba(_radarMember) is { } r0) _radarBaseW = r0.Width;
         // the weapon camera is composed at the original's 256x128 under the original's mask
@@ -857,7 +854,9 @@ public partial class Cockpit : Node
 
     // ---- radar ----
 
-    private readonly Image?[] _radarF = new Image?[31], _radarB = new Image?[31];
+    private RadarFrames _radarFrames = new();
+    private RadarFrames.Frame?[] _radarF => _radarFrames.Sweep;
+    private RadarFrames.Frame?[] _radarB => _radarFrames.Locked;
     private string? _radarMember;
     private int _radarCur, _radarPrev;
     private bool _radarRedraw;
@@ -874,32 +873,64 @@ public partial class Cockpit : Node
 
     private void Radar()
     {
+        RadarDraw();
+        // the frames that may come next decoded ahead on a worker, once this frame's screen is drawn: the sweep's next step, or the
+        // locked frame's neighbours
+        if (_radarAt >= 0) { _radarFrames.Ahead(_radarB[(_radarAt + 1) % 30]); _radarFrames.Ahead(_radarB[(_radarAt + 29) % 30]); }
+        else if (_radarAt == -1) _radarFrames.Ahead(_radarF[I76.Sim.Weapons.RadarScope.NextSweep(_radarCur)]);
+        if (DashStats.On) DashStats.RadarKept = _radarFrames.Kept;
+    }
+
+    /// <summary>The locked frame shown (0..29), -1 sweeping, -2 neither (off, the weapon camera).</summary>
+    private int _radarAt = -2;
+    /// <summary>The screen kept its frame last time, the one wanted not decoded yet: drawn again as soon as it is.</summary>
+    private bool _radarLate;
+
+    private void RadarDraw()
+    {
         _t += GetProcessDeltaTime();
+        _radarAt = -2;
         if (_radarMember is null || Combat is null) return;
         // the radar object (class 0x22) is built switched on at range 1 with the cockpit's radar part, special or not
         bool has = RadarOn;
-        Image? frame;
+        RadarFrames.Frame? frame;
         if (WeaponCamera() is { } cam) { UploadRadar(cam.GetData(), cam.GetWidth(), cam.GetHeight(), null); _radarDrawn.Forget(); return; }
         var locked = has ? Combat.RadarTarget.GetValueOrDefault(Car) : null;
+        // a step already drawn with the frame before it (the late frame below): its pings were made then
+        bool retry = false;
         if (!has) frame = _radarF[30];
         else if (locked is not null)
         {
             // flag 0x10 (a target selected): the sweep stops and the locked frame ZRADBnnn follows the target's bearing
             var d = Car.Rot.ToLocal(locked.Pos.ToVector3() - Car.Pos.ToVector3());
-            frame = _radarB[I76.Sim.Weapons.RadarScope.LockedFrame(d.X, d.Z)] ?? _radarF[30];
+            _radarAt = I76.Sim.Weapons.RadarScope.LockedFrame(d.X, d.Z);
+            frame = _radarB[_radarAt] ?? _radarF[30];
         }
         else
         {
-            if (_t < _radarNext && !_radarRedraw) return;
-            _radarPrev = _radarCur;
-            while (_radarNext < _t) { _radarNext += 0.2; _radarCur = I76.Sim.Weapons.RadarScope.NextSweep(_radarCur); }
+            _radarAt = -1;
+            retry = _radarLate && _t < _radarNext && !_radarRedraw;
+            if (_t < _radarNext && !_radarRedraw && !_radarLate) return;
+            if (!retry)
+            {
+                _radarPrev = _radarCur;
+                while (_radarNext < _t) { _radarNext += 0.2; _radarCur = I76.Sim.Weapons.RadarScope.NextSweep(_radarCur); }
+            }
             frame = _radarF[_radarCur];
         }
         if (frame is null) return;
         bool redraw = _radarRedraw;
         _radarRedraw = false;
-        var bytes = RadarBytes(frame);
-        int w = frame.GetWidth(), h = frame.GetHeight();
+        // a frame not decoded ahead (a target picked or changed, the sweep taken up again: a pack's frame, 17 ms of decoding at 8x):
+        // the screen keeps the frame it shows, its blips, plate and LED drawn as ever, until the worker has it, a frame or two later
+        _radarLate = false;
+        if (!redraw && _radarDrawn.Frame is RadarFrames.Frame shown && shown != frame && shown.W == frame.W && shown.H == frame.H && !_radarFrames.Ready(frame))
+        {
+            _radarFrames.Ahead(frame);
+            (frame, _radarLate) = (shown, true);
+        }
+        var bytes = _radarFrames.Bytes(frame);
+        int w = frame.W, h = frame.H;
         // the frames' texels per original pixel (a pack's upscale): the layout's anchors and the scope's are the original's pixels
         int k = System.Math.Max(1, w / _radarBaseW);
         // a newly picked target's byte is 0 (the target pick and the GOG build's E/Q: the one it replaces goes back to 0x69)
@@ -923,7 +954,7 @@ public partial class Cockpit : Node
                 if (v.Wreck || !Combat.IsContact(Car, v)) continue;   // the contact list: 600 m on the ground, no dead or engine-off car
                 any = true;   // the LED and the growl: any listed car, on the scope or past its range circle
                 if (I76.Sim.Weapons.RadarScope.Project(Car.Rot, Car.Pos.ToVector3(), v.Pos.ToVector3(), R) is not var (nx, nz)) continue;
-                bool inWedge = locked is null && I76.Sim.Weapons.RadarScope.InPingWedge(_radarPrev, _radarCur, nx, nz);
+                bool inWedge = locked is null && !retry && I76.Sim.Weapons.RadarScope.InPingWedge(_radarPrev, _radarCur, nx, nz);
                 if (inWedge) { if (!pinged) { Sound("cradar.wav"); pinged = true; } _sweptAt[v] = _t; }   // every pass pings; blips in one step share the sound
                 // a raw bitmap row: bottom-up, as the image stores it
                 // no team colours: palette index 0x69 when listed, 0 as the sweep passes or it is picked, +3 a second back to
@@ -946,7 +977,7 @@ public partial class Cockpit : Node
         // what changed since the screen was last drawn, as rectangles (raw rows): where the frame differs from the last one, the
         // blips' squares before and after, the range plate and the LED if they changed. The whole screen when nothing is there
         // to build on (the first frame, a size change, the weapon camera's picture shown since)
-        var was = _radarDrawn.Frame as Image;
+        var was = _radarDrawn.Frame as RadarFrames.Frame;
         bool whole = redraw || was is null || _radarWork?.Length != bytes.Length || _radarLive is null || _radarLive.Width != w || _radarLive.Height != h;
         _radarRects.Clear();
         if (!whole)
@@ -977,14 +1008,13 @@ public partial class Cockpit : Node
 
     private readonly List<Rect2I> _radarRects = [];
     /// <summary>Where two radar frames differ (raw rows), found once a pair.</summary>
-    private readonly Dictionary<(Image, Image), List<Rect2I>> _radarDiffs = [];
+    private readonly Dictionary<(RadarFrames.Frame, RadarFrames.Frame), List<Rect2I>> _radarDiffs = [];
 
-    private List<Rect2I> RadarDiff(Image a, Image b, int w, int h)
+    private List<Rect2I> RadarDiff(RadarFrames.Frame a, RadarFrames.Frame b, int w, int h)
     {
         if (_radarDiffs.TryGetValue((a, b), out var d)) return d;
         d = [];
-        var ab = RadarBytes(a);
-        if (ab.Length == w * h * 4) CockpitPanels.Differ(ab, RadarBytes(b), w, h, d);
+        if (a.W == w && a.H == h) CockpitPanels.Differ(_radarFrames.Bytes(a), _radarFrames.Bytes(b), w, h, d);
         else d.Add(new Rect2I(0, 0, w, h));
         return _radarDiffs[(a, b)] = d;
     }
@@ -1023,17 +1053,7 @@ public partial class Cockpit : Node
     private readonly List<(Rect2I Rect, Color Colour)> _radarOps = [];
     private readonly ScopePicture _radarDrawn = new();
     private byte[]? _radarWork;
-    private readonly Dictionary<Image, byte[]> _radarBytes = [];
     private readonly Dictionary<Color, uint> _rgba8 = [];
-
-    /// <summary>A radar frame's texels as RGBA8 without mipmaps, read from the image once.</summary>
-    private byte[] RadarBytes(Image frame)
-    {
-        if (_radarBytes.TryGetValue(frame, out var b)) return b;
-        var f = frame;
-        if (f.GetFormat() != Godot.Image.Format.Rgba8 || f.HasMipmaps()) { f = (Image)f.Duplicate(); f.ClearMipmaps(); f.Convert(Godot.Image.Format.Rgba8); }
-        return _radarBytes[frame] = f.GetData();
-    }
 
     /// <summary>A colour's RGBA8 bytes as Image.FillRect writes them (a 1x1 fill once a colour, kept).</summary>
     private uint Rgba8(Color c)
@@ -1164,7 +1184,7 @@ public partial class Cockpit : Node
         if (new Vector3(gun.X, 0, gun.Z).LengthSquared() > 1e-4f) mount.Basis = Basis.LookingAt(gun, Vector3.Up);
         _wcamCam!.GlobalTransform = mount;
         var shot = _wcamView.GetTexture().GetImage();   // the last frame's render: one frame of lag, as the 3D dash had
-        if (shot is null || shot.GetWidth() != 256) return _radarF[30] is { } blank ? (Image)blank.Duplicate() : null;
+        if (shot is null || shot.GetWidth() != 256) return _radarF[30] is { } blank ? Godot.Image.CreateFromData(blank.W, blank.H, false, Godot.Image.Format.Rgba8, _radarFrames.Bytes(blank)) : null;
         shot.Convert(Godot.Image.Format.Rgba8);
         var px = shot.GetData();
         var outp = new byte[256 * 128 * 4];

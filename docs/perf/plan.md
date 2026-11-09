@@ -145,6 +145,8 @@ splits.
   fills 200 px at most), world 2x; and a cap by VRAM: under 4 GB drop the top mip of every world texture at upload
   (`Image.ShrinkX2` before the ImageTexture is made).
 - Saving. 400-500 MB of VRAM and about a second of a mission's load; nothing in the frame.
+- Saving outside the video memory: the radar's 62 frames are the pack's BC7 in memory since round 7, decoded when shown (The dash,
+  "The radar's frames"): at the 8x dash the process's working set 5.7 -> 4.3 GB in T05, the radar's own 952 -> 156 MB (4x: 238 -> 39 MB).
 - Faithfulness. The 1997 look never draws the packs; none.
 - Measure. vram_tex_mb across `base` / `hd_3x` / `hd_2x` / `hd_off`; `tools/frame-cost/loadtime.py`.
 
@@ -412,6 +414,45 @@ picture (`I76_DASH_STATS=verify`): 2905 uploads, no texel different; screenshots
 same ticks; for the comparison both builds had the housings' and the effects' random numbers seeded and `I76_VEG_PLANTS=0`, a local change
 not in the branch): the 1997 look zero differing pixels, the modern look zero on the dash, the differences all in the world's hit
 effects and smoke at the target (which two runs of the before build also differ in, 66 pixels at 29 s).
+### The radar's frames (round 7)
+
+The radar screen is drawn from one of 62 frames (the sweep's ZRADF000-030, the locked ZRADB000-030). With a pack each frame was kept
+decoded three times over: the texture factory's RGBA of the upscale (and the .dds with its mipmaps), an Image of it, and the bytes the
+screen is composed from, read the first time a frame showed. At the 8x dash a frame is 2048x1024, 8 MB a copy: 952 MB in the
+cockpit's arrays alone, about 1.6 GB with the factory's. None of it is video memory: only the composed screen is a texture.
+
+Now (`RadarFrames`, `Bc7`) each frame is kept as the pack stores it, BC7, a byte a texel, its full-size level only (2 MB at 8x),
+and decoded into one of four kept RGBA buffers when it is about to be shown: the sweep's next step and the locked frame's two
+neighbours on a worker thread below the main thread's priority, after the screen is drawn. A frame not decoded ahead (a target
+picked or changed, the sweep taken up again) is not waited for: the screen keeps the frame it shows, blips, plate and LED drawn as
+ever, until the worker has it, a frame or two later. The decode is the specification's (modes 6 and 1, 97 % of the radar's blocks,
+laid out by hand), 17 ms of one core for an 8x frame, 4 ms for a 4x one: about 85 ms a second of a worker while the sweep turns at
+8x. The originals (1997, the HD rows off) are the factory's own RGBA, which it keeps anyway. The screen was not resampled to the
+size it is drawn at: the scope is about 450 pixels across at 3440x1440 in the 3D cockpit, 4.4 screen pixels to an original pixel,
+so the 8x frame is under 2 texels a pixel, and a smaller frame would change the picture for a 4x saving at most.
+
+T05, the modern look, the world at 4x, tick 2400 (one capture run each; `I76_DASH_STATS=1`'s memory fields):
+
+| Car & Dash Textures | working set MB, before -> after | managed heap MB | engine's allocations MB | radar kept MB | video memory (textures) MB |
+|---|---|---|---|---|---|
+| 1997 | 2746 -> 2626 | 222 -> 382 | 1294 -> 1309 | 15 -> 8 | 1711 -> 1739 |
+| 4x | 3342 -> 3054 | 795 -> 668 | 1624 -> 1470 | 238 -> 39 | 1939 -> 1964 |
+| 8x | 5749 -> 4344 | 2216 -> 1383 | 2542 -> 1881 | 952 -> 156 | 2671 -> 2671 |
+
+The 1997 row's own differences are other parts of the run (the radar keeps half what it did, the originals no longer copied). The
+perf bench (`bench.py --scene t05 --skip-ms 2000 --run-ms 90000`, owner profile, 3440x1440, the dash at 8x, real ammunition, one run
+each, the machine's other load 62 % and 70 %): the cockpit 0.371 -> 0.365 ms a frame, its worst 16.1 -> 12.8 ms, upload 17.2 ->
+16.9 MB/s, its managed allocations 4657 -> 483 KB/s (the frames' first reads gone), full collections 0.7 -> 0 a minute, the frame's
+median 12.0 -> 12.4 ms (the load); the sweep's steps cost the cockpit what they did (0.17 ms a frame between fights, worst 0.3 ms).
+A first build that decoded ahead before the screen was drawn and waited for a frame it did not have cost 0.85 ms and 47 ms worst.
+The player's car's set-up at the load (`I76_LOAD_PROFILE`) 2989 -> 2947 ms at 8x: the radar was not what made it long.
+
+The picture: the radar's composed screen at its first draw (`I76_PIT_DUMP`), before against after, zero texels differ at 1997, 4x and
+8x; screenshots at 8x, ticks 2400 and 2401, zero pixels differ on the radar (at 1997 and 4x two runs of the same build already
+differ, the head's place); `I76_DASH_STATS=verify` checks each of the 62 frames' decode against the engine's decompression at the
+load (all 62 equal, at 8x and at 4x) and every upload against the GPU's copy (931 uploads to tick 1300 at 8x, 432 to tick 700 at
+4x, none different).
+
 ## Settings and the frame rate (round 6)
 
 Graphic Detail's last line (docs/playing.md, "Frame rate on Graphic Detail") measures the frame rate behind the Esc menu's pads and,
