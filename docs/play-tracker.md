@@ -921,7 +921,7 @@ unreachable (still on pass 22's build). Laptop smoke T01 1280x960 after AW: exit
 
 ## Pass 26 (2026-11-08 to 11-09)
 
-Twenty-four sections, AY to BW, all merged by hand or with sync-play, tests green at each push:
+Thirty-two sections, AY to CD, all merged by hand or with sync-play, tests green at each push:
 - AY: car deaths and explosions back to upstream's.
 - AZ: the form rules cleaned.
 - BA: the cockpit wheel and hand.
@@ -944,8 +944,15 @@ Twenty-four sections, AY to BW, all merged by hand or with sync-play, tests gree
 - BT: the rear badges.
 - BU: the side mirrors.
 - BW: the Debug build optimised.
+- BX: the gunsight drawn as geometry.
+- BY: night under calibration off, Night sliders, the gauge grid lines.
+- BZ: the specials panel in the art's shape.
+- CA: the side view in the cars' own door-mirror glass.
+- CB: every wheel face was upside down (86Box ground truth).
+- CC: a restart of the same mission reuses its assets.
+- CD: incandescent lamps and softer halos.
 
-Test status (`main` d044031b), desktop, `--filter "Load!=Sensitive"`, without the install set:
+Test status (`main` 568f6754, sections through CD; the table below is at d044031b, the later runs are in _scratch/pass26/*-cd.log: Game 709/0 with 25 skips, Sim 1195/0, Editor 230/0, Formats 942/0 with 128 skips, Net 465/0), desktop, `--filter "Load!=Sensitive"`, without the install set:
 
 | Suite | Passed | Failed | Skipped |
 |---|---|---|---|
