@@ -426,3 +426,6 @@ fix/damage-panel-chevrons             # section BI: the Mr Damage chevrons and b
 
 # BJ. sky noise hash (2026-11-08, upstream issue #149; pr/ branch from origin/master)
 pr/sky-noise-hash                     # section BJ: the modern sky's cloud noise lattice hash fract(sin(dot)) lost precision on the GPU at the finer octaves, so runs of lattice points came out alike and the density ramp drew 75-150 px blocks (the "checkered clouds at night", #149, and the owner's "patching"); a sine-free hash; SkyNoiseTests. Texel-edge share T06 looking up 14.0 -> 1.8 %; BB's B-spline read measured no change (14.0 -> 13.5). Evidence: _scratch/r7-issues/evidence/pr-sky-noise-hash.png
+
+# BK. wheel still light from the frames (2026-11-09)
+fix/wheel-light-upside-down           # section BK: AV's two-harmonic fit could hold a gradient but not an edge, so a steel wheel's cap-edge shadow and the police dome's horizon still turned and came round over the top ("shadows upside down"); the still light is now the strip's frames averaged texel by texel (SmoothWheel.StillLight), read at the texel's rest place over its current place; I76_WHEEL_LIGHT=0 turns it with the wheel; rms against the original's frames down on all ten styles. No pack files. Evidence: _scratch/r7-wheel-light/sheets/sheet-wa81.png and the other seven, wheels-before/after.mp4, work/score.txt
