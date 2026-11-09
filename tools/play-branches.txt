@@ -492,3 +492,6 @@ fix/form-cv-marks                     # section CE: the BUILD AND REPAIR lists' 
 
 # CF. lamp ramp twice as fast (2026-11-09; lane on Sonnet 5.5)
 fix/lamp-ramp-faster                  # section CF: CD's ramp sat at the slow end of real 12 V filament figures (tail and brake bulbs ~50-150 ms to 90 %, decay 100-250 ms; real brake lights snap in well under 100 ms); headlamps now 60/150 ms rise/fall, brake and tail 30/100 (were 120/300, 60/200); the orange shift and I76_LAMP_RAMP_SCALE kept. Evidence: _scratch/r8-lamps-2/shots/sheet_brake_tap_before_after.png
+
+# CG. Fletcher and Sons signs relettered (2026-11-09; lane on Opus 5.5)
+fix/fletcher-sign-lettering           # section CG: the T08 warehouse bcywhse1's name board (FLETCHER & SONS / IMPORTS - EXPORTS / MIDLAND - PLAINS - CARLSBAD, NM: Libre Caslon Text), safety board (Arimo Bold) and OFFICE relettered in the 4x pack on the originals' ink boxes and colours with the paint grain kept (the pack read CARLSRAD, DAVS, LODT, TIIIE); 8 pack files synced separately (_scratch/r8-sign-fletcher/changed-files.txt). Evidence: _scratch/r8-sign-fletcher/sheet-front.png, sheet-side.png, sheet-office.png
