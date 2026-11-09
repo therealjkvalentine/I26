@@ -66,6 +66,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_WINDOWS_STEER` | capture | `s`: the steering the car-window driver's wheel and hand show (-1..+1, +1 full left) in place of the car's own, for captures. |
 | `I76_CAP_CAM` | capture | `dx,dy,dz,yaw,pitch`: a fixed camera at that offset from the player's car (Godot axes, degrees). |
 | `I76_CAP_CAM_ON` | capture | `ODEF`: with `I76_CAP_CAM`, the offset is from the first car whose definition starts with this (`vcpolic`) instead of the player's. |
+| `I76_CAP_ORBIT` | capture | `radius,height,degrees per second[,start]`: the capture camera circles the player's car (or `I76_CAP_CAM_ON`'s) at that radius and height, looking at it, from the start angle (0: ahead of the car along Godot's +Z); `6,1.6,36` is one turn in 10 s, for an orbit clip with `I76_SHOT_TICKS`. Takes the place of `I76_CAP_CAM`. |
 | `I76_FREECAM` | capture | `x,y,z,yaw,pitch[,fov]`: hold the fly camera there during a mission (fov: vertical, degrees; the maintainers' tooling logs the original's camera in this form). |
 | `I76_CHASE_YAW`, `I76_CHASE_ZOOM` | capture | Start the chase camera swung round the car (degrees) or nearer or further (1..10). |
 | `I76_HEAD`, `I76_HEAD_STATE` | capture | Cockpit head look `yaw,pitch`, or hold a glance state 0..7. |

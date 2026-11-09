@@ -1,0 +1,38 @@
+{
+ "textures": [
+  "xb11bkr1"
+ ],
+ "note": "the school bus's right side band, rear panel: VALDES",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    60.4,
+    40.4,
+    119.6,
+    46.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "VALDES",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "center": [
+    90.0,
+    43.2
+   ],
+   "width": 53,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

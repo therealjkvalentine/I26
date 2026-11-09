@@ -3854,13 +3854,38 @@ public partial class Main : Node3D
     private static readonly int SpawnAiUntil = System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_AT")?.Split('@') is { Length: 2 } sp2 && sp2[1].Split('-') is [_, var until] && int.TryParse(until, out int su) ? su : -1;
     private bool _spawnAiDone;
 
+    private double _orbitTime;
+
+    /// <summary>
+    /// I76_CAP_ORBIT's camera at time <paramref name="t"/>: its offset from the car (radius orbit[0], height orbit[1], turned orbit[2] degrees
+    /// a second from orbit[3], Godot axes) and the yaw and pitch that look at the car (its body about 0.6 m up).
+    /// </summary>
+    public static (Vector3 Offset, float Yaw, float Pitch) OrbitPose(float[] orbit, double t)
+    {
+        float a = Mathf.DegToRad((orbit.Length > 3 ? orbit[3] : 0) + orbit[2] * (float)t);
+        var off = new Vector3(orbit[0] * Mathf.Sin(a), orbit[1], orbit[0] * Mathf.Cos(a));
+        return (off, Mathf.RadToDeg(Mathf.Atan2(off.X, off.Z)), -Mathf.RadToDeg(Mathf.Atan2(orbit[1] - 0.6f, orbit[0])));
+    }
+
     private void ApplyCapCam()
     {
         // I76_CAP_CAM="dx,dy,dz,yaw,pitch": a fixed capture camera at that offset from the player's car (Godot axes, degrees)
         // I76_CAP_CAM_ON=ODEF: the offset is from the first car of that definition (a prefix: vcpolic) instead of the player's
         var on = System.Environment.GetEnvironmentVariable("I76_CAP_CAM_ON") is { Length: > 0 } pre
             ? _sim?.Cars.FirstOrDefault(c => c.Definition.StartsWith(pre, StringComparison.OrdinalIgnoreCase)) : null;
-        if ((on ?? _car) is { } target && System.Environment.GetEnvironmentVariable("I76_CAP_CAM")?.Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is { Length: 5 } cc)
+        // I76_CAP_ORBIT="radius,height,degrees per second[,start]": the camera circles the same car at that radius and height, looking at it
+        // (an orbit for a clip of a car's sides: 36 for one turn in 10 s), from the start angle (0: ahead of the car's +Z, Godot axes)
+        var orbit = System.Environment.GetEnvironmentVariable("I76_CAP_ORBIT")?.Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        if ((on ?? _car) is { } orbited && orbit is { Length: >= 3 })
+        {
+            _orbitTime += GetProcessDeltaTime();
+            var (off, yaw, pitch) = OrbitPose(orbit, _orbitTime);
+            _cam.Position = orbited.Position + off;
+            _cam.SetYawPitch(yaw, pitch);
+            _car?.SetCockpit(false);
+            if (!_cam.Current) _cam.MakeCurrent();
+        }
+        else if ((on ?? _car) is { } target && System.Environment.GetEnvironmentVariable("I76_CAP_CAM")?.Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is { Length: 5 } cc)
         {
             _cam.Position = new Vector3(cc[0], cc[1], cc[2]) + target.Position;
             _cam.SetYawPitch(cc[3], cc[4]);
