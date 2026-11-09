@@ -17,6 +17,18 @@ public static class LampStrength
     /// <summary>What is left of each in full sun.</summary>
     public const float HeadDayFloor = 0.2f, BrakeLightDayFloor = 0.25f, GlowDayFloor = 0.4f;
 
+    /// <summary>
+    /// [port] lamp_halo: the lens glows and the glares (the halo round a lit lamp) as a percentage of the strengths above, which
+    /// stay the 100 mark; 65 by default, a third under, the owner's "chill out the halo on the lights a bit". The lights themselves
+    /// (the beams on the road, the brake's red light) keep their energy. I76_LAMP_HALO overrides the file for a run.
+    /// </summary>
+    public const int HaloDefault = 65;
+    public static int HaloPercent = HaloDefault;
+    public static readonly int? HaloHook = int.TryParse(System.Environment.GetEnvironmentVariable("I76_LAMP_HALO"), out int hh) ? hh : null;
+    public static float Halo => Math.Clamp(HaloHook ?? HaloPercent, 0, 200) / 100f;
+    /// <summary>The file's word (0 to 200), the default when absent or not a number.</summary>
+    public static int ParseHalo(string? s) => int.TryParse(s, out int p) ? Math.Clamp(p, 0, 200) : HaloDefault;
+
     /// <summary>The daylight a preset gives: its intensity under the sun, 0 under the moon.</summary>
     public static float Daylight(bool isDay, float intensity) => isDay ? Math.Clamp(intensity, 0f, 1f) : 0f;
 

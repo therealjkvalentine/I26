@@ -33,6 +33,9 @@ public static class DevSettings
     public static readonly int[] EffectSteps = [25, 50, 75, 100, 125, 150];
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
+    public static readonly int[] HaloSteps = [25, 50, 65, 75, 100, 125, 150];
+    private static readonly string[] HaloNames = [.. HaloSteps.Select(p => p == I76.Game.Sim.LampStrength.HaloDefault ? $"{p}" : $"{p}{M}")];
+    public static int NearestHaloStep(int percent) => Array.IndexOf(HaloSteps, HaloSteps.MinBy(p => Math.Abs(p - percent)));
 
     /// <summary>target_fps's frame rates offered (0: off, the default); a value set by hand shows as the nearest.</summary>
     public static readonly int[] TargetSteps = [0, 60, 90, 120, 144];
@@ -96,6 +99,8 @@ public static class DevSettings
         new("menu_fps", ["false", "true" + M], s => s.MenuFps ? 1 : 0, (s, v) => s.MenuFps = v != 0, DevWhen.NextScreen),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
         new("even_flash", FalseTrue, s => s.EvenFlash ? 1 : 0, (s, v) => s.EvenFlash = v != 0, DevWhen.Live),
+        new("lamp_ramp", ["off", "on" + M], s => s.LampRamp ? 1 : 0, (s, v) => s.LampRamp = v != 0, DevWhen.Live),
+        new("lamp_halo", HaloNames, s => NearestHaloStep(s.LampHalo), (s, v) => s.LampHalo = HaloSteps[v], DevWhen.Live),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),
