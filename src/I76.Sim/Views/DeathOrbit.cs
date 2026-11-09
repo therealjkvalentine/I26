@@ -16,6 +16,9 @@ public sealed class DeathOrbit
     /// <summary>The port's earlier orbit, [port] death_orbit=smooth: a steady 0.35 rad (20 degrees) a second, on the render delta.</summary>
     public const float SmoothRadiansPerSecond = 0.35f;
 
+    /// <summary>[port] death_orbit_speed as a factor of the turn (1: the rate above; 0.5 by default), drawn only.</summary>
+    public float Speed = 1f;
+
     private float _acc, _tick;
 
     /// <summary>The yaw, radians.</summary>
@@ -31,13 +34,13 @@ public sealed class DeathOrbit
         _acc = MathF.Min(_acc + dt, 4 * tick);
         int n = 0;
         for (; _acc >= tick; _acc -= tick) n++;
-        Yaw += n * StepDegrees * (MathF.PI / 180f);
+        Yaw += n * StepDegrees * Speed * (MathF.PI / 180f);
         return n;
     }
 
     /// <summary>Smooth's turn: <paramref name="dt"/> seconds at <see cref="SmoothRadiansPerSecond"/>, no steps.</summary>
-    public void AdvanceSmooth(float dt) { Yaw += SmoothRadiansPerSecond * dt; _acc = 0; }
+    public void AdvanceSmooth(float dt) { Yaw += SmoothRadiansPerSecond * Speed * dt; _acc = 0; }
 
     /// <summary>The yaw to draw (radians): <see cref="Yaw"/> and the part of the next step the time since the last has covered.</summary>
-    public float Drawn => _tick > 0 ? Yaw + _acc / _tick * StepDegrees * (MathF.PI / 180f) : Yaw;
+    public float Drawn => _tick > 0 ? Yaw + _acc / _tick * StepDegrees * Speed * (MathF.PI / 180f) : Yaw;
 }

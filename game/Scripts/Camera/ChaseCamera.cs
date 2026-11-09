@@ -160,6 +160,7 @@ public partial class ChaseCamera : Camera3D
     private void DeathOrbit(Transform3D t, Vector3 centreG, float dt)
     {
         float k = 1f - Mathf.Exp(-6f * dt);
+        _death.Speed = I76.Game.Sim.OriginalBehavior.OrbitSpeed;   // [port] death_orbit_speed
         if (!_orbiting)
         {
             var from = Position - t.Origin;

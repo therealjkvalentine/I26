@@ -2317,13 +2317,15 @@ public partial class Main : Node3D
     /// <summary>The mission's sky texture on the engine's dome, in both modes; modern fogs toward its average colour.</summary>
     private void ApplySky()
     {
-        _lighting = LightingOf(I76.Game.Shell.ShellSettings.Load());   // the calibration is solved here, before ApplyGraphics
+        var shellNow = I76.Game.Shell.ShellSettings.Load();
+        I76.Game.Sim.OriginalBehavior.SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(shellNow.SkySpeed);   // [port] sky_speed, before the materials take it
+        _lighting = LightingOf(shellNow);   // the calibration is solved here, before ApplyGraphics
         if (_builder?.SkyTexture is not { } tex) return;
         var mat = _sky1997 = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_dome.gdshader") };
         mat.SetShaderParameter("clouds", tex);
         mat.SetShaderParameter("far_clip", Far1997);
         mat.SetShaderParameter("origin_y", _origin.Y);
-        mat.SetShaderParameter("scroll_per_second", I76.Game.Sim.SimClock.SkyScrollPerSecond);   // the 1997 sky scrolls a fixed amount a frame, the sim tick
+        mat.SetShaderParameter("scroll_per_second", I76.Game.Sim.SimClock.SkyRate(I76.Game.Sim.SimClock.SkyScrollPerSecond));   // the 1997 sky scrolls a fixed amount a frame, the sim tick
         var light = _builder.Light;
         var l = Coords.ToGodot(light.Direction).Normalized();
         if (_builder.Horizon is { } hz) { mat.SetShaderParameter("horizon", hz); mat.SetShaderParameter("has_horizon", true); }
@@ -2349,6 +2351,7 @@ public partial class Main : Node3D
         I76.Game.World.ObjectLight.SetRamp(_cardRamp = LumaRamp());
         var sky = new Sky { SkyMaterial = mat, ProcessMode = Sky.ProcessModeEnum.Realtime };
         var modernSky = ModernSky(mat, light);
+        modernSky.SetShaderParameter("scroll_per_second", I76.Game.Sim.SimClock.SkyRate(I76.Game.Sim.SimClock.ModernSkyScrollPerSecond));   // [port] sky_speed
         AddHorizonTerrain(modernSky, light);
         // the modern sky's clouds move (TIME), so its radiance (ambient light and reflections) is redone all the
         // time: Incremental spreads each redo over a few frames (0.45 ms a frame less than Realtime's every frame);
@@ -3030,7 +3033,7 @@ public partial class Main : Node3D
         if (!_mode1997 || _sky1997 is null) { _skyExtra = 0; return; }
         // the default, one step a tick whatever the mirror does; [port] sky_drift=original gives the original's second step with the full mirror up
         int steps = I76.Game.Sim.OriginalBehavior.SteadySky ? 1 : I76.Sim.Views.SkyScroll.StepsPerTick(_car?.CockpitCamera?.Current == true, _pit?.HasMirror == true, _pit?.MirrorMode ?? 0);
-        _skyExtra += (steps - 1) * I76.Game.Sim.SimClock.SkyScrollPerSecond * delta;
+        _skyExtra += (steps - 1) * I76.Game.Sim.SimClock.SkyRate(I76.Game.Sim.SimClock.SkyScrollPerSecond) * delta;
         _sky1997.SetShaderParameter("scroll_extra", _skyExtra);
     }
 
