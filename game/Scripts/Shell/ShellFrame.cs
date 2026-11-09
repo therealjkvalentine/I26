@@ -38,7 +38,7 @@ public sealed class ShellFrame
         for (int y = 0; y < Math.Min(H, p.Height); y++)
             Array.Copy(p.Pixels, y * p.Width, _clean, y * W, Math.Min(W, p.Width));
         Array.Copy(_clean, _work, _clean.Length);
-        Unplace(0, 0, W, H);
+        UnplaceAll();
         Palette = p.Palette;
         Record = record;
         Native = native;
@@ -57,11 +57,12 @@ public sealed class ShellFrame
     public void Restore(int x, int y, int w, int h)
     {
         Clip(ref x, ref y, ref w, ref h);
-        Unplace(x, y, x + w, y + h);
         for (int r = 0; r < h; r++)
         {
-            Take((y + r) * W + x, w);
-            Array.Copy(_clean, (y + r) * W + x, _work, (y + r) * W + x, w);
+            int at = (y + r) * W + x;
+            Take(at, w);
+            Unhide(at, w);
+            Array.Copy(_clean, at, _work, at, w);
         }
         _dirty = true;
     }
@@ -152,7 +153,7 @@ public sealed class ShellFrame
     public ReadOnlySpan<byte> Pixels => _work;
 
     /// <summary>The whole work buffer back to the background.</summary>
-    public void RestoreAll() { Array.Copy(_clean, _work, _clean.Length); Unplace(0, 0, W, H); ForgetText(); _dirty = true; }
+    public void RestoreAll() { Array.Copy(_clean, _work, _clean.Length); UnplaceAll(); ForgetText(); _dirty = true; }
 
     /// <summary>The sprite with its own header offset added (the garage's parts sit by it).</summary>
     public void BlitAt(Sprite? s, int x, int y) { if (s is not null) Blit(s, x + s.X0, y + s.Y0); }
@@ -163,41 +164,108 @@ public sealed class ShellFrame
         if (s is null) return;
         // the box the turned sprite covers: its last pixel lands at its top-left
         int bx = ax - s.X0 - (s.Width - 1), by = ay - s.Y0 - (s.Height - 1);
-        bool hd = HasHdSprite?.Invoke(s) == true;
-        if (hd) { Unplace(bx, by, bx + s.Width, by + s.Height); _placed.Add((s, bx, by, true)); PlacedVersion++; }
+        var hd = HasHdSprite?.Invoke(s) == true ? Place(s, bx, by, true) : null;
         for (int r = 0; r < s.Height; r++)
             for (int c = 0; c < s.Width; c++)
             {
                 int i = r * s.Width + c, xx = ax - (s.X0 + c), yy = ay - (s.Y0 + r);
                 if (!s.Opaque[i] || xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
                 Put(yy * W + xx, s.Pixels[i]);
-                if (hd) _hide[yy * W + xx] = true;
+                if (hd is not null) Hide(yy * W + xx, hd);
             }
+        if (hd is { Live: 0 }) Drop(hd);
         _dirty = true;
     }
 
     // ---- sprites drawn at the window's resolution (the modern look; ShellSprites.cs) ----
 
-    private readonly bool[] _hide = new bool[W * H];
-    private readonly List<(Sprite Sprite, int X, int Y, bool Turned)> _placed = [];
+    /// <summary>A sprite with an upscale on the frame: the box it covers, where it was blitted; Turned: drawn at scale (−1, −1), the rear weapons.</summary>
+    public sealed record PlacedSprite(Sprite Sprite, int X, int Y, bool Turned)
+    {
+        internal int Id;
+        /// <summary>How many of the frame's pixels are still the sprite's own, hidden under its upscale.</summary>
+        internal int Live;
+    }
+
+    // each hidden pixel's owner (a placed sprite's Id + 1), or 0: the frame is see-through there and the upscale shows
+    private readonly int[] _hideOwner = new int[W * H];
+    // a pixel a placed sprite lost to a restore or a fill while the rest of it stays: presented opaque, as its upscale is still drawn whole beneath
+    private readonly bool[] _uncovered = new bool[W * H];
+    private readonly List<PlacedSprite> _placed = [];
+    private readonly List<PlacedSprite?> _slots = [];
+    private readonly Stack<int> _freeSlots = new();
     /// <summary>Whether a sprite has an upscale to show in its place (set in the modern look).</summary>
     public Func<Sprite, bool>? HasHdSprite { get; set; }
-    /// <summary>The sprites with an upscale that are on the frame now, where they were blitted (the box they cover; Turned: drawn at scale (−1, −1), the rear weapons).</summary>
-    public IReadOnlyList<(Sprite Sprite, int X, int Y, bool Turned)> Placed => _placed;
+    /// <summary>
+    /// The sprites with an upscale that are on the frame now, in the order they were drawn (a later one over an earlier: a damage
+    /// stroke over a list's paper). One stays placed while any of its pixels is still on the frame, and goes when the last is written
+    /// over (its box restored, another sprite over all of it).
+    /// </summary>
+    public IReadOnlyList<PlacedSprite> Placed => _placed;
     /// <summary>Changes whenever <see cref="Placed"/> does.</summary>
     public int PlacedVersion { get; private set; }
 
-    private void Unplace(int x0, int y0, int x1, int y1)
+    /// <summary>Whether the pixel is a placed sprite's own, presented see-through for its upscale.</summary>
+    public bool Hidden(int x, int y) => x is >= 0 and < W && y is >= 0 and < H && _hideOwner[y * W + x] != 0;
+
+    private PlacedSprite Place(Sprite s, int x, int y, bool turned)
     {
-        if (_placed.RemoveAll(p => p.X < x1 && p.X + p.Sprite.Width > x0 && p.Y < y1 && p.Y + p.Sprite.Height > y0) > 0) PlacedVersion++;
-        for (int y = Math.Max(0, y0); y < Math.Min(H, y1); y++) Array.Clear(_hide, y * W + Math.Max(0, x0), Math.Max(0, Math.Min(W, x1) - Math.Max(0, x0)));
+        var p = new PlacedSprite(s, x, y, turned) { Id = _freeSlots.Count > 0 ? _freeSlots.Pop() : _slots.Count };
+        if (p.Id == _slots.Count) _slots.Add(null);
+        _slots[p.Id] = p;
+        _placed.Add(p);
+        PlacedVersion++;
+        return p;
+    }
+
+    /// <summary>The pixel is now this placed sprite's own (whatever sprite had it has lost it in <see cref="Put"/>).</summary>
+    private void Hide(int i, PlacedSprite p)
+    {
+        _hideOwner[i] = p.Id + 1;
+        _uncovered[i] = false;
+        p.Live++;
+    }
+
+    /// <summary>A run of pixels written over: the placed sprites that had them lose them, and one left with none goes.</summary>
+    private void Unhide(int at, int n)
+    {
+        for (int i = at; i < at + n; i++)
+        {
+            int o = _hideOwner[i];
+            if (o == 0) continue;
+            _hideOwner[i] = 0;
+            var p = _slots[o - 1]!;
+            if (--p.Live > 0) _uncovered[i] = true;
+            else Drop(p);
+        }
+    }
+
+    private void Drop(PlacedSprite p)
+    {
+        _slots[p.Id] = null;
+        _freeSlots.Push(p.Id);
+        _placed.Remove(p);
+        PlacedVersion++;
+        // nothing of it is left to keep opaque
+        for (int y = Math.Max(0, p.Y); y < Math.Min(H, p.Y + p.Sprite.Height); y++)
+            Array.Clear(_uncovered, y * W + Math.Max(0, p.X), Math.Max(0, Math.Min(W, p.X + p.Sprite.Width) - Math.Max(0, p.X)));
+    }
+
+    private void UnplaceAll()
+    {
+        if (_placed.Count > 0) PlacedVersion++;
+        _placed.Clear();
+        _slots.Clear();
+        _freeSlots.Clear();
+        Array.Clear(_hideOwner);
+        Array.Clear(_uncovered);
     }
 
     public void Blit(Sprite? s, int x, int y)
     {
         if (s is null) return;
-        bool hd = HasHdSprite?.Invoke(s) == true;
-        if (hd) { Unplace(x, y, x + s.Width, y + s.Height); _placed.Add((s, x, y, false)); PlacedVersion++; }
+        // a sprite with an upscale: its own pixels are hidden under the picture, which is drawn over any placed before it
+        var hd = HasHdSprite?.Invoke(s) == true ? Place(s, x, y, false) : null;
         for (int r = 0; r < s.Height; r++)
         {
             int yy = y + r;
@@ -207,9 +275,11 @@ public sealed class ShellFrame
                 int xx = x + c, i = r * s.Width + c;
                 if (xx < 0 || xx >= W || !s.Opaque[i]) continue;
                 Put(yy * W + xx, s.Pixels[i]);
-                if (hd) _hide[yy * W + xx] = true;
+                if (hd is not null) Hide(yy * W + xx, hd);
             }
         }
+        // none of its pixels landed on the frame: nothing to show in its place
+        if (hd is { Live: 0 }) Drop(hd);
         _dirty = true;
     }
 
@@ -294,7 +364,7 @@ public sealed class ShellFrame
     public void Fill(int x, int y, int w, int h, byte index)
     {
         Clip(ref x, ref y, ref w, ref h);
-        for (int r = 0; r < h; r++) { Take((y + r) * W + x, w); Array.Fill(_work, index, (y + r) * W + x, w); Array.Clear(_hide, (y + r) * W + x, w); }
+        for (int r = 0; r < h; r++) { int at = (y + r) * W + x; Take(at, w); Unhide(at, w); Array.Fill(_work, index, at, w); }
         _dirty = true;
     }
 
@@ -414,8 +484,8 @@ public sealed class ShellFrame
     private void Put(int i, byte v)
     {
         if (_owner[i] != 0) Take(i, 1);
+        if (_hideOwner[i] != 0) Unhide(i, 1);
         _work[i] = v;
-        _hide[i] = false;
     }
 
     /// <summary>A run of pixels written over: whatever glyph had them loses them.</summary>
@@ -496,7 +566,7 @@ public sealed class ShellFrame
             {
                 int c = _work[i] * 3;
                 rgba[o] = pal[c]; rgba[o + 1] = pal[c + 1]; rgba[o + 2] = pal[c + 2];
-                rgba[o + 3] = _hide[i] || see && _work[i] == _clean[i] && keep?[i] != true ? (byte)0 : (byte)255;
+                rgba[o + 3] = _hideOwner[i] != 0 || see && _work[i] == _clean[i] && keep?[i] != true && !_uncovered[i] ? (byte)0 : (byte)255;
             }
             _dirty = false;
         }
