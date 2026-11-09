@@ -13,6 +13,8 @@ uniform vec2 art_size = vec2(256.0, 64.0);
 uniform sampler2D edge : filter_linear;
 uniform sampler2D fill : source_color, filter_nearest;
 uniform bool smooth_edge = false;
+// the view's columns the rear mirror shows (Cockpit.MirrorBand): the whole picture, or its middle with the side-view mirrors on
+uniform vec2 band = vec2(0.0, 1.0);
 
 float cut(float f) {
 	return clamp((f - 0.5) / max(fwidth(f), 1e-4) + 0.5, 0.0, 1.0);
@@ -20,7 +22,7 @@ float cut(float f) {
 
 void fragment() {
 	vec2 auv = vec2(UV.x * clip.x / art_size.x, 1.0 - UV.y * clip.y / art_size.y);
-	vec2 vuv = vec2(1.0 - auv.x, 1.0 - auv.y);
+	vec2 vuv = vec2(1.0 - mix(band.x, band.y, auv.x), 1.0 - auv.y);
 	if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
 		float g = cut(e.g), s = cut(e.r);

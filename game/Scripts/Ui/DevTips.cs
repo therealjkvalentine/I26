@@ -13,6 +13,12 @@ public static class DevTips
     public static string? Of(string key) => key switch
     {
         "mirror_range" => "Rear mirror reach: the original's 100 m, or the whole view (about 0.2 ms more a frame). Look follows the look in use.",
+        "side_mirrors" => "Modern look: two side-view mirrors beside the rear mirror, three glasses of the one mirror render (nothing drawn twice; about the rear mirror's cost again at most).",
+        "mirror_fov" => "With the side mirrors on, how wide the one mirror render sees, degrees across: the rear mirror keeps its 45, the sides share the rest.",
+        "side_mirror_share" => "How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward.",
+        "side_mirror_angle" => "Where the side mirrors sit, degrees to the left and right of straight ahead; kept inside the window's view.",
+        "side_mirror_drop" => "How far below the rear mirror's row the side mirrors hang, in percent of the rear mirror's height; 0 is its row.",
+        "side_mirror_overlap" => "How much of the rear mirror's view each side mirror shows again, degrees in from the rear mirror's edge; 0 tiles them edge to edge.",
         "brake_lamps" => "Brake lamps light while braking only, as the original's, or stay on 0.15 s after. Look follows the look in use.",
         "mg_tracers" => "A machine gun round in the modern look: the original's thin line, or a glowing bolt. The 1997 look always draws the line.",
         "sky_drift" => "The 1997 look's clouds: the original steps them twice as fast with the mirror up; steady steps them once a tick.",
