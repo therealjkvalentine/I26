@@ -1527,11 +1527,15 @@ public partial class Main : Node3D
         if (builder.Vfs.TryRead(eltName.Length > 0 ? eltName : "vpit_1.elt") is { } eltData && builder.Resolver is { } res && builder.Textures is { } texf && builder.Materials is { } mats)
         {
             var layout = I76.Formats.Cockpit.EltLayout.Parse(System.Text.Encoding.Latin1.GetString(eltData));
+            // the specials face's shape on the model (the modern look shows its art square: [port] specials_panel)
+            var specials = interior is not null && res.FindByStem("zbks_") is { } zbks && res.Load(zbks) is { } zt
+                ? I76.Formats.Assembly.PanelAspect.Of(interior, "zbks_", zt.Width, zt.Height, p => !LowResTwin(interior, p.NodeName)) : null;
             var pit = new I76.Game.Sim.Cockpit
             {
                 Car = vehicle, Node3D = node, Panels = new I76.Game.Sim.CockpitPanels(layout, res, texf, mats),
                 Resolver = res, Textures = texf, Materials = mats, Combat = combat, Palette = builder.ActPalette, Audio = _audio, Name = "Cockpit",
                 LightVariant = DriverVariant(), Instruments = () => _extInstruments,
+                SpecialsTexelAspect = specials?.Aspect ?? 1, SpecialsMinV = specials?.MinV ?? 0,
                 MirrorBackground = builder.ActPalette is { } ap ? Color.Color8(ap[0xea].R, ap[0xea].G, ap[0xea].B) : Colors.Black,
             };
             pit.MirrorSetting = I76.Game.Shell.ShellSettings.Load().Graphics[0xd];

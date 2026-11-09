@@ -14,6 +14,7 @@ public static class DevTips
     {
         "mirror_range" => "Rear mirror reach: the original's 100 m, or the whole view (about 0.2 ms more a frame). Look follows the look in use.",
         "brake_lamps" => "Brake lamps light while braking only, as the original's, or stay on 0.15 s after. Look follows the look in use.",
+        "specials_panel" => "The 3D dash's specials panel in the modern look: the car model's own mapping, half as tall again as the art, or the art's shape. The 1997 look always draws the model's.",
         "mg_tracers" => "A machine gun round in the modern look: the original's thin line, or a glowing bolt. The 1997 look always draws the line.",
         "sky_drift" => "The 1997 look's clouds: the original steps them twice as fast with the mirror up; steady steps them once a tick.",
         "death_orbit" => "The camera's orbit after your car is destroyed: the original's 8 degrees a tick, or a steady 20 degrees a second.",

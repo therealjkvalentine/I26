@@ -3,7 +3,7 @@ namespace I76.Game.Sim;
 /// <summary>
 /// The drawing-side settings without a row (shell.cfg's [port] keys, docs/playing.md; the words are I76.Game.Shell.OriginalRecipe's),
 /// applied with the graphics settings (Main.ApplyGraphics): the mirror's far clip, the brake lamps' hold, the modern look's
-/// machine gun rounds, the 1997 sky's drift, the death orbit's turn and the deaths by cause. Engine-free. The simulation's own (the live ordnance
+/// machine gun rounds and specials panel, the 1997 sky's drift, the death orbit's turn and the deaths by cause. Engine-free. The simulation's own (the live ordnance
 /// cap, Play Options' Unlim. Ordnance) is the combat's (PlayOptionsCombat).
 /// </summary>
 public static class OriginalBehavior
@@ -14,7 +14,7 @@ public static class OriginalBehavior
     public static int Resolve(int? choice, bool look1997) => I76.Formats.Shell.LookChoice.Resolve(choice, look1997);
 
     /// <summary>The player's choices (null: follow the look).</summary>
-    public static int? MirrorRange, BrakeLamps, MgTracers;
+    public static int? MirrorRange, BrakeLamps, MgTracers, SpecialsPanel;
     /// <summary>The sky steps once a tick whatever the mirror does (the default; [port] sky_drift=original gives the original's second step), and the orbit's smooth turn.</summary>
     public static bool SteadySky = true, SmoothOrbit;
     /// <summary>[port] sky_speed and death_orbit_speed as factors (PresentationSpeed; 0.5 by default): drawn only.</summary>
@@ -35,6 +35,7 @@ public static class OriginalBehavior
         MirrorRange = s.MirrorRangeChoice;
         BrakeLamps = s.BrakeLampChoice;
         MgTracers = s.MgTracerChoice;
+        SpecialsPanel = s.SpecialsPanelChoice;
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
         SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(s.SkySpeed);
@@ -60,4 +61,7 @@ public static class OriginalBehavior
 
     /// <summary>Whether a machine gun's round is drawn as the original's one-pixel line: always in the 1997 look (the bolts are the modern look's).</summary>
     public static bool LineTracers(bool look1997) => look1997 || Resolve(MgTracers, look1997) == Original;
+
+    /// <summary>Whether the 3D dash's specials panel shows its art with square texels (PanelAspect.SquareFit): the modern look's, never the 1997 look's.</summary>
+    public static bool SquareSpecials(bool look1997) => !look1997 && Resolve(SpecialsPanel, look1997) == Updated;
 }

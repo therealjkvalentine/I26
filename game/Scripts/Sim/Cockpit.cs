@@ -765,10 +765,35 @@ public partial class Cockpit : Node
     private static readonly string[] SpecialNames = ["sp_empty", "radar", "nitrous", "blower", "xaust", "structo", "curb", "mud", "heated", "cuphldr", "dash_mary", "tire_covr"];
     private Row[]? _specRows;
 
+    /// <summary>
+    /// The 3D dash's specials face's texel height over width on the car's model (PanelAspect.Of; 1.63 on every car): the panel shows
+    /// its 181 x 76 art over a quad of the weapons panel's proportions. The modern look shows it square ([port] specials_panel).
+    /// </summary>
+    public float SpecialsTexelAspect { get; init; } = 1;
+    /// <summary>The lowest v of the specials face (its art's last row, 0.4066 on every car).</summary>
+    public float SpecialsMinV { get; init; }
+    private bool? _specialsSquare;
+
+    /// <summary>The specials face's texture coordinates for the look and [port] specials_panel (the modern look's shader reads uv_fit).</summary>
+    private void FitSpecials()
+    {
+        bool square = OriginalBehavior.SquareSpecials(_faithful) && MathF.Abs(SpecialsTexelAspect - 1) > 0.01f;
+        if (_specialsSquare == square || Resolver.FindByStem("zbks_") is not { } member) return;
+        _specialsSquare = square;
+        var fit = square ? I76.Formats.Assembly.PanelAspect.SquareFit(SpecialsTexelAspect) : new System.Numerics.Vector4(1, 1, 0, 0);
+        foreach (var m in Materials.MadeFor(member))
+            if (m is ShaderMaterial sm)
+            {
+                sm.SetShaderParameter("uv_fit", new Vector4(fit.X, fit.Y, fit.Z, fit.W));
+                sm.SetShaderParameter("uv_floor", square ? SpecialsMinV : -1e9f);
+            }
+    }
+
     private readonly I76.Sim.Damage.SpecialPart?[] _specs = new I76.Sim.Damage.SpecialPart?[3];
 
     private void SpecialsPanel()
     {
+        FitSpecials();
         if (Car.Health is not { } h) return;
         var specs = _specs;
         for (int i = 0; i < 3; i++) specs[i] = h.Slots[17 + i] as I76.Sim.Damage.SpecialPart;

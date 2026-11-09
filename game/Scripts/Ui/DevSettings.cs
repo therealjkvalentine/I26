@@ -72,6 +72,7 @@ public static class DevSettings
         new("mirror_range", Look(OriginalRecipe.MirrorRangeNames), s => OfChoice(s.MirrorRangeChoice), (s, v) => s.MirrorRangeChoice = ToChoice(v), DevWhen.Live),
         new("brake_lamps", Look(OriginalRecipe.BrakeLampNames), s => OfChoice(s.BrakeLampChoice), (s, v) => s.BrakeLampChoice = ToChoice(v), DevWhen.Live),
         new("mg_tracers", Look(OriginalRecipe.MgTracerNames), s => OfChoice(s.MgTracerChoice), (s, v) => s.MgTracerChoice = ToChoice(v), DevWhen.Live),
+        new("specials_panel", Look(OriginalRecipe.SpecialsPanelNames), s => OfChoice(s.SpecialsPanelChoice), (s, v) => s.SpecialsPanelChoice = ToChoice(v), DevWhen.Live),
         new("sky_drift", Words(OriginalRecipe.SkyDriftNames), s => s.SkyDrift, (s, v) => s.SkyDrift = v, DevWhen.Live),
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
         new("sky_speed", SpeedNames, s => NearestSpeedStep(s.SkySpeed), (s, v) => s.SkySpeed = SpeedSteps[v], DevWhen.NextMission),

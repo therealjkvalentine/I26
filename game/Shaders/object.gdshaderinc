@@ -38,6 +38,8 @@ uniform bool round_key = false;   // the face is a disc inscribed in its square 
 uniform float opacity = 0.6;
 uniform float shadow_dark = 0.0;   // the original's shadows were pure black
 uniform bool prelit = false;       // the cockpit's art: drawn as painted, no light, no shadow
+uniform vec4 uv_fit = vec4(1.0, 1.0, 0.0, 0.0);   // the modern look's texture coordinates are UV * xy + zw (the specials panel's square texels, PanelAspect.SquareFit)
+uniform float uv_floor = -1e9;   // with uv_fit: below this v (the art's last row) the face is not drawn
 uniform bool key_fill = false;     // the cockpit's art on an opaque face: its keyed texels (index 255) in that index's colour
 uniform vec4 key_fill_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 #ifdef KEY_COVERAGE
@@ -558,6 +560,10 @@ vec4 i76_cockpit_soft(vec2 uv) {
 
 void fragment() {
 	vec2 tuv = UV;
+#ifndef FAITHFUL
+	tuv = tuv * uv_fit.xy + uv_fit.zw;
+	if (tuv.y < uv_floor) discard;
+#endif
 	float disc_d = 0.0;
 #ifdef KEY_COVERAGE
 	if (round_key) {
