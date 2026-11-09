@@ -215,5 +215,35 @@ class CompositorTests(unittest.TestCase):
         lines = open(os.path.join(d, "ATTRIBUTION.txt")).read().splitlines()
         self.assertEqual(lines[0], "model X"); self.assertEqual(sum(l.startswith("lettering redrawn in Anton") for l in lines), 1)
 
+class CompassTests(unittest.TestCase):
+    """compass-zcme.json: the heading strip the cockpit's compass window slides along. The heading reads right only if every
+    letter and tick is on the original's column, at any scale (the N's ink centred on texel column 19.5 and 283.5: the
+    original's, measured)."""
+    def strip(self, s):
+        with open(os.path.join(tr.SPECS, "compass-zcme.json"), encoding="utf-8") as f: spec = json.load(f)
+        orig = blank(303, 18, (221, 221, 221)); orig[0, :, :3] = 153; orig[1, :, :3] = 170; orig[2, :, :3] = 204
+        px = np.repeat(np.repeat(orig, s, 0), s, 1)
+        return spec, tr.apply_ops(px, orig, spec["ops"])[..., :3].mean(axis=2) < 118
+
+    def test_the_letters_sit_on_the_originals_columns_at_4x_and_8x(self):
+        for s in (4, 8):
+            spec, ink = self.strip(s)
+            for x0, x1 in ((14, 25), (278, 289)):            # the big N at each end of the strip
+                xs = np.where(ink[3 * s:16 * s, x0 * s - s:x1 * s + s].any(0))[0] + x0 * s - s
+                self.assertAlmostEqual((xs.min() + xs.max() + 1) / 2 / s, (x0 + x1) / 2, delta=0.1, msg=f"{s}x N at {x0}")
+            self.assertEqual([(x0 + x1) / 2 for x0, x1 in ((14, 25), (278, 289))], [19.5, 283.5])
+            for op in (o for o in spec["ops"] if o["op"] == "text"):
+                x0, y0, x1, y1 = op["box"]
+                sub = ink[int(y0 * s):int(np.ceil(y1 * s)), int(x0 * s) - 2:int(np.ceil(x1 * s)) + 2]
+                xs = np.where(sub.any(0))[0] + int(x0 * s) - 2
+                self.assertAlmostEqual((xs.min() + xs.max() + 1) / 2 / s, (x0 + x1) / 2, delta=0.15, msg=f"{s}x {op['text']} at {x0}")
+
+    def test_the_ticks_are_crisp_texel_columns(self):
+        s = 8; spec, ink = self.strip(s)
+        for op in (o for o in spec["ops"] if o["op"] == "erase" and o.get("fill") == [16, 16, 16]):
+            x0, y0, x1, y1 = op["rect"]
+            self.assertTrue(ink[y0 * s:y1 * s, x0 * s:x1 * s].all(), f"tick at {x0}")
+            self.assertFalse(ink[y0 * s:y1 * s, x0 * s - 1].any() or ink[y0 * s:y1 * s, x1 * s].any(), f"tick at {x0} has a soft edge")
+
 if __name__ == "__main__":
     unittest.main()
