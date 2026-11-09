@@ -233,7 +233,9 @@ mouse's settings: Mouse Camera (the F2 chase view), Mouse Sensitivity, Invert Y 
 Return, View Zoom Reset, Mouse In Window, the bindings of the five mouse buttons (the two side buttons
 included) and what the wheel does (View Zoom or Cycle Weapon). Chase Crosshair, an aiming mark in the F2 chase view
 for keyboard, pad and mouse alike, is in Play Options (the last row of the shell sheet's scrolling list, and the in-mission Esc menu's
-Play Options); in a network game it shows only if the host allows it.
+Play Options); in a network game it shows only if the host allows it. In the modern look the cockpit's gunsight ring and
+the chase crosshair are drawn as smooth vector shapes at your window's resolution; `[port] crosshair_drawn=false` in shell.cfg brings back
+the game's sprite ring and the snapped bars.
 
 | Action | Default |
 |---|---|

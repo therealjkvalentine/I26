@@ -1298,6 +1298,8 @@ public sealed class ShellSettings
     public bool MouseCockpit { get; set; }
     /// <summary>The port's own: a 3D-projected aiming crosshair in the F2 chase view (shell.cfg [port] chase_crosshair; off).</summary>
     public bool ChaseCrosshair { get; set; }
+    /// <summary>The port's own: the modern look draws the cockpit's gunsight ring as vector geometry at the window's resolution (shell.cfg [port] crosshair_drawn; on; false keeps the game's sprite).</summary>
+    public bool CrosshairDrawn { get; set; } = true;
     /// <summary>The port's own: the mouse wheel cycles weapons instead of zooming the external views (shell.cfg [port] wheel_cycle_weapon; off).</summary>
     public bool WheelCycleWeapon { get; set; }
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
@@ -1653,6 +1655,7 @@ public sealed class ShellSettings
         s.MouseInvertY = (bool)c.GetValue("port", "mouse_invert_y", false);
         s.MouseCockpit = (bool)c.GetValue("port", "mouse_cockpit", false);
         s.ChaseCrosshair = (bool)c.GetValue("port", "chase_crosshair", false);
+        s.CrosshairDrawn = (bool)c.GetValue("port", "crosshair_drawn", true);
         s.WheelCycleWeapon = (bool)c.GetValue("port", "wheel_cycle_weapon", false);
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
@@ -1822,6 +1825,7 @@ public sealed class ShellSettings
         if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
         if (MouseCockpit) c.SetValue("port", "mouse_cockpit", true);
         if (ChaseCrosshair) c.SetValue("port", "chase_crosshair", true);
+        if (!CrosshairDrawn) c.SetValue("port", "crosshair_drawn", false);
         if (WheelCycleWeapon) c.SetValue("port", "wheel_cycle_weapon", true);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);

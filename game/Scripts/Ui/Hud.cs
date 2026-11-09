@@ -55,6 +55,7 @@ public partial class Hud : CanvasLayer
         // the crosshair under the 2D instrument panels, the target brackets over them, the handset over all
         if (Combat is not null && Origin is not null)
             AddChild(new ChaseCrosshair { Player = () => Car?.Invoke(), Combat = Combat, Origin = Origin, CarOf = CarOf, Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Faithful = () => Faithful?.Invoke() == true, Name = "Crosshair" });
+        if (Pit is not null) AddChild(new CockpitReticle { Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Name = "CockpitReticle" });
         if (Pit is not null) AddChild(_instruments = new ExtInstruments { Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Name = "ExtInstruments", Visible = false });
         _cb = Label(18);
         _cb.HorizontalAlignment = HorizontalAlignment.Left;
@@ -304,9 +305,14 @@ public partial class ChaseCrosshair : Control
         var size = GetViewportRect().Size;
         var pos = cam.UnprojectPosition(aimG);
         if (pos.X < 0 || pos.Y < 0 || pos.X > size.X || pos.Y > size.Y) return;
+        float u = Mathf.Max(1f, size.Y / 480f);
+        if (ReticleArt.Drawn && Faithful?.Invoke() != true)
+        {
+            DrawBars(pos, u, onTarget);   // the modern look: the same four bars at the exact point, smooth edges (ReticleArt)
+            return;
+        }
         pos = pos.Round();
 
-        float u = Mathf.Max(1f, size.Y / 480f);
         float gap = Mathf.Round(3.5f * u), len = Mathf.Round(4f * u), hw = Mathf.Max(1f, Mathf.Round(0.85f * u));
         var col = onTarget ? new Color(1f, 0.25f, 0.2f, 0.72f) : new Color(0.95f, 0.95f, 0.95f, 0.48f);
         var border = new Color(0f, 0f, 0f, onTarget ? 0.35f : 0.22f);
@@ -324,4 +330,22 @@ public partial class ChaseCrosshair : Control
             DrawRect(b, col);
         }
     }
+
+    /// <summary>The crosshair's bars, unrounded and antialiased: gap, length and half-width scale with the window (u pixels per original row).</summary>
+    private void DrawBars(Vector2 pos, float u, bool onTarget)
+    {
+        float gap = 3.5f * u, len = 4f * u, hw = Mathf.Max(0.5f, 0.85f * u);
+        var (col, border) = Colors(onTarget);
+        for (int k = 0; k < 4; k++)
+        {
+            var d = new Vector2(k == 0 ? -1 : k == 1 ? 1 : 0, k == 2 ? -1 : k == 3 ? 1 : 0);
+            Vector2 a = pos + d * gap, b = pos + d * (gap + len);
+            DrawLine(a - d, b + d, border, hw * 2f + 2f, true);
+            DrawLine(a, b, col, hw * 2f, true);
+        }
+    }
+
+    /// <summary>The bars' fill and edge colours: white and faint, red on a car.</summary>
+    public static (Color Fill, Color Edge) Colors(bool onTarget)
+        => (onTarget ? new Color(1f, 0.25f, 0.2f, 0.72f) : new Color(0.95f, 0.95f, 0.95f, 0.48f), new Color(0f, 0f, 0f, onTarget ? 0.35f : 0.22f));
 }

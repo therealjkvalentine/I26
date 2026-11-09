@@ -156,6 +156,9 @@ public partial class ExtInstruments : Control
         DrawSetTransformMatrix(Transform2D.Identity);
         // the reticles are drawn whatever the head does, the 2D dash and the ghost cockpit only
         if (dash && pit.Reticle() is { } r)
-            DrawTextureRect(r.Tex, new Rect2(origin + new Vector2(r.X, r.Y) * k, new Vector2(32, 32) * k), false);
+        {
+            if (ReticleArt.Drawn && !pit.Faithful) ReticleArt.DrawFlat(this, origin + new Vector2(r.X, r.Y) * k, k);   // the modern look: the ring as vector geometry (ReticleArt)
+            else DrawTextureRect(r.Tex, new Rect2(origin + new Vector2(r.X, r.Y) * k, new Vector2(32, 32) * k), false);
+        }
     }
 }

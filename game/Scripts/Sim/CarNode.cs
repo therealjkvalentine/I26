@@ -210,12 +210,25 @@ public partial class CarNode : Node3D
             _buildHood = hood;
             RefreshHood();
             // the hood's gunsight ring, twice (RTC1, the low-resolution one; RTC6): the binoculars swap them
-            if (ring1 is not null) { Rtc1 = new MeshInstance3D { Mesh = ring1, Name = "Ring1", Layers = CockpitLayer }; _cockpit.AddChild(Rtc1); }
-            if (ring6 is not null) { Rtc6 = new MeshInstance3D { Mesh = ring6, Name = "Ring6", Visible = false, Layers = CockpitLayer }; _cockpit.AddChild(Rtc6); }
+            if (ring1 is not null) { Rtc1 = new MeshInstance3D { Mesh = ring1, Name = "Ring1", Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc1); }
+            if (ring6 is not null) { Rtc6 = new MeshInstance3D { Mesh = ring6, Name = "Ring6", Visible = false, Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc6); }
         }
         Eye = Coords.ToGodot(eye);
         CockpitCamera = new Camera3D { Name = "Eye", Position = Eye, Fov = 70, Near = 0.05f, Far = 20000 };
         AddChild(CockpitCamera);
+    }
+
+    private bool _ringDrawn;
+
+    /// <summary>The modern look draws the gunsight ring itself (ReticleArt, over the view where the hood's ring sits): the hood's two ring meshes stay in the tree, for their place, but no camera renders them.</summary>
+    public bool RingDrawn
+    {
+        get => _ringDrawn;
+        set
+        {
+            _ringDrawn = value;
+            foreach (var r in new[] { Rtc1, Rtc6 }) if (r is not null) r.Layers = value ? 0u : CockpitLayer;
+        }
     }
 
     private Func<Func<string, int>, Mesh?>? _buildHood;
