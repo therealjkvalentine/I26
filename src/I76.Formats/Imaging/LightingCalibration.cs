@@ -235,7 +235,7 @@ public static class LightingCalibration
     /// near-neutral blue-grey, Oklab chroma 0.03 to 0.04 of its lightness, in the original as in the 1997 look). 1 shows it as a dark
     /// brown-grey (I76_NIGHT_WARM to compare).
     /// </summary>
-    public const double NightWarm = 0;
+    public const double NightWarm = 1;
 
     /// <summary>The moon's warm white (<see cref="NightWarm"/>), linear, at a luminance of 1.</summary>
     public static readonly Rgb Moonlight = new(1.472, 0.909, 0.518);

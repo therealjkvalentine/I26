@@ -288,7 +288,7 @@ public class LightingCalibrationTests
         Assert.InRange(Oklab(warm).Hue, 30, 90);
         Assert.InRange(warm.Luminance / kept.Luminance, 0.95, 1.05);
         Assert.Equal(1, M.Moonlight.Luminance, 2);
-        Assert.Equal(0, M.NightWarm);
+        Assert.Equal(1, M.NightWarm);
     }
 
     [Fact]
