@@ -500,7 +500,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
             }
             else continue;
             t.Uploaded = true;
-            if (DashStats.Verify) DashStats.Check(name, t.WorkBytes, t.Live.ReadBack());
+            if (DashStats.Verify) DashStats.Check(name, t.Live.Expected(t.WorkBytes), t.Live.ReadBack());
         }
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() == 15)
         {

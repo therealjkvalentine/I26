@@ -1104,7 +1104,7 @@ public partial class Cockpit : Node
         if (_radarLive is null) _radarLive = new LiveTexture(px, w, h);
         else if (rects is null || _radarLive.Width != w || _radarLive.Height != h) _radarLive.Set(px, w, h);
         else _radarLive.Update(px, rects);
-        if (DashStats.Verify) DashStats.Check("radar", px, _radarLive.ReadBack());
+        if (DashStats.Verify) DashStats.Check("radar", _radarLive.Expected(px), _radarLive.ReadBack());
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() >= 15 && !_radarDumped) { Godot.Image.CreateFromData(w, h, false, Godot.Image.Format.Rgba8, px).SavePng(System.IO.Path.Combine(dir, "radar.png")); _radarDumped = true; }
         if (!_radarBound) { Materials.OverrideTexture(_radarMember!, _radarLive.Texture); _radarBound = true; }
     }

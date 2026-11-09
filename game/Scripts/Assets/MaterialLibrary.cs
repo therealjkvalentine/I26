@@ -70,7 +70,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         {
             var t = frames[(int)(seconds * fps) % frames.Length];
             mat.SetShaderParameter("albedo_tex", t);
-            if (cockpit) mat.SetShaderParameter("albedo_cockpit", t);
+            if (cockpit) SetCockpitArt(mat, t);
         }
     }
 
@@ -123,7 +123,17 @@ public sealed class MaterialLibrary(TextureFactory textures)
     public static void ShowFrame(ShaderMaterial m, Texture2D t)
     {
         m.SetShaderParameter("albedo_tex", t);
-        if (m.GetShaderParameter("albedo_cockpit").VariantType != Variant.Type.Nil) m.SetShaderParameter("albedo_cockpit", t);
+        if (m.GetShaderParameter("albedo_cockpit").VariantType != Variant.Type.Nil) SetCockpitArt(m, t);
+    }
+
+    /// <summary>
+    /// The cockpit's art on a material's two samplers of it: the point-sampled one the 1997 look reads at full size and the
+    /// filtered one the modern look reads (object.gdshaderinc, albedo_cockpit and albedo_cockpit_soft).
+    /// </summary>
+    public static void SetCockpitArt(ShaderMaterial m, Texture2D t)
+    {
+        m.SetShaderParameter("albedo_cockpit", t);
+        m.SetShaderParameter("albedo_cockpit_soft", t);
     }
 
     /// <summary>A material drawn from both sides: itself if it already is, is a back-to-back face's or is not an object material, else a copy, made once and kept.</summary>
@@ -217,7 +227,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         {
             // drawn from its full-size level, point-sampled, as the original's point sampler drew it (the dials' lettering sharp)
             mat.SetShaderParameter("prelit", true);
-            if (t is not null) mat.SetShaderParameter("albedo_cockpit", t.Texture);
+            if (t is not null) SetCockpitArt(mat, t.Texture);
             // an opaque face draws index 255 as its palette colour (the dials' faces: black), not the neighbours bled under the key
             if (t is { HasKey: true } && !keyed) { mat.SetShaderParameter("key_fill", true); mat.SetShaderParameter("key_fill_color", t.KeyColour); }
         }
@@ -692,7 +702,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         foreach (var sm in MadeForShaded(member))
         {
             sm.SetShaderParameter("albedo_tex", texture);
-            sm.SetShaderParameter("albedo_cockpit", texture);
+            SetCockpitArt(sm, texture);
             if (ownKey) sm.SetShaderParameter("smooth_key", false);
         }
     }
