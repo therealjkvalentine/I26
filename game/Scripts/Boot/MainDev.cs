@@ -9,8 +9,10 @@ namespace I76.Game.Boot;
 /// The port's Developer panel (Ui/DevPanel.cs, docs/dev-hooks.md): on with --dev, I76_DEV=1 or the setting
 /// (shell.cfg [port] <c>developer=true</c>), in single player only. Ctrl+F2, Ctrl+` or the escape menu's Developer row opens it over the paused game.
 /// The sim's side is DevTools and the session's own snapshot; this part re-syncs the views after an outside write, as a
-/// checkpoint's retry does (docs/savestate.md). Any action marks the attempt a cheater's, as the Play Options cheats do
-/// (the end menu's Turn off Cheater Options clears it).
+/// checkpoint's retry does (docs/savestate.md). An action that changes the attempt's simulation (a teleport, God mode, a repair
+/// or refill, a weapon swap, a car brought, a restore, the time frozen, stepped or paced) marks that attempt a cheater's, as
+/// the Play Options cheats do, for that attempt alone: a mission started fresh starts clear (CheatMarker). The Settings
+/// section, Store, the kept places, the Signals and Start are not cheats.
 /// </summary>
 public partial class Main : IDevHost
 {
@@ -77,6 +79,7 @@ public partial class Main : IDevHost
         if (_devPausedTree && !_gamePaused) GetTree().Paused = false;
     }
 
+    /// <summary>An action that changed the attempt's simulation: this attempt is a cheater's.</summary>
     private string Cheat(string line)
     {
         I76.Game.Shell.CheatMarker.Mark();
@@ -328,22 +331,23 @@ public partial class Main : IDevHost
         return DevTools.RefillAmmo(s, p) ? Cheat("refilled: every weapon's ammunition and the specials' charges, nothing repaired") : "not refilled: the car is dead";
     }
 
+    // the time controls change the attempt's pace against the player's hands: cheats too (Freeze off and the x1 pace are not)
     public bool DevFrozen
     {
         get => _sim?.DevFrozen == true;
-        set { if (_sim is not null) _sim.DevFrozen = value; }
+        set { if (_sim is null) return; _sim.DevFrozen = value; if (value) Cheat("frozen"); }
     }
 
     public string DevStep(int ticks)
     {
         if (_sim?.Session is not { } s) return "no mission";
         for (int i = 0; i < ticks; i++) _sim.DevStep();
-        return $"stepped {ticks} tick{(ticks == 1 ? "" : "s")}: now tick {s.Ticks}";
+        return Cheat($"stepped {ticks} tick{(ticks == 1 ? "" : "s")}: now tick {s.Ticks}");
     }
 
     public double DevScale
     {
         get => _sim?.DevTimeScale ?? 1;
-        set { if (_sim is not null) _sim.DevTimeScale = value; }
+        set { if (_sim is null) return; _sim.DevTimeScale = value; if (value != 1) Cheat($"pace x{value:0.##}"); }
     }
 }

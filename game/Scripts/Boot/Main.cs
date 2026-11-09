@@ -1108,7 +1108,10 @@ public partial class Main : Node3D
         AddChild(_sim);
         AddChild(new PausedClock { Owner = this, Name = "PausedClock" });
         var playSettings = I76.Game.Shell.ShellSettings.Load();
-        I76.Game.Shell.CheatMarker.Read(playSettings.PlayOptions);   // the original reads the options back after every shell return
+        // a mission started fresh is a new attempt: the Developer panel's mark goes (a checkpoint's retry keeps it); then the
+        // original reads the options back after every shell return (its own marker stays once set)
+        if (_retry is null) I76.Game.Shell.CheatMarker.NewAttempt();
+        I76.Game.Shell.CheatMarker.Read(playSettings.PlayOptions);
         ApplyAudio(playSettings);
         ApplyPlayOptions(playSettings);
         ApplyGraphics(playSettings);
@@ -4109,6 +4112,7 @@ public partial class Main : Node3D
             if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
             else
             {
+                if (result) GD.Print("mission won with the cheats marker set: the cheater's end menu");
                 _endMenuShown = true;
                 int m = _script.Host.End?.FailMessage ?? -1;
                 OpenMenu((result ? null : _objectives is { } t && m >= 0 && m < t.Failures.Count ? t.Failures[m] : null, result));
