@@ -114,35 +114,23 @@ global uniform bool i76_car_interiors;   // [port] cabins_behind_glass: the prox
 global uniform float i76_hood_gloss;   // Graphic Detail's Hood Gloss (PaintFinish) as 0..1: 0 Matte, 0.5 Satin, 1 Gloss, the cars' paint and the cockpit's hood (hood_surface)
 instance uniform float hood_surface = 0.0;   // 1 on the cockpit's hood mesh (CarNode.RefreshHood)
 // a round wheel's face as it turns (CarNode): its texture's centre (xy) and how far its picture has turned about it (z, radians, in
-// uv as stored); 0 at rest. The faces are painted lit from one side (a bright lip below, the dish shaded above) and the engine
-// stepped hubcap frames under that still light; the port turns the face, so wheel_still_light holds the painted light still
+// uv as stored); 0 at rest. The faces are painted under one still light and the engine stepped hubcap frames under it; the port
+// turns the face, so wheel_still_light holds the painted light still. wheel_light is that light: the strip's frames averaged
+// texel by texel (SmoothWheel.StillLight), the hubcap gone into rings, the light as painted
 instance uniform vec3 wheel_turn = vec3(0.0);
+uniform sampler2D wheel_light : source_color, filter_linear, repeat_disable;
 
-// The painted light of a wheel face turned by wt.z about wt.xy, put back where it was painted: each ring about the centre is its
-// mean and its broad light (the first two harmonics round the ring, from 32 samples on it), and the rest (holes, spokes, bolts:
-// 5- and 6-fold and finer) is the paint under that light. The texel keeps its own colour and turns with the wheel; it takes the
-// ring's light at the angle it had at rest over the light where it is now (a ratio: a hole stays dark, an added light greyed it).
-vec3 wheel_still_light(vec3 col, vec2 uv, vec3 wt, vec2 gx, vec2 gy) {
+// The painted light of a wheel face turned by wt.z about wt.xy, put back where it was painted: the texel keeps its own colour and
+// turns with the wheel, and takes the light at the place it had at rest over the light where it is now (a ratio: a hole stays
+// dark, a dome's reflection stays the right way up). Outside the painted disc, or on a ring near black (the tyre), it is left as is.
+vec3 wheel_still_light(vec3 col, vec2 uv, vec3 wt) {
 	vec2 d = uv - wt.xy;
-	float r = length(d);
-	if (r < 1e-4) return col;
-	vec3 a0 = vec3(0.0), a1 = vec3(0.0), b1 = vec3(0.0), a2 = vec3(0.0), b2 = vec3(0.0);
-	for (int i = 0; i < 32; i++) {
-		float ph = float(i) * (6.2831853 / 32.0);
-		vec2 e = vec2(cos(ph), sin(ph));
-		vec3 s = textureGrad(albedo_tex, wt.xy + r * e, gx, gy).rgb;
-		a0 += s; a1 += s * e.x; b1 += s * e.y;
-		vec2 e2 = vec2(e.x * e.x - e.y * e.y, 2.0 * e.x * e.y);
-		a2 += s * e2.x; b2 += s * e2.y;
-	}
-	float th = atan(d.y, d.x), tw = th + wt.z;
-	vec3 now = a1 * cos(th) + b1 * sin(th) + a2 * cos(2.0 * th) + b2 * sin(2.0 * th);
-	vec3 rest = a1 * cos(tw) + b1 * sin(tw) + a2 * cos(2.0 * tw) + b2 * sin(2.0 * tw);
-	a0 *= 1.0 / 32.0;
-	now = max(a0 + now * (2.0 / 32.0), vec3(0.0));
-	rest = max(a0 + rest * (2.0 / 32.0), vec3(0.0));
-	// a ring near black (the tyre) keeps its colour: no ratio of two small numbers
-	return col * mix(vec3(1.0), min(rest / max(now, vec3(1e-4)), vec3(4.0)), smoothstep(0.004, 0.02, a0));
+	float c = cos(wt.z), s = sin(wt.z);
+	vec4 now = textureLod(wheel_light, uv, 0.0);
+	vec4 rest = textureLod(wheel_light, wt.xy + vec2(c * d.x - s * d.y, s * d.x + c * d.y), 0.0);
+	if (now.a < 0.5 || rest.a < 0.5) return col;
+	float lum = dot(now.rgb, vec3(0.299, 0.587, 0.114));
+	return col * mix(vec3(1.0), min(rest.rgb / max(now.rgb, vec3(1e-3)), vec3(8.0)), smoothstep(0.004, 0.02, lum));
 }
 // the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): lit faces take i76_object_sky
 // of the sky's light (through their occlusion: ambient and reflections, not the sun) and their colours times i76_object_tint,
@@ -567,8 +555,7 @@ void fragment() {
 #else
 	vec4 c = use_texture ? (prelit ? textureLod(albedo_cockpit, tuv, 0.0) : texture(albedo_tex, tuv)) : albedo_color;
 	if (frames_filtered) c = texture(albedo_frames, tuv);
-	vec2 tuv_dx = dFdx(tuv), tuv_dy = dFdy(tuv);
-	if (wheel_face && use_texture && wheel_turn.z != 0.0) c.rgb = wheel_still_light(c.rgb, tuv, wheel_turn, tuv_dx, tuv_dy);
+	if (wheel_face && use_texture && wheel_turn.z != 0.0) c.rgb = wheel_still_light(c.rgb, tuv, wheel_turn);
 #endif
 	if (key_fill && c.a < 0.5) c = vec4(key_fill_color.rgb, 1.0);
 #ifdef KEY_COVERAGE

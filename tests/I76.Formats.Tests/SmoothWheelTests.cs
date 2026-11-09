@@ -43,6 +43,29 @@ public class SmoothWheelTests
         Assert.Equal(d.UvTurn * t, turned, 3);
     }
 
+    /// <summary>The still light is the strip's frames averaged texel by texel: a hole that moves across the frames averages out, the light stays; the first frame's key is its alpha.</summary>
+    [Fact]
+    public void TheStillLightIsTheStripsMean()
+    {
+        static I76.Formats.Imaging.IndexedTexture Frame(int hole)
+        {
+            var ix = new byte[16]; var pal = new ushort[3];
+            pal[0] = 0xffff; pal[1] = 0x0000; pal[2] = 0x8410;   // white, black, mid grey
+            for (int i = 0; i < 16; i++) ix[i] = i < 8 ? (byte)0 : (byte)2;   // the top half white, the bottom grey: the light
+            ix[hole] = 1;   // the hole, in the top half, moving along
+            ix[15] = I76.Formats.Imaging.TextureReader.TransparentIndex;
+            return new I76.Formats.Imaging.IndexedTexture(4, 4, ix, pal);
+        }
+        var light = SmoothWheel.StillLight([Frame(0), Frame(1), Frame(2), Frame(3)]);
+        Assert.NotNull(light);
+        for (int i = 0; i < 4; i++) Assert.Equal(191, light![i * 4]);   // white three times in four
+        Assert.Equal(255, light![4 * 4]);   // the top half's other texels: white
+        Assert.InRange(light[8 * 4], 128, 136);   // the bottom half: the grey, untouched
+        Assert.Equal(0, light[15 * 4 + 3]);   // the key
+        Assert.Equal(255, light[0 * 4 + 3]);
+        Assert.Null(SmoothWheel.StillLight([Frame(0), new I76.Formats.Imaging.IndexedTexture(2, 2, new byte[4], null)]));
+    }
+
     [InstallFact]
     public void EveryRoundWheelIsFittedToItsHubAndTexture()
     {

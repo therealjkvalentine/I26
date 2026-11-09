@@ -527,7 +527,11 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         if (paint is not null)
         {
             faceMat = materials.ForWheelFace(faceMat);
-            if (w.UvTurn != 0) stillLight = new Vector3(w.CentreUv.X, w.CentreUv.Y, w.UvTurn);
+            if (w.UvTurn != 0 && faceMat is ShaderMaterial fsm && WheelLightOf(face.Texture, member, tex) is { } light)
+            {
+                fsm.SetShaderParameter("wheel_light", light);
+                stillLight = new Vector3(w.CentreUv.X, w.CentreUv.Y, w.UvTurn);
+            }
         }
         var treadMat = materials.ForTread(w.R, w.G, w.B);
         var disc = new Surface(); var tread = new Surface();
@@ -561,6 +565,26 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
             Tri(tread, inCentre with { Uv = new(0, 2) }, q0 with { N = -outN, Uv = new(0, 2) }, q1 with { N = -outN, Uv = new(0, 2) }, -outN);
         }
         return ToMesh(new Dictionary<Material, Surface> { [faceMat] = disc, [treadMat] = tread });
+    }
+
+    private readonly Dictionary<string, ImageTexture?> _wheelLights = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The painted light of a wheel face (<see cref="SmoothWheel.StillLight"/>): its strip's frames of the face texture's own
+    /// row (WA11LS06..01 for a face on WA11LS06; the faster rows blur the hubcap and the light alike), averaged; a face with no
+    /// strip is its own light. One texture per face texture.
+    /// </summary>
+    private ImageTexture? WheelLightOf(string faceTexture, string member, I76.Formats.Imaging.IndexedTexture tex)
+    {
+        if (_wheelLights.TryGetValue(member, out var cached)) return cached;
+        static string Row(string m) { var st = Path.GetFileNameWithoutExtension(m); return st.Length > 2 ? st[..^2] : st; }
+        var frames = (resolver.TmtFrames(faceTexture) ?? [member]).Where(m => Row(m).Equals(Row(member), StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Select(m => m.Equals(member, StringComparison.OrdinalIgnoreCase) ? tex : resolver.Load(m)).OfType<I76.Formats.Imaging.IndexedTexture>().ToList();
+        if (frames.Count == 0) frames.Add(tex);
+        ImageTexture? light = null;
+        if (SmoothWheel.StillLight(frames) is { } rgba)
+            light = ImageTexture.CreateFromImage(Image.CreateFromData(tex.Width, tex.Height, false, Image.Format.Rgba8, rgba));
+        return _wheelLights[member] = light;
     }
 
     private static Vector2 YZ(System.Numerics.Vector3 p) => new(p.Y, p.Z);

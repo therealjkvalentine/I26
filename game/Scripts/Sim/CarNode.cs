@@ -972,6 +972,8 @@ public partial class CarNode : Node3D
     private float _lean, _leanSpeed, _leanTarget, _leanShown, _velAge;
     private System.Numerics.Vector3 _leanVel0;
     private bool _phaseSet;
+    /// <summary>I76_WHEEL_LIGHT=0: the modern look's wheel faces turn their painted light with the wheel, as before round 6, for a comparison.</summary>
+    private static readonly bool StillWheelLight = System.Environment.GetEnvironmentVariable("I76_WHEEL_LIGHT") != "0";
     private static readonly float? ForcedSteer = float.TryParse(System.Environment.GetEnvironmentVariable("I76_WINDOWS_STEER"), System.Globalization.CultureInfo.InvariantCulture, out var fs) ? fs : null;
     private (float Steer, float Travel)[] _wheelPrev = [], _wheelCur = [];
 
@@ -1192,7 +1194,7 @@ public partial class CarNode : Node3D
             var basis = new Basis(Vector3.Right, -spin);
             // the face's painted light stays where the engine's hubcap frames kept it: the shader reads it turned back by the
             // picture's own turn (Basis(Right, -spin) is a turn by +spin in wheel space, UvTurn's sense in the texture)
-            if (look is { StillLight: { } still, Smooth: { } sm } && node is MeshInstance3D swi && swi.Mesh == sm)
+            if (StillWheelLight && look is { StillLight: { } still, Smooth: { } sm } && node is MeshInstance3D swi && swi.Mesh == sm)
                 swi.SetInstanceShaderParameter("wheel_turn", new Vector3(still.X, still.Y, Mathf.PosMod(still.Z * spin, Mathf.Tau)));
             if (front) basis = new Basis(Vector3.Up, -steerA) * basis;
             node.Transform = new Transform3D(basis, Coords.ToGodot(centre with { Y = centre.Y + travelA }));
