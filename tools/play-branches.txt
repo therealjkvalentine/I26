@@ -411,3 +411,6 @@ fix/menu-logo-flat                    # section BD: tools/flat-art.py unmixes th
 
 # BE. the Developer panel's cheat mark is the attempt's (2026-11-08)
 fix/dev-panel-cheat-flag              # section BE: CheatMarker in two parts: the Play Options cheats keep the original's process-long rule; the panel's simulation actions (Repair, God mode, Teleport, Bring car, loadout Apply, Refill, Restore, Freeze, Step, speed) mark the current attempt only, cleared at every fresh mission start (shell launch, Replay, the panel's Start) and kept on a checkpoint retry; Settings rows, Store, Keep/Forget, Signals, Start never mark (they never did). The owner's "cheater after a restart" was a Repair's mark outliving the mission
+
+# BF. dash art filtered (2026-11-08)
+feat/dash-antialias                   # section BF: the modern look reads the cockpit's art through a linear/mipmap/anisotropic sampler (albedo_cockpit_soft, i76_cockpit_soft; magnified art keeps flat texels with one-pixel edge blending); LiveTexture carries five mip levels made on the GPU by a compute kernel under the changed rectangle; 2D instruments filter pack panels; 1997 look untouched (zero-diff dash rows). T05 owner profile: GPU main view 11.1 -> 8.5 ms, cockpit 0.51 -> 0.49 ms. Evidence: _scratch/r7-dash-aa/crops/sheet-curve.png, sheet-down.png, clips/*-clip-10s.mp4, fc/results.tsv
