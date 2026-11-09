@@ -132,6 +132,10 @@ public partial class ExtInstruments : Control
         if (Pit() is not { } pit) return;
         var size = GetViewportRect().Size;
         float k = size.Y / 480f;
+        // the modern look with a pack whose texels outnumber the slot's pixels: the panels filtered through their mip levels
+        // (LiveTexture carries them), so a counter or the sweep no longer shimmers; otherwise, and in the 1997 look, nearest as the original drew them
+        var filter = !pit.Faithful && pit.Panels.Scale("zsy_.map") >= k ? TextureFilterEnum.LinearWithMipmapsAnisotropic : TextureFilterEnum.Nearest;
+        if (TextureFilter != filter) TextureFilter = filter;
         var origin = new Vector2((size.X - 640 * k) / 2, 0);
         bool dash = InCockpit();
         int slot = 0;

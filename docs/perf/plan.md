@@ -482,3 +482,37 @@ play's. What is left is the main thread's own work, which the pause removes: the
 the main thread holds the frame (a busy fight, a slower processor, another program on it: on a loaded machine the line read 150 with
 play at 90). Hence the tooltip says the game is paused and gives the rate of the seconds before the menu opened. The pad itself is one
 picture and a few lines of text; the 2D pass with the HUD is 0.02 ms of the card's frame.
+
+## The dash's filtering and mip levels (round 7)
+
+The cockpit's art (the dash, its live panels, the compass, the gear strip, the counters, the radar, the roof's placards) was read
+point-sampled from its full-size level in both looks (`albedo_cockpit`, `textureLod(.., 0)`), as the original's point sampler drew
+it. With the 8x pack at 3440x1440 a screen pixel covers three or four texels, so every painted edge was a stair that jumped a
+texel as the dash swayed, and the live panels (LiveTexture) had no mip levels at all. The modern look now reads the same art
+through a second sampler (`albedo_cockpit_soft`, linear through the levels with anisotropy) in `i76_cockpit_soft`: where the screen
+minifies the art the levels are read; where it magnifies it (the original's art without a pack) each texel stays flat with its edge
+blended over one screen pixel, the level taken from the true footprint (`textureGrad`). The 1997 look's path is untouched.
+
+The live textures carry five levels (down to a sixteenth: 16:1 minification, far past what a dash in view comes to), each a 2x2
+box of the one above (a keyed texel lends only its alpha), made on the GPU by a small compute kernel under the rectangle that
+changed, level by level, after the rectangle's upload. A first build made the chain on the CPU, a level a staging upload: the
+cockpit's update went from 0.6 to 2.0 ms a frame (uploads 130 to 1475 a second), and capping the chain and packing a
+rectangle's levels into one staging upload still left 1.7 ms with 22 ms worst frames every second: the radar at 8x (2048x2048)
+goes whole about 1.5 times a second (its sweep's bands exceed the partial upload's threshold), and a 2048x2048 box chain is 20 ms
+on one core. The kernel costs nothing measurable on the main thread.
+
+The bench (`tools/frame-cost/bench.py`, `FRAME_COST_PROFILE=owner`, 3440x1440, `--scene t05`, the dash's and the cars' textures at
+8x, `I76_DASH_STATS=1`), the shipped build against main 2fb835f2, one run each, the machine shared with other lanes' builds
+(processor load about 60 %):
+
+| | cockpit ms a frame (mean) | worst frame ms (median of the seconds) | upload MB/s | uploads/s | GPU main view ms | main thread wall ms | wall p95 | fps |
+|---|---|---|---|---|---|---|---|---|
+| before | 0.51 | 3.2 | 24.7 | 130 | 11.1 | 13.4 | 18.8 | 72 |
+| after | 0.49 | 3.6 | 24.7 | 130 | 8.5 | 11.1 | 17.4 | 85 |
+
+The GPU's frame falls 2.7 ms in every pair measured (three pairs, 11.0 / 10.9 / 11.1 to 8.3 / 8.3 / 8.5): point-sampling 8x texels
+at 3440x1440 read the dash's textures at their full size for a third of the screen, which the texture cache serves poorly; the mip
+read is nearly 1:1. Verify (`I76_DASH_STATS=verify`): every upload read back with its levels against the CPU's reference chain,
+T05 from the start firing (384 uploads over 30 s on the kernel build, 782 over 60 s on the CPU-chain build), no texel differing.
+The 1997 look's dash, before against after at tick 300 of T01 `--drive --seed 1`: zero differing pixels in the dash's rows; the
+frames differ in the sky and horizon only (the world between two runs, no code of the dash's).

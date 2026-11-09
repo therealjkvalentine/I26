@@ -29,6 +29,8 @@ uniform sampler2D albedo_cockpit : source_color, filter_nearest_mipmap, repeat_d
 // (point-sampled from the full-size level they shimmered as the wheel turned, every texel a step); clamped as albedo_cockpit is
 uniform sampler2D albedo_frames : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform bool frames_filtered = false;
+// the same art for the modern look, filtered: linear with its mip levels and anisotropy (i76_cockpit_soft)
+uniform sampler2D albedo_cockpit_soft : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform bool use_texture = false;
 uniform bool alpha_key = false;
@@ -550,6 +552,20 @@ float tread_height(vec2 p) {
 	float shoulder = smoothstep(0.0, 0.07, v) * smoothstep(1.0, 0.93, v);
 	return clamp(1.0 - max(groove, cross_g * 0.85), 0.0, 1.0) * mix(0.5, 1.0, shoulder);
 }
+
+// The cockpit's art in the modern look. Where the screen shows the art smaller than its texels (the pack's 8x panels at
+// 3440x1440) it is read linear through its mip levels with anisotropy, so the lettering and the needles no longer shimmer as the
+// dash sways; where it shows them larger (the original's art without a pack) each texel stays flat and only its edge is blended,
+// over one screen pixel, so the painted pixels keep the point sampler's sharpness without their edges crawling. The level is
+// taken from the true footprint (textureGrad), not from the stepped coordinate.
+vec4 i76_cockpit_soft(vec2 uv) {
+	vec2 ts = vec2(textureSize(albedo_cockpit_soft, 0));
+	vec2 p = uv * ts;
+	vec2 w = clamp(fwidth(p), vec2(1e-4), vec2(1.0));
+	vec2 x = fract(p);
+	vec2 q = floor(p) + clamp(x / w, vec2(0.0), vec2(0.5)) + clamp((x - 1.0) / w + 0.5, vec2(0.0), vec2(0.5));
+	return textureGrad(albedo_cockpit_soft, q / ts, dFdx(uv), dFdy(uv));
+}
 #endif
 
 void fragment() {
@@ -565,7 +581,7 @@ void fragment() {
 #ifdef FAITHFUL
 	vec4 c = use_texture ? i76_tex(prelit ? textureLod(albedo_cockpit, tuv, 0.0) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : albedo_color;
 #else
-	vec4 c = use_texture ? (prelit ? textureLod(albedo_cockpit, tuv, 0.0) : texture(albedo_tex, tuv)) : albedo_color;
+	vec4 c = use_texture ? (prelit ? i76_cockpit_soft(tuv) : texture(albedo_tex, tuv)) : albedo_color;
 	if (frames_filtered) c = texture(albedo_frames, tuv);
 	vec2 tuv_dx = dFdx(tuv), tuv_dy = dFdy(tuv);
 	if (wheel_face && use_texture && wheel_turn.z != 0.0) c.rgb = wheel_still_light(c.rgb, tuv, wheel_turn, tuv_dx, tuv_dy);
