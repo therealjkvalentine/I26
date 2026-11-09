@@ -489,3 +489,6 @@ feat/incandescent-lamps               # section CD: the modern look's lamps ramp
 
 # CE. the (C)/(V)/(R) marks as the legend draws them (2026-11-09; lane on Sonnet 5.5)
 fix/form-cv-marks                     # section CE: the BUILD AND REPAIR lists' marks were a circled handwritten letter (neither the legend's nor the original's, which hand-writes a parenthesised letter); in the modern look record 69's braces draw as (C), (V), (R) in bold Arial in the legend's red, fitted to the bitmap's ink box; 1997 look unchanged; PartMarkTests. Reference: the retail game's garage-ui capture in i76-everywhere. Evidence: _scratch/r8-form-cv-marks/review-sheet.png
+
+# CF. lamp ramp twice as fast (2026-11-09; lane on Sonnet 5.5)
+fix/lamp-ramp-faster                  # section CF: CD's ramp sat at the slow end of real 12 V filament figures (tail and brake bulbs ~50-150 ms to 90 %, decay 100-250 ms; real brake lights snap in well under 100 ms); headlamps now 60/150 ms rise/fall, brake and tail 30/100 (were 120/300, 60/200); the orange shift and I76_LAMP_RAMP_SCALE kept. Evidence: _scratch/r8-lamps-2/shots/sheet_brake_tap_before_after.png
