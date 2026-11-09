@@ -118,6 +118,8 @@ public static class DevSettings
             s => I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(s.CabinsBehindGlass)),
         // the log file (Graphic Detail's Log File row until round 5): Godot reads it at start
         new("log_file", ["false", "true" + M], s => s.LogFile ? 1 : 0, (s, v) => s.LogFile = v != 0, DevWhen.NextStart),
+        // a bug report's inputs.csv: the ring is made at a mission's start
+        new("bug_report_inputs", ["false", "true" + M], s => s.BugReportInputs ? 1 : 0, (s, v) => s.BugReportInputs = v != 0, DevWhen.NextMission),
         new("developer", FalseTrue, s => s.DeveloperTools ? 1 : 0, (s, v) => s.DeveloperTools = v != 0, DevWhen.NextStart),
     ];
 

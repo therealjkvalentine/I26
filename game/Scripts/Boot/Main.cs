@@ -180,6 +180,7 @@ public partial class Main : Node3D
     private bool _loading;
 
     private static bool _buildPrinted;
+    private static bool _bugReportOpened;
 
     /// <summary>For the switch guard (<see cref="SwitchProbe"/>): the install this scene runs, and whether a mission is built and running.</summary>
     internal string? InstallPath => _opt?.Install;
@@ -216,6 +217,7 @@ public partial class Main : Node3D
         MainThread.Mark();
         if (!I76.Game.Editor.EditorSession.Active) Stash.Drop();   // no editor session: nothing to wait for
         LogFile.InstallForced();
+        BugReportLog.Install();   // the last lines of the output, for a bug report's log.txt, whether or not the log file is on
         VramWatch.Install(GetTree());   // --log / I76_LOG=1: the log file even where the setting is off
         // the log's first line from us: the build, so a bug report's godot.log says which one it came from
         if (!_buildPrinted)
@@ -235,6 +237,8 @@ public partial class Main : Node3D
             return;
         }
         _opt = LaunchOptions.Parse(OS.GetCmdlineUserArgs());
+        // --bug-report-open ZIP: the report's mission, car and state (once: a scene reload keeps what it set)
+        if (_opt.BugReportOpen is { } reportZip && !_bugReportOpened) { _bugReportOpened = true; OpenBugReport(reportZip); }
         // an --install (or I76_INSTALL) that is not a game: say so and stop, rather than fail every frame after (no camera, no world)
         if (_opt.Install is { Length: > 0 } given && !I76.Formats.Vfs.InstallSearch.IsInstall(given))
         {
@@ -512,9 +516,12 @@ public partial class Main : Node3D
         // no Reconfigure without a trip to go back to, with salvage management off, or in t01, t13 and t17
         bool four = _launch is not { Kind: I76.Game.Shell.GameKind.Trip } || mission.StartsWith("a01", System.StringComparison.OrdinalIgnoreCase)
             || (I76.Game.Shell.ShellSettings.Load().PlayOptions & 2) != 0 || mission.ToLowerInvariant() is "t01" or "t13" or "t17";
+        // the frame the player saw, for a bug report's picture (nothing of the pad is drawn yet); kept while the menu is up
+        _menuFrame = GrabFrame();
         var layer = new CanvasLayer { Layer = 50, ProcessMode = ProcessModeEnum.Always, Name = "EscapeMenu" };
         _menu = new EscapeMenu
         {
+            BugReport = () => WriteBugReport(_menuFrame),
             Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
             Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
             PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
@@ -611,6 +618,7 @@ public partial class Main : Node3D
     /// <summary>The menu's outcome as the game state it set: resume (5), replay (7; T17's becomes 8), reconfigure (8), abort (2), exit (10).</summary>
     private void MenuClosed(MenuOutcome o)
     {
+        _menuFrame = null;
         var settings = I76.Game.Shell.ShellSettings.Load();
         I76.Game.Shell.CheatMarker.Read(settings.PlayOptions);
         if (o == MenuOutcome.Replay && (_opt.Mission ?? "").Equals("t17", System.StringComparison.OrdinalIgnoreCase)) o = MenuOutcome.Reconfigure;
@@ -1018,8 +1026,11 @@ public partial class Main : Node3D
         var replay = _retry is null && System.Environment.GetEnvironmentVariable("I76_INPUT") is { Length: > 0 } replayPath ? LoadReplay(replayPath) : null;
         // srand(time(NULL)) at each mission's start, as the original (RandSeed); --seed N or [port] seed fixes it
         uint randSeed = replay?.Seed ?? I76.Sim.Rng.RandSeed.Pick(_opt.FixedSeed);
+        _randSeed = randSeed;
         GD.Print($"mission {_opt.Mission}: rand seed {randSeed}{(replay is not null ? " (the input replay's)" : _opt.FixedSeed is null ? " (clock)" : "")}");
-        System.Collections.Generic.List<string>? roster = _launch is { Kind: I76.Game.Shell.GameKind.AutoMelee } ml ? ml.Opponents.Select(o => o.Car).ToList()
+        // a bug report's state reopened (--bug-report-open): its melee roster, so the snapshot's build matches the session's
+        System.Collections.Generic.List<string>? roster = _reportRoster is { } reported ? reported
+            : _launch is { Kind: I76.Game.Shell.GameKind.AutoMelee } ml ? ml.Opponents.Select(o => o.Car).ToList()
             // I76_MELEE_OPPONENTS=a.vcf,b.vcf: --melee with those opponents, for captures of a fight
             : _opt.Melee ? [.. (System.Environment.GetEnvironmentVariable("I76_MELEE_OPPONENTS") ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries)] : null;
         var setup = I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, _origin, script: _opt.Ai == "script",
@@ -1085,6 +1096,9 @@ public partial class Main : Node3D
             Build = I76.Game.Boot.BuildInfo.Version, Install = session.Build.Install, Options = traceSettings.PlayOptions, Difficulty = traceSettings.Difficulty,
             ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai,
         };
+        _reportRoster = null;
+        // the last seconds of the player's inputs, for a bug report's inputs.csv ([port] bug_report_inputs; a few kilobytes)
+        if (traceSettings.BugReportInputs) _sim.Inputs = new InputRing(thisRun, System.Math.Max(1, (int)System.Math.Round(InputRing.Seconds / session.TickSeconds)));
         if (replay is not null)
         {
             if (replay.Differences(thisRun).ToList() is { Count: > 0 } diff)
@@ -3445,6 +3459,8 @@ public partial class Main : Node3D
             case Key.F2 or Key.Quoteleft when DevOn && _net is null && !_ended: OpenDevPanel(); return true;
             // the cars' material maps and glass against the old all-over clear coat
             case Key.F8: GD.Print($"car materials {(I76.Game.Assets.MaterialLibrary.ToggleCarMaterials() ? "on" : "off")}"); return true;
+            // a bug report of this moment (the Esc menu's Report a Bug row, without the menu; MainBugReport.cs)
+            case Key.F11: BugReportKey(); return true;
             case Key.F4:
                 _lightOnly = !_lightOnly;
                 _builder?.TerrainMaterial?.SetShaderParameter("show_light_only", _lightOnly);

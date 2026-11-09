@@ -26,6 +26,8 @@ public static class MenuTips
         ["Exit Trip"] = "Exit Trip: leave the trip for the main menu (bookmarks are kept).",
         ["Abort Mission"] = "Abort Mission: replay, reconfigure the car, or leave the mission.",
         ["Developer"] = "Developer: the port's developer panel (teleport, god mode, state, signals and every setting without a row).",
+        ["Report a Bug"] = "Report a Bug: saves a zip in the user folder with the build, your settings, a save state of this moment, the frame you saw and the log, to drag into Discord or a GitHub issue. Nothing personal goes in. Ctrl+F11 does the same in play.",
+        ["Open Folder"] = "Open Folder: shows the bug-reports folder in your file browser, with the zip to drag.",
         ["Self Destruct (new car)"] = "Self Destruct: blow up your own car and come back in a new one; counts as a death, -500 points.",
         [I76.Net.Hud.NetMenu.Leave] = "Leave the network game for the main menu.",
         [I76.Net.Hud.NetMenu.Exit] = "Quit the network game and the program.",

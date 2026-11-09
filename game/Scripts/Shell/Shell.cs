@@ -1374,6 +1374,8 @@ public sealed class ShellSettings
     public bool HeadTrackPosition { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>
     public bool LogFile { get; set; }
+    /// <summary>The port's own: a bug report's inputs.csv, the last seconds of the player's inputs kept in memory while a mission runs ([port] bug_report_inputs; on, written when off; Boot/BugReport.cs).</summary>
+    public bool BugReportInputs { get; set; } = true;
     /// <summary>The port's own: Graphic Detail's Renderer (Auto, Vulkan, D3D12, OpenGL; shell.cfg [port] renderer, written only when not Auto). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.StartupSettings"/>).</summary>
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
@@ -1729,6 +1731,7 @@ public sealed class ShellSettings
 
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
+        s.BugReportInputs = (bool)c.GetValue("port", "bug_report_inputs", true);
         // no version step: absent, it is off (players never see the panel); developer_tools is the key's older name, still read
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
@@ -1864,6 +1867,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 
         if (LogFile) c.SetValue("port", "log_file", true);
+        if (!BugReportInputs) c.SetValue("port", "bug_report_inputs", false);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         c.Save(Path);
         I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);

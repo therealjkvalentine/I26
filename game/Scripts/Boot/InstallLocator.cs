@@ -15,6 +15,7 @@ namespace I76.Game.Boot;
 ///   --voices LANG|FOLDER   voice files from voices/LANG in the user folder (or that folder) override the install's by name; off without it
 ///   --music-extra FOLDER|off   the player's own songs for one mission-music start in I76_MUSIC_EXTRA_EVERY (3); default: music-extra in the user folder
 ///   --dev   the Developer panel (teleport, repair, state store / restore, time; docs/dev-hooks.md)
+///   --bug-report-open ZIP   a bug report's mission and car, its state restored at its tick (Boot/MainBugReport.cs; docs/playing.md "Reporting a bug")
 ///   --connect HOST:PORT [--name N] [--car X.vcf] [--team T]   (a network melee)
 ///   --host-listen [--arena m05] [--port 7676] [--rate 20|24|25|28|30|40|60] [--fill N] [--bots-ai N] [--bot-skill easy|normal|hard] [--teams] [--max-score S] [--time-limit SECONDS] [--anet HOST[:PORT]]
 ///   --host-listen --coop MISSION [--max-players 8] [--port 7676]   (a co-op story mission for up to eight instead of a melee: t01, s03, p05, ...)
@@ -97,6 +98,8 @@ public sealed class LaunchOptions
     public string? Voices { get; set; }
     /// <summary>--dev: the Developer panel for this run (Ctrl+F2 or Ctrl+` in a mission, and the escape menu's Developer row; docs/dev-hooks.md).</summary>
     public bool Dev { get; set; }
+    /// <summary>--bug-report-open ZIP: a bug report (its zip or its folder) whose mission, car and state this run starts in (MainBugReport.cs).</summary>
+    public string? BugReportOpen { get; set; }
     /// <summary>--movie NAME: play that movie from smk/ first (then the menu, or quit with --quit-after).</summary>
     public string? Movie { get; set; }
     /// <summary>--modern-physics: the player's car on the optional modern physics (docs/modern-physics.md), whatever the setting says.</summary>
@@ -297,6 +300,7 @@ public sealed class LaunchOptions
                 case "--melee": o.Melee = true; break;
                 case "--skip-movies": o.SkipMovies = true; break;
                 case "--dev": o.Dev = true; break;
+                case "--bug-report-open": o.BugReportOpen = Next(); break;
                 case "--movie": o.Movie = Next(); break;
                 case "--modern-physics": o.ModernPhysics = true; break;
                 case "--connect": o.Connect = Next(); break;

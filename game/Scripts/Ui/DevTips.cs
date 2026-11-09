@@ -61,6 +61,7 @@ public static class DevTips
         "cabins_behind_glass" => "The modern look draws a dim cabin and driver behind other cars' windows; false is plain reflective glass. Live.",
         "sway_snap" => "The original head sway: a height within 0.005 of its target jumps there at once, which shakes the dash by up to a pixel while coasting through a curve. False eases every frame. Live.",
         "log_file" =>"Writes logs/godot<date>.log in the user folder from the next start, for bug reports.",
+        "bug_report_inputs" => "Keeps the last ten seconds of your inputs in memory for a bug report's inputs.csv (a few kilobytes). Next mission.",
         _ => null,
     };
 

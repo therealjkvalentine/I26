@@ -104,6 +104,8 @@ public partial class SimDriver : Node
     public string? RecordPath { get; set; }
     /// <summary>I76_MOTION_CSV: a row a tick of the player's motion (MotionTrace) to this file.</summary>
     public string? MotionPath { get; set; }
+    /// <summary>The last seconds of the player's inputs, for a bug report's inputs.csv (Boot/BugReport.cs); null when [port] bug_report_inputs is off.</summary>
+    public I76.Game.Boot.InputRing? Inputs { get; set; }
     private InputTraceWriter? _recordOut;
     private System.IO.StreamWriter? _motionOut;
     private bool _replayDiverged, _replayEnded;
@@ -573,6 +575,7 @@ public partial class SimDriver : Node
         if (Replay is { } replay) sampled = replay.At(tick);   // the keys are still sampled (and dropped) so nothing is left latched
         using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
         TraceTick(tick, sampled);
+        Inputs?.Add(tick, sampled);
         ForceFeedback.Tick(Combat?.Events, shots, Tick);   // the block the original filled at the frame's end
         BassShaker.Tick(Combat?.Events, shots, Tick);
         TickRan?.Invoke(Combat?.Events, shots);

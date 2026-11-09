@@ -93,10 +93,12 @@ public sealed partial class EscapeMenu : Control
     public Action? PausedFrame { get; init; }
     /// <summary>The frame rate of the last seconds played before the menu opened (Graphic Detail's frame-rate tooltip), null without one.</summary>
     public Func<double?>? PlayFps { get; init; }
+    /// <summary>The port's Report a Bug (Boot/BugReport.cs): writes the report and returns the words for the pad and the folder to open, or the failure.</summary>
+    public Func<(bool Ok, string Text, string? Folder)>? BugReport { get; init; }
 
     public ShellSettings Settings { get; private set; } = null!;
     private ShellSettings _snap = null!;
-    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!;
+    private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!, _bug = null!;
     /// <summary>Graphic Detail's pages (GraphicsPages): pads under <see cref="_graphics"/>, each the port's rows of one page.</summary>
     private readonly List<Screen> _graphicsPages = [];
     private Screen _screen = null!;
@@ -194,6 +196,8 @@ public sealed partial class EscapeMenu : Control
         _audio = new Screen { Key = "audio", Art = "audcon1", Parent = _main };
         _cheater = new Screen { Key = "cheater", Art = "plyopt1", EscIgnored = true };
         _end = new Screen { Key = four ? "end5" : "end6", Art = "extgme1", EscIgnored = true };
+        // the port's bug report notice: the Options Menu's pad under its own title, filled when a report is written
+        _bug = new Screen { Key = "bug", Art = "mainmn1", Title = "Bug Report", Parent = _main };
 
         _main.Items = Net ? [
             Action(I76.Net.Hud.NetMenu.Leave, 1, () => AskExit(_main, MenuOutcome.Abort, LeaveLine)),
@@ -205,6 +209,7 @@ public sealed partial class EscapeMenu : Control
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Controls", 6, OpenControls, "$7.65"),
+            Action("Report a Bug", 7, ReportBug, "$0.00"),
             CancelButton("Resume"),
         ] : [
             Action("Abort Mission", 1, () => Switch(_abort), "$6.78"),
@@ -214,10 +219,12 @@ public sealed partial class EscapeMenu : Control
             // the port's own, on the free ruled line (row 6) under Audio Control: Controls (force feedback, Mouse Options and the key
             // map under it), the shell's sheet over the paused game
             Action("Controls", 6, OpenControls, "$7.65"),
+            // the port's own, on the next line: a bug report of this moment (Boot/BugReport.cs), free of charge
+            Action("Report a Bug", 7, ReportBug, "$0.00"),
             CancelButton("Exit"),
         ];
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
-        // list, the free line under its last entry
+        // list, the free line under its last entry (row 8, under Report a Bug)
         if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", _main.Items.Max(i => i.Pair is >= 1 and <= 14 ? i.Pair : 0) + 1, () => Close(MenuOutcome.Developer)));
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
@@ -493,6 +500,22 @@ public sealed partial class EscapeMenu : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// Report a Bug (the row, or Ctrl+F11): the report is written at once (the game is paused under the menu already) and the
+    /// pad says where it went, with Open Folder (the file browser on the bug-reports folder) and Done back to the Options Menu.
+    /// </summary>
+    private void ReportBug()
+    {
+        if (BugReport is null) return;
+        var (ok, text, folder) = BugReport();
+        _bug.Items = [Text(text, 47)];
+        if (ok && folder is not null)
+            _bug.Items.Add(new Item { Flags = Command, Label = "Open Folder", Pair = 17, Cb = (_, m) => { if (m == 4) OS.ShellOpen(folder); } });
+        _bug.Items.Add(new Item { Flags = Button, Label = "Done", Pair = 15, Cb = (_, m) => { if (m == 4) Switch(_main); } });
+        _bug.Selected = _bug.Items.Count - 1;
+        Switch(_bug);
+    }
+
     private const string SweetheartLine = "Are you gonna leave me, Sweetheart?";
     /// <summary>The network game's own questions (the port's): leaving the game is not quitting the program.</summary>
     private const string LeaveLine = I76.Net.Hud.NetMenu.LeaveQuestion, QuitLine = I76.Net.Hud.NetMenu.ExitQuestion;
@@ -636,6 +659,8 @@ public sealed partial class EscapeMenu : Control
         if (e is InputEventKey { Pressed: true } k)
         {
             GetViewport().SetInputAsHandled();
+            // Ctrl+F11, the bug report key in play, on the pad too
+            if (k is { Keycode: Key.F11, CtrlPressed: true, AltPressed: false, ShiftPressed: false, Echo: false }) { ReportBug(); return; }
             if (!Navigate(k.Keycode, k.ShiftPressed)) return;
         }
         else if (e is InputEventMouseButton { ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown, Pressed: true } wheel)
