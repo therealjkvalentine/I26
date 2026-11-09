@@ -1,0 +1,46 @@
+{
+ "textures": [
+  "cy_1ofc1"
+ ],
+ "note": "the warehouse's OFFICE wall: its lettering; written by gen/warehouse.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    67.86999999999999,
+    30.0,
+    128,
+    45.23
+   ],
+   "where": {
+    "lum_below": 215
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 235
+   }
+  },
+  {
+   "op": "text",
+   "text": "OFFICE",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 13.23,
+   "colour": [
+    41,
+    117,
+    32
+   ],
+   "embolden": 0.06,
+   "box": [
+    68.77,
+    31.0,
+    127.44,
+    44.23
+   ]
+  }
+ ]
+}
