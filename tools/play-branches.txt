@@ -459,3 +459,6 @@ fix/piranha-badge                     # section BT: the rear model badges ('rahn
 
 # BU. side mirrors from one wider mirror pass (2026-11-09)
 feat/side-mirrors-shared-render       # section BU: the original has no side-mirror glass in any of 290 interiors; [port] side_mirrors adds two small mirrors (the rear mirror's face, half as wide) showing the outer parts of one rear-mirror picture drawn 90 deg wide instead of 45 (2472x256, still every second frame, 21.6 px/deg kept); shares follow the projection (the 45 deg rear = middle 41.4 %); side_mirror_overlap (6 deg), side_mirror_angle, side_mirror_drop, side_mirror_share, mirror_fov; 1997 look unchanged; +0.65 ms GPU. Evidence: _scratch/r7-mirrors/sheet.png, clips/*.mp4, fc/results.tsv
+
+# BV. title logo, round 3 (2026-11-09)
+fix/menu-logo-flat-3                  # section BV: the original's black between the blue band's spiky edge and the white kept (238 of its 241 texels; BN had filled them blue), only the band's darker edge texels go to the blue; the TM fitted to the original's texels by search over Arial faces, height, tilt and slant (Arial Bold, ~20 deg slant, tilted 19 deg with the logo) instead of stretched to the ink box; pages 26 and 14 (3 pack files). Evidence: _scratch/r7-logo-3/work/spots.png (original | BN | new at 8:1)
