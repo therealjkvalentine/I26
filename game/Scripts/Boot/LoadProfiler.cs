@@ -45,6 +45,15 @@ public static class LoadProfiler
         Event("click");
     }
 
+    /// <summary>Another start in the same run (I76_LOAD_PROFILE_NEXT, Replay from the menu): its own CSV (NAME.TAG.csv), the clock's zero now.</summary>
+    public static void Again(string tag)
+    {
+        if (!On) return;
+        if (System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_CSV") is { Length: > 0 } csv)
+            System.Environment.SetEnvironmentVariable("I76_LOAD_PROFILE_CSV", csv.Replace(".csv", $".{tag}.csv"));
+        Click();
+    }
+
     private static long Now => Clock.ElapsedMilliseconds - _origin;
 
     /// <summary>A moment, not a phase (the card's first frame, the movie's start): kept by name, the first of each.</summary>

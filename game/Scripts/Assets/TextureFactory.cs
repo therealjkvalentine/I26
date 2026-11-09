@@ -27,6 +27,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         public readonly int Width = width, Height = height;
         public readonly Image? Gpu = gpu;
         private RoadRaster.Tex? _rgba = rgba;
+        public long Size => (Gpu?.GetDataSize() ?? 0) + (_rgba?.Rgba.LongLength ?? 0);
         public RoadRaster.Tex Rgba
         {
             get
@@ -209,6 +210,14 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private static Image Picture(HdPic h) => h.Gpu ?? Prepare(h.Rgba).Img;
 
     private readonly Dictionary<string, Entry?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private long _madeBytes;
+
+    /// <summary>What it holds, bytes, roughly: the textures made (their pictures as sent to the GPU) and the texels kept on the CPU (the
+    /// originals', and the upscales' decoded). The restart cache's measure (World.RestartCache).</summary>
+    public long Bytes => _madeBytes + _rgba.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _bled.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _hd.Values.Sum(h => h?.Size ?? 0);
+
+    /// <summary>How many textures it has made.</summary>
+    public int Made => _cache.Count;
     /// <summary>The members with an upscale among the textures made: each look's picture, for the swap.</summary>
     private readonly Dictionary<string, (Image Modern, Image Faithful)> _looks = new(StringComparer.OrdinalIgnoreCase);
 
@@ -229,6 +238,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         var img = hd ? Picture(HdOf(member)!) : Prepare(b).Img;
         // keyed as the original is: an upscale carries the original's key
         var e = new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        _madeBytes += img.GetDataSize();
         if (t0 != 0) { double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds; I76.Game.Boot.LoadProfiler.Texture(hd, img.GetDataSize(), ms); }
         return e;
     }
