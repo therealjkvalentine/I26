@@ -105,6 +105,7 @@ keeps the originals; World Textures and Car & Dash Textures at 1997 (shell.cfg's
 
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).
+This is the play fork: [docs/fork-deltas.md](docs/fork-deltas.md) lists what it changes against upstream, by area.
 
 I26 contains no game data. It is an unofficial fan project and it needs your own legal copy of Interstate 76.
 
