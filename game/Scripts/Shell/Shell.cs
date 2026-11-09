@@ -1476,6 +1476,10 @@ public sealed class ShellSettings
     public int SkyDrift { get; set; } = 1;
     /// <summary>The port's own, without a row: the death orbit, 0 Original (8 degrees a tick), 1 Smooth (20 degrees a second) ([port] death_orbit, written when not original).</summary>
     public int DeathOrbit { get; set; }
+    /// <summary>The port's own, without a row: the clouds' drift in percent of the earlier rate, 0 to 200 ([port] sky_speed, written when not 50). Drawn only.</summary>
+    public int SkySpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
+    /// <summary>The port's own, without a row: the death orbit's turn in percent of the earlier rate, 0 to 200 ([port] death_orbit_speed, written when not 50). Drawn only.</summary>
+    public int DeathOrbitSpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
     /// <summary>The port's own, without a row: in the 1997 look a change of the keys runs the next sim tick at once instead of waiting for it (TickPacer; [port] early_tick, written when off).</summary>
     public bool EarlyTick { get; set; } = true;
     /// <summary>The port's own, without a row: the player's car (and the cameras on it) drawn at the newest sim tick carried forward by the time since it, not between the last two ticks; both looks, offline (DrawAhead; [port] draw_ahead, written when on).</summary>
@@ -1720,6 +1724,7 @@ public sealed class ShellSettings
         s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
+        s.ReadSpeeds(k => c.HasSectionKey("port", k) ? c.GetValue("port", k).ToString() : null);
         s.DrawAhead = (bool)c.GetValue("port", "draw_ahead", false);
         s.SwaySnap = (bool)c.GetValue("port", "sway_snap", false);
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
@@ -1741,6 +1746,20 @@ public sealed class ShellSettings
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
         I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         return s;
+    }
+
+    /// <summary>[port] sky_speed and death_orbit_speed: absent, 50 (docs/deviations.md "Sky scroll", "Death orbit"). <paramref name="value"/> gives a key's text, or null.</summary>
+    public void ReadSpeeds(Func<string, string?> value)
+    {
+        SkySpeed = I76.Sim.Views.PresentationSpeed.Parse(value("sky_speed"));
+        DeathOrbitSpeed = I76.Sim.Views.PresentationSpeed.Parse(value("death_orbit_speed"));
+    }
+
+    /// <summary>The two keys, each only when not the default (50); <paramref name="set"/> writes a [port] key.</summary>
+    public void WriteSpeeds(Action<string, int> set)
+    {
+        if (SkySpeed != I76.Sim.Views.PresentationSpeed.Default) set("sky_speed", I76.Sim.Views.PresentationSpeed.Clamp(SkySpeed));
+        if (DeathOrbitSpeed != I76.Sim.Views.PresentationSpeed.Default) set("death_orbit_speed", I76.Sim.Views.PresentationSpeed.Clamp(DeathOrbitSpeed));
     }
 
     public void Save()
@@ -1857,6 +1876,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);
+        WriteSpeeds((k, v) => c.SetValue("port", k, v));
         if (DrawAhead) c.SetValue("port", "draw_ahead", true);
         if (SwaySnap) c.SetValue("port", "sway_snap", true);
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);

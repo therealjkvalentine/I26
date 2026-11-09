@@ -17,6 +17,8 @@ public static class OriginalBehavior
     public static int? MirrorRange, BrakeLamps, MgTracers;
     /// <summary>The sky steps once a tick whatever the mirror does (the default; [port] sky_drift=original gives the original's second step), and the orbit's smooth turn.</summary>
     public static bool SteadySky = true, SmoothOrbit;
+    /// <summary>[port] sky_speed and death_orbit_speed as factors (PresentationSpeed; 0.5 by default): drawn only.</summary>
+    public static float SkySpeed = 0.5f, OrbitSpeed = 0.5f;
     /// <summary>The 1997 look's Early Tick: a change of the keys runs the next tick at once ([port] early_tick, on unless false; SimDriver, TickPacer).</summary>
     public static bool EarlyTick = true;
     /// <summary>Draw Ahead: the player's car drawn at the newest tick carried forward, not a tick behind ([port] draw_ahead, off unless true; SimDriver, CarNode).</summary>
@@ -35,6 +37,8 @@ public static class OriginalBehavior
         MgTracers = s.MgTracerChoice;
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
+        SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(s.SkySpeed);
+        OrbitSpeed = I76.Sim.Views.PresentationSpeed.Factor(s.DeathOrbitSpeed);
         EarlyTick = s.EarlyTick;
         DrawAhead = s.DrawAhead;
         SwaySnap = s.SwaySnap;

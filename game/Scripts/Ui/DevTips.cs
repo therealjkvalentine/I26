@@ -17,6 +17,8 @@ public static class DevTips
         "mg_tracers" => "A machine gun round in the modern look: the original's thin line, or a glowing bolt. The 1997 look always draws the line.",
         "sky_drift" => "The 1997 look's clouds: the original steps them twice as fast with the mirror up; steady steps them once a tick.",
         "death_orbit" => "The camera's orbit after your car is destroyed: the original's 8 degrees a tick, or a steady 20 degrees a second.",
+        "sky_speed" => "How fast the clouds drift, in percent of the earlier rate, in both looks. 50 by default; 0 holds them still.",
+        "death_orbit_speed" => "How fast the camera circles after your car is destroyed and at a network match's end, in percent of the original's 8 degrees a tick. 50 by default.",
         "music_tracks" => "Mission music plays disc tracks 2 to 14 in turn, as the original; all goes on into the title and ending tracks.",
         "garage_radio" => "The 3D garage: the menu music goes on, as the original's, or a boombox on the bench plays mission tracks.",
         "menu_warmup" => "While the main menu stands idle, the modern look's effects are made in advance. It measured no saving; off by default.",

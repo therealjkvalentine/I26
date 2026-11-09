@@ -30,6 +30,9 @@ public static class DevSettings
     private static int? ToChoice(int i) => i == 0 ? null : i - 1;
 
     /// <summary>The effects' percentages offered, in the key's 25..150 range; a value set by hand shows as the nearest.</summary>
+    public static readonly int[] SpeedSteps = [0, 25, 50, 75, 100, 125, 150, 200];
+    private static readonly string[] SpeedNames = [.. SpeedSteps.Select(p => p == I76.Sim.Views.PresentationSpeed.Default ? $"{p}" : $"{p}{M}")];
+    public static int NearestSpeedStep(int percent) => Array.IndexOf(SpeedSteps, SpeedSteps.MinBy(p => Math.Abs(p - percent)));
     public static readonly int[] EffectSteps = [25, 50, 75, 100, 125, 150];
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
@@ -71,6 +74,8 @@ public static class DevSettings
         new("mg_tracers", Look(OriginalRecipe.MgTracerNames), s => OfChoice(s.MgTracerChoice), (s, v) => s.MgTracerChoice = ToChoice(v), DevWhen.Live),
         new("sky_drift", Words(OriginalRecipe.SkyDriftNames), s => s.SkyDrift, (s, v) => s.SkyDrift = v, DevWhen.Live),
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
+        new("sky_speed", SpeedNames, s => NearestSpeedStep(s.SkySpeed), (s, v) => s.SkySpeed = SpeedSteps[v], DevWhen.NextMission),
+        new("death_orbit_speed", SpeedNames, s => NearestSpeedStep(s.DeathOrbitSpeed), (s, v) => s.DeathOrbitSpeed = SpeedSteps[v], DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
         new("menu_warmup", ["off", "on" + M], s => s.MenuWarmup ? 1 : 0, (s, v) => s.MenuWarmup = v != 0, DevWhen.NextScreen),

@@ -20,6 +20,12 @@ public static class SimClock
     /// <summary>The 1997 sky's scroll, per second: 1/(1001 - 2^-7) of the cloud sheet a frame, at the tick's frame rate.</summary>
     public static float SkyScrollPerSecond => 1f / Tick / (1001f - 1f / 128f);
 
+    /// <summary>The modern look's cloud drift, per second, at the 30 fps rate (the 1997 rate at that frame rate, before [port] sky_speed).</summary>
+    public const float ModernSkyScrollPerSecond = 30f / (1001f - 1f / 128f);
+
+    /// <summary>[port] sky_speed's share of a drift rate (0.5 by default).</summary>
+    public static float SkyRate(float perSecond) => perSecond * OriginalBehavior.SkySpeed;
+
     /// <summary>Ticks run since <paramref name="last"/> (which it updates); a stall or a restart counts at most <paramref name="max"/>.</summary>
     public static int Take(ref int last, int max = 4)
     {
