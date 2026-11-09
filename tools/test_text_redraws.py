@@ -61,6 +61,9 @@ class SpecTests(unittest.TestCase):
             if not texts: continue                       # an erase-only spec (zmiri101: the mirror's frame) letters nothing
             for op in texts:
                 if "quad" in op: op.setdefault("center", [sum(p[0] for p in op["quad"]) / 4, sum(p[1] for p in op["quad"]) / 4])
+                if "box" in op:
+                    op.setdefault("center", [(op["box"][0] + op["box"][2]) / 2, (op["box"][1] + op["box"][3]) / 2])
+                    op.setdefault("width", op["box"][2] - op["box"][0])
             w = int(max(max(op["center"][0] + op["cap"] * 4 for op in texts), max((op["rect"][2] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
             h = int(max(max(op["center"][1] + op["cap"] * 2 for op in texts), max((op["rect"][3] for op in spec["ops"] if op["op"] == "erase"), default=0))) + 2
             orig = blank(w, h, (128, 128, 128))
@@ -115,6 +118,38 @@ class CompositorTests(unittest.TestCase):
         ys, xs = np.where(tilt)
         left, right = ys[xs < xs.mean()].mean(), ys[xs > xs.mean()].mean()
         self.assertGreater((right - left) / 4, 1.5)                                     # the right end sits lower (half the 4-texel drop, by halves)
+
+    def test_box_sets_the_runs_ink_on_the_box_at_any_scale(self):
+        # a badge's letters on the painted letters' own box: the ink (an apostrophe's and an ascender's tops to the baseline,
+        # first letter to last) fills it, no larger, the stroke round it, at 4x as at 8x
+        orig = blank(40, 16, (0, 0, 0), a=0)
+        op = {"op": "text", "text": "'rahna", "font": "Comfortaa", "variation": {"Weight": 700}, "cap": 4.4, "box": [9, 5.6, 31, 10.4],
+              "colour": [255, 255, 255], "alpha": "set"}
+        for s in (4, 8):
+            px = np.repeat(np.repeat(orig, s, 0), s, 1)
+            ink = tr.apply_ops(px, orig, [op])[..., 0] > 128
+            ys, xs = np.where(ink)
+            box = np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
+            self.assertLess(np.abs(box - np.array(op["box"])).max(), 0.3, f"{s}x: {box}")
+            bold = tr.apply_ops(px, orig, [dict(op, embolden=0.25)])[..., 0] > 128
+            ys, xs = np.where(bold)
+            self.assertLess(np.abs(np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s - np.array(op["box"])).max(), 0.3)
+            self.assertGreater(bold.sum(), 1.3 * ink.sum(), "embolden thickens the strokes inside the same box")
+            dark = tr.apply_ops(px, orig, [dict(op, stroke={"width": 0.35, "colour": [40, 40, 40]})])
+            rim = (dark[..., 3] == 255) & (dark[..., :3].max(axis=2) < 140)
+            self.assertGreater(rim.sum(), 0)
+            self.assertLess(np.where(rim)[1].min() / s, op["box"][0])        # the rim outside the ink, dark (no light fringe)
+        fit = tr.apply_ops(px, orig, [dict(op, quad=[[9, 5.6], [31, 5.6], [31, 10.4], [9, 10.4]], fit="ink", box=None)])[..., 0] > 128
+        self.assertGreater((fit & ink).sum() / max(1, (fit | ink).sum()), 0.95)  # "fit": "ink" on a square quad is the box
+
+    def test_key_under_original_is_the_originals_key_colour_not_its_letters(self):
+        # a chrome badge (opaque greys) on a keyed strip whose colour is dark blue; the pack bled the chrome into the strip
+        orig = blank(24, 12, (10, 10, 40), a=0); orig[4:8, 6:18, :3] = 200; orig[4:8, 6:18, 3] = 255
+        s = 4; px = np.repeat(np.repeat(orig, s, 0), s, 1).copy(); px[..., :3] = 180      # the model's pale ghost everywhere
+        out = tr.apply_ops(px, orig, [{"op": "erase", "rect": [0, 0, 24, 12], "where": {"keyed": True}, "fill": "key", "under": "original"},
+                                      {"op": "erase", "rect": [5, 3, 19, 9], "where": {"opaque": True}, "grow": 0.5, "fill": "key", "under": "original"}])
+        self.assertTrue((out[..., 3] == 0).all())
+        self.assertTrue((out[..., :3] == (10, 10, 40)).all(), "the strip and the erased badge both take the key's own colour")
 
     def test_hang_centres_the_letters_and_lets_the_stop_hang(self):
         orig = blank(60, 16, (230, 230, 230)); px = np.repeat(np.repeat(orig, 4, 0), 4, 1)

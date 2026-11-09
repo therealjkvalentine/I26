@@ -92,6 +92,20 @@
   {
    "op": "erase",
    "rect": [
+    71,
+    14,
+    106,
+    27
+   ],
+   "where": {
+    "keyed": true
+   },
+   "fill": "key",
+   "under": "original"
+  },
+  {
+   "op": "erase",
+   "rect": [
     76,
     15,
     92,
@@ -101,7 +115,8 @@
     "opaque": true
    },
    "grow": 0.5,
-   "fill": "key"
+   "fill": "key",
+   "under": "original"
   },
   {
    "op": "text",
@@ -110,55 +125,47 @@
    "variation": {
     "Weight": 700
    },
-   "cap": 4.7,
+   "cap": 4.4,
    "quad": [
     [
      78.6,
-     16.6
+     17.4
     ],
     [
      91.0,
-     18.2
+     18.4
     ],
     [
      91.0,
-     22.6
+     22.05
     ],
     [
      78.6,
      21.0
     ]
    ],
+   "fit": "ink",
+   "embolden": 0.25,
    "alpha": "set",
    "gradient": [
     [
-     244,
-     244,
-     248
+     215,
+     213,
+     217
     ],
     [
-     150,
-     152,
-     160
+     135,
+     134,
+     137
     ]
    ],
    "stroke": {
-    "width": 0.3,
+    "width": 0.35,
     "colour": [
-     205,
-     205,
-     212
+     39,
+     41,
+     45
     ]
-   },
-   "shadow": {
-    "dx": 0.35,
-    "dy": 0.35,
-    "colour": [
-     12,
-     12,
-     14
-    ],
-    "opacity": 0.8
    }
   }
  ]

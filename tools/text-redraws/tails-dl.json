@@ -75,11 +75,7 @@
     "keyed": true
    },
    "fill": "key",
-   "under": [
-    22,
-    22,
-    26
-   ]
+   "under": "original"
   },
   {
    "op": "erase",
@@ -94,42 +90,40 @@
    },
    "grow": 0.5,
    "fill": "key",
-   "under": [
-    22,
-    22,
-    26
-   ]
+   "under": "original"
   },
   {
    "op": "text",
    "text": "DOVER",
    "font": "RussoOne",
-   "cap": 6,
-   "center": [
-    63.5,
-    18.0
+   "cap": 3.39,
+   "box": [
+    32,
+    16.71,
+    95.23,
+    20.1
    ],
-   "width": 65,
    "tracking": 1.9,
+   "embolden": 0.3,
    "alpha": "set",
    "gradient": [
     [
-     240,
-     240,
-     244
+     220,
+     219,
+     221
     ],
     [
-     130,
-     132,
-     140
+     165,
+     164,
+     166
     ]
    ],
    "stroke": {
     "width": 0.35,
     "colour": [
-     18,
-     18,
-     22
+     32,
+     32,
+     34
     ]
    }
   }
