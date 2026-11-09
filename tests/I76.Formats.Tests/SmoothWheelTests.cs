@@ -66,6 +66,34 @@ public class SmoothWheelTests
         Assert.Null(SmoothWheel.StillLight([Frame(0), new I76.Formats.Imaging.IndexedTexture(2, 2, new byte[4], null)]));
     }
 
+    /// <summary>
+    /// The real game shows a wheel face's picture with the texture's first stored row at the top: the hubcaps are painted lit
+    /// from above (the cap's edge bright above, the dish in the rim's shadow above it, the sidewall lit above), and the
+    /// original's own frames show them so (T01, the Piranha from the side, 86Box). The .wdf faces map +v up, as the body's
+    /// do, and the wheel textures are stored the other way up from the body's; ModelAssembler turns the wheel faces' v
+    /// over, so on every stock car's wheel v now grows downward (the map's B has y per unit of v below zero).
+    /// </summary>
+    [InstallFact]
+    public void EveryWheelFaceShowsItsPictureTheWayUpTheOriginalDoes()
+    {
+        int faces = 0;
+        foreach (var vfs in Installs())
+            foreach (var n in vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order())
+            {
+                AssembledModel? m; try { m = new ModelAssembler(vfs).Assemble(n); } catch { continue; }
+                if (m is null) continue;
+                foreach (var (slot, w) in m.WheelGeos)
+                    foreach (var geo in new[] { w.Intact, w.Blown })
+                    {
+                        // a face whose v runs along the axle's z (one blown wheel, the Dillo's) has no way up to check
+                        if (geo is null || SmoothWheel.FaceMap(geo, w.Node) is not { } fm || Math.Abs(fm.B.X) < 1e-3f) continue;
+                        Assert.True(fm.B.X < 0, $"{n} slot {slot} {geo.Name}: v runs up the wheel ({fm.B.X:F3} m per unit of v), the picture upside down");
+                        faces++;
+                    }
+            }
+        Assert.True(faces > 600, $"{faces} wheel faces checked");
+    }
+
     [InstallFact]
     public void EveryRoundWheelIsFittedToItsHubAndTexture()
     {

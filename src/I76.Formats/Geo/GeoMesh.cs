@@ -42,6 +42,23 @@ public sealed class GeoMesh
     public GeoFace[] Faces { get; init; } = [];
     public int Consumed { get; init; }
 
+    /// <summary>
+    /// The same mesh with every textured face's v turned over (v → 1 − v), its picture upside down relative to this one.
+    /// The .wdf wheel faces map +v up, as the bodies' do, but their textures are stored the other way up from the bodies'
+    /// (the hubcap strips, lit from above as painted, have their first stored row at the top of the picture), and the
+    /// original shows them so; ModelAssembler turns the wheel faces over (the lane's 86Box captures, 2026-11-09).
+    /// </summary>
+    public GeoMesh WithVFlipped() => new()
+    {
+        Name = Name, Unk_0x04 = Unk_0x04, Unk_0x20 = Unk_0x20, Vertices = Vertices, Normals = Normals, Consumed = Consumed,
+        Faces = Faces.Select(f => f.Texture.Length == 0 ? f : new GeoFace
+        {
+            Unk_0x00 = f.Unk_0x00, VertexCount = f.VertexCount, R = f.R, G = f.G, B = f.B, Plane = f.Plane, Unk_0x1B = f.Unk_0x1B,
+            Unk_0x1F = f.Unk_0x1F, Unk_0x20 = f.Unk_0x20, Unk_0x21 = f.Unk_0x21, Texture = f.Texture, Unk_0x32 = f.Unk_0x32,
+            Vertices = f.Vertices.Select(v => v with { V = 1 - v.V }).ToArray(),
+        }).ToArray(),
+    };
+
     public static GeoMesh Parse(byte[] d)
     {
         if (d.Length < HeaderSize) throw new InvalidDataException("too short for a .GEO header");

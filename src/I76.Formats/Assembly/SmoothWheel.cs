@@ -65,13 +65,19 @@ public sealed record SmoothWheel(Vector3[] Rim, Vector2[] RimUv, Vector3[] RimNo
     /// one is made a circle (by the narrower of its two spans, which is the one the ground touches), a blown tyre keeps
     /// its squashed shape. Null if the mesh has no textured side or the texture is no disc in a square (it fills it).
     /// </summary>
-    public static SmoothWheel? Build(GeoMesh geo, Affine node, IndexedTexture tex, int segments = 48)
+    /// <summary>
+    /// The textured face's mapping from texture (u, v) to the wheel's (y, z) (wheel space: x along the axle, y up):
+    /// <c>YZ(pts[origin]) + A (u - uvs[origin].u) + B (v - uvs[origin].v)</c>, fitted on the widest triple of the face's corners.
+    /// Null where the mesh has no textured face or its corners are collinear. The original shows a wheel face's picture
+    /// with the texture's first stored row at the top (the hubcaps are painted lit from above, and the real game shows them
+    /// so; the lane's 86Box captures), which ModelAssembler sees to by mapping v downward: <c>B.X &lt; 0</c>.
+    /// </summary>
+    public static (GeoFace Face, Vector3[] Pts, Vector2[] Uvs, int Origin, Vector2 A, Vector2 B)? FaceMap(GeoMesh geo, Affine node)
     {
         var face = geo.Faces.FirstOrDefault(f => f.Texture.Length > 0 && f.Vertices.Length >= 3 && f.Vertices.All(v => (uint)v.Index < geo.Vertices.Length));
-        if (face is null || tex.Width < 8 || tex.Height < 8) return null;
+        if (face is null) return null;
         var pts = face.Vertices.Select(v => node.Apply(geo.Vertices[v.Index])).ToArray();
         var uvs = face.Vertices.Select(v => new Vector2(v.U, v.V)).ToArray();
-        // the face's mapping from texture (u, v) to the wheel's (y, z): origin + a du + b dv, from the widest triple of corners
         int bi = 0, bj = 1, bk = 2; float best = 0;
         for (int i = 0; i < pts.Length; i++) for (int j = i + 1; j < pts.Length; j++) for (int k = j + 1; k < pts.Length; k++)
         {
@@ -84,6 +90,13 @@ public sealed record SmoothWheel(Vector3[] Rim, Vector2[] RimUv, Vector3[] RimNo
         float det = du1.X * du2.Y - du2.X * du1.Y;
         var a = (dp1 * du2.Y - dp2 * du1.Y) / det;   // the wheel's (y, z) per unit of u
         var b = (dp2 * du1.X - dp1 * du2.X) / det;   // and per unit of v
+        return (face, pts, uvs, bi, a, b);
+    }
+
+    public static SmoothWheel? Build(GeoMesh geo, Affine node, IndexedTexture tex, int segments = 48)
+    {
+        if (tex.Width < 8 || tex.Height < 8 || FaceMap(geo, node) is not { } fm) return null;
+        var (face, pts, uvs, bi, a, b) = fm;
         Vector2 At(Vector2 uv) => YZ(pts[bi]) + a * (uv.X - uvs[bi].X) + b * (uv.Y - uvs[bi].Y);
 
         // the tyre's opaque texels: their box's centre, and the radius to the last opaque texel at each angle

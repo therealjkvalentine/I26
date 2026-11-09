@@ -158,7 +158,8 @@ public sealed class ModelAssembler(AssetVfs vfs)
     /// The wheels: VCFC names a .wdf per axle (+0x36 front, +0x43 middle,
     /// +0x50 rear); its WGEO holds &lt;code&gt;&lt;detail&gt;&lt;condition&gt;RWL&lt;n&gt; and LWL
     /// meshes for the right (slots 0, 2, 4) and left (1, 3, 5) wheels.
-    /// Condition 1 is the tyre, 'A' the blown one.
+    /// Condition 1 is the tyre, 'A' the blown one. The faces' v is turned over: the wheel textures are stored
+    /// the other way up from the bodies' and the original shows them with their first row at the top (lit from above).
     /// </summary>
     private void AddWheels(AssembledModel m, Bwd2File vcf)
     {
@@ -173,7 +174,9 @@ public sealed class ModelAssembler(AssetVfs vfs)
                 SceneNode? Find(char cond) => nodes.FirstOrDefault(n => n.Name.Length >= 7 && n.Name[2] == Detail && n.Name[3] == cond && n.Name[4..7].Equals(side, StringComparison.OrdinalIgnoreCase));
                 if (Find('1') is not { } node || Geo(node.Name) is not { } geo) continue;
                 var blown = Find('A') is { } bn ? Geo(bn.Name) : null;
-                m.WheelGeos[slot] = (geo, blown, Affine.From(node.Transform));
+                // the wheel faces' pictures the way up the original shows them: their textures are stored the other way up
+                // from the bodies' (GeoMesh.WithVFlipped)
+                m.WheelGeos[slot] = (geo.WithVFlipped(), blown?.WithVFlipped(), Affine.From(node.Transform));
             }
         }
     }
