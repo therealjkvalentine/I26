@@ -733,6 +733,7 @@ public partial class Main : Node3D
         I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         _brightnessLevel = s.Graphics[0xc];
+        _nightDial = s.Night;
         if (_lighting != LightingOf(s)) { _lighting = LightingOf(s); SolveLightingCalibration(); }
         else ApplyLightingCalibration();
         if (_env1997 is not null)
@@ -2521,15 +2522,13 @@ public partial class Main : Node3D
         bool card = _lighting == Lighting.Card;
         var sc = SkyFor(_lighting);
         float back = card ? 1f / (float)c.Exposure : 1f / Mathf.Sqrt((float)c.Exposure);
-        // at night through the card's curve: the moon the ground's light, the roads at the original's share of it, the sky darkened
-        // over it (NightLight)
-        var (moon, ground, road, nightSky, chroma, warm) = card && _calibratedLight is { IsDay: false } night ? NightLight(night, c.Moon) : (1f, 0f, 1f, 1f, 0f, 0f);
+        // at night, whatever the calibration: the moon the ground's light, the roads at the original's share of it, the sky darkened
+        // over it (NightLight); by day nothing
+        var night = _calibratedLight is { IsDay: false } n ? NightLight(n, c.Moon) : I76.Game.World.NightDial.Levels.Neutral;
+        float moon = night.Moon;
         if (_sun is not null) _sun.LightEnergy = _sunEnergy * moon;
-        RenderingServer.GlobalShaderParameterSet("i76_night_ground", ground);
-        RenderingServer.GlobalShaderParameterSet("i76_night_road", road);
-        RenderingServer.GlobalShaderParameterSet("i76_night_chroma", chroma);
-        RenderingServer.GlobalShaderParameterSet("i76_night_warm", warm);
-        back *= nightSky;
+        foreach (var (name, value) in I76.Game.World.NightDial.Globals(night)) RenderingServer.GlobalShaderParameterSet(name, value);
+        back *= night.Sky;
         if (_modernEnv is not null)
         {
             _modernEnv.AdjustmentEnabled = true;
@@ -2563,32 +2562,33 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// A night preset's light in the modern look through the card's curve: the moon's share of its own light (<paramref name="solved"/>,
-    /// LightingCalibration.NightMoon: what shows the map's ground under the moon as the modern look's own night shows it through
-    /// Filmic, the ground near black, as chosen at the console), how much of the original's light the ground takes besides
-    /// (LightingCalibration.NightGround: 0; 1 is the 1997 look's level, which lights a night map's dark-painted ground nearly as by
-    /// day), the share of the ground's light a road keeps (LightingCalibration.NightRoad: the original lights its roads by the
-    /// preset's intensity through the ramp, near its floor, and the ground by the light's direction alone, so the road is the darker
-    /// band and the headlamps show it; the modern moon lit both alike, so the roads shone over the ground) and the sky's gain over
-    /// the texture's own (LightingCalibration.NightSky), and how much of the ground's own colour the moon's light on it keeps
-    /// (LightingCalibration.NightChroma: the original's ramp is a grey light on the texture's colour, so its night ground is the map's
-    /// own colour, where the blue moon and its glint turned it blue) and how far that light is turned toward moonlight's own warm
-    /// white (LightingCalibration.NightWarm). I76_NIGHT_MOON, I76_NIGHT_GROUND, I76_NIGHT_ROAD, I76_NIGHT_SKY, I76_NIGHT_CHROMA and
-    /// I76_NIGHT_WARM set each in place for a comparison (1, 0, 1, 1, 0, 0: the modern look's own night but for the tone curve;
-    /// 1, 1, 1, 1, 0, 0: the 1997 look's levels).
+    /// A night preset's light in the modern look (I76.Game.World.NightDial), under every lighting_calibration: through the card's curve
+    /// (on) the moon's share of its own light is <paramref name="solved"/> (LightingCalibration.NightMoon: what shows the map's ground
+    /// under the moon as the modern look's own night shows it through Filmic, the ground near black, as chosen at the console); through
+    /// Filmic (off, filmic) the whole moon, which is that level. Then how much of the original's light the ground takes besides
+    /// (LightingCalibration.NightGround: 0), the share of the ground's light a road keeps (LightingCalibration.NightRoad through the
+    /// curve in use: the original lights its roads by the preset's intensity through the ramp, near its floor, and the ground by the
+    /// light's direction alone, so the road is the darker band and the headlamps show it; the modern moon lit both alike, so the roads
+    /// shone over the ground), the sky's gain over its own (LightingCalibration.NightSky, NightSkyFilmic), how much of the ground's own
+    /// colour the moon's light on it keeps (NightChroma) and how far that light is turned toward moonlight's warm white (NightWarm).
+    /// The Developer panel's Night sliders scale the first three and set the colour's ([port] night_moon ...); I76_NIGHT_MOON,
+    /// I76_NIGHT_GROUND, I76_NIGHT_ROAD, I76_NIGHT_SKY, I76_NIGHT_CHROMA and I76_NIGHT_WARM set each outright for a comparison
+    /// (1, 0, 1, 1, 0, 0: the modern look's own night but for the tone curve; 1, 1, 1, 1, 0, 0: the 1997 look's levels).
     /// </summary>
-    private (float Moon, float Ground, float Road, float Sky, float Chroma, float Warm) NightLight(I76.Formats.Mission.LightPreset light, double solved)
+    private I76.Game.World.NightDial.Levels NightLight(I76.Formats.Mission.LightPreset light, double solved)
     {
         var c = (_sun?.LightColor ?? Colors.White).SrgbToLinear();
         double lum = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
-        float moon = Env("I76_NIGHT_MOON") ?? (float)solved;
-        double road = I76.Formats.Imaging.LightingCalibration.NightRoad(LumaBytes(), light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * moon * lum);
-        return (moon, Env("I76_NIGHT_GROUND") ?? (float)I76.Formats.Imaging.LightingCalibration.NightGround, Env("I76_NIGHT_ROAD") ?? (float)road,
-            Env("I76_NIGHT_SKY") ?? (float)I76.Formats.Imaging.LightingCalibration.NightSky, Env("I76_NIGHT_CHROMA") ?? (float)I76.Formats.Imaging.LightingCalibration.NightChroma,
-            Env("I76_NIGHT_WARM") ?? (float)I76.Formats.Imaging.LightingCalibration.NightWarm);
-        static float? Env(string name) => float.TryParse(System.Environment.GetEnvironmentVariable(name), System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out var k) ? k : null;
+        bool card = _lighting == Lighting.Card;
+        var curve = card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
+        var luma = LumaBytes();
+        return I76.Game.World.NightDial.Night(card, solved,
+            moon => I76.Formats.Imaging.LightingCalibration.NightRoad(luma, light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * moon * lum, curve),
+            _nightDial, I76.Game.World.NightDial.Env);
     }
+
+    /// <summary>The Developer panel's Night sliders ([port] night_moon ...), from the settings at ApplyGraphics.</summary>
+    private I76.Game.World.NightDial.Dial _nightDial = new();
 
     /// <summary>How much of the sky's colour its light on the scene keeps (sky_modern.gdshaderinc radiance_chroma).</summary>
     private static double RadianceChroma(Lighting l) => l == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.CardRadianceChroma : 1;

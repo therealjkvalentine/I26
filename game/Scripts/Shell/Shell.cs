@@ -1437,6 +1437,32 @@ public sealed class ShellSettings
     /// <summary>[port] lighting_calibration=filmic: the calibration solved under the Filmic tonemap, the sky in the modern look's own colours (as before the card's curve).</summary>
     public bool LightingFilmic { get; set; }
 
+    /// <summary>
+    /// The port's own, without a row: the modern look's night as dialled on the Developer panel's Night sliders (I76.Game.World.NightDial):
+    /// [port] night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as
+    /// solved (1), night_chroma and night_warm set how much of the ground's colour the moon's light keeps and how warm it is (1, 1);
+    /// each written only when not the default.
+    /// </summary>
+    public I76.Game.World.NightDial.Dial Night { get; set; } = new();
+
+    /// <summary>The Night keys; <paramref name="value"/> gives a key's text, or null (absent: the default).</summary>
+    public void ReadNight(Func<string, string?> value) => Night = new(
+        I76.Game.World.NightDial.ParseScale(value("night_moon")), I76.Game.World.NightDial.ParseScale(value("night_road")),
+        I76.Game.World.NightDial.ParseScale(value("night_sky")),
+        I76.Game.World.NightDial.ParseMix(value("night_chroma"), I76.Formats.Imaging.LightingCalibration.NightChroma),
+        I76.Game.World.NightDial.ParseMix(value("night_warm"), I76.Formats.Imaging.LightingCalibration.NightWarm));
+
+    /// <summary>The Night keys, each only when not the default; <paramref name="set"/> writes a [port] key.</summary>
+    public void WriteNight(Action<string, double> set)
+    {
+        var d = new I76.Game.World.NightDial.Dial();
+        if (Night.Moon != d.Moon) set("night_moon", Night.Moon);
+        if (Night.Road != d.Road) set("night_road", Night.Road);
+        if (Night.Sky != d.Sky) set("night_sky", Night.Sky);
+        if (Night.Chroma != d.Chroma) set("night_chroma", Night.Chroma);
+        if (Night.Warm != d.Warm) set("night_warm", Night.Warm);
+    }
+
     /// <summary>[port] lighting_calibration's word is "filmic".</summary>
     public static bool LightingFilmicOn(string? word) => string.Equals(word?.Trim(), "filmic", StringComparison.OrdinalIgnoreCase);
 
@@ -1725,6 +1751,7 @@ public sealed class ShellSettings
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
         s.ReadSpeeds(k => c.HasSectionKey("port", k) ? c.GetValue("port", k).ToString() : null);
+        s.ReadNight(k => c.HasSectionKey("port", k) ? System.Convert.ToString(c.GetValue("port", k).Obj, System.Globalization.CultureInfo.InvariantCulture) : null);
         s.DrawAhead = (bool)c.GetValue("port", "draw_ahead", false);
         s.SwaySnap = (bool)c.GetValue("port", "sway_snap", false);
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
@@ -1877,6 +1904,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);
         WriteSpeeds((k, v) => c.SetValue("port", k, v));
+        WriteNight((k, v) => c.SetValue("port", k, v));
         if (DrawAhead) c.SetValue("port", "draw_ahead", true);
         if (SwaySnap) c.SetValue("port", "sway_snap", true);
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
