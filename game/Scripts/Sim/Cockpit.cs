@@ -28,6 +28,8 @@ public partial class Cockpit : Node
     public Assets.AudioBank? Audio { get; init; }
     /// <summary>The art variant: the driver's (re-n3), 1 in the base game</summary>
     public int LightVariant { get; init; } = 1;
+    /// <summary>The door mirrors' painted glass in the interior (MirrorGlass), which [port] side_mirrors puts the view behind into.</summary>
+    public IReadOnlyList<I76.Formats.Assembly.MirrorGlass.Pane> Glass { get; init; } = [];
     /// <summary>The mirror's clear colour, palette index 0xea.</summary>
     public Color MirrorBackground { get; init; } = Colors.Black;
     /// <summary>The 1997 look: the mirror at the original's 256x64, nearest-sampled, and starting in objects-only mode.</summary>
@@ -1365,7 +1367,8 @@ public partial class Cockpit : Node
     {
         if (_mirrorView is null || _mirrorCam is null || _mirrorMat is null) return;
         // the side-view mirrors' one wide render (MirrorBands): the rear mirror's band keeps its 1024 columns across its 45 degrees
-        bool wide = !_faithful && _sideMirrors;
+        var (glass, quads) = MirrorBands.Shown(_sideMirrors, Glass.Count > 0);
+        bool wide = !_faithful && (glass || quads);
         float fov = wide ? MirrorBands.Fov(_mirrorFov) : MirrorCameraSettings.FovDegrees;
         _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(wide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
         _mirrorCam.Fov = fov;
@@ -1374,7 +1377,8 @@ public partial class Cockpit : Node
         _mirrorMat.SetShaderParameter("band", MirrorBand);
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
-        SideMirrors(wide, fov);
+        SideMirrors(wide && quads, fov);
+        GlassMirrors(wide && glass, fov);
         // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
         // material, relief or asphalt for a camera without it), as for the shadow passes
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF;
@@ -1461,7 +1465,7 @@ public partial class Cockpit : Node
     private int _mirrorSurface = -1;
     private Vector3 _mirrorCentre;
     private float _mirrorHeight;
-    private bool _sideMirrors;
+    private SideMirrorMode _sideMirrors = SideMirrorMode.Auto;
     private float _mirrorFov = MirrorBands.DefaultFov, _sideShare = 1f, _sideAngle = MirrorBands.DefaultYaw, _sideDrop = MirrorBands.DefaultDrop, _sideOverlap = MirrorBands.DefaultOverlap, _sideYaw = float.NaN;
     /// <summary>I76_MIRROR_WIDTH: the wide render's width in pixels instead of the one keeping the rear mirror's pixels per degree (a cost measurement); I76_SIDE_MIRROR_MAP=cylinder: the side glasses' columns spread by angle (docs/dev-hooks.md).</summary>
     private static readonly int? MirrorWidthOverride = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_WIDTH"), out int w) && w >= 256 ? w : null;
@@ -1562,5 +1566,63 @@ public partial class Cockpit : Node
         var r = new Basis(Vector3.Up, Mathf.DegToRad(-yaw));
         _sideL.Transform = new Transform3D(l, eye + l * ahead);
         _sideR.Transform = new Transform3D(r, eye + r * ahead);
+    }
+
+    // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
+
+    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect)> _glass = [];
+
+    /// <summary>The door mirrors' glass shown or hidden and each given its band of the render; made on first use.</summary>
+    private void GlassMirrors(bool on, float fov)
+    {
+        if (on && _glass.Count == 0) MakeGlass();
+        foreach (var g in _glass)
+        {
+            g.Mesh.Visible = on;
+            if (!on) continue;
+            var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
+            var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
+            g.Mat.SetShaderParameter("band", new Vector2(band.From, band.To));
+            g.Mat.SetShaderParameter("hidden", _mirrorMode == 0);
+        }
+    }
+
+    /// <summary>
+    /// A mesh over each pane of glass, its faces 3 mm toward the eye (over the painted blue), both windings, on the cockpit's layer
+    /// and under the interior's node; its UVs the glass as the driver sees it (MirrorGlass.Picture), so the band fills the glass's shape.
+    /// </summary>
+    private void MakeGlass()
+    {
+        if (Node3D.CockpitMesh is not { } host || _mirrorMat is null) return;
+        var eye = Node3D.Eye;
+        var gameEye = new System.Numerics.Vector3(eye.X, eye.Y, -eye.Z);
+        foreach (var pane in Glass)
+        {
+            var (uvs, aspect) = I76.Formats.Assembly.MirrorGlass.Picture(pane, gameEye);
+            var v = new List<Vector3>();
+            var t = new List<Vector2>();
+            for (int f = 0; f < pane.Faces.Count; f++)
+            {
+                var pts = pane.Faces[f].Select(q => { var g = Coords.ToGodot(q); return g + (eye - g).Normalized() * 0.003f; }).ToArray();
+                for (int k = 1; k + 1 < pts.Length; k++)
+                    foreach (var i in new[] { 0, k, k + 1, 0, k + 1, k })
+                    {
+                        v.Add(pts[i]);
+                        t.Add(new Vector2(uvs[f][i].X, uvs[f][i].Y));
+                    }
+            }
+            var a = new Godot.Collections.Array();
+            a.Resize((int)Mesh.ArrayType.Max);
+            a[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+            a[(int)Mesh.ArrayType.TexUV] = t.ToArray();
+            var mesh = new ArrayMesh();
+            I76.Game.MeshArrays.AddSurfaceArrays(mesh, Mesh.PrimitiveType.Triangles, a);
+            var mat = (ShaderMaterial)_mirrorMat.Duplicate();
+            mat.SetShaderParameter("pane", true);
+            var mi = new MeshInstance3D { Mesh = mesh, MaterialOverride = mat, Layers = CarNode.CockpitLayer, Name = "Glass" + (pane.Left ? "L" : "R"),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            host.AddChild(mi);
+            _glass.Add((mi, mat, pane.Left, aspect));
+        }
     }
 }

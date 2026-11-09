@@ -1465,8 +1465,8 @@ public sealed class ShellSettings
     /// it follows the look, Original in the 1997 look and Full in the modern one.
     /// </summary>
     public int? MirrorRangeChoice { get; set; }
-    /// <summary>The port's own, without a row: the modern look's side-view mirrors, two more glasses of the rear mirror's render (I76.Game.Sim.MirrorBands; shell.cfg [port] side_mirrors, off; written only when on).</summary>
-    public bool SideMirrors { get; set; }
+    /// <summary>The port's own, without a row: the modern look's side-view mirrors from the rear mirror's render (I76.Game.Sim.MirrorBands): off, on, or auto, the door mirrors' painted glass where the car has it (shell.cfg [port] side_mirrors; written only when not auto).</summary>
+    public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -1732,7 +1732,13 @@ public sealed class ShellSettings
         // but the sky's drift, Steady: version 13 made that the default, and the key was only ever written for Steady before it
         s.MirrorRangeChoice = OriginalRecipe.ReadChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames);
         // no version step: absent, the rear mirror alone (the original's), 90 degrees across, the whole outer band, 45 degrees to each side
-        s.SideMirrors = string.Equals(c.GetValue("port", "side_mirrors", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
+        // absent, auto (the door mirrors' own glass where the car has it); before it, absent was off
+        s.SideMirrors = c.GetValue("port", "side_mirrors", "auto").ToString().Trim().ToLowerInvariant() switch
+        {
+            "on" => I76.Game.Sim.SideMirrorMode.On,
+            "off" => I76.Game.Sim.SideMirrorMode.Off,
+            _ => I76.Game.Sim.SideMirrorMode.Auto,
+        };
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
         s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
@@ -1890,7 +1896,7 @@ public sealed class ShellSettings
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
-        if (SideMirrors) c.SetValue("port", "side_mirrors", "on");
+        if (SideMirrors != I76.Game.Sim.SideMirrorMode.Auto) c.SetValue("port", "side_mirrors", SideMirrors == I76.Game.Sim.SideMirrorMode.On ? "on" : "off");
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);

@@ -29,6 +29,8 @@ uniform bool art_crop = false;
 uniform bool cylindrical = false;
 uniform vec2 band_angles = vec2(0.0);
 uniform float fov_tan = 1.0;
+// a door mirror's own glass (MirrorGlass): the band's view over the whole face (pane), UV the glass as the driver sees it (0..1 left to right, foot to top)
+uniform bool pane = false;
 
 // a field's 0.5 contour over one screen pixel
 float cut(float f) {
@@ -49,7 +51,10 @@ void fragment() {
 	if (hidden) discard;
 	vec2 auv = art_uv(UV);
 	vec2 vuv = vec2(view_x(UV.x), 1.0 - UV.y);
-	if (smooth_edge && !faithful) {
+	if (pane) {
+		ALBEDO = texture(view, vuv).rgb;
+		ALPHA = 1.0;
+	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
 		float solid = cut(e.r), g = cut(e.g);
 		if (solid <= 0.0) discard;

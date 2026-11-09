@@ -100,4 +100,32 @@ public class MirrorBandsTests
         Assert.Equal(45f, MirrorBands.HalfFovAcross(73.74f, 4f / 3f), 0.05f);
         Assert.Equal(60.8f, MirrorBands.HalfFovAcross(73.74f, 3440f / 1440f), 0.1f);
     }
+
+    [Fact]
+    public void ACarsOwnGlassComesFirstAndTheAddedGlassesOnlyWithoutIt()
+    {
+        Assert.Equal((true, false), MirrorBands.Shown(SideMirrorMode.Auto, hasGlass: true));
+        Assert.Equal((false, false), MirrorBands.Shown(SideMirrorMode.Auto, hasGlass: false));
+        Assert.Equal((true, false), MirrorBands.Shown(SideMirrorMode.On, hasGlass: true));
+        Assert.Equal((false, true), MirrorBands.Shown(SideMirrorMode.On, hasGlass: false));
+        Assert.Equal((false, false), MirrorBands.Shown(SideMirrorMode.Off, hasGlass: true));
+    }
+
+    [Fact]
+    public void AGlasssBandKeepsTheOverlapAndTheGlasssShape()
+    {
+        const float deg = MathF.PI / 180f;
+        float renderAspect = 2472f / 256f;
+        var left = MirrorBands.Glass(90f, 6f, 1.5f, renderAspect, left: true);
+        var right = MirrorBands.Glass(90f, 6f, 1.5f, renderAspect, left: false);
+        // its inner edge 6 degrees inside the rear mirror's (16.5 degrees off the axis), as the added glasses' is
+        Assert.Equal(-16.5f * deg, MirrorBands.Angles(left, 90f).To, 0.001f);
+        Assert.Equal(16.5f * deg, MirrorBands.Angles(right, 90f).From, 0.001f);
+        // as many columns as the glass is wide for the picture's 256 rows: 1.5 x 256 of 2472
+        Assert.Equal(1.5f * 256 / 2472, left.To - left.From, 0.0005f);
+        Assert.Equal(left.To - left.From, right.To - right.From, 0.0001f);
+        // a glass wider than what is left stops at the render's edge
+        Assert.Equal(0f, MirrorBands.Glass(90f, 6f, 50f, renderAspect, left: true).From, 0.0001f);
+        Assert.Equal(1f, MirrorBands.Glass(90f, 6f, 50f, renderAspect, left: false).To, 0.0001f);
+    }
 }

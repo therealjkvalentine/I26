@@ -1532,6 +1532,7 @@ public partial class Main : Node3D
                 Car = vehicle, Node3D = node, Panels = new I76.Game.Sim.CockpitPanels(layout, res, texf, mats),
                 Resolver = res, Textures = texf, Materials = mats, Combat = combat, Palette = builder.ActPalette, Audio = _audio, Name = "Cockpit",
                 LightVariant = DriverVariant(), Instruments = () => _extInstruments,
+                Glass = interior is null ? [] : I76.Formats.Assembly.MirrorGlass.Find(interior),
                 MirrorBackground = builder.ActPalette is { } ap ? Color.Color8(ap[0xea].R, ap[0xea].G, ap[0xea].B) : Colors.Black,
             };
             pit.MirrorSetting = I76.Game.Shell.ShellSettings.Load().Graphics[0xd];
