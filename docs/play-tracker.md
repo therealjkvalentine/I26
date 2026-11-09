@@ -919,6 +919,44 @@ Test status (`main` 26f114b6), desktop, `--filter "Load!=Sensitive"`: Game 614/0
 230/0, Formats 927/0 (124 skips), Net 464/0. Deployed 26f114b6 to the laptop, James's Mac and Michael's Mac; Andrew's Mac
 unreachable (still on pass 22's build). Laptop smoke T01 1280x960 after AW: exits 0.
 
+## Pass 26 (2026-11-08 to 11-09)
+
+Twenty-four sections, AY to BW, all merged by hand or with sync-play, tests green at each push:
+- AY: car deaths and explosions back to upstream's.
+- AZ: the form rules cleaned.
+- BA: the cockpit wheel and hand.
+- BB and BS: night lighting rounds 2 and 3; the ground is warm by default at the owner's choice.
+- BC: Arial everywhere.
+- BD, BN and BV: the title logo traced as flat art, in three rounds.
+- BE: the Developer panel's cheat mark lasts one attempt.
+- BF: the dash art filtered.
+- BG: docs/fork-deltas.md.
+- BH: Report a Bug on the pause menu.
+- BI: the damage panel cells.
+- BJ: the sky noise hash (#149).
+- BK: the wheel's still light taken from its frames.
+- BL: car art round 7.
+- BM: the radar frames kept compressed.
+- BO: the pad rows moved.
+- BP: the sky and death-orbit speeds.
+- BQ: docs/jumps.md.
+- BR: the pop-up paper under damage strokes.
+- BT: the rear badges.
+- BU: the side mirrors.
+- BW: the Debug build optimised.
+
+Test status (`main` d044031b), desktop, `--filter "Load!=Sensitive"`, without the install set:
+
+| Suite | Passed | Failed | Skipped |
+|---|---|---|---|
+| Game | 682 | 0 | 24 |
+| Sim | 1195 | 0 | 0 |
+| Editor | 230 | 0 | 0 |
+| Formats | 932 | 0 | 124 |
+| Net | 465 | 0 | 0 |
+
+Deployed d044031b, stamped "play-26 (d044031b)", to the desktop, the laptop (smoke OK), James's Mac and Michael's Mac. Andrew's Mac is unreachable; it is still on 3c1e9e2a. Pack files were synced by explicit lists, `_scratch/deploy/pack-changed-pass26*.txt`. The HD movies were taken out of the install at the owner's choice.
+
 ## Withdrawn or answered (not offered as fixes)
 
 - "I26 turns 3-5 % more": a harness artefact; in lockstep at 1/24 s I26 matches the kit to 0.1 %.
