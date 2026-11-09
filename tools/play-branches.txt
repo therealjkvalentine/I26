@@ -435,3 +435,6 @@ fix/car-art-round7                    # section BL: survey of 23 cars at 8x: no 
 
 # BM. radar frames kept compressed (2026-11-09; lane on Opus 5.5)
 perf/radar-kept-frames                # section BM: the radar's 62 frames were kept decoded three times (952 MB at 8x); now kept as the pack stores them (BC7, 2 MB a frame) and decoded on a low-priority worker into four buffers as they are about to show (Bc7.cs, RadarFrames.cs, TextureFactory.Pictures); 8x working set 5749 -> 4344 MB, radar 952 -> 156 MB, allocations 4657 -> 483 KB/s, worst frame 16.1 -> 12.8 ms; I76_DASH_STATS reports memory and verify checks every decode; picture identical at 1x/4x/8x; no pack files. Evidence: _scratch/r7-radar-mem/sheet/radar-8x-before-after.png, runs/final-8x-verify.log
+
+# BN. title logo, round 2 (2026-11-09)
+fix/menu-logo-flat-2                  # section BN: the TM set to the original's 11x10-texel ink box (was 20x11), mark blanking only its own texels (no square notch in the band), each stroke follows its own colour's outline (no black line between the blue band and the white keyline: 3009 -> 0 inner-black pixels); tools/flat-art.py lines list replaces keyline; pages 26 and 14 rewritten (3 pack files). Reference: the 1x record 26 (no 86Box capture of the title screen). Evidence: _scratch/r7-logo-2/sheets/logo-before-after.png
