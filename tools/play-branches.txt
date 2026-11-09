@@ -438,3 +438,6 @@ perf/radar-kept-frames                # section BM: the radar's 62 frames were k
 
 # BN. title logo, round 2 (2026-11-09)
 fix/menu-logo-flat-2                  # section BN: the TM set to the original's 11x10-texel ink box (was 20x11), mark blanking only its own texels (no square notch in the band), each stroke follows its own colour's outline (no black line between the blue band and the white keyline: 3009 -> 0 inner-black pixels); tools/flat-art.py lines list replaces keyline; pages 26 and 14 rewritten (3 pack files). Reference: the 1x record 26 (no 86Box capture of the title screen). Evidence: _scratch/r7-logo-2/sheets/logo-before-after.png
+
+# BO. Report a Bug and Developer at the foot of the Options pad (2026-11-09; lane on Sonnet 5.5)
+fix/options-pad-rows                  # section BO: Report a Bug on row 13 and Developer on row 14 of the Esc menu's Options Menu pad (single-player and network), away from the original's rows 1-6; navigation steps down to them in order; EscapeMenuRowsTests. Evidence: _scratch/r7-menu-rows/sheet.png
