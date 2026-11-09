@@ -101,6 +101,9 @@ public sealed partial class EscapeMenu : Control
     private Screen _main = null!, _abort = null!, _exit = null!, _play = null!, _graphics = null!, _audio = null!, _cheater = null!, _end = null!, _bug = null!;
     /// <summary>Graphic Detail's pages (GraphicsPages): pads under <see cref="_graphics"/>, each the port's rows of one page.</summary>
     private readonly List<Screen> _graphicsPages = [];
+    /// <summary>The Options Menu pad's rows for the port's Report a Bug and (under it) Developer: down by the Done line, away from the original's rows 1 to 6.</summary>
+    private const int BugRow = 13;
+
     private Screen _screen = null!;
     private MenuOutcome _exitYes;
     private readonly Dictionary<string, ImageTexture?> _art = [];
@@ -209,7 +212,7 @@ public sealed partial class EscapeMenu : Control
             Action("Graphic Detail", 4, () => Switch(_graphics), "$8.98"),
             Action("Audio Control", 5, () => Switch(_audio), "$9.01"),
             Action("Controls", 6, OpenControls, "$7.65"),
-            Action("Report a Bug", 7, ReportBug, "$0.00"),
+            Action("Report a Bug", BugRow, ReportBug, "$0.00"),
             CancelButton("Resume"),
         ] : [
             Action("Abort Mission", 1, () => Switch(_abort), "$6.78"),
@@ -219,13 +222,13 @@ public sealed partial class EscapeMenu : Control
             // the port's own, on the free ruled line (row 6) under Audio Control: Controls (force feedback, Mouse Options and the key
             // map under it), the shell's sheet over the paused game
             Action("Controls", 6, OpenControls, "$7.65"),
-            // the port's own, on the next line: a bug report of this moment (Boot/BugReport.cs), free of charge
-            Action("Report a Bug", 7, ReportBug, "$0.00"),
+            // the port's own, down by the Done line, away from the original rows: a bug report of this moment (Boot/BugReport.cs), free of charge
+            Action("Report a Bug", BugRow, ReportBug, "$0.00"),
             CancelButton("Exit"),
         ];
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
-        // list, the free line under its last entry (row 8, under Report a Bug)
-        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", _main.Items.Max(i => i.Pair is >= 1 and <= 14 ? i.Pair : 0) + 1, () => Close(MenuOutcome.Developer)));
+        // list, the line under Report a Bug (row 14)
+        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", BugRow + 1, () => Close(MenuOutcome.Developer)));
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
