@@ -462,3 +462,6 @@ feat/side-mirrors-shared-render       # section BU: the original has no side-mir
 
 # BV. title logo, round 3 (2026-11-09)
 fix/menu-logo-flat-3                  # section BV: the original's black between the blue band's spiky edge and the white kept (238 of its 241 texels; BN had filled them blue), only the band's darker edge texels go to the blue; the TM fitted to the original's texels by search over Arial faces, height, tilt and slant (Arial Bold, ~20 deg slant, tilted 19 deg with the logo) instead of stretched to the ink box; pages 26 and 14 (3 pack files). Evidence: _scratch/r7-logo-3/work/spots.png (original | BN | new at 8:1)
+
+# BW. Debug builds optimised; the owner's fps explained (2026-11-09; lane on Opus 5.5)
+perf/owner-profile-fps                # section BW: the owner's 50s fps are CPU-bound (render scale 50 cuts the GPU 8.0 -> 5.5 ms, the frame stays 12-19 ms): the game's own per-frame work, a CPU shared with the lanes (98-100 %), and the unoptimised Debug build the I26 Dev launcher loads; Directory.Build.props optimises Debug as exports are (T06 at full CPU 38-42 -> 44-54 fps, scripts 9.9 -> 6.9 ms, sim 1.7 -> 1.1 ms); bench.py FRAME_COST_PROFILE=file and a T06 night scene; docs/perf/plan.md "Debug code and the owner's frame rate". Evidence: _scratch/r7-perf-owner/out/results.tsv, out/*.csv
