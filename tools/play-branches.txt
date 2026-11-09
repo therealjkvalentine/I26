@@ -486,3 +486,6 @@ perf/restart-load-time                # section CC: a restart rebuilt everything
 
 # CD. incandescent lamps and softer halos (2026-11-09)
 feat/incandescent-lamps               # section CD: the modern look's lamps ramp like 12 V filaments (LampRamp: headlamps 120/300 ms rise/fall, brake and tail 60/200 ms, an orange shift under 40 %, applied to the spotlights, glares, lens glows and the brake light; lit faces switch at half-way; the tail glow yields to the brake's as a dual-filament bulb); [port] lamp_ramp (on), I76_LAMP_RAMP, I76_LAMP_RAMP_SCALE; [port] lamp_halo (65 %) scales the glows and glares; 1997 look zero-diff; siren untouched. Evidence: _scratch/r7-lamps/shots/sheet_brake_tap.png, sheet_headlamps_off.png, halo_pair.png, clip/t06_lamps_before_after.mp4
+
+# CE. the (C)/(V)/(R) marks as the legend draws them (2026-11-09; lane on Sonnet 5.5)
+fix/form-cv-marks                     # section CE: the BUILD AND REPAIR lists' marks were a circled handwritten letter (neither the legend's nor the original's, which hand-writes a parenthesised letter); in the modern look record 69's braces draw as (C), (V), (R) in bold Arial in the legend's red, fitted to the bitmap's ink box; 1997 look unchanged; PartMarkTests. Reference: the retail game's garage-ui capture in i76-everywhere. Evidence: _scratch/r8-form-cv-marks/review-sheet.png
