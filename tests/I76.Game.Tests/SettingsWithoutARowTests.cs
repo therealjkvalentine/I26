@@ -34,7 +34,8 @@ public class SettingsWithoutARowTests
     public void EveryTableIsTheOriginalsWordFirst()
     {
         foreach (var names in new[] { OriginalRecipe.MirrorRangeNames, OriginalRecipe.BrakeLampNames, OriginalRecipe.MgTracerNames,
-            OriginalRecipe.SkyDriftNames, OriginalRecipe.DeathOrbitNames, OriginalRecipe.MusicTrackNames, OriginalRecipe.OrdnanceNames })
+            OriginalRecipe.SkyDriftNames, OriginalRecipe.DeathOrbitNames, OriginalRecipe.MusicTrackNames, OriginalRecipe.OrdnanceNames,
+            OriginalRecipe.SpecialsPanelNames })
             Assert.Equal("original", OriginalRecipe.Word(names[0]));
     }
 
@@ -56,6 +57,22 @@ public class SettingsWithoutARowTests
         // a key set by hand holds in either look
         OriginalBehavior.Apply(new ShellSettings { MirrorRangeChoice = OriginalBehavior.Original });
         Assert.Equal(100f, OriginalBehavior.MirrorFar(false));
+        OriginalBehavior.Apply(new ShellSettings());
+    }
+
+    /// <summary>[port] specials_panel: the modern look shows the 3D dash's specials art square unless the file says original; the 1997 look never does.</summary>
+    [Fact]
+    public void TheSpecialsPanelIsSquareInTheModernLookOnly()
+    {
+        var s = new ShellSettings();
+        Assert.Null(s.SpecialsPanelChoice);
+        OriginalBehavior.Apply(s);
+        Assert.True(OriginalBehavior.SquareSpecials(false));
+        Assert.False(OriginalBehavior.SquareSpecials(true));
+        OriginalBehavior.Apply(new ShellSettings { SpecialsPanelChoice = OriginalRecipe.ParseChoice("original", OriginalRecipe.SpecialsPanelNames) });
+        Assert.False(OriginalBehavior.SquareSpecials(false));
+        OriginalBehavior.Apply(new ShellSettings { SpecialsPanelChoice = OriginalBehavior.Updated });
+        Assert.False(OriginalBehavior.SquareSpecials(true));
         OriginalBehavior.Apply(new ShellSettings());
     }
 

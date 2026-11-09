@@ -1509,6 +1509,8 @@ public sealed class ShellSettings
     public int? BrakeLampChoice { get; set; }
     /// <summary>The port's own, without a row: a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
     public int? MgTracerChoice { get; set; }
+    /// <summary>The port's own, without a row: the 3D dash's specials panel in the modern look, 0 Original (the model's mapping, its texels 1.63 times as tall as wide), 1 Square (the art's shape); null follows the look ([port] specials_panel).</summary>
+    public int? SpecialsPanelChoice { get; set; }
     /// <summary>
     /// The port's own, without a row: the 1997 sky's clouds, 0 Original (a second step a tick with the full mirror up, as the original's, which
     /// drifts them twice as fast then), 1 Steady, the default in both looks ([port] sky_drift, written when original; docs/deviations.md "Sky scroll").
@@ -1769,6 +1771,7 @@ public sealed class ShellSettings
         s.SideMirrorOverlap = Math.Clamp((int)c.GetValue("port", "side_mirror_overlap", (int)I76.Game.Sim.MirrorBands.DefaultOverlap), 0, (int)I76.Game.Sim.MirrorBands.MaxOverlap);
         s.BrakeLampChoice = OriginalRecipe.ReadChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames);
         s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
+        s.SpecialsPanelChoice = OriginalRecipe.ReadChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames);
         s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
@@ -1929,6 +1932,7 @@ public sealed class ShellSettings
         if (SideMirrorOverlap != (int)I76.Game.Sim.MirrorBands.DefaultOverlap) c.SetValue("port", "side_mirror_overlap", SideMirrorOverlap);
         OriginalRecipe.WriteChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames, BrakeLampChoice);
         OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
+        OriginalRecipe.WriteChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames, SpecialsPanelChoice);
         OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);

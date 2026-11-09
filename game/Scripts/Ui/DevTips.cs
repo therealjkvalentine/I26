@@ -20,6 +20,7 @@ public static class DevTips
         "side_mirror_drop" => "How far below the rear mirror's row the side mirrors hang, in percent of the rear mirror's height; 0 is its row.",
         "side_mirror_overlap" => "How much of the rear mirror's view each side mirror shows again, degrees in from the rear mirror's edge; 0 tiles them edge to edge.",
         "brake_lamps" => "Brake lamps light while braking only, as the original's, or stay on 0.15 s after. Look follows the look in use.",
+        "specials_panel" => "The 3D dash's specials panel in the modern look: the car model's own mapping, half as tall again as the art, or the art's shape. The 1997 look always draws the model's.",
         "mg_tracers" => "A machine gun round in the modern look: the original's thin line, or a glowing bolt. The 1997 look always draws the line.",
         "sky_drift" => "The 1997 look's clouds: the original steps them twice as fast with the mirror up; steady steps them once a tick.",
         "death_orbit" => "The camera's orbit after your car is destroyed: the original's 8 degrees a tick, or a steady 20 degrees a second.",

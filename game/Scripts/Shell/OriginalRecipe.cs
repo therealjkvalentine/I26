@@ -13,6 +13,7 @@ public static class OriginalRecipe
     public static readonly string[] MirrorRangeNames = ["Original", "Full"];
     public static readonly string[] BrakeLampNames = ["Original", "Held"];
     public static readonly string[] MgTracerNames = ["Original", "Bolts"];
+    public static readonly string[] SpecialsPanelNames = ["Original", "Square"];
     public static readonly string[] SkyDriftNames = ["Original", "Steady"];
     public static readonly string[] DeathOrbitNames = ["Original", "Smooth"];
     public static readonly string[] MusicTrackNames = ["Original", "All"];
