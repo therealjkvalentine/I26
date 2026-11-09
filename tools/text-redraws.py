@@ -40,6 +40,9 @@ original texel spread over its pack texels and blurred by a Gaussian of "sigma" 
 take the blur from round them; with "only": true they keep the pack's): a light the 1997 art shades with a few dithered levels
 comes out a smooth fade, where a model makes the dither a mottle; a frame drawn in a few greys comes out smooth, where a model
 makes its stair-stepped bevel a white zigzag.
+marks: the original's texels of rect matching "where" (a distressed word's cracks: "keyed": true, which a car's panel shows in the
+key's black) drawn over the ops before in "colour", each spread over its pack texels and blurred by "sigma" texels, cut at "level"
+(default a half; lower keeps a lone texel's mark): the original's marks in their places and sizes, with a smooth outline.
 text: the string at cap height "cap" (the font's H), its cap band's middle at "center", squeezed or stretched to "width" texels
 (optional), turned "rotate" degrees anticlockwise, slanted "skew" (x shift per unit of height), letters spaced "tracking" caps
 apart, trailing "hang" characters (".") hanging outside the centred, squeezed run; the font is a name from tools/text-redraws/fonts/fonts.json (optional "variation": {"Weight": 700}). "alpha": "keep"
@@ -254,6 +257,7 @@ def where_mask(orig, rect, where):
     m = np.zeros((h, w), bool)
     x0, y0, x1, y1 = (int(round(v)) for v in rect)
     x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+    if x1 <= x0 or y1 <= y0: return m
     sub = np.ones((y1 - y0, x1 - x0), bool)
     if where:
         o = orig[y0:y1, x0:x1].astype(np.float32); lum = o[..., :3].mean(axis=2); a = o[..., 3]
@@ -365,8 +369,20 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
             sm = num / np.maximum(den, 1e-6)
             if op.get("only"): sub = rgb[y0:y1, x0:x1]; sub[w > 0] = sm[w > 0]
             else: rgb[y0:y1, x0:x1] = sm
+        elif kind == "marks":
+            # the original's small painted marks (a distressed word's cracks, keyed texels a car's panel shows black) over what
+            # the ops drew before: each matching texel spread over its pack texels, blurred by "sigma" texels and cut at "level", so
+            # the marks keep the original's places and sizes with a smooth outline instead of the model's blotches
+            m = where_mask(orig, op["rect"], op.get("where")).astype(np.float32)
+            k = int(round(s)); big = np.repeat(np.repeat(m, k, axis=0), k, axis=1)[:H, :W]
+            sig = float(op.get("sigma", 0.5)) * s
+            soft = gauss2(big[..., None], sig)[..., 0]
+            edge = max(0.5, 0.35 * s)              # the cut's width in pack texels, about a third of an original texel
+            lv = float(op.get("level", 0.5))     # the cut: under half keeps a lone texel's mark (its blur peaks under half)
+            a = np.clip((soft - lv) * (sig / edge) * 2.5 + 0.5, 0, 1)[..., None]
+            rgb = rgb * (1 - a) + np.asarray(op.get("colour", [0, 0, 0]), np.float32) * a
         else:
-            raise ValueError(f"op {kind!r}: erase, text or smooth")
+            raise ValueError(f"op {kind!r}: erase, text, smooth or marks")
     # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
     # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
     if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))

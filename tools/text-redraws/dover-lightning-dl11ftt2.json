@@ -1,0 +1,78 @@
+{
+ "textures": [
+  "dl11ftt2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl11ftt2: SPYCRAFT; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    55,
+    0,
+    69,
+    16
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    20.5,
+    15,
+    28,
+    60
+   ],
+   "where": {
+    "lum_below": 90
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.6,
+    "lum_below": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "SPYCRAFT",
+   "font": "Bitter",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 6,
+   "quad": [
+    [
+     27,
+     16
+    ],
+    [
+     27,
+     59
+    ],
+    [
+     21,
+     59
+    ],
+    [
+     21,
+     16
+    ]
+   ],
+   "fit": "ink",
+   "colour": [
+    30,
+    34,
+    44
+   ],
+   "alpha": "set"
+  }
+ ]
+}

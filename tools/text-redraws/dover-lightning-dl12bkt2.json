@@ -1,0 +1,224 @@
+{
+ "textures": [
+  "dl12bkt2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl12bkt2: JEFF; written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    55,
+    20,
+    69,
+    64
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    91,
+    1,
+    100,
+    27
+   ],
+   "where": {
+    "lum_below": 150
+   },
+   "grow": 0.4,
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "J",
+   "font": "RussoOne",
+   "cap": 5,
+   "quad": [
+    [
+     99,
+     26
+    ],
+    [
+     92,
+     26
+    ],
+    [
+     92,
+     21
+    ],
+    [
+     99,
+     21
+    ]
+   ],
+   "fit": "ink",
+   "gradient": [
+    [
+     52,
+     150,
+     54
+    ],
+    [
+     28,
+     112,
+     30
+    ]
+   ],
+   "stroke": {
+    "width": 0.3,
+    "colour": [
+     22,
+     34,
+     22
+    ]
+   },
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "E",
+   "font": "RussoOne",
+   "cap": 5,
+   "quad": [
+    [
+     99,
+     19
+    ],
+    [
+     92,
+     19
+    ],
+    [
+     92,
+     14
+    ],
+    [
+     99,
+     14
+    ]
+   ],
+   "fit": "ink",
+   "gradient": [
+    [
+     52,
+     150,
+     54
+    ],
+    [
+     28,
+     112,
+     30
+    ]
+   ],
+   "stroke": {
+    "width": 0.3,
+    "colour": [
+     22,
+     34,
+     22
+    ]
+   },
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "F",
+   "font": "RussoOne",
+   "cap": 5,
+   "quad": [
+    [
+     99,
+     13
+    ],
+    [
+     92,
+     13
+    ],
+    [
+     92,
+     8
+    ],
+    [
+     99,
+     8
+    ]
+   ],
+   "fit": "ink",
+   "gradient": [
+    [
+     52,
+     150,
+     54
+    ],
+    [
+     28,
+     112,
+     30
+    ]
+   ],
+   "stroke": {
+    "width": 0.3,
+    "colour": [
+     22,
+     34,
+     22
+    ]
+   },
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "F",
+   "font": "RussoOne",
+   "cap": 5,
+   "quad": [
+    [
+     99,
+     7
+    ],
+    [
+     92,
+     7
+    ],
+    [
+     92,
+     2
+    ],
+    [
+     99,
+     2
+    ]
+   ],
+   "fit": "ink",
+   "gradient": [
+    [
+     52,
+     150,
+     54
+    ],
+    [
+     28,
+     112,
+     30
+    ]
+   ],
+   "stroke": {
+    "width": 0.3,
+    "colour": [
+     22,
+     34,
+     22
+    ]
+   },
+   "alpha": "set"
+  }
+ ]
+}

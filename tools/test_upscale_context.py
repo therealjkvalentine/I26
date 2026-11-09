@@ -310,6 +310,21 @@ class PaintCut(unittest.TestCase):
         self.assertTrue((out[32:112, 162:168, :3] == 24).all(), "the keyed strip is the black beyond it, not the bled white (the outline itself fades over a texel)")
         self.assertTrue((out[32:112, 140:156, :3] == 200).all(), "the panel's side is its own white up to the outline")
         self.assertTrue((out[:, 160:168, 3] == 0).all(), "the key stays")
+    def test_keyed_texels_away_from_the_outline_keep_the_packs_colour(self):
+        # a chequered band of keyed squares (the pack's black there) across the body, well away from the panel's edge: the keyed
+        # rule reaches only as far as the field (2 texels out), so the squares are not washed with the body's bled colour
+        Y, X = np.mgrid[0:128, 0:256]
+        px = np.zeros((128, 256, 4), np.uint8); px[..., 3] = 255; px[..., :3] = (30, 60, 170)
+        px[(Y >= 64) & (X < 120), :3] = 200                                   # the panel, its edge at x = 120 (4x)
+        sq = (Y < 24) & (((X // 8) + (Y // 8)) % 2 == 0)
+        px[sq, :3] = 0; px[sq, 3] = 0                                         # keyed squares, black in the pack, at the top
+        keyed = np.zeros((32, 64), bool); keyed[:6] = sq[::4, ::4][:6]
+        field = np.clip(128 - (X - 120) / 4 / 2 * 127, 0, 255).astype(np.uint8)
+        field[Y < 64] = 0                                                      # the panel only below: far from the band
+        out = ut.paint_cut(px, field, 4, keyed=keyed)
+        self.assertTrue((out[sq][:, :3] == 0).all(), "the band's keyed squares stay black")
+        self.assertTrue(np.array_equal(out[..., 3], px[..., 3]))
+
     def test_a_detail_is_the_original_enlarged(self):
         px = np.zeros((128, 256, 4), np.uint8); px[..., 3] = 255; px[..., :3] = 24
         px[52:68, 12:36, :3] = (120, 80, 40)                         # the model's blob with a dark rim where the lamp is

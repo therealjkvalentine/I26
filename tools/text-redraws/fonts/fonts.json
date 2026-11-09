@@ -97,5 +97,12 @@
     "by": "The Libre Caslon Text Project Authors (Pablo Impallari, Rodrigo Fuenzalida)",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/librecaslontext"
+  },
+  "AlfaSlabOne": {
+    "name": "Alfa Slab One",
+    "file": "AlfaSlabOne/AlfaSlabOne-Regular.ttf",
+    "by": "JM Sole, The Alfa Slab One Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/alfaslabone"
   }
 }

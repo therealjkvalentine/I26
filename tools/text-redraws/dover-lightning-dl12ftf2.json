@@ -1,0 +1,26 @@
+{
+ "textures": [
+  "dl12ftf2"
+ ],
+ "note": "the Dover's blue and white scheme (lightng2, T09's chased car), dl12ftf2: the grille's keyed slots (the key's black; the model left the blue bled under them); written by gen/dover_lightning.py",
+ "ops": [
+  {
+   "op": "marks",
+   "rect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "where": {
+    "keyed": true
+   },
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "sigma": 0.3
+  }
+ ]
+}
