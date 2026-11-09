@@ -1,0 +1,543 @@
+{
+ "textures": [
+  "zcme"
+ ],
+ "note": "the compass's heading strip: ground, ticks and letters made again on the original's places; written by gen/compass.py",
+ "ops": [
+  {
+   "op": "smooth",
+   "rect": [
+    0,
+    0,
+    303,
+    2
+   ],
+   "sigma": 0.3
+  },
+  {
+   "op": "smooth",
+   "rect": [
+    0,
+    2,
+    303,
+    18
+   ],
+   "where": {
+    "lum_above": 190
+   },
+   "sigma": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    2,
+    5,
+    3,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    35,
+    5,
+    36,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    67,
+    5,
+    68,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    99,
+    5,
+    100,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    131,
+    5,
+    132,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    166,
+    5,
+    167,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    198,
+    5,
+    199,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    235,
+    5,
+    236,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    267,
+    5,
+    268,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    299,
+    5,
+    300,
+    14
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    51,
+    3,
+    52,
+    17
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    51,
+    2,
+    52,
+    3
+   ],
+   "fill": [
+    33,
+    33,
+    33
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    115,
+    3,
+    116,
+    17
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    115,
+    2,
+    116,
+    3
+   ],
+   "fill": [
+    33,
+    33,
+    33
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    182,
+    3,
+    183,
+    17
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    182,
+    2,
+    183,
+    3
+   ],
+   "fill": [
+    33,
+    33,
+    33
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    251,
+    3,
+    252,
+    17
+   ],
+   "fill": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    251,
+    2,
+    252,
+    3
+   ],
+   "fill": [
+    33,
+    33,
+    33
+   ]
+  },
+  {
+   "op": "text",
+   "text": "N",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 13,
+   "box": [
+    14,
+    3,
+    25,
+    16
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "N",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    44,
+    6,
+    49,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "E",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    54,
+    6,
+    59,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "E",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 13,
+   "box": [
+    79,
+    3,
+    89,
+    16
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "S",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    109,
+    6,
+    114,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "E",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    118,
+    6,
+    123,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "S",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 14,
+   "box": [
+    146,
+    2,
+    157,
+    16
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "S",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    176,
+    6,
+    181,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "W",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    184,
+    6,
+    193,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "W",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 13,
+   "box": [
+    207.59,
+    3,
+    225,
+    16
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "N",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    244,
+    6,
+    249,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "W",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 7,
+   "box": [
+    253,
+    6,
+    262,
+    13
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "op": "text",
+   "text": "N",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 13,
+   "box": [
+    278,
+    3,
+    289,
+    16
+   ],
+   "colour": [
+    16,
+    16,
+    16
+   ]
+  }
+ ]
+}
