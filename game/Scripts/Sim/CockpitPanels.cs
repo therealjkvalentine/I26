@@ -138,8 +138,42 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
 
     private Image? Sheet(string src)
     {
-        if (!_sheets.TryGetValue(src, out var s)) _sheets[src] = s = Load(src);
-        return s;
+        if (_sheets.TryGetValue(src, out var s)) return s;
+        s = Load(src);
+        if (s is not null && KeyRuledLines && src.StartsWith("zneedle", StringComparison.OrdinalIgnoreCase))
+        {
+            var bytes = s.GetData();
+            if (KeyRuledRows(bytes, s.GetWidth(), s.GetHeight()) > 0) s = Image.CreateFromData(s.GetWidth(), s.GetHeight(), false, Image.Format.Rgba8, bytes);
+        }
+        return _sheets[src] = s;
+    }
+
+    /// <summary>
+    /// The modern look: the needle sheets' ruled lines keyed. zneedle6.map is a grid of 80-pixel cells, each a 79x79 frame and a
+    /// light grey line along its foot and its right (in the packs a few texel rows, one of them crossed by a needle's tip); the layout's frames from the second row on start a row lower than their
+    /// cells (81, 161, ...), so their last row is the line, which the gauges stamped under the dial as a bar across its width.
+    /// The 1997 look keeps the sheet as it is. Takes effect at the next Reload.
+    /// </summary>
+    public bool KeyRuledLines { get; set; } = true;
+
+    /// <summary>
+    /// Keys (alpha 0) the light texels of every row of an RGBA sheet that is opaque and light across nearly its whole width (95 %:
+    /// a ruled line, not a sprite's art, which never spans the sheet; a needle's tip that crosses the line keeps its texels);
+    /// returns how many rows.
+    /// </summary>
+    public static int KeyRuledRows(byte[] rgba, int w, int h)
+    {
+        int n = 0;
+        bool Light(int o) => rgba[o + 3] >= 128 && System.Math.Min(rgba[o], System.Math.Min(rgba[o + 1], rgba[o + 2])) >= 200;
+        for (int y = 0; y < h; y++)
+        {
+            int o = y * w * 4, light = 0;
+            for (int x = 0; x < w; x++) if (Light(o + x * 4)) light++;
+            if (light * 20 < w * 19) continue;
+            for (int x = 0; x < w; x++) if (Light(o + x * 4)) rgba[o + x * 4 + 3] = 0;
+            n++;
+        }
+        return n;
     }
 
     /// <summary>

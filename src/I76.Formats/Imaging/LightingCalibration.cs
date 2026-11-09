@@ -192,20 +192,21 @@ public static class LightingCalibration
     /// 255), and flat ground by the light's direction alone, LUMA[round(31·(Ly·fade + ambient))] (205 of 255), so a night road is
     /// the darker band and its own texture, lighter than the night ground's, does not make it shine. The modern moon lights both
     /// alike, so a road at the same light was twice the ground's lightness (T06: L 0.26 against 0.11; at the share, 0.05 against 0.10,
-    /// as the 1997 look's 0.23 against 0.26 is in its ramp's terms). Solved through the card's
-    /// curve for a mid grey (0.18) at the ground's moonlight <paramref name="moon"/> (energy times luminance, times Ly): the share
+    /// as the 1997 look's 0.23 against 0.26 is in its ramp's terms). Solved through the
+    /// <paramref name="curve"/> in use (the card's; Filmic with lighting_calibration off or filmic) for a mid grey (0.18) at the ground's moonlight <paramref name="moon"/> (energy times luminance, times Ly): the share
     /// that shows the grey as the road's ramp entry shows it against the ground's. 1 when the road's entry is no darker.
     /// </summary>
-    public static double NightRoad(IReadOnlyList<byte>? luma, double intensity, double ly, double ambient, double moon)
+    public static double NightRoad(IReadOnlyList<byte>? luma, double intensity, double ly, double ambient, double moon, ToneCurve curve = ToneCurve.Card)
     {
         const double grey = 0.18;
         double road = Ramp(luma, Math.Max(intensity * ly, 0) + ambient);
         double ground = Ramp(luma, Math.Min(Math.Max(ly, 0) * TypicalFade + ambient, 1));
         if (road >= ground) return 1;
+        Func<double, double> show = curve == ToneCurve.Card ? CardTone : Filmic;
         double want = ToLinear(ToSrgb(grey) * road) / Math.Max(ToLinear(ToSrgb(grey) * ground), 1e-9);
         double v = grey * moon * Math.Max(ly, 0.05);
-        double shown = CardTone(v);
-        return Bisect(k => CardTone(k * v) / Math.Max(shown, 1e-9), want, 1e-4, 1);
+        double shown = show(v);
+        return Bisect(k => show(k * v) / Math.Max(shown, 1e-9), want, 1e-4, 1);
     }
 
     /// <summary>
@@ -216,6 +217,12 @@ public static class LightingCalibration
     /// T06 through the 3D card: sky 0.25, ground 0.21 to 0.28), so it is darker again, near the ground's (0.11 against 0.10).
     /// </summary>
     public const double NightSky = 0.05;
+
+    /// <summary>
+    /// The same through Filmic (lighting_calibration off or filmic), over the modern night sky's own gain against Filmic's toe
+    /// (2.5): chosen so the sky shows as the calibrated night's does (T06, Oklab L 0.11; 0.2 left it at 0.14), as the original's night sky sits near its ground.
+    /// </summary>
+    public const double NightSkyFilmic = 0.1;
 
     /// <summary>
     /// How much of the ground's own colour the moon's light on it keeps at night (terrain_modern_night.gdshader i76_night_chroma): the

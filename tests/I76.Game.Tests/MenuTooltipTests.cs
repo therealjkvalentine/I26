@@ -159,7 +159,7 @@ public class MenuTooltipTests
     [Fact]
     public void EveryDeveloperPanelSettingHasATooltip()
     {
-        var missing = DevSettings.All.Concat(DevSettings.WithRow).Select(e => e.Key).Where(k => string.IsNullOrWhiteSpace(DevTips.Of(k))).ToList();
+        var missing = DevSettings.All.Concat(DevSettings.WithRow).Concat(DevSettings.Night).Select(e => e.Key).Where(k => string.IsNullOrWhiteSpace(DevTips.Of(k))).ToList();
         Assert.True(missing.Count == 0, $"no tooltip for {string.Join(", ", missing)}");
     }
 

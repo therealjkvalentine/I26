@@ -168,6 +168,30 @@ public static class DevSettings
             s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
     ];
 
+    /// <summary>
+    /// The Night group: the modern look's night levels on sliders, live in a night mission (I76.Game.World.NightDial; docs/playing.md):
+    /// night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as solved
+    /// for the mission (1), night_chroma and night_warm set the moon light's colour on the ground (1, 1). The I76_NIGHT_ hooks win.
+    /// </summary>
+    public static readonly DevSetting[] Night =
+    [
+        Scale("night_moon", d => d.Moon, (d, v) => d with { Moon = v }),
+        Scale("night_road", d => d.Road, (d, v) => d with { Road = v }),
+        Scale("night_sky", d => d.Sky, (d, v) => d with { Sky = v }),
+        Mix("night_chroma", I76.Formats.Imaging.LightingCalibration.NightChroma, d => d.Chroma, (d, v) => d with { Chroma = v }),
+        Mix("night_warm", I76.Formats.Imaging.LightingCalibration.NightWarm, d => d.Warm, (d, v) => d with { Warm = v }),
+    ];
+
+    private static string Num(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+    private static DevSetting Scale(string key, Func<I76.Game.World.NightDial.Dial, double> get, Func<I76.Game.World.NightDial.Dial, double, I76.Game.World.NightDial.Dial> set) =>
+        new(key, [.. I76.Game.World.NightDial.ScaleSteps.Select(v => v == 1 ? Num(v) : Num(v) + M)],
+            s => I76.Game.World.NightDial.Nearest(I76.Game.World.NightDial.ScaleSteps, get(s.Night)), (s, i) => s.Night = set(s.Night, I76.Game.World.NightDial.ScaleSteps[i]),
+            DevWhen.Live, Slider: true);
+    private static DevSetting Mix(string key, double dflt, Func<I76.Game.World.NightDial.Dial, double> get, Func<I76.Game.World.NightDial.Dial, double, I76.Game.World.NightDial.Dial> set) =>
+        new(key, [.. I76.Game.World.NightDial.MixSteps.Select(v => v == dflt ? Num(v) : Num(v) + M)],
+            s => I76.Game.World.NightDial.NearestMix(get(s.Night)), (s, i) => s.Night = set(s.Night, I76.Game.World.NightDial.MixSteps[i]),
+            DevWhen.Live, Slider: true);
+
     public static string WhenText(DevWhen w) => w switch { DevWhen.Live => "live", DevWhen.NextScreen => "next screen", DevWhen.NextMission => "next mission", _ => "next start" };
 
     /// <summary>The key's colour for when a change shows: green at once, amber the next screen or mission, grey the next start.</summary>
@@ -194,7 +218,15 @@ public static class DevSettings
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
-        foreach (var e in All.Concat(WithRow))
+        foreach (var e in All.Concat(WithRow)) Add(grid, e);
+        col.AddChild(grid);
+        // the Night group: the modern look's night levels, live in a night mission
+        col.AddChild(new Label { Text = "Night (the modern look; 1 as solved for the mission)" });
+        var night = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
+        foreach (var e in Night) Add(night, e);
+        col.AddChild(night);
+
+        void Add(GridContainer grid, DevSetting e)
         {
             var name = DevScale.Min(new Label { Text = e.Note is null ? e.Key : $"{e.Key} ({e.Note})", TooltipText = WhenText(e.When) }, 136);
             name.AddThemeColorOverride("font_color", WhenColour(e.When));
@@ -202,7 +234,7 @@ public static class DevSettings
             {
                 grid.AddChild(name);
                 grid.AddChild(SliderFor(e, settings, changed));
-                continue;
+                return;
             }
             var b = DevScale.Min(new Button { FocusMode = Control.FocusModeEnum.None, Alignment = HorizontalAlignment.Left, TooltipText = "click: next value, right click: back" }, 84);
             void Show() => b.Text = e.Values[Math.Clamp(e.Get(settings), 0, e.Values.Length - 1)];
@@ -233,7 +265,6 @@ public static class DevSettings
             grid.AddChild(name);
             grid.AddChild(b);
         }
-        col.AddChild(grid);
     }
 
     /// <summary>A key of many steps as a slider over its values with the value beside it: dragging applies each step as it passes.</summary>

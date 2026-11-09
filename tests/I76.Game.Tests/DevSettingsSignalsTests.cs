@@ -49,7 +49,8 @@ public class DevSettingsSignalsTests
             Assert.Contains(key, keys);
             Assert.Contains(key, DevSettings.HandSetOnly);
         }
-        Assert.Equal(keys.Order(), DevSettings.All.Select(e => e.Key).Except(DevSettings.DevOnly).Concat(DevSettings.HandSetOnly).Order());
+        // the Night group's sliders too
+        Assert.Equal(keys.Order(), DevSettings.All.Concat(DevSettings.Night).Select(e => e.Key).Except(DevSettings.DevOnly).Concat(DevSettings.HandSetOnly).Order());
     }
 
     [Fact]

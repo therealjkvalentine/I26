@@ -43,6 +43,7 @@ public partial class Cockpit : Node
             _repaintWeapons = _repaintSpecials = true;
             // the modern look's labels want the weapons and specials panels at twice the original's pixels at least
             Panels.LabelScale = value ? 1 : 2;
+            Panels.KeyRuledLines = !value;
             if (was != value && IsInsideTree()) ArtSwapped();
         }
     }
