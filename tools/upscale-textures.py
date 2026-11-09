@@ -68,7 +68,14 @@ A cell on its own is set in the picture that surrounds it in the game: the panel
 round the anchor the cell is stamped at, CELL_CONTEXT texels each way, the cell's keyed texels showing it as the stamp does.
 Mirrored at its own border instead (the first cut), a chevron touching its cell's top met its own reflection and the model
 drew a shadow line over its arms and a crossed point; the thin side and bottom bars met theirs and came out mottled at their
-ends. A cell no anchor is found for is set in its own border's colour.
+ends. A cell no anchor is found for is set in its own border's colour. Two things remained on the dash after that: the sheet
+packs a part's states edge to edge and the apex outline of each front armour chevron falls in the cell above, so every state
+carried a dark line under its chevron (a texel of the outline colour in the original, a blob at 8x); and the model's olive round
+a bracket differed from the panel's by a few levels, a lighter rectangle the cell's size. So a neighbour's art packed into a
+cell's border (a run that differs from the panel under it, lies wholly in the outermost row or column, touches nothing else of
+the cell's and goes on across the border) shows the panel instead, and every texel of a cell that the stamp leaves looking like
+the panel (the panel's own colour under it, keyed, or such a neighbour's art) is the panel's own upscale from the pack (--out,
+then --panels, then the user folder's pack of the scale): the lit shape is all the stamp changes.
 
 Cut-out edges (--recut FIELDS): a keyed texture's alpha enlarged by any model follows the original's stair steps and the
 model's lumps, and the model blurs the art's outermost texels into the colour bled round it (a light fringe on a dark-edged
@@ -269,10 +276,103 @@ def by_cells(im, cells, model, around=None, m=CELL_CONTEXT):
         cell = np.ascontiguousarray(im[y:y1, x:x1])
         a = around((x, y, cw, ch)) if around else None
         if a is not None and a.shape[:2] != (y1 - y + 2 * m, x1 - x + 2 * m): a = a[:y1 - y + 2 * m, :x1 - x + 2 * m] if a.shape[0] >= y1 - y + 2 * m and a.shape[1] >= x1 - x + 2 * m else None
+        alpha = np.repeat(np.repeat(np.where(cell[..., 3] >= 128, 255, 0).astype(np.uint8), f, 0), f, 1)
+        if a is not None:
+            # a neighbouring cell's art packed into this cell's border shows the panel instead, as the stamp would without it
+            under = a[m:m + y1 - y, m:m + x1 - x]
+            nb = neighbour_art(cell, under, im, x, y)
+            if nb.any(): cell = cell.copy(); cell[nb] = under[nb]
         c = model(cell_canvas(cell, a, m))[m * f:(m + y1 - y) * f, m * f:(m + x1 - x) * f]
-        c[..., 3] = np.repeat(np.repeat(np.where(cell[..., 3] >= 128, 255, 0).astype(np.uint8), f, 0), f, 1)
+        c[..., 3] = alpha
         big[y * f:y1 * f, x * f:x1 * f] = c
     return big
+
+def neighbour_art(cell, under, sheet, x, y):
+    """The texels of a cell (upright RGBA, at (x, y) of `sheet`) that hold a neighbouring cell's art: the damage sheet packs a
+    part's states edge to edge, and each front armour chevron's apex outline falls in the cell above it, so every state of that
+    cell carries a dark line under its own chevron (a texel of the outline colour in the original; the model makes a blob of it
+    at 8x). Such art is a run of texels that differ from the panel under the cell (`under`, the stamp's place), lies wholly in
+    the cell's outermost row or column, touches nothing else of the cell's (8-connected) and goes on across the border into the
+    sheet beyond. A boolean mask of the cell; nothing of a cell one row or column wide."""
+    from scipy import ndimage
+    h, w = cell.shape[:2]
+    out = np.zeros((h, w), bool)
+    fg = (cell[..., 3] >= 128) & (cell[..., :3] != under[..., :3]).any(axis=2)
+    if not fg.any(): return out
+    labels, n = ndimage.label(fg, structure=np.ones((3, 3), int))
+    sh, sw = sheet.shape[:2]
+    for k in range(1, n + 1):
+        ys, xs = np.nonzero(labels == k)
+        lines = []
+        if h > 1: lines += [((ys == 0).all(), y - 1, xs + x), ((ys == h - 1).all(), y + h, xs + x)]
+        if w > 1: lines += [((xs == 0).all(), ys + y, x - 1), ((xs == w - 1).all(), ys + y, x + w)]
+        for on, by, bx in lines:
+            if not on or not (0 <= np.min(by) and np.max(by) < sh and 0 <= np.min(bx) and np.max(bx) < sw): continue
+            beyond, u = sheet[by, bx], under[ys, xs]
+            if ((beyond[:, 3] >= 128) & (beyond[:, :3] != u[:, :3]).any(axis=1)).any(): out[ys, xs] = True; break
+    return out
+
+def cells_in_panel(px, im, cells, scale, around, panel_at, m=CELL_CONTEXT):
+    """The finished sheet `px` (upright RGBA at `scale` times `im`) with each cell's texels that the stamp leaves looking like
+    the panel taken from the panel's own upscale: where a cell's texel is the panel's under it at the original's scale (or keyed,
+    or a neighbour's art, neighbour_art), the game shows the panel there, and the cell carries the panel's own picture at the
+    scale (`panel_at(cell)`: the pack's panel texture, upright, and the place's x and y on it; None without one). The model's
+    olive round a bracket differed from the panel's by a few levels, a lighter rectangle the cell's size on the dash; with the
+    panel's own texels the lit shape is all the stamp changes. The alpha stays the cell's."""
+    h, w = im.shape[:2]
+    for x, y, cw, ch in cells:
+        x1, y1 = min(x + cw, w), min(y + ch, h)
+        if x >= w or y >= h or x1 - x < 1 or y1 - y < 1: continue
+        at = panel_at((x, y, cw, ch)); a = around((x, y, cw, ch))
+        if at is None or a is None or a.shape[0] < y1 - y + 2 * m or a.shape[1] < x1 - x + 2 * m: continue
+        big, bx, by = at
+        src = big[by * scale:(by + y1 - y) * scale, bx * scale:(bx + x1 - x) * scale]
+        if src.shape[:2] != ((y1 - y) * scale, (x1 - x) * scale): continue
+        cell = im[y:y1, x:x1]; under = a[m:m + y1 - y, m:m + x1 - x]
+        same = (cell[..., 3] < 128) | (cell[..., :3] == under[..., :3]).all(axis=2) | neighbour_art(cell, under, im, x, y)
+        if not same.any(): continue
+        dst = px[y * scale:y1 * scale, x * scale:x1 * scale]
+        k = panel_weight(same, scale)
+        dst[..., :3] = (dst[..., :3] * (1 - k) + src[..., :3] * k + 0.5).astype(np.uint8)
+    return px
+
+def panel_weight(same, scale):
+    """How much of the panel's own upscale each texel of a cell takes (0..1, at `scale` times the cell, one channel): all of it
+    from five eighths of an original texel away from the nearest texel the stamp changes, none within a quarter of one, so the
+    model's soft edge round a shape is kept (cut at the original's grid it came out in stair steps) and the panel's picture takes
+    over a little further out; all of it where the cell changes nothing."""
+    from scipy import ndimage
+    mask = np.repeat(np.repeat(same, scale, 0), scale, 1)
+    if mask.all(): return np.ones(mask.shape + (1,), np.float32)
+    d = ndimage.distance_transform_edt(mask)
+    return np.clip((d - scale / 4.0) / (3 * scale / 8.0), 0, 1).astype(np.float32)[..., None]
+
+_panels_seen = {}
+def upscaled_panel(panel, scale, out_dir):
+    """A panel's upscale at `scale` (upright RGBA): from the pack being written (`out_dir`; a job's panel comes before its sheets),
+    else --panels, else the user folder's pack of that scale; None without one. A .dds is read in its stored row order."""
+    key = (panel, scale, out_dir)
+    if key not in _panels_seen:
+        found = None
+        for d in (out_dir, OPTS.get("panels"), user_dir(scale)):
+            for ext in (".dds", ".png") if d else ():
+                p = os.path.join(d, panel + ext)
+                if not os.path.exists(p): continue
+                a = np.array(Image.open(p).convert("RGBA"))
+                found = a[::-1] if ext == ".dds" and panel in OPTS.get("bottom_up", ()) else a
+                break
+            if found is not None: break
+        _panels_seen[key] = found
+    return _panels_seen[key]
+
+def cell_panel_upscale(stem, cell, src, out_dir, scale):
+    """The upscaled panel a sheet's cell is stamped on and the place's x and y on it (cells_in_panel), or None: no place, no
+    upscale found, or one not `scale` times the original."""
+    if (at := PLACES.get(stem, {}).get(cell)) is None: return None
+    panel, x, y = at
+    p, big = neighbour_rgba(src, panel), upscaled_panel(panel, scale, out_dir)
+    if p is None or big is None or big.shape[:2] != (p.shape[0] * scale, p.shape[1] * scale): return None
+    return big, x, y
 
 def cell_surroundings(stem, cell, src, m=CELL_CONTEXT):
     """The panel's texels round the place a sheet's cell is stamped at (PLACES), from the originals in `src`; None without one."""
@@ -639,6 +739,7 @@ def one(job, run_model=None):
     else: alpha = run_model.alpha(a)
     scale = min(full_scale if matches(stem, full) else scale, big.shape[1] // ow)
     px = finish(big, ow, oh, scale, alpha)
+    if stem in CELLS: px = cells_in_panel(px, im, CELLS[stem], scale, lambda c: cell_surroundings(stem, c, src), lambda c: cell_panel_upscale(stem, c, src, out_dir, scale))
     write_out(px, os.path.join(out_dir, stem), flip, dds)
     return n, True
 
@@ -876,7 +977,7 @@ def with_context(im, plan, runner, colour, cm, scale, src):
     return trim(big, late * scale)
 
 # options of the run that one() reads (set by main, and in each worker of the process pool by its initializer)
-OPTS = {"masters_out": None, "family_masters": None, "x2_model": None}
+OPTS = {"masters_out": None, "family_masters": None, "x2_model": None, "panels": None, "bottom_up": frozenset()}
 
 def set_opts(opts):
     OPTS.update(opts)
@@ -938,6 +1039,7 @@ def main():
                     " inside a canvas of its neighbours' facing texels (or its own, wrapped), --context texels a side, cropped after")
     ap.add_argument("--cells", help="a cockpit layout (the install's vpit_1.elt): each sprite sheet it names is also upscaled a cell at a time, so"
                     " no cell takes in its neighbour's picture (the damage panel's lights, packed edge to edge)")
+    ap.add_argument("--panels", default=None, help="--cells: a pack folder holding the panels' upscales at --scale, read when --out has none (default: the user folder's pack of that scale)")
     ap.add_argument("--context", type=int, default=32, help="the context (source texels a side) --neighbours gives the model (default 32)")
     ap.add_argument("--then", dest="then_model", help="a second model over the run's own colour model's output (the route the shipped pack's"
                     " world textures took: 4xTextures_GTAV then 2xHDCube_Compact.pth, the 8x brought down to --scale); a file in --models-dir")
@@ -987,7 +1089,7 @@ def main():
     only, skip = globs_of(args.only), globs_of(args.skip) if args.skip else []
     names = sorted(n for n in os.listdir(args.src) if n.lower().endswith(".png") and any(fnmatch.fnmatch(n.lower()[:-4], g) or fnmatch.fnmatch(n.lower(), g) for g in only)
                    and not any(fnmatch.fnmatch(n.lower()[:-4], g) for g in skip))
-    OPTS.update(masters_out=args.masters_out, family_masters=args.family_masters, x2_model=args.x2_model)
+    OPTS.update(masters_out=args.masters_out, family_masters=args.family_masters, x2_model=args.x2_model, panels=args.panels, bottom_up=frozenset(bottom_up))
     if args.masters_out: os.makedirs(args.masters_out, exist_ok=True)
     fams = {n: family_of(n[:-4].lower(), table, args.alpha) for n in names}
     order = {row[0]: i for i, row in enumerate(table)}

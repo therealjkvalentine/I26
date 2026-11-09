@@ -196,6 +196,57 @@ src zsheet320.map
         # a place off the panel: none
         self.assertIsNone(ut.panel_around(panel, 39, 20, 4, 3, 2))
 
+    @staticmethod
+    def chevrons():
+        """Two chevron cells (12 x 4 each, one over the other) on the panel's grey, packed as the damage sheet's are: each chevron
+        (three rows, its arms joined to its point) sits at its cell's top, and the second's apex outline (dark) lies in the first
+        cell's last row, clear of the first chevron's arms; the panel grey 100 everywhere."""
+        sheet = np.zeros((8, 12, 4), np.uint8); sheet[..., :3] = 100; sheet[..., 3] = 255
+        for top in (0, 4):
+            sheet[top, 5:7, :3] = 250; sheet[top + 1, 3:5, :3] = 250; sheet[top + 1, 7:9, :3] = 250; sheet[top + 2, 1:3, :3] = 250; sheet[top + 2, 9:11, :3] = 250
+        sheet[3, 5:7, :3] = 0                                                       # the second chevron's apex outline, in the first cell's last row
+        panel = np.zeros((40, 40, 4), np.uint8); panel[..., :3] = 100; panel[..., 3] = 255
+        return sheet, panel
+
+    def test_a_neighbours_art_packed_into_the_border_shows_the_panel(self):
+        sheet, panel = self.chevrons()
+        under = panel[20:24, 10:22]
+        nb = ut.neighbour_art(sheet[0:4], under, sheet, 0, 0)
+        self.assertEqual(sorted(zip(*np.nonzero(nb))), [(3, 5), (3, 6)], "the apex outline in the last row, and nothing of the chevron")
+        self.assertFalse(ut.neighbour_art(sheet[4:8], under, sheet, 0, 4).any(), "the second cell's point is its own, joined to its arms")
+        own = sheet[0:4].copy(); own[2, 4:8, :3] = 0                            # the run joined to the chevron is the chevron's own outline
+        self.assertFalse(ut.neighbour_art(own, under, sheet, 0, 0).any())
+        alone = sheet.copy(); alone[4] = (100, 100, 100, 255)                   # nothing across the border: a line of the cell's own
+        self.assertFalse(ut.neighbour_art(alone[0:4], under, alone, 0, 0).any())
+        # on its own, the cell goes to the model with the panel in that row: the stand-in (nearest 2x) shows no dark there
+        placed = ut.by_cells(sheet, [(0, 0, 12, 4), (0, 4, 12, 4)], lambda p: np.repeat(np.repeat(p, 2, 0), 2, 1), lambda c: ut.panel_around(panel, 10, 20, c[2], c[3], 2), m=2)
+        self.assertTrue((placed[6:8, 10:14, :3] == 100).all(), "the first cell's last row is the panel's grey, not the next chevron's outline")
+        self.assertTrue((placed[0:2, 10:14, :3] == 250).all() and (placed[8:10, 10:14, :3] == 250).all(), "both chevrons' points as they were")
+
+    def test_a_cell_carries_the_panels_own_picture_where_the_stamp_changes_nothing(self):
+        # the sheet's cells in their own colours (white, green) on the panel's grey; the panel's upscale a blue-grey the model
+        # never made: stamped, the tile's background is the panel's own picture, its lit shape the model's, and its last row
+        # (the next cell's outline) the panel's, not the next cell's
+        sheet, panel = self.chevrons(); sheet[4:8][sheet[4:8, :, 0] == 250] = (0, 200, 0, 255)
+        sheet[3, 0, 3] = 0                                                       # a keyed texel in the first cell's corner
+        px = np.repeat(np.repeat(sheet, 2, 0), 2, 1)                             # the model's finished sheet, 2x
+        big = np.zeros((80, 80, 4), np.uint8); big[..., :3] = (90, 100, 120); big[..., 3] = 255
+        cells = [(0, 0, 12, 4), (0, 4, 12, 4)]
+        out = ut.cells_in_panel(px.copy(), sheet, cells, 2, lambda c: ut.panel_around(panel, 10, 20, c[2], c[3], 2), lambda c: (big, 10, 20), m=2)
+        from scipy import ndimage
+        for cell, lit, colour in ((out[0:8, 0:24], np.repeat(np.repeat((sheet[0:4, :, :3] == 250).all(2), 2, 0), 2, 1), 250),
+                                  (out[8:16, 0:24], np.repeat(np.repeat(sheet[4:8, :, 1] == 200, 2, 0), 2, 1), (0, 200, 0))):
+            d = ndimage.distance_transform_edt(~lit)
+            self.assertTrue((cell[lit, :3] == colour).all(), "the lit shape is the model's")
+            self.assertTrue((cell[d >= 1.25, :3] == (90, 100, 120)).all(), "from five eighths of a texel out every texel is the panel's own picture")
+            beside = (d > 0) & (d < 1.25)
+            self.assertTrue(beside.any() and (cell[beside, :3] != (90, 100, 120)).any() and (cell[beside, :3] != 100).any(), "beside it the model's edge fades into the panel's")
+        self.assertTrue((out[6:8, 10:14, :3] == (90, 100, 120)).all(), "the first cell's last row (the next chevron's outline) is the panel's, not the next cell's")
+        self.assertTrue((out[..., 3] == px[..., 3]).all() and (out[6:8, 0:2, 3] == 0).all() and (out[6:8, 0:2, :3] == (90, 100, 120)).all(), "the alpha stays the cell's")
+        # no upscale of the panel to read: the sheet as the model made it
+        same = ut.cells_in_panel(px.copy(), sheet, cells, 2, lambda c: ut.panel_around(panel, 10, 20, c[2], c[3], 2), lambda c: None, m=2)
+        self.assertTrue((same == px).all())
+
 
 class Recut(unittest.TestCase):
     def test_the_alpha_is_the_fields_cut_and_the_edge_the_originals_colour(self):
