@@ -1536,6 +1536,10 @@ public sealed class ShellSettings
     public bool Antialias1997 { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look's muzzle flash, each gun's one sprite lit again at the shot's place in its tick ([port] even_flash, written when off).</summary>
     public bool EvenFlash { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's lamps warm up and cool down as 1976's incandescent bulbs did instead of switching in one frame (LampRamp; [port] lamp_ramp, written when off).</summary>
+    public bool LampRamp { get; set; } = true;
+    /// <summary>The port's own, without a row: the modern look's lamp lens glows and glares in percent (LampStrength.Halo; [port] lamp_halo, 65, written when not the default).</summary>
+    public int LampHalo { get; set; } = I76.Game.Sim.LampStrength.HaloDefault;
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1789,6 +1793,8 @@ public sealed class ShellSettings
         s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
+        s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -1950,6 +1956,8 @@ public sealed class ShellSettings
         if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
+        if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
+        if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

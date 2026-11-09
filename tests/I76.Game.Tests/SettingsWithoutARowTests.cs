@@ -13,6 +13,7 @@ namespace I76.Game.Tests;
 /// The settings without a row (docs/playing.md): their stored words, the keys that follow the look, the sky's default, Unlim.
 /// Ordnance offline only; and the pads' rows that fold or mark the original's value (Force Feedback, Melee A.I.).
 /// </summary>
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets globals: not alongside the lamp ramp tests
 public class SettingsWithoutARowTests
 {
     private sealed class Flat : IGround

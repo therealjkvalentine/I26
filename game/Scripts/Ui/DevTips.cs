@@ -48,6 +48,8 @@ public static class DevTips
         "low_latency_audio" => "A 5 ms sound buffer and a faster physics step: sounds start about 15 ms sooner. Turn off if the sound crackles. Next start.",
         "aa_1997" => "The 1997 look takes Graphic Detail's Anti-Aliasing; false draws its edges unsmoothed, as the 3D card did.",
         "even_flash" => "The 1997 look: a gun's muzzle flash lit at each shot between ticks, so a fast gun flashes evenly.",
+        "lamp_ramp" => "The modern look's head, brake and tail lamps warm up and cool down as 1976's bulbs did; off switches them in one frame, as the original.",
+        "lamp_halo" => "The modern look's lamp lens glows and glares (the halo round a lit lamp), in percent; 65 is a third under the earlier strength. The beams keep their light.",
         "rumble" => "Force Feedback's pad events: the original's effects only, or enhanced with pulses for nitrous, gears, the starter and shots.",
         "hd_menu_art" => "With an HD menu pack, the modern look's menus and mission map draw its upscaled pictures; false the original ones. Next screen.",
         "lighting_calibration" => "The modern look's lighting matched by day to the 1997 look's colours and brightness; filmic a softer curve; off uncalibrated.",
