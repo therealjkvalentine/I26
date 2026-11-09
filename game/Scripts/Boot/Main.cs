@@ -1924,6 +1924,7 @@ public partial class Main : Node3D
     {
         if (System.Environment.GetEnvironmentVariable("I76_CAR_PREFETCH") == "0" || builder.Textures is not { } tf || builder.Resolver is not { } res) return;
         tf.Prefetch(I76.Game.Sim.Cockpit.ArtStems(variant).Select(res.FindByStem).OfType<string>(), rgba: true);
+        I76.Game.Sim.RadarFrames.Prefetch(tf, res);
         MissionBuilder.Trace("cockpit art prefetched");
     }
 
