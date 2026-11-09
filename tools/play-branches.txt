@@ -414,3 +414,6 @@ fix/dev-panel-cheat-flag              # section BE: CheatMarker in two parts: th
 
 # BF. dash art filtered (2026-11-08)
 feat/dash-antialias                   # section BF: the modern look reads the cockpit's art through a linear/mipmap/anisotropic sampler (albedo_cockpit_soft, i76_cockpit_soft; magnified art keeps flat texels with one-pixel edge blending); LiveTexture carries five mip levels made on the GPU by a compute kernel under the changed rectangle; 2D instruments filter pack panels; 1997 look untouched (zero-diff dash rows). T05 owner profile: GPU main view 11.1 -> 8.5 ms, cockpit 0.51 -> 0.49 ms. Evidence: _scratch/r7-dash-aa/crops/sheet-curve.png, sheet-down.png, clips/*-clip-10s.mp4, fc/results.tsv
+
+# BG. fork deltas document (2026-11-08)
+docs/fork-deltas                      # section BG: docs/fork-deltas.md, the fork's changes against upstream master in one page for visitors (13 areas, 82 delta lines with their options and manifest letters, How to try it), linked from README. Evidence: the letter check against the manifest and the names/paths grep in the commit message
