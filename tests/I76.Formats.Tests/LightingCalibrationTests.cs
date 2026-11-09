@@ -239,4 +239,63 @@ public class LightingCalibrationTests
     {
         Assert.Equal(1, M.NightRoad(Luma, 1, 0.7, 0, 0.5));
     }
+
+    // Oklab from linear RGB: lightness, and chroma as a share of it (a hue-keeping dimming leaves C/L where it was)
+    private static (double L, double CL, double Hue) Oklab(M.Rgb c)
+    {
+        double l = Math.Cbrt(0.4122214708 * c.R + 0.5363325363 * c.G + 0.0514459929 * c.B);
+        double m = Math.Cbrt(0.2119034982 * c.R + 0.6806995451 * c.G + 0.1073969566 * c.B);
+        double s = Math.Cbrt(0.0883024619 * c.R + 0.2817188376 * c.G + 0.6299787005 * c.B);
+        double L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+        double a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, b = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+        return (L, Math.Sqrt(a * a + b * b) / L, Math.Atan2(b, a) * 180 / Math.PI);
+    }
+
+    [Fact]
+    public void TheMoonsLightOnTheNightGroundKeepsTheGroundsOwnColour()
+    {
+        // a brown ground (the texels of a desert map's dirt); the modern moon's light, blue, at T06's solved share
+        var brown = new M.Rgb(0.0116, 0.0048, 0.0024);
+        var moon = new M.Rgb(0.318, 0.448, 1.0) * (1.3 * 0.094 * 0.37 * 0.8);
+        var (L0, cl0, hue0) = Oklab(brown);
+        // the moon's own colour, with its glint in it: a dark blue-grey, charcoal
+        var (Lb, clb, hueb) = Oklab(M.NightGroundLight(brown, moon, M.GroundGlint, 0));
+        Assert.True(hueb < -60 && hueb > -120, $"hue {hueb}");
+        // at the whole chroma: the ground's own hue and colour share, darkened
+        var kept = M.NightGroundLight(brown, moon, M.GroundGlint, M.NightChroma);
+        var (L1, cl1, hue1) = Oklab(kept);
+        Assert.InRange(hue1, hue0 - 3, hue0 + 3);
+        Assert.InRange(cl1 / cl0, 0.9, 1.1);
+        Assert.True(L1 < L0 / 2);
+        // the chroma leaves the light's luminance about where it was (within a few percent: the channels' products), so the night stays as dark
+        Assert.InRange(kept.Luminance / M.NightGroundLight(brown, moon, M.GroundGlint, 0).Luminance, 0.95, 1.05);
+        Assert.InRange(kept.Luminance / M.NightGroundLight(brown, moon, M.GroundGlint, 0.6).Luminance, 0.95, 1.05);
+        // 0.6 and 0.8 keep about those shares of the ground's colour
+        Assert.InRange(Oklab(M.NightGroundLight(brown, moon, M.GroundGlint, 0.6)).CL / cl0, 0.45, 0.75);
+        Assert.InRange(Oklab(M.NightGroundLight(brown, moon, M.GroundGlint, 0.8)).CL / cl0, 0.65, 0.95);
+    }
+
+    [Fact]
+    public void TheWarmMoonTurnsAGreyGroundBrownAtTheSameLuminance()
+    {
+        // T06's ground is a near-neutral grey: kept as it is by default, a dark brown-grey toward moonlight's warm white
+        var grey = new M.Rgb(0.010, 0.010, 0.011);
+        var moon = new M.Rgb(0.318, 0.448, 1.0) * 0.045;
+        var kept = M.NightGroundLight(grey, moon, M.GroundGlint, 1);
+        var warm = M.NightGroundLight(grey, moon, M.GroundGlint, 1, 1);
+        Assert.True(Oklab(kept).CL < 0.06);
+        Assert.True(Oklab(warm).CL > 0.07);
+        Assert.InRange(Oklab(warm).Hue, 30, 90);
+        Assert.InRange(warm.Luminance / kept.Luminance, 0.95, 1.05);
+        Assert.Equal(1, M.Moonlight.Luminance, 2);
+        Assert.Equal(1, M.NightWarm);
+    }
+
+    [Fact]
+    public void TheNightSkyAndTheGroundsColourAreTheConsolesLevels()
+    {
+        // the sky darker than the quarter that left it at twice the ground's lightness; the ground's colour whole
+        Assert.InRange(M.NightSky, 0.02, 0.125);
+        Assert.Equal(1, M.NightChroma);
+    }
 }

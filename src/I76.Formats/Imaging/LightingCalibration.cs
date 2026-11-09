@@ -211,9 +211,50 @@ public static class LightingCalibration
     /// <summary>
     /// The modern night sky's gain through the card's curve (sky_modern.gdshaderinc sky_gain; the moon's disc is not scaled): 1 is the
     /// texture as the 1997 dome shows it (T06, Oklab L 0.28 against the 1997 look's 0.24); darker to sit over a ground at a tenth
-    /// of the 1997 look's light (<see cref="NightGround"/>), chosen at the console (I76_NIGHT_SKY to compare).
+    /// of the 1997 look's light (<see cref="NightGround"/>), chosen at the console (I76_NIGHT_SKY to compare): a quarter left the sky
+    /// (T06, Oklab L 0.18) at twice the ground's lightness, where the original's night sky sits near its ground's (the retail game's
+    /// T06 through the 3D card: sky 0.25, ground 0.21 to 0.28), so it is darker again, near the ground's (0.11 against 0.10).
     /// </summary>
-    public const double NightSky = 0.25;
+    public const double NightSky = 0.05;
+
+    /// <summary>
+    /// How much of the ground's own colour the moon's light on it keeps at night (terrain_modern_night.gdshader i76_night_chroma): the
+    /// original's ramp is a grey light on the texture's colour, so its night ground is the texture's own colour, darkened (T06's a
+    /// near-neutral blue-grey: in the retail game and the 1997 look Oklab chroma 0.04 of its lightness); the modern moon is blue
+    /// (0.6, 0.7, 1) and its glint on the ground, most of a near-black ground's light, is in the moon's colour, so the moonlit ground was
+    /// four times as chromatic, a dark blue. At 1 the moon's light on the ground is its luminance in grey and its glint takes the
+    /// ground's colour at the glint's own luminance (<see cref="NightGroundLight"/>), so the ground darkens without changing colour, as
+    /// the ramp darkens it; 0 is the moon's own colour on it (I76_NIGHT_CHROMA to compare). The cars and the sky keep the moon's blue.
+    /// </summary>
+    public const double NightChroma = 1;
+
+    /// <summary>
+    /// How far the moon's light on the ground at night is turned toward moonlight's own colour, a warm white (about 4100 K: the sun's
+    /// light off the moon's regolith, redder than daylight; the modern moon is drawn blue, as night is shown by convention), at the same
+    /// luminance (terrain_modern_night.gdshader i76_night_warm). 0: the original's colours, the ground the texture's own (T06's is a
+    /// near-neutral blue-grey, Oklab chroma 0.03 to 0.04 of its lightness, in the original as in the 1997 look). 1 shows it as a dark
+    /// brown-grey (I76_NIGHT_WARM to compare).
+    /// </summary>
+    public const double NightWarm = 1;
+
+    /// <summary>The moon's warm white (<see cref="NightWarm"/>), linear, at a luminance of 1.</summary>
+    public static readonly Rgb Moonlight = new(1.472, 0.909, 0.518);
+
+    /// <summary>
+    /// The moon's light on a ground texel at night as the night terrain shader lights it (linear): its diffuse light,
+    /// <paramref name="albedo"/> times the moon's light <paramref name="moon"/> (colour times energy and n·L), and its glint,
+    /// <paramref name="glint"/> of the moon's light off the surface, each with <paramref name="chroma"/> of the ground's own colour
+    /// (<see cref="NightChroma"/>): the moon's colour turned toward its luminance in grey, the glint toward the albedo's colour at
+    /// the albedo's luminance, and turned <paramref name="warm"/> of the way toward <see cref="Moonlight"/> at its luminance.
+    /// </summary>
+    public static Rgb NightGroundLight(Rgb albedo, Rgb moon, double glint, double chroma, double warm = 0)
+    {
+        double ml = moon.Luminance, al = Math.Max(albedo.Luminance, 1e-9);
+        var light = new Rgb(ml + (moon.R - ml) * (1 - chroma), ml + (moon.G - ml) * (1 - chroma), ml + (moon.B - ml) * (1 - chroma));
+        light = light * (1 - warm) + Moonlight * (ml * warm);
+        var hue = new Rgb(1 + (albedo.R / al - 1) * chroma, 1 + (albedo.G / al - 1) * chroma, 1 + (albedo.B / al - 1) * chroma);
+        return new Rgb(albedo.R * light.R + glint * light.R * hue.R, albedo.G * light.G + glint * light.G * hue.G, albedo.B * light.B + glint * light.B * hue.B);
+    }
 
     /// <summary>
     /// The map's ground as cells, every <paramref name="stride"/>th sample each way: the engine's gradient (central
