@@ -250,6 +250,14 @@ i76_night_road={
 "type": "float",
 "value": 1.0
 }
+i76_night_chroma={
+"type": "float",
+"value": 0.0
+}
+i76_night_warm={
+"type": "float",
+"value": 0.0
+}
 i76_terrain_tiers={
 "type": "float",
 "value": 1.0

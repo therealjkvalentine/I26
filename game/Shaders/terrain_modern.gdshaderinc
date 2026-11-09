@@ -686,18 +686,30 @@ void fragment() {
 float i76_schlick(float u) { float m = 1.0 - u; float m2 = m * m; return m2 * m2 * m; }
 void light() {
 	float share = LIGHT_IS_DIRECTIONAL ? mix(1.0, i76_night_road, v_road) : 1.0;
+	// the moon's light in grey and its glint in the ground's own colour, each at its own luminance (terrain_night.gdshaderinc,
+	// i76_night_chroma): the texture darkens without greying, as the original's ramp darkens it; the lamps' light is untouched
+	vec3 light_col = LIGHT_COLOR;
+	vec3 glint_hue = vec3(1.0);
+	if (LIGHT_IS_DIRECTIONAL && (i76_night_chroma > 0.0 || i76_night_warm > 0.0)) {
+		const vec3 LUM = vec3(0.2126, 0.7152, 0.0722);
+		light_col = mix(LIGHT_COLOR, vec3(dot(LIGHT_COLOR, LUM)), i76_night_chroma);
+		// i76_night_warm: the moon's light toward the colour moonlight has (about 4100 K, the sun's light off the moon's
+		// grey-brown regolith, redder than daylight), at the same luminance
+		light_col = mix(light_col, dot(LIGHT_COLOR, LUM) * vec3(1.472, 0.909, 0.518), i76_night_warm);
+		glint_hue = mix(vec3(1.0), ALBEDO / max(dot(ALBEDO, LUM), 1e-4), i76_night_chroma);
+	}
 	vec3 h = normalize(VIEW + LIGHT);
 	float ndl = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
 	float ndv = max(dot(NORMAL, VIEW), 1e-4);
 	float ndh = clamp(dot(NORMAL, h), 0.0, 1.0);
 	float ldh = clamp(dot(LIGHT, h), 0.0, 1.0);
-	DIFFUSE_LIGHT += ndl * ATTENUATION * LIGHT_COLOR * share / PI;
+	DIFFUSE_LIGHT += ndl * ATTENUATION * light_col * share / PI;
 	float a = ROUGHNESS * ROUGHNESS;
 	float k = a / (1.0 - ndh * ndh + ndh * ndh * a * a);
 	float D = k * k / PI;
 	float G = 0.5 / mix(2.0 * ndl * ndv, ndl + ndv, a);
 	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
 	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
-	SPECULAR_LIGHT += ndl * D * G * F * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT * share;
+	SPECULAR_LIGHT += ndl * D * G * F * ATTENUATION * light_col * glint_hue * SPECULAR_AMOUNT * share;
 }
 #endif
