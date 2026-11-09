@@ -74,6 +74,19 @@ pack's keyed textures that outline as their alpha, so every path that reads the 
 Each texture of --out with a field is rewritten in place: its alpha the field cut at half, the band within --recut-edge
 original texels of the cut (default 0.9) faded to the original's own colours smoothly enlarged (pixel_scale), and the colour
 bled under the new key. The file it replaces is moved to PACK/.recut-prev/ first (kept once: a second run keeps the first's).
+
+Painted edges and small details (--paint-masks, --paint-cut): a model follows a hard painted edge between two flat paints (a
+cruiser's white door on its black body) as a wobble a texel or two wide, and turns a lamp or a badge a few texels across into a
+blob with a dark rim. --paint-masks writes, for each texture, the two-tone mask (the lighter of the two commonest flat colours'
+regions, small holes filled) as MASKS/STEM.pgm and the small saturated details (up to --detail-size texels each) as
+MASKS/STEM.detail.pgm, in the stored row order; `i76 key-edge FIELDS N --masks MASKS STEM STEM.detail ...` makes their smooth
+outlines as it does a key's; --paint-cut FIELDS then rewrites each texture of --out: along the two-tone outline, the band within
+--recut-edge original texels of it takes each side's own colour (bled from that side's interior), so the painted edge is the
+smooth outline and the model's wobble is gone; inside a detail's outline the original's texels smoothly enlarged (pixel_scale)
+take the model's place, with the same band outside it. The files replaced are kept in PACK/.recut-prev/ as --recut keeps them:
+           python3 tools/upscale-textures.py SRC_DIR --paint-masks MASKS [--only ...]
+           i76 --install DIR key-edge FIELDS 8 --masks MASKS STEM...
+           python3 tools/upscale-textures.py SRC_DIR --paint-cut FIELDS --out PACK --scale 8 [--only ...]
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
@@ -592,6 +605,171 @@ def recut_pack(src, fields, out, only, edge, bottom_up, etcpak):
         write_dds(dds + ".part", recut(px, field, orig, edge), etcpak); os.replace(dds + ".part", dds); done += 1
     print(f"{done} recut in {out} (the files replaced in {prev})")
 
+def flat_two_tone(orig, share=0.03, step=24):
+    """The two commonest flat colours of an original (RGBA): texels whose 3 x 3 neighbourhood is one colour, binned `step` apart;
+    the two largest bins (each at least `share` of the opaque texels and 64 texels, their lumas 0.25 apart) as (light, dark) RGB, else None."""
+    rgb = orig[..., :3].astype(np.int32); op = orig[..., 3] >= 128
+    pad = np.pad(rgb, ((1, 1), (1, 1), (0, 0)), mode="edge")
+    flat = np.ones(op.shape, bool)
+    for dy in (0, 1, 2):
+        for dx in (0, 1, 2):
+            flat &= (np.abs(pad[dy:dy + op.shape[0], dx:dx + op.shape[1]] - rgb).max(axis=2) <= 8)
+    flat &= op
+    if flat.sum() < 16: return None
+    bins = {}
+    for c in map(tuple, (rgb[flat] // step)): bins[c] = bins.get(c, 0) + 1
+    least = max(64, share * op.sum())
+    top = [(c, n) for c, n in sorted(bins.items(), key=lambda kv: -kv[1]) if n >= least]
+    if len(top) < 2: return None
+    def colour(c): return rgb[flat][(rgb[flat] // step == np.array(c)).all(axis=1)].mean(axis=0)
+    def luma(c): return c @ np.array([0.299, 0.587, 0.114]) / 255
+    first = colour(top[0][0])
+    # the second tone: the largest bin a quarter of the luma range away from the first (a black body's shades are one tone)
+    second = next((colour(c) for c, _ in top[1:] if abs(luma(colour(c)) - luma(first)) >= 0.25), None)
+    if second is None: return None
+    return (first, second) if luma(first) > luma(second) else (second, first)
+
+def near_colour(rgb, col, tol=28): return np.abs(rgb.astype(np.int32) - np.asarray(col, np.int32)).max(axis=2) <= tol
+
+def between_colours(rgb, a, b, tol=28):
+    """Texels whose colour lies on the line from a to b (within tol): the painter's anti-aliased texels between two tones."""
+    p = rgb.astype(np.float32) - np.asarray(a, np.float32); d = np.asarray(b, np.float32) - np.asarray(a, np.float32)
+    t = np.clip((p @ d) / max(float(d @ d), 1e-6), 0, 1)
+    return np.abs(p - t[..., None] * d).max(axis=2) <= tol
+
+def paint_masks(orig, detail_size=40):
+    """A texture's masks for --paint-cut: (two-tone, detail), each a bool picture or None. Two-tone: the lighter flat colour's
+    region where it meets the darker one (holes under 100 texels filled, no piece under 24 texels), only if the texture has two
+    flat tones (flat_two_tone). Detail: the solid saturated pieces of at most detail_size texels, no wider or taller than 10, with no other
+    saturated texel within four texels (a lamp, a badge; not the pieces of a larger decal), each one texel larger all round."""
+    from scipy import ndimage
+    op = orig[..., 3] >= 128; rgb = orig[..., :3]
+    two = None
+    if (tones := flat_two_tone(orig)) is not None:
+        light, dark = tones
+        a = near_colour(rgb, light) & op
+        holes = ~a & ndimage.binary_fill_holes(a | ~op) & op
+        lab, n = ndimage.label(holes)
+        if n:
+            sizes = ndimage.sum(holes, lab, range(1, n + 1))
+            a |= np.isin(lab, [i + 1 for i, sz in enumerate(sizes) if sz < 100])
+        lab, n = ndimage.label(a)
+        if n:
+            sizes = ndimage.sum(a, lab, range(1, n + 1))
+            a &= ~np.isin(lab, [i + 1 for i, sz in enumerate(sizes) if sz < 24])
+        # kept only where the dark tone lies along it: the region's rim (two texels, past the painter's anti-aliased texel) meets the dark colour
+        rim = ndimage.binary_dilation(a, iterations=2) & ~a
+        if a.any() and (rim & near_colour(rgb, dark) & op).sum() >= 8: two = a
+    hsv = np.array(Image.fromarray(np.ascontiguousarray(orig[..., :3]), "RGB").convert("HSV"))
+    sat = (hsv[..., 1] > 128) & (hsv[..., 2] > 96) & op
+    lab, n = ndimage.label(sat)
+    det = None
+    if n:
+        sizes = ndimage.sum(sat, lab, range(1, n + 1)); objs = ndimage.find_objects(lab); keep = np.zeros_like(sat)
+        for i, (sz, sl) in enumerate(zip(sizes, objs)):
+            # a lamp or a badge: a few texels, no taller or wider than 10, solid (half its box at least) and on its own (no other
+            # saturated texel within four texels of it): the pieces of a larger decal, a star's ring, stay the model's
+            bh, bw = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+            if not 2 <= sz <= detail_size or max(bh, bw) > 10 or sz < 0.5 * bh * bw: continue
+            piece = lab == i + 1
+            if (ndimage.binary_dilation(piece, iterations=4) & sat & ~piece).any(): continue
+            # and set off from its surround: the ring of texels one to three out is unsaturated (a grey body) or of another hue
+            # (an amber lamp on green paint), not the same hue darker (a light's own streaks, a lit bar's)
+            ring = ndimage.binary_dilation(piece, iterations=3) & ~ndimage.binary_dilation(piece) & op
+            if ring.any() and hsv[..., 1][ring].mean() >= 80:
+                dh = np.abs(hsv[..., 0][ring].astype(np.int32) - int(np.median(hsv[..., 0][piece]))); dh = np.minimum(dh, 256 - dh)
+                if np.median(dh) < 28: continue
+            keep |= piece
+        if keep.any(): det = ndimage.binary_dilation(keep) & op
+    return two, det
+
+def paint_masks_out(src, out, only, bottom_up, detail_size):
+    """--paint-masks: each texture's masks as out/STEM.pgm (two-tone) and out/STEM.detail.pgm, in the stored row order."""
+    os.makedirs(out, exist_ok=True); n2 = nd = 0
+    for fn in sorted(os.listdir(src)):
+        stem = fn[:-4].lower()
+        if not fn.endswith(".png") or not any(fnmatch.fnmatch(stem, g) for g in only): continue
+        orig = np.array(Image.open(os.path.join(src, fn)).convert("RGBA"))
+        if stem in bottom_up: orig = orig[::-1]
+        two, det = paint_masks(orig, detail_size)
+        for m, name in ((two, stem), (det, stem + ".detail")):
+            if m is None: continue
+            with open(os.path.join(out, name + ".pgm"), "wb") as f:
+                f.write(f"P5 {m.shape[1]} {m.shape[0]} 255\n".encode("ascii")); f.write(np.where(m, 255, 0).astype(np.uint8).tobytes())
+            if name == stem: n2 += 1
+            else: nd += 1
+    print(f"{n2} two-tone masks and {nd} detail masks in {out}")
+
+def paint_cut(px, field, s, edge=0.9, valid=None, keyed=None):
+    """--paint-cut: along a painted edge's smooth outline (a field as recut takes: 128 on the edge, reaching 2 original texels
+    each way; s the upscale's texels an original texel) the band within `edge` original texels of it takes each side's own
+    colour, bled from that side's texels beyond the band, the two sides cut at the outline over one upscale texel; elsewhere
+    the upscale is kept. `valid` (bool, the original's size): the band only where the original's texels are of the two flat
+    tones on both sides (not where the region meets a decal or a chrome strip, whose edge stays the model's). `keyed` (bool,
+    the original's size): the texture's keyed texels, which a car's opaque faces show (the original's are the key's colour, the
+    pack's the colour bled under them); within three texels outside the outline they take the dark side's own colour, from
+    beyond the key, so a panel that ends at a keyed strip ends cleanly against it."""
+    inside = (field.astype(np.float32) - 128) / 127 * 2
+    band = np.abs(inside) < edge
+    if valid is not None: band &= np.repeat(np.repeat(valid, s, 0), s, 1)
+    outer = inside <= -edge
+    if keyed is not None:
+        k = np.repeat(np.repeat(keyed, s, 0), s, 1)
+        band |= k & (inside > -3) & (inside < 0); outer &= ~k
+    if not band.any(): return px
+    rgb = px[..., :3].astype(np.float32)
+    a = bleed(rgb, np.where(inside >= edge, 255, 0), passes=int(edge * s) + 4)
+    b = bleed(rgb, np.where(outer, 255, 0), passes=3 * s + 4)
+    w = np.clip(inside * s + 0.5, 0, 1)[..., None]   # the field climbs 2 original texels = 2 s upscale texels each way
+    out = np.where(band[..., None], a * w + b * (1 - w), rgb)
+    return np.dstack([np.clip(out + 0.5, 0, 255).astype(np.uint8), px[..., 3]])
+
+def restore_detail(px, field, orig, edge=0.9):
+    """--paint-cut's details: inside a detail's smooth outline the original's texels smoothly enlarged (pixel_scale) take the
+    upscale's place; the band within `edge` original texels outside it takes the upscale's own colour from beyond the band."""
+    s = px.shape[1] // orig.shape[1]
+    inside = (field.astype(np.float32) - 128) / 127 * 2
+    region = inside >= 0; band = (inside < 0) & (inside > -edge)
+    rgb = px[..., :3].astype(np.float32)
+    ps = pixel_scale(orig, s)[..., :3].astype(np.float32)
+    outer = bleed(rgb, np.where(inside <= -edge, 255, 0), passes=int(edge * s) + 4)
+    out = np.where(region[..., None], ps, np.where(band[..., None], outer, rgb))
+    return np.dstack([np.clip(out + 0.5, 0, 255).astype(np.uint8), px[..., 3]])
+
+def paint_cut_pack(src, fields, out, only, edge, bottom_up, etcpak):
+    """--paint-cut over a pack: each texture with a two-tone field (STEM.pgm) or a detail field (STEM.detail.pgm) in `fields`
+    and a .dds in `out` rewritten in place; the file replaced kept in out/.recut-prev/ once."""
+    import shutil
+    prev = os.path.join(out, ".recut-prev"); os.makedirs(prev, exist_ok=True); done = 0
+    stems = sorted({fn[:-4].replace(".detail", "").lower() for fn in os.listdir(fields) if fn.endswith(".pgm")})
+    for stem in stems:
+        if not any(fnmatch.fnmatch(stem, g) for g in only): continue
+        dds, png = os.path.join(out, stem + ".dds"), os.path.join(src, stem + ".png")
+        if not os.path.exists(dds) or not os.path.exists(png): continue
+        px = np.array(Image.open(dds).convert("RGBA"))
+        orig = np.array(Image.open(png).convert("RGBA"))
+        if stem in bottom_up: orig = orig[::-1]
+        changed = False
+        for kind in ("", ".detail"):
+            fp = os.path.join(fields, stem + kind + ".pgm")
+            if not os.path.exists(fp): continue
+            field = np.array(Image.open(fp))
+            if px.shape[:2] != field.shape or px.shape[1] % orig.shape[1]: print(f"{stem}{kind}: sizes differ, left"); continue
+            if kind == "":
+                valid = None
+                if (tones := flat_two_tone(orig)) is not None:
+                    from scipy import ndimage
+                    # a keyed texel counts as a tone: the region's edge along the key is the face's cut, straight in the game
+                    both = between_colours(orig[..., :3], tones[0], tones[1]) | (orig[..., 3] < 128)   # the tones and the anti-aliased texels between
+                    valid = ndimage.binary_erosion(both, iterations=2, border_value=1)   # the two texels round the edge are the tones
+                px = paint_cut(px, field, px.shape[1] // orig.shape[1], edge, valid, orig[..., 3] < 128)
+            else: px = restore_detail(px, field, orig, edge)
+            changed = True
+        if not changed: continue
+        if not os.path.exists(os.path.join(prev, stem + ".dds")): shutil.copy2(dds, os.path.join(prev, stem + ".dds"))
+        write_dds(dds + ".part", px, etcpak); os.replace(dds + ".part", dds); done += 1
+    print(f"{done} painted edges and details recut in {out} (the files replaced in {prev})")
+
 def write_out(px, out, flip, dds):
     """The finished RGBA (upright) as out.dds (BC7, in the stored row order) or out.png."""
     if dds and px.shape[0] % 4 == 0 and px.shape[1] % 4 == 0:
@@ -694,6 +872,11 @@ def main():
                     " world textures took: 4xTextures_GTAV then 2xHDCube_Compact.pth, the 8x brought down to --scale); a file in --models-dir")
     ap.add_argument("--recut", default=None, help="a folder of `i76 key-edge FIELDS 4` fields: the pack's keyed textures (in --out) take the game's"
                     " smooth outline as their alpha, their edge the original's colours; nothing is upscaled")
+    ap.add_argument("--paint-masks", default=None, help="write each texture's painted two-tone mask (STEM.pgm) and small saturated details' mask"
+                    " (STEM.detail.pgm) there, for `i76 key-edge FIELDS N --masks` and --paint-cut")
+    ap.add_argument("--detail-size", type=int, default=40, help="--paint-masks: a saturated detail (a lamp, a badge) is at most this many texels (default 40)")
+    ap.add_argument("--paint-cut", default=None, help="a folder of `i76 key-edge --masks` fields: the pack's painted two-tone edges (in --out) follow the"
+                    " smooth outline, and its small details are the original's texels smoothly enlarged; each file replaced kept in .recut-prev/")
     ap.add_argument("--recut-edge", type=float, default=0.9, help="--recut's band, in original texels inside the cut, faded to the original's colours (default 0.9; 0 none)")
     ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
@@ -715,6 +898,11 @@ def main():
     if os.path.exists(os.path.join(args.src, "bottom-up.txt")):
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
+    if args.paint_masks:
+        paint_masks_out(args.src, args.paint_masks, globs_of(args.only), bottom_up, args.detail_size); return
+    if args.paint_cut:
+        if not etcpak: sys.exit("--paint-cut writes .dds: etcpak and bottom-up.txt are needed")
+        paint_cut_pack(args.src, args.paint_cut, args.out, globs_of(args.only), args.recut_edge, bottom_up, etcpak); return
     if args.recut:
         if not etcpak: sys.exit("--recut writes .dds: etcpak and bottom-up.txt are needed")
         recut_pack(args.src, args.recut, args.out, globs_of(args.only), args.recut_edge, bottom_up, etcpak); return

@@ -48,6 +48,22 @@ if (argv.Count == 0 || installDir is null)
 var install = new GameInstall(installDir);
 var json = new JsonSerializerOptions { WriteIndented = true, IncludeFields = true };
 string Arg(int i) => argv.Count > i ? argv[i] : throw new ArgumentException($"{argv[0]} needs an argument");
+// a binary PGM (P5, one byte a pixel, as key-edge writes them and --paint-masks writes its masks), or null if missing
+static (byte[] Pixels, int Width, int Height)? ReadPgm(string path)
+{
+    if (!File.Exists(path)) return null;
+    var b = File.ReadAllBytes(path);
+    var head = new List<string>(); int i = 0;
+    while (head.Count < 4 && i < b.Length)
+    {
+        while (i < b.Length && char.IsWhiteSpace((char)b[i])) i++;
+        int j = i; while (j < b.Length && !char.IsWhiteSpace((char)b[j])) j++;
+        head.Add(System.Text.Encoding.ASCII.GetString(b, i, j - i)); i = j;
+    }
+    if (head.Count < 4 || head[0] != "P5") throw new InvalidDataException($"{path}: not a P5 pgm");
+    int w = int.Parse(head[1]), h = int.Parse(head[2]); i++;
+    return (b[i..(i + w * h)], w, h);
+}
 string MissionPath(string name)
 {
     return install.FindMission(name) ?? throw new FileNotFoundException(name);
@@ -245,21 +261,33 @@ switch (argv[0])
     {
         // i76 key-edge OUT SCALE NAME...: the field the game cuts a keyed texture by (KeyEdge.Field), at any scale, upright, for a
         // pack's alpha to follow the same outline (tools/upscale-textures.py --key-edges)
+        // i76 key-edge OUT SCALE --masks DIR NAME...: the same outline of a mask DIR/NAME.pgm instead (P5, 255 inside; a painted
+        // region's, from tools/upscale-textures.py --paint-masks), so a pack's painted edges can follow it too (--paint-cut)
         var vfs = new AssetVfs(install);
         var res = new I76.Formats.Assembly.TextureResolver(vfs);
         int scale = int.Parse(Arg(2));
         Directory.CreateDirectory(Arg(1));
-        foreach (var n in argv.Skip(3))
+        string? masks = argv.Count > 4 && argv[3] == "--masks" ? argv[4] : null;
+        foreach (var n in argv.Skip(masks is null ? 3 : 5))
         {
-            var name = res.FindByStem(n) ?? n;
-            if (res.Load(name) is not { } t) { Console.WriteLine($"{n}\tnot loaded"); continue; }
-            var mask = I76.Formats.Imaging.KeyEdge.Opaque(I76.Formats.Imaging.TextureReader.ToRgba(t, null), t.Width, t.Height);
-            if (Array.IndexOf(mask, false) < 0) { Console.WriteLine($"{n}\tnothing keyed"); continue; }
-            var f = I76.Formats.Imaging.KeyEdge.Field(mask, t.Width, t.Height, scale);
+            bool[] mask; int w, h;
+            if (masks is not null)
+            {
+                if (ReadPgm(Path.Combine(masks, n + ".pgm")) is not { } m) { Console.WriteLine($"{n}\tno mask"); continue; }
+                (mask, w, h) = (m.Pixels.Select(v => v >= 128).ToArray(), m.Width, m.Height);
+            }
+            else
+            {
+                var name = res.FindByStem(n) ?? n;
+                if (res.Load(name) is not { } t) { Console.WriteLine($"{n}\tnot loaded"); continue; }
+                (mask, w, h) = (I76.Formats.Imaging.KeyEdge.Opaque(I76.Formats.Imaging.TextureReader.ToRgba(t, null), t.Width, t.Height), t.Width, t.Height);
+                if (Array.IndexOf(mask, false) < 0) { Console.WriteLine($"{n}\tnothing keyed"); continue; }
+            }
+            var f = I76.Formats.Imaging.KeyEdge.Field(mask, w, h, scale);
             using var o = File.Create(Path.Combine(Arg(1), n.ToLowerInvariant() + ".pgm"));
-            o.Write(System.Text.Encoding.ASCII.GetBytes($"P5 {t.Width * scale} {t.Height * scale} 255\n"));
+            o.Write(System.Text.Encoding.ASCII.GetBytes($"P5 {w * scale} {h * scale} 255\n"));
             o.Write(f);
-            Console.WriteLine($"{n}\t{t.Width}x{t.Height}");
+            Console.WriteLine($"{n}\t{w}x{h}");
         }
         return 0;
     }

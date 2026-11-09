@@ -1,0 +1,38 @@
+{
+ "textures": [
+  "xb11ftf1"
+ ],
+ "note": "the school bus's front: SCHOOL BUS over the windscreen",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    32.4,
+    2.4,
+    95.6,
+    17.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL BUS",
+   "font": "DDINCondensed",
+   "cap": 11,
+   "center": [
+    64.0,
+    8.8
+   ],
+   "width": 60,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

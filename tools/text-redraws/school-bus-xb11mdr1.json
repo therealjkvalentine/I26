@@ -1,0 +1,54 @@
+{
+ "textures": [
+  "xb11mdr1"
+ ],
+ "note": "the school bus's right side band, middle panel: SCHOOL DISTRICT",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    0,
+    40.4,
+    127.6,
+    46.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "center": [
+    26.5,
+    43.2
+   ],
+   "width": 53,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "DISTRICT",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "center": [
+    94.0,
+    43.2
+   ],
+   "width": 60,
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

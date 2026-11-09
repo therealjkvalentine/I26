@@ -163,5 +163,60 @@ class Recut(unittest.TestCase):
         self.assertGreater(out[..., :3][R < 12].mean(), 200, "inside, the model's colour is kept")
         self.assertTrue((out[..., :3][out[..., 3] == 0].sum(axis=1) > 0).all(), "colour is bled under the key")
 
+class PaintCut(unittest.TestCase):
+    """--paint-masks and --paint-cut: a two-tone door (a white panel on black) with a small amber lamp and a thin gold ring."""
+    def setUp(self):
+        orig = np.zeros((32, 64, 4), np.uint8); orig[..., :3] = 24; orig[..., 3] = 255
+        orig[8:28, 20:60, :3] = 200                                  # the white panel
+        orig[14:16, 4:8, :3] = (240, 160, 0)                         # a lamp: 4 x 2 amber texels on the black
+        yy, xx = np.mgrid[0:32, 0:64]; r = np.hypot(yy - 18, xx - 40)
+        orig[(r > 6) & (r < 7) & (orig[..., 0] == 200), :3] = (220, 170, 20)   # a thin gold ring on the panel
+        self.orig = orig
+    def test_the_masks_find_the_panel_and_the_lamp_but_not_the_ring(self):
+        two, det = ut.paint_masks(self.orig)
+        self.assertIsNotNone(two); self.assertIsNotNone(det)
+        self.assertTrue(two[8:28, 20:60].all(), "the panel is the two-tone region, its ring hole filled")
+        self.assertFalse(two[:8].any() or two[:, :20].any())
+        self.assertTrue(det[14:16, 4:8].all(), "the lamp is a detail")
+        self.assertFalse(det[8:28, 20:60].any(), "the ring's pieces are not")
+    def test_no_masks_for_one_flat_tone(self):
+        flat = self.orig.copy(); flat[..., :3] = 90; flat[14:16, 4:8, :3] = (240, 160, 0)
+        two, det = ut.paint_masks(flat)
+        self.assertIsNone(two); self.assertIsNotNone(det)
+    def test_the_cut_straightens_the_edge_and_keeps_the_rest(self):
+        # the model's 4x: the panel's left edge wobbling two texels, the rest flat
+        Y, X = np.mgrid[0:128, 0:256]
+        px = np.zeros((128, 256, 4), np.uint8); px[..., 3] = 255; px[..., :3] = 24
+        edge = 80 + 4 * np.sin(Y / 5.0)
+        px[(Y >= 32) & (Y < 112) & (X >= edge) & (X < 240), :3] = 200
+        px[60:70, 150:160, :3] = (0, 0, 255)                         # a detail of the model's inside the panel, to be kept
+        field = np.clip(128 + (X - 80) / 4 / 2 * 127, 0, 255).astype(np.uint8)   # the straight outline at x = 80 (4x), inside to the right
+        out = ut.paint_cut(px, field, 4)
+        self.assertTrue((out[32:112, 84:100, :3] == 200).all(), "right of the outline the panel's own colour, no wobble")
+        self.assertTrue((out[32:112, 60:76, :3] == 24).all(), "left of it the body's")
+        self.assertTrue((out[60:70, 150:160, :3] == (0, 0, 255)).all(), "away from the edge the upscale is kept")
+        self.assertTrue(np.array_equal(out[..., 3], px[..., 3]))
+    def test_a_keyed_strip_beside_the_panel_takes_the_dark_side(self):
+        # the panel ends at a keyed strip two texels wide, black beyond it; the model bled the panel's white under the key
+        Y, X = np.mgrid[0:128, 0:256]
+        px = np.zeros((128, 256, 4), np.uint8); px[..., 3] = 255; px[..., :3] = 24
+        px[(Y >= 32) & (Y < 112) & (X < 160 + 4 * np.sin(Y / 5.0)), :3] = 200
+        px[:, 160:168, :3] = (180, 180, 180); px[:, 160:168, 3] = 0           # the keyed strip, the model's bleed in it
+        keyed = np.zeros((32, 64), bool); keyed[:, 40:42] = True
+        field = np.clip(128 - (X - 160) / 4 / 2 * 127, 0, 255).astype(np.uint8)   # the outline at x = 160, the panel to the left
+        out = ut.paint_cut(px, field, 4, keyed=keyed)
+        self.assertTrue((out[32:112, 162:168, :3] == 24).all(), "the keyed strip is the black beyond it, not the bled white (the outline itself fades over a texel)")
+        self.assertTrue((out[32:112, 140:156, :3] == 200).all(), "the panel's side is its own white up to the outline")
+        self.assertTrue((out[:, 160:168, 3] == 0).all(), "the key stays")
+    def test_a_detail_is_the_original_enlarged(self):
+        px = np.zeros((128, 256, 4), np.uint8); px[..., 3] = 255; px[..., :3] = 24
+        px[52:68, 12:36, :3] = (120, 80, 40)                         # the model's blob with a dark rim where the lamp is
+        yy, xx = np.mgrid[0:128, 0:256]
+        d = np.maximum(np.abs(yy - 59.5) - 3.5, np.abs(xx - 23.5) - 7.5)   # distance outside the lamp's 4x box (rows 56..64, cols 16..32)
+        field = np.clip(128 - d / 4 / 2 * 127, 0, 255).astype(np.uint8)
+        out = ut.restore_detail(px, field, self.orig)
+        self.assertTrue((out[57:63, 18:30, :3] == (240, 160, 0)).all(), "inside the outline the original's lamp colour")
+        self.assertTrue((out[100:, 100:, :3] == 24).all(), "the rest is kept")
+
 if __name__ == "__main__":
     unittest.main()
