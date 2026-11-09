@@ -557,3 +557,37 @@ read is nearly 1:1. Verify (`I76_DASH_STATS=verify`): every upload read back wit
 T05 from the start firing (384 uploads over 30 s on the kernel build, 782 over 60 s on the CPU-chain build), no texel differing.
 The 1997 look's dash, before against after at tick 300 of T01 `--drive --seed 1`: zero differing pixels in the dash's rows; the
 frames differ in the sky and horizon only (the world between two runs, no code of the dash's).
+
+## Debug code and the owner's frame rate (round 7)
+
+The owner's question: T06 in the 50s at 3440x1440 (the modern look, the world's textures 4x, the cars' 8x, Shadow Detail
+Low, Anti-Aliasing 2x, VSync on), and Render Scale 50 % no faster. Measured with the bench on the owner's own shell.cfg
+(`FRAME_COST_PROFILE=file FRAME_COST_SHELL_CFG=...`, VSync off unless said; `--scene t06`: T06 by night from its start, the cockpit,
+the car driven off), one run a row, the machine shared with the other lanes as when the owner plays (its processor load in the last column):
+
+| T06, 3440x1440 | median fps | 5th-percentile fps | frame ms | GPU ms (main view + mirror) | main thread: nodes / renderer / sim ms | CPU load % |
+|---|---|---|---|---|---|---|
+| Render Scale 100 % | 55.8 | 35.0 | 17.9 | 8.0 | 6.7 / 5.1 / 1.1 | ~98 |
+| Render Scale 50 % | 51.5 | 35.0 | 19.4 | 5.5 | 7.4 / 5.5 / 1.2 | ~98 |
+| Render Scale 100 %, quieter machine (two runs) | 77.5, 77.0 | 50.9, 49.8 | 12.9 | 7.7 | 4.7 / 3.4 / 0.9 | 68-71 |
+| Render Scale 50 %, above normal priority | 79.6 | 50.9 | 12.6 | 5.0 | 4.6 / 3.3 / 0.9 | 67 |
+| VSync on / off, interleaved | 76.8, 63.6 / 67.8, 67.4 | | | 8.1-8.7 | | 66-78 |
+| T05 route (60 s), 100 % / 50 % | 84.8 / 91.4 | 51.8 / 54.2 | 11.8 / 11.0 | 8.4 / 4.6 | 4.2 / 3.0 / 0.7 | 64 |
+
+The frame is the main thread's, not the card's: Render Scale 50 % takes the card from 8 to 5 ms and the frame stays at 12-19 ms
+(the card at 130-175 W and 1.9 GHz, under its 180 W cap; it idles part of every frame). The main thread is its nodes (a sampling
+trace of T06: the bass shaker's synthesis 14 % of the main thread's time, the cockpit 11 %, the damage smoke 11 %, the drop shadows'
+casters 11 %, the sim 8 %, the vegetation 6 %), the renderer's command recording (1550-1600 draws) and the sim. What moves it most is
+the processor's other work: the same row is 56 fps with the machine at 98 % and 77 fps at 70 %. VSync (the mailbox present at the
+display's 179 Hz) measures within that noise; the frame times show no steps at the refresh.
+
+The game run from source loads the Debug build (Godot's editor binary pointed at game/: the desktop's launchers, the bench), and
+Debug code was not optimised. Optimised (`Directory.Build.props`), interleaved on the same machine at 97-100 % load:
+
+| T06, 3440x1440, Render Scale 100 % | median fps (three runs) | 5th-percentile fps | nodes ms | sim ms | terrain ms | GPU ms |
+|---|---|---|---|---|---|---|
+| Debug, unoptimised (before) | 38.5, 41.8, 38.0 | 25.8, 28.8, 24.4 | 9.9, 9.3, 10.0 | 1.8, 1.7, 1.7 | 0.56 | 8.9-9.1 |
+| Debug, optimised (after) | 45.7, 54.0, 44.0 | 31.6, 33.5, 29.6 | 6.9, 5.6, 7.1 | 1.1, 1.0, 1.1 | 0.27 | 8.7-8.9 |
+
+A frame 19 % faster at the median and the main thread's own code a third quicker; the card's time is unchanged. An export
+(ExportRelease) was already optimised. `dotnet build -p:Optimize=false` gives code a debugger steps through line by line.
