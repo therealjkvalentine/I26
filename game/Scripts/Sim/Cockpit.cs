@@ -38,6 +38,7 @@ public partial class Cockpit : Node
         {
             bool was = _faithful;
             _faithful = value;
+            Node3D.RingDrawn = I76.Game.Ui.ReticleArt.Drawn && !value;
             ApplyMirrorMode();
             _repaintWeapons = _repaintSpecials = true;
             // the modern look's labels want the weapons and specials panels at twice the original's pixels at least
