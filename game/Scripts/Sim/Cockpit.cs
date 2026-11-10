@@ -637,8 +637,8 @@ public partial class Cockpit : Node
         {
             if (_partWas[i] == _parts[i]) continue;
             var (anchor, sprite) = DamageParts[i];
-            var r = Panels.Footprint(sprite + PartSuffix[_parts[i]], anchor);
-            if (_partWas[i] >= 0 && Panels.Footprint(sprite + PartSuffix[_partWas[i]], anchor) is { } old) r = r is { } n ? n.Merge(old) : old;
+            var r = Panels.Footprint(sprite + PartSuffix[_parts[i]], anchor, up: true);
+            if (_partWas[i] >= 0 && Panels.Footprint(sprite + PartSuffix[_partWas[i]], anchor, up: true) is { } old) r = r is { } n ? n.Merge(old) : old;
             if (r is null) continue;
             Panels.Region("zsy_.map", r.Value);
             DamageDraw();
@@ -646,10 +646,15 @@ public partial class Cockpit : Node
         }
     }
 
+    /// <summary>
+    /// Every part's cell drawn a row above its label on the sheet and on the panel, as the original does (measured on its screen):
+    /// the art sits a row above the label in the sheet, so drawn as labelled the front chevron lost its point and showed the next
+    /// state's point as a bar under it, and every plate and bar lost its top edge.
+    /// </summary>
     private void DamageDraw()
     {
         for (int i = 0; i < DamageParts.Length; i++)
-            if (_parts[i] >= 0) Panels.StampAt(DamageParts[i].Sprite + PartSuffix[_parts[i]], DamageParts[i].Anchor);
+            if (_parts[i] >= 0) Panels.StampAt(DamageParts[i].Sprite + PartSuffix[_parts[i]], DamageParts[i].Anchor, up: true);
     }
 
     // ---- weapons panel ----

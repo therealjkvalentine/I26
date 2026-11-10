@@ -312,27 +312,38 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         list.Add(all);
     }
 
-    /// <summary>A sprite's rectangle in the layout's pixels with its top-left at an anchor (moved dx), or null if either is missing.</summary>
-    public Rect2I? Footprint(string sprite, string anchor, int dx = 0) =>
-        layout.Find(anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.Label.X + dx, a.Label.Y, s.Label.W, s.Label.H) : null;
+    /// <summary>A sprite's rectangle in the layout's pixels with its top-left at an anchor (moved dx), or null if either is missing;
+    /// <paramref name="up"/>: drawn a row above its label (<see cref="RowsUp"/>).</summary>
+    public Rect2I? Footprint(string sprite, string anchor, int dx = 0, bool up = false) =>
+        layout.Find(anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.Label.X + dx, a.Label.Y - RowsUp(s.Label, up), s.Label.W, s.Label.H) : null;
+
+    /// <summary>
+    /// How many rows above its label a cell is drawn, on its sheet and on the panel alike: one where <paramref name="up"/> asks
+    /// for it and the sheet has a row above the label, else none. The damage panel's sheet holds every part's art but the engine
+    /// plate's a row above its label (the front chevron's point, the plates' and bars' top edges), the label's last row being the
+    /// next state's first or empty; the original draws that row and not the last, the art where the label puts it.
+    /// </summary>
+    public static int RowsUp(EltLabel s, bool up) => up && s.Y > 0 ? 1 : 0;
 
     /// <summary>The same at a dst block's anchor (an anchor name the layout repeats across its blocks, as the 2D gauges' are).</summary>
     public Rect2I? FootprintIn(string dst, string sprite, string anchor) =>
         layout.FindIn(dst, anchor) is { } a && layout.Find(sprite) is { } s ? new Rect2I(a.X, a.Y, s.Label.W, s.Label.H) : null;
 
     /// <summary>Stamps the sprite <paramref name="sprite"/> (a src label) with its top-left at (x, y) of its dst texture.</summary>
-    public void Stamp(string dst, string sprite, int x, int y)
+    /// <summary><paramref name="up"/>: the sprite's rectangle a row higher on the sheet and on the target (<see cref="RowsUp"/>).</summary>
+    public void Stamp(string dst, string sprite, int x, int y, bool up = false)
     {
         if (TargetOf(dst) is not { } t || layout.Find(sprite) is not { } s || Sheet(s.Texture) is not { } sheet) return;
         var r = s.Label;
-        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, x, y, keyed: true, t.Clip);
-        Mark(t, x, y, r.W, r.H);
+        int u = RowsUp(r, up);
+        Blit(SheetBytes(s.Texture)!, sheet.GetWidth(), sheet.GetHeight(), ScaleOf(s.Texture), r.X, r.Y - u, r.W, r.H, t.WorkBytes, t.W, t.H, t.S, x, y - u, keyed: true, t.Clip);
+        Mark(t, x, y - u, r.W, r.H);
     }
 
     /// <summary>Stamps a sprite at a dst anchor label (its texture is the anchor's).</summary>
-    public void StampAt(string sprite, string anchor, int dx = 0, int dy = 0)
+    public void StampAt(string sprite, string anchor, int dx = 0, int dy = 0, bool up = false)
     {
-        if (layout.Find(anchor) is { } a && !a.Label.Name.Equals(sprite, StringComparison.OrdinalIgnoreCase)) Stamp(a.Texture, sprite, a.Label.X + dx, a.Label.Y + dy);
+        if (layout.Find(anchor) is { } a && !a.Label.Name.Equals(sprite, StringComparison.OrdinalIgnoreCase)) Stamp(a.Texture, sprite, a.Label.X + dx, a.Label.Y + dy, up);
     }
 
     /// <summary>

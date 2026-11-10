@@ -139,4 +139,42 @@ public class DamagePanelStampTests
             above = level; lw = nw; lh = nh;
         }
     }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(4, 4)]
+    [InlineData(8, 8)]
+    [InlineData(1, 8)]
+    public void TheChevronIsDrawnFromTheRowAboveItsLabelPointAndAll(int ss, int ds)
+    {
+        // the damage sheet as the original packs it: each chevron state's art from the row above its label (its point, marked blue)
+        // to the label's second-last row, so the label's last row holds the next state's point; drawn a row up, a state shows its
+        // own point at the anchor's row above and not the next one's under it
+        int sw = 305 * ss, sh = 130 * ss;
+        var sheet = new byte[sw * sh * 4];
+        var off = Elt.Find("farm_off")!.Value.Label; var grn = Elt.Find("farm_grn")!.Value.Label; var a = Elt.Find("farm")!.Value.Label;
+        foreach (var (l, red) in new[] { (off, 1), (grn, 2) })
+            for (int y = (l.Y - 1) * ss; y < (l.Y + l.H - 1) * ss; y++)
+                for (int x = l.X * ss; x < (l.X + l.W) * ss; x++)
+                {
+                    int i = ((sh - 1 - y) * sw + x) * 4;
+                    sheet[i] = (byte)red; sheet[i + 2] = (byte)(y / ss == l.Y - 1 ? 255 : 0); sheet[i + 3] = 255;
+                }
+        Assert.Equal(1, CockpitPanels.RowsUp(off, up: true));
+        Assert.Equal(0, CockpitPanels.RowsUp(off, up: false));
+        Assert.Equal(0, CockpitPanels.RowsUp(new EltLabel("engine_off", 0, 0, 61, 12), up: true));
+        int dw = 256 * ds, dh = 128 * ds, u = CockpitPanels.RowsUp(off, up: true);
+        var panel = new byte[dw * dh * 4];
+        CockpitPanels.Blit(sheet, sw, sh, ss, off.X, off.Y - u, off.W, off.H, panel, dw, dh, ds, a.X, a.Y - u, keyed: true);
+        int cx = (a.X + off.W / 2) * ds;
+        Assert.Equal((1, 255), (At(panel, dw, dh, cx, (a.Y - 1) * ds).R, At(panel, dw, dh, cx, (a.Y - 1) * ds).B));
+        for (int y = (a.Y - 1) * ds; y < (a.Y + off.H - 1) * ds; y++) Assert.Equal(1, At(panel, dw, dh, cx, y).R);
+        Assert.Equal(0, At(panel, dw, dh, cx, (a.Y + off.H - 1) * ds).A);
+        Assert.Equal(0, At(panel, dw, dh, cx, (a.Y - 2) * ds).A);
+        // drawn as labelled, the point is lost and the next state's point shows under the chevron
+        var asLabelled = new byte[dw * dh * 4];
+        CockpitPanels.Blit(sheet, sw, sh, ss, off.X, off.Y, off.W, off.H, asLabelled, dw, dh, ds, a.X, a.Y, keyed: true);
+        Assert.Equal(0, At(asLabelled, dw, dh, cx, (a.Y - 1) * ds).A);
+        Assert.Equal((2, 255), (At(asLabelled, dw, dh, cx, (a.Y + off.H - 1) * ds).R, At(asLabelled, dw, dh, cx, (a.Y + off.H - 1) * ds).B));
+    }
 }
