@@ -245,5 +245,52 @@ class CompassTests(unittest.TestCase):
             self.assertTrue(ink[y0 * s:y1 * s, x0 * s:x1 * s].all(), f"tick at {x0}")
             self.assertFalse(ink[y0 * s:y1 * s, x0 * s - 1].any() or ink[y0 * s:y1 * s, x1 * s].any(), f"tick at {x0} has a soft edge")
 
+def spec_of(name):
+    with open(os.path.join(tr.SPECS, name), encoding="utf-8") as f: return json.load(f)
+
+def ink_box(op, w, h, s):
+    """The text op alone (no shadow) set over a flat dark plate at s pack texels a texel: its ink's extent in texels."""
+    orig = blank(w, h, (20, 30, 60)); px = np.repeat(np.repeat(orig, s, 0), s, 1)
+    o = dict(op, colour=[255, 255, 255]); o.pop("shadow", None)
+    ink = tr.apply_ops(px, orig, [o])[..., :3].mean(axis=2) > 140
+    ys, xs = np.where(ink)
+    return np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
+
+class WorldLetteringTests(unittest.TestCase):
+    """The Autowerks wall sign (ca_1ws_1, T12):
+    every line on the painted letters' ink box, measured off the original's texels (pinned here, in texels), at 4x and 8x."""
+    BOXES = {
+        "signs-ca_1ws_1.json": {"AUTOWERKS": (4.99, 27.41, 77.89, 36.62), "INDUSTRIAL": (89.43, 27.41, 122.16, 31.73),
+                                "KOMPLEX": (95.36, 32.72, 122.07, 36.86)},
+    }
+
+    def texts(self, name):
+        return {op["text"]: op for op in spec_of(name)["ops"] if op["op"] == "text" and op["text"] != "•"}
+
+    def test_every_line_is_on_the_originals_ink_box_at_4x_and_8x(self):
+        for name, want in self.BOXES.items():
+            spec = spec_of(name); ops = self.texts(name)
+            self.assertEqual(set(ops), set(want), name)
+            w, h = 128, 64
+            for t, box in want.items():
+                op = ops[t]
+                set_on = op.get("box") or [op["quad"][0][0], op["quad"][0][1], op["quad"][1][0], op["quad"][2][1]]   # slanted: the top corners
+                self.assertLess(np.abs(np.array(set_on) - box).max(), 0.01, f"{name} {t}: the spec's box is the measured one")
+                for s in (4, 8):
+                    got = ink_box(op, w, h, s)
+                    # a slanted line's end marks sit a little under its ascenders, so the slant moves them a fraction further
+                    self.assertLess(np.abs(got - box).max(), 0.35 if "box" in op else 0.45, f"{name} {t} at {s}x: {got}")
+
+    def test_the_wall_signs_erase_stays_on_its_plate(self):
+        # the plate maps the band of rows 25 to 39 (bevelled at 24 and 39): the old letters go, the bevel and the face round it stay
+        for op in spec_of("signs-ca_1ws_1.json")["ops"]:
+            if op["op"] == "erase": self.assertTrue(25 <= op["rect"][1] and op["rect"][3] <= 39, op["rect"])
+        orig = blank(128, 64, (8, 40, 74)); orig[24, :, :3] = (32, 56, 98); orig[39, :, :3] = (8, 28, 57)
+        orig[28:36, 10:20, :3] = 222                                                     # a painted letter
+        px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
+        out = tr.apply_ops(px, orig, [op for op in spec_of("signs-ca_1ws_1.json")["ops"] if op["op"] == "erase"]).astype(int)
+        self.assertLess(np.abs(out[28 * 4:36 * 4, 10 * 4:20 * 4, :3] - (8, 40, 74)).max(), 3)    # gone, the plate's navy in its place
+        self.assertTrue((out[24 * 4:25 * 4, :, :3] == (32, 56, 98)).all() and (out[39 * 4:40 * 4, :, :3] == (8, 28, 57)).all())
+
 if __name__ == "__main__":
     unittest.main()
