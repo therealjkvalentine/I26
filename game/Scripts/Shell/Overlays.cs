@@ -286,14 +286,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order (a check row, or a value row stepped by a click): upstream's, then the play fork's own
-    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I., Equipment Tooltips). Force Feedback, Rumble Strength and Wheel Strength are the
+    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I., Equip. Tooltips). Force Feedback, Rumble Strength and Wheel Strength are the
     /// Controls sheet's (<see cref="ControlsMenuScreen"/>).
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
-        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.", "Equipment Tooltips",
+        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.", "Equip. Tooltips",
     ];
 
     protected override void Build()
@@ -378,7 +378,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
         Step(PortRows[13], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
-        // Equipment Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
+        // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
         Toggle(PortRows[14], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);

@@ -64,7 +64,7 @@ public static class MenuTips
         ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",
         ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",
         ["Melee A.I."] = "Melee A.I.: how well an Instant Melee's computer cars drive at first: Normal (the original's), your Difficulty Level's, Easy or Hard.",
-        ["Equipment Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
+        ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
 
         // ---- Controls (the port's sheet: force feedback, then the mouse and the key map)
         ["Force Feedback"] = "Force feedback: Pad rumbles with the original's effects, Pad Enhanced adds pulses for gears, shots and the engine, Wheel drives a force-feedback wheel (Windows).",

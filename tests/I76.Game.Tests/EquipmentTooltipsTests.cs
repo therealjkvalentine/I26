@@ -13,8 +13,8 @@ public class EquipmentTooltipsTests
     public void TheOptionIsOnByDefaultAndHasItsRowAndTooltip()
     {
         Assert.True(new ShellSettings().EquipmentTips);
-        Assert.Contains("Equipment Tooltips", PlayOptionsScreen.PortRows);
-        Assert.Contains("garage", MenuTips.Of("Equipment Tooltips"));
+        Assert.Contains("Equip. Tooltips", PlayOptionsScreen.PortRows);
+        Assert.Contains("garage", MenuTips.Of("Equip. Tooltips"));
     }
 
     [Fact]

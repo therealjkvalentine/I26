@@ -619,7 +619,7 @@ public partial class Shell : CanvasLayer
 
     /// <summary>
     /// The garage's equipment tooltips (<see cref="I76.Game.Shell.PartTips"/>, the port's), built once from this install's parts; null while
-    /// Play Options' Equipment Tooltips is off, so every list then shows none.
+    /// Play Options' Equip. Tooltips is off, so every list then shows none.
     /// </summary>
     public PartTips? PartTips
     {
@@ -991,7 +991,7 @@ public abstract class ShellScreen
     public virtual bool TipBesideRow => false;
 
     /// <summary>
-    /// The equipment tooltip of a part (Play Options' Equipment Tooltips, <see cref="ShellSettings.EquipmentTips"/>; the port's), or null with
+    /// The equipment tooltip of a part (Play Options' Equip. Tooltips, <see cref="ShellSettings.EquipmentTips"/>; the port's), or null with
     /// the option off or for a part without one.
     /// </summary>
     protected string? PartTip(I76.Sim.Trip.PartDef? p) => p is null ? null : Shell.PartTips?.Text(p);
@@ -1374,7 +1374,7 @@ public sealed class ShellSettings
     /// <summary>The port's own: CB Voice (Play Options; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
     public bool CbVoice { get; set; } = true;
     /// <summary>
-    /// The port's own: Equipment Tooltips (Play Options; shell.cfg [port] equipment_tips, written only when off): the garage's part lists
+    /// The port's own: Equip. Tooltips (Play Options; shell.cfg [port] equipment_tips, written only when off): the garage's part lists
     /// say what each part does in the game when the pointer or the pad's focus rests on it. Off shows none; the menus' own tooltips stay.
     /// </summary>
     public bool EquipmentTips { get; set; } = true;
