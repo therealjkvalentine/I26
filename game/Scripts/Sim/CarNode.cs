@@ -134,6 +134,8 @@ public partial class CarNode : Node3D
     public const uint CockpitLayer = 4;
     /// <summary>Every visual under a car (body, wheels, lamps, weapons): ground decals (oil, scorch) leave this layer out, so they paint the road, not the cars on it.</summary>
     public const uint VehicleLayer = 1u << 5;
+    /// <summary>The player's own body while the cockpit hides it, for the side mirrors' own cameras alone (side_mirror_render=own): the flank in a door mirror.</summary>
+    public const uint OwnBodyLayer = 1u << 9;
     private static bool _layerHook;
 
     public override void _EnterTree()
@@ -214,7 +216,7 @@ public partial class CarNode : Node3D
             if (ring6 is not null) { Rtc6 = new MeshInstance3D { Mesh = ring6, Name = "Ring6", Visible = false, Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc6); }
         }
         Eye = Coords.ToGodot(eye);
-        CockpitCamera = new Camera3D { Name = "Eye", Position = Eye, Fov = 70, Near = 0.05f, Far = 20000 };
+        CockpitCamera = new Camera3D { Name = "Eye", Position = Eye, Fov = 70, Near = 0.05f, Far = 20000, CullMask = 0xFFFFFu & ~OwnBodyLayer };
         AddChild(CockpitCamera);
     }
 
@@ -299,7 +301,11 @@ public partial class CarNode : Node3D
     /// <summary>The interior's bounds in the car's frame, the hood included.</summary>
     public Aabb? CockpitBounds => _cockpit?.Mesh is not { } m ? null : _hood?.Mesh is { } h ? m.GetAabb().Merge(h.GetAabb()) : m.GetAabb();
 
-    private bool _inCar, _dash3d = true, _ghost;
+    private bool _inCar, _dash3d = true, _ghost, _bodyForMirrors;
+    private uint? _bodyLayers;
+
+    /// <summary>The body kept for the side mirrors' own cameras while the cockpit hides it (Apply).</summary>
+    public void BodyForMirrors(bool on) { if (_bodyForMirrors == on) return; _bodyForMirrors = on; Apply(); }
 
     /// <summary>The 3D dash: the interior model is drawn. Off: the 2D dash, the driver's eye over the world with the panels flat on the screen (Hud).</summary>
     public bool Dash3D
@@ -353,7 +359,15 @@ public partial class CarNode : Node3D
     {
         bool inside = _inCar && !_outside, hidden = !I76.Sim.Views.OwnCar.Drawn(_inCar, _hoodView, _outside);
         if (_cockpit is not null) _cockpit.Visible = inside && _dash3d && !_ghost;
-        if (_body is not null) _body.Visible = !hidden;
+        if (_body is not null)
+        {
+            // the side mirrors' own cameras see the body while the cockpit hides it, on their layer alone, casting no shadow into the view
+            bool mirrorsOnly = hidden && _bodyForMirrors && _body.Mesh is not null;
+            _bodyLayers ??= _body.Layers;
+            _body.Visible = !hidden || mirrorsOnly;
+            _body.Layers = mirrorsOnly ? OwnBodyLayer : _bodyLayers.Value;
+            _body.CastShadow = mirrorsOnly ? GeometryInstance3D.ShadowCastingSetting.Off : GeometryInstance3D.ShadowCastingSetting.On;
+        }
         foreach (var (node, _, _, _) in _wheels) node.Visible = !hidden && !_flung.Contains(node);
         foreach (var (_, node) in _weapons) node.Visible = !hidden && !_flung.Contains(node);
         // a turret's gun too: the in-car view draws the interior, not the car's outside (its underside showed through the roof)

@@ -19,6 +19,7 @@ public static class DevTips
         "side_mirror_angle" => "Where the side mirrors sit, degrees to the left and right of straight ahead; kept inside the window's view.",
         "side_mirror_drop" => "How far below the rear mirror's row the side mirrors hang, in percent of the rear mirror's height; 0 is its row.",
         "side_mirror_overlap" => "How much of the rear mirror's view each side mirror shows again, degrees in from the rear mirror's edge; 0 tiles them edge to edge.",
+        "side_mirror_render" => "Side mirrors drawn each by a camera of its own at the door mirror, the car's flank in view (own, the default: two more scene renders every second frame).",
         "brake_lamps" => "Brake lamps light while braking only, as the original's, or stay on 0.15 s after. Look follows the look in use.",
         "specials_panel" => "The 3D dash's specials panel in the modern look: the car model's own mapping, half as tall again as the art, or the art's shape. The 1997 look always draws the model's.",
         "mg_tracers" => "A machine gun round in the modern look: the original's thin line, or a glowing bolt. The 1997 look always draws the line.",

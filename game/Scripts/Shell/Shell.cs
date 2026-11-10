@@ -1505,6 +1505,8 @@ public sealed class ShellSettings
     public int SideMirrorDrop { get; set; } = (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100);
     /// <summary>How far into the rear mirror's view each side mirror reaches, degrees in from the rear's edge ([port] side_mirror_overlap, 6; written only when not 6).</summary>
     public int SideMirrorOverlap { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultOverlap;
+    /// <summary>How the side mirrors are drawn: a band of the rear mirror's one render, or a camera of their own each ([port] side_mirror_render, own; written only when shared).</summary>
+    public I76.Game.Sim.SideMirrorRender SideMirrorRender { get; set; } = I76.Game.Sim.SideMirrorRender.Own;
     /// <summary>The port's own, without a row: the brake lamps, 0 Original (lit only while braking), 1 Held (0.15 s after); null follows the look ([port] brake_lamps).</summary>
     public int? BrakeLampChoice { get; set; }
     /// <summary>The port's own, without a row: a machine gun's round in the modern look, 0 Original (the one-pixel line), 1 Bolts; null follows the look ([port] mg_tracers).</summary>
@@ -1779,6 +1781,7 @@ public sealed class ShellSettings
         s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
         s.SideMirrorDrop = Math.Clamp((int)c.GetValue("port", "side_mirror_drop", (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100)), 0, 400);
         s.SideMirrorOverlap = Math.Clamp((int)c.GetValue("port", "side_mirror_overlap", (int)I76.Game.Sim.MirrorBands.DefaultOverlap), 0, (int)I76.Game.Sim.MirrorBands.MaxOverlap);
+        s.SideMirrorRender = string.Equals(c.GetValue("port", "side_mirror_render", "own").ToString().Trim(), "shared", StringComparison.OrdinalIgnoreCase) ? I76.Game.Sim.SideMirrorRender.Shared : I76.Game.Sim.SideMirrorRender.Own;
         s.BrakeLampChoice = OriginalRecipe.ReadChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames);
         s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
         s.SpecialsPanelChoice = OriginalRecipe.ReadChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames);
@@ -1942,6 +1945,7 @@ public sealed class ShellSettings
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);
         if (SideMirrorDrop != (int)(I76.Game.Sim.MirrorBands.DefaultDrop * 100)) c.SetValue("port", "side_mirror_drop", SideMirrorDrop);
         if (SideMirrorOverlap != (int)I76.Game.Sim.MirrorBands.DefaultOverlap) c.SetValue("port", "side_mirror_overlap", SideMirrorOverlap);
+        if (SideMirrorRender == I76.Game.Sim.SideMirrorRender.Shared) c.SetValue("port", "side_mirror_render", "shared");
         OriginalRecipe.WriteChoice(c, "brake_lamps", OriginalRecipe.BrakeLampNames, BrakeLampChoice);
         OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
         OriginalRecipe.WriteChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames, SpecialsPanelChoice);
