@@ -167,7 +167,8 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                 else
                 {
                     if (f.Texture.Length > 0) Unresolved.Add(f.Texture);
-                    mat = materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)));
+                    mat = materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
+                        unlit: partPaint is null && I76.Formats.Geo.FaceLight.Unlit(f));
                 }
                 if (!surfaces.TryGetValue(mat, out var s)) surfaces[mat] = s = new Surface();
                 var fv = f.Vertices;

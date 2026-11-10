@@ -28,20 +28,26 @@ public static class NightDial
     public static int Nearest(double[] steps, double v) => Array.IndexOf(steps, steps.MinBy(s => Math.Abs(Math.Log(Math.Max(s, 1e-3)) - Math.Log(Math.Max(v, 1e-3)))));
     public static int NearestMix(double v) => Array.IndexOf(MixSteps, MixSteps.MinBy(s => Math.Abs(s - v)));
 
-    /// <summary>A scale's value read from shell.cfg: a positive number, kept to the slider's range; else 1.</summary>
-    public static double ParseScale(string? text) =>
+    /// <summary>
+    /// The moon's and the sky's scales as shipped: 1.4 each, dialled by eye against the night mission's cutscenes (the gas stop's open
+    /// ground and sky); 1 is the level as solved, the earlier default.
+    /// </summary>
+    public const double MoonDefault = 1.4, SkyDefault = 1.4;
+
+    /// <summary>A scale's value read from shell.cfg: a positive number, kept to the slider's range; else <paramref name="dflt"/>.</summary>
+    public static double ParseScale(string? text, double dflt = 1) =>
         double.TryParse(text?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 && double.IsFinite(v)
-            ? Math.Clamp(v, ScaleSteps[0], ScaleSteps[^1]) : 1;
+            ? Math.Clamp(v, ScaleSteps[0], ScaleSteps[^1]) : dflt;
 
     /// <summary>A colour level read from shell.cfg: 0 to 1; else <paramref name="dflt"/>.</summary>
     public static double ParseMix(string? text, double dflt) =>
         double.TryParse(text?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && double.IsFinite(v)
             ? Math.Clamp(v, 0, 1) : dflt;
 
-    /// <summary>The panel's settings: the three scales (1 as solved) and the two colour levels.</summary>
-    public readonly record struct Dial(double Moon = 1, double Road = 1, double Sky = 1, double Chroma = LightingCalibration.NightChroma, double Warm = LightingCalibration.NightWarm)
+    /// <summary>The panel's settings: the three scales (1 as solved; the moon's and the sky's 1.4 by default) and the two colour levels.</summary>
+    public readonly record struct Dial(double Moon = MoonDefault, double Road = 1, double Sky = SkyDefault, double Chroma = LightingCalibration.NightChroma, double Warm = LightingCalibration.NightWarm)
     {
-        public Dial() : this(1) { }
+        public Dial() : this(MoonDefault) { }
     }
 
     /// <summary>

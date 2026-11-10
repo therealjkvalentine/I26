@@ -236,29 +236,37 @@ public static class LightingCalibration
     public const double NightChroma = 1;
 
     /// <summary>
-    /// How far the moon's light on the ground at night is turned toward moonlight's own colour, a warm white (about 4100 K: the sun's
-    /// light off the moon's regolith, redder than daylight; the modern moon is drawn blue, as night is shown by convention), at the same
+    /// How far the moon's light on the ground at night is turned toward the brown of the night mission's own mid-mission cutscene
+    /// (<see cref="CutsceneBrown"/>: the player stops for petrol; its open ground, measured on the movie's frames, is a dark brown,
+    /// Oklab L 0.14 to 0.19, chroma 0.16 to 0.20 of its lightness, hue 65 to 90 degrees, under a navy sky at L 0.17), at the same
     /// luminance (terrain_modern_night.gdshader i76_night_warm). 0: the original's colours, the ground the texture's own (T06's is a
-    /// near-neutral blue-grey, Oklab chroma 0.03 to 0.04 of its lightness, in the original as in the 1997 look). 1 shows it as a dark
-    /// brown-grey (I76_NIGHT_WARM to compare).
+    /// near-neutral blue-grey, Oklab chroma 0.03 to 0.04 of its lightness, in the original as in the 1997 look). 1 shows it in the
+    /// cutscene's brown; moonlight's own warm white (<see cref="Moonlight"/>, about 4100 K, the first warm target) lies near 0.5 of the way
+    /// (I76_NIGHT_WARM to compare).
     /// </summary>
     public const double NightWarm = 1;
 
-    /// <summary>The moon's warm white (<see cref="NightWarm"/>), linear, at a luminance of 1.</summary>
+    /// <summary>Moonlight's own warm white (about 4100 K: the sun's light off the moon's regolith), linear, at a luminance of 1.</summary>
     public static readonly Rgb Moonlight = new(1.472, 0.909, 0.518);
+
+    /// <summary>
+    /// The brown of the night mission's gas-station cutscene (<see cref="NightWarm"/>): the mean of its open ground over the movie's
+    /// frames, as a light on a grey at a luminance of 1 (Oklab chroma 0.16 of its lightness, hue 71 degrees).
+    /// </summary>
+    public static readonly Rgb CutsceneBrown = new(1.771, 0.852, 0.194);
 
     /// <summary>
     /// The moon's light on a ground texel at night as the night terrain shader lights it (linear): its diffuse light,
     /// <paramref name="albedo"/> times the moon's light <paramref name="moon"/> (colour times energy and n·L), and its glint,
     /// <paramref name="glint"/> of the moon's light off the surface, each with <paramref name="chroma"/> of the ground's own colour
     /// (<see cref="NightChroma"/>): the moon's colour turned toward its luminance in grey, the glint toward the albedo's colour at
-    /// the albedo's luminance, and turned <paramref name="warm"/> of the way toward <see cref="Moonlight"/> at its luminance.
+    /// the albedo's luminance, and turned <paramref name="warm"/> of the way toward <see cref="CutsceneBrown"/> at its luminance.
     /// </summary>
     public static Rgb NightGroundLight(Rgb albedo, Rgb moon, double glint, double chroma, double warm = 0)
     {
         double ml = moon.Luminance, al = Math.Max(albedo.Luminance, 1e-9);
         var light = new Rgb(ml + (moon.R - ml) * (1 - chroma), ml + (moon.G - ml) * (1 - chroma), ml + (moon.B - ml) * (1 - chroma));
-        light = light * (1 - warm) + Moonlight * (ml * warm);
+        light = light * (1 - warm) + CutsceneBrown * (ml * warm);
         var hue = new Rgb(1 + (albedo.R / al - 1) * chroma, 1 + (albedo.G / al - 1) * chroma, 1 + (albedo.B / al - 1) * chroma);
         return new Rgb(albedo.R * light.R + glint * light.R * hue.R, albedo.G * light.G + glint * light.G * hue.G, albedo.B * light.B + glint * light.B * hue.B);
     }

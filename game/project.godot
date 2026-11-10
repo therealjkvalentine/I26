@@ -278,6 +278,10 @@ i76_prelit_gain={
 "type": "float",
 "value": 1.0
 }
+i76_night_glow={
+"type": "float",
+"value": 0.0
+}
 i76_glass_pane={
 "type": "float",
 "value": 0.3

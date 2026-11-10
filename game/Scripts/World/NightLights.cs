@@ -6,7 +6,9 @@ namespace I76.Game.World;
 /// <summary>
 /// The 1997 look's night lights: under a night preset every lit car carries one, a spot at its headlight pool
 /// (VLOC 38) along its nose (range 20, so 1/(1 + d²/400), exponent 18, as the light table read at run
-/// time in M04 holds them). The original keeps a light on the list while its range touches the view; the objects
+/// time in M04 holds them), and the scenery's own (ObjectLight, the LOBJ chunks: a night gas station's canopy
+/// spot, the light posts beside it) stand where they are placed with their own cone and range (Statics).
+/// The original keeps a light on the list while its range touches the view; the objects
 /// take the four strongest at their origin into their vertex light (object.gdshaderinc),
 /// and a drop shadow is cast from the strongest light at the caster when that beats 1.5 times the moon's intensity.
 /// The terrain is lit by none of them: the pools are what lights it.
@@ -24,8 +26,11 @@ public partial class NightLights : Node
     public required Func<float, float, float> Ground { get; init; }
     /// <summary>The preset's intensity: a light casts the shadows only where it beats 1.5 times it.</summary>
     public float MoonIntensity { get; init; }
+    /// <summary>The scenery's placed lights (ScenerySpawner.Lights): position, axis, spot exponent and 1/range².</summary>
+    public IReadOnlyList<(Vector3 Pos, Vector3 Forward, float Exponent, float K)> Statics { get; init; } = [];
 
-    private readonly List<(Vector3 Pos, Vector3 Forward)> _active = [];
+    private readonly List<(Vector3 Pos, Vector3 Forward, float Exponent, float K)> _active = [];
+    private readonly List<(Vector3 Pos, Vector3 Forward)> _cars = [];
     private Image _img = null!;
     private ImageTexture _tex = null!;
 
@@ -43,6 +48,7 @@ public partial class NightLights : Node
     public override void _Process(double delta)
     {
         _active.Clear();
+        _cars.Clear();
         var cam = GetViewport().GetCamera3D();
         var planes = cam?.GetFrustum();
         foreach (var car in Cars())
@@ -50,23 +56,31 @@ public partial class NightLights : Node
             if (car.NightLight is not { } l || _active.Count == Max) continue;
             // A light whose range lies wholly outside the view is left off the list
             if (planes is not null && planes.Any(p => p.DistanceTo(l.Pos) > Range)) continue;
-            _active.Add(l);
+            _active.Add((l.Pos, l.Forward, I76.Formats.Mission.NightSpot.Exponent, I76.Formats.Mission.NightSpot.K));
+            _cars.Add(l);
+        }
+        foreach (var s in Statics)
+        {
+            if (_active.Count == Max) break;
+            float range = 1f / Mathf.Sqrt(s.K);
+            if (planes is not null && planes.Any(p => p.DistanceTo(s.Pos) > range)) continue;
+            _active.Add(s);
         }
         for (int i = 0; i < _active.Count; i++)
         {
-            var (p, f) = _active[i];
-            _img.SetPixel(i, 0, new Color(p.X, p.Y, p.Z, I76.Formats.Mission.NightSpot.Exponent));
-            _img.SetPixel(i, 1, new Color(f.X, f.Y, f.Z, I76.Formats.Mission.NightSpot.K));
+            var (p, f, e, k) = _active[i];
+            _img.SetPixel(i, 0, new Color(p.X, p.Y, p.Z, e));
+            _img.SetPixel(i, 1, new Color(f.X, f.Y, f.Z, k));
         }
         if (_active.Count > 0) _tex.Update(_img);
         RenderingServer.GlobalShaderParameterSet("i76_night_light_count", _active.Count);
     }
 
-    /// <summary>NightSpot.ShadowLight: the direction toward the light a caster centred at <paramref name="c"/> (global) takes its drop shadow from, or null for the moon.</summary>
+    /// <summary>NightSpot.ShadowLight: the direction toward the light a caster centred at <paramref name="c"/> (global) takes its drop shadow from, or null for the moon (the cars' lights; the scenery's, whose cones differ, are not scored).</summary>
     public Vector3? ShadowLight(Vector3 c)
     {
         static System.Numerics.Vector3 N(Vector3 v) => new(v.X, v.Y, v.Z);
-        var l = I76.Formats.Mission.NightSpot.ShadowLight(N(c), _active.Select(a => (N(a.Pos), N(a.Forward))), Ground, MoonIntensity);
+        var l = I76.Formats.Mission.NightSpot.ShadowLight(N(c), _cars.Select(a => (N(a.Pos), N(a.Forward))), Ground, MoonIntensity);
         return l is { } d ? new Vector3(d.X, d.Y, d.Z) : null;
     }
 }

@@ -1478,15 +1478,15 @@ public sealed class ShellSettings
     /// <summary>
     /// The port's own, without a row: the modern look's night as dialled on the Developer panel's Night sliders (I76.Game.World.NightDial):
     /// [port] night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as
-    /// solved (1), night_chroma and night_warm set how much of the ground's colour the moon's light keeps and how warm it is (1, 1);
+    /// solved (1; the moon's and the sky's 1.4 by default, NightDial.MoonDefault), night_chroma and night_warm set how much of the ground's colour the moon's light keeps and how warm it is (1, 1);
     /// each written only when not the default.
     /// </summary>
     public I76.Game.World.NightDial.Dial Night { get; set; } = new();
 
     /// <summary>The Night keys; <paramref name="value"/> gives a key's text, or null (absent: the default).</summary>
     public void ReadNight(Func<string, string?> value) => Night = new(
-        I76.Game.World.NightDial.ParseScale(value("night_moon")), I76.Game.World.NightDial.ParseScale(value("night_road")),
-        I76.Game.World.NightDial.ParseScale(value("night_sky")),
+        I76.Game.World.NightDial.ParseScale(value("night_moon"), I76.Game.World.NightDial.MoonDefault), I76.Game.World.NightDial.ParseScale(value("night_road")),
+        I76.Game.World.NightDial.ParseScale(value("night_sky"), I76.Game.World.NightDial.SkyDefault),
         I76.Game.World.NightDial.ParseMix(value("night_chroma"), I76.Formats.Imaging.LightingCalibration.NightChroma),
         I76.Game.World.NightDial.ParseMix(value("night_warm"), I76.Formats.Imaging.LightingCalibration.NightWarm));
 
@@ -1589,6 +1589,9 @@ public sealed class ShellSettings
     {
         if (DashLight != I76.Game.Sim.DashLight.Default) set("dash_light", DashLight);
     }
+
+    /// <summary>The port's own, without a row: the modern look's night-lit scenery, its lights and lit faces, in percent (StationLight; [port] night_station_light, 100, written when not the default).</summary>
+    public int NightStationLight { get; set; } = I76.Game.World.StationLight.Default;
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1848,6 +1851,7 @@ public sealed class ShellSettings
         s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
         s.ReadDashLight(Pct);
+        s.NightStationLight = I76.Game.World.StationLight.Parse(Pct("night_station_light"));
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -2015,6 +2019,7 @@ public sealed class ShellSettings
         if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
         if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);
         WriteDashLight((k, v) => c.SetValue("port", k, v));
+        if (NightStationLight != I76.Game.World.StationLight.Default) c.SetValue("port", "night_station_light", NightStationLight);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

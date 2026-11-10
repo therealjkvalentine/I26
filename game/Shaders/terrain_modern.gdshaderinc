@@ -693,9 +693,9 @@ void light() {
 	if (LIGHT_IS_DIRECTIONAL && (i76_night_chroma > 0.0 || i76_night_warm > 0.0)) {
 		const vec3 LUM = vec3(0.2126, 0.7152, 0.0722);
 		light_col = mix(LIGHT_COLOR, vec3(dot(LIGHT_COLOR, LUM)), i76_night_chroma);
-		// i76_night_warm: the moon's light toward the colour moonlight has (about 4100 K, the sun's light off the moon's
-		// grey-brown regolith, redder than daylight), at the same luminance
-		light_col = mix(light_col, dot(LIGHT_COLOR, LUM) * vec3(1.472, 0.909, 0.518), i76_night_warm);
+		// i76_night_warm: the moon's light toward the brown of the night mission's own gas-station cutscene
+		// (LightingCalibration.CutsceneBrown; moonlight's own warm white, about 4100 K, lies near half way), at the same luminance
+		light_col = mix(light_col, dot(LIGHT_COLOR, LUM) * vec3(1.771, 0.852, 0.194), i76_night_warm);
 		glint_hue = mix(vec3(1.0), ALBEDO / max(dot(ALBEDO, LUM), 1e-4), i76_night_chroma);
 	}
 	vec3 h = normalize(VIEW + LIGHT);

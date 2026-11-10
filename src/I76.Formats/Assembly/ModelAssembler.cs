@@ -24,6 +24,8 @@ public sealed class AssembledModel
     public List<string> VtfMaps { get; } = [];
     public string? ObjectCode { get; init; }
     public List<Location> Locations { get; } = [];
+    /// <summary>Scenery's own night lights (LOBJ), definition space; a car's is carried by its headlight pool (NightSpot) instead.</summary>
+    public List<Bwd2.ObjectLight> Lights { get; } = [];
     /// <summary>For vehicles: each mounted weapon (WEPN slot), its gizmo and the hardpoint it sits on.</summary>
     public List<(uint Slot, GizmoDef Gizmo, Hardpoint Hardpoint)> Gizmos { get; } = [];
     /// <summary>For vehicles: each turret's gun, by weapon (the index in Gizmos), with its pivot in model space (the base is a fixed part of the gizmo).</summary>
@@ -125,11 +127,17 @@ public sealed class ModelAssembler(AssetVfs vfs)
         var def = new Bwd2File(data);
         return Bwd2File.Ext(definition) switch
         {
-            "sdf" => AssembleTree(definition, "sdf", def, "SGEO", null, null),
+            "sdf" => WithLights(AssembleTree(definition, "sdf", def, "SGEO", null, null), def),
             "vcf" => AssembleVehicle(definition, def),
             "vdf" => AssembleTree(definition, "vcf", def, "VGEO", VehicleVariantOk, null),
             _ => null,
         };
+    }
+
+    private static AssembledModel? WithLights(AssembledModel? m, Bwd2File def)
+    {
+        m?.Lights.AddRange(def.ObjectLights());
+        return m;
     }
 
     private AssembledModel? AssembleVehicle(string definition, Bwd2File vcf)

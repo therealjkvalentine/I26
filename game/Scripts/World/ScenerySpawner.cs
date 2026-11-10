@@ -26,6 +26,11 @@ public partial class ScenerySpawner : Node3D
     private bool _modern = true;
     private MissionWorld? _world;
 
+    /// <summary>A night preset: the definitions' own night lights (ObjectLight) are placed (StationLight); by day none.</summary>
+    public bool Night { get; init; }
+    /// <summary>The placed night lights, global (Godot) space, for the 1997 look's object light (NightLights.Statics).</summary>
+    public List<(Vector3 Pos, Vector3 Forward, float Exponent, float K)> Lights { get; } = [];
+
     /// <summary>The group of the nodes the drop shadows leave out (Main.Casters): the cards, which the original never casts (keyed faces are skipped), and the placed trees.</summary>
     public const string NoDropShadow = "i76_no_drop_shadow";
 
@@ -403,6 +408,11 @@ public partial class ScenerySpawner : Node3D
             }
             if (tree)
                 foreach (var t in Trees.Add(def, model!, cardNames!, list, xf)) Twin(list[t.Placement], t.Node, t.Index, modern: true);
+            if (Night && model is not null && !roadPiece && System.Environment.GetEnvironmentVariable("I76_NIGHT_STATICS") != "0")
+            {
+                if (model.Lights.Count > 0) AddLights(model, list, xf);
+                if (I76.Formats.Assembly.NightWindows.For(def) is { } windows) AddWindowLights(model, windows, list, xf);
+            }
             if (spinners is not null) AddSpinners(spinners, model!, builder, skip, list, xf, parent);
             if (gates is not null) AddGates(gates, model!, builder, skip, list, xf, parent);
             Loaded += xf.Count;
@@ -699,6 +709,61 @@ public partial class ScenerySpawner : Node3D
     public override void _ExitTree()
     {
         if (Markers.GetParent() is null && IsInstanceValid(Markers)) Markers.Free();
+    }
+
+    /// <summary>
+    /// A definition's own night lights (ObjectLight, the LOBJ chunks) at each placement: the 1997 look lights the objects near them
+    /// through its object light (Lights, NightLights.Statics), as the original does; the modern look hangs a real light there
+    /// (StationLight), a spot along the light's own axis at the engine's clamped cone and range, which lights the ground and the
+    /// cars under it too. I76_NIGHT_STATICS=0 leaves them all out, in both looks, for a comparison.
+    /// </summary>
+    private void AddLights(AssembledModel model, List<Placement> list, List<Transform3D> xf)
+    {
+        for (int i = 0; i < xf.Count; i++)
+            foreach (var l in model.Lights)
+            {
+                var pos = xf[i] * Coords.ToGodot(l.Position);
+                var fwd = (xf[i].Basis * Coords.ToGodot(l.Forward)).Normalized();
+                Lights.Add((pos, fwd, l.Exponent, l.K));
+                float deg = Mathf.RadToDeg(l.ClampedCone);
+                Light3D light = l.Spot
+                    ? new SpotLight3D { SpotRange = l.ClampedRange, SpotAngle = deg, SpotAngleAttenuation = 0.8f, SpotAttenuation = 1f }
+                    : new OmniLight3D { OmniRange = l.ClampedRange, OmniAttenuation = 1f };
+                light.Name = $"NightLight_{list[i].Object.Name}_{i}";
+                light.LightColor = StationLight.Colour;
+                light.ShadowEnabled = false;
+                light.Position = pos;
+                // a spot shines along its -Z: turned to the light's own axis (straight down for a canopy's; an up vector aside from it)
+                var up = Mathf.Abs(fwd.Y) > 0.99f ? Vector3.Forward : Vector3.Up;
+                light.Basis = Basis.LookingAt(fwd, up);
+                light.Visible = _modern;
+                AddChild(light);
+                _modernNodes.Add(light);
+                StationLight.Add(light, l.Spot ? StationLight.SpotEnergy : StationLight.OmniEnergy);
+                GD.Print($"night light: {list[i].Object.Name} at {Coords.ToGame(pos)} along {Coords.ToGame(fwd)} cone {deg:0} range {l.ClampedRange} n {l.Exponent}");
+            }
+    }
+
+    /// <summary>
+    /// A listed night building's lit windows (NightWindows: no light of its own in the data, full-bright faces) each shed a small warm
+    /// light in the modern look, scaled with the scenery's other night lights (StationLight); the 1997 look has none, as the original.
+    /// </summary>
+    private void AddWindowLights(AssembledModel model, I76.Formats.Assembly.NightWindows.Row row, List<Placement> list, List<Transform3D> xf)
+    {
+        var at = I76.Formats.Assembly.NightWindows.Of(model);
+        for (int i = 0; i < xf.Count; i++)
+            for (int k = 0; k < at.Count; k++)
+            {
+                var light = new OmniLight3D
+                {
+                    Name = $"NightWindow_{list[i].Object.Name}_{i}_{k}", OmniRange = row.Range, OmniAttenuation = 1f, ShadowEnabled = false,
+                    LightColor = new Color(row.R, row.G, row.B), Position = xf[i] * Coords.ToGodot(at[k]), Visible = _modern,
+                };
+                AddChild(light);
+                _modernNodes.Add(light);
+                StationLight.Add(light, row.Energy);
+            }
+        if (at.Count > 0) GD.Print($"night windows: {list[0].Object.Name} x{xf.Count}, {at.Count} lights each, range {row.Range}");
     }
 
     private void AddMarker(Placement p)
