@@ -97,3 +97,42 @@ public static class MirrorBands
 
 /// <summary>[port] side_mirrors: off (the original's), on, auto (the default): MirrorBands.Shown.</summary>
 public enum SideMirrorMode { Off, On, Auto }
+
+/// <summary>[port] side_mirror_render: shared, each side mirror a band of the rear mirror's one render; own (the default), a camera of its own at the door mirror looking back along the car's side (MirrorBands.OwnCamera).</summary>
+public enum SideMirrorRender { Shared, Own }
+
+/// <summary>
+/// The side mirrors' own cameras (side_mirror_render=own, the default): one at each door mirror's
+/// height and length, OutboardMetres outboard of the glass (the nearer the eye is to the flank's line, the more of the flank lies
+/// inside the picture's inner edge: at 20 cm and more none of it does), looking back along the car's side turned YawDegrees outward and PitchDegrees down, FovDegrees
+/// across a 512x256 picture every second frame as the rear mirror's: the picture's inner edge looks FovDegrees / 2 - YawDegrees
+/// inboard of straight back (InboardDegrees), so the car's flank is a sliver at that edge and the rest is the adjoining lane well
+/// back, as a real door mirror shows; the flank is the car's own body, drawn for these cameras alone (CarNode.OwnBodyLayer).
+/// I76_OWN_MIRROR=fov,yaw,outboard,pitch sets the four for a review sheet (docs/dev-hooks.md).
+/// </summary>
+public static class OwnCamera
+{
+    public const float FovDegrees = 40f, OutboardMetres = 0.05f, YawDegrees = 15f, PitchDegrees = 3f;
+    public const int Width = 512, Height = 256;
+    /// <summary>How far inboard of straight back the picture's inner edge looks: where the flank shows.</summary>
+    public const float InboardDegrees = FovDegrees / 2 - YawDegrees;
+
+    /// <summary>The camera's forward in the car's frame (x right, y up, z back as the engine's frame has it): back, turned outward and down.</summary>
+    public static System.Numerics.Vector3 Forward(bool left, float yawDegrees = YawDegrees, float pitchDegrees = PitchDegrees)
+    {
+        float d = (left ? -yawDegrees : yawDegrees) * MathF.PI / 180f, p = pitchDegrees * MathF.PI / 180f;
+        return new(MathF.Sin(d) * MathF.Cos(p), -MathF.Sin(p), MathF.Cos(d) * MathF.Cos(p));
+    }
+
+    /// <summary>fov, yaw, outboard, pitch: the constants, or I76_OWN_MIRROR's four where it gives them (a review sheet's variants).</summary>
+    public static (float Fov, float Yaw, float Outboard, float Pitch) Aim(string? hook)
+    {
+        var a = (Fov: FovDegrees, Yaw: YawDegrees, Outboard: OutboardMetres, Pitch: PitchDegrees);
+        if (hook?.Split(',') is not { Length: 4 } s) return a;
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        var n = System.Globalization.NumberStyles.Float;
+        return float.TryParse(s[0], n, c, out float f) && float.TryParse(s[1], n, c, out float y) && float.TryParse(s[2], n, c, out float o) && float.TryParse(s[3], n, c, out float p)
+            ? (Math.Clamp(f, 10f, 90f), Math.Clamp(y, 0f, 45f), Math.Clamp(o, 0f, 1f), Math.Clamp(p, -20f, 20f)) : a;
+    }
+}
+

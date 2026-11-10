@@ -91,6 +91,7 @@ public static class DevSettings
         new("side_mirror_angle", MirrorYawNames, s => Nearest(MirrorYawSteps, s.SideMirrorAngle), (s, v) => s.SideMirrorAngle = MirrorYawSteps[v], DevWhen.Live),
         new("side_mirror_drop", MirrorDropNames, s => Nearest(MirrorDropSteps, s.SideMirrorDrop), (s, v) => s.SideMirrorDrop = MirrorDropSteps[v], DevWhen.Live),
         new("side_mirror_overlap", MirrorOverlapNames, s => Nearest(MirrorOverlapSteps, s.SideMirrorOverlap), (s, v) => s.SideMirrorOverlap = MirrorOverlapSteps[v], DevWhen.Live),
+        new("side_mirror_render", ["shared", "own" + M], s => (int)s.SideMirrorRender, (s, v) => s.SideMirrorRender = (I76.Game.Sim.SideMirrorRender)v, DevWhen.Live),
         new("brake_lamps", Look(OriginalRecipe.BrakeLampNames), s => OfChoice(s.BrakeLampChoice), (s, v) => s.BrakeLampChoice = ToChoice(v), DevWhen.Live),
         new("mg_tracers", Look(OriginalRecipe.MgTracerNames), s => OfChoice(s.MgTracerChoice), (s, v) => s.MgTracerChoice = ToChoice(v), DevWhen.Live),
         new("specials_panel", Look(OriginalRecipe.SpecialsPanelNames), s => OfChoice(s.SpecialsPanelChoice), (s, v) => s.SpecialsPanelChoice = ToChoice(v), DevWhen.Live),
