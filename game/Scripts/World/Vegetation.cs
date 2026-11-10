@@ -58,6 +58,7 @@ public partial class VegetationNode : Node3D
         public VegLayer Layer;
         public Task<List<Group>>? Job;
         public List<Group> Groups = [];
+        public List<Group> FarGroups = [];   // the groups merged by species (variant 0's far mesh): the chunk's draws while it lies wholly in the far tier
         public bool Attached;
         public int Tier = -1;        // every plant in this tier, or 3: split per plant
         public System.Numerics.Vector2 SplitAt;   // where the eye was at the last per-plant split
@@ -78,6 +79,8 @@ public partial class VegetationNode : Node3D
     private const float GroundShadeMin = 0.28f;
     /// <summary>A chunk split per plant redoes the split when the eye has moved this far.</summary>
     private const float Resplit = 2.5f;
+    /// <summary>I76_VEG_MERGE_FAR=0 draws a far chunk's variants apart, as before (for A/B profiles).</summary>
+    private static readonly bool MergeFar = System.Environment.GetEnvironmentVariable("I76_VEG_MERGE_FAR") != "0";
     public int Instances { get; private set; }
     public int DrawnNodes { get; private set; }
     public string Stats { get; private set; } = "";
@@ -341,8 +344,9 @@ public partial class VegetationNode : Node3D
 
     private void Detach(Chunk c)
     {
-        foreach (var g in c.Groups)
+        foreach (var g in c.Groups.Concat(c.FarGroups))
             for (int t = 0; t < 3; t++) { g.Nodes[t]?.QueueFree(); g.Nodes[t] = null; }
+        c.FarGroups.Clear();
         if (c.Attached) Instances -= c.Groups.Sum(g => g.Count);
         c.ShadeNode?.QueueFree();
         c.ShadeNode = null;
@@ -621,6 +625,17 @@ public partial class VegetationNode : Node3D
             }
             o.Add(new Group { Species = sp, Variant = v, Count = list.Count, Buffer = buf });
         }
+        // the far tier's groups: a species' variants in one buffer under its first variant's far mesh (a far crown's variants
+        // differ little at that size, and a chunk wholly in the far tier then draws one node a species, not one a variant)
+        c.FarGroups = [.. o.GroupBy(g => g.Species).Select(sg =>
+        {
+            var list = sg.ToList();
+            if (list.Count == 1) return new Group { Species = list[0].Species, Variant = list[0].Variant, Count = list[0].Count, Buffer = list[0].Buffer };
+            var buf = new float[list.Sum(g => g.Buffer.Length)];
+            int at = 0;
+            foreach (var g in list) { Array.Copy(g.Buffer, 0, buf, at, g.Buffer.Length); at += g.Buffer.Length; }
+            return new Group { Species = sg.Key, Variant = 0, Count = list.Sum(g => g.Count), Buffer = buf };
+        })];
         return o;
     }
 
@@ -665,10 +680,17 @@ public partial class VegetationNode : Node3D
         c.SplitAt = e2;
         c.GrassOn = GrassReach(c, c.Distance);
         float side = ChunkSize(c.Layer), ox = c.Cx * side, oz = c.Cz * side;
+        // wholly in the far tier: the merged groups, one node a species
+        bool merged = tier == 2 && MergeFar;
+        foreach (var g in c.FarGroups)
+        {
+            bool on = merged && !(c.Layer == VegLayer.Ground && _grass[g.Species] && !c.GrassOn);
+            for (int t = 0; t < 3; t++) Show(c, g, t, on && t == 2 ? g.Buffer : null, g.Count);
+        }
         foreach (var g in c.Groups)
         {
             // a chunk beyond the grass tufts' reach draws only its larger plants (no tuft's buffer is sent)
-            if (c.Layer == VegLayer.Ground && _grass[g.Species] && !c.GrassOn)
+            if (merged || (c.Layer == VegLayer.Ground && _grass[g.Species] && !c.GrassOn))
             {
                 for (int t = 0; t < 3; t++) Show(c, g, t, null, 0);
                 continue;
@@ -828,7 +850,7 @@ public partial class VegetationNode : Node3D
             if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
             if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
             Retier(c, eye);
-            foreach (var g in c.Groups) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;
+            foreach (var g in c.Groups.Concat(c.FarGroups)) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;
         }
         if (drop is not null) foreach (var k in drop) { Detach(_chunks[k]); _chunks.Remove(k); }
         DrawnNodes = nodes;
@@ -836,7 +858,7 @@ public partial class VegetationNode : Node3D
         {
             var tiers = new int[3];
             foreach (var c in _chunks.Values)
-                foreach (var g in c.Groups)
+                foreach (var g in c.Groups.Concat(c.FarGroups))
                     for (int t = 0; t < 3; t++) if (g.Nodes[t] is { Visible: true } n) tiers[t] += n.Multimesh.InstanceCount;
             if (System.Environment.GetEnvironmentVariable("I76_VEG_PROBE")?.Split(',').Select(float.Parse).ToArray() is { Length: 4 } r)
                 foreach (var layer in new[] { VegLayer.Shrub, VegLayer.Ground })
