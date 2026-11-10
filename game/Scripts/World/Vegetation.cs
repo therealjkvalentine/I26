@@ -44,6 +44,8 @@ public partial class VegetationNode : Node3D
     // per species (the placer's order), per variant: the full, middle and far meshes, the plant's height, and its shade on the ground
     private (ArrayMesh[] Tiers, float Height, float Shade, float ShadeRadius)[][] _meshes = [];
     private float[] _stiffness = [];
+    private bool[] _grass = [];
+    private VegFadeMarks? _marks;
 
     /// <summary>A chunk's plants of one species variant: their MultiMesh data, and a node per detail tier in use.</summary>
     private sealed class Group
@@ -124,6 +126,13 @@ public partial class VegetationNode : Node3D
         MissionBuilder.Trace("veg: meshes");
         node._meshes = [.. meshData.Select(vs => vs.Select(p => (p.Select(ToMesh).ToArray(), p[0].Bounds().Max.Y, p[0].GroundShade, p[0].GroundRadius)).ToArray())];
         node._stiffness = [.. species.Select(s => s.Stiffness)];
+        node._grass = [.. species.Select(s => s.Grass)];
+        if (VegFadeMarks.On)
+        {
+            var layer = new CanvasLayer { Layer = 90, Name = "VegFadeMarks" };
+            layer.AddChild(node._marks = new VegFadeMarks());
+            node.AddChild(layer);
+        }
         node.Both("atlas", AtlasTexture());
         float low = lowTask.Result;
         MissionBuilder.Trace("veg: low level");
@@ -713,6 +722,36 @@ public partial class VegetationNode : Node3D
         UpdateSward(delta);
         if (!Visible || _placer is null || CameraGame() is not { } eye) return;
         Update(eye, attachAll: false);
+        if (_marks is not null) Mark();
+    }
+
+    /// <summary>I76_VEG_MARKS: every attached plant now in its fade band (VegFadeMarks), the grass tufts' nearest 40.</summary>
+    private void Mark()
+    {
+        _marks!.Marks.Clear();
+        if (GetViewport()?.GetCamera3D() is not { } cam) return;
+        var eye = cam.GlobalPosition;
+        var grass = new List<(Vector3, float, int)>();
+        foreach (var c in _chunks.Values)
+        {
+            if (!c.Attached) continue;
+            float side = ChunkSize(c.Layer), ox = c.Cx * side, oz = c.Cz * side;
+            foreach (var g in c.Groups)
+            {
+                int kind = c.Layer == VegLayer.Shrub ? 0 : _grass[g.Species] ? 2 : 1;
+                float fs = c.Layer == VegLayer.Shrub ? _level.ShrubFade : _level.GroundFade, fe = c.Layer == VegLayer.Shrub ? _level.ShrubEnd : _level.GroundEnd;
+                for (int i = 0; i < g.Count; i++)
+                {
+                    int k = i * 16;
+                    var at = ToGlobal(new Vector3(g.Buffer[k + 3] + ox, g.Buffer[k + 7], g.Buffer[k + 11] - oz));
+                    float d = at.DistanceTo(eye);
+                    if (d < fs || d > fe) continue;
+                    var top = at + new Vector3(0, g.Buffer[k + 14] * 0.6f, 0);
+                    if (kind == 2) grass.Add((top, d, kind)); else _marks.Marks.Add((top, d, kind));
+                }
+            }
+        }
+        _marks.Marks.AddRange(grass.OrderBy(m => m.Item2).Take(40));
     }
 
     private void Update(System.Numerics.Vector3 eye, bool attachAll)
