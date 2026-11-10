@@ -42,6 +42,9 @@ public static class DevSettings
     /// <summary>The dash lamps' values offered (I76.Game.Sim.DashLight): 0 the original's needles, unlit at night.</summary>
     public static readonly int[] DashLightSteps = [0, 25, 50, 75, 100, 125, 150];
     private static readonly string[] DashLightNames = [.. DashLightSteps.Select(p => p == I76.Game.Sim.DashLight.Default ? $"{p}" : $"{p}{M}")];
+    /// <summary>The headlamps' throws offered (I76.Game.Sim.HeadlampThrow): 75 the reach before the key.</summary>
+    public static readonly int[] HeadlampThrowSteps = [50, 75, 90, 100, 110, 125, 150];
+    private static readonly string[] HeadlampThrowNames = [.. HeadlampThrowSteps.Select(p => p == I76.Game.Sim.HeadlampThrow.Default ? $"{p}" : $"{p}{M}")];
 
     /// <summary>The side-view mirrors' keys' values offered (I76.Game.Sim.MirrorBands): the one render's field across (45 is the rear mirror alone, the original's), each side mirror's share of the band outside the rear's, and where it sits; a value set by hand shows as the nearest.</summary>
     public static readonly int[] MirrorFovSteps = [45, 60, 75, 90, 105, 120], MirrorShareSteps = [25, 50, 75, 100], MirrorYawSteps = [30, 35, 40, 45, 50, 55, 60], MirrorDropSteps = [0, 50, 100, 125, 150, 200, 300], MirrorOverlapSteps = [0, 3, 6, 9, 12, 15, 20];
@@ -127,6 +130,8 @@ public static class DevSettings
         new("lamp_halo", HaloNames, s => NearestHaloStep(s.LampHalo), (s, v) => s.LampHalo = HaloSteps[v], DevWhen.Live),
         new("dash_light", DashLightNames, s => Nearest(DashLightSteps, s.DashLight), (s, v) => s.DashLight = DashLightSteps[v], DevWhen.Live,
             s => { I76.Game.Sim.DashLight.Percent = s.DashLight; I76.Game.Sim.DashLight.Refresh(); }),
+        new("headlamp_throw", HeadlampThrowNames, s => Nearest(HeadlampThrowSteps, s.HeadlampThrow), (s, v) => s.HeadlampThrow = HeadlampThrowSteps[v], DevWhen.Live,
+            s => I76.Game.Sim.HeadlampThrow.Percent = s.HeadlampThrow),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),

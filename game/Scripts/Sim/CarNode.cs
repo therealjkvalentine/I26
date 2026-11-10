@@ -835,11 +835,12 @@ public partial class CarNode : Node3D
     /// <summary>The car's night light (a spot at the pool's place along the car's nose) while it is on, in global space; else null.</summary>
     public (Vector3 Pos, Vector3 Forward)? NightLight { get; private set; }
 
-    // The modern look's headlamps (GitHub #52): a long, wide, soft-edged beam, pitched a little down so it lays on the road
-    // out to about 50 m. The player's car casts shadows from it; of the others, only the nearest few carry a real light.
-    // Its energy is LampStrength's, turned down by day.
-    private const float HeadRange = 110f, HeadAngle = 42f, HeadPitch = -2.5f;
+    // The modern look's headlamps (GitHub #52): a long, wide, soft-edged beam, pitched a little down so it lays on the road.
+    // The player's car casts shadows from it; of the others, only the nearest few carry a real light. Its energy is
+    // LampStrength's, turned down by day; its range and fall-off are [port] headlamp_throw's (HeadlampThrow), every car's alike.
+    private const float HeadAngle = 42f, HeadPitch = -2.5f;
     private float _lampDaylight = -1;
+    private int _throwApplied = -1;
     /// <summary>How many other cars' headlamps cast real light at once (the nearest to the camera); I76_HEADLIGHTS overrides it. The player's always do.</summary>
     public static readonly int MaxHeadLit = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HEADLIGHTS"), out int hn) ? hn : 6;
     private static readonly List<CarNode> HeadCars = [];
@@ -866,7 +867,7 @@ public partial class CarNode : Node3D
         _lampDaylight = -1;
         _lamps = at.Select(p =>
         {
-            var l = new SpotLight3D { Position = Coords.ToGodot(p), RotationDegrees = new Vector3(HeadPitch, 0, 0), SpotRange = HeadRange, SpotAngle = HeadAngle, SpotAttenuation = 0.6f,
+            var l = new SpotLight3D { Position = Coords.ToGodot(p), RotationDegrees = new Vector3(HeadPitch, 0, 0), SpotRange = LampStrength.HeadlampRange(), SpotAngle = HeadAngle, SpotAttenuation = HeadlampThrow.Attenuation(HeadlampThrow.Current),
                 SpotAngleAttenuation = 0.7f, LightEnergy = LampStrength.HeadEnergy, LightColor = new Color(1f, 0.95f, 0.8f), ShadowEnabled = player, ShadowBias = 0.08f, ShadowNormalBias = 2.5f, Visible = false };
             AddChild(l);
             return l;
@@ -1165,11 +1166,16 @@ public partial class CarNode : Node3D
         for (int i = 0; i < _lamps.Length; i++) _lamps[i].Visible = lampLights && HeadHeld(i);
         bool dayChanged = LampStrength.Current != _lampDaylight;
         _lampDaylight = LampStrength.Current;
-        if (dayChanged || _headRamp != _headApplied)
+        int throwNow = HeadlampThrow.Current;
+        if (dayChanged || _headRamp != _headApplied || throwNow != _throwApplied)
         {
+            // the throw's range and fall-off ([port] headlamp_throw, live from the Developer panel), its energy keeping the near road's light
+            if (throwNow != _throwApplied)
+                foreach (var l in _lamps) { l.SpotRange = LampStrength.HeadlampRange(throwNow); l.SpotAttenuation = HeadlampThrow.Attenuation(throwNow); }
+            _throwApplied = throwNow;
             // the filament's level on the energy, its colour cooling toward orange over the last of a fall (LampRamp.Warmth)
             _headApplied = _headRamp;
-            float headE = LampStrength.HeadEnergy * LampStrength.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp;
+            float headE = LampStrength.HeadEnergy * HeadlampThrow.EnergyScale(throwNow) * LampStrength.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp;
             var (wr, wg, wb) = LampRamp.Warmth(_headRamp);
             var warm = new Color(HeadColour.R * wr, HeadColour.G * wg, HeadColour.B * wb);
             foreach (var l in _lamps) { l.LightEnergy = headE; l.LightColor = warm; }
