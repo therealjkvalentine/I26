@@ -100,7 +100,10 @@ CPU (about half an hour on 8 cores), then the lettering:
     python3 tools/text-redraws.py SRC_DIR --pack PATH/TO/tex-world-8x
 
 (`--out` defaults to the user folder's `tex-world-8x/`; the mission maps, `zmap*`, stay at 4x: 1.4 GB more for a picture
-already finer than the screen.) The 1997 look
+already finer than the screen.) A pack made before November 2026 has smaller levels in which every keyed texel is black (the
+tools filtered colour weighted by alpha, not the colour the full-size level carries under the key): `python3
+tools/dds-mips.py PATH/TO/tex-world-4x PATH/TO/tex-world-8x --fix` finds each such file and makes its smaller levels again
+from its full-size one (CPU, about half an hour for both packs; the full-size level kept as it is). The 1997 look
 keeps the originals; World Textures and Car & Dash Textures at 1997 (shell.cfg's `[port] world_textures=1997` and `car_textures=1997`) switch the upscales off.
 
 # Source code

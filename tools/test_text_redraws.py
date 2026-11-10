@@ -32,6 +32,31 @@ class FontsTests(unittest.TestCase):
             self.assertTrue(os.path.isabs(p) and os.path.exists(p), name)
             self.assertGreater(tr.cap_ratio(name), 0.4, name)
 
+class PanelTests(unittest.TestCase):
+    def test_a_word_across_a_seam_is_one_run_at_one_size(self):
+        """A "panels" spec: the band's coordinates moved into each texture's, rects clipped, the run cut at the seam so the two
+        textures side by side are the band drawn whole (no step in size or baseline at the seam)."""
+        name = sorted(tr.font_table())[0]
+        ops = [{"op": "erase", "rect": [20, 2, 44, 14], "opaque": True},
+               {"op": "text", "text": "DISTRICT", "font": name, "cap": 6, "box": [12, 4, 52, 10], "colour": [10, 10, 10]}]
+        a = tr.panel_ops(ops, [0, 0], [32, 16]); b = tr.panel_ops(ops, [32, 0], [32, 16])
+        self.assertEqual(a[0]["rect"], [20.0, 2.0, 32.0, 14.0]); self.assertEqual(b[0]["rect"], [0.0, 2.0, 12.0, 14.0])
+        self.assertEqual(b[1]["box"], [-20.0, 4.0, 20.0, 10.0])
+        self.assertEqual(tr.panel_ops([{"op": "erase", "rect": [40, 0, 50, 4]}], [0, 0], [32, 16]), [])
+        whole = tr.apply_ops(np.repeat(np.repeat(blank(64, 16, (200, 120, 0)), 4, 0), 4, 1), blank(64, 16, (200, 120, 0)),
+                             [dict(ops[1])])
+        left = tr.apply_ops(np.repeat(np.repeat(blank(32, 16, (200, 120, 0)), 4, 0), 4, 1), blank(32, 16, (200, 120, 0)), [a[1]])
+        right = tr.apply_ops(np.repeat(np.repeat(blank(32, 16, (200, 120, 0)), 4, 0), 4, 1), blank(32, 16, (200, 120, 0)), [b[1]])
+        joined = np.concatenate([left, right], axis=1).astype(int)
+        self.assertLess(np.abs(joined - whole.astype(int)).max(), 3)
+
+    def test_the_bus_band_specs_cover_their_panels(self):
+        specs = [x for x in tr.load_specs(only="xb11*") if x[0].startswith("school-bus-side")]
+        self.assertEqual(sorted(t for _, t, _ in specs), ["xb11bkl1", "xb11bkr1", "xb11ftl1", "xb11mdl1", "xb11mdr1"])
+        for _, t, spec in specs:
+            caps = {op["box"][1] for op in spec["ops"] if op["op"] == "text"} | {op["box"][3] for op in spec["ops"] if op["op"] == "text"}
+            self.assertEqual(caps, {40.0, 45.0}, t)          # one cap line and baseline for every word on every panel
+
 class SpecTests(unittest.TestCase):
     def specs(self):
         out = []

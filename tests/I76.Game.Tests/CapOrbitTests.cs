@@ -35,4 +35,14 @@ public class CapOrbitTests
         for (double t = 0; t < 10; t += 0.7)
             Assert.Equal(5f, Main.OrbitPose([5f, 1f, 36f, 180f], t).Offset with { Y = 0 } is var o ? o.Length() : 0, 3);
     }
+
+    [Fact]
+    public void A_fifth_value_brings_the_camera_in_and_stops_at_half_a_metre()
+    {
+        float Radius(double t) => Main.OrbitPose([14f, 1.4f, 0f, 90f, -1.2f], t).Offset with { Y = 0 } is var o ? o.Length() : 0;
+        Assert.Equal(14f, Radius(0), 3);
+        Assert.Equal(2f, Radius(10), 3);
+        Assert.Equal(0.5f, Radius(20), 3);
+        Assert.Equal(14f, Main.OrbitPose([14f, 1.4f, 0f, 90f, -1.2f], 0).Offset.X, 3);
+    }
 }

@@ -3964,13 +3964,15 @@ public partial class Main : Node3D
 
     /// <summary>
     /// I76_CAP_ORBIT's camera at time <paramref name="t"/>: its offset from the car (radius orbit[0], height orbit[1], turned orbit[2] degrees
-    /// a second from orbit[3], Godot axes) and the yaw and pitch that look at the car (its body about 0.6 m up).
+    /// a second from orbit[3], Godot axes; the radius changing by orbit[4] metres a second, no nearer than 0.5 m) and the yaw and pitch
+    /// that look at the car (its body about 0.6 m up).
     /// </summary>
     public static (Vector3 Offset, float Yaw, float Pitch) OrbitPose(float[] orbit, double t)
     {
         float a = Mathf.DegToRad((orbit.Length > 3 ? orbit[3] : 0) + orbit[2] * (float)t);
-        var off = new Vector3(orbit[0] * Mathf.Sin(a), orbit[1], orbit[0] * Mathf.Cos(a));
-        return (off, Mathf.RadToDeg(Mathf.Atan2(off.X, off.Z)), -Mathf.RadToDeg(Mathf.Atan2(orbit[1] - 0.6f, orbit[0])));
+        float r = Mathf.Max(0.5f, orbit[0] + (orbit.Length > 4 ? orbit[4] * (float)t : 0));
+        var off = new Vector3(r * Mathf.Sin(a), orbit[1], r * Mathf.Cos(a));
+        return (off, Mathf.RadToDeg(Mathf.Atan2(off.X, off.Z)), -Mathf.RadToDeg(Mathf.Atan2(orbit[1] - 0.6f, r)));
     }
 
     private void ApplyCapCam()
@@ -3979,8 +3981,9 @@ public partial class Main : Node3D
         // I76_CAP_CAM_ON=ODEF: the offset is from the first car of that definition (a prefix: vcpolic) instead of the player's
         var on = System.Environment.GetEnvironmentVariable("I76_CAP_CAM_ON") is { Length: > 0 } pre
             ? _sim?.Cars.FirstOrDefault(c => c.Definition.StartsWith(pre, StringComparison.OrdinalIgnoreCase)) : null;
-        // I76_CAP_ORBIT="radius,height,degrees per second[,start]": the camera circles the same car at that radius and height, looking at it
-        // (an orbit for a clip of a car's sides: 36 for one turn in 10 s), from the start angle (0: ahead of the car's +Z, Godot axes)
+        // I76_CAP_ORBIT="radius,height,degrees per second[,start[,metres per second]]": the camera circles the same car at that radius and
+        // height, looking at it (an orbit for a clip of a car's sides: 36 for one turn in 10 s), from the start angle (0: ahead of the car's
+        // +Z, Godot axes), the radius changing at the last rate (negative: an approach)
         var orbit = System.Environment.GetEnvironmentVariable("I76_CAP_ORBIT")?.Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         if ((on ?? _car) is { } orbited && orbit is { Length: >= 3 })
         {
