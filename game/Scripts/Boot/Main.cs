@@ -2642,11 +2642,14 @@ public partial class Main : Node3D
         var luma = LumaBytes();
         return I76.Game.World.NightDial.Night(card, solved,
             moon => I76.Formats.Imaging.LightingCalibration.NightRoad(luma, light.Intensity, light.Direction.Y, light.Ambient, _sunEnergy * moon * lum, curve),
-            _nightDial, I76.Game.World.NightDial.Env);
+            _nightDial, I76.Game.World.NightDial.Env, _nightSkyNorm);
     }
 
     /// <summary>The Developer panel's Night sliders ([port] night_moon ...), from the settings at ApplyGraphics.</summary>
     private I76.Game.World.NightDial.Dial _nightDial = new();
+
+    /// <summary>The mission's night sky gain over the reference's (NightDial.SkyNorm), from its sky texture at the load; I76_NIGHT_NORM=0 leaves it 1.</summary>
+    private double _nightSkyNorm = 1;
 
     /// <summary>How much of the sky's colour its light on the scene keeps (sky_modern.gdshaderinc radiance_chroma).</summary>
     private static double RadianceChroma(Lighting l) => l == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.CardRadianceChroma : 1;
@@ -2688,6 +2691,20 @@ public partial class Main : Node3D
             // has no toe to undo); the light it gives as tuned
             _skyOriginal = new SkyColours(pal.Sky, _builder.SkyAverage, pal.Cloud, pal.Shade, 1f, _skyModern.AmbientGain, true);
             m.SetShaderParameter("sky_lum", pal.SkyLum);
+            _nightSkyNorm = 1;
+            if (!day)
+            {
+                // the mission's own night levels as measured (the log's table), and its sky's gain over the reference's
+                static float L(Color c) { var x = c.SrgbToLinear(); return 0.2126f * x.R + 0.7152f * x.G + 0.0722f * x.B; }
+                float gl = -1;
+                if (_builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is { } gi)
+                {
+                    if (gi.IsCompressed()) gi.Decompress();
+                    gi.Convert(Image.Format.Rgb8); gi.Resize(1, 1, Image.Interpolation.Lanczos); gl = L(gi.GetPixel(0, 0));
+                }
+                _nightSkyNorm = System.Environment.GetEnvironmentVariable("I76_NIGHT_NORM") == "0" ? 1 : I76.Game.World.NightDial.SkyNorm(L(_builder.SkyAverage));
+                GD.Print($"night levels: sky {L(pal.Sky):0.0000} average {L(_builder.SkyAverage):0.0000} cloud {L(pal.Cloud):0.0000} shade {L(pal.Shade):0.0000} ground {gl:0.0000} preset {light.Index} intensity {light.Intensity:0.000} ambient {light.Ambient:0.000} sky norm {_nightSkyNorm:0.00}");
+            }
             m.SetShaderParameter("cloud_lum", pal.CloudLum);
         }
         else _skyModern = _skyOriginal = new SkyColours(new Color(0.25f, 0.42f, 0.75f), new Color(0.7f, 0.75f, 0.8f), Colors.White, new Color(0.55f, 0.58f, 0.65f), 1f, 1f, false);
