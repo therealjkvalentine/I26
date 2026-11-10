@@ -42,5 +42,6 @@ public static class LampStrength
     {
         Current = daylight;
         I76.Game.World.ObjectLight.Set("i76_daylight", daylight);
+        DashLight.Refresh();
     }
 }

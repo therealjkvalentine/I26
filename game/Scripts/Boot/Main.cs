@@ -751,6 +751,7 @@ public partial class Main : Node3D
             _env1997.AdjustmentColorCorrection = CardCurve(s.Graphics[0xc]);
         }
         I76.Game.Sim.OriginalBehavior.Apply(s);   // before the mirror: its far clip is one of them
+        I76.Game.Sim.DashLight.Refresh();   // [port] dash_light, live from the Developer panel
         if (_pit is not null) { _pit.MirrorSetting = s.Graphics[0xd]; _pit.ApplySideMirrors(s); }
         _extInstruments = s.Graphics[0xe] != 0;
         _shadowDetail = s.Graphics[0x6];
@@ -1520,6 +1521,8 @@ public partial class Main : Node3D
                     if (needleMesh.SurfaceGetMaterial(si) is ShaderMaterial needleMat && builder.Materials?.StripCopy(needleMat) is { } own)
                     {
                         own.SetShaderParameter("albedo_color", Color.Color8(nr, ng, nb));
+                        // the modern look's dash lamp shows the needle's colour at night (DashLight)
+                        own.SetShaderParameter(I76.Game.Sim.DashLight.Uniform, true);
                         needleMesh.SurfaceSetMaterial(si, own);
                     }
             }
