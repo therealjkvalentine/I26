@@ -73,7 +73,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     {
         float throttle = v.Throttle;
         if (v.Handbrake != 0 || v.DriveState == 0) throttle = -1;
-        if (throttle < 0 && v.Unk_0xf4 != 0) throttle += throttle;
+        if (throttle < 0 && v.Unk_0xf4 != 0) throttle *= Specials.XAustBrakeScale;   // the X-Aust Brake: x2 is exact, as throttle + throttle
         var flags = v.Flags & ~(VehicleFlags)0x206;
         float speed = v.Speed;
         pos = v.Pos.ToVector3(); vel = Vector3.Zero; rot = v.Rot; sp = 0; yaw = 0;
@@ -300,7 +300,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         bool tipped = Vector3.Dot(n, v.Rot.Up) < 0.1f;
         if (tipped || !(v.Handbrake == 0 && v.DriveState != 0)) throttle = -1f;
         if (throttle > -1e-4f && v.DriveState == 2) throttle = 0;
-        if (throttle < 0 && v.Unk_0xf4 != 0) throttle += throttle;
+        if (throttle < 0 && v.Unk_0xf4 != 0) throttle *= Specials.XAustBrakeScale;   // the X-Aust Brake: x2 is exact, as throttle + throttle
 
         var vel0 = v.Vel;
         float signedSpeed = v.Speed * (Vector3.Dot(fwd, vel0) < 0 ? -1 : 1);
@@ -946,7 +946,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             if (throttle < 1e-4f) return 0;
             float traction = (v.RearRight.Grip + v.RearLeft.Grip) * load;
             float f = (mode == 0 ? v.Engine.Force : v.Engine.PeakForce * v.Engine.Damage) * v.P.DriveScale * v.P.EngineScale;
-            if ((v.Flags & VehicleFlags.TurboDrive) != 0) f *= 5;
+            if ((v.Flags & VehicleFlags.TurboDrive) != 0) f *= Specials.NitroForce;
             if (v.Speed > 1) f *= v.InvSpeed;
             if (f < 1e-4f) f = 1e-4f;
             f *= throttle;

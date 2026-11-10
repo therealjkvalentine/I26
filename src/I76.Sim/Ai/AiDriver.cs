@@ -130,7 +130,7 @@ public static class AiDriver
         if (e > 0)
         {
             float f = v.P.EngineScale * (v.Engine.Force * v.P.DriveScale);
-            if ((v.Flags & VehicleFlags.TurboDrive) != 0) f *= 5;
+            if ((v.Flags & VehicleFlags.TurboDrive) != 0) f *= Specials.NitroForce;
             if (speed > 1f) f *= v.InvSpeed;
             if (f < 1e-4f) f = 1e-4f;
             e /= f;
