@@ -11,6 +11,7 @@ namespace I76.Game.Tests;
 /// under a night preset, while the dial faces are painted art shown as painted. At night the needles show their own colour, warmed,
 /// as light as by day at [port] dash_light 100 (the default); none by day, where the sun lights them; the 1997 look untouched.
 /// </summary>
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets a global: not alongside the other settings tests
 public class DashLightTests
 {
     private static string Repo(params string[] path)

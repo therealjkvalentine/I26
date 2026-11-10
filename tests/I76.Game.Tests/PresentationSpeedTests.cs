@@ -7,6 +7,7 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>[port] sky_speed and death_orbit_speed: drawn-only percentages, 50 by default; 100 is the rate before the keys.</summary>
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets a global: not alongside the other settings tests
 public class PresentationSpeedTests
 {
     /// <summary>shell.cfg's [port] text as the file holds it: key=value lines (the engine's ConfigFile is not loadable in the tests).</summary>

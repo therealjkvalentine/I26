@@ -7,6 +7,7 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>Round 3's control-latency keys ([port] low_latency_present, draw_ahead; docs/1997-parity.md): their defaults, the swap mode, the Developer panel's toggles.</summary>
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets a global: not alongside the other settings tests
 public class LatencyKeysTests
 {
     [Fact]
