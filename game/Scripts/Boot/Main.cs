@@ -1006,6 +1006,9 @@ public partial class Main : Node3D
         { GD.PrintErr($"input replay {path}: not read: {ex.Message}"); return null; }
     }
 
+    /// <summary>A dev or capture launch (--mission on the command line, --quit-after, --screenshot): no one is there to see a fallback.</summary>
+    private bool ScriptedLaunch => _opt.QuitAfter > 0 || _opt.Screenshot is not null || (_opt.MissionGiven && _launch is null && NextMission is null && DebugCar is null && DevCar is null);
+
     /// <summary>
     /// The mission made drivable (MissionSetup): every placed car simulated,
     /// the player's at its placement (or the requested car), and the mission
@@ -1030,6 +1033,18 @@ public partial class Main : Node3D
             foreach (var pair in swap[1].Split(',', System.StringSplitOptions.RemoveEmptyEntries).Select(x => x.Split('=')).Where(x => x.Length == 2))
                 text = text.Replace(pair[0] + ".gdf", pair[1] + ".gdf", System.StringComparison.OrdinalIgnoreCase);
             AssetVfs.Addon[swap[0]] = System.Text.Encoding.Latin1.GetBytes(text);
+        }
+        // a car asked for that the install does not have: a scripted run stops (it would run on with no player, no chase camera), else the mission's own car
+        if (MissingCarPolicy.FileName(requested) is { } carFile)
+        {
+            var carOutcome = MissingCarPolicy.Decide(requested, _builder!.Vfs.Locate(carFile) is not null, ScriptedLaunch);
+            if (carOutcome != MissingCarPolicy.Outcome.Load)
+            {
+                var carMsg = MissingCarPolicy.Message(carFile, $"the install ({_opt.Install}) or the addon overlay", carOutcome);
+                if (carOutcome == MissingCarPolicy.Outcome.Fail) { GD.PrintErr(carMsg); SetProcess(false); GetTree().Quit(2); yield break; }
+                GD.PushWarning(carMsg); GD.Print(carMsg);
+                requested = ""; _opt.Drive = "";
+            }
         }
         var w = _builder!.World!;
         // I76_INPUT=file: a recorded run replayed from the mission's start, on its seed and rate (not a checkpoint's retry)
@@ -3339,9 +3354,9 @@ public partial class Main : Node3D
         var mode = CursorPolicy.For(inMission && _netHud?.Pointer != true, chase, MouseCamera.Level, focused, MouseCamera.Confine, cockpit, MouseCamera.CockpitLook);
         // the mouse orbits the chase view (or turns the head in the 3D cockpit) only while captured, unpaused and no orbit key is held
         MouseCamera.CockpitActive = mode == CursorMode.Captured && !_gamePaused && cockpit;
-        MouseCamera.Active = mode == CursorMode.Captured && !_gamePaused && (cockpit || _chase!.Orbit?.Invoke() != true);
+        MouseCamera.Active = mode == CursorMode.Captured && !_gamePaused && (cockpit || _chase?.Orbit?.Invoke() != true);
         // the wheel zooms the external view on screen, whether or not the mouse orbits it
-        MouseCamera.WheelView = inMission && !CameraHeld && !_gamePaused && _chase!.Orbit?.Invoke() != true ? WheelViewNow() : null;
+        MouseCamera.WheelView = inMission && !CameraHeld && !_gamePaused && _chase?.Orbit?.Invoke() != true ? WheelViewNow() : null;
         TrackViewForZoom(inMission);
         ApplyCursor(QuietWindow.Active ? CursorMode.Visible : mode);   // the quiet window never confines or captures the pointer (scripted motion still orbits)
     }
