@@ -759,6 +759,15 @@ public partial class VegetationNode : Node3D
             }
         }
         _marks.Marks.AddRange(grass.OrderBy(m => m.Item2).Take(40));
+        // a line a frame: the nearest plant of each kind fading in in view (its distance), for the clips' sheets
+        var near = new float[3];
+        var rect = GetViewport().GetVisibleRect();
+        foreach (var (at, d, kind) in _marks.Marks.Concat(grass))
+        {
+            if (cam.IsPositionBehind(at) || !rect.HasPoint(cam.UnprojectPosition(at))) continue;
+            if (near[kind] == 0 || d < near[kind]) near[kind] = d;
+        }
+        GD.Print($"vegmarks frame {Engine.GetFramesDrawn()} eye {eye.X:0.0} {eye.Y:0.0} {eye.Z:0.0}: shrub {near[0]:0.0} forb {near[2]:0.0} grass {near[1]:0.0}");
     }
 
     private void Update(System.Numerics.Vector3 eye, bool attachAll)
