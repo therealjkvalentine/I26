@@ -20,6 +20,7 @@ public partial class VegetationNode : Node3D
     public static float ChunkSize(VegLayer layer) => layer == VegLayer.Shrub ? 160f : 80f;
 
     private VegLevels.Level _level = VegLevels.Low;
+    private int _levelIndex, _throw;
     private VegetationPlacer _placer = null!;
     // one material a kind of plant (Kind: the shrubs, the grass tufts, the ground layer's larger plants), which differ in how
     // far they reach, and per detail tier, which differ in the band they cross-fade in (TierBands); [kind][tier]
@@ -219,9 +220,11 @@ public partial class VegetationNode : Node3D
     {
         Clear();
         Visible = level > 0;
+        _levelIndex = level;
+        _throw = I76.Game.Sim.HeadlampThrow.Current;
         _tumble?.SetLevel(level);
         if (level == 0) { _placer = null!; UpdateSward(0, now: true); return; }
-        _level = VegLevels.For(level, I76.Game.Sim.LampStrength.Range);
+        _level = VegLevels.For(level, VegLevels.LampReachNow);
         _placer = new VegetationPlacer(_region.Biome, new VegetationParams { Density = _level.Density * _region.Density * DensityFactor, LowLevel = _lowLevel, LowGround = _region.LowGround }, _terrain, _mask, _seed);
         for (int l = 0; l < 3; l++)
         {
@@ -726,6 +729,8 @@ public partial class VegetationNode : Node3D
     public override void _Process(double delta)
     {
         UpdateSward(delta);
+        // the headlamps' throw changed (the Developer panel, the settings): the bushes' reach follows it
+        if (_levelIndex > 0 && I76.Game.Sim.HeadlampThrow.Current != _throw) SetLevel(_levelIndex);
         if (!Visible || _placer is null || CameraGame() is not { } eye) return;
         Update(eye, attachAll: false);
         if (_marks is not null) Mark();

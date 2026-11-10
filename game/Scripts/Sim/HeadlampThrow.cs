@@ -52,6 +52,29 @@ public static class HeadlampThrow
     }
 
     /// <summary>
+    /// The share of the light just ahead of the hood (at <see cref="Near"/>) below which a plant or post facing the lamps no longer
+    /// shows lit at night: 7 %, where today's beam (75) ends visibly at 90 m and the default's at 126 m (the road "faintly lit" there).
+    /// </summary>
+    public const float VisibleShare = 0.07f;
+
+    /// <summary>
+    /// How far the lamps visibly light what stands by the road at a setting (metres from the lamp): where their light, by the
+    /// fall-off and the energy at that setting, drops to <see cref="VisibleShare"/> of the light at Near (beyond, the beam is too
+    /// dim to show it). 56 m at 50, 90 at 75, 126 at 100, 163 at 125, 201 at 150.
+    /// </summary>
+    public static float VisibleReach(int percent)
+    {
+        float r = Range(percent), a = Attenuation(percent), want = VisibleShare * Falloff(Near, TodayRange, TodayAttenuation), es = EnergyScale(percent);
+        float lo = Near, hi = r;
+        for (int i = 0; i < 40; i++)
+        {
+            float m = 0.5f * (lo + hi);
+            if (es * Falloff(m, r, a) > want) lo = m; else hi = m;
+        }
+        return lo;
+    }
+
+    /// <summary>
     /// The light a flat road takes from one lamp at <paramref name="distance"/> metres ahead (the lamp <paramref name="height"/> over it),
     /// in the energy's units: the fall-off at the slant distance, the energy's share and the grazing angle (the beam's cone, near
     /// full along the road, left out). For the tests and the curve on the review sheet.
