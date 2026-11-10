@@ -172,6 +172,28 @@ src zsheet320.map
         self.assertEqual(places["zsheet320"][(0, 0, 2, 2)], ("zpanel320", 5, 10), "the low-resolution set among its own anchors")
         self.assertEqual(places["zsheet320"][(2, 0, 2, 2)], ("zpanel320", 20, 10))
 
+    DAMAGE = """dst zsy_.map
+    label engine              25   34       0    0
+    label farm               120    6       0    0
+src zsye.map
+    label engine_off           0    0      61   12
+    label farm_off           238   50      52    9
+    label farm_grn           238   59      52    9
+src zwpe.map
+    label housing2             0   24     182   24
+"""
+
+    def test_the_damage_sheets_cells_are_cut_a_row_up_as_the_game_draws_them(self):
+        # the chevron's point is the row above its label and the label's last row is the next state's point: the game draws
+        # each damage cell a row up on the sheet and on the panel, so the pack's tile is that rectangle, set at that place
+        cells = ut.layout_cells(self.DAMAGE)
+        self.assertEqual(cells["zsye"], [(0, 0, 61, 12), (238, 49, 52, 9), (238, 58, 52, 9)], "the engine plate, at the sheet's top row, as labelled")
+        self.assertEqual(cells["zwpe"], [(0, 24, 182, 24)], "every other sheet as labelled")
+        places = ut.layout_places(self.DAMAGE)
+        self.assertEqual(places["zsye"][(238, 49, 52, 9)], ("zsy_", 120, 5), "the anchor a row up with it")
+        self.assertEqual(places["zsye"][(238, 58, 52, 9)], ("zsy_", 120, 5))
+        self.assertEqual(places["zsye"][(0, 0, 61, 12)], ("zsy_", 25, 34))
+
     def test_a_cell_is_set_in_the_panel_round_it_not_its_mirror(self):
         # a cell whose shape touches its top (a white point over grey): mirrored, the model (a vertical blur) sees the point
         # continue upward and keeps it white to the edge; set in the panel's green, the edge takes the green the game shows there

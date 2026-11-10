@@ -75,7 +75,9 @@ a bracket differed from the panel's by a few levels, a lighter rectangle the cel
 cell's border (a run that differs from the panel under it, lies wholly in the outermost row or column, touches nothing else of
 the cell's and goes on across the border) shows the panel instead, and every texel of a cell that the stamp leaves looking like
 the panel (the panel's own colour under it, keyed, or such a neighbour's art) is the panel's own upscale from the pack (--out,
-then --panels, then the user folder's pack of the scale): the lit shape is all the stamp changes.
+then --panels, then the user folder's pack of the scale): the lit shape is all the stamp changes. The damage sheet's art sits a
+row above each label (the chevron's point, the plates' top edges) and the game draws its cells a row up, as the original does
+(drawn_rect, ROWS_UP): those rectangles are the cells cut, the whole chevron with its point in one tile.
 
 Cut-out edges (--recut FIELDS): a keyed texture's alpha enlarged by any model follows the original's stair steps and the
 model's lumps, and the model blurs the art's outermost texels into the colour bled round it (a light fringe on a dark-edged
@@ -196,6 +198,14 @@ CELLS = {}         # --cells: sheet stem -> its sprite cells [(x, y, w, h), ...]
 PLACES = {}        # --cells: sheet stem -> {cell: (panel stem, x, y)}, where the cockpit stamps the cell (layout_places)
 CELL_CONTEXT = 12  # the panel's texels round a cell the model sees (by_cells), cropped off after
 
+ROWS_UP = {"zsye"}  # sheets whose cells the game draws a row above their labels, on the sheet and the panel (CockpitPanels.RowsUp)
+
+def drawn_rect(sheet, x, y, w, h):
+    """A cell's rectangle as the game draws it: the damage sheet's art sits a row above each label (the front chevron's point, the
+    plates' top edges) and the label's last row is the next state's first, so the cockpit draws each of its cells a row up (a cell
+    at the sheet's top row as labelled), and its anchor a row up with it; every other sheet as labelled."""
+    return (x, y - 1, w, h) if sheet in ROWS_UP and y > 0 else (x, y, w, h)
+
 def layout_places(text):
     """Where a layout's sprite cells are stamped: by sheet, each cell to the dst texture and anchor of the label whose name
     is the cell's without its state suffix (`farm_off` at `farm`), or ends with it (the one `tire` cell at `rrtire`, `rltire`,
@@ -222,12 +232,15 @@ def layout_places(text):
             if found is None:
                 for a, at in anchors.items():
                     if a.startswith("3") == low and a.endswith(stem): found = at; break
-            if found is not None: places.setdefault(sheet, {})[cell] = found
+            if found is not None:
+                drawn = drawn_rect(sheet, *cell)
+                places.setdefault(sheet, {})[drawn] = (found[0], found[1], found[2] - (cell[1] - drawn[1]))
     return places
 
 def layout_cells(text):
     """A cockpit layout's (.elt) sprite cells by sheet: each `src NAME.map` section's labels with a size (`label name x y w h`,
-    w and h over 0; the dst sections' anchors have none), rows counted from the picture's top as shown, duplicates once."""
+    w and h over 0; the dst sections' anchors have none), rows counted from the picture's top as shown, duplicates once; each
+    as the game draws it (drawn_rect)."""
     cells, cur = {}, None
     for line in text.splitlines():
         f = line.split()
@@ -236,7 +249,8 @@ def layout_cells(text):
         elif cur and len(f) >= 6 and f[0] == "label":
             try: x, y, w, h = (int(v) for v in f[2:6])
             except ValueError: continue
-            if w > 0 and h > 0 and (x, y, w, h) not in cells.setdefault(cur, []): cells[cur].append((x, y, w, h))
+            r = drawn_rect(cur, x, y, w, h)
+            if w > 0 and h > 0 and r not in cells.setdefault(cur, []): cells[cur].append(r)
     return cells
 
 def cell_canvas(cell, around, m=CELL_CONTEXT):
