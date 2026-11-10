@@ -57,12 +57,15 @@ public static class VegLevels
         float s = MathF.Max(0, appear - l.ShrubFade), f = MathF.Max(0, appear - l.ForbFade);
         l = l with { ShrubFade = l.ShrubFade + s, ShrubEnd = l.ShrubEnd + s, ForbFade = l.ForbFade + f, ForbEnd = l.ForbEnd + f };
         // at night a shrub's far mesh (a quarter of its clusters) filled in to its middle one at 40-60 m in the beam: there no
-        // shrub draws its far mesh (its cross-fade band begins past the shrubs' end; a far band straddling the reach would split
-        // its chunks plant by plant every few metres, main-thread work the frame cannot pay)
-        if (night && !OldTiers) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(l.ShrubEnd)) };
+        // shrub draws its far mesh (no far band at all: one near the reach's end split the chunks there plant by plant every
+        // few metres, 0.2 ms of the main thread on T06)
+        if (night && !OldTiers) l = l with { ShrubFar = NoFar };
         if (NearForbs) l = l with { ForbFade = l.GrassFade, ForbEnd = l.GrassEnd };
         return l;
     }
+
+    /// <summary>A tier boundary no plant reaches.</summary>
+    public const float NoFar = 1e5f;
 
     /// <summary>The tier boundary whose cross-fade band (TierBands) begins at <paramref name="start"/>.</summary>
     public static float FarFrom(float start)
