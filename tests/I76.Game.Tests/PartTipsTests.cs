@@ -152,6 +152,15 @@ public class PartTipsTests
         }
         finally
         {
+            if (dump is not null)
+            {
+                dump.Add("\n==== rows that are not parts ====\n");
+                foreach (var (name, t) in new[] { ("the driver's .45 (Hand)", PartTips.Handgun), ("an empty slot", PartTips.Empty),
+                    ("Dashboard Mary, base game", PartTips.Special(10, false)!), ("Tire Covers, base game", PartTips.Special(11, false)!) })
+                    dump.Add($"[{name}]\n  {t.Text.Replace("\n", "\n  ")}\n  source: {t.Source}\n");
+                foreach (var (name, t) in new[] { ("DEFENSE armor", PartTips.ArmourTip), ("DEFENSE chassis", PartTips.ChassisTip), ("DEFENSE Lbs. available", PartTips.PoolTip) })
+                    dump.Add($"[{name}]\n  {t.Replace("\n", "\n  ")}\n  source: hand-written (VehicleDamage.ArmourStep; the player's armor x2 off-line, VehicleDamage.Create)\n");
+            }
             if (dump is not null) File.WriteAllText(Environment.GetEnvironmentVariable("I76_TIPS_DUMP")!, string.Join("\n", dump));
         }
     }
