@@ -1540,6 +1540,17 @@ public sealed class ShellSettings
     public bool LampRamp { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's lamp lens glows and glares in percent (LampStrength.Halo; [port] lamp_halo, 65, written when not the default).</summary>
     public int LampHalo { get; set; } = I76.Game.Sim.LampStrength.HaloDefault;
+    /// <summary>The port's own, without a row: the modern look's dash lamps behind the speedometer's and tachometer's needles at night, in percent: 100 as light as by day (DashLight; [port] dash_light, 100, written when not the default).</summary>
+    public int DashLight { get; set; } = I76.Game.Sim.DashLight.Default;
+
+    /// <summary>[port] dash_light; <paramref name="value"/> gives the key's text, or null (absent: the default).</summary>
+    public void ReadDashLight(Func<string, string?> value) => DashLight = I76.Game.Sim.DashLight.Parse(value("dash_light"));
+
+    /// <summary>[port] dash_light, only when not the default; <paramref name="set"/> writes a [port] key.</summary>
+    public void WriteDashLight(Action<string, int> set)
+    {
+        if (DashLight != I76.Game.Sim.DashLight.Default) set("dash_light", DashLight);
+    }
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1795,6 +1806,7 @@ public sealed class ShellSettings
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
         s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
+        s.ReadDashLight(Pct);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -1958,6 +1970,7 @@ public sealed class ShellSettings
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
         if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
         if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);
+        WriteDashLight((k, v) => c.SetValue("port", k, v));
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

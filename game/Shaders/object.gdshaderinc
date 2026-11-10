@@ -146,6 +146,10 @@ global uniform float i76_object_sky;
 // and through the card's curve (lighting_calibration on) a car's glass pane shows i76_glass_pane of its painted colour (0.3 otherwise)
 global uniform float i76_glass_pane;
 global uniform float i76_prelit_gain;
+// the modern look's dash lamps (DashLight): the needles show their own colour, warmed, at this share of it (0 by day; at night [port] dash_light's, a fifth at 100)
+global uniform float i76_dash_light;
+const vec3 DASH_LAMP = vec3(1.14, 0.98, 0.80);   // a 12 V instrument bulb's warm white, at unit luminance
+uniform bool dash_lamp = false;
 uniform bool has_glass = false;    // with car_paint: glass_tex marks the window texels (CarMaterialTable's glass, MaterialLibrary.GlassOf)
 uniform sampler2D glass_tex : source_color, hint_default_black, filter_linear_mipmap;   // rgb the glass's own colour (blurred), a the soft mask
 uniform sampler2D glass_body : source_color, hint_default_black, filter_linear_mipmap;   // the body's colour round the window, past its trim (MaterialLibrary.BodyColour)
@@ -795,6 +799,7 @@ void fragment() {
 		EMISSION = g;
 	}
 	if (!prelit) { ALBEDO *= i76_object_tint; AO = i76_object_sky; }
+	if (dash_lamp) EMISSION += c.rgb * DASH_LAMP * i76_dash_light * i76_prelit_gain;
 #endif
 #ifdef TRANSLUCENT
 	ALPHA = opacity;

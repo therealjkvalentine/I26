@@ -47,6 +47,7 @@ public static class OriginalBehavior
         EvenFlash = s.EvenFlash;
         LampRamp.Setting = s.LampRamp;
         LampStrength.HaloPercent = s.LampHalo;
+        DashLight.Percent = s.DashLight;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 
