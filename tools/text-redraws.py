@@ -60,6 +60,15 @@ included) on that box, the painted letters' own box read off the original, so th
 place; "fit": "ink" does the same for a "quad". "cap" then only sets the size the font is drawn at (about the box's height).
 "embolden": texels added to each side of the letters' strokes (the stroke goes round the thickened letters), where the face's
 boldest weight is thinner than the painted letters.
+lines: straight strokes and arcs drawn anti-aliased (a dial's graduations: ticks and the scale's line, which a model upscale
+leaves wobbly): "segments" [[x0, y0, x1, y1], ...] (or [x0, y0, x1, y1, width, [r, g, b]]) with "width" (texels) and
+"colour", ends square ("cap": "butt", as a painted tick's) or "round"; "arcs" [{"center", "radii": [rx, ry], "from", "to"
+(degrees clockwise from up), "width", "colour" or "colours": [[angle, [r, g, b]], ...]}]. "alpha" as for text (keep, set,
+cover with "under"). Strokes in one op are one layer (where they overlap the most covering one's colour); ops lay over
+each other in order, so a line's ticks go in an op after it.
+"where": {"ring": {"center", "radii", "inner", "outer", "from", "to"}} limits an erase (or a smooth) to the texels whose
+centres lie between "inner" and "outer" texels of an ellipse along the ray from its centre, within the sweep: a dial's
+graduation ring without the figures or the bezel beside it.
 """
 import argparse, fnmatch, glob, json, math, os, shutil, struct, sys, time
 import numpy as np
@@ -204,6 +213,77 @@ def perspective(frm, to):
         M.append([0, 0, 0, u, v, 1, -u * y, -v * y]); r.append(y)
     return tuple(np.linalg.solve(np.array(M, np.float64), np.array(r, np.float64)))
 
+# ---- lines (a dial's graduations) ----
+
+def ring_angle(dx, dy):
+    """The angle of (dx, dy) about a dial's centre in degrees, 0 up, clockwise on screen (y down), 0..360."""
+    return np.degrees(np.arctan2(dx, -dy)) % 360
+
+def in_sweep(a, a0, a1):
+    """a (degrees) within the clockwise sweep from a0 to a1."""
+    return ((a - a0) % 360) <= ((a1 - a0) % 360 if (a1 - a0) % 360 else 360)
+
+def ring_mask(ring, x0, y0, x1, y1):
+    """The texels of x0..x1, y0..y1 (the original's) whose centres lie in a dial's ring: "center", "radii" [rx, ry] (an ellipse,
+    the scale's line), "inner" / "outer" texels from it along the ray from the centre, the sweep "from" .. "to" (degrees,
+    clockwise from up)."""
+    cx, cy = (float(v) for v in ring["center"]); rx, ry = (float(v) for v in ring["radii"])
+    yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float64); dx, dy = xx + 0.5 - cx, yy + 0.5 - cy
+    rho = np.hypot(dx / rx, dy / ry); dist = np.hypot(dx, dy)
+    d = dist - dist / np.maximum(rho, 1e-9)          # signed distance from the ellipse along the ray
+    m = (d >= float(ring.get("inner", -1))) & (d <= float(ring.get("outer", 1)))
+    if "from" in ring: m &= in_sweep(ring_angle(dx, dy), float(ring["from"]), float(ring["to"]))
+    return m
+
+def arc_segments(arc):
+    """An elliptical arc (a dial's scale line) as short segments: [x0, y0, x1, y1, width, colour], each coloured from "colours"
+    ([[angle, [r, g, b]], ...], interpolated by angle along the sweep) or "colour"."""
+    cx, cy = (float(v) for v in arc["center"]); rx, ry = (float(v) for v in arc["radii"])
+    a0 = float(arc["from"]); a1 = a0 + ((float(arc["to"]) - a0) % 360 or 360)
+    n = max(8, int(math.ceil((a1 - a0) / float(arc.get("step", 1.0)))))
+    stops = arc.get("colours"); out = []
+    if stops:
+        sa = np.array([a0 + ((float(a) - a0) % 360) for a, _ in stops]); order = np.argsort(sa)
+        sa = sa[order]; sc = np.array([stops[i][1] for i in order], np.float32)
+    for i in range(n):
+        t0, t1 = a0 + (a1 - a0) * i / n, a0 + (a1 - a0) * (i + 1) / n
+        p0 = (cx + rx * math.sin(math.radians(t0)), cy - ry * math.cos(math.radians(t0)))
+        p1 = (cx + rx * math.sin(math.radians(t1)), cy - ry * math.cos(math.radians(t1)))
+        if stops: col = [float(np.interp((t0 + t1) / 2, sa, sc[:, k])) for k in range(3)]
+        else: col = arc.get("colour", [255, 255, 255])
+        out.append([p0[0], p0[1], p1[0], p1[1], float(arc["width"]), col, "round"])
+    return out
+
+def lines_layer(op, W, H, s):
+    """A "lines" op's coverage (H x W, 0..1, anti-aliased: SS x SS samples a pack texel) and colour (H x W x 3): its "segments"
+    ([x0, y0, x1, y1] in the original's texels, or [x0, y0, x1, y1, width, colour]), "width" and "colour" for those that do
+    not say, ends cut square ("cap": "butt", a painted tick's) or "round"; and its "arcs" (arc_segments). Where strokes
+    overlap the most covering one's colour wins."""
+    segs = []
+    for g in op.get("segments", []):
+        w = float(g[4]) if len(g) > 4 else float(op["width"]); c = g[5] if len(g) > 5 else op.get("colour", [255, 255, 255])
+        segs.append([float(v) for v in g[:4]] + [w, c, op.get("cap", "butt")])
+    for arc in op.get("arcs", []): segs += arc_segments(arc)
+    cov = np.zeros((H, W), np.float32); col = np.zeros((H, W, 3), np.float32)
+    for x0, y0, x1, y1, w, c, cap in segs:
+        x0, y0, x1, y1, hw = x0 * s, y0 * s, x1 * s, y1 * s, w * s / 2
+        pad = hw + 2
+        bx0, by0 = max(0, int(math.floor(min(x0, x1) - pad))), max(0, int(math.floor(min(y0, y1) - pad)))
+        bx1, by1 = min(W, int(math.ceil(max(x0, x1) + pad))), min(H, int(math.ceil(max(y0, y1) + pad)))
+        if bx1 <= bx0 or by1 <= by0: continue
+        v, u = np.mgrid[by0 * SS:by1 * SS, bx0 * SS:bx1 * SS].astype(np.float64)
+        u = (u + 0.5) / SS; v = (v + 0.5) / SS                     # sample centres in pack pixels
+        L = math.hypot(x1 - x0, y1 - y0); ux, uy = ((x1 - x0) / L, (y1 - y0) / L) if L > 0 else (1.0, 0.0)
+        t = (u - x0) * ux + (v - y0) * uy; p = -(u - x0) * uy + (v - y0) * ux
+        if cap == "round": sd = np.hypot(np.clip(t, 0, L) - t, p) - hw
+        else: sd = np.maximum(np.abs(p) - hw, np.abs(t - L / 2) - L / 2)
+        c1 = np.clip(0.5 - sd * SS, 0, 1)
+        c1 = c1.reshape(by1 - by0, SS, bx1 - bx0, SS).mean(axis=(1, 3)).astype(np.float32)
+        sub = cov[by0:by1, bx0:bx1]; win = c1 > sub
+        col[by0:by1, bx0:bx1][win] = np.asarray(c, np.float32)
+        cov[by0:by1, bx0:bx1] = np.maximum(sub, c1)
+    return cov, col
+
 # ---- erasing ----
 
 def grow_mask(m, r):
@@ -270,6 +350,7 @@ def where_mask(orig, rect, where):
         if "lum_above" in where: sub &= lum > float(where["lum_above"])
         if where.get("opaque"): sub &= a > 0
         if where.get("keyed"): sub &= a == 0
+        if "ring" in where: sub &= ring_mask(where["ring"], x0, y0, x1, y1)
     m[y0:y1, x0:x1] = sub
     return m
 
@@ -386,8 +467,18 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
             lv = float(op.get("level", 0.5))     # the cut: under half keeps a lone texel's mark (its blur peaks under half)
             a = np.clip((soft - lv) * (sig / edge) * 2.5 + 0.5, 0, 1)[..., None]
             rgb = rgb * (1 - a) + np.asarray(op.get("colour", [0, 0, 0]), np.float32) * a
+        elif kind == "lines":
+            cov, col = lines_layer(op, W, H, s)
+            mode = op.get("alpha", "keep")
+            rebleed &= ~(cov > 0.02)
+            if mode == "cover":
+                newly = (alpha == 0) & (cov > 0.02)
+                rgb[newly] = np.array(op.get("under", [0, 0, 0]), np.float32); alpha[newly] = 255
+            a = cov[..., None]; rgb = rgb * (1 - a) + col * a
+            if mode == "set": alpha[cov >= 0.5] = 255
+            elif mode not in ("keep", "cover"): raise ValueError(f"alpha {mode!r}: keep, set or cover")
         else:
-            raise ValueError(f"op {kind!r}: erase, text, smooth or marks")
+            raise ValueError(f"op {kind!r}: erase, text, smooth, marks or lines")
     # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
     # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
     if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))

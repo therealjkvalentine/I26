@@ -70,8 +70,11 @@ class SpecTests(unittest.TestCase):
         for name, spec in specs:
             self.assertTrue(spec["textures"], name)
             for op in spec["ops"]:
-                self.assertIn(op["op"], ("erase", "text", "smooth", "marks"), name)
-                if op["op"] == "text":
+                self.assertIn(op["op"], ("erase", "text", "smooth", "marks", "lines"), name)
+                if op["op"] == "lines":
+                    self.assertTrue(op.get("segments") or op.get("arcs"), name)
+                    self.assertIn(op.get("alpha", "keep"), ("keep", "set", "cover"), name)
+                elif op["op"] == "text":
                     self.assertIn(op["font"], table, name)
                     self.assertGreater(op["cap"], 0, name)
                     self.assertIn(op.get("alpha", "keep"), ("keep", "set", "cover"), name)
@@ -93,7 +96,7 @@ class SpecTests(unittest.TestCase):
             h = int(max(max(op["center"][1] + op["cap"] * 2 for op in texts), max((op["rect"][3] for op in spec["ops"] if op["op"] in ("erase", "marks")), default=0))) + 2
             orig = blank(w, h, (128, 128, 128))
             px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
-            out = tr.apply_ops(px, orig, spec["ops"]).astype(int)
+            out = tr.apply_ops(px, orig, [op for op in spec["ops"] if op["op"] != "lines"]).astype(int)   # the lettering (DialTests: the lines)
             changed = np.abs(out[..., :3] - px[..., :3].astype(int)).sum(axis=2) > 24
             self.assertGreater(changed.sum(), 50 * len(texts), name)
             ys, xs = np.where(changed)
@@ -347,6 +350,117 @@ class WorldLetteringTests(unittest.TestCase):
             self.assertEqual((op["shadow"]["dx"], op["shadow"]["dy"], op["shadow"]["colour"]), (1, 1, [0, 0, 0]))
             self.assertTrue(any(e["op"] == "erase" and e.get("where") == {"keyed": True} and e.get("opaque") for e in spec_of(f"milk-truck-mt1{st}bkl1.json")["ops"]))
         self.assertEqual(spec_of("milk-truck-mt31bkl1.json")["ops"], spec_of("milk-truck-mt31bkr1.json")["ops"])
+
+
+_gspec = importlib.util.spec_from_file_location("dials", os.path.join(HERE, "text-redraws", "gen", "dials.py"))
+dials = importlib.util.module_from_spec(_gspec); _gspec.loader.exec_module(dials)
+
+def ray_angle(x, y, cx, cy):
+    return float(np.degrees(np.arctan2(x - cx, -(y - cy))) % 360)
+
+def angle_gap(a, b):
+    d = abs(a - b) % 360
+    return min(d, 360 - d)
+
+class DialTests(unittest.TestCase):
+    """The dials' graduations (gen/dials.py, dash-dials*.json, zspeedo6.json, ztach6.json): the ticks on the angles measured off
+    the original's texels, drawn as clean lines."""
+    # each dial's ticks as measured: count, majors, the first and last angle (degrees, 0 up, clockwise) about its centre
+    MEASURED = {"SPEEDO_RING": (31, 16, 224.25, 134.0), "TACH_RING": (26, 9, 148.5, 29.25),
+                "SPEEDO6_TICKS": (44, 14, 224.83, 119.48), "TACH6_TICKS": (41, 9, 145.43, 11.73)}
+
+    def test_the_tables_are_the_measured_dials(self):
+        for name, (n, majors, first, last) in self.MEASURED.items():
+            d = getattr(dials, name); a = [t[0] for t in d["ticks"] if t[1] < 2]      # the scale's run (fine ticks after it)
+            self.assertEqual(len(d["ticks"]), n, name); self.assertEqual(sum(1 for t in d["ticks"] if t[1] == 1), majors, name)
+            self.assertEqual((a[0], a[-1]), (first, last), name)
+            steps = [(b - x) % 360 for x, b in zip(a, a[1:])]
+            self.assertTrue(all(2 < st < 25 for st in steps), f"{name}: ticks in the scale's order, none doubled or missing")
+
+    def test_each_tick_lies_on_its_measured_angle(self):
+        """The spec's segments are radial about the dial's centre through the measured place (the dash's: the scale line's
+        point at the measured angle, (cx + rx sin a, cy - ry cos a); the external instruments': the measured angle), within
+        0.01 degree, across the line or in from the outer circle by each class's measured extents."""
+        specs = dials.specs()
+        for spec_name in ("dash-dials.json", "dash-dials-301.json", "dash-dials-501.json"):
+            ring_names = ("SPEEDO_RING", "TACH_RING")
+            tick_ops = [op for op in specs[spec_name]["ops"] if op["op"] == "lines" and "segments" in op]
+            self.assertEqual(len(tick_ops), 2, spec_name)
+            for op, rn in zip(tick_ops, ring_names):
+                ring = getattr(dials, rn); (cx, cy) = ring["center"]
+                self.assertEqual(len(op["segments"]), len(ring["ticks"]), rn)
+                for seg, (a, major, g) in zip(op["segments"], ring["ticks"]):
+                    x0, y0, x1, y1 = seg[:4]
+                    want = ray_angle(*dials.on_line(ring, a, 0), cx, cy)      # the ray through the line's point at a
+                    self.assertLess(angle_gap(ray_angle(x0, y0, cx, cy), want), 0.01, f"{rn} {a}")
+                    self.assertLess(angle_gap(ray_angle(x1, y1, cx, cy), want), 0.01, f"{rn} {a}")
+                    lo, hi = ring[("minor", "major", "fine")[major]]
+                    self.assertAlmostEqual(np.hypot(x1 - x0, y1 - y0), hi - lo, delta=0.01)
+                    self.assertEqual(seg[4], dials.TICK_WIDTH)
+        for spec_name, rn in (("zspeedo6.json", "SPEEDO6_TICKS"), ("ztach6.json", "TACH6_TICKS")):
+            d = getattr(dials, rn); (cx, cy), R = d["center"], d["radius"]
+            op = [op for op in specs[spec_name]["ops"] if op["op"] == "lines"][0]
+            self.assertEqual(len(op["segments"]), len(d["ticks"]), rn)
+            for (x0, y0, x1, y1), t in zip(op["segments"], d["ticks"]):
+                self.assertLess(angle_gap(ray_angle(x0, y0, cx, cy), t[0]), 0.01, f"{rn} {t}")
+                self.assertAlmostEqual(np.hypot(x1 - cx, y1 - cy), R, delta=0.01)            # the outer ends on the circle
+                lo = t[2] if len(t) > 2 else (d["major"] if t[1] else d["minor"])
+                self.assertAlmostEqual(np.hypot(x0 - cx, y0 - cy), R + lo, delta=0.01)
+
+    def test_the_specs_on_disk_are_the_generators(self):
+        for name, spec in dials.specs().items():
+            with open(os.path.join(tr.SPECS, name), encoding="utf-8") as f: disk = json.load(f)
+            self.assertEqual(json.loads(json.dumps(spec)), disk, name)
+
+    def test_a_drawn_tick_lands_on_its_segment_at_4x_and_8x(self):
+        """Every tick of each dial drawn over a flat black face: its ink's centroid on the segment's midpoint (within a
+        tenth of a texel) and its ink as long as the segment, at 4x and 8x; the edge anti-aliased, the inside solid."""
+        for rn in ("SPEEDO6_TICKS", "TACH6_TICKS"):
+            d = getattr(dials, rn); segs = dials.overlay_tick_segments(d)
+            orig = blank(80, 80, (0, 0, 0), 0)
+            for s in (4, 8):
+                px = np.repeat(np.repeat(orig, s, 0), s, 1)
+                out = tr.apply_ops(px, orig, [{"op": "lines", "segments": segs, "width": 1.0, "colour": [255, 255, 255], "alpha": "set"}])
+                lum = out[..., :3].astype(float).mean(axis=2) / 255
+                yy, xx = np.mgrid[0:out.shape[0], 0:out.shape[1]]
+                for x0, y0, x1, y1 in segs:
+                    mx, my = (x0 + x1) / 2 * s, (y0 + y1) / 2 * s; L = np.hypot(x1 - x0, y1 - y0)
+                    near = np.hypot(xx + 0.5 - mx, yy + 0.5 - my) < (L / 2 + 0.9) * s
+                    near &= np.abs(((xx + 0.5 - mx) * (y1 - y0) - (yy + 0.5 - my) * (x1 - x0)) / L) < 1.2 * s
+                    w = lum * near
+                    cx_, cy_ = (w * (xx + 0.5)).sum() / w.sum() / s, (w * (yy + 0.5)).sum() / w.sum() / s
+                    self.assertLess(np.hypot(cx_ - (x0 + x1) / 2, cy_ - (y0 + y1) / 2), 0.1, f"{rn} at {s}x")
+                    self.assertAlmostEqual(w.sum() / s / s, L * 1.0, delta=0.15 * L)          # a texel wide, the segment long
+                self.assertTrue(((lum > 0.05) & (lum < 0.95)).any() and (lum > 0.99).any())
+                self.assertTrue((out[..., 3][lum >= 0.5] == 255).all() and (out[..., 3][lum < 0.4] == 0).all())
+
+    def test_lines_cover_a_keyed_face_and_square_their_ends(self):
+        orig = blank(20, 20, (0, 0, 0), 0); s = 8
+        px = np.repeat(np.repeat(orig, s, 0), s, 1)
+        out = tr.apply_ops(px, orig, [{"op": "lines", "segments": [[10, 4, 10, 12]], "width": 1.0, "colour": [200, 200, 200], "alpha": "cover", "under": [0, 0, 0]}]).astype(int)
+        col = out[:, :, 0]
+        self.assertTrue((col[4 * s + 1:12 * s - 1, int(9.5 * s) + 1:int(10.5 * s) - 1] == 200).all())     # solid inside
+        self.assertTrue((col[:4 * s - 1] == 0).all() and (col[12 * s + 1:] == 0).all())                 # square ends, nothing past
+        self.assertTrue((out[..., 3][col > 0] == 255).all() and (out[..., 3][col == 0] == 0).sum() > 0)   # drawn over the key, opaque
+
+    def test_ring_where_takes_the_ring_and_its_sweep_only(self):
+        orig = blank(64, 64, (180, 180, 180)); s = 4
+        ring = {"center": [32, 32], "radii": [20, 20], "inner": -2, "outer": 1, "from": 270, "to": 90}
+        m = tr.where_mask(orig, [0, 0, 64, 64], {"ring": ring})
+        ys, xs = np.where(m); r = np.hypot(xs + 0.5 - 32, ys + 0.5 - 32)
+        self.assertTrue(((r >= 18) & (r <= 21)).all())
+        self.assertTrue((ys + 0.5 <= 32.5).all())          # the top half only: the sweep from 270 through 0 to 90
+        self.assertGreater(m.sum(), 150)
+
+    def test_an_arc_follows_its_ellipse_and_takes_its_colours(self):
+        orig = blank(80, 60, (0, 0, 0), 0); s = 4
+        arc = {"center": [40, 30], "radii": [30, 20], "from": 270, "to": 90, "width": 2.0, "colours": [[270, [100, 0, 0]], [90, [0, 0, 100]]]}
+        out = tr.apply_ops(np.repeat(np.repeat(orig, s, 0), s, 1), orig, [{"op": "lines", "arcs": [arc], "alpha": "cover"}]).astype(float)
+        ink = out[..., 3] > 0; ys, xs = np.where(ink)
+        rho = np.hypot((xs + 0.5) / s - 40, ((ys + 0.5) / s - 30) * 1.5)
+        self.assertLess(np.abs(rho - 30).max(), 2.0)
+        left, right = out[:, :40 * s][ink[:, :40 * s]], out[:, 40 * s:][ink[:, 40 * s:]]
+        self.assertGreater(left[:, 0].mean(), left[:, 2].mean()); self.assertGreater(right[:, 2].mean(), right[:, 0].mean())
 
 if __name__ == "__main__":
     unittest.main()
