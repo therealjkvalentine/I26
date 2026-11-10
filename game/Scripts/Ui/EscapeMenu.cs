@@ -228,7 +228,7 @@ public sealed partial class EscapeMenu : Control
         ];
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
         // list, the line under Report a Bug (row 14)
-        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer", BugRow + 1, () => Close(MenuOutcome.Developer)));
+        if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer Tools", BugRow + 1, () => Close(MenuOutcome.Developer)));
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));

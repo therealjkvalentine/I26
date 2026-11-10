@@ -20,7 +20,7 @@ public class EscapeMenuRowsTests
         Assert.Contains("private const int BugRow = 13;", src);
         // both pads (the network game's and the single player's) put Report a Bug on BugRow; Developer is the line under it
         Assert.Equal(2, Regex.Matches(src, @"Action\(""Report a Bug"", BugRow, ReportBug").Count);
-        Assert.Matches(@"Action\(""Developer"", BugRow \+ 1,", src);
+        Assert.Matches(@"Action\(""Developer Tools"", BugRow \+ 1,", src);
     }
 
     [Fact]
@@ -37,6 +37,6 @@ public class EscapeMenuRowsTests
         // the original's rows stay where they were
         Assert.Equal(["1", "3", "4", "5", "6"], labels.Take(5).Select(l => l.Item2));
         // Developer is inserted before the close button, so Down from Report a Bug reaches it
-        Assert.Contains("_main.Items.Insert(_main.Items.Count - 1, Action(\"Developer\"", src);
+        Assert.Contains("_main.Items.Insert(_main.Items.Count - 1, Action(\"Developer Tools\"", src);
     }
 }

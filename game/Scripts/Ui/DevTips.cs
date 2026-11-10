@@ -64,7 +64,7 @@ public static class DevTips
         "lfe_bumps" => "The knock as a wheel crosses onto or off a road or bridge, in percent (0 leaves it out).",
         "lfe_cracks" => "For listening only: filled cracks across asphalt ticking through the shaker. 0 by default, 100 recommended to try.",
         "lfe_strip" => "For listening only: a rumble strip buzz while the car runs along a paved road's edge. 0 by default, 100 recommended to try.",
-        "developer" => "The Developer panel: Ctrl+F2 or Ctrl+` opens it, and a Developer entry joins the Esc menu. Single player. Next start.",
+        "developer" => "Developer Tools: Ctrl+F2 or Ctrl+` opens the panel, and a Developer Tools entry joins the Esc menu. Single player. Next start.",
         "draw_distance" => "Graphic Detail's Visibility Range: look follows the look, 0 the original's 600 m, 1 the whole map, 2 faded at 2.3 km.",
         "dev_fps" => "Graphic Detail's Show FPS: the frame rate and frame time in the window's top right corner, over menus and game.",
         "night_moon" => "The modern look at night: the moon's light on the ground, times the level solved for the mission. Lower is a darker ground.",

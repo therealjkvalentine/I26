@@ -35,7 +35,7 @@ public partial class ShellDevPanel : Control
         GetViewport().SizeChanged += _rescale;
         TreeExiting += () => GetViewport().SizeChanged -= _rescale;
 
-        col.AddChild(Heading("Developer  (Ctrl+F2, Ctrl+` or Esc closes)"));
+        col.AddChild(Heading("Developer Tools  (Ctrl+F2, Ctrl+` or Esc closes)"));
         col.AddChild(Heading("Saves"));
         bool trip = !Shell.Install.IsNitro;
         col.AddChild(Row(Button("Import Saves", ImportSaves, trip), Note("the original game's bookmarks, car and parts included")));
