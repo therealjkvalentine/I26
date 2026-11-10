@@ -110,6 +110,7 @@ public static class DevSettings
         new("effects_opacity", EffectNames, s => NearestStep(s.EffectsOpacity), (s, v) => s.EffectsOpacity = EffectSteps[v], DevWhen.Live),
         new("vegetation_density", VegetationNames, s => NearestVegetationStep(s.VegetationDensity), (s, v) => s.VegetationDensity = VegetationSteps[v], DevWhen.Live),
         new("brush_impacts", ["off", "on" + M], s => s.BrushImpacts ? 1 : 0, (s, v) => s.BrushImpacts = v != 0, DevWhen.Live),
+        new("load_progress", ["off", "on" + M], s => s.LoadProgress ? 1 : 0, (s, v) => s.LoadProgress = v != 0, DevWhen.NextMission),
         new("ordnance_limit", Words(OriginalRecipe.OrdnanceNames), s => s.OrdnanceLimit, (s, v) => s.OrdnanceLimit = v, DevWhen.Live),
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
         // a co-op game hosted from the shell (false, a melee respawn's standing start, is the unmarked one: the original has no co-op)

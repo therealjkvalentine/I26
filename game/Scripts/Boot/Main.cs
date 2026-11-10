@@ -405,6 +405,8 @@ public partial class Main : Node3D
         // queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
         threaded &= briefing is not null;
         var order = I76.Game.Shell.ShellSettings.Load().CardOrder;
+        // the card's wheel (LoadProgressView) from 0: the load's stamps move it from here, the build's thread's among them
+        if (_opt.Install is not null && _opt.Mission is not null) I76.Game.Ui.LoadProgress.Begin();
         BuildJob? job = threaded ? StartBuildJob() : null;
         // up, and drawn once, before the build (a threaded build: already going)
         if (_opt.Install is not null && _opt.Mission is not null)
@@ -464,9 +466,15 @@ public partial class Main : Node3D
         }
         // the rest of the load: under the briefing it ran already, a few milliseconds a frame (BuildBehindCard, AttachSteps); else here
         if (built is null || !_attachedUnderMovie)
-            await RunSteps(AttachSteps(built, loading), 0);
+        {
+            // straight through, no frame between the steps: the card's wheel is drawn at the load's stamps (LoadProgressView.Present)
+            I76.Game.Ui.LoadProgress.Blocking = loading is not null;
+            try { await RunSteps(AttachSteps(built, loading), 0); }
+            finally { I76.Game.Ui.LoadProgress.Blocking = false; }
+        }
         if (!IsInsideTree() || _attachFailed) return;
         MissionBuilder.Trace("effects rehearsal");
+        I76.Game.Ui.LoadProgress.Finish();   // the card's wheel full as the card goes
         if (loading is not null && _cardDown)
         {
             // the briefing over and the load done under it: the mission at once (the card was never brought back)
@@ -1164,10 +1172,12 @@ public partial class Main : Node3D
         System.Numerics.Vector3 pos = default;
         string def = "";
         CarNode MakeNode(I76.Sim.Vehicles.Vehicle vehicle, string carDef) => MakeCarNode(vehicle, carDef, ground);
+        int others = setup.Cars.Count(c => c.Item3 != world.Player), otherMade = 0;
         foreach (var (p, carDef, vehicle) in setup.Cars)
         {
             var node = MakeNode(vehicle, carDef);
             MissionBuilder.Trace($"spawn: car {carDef}");
+            if (vehicle != world.Player) I76.Game.Ui.LoadProgress.Part(I76.Game.Ui.LoadProgressModel.CarsMade, ++otherMade, others);   // the card's wheel a car at a time
             yield return null;   // a car a step
             if (vehicle != world.Player) continue;
             pos = vehicle.Pos.ToVector3(); def = carDef;

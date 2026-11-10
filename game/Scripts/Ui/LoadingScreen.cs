@@ -28,13 +28,15 @@ public partial class LoadingScreen : CanvasLayer
     private const int BoxX = 94, BoxY = 386, BoxW = 451, BoxH = 42;
     private string? _shotPath;
 
-    private int _shots;
+    private static int _shots;
 
-    /// <summary>Every frame the screen is drawn, as PATH_n.png (the fade in, the hold, the fade out).</summary>
+    /// <summary>Every frame the screen is drawn, as PATH_n.png (the fade in, the hold, the fade out; numbered on through the run's later cards), its time in the log.</summary>
     private void Shot()
     {
         if (_shotPath is null || !IsInsideTree()) return;
-        GetViewport().GetTexture().GetImage().SavePng(_shotPath.Replace(".png", $"_{_shots++:00}.png"));
+        var file = _shotPath.Replace(".png", $"_{_shots++:00}.png");
+        GD.Print($"loading shot: {System.IO.Path.GetFileName(file)} at {Time.GetTicksUsec() / 1000.0:0.0} ms");
+        GetViewport().GetTexture().GetImage().SavePng(file);
     }
 
     /// <summary>From black to the picture over 32 steps.</summary>
@@ -53,6 +55,7 @@ public partial class LoadingScreen : CanvasLayer
     public override void _ExitTree()
     {
         if (_shotPath is not null) RenderingServer.FramePostDraw -= Shot;
+        LoadProgress.End();
     }
 
     /// <summary>The upscale of the card at <paramref name="pcxPath"/> (loadscr, p01load...), or null.</summary>
@@ -158,6 +161,9 @@ public partial class LoadingScreen : CanvasLayer
         _status.AddThemeColorOverride("font_outline_color", Colors.Black);
         _status.AddThemeConstantOverride("outline_size", 5);
         AddChild(_status);
+        // the port's progress wheel, over the picture and fading with it ([port] load_progress); up once the load begins (a network game's
+        // card is up first while it hosts or joins)
+        if (ShellSettings.Load().LoadProgress) _root.AddChild(new LoadProgressView { Faithful = Faithful, Name = "Progress" });
         // Nitro: a mission named p.. shows addon\pNNload.pcx, anything else loadscr.pcx
         var path = (Install.IsNitro && Mission is { Length: > 1 } m && char.ToLowerInvariant(m[0]) == 'p' ? Install.Resolve("addon", System.IO.Path.GetFileNameWithoutExtension(m) + "load.pcx") : null)
             ?? Install.Resolve("addon", "loadscr.pcx") ?? Install.FindFile("loadscr.pcx");

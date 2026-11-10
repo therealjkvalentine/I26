@@ -257,8 +257,12 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var index = new RoadRaster.Index(flat, tris, TerrainNode.Chunk * 5f);
         bool soft = SoftCompressRoadLayers;
         long tRaster = 0, tMips = 0, tComp = 0;
+        // the loading card's wheel: a bake not in the cache is most of a cold start's build, a chunk at a time
+        int baked = 0;
+        I76.Game.Ui.LoadProgress.Weigh(I76.Game.Ui.LoadProgressModel.RoadBake, I76.Game.Ui.LoadProgressModel.ColdRoadBakeMs);
         System.Threading.Tasks.Parallel.ForEach(origins, o =>
         {
+            using var counted = new Counted(() => I76.Game.Ui.LoadProgress.Part(I76.Game.Ui.LoadProgressModel.RoadBake, System.Threading.Interlocked.Increment(ref baked), origins.Count));
             long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             var layer = RoadRaster.Bake(flat, new System.Numerics.Vector2(o.X0 * 5f, o.Z0 * 5f), TerrainNode.Chunk * 5f, RoadLayerResolution,
                 i => roadTex.GetValueOrDefault(i), tris: tris, index: index);
@@ -292,6 +296,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
         if (session && key is not null) I76.Formats.Vfs.SessionStore.Put("roads|" + key, new Dictionary<(int, int), Image>(made), made.Values.Sum(i => (long)i.GetWidth() * i.GetHeight() * 3 / 2));
         return made;
     }
+
+    /// <summary>Runs an action when disposed (a step counted however it ends).</summary>
+    private readonly struct Counted(Action done) : IDisposable { public void Dispose() => done(); }
 
     /// <summary>I76_BUILD_TRACE: the layers' hashes, to compare bakes (the raster's, then the texture data's: mipmaps and compression included).</summary>
     private static void TraceLayers(string how, List<(int X0, int Z0)> origins, Dictionary<(int, int), Image> layers, System.Collections.Concurrent.ConcurrentDictionary<(int, int), ulong>? raw)
@@ -393,6 +400,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         {
             (Resolver, Textures, Materials, Meshes, _carParts, _kit) = (kit.Resolver, kit.Textures, kit.Materials, kit.Meshes, kit.CarParts, kit);
             kit.Materials.HoldFlush = OffMainThread;
+            I76.Game.Ui.LoadProgress.Restarted();   // the card's wheel on the restart's measured shares
             GD.Print($"restart cache: {world.Mission.Name}'s textures ({kit.Textures.Made}, {kit.Textures.Bytes >> 20} MB), materials, meshes and cars' parts kept from its last build");
         }
         else
@@ -844,5 +852,5 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public static readonly bool HashOn = System.Environment.GetEnvironmentVariable("I76_BUILD_TRACE") == "hash";
     private static readonly System.Diagnostics.Stopwatch TraceClock = System.Diagnostics.Stopwatch.StartNew();
     /// <summary>I76_BUILD_TRACE=1: stamps each build stage on stdout, to see where a stuck load stopped.</summary>
-    public static void Trace(string stage) { if (TraceOn) GD.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); }
+    public static void Trace(string stage) { if (TraceOn) GD.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
 }

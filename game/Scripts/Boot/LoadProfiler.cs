@@ -128,7 +128,7 @@ public static class LoadProfiler
         string E(string k) => ev.TryGetValue(k, out var t) ? t.ToString() : "-";
         GD.Print($"load-profile-result: mission={mission} total_ms={E("mission")} card_ms={E("card first frame")} movie_ms={E("movie start")} movie_over_ms={E("movie over")} built_ms={E("build done")} "
             + $"movie_shown={I76.Game.Ui.MoviePlayer.Last.Shown} movie_dropped={I76.Game.Ui.MoviePlayer.Last.Dropped} movie_late={I76.Game.Ui.MoviePlayer.Last.Late} movie_worst_ms={I76.Game.Ui.MoviePlayer.Last.WorstMs:0} audio_skips={I76.Game.Ui.MoviePlayer.Last.AudioSkips} "
-            + $"attach_worst_step_ms={Main.AttachWorstStepMs:0} attach_over_budget={Main.AttachStepsOverBudget:0} card_overrun_ms={Main.CardOverrunMs:0} "
+            + $"attach_worst_step_ms={Main.AttachWorstStepMs:0} attach_over_budget={Main.AttachStepsOverBudget:0} card_overrun_ms={Main.CardOverrunMs:0} wheel_draws={I76.Game.Ui.LoadProgressView.Presented} wheel_ms={I76.Game.Ui.LoadProgressView.PresentedMs:0} "
             + $"ws_mb={System.Environment.WorkingSet >> 20} managed_mb={System.GC.GetTotalMemory(false) >> 20} vram_tex_mb={(long)Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) >> 20} vram_mb={(long)Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) >> 20} "
             + $"main_ms={rows.Where(r => r.Thread == "main").Sum(r => r.EndMs - r.StartMs)} build_ms={rows.Where(r => r.Thread == "mission-build").Sum(r => r.EndMs - r.StartMs)} textures={tex} hd={hd} tex_mb={mb:0} pipelines={rows.Sum(r => r.Pipelines)} {extra}csv={path}");
         foreach (var r in rows.OrderByDescending(r => r.EndMs - r.StartMs).Take(8))
