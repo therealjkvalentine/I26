@@ -40,6 +40,10 @@ public static class VegLevels
     public static readonly Level OldHigh = new(1f, 190, 250, 60, 85, 60, 85, 60, 30, 70, 12, 35, 55, 75);
 
     public static readonly bool Old = System.Environment.GetEnvironmentVariable("I76_VEG_REACH") == "old";
+    /// <summary>I76_VEG_REACH=shrubs: the shrubs' reach and night tiers only, the ground layer's larger plants at the tufts' reach (a profiling split).</summary>
+    public static readonly bool NearForbs = System.Environment.GetEnvironmentVariable("I76_VEG_REACH") == "shrubs";
+    /// <summary>I76_VEG_REACH=forbs: the new reach, the shrubs' far mesh by night as by day (a profiling split).</summary>
+    public static readonly bool OldTiers = System.Environment.GetEnvironmentVariable("I76_VEG_REACH") == "forbs";
 
     /// <summary>
     /// The Low (1) or High (2) level for the lamps' visible reach: each bush kind's fade moved out, band and all, until it starts
@@ -55,7 +59,8 @@ public static class VegLevels
         // at night a shrub's far mesh (a quarter of its clusters) filled in to its middle one at 40-60 m in the beam: there no
         // shrub draws its far mesh (its cross-fade band begins past the shrubs' end; a far band straddling the reach would split
         // its chunks plant by plant every few metres, main-thread work the frame cannot pay)
-        if (night) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(l.ShrubEnd)) };
+        if (night && !OldTiers) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(l.ShrubEnd)) };
+        if (NearForbs) l = l with { ForbFade = l.GrassFade, ForbEnd = l.GrassEnd };
         return l;
     }
 
