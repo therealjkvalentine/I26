@@ -1408,6 +1408,10 @@ public sealed class ShellSettings
     public string HeadTrackBind { get; set; } = "127.0.0.1";
     /// <summary>The tracked x, y, z move the eye up to 10 cm each way ([port] head_track_position, written only when on; off).</summary>
     public bool HeadTrackPosition { get; set; }
+    /// <summary>Where opentrack is ([port] opentrack_path: the program, its folder or its .app; empty: the usual places, <see cref="I76.Game.OpenTrack.Find"/>).</summary>
+    public string OpenTrackPath { get; set; } = "";
+    /// <summary>Play Options' Opentrack Auto ([port] opentrack_auto, written only when on): a mission with Head Tracking on starts opentrack when none runs, and the game closes the one it started when it exits.</summary>
+    public bool OpenTrackAuto { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>
     public bool LogFile { get; set; }
     /// <summary>The port's own: a bug report's inputs.csv, the last seconds of the player's inputs kept in memory while a mission runs ([port] bug_report_inputs; on, written when off; Boot/BugReport.cs).</summary>
@@ -1804,6 +1808,8 @@ public sealed class ShellSettings
         s.HeadTrackPort = Math.Clamp((int)c.GetValue("port", "head_track_port", I76.Game.HeadLook.DefaultPort), 1, 65535);
         s.HeadTrackBind = (string)c.GetValue("port", "head_track_bind", "127.0.0.1");
         s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
+        s.OpenTrackPath = (string)c.GetValue("port", "opentrack_path", "");
+        s.OpenTrackAuto = (bool)c.GetValue("port", "opentrack_auto", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
         // no version step: absent, the cap (one more of each enemy car per extra player)
         s.CoopScale = Math.Clamp((int)c.GetValue("port", "coop_scale", I76.Sim.Missions.CoopSetup.MaxExtraEnemies), 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies);
@@ -1995,6 +2001,8 @@ public sealed class ShellSettings
         if (HeadTrackPort != I76.Game.HeadLook.DefaultPort) c.SetValue("port", "head_track_port", HeadTrackPort);
         if (HeadTrackBind != "127.0.0.1") c.SetValue("port", "head_track_bind", HeadTrackBind);
         if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);
+        if (OpenTrackPath.Length > 0) c.SetValue("port", "opentrack_path", OpenTrackPath);
+        if (OpenTrackAuto) c.SetValue("port", "opentrack_auto", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
         if (CoopScale != I76.Sim.Missions.CoopSetup.MaxExtraEnemies) c.SetValue("port", "coop_scale", CoopScale);
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);

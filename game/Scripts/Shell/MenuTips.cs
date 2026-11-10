@@ -63,6 +63,9 @@ public static class MenuTips
         ["Unlim. Ordnance"] = "Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
         ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",
         ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",
+        ["Opentrack"] = "Opentrack, the free head tracker: click to start it when Stopped. Tracking: your head turns the view; Missing: not installed.",
+        ["Opentrack Auto"] = "Opentrack Auto: a mission with Head Tracking on starts opentrack; the game closes the one it started on exit.",
+        ["Opentrack Profile"] = "Opentrack Profile: click to add an I26 profile to opentrack (webcam face tracker, sent to this game).",
         ["Melee A.I."] = "Melee A.I.: how well an Instant Melee's computer cars drive at first: Normal (the original's), your Difficulty Level's, Easy or Hard.",
         ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
 

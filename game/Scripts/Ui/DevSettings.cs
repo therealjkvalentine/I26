@@ -85,8 +85,8 @@ public static class DevSettings
     /// <summary>Keys on the panel for the developer's listening only, not in docs/playing.md's table (docs/dev-hooks.md has them): the shaker's dev-only sources.</summary>
     public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
-    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq"];
+    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, opentrack_path a path, not one of a few values.</summary>
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path"];
 
     public static readonly DevSetting[] All =
     [

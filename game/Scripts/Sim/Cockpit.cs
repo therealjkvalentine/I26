@@ -71,7 +71,9 @@ public partial class Cockpit : Node
     {
         LoadArt();
         _rng = new System.Random();
-        HeadTracker.Apply(I76.Game.Shell.ShellSettings.Load());
+        var shellSettings = I76.Game.Shell.ShellSettings.Load();
+        HeadTracker.Apply(shellSettings);
+        OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
         SetupMirror();
         CompassOutline();
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;

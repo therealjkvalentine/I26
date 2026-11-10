@@ -157,6 +157,7 @@ has its default, and a key the game writes itself is left as you set it. A value
 |---|---|---|---|
 | `mirror_range` | `original`, `full`\* | follows the look: `original` in the 1997 look, `full` in the modern one | The rear-view mirror draws nothing past 100 m (the original's; the modern look fades it into the sky over the last 45 m), or the whole view (in the modern look 0.2 ms more a frame than the 100 m on a 1080 Ti). |
 | `side_mirrors` | `off`, `on`\*, `auto`\* | `auto` | The modern look's side-view mirrors. The Piranha's door mirrors (both) and the CC cars' (the left one) have painted glass, a blue patch you see through the side windows (on a 21:9 window the Piranha's left one is in view looking ahead): `auto` shows the view behind-left and behind-right in that glass, in its own shape, and adds nothing to other cars; `on` does the same and gives a car without door-mirror glass two more glasses beside the rear mirror (the same frame, half as wide), 45 degrees to the left and right of straight ahead, a row and a quarter below the rear mirror, showing what is behind-left and behind-right. One mirror render serves all three (`mirror_fov` wide, 2472x256 at 90, the rear mirror's own pixels per degree): the rear mirror shows its 45 degrees, the middle tan(22.5°)/tan(45°) = 41 % of the width, each side mirror the band from 6 degrees inside the rear's edge outward (`side_mirror_overlap`); nothing is drawn twice. Costs about as much again as the rear mirror alone (docs/deviations.md). The 1997 look keeps the original's mirror alone. |
+| `opentrack_path` | a path | empty: the usual install folders, then PATH | Where Play Options' Opentrack row finds opentrack: the program, its folder or (macOS) its .app (Head tracking, below). |
 | `mirror_fov` | `45`, `60`\* to `135`\* | `90` | With the side mirrors on, how wide the one mirror render sees, degrees across (the original's set-up keeps a mirror camera within 45 and 135): the rear mirror keeps its 45 whatever the whole, the side mirrors share what is left (22.5 each at 90). |
 | `side_mirror_share` | `10` to `100` | `100` | How much of the render outside the rear mirror's band each side mirror shows, percent from the rear mirror's edge outward: 100 is to the render's edge, 50 the nearer half of it. |
 | `side_mirror_angle` | `15` to `75` | `45` | Where the side mirrors sit, degrees to the left and right of straight ahead; kept 10 degrees inside the window's view, so a narrow window draws them nearer the middle. |
@@ -311,13 +312,34 @@ screen (Controls > Key Map > Calibrate).
 
 **Head tracking.** [opentrack](https://github.com/opentrack/opentrack) (a webcam, a phone, a TrackIR-style clip) can turn
 your head in the car. In opentrack set Output to **UDP over network**, its settings to **127.0.0.1** port **4242**, and press
-Start; then set Play Options > More > Head Tracking to **Analog** (the view follows your head) or **Digital** (turning past a
+Start; then set Play Options > Head Tracking (in the list's scrolling rows) to **Analog** (the view follows your head) or **Digital** (turning past a
 threshold glances left, right or down at the dash, as the glance keys do). Head Track Sens. multiplies the angle (3: a 25° head
 turn looks 75° round; the reach is the pad's free look, 80° each side). The glance keys and the pad's right stick win while held;
 when opentrack stops the view eases back ahead. If the view turns the wrong way, invert that axis in opentrack's Options > Output.
 Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
 `head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
 `head_track_position` (true moves the eye with your head, up to 10 cm; off).
+
+**Starting opentrack from the game.** Under Head Track Sens., Play Options has three rows for opentrack. **Opentrack** shows
+its state: Missing (the game cannot find it), Stopped, Running, or Tracking (poses are arriving; a tracker on another
+machine counts too); a click when Stopped starts it. **Opentrack Auto** (`[port] opentrack_auto`, off): a mission with Head
+Tracking on starts opentrack when none is running and nothing is arriving, and when the game exits it closes the opentrack it
+started; an opentrack you started yourself is never closed. **Opentrack Profile**: a click writes `I26.ini` into opentrack's
+profiles (the neuralnet webcam face tracker, no markers needed, sending UDP to 127.0.0.1 on `head_track_port`); it never writes
+over a file of that name, and says No folder until opentrack has made its profile folder (Documents/opentrack-2.3; the
+`ini` folder beside a portable opentrack; on Linux also ~/.config/opentrack-2.3). The game looks for opentrack in Program Files,
+Program Files (x86) and the per-user Programs folder on Windows, /Applications and ~/Applications on macOS, on PATH, and on
+Linux in /usr/local/bin, /usr/bin, /opt/opentrack/bin and ~/.local/bin; `[port] opentrack_path` names it anywhere else (the
+program, its folder or its .app).
+
+opentrack has no command-line switch or setting that starts tracking when it opens, so once, by hand: choose the I26 profile
+in opentrack's profile list, open the tracker's settings (the hammer) and pick your camera, and then either press Start each
+time, bind a key to Start Tracking in Options > Shortcuts, or (the hands-free way) add the game's program in Options > Game
+detection with the I26 profile and tick its box: opentrack then starts tracking by itself while that program runs and stops when
+it exits. The program's name is the one in Task Manager: `i26.exe` for a release, the Godot executable's name for a
+development build (which every Godot game shares). macOS: there is no official opentrack build for the Mac; community builds
+run, and the game starts one in /Applications like any other, but which trackers they carry (and the camera permission they
+need) is theirs; the UDP output works the same.
 
 **Rumble.** A pad's rumble follows the game's own force-feedback effects: Controls' Force Feedback row steps Off, Pad (those
 effects only, the original's and the default), Pad Enhanced\* (and short pulses for a nitrous kick, the handbrake, gear changes,

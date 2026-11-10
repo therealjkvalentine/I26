@@ -94,7 +94,12 @@ public partial class ExitWatchdog : Node
     }
 
     // the SceneTree is being finalized: what remains is the engine's own cleanup
-    public override void _ExitTree() => StartWatch();
+    // (and the opentrack the game started, if any, is closed: OpenTrackLauncher)
+    public override void _ExitTree()
+    {
+        I76.Game.OpenTrackLauncher.StopOurs();
+        StartWatch();
+    }
 
     private static void StartWatch()
     {
