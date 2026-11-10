@@ -468,7 +468,7 @@ public sealed partial class EscapeMenu : Control
             // [port] dev_fps: the frame rate and frame time in the window's top right corner, live (Main's ApplyGraphics)
             case GraphicsRow.ShowFps: return Setting(Cycle, "Show FPS", 0, 2, offOn, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, apply: live);
             // the 3D view drawn at 50 to 200 % of the window (the HUD and menus are not scaled), live: the shell's Render Scale row
-            case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Names, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
+            case GraphicsRow.RenderScale: return Setting(Cycle, "Render Scale", 0, I76.Game.Boot.RenderScale.Names.Length, I76.Game.Boot.RenderScale.Shown, s => s.RenderScale, (s, v) => s.RenderScale = v, apply: live);
             // the modern look's plants, live
             case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
             // the modern look's SSAO ([port] ambient_occlusion), live

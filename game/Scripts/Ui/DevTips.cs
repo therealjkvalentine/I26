@@ -46,6 +46,7 @@ public static class DevTips
         "draw_ahead" => "Your car and the camera drawn at the newest tick carried forward, not between the last two: steering shows up to a tick sooner.",
         "low_latency_present" => "With VSync on, each refresh shows the newest finished frame: about 11 ms less lag at 180 Hz, more GPU power used.",
         "target_fps" => "Holds this frame rate by drawing the 3D view at a lower Render Scale (down to 67 %) while the graphics card is what keeps the game under it. 0: off.",
+        "render_scale_cap" => "How far video memory holds Render Scale over 100 % down. auto: the 3D view's buffers within three quarters of the card's memory, less the textures. off: no cap. A number: the buffers' MiB.",
         "menu_fps" => "Graphic Detail's last line: the frame rate measured behind the Esc menu's pads, and estimated on the main menu's sheet. false hides it.",
         "low_latency_audio" => "A 5 ms sound buffer and a faster physics step: sounds start about 15 ms sooner. Turn off if the sound crackles. Next start.",
         "aa_1997" => "The 1997 look takes Graphic Detail's Anti-Aliasing; false draws its edges unsmoothed, as the 3D card did.",

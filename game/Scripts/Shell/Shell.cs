@@ -1338,6 +1338,8 @@ public sealed class ShellSettings
     public int HoodGloss { get; set; } = I76.Sim.Views.PaintFinish.Default;
     /// <summary>The port's own: Graphic Detail's Render Scale (index into <see cref="I76.Game.Boot.RenderScale.Percents"/>: 50 to 200 %; shell.cfg [port] render_scale, written only when not 100).</summary>
     public int RenderScale { get; set; } = I76.Game.Boot.RenderScale.Default;
+    /// <summary>The port's own, without a row: what the 3D view's buffers may take over 100 % (<see cref="I76.Game.Boot.RenderScale.ParseCap"/>: null by the card's video memory, 0 no cap, else MiB; shell.cfg [port] render_scale_cap, auto, off or MiB, written when not auto).</summary>
+    public int? RenderScaleCap { get; set; }
     /// <summary>The port's own, without a row: a frame rate the 3D view's scale is lowered to hold while the graphics card is what keeps the game under it (I76.Game.Boot.FrameTarget; 0, the default, off; shell.cfg [port] target_fps, written when not 0).</summary>
     public int TargetFps { get; set; }
     public int MaxFps { get; set; } = I76.Sim.Views.FrameLimit.Unlimited;
@@ -1772,6 +1774,7 @@ public sealed class ShellSettings
             c.HasSectionKey("port", "hood_finish") ? c.GetValue("port", "hood_finish").ToString() : null, (bool)c.GetValue("port", "hood_matte", false));
         // no version step: absent, 100 %
         s.RenderScale = I76.Game.Boot.RenderScale.Parse((int)c.GetValue("port", "render_scale", 100));
+        s.RenderScaleCap = c.HasSectionKey("port", "render_scale_cap") ? I76.Game.Boot.RenderScale.ParseCap(c.GetValue("port", "render_scale_cap").ToString()) : null;
         s.TargetFps = Math.Clamp((int)c.GetValue("port", "target_fps", 0), 0, 1000);
         s.MaxFps = I76.Sim.Views.FrameLimit.Parse(c.HasSectionKey("port", "max_fps") ? (int)c.GetValue("port", "max_fps") : null);
         s.VSync = (bool)c.GetValue("port", "vsync", true);
@@ -1946,6 +1949,7 @@ public sealed class ShellSettings
         if (Resolution.Length > 0) c.SetValue("port", "resolution", Resolution);
         if (I76.Sim.Views.PaintFinish.FileValue(HoodGloss) is { } hoodGloss) c.SetValue("port", "hood_gloss", hoodGloss);
         if (TargetFps > 0) c.SetValue("port", "target_fps", TargetFps);
+        if (RenderScaleCap is not null) c.SetValue("port", "render_scale_cap", I76.Game.Boot.RenderScale.CapWord(RenderScaleCap));
         if (RenderScale != I76.Game.Boot.RenderScale.Default) c.SetValue("port", "render_scale", I76.Game.Boot.RenderScale.Percents[Math.Clamp(RenderScale, 0, I76.Game.Boot.RenderScale.Percents.Length - 1)]);
         if (MouseCockpit) c.SetValue("port", "mouse_cockpit", true);
         if (ChaseCrosshair) c.SetValue("port", "chase_crosshair", true);

@@ -84,11 +84,6 @@ public partial class FrameTargetNode : Node
         double gpu = RenderingServer.ViewportGetMeasuredRenderTimeGpu(GetViewport().GetViewportRid());
         if (gpu <= 0 || _target.Add(gpu, delta * 1000, _current, _player) is not { } step) return;
         _current = step;
-        if (GetTree().Root is { } root)
-        {
-            float scale = RenderScale.Scale(step);
-            root.Scaling3DMode = scale < 1f && !RenderBackend.Compatibility ? Viewport.Scaling3DModeEnum.Fsr : Viewport.Scaling3DModeEnum.Bilinear;
-            root.Scaling3DScale = scale;
-        }
+        RenderScale.Draw(step);   // FSR up from under 100 %, and the video memory cap over it, as the row's own steps
     }
 }

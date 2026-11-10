@@ -1849,6 +1849,7 @@ public partial class Main : Node3D
         // the plants about the first view, behind the loading card
         _loaded = true;
         FrameProfiler.MarkLoaded();
+        RenderScale.Refresh();   // Render Scale's video memory cap with the mission's textures in
         // the mission's frame rate for the main menu's estimate (Graphic Detail's last line)
         if (!_editorMode && _fpsRecorder is null)
         {
