@@ -257,7 +257,7 @@ def ink_box(op, w, h, s):
     return np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
 
 class WorldLetteringTests(unittest.TestCase):
-    """The Autowerks wall sign (ca_1ws_1, T12), the Milky Way Motel billboard (ao_1sg_6):
+    """The Autowerks wall sign (ca_1ws_1, T12), the Milky Way Motel billboard (ao_1sg_6) and the milk tanker (mt1?bk?1, mt31bk?1):
     every line on the painted letters' ink box, measured off the original's texels (pinned here, in texels), at 4x and 8x."""
     BOXES = {
         "signs-ca_1ws_1.json": {"AUTOWERKS": (4.99, 27.41, 77.89, 36.62), "INDUSTRIAL": (89.43, 27.41, 122.16, 31.73),
@@ -268,6 +268,11 @@ class WorldLetteringTests(unittest.TestCase):
                                 "15 MILES": (94.0, 55.11, 122.33, 59.65),
                                 '"Out of this World Comfort"': (36.0, 24.87, 122.6, 29.85), '"Family Run"': (78.3, 46.0, 111.0, 50.57)},
     }
+    for st in "123":
+        BOXES[f"milk-truck-mt1{st}bkl1.json"] = {"MILK": (44.0, 21.0, 80.0, 41.0)}
+        BOXES[f"milk-truck-mt1{st}bkb1.json"] = {"THE ESSENCE OF": (12.0, 27.0, 119.0, 34.0), "PURITY": (44.0, 37.0, 88.0, 44.0)}
+    BOXES["milk-truck-mt31bkl1.json"] = BOXES["milk-truck-mt31bkr1.json"] = {"MILK": (22.0, 10.0, 40.0, 20.0)}
+    SIZE = {"mt31bkl1": (64, 32), "mt31bkr1": (64, 32)}
 
     def texts(self, name):
         return {op["text"]: op for op in spec_of(name)["ops"] if op["op"] == "text" and op["text"] != "•"}
@@ -276,7 +281,7 @@ class WorldLetteringTests(unittest.TestCase):
         for name, want in self.BOXES.items():
             spec = spec_of(name); ops = self.texts(name)
             self.assertEqual(set(ops), set(want), name)
-            w, h = 128, 64
+            w, h = self.SIZE.get(spec["textures"][0], (128, 64))
             for t, box in want.items():
                 op = ops[t]
                 set_on = op.get("box") or [op["quad"][0][0], op["quad"][0][1], op["quad"][1][0], op["quad"][2][1]]   # slanted: the top corners
@@ -310,6 +315,13 @@ class WorldLetteringTests(unittest.TestCase):
         self.assertGreater(out[9 * 4:13 * 4, 70 * 4 + 1:72 * 4 - 1].min(), 240)
         self.assertTrue(120 < out[14 * 4 + 2, 71 * 4] < 180)
         self.assertLess(out[9 * 4:13 * 4, 68 * 4:69 * 4].max(), 40)                     # nothing spills a texel away
+
+    def test_milk_keeps_its_black_shadow_and_both_far_sides_alike(self):
+        for st in "123":
+            op = self.texts(f"milk-truck-mt1{st}bkl1.json")["MILK"]
+            self.assertEqual((op["shadow"]["dx"], op["shadow"]["dy"], op["shadow"]["colour"]), (1, 1, [0, 0, 0]))
+            self.assertTrue(any(e["op"] == "erase" and e.get("where") == {"keyed": True} and e.get("opaque") for e in spec_of(f"milk-truck-mt1{st}bkl1.json")["ops"]))
+        self.assertEqual(spec_of("milk-truck-mt31bkl1.json")["ops"], spec_of("milk-truck-mt31bkr1.json")["ops"])
 
 if __name__ == "__main__":
     unittest.main()

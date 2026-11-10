@@ -1,0 +1,70 @@
+{
+ "textures": [
+  "mt13bkl1"
+ ],
+ "note": "the milk tanker's the tank's side (both sides map it): its lettering; written by gen/milk_truck.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    43.0,
+    20.0,
+    82.0,
+    42.0
+   ],
+   "where": {
+    "lum_above": 119
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 109
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    43.0,
+    20.0,
+    82.0,
+    42.0
+   ],
+   "where": {
+    "keyed": true
+   },
+   "grow": 0.6,
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "MILK",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 20.0,
+   "colour": [
+    203,
+    197,
+    203
+   ],
+   "box": [
+    44.0,
+    21.0,
+    80.0,
+    41.0
+   ],
+   "shadow": {
+    "dx": 1,
+    "dy": 1,
+    "colour": [
+     0,
+     0,
+     0
+    ],
+    "opacity": 1.0
+   }
+  }
+ ]
+}
