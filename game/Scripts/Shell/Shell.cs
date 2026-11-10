@@ -1603,6 +1603,18 @@ public sealed class ShellSettings
     {
         if (HeadlampThrow != I76.Game.Sim.HeadlampThrow.Default) set("headlamp_throw", HeadlampThrow);
     }
+
+    /// <summary>The port's own, without a row: how far the modern look's muzzle light reaches round a firing gun, in percent: 100 the road, the ground and the cars about it at night, 0 the light before the key, on the firing car alone (MuzzleReach; [port] muzzle_reach, 100, written when not the default).</summary>
+    public int MuzzleReach { get; set; } = I76.Game.Sim.MuzzleReach.Default;
+
+    /// <summary>[port] muzzle_reach; <paramref name="value"/> gives the key's text, or null (absent: the default).</summary>
+    public void ReadMuzzleReach(Func<string, string?> value) => MuzzleReach = I76.Game.Sim.MuzzleReach.Parse(value("muzzle_reach"));
+
+    /// <summary>[port] muzzle_reach, only when not the default; <paramref name="set"/> writes a [port] key.</summary>
+    public void WriteMuzzleReach(Action<string, int> set)
+    {
+        if (MuzzleReach != I76.Game.Sim.MuzzleReach.Default) set("muzzle_reach", MuzzleReach);
+    }
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1864,6 +1876,7 @@ public sealed class ShellSettings
         s.ReadDashLight(Pct);
         s.NightStationLight = I76.Game.World.StationLight.Parse(Pct("night_station_light"));
         s.ReadHeadlampThrow(Pct);
+        s.ReadMuzzleReach(Pct);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -2033,6 +2046,7 @@ public sealed class ShellSettings
         WriteDashLight((k, v) => c.SetValue("port", k, v));
         if (NightStationLight != I76.Game.World.StationLight.Default) c.SetValue("port", "night_station_light", NightStationLight);
         WriteHeadlampThrow((k, v) => c.SetValue("port", k, v));
+        WriteMuzzleReach((k, v) => c.SetValue("port", k, v));
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

@@ -49,6 +49,7 @@ public static class OriginalBehavior
         LampStrength.HaloPercent = s.LampHalo;
         DashLight.Percent = s.DashLight;
         HeadlampThrow.Percent = s.HeadlampThrow;
+        MuzzleReach.Percent = s.MuzzleReach;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 
