@@ -1592,6 +1592,17 @@ public sealed class ShellSettings
 
     /// <summary>The port's own, without a row: the modern look's night-lit scenery, its lights and lit faces, in percent (StationLight; [port] night_station_light, 100, written when not the default).</summary>
     public int NightStationLight { get; set; } = I76.Game.World.StationLight.Default;
+    /// <summary>The port's own, without a row: how far down the road the modern look's headlamps reach, in percent (HeadlampThrow; [port] headlamp_throw, 100, written when not the default; 75 the throw before the key).</summary>
+    public int HeadlampThrow { get; set; } = I76.Game.Sim.HeadlampThrow.Default;
+
+    /// <summary>[port] headlamp_throw; <paramref name="value"/> gives the key's text, or null (absent: the default).</summary>
+    public void ReadHeadlampThrow(Func<string, string?> value) => HeadlampThrow = I76.Game.Sim.HeadlampThrow.Parse(value("headlamp_throw"));
+
+    /// <summary>[port] headlamp_throw, only when not the default; <paramref name="set"/> writes a [port] key.</summary>
+    public void WriteHeadlampThrow(Action<string, int> set)
+    {
+        if (HeadlampThrow != I76.Game.Sim.HeadlampThrow.Default) set("headlamp_throw", HeadlampThrow);
+    }
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -1852,6 +1863,7 @@ public sealed class ShellSettings
         s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
         s.ReadDashLight(Pct);
         s.NightStationLight = I76.Game.World.StationLight.Parse(Pct("night_station_light"));
+        s.ReadHeadlampThrow(Pct);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -2020,6 +2032,7 @@ public sealed class ShellSettings
         if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);
         WriteDashLight((k, v) => c.SetValue("port", k, v));
         if (NightStationLight != I76.Game.World.StationLight.Default) c.SetValue("port", "night_station_light", NightStationLight);
+        WriteHeadlampThrow((k, v) => c.SetValue("port", k, v));
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

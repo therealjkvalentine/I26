@@ -49,6 +49,12 @@ public static class LampStrength
     /// <summary>A lamp's share of its night strength at <paramref name="daylight"/>: 1 at night, <paramref name="dayFloor"/> in full sun.</summary>
     public static float Scale(float daylight, float dayFloor) => 1f - (1f - dayFloor) * Math.Clamp(daylight, 0f, 1f);
 
+    /// <summary>
+    /// How far the headlamps' light reaches (metres from the lamp, where it ends) at a [port] headlamp_throw percentage, or at the
+    /// one in force (null): the range every car's headlamp spotlights are given (HeadlampThrow).
+    /// </summary>
+    public static float HeadlampRange(int? throwPercent = null) => HeadlampThrow.Range(throwPercent ?? HeadlampThrow.Current);
+
     /// <summary>The current mission's daylight, as last set (the shaders read it as the i76_daylight global).</summary>
     public static float Current { get; private set; }
 

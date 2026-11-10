@@ -48,6 +48,7 @@ public static class OriginalBehavior
         LampRamp.Setting = s.LampRamp;
         LampStrength.HaloPercent = s.LampHalo;
         DashLight.Percent = s.DashLight;
+        HeadlampThrow.Percent = s.HeadlampThrow;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 
