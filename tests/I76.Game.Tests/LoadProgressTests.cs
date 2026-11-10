@@ -194,16 +194,16 @@ public class LoadProgressTests
     {
         foreach (bool on in new[] { true, false })
             Assert.Equal(on, ShellSettings.LoadProgressWord(ShellSettings.LoadProgressName(on)));
-        Assert.True(new ShellSettings().LoadProgress);   // on by default (written only when off)
+        Assert.False(new ShellSettings().LoadProgress);   // off by default since the loading follows upstream's (written only when on)
         // the Developer panel's row: off, on (the port's), stepping the setting both ways
         var row = DevSettings.All.Single(e => e.Key == "load_progress");
         Assert.Equal(["off", "on" + ShellSettings.PortMark], row.Values);
         var s = new ShellSettings();
-        Assert.Equal(1, row.Get(s));
-        row.Set(s, 0);
-        Assert.False(s.LoadProgress);
         Assert.Equal(0, row.Get(s));
         row.Set(s, 1);
         Assert.True(s.LoadProgress);
+        Assert.Equal(1, row.Get(s));
+        row.Set(s, 0);
+        Assert.False(s.LoadProgress);
     }
 }

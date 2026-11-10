@@ -1455,15 +1455,15 @@ public sealed class ShellSettings
     /// <summary>The port's own, without a row: the modern look's ignition plays the engine start-up cut from the INT03 briefing movie (I76.Formats.Audio.MovieClip) in place of the kit's ignition sound ([port] movie_ignition, written only when on). Off by default until listened to.</summary>
     public bool MovieIgnition { get; set; }
     /// <summary>
-    /// The port's own, without a row: what leads while the modern look builds a mission on its own thread (I76.Game.Boot.BriefingOverlap;
-    /// [port] briefing_while_loading, written only when not the default): card_first, the loading card for the retail game's time and
-    /// then the briefing, as the original's order; movie_first, the briefing at once and the card after it. The older on/off read as card_first.
+    /// The port's own (upstream's Load During Briefing): a mission's briefing plays while the mission builds (I76.Game.Boot.BriefingOverlap;
+    /// [port] briefing_while_loading, on, written as upstream writes it, <c>false</c>, only when off; the fork's older card_first and
+    /// movie_first read as on). Off: the build behind the loading card, then the briefing, as the original's.
     /// </summary>
-    public I76.Game.Boot.CardOrder CardOrder { get; set; } = I76.Game.Boot.CardOrder.CardFirst;
+    public bool BriefingWhileLoading { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
-    /// <summary>The port's own, without a row: the loading card's progress wheel (Ui/LoadProgressView.cs; [port] load_progress, written only when off).</summary>
-    public bool LoadProgress { get; set; } = true;
+    /// <summary>The port's own, without a row: the loading card's progress wheel (Ui/LoadProgressView.cs; [port] load_progress, off by default since the loading follows upstream's, written only when on).</summary>
+    public bool LoadProgress { get; set; }
     /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
     /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
@@ -1825,9 +1825,9 @@ public sealed class ShellSettings
         s.MenuWarmup = string.Equals(c.GetValue("port", "menu_warmup", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
-        s.CardOrder = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", "card_first").ToString());
+        s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
-        s.LoadProgress = LoadProgressWord(c.GetValue("port", "load_progress", "on").ToString());
+        s.LoadProgress = LoadProgressWord(c.GetValue("port", "load_progress", "off").ToString());
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
@@ -2008,9 +2008,9 @@ public sealed class ShellSettings
         if (MenuWarmup) c.SetValue("port", "menu_warmup", "on");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
-        if (CardOrder != I76.Game.Boot.CardOrder.CardFirst) c.SetValue("port", "briefing_while_loading", I76.Game.Boot.BriefingOverlap.Name(CardOrder));
+        if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
-        if (!LoadProgress) c.SetValue("port", "load_progress", LoadProgressName(false));
+        if (LoadProgress) c.SetValue("port", "load_progress", LoadProgressName(true));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CabinsBehindGlass) c.SetValue("port", "cabins_behind_glass", false);
