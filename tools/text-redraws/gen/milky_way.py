@@ -8,14 +8,18 @@ The name (MILKY WAY over MOTEL) is pixel lettering, drawn on the texel grid with
 layer a shade, each texel spread over its pack texels with a smooth outline), so every stroke, gap and shade row stays where it
 was painted. The small print is a heavy grotesque, set in Arimo (700, emboldened a little: the painting is heavier) on each
 line's painted ink box, read off the original to a fraction of a texel; the bullets apart, each on its own painted dot; the
-motto and "Family Run" slanted as painted. The painted letters are taken off (the texels brighter than the night sky round them,
+motto and "Family Run" slanted as painted. Set on the full painted box the small print read crowded beside the original's soft
+painting (its ink 5 to 20 % over the original's on the motto, ROSWELL and 15 MILES), so each line is set 5 % smaller about its
+box's centre (SMALLER), its emboldening thinned alike: the same centre, a little more sky between the letters. The painted letters are taken off (the texels brighter than the night sky round them,
 with the upscale's soft edge) and filled from the sky round them; the stars, the galaxy and the frame are left as they are.
 
-    python3 tools/text-redraws/gen/milky_way.py
+    python3 tools/text-redraws/gen/milky_way.py [SMALLER OUT.json]     (a trial: the small print that much smaller, written to OUT)
 """
-import json, os
+import json, os, sys
 OUT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FACE = {"font": "Arimo", "variation": {"Weight": 700}, "embolden": 0.15}
+FACE = {"font": "Arimo", "variation": {"Weight": 700}}
+EMBOLDEN = 0.15   # texels a side at the painted box's size
+SMALLER = 0.05    # the small print's size under its painted box (a share), about the box's centre
 SLANT = 0.22    # the motto's and "Family Run"'s slant (x per unit of height), as painted
 # (words, box: the painted ink's extent, ink, slanted)
 LINES = [
@@ -37,7 +41,12 @@ NAME = [(63.5, 7.3, 115.8, 15.0), (75.5, 14.9, 106.6, 22.5)]
 # the name's shades, darkest first: the texels at least this bright, in this colour (the original's rows: about 150, 204, 255)
 SHADES = [(90, [150, 150, 156]), (190, [206, 206, 210]), (240, [255, 255, 255])]
 
-def ops():
+def shrink(box, k):
+    """The box scaled by k about its centre."""
+    x0, y0, x1, y1 = box; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    return tuple(round(v, 3) for v in (cx - (cx - x0) * k, cy - (cy - y0) * k, cx + (x1 - cx) * k, cy + (y1 - cy) * k))
+
+def ops(smaller=SMALLER):
     out = []
     for r in NAME:
         out.append({"op": "erase", "rect": list(r), "where": {"lum_above": 40}, "grow": 0.6, "halo": {"within": 0.8, "lum_above": 40}})
@@ -50,8 +59,10 @@ def ops():
     for r in NAME:
         for lum, colour in SHADES:
             out.append({"op": "marks", "rect": list(r), "where": {"lum_above": lum}, "colour": colour, "sigma": 0.35})
-    for t, (x0, y0, x1, y1), ink, slant in LINES:
-        op = {"op": "text", "text": t, **FACE, "cap": round(y1 - y0, 2), "colour": ink}
+    k = 1 - smaller
+    for t, box, ink, slant in LINES:
+        x0, y0, x1, y1 = shrink(box, k)
+        op = {"op": "text", "text": t, **FACE, "embolden": round(EMBOLDEN * k, 3), "cap": round(y1 - y0, 2), "colour": ink}
         if slant:
             # both slanted lines open and close with a quote mark, at the cap line: the box's sides are the top corners
             d = SLANT * (y1 - y0)
@@ -64,6 +75,7 @@ def ops():
     return out
 
 if __name__ == "__main__":
+    smaller, out = (float(sys.argv[1]), sys.argv[2]) if len(sys.argv) > 2 else (SMALLER, os.path.join(OUT, "signs-ao_1sg_6.json"))
     s = {"textures": ["ao_1sg_6"], "note": "the Milky Way Motel billboard (M07, T13, T14): its lettering; written by gen/milky_way.py",
-         "ops": ops()}
-    with open(os.path.join(OUT, "signs-ao_1sg_6.json"), "w", encoding="utf-8") as f: json.dump(s, f, indent=1, ensure_ascii=False); f.write("\n")
+         "ops": ops(smaller)}
+    with open(out, "w", encoding="utf-8") as f: json.dump(s, f, indent=1, ensure_ascii=False); f.write("\n")

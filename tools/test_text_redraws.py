@@ -301,6 +301,8 @@ class WorldLetteringTests(unittest.TestCase):
         BOXES[f"milk-truck-mt1{st}bkb1.json"] = {"THE ESSENCE OF": (12.0, 27.0, 119.0, 34.0), "PURITY": (44.0, 37.0, 88.0, 44.0)}
     BOXES["milk-truck-mt31bkl1.json"] = BOXES["milk-truck-mt31bkr1.json"] = {"MILK": (22.0, 10.0, 40.0, 20.0)}
     SIZE = {"mt31bkl1": (64, 32), "mt31bkr1": (64, 32)}
+    # the billboard's small print is set 5 % smaller than its painted box, about the box's centre (it read crowded at full size)
+    SMALLER = {"signs-ao_1sg_6.json": 0.05}
 
     def texts(self, name):
         return {op["text"]: op for op in spec_of(name)["ops"] if op["op"] == "text" and op["text"] != "•"}
@@ -310,10 +312,13 @@ class WorldLetteringTests(unittest.TestCase):
             spec = spec_of(name); ops = self.texts(name)
             self.assertEqual(set(ops), set(want), name)
             w, h = self.SIZE.get(spec["textures"][0], (128, 64))
-            for t, box in want.items():
+            k = 1 - self.SMALLER.get(name, 0)
+            for t, painted in want.items():
                 op = ops[t]
+                cx, cy = (painted[0] + painted[2]) / 2, (painted[1] + painted[3]) / 2
+                box = (cx - (cx - painted[0]) * k, cy - (cy - painted[1]) * k, cx + (painted[2] - cx) * k, cy + (painted[3] - cy) * k)
                 set_on = op.get("box") or [op["quad"][0][0], op["quad"][0][1], op["quad"][1][0], op["quad"][2][1]]   # slanted: the top corners
-                self.assertLess(np.abs(np.array(set_on) - box).max(), 0.01, f"{name} {t}: the spec's box is the measured one")
+                self.assertLess(np.abs(np.array(set_on) - box).max(), 0.01, f"{name} {t}: the spec's box is the measured one (scaled about its centre)")
                 for s in (4, 8):
                     got = ink_box(op, w, h, s)
                     # a slanted line's end marks sit a little under its ascenders, so the slant moves them a fraction further
