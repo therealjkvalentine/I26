@@ -68,9 +68,9 @@ public sealed record SmoothWheel(Vector3[] Rim, Vector2[] RimUv, Vector3[] RimNo
     /// <summary>
     /// The textured face's mapping from texture (u, v) to the wheel's (y, z) (wheel space: x along the axle, y up):
     /// <c>YZ(pts[origin]) + A (u - uvs[origin].u) + B (v - uvs[origin].v)</c>, fitted on the widest triple of the face's corners.
-    /// Null where the mesh has no textured face or its corners are collinear. The original shows a wheel face's picture
-    /// with the texture's first stored row at the top (the hubcaps are painted lit from above, and the real game shows them
-    /// so; the lane's 86Box captures), which ModelAssembler sees to by mapping v downward: <c>B.X &lt; 0</c>.
+    /// Null where the mesh has no textured face or its corners are collinear. Every .wdf face maps v upward
+    /// (<c>B.X &gt; 0</c>): the texture's first stored row is at the bottom of the wheel, which is how the original shows
+    /// every style (SmoothWheelTests.WheelStyles).
     /// </summary>
     public static (GeoFace Face, Vector3[] Pts, Vector2[] Uvs, int Origin, Vector2 A, Vector2 B)? FaceMap(GeoMesh geo, Affine node)
     {
