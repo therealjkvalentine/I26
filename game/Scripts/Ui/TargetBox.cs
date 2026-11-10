@@ -8,8 +8,10 @@ namespace I76.Game.Ui;
 /// them across, never bigger ones. The box is centred on the target's collider centre and sized
 /// S = clamp(|trunc(R·sx/z)|, 23, 150) by the collider radius R over its depth z, sx the view's focal length in the frame's
 /// pixels (320 for the original's 73.74° high view); it spans 2·trunc(0.6S) across and 2·trunc(0.4S) + 16 down (the
-/// corner sprites are 8 high, the lower pair drawn one sprite lower), from trunc(0.4S)·(1 + 1/3) over the centre. So a car
-/// is held at the 23-pixel floor (a 26x34 box) from about 35–40 m out and the box only grows near, to 180x136 at most.
+/// corner sprites are 8 high, the lower pair drawn one sprite lower), its top trunc(0.4S) + trunc(0.4S)/3 over the centre.
+/// So a car is held at the 23-pixel floor (a 26x34 box) from about 30–40 m out and the box only grows near, to 180x136 at
+/// most. Measured in the original (retail 1.0, 640x480, 86Box): a car at 6, 12, 25 and 100 m drew 138x108, 68x60, 32x36
+/// and 26x34, the tractor at 6, 12, 25 and 100 m 180x136, 102x84, 48x48 and 26x34; the chase view follows the same rule.
 /// </summary>
 public static class TargetBox
 {

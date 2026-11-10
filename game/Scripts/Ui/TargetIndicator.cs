@@ -7,9 +7,11 @@ namespace I76.Game.Ui;
 
 /// <summary>
 /// The box around the radar's current target, as the original draws one:
-/// corner brackets fitted to the target's projected collision box, its
-/// health as a bar above it (just over the box in the main
-/// view, coloured by thirds, white while unhurt), and its distance beneath. Red for the other side, green
+/// four corner brackets sized by the original's rule (TargetBox: the
+/// collider's radius over its depth, 23 to 150 of the 640x480 frame's pixels,
+/// so a fixed 26x34 beyond about 40 m), one frame pixel thick and drawn crisp
+/// at the window's scale; its health as a bar just over the box (coloured by
+/// thirds, white while unhurt), and its distance beneath. Red for the other side, green
 /// for ours, grey for nobody's; when the target is off screen, an arrow at the
 /// screen's edge points the way.
 /// </summary>
@@ -34,6 +36,8 @@ public partial class TargetIndicator : Control
     /// </summary>
     public bool Mirror { get; init; }
 
+    private static readonly bool BoxLog = System.Environment.GetEnvironmentVariable("I76_TARGET_BOX_LOG") == "1";
+
     public override void _Ready()
     {
         AnchorRight = 1; AnchorBottom = 1;
@@ -57,31 +61,22 @@ public partial class TargetIndicator : Control
         var size = GetViewportRect().Size;
 
         var node = CarOf?.Invoke(t) is { } n && IsInstanceValid(n) ? n : null;
-        // the eight corners of its box, on screen
-        var min = new Vector2(float.MaxValue, float.MaxValue); var max = new Vector2(float.MinValue, float.MinValue);
-        int visible = 0;
-        foreach (var x in new[] { t.BoxX[0], t.BoxX[3] })
-            foreach (var y in new[] { t.BoxY[0], t.BoxY[3] })
-                foreach (var z in new[] { t.BoxZ[0], t.BoxZ[3] })
-                {
-                    var corner = new System.Numerics.Vector3(x, y, z);
-                    var w = node is not null ? node.GlobalTransform * Coords.ToGodot(corner)
-                        : Coords.ToGodot(t.Pos.ToVector3() + t.Rot.ToWorld(corner) - origin);
-                    if (cam.IsPositionBehind(w)) continue;
-                    var s = cam.UnprojectPosition(w);
-                    min = min.Min(s); max = max.Max(s);
-                    visible++;
-                }
+        // the original's box (TargetBox): centred on the collider record's centre, on the car as drawn, sized by its radius over
+        // its depth, in the 640x480 frame's pixels (the window's height is 480 of them; the mirror's picture 256 across)
+        var (centreGame, radius) = Combat.Collider(t);
+        var midBox = new System.Numerics.Vector3((t.BoxX[0] + t.BoxX[3]) / 2, (t.BoxY[1] + t.BoxY[3]) / 2, (t.BoxZ[0] + t.BoxZ[3]) / 2);
+        var at = node is not null ? node.GlobalTransform * Coords.ToGodot(midBox) : Coords.ToGodot(centreGame - origin);
+        float depth = -(cam.GlobalTransform.AffineInverse() * at).Z;
         float dist = (t.Pos.ToVector3() - p.Pos.ToVector3()).Length();
         var font = GetThemeDefaultFont();   // the root window's theme: Arial, the menus' face (Godot's own without it)
 
-        bool onScreen = visible == 8 && max.X > 0 && max.Y > 0 && min.X < size.X && min.Y < size.Y;
+        var sc = depth > 0 ? cam.UnprojectPosition(at) : Vector2.Zero;
+        bool onScreen = depth > 0 && sc.X >= 0 && sc.Y >= 0 && sc.X < size.X && sc.Y < size.Y;
         if (!onScreen && Mirror) return;
         if (!onScreen)
         {
             // an arrow at the edge, toward the target
-            var centre = node?.GlobalPosition ?? Coords.ToGodot(t.Pos.ToVector3() - origin);
-            var local = cam.GlobalTransform.AffineInverse() * centre;
+            var local = cam.GlobalTransform.AffineInverse() * at;
             var dir = new Vector2(local.X, -local.Y);
             if (dir.LengthSquared() < 1e-6f) dir = Vector2.Up;
             dir = dir.Normalized();
@@ -94,30 +89,29 @@ public partial class TargetIndicator : Control
             return;
         }
 
-        // pad small boxes so the brackets stay readable at range
-        var mid = (min + max) / 2;
-        float u = Mirror ? size.X / 256f : 1;   // the mirror's picture is 256x64 in the 1997 size, four times that in the modern one
-        var half = ((max - min) / 2).Max(new Vector2(14, 10) * u) + new Vector2(6, 6) * u;
-        min = mid - half; max = mid + half;
-        float arm = Mathf.Clamp(Mathf.Min(half.X, half.Y) * 0.6f, 6 * u, 22 * u);
-        float W = 2.5f * u;
-        var outline = new Color(0, 0, 0, 0.55f);
-        foreach (var (corner, sx, sy) in new[] { (min, 1, 1), (new Vector2(max.X, min.Y), -1, 1), (new Vector2(min.X, max.Y), 1, -1), (max, -1, -1) })
-        {
-            foreach (var (c, w) in new[] { (outline, W + 2), (col, W) })
-            {
-                DrawLine(corner, corner + new Vector2(sx * arm, 0), c, w);
-                DrawLine(corner, corner + new Vector2(0, sy * arm), c, w);
-            }
-        }
+        float k = Mirror ? size.X / 256f : TargetBox.Scale(size);
+        float f = TargetBox.Focal(size.X / k, size.Y / k, cam.Fov, cam.KeepAspect == Camera3D.KeepAspectEnum.Width);
+        var box = TargetBox.Rect((int)(sc.X / k), (int)(sc.Y / k), TargetBox.Size(radius, depth, f));
+        // capture hook: I76_TARGET_BOX_LOG=1 prints the box's inputs and result once a second (frame pixels)
+        if (BoxLog && !Mirror && Godot.Engine.GetProcessFrames() % 30 == 0)
+            GD.Print($"target box: {t.Definition} R {radius:0.00} depth {depth:0.00} f {f:0.0} S {TargetBox.Size(radius, depth, f)} box {box.Size.X}x{box.Size.Y} at {box.Position} k {k:0.###}");
+        // the corners as the original's 8x8 sprites: one frame pixel thick, eight long, drawn crisp at the window's scale
+        float x0 = Mathf.Round(box.Position.X * k), y0 = Mathf.Round(box.Position.Y * k);
+        float x1 = Mathf.Round(box.End.X * k), y1 = Mathf.Round(box.End.Y * k);
+        float t1 = Mathf.Max(1, Mathf.Round(k)), arm = Mathf.Round(TargetBox.Corner * k);
+        DrawRect(new Rect2(x0, y0, arm, t1), col); DrawRect(new Rect2(x0, y0, t1, arm), col);
+        DrawRect(new Rect2(x1 - arm, y0, arm, t1), col); DrawRect(new Rect2(x1 - t1, y0, t1, arm), col);
+        DrawRect(new Rect2(x0, y1 - t1, arm, t1), col); DrawRect(new Rect2(x0, y1 - arm, t1, arm), col);
+        DrawRect(new Rect2(x1 - arm, y1 - t1, arm, t1), col); DrawRect(new Rect2(x1 - t1, y1 - arm, t1, arm), col);
 
         // the health bar over the box, the original's size and place (TargetHealthBar) at the window's scale; the distance under it
+        var outline = new Color(0, 0, 0, 0.55f);
         float hp = TargetHealthBar.Percent(Health(t));
-        var (outer, inner) = TargetHealthBar.Rects(hp, mid.X, min.Y, Mirror ? u : size.Y / 480f);
+        var (outer, inner) = TargetHealthBar.Rects(hp, (int)(sc.X / k) * k, y0, k);
         // white unhurt, then red, yellow and green by thirds (the colours the original builds)
         var fill = TargetHealthBar.Band(hp) switch { 3 => new Color(1f, 1f, 1f), 2 => new Color(0.32f, 0.61f, 0.32f), 1 => new Color(0.8f, 0.78f, 0.13f), _ => new Color(0.82f, 0f, 0.16f) };
         if (outer.HasArea()) DrawRect(outer.Grow(1), outline);
         if (inner.HasArea()) DrawRect(inner, fill);
-        if (!Mirror) DrawString(font, new Vector2(mid.X - 40, max.Y + 18), $"{dist:0} m", HorizontalAlignment.Center, 80, 13, col);
+        if (!Mirror) DrawString(font, new Vector2((x0 + x1) / 2 - 40, y1 + 18), $"{dist:0} m", HorizontalAlignment.Center, 80, 13, col);
     }
 }
