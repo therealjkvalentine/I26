@@ -29,7 +29,7 @@ public partial class VegFadeMarks : Control
         {
             if (cam.IsPositionBehind(g)) continue;
             var p = cam.UnprojectPosition(g);
-            var col = kind == 0 ? new Color(1, 0.9f, 0.1f) : kind == 1 ? new Color(1, 0.5f, 0.1f) : new Color(0.7f, 0.7f, 0.7f);
+            var col = kind == 0 ? new Color(1, 0.9f, 0.1f) : kind == 2 ? new Color(1, 0.5f, 0.1f) : new Color(0.7f, 0.7f, 0.7f);
             DrawArc(p, 9, 0, Mathf.Tau, 20, col, 2);
             DrawString(font, p + new Vector2(11, -6), $"{d:0}", HorizontalAlignment.Left, -1, 15, col);
         }

@@ -28,14 +28,25 @@ default (`ShellSettings.Vegetation`, `[port] vegetation`, settings version 10: o
 | | Low | High |
 |---|---|---|
 | density (of the biome's cover) | 0.6 | 1.0 |
-| shrubs fade out over | 120–160 m | 190–250 m |
-| grasses and forbs fade out over | 35–50 m | 60–85 m |
+| shrubs fade out over | 130–170 m | 190–250 m |
+| the ground layer's larger plants (forbs, weeds, rosettes) fade out over | 130–170 m | 190–250 m |
+| grass tufts fade out over (growing in from a fifth of their size as they fade in) | 35–50 m | 60–85 m |
+| rolling tumbleweeds fade in over | 163–130 m | 168–135 m |
 | middle / far meshes beyond, shrubs | 20 / 50 m | 30 / 70 m |
 | middle / far meshes beyond, grasses and forbs | 7 / 22 m | 11 / 35 m |
 | sun shadows from shrubs within | none | 60 m |
 | shade on the ground under plants fades out over | 35–50 m | 55–75 m |
 
 Low's plants are a subset of High's (the same cells, a lower cover threshold), so switching only thins them.
+
+Every bush (a shrub, a forb, a tumbleweed) is wholly undrawn until it is farther from the camera than the headlamps reach
+(110 m, `LampStrength.HeadRange`, where their light falls to nothing) plus 20 m (the chase view's camera behind the lamps):
+at night they fade in in the dark, never in the beam (`VegLevels.BushAppear`, tests/I76.Game.Tests/VegReachTests.cs). Before,
+Low's shrubs were fully drawn from 120 m and the ground layer's snakeweed, tumbleweeds, poppies and rosettes fade in at
+50-35 m (High 85-60 m), inside the beam. The ground layer's chunks are placed out to the larger plants' reach; beyond the
+tufts' reach a chunk draws only those (its tufts' buffers are not sent). The tufts stay near for their number, and grow in
+out of the sward across their band as well as dithering in, so none pops. `I76_VEG_REACH=old` draws the earlier reaches (for
+before / after captures); `I76_VEG_MARKS=1` rings each plant in its fade band with its distance (docs/dev-hooks.md).
 
 `[port] vegetation_density` in shell.cfg (no row; percent, 10 to 150, `60` when absent, `VegetationDensity`) multiplies
 the level's density, so the default places 0.36 of the cover at Low and 0.6 at High; 100 is the level as tabled above.
