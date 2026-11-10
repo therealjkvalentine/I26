@@ -262,6 +262,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
     private float _savedHeadSens;
+    private bool _savedOtAuto;
     private static readonly (int Y, string Label, int Bit)[] Rows =
     [
         (139, "Arcade Phys.", 0x01), (162, "No Salv. Manag.", 0x02), (185, "Unlim. Ammo", 0x04),
@@ -293,8 +294,12 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
-        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.", "Equip. Tooltips",
+        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
     ];
+    /// <summary>The Opentrack row's state as last drawn, polled twice a second (<see cref="Tick"/>).</summary>
+    private I76.Game.OpenTrackState _otState;
+    private double _otPoll;
+    private string _otProfile = "Write";
 
     protected override void Build()
     {
@@ -312,6 +317,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedCrosshair = s.ChaseCrosshair;
         _savedHead = s.HeadTrack;
         _savedHeadSens = s.HeadTrackSensitivity;
+        _savedOtAuto = s.OpenTrackAuto;
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
         _savedEquipTips = s.EquipmentTips;
@@ -371,15 +377,26 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
         Toggle(PortRows[10], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
         // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
-        Step(PortRows[11], () => s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3),
+        // (the socket follows the row at once, so the Opentrack row can see poses arriving; Cancel puts it back)
+        Step(PortRows[11], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
             () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
         Step(PortRows[12], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
             () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+        // Opentrack (docs/playing.md): its state (Missing / Stopped / Running / Tracking); a click when Stopped starts it.
+        // Opentrack Auto: a mission with Head Tracking on starts it, and the game closes the one it started when it exits.
+        // Opentrack Profile: a click writes I26.ini (the webcam tracker, UDP to this machine) into opentrack's profiles, never over one
+        I76.Game.HeadTracker.Apply(s);
+        _otState = I76.Game.OpenTrackLauncher.State(s);
+        _otProfile = I76.Game.OpenTrackLauncher.ProfileDir(s) is { } pd && File.Exists(Path.Combine(pd, I76.Game.OpenTrack.ProfileName)) ? "Present" : "Write";
+        Step(PortRows[13], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
+            () => I76.Game.OpenTrack.Label(_otState));
+        Toggle(PortRows[14], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
+        Step(PortRows[15], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Step(PortRows[13], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+        Step(PortRows[16], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
-        Toggle(PortRows[14], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        Toggle(PortRows[17], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -393,6 +410,18 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             Frame.CopyBackground(300, y, 22, 18, 200, y);
             if (_checks.Contains(List.SlotOn(line))) Frame.CopyBackground(200, 139, 22, 18, 200, y);
         }
+    }
+
+    /// <summary>The Opentrack row follows opentrack: its state looked at twice a second, the sheet drawn again when it changes.</summary>
+    public override void Tick()
+    {
+        base.Tick();
+        if (Shell.Current != this || (_otPoll += Shell.Delta) < 0.5) return;
+        _otPoll = 0;
+        var now = I76.Game.OpenTrackLauncher.State(Shell.Settings);
+        if (now == _otState) return;
+        _otState = now;
+        Redraw();
     }
 
     private static float NextSensitivity(float now)
@@ -426,7 +455,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     {
         var s = Shell.Settings;
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair;
-        s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens;
+        s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens; s.OpenTrackAuto = _savedOtAuto;
+        I76.Game.HeadTracker.Apply(s);
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored

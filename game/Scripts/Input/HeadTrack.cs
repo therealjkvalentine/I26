@@ -179,7 +179,27 @@ public static class HeadTracker
     /// <summary>The socket drained (the newest pose fed), then one frame of the head: see <see cref="HeadLook.Step"/>.</summary>
     public static (float Weight, float Yaw, float Pitch, float Roll, (float X, float Y, float Z) Offset) Step(double dt, bool overridden)
     {
-        if (_rx?.Poll() is { } p) Look.Feed(p);
+        Drain();
         return Look.Step(dt, overridden);
+    }
+
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+    private static double _lastPacket = double.NegativeInfinity;
+
+    private static void Drain()
+    {
+        if (_rx?.Poll() is not { } p) return;
+        Look.Feed(p);
+        _lastPacket = Clock.Elapsed.TotalSeconds;
+    }
+
+    /// <summary>The socket is open and a pose came within <see cref="HeadLook.Timeout"/> (the menus' Opentrack row; drains the socket, out of a mission too).</summary>
+    public static bool Receiving
+    {
+        get
+        {
+            Drain();
+            return _rx is not null && Clock.Elapsed.TotalSeconds - _lastPacket < HeadLook.Timeout;
+        }
     }
 }
