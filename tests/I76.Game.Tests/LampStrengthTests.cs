@@ -35,4 +35,29 @@ public class LampStrengthTests
         Assert.True(LampStrength.BrakeGlow < 1.3f);
         Assert.True(LampStrength.HeadEnergy * LampStrength.HeadDayFloor < 14f * 0.25f);
     }
+
+    [Fact]
+    public void TheRearLampsLightTheGroundFaintlyWithTheLightsOnAndMoreBraking()
+    {
+        // a night: the tail filament's glow, the brake's several times brighter, nothing with both off
+        Assert.Equal(0f, LampStrength.RearGround(0f, 0f, 0f));
+        Assert.Equal(LampStrength.TailGroundEnergy, LampStrength.RearGround(1f, 0f, 0f));
+        Assert.Equal(LampStrength.BrakeGroundEnergy, LampStrength.RearGround(1f, 1f, 0f));
+        Assert.Equal(LampStrength.BrakeGroundEnergy, LampStrength.RearGround(0f, 1f, 0f));
+        Assert.True(LampStrength.TailGroundEnergy > 0f);
+        Assert.True(LampStrength.BrakeGroundEnergy >= 3f * LampStrength.TailGroundEnergy);
+        // a fraction of the headlamps' beam
+        Assert.True(LampStrength.BrakeGroundEnergy < LampStrength.HeadEnergy);
+        // the ramp: half-way up the brake filament is half-way between the two
+        Assert.Equal((LampStrength.TailGroundEnergy + LampStrength.BrakeGroundEnergy) / 2f, LampStrength.RearGround(1f, 0.5f, 0f), 5);
+    }
+
+    [Fact]
+    public void TheRearLampsLightNoGroundInFullSun()
+    {
+        Assert.Equal(0f, LampStrength.RearGround(1f, 1f, 1f));
+        Assert.Equal(0f, LampStrength.RearGround(1f, 0f, 1f));
+        float dusk = LampStrength.RearGround(1f, 1f, 0.625f);
+        Assert.InRange(dusk, 0.3f * LampStrength.BrakeGroundEnergy, 0.4f * LampStrength.BrakeGroundEnergy);
+    }
 }

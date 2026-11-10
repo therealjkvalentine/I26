@@ -93,6 +93,16 @@ public partial class Main : Node3D
     }
 
     /// <summary>
+    /// How far the body reaches behind each rear lamp under it (a bumper, a pickup's bed or tailgate, a rear weapon), 0 where
+    /// nothing does: the lamp's light on the ground stands that far back so its cone falls on the road and not on the car.
+    /// </summary>
+    private static float[] RearOverhangs(I76.Formats.Assembly.AssembledModel m, System.Numerics.Vector3[] lamps)
+    {
+        var pts = m.Parts.Where(p => !CarNode.IsLamp(p.NodeName)).SelectMany(p => p.Mesh.Vertices.Select(x => p.ToModel.Apply(x))).ToList();
+        return lamps.Select(a => pts.Where(q => MathF.Abs(q.X - a.X) < 0.6f && q.Y <= a.Y + 0.05f && q.Z < a.Z).Select(q => a.Z - q.Z).DefaultIfEmpty(0f).Max()).ToArray();
+    }
+
+    /// <summary>
     /// The collider record's centre and radius: the midpoint
     /// of the hierarchy's box, the farthest point of it from there, raised
     /// for a car to its farthest COLP corner + 0.1. The chase
@@ -1474,7 +1484,8 @@ public partial class Main : Node3D
             node.AddHeadlights(player, HeadlampCentres(model2));
             // the modern look's police light bar (every Sheriff car, the player's, an AI's or a remote one: all come through here)
             if (I76.Game.Sim.SirenBar.Build(builder.Meshes!, model2, night: !builder.Light.IsDay) is { } siren) node.AddSirenBar(siren);
-            node.AddRearLamps(LampCentres(model2, "BLGT", rear: true) ?? LampCentres(model2, "TLGT", rear: true));
+            var rear = LampCentres(model2, "BLGT", rear: true) ?? LampCentres(model2, "TLGT", rear: true);
+            node.AddRearLamps(rear, rear is null ? null : RearOverhangs(model2, rear));
             // VLOC kind 38: the headlight pool, made only under a night preset
             if (!builder.Light.IsDay && model2.Locations.FirstOrDefault(l => l.Tag == "VLOC" && l.Index == LightPoolVloc) is { } pv
                 && LightPool() is var (poolMesh, poolMat))
