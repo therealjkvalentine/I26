@@ -34,8 +34,8 @@ public static class HeadlampThrow
     /// today's 0.6, flatter as the throw grows (a low beam keeps its light down the road), steeper below it.
     /// </summary>
     public static float Attenuation(int percent) => Math.Max(0f, TodayAttenuation - Flatten * MathF.Log((float)Math.Clamp(percent, Min, Max) / TodayPercent));
-    /// <summary>How much flatter the fall-off gets per e-fold of the throw.</summary>
-    public static readonly float Flatten = float.TryParse(System.Environment.GetEnvironmentVariable("I76_TMP_FLATTEN"), System.Globalization.CultureInfo.InvariantCulture, out float tf) ? tf : 0.75f; // TEMP
+    /// <summary>How much flatter the fall-off gets per e-fold of the throw: 0.75 keeps the lit road's length about in proportion to the setting (measured on T06's straight road from overhead, the road clearly lit to 73 m at 75, 87 m at 90, 99 m at 100, 117 m at 110).</summary>
+    public const float Flatten = 0.75f;
 
     /// <summary>The spot's energy at a setting, as a share of the energy before the key: the light at Near kept as it was.</summary>
     public static float EnergyScale(int percent) =>
