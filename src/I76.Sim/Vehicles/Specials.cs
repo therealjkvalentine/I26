@@ -16,6 +16,28 @@ public static class Specials
     /// <summary>One use of nitro, on the shared vehicle timer.</summary>
     public const float NitroSeconds = 15f;
 
+    // The specials' factors, named so the garage's tooltips (game/Scripts/Shell/PartTips.cs) print what the sim uses.
+    /// <summary>Nitro: the drive force × 5 while it burns (the player's and the AI's step).</summary>
+    public const float NitroForce = 5f;
+    /// <summary>The blower (type 3): the engine scale it sets at load.</summary>
+    public const float BlowerScale = 1.25f;
+    /// <summary>The X-Aust Brake (type 4): a negative pedal counts twice once it is latched.</summary>
+    public const float XAustBrakeScale = 2f;
+    /// <summary>Structo Bumper (type 5): the chassis multiplier on the front and rear.</summary>
+    public const float StructoChassis = 2f;
+    /// <summary>Mud Flaps (type 7): added to the chassis multiplier on every side.</summary>
+    public const float MudFlapsChassis = 0.1f;
+    /// <summary>Curb Feelers (type 6): the armour multiplier on every side.</summary>
+    public const float CurbFeelersArmour = 1.1f;
+    /// <summary>Cup Holders (type 9): the percent chance that a hit reaching the components does nothing there.</summary>
+    public const int CupHoldersPercent = 10;
+    /// <summary>Heated Seats' rounds and Dashboard Mary's damage: × this, rounded down (<see cref="PlusTenth"/>).</summary>
+    public const float TenthMore = 1.1f;
+    /// <summary>Tire Covers (type 11, the Nitro Pack): the wheels' hit points × 2 at load.</summary>
+    public const int TireCoversWheelHp = 2;
+    /// <summary>Tire Covers: what a caltrop leaves of a covered tyre's hit points.</summary>
+    public const float TireCoversCaltropKeeps = 0.75f;
+
     /// <summary>The special in slot 0..2, or none.</summary>
     public static SpecialPart? Slot(Vehicle v, int i) => v.Health?.Slots[17 + i] as SpecialPart;
 
@@ -77,10 +99,10 @@ public static class Specials
         foreach (int type in specials)
             switch (type)
             {
-                case 3: v.P.EngineScale = 1.25f; break;
+                case 3: v.P.EngineScale = BlowerScale; break;
                 case 8: foreach (var w in weapons) w.Ammo = PlusTenth(w.Ammo); break;
                 case 10 when nitro: foreach (var w in weapons) w.Damage = PlusTenth(w.Damage); break;
-                case 11 when nitro: for (int k = 0; k < wheelHp.Length; k++) wheelHp[k] *= 2; break;
+                case 11 when nitro: for (int k = 0; k < wheelHp.Length; k++) wheelHp[k] *= TireCoversWheelHp; break;
             }
     }
 
@@ -95,7 +117,7 @@ public static class Specials
     /// x × 1.1, rounded toward zero: the single-precision 1.1 widened and multiplied in double precision, as the original
     /// does. So 250 → 275, 40 → 44, 15 → 16, 25 → 27, while 3, 5 and 8 stay as they are.
     /// </summary>
-    public static int PlusTenth(int x) => (int)(x * (double)1.1f);
+    public static int PlusTenth(int x) => (int)(x * (double)TenthMore);
 
     /// <summary>
     /// The jamming test, with its side effects: the one place a jam ends. <paramref name="trustFlag"/> is a

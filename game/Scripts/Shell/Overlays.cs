@@ -256,7 +256,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips;
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private int _savedRate, _savedDownloads;
@@ -286,14 +286,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order (a check row, or a value row stepped by a click): upstream's, then the play fork's own
-    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I.). Force Feedback, Rumble Strength and Wheel Strength are the
+    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I., Equip. Tooltips). Force Feedback, Rumble Strength and Wheel Strength are the
     /// Controls sheet's (<see cref="ControlsMenuScreen"/>).
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
-        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.",
+        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Melee A.I.", "Equip. Tooltips",
     ];
 
     protected override void Build()
@@ -314,6 +314,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedHeadSens = s.HeadTrackSensitivity;
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
+        _savedEquipTips = s.EquipmentTips;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
         // the original's six check rows on consecutive ruled lines. The sheet prints a check box only on every other line (where
@@ -377,6 +378,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
         Step(PortRows[13], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
+        // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
+        Toggle(PortRows[14], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -424,7 +427,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         var s = Shell.Settings;
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair;
         s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens;
-        s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance;
+        s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());

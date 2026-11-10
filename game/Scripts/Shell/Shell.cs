@@ -611,7 +611,24 @@ public partial class Shell : CanvasLayer
         float scale = Math.Min(size.X / ShellFrame.W, size.Y / ShellFrame.H);
         var off = (size - new Vector2(ShellFrame.W, ShellFrame.H) * scale) / 2;
         var box = t is { } z ? new TipBox(off.X + z.Zone.Position.X * scale, off.Y + z.Zone.Position.Y * scale, z.Zone.Size.X * scale, z.Zone.Size.Y * scale) : default;
-        _tip.Track(t is { } k ? (cur, k.Zone) : null, t?.Text, box, off + new Vector2(Mouse.X, Mouse.Y) * scale, PadFocus is not null, scale, delta);
+        _tip.Track(t is { } k ? (cur, k.Zone) : null, t?.Text, box, off + new Vector2(Mouse.X, Mouse.Y) * scale, PadFocus is not null || cur is { TipBesideRow: true }, scale, delta);
+    }
+
+    private PartTips? _partTips;
+    private object? _partTipsFor;
+
+    /// <summary>
+    /// The garage's equipment tooltips (<see cref="I76.Game.Shell.PartTips"/>, the port's), built once from this install's parts; null while
+    /// Play Options' Equip. Tooltips is off, so every list then shows none.
+    /// </summary>
+    public PartTips? PartTips
+    {
+        get
+        {
+            if (!Settings.EquipmentTips) return null;
+            if (_partTips is null || !ReferenceEquals(_partTipsFor, Vfs)) { _partTips = new PartTips(Vfs, Install.IsNitro); _partTipsFor = Vfs; }
+            return _partTips;
+        }
     }
 
     /// <summary>Puts an overlay (the notepad screens) over the current screen, or takes it away (null): the screen underneath repaints.</summary>
@@ -970,6 +987,14 @@ public abstract class ShellScreen
     public virtual void Repaint() { }
     /// <summary>The tooltip for the point (the pointer, or the pad's focus, which puts the pointer on its region): its text and the row's zone, in shell coordinates; null for none.</summary>
     public virtual (string Text, Rect2I Zone)? TipAt(Vector2I m) => null;
+    /// <summary>The tooltip goes beside the row it explains for the mouse too (the garage's part lists: a box under the pointer would cover the row being read).</summary>
+    public virtual bool TipBesideRow => false;
+
+    /// <summary>
+    /// The equipment tooltip of a part (Play Options' Equip. Tooltips, <see cref="ShellSettings.EquipmentTips"/>; the port's), or null with
+    /// the option off or for a part without one.
+    /// </summary>
+    protected string? PartTip(I76.Sim.Trip.PartDef? p) => p is null ? null : Shell.PartTips?.Text(p);
 }
 
 /// <summary>
@@ -1348,6 +1373,11 @@ public sealed class ShellSettings
     public bool HostCrosshair { get; set; }
     /// <summary>The port's own: CB Voice (Play Options; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
     public bool CbVoice { get; set; } = true;
+    /// <summary>
+    /// The port's own: Equip. Tooltips (Play Options; shell.cfg [port] equipment_tips, written only when off): the garage's part lists
+    /// say what each part does in the game when the pointer or the pad's focus rests on it. Off shows none; the menus' own tooltips stay.
+    /// </summary>
+    public bool EquipmentTips { get; set; } = true;
     /// <summary>The port's own: the microphone CB Voice uses (shell.cfg [port] cb_mic; Play Options steps through the sound system's list). Empty is the system default.</summary>
     /// <summary>The CB voice chat's input device: empty is none, the default for anyone who has not chosen (the audio input is never opened); "Default" is the system's.</summary>
     public string CbMic { get; set; } = "";
@@ -1727,6 +1757,7 @@ public sealed class ShellSettings
             : hcp.VariantType == Variant.Type.String && (string)hcp == "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
         s.HostCrosshair = (bool)c.GetValue("port", "host_crosshair", false);
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
+        s.EquipmentTips = (bool)c.GetValue("port", "equipment_tips", true);
         // no version step: absent (never chosen, or the old implicit default) is none; a saved device stays
         s.CbMic = (string)c.GetValue("port", "cb_mic", "");
         // no version step: absent, it is off, the stock game
@@ -1915,6 +1946,7 @@ public sealed class ShellSettings
         if (Handicaps != I76.Sim.Missions.HandicapMode.Off) c.SetValue("port", "handicaps", Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "auto" : "manual");
         if (HostCrosshair) c.SetValue("port", "host_crosshair", true);
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
+        if (!EquipmentTips) c.SetValue("port", "equipment_tips", false);
         if (CbMic.Length > 0) c.SetValue("port", "cb_mic", CbMic);
         if (HiddenContent) c.SetValue("port", "hidden_content", true);
         if (UnlimTurrets) c.SetValue("port", "unlim_turrets", true);

@@ -237,9 +237,9 @@ public sealed class VehicleDamage
     {
         if (zone > 4) return 0;
         float mc = 1f, ma = 1f;
-        if (zone is 0 or 3) mc = ActiveSpecial(5) is not null ? 2f : 1f;
-        if (ActiveSpecial(7) is not null) mc = mc - -0.1f;
-        if (ActiveSpecial(6) is not null) ma = 1.1f;
+        if (zone is 0 or 3) mc = ActiveSpecial(5) is not null ? Specials.StructoChassis : 1f;
+        if (ActiveSpecial(7) is not null) mc = mc - -Specials.MudFlapsChassis;
+        if (ActiveSpecial(6) is not null) ma = Specials.CurbFeelersArmour;
         if (zone != 4)
         {
             if ((p.Mask & 8) != 0 && !unlimChassis)
@@ -295,7 +295,7 @@ public sealed class VehicleDamage
     public int ComponentLoop(int sub, DamagePacket p, bool killRoll, float health, CrtRand rand, out int picked, out bool killed, out bool driverKilled, bool nitro = false)
     {
         picked = -1; killed = driverKilled = false;
-        if (ActiveSpecial(9) is not null && rand.Next() % 100 < 10) { p.Mask = 0; return 0; }
+        if (ActiveSpecial(9) is not null && rand.Next() % 100 < Specials.CupHoldersPercent) { p.Mask = 0; return 0; }
         if (nitro && (p.Flags & 0x10) != 0) { killed = driverKilled = true; return 0; }
         int idx;
         var row = Rows[sub];

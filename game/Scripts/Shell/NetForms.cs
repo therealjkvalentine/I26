@@ -574,7 +574,7 @@ public sealed partial class MeleeScreen
     private static readonly (int X0, int X1, int Y0, int Y1) BotsLabel = (12, 49, HostFormLayout.BoxRow[HostFormLayout.BotsRow] - HostFormLayout.Above, HostFormLayout.BoxRow[HostFormLayout.BotsRow] + HostFormLayout.Below);
 
     /// <summary>The setting under the pointer that has a tooltip, with its zone: a hotspot of the form, or the BOTS label.</summary>
-    public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
+    private (string Text, Rect2I Zone)? HostTipAt(Vector2I p)
     {
         if (!Hosting || Nitro) return null;
         int id = HitId(p);

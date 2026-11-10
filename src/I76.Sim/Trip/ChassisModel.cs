@@ -330,9 +330,12 @@ public sealed class ChassisModel
     }
 
     /// <summary>A wheel file's own numbers (WDFC): grip, hit points and mass of one wheel.</summary>
-    public (float Grip, int Hp, float Mass)? WheelStats(PartDef wheel)
+    public (float Grip, int Hp, float Mass)? WheelStats(PartDef wheel) => _vfs.TryRead(wheel.Stem) is { } d ? WheelStatsOf(d) : null;
+
+    /// <summary>A .wdf's WDFC numbers as the vehicle factory reads them: the grip (+0x30), hit points (+0x28) and one wheel's mass (+0x2c).</summary>
+    public static (float Grip, int Hp, float Mass)? WheelStatsOf(byte[] d)
     {
-        if (_vfs.TryRead(wheel.Stem) is not { } d || new Bwd2File(d).First("WDFC") is not { } c) return null;
+        if (new Bwd2File(d).First("WDFC") is not { } c) return null;
         int p = c.PayloadOffset;
         return (Bin.F32(d, p + 0x30), Bin.I32(d, p + 0x28), Bin.F32(d, p + 0x2c));
     }

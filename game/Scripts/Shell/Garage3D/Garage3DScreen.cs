@@ -48,7 +48,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
     private enum RowKind { Normal, Entry, Adjust, Note, Button }
 
     /// <summary>A row: a label (font 0x47) and a value (0x45) on the notepad, an entry (0x45) in a list; Nav draws the form's arrow.</summary>
-    private sealed record Row(string Label, string Value = "", bool Marked = false, string[]? Info = null, RowKind Kind = RowKind.Normal, int Tag = 0, bool Nav = false, Color? Swatch = null);
+    private sealed record Row(string Label, string Value = "", bool Marked = false, string[]? Info = null, RowKind Kind = RowKind.Normal, int Tag = 0, bool Nav = false, Color? Swatch = null, I76.Sim.Trip.PartDef? Part = null);
 
     /// <summary>A list drawn on one of the form's bank 0x24 pop-up frames: where its rows, arrows and CANCEL are (relative to the frame, as the 2D form's pickers have them).</summary>
     private sealed record ListFrame(int Sprite, int Rows, (int X0, int X1, int Y0, int Y1) List, int TextX, int TextY,
@@ -939,6 +939,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
         {
             var c = _m.Inv.Car;
             string Slot(int type) => _m.Fitted(_m.SlotOf(type))?.Part.Id ?? "Empty";
+            I76.Sim.Trip.PartDef? Fit(int type) => _m.Fitted(_m.SlotOf(type))?.Part;
             int guns = _m.Mounts().Count(x => _m.Fitted(x.Slot) is not null);
             return
             [
@@ -951,9 +952,9 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
                 new("Weapons", $"{guns} / {_m.Mounts().Count}", Info: ["WEAPONS", "ONE HARDPOINT AT A TIME"], Nav: true),
                 new("Specials", $"{_m.SpecialSlots().Count(x => _m.Fitted(x.Slot) is not null)} / 3", Info: ["SPECIALS"], Nav: true),
                 new("Armor", Tenths(c.Ninth) + " left", Info: ["ARMOR", "THE FOUR SIDES' ARMOR AND CHASSIS"], Nav: true),
-                new("Engine", Slot(2), Info: ["ENGINE"], Nav: true),
-                new("Suspension", Slot(3), Info: ["SUSPENSION"], Nav: true),
-                new("Brakes", Slot(4), Info: ["BRAKES"], Nav: true),
+                new("Engine", Slot(2), Info: ["ENGINE"], Nav: true, Part: Fit(2)),
+                new("Suspension", Slot(3), Info: ["SUSPENSION"], Nav: true, Part: Fit(3)),
+                new("Brakes", Slot(4), Info: ["BRAKES"], Nav: true, Part: Fit(4)),
                 new("Name", c.Variant, Info: ["NAME", "RENAME THIS VARIANT", "A NEW NAME SAVES A NEW VARIANT"], Nav: true),
             ];
         },
@@ -1238,7 +1239,8 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
     private Page AxlesPage()
     {
         var axles = new[] { Axle.Front, Axle.Middle, Axle.Rear }.Where(_m.HasAxle).ToList();
-        string SizeOf(Axle a) => _m.AllWheels().FirstOrDefault(w => w.Stem.Equals(_m.WheelStem(a), StringComparison.OrdinalIgnoreCase))?.Id ?? "";
+        I76.Sim.Trip.PartDef? WheelOf(Axle a) => _m.AllWheels().FirstOrDefault(w => w.Stem.Equals(_m.WheelStem(a), StringComparison.OrdinalIgnoreCase));
+        string SizeOf(Axle a) => WheelOf(a)?.Id ?? "";
         string Style(Axle a) => WheelStyles.NameOf(WheelStyles.Family(_m.WheelStem(a) ?? ""));
         return new()
         {
@@ -1246,7 +1248,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
             Rows = () => [.. axles.SelectMany(a => new[]
             {
                 new Row($"{a} style", Style(a), Info: [$"{a.ToString().ToUpperInvariant()} STYLE", "@" + Style(a), "How the rim and tyre look"], Tag: (int)a * 2, Nav: true),
-                new Row($"{a} size", SizeOf(a), Info: [$"{a.ToString().ToUpperInvariant()} SIZE", "@" + SizeOf(a), "Grip, mass and hits"], Tag: (int)a * 2 + 1, Nav: true),
+                new Row($"{a} size", SizeOf(a), Info: [$"{a.ToString().ToUpperInvariant()} SIZE", "@" + SizeOf(a), "Grip, mass and hits"], Tag: (int)a * 2 + 1, Nav: true, Part: WheelOf(a)),
             })],
             Focus = i => GarageViews.Wheel(_stage!.Car!, i >= 0 && i < Cur.Cache.Count ? (Axle)(Cur.Cache[i].Tag / 2) : axles[0], Faithful),
             Choose = i => { var a = (Axle)(Cur.Cache[i].Tag / 2); Push(Cur.Cache[i].Tag % 2 == 0 ? StylePage(a) : SizePage(a)); },
@@ -1276,7 +1278,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
                     pick is null ? "" : exact ? $"Keeps the size: {pick.Id}" : $"No {SizeLabel(size)} in this style: {pick.Id} instead",
                     $"File {f}{(pick is null ? "" : WheelStyles.SizeOf(pick.Stem))}.wdf",
                 ];
-                return new Row(WheelStyles.NameOf(f), Marked: f == cur, Info: info);
+                return new Row(WheelStyles.NameOf(f), Marked: f == cur, Info: info, Part: pick);
             })],
             Focus = _ => GarageViews.Wheel(_stage!.Car!, axle, Faithful),
             Hover = i =>
@@ -1307,7 +1309,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
             {
                 var cur = _m.WheelStem(axle);
                 return [.. sizes.Select((w, k) => new Row(w.Id, Marked: cur is not null && w.Stem.Equals(cur, StringComparison.OrdinalIgnoreCase),
-                    Info: [w.Id, stats[k] is { } t ? $"Grip {t.Grip:0.00}   Mass {t.Mass:0}   Hits {t.Hp}" : "", $"File {w.Stem}", sizes.Count == 1 ? "The only size of this style" : ""]))];
+                    Info: [w.Id, stats[k] is { } t ? $"Grip {t.Grip:0.00}   Mass {t.Mass:0}   Hits {t.Hp}" : "", $"File {w.Stem}", sizes.Count == 1 ? "The only size of this style" : ""], Part: w))];
             },
             Focus = _ => GarageViews.Wheel(_stage!.Car!, axle, Faithful),
             Hover = i => { if (i >= 0 && i < sizes.Count) Preview(c => c.Wdf[(int)axle] = sizes[i].Stem); else ShowCommitted(); },
@@ -1325,7 +1327,7 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
             Rows = () => [.. mountsOf().Select(s =>
             {
                 var fitted = _m.Fitted(s.Slot);
-                return new Row(s.Label, fitted?.Part.Id ?? "Empty", false, [s.Label.ToUpperInvariant(), "@" + (fitted?.Part.Id ?? "Empty"), fitted is null ? "" : $"Weight {fitted.Part.Weight:0} lbs"], Nav: true);
+                return new Row(s.Label, fitted?.Part.Id ?? "Empty", false, [s.Label.ToUpperInvariant(), "@" + (fitted?.Part.Id ?? "Empty"), fitted is null ? "" : $"Weight {fitted.Part.Weight:0} lbs"], Nav: true, Part: fitted?.Part);
             })],
             Focus = i =>
             {
@@ -1358,8 +1360,8 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
                 var fitted = _m.Fitted(mount.Slot);
                 var list = new List<Row> { new("Empty", "", fitted is null, ["EMPTY", "Nothing in this " + (weapons ? "mount" : "slot")], RowKind.Entry) };
                 list.AddRange(items.Select(n => new Row(n.Part.Id, "", fitted is not null && fitted.Part.Stem.Equals(n.Part.Stem, StringComparison.OrdinalIgnoreCase),
-                    mount.Type == 0xc ? [n.Part.Id, .. SpecialNotes(n.Part.Ordinal)]
-                    : [n.Part.Id, $"Weight {n.Part.Weight:0} lbs", $"Hits {n.Part.MaxHp}", n.Part.IsTurret ? "A turret: roof mount only" : ""], RowKind.Entry)));
+                    mount.Type == 0xc ? [n.Part.Id, .. SpecialNotes(n.Part.Ordinal, Shell.Install.IsNitro)]
+                    : [n.Part.Id, $"Weight {n.Part.Weight:0} lbs", $"Hits {n.Part.MaxHp}", n.Part.IsTurret ? "A turret: roof mount only" : ""], RowKind.Entry, Part: n.Part)));
                 return list;
             },
             Focus = _ => weapons && mount.Hardpoint >= 0 ? GarageViews.Hardpoint(_stage!.Car!, mount.Hardpoint, Faithful) : GarageViews.Specials(_stage!.Car!, Faithful),
@@ -1397,28 +1399,25 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
             {
                 var fitted = _m.Fitted(slot);
                 return [.. items.Select(n => new Row(n.Part.Id, "", fitted is not null && fitted.Part.Ordinal == n.Part.Ordinal && fitted.Part.Type == n.Part.Type,
-                    [n.Part.Id, $"Weight {n.Part.Weight:0} lbs", $"Hits {n.Part.MaxHp}"], RowKind.Entry))];
+                    [n.Part.Id, $"Weight {n.Part.Weight:0} lbs", $"Hits {n.Part.MaxHp}"], RowKind.Entry, Part: n.Part))];
             },
             Focus = _ => type == 2 ? GarageViews.Engine(_stage!.Car!, Faithful) : type == 3 ? GarageViews.Underside(_stage!.Car!, Faithful) : GarageViews.Wheel(_stage!.Car!, Axle.Front, Faithful),
             Choose = i => { _m.Fit(slot, items[i].Part); Pop(); },
         };
     }
 
-    /// <summary>What each special does: they weigh nothing and have no hit points of their own to show.</summary>
-    private static string[] SpecialNotes(int ordinal) => ordinal switch
+    /// <summary>
+    /// What each special does (they weigh nothing and have no hit points of their own to show): the equipment tooltips' own line
+    /// (<see cref="PartTips.Special"/>, from the sim's constants), without the name the note's heading already gives. It used to be a
+    /// list of its own, which had Heated Seats (rounds x 1.1) doing nothing and the Nitro Pack's Dashboard Mary for looks.
+    /// </summary>
+    private static string[] SpecialNotes(int ordinal, bool nitro)
     {
-        0 => ["KEYED: 5 USES, 8 SECONDS EACH", "BREAKS THE MISSILE LOCK ON YOU"],
-        1 => ["KEYED: 3 USES, 15 SECONDS EACH", "FIVE TIMES THE DRIVE FORCE"],
-        2 => ["ALWAYS ON", "ENGINE POWER X 1.25"],
-        3 => ["KEYED, ONCE PRESSED IT STAYS", "BRAKING TWICE AS HARD"],
-        4 => ["ALWAYS ON", "FRONT AND REAR HOLD UP TWICE AS WELL"],
-        5 => ["ALWAYS ON", "ARMOR X 1.1 ON EVERY SIDE"],
-        6 => ["ALWAYS ON", "A LITTLE MORE CHASSIS ON EVERY SIDE"],
-        7 => ["JUST FOR THE COMFORT", "DOES NOTHING"],
-        8 => ["ALWAYS ON", "ONE HIT IN TEN SPARES THE PARTS"],
-        10 => ["ALWAYS ON", "CALTROPS BLOW TYRES LESS EASILY"],
-        _ => ["FOR LOOKS", "DOES NOTHING"],
-    };
+        if (PartTips.Special(ordinal + 1, nitro) is not { } t) return ["FOR LOOKS", "DOES NOTHING"];
+        int colon = t.Effect.IndexOf(": ", StringComparison.Ordinal);
+        string effect = colon > 0 ? t.Effect[(colon + 2)..] : t.Effect;
+        return [char.ToUpperInvariant(effect[0]) + effect[1..]];
+    }
 
     private static readonly string[] ZoneNames = ["Front", "Right", "Left", "Rear"];
 
@@ -1480,6 +1479,27 @@ public sealed class Garage3DScreen : ShellScreen, IChassisForm
             if (RowRect(page, i).HasPoint(m) && page.Cache[page.Scroll + i].Kind != RowKind.Note) return page.Scroll + i;
         return -1;
     }
+
+    /// <summary>
+    /// The equipment tooltip (the port's; PartTips) of the row under the point that is a part: an engine, suspension, brakes, wheel, weapon
+    /// or special row, a catalogue's entry; and ARMOR's cells. Beside the row, so the note and the row stay readable.
+    /// </summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        if (!_built || _editing || Shell.PartTips is not { } tips) return null;
+        var page = Cur;
+        for (int i = 0; i < Rows; i++)
+        {
+            var r = RowRect(page, i);
+            if (!r.HasPoint(m)) continue;
+            var row = page.Cache[page.Scroll + i];
+            if (page.Defense && row.Kind == RowKind.Adjust) return (row.Tag % 2 == 0 ? PartTips.ArmourTip : PartTips.ChassisTip, r);
+            return row.Part is { } p && tips.Text(p) is { } t ? (t, r) : null;
+        }
+        return null;
+    }
+
+    public override bool TipBesideRow => true;
 
     private bool OverMenu(Vector2I m)
     {

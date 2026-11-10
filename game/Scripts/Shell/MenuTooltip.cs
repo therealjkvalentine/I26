@@ -69,8 +69,12 @@ public static class TooltipPlacement
     /// <summary>The widest a box may be: about 300 of the menu's 640 pixels, never wider than the screen less its margins.</summary>
     public static float MaxWidth(float scale, float screenW) => Math.Min(300 * scale, screenW - 2 * Margin);
 
-    /// <summary>Words into lines no wider than <paramref name="width"/> (a word wider than that keeps a line of its own); a figure keeps its unit.</summary>
-    public static List<string> Wrap(string text, Func<string, float> measure, float width) => GraphicsHelp.Wrap(text, measure, width);
+    /// <summary>
+    /// Words into lines no wider than <paramref name="width"/> (a word wider than that keeps a line of its own); a figure keeps its unit.
+    /// A line break in the text starts a new line (the equipment tooltips' second line, its numbers).
+    /// </summary>
+    public static List<string> Wrap(string text, Func<string, float> measure, float width) =>
+        text.Contains('\n') ? [.. text.Split('\n').SelectMany(part => GraphicsHelp.Wrap(part, measure, width))] : GraphicsHelp.Wrap(text, measure, width);
 }
 
 /// <summary>

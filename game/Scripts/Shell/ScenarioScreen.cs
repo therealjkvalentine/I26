@@ -55,6 +55,7 @@ public sealed class ScenarioScreen : ShellScreen
 
     public override void Repaint()
     {
+        _carTips.Clear();
         Frame.LoadBackground(Shell.Db.BackgroundNative(21), native: 21);
         Draw();
     }
@@ -111,6 +112,12 @@ public sealed class ScenarioScreen : ShellScreen
             return l;
         }
     }
+
+    private readonly CarPanelTips _carTips = new();
+
+    /// <summary>The car panel's weapons and parts explain themselves (the equipment tooltips), beside their rows.</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I p) => _carTips.At(Shell, _data, _model, _variant, p);
+    public override bool TipBesideRow => true;
 
     private int HitId(Vector2I p) => Spots.Where(s => s.X0 < p.X && p.X < s.X1 && s.Y0 < p.Y && p.Y < s.Y1).Select(s => s.Id).DefaultIfEmpty(-1).First();
 

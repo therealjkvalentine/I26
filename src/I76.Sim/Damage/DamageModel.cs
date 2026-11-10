@@ -352,7 +352,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         for (int i = 17; i < 20; i++) if (d.Slots[i] is SpecialPart { Type: 11 }) covers = true;
         if (covers)
         {
-            near.Hp = (int)(near.Hp * 0.75f);
+            near.Hp = (int)(near.Hp * Vehicles.Specials.TireCoversCaltropKeeps);
             if (near.Hp >= 26) return;
         }
         else { near.Hp = 25; near.Max = 100; }
