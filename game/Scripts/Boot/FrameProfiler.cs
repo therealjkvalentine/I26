@@ -36,6 +36,8 @@ public partial class FrameProfiler : Node
 
     /// <summary>Milliseconds of the terrain's level update last frame (TerrainNode).</summary>
     public static double TerrainUpdateMs;
+    /// <summary>The vegetation's chunk update this frame (VegetationNode: placing, attaching, tiers), milliseconds.</summary>
+    public static double VegUpdateMs;
 
     private readonly int _skip = Env("I76_FRAME_PROFILE_SKIP", 30), _every = Env("I76_FRAME_PROFILE_EVERY", 60);
     private readonly int _skipMs = Env("I76_FRAME_PROFILE_SKIP_MS", 0), _runMs = Env("I76_FRAME_PROFILE_RUN_MS", 0);
@@ -132,6 +134,7 @@ public partial class FrameProfiler : Node
         Add("cpu.physics", Performance.GetMonitor(Performance.Monitor.TimePhysicsProcess) * 1000);
         Add("cpu.sim", _simMs);
         Add("cpu.terrain", TerrainUpdateMs);
+        Add("cpu.veg", VegUpdateMs);
         Add("prims_k", Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1000);
         Add("gc0_per_100", (GC.CollectionCount(0) - _gc0) * 100.0 / (n0 + 1));
         Add("draws", Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame));

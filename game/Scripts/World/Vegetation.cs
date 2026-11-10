@@ -63,7 +63,8 @@ public partial class VegetationNode : Node3D
         public int Tier = -1;        // every plant in this tier, or 3: split per plant
         public System.Numerics.Vector2 SplitAt;   // where the eye was at the last per-plant split
         public bool Casting;
-        public bool GrassOn;         // the ground layer's grass tufts drawn (the chunk within their reach; its other plants reach farther)
+        public bool GrassOn;
+        public bool Merged;          // drawn by FarGroups now         // the ground layer's grass tufts drawn (the chunk within their reach; its other plants reach farther)
         public float Distance, Far;
         public float[] Shade = [];   // the shrubs' shade quads (16 floats each: the transform's rows, custom data), made with the groups
         public MultiMeshInstance3D? ShadeNode;
@@ -79,6 +80,11 @@ public partial class VegetationNode : Node3D
     private const float GroundShadeMin = 0.28f;
     /// <summary>A chunk split per plant redoes the split when the eye has moved this far.</summary>
     private const float Resplit = 2.5f;
+    /// <summary>The eye moves this far (metres) between looks for chunks to place (well inside the 40 m they are placed ahead).</summary>
+    private const float LookEvery = 4f;
+    private System.Numerics.Vector2 _lookedAt = new(float.MaxValue, float.MaxValue);
+    private bool _lookPending;
+    private static readonly bool StatsOn = System.Environment.GetEnvironmentVariable("I76_VEG_STATS") == "1";
     /// <summary>I76_VEG_MERGE_FAR=0 draws a far chunk's variants apart, as before (for A/B profiles).</summary>
     private static readonly bool MergeFar = System.Environment.GetEnvironmentVariable("I76_VEG_MERGE_FAR") != "0";
     /// <summary>A chunk wholly in the middle tier merges its variants too from this far (metres): past the beam's brightest part, where one crown shape a species does not show.</summary>
@@ -243,6 +249,7 @@ public partial class VegetationNode : Node3D
         _night = I76.Game.Sim.LampStrength.Current <= 0;
         _level = VegLevels.For(_levelIndex, VegLevels.LampReachNow, _night);
         foreach (var c in _chunks.Values) c.Tier = -1;
+        _lookPending = true;
         for (int l = 0; l < 3; l++)
         {
             float mid = l == 0 ? _level.ShrubMid : _level.GroundMid, far = l == 0 ? _level.ShrubFar : _level.GroundFar;
@@ -334,6 +341,7 @@ public partial class VegetationNode : Node3D
         }
         if (drop is null) return 0;
         foreach (var k in drop) { Detach(_chunks[k]); _chunks.Remove(k); }
+        _lookPending = true;
         return drop.Count;
     }
 
@@ -342,6 +350,7 @@ public partial class VegetationNode : Node3D
         foreach (var c in _chunks.Values) Detach(c);
         _chunks.Clear();
         Instances = 0;
+        _lookPending = true;
     }
 
     private void Detach(Chunk c)
@@ -677,14 +686,15 @@ public partial class VegetationNode : Node3D
         int need = TierBands.TiersBetween(c.Distance, c.Far, mid, far);
         int tier = need switch { TierBands.Full => 0, TierBands.Middle => 1, TierBands.Far => 2, _ => 3 };
         var e2 = new System.Numerics.Vector2(eye.X, eye.Z);
-        if (tier == c.Tier && (tier != 3 || System.Numerics.Vector2.Distance(e2, c.SplitAt) < Resplit)) return;
-        c.Tier = tier;
-        c.SplitAt = e2;
-        c.GrassOn = GrassReach(c, c.Distance);
-        float side = ChunkSize(c.Layer), ox = c.Cx * side, oz = c.Cz * side;
         // wholly in the far tier, or in the middle one and far off (by night the shrubs' middle mesh reaches to their end): the
         // merged groups, one node a species
         bool merged = MergeFar && (tier == 2 || (tier == 1 && c.Distance >= MergeMiddleFrom));
+        if (tier == c.Tier && merged == c.Merged && (tier != 3 || System.Numerics.Vector2.Distance(e2, c.SplitAt) < Resplit)) return;
+        c.Tier = tier;
+        c.Merged = merged;
+        c.SplitAt = e2;
+        c.GrassOn = GrassReach(c, c.Distance);
+        float side = ChunkSize(c.Layer), ox = c.Cx * side, oz = c.Cz * side;
         foreach (var g in c.FarGroups)
         {
             bool on = merged && !(c.Layer == VegLayer.Ground && _grass[g.Species] && !c.GrassOn);
@@ -774,7 +784,9 @@ public partial class VegetationNode : Node3D
             ApplyReach();
         }
         if (!Visible || _placer is null || CameraGame() is not { } eye) return;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         Update(eye, attachAll: false);
+        I76.Game.Boot.FrameProfiler.VegUpdateMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         if (_marks is not null) Mark();
     }
 
@@ -819,10 +831,18 @@ public partial class VegetationNode : Node3D
 
     private void Update(System.Numerics.Vector3 eye, bool attachAll)
     {
-        // new chunks a little beyond the reach, so they are placed before they fade in; the nearest first (a camera cut leaves many to do)
-        foreach (var key in Wanted(eye, 40f).Where(k => !_chunks.ContainsKey(k)).OrderBy(k => ChunkDistance(k.Item1, k.Item2, k.Item3, eye)))
+        // new chunks a little beyond the reach, so they are placed before they fade in; the nearest first (a camera cut leaves many to do).
+        // Looked for when the eye has moved a few metres or the last look left some for want of a worker (40 m of slack covers it)
+        var e2 = new System.Numerics.Vector2(eye.X, eye.Z);
+        bool look = _lookPending || attachAll || System.Numerics.Vector2.DistanceSquared(e2, _lookedAt) > LookEvery * LookEvery;
+        if (look)
         {
-            if (_jobs >= MaxJobs) break;
+            _lookedAt = e2;
+            _lookPending = false;
+        }
+        foreach (var key in look ? Wanted(eye, 40f).Where(k => !_chunks.ContainsKey(k)).OrderBy(k => ChunkDistance(k.Item1, k.Item2, k.Item3, eye)) : Enumerable.Empty<(int, int, VegLayer)>())
+        {
+            if (_jobs >= MaxJobs) { _lookPending = true; break; }
             var c = new Chunk { Cx = key.Item1, Cz = key.Item2, Layer = key.Item3 };
             _chunks[key] = c;
             System.Threading.Interlocked.Increment(ref _jobs);
@@ -843,21 +863,27 @@ public partial class VegetationNode : Node3D
         // drop the far ones; the near shrubs cast shadows; each plant's tier
         List<(int, int, VegLayer)>? drop = null;
         int nodes = 0;
+        // the nodes drawn (a figure for the stats and the profiles) counted twice a second, not every frame
+        bool count = ++_statFrame % 30 == 0;
         foreach (var (key, c) in _chunks)
         {
             float d = ChunkDistance(c.Cx, c.Cz, c.Layer, eye);
             if (d > Reach(c.Layer) + 80f && c.Job is { IsCompleted: true }) { (drop ??= []).Add(key); continue; }
             if (!c.Attached) continue;
-            if (c.ShadeNode is { } sn) sn.Visible = PlantsOn && d < _level.ShadeEnd;
+            if (c.ShadeNode is { } sn && sn.Visible != (PlantsOn && d < _level.ShadeEnd)) sn.Visible = !sn.Visible;
             bool cast = c.Layer == VegLayer.Shrub && d < _level.ShadowRange;
             if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
             if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
             Retier(c, eye);
-            foreach (var g in c.Groups.Concat(c.FarGroups)) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;
+            if (count)
+            {
+                foreach (var g in c.Groups) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;
+                foreach (var g in c.FarGroups) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;
+            }
         }
         if (drop is not null) foreach (var k in drop) { Detach(_chunks[k]); _chunks.Remove(k); }
-        DrawnNodes = nodes;
-        if (System.Environment.GetEnvironmentVariable("I76_VEG_STATS") == "1" && ++_statFrame % 60 == 0)
+        if (count) DrawnNodes = nodes;
+        if (StatsOn && _statFrame % 60 == 0)
         {
             var tiers = new int[3];
             foreach (var c in _chunks.Values)
