@@ -36,7 +36,7 @@ build does not play with upstream's builds or 0.11.0.
 - Bookmarks: Delete on Load Bookmark and Save Bookmark with a yes/no; Cancel goes back to the screen it came from. [C, D, I, Q]
 - Story missions listed as "Scene N: name"; the melee lists leave out co-op packs' copies of the story missions. [I]
 - The 3D garage keeps the menu track, as CONFIGURE CHASSIS does (`[port] garage_radio=on` for the boombox); melee and network games never play the menu's track. [I]
-- A mission with a briefing shows the loading card for the original's 6.5 s, then the briefing while the world builds, then the card until ready (`[port] briefing_while_loading`: `card_first`, `movie_first`). [N, Q, V]
+- A mission with a briefing loads as upstream's 0.12 shows it (the card a moment, the briefing while the world builds, PLEASE STAND BY after a skip or its end, the mission by itself when ready), but the rest of the load waits for the briefing's picture to stand still (no stutter) and PLEASE STAND BY shows faint over the playing briefing while the world builds (`[port] briefing_while_loading`: `true`, `false`). [N, Q, V, DE]
 - Mouse In Window holds in the menus too (#147); the first visit to the 3D garage opens as fast as the later ones (#143); the first explosion no longer stutters (#116). [A]
 - `--skip-cutscenes` and `--mute` for unattended runs; a voice overlay folder (`--voices LANG`) and a `music-extra` folder for your own songs. [D]
 

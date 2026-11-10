@@ -404,17 +404,16 @@ public partial class Main : Node3D
             _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
             return;
         }
-        // a single-player start in the modern look builds its world on a thread of its own from here, before the card is drawn, behind
-        // the card and the briefing (briefing_while_loading, docs/deviations.md: card_first, the card for the retail game's time, then
-        // the movie, the card again until the mission is ready; movie_first: black, the movie, the card); the rest of the load follows
-        // on the main thread behind the card
+        // a single-player start in the modern look builds its world on a thread of its own from here, before the card is drawn, under
+        // its briefing (briefing_while_loading, docs/deviations.md: as upstream's, the card held a moment, then the briefing while the
+        // world builds, a skip or the movie's end kept under "PLEASE STAND BY" until the mission is ready); the rest of the load
+        // follows on the main thread once the picture stands still (the port's: never under a playing movie, which it would stutter)
         bool threaded = loading is null && _opt.Install is not null && _opt.Mission is not null
             && BriefingOverlap.Threaded(_opt.Mode1997, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null);
         string? briefing = threaded ? BriefingDuringLoad() : null;
         // with no briefing to build under, the main thread builds behind the card as the original loads: the thread would only add its
         // queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
         threaded &= briefing is not null;
-        var order = I76.Game.Shell.ShellSettings.Load().CardOrder;
         // the card's wheel (LoadProgressView) from 0: the load's stamps move it from here, the build's thread's among them
         if (_opt.Install is not null && _opt.Mission is not null) I76.Game.Ui.LoadProgress.Begin();
         BuildJob? job = threaded ? StartBuildJob() : null;
@@ -426,14 +425,11 @@ public partial class Main : Node3D
             {
                 AddChild(loading = new LoadingScreen { Install = new GameInstall(_opt.Install), Mission = _opt.Mission, Faithful = _opt.Mode1997, Name = "Loading", FadeSeconds = I76.Game.Editor.EditorSession.Active ? 0.1 : 0.32 });
                 MissionBuilder.Trace("loading card made");
-                if (!(briefing is not null && order == CardOrder.MovieFirst))
-                {
-                    _cardClock = System.Diagnostics.Stopwatch.StartNew();
-                    OnNextDraw(() => LoadProfiler.Event("card first frame"));
-                    await loading.FadeIn();   // (movie_first: its black only, until the movie is over)
-                }
+                _cardClock = System.Diagnostics.Stopwatch.StartNew();
+                OnNextDraw(() => LoadProfiler.Event("card first frame"));
+                await loading.FadeIn();
             }
-            MissionBuilder.Trace(briefing is not null && order == CardOrder.MovieFirst ? "loading card black: the briefing first" : "loading card up");
+            MissionBuilder.Trace("loading card up");
             BootSplash.Dismiss(now: true);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -469,7 +465,7 @@ public partial class Main : Node3D
         (Load Start, Node3D? World, System.Exception? Error)? built = null;
         if (job is not null && loading is not null)
         {
-            built = await BuildBehindCard(job, briefing, order, loading);
+            built = await BuildBehindCard(job, briefing, loading);
             if (!IsInsideTree()) return;
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             if (!IsInsideTree()) return;
@@ -1771,7 +1767,7 @@ public partial class Main : Node3D
                 name = I76.Formats.Mission.WorldSettings.Read(new I76.Formats.Mission.MissionFile(path))?.Briefing;
         }
         catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.ArgumentException) { return null; }
-        bool on = BriefingOverlap.Plan(true, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null, _opt.SkipMovies);
+        bool on = BriefingOverlap.Plan(I76.Game.Shell.ShellSettings.Load().BriefingWhileLoading, true, name, name is { Length: > 0 } && MoviePlayer.Find(install, name) is not null, _opt.SkipMovies);
         return on ? name : null;
     }
 
@@ -2025,16 +2021,23 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// The card and the briefing while the world builds (CardSequence): card_first, the card for the retail game's time, then the
-    /// movie, then the card again until the build is done; movie_first, the movie at once, then the card; no briefing, the card
-    /// until the build is done (and the retail time at least). The card is up when this returns, for the rest of the load.
+    /// The card and the briefing while the world builds (CardSequence), as upstream's 0.12 shows them: the card held
+    /// <see cref="BriefingOverlap.CardHold"/>, then black and the briefing while the build goes on; a skip before the mission is
+    /// ready is kept with "PLEASE STAND BY" faded in (StandByTag), a movie that runs out holds its last frame under it, and the
+    /// mission starts by itself the moment it is ready. The port's (the movie must play clean, docs/perf/loadtime-plan.md round 2):
+    /// the rest of the load on the main thread never runs under the playing picture, only behind the card or the held frame (after a
+    /// skip the movie plays on under the line while the build's thread works, then stops where it is for the rest: MoviePlayer.HoldPicture);
+    /// and while the build's thread works under the playing picture
+    /// the same line shows faint over it. A movie that could not play brings the card back until the mission is ready. No
+    /// briefing: the card until the build is done.
     /// </summary>
-    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, CardOrder order, LoadingScreen loading)
+    private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, LoadingScreen loading)
     {
-        var seq = new CardSequence(order, briefing is not null);
+        double hold = 2 * loading.FadeSeconds + BriefingOverlap.CardHold;   // (Step is given the card's time plus its fade-out: in, held, out)
+        var seq = new CardSequence(briefing is not null, hold);
         var over = new System.Threading.Tasks.TaskCompletionSource();
         _cardClock ??= System.Diagnostics.Stopwatch.StartNew();
-        bool cardUp = !(briefing is not null && order == CardOrder.MovieFirst), movieStarted = false;
+        bool cardUp = true, movieStarted = false, held = false;
         System.Threading.Tasks.Task? attach = null;
         void Noted()
         {
@@ -2043,16 +2046,20 @@ public partial class Main : Node3D
             FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
             MissionBuilder.Trace($"build: done ({job.Start.Clock.ElapsedMilliseconds} ms)");
         }
-        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: behind the card (a still picture: a
-        // long step shows nothing), never under the briefing unless I76_ATTACH_UNDER_MOVIE=1 (its steps are single calls of 50 ms to
-        // 1.2 s, and the movie must play clean: round 2, docs/perf/loadtime-plan.md), then behind the card again after it.
+        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: behind the card or the briefing's
+        // held frame (a still picture: a long step shows nothing), never under the playing briefing unless I76_ATTACH_UNDER_MOVIE=1 (its
+        // steps are single calls of 50 ms to 1.2 s, and the movie must play clean: round 2, docs/perf/loadtime-plan.md).
         // I76_ATTACH_EARLY=0: all of it after the briefing, as round 1.
         bool early = System.Environment.GetEnvironmentVariable("I76_ATTACH_EARLY") != "0";
         bool underMovie = System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE") == "1";
         double budget = double.TryParse(System.Environment.GetEnvironmentVariable("I76_ATTACH_BUDGET_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bm) ? bm : AttachBudgetMs;
         bool fading = false;
-        // a step may run: the card up and still (not fading), or the briefing over; under the briefing only with the hook
-        bool Gate() => !fading && (cardUp || over.Task.IsCompleted || (underMovie && movieStarted));
+        // the briefing's picture stands still under "PLEASE STAND BY" (skipped, or run out, before the mission is ready)
+        bool Held() => GetNodeOrNull<MoviePlayer>("Movie") is { Held: true };
+        // the mission can start: the rest of the load done (or there is none to do here: a failed build, I76_ATTACH_EARLY=0)
+        bool Ready() => attach is { IsCompleted: true } || (job.Done && (job.Error is not null || !early));
+        // a step may run: the card up and still (not fading), the briefing held or over; under the playing briefing only with the hook
+        bool Gate() => !fading && (cardUp || held || over.Task.IsCompleted || (underMovie && movieStarted));
         WarmModernFxUnderCard();
         void StartAttach()
         {
@@ -2063,12 +2070,22 @@ public partial class Main : Node3D
             _holdPaused = true;
             GetTree().Paused = true;
             _attachedUnderMovie = true;
-            MissionBuilder.Trace($"attach: begins ({(cardUp ? "behind the card" : "under the briefing")})");
-            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate);
+            MissionBuilder.Trace($"attach: begins ({(cardUp ? "behind the card" : held ? "behind the briefing's held frame" : "when the briefing stands still")})");
+            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || held || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate);
         }
         while (true)
         {
             Noted();
+            // a skip kept while the build's thread works: the movie plays on under the line; the build done, it stands still for the rest
+            if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped) skipped.HoldPicture();
+            if (movieStarted && !held && Held())
+            {
+                held = true;
+                try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.Normal; } catch (System.Threading.ThreadStateException) { }
+                LoadProfiler.Event("movie held");
+                MissionBuilder.Trace("briefing held: the rest of the load behind its still frame");
+                _stepBudget = AttachAfterMovieBudgetMs;   // nothing to keep smooth now but the line's fade
+            }
             StartAttach();
             var was = seq.Now;
             // the card's time is to the movie's first frame: it starts fading out that much before
@@ -2078,19 +2095,20 @@ public partial class Main : Node3D
                 if (cardUp)
                 {
                     // (a step in flight finished first: the steps run between frames, so the hold ends at the frame after it)
-                    double late = _cardClock.Elapsed.TotalSeconds + loading.FadeSeconds - BriefingOverlap.RetailCardSeconds;
+                    double late = _cardClock.Elapsed.TotalSeconds + loading.FadeSeconds - hold;
                     CardOverrunMs = System.Math.Max(0, late * 1000);
                     MissionBuilder.Trace($"card: held {CardOverrunMs:0} ms past its time");
                     fading = true;
                     await loading.FadeOut(); cardUp = false; fading = false;
                     if (!IsInsideTree()) break;
+                    MissionBuilder.Trace("loading card: black for the briefing");
                 }
                 movieStarted = true;
                 // under the movie the build gives way to its decoding (at the normal priority behind the card)
                 try { if (job.Thread.IsAlive) job.Thread.Priority = System.Threading.ThreadPriority.BelowNormal; } catch (System.Threading.ThreadStateException) { }
                 MissionBuilder.Trace("briefing starts");
                 OnNextDraw(() => LoadProfiler.Event("movie start"));
-                try { PlayMovies(job.Start.Install, [briefing!], () => over.TrySetResult()); }
+                try { PlayMovies(job.Start.Install, [briefing!], () => over.TrySetResult(), waiting: () => !Ready(), loading: () => !job.Done); }
                 catch (System.Exception ex) { GD.PrintErr($"movie {briefing}: not played: {ex}"); over.TrySetResult(); }
             }
             if (was == CardSequence.Stage.Movie && now != CardSequence.Stage.Movie)
@@ -2100,9 +2118,9 @@ public partial class Main : Node3D
                 MissionBuilder.Trace("briefing over");
                 _stepBudget = AttachAfterMovieBudgetMs;   // nothing to keep smooth now but the card's ramp
             }
-            // the briefing over and the rest of the load done under it: straight on to the mission, no card
+            // the briefing over and the rest of the load done: straight on to the mission, no card
             if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && attach is { IsCompleted: true } && !cardUp) break;
-            // the card back: the briefing over before the mission is ready
+            // the card back: the briefing gone before the mission is ready (it could not be played; one that runs out is held)
             if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && !cardUp)
             {
                 cardUp = true;
@@ -2135,7 +2153,7 @@ public partial class Main : Node3D
 
     /// <summary>The main thread's milliseconds a frame for the rest of the load under the briefing with I76_ATTACH_UNDER_MOVIE=1 (I76_ATTACH_BUDGET_MS).</summary>
     public const double AttachBudgetMs = 4;
-    /// <summary>How long the card stayed past the retail time, the last start (a step finishing): the load profile's line.</summary>
+    /// <summary>How long the card stayed past its hold, the last start (a step finishing): the load profile's line.</summary>
     public static double CardOverrunMs;
     /// <summary>... and after it, behind the card: long enough to finish soon, short enough for the card's ramp.</summary>
     public const double AttachAfterMovieBudgetMs = 250;
@@ -2209,14 +2227,22 @@ public partial class Main : Node3D
     }
 
     /// <summary>Plays the named movies from smk/ one after another (any missing are passed over), then runs <paramref name="then"/>.</summary>
-    private void PlayMovies(GameInstall install, IReadOnlyList<string> names, System.Action then, int i = 0)
+    /// <param name="waiting">A briefing played while its mission loads: true until the mission can start (MoviePlayer.Waiting: a
+    /// skip kept, a movie that runs out held, under "PLEASE STAND BY"); <paramref name="loading"/> true while the load goes on under the
+    /// playing picture (the line shown faint over it meanwhile, the port's).</param>
+    private void PlayMovies(GameInstall install, IReadOnlyList<string> names, System.Action then, int i = 0, System.Func<bool>? waiting = null, System.Func<bool>? loading = null)
     {
         while (i < names.Count && MoviePlayer.Find(install, names[i]) is null) i++;
         if (i >= names.Count) { then(); BootSplash.Dismiss(); return; }
         DropMenuMusic();   // a briefing or cut-scene has its own sound; the menu track carried over the loading card ends here
-        var player = new MoviePlayer { Path = MoviePlayer.Find(install, names[i])!, Faithful = _opt.Mode1997, Name = "Movie" };
+        var player = new MoviePlayer
+        {
+            Path = MoviePlayer.Find(install, names[i])!, Faithful = _opt.Mode1997, Name = "Movie",
+            Waiting = waiting, Loading = loading,
+            WaitingTag = waiting is null ? null : new StandByTag { Install = install, Name = "StandBy" },
+        };
         GD.Print($"movie: {names[i]}");
-        player.Finished += () => { GD.Print($"movie: {names[i]} over"); PlayMovies(install, names, then, i + 1); };
+        player.Finished += () => { GD.Print($"movie: {names[i]} over"); PlayMovies(install, names, then, i + 1, waiting, loading); };
         AddChild(player);
         BootSplash.Dismiss();
     }
