@@ -28,14 +28,28 @@ default (`ShellSettings.Vegetation`, `[port] vegetation`, settings version 10: o
 | | Low | High |
 |---|---|---|
 | density (of the biome's cover) | 0.6 | 1.0 |
-| shrubs fade out over | 120–160 m | 190–250 m |
-| grasses and forbs fade out over | 35–50 m | 60–85 m |
+| shrubs fade out over (at the default headlamp throw) | 146–186 m | 190–250 m |
+| the ground layer's larger plants (forbs, weeds, rosettes) fade out over (default throw) | 146–186 m | 190–250 m |
+| grass tufts fade out over (growing in from a fifth of their size as they fade in) | 35–50 m | 60–85 m |
+| rolling tumbleweeds fade in over (default throw) | 179–146 m | 179–146 m |
 | middle / far meshes beyond, shrubs | 20 / 50 m | 30 / 70 m |
 | middle / far meshes beyond, grasses and forbs | 7 / 22 m | 11 / 35 m |
 | sun shadows from shrubs within | none | 60 m |
 | shade on the ground under plants fades out over | 35–50 m | 55–75 m |
 
 Low's plants are a subset of High's (the same cells, a lower cover threshold), so switching only thins them.
+
+Every bush (a shrub, a forb, a tumbleweed) is wholly undrawn until it is farther from the camera than the headlamps visibly
+light (`HeadlampThrow.VisibleReach`: where the beam's light falls to 7 % of the light just ahead of the hood, by the lamps'
+range and fall-off at the `[port] headlamp_throw` in force: 126 m at the default 100, 90 m at 75, the beam before that key,
+201 m at 150) plus 20 m (the chase view's camera behind the lamps): at night they fade in in the dark, never in the beam
+(`VegLevels.For`, tests/I76.Game.Tests/VegReachTests.cs). The levels' own reaches (Low's 130-170 m, High's 190-250 m) are
+the nearest they go; a longer throw pushes them out with it (Low 146-186 m at the default throw, both levels 221-261 m at 150),
+at once when the setting changes in a mission. Before, Low's shrubs were fully drawn from 120 m and the ground layer's
+snakeweed, tumbleweeds, poppies and rosettes faded in at 50-35 m (High 85-60 m), inside the beam. The ground layer's chunks are
+placed out to the larger plants' reach; beyond the tufts' reach a chunk draws only those (its tufts' buffers are not sent).
+The tufts stay near for their number, and grow in out of the sward across their band as well as dithering in. At night a shrub's far mesh (a quarter to a sixth of its clusters) is not drawn at all: its swap to the middle mesh at 40-60 m (Low) or 56-84 m (High) read in the beam as the crown filling in (by day it stays at 50 / 70 m). To pay for the longer reach and the middle meshes, a chunk wholly in the far tier, or wholly in the middle one and 60 m or more away, draws one node a species: its variants merged under the first variant's mesh (`I76_VEG_MERGE_FAR=0` draws them apart). Measured on the desktop with a playtest's settings at 3440x1440 (Vegetation Low, three interleaved runs each, the earlier reach with `I76_VEG_REACH=old I76_VEG_MERGE_FAR=0`): T06 by night 13.87 -> 13.94 ms of main thread a frame (within the runs' spread), T05's start and mountain pass 13.84 -> 13.26 ms, T06 at headlamp_throw 150 14.40 -> 14.68 ms (+2 %); drawn nodes about the same (380), plants attached 6 000 -> 21 000 (33 000 at throw 150). The chunk update now looks for chunks to place every 4 m of the eye's travel, not every frame, which took the old reach's own update from 0.3 ms to 0.03 ms. `I76_VEG_REACH=old` draws the earlier reaches (for
+before / after captures); `I76_VEG_MARKS=1` rings each plant in its fade band with its distance (docs/dev-hooks.md).
 
 `[port] vegetation_density` in shell.cfg (no row; percent, 10 to 150, `60` when absent, `VegetationDensity`) multiplies
 the level's density, so the default places 0.36 of the cover at Low and 0.6 at High; 100 is the level as tabled above.
