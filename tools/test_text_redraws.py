@@ -420,7 +420,7 @@ class DialTests(unittest.TestCase):
             orig = blank(80, 80, (0, 0, 0), 0)
             for s in (4, 8):
                 px = np.repeat(np.repeat(orig, s, 0), s, 1)
-                out = tr.apply_ops(px, orig, [{"op": "lines", "segments": segs, "width": 1.0, "colour": [255, 255, 255], "alpha": "set"}])
+                out = tr.apply_ops(px, orig, [{"op": "lines", "segments": segs, "width": dials.TICK_WIDTH, "colour": [255, 255, 255], "alpha": "set"}])
                 lum = out[..., :3].astype(float).mean(axis=2) / 255
                 yy, xx = np.mgrid[0:out.shape[0], 0:out.shape[1]]
                 for x0, y0, x1, y1 in segs:
@@ -430,7 +430,7 @@ class DialTests(unittest.TestCase):
                     w = lum * near
                     cx_, cy_ = (w * (xx + 0.5)).sum() / w.sum() / s, (w * (yy + 0.5)).sum() / w.sum() / s
                     self.assertLess(np.hypot(cx_ - (x0 + x1) / 2, cy_ - (y0 + y1) / 2), 0.1, f"{rn} at {s}x")
-                    self.assertAlmostEqual(w.sum() / s / s, L * 1.0, delta=0.15 * L)          # a texel wide, the segment long
+                    self.assertAlmostEqual(w.sum() / s / s, L * dials.TICK_WIDTH, delta=0.15 * L * dials.TICK_WIDTH)   # TICK_WIDTH wide, the segment long
                 self.assertTrue(((lum > 0.05) & (lum < 0.95)).any() and (lum > 0.99).any())
                 self.assertTrue((out[..., 3][lum >= 0.5] == 255).all() and (out[..., 3][lum < 0.4] == 0).all())
 

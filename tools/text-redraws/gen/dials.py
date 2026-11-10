@@ -61,7 +61,7 @@ TACH_RING = dict(center=(209.406, 88.021), radii=(30.958, 29.117), width=2.0,
            (315.0, 2, 100), (318.75, 2, 100), (322.75, 2, 100), (327.0, 2, 100), (352.75, 2, 100), (356.5, 2, 100), (0.25, 2, 100),
            (4.0, 2, 100), (17.25, 2, 100), (23.25, 2, 100)],
     major=(-2.94, 1.25), minor=(-2.19, 1.38), fine=(-1.0, 1.25))
-TICK_WIDTH = 1.0          # texels: the painted ticks are a texel wide
+TICK_WIDTH = 0.6          # texels: the painted ticks are a texel wide; drawn 40 % narrower (the owner's pick, 2026-11-10)
 TINT = (1.0, 0.975, 1.0)  # the art's greys lean a shade to magenta (r = b, g a little lower)
 
 def grey(v): return [round(v * k, 1) for k in TINT]
@@ -143,7 +143,7 @@ def overlay_tick_segments(d):
 
 def overlay_tick_ops(d, width=None):
     """The ticks' texels cut back into the key (the ring from a texel inside the longest tick's reach to a texel past the outer
-    circle, within the scale's sweep), then drawn again as white strokes a texel wide, opaque where they cover half a texel."""
+    circle, within the scale's sweep), then drawn again as white strokes TICK_WIDTH wide, opaque where they cover half a texel."""
     (cx, cy), R = d["center"], d["radius"]; a = [t[0] for t in d["ticks"]]
     geo = {"center": [cx, cy], "radii": [R, R], "inner": min([d["major"]] + [t[2] for t in d["ticks"] if len(t) > 2]) - 1, "outer": 1.0,
            "from": round((a[0] - 3) % 360, 2), "to": round((a[-1] + 3) % 360, 2)}
