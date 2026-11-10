@@ -40,8 +40,8 @@ public sealed class TargetIndicator1997
 
     /// <summary>Team → art set (the name table): 0 → ztarg2 (white), 1 → ztarg1 (dark green), 2 → ztarg3 (dark red), 3–7 → ztarg4–8.</summary>
     private static readonly int[] TeamArt = [2, 1, 3, 4, 5, 6, 7, 8];
-    private const int MinBox = 23, MaxBox = 150;   // 0x17, 0x96
 
+    private static readonly bool BoxLog = System.Environment.GetEnvironmentVariable("I76_TARGET_BOX_LOG") == "1";
     private readonly Dictionary<string, (int W, int H, List<(int X, int Y, Color C)> Px)?> _sprites = new(StringComparer.OrdinalIgnoreCase);
     private Color[]? _bands;   // red, yellow, green, white
     private Color _frame;
@@ -112,13 +112,12 @@ public sealed class TargetIndicator1997
         var local = cam.GlobalTransform.AffineInverse() * at;
         float px = local.X, py = local.Y, z = -local.Z;
         // cam.sx: 320 at 640x480 for the engine's π/2 across a 4:3 view (73.74° high)
-        float half = Mathf.DegToRad(cam.Fov) / 2;
-        float f = cam.KeepAspect == Camera3D.KeepAspectEnum.Width ? vw / 2 / Mathf.Tan(half) : vh / 2 / Mathf.Tan(half);
+        float f = TargetBox.Focal(vw, vh, cam.Fov, cam.KeepAspect == Camera3D.KeepAspectEnum.Width);
         float cx = vw / 2, cy = vh / 2;
 
         // S = clamp(|trunc(R·sx/z)|, 23, 150)
-        double sRaw = z != 0 ? Math.Abs(Math.Truncate((double)r * f / z)) : MaxBox;
-        int S = (int)Math.Clamp(sRaw, MinBox, MaxBox);
+        int S = TargetBox.Size(r, z, f);
+        if (BoxLog && !mirror && Godot.Engine.GetProcessFrames() % 30 == 0) GD.Print($"target box 1997: {t.Definition} R {r:0.00} depth {z:0.00} f {f:0.0} S {S}");
 
         // Project, put a target behind at the side its x is on, clamp to the view; any of that = off screen
         bool off = false;

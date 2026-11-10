@@ -3915,17 +3915,21 @@ public partial class Main : Node3D
     /// player's frame (game units; yaw in degrees off the player's heading; launched at that speed), at that sim tick
     /// (default 3, once a melee has spawned its opponents), for captures of a fight at close range. Several places: the
     /// nearest cars, one each, in order. Held up to `until`, a car stays where it was first put (in the player's frame as it
-    /// was then), so a moving player drives past it.
+    /// was then), so a moving player drives past it. Stages separated by `|`, each with its own `@from-until`, move the same
+    /// cars again (a target held at several distances in one run); I76_SPAWN_AI_DEF=prefix takes only the cars whose
+    /// definition starts with it, and I76_SPAWN_AI_TARGET=1 makes the first one the player's target.
     /// </summary>
-    private void ApplySpawnAi()
+    private void ApplySpawnAi(string ai)
     {
         if (_sim?.Session is not { } session || !session.Options.DebugHooks) return;
         var world = session.World;
-        if (System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_AT") is not { } ai || world.Player is not { } pp) return;
+        if (world.Player is not { } pp) return;
         if (ai.Split('@') is { Length: 2 } parts) ai = parts[0];
         _spawnAiFrame ??= (pp.Pos.ToVector3(), pp.Rot.Right, pp.Rot.Forward);
         var (at, right, fwd) = _spawnAiFrame.Value;
-        var others = world.Vehicles.Where(v => v != pp && !v.IsEmplacement).OrderBy(v => System.Numerics.Vector3.Distance(v.Pos.ToVector3(), at)).ToList();
+        var def = System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_DEF");
+        var others = world.Vehicles.Where(v => v != pp && !v.IsEmplacement && (def is null || (v.Definition?.StartsWith(def, StringComparison.OrdinalIgnoreCase) ?? false))).OrderBy(v => System.Numerics.Vector3.Distance(v.Pos.ToVector3(), at)).ToList();
+        if (_spawnAiCars is null) GD.Print($"spawn ai: {others.Count} cars{(def is null ? "" : $" of {def}")}, nearest {(others.Count > 0 ? others[0].Definition : "none")}; all: {string.Join(' ', world.Vehicles.Select(v => v.Definition))}");
         _spawnAiCars ??= others;
         var places = ai.Split(';', StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < places.Length && i < _spawnAiCars.Count; i++)
@@ -3940,6 +3944,8 @@ public partial class Main : Node3D
             other.Rot = new I76.Sim.Math.Rows(System.Numerics.Vector3.Cross(System.Numerics.Vector3.UnitY, f), System.Numerics.Vector3.UnitY, f);
             float speed = b.Length > 3 ? b[3] : 0;
             other.Vel = f * speed; other.Speed = speed;
+            // I76_SPAWN_AI_TARGET=1: the first car placed is the player's radar target (any side; a capture of the target box)
+            if (i == 0 && System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_TARGET") == "1" && session.Combat is { } cb) cb.RadarTarget[pp] = other;
         }
     }
 
@@ -3947,10 +3953,12 @@ public partial class Main : Node3D
     private (System.Numerics.Vector3 At, System.Numerics.Vector3 Right, System.Numerics.Vector3 Forward)? _spawnAiFrame;
     private System.Collections.Generic.List<I76.Sim.Vehicles.Vehicle>? _spawnAiCars;
 
-    private static readonly int SpawnAiTick = System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_AT")?.Split('@') is { Length: 2 } sp && int.TryParse(sp[1].Split('-')[0], out int sf) ? sf : 3;
-    /// <summary>I76_SPAWN_AI_AT=...@from-to: the car held there, placed again every frame up to that tick (a target that stays put).</summary>
-    private static readonly int SpawnAiUntil = System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_AT")?.Split('@') is { Length: 2 } sp2 && sp2[1].Split('-') is [_, var until] && int.TryParse(until, out int su) ? su : -1;
-    private bool _spawnAiDone;
+    /// <summary>I76_SPAWN_AI_AT's stages (`|`): the places, the tick it applies at (default 3) and, held, the tick it is placed again every frame up to (a target that stays put).</summary>
+    private static readonly (string Places, int From, int Until)[] SpawnAiStages = (System.Environment.GetEnvironmentVariable("I76_SPAWN_AI_AT") ?? "")
+        .Split('|', StringSplitOptions.RemoveEmptyEntries).Select(st => st.Split('@') is { Length: 2 } sp
+            ? (sp[0], int.TryParse(sp[1].Split('-')[0], out int f) ? f : 3, sp[1].Split('-') is [_, var u] && int.TryParse(u, out int un) ? un : -1)
+            : (st, 3, -1)).ToArray();
+    private readonly bool[] _spawnAiDone = new bool[SpawnAiStages.Length];
 
     private double _orbitTime;
 
@@ -4235,7 +4243,8 @@ public partial class Main : Node3D
             if (System.Environment.GetEnvironmentVariable("I76_LIGHTS_OFF") == "1") sp.Flags &= ~I76.Sim.Vehicles.VehicleFlags.Lights;
             GD.Print($"spawn stop at {stopAt} s: {stop[0]}, {stop[1]}");
         }
-        if (_sim?.Session is { } sess && sess.Ticks >= SpawnAiTick && (!_spawnAiDone || sess.Ticks <= SpawnAiUntil)) { _spawnAiDone = true; ApplySpawnAi(); }
+        for (int st = SpawnAiStages.Length - 1; st >= 0; st--)
+            if (_sim?.Session is { } sess && sess.Ticks >= SpawnAiStages[st].From && (!_spawnAiDone[st] || sess.Ticks <= SpawnAiStages[st].Until)) { _spawnAiDone[st] = true; ApplySpawnAi(SpawnAiStages[st].Places); break; }
         if (_frames >= 4) ApplyCapCam();
         _frames++;
         if (_net is not null && _launch is null or { Kind: I76.Game.Shell.GameKind.Multiplayer } && !_ended) { NetWatch(); NetReconfigureAnswers(); }

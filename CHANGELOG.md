@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### Fixed
+- The modern look's target box is the original's size again: sized by the target's radius over its distance as the original does (a fixed small box beyond about 40 m, never larger than 180x136 of the 640x480 frame), with thin corners, at the same size in 4:3, 16:9 and 21:9 windows of one height, instead of brackets round the car's whole projected collision box with no upper limit.
 - A car named on the command line (`--drive`) that is not in the install is now an error: the game says which file it looked for and where, and a scripted run (`--mission`, `--quit-after`, `--screenshot`) quits with exit code 2 instead of running on with no car and throwing every frame; an ordinary launch plays the mission's own car with a warning.
 - The HD damage panel's parts no longer sit in a lighter rectangle of their own (the sheet's olive against the panel's) and the front armour chevron no longer carries the next chevron's dark apex line under it: the sheets' cells now take the panel's own texels wherever the stamp changes nothing (tools/upscale-textures.py --cells; the packs are recut).
 
