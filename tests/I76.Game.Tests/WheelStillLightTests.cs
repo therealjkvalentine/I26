@@ -37,10 +37,11 @@ public class WheelStillLightTests
         var mesh = Repo("game", "Scripts", "Assets", "MeshBuilder.cs");
         Assert.Contains("SetShaderParameter(\"wheel_light\"", mesh);
         Assert.Contains("SmoothWheel.StillLight(", mesh);
-        // and the face's picture the way up the original shows it: the wheel textures are stored the other way up from the bodies',
-        // so the assembler turns the .wdf faces' v over (SmoothWheelTests.EveryWheelFaceShowsItsPictureTheWayUpTheOriginalDoes)
+        // and the face's picture the way up the original shows it: the wheel textures are stored the way the bodies' are, so the
+        // assembler takes the .wdf faces as they are mapped (SmoothWheelTests.EveryWheelFaceShowsItsPictureTheWayUpTheOriginalDoes)
         var assembler = Repo("src", "I76.Formats", "Assembly", "ModelAssembler.cs");
-        Assert.Contains("geo.WithVFlipped(), blown?.WithVFlipped()", assembler);
+        Assert.Contains("m.WheelGeos[slot] = (geo, blown, Affine.From(node.Transform));", assembler);
+        Assert.DoesNotContain("WithVFlipped", assembler);
     }
 
     // a disc: rubber, a dish lit from +v (a broad gradient) with a sharp horizon across its middle (bright above, dark below, as
