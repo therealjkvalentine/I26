@@ -93,7 +93,7 @@ public partial class TumbleweedNode : Node3D
     {
         int count = level <= 0 ? 0 : Override ?? TumbleweedField.CountFor(_rate, level);
         _field.Count = Math.Min(count, 16);
-        _field.Range = VegLevels.Old && level < 2 ? 150f : TumbleweedField.RangeFor(level);
+        _field.Range = VegLevels.TumbleRange(level, I76.Game.Sim.LampStrength.Range);
         var (fs, fe) = TumbleweedField.FadeIn(_field.Range);
         _material.SetShaderParameter("fade_start", fs);
         _material.SetShaderParameter("fade_end", fe);

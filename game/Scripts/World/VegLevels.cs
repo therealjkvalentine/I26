@@ -16,17 +16,18 @@ public static class VegLevels
     }
 
     /// <summary>
-    /// How far past the headlamps' reach (<see cref="I76.Game.Sim.LampStrength.HeadRange"/>, from the lamps) a plant may
-    /// first show (metres): the chase view's camera sits this far behind the lamps at most at its usual zoom, so what fades
-    /// in beyond the lamps' reach plus this does so in the dark, never in the beam.
+    /// How far past the headlamps' range (from the lamps) a bush may first be fully drawn (metres): the chase view's camera
+    /// sits up to about this far behind the lamps at its usual zoom, so what fades in beyond the range plus this does so in
+    /// the dark, never in the beam.
     /// </summary>
     public const float LampMargin = 20f;
 
-    /// <summary>The nearest a bush (a shrub, a forb, a rolling tumbleweed) may begin to fade in at any level (metres from the camera).</summary>
-    public const float BushAppear = I76.Game.Sim.LampStrength.HeadRange + LampMargin;
+    /// <summary>The nearest a bush (a shrub, a forb, a rolling tumbleweed) may be less than fully drawn, for a lamp range (metres from the camera).</summary>
+    public static float BushAppear(float lampRange) => lampRange + LampMargin;
 
-    // Low's shrubs fade over 130-170 m (120-160 before: their first 10 m in the beam); the ground layer's larger plants
-    // with them (35-50 m before, wholly in the beam); the grass tufts keep 35-50 m and grow in out of the sward as they fade in.
+    // The levels' own reaches, which hold while the lamps' range allows: Low's shrubs and the ground layer's larger plants fade
+    // over 130-170 m with the default 110 m lamps (the shrubs 120-160 m before, the larger ground plants 35-50 m: in the beam);
+    // the grass tufts keep 35-50 m and grow in out of the sward as they fade in. A longer throw pushes the bushes out (For).
     public static readonly Level Low = new(0.6f, 130, 170, 130, 170, 35, 50, 0, 20, 50, 9, 22, 35, 50);
     public static readonly Level High = new(1f, 190, 250, 190, 250, 60, 85, 60, 30, 70, 12, 35, 55, 75);
 
@@ -36,6 +37,20 @@ public static class VegLevels
 
     public static readonly bool Old = System.Environment.GetEnvironmentVariable("I76_VEG_REACH") == "old";
 
-    /// <summary>The Low (1) or High (2) level in force.</summary>
-    public static Level For(int level) => level >= 2 ? (Old ? OldHigh : High) : (Old ? OldLow : Low);
+    /// <summary>
+    /// The Low (1) or High (2) level for the headlamps' range: each bush kind's fade moved out, band and all, until it starts
+    /// at <see cref="BushAppear"/> (no nearer than the level's own).
+    /// </summary>
+    public static Level For(int level, float lampRange)
+    {
+        if (Old) return level >= 2 ? OldHigh : OldLow;
+        var l = level >= 2 ? High : Low;
+        float appear = BushAppear(lampRange);
+        float s = MathF.Max(0, appear - l.ShrubFade), f = MathF.Max(0, appear - l.ForbFade);
+        return l with { ShrubFade = l.ShrubFade + s, ShrubEnd = l.ShrubEnd + s, ForbFade = l.ForbFade + f, ForbEnd = l.ForbEnd + f };
+    }
+
+    /// <summary>The rolling tumbleweeds' range for a level and lamp range: theirs, or far enough that they fade in beyond the lamps.</summary>
+    public static float TumbleRange(int level, float lampRange) =>
+        Old ? (level >= 2 ? 180f : 150f) : MathF.Max(I76.Formats.Vegetation.TumbleweedField.RangeFor(level), BushAppear(lampRange) + 45f);
 }

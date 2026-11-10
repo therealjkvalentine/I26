@@ -221,7 +221,7 @@ public partial class VegetationNode : Node3D
         Visible = level > 0;
         _tumble?.SetLevel(level);
         if (level == 0) { _placer = null!; UpdateSward(0, now: true); return; }
-        _level = VegLevels.For(level);
+        _level = VegLevels.For(level, I76.Game.Sim.LampStrength.Range);
         _placer = new VegetationPlacer(_region.Biome, new VegetationParams { Density = _level.Density * _region.Density * DensityFactor, LowLevel = _lowLevel, LowGround = _region.LowGround }, _terrain, _mask, _seed);
         for (int l = 0; l < 3; l++)
         {
