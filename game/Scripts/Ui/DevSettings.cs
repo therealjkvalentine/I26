@@ -184,14 +184,14 @@ public static class DevSettings
     /// <summary>
     /// The Night group: the modern look's night levels on sliders, live in a night mission (I76.Game.World.NightDial; docs/playing.md):
     /// night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as solved
-    /// for the mission (1), night_chroma and night_warm set the moon light's colour on the ground (1, 1), night_station_light the
+    /// for the mission (1; the moon's and the sky's default is 1.4), night_chroma and night_warm set the moon light's colour on the ground (1, 1), night_station_light the
     /// scenery's own night lights and lit faces in percent (100, StationLight). The I76_NIGHT_ hooks win.
     /// </summary>
     public static readonly DevSetting[] Night =
     [
-        Scale("night_moon", d => d.Moon, (d, v) => d with { Moon = v }),
-        Scale("night_road", d => d.Road, (d, v) => d with { Road = v }),
-        Scale("night_sky", d => d.Sky, (d, v) => d with { Sky = v }),
+        Scale("night_moon", I76.Game.World.NightDial.MoonDefault, d => d.Moon, (d, v) => d with { Moon = v }),
+        Scale("night_road", 1, d => d.Road, (d, v) => d with { Road = v }),
+        Scale("night_sky", I76.Game.World.NightDial.SkyDefault, d => d.Sky, (d, v) => d with { Sky = v }),
         Mix("night_chroma", I76.Formats.Imaging.LightingCalibration.NightChroma, d => d.Chroma, (d, v) => d with { Chroma = v }),
         Mix("night_warm", I76.Formats.Imaging.LightingCalibration.NightWarm, d => d.Warm, (d, v) => d with { Warm = v }),
         new("night_station_light", [.. I76.Game.World.StationLight.Steps.Select(p => p == I76.Game.World.StationLight.Default ? $"{p}" : $"{p}{M}")],
@@ -199,8 +199,8 @@ public static class DevSettings
     ];
 
     private static string Num(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-    private static DevSetting Scale(string key, Func<I76.Game.World.NightDial.Dial, double> get, Func<I76.Game.World.NightDial.Dial, double, I76.Game.World.NightDial.Dial> set) =>
-        new(key, [.. I76.Game.World.NightDial.ScaleSteps.Select(v => v == 1 ? Num(v) : Num(v) + M)],
+    private static DevSetting Scale(string key, double dflt, Func<I76.Game.World.NightDial.Dial, double> get, Func<I76.Game.World.NightDial.Dial, double, I76.Game.World.NightDial.Dial> set) =>
+        new(key, [.. I76.Game.World.NightDial.ScaleSteps.Select(v => v == dflt ? Num(v) : Num(v) + M)],
             s => I76.Game.World.NightDial.Nearest(I76.Game.World.NightDial.ScaleSteps, get(s.Night)), (s, i) => s.Night = set(s.Night, I76.Game.World.NightDial.ScaleSteps[i]),
             DevWhen.Live, Slider: true);
     private static DevSetting Mix(string key, double dflt, Func<I76.Game.World.NightDial.Dial, double> get, Func<I76.Game.World.NightDial.Dial, double, I76.Game.World.NightDial.Dial> set) =>

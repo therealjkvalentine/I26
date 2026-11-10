@@ -41,7 +41,12 @@ public class NightDialTests
         Assert.Equal(["night_sky"], Cfg(new ShellSettings { Night = new NightDial.Dial() with { Sky = 0.3 } }).Keys);
         var e = new ShellSettings { Night = new NightDial.Dial(7, 7, 7, 0, 0) };
         e.ReadNight(k => k == "night_road" ? "500" : k == "night_warm" ? "-1" : k == "night_moon" ? "dark" : null);
-        Assert.Equal(new NightDial.Dial(1, 10, 1, LightingCalibration.NightChroma, 0), e.Night);
+        Assert.Equal(new NightDial.Dial(NightDial.MoonDefault, 10, NightDial.SkyDefault, LightingCalibration.NightChroma, 0), e.Night);
+        // the moon's and the sky's default is 1.4 (set by eye against the night mission's cutscenes): 1, the level as solved, is written
+        Assert.Equal(1.4, new NightDial.Dial().Moon);
+        Assert.Equal(1.4, new NightDial.Dial().Sky);
+        Assert.Equal(1, new NightDial.Dial().Road);
+        Assert.Equal(["night_moon", "night_sky"], Cfg(new ShellSettings { Night = new NightDial.Dial() with { Moon = 1, Sky = 1 } }).Keys.Order());
     }
 
     [Fact]
@@ -52,7 +57,7 @@ public class NightDialTests
             Assert.True(e.Slider);
             Assert.Equal(I76.Game.Ui.DevWhen.Live, e.When);
             var s = new ShellSettings();
-            Assert.Equal(e.Key == "night_station_light" ? "100" : "1", e.Values[e.Get(s)]);
+            Assert.Equal(e.Key == "night_station_light" ? "100" : e.Key is "night_moon" or "night_sky" ? "1.4" : "1", e.Values[e.Get(s)]);
             for (int i = 0; i < e.Values.Length; i++) { e.Set(s, i); Assert.Equal(i, e.Get(s)); }
         }
     }
@@ -97,13 +102,17 @@ public class NightDialTests
     {
         double filmicRoad = Road(1, LightingCalibration.ToneCurve.Filmic);
         Assert.InRange(filmicRoad, 1e-4, 0.5);
-        var off = NightDial.Night(card: false, solvedMoon: 0.37, m => Road(m, LightingCalibration.ToneCurve.Filmic), new NightDial.Dial(), NoHook);
+        var off = NightDial.Night(card: false, solvedMoon: 0.37, m => Road(m, LightingCalibration.ToneCurve.Filmic), new NightDial.Dial() with { Moon = 1, Sky = 1 }, NoHook);
         // the whole moon through Filmic (the level the card's share is solved to show), the road at its share, the sky darkened, the ground's colour warm
         Assert.Equal(new NightDial.Levels(1, (float)LightingCalibration.NightGround, (float)filmicRoad, (float)LightingCalibration.NightSkyFilmic,
             (float)LightingCalibration.NightChroma, (float)LightingCalibration.NightWarm), off);
         Assert.NotEqual(NightDial.Levels.Neutral, off);
         // through the card's curve the solved share, as before
-        var on = NightDial.Night(card: true, solvedMoon: 0.37, m => Road(m, LightingCalibration.ToneCurve.Card), new NightDial.Dial(), NoHook);
+        var on = NightDial.Night(card: true, solvedMoon: 0.37, m => Road(m, LightingCalibration.ToneCurve.Card), new NightDial.Dial() with { Moon = 1, Sky = 1 }, NoHook);
+        // the shipped dial: the moon and the sky at 1.4 of those
+        var shipped = NightDial.Night(card: true, solvedMoon: 0.37, m => Road(m, LightingCalibration.ToneCurve.Card), new NightDial.Dial(), NoHook);
+        Assert.Equal((float)(0.37 * 1.4), shipped.Moon);
+        Assert.Equal((float)(LightingCalibration.NightSky * 1.4), shipped.Sky);
         Assert.Equal(0.37f, on.Moon);
         Assert.Equal((float)LightingCalibration.NightSky, on.Sky);
         // the globals the night terrain shader reads: declared in the project, and given the night's values

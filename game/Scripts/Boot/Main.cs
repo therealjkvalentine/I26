@@ -1231,6 +1231,9 @@ public partial class Main : Node3D
                 else PlacePlayer(pv, setup.Ground, a);
             }
         }
+        // I76_LIGHTS_OFF=1: the player's headlamps off from the start, for captures (a night's scenery by its own lights)
+        if (session.Options.DebugHooks && System.Environment.GetEnvironmentVariable("I76_LIGHTS_OFF") == "1" && world.Player is { } dark)
+            dark.Flags &= ~I76.Sim.Vehicles.VehicleFlags.Lights;
         // a playtest from the map editor: the car under the editor's cursor if a car can stand there, else where the camera's pivot was (after a melee's own spawn)
         if (I76.Game.Editor.EditorSession.Playtest && I76.Game.Editor.EditorSession.PlaytestAt is { } ptAt && world.Player is { } ptv)
         {
@@ -4201,6 +4204,7 @@ public partial class Main : Node3D
         {
             var (stopAt, stop) = _spawnStops.Dequeue();
             PlacePlayer(sp, stopSess.World.Ground, stop);
+            if (System.Environment.GetEnvironmentVariable("I76_LIGHTS_OFF") == "1") sp.Flags &= ~I76.Sim.Vehicles.VehicleFlags.Lights;
             GD.Print($"spawn stop at {stopAt} s: {stop[0]}, {stop[1]}");
         }
         if (_sim?.Session is { } sess && sess.Ticks >= SpawnAiTick && (!_spawnAiDone || sess.Ticks <= SpawnAiUntil)) { _spawnAiDone = true; ApplySpawnAi(); }

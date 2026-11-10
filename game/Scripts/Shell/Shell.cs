@@ -1478,15 +1478,15 @@ public sealed class ShellSettings
     /// <summary>
     /// The port's own, without a row: the modern look's night as dialled on the Developer panel's Night sliders (I76.Game.World.NightDial):
     /// [port] night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as
-    /// solved (1), night_chroma and night_warm set how much of the ground's colour the moon's light keeps and how warm it is (1, 1);
+    /// solved (1; the moon's and the sky's 1.4 by default, NightDial.MoonDefault), night_chroma and night_warm set how much of the ground's colour the moon's light keeps and how warm it is (1, 1);
     /// each written only when not the default.
     /// </summary>
     public I76.Game.World.NightDial.Dial Night { get; set; } = new();
 
     /// <summary>The Night keys; <paramref name="value"/> gives a key's text, or null (absent: the default).</summary>
     public void ReadNight(Func<string, string?> value) => Night = new(
-        I76.Game.World.NightDial.ParseScale(value("night_moon")), I76.Game.World.NightDial.ParseScale(value("night_road")),
-        I76.Game.World.NightDial.ParseScale(value("night_sky")),
+        I76.Game.World.NightDial.ParseScale(value("night_moon"), I76.Game.World.NightDial.MoonDefault), I76.Game.World.NightDial.ParseScale(value("night_road")),
+        I76.Game.World.NightDial.ParseScale(value("night_sky"), I76.Game.World.NightDial.SkyDefault),
         I76.Game.World.NightDial.ParseMix(value("night_chroma"), I76.Formats.Imaging.LightingCalibration.NightChroma),
         I76.Game.World.NightDial.ParseMix(value("night_warm"), I76.Formats.Imaging.LightingCalibration.NightWarm));
 
