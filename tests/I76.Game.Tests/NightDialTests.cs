@@ -158,4 +158,24 @@ public class NightDialTests
         Assert.Equal(255, px[(1 * w + 2) * 4 + 3]);
         Assert.Equal(255, px[(2 * w + 0) * 4 + 3]);
     }
+
+    [Fact]
+    public void ANightSkyDarkerThanTheReferenceIsBroughtUpToItAndTheReferenceIsLeftAlone()
+    {
+        // the gas stop's sky (T06, M04) is the reference; the other stock night sky (T12, M12) measures 0.0047 and takes 1.7 times the gain
+        Assert.Equal(1, NightDial.SkyNorm(NightDial.SkyReference));
+        Assert.Equal(0.0080 / 0.0047, NightDial.SkyNorm(0.0047), 6);
+        Assert.Equal(NightDial.SkyNormMax, NightDial.SkyNorm(0.0001));
+        Assert.Equal(NightDial.SkyNormMin, NightDial.SkyNorm(0.5));
+        Assert.Equal(1, NightDial.SkyNorm(0));
+        Assert.Equal(1, NightDial.SkyNorm(double.NaN));
+        // the sky's level takes it with the slider; the moon, the road and the colour do not; the hook is still outright
+        var dial = new NightDial.Dial();
+        var plain = NightDial.Night(false, 0.4, _ => 0.5, dial, NoHook);
+        var dark = NightDial.Night(false, 0.4, _ => 0.5, dial, NoHook, skyNorm: 1.7);
+        Assert.Equal((float)(LightingCalibration.NightSkyFilmic * NightDial.SkyDefault * 1.7), dark.Sky);
+        Assert.Equal(plain with { Sky = dark.Sky }, dark);
+        Assert.Equal((float)(LightingCalibration.NightSky * NightDial.SkyDefault * 1.7), NightDial.Night(true, 0.4, _ => 0.5, dial, NoHook, skyNorm: 1.7).Sky);
+        Assert.Equal(0.3f, NightDial.Night(false, 0.4, _ => 0.5, dial, k => k == "I76_NIGHT_SKY" ? 0.3f : null, skyNorm: 1.7).Sky);
+    }
 }

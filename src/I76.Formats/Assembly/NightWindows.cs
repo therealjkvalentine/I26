@@ -19,7 +19,7 @@ public static class NightWindows
     /// <summary>By definition stem: the night house (T12, M04, T06), its windows a tungsten yellow.</summary>
     public static readonly IReadOnlyDictionary<string, Row> Table = new Dictionary<string, Row>(StringComparer.OrdinalIgnoreCase)
     {
-        ["bhjhous1"] = new(1.5f, 12f, 1f, 0.82f, 0.5f),
+        ["bhjhous1"] = new(5f, 14f, 1f, 0.82f, 0.5f),
     };
 
     /// <summary>How far outside its face a light stands, metres.</summary>

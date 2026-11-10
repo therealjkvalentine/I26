@@ -34,6 +34,22 @@ public static class NightDial
     /// </summary>
     public const double MoonDefault = 1.4, SkyDefault = 1.4;
 
+    /// <summary>
+    /// The mean luminance (linear) of the night sky texture the levels were set on: the gas stop's (T06; Suburbia shares it). The
+    /// other stock night sky (T12 and Night Driver share it) is 0.59 of it, so the same sky gain showed those missions' skies darker.
+    /// </summary>
+    public const double SkyReference = 0.0080;
+    /// <summary>The bounds of <see cref="SkyNorm"/>: a sky far from the reference is brought part of the way only.</summary>
+    public const double SkyNormMin = 0.5, SkyNormMax = 3;
+
+    /// <summary>
+    /// The modern look's night sky gain for a mission, over the reference's: what brings its sky texture's mean luminance
+    /// <paramref name="skyAverage"/> (linear) to <see cref="SkyReference"/>, so night_sky shows the same sky in every night mission
+    /// (1 on the reference's own; from the mission's own sky, not its name). The 1997 look keeps each texture as it is, as the original.
+    /// </summary>
+    public static double SkyNorm(double skyAverage) => skyAverage > 0 && double.IsFinite(skyAverage)
+        ? Math.Clamp(SkyReference / skyAverage, SkyNormMin, SkyNormMax) : 1;
+
     /// <summary>A scale's value read from shell.cfg: a positive number, kept to the slider's range; else <paramref name="dflt"/>.</summary>
     public static double ParseScale(string? text, double dflt = 1) =>
         double.TryParse(text?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 && double.IsFinite(v)
@@ -53,15 +69,15 @@ public static class NightDial
     /// <summary>
     /// The levels for a night: <paramref name="solvedMoon"/> the moon's share through the card's curve (1 through Filmic),
     /// <paramref name="road"/> the road's share for a moon level (LightingCalibration.NightRoad through the curve in use),
-    /// <paramref name="filmicSky"/> the sky's gain through Filmic; <paramref name="env"/> an I76_NIGHT_ hook's value, or null.
+    /// <paramref name="skyNorm"/> the mission's sky gain over the reference's (<see cref="SkyNorm"/>); <paramref name="env"/> an I76_NIGHT_ hook's value, or null.
     /// </summary>
-    public static Levels Night(bool card, double solvedMoon, Func<double, double> road, Dial dial, Func<string, float?> env)
+    public static Levels Night(bool card, double solvedMoon, Func<double, double> road, Dial dial, Func<string, float?> env, double skyNorm = 1)
     {
         float moon = env("I76_NIGHT_MOON") ?? (float)((card ? solvedMoon : 1) * dial.Moon);
         return new Levels(moon,
             env("I76_NIGHT_GROUND") ?? (float)LightingCalibration.NightGround,
             env("I76_NIGHT_ROAD") ?? (float)Math.Clamp(road(moon) * dial.Road, 0, 1),
-            env("I76_NIGHT_SKY") ?? (float)((card ? LightingCalibration.NightSky : LightingCalibration.NightSkyFilmic) * dial.Sky),
+            env("I76_NIGHT_SKY") ?? (float)((card ? LightingCalibration.NightSky : LightingCalibration.NightSkyFilmic) * dial.Sky * skyNorm),
             env("I76_NIGHT_CHROMA") ?? (float)dial.Chroma,
             env("I76_NIGHT_WARM") ?? (float)dial.Warm);
     }

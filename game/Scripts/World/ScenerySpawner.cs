@@ -751,6 +751,8 @@ public partial class ScenerySpawner : Node3D
     private void AddWindowLights(AssembledModel model, I76.Formats.Assembly.NightWindows.Row row, List<Placement> list, List<Transform3D> xf)
     {
         var at = I76.Formats.Assembly.NightWindows.Of(model);
+        // I76_NIGHT_WINDOW: the lights' energy outright, for tuning
+        float energy = float.TryParse(System.Environment.GetEnvironmentVariable("I76_NIGHT_WINDOW"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var we) ? we : row.Energy;
         for (int i = 0; i < xf.Count; i++)
             for (int k = 0; k < at.Count; k++)
             {
@@ -761,7 +763,7 @@ public partial class ScenerySpawner : Node3D
                 };
                 AddChild(light);
                 _modernNodes.Add(light);
-                StationLight.Add(light, row.Energy);
+                StationLight.Add(light, energy);
             }
         if (at.Count > 0) GD.Print($"night windows: {list[0].Object.Name} x{xf.Count}, {at.Count} lights each, range {row.Range}");
     }
