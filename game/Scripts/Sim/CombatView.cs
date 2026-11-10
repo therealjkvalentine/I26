@@ -567,6 +567,52 @@ public partial class CombatView : Node3D
         }
     }
 
+    /// <summary>The modern muzzle lights on each weapon (MuzzleReach), re-lit by every shot: the world's and the cabin's, shown for the flash's life.</summary>
+    private readonly Dictionary<Weapon, (OmniLight3D Light, OmniLight3D? Cabin, double Until, double CabinUntil)> _muzzleLights = [];
+
+    /// <summary>
+    /// A shot's light (MuzzleReach: [port] muzzle_reach, by the gun and the daylight), ahead of the muzzle along the round's line,
+    /// on everything but the in-car view's own meshes (the hood and cabin, CarNode.CockpitLayer): those keep the light before the
+    /// key (<see cref="MuzzleReach.Before"/>), from a second light of their own when the shot is the camera's car's, so the cockpit's
+    /// hood flashes as it did whatever the reach. A gun's lights are moved and lit again rather than made for every shot, so a
+    /// burst from many cars costs no nodes; they are hidden when their life is out.
+    /// </summary>
+    private void MuzzleLight(ShotFired s)
+    {
+        var f = MuzzleReach.Current(MuzzleReach.Of(s.Weapon.Def.Kind));
+        _muzzleLights.TryGetValue(s.Weapon, out var ml);
+        if (ml.Light is null || !IsInstanceValid(ml.Light))
+        {
+            ml.Light = new OmniLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleLight", LightCullMask = 0xFFFFFu & ~CarNode.CockpitLayer };
+            AddChild(ml.Light);
+        }
+        var l = ml.Light;
+        l.LightEnergy = f.Energy * ModernFx.FxBright;
+        l.OmniRange = f.Range;
+        l.OmniAttenuation = f.Decay;
+        l.GlobalPosition = G(s.Muzzle + s.Forward * f.Ahead);
+        l.Visible = l.LightEnergy > 0f;
+        ml.Until = _t + f.Life;
+        if (Inside?.Invoke(s.Shooter) == true)
+        {
+            var b = MuzzleReach.Before;
+            if (ml.Cabin is null || !IsInstanceValid(ml.Cabin))
+            {
+                ml.Cabin = new OmniLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleCabinLight", LightCullMask = CarNode.CockpitLayer };
+                AddChild(ml.Cabin);
+            }
+            ml.Cabin.LightEnergy = b.Energy * ModernFx.FxBright;
+            ml.Cabin.OmniRange = b.Range;
+            ml.Cabin.OmniAttenuation = b.Decay;
+            ml.Cabin.GlobalPosition = G(s.Muzzle + s.Forward * b.Ahead);
+            ml.Cabin.Visible = true;
+            ml.CabinUntil = _t + b.Life;
+        }
+        _muzzleLights[s.Weapon] = ml;
+    }
+
+    private static readonly Color MuzzleColour = new(1f, 0.75f, 0.4f);
+
     private void Flash(System.Numerics.Vector3 at, float size, double life)
     {
         var m = new MeshInstance3D { Mesh = _ball, MaterialOverride = _flash, Position = G(at), Scale = Vector3.One * size * 0.3f };
@@ -693,7 +739,7 @@ public partial class CombatView : Node3D
                         else Animate(ml, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f);
                     }
                     if (IsModern && !IsDropped(s.Weapon.Def.Kind) && s.Weapon.Def.Class != 5 && G(s.Muzzle).DistanceTo(CameraPos()) < 250)
-                        _fx.Light(G(s.Muzzle + s.Forward * 1.2f), 0.8f * ModernFx.FxBright, 4, 0.05, new Color(1f, 0.75f, 0.4f));
+                        MuzzleLight(s);
                     break;
                 case Impact i when i.Kind is 0xc or 0xe or 0x11 || (i.Kind == 0x16 && i.Victim is not null):
                     // a slick's hit test fires every frame a car is over it: one voice at a time per car (the
@@ -781,6 +827,12 @@ public partial class CombatView : Node3D
             float age = (float)((_t - start) / MuzzleLife);
             if (age >= 1f || !IsModern) node.Visible = false;
             else node.SetInstanceShaderParameter("age", age);
+        }
+
+        foreach (var (_, (light, cabin, until, cabinUntil)) in _muzzleLights)
+        {
+            if (IsInstanceValid(light) && light.Visible && (_t >= until || !IsModern)) light.Visible = false;
+            if (cabin is not null && IsInstanceValid(cabin) && cabin.Visible && (_t >= cabinUntil || !IsModern)) cabin.Visible = false;
         }
 
         for (int i = _flashes.Count - 1; i >= 0; i--)
