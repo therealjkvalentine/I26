@@ -1,0 +1,102 @@
+{
+ "textures": [
+  "ca_1ws_1"
+ ],
+ "note": "the Autowerks compound's wall sign (T12): its lettering; written by gen/autowerks.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    3.4,
+    26.3,
+    79.6,
+    37.8
+   ],
+   "where": {
+    "lum_above": 60
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 52
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    87.8,
+    26.3,
+    124.2,
+    37.9
+   ],
+   "where": {
+    "lum_above": 60
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 52
+   }
+  },
+  {
+   "op": "text",
+   "text": "AUTOWERKS",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 9.21,
+   "colour": [
+    218,
+    212,
+    218
+   ],
+   "box": [
+    4.99,
+    27.41,
+    77.89,
+    36.62
+   ]
+  },
+  {
+   "op": "text",
+   "text": "INDUSTRIAL",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 4.32,
+   "colour": [
+    218,
+    212,
+    218
+   ],
+   "box": [
+    89.43,
+    27.41,
+    122.16,
+    31.73
+   ]
+  },
+  {
+   "op": "text",
+   "text": "KOMPLEX",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 600
+   },
+   "cap": 4.14,
+   "colour": [
+    218,
+    212,
+    218
+   ],
+   "box": [
+    95.36,
+    32.72,
+    122.07,
+    36.86
+   ]
+  }
+ ]
+}

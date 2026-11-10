@@ -1,0 +1,777 @@
+{
+ "textures": [
+  "ao_1sg_6"
+ ],
+ "note": "the Milky Way Motel billboard (M07, T13, T14): its lettering; written by gen/milky_way.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    63.5,
+    7.3,
+    115.8,
+    15.0
+   ],
+   "where": {
+    "lum_above": 40
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 40
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    75.5,
+    14.9,
+    106.6,
+    22.5
+   ],
+   "where": {
+    "lum_above": 40
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 40
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    34.8,
+    24.07,
+    123.8,
+    30.650000000000002
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    9.55,
+    33.53,
+    44.93,
+    38.75
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    67.83,
+    33.35,
+    124.75,
+    39.48
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    13.8,
+    39.480000000000004,
+    64.51,
+    44.79
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    72.28,
+    39.34,
+    117.86,
+    45.089999999999996
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    17.86,
+    45.540000000000006,
+    52.46,
+    51.64
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    77.1,
+    45.2,
+    112.2,
+    51.37
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.92,
+    54.18,
+    47.040000000000006,
+    60.459999999999994
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    92.8,
+    54.31,
+    123.53,
+    60.449999999999996
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    6.7,
+    33.93,
+    10.49,
+    37.91
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    63.8,
+    33.940000000000005,
+    68.0,
+    37.949999999999996
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10.5,
+    39.96,
+    14.37,
+    43.91
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    68.65,
+    40.27,
+    72.43,
+    44.14
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    14.17,
+    45.92,
+    18.18,
+    49.93
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    72.67,
+    45.660000000000004,
+    76.61,
+    49.83
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    88.04,
+    55.24,
+    92.2,
+    59.12
+   ],
+   "where": {
+    "lum_above": 52
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 46
+   }
+  },
+  {
+   "op": "marks",
+   "rect": [
+    63.5,
+    7.3,
+    115.8,
+    15.0
+   ],
+   "where": {
+    "lum_above": 90
+   },
+   "colour": [
+    150,
+    150,
+    156
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "marks",
+   "rect": [
+    63.5,
+    7.3,
+    115.8,
+    15.0
+   ],
+   "where": {
+    "lum_above": 190
+   },
+   "colour": [
+    206,
+    206,
+    210
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "marks",
+   "rect": [
+    63.5,
+    7.3,
+    115.8,
+    15.0
+   ],
+   "where": {
+    "lum_above": 240
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "marks",
+   "rect": [
+    75.5,
+    14.9,
+    106.6,
+    22.5
+   ],
+   "where": {
+    "lum_above": 90
+   },
+   "colour": [
+    150,
+    150,
+    156
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "marks",
+   "rect": [
+    75.5,
+    14.9,
+    106.6,
+    22.5
+   ],
+   "where": {
+    "lum_above": 190
+   },
+   "colour": [
+    206,
+    206,
+    210
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "marks",
+   "rect": [
+    75.5,
+    14.9,
+    106.6,
+    22.5
+   ],
+   "where": {
+    "lum_above": 240
+   },
+   "colour": [
+    255,
+    255,
+    255
+   ],
+   "sigma": 0.35
+  },
+  {
+   "op": "text",
+   "text": "\"Out of this World Comfort\"",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.98,
+   "colour": [
+    224,
+    222,
+    228
+   ],
+   "quad": [
+    [
+     36.0,
+     24.87
+    ],
+    [
+     122.6,
+     24.87
+    ],
+    [
+     121.50439999999999,
+     29.85
+    ],
+    [
+     34.9044,
+     29.85
+    ]
+   ],
+   "fit": "ink"
+  },
+  {
+   "op": "text",
+   "text": "Kitchenettes",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 3.62,
+   "colour": [
+    200,
+    198,
+    206
+   ],
+   "box": [
+    10.75,
+    34.33,
+    43.73,
+    37.95
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Daily & Weekly Rates",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.53,
+   "colour": [
+    201,
+    201,
+    208
+   ],
+   "box": [
+    69.03,
+    34.15,
+    123.55,
+    38.68
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Direct Dial Phones",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 3.71,
+   "colour": [
+    186,
+    186,
+    193
+   ],
+   "box": [
+    15.0,
+    40.28,
+    63.31,
+    43.99
+   ]
+  },
+  {
+   "op": "text",
+   "text": "NMAA Approved",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.15,
+   "colour": [
+    208,
+    207,
+    214
+   ],
+   "box": [
+    73.48,
+    40.14,
+    116.66,
+    44.29
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Cafe Nearby",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.5,
+   "colour": [
+    194,
+    191,
+    194
+   ],
+   "box": [
+    19.06,
+    46.34,
+    51.26,
+    50.84
+   ]
+  },
+  {
+   "op": "text",
+   "text": "\"Family Run\"",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.57,
+   "colour": [
+    188,
+    187,
+    193
+   ],
+   "quad": [
+    [
+     78.3,
+     46.0
+    ],
+    [
+     111.0,
+     46.0
+    ],
+    [
+     109.9946,
+     50.57
+    ],
+    [
+     77.2946,
+     50.57
+    ]
+   ],
+   "fit": "ink"
+  },
+  {
+   "op": "text",
+   "text": "In ROSWELL",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.68,
+   "colour": [
+    209,
+    207,
+    209
+   ],
+   "box": [
+    7.12,
+    54.98,
+    45.84,
+    59.66
+   ]
+  },
+  {
+   "op": "text",
+   "text": "15 MILES",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.15,
+   "cap": 4.54,
+   "colour": [
+    214,
+    213,
+    216
+   ],
+   "box": [
+    94.0,
+    55.11,
+    122.33,
+    59.65
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.38,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    7.7,
+    34.73,
+    9.49,
+    37.11
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.41,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    64.8,
+    34.74,
+    67.0,
+    37.15
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.35,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    11.5,
+    40.76,
+    13.37,
+    43.11
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.27,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    69.65,
+    41.07,
+    71.43,
+    43.34
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.41,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    15.17,
+    46.72,
+    17.18,
+    49.13
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.57,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    73.67,
+    46.46,
+    75.61,
+    49.03
+   ]
+  },
+  {
+   "op": "text",
+   "text": "•",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.28,
+   "colour": [
+    196,
+    195,
+    202
+   ],
+   "box": [
+    89.04,
+    56.04,
+    91.2,
+    58.32
+   ]
+  }
+ ]
+}

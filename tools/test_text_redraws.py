@@ -270,5 +270,83 @@ class CompassTests(unittest.TestCase):
             self.assertTrue(ink[y0 * s:y1 * s, x0 * s:x1 * s].all(), f"tick at {x0}")
             self.assertFalse(ink[y0 * s:y1 * s, x0 * s - 1].any() or ink[y0 * s:y1 * s, x1 * s].any(), f"tick at {x0} has a soft edge")
 
+def spec_of(name):
+    with open(os.path.join(tr.SPECS, name), encoding="utf-8") as f: return json.load(f)
+
+def ink_box(op, w, h, s):
+    """The text op alone (no shadow) set over a flat dark plate at s pack texels a texel: its ink's extent in texels."""
+    orig = blank(w, h, (20, 30, 60)); px = np.repeat(np.repeat(orig, s, 0), s, 1)
+    o = dict(op, colour=[255, 255, 255]); o.pop("shadow", None)
+    ink = tr.apply_ops(px, orig, [o])[..., :3].mean(axis=2) > 140
+    ys, xs = np.where(ink)
+    return np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
+
+class WorldLetteringTests(unittest.TestCase):
+    """The Autowerks wall sign (ca_1ws_1, T12), the Milky Way Motel billboard (ao_1sg_6) and the milk tanker (mt1?bk?1, mt31bk?1):
+    every line on the painted letters' ink box, measured off the original's texels (pinned here, in texels), at 4x and 8x."""
+    BOXES = {
+        "signs-ca_1ws_1.json": {"AUTOWERKS": (4.99, 27.41, 77.89, 36.62), "INDUSTRIAL": (89.43, 27.41, 122.16, 31.73),
+                                "KOMPLEX": (95.36, 32.72, 122.07, 36.86)},
+        "signs-ao_1sg_6.json": {"Kitchenettes": (10.75, 34.33, 43.73, 37.95), "Daily & Weekly Rates": (69.03, 34.15, 123.55, 38.68),
+                                "Direct Dial Phones": (15.0, 40.28, 63.31, 43.99), "NMAA Approved": (73.48, 40.14, 116.66, 44.29),
+                                "Cafe Nearby": (19.06, 46.34, 51.26, 50.84), "In ROSWELL": (7.12, 54.98, 45.84, 59.66),
+                                "15 MILES": (94.0, 55.11, 122.33, 59.65),
+                                '"Out of this World Comfort"': (36.0, 24.87, 122.6, 29.85), '"Family Run"': (78.3, 46.0, 111.0, 50.57)},
+    }
+    for st in "123":
+        BOXES[f"milk-truck-mt1{st}bkl1.json"] = {"MILK": (44.0, 21.0, 80.0, 41.0)}
+        BOXES[f"milk-truck-mt1{st}bkb1.json"] = {"THE ESSENCE OF": (12.0, 27.0, 119.0, 34.0), "PURITY": (44.0, 37.0, 88.0, 44.0)}
+    BOXES["milk-truck-mt31bkl1.json"] = BOXES["milk-truck-mt31bkr1.json"] = {"MILK": (22.0, 10.0, 40.0, 20.0)}
+    SIZE = {"mt31bkl1": (64, 32), "mt31bkr1": (64, 32)}
+
+    def texts(self, name):
+        return {op["text"]: op for op in spec_of(name)["ops"] if op["op"] == "text" and op["text"] != "•"}
+
+    def test_every_line_is_on_the_originals_ink_box_at_4x_and_8x(self):
+        for name, want in self.BOXES.items():
+            spec = spec_of(name); ops = self.texts(name)
+            self.assertEqual(set(ops), set(want), name)
+            w, h = self.SIZE.get(spec["textures"][0], (128, 64))
+            for t, box in want.items():
+                op = ops[t]
+                set_on = op.get("box") or [op["quad"][0][0], op["quad"][0][1], op["quad"][1][0], op["quad"][2][1]]   # slanted: the top corners
+                self.assertLess(np.abs(np.array(set_on) - box).max(), 0.01, f"{name} {t}: the spec's box is the measured one")
+                for s in (4, 8):
+                    got = ink_box(op, w, h, s)
+                    # a slanted line's end marks sit a little under its ascenders, so the slant moves them a fraction further
+                    self.assertLess(np.abs(got - box).max(), 0.35 if "box" in op else 0.45, f"{name} {t} at {s}x: {got}")
+
+    def test_the_wall_signs_erase_stays_on_its_plate(self):
+        # the plate maps the band of rows 25 to 39 (bevelled at 24 and 39): the old letters go, the bevel and the face round it stay
+        for op in spec_of("signs-ca_1ws_1.json")["ops"]:
+            if op["op"] == "erase": self.assertTrue(25 <= op["rect"][1] and op["rect"][3] <= 39, op["rect"])
+        orig = blank(128, 64, (8, 40, 74)); orig[24, :, :3] = (32, 56, 98); orig[39, :, :3] = (8, 28, 57)
+        orig[28:36, 10:20, :3] = 222                                                     # a painted letter
+        px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
+        out = tr.apply_ops(px, orig, [op for op in spec_of("signs-ca_1ws_1.json")["ops"] if op["op"] == "erase"]).astype(int)
+        self.assertLess(np.abs(out[28 * 4:36 * 4, 10 * 4:20 * 4, :3] - (8, 40, 74)).max(), 3)    # gone, the plate's navy in its place
+        self.assertTrue((out[24 * 4:25 * 4, :, :3] == (32, 56, 98)).all() and (out[39 * 4:40 * 4, :, :3] == (8, 28, 57)).all())
+
+    def test_the_motels_name_is_its_own_texels_shade_by_shade(self):
+        ops = spec_of("signs-ao_1sg_6.json")["ops"]
+        marks = [op for op in ops if op["op"] == "marks"]
+        self.assertEqual(len(marks), 6)                                                  # three shades on each of the two lines
+        for line in (marks[:3], marks[3:]):
+            lums = [op["where"]["lum_above"] for op in line]; cols = [sum(op["colour"]) for op in line]
+            self.assertEqual(lums, sorted(lums)); self.assertEqual(cols, sorted(cols))   # darkest first, the white core last
+        # a pixel letter (a 2-texel stem, 6 high: a grey bottom row) comes back in its texels with its bottom row grey
+        orig = blank(128, 64, (8, 8, 16)); orig[8:14, 70:72, :3] = 255; orig[14, 70:72, :3] = 150
+        out = tr.apply_ops(np.repeat(np.repeat(orig, 4, 0), 4, 1), orig, [op for op in ops if op["op"] in ("marks",)])[..., :3].mean(axis=2)
+        self.assertGreater(out[9 * 4:13 * 4, 70 * 4 + 1:72 * 4 - 1].min(), 240)
+        self.assertTrue(120 < out[14 * 4 + 2, 71 * 4] < 180)
+        self.assertLess(out[9 * 4:13 * 4, 68 * 4:69 * 4].max(), 40)                     # nothing spills a texel away
+
+    def test_milk_keeps_its_black_shadow_and_both_far_sides_alike(self):
+        for st in "123":
+            op = self.texts(f"milk-truck-mt1{st}bkl1.json")["MILK"]
+            self.assertEqual((op["shadow"]["dx"], op["shadow"]["dy"], op["shadow"]["colour"]), (1, 1, [0, 0, 0]))
+            self.assertTrue(any(e["op"] == "erase" and e.get("where") == {"keyed": True} and e.get("opaque") for e in spec_of(f"milk-truck-mt1{st}bkl1.json")["ops"]))
+        self.assertEqual(spec_of("milk-truck-mt31bkl1.json")["ops"], spec_of("milk-truck-mt31bkr1.json")["ops"])
+
 if __name__ == "__main__":
     unittest.main()
