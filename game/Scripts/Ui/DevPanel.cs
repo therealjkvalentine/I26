@@ -101,7 +101,7 @@ public partial class DevPanel : Control
         GetViewport().SizeChanged += _rescale;
         TreeExiting += () => GetViewport().SizeChanged -= _rescale;
 
-        col.AddChild(Heading("Developer  (Ctrl+F2, Ctrl+` or Esc closes)"));
+        col.AddChild(Heading("Developer Tools  (Ctrl+F2, Ctrl+` or Esc closes)"));
         // wrapped to the column's width: a long line (the bass shaker's) does not widen the panel
         _status = DevScale.Min(new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill }, 400);
         _status.AddThemeColorOverride("font_color", new Color(0.75f, 0.9f, 0.75f));

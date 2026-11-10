@@ -28,7 +28,7 @@ public static class ShellGlyphs
         public required Dictionary<char, Rect2> Cells { get; init; }
     }
 
-    private static Font? _lee, _arial, _arialBold;
+    private static Font? _lee, _arial;
     private static string? _leePath;
     private static readonly Dictionary<int, Atlas?> Atlases = [];
     private static readonly Dictionary<(string, int, int), ImageTexture?> Captions = [];
@@ -47,7 +47,6 @@ public static class ShellGlyphs
             if (lee.LoadDynamicFont(leePath) == Error.Ok) _lee = lee;
         }
         _arial ??= HdAssets.Arial(false, TextServer.FontAntialiasing.Gray, TextServer.Hinting.None);
-        _arialBold ??= HdAssets.Arial(true, TextServer.FontAntialiasing.Gray, TextServer.Hinting.None);
     }
 
     /// <summary>The face a font record is redrawn from, or null to leave it as pixels.</summary>
@@ -93,7 +92,7 @@ public static class ShellGlyphs
             var (gw, px) = f.Glyph(c)!.Value;
             if (InkBox(px, gw, f.Height, f.Key) is not { } box) continue;
             int tw = box.Size.X * Scale, th = box.Size.Y * Scale;
-            byte[]? cov = Legends.TryGetValue((f.Record, c), out var mark) ? (_arialBold is not null && Raster(_arialBold, mark) is { } m ? Fit(m, tw, th) : null)
+            byte[]? cov = Circled.TryGetValue((f.Record, c), out var letter) ? Ringed(face, letter, tw, th)
                 : face.HasChar(c) && Raster(face, c.ToString()) is { } r ? Fit(r, tw, th) : null;
             if (cov is not null)
             {
@@ -117,19 +116,35 @@ public static class ShellGlyphs
         return new Atlas { Texture = ImageTexture.CreateFromImage(img), Cells = cells };
     }
 
+    /// <summary>Record 69's braces are the garage's part legends, a letter in a ring: (C) in the car, (V) the van, (R) in repair.</summary>
+    private static readonly Dictionary<(int, char), char> Circled = new() { [(69, '{')] = 'C', [(69, '|')] = 'V', [(69, '}')] = 'R' };
+
+    /// <summary>The letter a part-mark glyph is circled around (C, V, R), or null for any other glyph.</summary>
+    public static char? CircledLetterOf(int record, char ch) => Circled.TryGetValue((record, ch), out var l) ? l : null;
+
+    /// <summary>The legends' letters' extra weight (the face's emboldening strength, 0 = its own weight).</summary>
+    internal const float LegendEmbolden = 1.3f;
+
     /// <summary>
-    /// Record 69's braces are the garage's part marks: (C) in the car, (V) in the van, (R) in repair. The modern look sets each as the
-    /// parenthesised letter in the face and ink of the form's legend (bold Arial, red), over the bitmap's ink box, so a row's mark and the
-    /// legend read as the same mark.
+    /// The face's O as the ring over the whole ink box, its letter inside where the bitmap has it (7/26 in from the left,
+    /// 5/26 from the right, 3/22 from top and bottom). The letter is emboldened: at the face's own weight it read thin
+    /// inside the ring at the window's resolution; the bitmap's letter is about as heavy as the ring.
     /// </summary>
-    private static readonly Dictionary<(int, char), string> Legends = new() { [(69, '{')] = "(C)", [(69, '|')] = "(V)", [(69, '}')] = "(R)" };
-
-    /// <summary>The legend's red (the form's art paints it), the part marks' ink in the modern look.</summary>
-    public static readonly Color LegendInk = Color.Color8(LegendR, LegendG, LegendB);
-    private const byte LegendR = 165, LegendG = 62, LegendB = 22;
-
-    /// <summary>The string a part-mark glyph stands for ("(C)", "(V)", "(R)"), or null for any other glyph.</summary>
-    public static string? MarkOf(int record, char ch) => Legends.TryGetValue((record, ch), out var m) ? m : null;
+    private static byte[]? Ringed(Font face, char letter, int tw, int th)
+    {
+        var bold = new FontVariation { BaseFont = face, VariationEmbolden = LegendEmbolden };
+        if (Raster(face, "O") is not { } ring || Raster(bold, letter.ToString()) is not { } l) return null;
+        var cov = Fit(ring, tw, th);
+        int lx = tw * 7 / 26, ly = th * 3 / 22, lw = tw - lx - tw * 5 / 26, lh = th - 2 * ly;
+        var inner = Fit(l, lw, lh);
+        for (int y = 0; y < lh; y++)
+            for (int x = 0; x < lw; x++)
+            {
+                int o = (ly + y) * tw + lx + x;
+                cov[o] = Math.Max(cov[o], inner[y * lw + x]);
+            }
+        return cov;
+    }
 
     /// <summary>A string fitted to a box of w × h shell pixels, in Lee (the action names of record 16).</summary>
     public static ImageTexture? Caption(string text, int w, int h)
@@ -285,7 +300,7 @@ public partial class ShellTextLayer : Control
                 if (ShellGlyphs.Caption(text, g.Box.Size.X, g.Box.Size.Y) is { } t) DrawTextureRectRegion(t, dest, Sub(new Rect2(Vector2.Zero, t.GetSize())), ink);
             }
             else if (g.Font is { } f && ShellGlyphs.For(f) is { } atlas && atlas.Cells.TryGetValue(g.Ch, out var src))
-                DrawTextureRectRegion(atlas.Texture, dest, Sub(src), ShellGlyphs.MarkOf(f.Record, g.Ch) is not null ? ShellGlyphs.LegendInk : ink);
+                DrawTextureRectRegion(atlas.Texture, dest, Sub(src), ink);
         }
     }
 }

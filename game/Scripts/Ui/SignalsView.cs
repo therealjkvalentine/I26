@@ -118,7 +118,7 @@ public partial class SignalsOverlay : Control
         var (panel, scroll, col) = DevScale.Frame(theme, bg);
         panel.MouseFilter = MouseFilterEnum.Ignore;
         AddChild(panel);
-        var title = new Label { Text = "Signals (Ctrl+F2: the Developer panel)" };
+        var title = new Label { Text = "Signals (Ctrl+F2: the Developer Tools panel)" };
         title.AddThemeColorOverride("font_color", new Color(0.95f, 0.65f, 0.25f));
         col.AddChild(title);
         col.AddChild(new SignalsView());
