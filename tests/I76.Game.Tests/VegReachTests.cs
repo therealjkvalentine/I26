@@ -69,6 +69,16 @@ public class VegReachTests
     }
 
     [Theory, MemberData(nameof(Cases))]
+    public void AtNightTheShrubsFarMeshStartsBeyondTheLamps(int level, float lamp)
+    {
+        // the far mesh (a quarter of the clusters) filling in to the middle one read as a shrub materialising in the beam
+        var night = VegLevels.For(level, lamp, night: true);
+        Assert.True(TierBands.Band(night.ShrubFar).Start >= VegLevels.BushAppear(lamp) - 0.01f, $"level {level}, lamps {lamp} m: far mesh from {TierBands.Band(night.ShrubFar).Start} m");
+        // by day the level's own boundary stands
+        Assert.Equal((level >= 2 ? VegLevels.High : VegLevels.Low).ShrubFar, VegLevels.For(level, lamp).ShrubFar);
+    }
+
+    [Theory, MemberData(nameof(Cases))]
     public void RollingTumbleweedsFadeInBeyondTheLamps(int level, float lamp)
     {
         float range = VegLevels.TumbleRange(level, lamp);

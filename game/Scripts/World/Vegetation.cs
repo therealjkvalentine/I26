@@ -21,6 +21,7 @@ public partial class VegetationNode : Node3D
 
     private VegLevels.Level _level = VegLevels.Low;
     private int _levelIndex, _throw;
+    private bool _night;
     private VegetationPlacer _placer = null!;
     // one material a kind of plant (Kind: the shrubs, the grass tufts, the ground layer's larger plants), which differ in how
     // far they reach, and per detail tier, which differ in the band they cross-fade in (TierBands); [kind][tier]
@@ -221,11 +222,22 @@ public partial class VegetationNode : Node3D
         Clear();
         Visible = level > 0;
         _levelIndex = level;
-        _throw = I76.Game.Sim.HeadlampThrow.Current;
         _tumble?.SetLevel(level);
         if (level == 0) { _placer = null!; UpdateSward(0, now: true); return; }
-        _level = VegLevels.For(level, VegLevels.LampReachNow);
+        ApplyReach();
         _placer = new VegetationPlacer(_region.Biome, new VegetationParams { Density = _level.Density * _region.Density * DensityFactor, LowLevel = _lowLevel, LowGround = _region.LowGround }, _terrain, _mask, _seed);
+    }
+
+    /// <summary>
+    /// The level's distances for the headlamps' throw and the mission's light now (VegLevels.For) into the materials; the chunks
+    /// are re-tiered at the next frame and placed or dropped by the new reach (nothing is placed again).
+    /// </summary>
+    private void ApplyReach()
+    {
+        _throw = I76.Game.Sim.HeadlampThrow.Current;
+        _night = I76.Game.Sim.LampStrength.Current <= 0;
+        _level = VegLevels.For(_levelIndex, VegLevels.LampReachNow, _night);
+        foreach (var c in _chunks.Values) c.Tier = -1;
         for (int l = 0; l < 3; l++)
         {
             float mid = l == 0 ? _level.ShrubMid : _level.GroundMid, far = l == 0 ? _level.ShrubFar : _level.GroundFar;
@@ -730,7 +742,12 @@ public partial class VegetationNode : Node3D
     {
         UpdateSward(delta);
         // the headlamps' throw changed (the Developer panel, the settings): the bushes' reach follows it
-        if (_levelIndex > 0 && I76.Game.Sim.HeadlampThrow.Current != _throw) SetLevel(_levelIndex);
+        // and night or day (the mission's light, set after the plants are made): the shrubs' far mesh stays out of the beam
+        if (_levelIndex > 0 && (I76.Game.Sim.HeadlampThrow.Current != _throw || (I76.Game.Sim.LampStrength.Current <= 0) != _night))
+        {
+            if (I76.Game.Sim.HeadlampThrow.Current != _throw) _tumble?.SetLevel(_levelIndex);
+            ApplyReach();
+        }
         if (!Visible || _placer is null || CameraGame() is not { } eye) return;
         Update(eye, attachAll: false);
         if (_marks is not null) Mark();

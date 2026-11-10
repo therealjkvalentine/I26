@@ -48,7 +48,7 @@ the nearest they go; a longer throw pushes them out with it (Low 146-186 m at th
 at once when the setting changes in a mission. Before, Low's shrubs were fully drawn from 120 m and the ground layer's
 snakeweed, tumbleweeds, poppies and rosettes faded in at 50-35 m (High 85-60 m), inside the beam. The ground layer's chunks are
 placed out to the larger plants' reach; beyond the tufts' reach a chunk draws only those (its tufts' buffers are not sent).
-The tufts stay near for their number, and grow in out of the sward across their band as well as dithering in. `I76_VEG_REACH=old` draws the earlier reaches (for
+The tufts stay near for their number, and grow in out of the sward across their band as well as dithering in. At night a shrub's far mesh (a quarter to a sixth of its clusters) is not used inside that distance either: its swap to the middle mesh at 40-60 m (Low) or 56-84 m (High) read in the beam as the crown filling in, so by night the far mesh's cross-fade begins beyond the lamps' reach plus the margin (by day it stays at 50 / 70 m). `I76_VEG_REACH=old` draws the earlier reaches (for
 before / after captures); `I76_VEG_MARKS=1` rings each plant in its fade band with its distance (docs/dev-hooks.md).
 
 `[port] vegetation_density` in shell.cfg (no row; percent, 10 to 150, `60` when absent, `VegetationDensity`) multiplies

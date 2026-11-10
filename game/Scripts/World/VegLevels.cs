@@ -45,13 +45,25 @@ public static class VegLevels
     /// The Low (1) or High (2) level for the lamps' visible reach: each bush kind's fade moved out, band and all, until it starts
     /// at <see cref="BushAppear"/> (no nearer than the level's own).
     /// </summary>
-    public static Level For(int level, float lampReach)
+    public static Level For(int level, float lampReach, bool night = false)
     {
         if (Old) return level >= 2 ? OldHigh : OldLow;
         var l = level >= 2 ? High : Low;
         float appear = BushAppear(lampReach);
         float s = MathF.Max(0, appear - l.ShrubFade), f = MathF.Max(0, appear - l.ForbFade);
-        return l with { ShrubFade = l.ShrubFade + s, ShrubEnd = l.ShrubEnd + s, ForbFade = l.ForbFade + f, ForbEnd = l.ForbEnd + f };
+        l = l with { ShrubFade = l.ShrubFade + s, ShrubEnd = l.ShrubEnd + s, ForbFade = l.ForbFade + f, ForbEnd = l.ForbEnd + f };
+        // at night a shrub's far mesh (a quarter of its clusters) filled in to its middle one at 40-60 m in the beam: there the
+        // far mesh starts only past the lamps' reach and the margin (its cross-fade band wholly beyond it)
+        if (night) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(appear)) };
+        return l;
+    }
+
+    /// <summary>The tier boundary whose cross-fade band (TierBands) begins at <paramref name="start"/>.</summary>
+    public static float FarFrom(float start)
+    {
+        float b = start;
+        for (int i = 0; i < 8; i++) b = start + I76.Formats.Vegetation.TierBands.HalfWidth(b);
+        return b;
     }
 
     /// <summary>The rolling tumbleweeds' range for a level and the lamps' visible reach: theirs, or far enough that they fade in beyond the lamps.</summary>
