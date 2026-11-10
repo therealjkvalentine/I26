@@ -1,0 +1,93 @@
+{
+ "textures": [
+  "xb11ftl1",
+  "xb11mdl1",
+  "xb11bkl1"
+ ],
+ "panels": {
+  "xb11ftl1": [
+   0,
+   0
+  ],
+  "xb11mdl1": [
+   128,
+   0
+  ],
+  "xb11bkl1": [
+   256,
+   0
+  ]
+ },
+ "size": [
+  128,
+  64
+ ],
+ "note": "the school bus's left side band, VALDES SCHOOL DISTRICT across the front, middle and rear panels (VAL | DES SCHOOL DIST | RICT) as one run: each word on the original's painted letters' box, one cap height and baseline across the seams (the model tore the painted letters; set panel by panel, DIST and RICT came out at two sizes)",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    97.4,
+    40.4,
+    292.6,
+    46.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "VALDES",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    102,
+    40,
+    153,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    165,
+    40,
+    221,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "DISTRICT",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    229,
+    40,
+    290,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

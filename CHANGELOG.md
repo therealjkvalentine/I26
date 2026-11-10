@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### Fixed
+- The HD packs' smaller texture levels are their full-size level filtered down again: the HD tools filtered colour weighted by alpha, so every keyed texel was black in them, and a few files kept levels from an earlier picture. `tools/dds-mips.py` checks a pack and makes such chains again from the full-size level; the tools now write them that way. VALDES SCHOOL DISTRICT on the school bus's sides is one size on one baseline across its panels (DIST and RICT were set apart).
 - The HD damage panel's parts no longer sit in a lighter rectangle of their own (the sheet's olive against the panel's) and the front armour chevron no longer carries the next chevron's dark apex line under it: the sheets' cells now take the panel's own texels wherever the stamp changes nothing (tools/upscale-textures.py --cells; the packs are recut).
 
 ### New

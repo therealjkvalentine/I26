@@ -22,6 +22,9 @@ model's files back. pack.json gets a "text_redraws" list (texture, spec, fonts) 
 Needs Python 3.10+, numpy, Pillow, and etcpak for .dds (pip install numpy pillow etcpak).
 
 A spec (coordinates in the original's texels, upright, so the same spec serves a 2x, 3x, 4x or 8x pack):
+(or, for lettering that runs across textures meeting edge to edge, "panels": {"xb11ftl1": [0, 0], "xb11mdl1": [128, 0], ...} and
+"size": [128, 64] in place of "textures": the coordinates are then the whole band's, each texture's top-left at its [x, y], so
+a word split by a seam is one run at one size and baseline)
     {"textures": ["zsy_"], "note": "...",
      "ops": [
        {"op": "erase", "rect": [x0, y0, x1, y1], "where": {"lum_below": 60}, "grow": 0.6, "fill": "inpaint"},
@@ -63,6 +66,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import dds_mips
 SPECS = os.path.join(HERE, "text-redraws")
 FONTS = os.path.join(SPECS, "fonts")
 SS = 4          # supersampling of the lettering (each pack texel is SS x SS samples)
@@ -407,21 +412,9 @@ def bleed(rgb, alpha, passes=64):
 # ---- pack files ----
 
 def write_dds(path, rgba, etcpak):
-    """BC7 (sRGB, DX10 header) with its full mip chain, box-filtered: tools/upscale-textures.py's format."""
-    im = Image.fromarray(rgba, "RGBA"); levels = [im]
-    while im.size != (1, 1):
-        im = im.resize((max(1, im.size[0] // 2), max(1, im.size[1] // 2)), Image.BOX); levels.append(im)
-    def bc7(l):
-        p = np.array(l); h, w = p.shape[:2]; pw, ph = (w + 3) // 4 * 4, (h + 3) // 4 * 4
-        if (pw, ph) != (w, h): p = np.pad(p, ((0, ph - h), (0, pw - w), (0, 0)), mode="edge")
-        return etcpak.compress_bc7(np.ascontiguousarray(p).tobytes(), pw, ph)
-    blocks = [bc7(l) for l in levels]
-    w, h = rgba.shape[1], rgba.shape[0]
-    hdr = struct.pack("<4sIIIIIII44x", b"DDS ", 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, h, w, len(blocks[0]), 0, len(levels))
-    hdr += struct.pack("<II4s20x", 32, 0x4, b"DX10")
-    hdr += struct.pack("<IIII4x", 0x1000 | 0x400000 | 0x8, 0, 0, 0)
-    dx10 = struct.pack("<IIIII", 99, 3, 0, 1, 0)
-    with open(path, "wb") as f: f.write(hdr + dx10 + b"".join(blocks))
+    """BC7 (sRGB, DX10 header) with its full mip chain, box-filtered in linear light with colour not weighted by alpha:
+    tools/upscale-textures.py's format (dds_mips)."""
+    dds_mips.write_dds(path, rgba, etcpak)
 
 def read_pack_file(path):
     im = Image.open(path); im.load()
@@ -433,12 +426,37 @@ def pack_file(pack, stem):
         if os.path.exists(p): return p
     return None
 
+def panel_ops(ops, origin, size):
+    """A "panels" spec's ops for one of its textures: the spec's coordinates are the whole band's, the texture's top-left at
+    `origin` in them; every point moved into the texture's own, an erase's or a smooth's rect clipped to the texture (left out
+    when nothing of it is on it). Lettering past the texture's edge is drawn on the next one, from the same run."""
+    dx, dy = (float(v) for v in origin); w, h = size; out = []
+    for op in ops:
+        op = dict(op)
+        if "rect" in op:
+            x0, y0, x1, y1 = (float(v) for v in op["rect"])
+            x0, y0, x1, y1 = max(0.0, x0 - dx), max(0.0, y0 - dy), min(float(w), x1 - dx), min(float(h), y1 - dy)
+            if x1 <= x0 or y1 <= y0: continue
+            op["rect"] = [x0, y0, x1, y1]
+        if "center" in op: op["center"] = [float(op["center"][0]) - dx, float(op["center"][1]) - dy]
+        if "box" in op: op["box"] = [float(op["box"][0]) - dx, float(op["box"][1]) - dy, float(op["box"][2]) - dx, float(op["box"][3]) - dy]
+        if "quad" in op: op["quad"] = [[float(x) - dx, float(y) - dy] for x, y in op["quad"]]
+        out.append(op)
+    return out
+
 def load_specs(specs_dir=SPECS, only="*"):
+    """(spec file, texture, spec) for every texture of the specs matching `only`. A spec with "panels": {"texture": [x, y], ...}
+    (and "size": [w, h], the textures' size in original texels) letters one band across several textures that meet edge to edge
+    (the bus's side: VALDES SCHOOL DISTRICT over three panels), so one run sets the words at one size on one baseline across the
+    seams: its coordinates are the band's, each texture's top-left at its [x, y]."""
     out = []
     for p in sorted(glob.glob(os.path.join(specs_dir, "*.json"))):
         with open(p, encoding="utf-8") as f: spec = json.load(f)
-        for t in spec["textures"]:
-            if fnmatch.fnmatch(t.lower(), only.lower()): out.append((os.path.basename(p), t.lower(), spec))
+        panels = spec.get("panels")
+        for t in (list(panels) if panels else spec["textures"]):
+            if not fnmatch.fnmatch(t.lower(), only.lower()): continue
+            one = dict(spec, ops=panel_ops(spec["ops"], panels[t], spec["size"])) if panels else spec
+            out.append((os.path.basename(p), t.lower(), one))
     return out
 
 def redraw(src, pack, name, stem, spec, etcpak, table, fonts_dir=FONTS, bottom_up=frozenset()):

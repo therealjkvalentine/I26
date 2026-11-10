@@ -1,0 +1,88 @@
+{
+ "textures": [
+  "xb11bkr1",
+  "xb11mdr1"
+ ],
+ "panels": {
+  "xb11bkr1": [
+   0,
+   0
+  ],
+  "xb11mdr1": [
+   128,
+   0
+  ]
+ },
+ "size": [
+  128,
+  64
+ ],
+ "note": "the school bus's right side band, VALDES SCHOOL DISTRICT across the rear and middle panels (VALDES | SCHOOL DISTRICT) as one run: each word on the original's painted letters' box, one cap height and baseline",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    60.4,
+    40.4,
+    255.6,
+    46.6
+   ],
+   "opaque": true,
+   "halo": {
+    "within": 1.0,
+    "lum_below": 90
+   }
+  },
+  {
+   "op": "text",
+   "text": "VALDES",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    64,
+    40,
+    117,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "SCHOOL",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    129,
+    40,
+    185,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  },
+  {
+   "op": "text",
+   "text": "DISTRICT",
+   "font": "DDINCondensed",
+   "cap": 4.6,
+   "box": [
+    192,
+    40,
+    253,
+    45
+   ],
+   "colour": [
+    22,
+    18,
+    14
+   ]
+  }
+ ]
+}

@@ -103,6 +103,8 @@ take the model's place, with the same band outside it. The files replaced are ke
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
 import numpy as np
 from PIL import Image
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dds_mips
 
 MODEL = "4xTextures_GTAV_rgt-s_dither"
 MODEL_URL = f"https://github.com/Phhofm/models/releases/download/{MODEL}/{MODEL}.pth"
@@ -629,21 +631,8 @@ def finish(big, ow, oh, scale, alpha=None):
     return np.dstack([np.clip(rgb + 0.5, 0, 255).astype(np.uint8), a])
 
 def write_dds(path, rgba, etcpak):
-    """BC7 (sRGB, DX10 header) with its full mip chain, box-filtered."""
-    im = Image.fromarray(rgba, "RGBA"); levels = [im]
-    while im.size != (1, 1):
-        im = im.resize((max(1, im.size[0] // 2), max(1, im.size[1] // 2)), Image.BOX); levels.append(im)
-    def bc7(l):
-        px = np.array(l); h, w = px.shape[:2]; pw, ph = (w + 3) // 4 * 4, (h + 3) // 4 * 4
-        if (pw, ph) != (w, h): px = np.pad(px, ((0, ph - h), (0, pw - w), (0, 0)), mode="edge")   # the last blocks' unused texels
-        return etcpak.compress_bc7(np.ascontiguousarray(px).tobytes(), pw, ph)
-    blocks = [bc7(l) for l in levels]
-    w, h = rgba.shape[1], rgba.shape[0]
-    hdr = struct.pack("<4sIIIIIII44x", b"DDS ", 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, h, w, len(blocks[0]), 0, len(levels))
-    hdr += struct.pack("<II4s20x", 32, 0x4, b"DX10")                      # pixel format: a DX10 header follows
-    hdr += struct.pack("<IIII4x", 0x1000 | 0x400000 | 0x8, 0, 0, 0)       # caps: texture, mipmap, complex
-    dx10 = struct.pack("<IIIII", 99, 3, 0, 1, 0)                           # DXGI_FORMAT_BC7_UNORM_SRGB, a 2D texture
-    with open(path, "wb") as f: f.write(hdr + dx10 + b"".join(blocks))
+    """BC7 (sRGB, DX10 header) with its full mip chain, box-filtered in linear light with colour not weighted by alpha (dds_mips)."""
+    dds_mips.write_dds(path, rgba, etcpak)
 
 class Runner:
     """The models of a run, loaded when first needed (two kept at a time, the jobs sorted by family): run(im, file) is
