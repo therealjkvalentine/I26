@@ -257,11 +257,16 @@ def ink_box(op, w, h, s):
     return np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]) / s
 
 class WorldLetteringTests(unittest.TestCase):
-    """The Autowerks wall sign (ca_1ws_1, T12):
+    """The Autowerks wall sign (ca_1ws_1, T12), the Milky Way Motel billboard (ao_1sg_6):
     every line on the painted letters' ink box, measured off the original's texels (pinned here, in texels), at 4x and 8x."""
     BOXES = {
         "signs-ca_1ws_1.json": {"AUTOWERKS": (4.99, 27.41, 77.89, 36.62), "INDUSTRIAL": (89.43, 27.41, 122.16, 31.73),
                                 "KOMPLEX": (95.36, 32.72, 122.07, 36.86)},
+        "signs-ao_1sg_6.json": {"Kitchenettes": (10.75, 34.33, 43.73, 37.95), "Daily & Weekly Rates": (69.03, 34.15, 123.55, 38.68),
+                                "Direct Dial Phones": (15.0, 40.28, 63.31, 43.99), "NMAA Approved": (73.48, 40.14, 116.66, 44.29),
+                                "Cafe Nearby": (19.06, 46.34, 51.26, 50.84), "In ROSWELL": (7.12, 54.98, 45.84, 59.66),
+                                "15 MILES": (94.0, 55.11, 122.33, 59.65),
+                                '"Out of this World Comfort"': (36.0, 24.87, 122.6, 29.85), '"Family Run"': (78.3, 46.0, 111.0, 50.57)},
     }
 
     def texts(self, name):
@@ -291,6 +296,20 @@ class WorldLetteringTests(unittest.TestCase):
         out = tr.apply_ops(px, orig, [op for op in spec_of("signs-ca_1ws_1.json")["ops"] if op["op"] == "erase"]).astype(int)
         self.assertLess(np.abs(out[28 * 4:36 * 4, 10 * 4:20 * 4, :3] - (8, 40, 74)).max(), 3)    # gone, the plate's navy in its place
         self.assertTrue((out[24 * 4:25 * 4, :, :3] == (32, 56, 98)).all() and (out[39 * 4:40 * 4, :, :3] == (8, 28, 57)).all())
+
+    def test_the_motels_name_is_its_own_texels_shade_by_shade(self):
+        ops = spec_of("signs-ao_1sg_6.json")["ops"]
+        marks = [op for op in ops if op["op"] == "marks"]
+        self.assertEqual(len(marks), 6)                                                  # three shades on each of the two lines
+        for line in (marks[:3], marks[3:]):
+            lums = [op["where"]["lum_above"] for op in line]; cols = [sum(op["colour"]) for op in line]
+            self.assertEqual(lums, sorted(lums)); self.assertEqual(cols, sorted(cols))   # darkest first, the white core last
+        # a pixel letter (a 2-texel stem, 6 high: a grey bottom row) comes back in its texels with its bottom row grey
+        orig = blank(128, 64, (8, 8, 16)); orig[8:14, 70:72, :3] = 255; orig[14, 70:72, :3] = 150
+        out = tr.apply_ops(np.repeat(np.repeat(orig, 4, 0), 4, 1), orig, [op for op in ops if op["op"] in ("marks",)])[..., :3].mean(axis=2)
+        self.assertGreater(out[9 * 4:13 * 4, 70 * 4 + 1:72 * 4 - 1].min(), 240)
+        self.assertTrue(120 < out[14 * 4 + 2, 71 * 4] < 180)
+        self.assertLess(out[9 * 4:13 * 4, 68 * 4:69 * 4].max(), 40)                     # nothing spills a texel away
 
 if __name__ == "__main__":
     unittest.main()
