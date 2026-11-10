@@ -63,6 +63,18 @@ public abstract class GarageBase : TripScreen
 
     protected void Notice(int sprite, Action? then = null) =>
         Shell.Modal(new NoticePopup { Sprite = sprite, Ok = new Rect2I(119, 61, 42, 16), Closed = then });
+
+    // ---- the equipment tooltips (the port's; PartTips): a part row explains its part, beside the row
+
+    public override bool TipBesideRow => true;
+
+    /// <summary>A part row's tooltip over its zone (an empty row's says so), or null with Equipment Tooltips off.</summary>
+    protected (string Text, Rect2I Zone)? RowTip(PartNode? n, Rect2I zone) =>
+        Shell.PartTips is { } tips && (n is null ? PartTips.Empty.Text : tips.Text(n.Part)) is { } t ? (t, zone) : null;
+
+    /// <summary>The first of the rows (y0 + k·pitch, <paramref name="count"/> of them, x0..x1) that holds the point.</summary>
+    protected static int RowAt(Vector2I m, int x0, int x1, int y0, int count, int pitch = P) =>
+        m.X > x0 && m.X < x1 && m.Y >= y0 && m.Y < y0 + count * pitch ? (m.Y - y0) / pitch : -1;
 }
 
 /// <summary>
@@ -201,6 +213,20 @@ public sealed class FieldSalvageScreen : GarageBase
             }
             return l;
         }
+    }
+
+    /// <summary>The part under the point in any of the twelve lists (an inventory list's rows from its top, a salvage list's under its header).</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        for (int id = 0; id < 12; id++)
+        {
+            var r = Regions[id];
+            int i0 = r.Salvage ? 1 : 0, n = r.Salvage ? Math.Min(r.Rows, _lists[id].Count - _scroll[id]) : Math.Min(r.Rows, _lists[id].Count);
+            int k = RowAt(m, r.X0, r.X1, r.Y0 + P * i0, n);
+            if (k < 0) continue;
+            return RowTip(_lists[id][(r.Salvage ? _scroll[id] : 0) + k], new Rect2I(r.X0 + 1, r.Y0 + P * (k + i0), r.X1 - r.X0 - 2, P));
+        }
+        return null;
     }
 
     private readonly I76.Formats.Input.HoldRepeat _hold = new();
@@ -643,6 +669,38 @@ public sealed class GarageScreen : GarageBase, IChassisForm
         }
     }
 
+    /// <summary>
+    /// The equipment tooltip under the point: a part, weapon, dropper or special row (its name and its arrow), the driver's .45, the repair
+    /// order's rows, and DEFENSE's armor and chassis cells and the pool.
+    /// </summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        if (Shell.PartTips is null) return null;
+        // a row from its label (x 31) to its arrow (x 254..263)
+        (string, Rect2I)? Rows(List<int> slots, int y0)
+        {
+            int k = RowAt(m, 26, 266, y0, slots.Count);
+            return k < 0 || slots[k] < 0 ? null : RowTip(Node(slots[k]), new Rect2I(26, y0 + k * P, 240, P));
+        }
+        if (Rows(_parts, PartsR.Item3) is { } a) return a;
+        if (Rows(_weapons, WeaponsR.Item3) is { } w) return w;
+        if (Rows(_droppers, DroppersR.Item3) is { } d) return d;
+        if (Rows(_specials, SpecialsR.Item3) is { } s) return s;
+        if (RowAt(m, 26, 266, 249, 1) == 0) return (PartTips.Handgun.Text, new Rect2I(26, 249, 240, P));
+        if (Melee is null && RowAt(m, 450, 616, 65, Math.Min(10, Inv.Repairs.Count - _repairScroll)) is var rk and >= 0)
+            return RowTip(Inv.Repairs[_repairScroll + rk], new Rect2I(450, 65 + rk * P, 166, P));
+        // DEFENSE: each zone's armor (the left value and its buttons) and chassis (the right), then LBS. AVAILABLE
+        for (int k = 0; k < 4; k++)
+        {
+            int y = RowY[k][0] - 1, h = P;
+            if (m.Y < y || m.Y >= y + h) continue;
+            if (m.X > 106 && m.X < 186) return (PartTips.ArmourTip, new Rect2I(106, y, 80, h));
+            if (m.X >= 186 && m.X < 266) return (PartTips.ChassisTip, new Rect2I(186, y, 80, h));
+        }
+        if (m.X > 106 && m.X < 185 && m.Y >= 421 && m.Y < 438) return (PartTips.PoolTip, new Rect2I(106, 421, 79, 17));
+        return null;
+    }
+
     private void PartsClick(Vector2I m)
     {
         int row = (m.Y - 39) / P;
@@ -973,6 +1031,19 @@ public sealed class PartPicker : ShellScreen
         }
     }
 
+    public override bool TipBesideRow => true;
+
+    /// <summary>The equipment tooltip of the visible row under the point (the rows as <see cref="PadRegions"/> has them).</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        if (Shell.PartTips is not { } tips) return null;
+        int n = Scrolls ? Math.Min(Visible, Items.Count - _scroll) : Items.Count;
+        var zone = new Rect2I(X + List.X0 + 1, Y + List.Y0, List.X1 - List.X0 - 2, 17 * Math.Max(0, n));
+        if (n <= 0 || !zone.HasPoint(m)) return null;
+        int i = (m.Y - zone.Position.Y) / 17;
+        return tips.Text(Items[_scroll + i].Part) is { } t ? (t, new Rect2I(zone.Position.X, zone.Position.Y + 17 * i, zone.Size.X, 17)) : null;
+    }
+
     public override void Tick()
     {
         if (Shell.Keys.Contains(Key.Escape)) { Close(); return; }
@@ -1053,6 +1124,23 @@ public sealed class InventoryPopup : ShellScreen
             l.Add(PadRegion.Of((X + CancelR.Item1, X + CancelR.Item2, Y + CancelR.Item3, Y + CancelR.Item4)));
             return l;
         }
+    }
+
+    public override bool TipBesideRow => true;
+
+    /// <summary>The equipment tooltip of the entry under the point, in any of the six columns (the rows as <see cref="PadRegions"/> has them).</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I m)
+    {
+        if (Shell.PartTips is not { } tips) return null;
+        foreach (var (x0, x1, y0, _, list) in Columns)
+        {
+            var col = Column(list);
+            var zone = new Rect2I(X + x0 + 1, Y + y0 + 2, x1 - x0 - 2, 17 * col.Count);
+            if (col.Count == 0 || !zone.HasPoint(m)) continue;
+            int i = (m.Y - zone.Position.Y) / 17;
+            return tips.Text(col[i].Part) is { } t ? (t, new Rect2I(zone.Position.X, zone.Position.Y + 17 * i, zone.Size.X, 17)) : null;
+        }
+        return null;
     }
 
     public override void Tick()

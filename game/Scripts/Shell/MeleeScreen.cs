@@ -178,6 +178,7 @@ public sealed partial class MeleeScreen : ShellScreen
 
     public override void Repaint()
     {
+        _carTips.Clear();
         _modeBtnBaked = false;
         _boxBaked = 0;
         _art = null;
@@ -226,6 +227,9 @@ public sealed partial class MeleeScreen : ShellScreen
         if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); }
     }
 
+    /// <summary>The car panel's weapon rows (x 470, from y 58) and PARTS rows (from y 177), 17 px apart: where <see cref="DrawCar"/> prints them.</summary>
+    public const int PanelX = 470, PanelW = 160, PanelWeaponsY = 58, PanelPartsY = 177;
+
     /// <summary>The car panel the melee and scenario forms share: the blueprint views, the weapons, the make and model, the variant.</summary>
     public static void DrawCar(ShellFrame frame, ShellFont font, SpriteBank cars, MeleeData data, int model, int variant, I76.Sim.Trip.PartsDatabase parts, string? makeModel = null, string? variantText = null, bool front = true)
     {
@@ -240,6 +244,23 @@ public sealed partial class MeleeScreen : ShellScreen
         frame.Text(font, 330, 399, makeModel ?? m.MakeModel);
         frame.Text(font, 292, 421, variantText ?? m.Variants[Math.Clamp(variant - 1, 0, m.Variants.Count - 1)]);
     }
+
+    private readonly CarPanelTips _carTips = new();
+    private bool _carTipShown;
+
+    /// <summary>The host form's settings' tooltips first (NetForms.cs), then the car panel's weapons and parts (the equipment tooltips).</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
+    {
+        _carTipShown = false;
+        if (HostTipAt(p) is { } host) return host;
+        if (StoryCar || _slots.Count == 0) return null;
+        var (_, model, variant) = _slots[_shown];
+        var t = _carTips.At(Shell, _data, model, variant, p);
+        _carTipShown = t is not null;
+        return t;
+    }
+
+    public override bool TipBesideRow => _carTipShown;
 
     public override bool TextEditing => _renaming || _naming;
     public override void StopEditing() { _renaming = false; _naming = false; Draw(); }
@@ -846,5 +867,40 @@ public static class VariantPopups
                 else shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = "That variant is not one of yours to delete.", Closed = () => reopen(n) });
             },
         });
+    }
+}
+
+/// <summary>
+/// The melee and scenario forms' car panel tooltips (the equipment tooltips, the port's): the weapon and PARTS rows of
+/// <see cref="MeleeScreen.DrawCar"/> name their parts; the part each name is (the parts database by display name) explains itself.
+/// The lists are read once per car shown, not every frame.
+/// </summary>
+public sealed class CarPanelTips
+{
+    private (MeleeData Data, int Model, int Variant)? _for;
+    private List<string> _weapons = [], _parts = [];
+
+    /// <summary>The car shown may have changed under the same model and variant (a saved variant): read it again.</summary>
+    public void Clear() => _for = null;
+
+    public (string Text, Rect2I Zone)? At(Shell shell, MeleeData data, int model, int variant, Vector2I m)
+    {
+        if (shell.PartTips is not { } tips || model < 0 || model >= data.Models.Count) return null;
+        if (_for is not { } f || f.Data != data || f.Model != model || f.Variant != variant)
+        {
+            _weapons = data.Weapons(model, variant);
+            _parts = data.Parts(model, variant, shell.Parts);
+            _for = (data, model, variant);
+        }
+        const int x = MeleeScreen.PanelX, w = MeleeScreen.PanelW, row = 17;
+        if (m.X < x - 2 || m.X >= x + w) return null;
+        (string, Rect2I)? Of(List<string> names, int y0, int[] types)
+        {
+            int k = m.Y >= y0 - 2 ? (m.Y - y0 + 2) / row : -1;
+            if (k < 0 || k >= names.Count) return null;
+            return tips.TextByName(shell.Parts, names[k], types) is { } t ? (t, new Rect2I(x - 2, y0 - 2 + k * row, w + 2, row)) : null;
+        }
+        // PARTS: the engine, the suspension, the brakes, then the tyres
+        return Of(_weapons, MeleeScreen.PanelWeaponsY, [7, 8, 9]) ?? Of(_parts, MeleeScreen.PanelPartsY, [2, 3, 4, 5]);
     }
 }
