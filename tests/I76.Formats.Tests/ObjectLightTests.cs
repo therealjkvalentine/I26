@@ -99,4 +99,49 @@ public class ObjectLightTests
         Assert.True(Unlit(night) >= 10, $"night station unlit faces {Unlit(night)}");
         Assert.True(Unlit(night) > Unlit(dayModel), $"day station unlit faces {Unlit(dayModel)}");
     }
+
+    [Fact]
+    public void ANightWindowRowIsFoundByTheDefinitionsStemWhateverItsCase()
+    {
+        Assert.NotNull(NightWindows.For("BHJHOUS1.SDF"));
+        Assert.NotNull(NightWindows.For("bhjhous1.sdf"));
+        Assert.Null(NightWindows.For("bfparad2.sdf"));   // the station has its own light in the data
+        Assert.All(NightWindows.Table.Values, r => { Assert.InRange(r.Energy, 0.1f, 8f); Assert.InRange(r.Range, 4f, 30f); });
+    }
+
+    [InstallFact]
+    public void EveryNightMissionsSceneryIsLitByItsDataOrARow()
+    {
+        var vfs = TestInstall.Vfs;
+        var asm = new ModelAssembler(vfs);
+        var got = new SortedDictionary<string, (int Own, int Windows)>();
+        foreach (var msn in Directory.EnumerateFiles(TestInstall.Install.MissionDir!, "*.msn"))
+        {
+            var file = new I76.Formats.Mission.MissionFile(msn);
+            if (I76.Formats.Mission.WorldSettings.Read(file) is not { } ws || I76.Formats.Mission.Lighting.ForHour(ws.Hour).IsDay) continue;
+            var w = new MissionWorld(vfs, asm, msn);
+            int own = 0, windows = 0;
+            foreach (var p in w.Placements)
+            {
+                if (p.Definition is not { } d || !d.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) || asm.Assemble(d) is not { } m) continue;
+                own += m.Lights.Count;
+                if (NightWindows.For(d) is not null) windows += NightWindows.Of(m).Count;
+            }
+            got[Path.GetFileNameWithoutExtension(msn).ToLowerInvariant()] = (own, windows);
+        }
+        // the stock night missions: the gas stop (its station and two posts, a night house), Night Driver (forty light posts),
+        // T12 and Suburbia (night houses, their windows lit by the table's row)
+        Assert.Equal(["m04", "m12", "t06", "t12"], got.Keys);
+        Assert.Equal(3, got["t06"].Own);
+        Assert.Equal(40, got["m12"].Own);
+        Assert.Equal(0, got["t12"].Own);
+        Assert.Equal(0, got["m04"].Own);
+        Assert.True(got["t12"].Windows >= 9, $"t12 windows {got["t12"].Windows}");
+        Assert.True(got["m04"].Windows >= 18, $"m04 windows {got["m04"].Windows}");
+        Assert.True(got["t06"].Windows >= 1, $"t06 windows {got["t06"].Windows}");
+        // a window's light stands just outside its wall: within the house's reach of its origin, above the ground
+        var house = asm.Assemble(new MissionWorld(vfs, asm, Directory.EnumerateFiles(TestInstall.Install.MissionDir!).First(f => Path.GetFileName(f).Equals("t12.msn", StringComparison.OrdinalIgnoreCase)))
+            .Placements.First(p => p.Definition is { } d && NightWindows.For(d) is not null).Definition!)!;
+        Assert.All(NightWindows.Of(house), at => { Assert.InRange(at.Y, 0.2f, 12f); Assert.InRange(new Vector2(at.X, at.Z).Length(), 0f, 40f); });
+    }
 }

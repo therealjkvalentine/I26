@@ -408,7 +408,11 @@ public partial class ScenerySpawner : Node3D
             }
             if (tree)
                 foreach (var t in Trees.Add(def, model!, cardNames!, list, xf)) Twin(list[t.Placement], t.Node, t.Index, modern: true);
-            if (Night && model is { Lights.Count: > 0 } && !roadPiece && System.Environment.GetEnvironmentVariable("I76_NIGHT_STATICS") != "0") AddLights(model, list, xf);
+            if (Night && model is not null && !roadPiece && System.Environment.GetEnvironmentVariable("I76_NIGHT_STATICS") != "0")
+            {
+                if (model.Lights.Count > 0) AddLights(model, list, xf);
+                if (I76.Formats.Assembly.NightWindows.For(def) is { } windows) AddWindowLights(model, windows, list, xf);
+            }
             if (spinners is not null) AddSpinners(spinners, model!, builder, skip, list, xf, parent);
             if (gates is not null) AddGates(gates, model!, builder, skip, list, xf, parent);
             Loaded += xf.Count;
@@ -738,6 +742,28 @@ public partial class ScenerySpawner : Node3D
                 StationLight.Add(light, l.Spot ? StationLight.SpotEnergy : StationLight.OmniEnergy);
                 GD.Print($"night light: {list[i].Object.Name} at {Coords.ToGame(pos)} along {Coords.ToGame(fwd)} cone {deg:0} range {l.ClampedRange} n {l.Exponent}");
             }
+    }
+
+    /// <summary>
+    /// A listed night building's lit windows (NightWindows: no light of its own in the data, full-bright faces) each shed a small warm
+    /// light in the modern look, scaled with the scenery's other night lights (StationLight); the 1997 look has none, as the original.
+    /// </summary>
+    private void AddWindowLights(AssembledModel model, I76.Formats.Assembly.NightWindows.Row row, List<Placement> list, List<Transform3D> xf)
+    {
+        var at = I76.Formats.Assembly.NightWindows.Of(model);
+        for (int i = 0; i < xf.Count; i++)
+            for (int k = 0; k < at.Count; k++)
+            {
+                var light = new OmniLight3D
+                {
+                    Name = $"NightWindow_{list[i].Object.Name}_{i}_{k}", OmniRange = row.Range, OmniAttenuation = 1f, ShadowEnabled = false,
+                    LightColor = new Color(row.R, row.G, row.B), Position = xf[i] * Coords.ToGodot(at[k]), Visible = _modern,
+                };
+                AddChild(light);
+                _modernNodes.Add(light);
+                StationLight.Add(light, row.Energy);
+            }
+        if (at.Count > 0) GD.Print($"night windows: {list[0].Object.Name} x{xf.Count}, {at.Count} lights each, range {row.Range}");
     }
 
     private void AddMarker(Placement p)
