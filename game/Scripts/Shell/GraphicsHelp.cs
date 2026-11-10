@@ -63,7 +63,8 @@ public static class GraphicsHelp
             : "Hood gloss: how much the cars' paint and your hood shine, from Matte (0, the original's flat paint) to Gloss (100, a full clear coat); 5 is the default sheen. No frame cost.",
         GraphicsRow.RenderScale => look1997
             ? "Render scale: the modern look's 3D view drawn smaller or larger than the window. Not used in the 1997 look."
-            : "Render scale: the 3D view drawn at 50 to 200 % of the window (the menus and gauges stay sharp). Under 100 % is faster and softer, over it sharper and much slower.",
+            : "Render scale: the 3D view drawn at 50 to 200 % of the window (the menus and gauges stay sharp). Under 100 % is faster and softer, over it sharper and much slower."
+                + (I76.Game.Boot.RenderScale.HeldNote is { Length: > 0 } held ? $" Now {held}: over it the view would not fit the card's video memory." : ""),
         GraphicsRow.ShowFps => "Show FPS: the frame rate and frame time in the window's top right corner, over the menus and the game.",
         GraphicsRow.Renderer => "Renderer: Vulkan, Direct3D 12 (Windows) or OpenGL; Auto picks. Try another if the game will not start or draws wrongly. From the next start.",
         GraphicsRow.Garage3D => "3D garage: Configure Chassis drawn as a 3D garage with your car in it; Off is the original's flat 2D form.",

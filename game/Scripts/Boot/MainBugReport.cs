@@ -95,7 +95,7 @@ public partial class Main
         {
             $"os: {OS.GetName()} {OS.GetVersion()}{(OS.GetDistributionName() is { Length: > 0 } dn && dn != OS.GetName() ? $" ({dn})" : "")}, {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}",
             RenderBackend.Describe() + (RenderBackend.VideoMemoryMb is { } vram ? $", video memory {vram} MiB" : ""),
-            $"window: {win.X}x{win.Y} {DisplayServer.WindowGetMode().ToString().ToLowerInvariant()}, screen {screen.X}x{screen.Y}, render scale {RenderScale.Percents[System.Math.Clamp(settings.RenderScale, 0, RenderScale.Percents.Length - 1)]} %, "
+            $"window: {win.X}x{win.Y} {DisplayServer.WindowGetMode().ToString().ToLowerInvariant()}, screen {screen.X}x{screen.Y}, render scale {RenderScale.Percents[System.Math.Clamp(settings.RenderScale, 0, RenderScale.Percents.Length - 1)]} %{(RenderScale.Held is { } held ? $" (held at {held} %: video memory)" : "")}, "
                 + $"vsync {(settings.VSync ? "on" : "off")}, max fps {I76.Sim.Views.FrameLimit.Names[System.Math.Clamp(settings.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)]}, "
                 + $"anti-aliasing {RenderScale.AntiAliasing[System.Math.Clamp(settings.Graphics[0x8], 0, RenderScale.AntiAliasing.Length - 1)]}",
             $"look: {(_mode1997 ? (settings.SoftwareRenderer ? "1997 (software renderer)" : "1997") : "modern")}, renderer setting {settings.Renderer}, "

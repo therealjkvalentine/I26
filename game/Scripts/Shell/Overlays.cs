@@ -669,7 +669,7 @@ public sealed class GraphicsScreen : OverlayScreen
                 break;
             // the 3D view drawn at 50 to 200 % of the window, live (the HUD and menus are not scaled)
             case GraphicsRow.RenderScale:
-                Row(r, line, "Render Scale", () => I76.Game.Boot.RenderScale.Names[Math.Clamp(st.RenderScale, 0, I76.Game.Boot.RenderScale.Names.Length - 1)], () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
+                Row(r, line, "Render Scale", () => I76.Game.Boot.RenderScale.Label(st.RenderScale), () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
                 break;
             // the renderer: Auto, Vulkan, D3D12 (Windows only) or OpenGL, read by Godot at start (an unavailable choice falls back there)
             case GraphicsRow.Renderer:

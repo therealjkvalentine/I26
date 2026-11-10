@@ -63,6 +63,14 @@ public static class DevSettings
     private static readonly string[] TargetNames = [.. TargetSteps.Select(f => f == 0 ? "0" : $"{f}{M}")];
     public static int NearestTargetStep(int fps) => Array.IndexOf(TargetSteps, TargetSteps.MinBy(f => Math.Abs(f - fps)));
 
+    /// <summary>render_scale_cap's step: auto, off, then 512 to 4096 MiB (a number set by hand shows as the nearest of them).</summary>
+    public static int RenderScaleCapStep(int? cap) => cap switch
+    {
+        null => 0,
+        <= 0 => 1,
+        _ => 2 + Math.Clamp((int)Math.Round(Math.Log2(cap.Value / 512.0)), 0, 3),
+    };
+
     /// <summary>vegetation_density's percentages offered, in the key's 10..150 range; a value set by hand shows as the nearest.</summary>
     public static readonly int[] VegetationSteps = [10, 30, 60, 100, 150];
     private static readonly string[] VegetationNames = [.. VegetationSteps.Select(p => p == I76.Formats.Vegetation.VegetationDensity.Default ? $"{p}" : $"{p}{M}")];
@@ -128,6 +136,9 @@ public static class DevSettings
             s => I76.Game.FrameLimiter.Apply(s)),
         new("low_latency_audio", FalseTrue, s => s.LowLatencyAudio ? 1 : 0, (s, v) => s.LowLatencyAudio = v != 0, DevWhen.NextStart),
         new("target_fps", TargetNames, s => NearestTargetStep(s.TargetFps), (s, v) => s.TargetFps = TargetSteps[v], DevWhen.Live),
+        // Render Scale's video memory cap: auto, none, or the view's buffers in MiB (a number set by hand shows as the nearest step)
+        new("render_scale_cap", ["auto" + M, "off", "512" + M, "1024" + M, "2048" + M, "4096" + M], s => RenderScaleCapStep(s.RenderScaleCap),
+            (s, v) => s.RenderScaleCap = v switch { 0 => null, 1 => 0, _ => 128 << v }, DevWhen.Live, s => I76.Game.Boot.RenderScale.Apply(s)),
         new("menu_fps", ["false", "true" + M], s => s.MenuFps ? 1 : 0, (s, v) => s.MenuFps = v != 0, DevWhen.NextScreen),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
         new("even_flash", FalseTrue, s => s.EvenFlash ? 1 : 0, (s, v) => s.EvenFlash = v != 0, DevWhen.Live),
