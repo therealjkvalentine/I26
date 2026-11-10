@@ -10,17 +10,31 @@ public static class LampStrength
 {
     /// <summary>The headlamp spotlights' energy at night.</summary>
     public const float HeadEnergy = 9f;
-    /// <summary>The brake lamps' small red light behind the car, at night.</summary>
-    public const float BrakeLightEnergy = 0.7f;
+    /// <summary>
+    /// The rear lamps' red light on the ground behind the car, at night: a spotlight at each lamp, looking back and down. The tail
+    /// filament throws a faint glow a couple of metres; the brake's, several times as bright, a plain red pool. Small beside the
+    /// headlamps' 9: the pool lies a metre or two from the lamp, where the headlamps' light is spread over 50 m of road (at 1 and 4,
+    /// the first tries, the tail lamps' pool was as bright as the headlamps' road).
+    /// </summary>
+    public const float TailGroundEnergy = 0.06f, BrakeGroundEnergy = 0.8f;
     /// <summary>The lens glow over the lit brake and tail lamp faces, at night.</summary>
     public const float BrakeGlow = 0.9f, TailGlow = 0.4f;
     /// <summary>What is left of each in full sun.</summary>
-    public const float HeadDayFloor = 0.2f, BrakeLightDayFloor = 0.25f, GlowDayFloor = 0.4f;
+    public const float HeadDayFloor = 0.2f, GlowDayFloor = 0.4f;
+    /// <summary>The rear lamps' light on the ground is a night's: none in full sun.</summary>
+    public const float RearGroundDayFloor = 0f;
+
+    /// <summary>
+    /// The rear lamps' ground light at the tail and brake filaments' levels (0 to 1, LampRamp's): the tail's gives way to the
+    /// brake's as it rises, as a dual-filament bulb's does, turned down by day to nothing.
+    /// </summary>
+    public static float RearGround(float tail, float brake, float daylight) =>
+        (TailGroundEnergy * tail * (1f - brake) + BrakeGroundEnergy * brake) * Scale(daylight, RearGroundDayFloor);
 
     /// <summary>
     /// [port] lamp_halo: the lens glows and the glares (the halo round a lit lamp) as a percentage of the strengths above, which
     /// stay the 100 mark; 65 by default, a third under, the owner's "chill out the halo on the lights a bit". The lights themselves
-    /// (the beams on the road, the brake's red light) keep their energy. I76_LAMP_HALO overrides the file for a run.
+    /// (the beams on the road, the rear lamps' red light on the ground) keep their energy. I76_LAMP_HALO overrides the file for a run.
     /// </summary>
     public const int HaloDefault = 65;
     public static int HaloPercent = HaloDefault;
