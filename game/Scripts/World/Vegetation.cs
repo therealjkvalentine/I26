@@ -58,7 +58,7 @@ public partial class VegetationNode : Node3D
         public VegLayer Layer;
         public Task<List<Group>>? Job;
         public List<Group> Groups = [];
-        public List<Group> FarGroups = [];   // the groups merged by species (variant 0's far mesh): the chunk's draws while it lies wholly in the far tier
+        public List<Group> FarGroups = [];   // the groups merged by species (variant 0's meshes): the chunk's draws while it lies wholly in the far tier, or in the middle one far off
         public bool Attached;
         public int Tier = -1;        // every plant in this tier, or 3: split per plant
         public System.Numerics.Vector2 SplitAt;   // where the eye was at the last per-plant split
@@ -81,6 +81,8 @@ public partial class VegetationNode : Node3D
     private const float Resplit = 2.5f;
     /// <summary>I76_VEG_MERGE_FAR=0 draws a far chunk's variants apart, as before (for A/B profiles).</summary>
     private static readonly bool MergeFar = System.Environment.GetEnvironmentVariable("I76_VEG_MERGE_FAR") != "0";
+    /// <summary>A chunk wholly in the middle tier merges its variants too from this far (metres): past the beam's brightest part, where one crown shape a species does not show.</summary>
+    private const float MergeMiddleFrom = 60f;
     public int Instances { get; private set; }
     public int DrawnNodes { get; private set; }
     public string Stats { get; private set; } = "";
@@ -680,12 +682,13 @@ public partial class VegetationNode : Node3D
         c.SplitAt = e2;
         c.GrassOn = GrassReach(c, c.Distance);
         float side = ChunkSize(c.Layer), ox = c.Cx * side, oz = c.Cz * side;
-        // wholly in the far tier: the merged groups, one node a species
-        bool merged = tier == 2 && MergeFar;
+        // wholly in the far tier, or in the middle one and far off (by night the shrubs' middle mesh reaches to their end): the
+        // merged groups, one node a species
+        bool merged = MergeFar && (tier == 2 || (tier == 1 && c.Distance >= MergeMiddleFrom));
         foreach (var g in c.FarGroups)
         {
             bool on = merged && !(c.Layer == VegLayer.Ground && _grass[g.Species] && !c.GrassOn);
-            for (int t = 0; t < 3; t++) Show(c, g, t, on && t == 2 ? g.Buffer : null, g.Count);
+            for (int t = 0; t < 3; t++) Show(c, g, t, on && t == tier ? g.Buffer : null, g.Count);
         }
         foreach (var g in c.Groups)
         {

@@ -52,9 +52,10 @@ public static class VegLevels
         float appear = BushAppear(lampReach);
         float s = MathF.Max(0, appear - l.ShrubFade), f = MathF.Max(0, appear - l.ForbFade);
         l = l with { ShrubFade = l.ShrubFade + s, ShrubEnd = l.ShrubEnd + s, ForbFade = l.ForbFade + f, ForbEnd = l.ForbEnd + f };
-        // at night a shrub's far mesh (a quarter of its clusters) filled in to its middle one at 40-60 m in the beam: there the
-        // far mesh starts only past the lamps' reach and the margin (its cross-fade band wholly beyond it)
-        if (night) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(appear)) };
+        // at night a shrub's far mesh (a quarter of its clusters) filled in to its middle one at 40-60 m in the beam: there no
+        // shrub draws its far mesh (its cross-fade band begins past the shrubs' end; a far band straddling the reach would split
+        // its chunks plant by plant every few metres, main-thread work the frame cannot pay)
+        if (night) l = l with { ShrubFar = MathF.Max(l.ShrubFar, FarFrom(l.ShrubEnd)) };
         return l;
     }
 
