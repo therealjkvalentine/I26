@@ -61,7 +61,8 @@ TACH_RING = dict(center=(209.406, 88.021), radii=(30.958, 29.117), width=2.0,
            (315.0, 2, 100), (318.75, 2, 100), (322.75, 2, 100), (327.0, 2, 100), (352.75, 2, 100), (356.5, 2, 100), (0.25, 2, 100),
            (4.0, 2, 100), (17.25, 2, 100), (23.25, 2, 100)],
     major=(-2.94, 1.25), minor=(-2.19, 1.38), fine=(-1.0, 1.25))
-TICK_WIDTH = 0.6          # texels: the painted ticks are a texel wide; drawn 40 % narrower (the owner's pick, 2026-11-10)
+TICK_WIDTH = 0.5          # texels: the painted ticks are a texel wide; drawn half as wide (the owner's pick, 2026-11-10)
+LINE_SCALE = 0.5          # the 3D dash's scale line (painted 2 texels wide) drawn at this share of its width (the owner's pick)
 TINT = (1.0, 0.975, 1.0)  # the art's greys lean a shade to magenta (r = b, g a little lower)
 
 def grey(v): return [round(v * k, 1) for k in TINT]
@@ -84,7 +85,7 @@ def sweep(ring, pad):
     a = [t[0] for t in ring["ticks"] if t[1] < 2]
     return round((a[0] - pad) % 360, 2), round((a[-1] + pad) % 360, 2)
 
-def ring_ops(ring, outer, tips=None, width=None):
+def ring_ops(ring, outer, tips=None, width=None, line=None):
     """A dial's graduations: the ring's painted texels cut out of the key (from inside the majors' reach to `outer` texels
     past the line), with `tips` (an outer limit) the ticks' bright tips past that filled from the bezel round them; then the
     scale line, and the ticks over it."""
@@ -96,12 +97,12 @@ def ring_ops(ring, outer, tips=None, width=None):
         ops.append({"op": "erase", "rect": rect, "where": {"lum_above": 140, "opaque": True, "ring": dict(geo, inner=outer, outer=tips)}, "grow": 0.4,
                     "halo": {"within": 0.75, "lum_above": 120}, "fill": "inpaint"})
     lf, lt = sweep(ring, 0)
-    ops.append({"op": "lines", "arcs": [{"center": list(ring["center"]), "radii": list(ring["radii"]), "width": ring["width"], "step": 1.0,
+    ops.append({"op": "lines", "arcs": [{"center": list(ring["center"]), "radii": list(ring["radii"]), "width": round(ring["width"] * (LINE_SCALE if line is None else line), 3), "step": 1.0,
                 "colours": [[a, grey(g)] for a, g in ring["line"]], "from": lf, "to": lt}], "alpha": "cover", "under": [0, 0, 0]})
     ops.append({"op": "lines", "segments": tick_segments(ring, width), "cap": "butt", "alpha": "cover", "under": [0, 0, 0]})
     return ops
 
-def dash(textures=("zdash101", "zdash201"), outer=1.75, tips=None, width=None):
+def dash(textures=("zdash101", "zdash201"), outer=1.75, tips=None, width=None, line=None):
     ops, txt = [], []
     lit = dict(colour=[226, 226, 222], alpha="cover", under=[0, 0, 0], **FONT)
     for s, (x0, y0, x1, y1) in SPEEDO:
@@ -112,7 +113,7 @@ def dash(textures=("zdash101", "zdash201"), outer=1.75, tips=None, width=None):
     for s, (cx, cy) in TACH:
         ops.append({"op": "erase", "rect": [cx - 2, cy - 3, cx + 2, cy + 3], "where": {"lum_above": 20, "opaque": True}, "grow": 0.6, "fill": "key"})
         txt.append(dict(op="text", text=s, cap=3.8, center=[cx, cy], **lit))
-    for ring in (SPEEDO_RING, TACH_RING): ops += ring_ops(ring, outer, tips, width)
+    for ring in (SPEEDO_RING, TACH_RING): ops += ring_ops(ring, outer, tips, width, line)
     return {"textures": list(textures),
             "note": "the 3D dashes' speedometer 0-150 and tachometer 0-8 on the dials' keyed faces (the cockpit draws the key black): figures,"
                     " ticks and scale line; written by gen/dials.py",
@@ -170,18 +171,20 @@ TACH6 = [("8", (44, 10, 48, 16)), ("7", (30, 11, 34, 17)), ("6", (18, 16, 22, 22
 def write(name, spec):
     with open(os.path.join(OUT, name), "w", encoding="utf-8") as f: json.dump(spec, f, indent=1); f.write("\n")
 
-def specs(width=None):
-    """{file name: spec} of every gauge spec (width: the ticks' width in texels, TICK_WIDTH by default)."""
-    d301 = dash(("zdash301",), outer=0.5, tips=2.25, width=width)
+def specs(width=None, line=None):
+    """{file name: spec} of every gauge spec (width: the ticks' width in texels, TICK_WIDTH by default; line: the 3D dash's
+    scale line's share of its painted width, LINE_SCALE by default)."""
+    d301 = dash(("zdash301",), outer=0.5, tips=2.25, width=width, line=line)
     d301["note"] += "; zdash301, whose bezel comes up to the ticks' tips"
-    d501 = dash(("zdash501",), outer=1.25, width=width)
+    d501 = dash(("zdash501",), outer=1.25, width=width, line=line)
     d501["note"] += "; zdash501, whose bezel comes within a texel and a half of the line"
-    return {"dash-dials.json": dash(width=width), "dash-dials-301.json": d301, "dash-dials-501.json": d501,
+    return {"dash-dials.json": dash(width=width, line=line), "dash-dials-301.json": d301, "dash-dials-501.json": d501,
             "zspeedo6.json": overlay("zspeedo6", SPEEDO6, 5, "the speedometer's figures and ticks over the world (the external instruments and the 2D dash): keyed white", SPEEDO6_TICKS, width),
             "ztach6.json": overlay("ztach6", TACH6, 7, "the tachometer's figures and ticks over the world (the external instruments and the 2D dash)", TACH6_TICKS, width)}
 
 if __name__ == "__main__":
-    # --out DIR --tick-width W: a variant's specs written elsewhere (the spec folder holds the pick's)
+    # --out DIR --tick-width W --line-scale L: a variant's specs written elsewhere (the spec folder holds the pick's)
     if "--out" in sys.argv: OUT = sys.argv[sys.argv.index("--out") + 1]
     w = float(sys.argv[sys.argv.index("--tick-width") + 1]) if "--tick-width" in sys.argv else None
-    for name, spec in specs(w).items(): write(name, spec)
+    ls = float(sys.argv[sys.argv.index("--line-scale") + 1]) if "--line-scale" in sys.argv else None
+    for name, spec in specs(w, ls).items(): write(name, spec)

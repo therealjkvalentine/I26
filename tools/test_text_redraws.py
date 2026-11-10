@@ -467,5 +467,26 @@ class DialTests(unittest.TestCase):
         left, right = out[:, :40 * s][ink[:, :40 * s]], out[:, 40 * s:][ink[:, 40 * s:]]
         self.assertGreater(left[:, 0].mean(), left[:, 2].mean()); self.assertGreater(right[:, 2].mean(), right[:, 0].mean())
 
+    def test_the_scale_line_is_drawn_at_its_share_of_the_painted_width_and_stays_whole(self):
+        """The 3D dash's scale line: LINE_SCALE of the painted 2 texels in every dash spec, and drawn at 4x and 8x it is one
+        unbroken band: along the ellipse every 0.25 degree its ink across the line adds up to its width (within 10 %)."""
+        for spec_name, spec in dials.specs().items():
+            arcs = [a for op in spec["ops"] if op["op"] == "lines" for a in op.get("arcs", [])]
+            if not spec_name.startswith("dash-dials"): self.assertEqual(arcs, [], spec_name); continue
+            self.assertEqual([a["width"] for a in arcs], [round(2.0 * dials.LINE_SCALE, 3)] * 2, spec_name)
+        ring = dials.SPEEDO_RING; (cx, cy), (rx, ry) = ring["center"], ring["radii"]
+        arc = [a for op in dials.specs()["dash-dials.json"]["ops"] if op["op"] == "lines" for a in op.get("arcs", [])][0]
+        orig = blank(256, 128, (0, 0, 0), 0)
+        for s in (4, 8):
+            out = tr.apply_ops(np.repeat(np.repeat(orig, s, 0), s, 1), orig, [{"op": "lines", "arcs": [dict(arc, colours=None, colour=[255, 255, 255])], "alpha": "cover"}])
+            lum = out[..., :3].astype(float).mean(axis=2) / 255
+            a0 = float(arc["from"]); span = (float(arc["to"]) - a0) % 360
+            for a in np.arange(a0 + 1, a0 + span - 1, 0.25):
+                t = np.radians(a); ex, ey = np.sin(t) * rx, -np.cos(t) * ry; n = np.hypot(ex, ey)
+                d = np.arange(-2, 2, 1 / (4 * s))                                   # across the line, texels, fine steps
+                xs = ((cx + ex + ex / n * d) * s).astype(int); ys = ((cy + ey + ey / n * d) * s).astype(int)
+                ink = lum[ys, xs].sum() / (4 * s)
+                self.assertAlmostEqual(ink, arc["width"], delta=0.1 * arc["width"] + 0.05, msg=f"{s}x at {a:.2f}")
+
 if __name__ == "__main__":
     unittest.main()
