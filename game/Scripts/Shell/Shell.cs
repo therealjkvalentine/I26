@@ -1537,6 +1537,10 @@ public sealed class ShellSettings
     public int? MirrorRangeChoice { get; set; }
     /// <summary>The port's own, Graphic Detail's Side Mirrors row (I76.Game.Sim.SideMirrorRow): the modern look's side-view mirrors: off, left (the driver's door mirror alone), auto (Both: the door mirrors' painted glass where the car has it), or on, set by hand (also two glasses added to a car without) (shell.cfg [port] side_mirrors; written only when not auto).</summary>
     public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
+    /// <summary>The port's own, Graphic Detail's Mirror Rate row (I76.Game.Sim.MirrorRateRow): how often the modern look's mirrors are drawn, alternate (the default: the rear every second frame, the side mirrors in turn), half (every mirror every second frame) or full (every frame) (shell.cfg [port] mirror_rate; written only when not alternate).</summary>
+    public I76.Game.Sim.MirrorRate MirrorRate { get; set; } = I76.Game.Sim.MirrorRate.Alternate;
+    /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0 the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not the default).</summary>
+    public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -1855,6 +1859,8 @@ public sealed class ShellSettings
         // no version step: absent, the rear mirror alone (the original's), 90 degrees across, the whole outer band, 45 degrees to each side
         // absent, auto (the door mirrors' own glass where the car has it); before it, absent was off; left, the driver's alone (the Side Mirrors row)
         s.SideMirrors = I76.Game.Sim.SideMirrorRow.Parse(c.GetValue("port", "side_mirrors", "auto").ToString());
+        s.MirrorRate = I76.Game.Sim.MirrorRateRow.Parse(c.GetValue("port", "mirror_rate", "alternate").ToString());
+        s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
         s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
@@ -2028,6 +2034,8 @@ public sealed class ShellSettings
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
         if (I76.Game.Sim.SideMirrorRow.Word(SideMirrors) is { } sideMirrors) c.SetValue("port", "side_mirrors", sideMirrors);
+        if (I76.Game.Sim.MirrorRateRow.Word(MirrorRate) is { } mirrorRate) c.SetValue("port", "mirror_rate", mirrorRate);
+        if (MirrorRound != I76.Game.Sim.MirrorRound.DefaultRadius) c.SetValue("port", "mirror_round", MirrorRound);
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);

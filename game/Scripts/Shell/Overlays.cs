@@ -606,7 +606,7 @@ public sealed class GraphicsScreen : OverlayScreen
         }
         else Add(246, 438, "Back", Back, Small);
         // the last line: the frame rate these settings would give, from the last mission's ([port] menu_fps; the modern look's only)
-        if (Shell.Settings.MenuFps)
+        if (Shell.Settings.MenuFps && line < GraphicsPages.Lines - 1)
         {
             var record = I76.Game.Ui.FpsRecord.Read(ProjectSettings.GlobalizePath(I76.Game.Ui.FpsRecord.File));
             var fps = Add(200, LineY(GraphicsPages.Lines - 1), () => Shell.Settings.Look1997 ? "" : I76.Game.Ui.FpsLabels.Estimated(Estimate(record)), null);
@@ -720,6 +720,10 @@ public sealed class GraphicsScreen : OverlayScreen
                 Row(r, line, "Vegetation", () => veg[Math.Clamp(st.Vegetation, 0, 2)], () => st.Vegetation = (st.Vegetation + 1) % 3);
                 break;
             // the modern look's SSAO ([port] ambient_occlusion); applies in a mission
+            // [port] mirror_rate (MirrorRateRow): how often the modern look's mirrors are drawn; from the next mission
+            case GraphicsRow.MirrorRate:
+                Row(r, line, "Mirror Rate", () => I76.Game.Sim.MirrorRateRow.Names[(int)st.MirrorRate], () => st.MirrorRate = (I76.Game.Sim.MirrorRate)(((int)st.MirrorRate + 1) % I76.Game.Sim.MirrorRateRow.Names.Length));
+                break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;

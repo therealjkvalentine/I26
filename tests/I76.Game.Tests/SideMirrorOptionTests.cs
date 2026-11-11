@@ -79,6 +79,45 @@ public class SideMirrorOptionTests
         Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.SideMirrors, true));
     }
 
+    [Fact]
+    public void TheMirrorRateReadsBackAndAlternateIsNotWritten()
+    {
+        foreach (var r in Enum.GetValues<MirrorRate>()) Assert.Equal(r, MirrorRateRow.Parse(MirrorRateRow.Word(r)));
+        Assert.Null(MirrorRateRow.Word(MirrorRate.Alternate));
+        Assert.Equal(MirrorRate.Alternate, MirrorRateRow.Parse("nonsense"));
+        Assert.Equal(MirrorRate.Alternate, new ShellSettings().MirrorRate);
+        Assert.Equal(["Alternate*", "Half", "Full*"], MirrorRateRow.Names);
+        var to = new ShellSettings();
+        GraphicsPages.Copy(GraphicsRow.MirrorRate, new ShellSettings { MirrorRate = MirrorRate.Full }, to);
+        Assert.Equal(MirrorRate.Full, to.MirrorRate);
+    }
+
+    /// <summary>Over eight frames: how often the rear mirror and each side are drawn (the tick every second frame, the sides' turn flipping each tick).</summary>
+    private static (int Rear, int L, int R) Count(MirrorRate rate, bool rightSeen = true)
+    {
+        int rear = 0, l = 0, r = 0;
+        bool tick = false, turn = false;
+        for (int f = 0; f < 8; f++)
+        {
+            tick = !tick;
+            if (tick) turn = !turn;
+            if (MirrorRateRow.Draws(rate, tick)) rear++;
+            if (MirrorRateRow.Draws(rate, tick, side: true, turn: turn, otherSeen: rightSeen)) l++;
+            if (rightSeen && MirrorRateRow.Draws(rate, tick, side: true, turn: !turn, otherSeen: true)) r++;
+        }
+        return (rear, l, r);
+    }
+
+    [Fact]
+    public void FullDrawsEveryFrameHalfEverySecondAlternateTheSidesInTurn()
+    {
+        Assert.Equal((8, 8, 8), Count(MirrorRate.Full));
+        Assert.Equal((4, 4, 4), Count(MirrorRate.Half));
+        Assert.Equal((4, 2, 2), Count(MirrorRate.Alternate));
+        // a side alone in view (the other out of view or Left): every second frame under Alternate too
+        Assert.Equal((4, 4, 0), Count(MirrorRate.Alternate, rightSeen: false));
+    }
+
     /// <summary>A 10 cm box 1.4 m from the eye, <paramref name="yaw"/> degrees right of the view's axis (negative left) and <paramref name="pitch"/> up, in the camera's frame (the view down -z).</summary>
     private static Vector3[] Box(float yaw, float pitch = -5f, float distance = 1.4f)
     {

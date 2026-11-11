@@ -147,6 +147,40 @@ public static class SideMirrorRow
 }
 
 /// <summary>
+/// [port] mirror_rate, Graphic Detail's Mirror Rate row (the modern look's mirrors, the rear one and the side mirrors' own cameras):
+/// Alternate (the default, unwritten), the rear mirror every second frame as the original draws it and the side mirrors in turn on
+/// those frames (each every fourth, a side alone in view every second); Half, every mirror every second frame (both sides on the same
+/// frame); Full, every mirror every frame. The 1997 look keeps the original's every second frame.
+/// </summary>
+public enum MirrorRate { Alternate, Half, Full }
+
+public static class MirrorRateRow
+{
+    public static readonly string[] Names = ["Alternate*", "Half", "Full*"];
+
+    public static MirrorRate Parse(string? word) => word?.Trim().ToLowerInvariant() switch
+    {
+        "half" => MirrorRate.Half,
+        "full" => MirrorRate.Full,
+        _ => MirrorRate.Alternate,
+    };
+
+    /// <summary>The key's word; null for alternate, the default, which is not written.</summary>
+    public static string? Word(MirrorRate r) => r switch { MirrorRate.Half => "half", MirrorRate.Full => "full", _ => null };
+
+    /// <summary>
+    /// Whether a mirror is drawn this frame: <paramref name="tick"/> the original's every second frame; a side mirror under Alternate
+    /// on its turn, or on every tick when the other side is not drawn (<paramref name="otherSeen"/> false); every frame under Full.
+    /// </summary>
+    public static bool Draws(MirrorRate rate, bool tick, bool side = false, bool turn = true, bool otherSeen = true) => rate switch
+    {
+        MirrorRate.Full => true,
+        MirrorRate.Half => tick,
+        _ => tick && (!side || turn || !otherSeen),
+    };
+}
+
+/// <summary>
 /// Whether a mirror's glass is in the driver's view this frame (the modern look draws a mirror's picture only then: a glass out of
 /// view, or hidden with the interior, gets no render). The test is the frustum's four sides, each through the eye: the glass is out
 /// of view when its box's corners all lie outside one of them, or all behind the eye. A box across a side's corner can pass when the

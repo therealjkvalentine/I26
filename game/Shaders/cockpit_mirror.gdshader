@@ -32,6 +32,37 @@ uniform float fov_tan = 1.0;
 // a door mirror's own glass (MirrorGlass): the band's view over the whole face (pane), UV the glass as the driver sees it (0..1 left to right, foot to top)
 uniform bool pane = false;
 
+// the modern look's rounder corners (MirrorRound, I76_MIRROR_ROUND): the frame's outline and the glass's, each a trapezoid in the art's
+// pixels shrunk by its corner's radius; the rounded shape is within that radius of it
+uniform bool round_corners = false;
+uniform vec2 art_px = vec2(256.0, 64.0);
+uniform vec2 outer_tl; uniform vec2 outer_tr; uniform vec2 outer_br; uniform vec2 outer_bl;
+uniform vec2 inner_tl; uniform vec2 inner_tr; uniform vec2 inner_br; uniform vec2 inner_bl;
+uniform float outer_r = 0.0;
+uniform float inner_r = 0.0;
+// the added side glasses: the glass is the inner shape alone (the art's frame narrowed to the inner shape's inset), not the art's glass
+uniform bool glass_from_shape = false;
+
+// the signed distance to a convex quad (negative inside), corners in order
+float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
+	vec2 v[4] = vec2[4](a, b, c, d);
+	float dist = dot(p - v[0], p - v[0]);
+	float s = 1.0;
+	for (int i = 0, j = 3; i < 4; j = i, i++) {
+		vec2 e = v[j] - v[i], w = p - v[i];
+		vec2 q = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+		dist = min(dist, dot(q, q));
+		bvec3 cond = bvec3(p.y >= v[i].y, p.y < v[j].y, e.x * w.y > e.y * w.x);
+		if (all(cond) || all(not(cond))) s = -s;
+	}
+	return s * sqrt(dist);
+}
+
+// inside a rounded shape (its core's distance less the radius), over one screen pixel
+float rounded(float sd) {
+	return clamp(0.5 - sd / max(fwidth(sd), 1e-4), 0.0, 1.0);
+}
+
 // a field's 0.5 contour over one screen pixel
 float cut(float f) {
 	return clamp((f - 0.5) / max(fwidth(f), 1e-4) + 0.5, 0.0, 1.0);
@@ -60,6 +91,13 @@ void fragment() {
 		if (solid <= 0.0) discard;
 		// the art's own marks on the glass (the cross-hair) are drawn from it, not cut
 		float glass = texture(art, auv).a >= 0.5 && e.g > 0.75 ? 0.0 : g;
+		if (round_corners) {
+			vec2 p = auv * art_px;
+			solid = min(solid, rounded(sd_quad(p, outer_tl, outer_tr, outer_br, outer_bl) - outer_r));
+			if (solid <= 0.0) discard;
+			float inner = rounded(sd_quad(p, inner_tl, inner_tr, inner_br, inner_bl) - inner_r);
+			glass = glass_from_shape ? inner : min(glass, inner);
+		}
 		ALBEDO = mix(texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
 		ALPHA = solid;
 	} else {

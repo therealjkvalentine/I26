@@ -5,7 +5,7 @@ public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
     SideMirrors, AntiAliasing, FieldOfView, VSync, MaxFps,
-    Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, HoodGloss,
+    Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D,
 }
 
@@ -29,7 +29,7 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
             GraphicsRow.SideMirrors, GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsRow.AmbientOcclusion, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
     ];
 
     /// <summary>The original's rows: the sheet's first seven.</summary>
@@ -118,6 +118,7 @@ public static class GraphicsPages
             case GraphicsRow.ExtInstruments: t.Graphics[0xe] = f.Graphics[0xe]; break;
             case GraphicsRow.RearMirror: t.Graphics[0xd] = f.Graphics[0xd]; break;
             case GraphicsRow.SideMirrors: t.SideMirrors = f.SideMirrors; break;
+            case GraphicsRow.MirrorRate: t.MirrorRate = f.MirrorRate; break;
             case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;
