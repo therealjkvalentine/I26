@@ -14,6 +14,8 @@ self-contained static site that works from any sub-path (relative links only), f
     --deny      an optional file of extra regular expressions (one a line) that must not appear in the built text
                 (or env I26_CHANGES_DENY); kept outside the repository, for words that must not be committed either
     --rescan    rebuild the cached index of the evidence folder
+    --hold      withhold the pictures of these overrides.json lists, comma-separated: original_game (captures of
+                the original 1997 game), flat_textures (texture sheets laid out flat); default: hold nothing
 
 Needs Pillow (with WebP) and ffmpeg on PATH. Reads git only; no network.
 """
@@ -26,6 +28,7 @@ VID_EXT = (".mp4", ".webm")
 MAX_SIDE, MAX_PIXELS, WEBP_Q = 4096, 9_000_000, 80
 VID_WIDTH, VID_CRF = 1720, 33
 MAXPER, MAXVID, CL_MIN = 8, 3, 1.9
+HOLDABLE = ("original_game", "flat_textures")   # overrides.json lists that --hold can withhold
 
 # Text that must never reach the public page: local paths, private addresses, mail addresses, internal folders.
 PRIVATE = [r"[A-Za-z]:\\", r"/Users/", r"/home/", r"\\\\[A-Za-z]", r"_scratch", r"\b192\.168\.", r"\b10\.\d+\.\d+\.\d+\b",
@@ -323,7 +326,13 @@ def build():
     sha = git("rev-parse", "--short=8", A.ref).strip()
     built = datetime.date.today().isoformat()
     excluded = ov.get("public_exclude", {})
-    stats = {"img": 0, "vid": 0, "excluded": [], "used": []}
+    stats = {"img": 0, "vid": 0, "excluded": [], "used": [], "held": []}
+    held = {}
+    for cls in A.hold:
+        if cls not in HOLDABLE:
+            sys.exit("--hold: unknown class %r (known: %s)" % (cls, ", ".join(HOLDABLE)))
+        for f in ov.get(cls, []):
+            held.setdefault(f, cls)
     blocks = []
     for s in secs:
         sid = s["id"]
@@ -354,6 +363,9 @@ def build():
         for x in [x for x in files if x[0] in excluded]:
             stats["excluded"].append((sid, x[0]))
         files = [x for x in files if x[0] not in excluded]
+        withheld = [x for x in files if x[0] in held]
+        stats["held"] += [[sid, held[x[0]], x[0]] for x in withheld]
+        files = [x for x in files if x[0] not in held]
         ims = sorted([x for x in files if x[0].lower().endswith(IMG_EXT)],
                      key=lambda x: 0 if re.search(r"sheet|review|before.?after|compar", os.path.basename(x[0]), re.I) else 1)[:MAXPER]
         vds = [x for x in files if x[0].lower().endswith(VID_EXT)][:MAXVID]
@@ -371,7 +383,7 @@ def build():
         figs = [fig_img(f, caption(f, c, ov)) for f, c in ims] + [fig_vid(f, caption(f, c, ov)) for f, c in vds]
         if figs:
             parts.append('<div class="imgs">' + "".join(figs) + "</div>")
-        if not ims:
+        if not ims and not withheld:
             parts.append('<p class="set">No screenshot for this change (code, tests or documents).</p>')
         stats["used"] += [[sid, f] for f, _ in ims + vds]
         stats["img"] += len(ims)
@@ -410,14 +422,15 @@ def build():
     open(os.path.join(A.out, ".nojekyll"), "w").close()
     # which evidence file each published media file came from, for auditing; kept in the cache, never published
     json.dump(stats["used"], open(os.path.join(A.cache, "media-map.json"), "w", encoding="utf-8"), indent=1)
+    json.dump(stats["held"], open(os.path.join(A.cache, "held.json"), "w", encoding="utf-8"), indent=1)
     deny = list(PRIVATE)
     if A.deny and os.path.exists(A.deny):
         deny += [ln.strip() for ln in open(A.deny, encoding="utf-8") if ln.strip() and not ln.startswith("#")]
     text = re.sub(r'(src|href)="media/[0-9a-f]{12}\.(webp|mp4)"', "", page)
     hits = [(p, m.group(0)) for p in deny for m in re.finditer(p, text, re.I if p not in PRIVATE else 0)]
     size = sum(os.path.getsize(os.path.join(A.out, "media", f)) for f in os.listdir(os.path.join(A.out, "media")))
-    print("sections %d, with pictures %d, images %d, clips %d, excluded %d, media %.1f MB"
-          % (len(blocks), nimg, stats["img"], stats["vid"], len(stats["excluded"]), size / 1e6))
+    print("sections %d, with pictures %d, images %d, clips %d, excluded %d, held %d, media %.1f MB"
+          % (len(blocks), nimg, stats["img"], stats["vid"], len(stats["excluded"]), len(stats["held"]), size / 1e6))
     if hits:
         print("PRIVATE TEXT FOUND, do not publish:", file=sys.stderr)
         for p, m in hits[:40]:
@@ -435,7 +448,9 @@ def main():
     ap.add_argument("--repo", default=os.path.abspath(os.path.join(HERE, "..", "..")))
     ap.add_argument("--ref", default="main")
     ap.add_argument("--rescan", action="store_true")
+    ap.add_argument("--hold", default="", help="comma-separated overrides.json lists whose pictures are withheld: " + ", ".join(HOLDABLE))
     A = ap.parse_args()
+    A.hold = [x.strip() for x in A.hold.split(",") if x.strip()]
     if not A.evidence or not A.out:
         ap.error("--evidence and --out (or I26_EVIDENCE_ROOT and I26_CHANGES_OUT) are required")
     A.evidence, A.out = os.path.abspath(A.evidence), os.path.abspath(A.out)

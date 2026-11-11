@@ -18,7 +18,7 @@ H.264 at 1720 px wide without sound. The page uses relative links only, so it wo
 
 ```
 git worktree add ../gh-pages gh-pages            # once; the branch holds only the built site
-python3 tools/changes-page/build.py --evidence /path/to/evidence --out ../gh-pages
+python3 tools/changes-page/build.py --evidence /path/to/evidence --out ../gh-pages --hold original_game,flat_textures
 cd ../gh-pages && git add -A && git commit -m "Changes page: main <sha>"
 git push <your fork remote> gh-pages
 ```
@@ -37,7 +37,14 @@ folder after new work lands. Needs Python 3 with Pillow (WebP support) and ffmpe
   e-mail address. `--deny FILE` (or `I26_CHANGES_DENY`) adds patterns of your own, one regular expression a line,
   from a file kept outside the repository.
 
-Pictures that set the original 1997 game beside I26 are listed in `overrides.json` `original_game` and captioned so.
+Two lists in `overrides.json` hold pictures closest to showing the game's own art: `original_game` (sheets with
+captures of the original 1997 game beside I26) and `flat_textures` (texture sheets and atlases laid out flat).
+`--hold original_game,flat_textures` withholds them; a section left with no picture shows its text alone. The public
+build is made with both held until it is decided otherwise. Without `--hold` everything is included, and the
+`original_game` pictures are captioned as such. The build writes what it held to `held.json` in the cache.
+
+A picture that is held or excluded must never reach the `gh-pages` history: if one was published by mistake, rebuild
+and replace the branch with a single new orphan commit rather than adding a commit that deletes it.
 
 ## Publishing
 

@@ -1,5 +1,5 @@
 {
- "_note": "Hand-kept. titles: plain-language titles. desc: descriptions where the changelog match is poor. lane_hint: evidence lane folders where bare file names in commit Evidence lines live. files: pictures matched by hand for sections whose commits carry no Evidence line ([path under the evidence folder, caption]). exclude: base names to drop. public_exclude: pictures never published, with the reason. original_game: pictures that include captures of the original 1997 game (captioned as such).",
+ "_note": "Hand-kept. titles: plain-language titles. desc: descriptions where the changelog match is poor. lane_hint: evidence lane folders where bare file names in commit Evidence lines live. files: pictures matched by hand for sections whose commits carry no Evidence line ([path under the evidence folder, caption]). exclude: base names to drop. public_exclude: pictures never published, with the reason. original_game: pictures that include captures of the original 1997 game (captioned as such). flat_textures: texture sheets and atlases laid out flat. Both lists can be withheld with --hold.",
  "titles": {
   "A": "Fixes reported upstream (spawn bob, camera cuts, mission music, smoke flicker, six-wheelers, fences and more)",
   "B": "Behaviour measured against the original game (AI turning, timers, rockets, mirrors, engine pitch)",
@@ -396,6 +396,34 @@
   "r8-night-4/shots/sheet_station.png",
   "r8-night-4/shots/sheet_t12.png",
   "r8-target-box/sheet-target-box-chase.png",
-  "r8-target-box/sheet-target-box-cockpit.png"
+  "r8-target-box/sheet-target-box-cockpit.png",
+  "r9-loading/sheets/standby-crops.png"
+ ],
+ "flat_textures": [
+  "r3-counter-digits/counter-digits.png",
+  "r3-font-redraws/survey-cars.jpg",
+  "r3-font-redraws/survey-cockpit.jpg",
+  "r3-font-redraws/survey-world.jpg",
+  "r5-cockpit-art/1-front-armour.png",
+  "r5-cockpit-art/2-lights.png",
+  "r5-world-art/sheet-cutouts-textures.png",
+  "r5-world-art/sheet-pumps-textures.png",
+  "r7-badge/texture-sheet.png",
+  "r7-damage-panel/work/zoom-apex.png",
+  "r7-dash-aa/crops/sheet-curve.png",
+  "r7-dash-aa/crops/sheet-down.png",
+  "r7-wheel-light/sheets/sheet-wa11.png",
+  "r7-wheel-light/sheets/sheet-wa81.png",
+  "r8-car-t09/survey-sheet.png",
+  "r8-car-t09/tex-sheet.png",
+  "r8-compass/texture-sheet.png",
+  "r8-damage-panel-2/sheet-damage-panel-2.png",
+  "r8-dial-ticks/texture-sheet.png",
+  "r8-mips/tex-sheet.png",
+  "r8-relettering-2/texture-sheet-milk.png",
+  "r8-sign-fletcher/texture-sheet.png",
+  "r9-damage-front/sheet-damage-front.png",
+  "r9-damage-front/work/hyp-compare.png",
+  "r9-dial-thin/texture-sheet-line.png"
  ]
 }
