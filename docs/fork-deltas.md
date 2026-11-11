@@ -12,6 +12,9 @@ brackets, where the branch names are. A fidelity fix (I26 made to match the orig
 Every deliberate difference has a row in docs/deviations.md. Network games use protocol 28 and save snapshot 25: this
 build does not play with upstream's builds or 0.11.0.
 
+Each section's before/after pictures are on the changes page, built by `tools/changes-page/build.py` and published from
+the `gh-pages` branch (see tools/changes-page/README.md).
+
 ## Looks and lighting
 
 - The modern look's lighting is calibrated per mission against the 1997 look's: the ground shows the original's colour and brightness, the frame goes through the display's own curve instead of Filmic, the cars keep the original's paint colours (`[port] lighting_calibration`, on; `off` or `filmic`). [I, K]
