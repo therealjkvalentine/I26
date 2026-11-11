@@ -69,6 +69,7 @@ public partial class Cockpit : Node
 
     public override void _Ready()
     {
+        Panels.Prefetch();
         LoadArt();
         _rng = new System.Random();
         var shellSettings = I76.Game.Shell.ShellSettings.Load();
@@ -91,8 +92,9 @@ public partial class Cockpit : Node
 
     private void LoadArt()
     {
-        // a pack's upscales of the frames below, decoded together on worker threads (done already when the build prefetched them)
-        Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>(), rgba: true);
+        // a pack's upscales of the frames below, read together on worker threads (done already when the build prefetched them); a .dds
+        // goes to the GPU as stored, so none is decompressed
+        Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>());
         _wheelFrames = Frames("zswls{0}{1:00}", 36);
         _armR = Frames("zhr45{0}{1:00}", 6);
         _armL = Frames("zhl45{0}{1:00}", 6);
@@ -114,6 +116,7 @@ public partial class Cockpit : Node
     /// </summary>
     private void ArtSwapped()
     {
+        Panels.Prefetch();
         Panels.Reload();
         LoadArt();
         MirrorFill();
@@ -147,19 +150,27 @@ public partial class Cockpit : Node
     public bool LookingBack => Active && (_state >= 6 || _pose == FreeLook.Pose.Rear);
 
     /// <summary>
-    /// A strip's frames as textures. A pack's frames (wider than the original's) get their mipmaps and are read filtered in the modern
+    /// A strip's frames as textures. A pack's frames (wider than the original's) have their mipmaps and are read filtered in the modern
     /// look (MaterialLibrary.OverrideTexture filtered, object.gdshaderinc albedo_frames): point-sampled from the full-size level, the
-    /// 8x wheel's rim and the arms' edges stepped and shimmered as they turned. The originals stay point-sampled, as the rest of the art.
+    /// 8x wheel's rim and the arms' edges stepped and shimmered as they turned. A pack's .dds goes as stored, block-compressed with its
+    /// own mipmaps (TextureFactory.UpscaleImage): decompressed to RGBA8 with mipmaps made here, an 8x frame took four times the video
+    /// memory. The originals stay point-sampled, as the rest of the art.
     /// </summary>
     private (string? Member, ImageTexture?[] Tex, bool Filtered) Frames(string pattern, int n)
     {
         var member = Resolver.FindByStem(string.Format(pattern, 1, 1));
         int baseW = member is not null && Textures.GetOriginalRgba(member) is { } o ? o.Width : int.MaxValue;
         var imgs = new Image?[n + 1];
-        for (int i = 1; i <= n; i++) imgs[i] = Image(string.Format(pattern, LightVariant, i));
+        var stored = new bool[n + 1];
+        for (int i = 1; i <= n; i++)
+        {
+            string stem = string.Format(pattern, LightVariant, i);
+            if (Resolver.FindByStem(stem) is { } m && Textures.UpscaleImage(m) is { } up) { imgs[i] = up; stored[i] = true; }
+            else imgs[i] = Image(stem);
+        }
         // I76_FRAMES_POINT=1: a pack's frames point-sampled as before (a capture's before | after)
         bool filtered = System.Environment.GetEnvironmentVariable("I76_FRAMES_POINT") != "1" && imgs.Any(im => im is not null && im.GetWidth() > baseW);
-        if (filtered) System.Threading.Tasks.Parallel.ForEach(imgs.OfType<Image>(), im => im.GenerateMipmaps());
+        if (filtered) System.Threading.Tasks.Parallel.For(1, n + 1, i => { if (!stored[i]) imgs[i]?.GenerateMipmaps(); });
         var tex = new ImageTexture?[n + 1];
         for (int i = 1; i <= n; i++) if (imgs[i] is { } img) tex[i] = ImageTexture.CreateFromImage(img);
         return (member, tex, filtered);

@@ -21,24 +21,44 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// prop and car maps): they are keyed to the original's texel grid, and their maps are sampled by UV over any upscale.</param>
     public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, Color KeyColour, RoadRaster.Tex Base);
 
-    /// <summary>An upscale: its texels fitted from a picture (RGBA8, stored order), or a .dds as stored (Gpu; its texels decompressed when asked).</summary>
-    private sealed class HdPic(int width, int height, RoadRaster.Tex? rgba, Image? gpu)
+    /// <summary>
+    /// An upscale: its texels fitted from a picture (RGBA8, stored order: they are the picture, kept), or a .dds as stored (Gpu). A .dds's
+    /// texels are decompressed when asked and not kept: the painter keeps its own copy (an 8x cockpit texture is 8 MB of RGBA8, which
+    /// was held twice for the mission and its restarts). A Prefetch's decode on a worker is held until it is first taken.
+    /// Safe from several threads: one decode of a picture runs at a time, and a decode held is taken once.
+    /// </summary>
+    private sealed class HdPic
     {
-        public readonly int Width = width, Height = height;
-        public readonly Image? Gpu = gpu;
-        private RoadRaster.Tex? _rgba = rgba;
-        public long Size => (Gpu?.GetDataSize() ?? 0) + (_rgba?.Rgba.LongLength ?? 0);
-        public RoadRaster.Tex Rgba
+        public readonly int Width, Height;
+        public readonly Image? Gpu;
+        private readonly RoadRaster.Tex? _fitted;
+        private readonly HeldDecode<RoadRaster.Tex>? _texels;
+
+        public HdPic(int width, int height, RoadRaster.Tex? rgba, Image? gpu)
         {
-            get
-            {
-                if (_rgba is not null) return _rgba;
-                var im = (Image)Gpu!.Duplicate();
-                im.ClearMipmaps();
-                im.Decompress();
-                im.Convert(Image.Format.Rgba8);
-                return _rgba = new RoadRaster.Tex(Width, Height, im.GetData());
-            }
+            (Width, Height, Gpu) = (width, height, gpu);
+            if (gpu is null) _fitted = rgba;
+            else _texels = new(Decompress);
+        }
+
+        public long Size => (Gpu?.GetDataSize() ?? 0) + (_fitted?.Rgba.LongLength ?? 0) + (_texels?.Held?.Rgba.LongLength ?? 0);
+
+        /// <summary>Its texels, RGBA8 in the stored order: the fitted picture, or the .dds decompressed (a decode held, taken).</summary>
+        public RoadRaster.Tex Rgba => _fitted ?? _texels!.Take();
+
+        /// <summary>Decompresses a .dds now (a Prefetch's worker), for the next <see cref="Rgba"/> to take.</summary>
+        public void DecodeAhead() => _texels?.Ahead();
+
+        /// <summary>A .dds whose texels are not held now.</summary>
+        public bool NotHeld => _texels is { Holds: false };
+
+        private RoadRaster.Tex Decompress()
+        {
+            var im = (Image)Gpu!.Duplicate();
+            im.ClearMipmaps();
+            im.Decompress();
+            im.Convert(Image.Format.Rgba8);
+            return new RoadRaster.Tex(Width, Height, im.GetData());
         }
     }
 
@@ -63,8 +83,19 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private readonly Dictionary<string, RoadRaster.Tex?> _rgba = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HdPic?> _hd = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>A texture's RGBA (index 255 keyed to alpha 0), for CPU-side painting; the upscale's where one is served.</summary>
+    /// <summary>
+    /// A texture's RGBA (index 255 keyed to alpha 0), for CPU-side painting; the upscale's where one is served. A pack's .dds is
+    /// decompressed for each call and not kept here (the caller keeps what it paints from): ask once.
+    /// </summary>
     public RoadRaster.Tex? GetRgba(string member) => Hd && HdOf(member) is { } h ? h.Rgba : Original(member);
+
+    /// <summary>
+    /// The member's upscale as the GPU takes it while one is served: a .dds as stored (block-compressed, with its mipmaps), the
+    /// factory's own picture (read only: not to be changed or disposed). Null for a fitted picture, a .dds without mipmaps or the
+    /// original: those are painted from <see cref="GetRgba"/>. For a texture of its own (the cockpit's wheel and arm frames), so an
+    /// 8x frame is not sent as RGBA8 with mipmaps made on the CPU (four times the video memory).
+    /// </summary>
+    public Image? UpscaleImage(string member) => Hd && HdOf(member) is { Gpu: { } g } && g.HasMipmaps() ? g : null;
 
     /// <summary>The original's RGBA whatever is served (index 255 keyed to alpha 0): what analyses keyed to its texel grid read.</summary>
     public RoadRaster.Tex? GetOriginalRgba(string member) => Original(member);
@@ -76,10 +107,11 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private readonly string _scope = $"{resolver.Vfs.Install.Root}|{resolver.Vfs.Install.MapDir}|{(palette is null ? "-" : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(palette.Rgb)))}|";
 
     /// <summary>
-    /// Whether the textures made are kept for the editor session (I76.Formats.Vfs.SessionStore): only with no upscale pack, as a look
-    /// flip repaints the textures made under one (SetMode1997). The originals' RGBA are always kept.
+    /// Whether the member's texture is kept for the editor session (I76.Formats.Vfs.SessionStore): unless the pack has an upscale of
+    /// it, whose texture is this factory's own as a look change repaints it (SetHd). Before, any pack installed kept none of them. The
+    /// originals' RGBA are always kept.
     /// </summary>
-    private static bool Stored => HdTextures.Source is null;
+    private static bool Stored(string member) => !HdTextures.Has(member);
 
     private RoadRaster.Tex? Original(string member)
     {
@@ -116,7 +148,8 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <summary>
     /// Decodes and fits the upscales of the members not made yet on worker threads (a model's or a scene's textures, before its
     /// materials ask for them one at a time). Nothing touches the renderer.
-    /// <paramref name="rgba"/>: they are painted on the CPU (GetRgba), so a .dds is decompressed there too.
+    /// <paramref name="rgba"/>: they are painted on the CPU (GetRgba), so a .dds is decompressed there too, made before or not, and held
+    /// until GetRgba takes it.
     /// </summary>
     /// <summary>
     /// The workers a Prefetch from this thread may use (0: as many as the pool gives). The mission's build sets half the cores:
@@ -130,21 +163,24 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         // a folder's files are read on the workers too; a zip's here
         bool anywhere = HdTextures.ReadAnywhere;
         var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed)>();
+        // made before (a model's face, a restart's kit, the look changed back): a .dds's texels are not kept, so they are decoded again here
+        var again = new List<HdPic>();
         foreach (var m in members.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (_hd.ContainsKey(m)) continue;
+            if (_hd.TryGetValue(m, out var had)) { if (rgba && had is { NotHeld: true }) again.Add(had); continue; }
             if (Bled(m) is not { } b) { _hd[m] = null; continue; }
             var f = anywhere ? null : HdTextures.Read(m);
             if (!anywhere && f is null) { _hd[m] = null; continue; }
             todo.Add((m, f, b, GreyedOf(m)));
         }
-        if (todo.Count == 0) return;
+        if (todo.Count + again.Count == 0) return;
         var made = new HdPic?[todo.Count];
-        System.Threading.Tasks.Parallel.For(0, todo.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
+        System.Threading.Tasks.Parallel.For(0, todo.Count + again.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
         {
+            if (i >= todo.Count) { again[i - todo.Count].DecodeAhead(); return; }
             if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
             made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
-            if (rgba) _ = made[i]?.Rgba;
+            if (rgba) made[i]?.DecodeAhead();
         });
         for (int i = 0; i < todo.Count; i++) _hd[todo[i].Member] = made[i];
     }
@@ -224,7 +260,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     public Entry? Get(string member)
     {
         if (_cache.TryGetValue(member, out var e)) return e;
-        e = Stored ? I76.Formats.Vfs.SessionStore.GetOrAdd("tex|" + _scope + member, () => Make(member), x => x is null ? 0 : x.Base.Rgba.LongLength * 5 / 2) : Make(member);
+        e = Stored(member) ? I76.Formats.Vfs.SessionStore.GetOrAdd("tex|" + _scope + member, () => Make(member), x => x is null ? 0 : x.Base.Rgba.LongLength * 5 / 2) : Make(member);
         _cache[member] = e;
         return e;
     }
@@ -300,13 +336,21 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     {
         if (on == Hd) return;
         Hd = on;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        int swapped = 0;
         foreach (var (member, e) in _cache)
         {
             if (e is null || HdOf(member) is not { } h) continue;
+            // both pictures of each are kept from the first change on: the next change is a swap, paid for in memory (a choice, not
+            // an oversight: re-reading the pack would make every change as slow as the first; the log line below says what is held)
             if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Picture(h), Prepare(Bled(member)!).Img);
             e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
+            swapped++;
         }
+        double texMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         Swapped?.Invoke();
+        GD.Print($"look change: {(on ? "upscales" : "originals")} on {swapped} textures in {texMs:0} ms, art redrawn by {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms; "
+            + $"both pictures held: the pack's {_looks.Values.Sum(p => (long)p.Modern.GetDataSize()) >> 20} MB, the originals' {_looks.Values.Sum(p => (long)p.Faithful.GetDataSize()) >> 20} MB");
     }
 
     /// <summary>What index 255 decodes to in the original (its first keyed texel's colour, before any bleed).</summary>
