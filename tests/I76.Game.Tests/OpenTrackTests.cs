@@ -44,9 +44,9 @@ public class OpenTrackTests
 
     [Fact] public void LinuxLooksOnPathThenTheUsualPlaces()
     {
-        var c = OpenTrack.Candidates("", Os.Linux, Env(("PATH", "/usr/bin:/home/u/bin".Replace(':', Path.PathSeparator))), "/home/u").Select(p => p.Replace('\\', '/')).ToList();
-        Assert.Equal(["/usr/bin/opentrack", "/home/u/bin/opentrack", "/usr/local/bin/opentrack", "/usr/bin/opentrack", "/opt/opentrack/bin/opentrack",
-            "/home/u/.local/bin/opentrack"], c);
+        var c = OpenTrack.Candidates("", Os.Linux, Env(("PATH", "/usr/bin:/users/u/bin".Replace(':', Path.PathSeparator))), "/users/u").Select(p => p.Replace('\\', '/')).ToList();
+        Assert.Equal(["/usr/bin/opentrack", "/users/u/bin/opentrack", "/usr/local/bin/opentrack", "/usr/bin/opentrack", "/opt/opentrack/bin/opentrack",
+            "/users/u/.local/bin/opentrack"], c);
         Assert.DoesNotContain(c, p => p.EndsWith(".exe"));
     }
 
@@ -81,8 +81,8 @@ public class OpenTrackTests
             dirs("C:/U/Documents/opentrack-2.3"), Files())?.Replace('\\', '/'));
         Assert.Equal("D:/ot/ini", OpenTrack.ProfileDir(Os.Windows, "D:/ot/opentrack.exe", "C:/U/Documents", "",
             dirs("C:/U/Documents/opentrack-2.3", "D:/ot/ini"), Files("D:/ot/portable.txt"))?.Replace('\\', '/'));
-        Assert.Equal("/home/u/.config/opentrack-2.3", OpenTrack.ProfileDir(Os.Linux, null, "/home/u/Documents", "/home/u/.config",
-            dirs("/home/u/.config/opentrack-2.3"), Files())?.Replace('\\', '/'));
+        Assert.Equal("/users/u/.config/opentrack-2.3", OpenTrack.ProfileDir(Os.Linux, null, "/users/u/Documents", "/users/u/.config",
+            dirs("/users/u/.config/opentrack-2.3"), Files())?.Replace('\\', '/'));
         Assert.Null(OpenTrack.ProfileDir(Os.MacOS, null, "/Users/u/Documents", "/Users/u/.config", dirs(), Files()));   // never run: none yet
     }
 
