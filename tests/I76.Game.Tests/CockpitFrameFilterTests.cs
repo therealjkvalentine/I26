@@ -56,9 +56,13 @@ public class CockpitFrameFilterTests
     public void APacksFramesGetMipmapsAndAreFilteredTheOriginalsNot()
     {
         var pit = Repo("game", "Scripts", "Sim", "Cockpit.cs");
-        // filtered only when a frame is wider than the original's (a pack served), with mipmaps made for it
+        // filtered only when a frame is wider than the original's (a pack served): a pack's .dds goes as stored with its own mipmaps
+        // (block-compressed, not RGBA8), any other frame gets mipmaps made for it
         Assert.Contains("im.GetWidth() > baseW", pit);
-        Assert.Contains("if (filtered) System.Threading.Tasks.Parallel.ForEach(imgs.OfType<Image>(), im => im.GenerateMipmaps());", pit);
+        Assert.Contains("Textures.UpscaleImage(m) is { } up) { imgs[i] = up; stored[i] = true; }", pit);
+        Assert.Contains("if (filtered) System.Threading.Tasks.Parallel.For(1, n + 1, i => { if (!stored[i]) imgs[i]?.GenerateMipmaps(); });", pit);
+        var tf = Repo("game", "Scripts", "Assets", "TextureFactory.cs");
+        Assert.Contains("HdOf(member) is { Gpu: { } g } && g.HasMipmaps() ? g : null", tf);
         Assert.Contains("filtered: _wheelFrames.Filtered", pit);
         Assert.Contains("filtered: a.Axis == 1 ? shot.Filtered : raise.Filtered", pit);
     }

@@ -86,6 +86,12 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         return Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
     }
 
+    /// <summary>
+    /// A pack's textures of the panels and their sheets (every block of the layout) decompressed together on worker threads, ahead of
+    /// the first draws or a Reload: the factory does not keep a .dds's texels, so each load would decode it alone on the main thread.
+    /// </summary>
+    public void Prefetch() => textures.Prefetch(layout.Blocks.Select(b => Member(b.Texture)).OfType<string>(), rgba: true);
+
     /// <summary>A loaded texture's texels per original pixel.</summary>
     private int ScaleOf(string tex) => _scales.GetValueOrDefault(tex, 1);
 

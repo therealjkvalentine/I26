@@ -16,8 +16,6 @@ namespace I76.Game.Assets;
 /// </summary>
 public static class HdTextures
 {
-    private static HdSource? _source;
-    private static bool _probed;
 
     /// <summary>Any upscale is served: either size not 0 (the modern look draws the pack's upscales; the 1997 look never does).</summary>
     public static bool Enabled => _world != 0 || _car != 0;
@@ -37,7 +35,7 @@ public static class HdTextures
         get => _car;
         set { value = Normalize(value); if (value != _car) { _car = value; Forget(); } }
     }
-    private static void Forget() { _probed = false; _source = null; _worldChain = _carChain = []; }
+    private static void Forget() { lock (Gate) _state = null; }
 
     // the textures of the vehicles' models (MeshBuilder marks them as it loads a car): a car's kind, not the world's
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Cars = new(StringComparer.OrdinalIgnoreCase);
@@ -142,39 +140,69 @@ public static class HdTextures
     public static (int World, int Car) Pick(bool has4x, bool has8x, long? memoryMb, bool sharedMemory) =>
         DefaultOn(has4x, memoryMb) ? (HdPackFolders.DefaultSize, PickCar(has4x, has8x, memoryMb, sharedMemory)) : (0, 0);
 
-    public static HdSource? Source { get { Probe(); return _source; } }
+    public static HdSource? Source => State.Source;
     /// <summary>A pack was found.</summary>
     public static bool Installed => Source is not null;
 
-    // the folders a world texture and a car's or the cockpit's are looked in, in order (HdPackFolders.ChainFor); one source each for I76_TEX_DIR or a zip
-    private static HdSource[] _worldChain = [], _carChain = [];
+    /// <summary>
+    /// What the probe found, as one value: the pack and the folders a world texture and a car's or the cockpit's are looked in, in order
+    /// (HdPackFolders.ChainFor; one source each for I76_TEX_DIR or a zip). Swapped whole, so a mission's build thread and the main thread
+    /// asking at once both see a finished probe (one found the pack, the other saw none while it was being listed).
+    /// </summary>
+    private sealed record Probed(HdSource? Source, HdSource[] World, HdSource[] Car);
+    private static volatile Probed? _state;
+    private static readonly object Gate = new();
 
-    private static void Probe()
+    private static Probed State
     {
-        if (_probed) return;
-        _probed = true;
+        get
+        {
+            if (_state is { } s) return s;
+            lock (Gate) return _state ??= Probe(_world, _car);
+        }
+    }
+
+    private static Probed Probe(int worldSize, int carSize)
+    {
+        HdSource? source;
+        HdSource[] worldChain = [], carChain = [];
         var env = System.Environment.GetEnvironmentVariable("I76_TEX_DIR") is { Length: > 0 } d ? Path.Combine(d, "world") : null;
         // a kind at 0 (1997) reads nothing, but the pack is still found (the rows are shown when one is there)
-        var world = HdPackFolders.Chain(_world == 0 ? HdPackFolders.DefaultSize : _world, UserHas);
-        var car = HdPackFolders.Chain(_car == 0 ? HdPackFolders.DefaultSize : _car, UserHas);
-        if (env is not null && Directory.Exists(env)) _source = new HdDirSource(env);
+        var world = HdPackFolders.Chain(worldSize == 0 ? HdPackFolders.DefaultSize : worldSize, UserHas);
+        var car = HdPackFolders.Chain(carSize == 0 ? HdPackFolders.DefaultSize : carSize, UserHas);
+        if (env is not null && Directory.Exists(env)) source = new HdDirSource(env);
         else if (world.Length + car.Length > 0)
         {
             // one source per folder, shared by the two chains; the log's source is every folder, largest first
             var folders = world.Concat(car).Distinct().OrderByDescending(HdPackFolders.SizeOf).ToArray();
             var sources = folders.ToDictionary(f => f, f => (HdSource)new HdDirSource(ProjectSettings.GlobalizePath($"user://{f}/")));
-            _source = folders.Length == 1 ? sources[folders[0]] : new HdChainSource(folders.Select(f => sources[f]));
-            _worldChain = _world == 0 ? [] : [.. world.Select(f => sources[f])];
-            _carChain = _car == 0 ? [] : [.. car.Select(f => sources[f])];
+            source = folders.Length == 1 ? sources[folders[0]] : new HdChainSource(folders.Select(f => sources[f]));
+            worldChain = worldSize == 0 ? [] : [.. world.Select(f => sources[f])];
+            carChain = carSize == 0 ? [] : [.. car.Select(f => sources[f])];
         }
         else
         {
             var exe = I76.Formats.Installers.ExtractionPlaces.AppFolder(OS.GetExecutablePath());
-            _source = HdPackFinder.Newest(new[] { exe, ProjectSettings.GlobalizePath("user://") }.OfType<string>(), w => GD.Print($"HD textures: {w}"), "i76-hd-*.zip", "tex-world/");
+            source = HdPackFinder.Newest(new[] { exe, ProjectSettings.GlobalizePath("user://") }.OfType<string>(), w => GD.Print($"HD textures: {w}"), "i76-hd-*.zip", "tex-world/");
         }
-        if (world.Length + car.Length == 0 && _source is { } one) { _worldChain = _world == 0 ? [] : [one]; _carChain = _car == 0 ? [] : [one]; }
-        GD.Print(_source is null ? "HD textures: none (no I76_TEX_DIR/world, user://tex-world-Nx/, user://tex-world/ or i76-hd-*.zip with tex-world/)"
-            : $"HD textures: {_source.Origin} ({_source.Count} files); world {(_world == 0 ? "1997" : string.Join(" over ", world))}, cars and dash {(_car == 0 ? "1997" : string.Join(" over ", car))}");
+        if (world.Length + car.Length == 0 && source is { } one) { worldChain = worldSize == 0 ? [] : [one]; carChain = carSize == 0 ? [] : [one]; }
+        GD.Print(source is null ? "HD textures: none (no I76_TEX_DIR/world, user://tex-world-Nx/, user://tex-world/ or i76-hd-*.zip with tex-world/)"
+            : $"HD textures: {source.Origin} ({source.Count} files); world {(worldSize == 0 ? "1997" : string.Join(" over ", world))}, cars and dash {(carSize == 0 ? "1997" : string.Join(" over ", car))}");
+        return new Probed(source, worldChain, carChain);
+    }
+
+    /// <summary>
+    /// Whether the member has an upscale in the pack for its kind's size (a file in any format; whatever the switch or the look): a
+    /// texture the factory may swap (TextureFactory.SetHd). A lookup in the folders' lists, no read.
+    /// </summary>
+    public static bool Has(string member)
+    {
+        var s = State;
+        if (s.Source is null) return false;
+        foreach (var src in KindOf(member) == TextureKind.World ? s.World : s.Car)
+            foreach (var rel in HdTexture.Candidates(member))
+                if (src.Exists(rel)) return true;
+        return false;
     }
 
     /// <summary>The member's upscale decoded to RGBA8 (rows top-down), or null for none or one that does not decode (whatever the switch: the factory decides what it serves).</summary>
@@ -186,10 +214,11 @@ public static class HdTextures
 
     public static (string Name, byte[] Bytes)? Read(string member)
     {
-        if (Source is null) return null;
+        var s = State;
+        if (s.Source is null) return null;
         // the texture's kind's chain (a partial 8x over the 4x for the cars and the dash; none for a kind at 1997): the first folder that
         // has the texture in any format, so a .png of the 8x beats a .dds of the 4x
-        foreach (var src in KindOf(member) == TextureKind.World ? _worldChain : _carChain)
+        foreach (var src in KindOf(member) == TextureKind.World ? s.World : s.Car)
             foreach (var rel in HdTexture.Candidates(member))
                 if (src.Read(rel) is { } b) return (rel, b);
         return null;

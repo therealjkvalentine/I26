@@ -47,8 +47,17 @@ public sealed class HdChainSource : HdSource
     public IReadOnlyList<HdSource> Sources => _sources;
     public override string Origin => string.Join(" over ", _sources.Select(s => s.Origin));
     // a file the 8x and the 4x both have is one file (the 8x's): the names of all of them, each once, counted once
-    private int? _count;
-    public override int Count => _count ??= Names.Count();
+    // counted once; a count asked from two threads at once may be counted twice, never read half-written (-1: not yet)
+    private int _count = -1;
+    public override int Count
+    {
+        get
+        {
+            int c = System.Threading.Volatile.Read(ref _count);
+            if (c < 0) System.Threading.Volatile.Write(ref _count, c = Names.Count());
+            return c;
+        }
+    }
     public override IEnumerable<string> Names => _sources.SelectMany(s => s.Names).Distinct(StringComparer.OrdinalIgnoreCase);
     public override bool Exists(string rel) => _sources.Any(s => s.Exists(rel));
     public override byte[]? Read(string rel)
