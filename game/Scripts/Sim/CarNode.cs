@@ -130,6 +130,9 @@ public partial class CarNode : Node3D
     /// <summary>Whether the car has a cockpit model; one without (the Armadillo) is driven from the chase view.</summary>
     public bool HasInterior { get; private set; }
     public MeshInstance3D? CockpitMesh => _cockpit;
+    /// <summary>The interior's door mirror heads (housing and glass), each its own mesh under the cockpit's, left first.</summary>
+    public IReadOnlyList<(MeshInstance3D Mesh, bool Left)> MirrorHeads => _mirrorHeads;
+    private readonly List<(MeshInstance3D Mesh, bool Left)> _mirrorHeads = [];
     /// <summary>The render layer of the interior (the mirror's camera leaves it out).</summary>
     public const uint CockpitLayer = 4;
     /// <summary>Every visual under a car (body, wheels, lamps, weapons): ground decals (oil, scorch) leave this layer out, so they paint the road, not the cars on it.</summary>
@@ -202,7 +205,8 @@ public partial class CarNode : Node3D
     /// The in-car view: the vehicle's detail-5 interior and a camera at VLOC[0], the driver's eye. <paramref name="hood"/> builds
     /// the interior's damage-textured parts (the hood's V5 FT TP) for a .TMT entry per face, again as the front zone is hit.
     /// </summary>
-    public void AddCockpit(Mesh? interior, System.Numerics.Vector3 eye, Mesh? ring1 = null, Mesh? ring6 = null, Func<Func<string, int>, Mesh?>? hood = null)
+    public void AddCockpit(Mesh? interior, System.Numerics.Vector3 eye, Mesh? ring1 = null, Mesh? ring6 = null, Func<Func<string, int>, Mesh?>? hood = null,
+        IReadOnlyList<(Mesh Mesh, bool Left)>? mirrorHeads = null)
     {
         if (interior is not null && interior.GetSurfaceCount() == 0) interior = null;   // a car with no cockpit model (the Armadillo)
         HasInterior = interior is not null;
@@ -214,6 +218,14 @@ public partial class CarNode : Node3D
             // the hood's gunsight ring, twice (RTC1, the low-resolution one; RTC6): the binoculars swap them
             if (ring1 is not null) { Rtc1 = new MeshInstance3D { Mesh = ring1, Name = "Ring1", Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc1); }
             if (ring6 is not null) { Rtc6 = new MeshInstance3D { Mesh = ring6, Name = "Ring6", Visible = false, Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc6); }
+            // the door mirrors' heads (…MIRL, …MIRR) apart, so the modern look's side mirrors can turn them to the driver (Cockpit, MirrorAim)
+            foreach (var (mesh, left) in mirrorHeads ?? [])
+            {
+                var h = new MeshInstance3D { Mesh = mesh, Name = left ? "MirrorHeadL" : "MirrorHeadR", Layers = CockpitLayer };
+                _cockpit.AddChild(h);
+                if (Paint is not null) ApplyPaint(h);
+                _mirrorHeads.Add((h, left));
+            }
         }
         Eye = Coords.ToGodot(eye);
         CockpitCamera = new Camera3D { Name = "Eye", Position = Eye, Fov = 70, Near = 0.05f, Far = 20000, CullMask = 0xFFFFFu & ~OwnBodyLayer };
@@ -299,7 +311,16 @@ public partial class CarNode : Node3D
     }
 
     /// <summary>The interior's bounds in the car's frame, the hood included.</summary>
-    public Aabb? CockpitBounds => _cockpit?.Mesh is not { } m ? null : _hood?.Mesh is { } h ? m.GetAabb().Merge(h.GetAabb()) : m.GetAabb();
+    public Aabb? CockpitBounds
+    {
+        get
+        {
+            if (_cockpit?.Mesh is not { } m) return null;
+            var b = _hood?.Mesh is { } h ? m.GetAabb().Merge(h.GetAabb()) : m.GetAabb();
+            foreach (var (head, _) in _mirrorHeads) if (head.Mesh is { } hm) b = b.Merge(hm.GetAabb());
+            return b;
+        }
+    }
 
     private bool _inCar, _dash3d = true, _ghost, _bodyForMirrors;
     private uint? _bodyLayers;
@@ -418,6 +439,7 @@ public partial class CarNode : Node3D
         Paint = paint is { IsNone: true } ? null : paint;
         foreach (var m in BurntMeshes()) ApplyPaint(m);
         foreach (var m in new[] { _cockpit, _hood }) if (m is not null) ApplyPaint(m);
+        foreach (var (h, _) in _mirrorHeads) ApplyPaint(h);
     }
 
     private void ApplyPaint(MeshInstance3D m)

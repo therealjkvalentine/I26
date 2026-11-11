@@ -1396,17 +1396,22 @@ public partial class Cockpit : Node
         // the side-view mirrors' one wide render (MirrorBands): the rear mirror's band keeps its 1024 columns across its 45 degrees
         var (glass, quads) = MirrorBands.Shown(_sideMirrors, Glass.Count > 0);
         bool wide = !_faithful && (glass || quads);
-        float fov = wide ? MirrorBands.Fov(_mirrorFov) : MirrorCameraSettings.FovDegrees;
-        _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(wide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
+        float sideFov = MirrorBands.Fov(_mirrorFov);
+        // with the side mirrors drawn by their own cameras the rear render shows its own 45 degrees alone: the same picture as the
+        // wide render's middle band (the same 1024 columns across them), without the 90-degree pass's outer bands nobody sees
+        // (I76_MIRROR_REAR_WIDE=1 draws it wide as before, for a measurement)
+        bool rearWide = wide && (_sideRender != SideMirrorRender.Own || RearWideHook);
+        float fov = rearWide ? sideFov : MirrorCameraSettings.FovDegrees;
+        _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(rearWide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
         _mirrorCam.Fov = fov;
-        var rear = wide ? MirrorBands.Rear(fov) : (0f, 1f);
+        var rear = rearWide ? MirrorBands.Rear(fov) : (0f, 1f);
         MirrorBand = new Vector2(rear.Item1, rear.Item2);
         _mirrorMat.SetShaderParameter("band", MirrorBand);
         _mirrorMat.SetShaderParameter("faithful", _faithful);
         _mirrorMat.SetShaderParameter("hidden", _mirrorMode == 0);
-        SideMirrors(wide && quads, fov);
-        GlassMirrors(wide && glass, fov);
-        OwnCameras(wide && _sideRender == SideMirrorRender.Own);
+        SideMirrors(wide && quads, sideFov);
+        GlassMirrors(wide && glass, sideFov);
+        OwnCameras(wide && _sideRender == SideMirrorRender.Own, quads);
         // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
         // material, relief or asphalt for a camera without it), as for the shadow passes
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF;
@@ -1460,6 +1465,7 @@ public partial class Cockpit : Node
     /// The mirror's cadence: every second frame, as the original's (docs/deviations.md); I76_MIRROR_RATE=1 every frame in the modern
     /// look, as it was before (perf survey). I76_MIRROR_SSAO=1 gives it the world's environment; I76_MIRROR_FOG=0 no fog at 100 m.
     /// </summary>
+    private static readonly bool RearWideHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_REAR_WIDE") == "1";
     private static readonly bool MirrorEveryFrame = System.Environment.GetEnvironmentVariable("I76_MIRROR_RATE") == "1";
     private static readonly bool MirrorWorldEnv = System.Environment.GetEnvironmentVariable("I76_MIRROR_SSAO") == "1";
     private static readonly bool MirrorFog = System.Environment.GetEnvironmentVariable("I76_MIRROR_FOG") != "0";
@@ -1609,6 +1615,8 @@ public partial class Cockpit : Node
     private void GlassMirrors(bool on, float fov)
     {
         if (on && _glass.Count == 0) MakeGlass();
+        // the heads turned to the driver while their glass shows the view (MirrorAim); the art's own place otherwise, the 1997 look's
+        foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
         foreach (var r in _rims) r.Visible = on && _mirrorMode != 0;
         foreach (var g in _glass)
         {
@@ -1628,17 +1636,23 @@ public partial class Cockpit : Node
     /// </summary>
     private void MakeGlass()
     {
-        if (Node3D.CockpitMesh is not { } host || _mirrorMat is null) return;
+        if (Node3D.CockpitMesh is not { } cockpit || _mirrorMat is null) return;
         var eye = Node3D.Eye;
         var gameEye = new System.Numerics.Vector3(eye.X, eye.Y, -eye.Z);
+        Aim();
         foreach (var pane in Glass)
         {
-            var (uvs, aspect) = I76.Formats.Assembly.MirrorGlass.Picture(pane, gameEye);
+            // under the door mirror's head, so the glass and its rim turn with it; the picture as the driver sees the turned glass
+            Node3D host = Node3D.MirrorHeads.FirstOrDefault(h => h.Left == pane.Left).Mesh ?? cockpit;
+            var (turn, pivot) = _aimTurn[pane.Left ? 0 : 1];
+            var seen = pane with { Faces = pane.Faces.Select(f => f.Select(p => pivot + System.Numerics.Vector3.Transform(p - pivot, turn)).ToArray()).ToList() };
+            var near = _aim[pane.Left ? 0 : 1].Turn.AffineInverse() * eye;   // the eye in the head's frame
+            var (uvs, aspect) = I76.Formats.Assembly.MirrorGlass.Picture(seen, gameEye);
             var v = new List<Vector3>();
             var t = new List<Vector2>();
             for (int f = 0; f < pane.Faces.Count; f++)
             {
-                var pts = pane.Faces[f].Select(q => { var g = Coords.ToGodot(q); return g + (eye - g).Normalized() * 0.003f; }).ToArray();
+                var pts = pane.Faces[f].Select(q => { var g = Coords.ToGodot(q); return g + (near - g).Normalized() * 0.003f; }).ToArray();
                 for (int k = 1; k + 1 < pts.Length; k++)
                     foreach (var i in new[] { 0, k, k + 1, 0, k + 1, k })
                     {
@@ -1661,7 +1675,7 @@ public partial class Cockpit : Node
             _glass.Add((mi, mat, pane.Left, aspect, centre));
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
-            var shifted = pane.Faces.Select(f => f.Select(q => { var g = Coords.ToGodot(q); return g + (eye - g).Normalized() * 0.004f; }).ToArray()).ToList();
+            var shifted = pane.Faces.Select(f => f.Select(q => { var g = Coords.ToGodot(q); return g + (near - g).Normalized() * 0.004f; }).ToArray()).ToList();
             foreach (var loop in MirrorRim.Outline(shifted))
             {
                 var (rv, ruv) = MirrorRim.Ring(loop, MirrorRim.Width(loop));
@@ -1676,6 +1690,62 @@ public partial class Cockpit : Node
                 _rims.Add(rim);
             }
         }
+    }
+
+    /// <summary>Each side's picture (the own camera's forward) and its head's turn (in the car's frame, Godot axes), made once by Aim; left first.</summary>
+    private readonly (Transform3D Turn, Vector3 Forward)[] _aim = [(Transform3D.Identity, OwnCamera.ForwardGodot(true, OwnCamera.YawDegrees, OwnCamera.PitchDegrees)), (Transform3D.Identity, OwnCamera.ForwardGodot(false, OwnCamera.YawDegrees, OwnCamera.PitchDegrees))];
+    /// <summary>The same turns in game axes, about their pivots, for the glass's picture as the driver sees it.</summary>
+    private readonly (System.Numerics.Quaternion Q, System.Numerics.Vector3 Pivot)[] _aimTurn = [(System.Numerics.Quaternion.Identity, default), (System.Numerics.Quaternion.Identity, default)];
+    private bool _aimed;    private static readonly (bool Art, float InwardL, float InwardR) AimHook = MirrorAim.Hook(System.Environment.GetEnvironmentVariable("I76_MIRROR_AIM"));
+
+    /// <summary>
+    /// Each side mirror aimed from the driver's eye (MirrorAim): the picture back along the side with the flank a sliver at its inner
+    /// edge, and the door mirror's head (where the car has one) turned about its middle to the plane that reflects the eye's ray into it.
+    /// </summary>
+    private void Aim()
+    {
+        if (_aimed) return;
+        _aimed = true;
+        var eye = Node3D.Eye;
+        var gameEye = new System.Numerics.Vector3(eye.X, eye.Y, -eye.Z);
+        var body = Node3D.BodyBounds;
+        for (int i = 0; i < 2; i++)
+        {
+            bool left = i == 0;
+            float s = left ? -1 : 1;
+            var pane = Glass.FirstOrDefault(p => p.Left == left);
+            var at = OwnCameraBase(left, pane);
+            var cam = new System.Numerics.Vector3(at.X + s * OwnAim.Outboard, at.Y, -at.Z);
+            float inward = left ? AimHook.InwardL : AimHook.InwardR;
+            float yaw = AimHook.Art ? OwnAim.Yaw : MirrorAim.YawDegrees(left, cam, left ? -body.Position.X : body.End.X, -body.End.Z, OwnAim.Fov, 2 * inward);
+            var turn = Transform3D.Identity;
+            if (!AimHook.Art && pane is not null && Node3D.MirrorHeads.FirstOrDefault(h => h.Left == left).Mesh is { Mesh: { } hm })
+            {
+                // about the glass's middle, as a door mirror's glass turns in its housing: the glass stays where the art puts it (the
+                // right one clear of the windscreen pillar; turned about the head's middle it went in behind it) and the housing behind it
+                var all = pane.Faces.SelectMany(f => f).ToArray();
+                var centre = all.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / all.Length;
+                var gamePivot = centre;
+                var pivot = Coords.ToGodot(gamePivot);
+                var q = MirrorAim.Turn(gameEye, centre, pane.Normal, gamePivot, MirrorAim.Axis(left, yaw, OwnAim.Pitch));
+                var basis = new Basis(MirrorAim.ToGodot(q));
+                turn = new Transform3D(basis, pivot - basis * pivot);
+                _aimTurn[i] = (q, gamePivot);
+            }
+            _aim[i] = (turn, OwnCamera.ForwardGodot(left, yaw, OwnAim.Pitch));
+        }
+    }
+
+    /// <summary>Where a side's own camera stands before its outboard step: the door mirror's glass (as the art places it), or a door's height beside the cab.</summary>
+    private Vector3 OwnCameraBase(bool left, I76.Formats.Assembly.MirrorGlass.Pane? pane)
+    {
+        if (pane is not null)
+        {
+            var all = pane.Faces.SelectMany(f => f).ToArray();
+            return Coords.ToGodot(all.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / all.Length);
+        }
+        var bounds = Node3D.CockpitBounds;
+        return new Vector3(left ? (bounds?.Position.X ?? -0.9f) : (bounds?.End.X ?? 0.9f), Node3D.Eye.Y - 0.15f, Node3D.Eye.Z - 0.3f);
     }
 
     /// <summary>The rim's material: the rear mirror frame's colour, the mean of the art's frame rows (MirrorRim.FrameColour).</summary>
@@ -1696,10 +1766,17 @@ public partial class Cockpit : Node
     private readonly Camera3D?[] _ownCams = new Camera3D?[2];
     private static readonly (float Fov, float Yaw, float Outboard, float Pitch) OwnAim = OwnCamera.Aim(System.Environment.GetEnvironmentVariable("I76_OWN_MIRROR"));
     private bool _ownOn;
+    private readonly bool[] _ownUsed = [true, true];
+    private bool _ownTurn;
+    /// <summary>I76_OWN_MIRROR_FAR=metres: the side cameras' reach cut short, for a measurement (the default is the rear mirror's, mirror_range).</summary>
+    private static readonly float? OwnFar = float.TryParse(System.Environment.GetEnvironmentVariable("I76_OWN_MIRROR_FAR"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float of) && of >= 50 ? of : null;
+    private static readonly bool OwnAlternate = System.Environment.GetEnvironmentVariable("I76_OWN_MIRROR_ALT") != "0";
 
     /// <summary>Each side glass (the door mirror's or the added one's) given its own camera's picture whole, or the shared render's band back.</summary>
-    private void OwnCameras(bool on)
+    private void OwnCameras(bool on, bool quads = false)
     {
+        // a side is drawn only where something shows it: its door mirror's glass, or the added glasses (the CC cars have a left glass alone)
+        for (int i = 0; i < 2; i++) _ownUsed[i] = quads || Glass.Any(p => p.Left == (i == 0));
         if (on && _ownViews[0] is null)
             for (int i = 0; i < 2; i++)
             {
@@ -1710,13 +1787,14 @@ public partial class Cockpit : Node
                 _ownViews[i] = vp; _ownCams[i] = cam;
             }
         _ownOn = on;
+        if (on) Aim();
         Node3D.BodyForMirrors(on);
         for (int i = 0; i < 2; i++)
         {
             if (_ownViews[i] is not { } vp || _ownCams[i] is not { } cam) continue;
             if (!on) { vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; continue; }
             bool left = i == 0;
-            cam.Far = OriginalBehavior.MirrorFar(_faithful);
+            cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
             cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF) | CarNode.OwnBodyLayer;
             foreach (var g in _glass.Where(g => g.Left == left)) { g.Mat.SetShaderParameter("view", vp.GetTexture()); g.Mat.SetShaderParameter("band", new Vector2(0, 1)); }
@@ -1738,20 +1816,24 @@ public partial class Cockpit : Node
     private void OwnCamerasFrame(bool draw)
     {
         if (!_ownOn) return;
-        var bounds = Node3D.CockpitBounds;
+        // one side a mirror tick, in turn: each side mirror every fourth frame, the rear one every second (with both every second
+        // frame the two cameras cost 1.6 ms of GPU a frame over the shared render at 3440x1440, docs/deviations.md); a side the
+        // other has no glass for is drawn every tick; I76_OWN_MIRROR_ALT=0 draws both every tick, for a measurement
+        if (draw) _ownTurn = !_ownTurn;
         for (int i = 0; i < 2; i++)
         {
             if (_ownViews[i] is not { } vp || _ownCams[i] is not { } cam) continue;
             bool left = i == 0;
-            var at = _glass.FirstOrDefault(g => g.Left == left) is { Mesh: not null } g ? g.Centre
-                : new Vector3(left ? (bounds?.Position.X ?? -0.9f) : (bounds?.End.X ?? 0.9f), Node3D.Eye.Y - 0.15f, Node3D.Eye.Z - 0.3f);
+            // the glass's middle where the head has turned it (the glass mesh is the head's child)
+            var at = _glass.FirstOrDefault(g => g.Left == left) is { Mesh: not null } g ? (g.Mesh.GetParent() is MeshInstance3D head && head != Node3D.CockpitMesh ? head.Transform * g.Centre : g.Centre)
+                : OwnCameraBase(left, null);
             at.X += left ? -OwnAim.Outboard : OwnAim.Outboard;
             cam.Fov = OwnAim.Fov;
-            var f = OwnCamera.Forward(left, OwnAim.Yaw, OwnAim.Pitch);
-            var forward = new Vector3(f.X, f.Y, f.Z);   // the engine's back is this frame's +Z: no mirroring of the forward's x
+            var forward = _aim[i].Forward;   // the engine's back is this frame's +Z: no mirroring of the forward's x
             var local = Transform3D.Identity.LookingAt(forward, Vector3.Up);
             cam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(local.Basis, at);
-            vp.RenderTargetUpdateMode = draw ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+            bool turn = !OwnAlternate || _ownTurn == left || !_ownUsed[left ? 1 : 0];
+            vp.RenderTargetUpdateMode = draw && _ownUsed[i] && turn ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
         }
     }
 }
