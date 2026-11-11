@@ -3369,6 +3369,8 @@ public partial class Main : Node3D
             return;
         }
         _standBy?.QueueFree(); _standBy = null;
+        // a pack's roads are the modern look's: the 1997 look's are baked from the originals the first time it is drawn (kept after)
+        if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
         _mode1997 = on;
         I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
         _builder?.Terrain?.UseModern(!on);
