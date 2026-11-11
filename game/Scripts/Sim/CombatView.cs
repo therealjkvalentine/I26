@@ -567,31 +567,43 @@ public partial class CombatView : Node3D
         }
     }
 
-    /// <summary>The modern muzzle lights on each weapon (MuzzleReach), re-lit by every shot: the world's and the cabin's, shown for the flash's life.</summary>
-    private readonly Dictionary<Weapon, (OmniLight3D Light, OmniLight3D? Cabin, double Until, double CabinUntil)> _muzzleLights = [];
+    /// <summary>The modern muzzle lights on each weapon (MuzzleReach), re-lit by every shot: the near, the far and the cabin's, shown for the flash's life.</summary>
+    private readonly Dictionary<Weapon, (OmniLight3D Light, SpotLight3D Far, OmniLight3D? Cabin, double Until, double CabinUntil)> _muzzleLights = [];
 
     /// <summary>
-    /// A shot's light (MuzzleReach: [port] muzzle_reach, by the gun and the daylight), ahead of the muzzle along the round's line,
-    /// on everything but the in-car view's own meshes (the hood and cabin, CarNode.CockpitLayer): those keep the light before the
-    /// key (<see cref="MuzzleReach.Before"/>), from a second light of their own when the shot is the camera's car's, so the cockpit's
-    /// hood flashes as it did whatever the reach. A gun's lights are moved and lit again rather than made for every shot, so a
-    /// burst from many cars costs no nodes; they are hidden when their life is out.
+    /// A shot's light (MuzzleReach: [port] muzzle_reach, by the gun and the daylight), on everything but the in-car view's own meshes
+    /// (the hood and cabin, CarNode.CockpitLayer): a near omni light ahead of the muzzle along the round's line, on the firing car
+    /// and the ground at its nose; a far spot light above it, aimed level along the barrel, whose cone stops short of straight
+    /// back, where the car's own body stands between the flash and the ground behind it; and, when the shot is the camera's car's,
+    /// one on the in-car view's own meshes at the light before the key's reach (<see cref="MuzzleReach.Before"/>) and the table's
+    /// cabin energy. A gun's lights are moved and lit again rather than made for every shot, so a burst from many cars costs no
+    /// nodes; they are hidden when their life is out.
     /// </summary>
     private void MuzzleLight(ShotFired s)
     {
-        var f = MuzzleReach.Current(MuzzleReach.Of(s.Weapon.Def.Kind));
+        if (MuzzleReach.Off) return;
         _muzzleLights.TryGetValue(s.Weapon, out var ml);
+        var f = MuzzleReach.Current(MuzzleReach.Of(s.Weapon.Def.Kind));
         if (ml.Light is null || !IsInstanceValid(ml.Light))
         {
             ml.Light = new OmniLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleLight", LightCullMask = 0xFFFFFu & ~CarNode.CockpitLayer };
             AddChild(ml.Light);
+            ml.Far = new SpotLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleFarLight", LightCullMask = 0xFFFFFu & ~CarNode.CockpitLayer };
+            AddChild(ml.Far);
         }
-        var l = ml.Light;
-        l.LightEnergy = f.Energy * ModernFx.FxBright;
-        l.OmniRange = f.Range;
-        l.OmniAttenuation = f.Decay;
-        l.GlobalPosition = G(s.Muzzle + s.Forward * f.Ahead);
-        l.Visible = l.LightEnergy > 0f;
+        var fwd = G(s.Muzzle + s.Forward) - G(s.Muzzle);
+        var level = new Vector3(fwd.X, 0, fwd.Z);
+        var at = G(s.Muzzle + s.Forward * f.Ahead);
+        Lit(ml.Light, f.Near, at, f.Specular);
+        var far = ml.Far;
+        far.LightEnergy = f.Far.Energy * ModernFx.FxBright;
+        far.SpotRange = f.Far.Range;
+        far.SpotAttenuation = f.Far.Decay;
+        far.SpotAngle = f.Cone;
+        far.SpotAngleAttenuation = MuzzleReach.ConeEdge;
+        far.GlobalPosition = at + Vector3.Up * f.Lift;
+        if (level.LengthSquared() > 1e-4f) far.LookAt(far.GlobalPosition + level, Vector3.Up);
+        far.Visible = far.LightEnergy > 0f;
         ml.Until = _t + f.Life;
         if (Inside?.Invoke(s.Shooter) == true)
         {
@@ -601,14 +613,21 @@ public partial class CombatView : Node3D
                 ml.Cabin = new OmniLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleCabinLight", LightCullMask = CarNode.CockpitLayer };
                 AddChild(ml.Cabin);
             }
-            ml.Cabin.LightEnergy = b.Energy * ModernFx.FxBright;
-            ml.Cabin.OmniRange = b.Range;
-            ml.Cabin.OmniAttenuation = b.Decay;
-            ml.Cabin.GlobalPosition = G(s.Muzzle + s.Forward * b.Ahead);
-            ml.Cabin.Visible = true;
+            Lit(ml.Cabin, b.Near with { Energy = f.Cabin }, G(s.Muzzle + s.Forward * b.Ahead), 1f);
             ml.CabinUntil = _t + b.Life;
         }
         _muzzleLights[s.Weapon] = ml;
+
+        // Godot's own specular share for a light is 0.5: the light before the key's
+        static void Lit(OmniLight3D l, MuzzleReach.Lamp lamp, Vector3 at, float specular)
+        {
+            l.LightEnergy = lamp.Energy * ModernFx.FxBright;
+            l.OmniRange = lamp.Range;
+            l.OmniAttenuation = lamp.Decay;
+            l.LightSpecular = 0.5f * specular;
+            l.GlobalPosition = at;
+            l.Visible = l.LightEnergy > 0f;
+        }
     }
 
     private static readonly Color MuzzleColour = new(1f, 0.75f, 0.4f);
@@ -829,9 +848,10 @@ public partial class CombatView : Node3D
             else node.SetInstanceShaderParameter("age", age);
         }
 
-        foreach (var (_, (light, cabin, until, cabinUntil)) in _muzzleLights)
+        foreach (var (_, (light, far, cabin, until, cabinUntil)) in _muzzleLights)
         {
             if (IsInstanceValid(light) && light.Visible && (_t >= until || !IsModern)) light.Visible = false;
+            if (IsInstanceValid(far) && far.Visible && (_t >= until || !IsModern)) far.Visible = false;
             if (cabin is not null && IsInstanceValid(cabin) && cabin.Visible && (_t >= cabinUntil || !IsModern)) cabin.Visible = false;
         }
 

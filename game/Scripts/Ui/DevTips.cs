@@ -52,7 +52,7 @@ public static class DevTips
         "even_flash" => "The 1997 look: a gun's muzzle flash lit at each shot between ticks, so a fast gun flashes evenly.",
         "lamp_ramp" => "The modern look's head, brake and tail lamps warm up and cool down as 1976's bulbs did; off switches them in one frame, as the original.",
         "lamp_halo" => "The modern look's lamp lens glows and glares (the halo round a lit lamp), in percent; 65 is a third under the earlier strength. The beams keep their light.",
-        "muzzle_reach" => "The modern look's muzzle light: how far a shot's flash lights the road, the ground and the cars round it, in percent; 100 at night by the gun (a cannon furthest), a trace by day; 0 the light before the key, on the firing car alone.",
+        "muzzle_reach" => "The modern look's muzzle light: how far a shot's flash lights the ground, the cliffs, the scenery and the cars in front of and beside the gun, in percent; 100 at night by the gun (a cannon furthest), nothing behind the car, a trace by day; 0 the light before the key, on the firing car alone.",
         "dash_light" => "The modern look at night: the speedometer's and tachometer's needles lit as by dash lamps, in percent: 100 as light as by day; 0 leaves them dark, as the original. Off by day.",
         "headlamp_throw" => "How far down the road the modern look's headlamps reach, every car's, in percent; 75 is the reach before the key. The road near the car keeps its light.",
         "rumble" => "Force Feedback's pad events: the original's effects only, or enhanced with pulses for nitrous, gears, the starter and shots.",

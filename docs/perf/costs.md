@@ -306,6 +306,35 @@ the 100 m range as well.
 | look1997 | 3 | 2.40 (-19.29) | 0.17 (-5.90) | 1.24 (-11.78) | 0.00 (-0.47) | 0.44 (+0.08) | 1.02 (-1.98) | 1.28 (-2.17) | 3.51 (-18.59) | 752 (-1669) | 497 (-1214) |
 | map_edge_off | 3 | 21.70 (+0.01) | 6.05 (-0.02) | 13.01 (-0.02) | 0.46 (-0.01) | 0.36 (-0.01) | 2.96 (-0.04) | 3.47 (+0.02) | 22.16 (+0.05) | 2421 (+0) | 1686 (-25) |
 
+## The muzzle light (muzzle_reach) and shadows from the car
+
+Measured 2026-11-10 on this desktop (GTX 1080 Ti at 180 W, 3440x1440, chase view, vsync off, fire held throughout, auto target,
+Unlim. Armor), the frame profiler's 8 s window, two runs of each configuration in alternating order (the second reversed, after
+a warm-up run). GPU ms is the stable figure; the CPU wall time and the main thread (nodes + render recording) moved by up to a
+millisecond between identical runs with the other lanes' load, so their small differences are noise. "None" is no muzzle light
+at all (`I76_MUZZLE_OFF=1`). Scenes: M12 at night driving a straight route alone; the same with four armed AI cars held 45-95 m
+ahead firing back (up to 4 muzzle lights at once, 8 guns); T05's four-car group (the survey's busiest fight; the player alone
+fired there); M12 with two police cars parked ahead, siren bars lit.
+
+| Configuration | M12 alone | M12, four AI cars firing | T05 |
+|---|---|---|---|
+| none: GPU ms | 10.66 | 12.64 | 9.54 |
+| the light before (main: one 16 m omni a gun) | +0.31 | +0.56 | +0.38 |
+| the pick (a 4 m omni and a 65 m forward spot a gun) | +0.36 | +0.64 | +0.41 |
+| the pick, far reach halved (`muzzle_reach` about 50 does the same) | +0.16 | +0.23 | +0.15 |
+| the pick, the AI cars' guns unlit | (+0.36) | +0.31 | (+0.41) |
+| the pick, at most two AI guns lit at once | | +0.49 | |
+| the pick, the far spot casting shadows | +0.55 | +0.93 | +0.69 (n=1) |
+| the pick, the near omni casting shadows (the car body as occluder) | +0.91 (n=1) | +0.96 (n=1) | +0.52 |
+
+The police scene: the siren bars' red and blue lights cost +0.15 ms GPU over the bars unlit (11.61 -> 11.76); casting their
+shadows (the cars' bodies blocking them) adds +0.27 ms GPU and +0.69 ms on the main thread (shadow cube maps re-rendered
+every frame for four flickering lights): 78.1 -> 76.0 fps.
+
+The pick costs what the light before it did, within 0.03-0.08 ms; both are 3-5 % of a 10-13 ms frame, the most with several
+AI cars firing. The forward cone, the car keeping the flash off the ground behind it, is free (a spot costs as an omni);
+real shadows from the firing car cost as much again as the light, so the cone stands in for them.
+
 ## Noise
 
 - 3440x1440: over 42 configurations with 2-3 reps, the max-min spread over reps is median 0.39 ms (p90 0.68) for GPU total, 1.63 ms (p90 3.77) for the main thread's work, 0.47 ms (p90 0.92) for the wall frame time, 3 draw calls.
