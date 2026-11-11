@@ -13,7 +13,7 @@ public static class DevTips
     public static string? Of(string key) => key switch
     {
         "mirror_range" => "Rear mirror reach: the original's 100 m, or the whole view (about 0.2 ms more a frame). Look follows the look in use.",
-        "side_mirrors" => "Modern look: the view behind in the door mirrors' painted glass (Piranha both, CC cars the left), from the one mirror render; on also adds two glasses to cars without; off is the original's.",
+        "side_mirrors" => "Modern look: the view behind in the door mirrors' painted glass (Piranha both, CC cars the left), from the one mirror render; on also adds two glasses to cars without; left the driver's alone (Graphic Detail's Side Mirrors row); off is the original's.",
         "mirror_fov" => "With the side mirrors on, how wide the one mirror render sees, degrees across: the rear mirror keeps its 45, the sides share the rest.",
         "side_mirror_share" => "How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward.",
         "side_mirror_angle" => "Where the side mirrors sit, degrees to the left and right of straight ahead; kept inside the window's view.",

@@ -35,6 +35,9 @@ public static class GraphicsHelp
         GraphicsRow.RearMirror => look1997
             ? "Rear mirror: the original's small mirror, to 100 m. Little cost in the 1997 look."
             : "Rear mirror: a second view, behind. Up to 17 % of a full-detail frame; the original's 100 m is on the Developer panel.",
+        GraphicsRow.SideMirrors => look1997
+            ? "Side mirrors: the modern look's view behind in the door mirrors' glass. The 1997 look paints them, as the original. No cost in the 1997 look."
+            : "Side mirrors: the view behind in the door mirrors (the Piranha's two, the CC cars' left one). Left is the driver's alone; Off paints them, as the original. A mirror out of view is not drawn. Both and Left cost the same: one side picture every second frame, about 4 % of a full-detail frame; Off saves it.",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges). Little cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %.",

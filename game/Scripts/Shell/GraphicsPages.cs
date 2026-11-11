@@ -4,7 +4,7 @@ namespace I76.Game.Shell;
 public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, RearMirror,
-    AntiAliasing, FieldOfView, VSync, MaxFps,
+    SideMirrors, AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D,
 }
@@ -12,8 +12,8 @@ public enum GraphicsRow
 /// <summary>
 /// Graphic Detail's pages (the port's): the sheet keeps the original's rows in the original's order and words (grxdet1.map: Screen
 /// Resolution, Monitor Brightness, Visibility Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the
-/// 1997 renderer's own detail rows are gone), then the port's rows a player reaches for most (Anti-Aliasing, Field of View, VSync,
-/// Max FPS) and, under a blank line, an entry for Advanced: the look (1997 Mode first), the textures, the modern look's extras and
+/// 1997 renderer's own detail rows are gone), then the port's rows a player reaches for most (Side Mirrors by Rear Mirror,
+/// Anti-Aliasing, Field of View, VSync, Max FPS) and an entry for Advanced: the look (1997 Mode first), the textures, the modern look's extras and
 /// start-up. Each fits one sheet with a line to spare. A page is the same sheet with its name, its rows and a way back. The shell's
 /// sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and the shell's
 /// snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the tests check the
@@ -27,7 +27,7 @@ public static class GraphicsPages
     public static readonly GraphicsRow[][] Rows =
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
-            GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
+            GraphicsRow.SideMirrors, GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
             GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
     ];
@@ -43,8 +43,11 @@ public static class GraphicsPages
 
     /// <summary>The sheet's lines: fourteen, 23 px apart from y 118 on the shell's sheet, the pad's rows 1 to 14.</summary>
     public const int Lines = 14;
-    /// <summary>The sheet's entry for Advanced: its line (0-based), a blank line under the sheet's rows.</summary>
-    public static int FirstEntryLine => Rows[Sheet].Length + 1;
+    /// <summary>
+    /// The sheet's entry for Advanced: its line (0-based), a blank line under the sheet's rows where the sheet has one to give (the
+    /// shell's sheet, whose last line is the frame-rate estimate, has none since Side Mirrors: the entry goes straight under the rows).
+    /// </summary>
+    public static int FirstEntryLine => Math.Min(Rows[Sheet].Length + 1, Lines - Rows.Length);
     /// <summary>A page on the shell's sheet: its name on the first line, its rows from the next; the pad prints the name over the art's title and starts its rows on row 1.</summary>
     public const int HeadingLine = 0, FirstRowLine = 1;
 
@@ -114,6 +117,7 @@ public static class GraphicsPages
             case GraphicsRow.ShadowDetail: t.Graphics[0x6] = f.Graphics[0x6]; break;
             case GraphicsRow.ExtInstruments: t.Graphics[0xe] = f.Graphics[0xe]; break;
             case GraphicsRow.RearMirror: t.Graphics[0xd] = f.Graphics[0xd]; break;
+            case GraphicsRow.SideMirrors: t.SideMirrors = f.SideMirrors; break;
             case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;

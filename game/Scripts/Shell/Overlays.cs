@@ -669,6 +669,10 @@ public sealed class GraphicsScreen : OverlayScreen
             case GraphicsRow.RearMirror:
                 ByteRow(r, line, "Rear Mirror", 0xd, ["Off", "Low", "High"]);
                 break;
+            // [port] side_mirrors (SideMirrorRow): the modern look's door mirrors, Off, Left (the driver's) or Both; from the next mission
+            case GraphicsRow.SideMirrors:
+                Row(r, line, "Side Mirrors", () => I76.Game.Sim.SideMirrorRow.Names[I76.Game.Sim.SideMirrorRow.Index(st.SideMirrors)], () => I76.Game.Sim.SideMirrorRow.Step(st));
+                break;
             // the port's MSAA in +0x8, a byte no screen of the original showed
             case GraphicsRow.AntiAliasing:
                 ByteRow(r, line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);

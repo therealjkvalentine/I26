@@ -99,7 +99,7 @@ public static class DevSettings
     public static readonly DevSetting[] All =
     [
         new("mirror_range", Look(OriginalRecipe.MirrorRangeNames), s => OfChoice(s.MirrorRangeChoice), (s, v) => s.MirrorRangeChoice = ToChoice(v), DevWhen.Live),
-        new("side_mirrors", ["off", "on" + M, "auto" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
+        new("side_mirrors", ["off", "on" + M, "auto" + M, "left" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),
         new("side_mirror_angle", MirrorYawNames, s => Nearest(MirrorYawSteps, s.SideMirrorAngle), (s, v) => s.SideMirrorAngle = MirrorYawSteps[v], DevWhen.Live),
