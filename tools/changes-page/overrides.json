@@ -1,0 +1,429 @@
+{
+ "_note": "Hand-kept. titles: plain-language titles. desc: descriptions where the changelog match is poor. lane_hint: evidence lane folders where bare file names in commit Evidence lines live. files: pictures matched by hand for sections whose commits carry no Evidence line ([path under the evidence folder, caption]). exclude: base names to drop. public_exclude: pictures never published, with the reason. original_game: pictures that include captures of the original 1997 game (captioned as such). flat_textures: texture sheets and atlases laid out flat. Both lists can be withheld with --hold.",
+ "titles": {
+  "A": "Fixes reported upstream (spawn bob, camera cuts, mission music, smoke flicker, six-wheelers, fences and more)",
+  "B": "Behaviour measured against the original game (AI turning, timers, rockets, mirrors, engine pitch)",
+  "C": "Fixes backed by kit or spec evidence (tracers, radar, sounds, AI, physics, hit zones and many more)",
+  "C2": "Performance: less garbage and fewer redundant shadow and smoke updates, frames unchanged",
+  "D": "New features, each behind an option (head tracking, saves import, force feedback, handicaps, resolution, Developer panel and more)",
+  "E": "The simulation clock: 24 ticks a second",
+  "G": "Corrections from the original, measured 2 Nov (dropper and turret AI)",
+  "H": "Design-review follow-ups (menu rows, co-op damage, pad rules, scoreboard, telemetry, 2D reticle)",
+  "I": "The playtest's answers, round 3",
+  "J": "The fork rebuilt on upstream's current master",
+  "K": "Round 3 changes rebuilt on the new base (pass 11)",
+  "M": "The cockpit's live textures and the 3x texture pack",
+  "N": "The playtest's answers, round 4",
+  "O": "Map-edge cliffs removed; hood gloss level",
+  "P": "Options pages re-laid; the bass shaker's third round",
+  "Q": "The playtest's answers, round 5 (briefing title, counter digits, shell layout)",
+  "R": "HD pack tool: the family table",
+  "BW": "Debug builds optimised; the frame rate explained",
+  "S": "Performance round 2: the frame-cost survey and the graphics defaults it led to"
+ },
+ "lane_hint": {
+  "CE": [
+   "r8-form-cv-marks"
+  ],
+  "CQ": [
+   "r8-form-key"
+  ],
+  "CT": [
+   "r8-form-key"
+  ],
+  "CF": [
+   "r8-lamps-2"
+  ],
+  "CZ": [
+   "r8-muzzle-reach"
+  ],
+  "BP": [
+   "r7-speeds"
+  ],
+  "BF": [
+   "r7-dash-aa"
+  ],
+  "BK": [
+   "r7-wheel-light"
+  ],
+  "CR": [
+   "r8-accessory-tips"
+  ],
+  "BH": [
+   "r7-bug-report"
+  ]
+ },
+ "exclude": {
+  "BH": [
+   "screenshot.png"
+  ],
+  "CR": [
+   "uw-playopt.png"
+  ]
+ },
+ "files": {
+  "CR": [
+   [
+    "r8-accessory-tips/sheet-3440x1440.png",
+    "Tooltips on the pads, 3440x1440"
+   ],
+   [
+    "r8-accessory-tips/sheet-1280x960.png",
+    "Tooltips on the pads, 1280x960"
+   ]
+  ],
+  "S": [
+   [
+    "r3-gfx-defaults/contact-sheet.jpg",
+    "Graphics defaults, contact sheet"
+   ],
+   [
+    "r3-gfx-defaults/mesa-shadow-before-after.jpg",
+    "Mesa shadow, before and after"
+   ]
+  ],
+  "T": [
+   [
+    "r3-font-redraws/survey-cockpit.jpg",
+    "Redrawn lettering: cockpit"
+   ],
+   [
+    "r3-font-redraws/survey-cars.jpg",
+    "Redrawn lettering: cars"
+   ],
+   [
+    "r3-font-redraws/survey-world.jpg",
+    "Redrawn lettering: world"
+   ]
+  ],
+  "W": [
+   [
+    "r3-1997-parity/sheet-1-moments-before.jpg",
+    "Before"
+   ],
+   [
+    "r3-1997-parity/sheet-2-moments-after.jpg",
+    "After"
+   ],
+   [
+    "r3-1997-parity/sheet-3-edges.jpg",
+    "Edges"
+   ],
+   [
+    "r3-1997-parity/sheet-4-distance-t05.jpg",
+    "Distance, T05"
+   ],
+   [
+    "r3-1997-parity/sheet-5-aa-keyed.jpg",
+    "Keyed edges"
+   ],
+   [
+    "r3-1997-parity/sheet-6-flash-cadence.jpg",
+    "Flash cadence"
+   ]
+  ],
+  "AA": [
+   [
+    "r3-drums-maps/sheet-counter-drums.jpg",
+    "Counter drums"
+   ],
+   [
+    "r3-drums-maps/sheet-maps-ABC.jpg",
+    "HD mission maps"
+   ]
+  ],
+  "AF": [
+   [
+    "r3-drum-feather/sheet-drum-feather.jpg",
+    "Counter drum feathering"
+   ]
+  ],
+  "AH": [
+   [
+    "r4-drum-fade/sheet-drum-fade.jpg",
+    "Counter drum fade"
+   ]
+  ],
+  "AI": [
+   [
+    "r4-coop-form/shots/coop-form-damage-taken.png",
+    "Co-op host form: damage taken"
+   ],
+   [
+    "r4-coop-form/shots/coop-form-extra-enemies.png",
+    "Co-op host form: extra enemies"
+   ]
+  ],
+  "AK": [
+   [
+    "r5-menus/shots/esc-graphic-detail.png",
+    "Graphic Detail"
+   ],
+   [
+    "r5-menus/shots/esc-advanced.png",
+    "Advanced"
+   ],
+   [
+    "r5-menus/shots/esc-controls.png",
+    "Controls"
+   ]
+  ],
+  "AL": [
+   [
+    "r5-menu-art/shots/sheet-before-after.jpg",
+    "Menu art, before and after"
+   ]
+  ],
+  "AO": [
+   [
+    "r5-dash-shudder/shots/trace-before-after.png",
+    "Dash trace, before and after"
+   ],
+   [
+    "r5-dash-shudder/shots/trace-before-after-1997.png",
+    "Dash trace, 1997 look"
+   ]
+  ],
+  "AP": [
+   [
+    "r5-night-light/shots/sheet_t06.png",
+    "Night, T06"
+   ],
+   [
+    "r5-night-light/shots/sheet_t12_m04.png",
+    "Night, T12 and M04"
+   ]
+  ],
+  "AQ": [
+   [
+    "r5-cockpit-art/1-front-armour.png",
+    "Front armour"
+   ],
+   [
+    "r5-cockpit-art/2-lights.png",
+    "Lights"
+   ],
+   [
+    "r5-cockpit-art/3-mirror.png",
+    "Mirror"
+   ],
+   [
+    "r5-cockpit-art/4-controls.png",
+    "Controls page"
+   ]
+  ],
+  "AR": [
+   [
+    "r5-world-art/sheet-ingame.png",
+    "In the game"
+   ],
+   [
+    "r5-world-art/sheet-pumps-textures.png",
+    "Pumps, textures"
+   ],
+   [
+    "r5-world-art/sheet-cutouts-textures.png",
+    "Cut-out signs, textures"
+   ]
+  ],
+  "AT": [
+   [
+    "r6-shadows-low/shots/fresh-graphic-detail.png",
+    "Graphic Detail on a fresh install"
+   ]
+  ],
+  "AU": [
+   [
+    "r6-fonts/review-sheet.png",
+    "Menu fonts, review sheet"
+   ]
+  ],
+  "AV": [
+   [
+    "r6-wheels/wheels-sheet.png",
+    "Wheels"
+   ]
+  ],
+  "AZ": [
+   [
+    "r7-form-lines/review-sheet.png",
+    "Form rules, review sheet"
+   ]
+  ],
+  "BA": [
+   [
+    "r7-wheel-hand/wheel-hand-sheet.png",
+    "Wheel and hand"
+   ]
+  ],
+  "BB": [
+   [
+    "r7-night-light/shots/sheet_before_after.png",
+    "Night, before and after"
+   ],
+   [
+    "r7-night-light/shots/sheet_variants.png",
+    "Variants"
+   ],
+   [
+    "r7-night-light/shots/sheet_sky_seams.png",
+    "Sky seams"
+   ]
+  ],
+  "BC": [
+   [
+    "r7-fonts-arial/review-sheet.png",
+    "Arial, review sheet"
+   ]
+  ],
+  "BD": [
+   [
+    "r7-logo/sheets/menu-before-after.png",
+    "Title logo, before and after"
+   ]
+  ],
+  "BE": [
+   [
+    "r7-cheat-flag/shots/sheet-before-after.png",
+    "Cheat mark, before and after"
+   ]
+  ],
+  "BN": [
+   [
+    "r7-logo-2/sheets/logo-before-after.png",
+    "Title logo, round 2"
+   ]
+  ],
+  "BV": [
+   [
+    "r7-logo-3/sheets/logo-before-after.png",
+    "Title logo, round 3"
+   ]
+  ],
+  "BX": [
+   [
+    "r7-crosshair/shots/sheet-3d.png",
+    "3D dash"
+   ],
+   [
+    "r7-crosshair/shots/sheet-flat.png",
+    "2D dash"
+   ],
+   [
+    "r7-crosshair/shots/sheet-bino.png",
+    "Binoculars"
+   ],
+   [
+    "r7-crosshair/shots/sheet-chase.png",
+    "Chase view"
+   ]
+  ],
+  "D": [
+   [
+    "r2-dev-menu/shots/loadout-panel.png",
+    "feat/dev-menu-loadout: live weapon loadout"
+   ],
+   [
+    "r2-dev-menu/shots/places-list.png",
+    "feat/dev-menu-landmarks: kept places"
+   ],
+   [
+    "r2-dev-menu/shots/pick-panel.png",
+    "feat/dev-menu-mission-picker: scene picker"
+   ],
+   [
+    "r2-delete-saves/shots/load-bookmark-delete-confirm.png",
+    "feat/delete-bookmarks: yes/no notice"
+   ],
+   [
+    "r2-mp-handicap/shots/host-form-hcp-on.png",
+    "feat/net-handicaps: host form"
+   ],
+   [
+    "r2-mp-handicap/shots/board-modern.png",
+    "feat/net-handicaps: scoreboard"
+   ],
+   [
+    "r2-auto-handicap/shots/auto-board-modern.png",
+    "feat/net-auto-handicap: scoreboard"
+   ],
+   [
+    "r2-options-tab/shots/recipe-modern.png",
+    "feat/original-behavior-pad: the Original Recipe pad"
+   ]
+  ],
+  "N": [
+   [
+    "r3-dymo-2/labels-before-after.png",
+    "fix/dymo-labels-2: labels, before and after"
+   ]
+  ],
+  "O": [
+   [
+    "r3-hood-gloss/shots/hood-gloss-steps.png",
+    "feat/hood-gloss-level: the gloss steps"
+   ]
+  ],
+  "P": [
+   [
+    "r3-gfx-pages-3/pages-before-after.png",
+    "feat/graphics-pages-3: pages, before and after"
+   ]
+  ],
+  "Q": [
+   [
+    "r3-counter-digits/counter-digits.png",
+    "fix/counter-digits-font: the counter digits"
+   ]
+  ]
+ },
+ "desc": {
+  "Z": "Seams between texture tiles in the HD texture packs are fixed.",
+  "Y": "Tooling for the 8x HD texture pack trial (the 8x pack itself is not shipped: no visible difference to 4x); documentation of partial packs and their measured cost."
+ },
+ "public_exclude": {
+  "r3-1997-parity/sheet-4-distance-t05.jpg": "another application's window (a firewall prompt) covers part of the reference capture"
+ },
+ "original_game": [
+  "r3-1997-parity/sheet-1-moments-before.jpg",
+  "r3-1997-parity/sheet-2-moments-after.jpg",
+  "r3-1997-parity/sheet-3-edges.jpg",
+  "r7-specials/sheet/specials-before-after-original.png",
+  "r8-form-cv-marks/review-sheet.png",
+  "r8-gauges-lit/shots/sheet_gauges_lit.png",
+  "r8-muzzle-reach/sheet_muzzle_reach.png",
+  "r8-night-4/shots/sheet_road.png",
+  "r8-night-4/shots/sheet_station.png",
+  "r8-night-4/shots/sheet_t12.png",
+  "r8-target-box/sheet-target-box-chase.png",
+  "r8-target-box/sheet-target-box-cockpit.png",
+  "r9-loading/sheets/standby-crops.png"
+ ],
+ "flat_textures": [
+  "r3-counter-digits/counter-digits.png",
+  "r3-font-redraws/survey-cars.jpg",
+  "r3-font-redraws/survey-cockpit.jpg",
+  "r3-font-redraws/survey-world.jpg",
+  "r5-cockpit-art/1-front-armour.png",
+  "r5-cockpit-art/2-lights.png",
+  "r5-world-art/sheet-cutouts-textures.png",
+  "r5-world-art/sheet-pumps-textures.png",
+  "r7-badge/texture-sheet.png",
+  "r7-damage-panel/work/zoom-apex.png",
+  "r7-dash-aa/crops/sheet-curve.png",
+  "r7-dash-aa/crops/sheet-down.png",
+  "r7-wheel-light/sheets/sheet-wa11.png",
+  "r7-wheel-light/sheets/sheet-wa81.png",
+  "r8-car-t09/survey-sheet.png",
+  "r8-car-t09/tex-sheet.png",
+  "r8-compass/texture-sheet.png",
+  "r8-damage-panel-2/sheet-damage-panel-2.png",
+  "r8-dial-ticks/texture-sheet.png",
+  "r8-mips/tex-sheet.png",
+  "r8-relettering-2/texture-sheet-milk.png",
+  "r8-sign-fletcher/texture-sheet.png",
+  "r9-damage-front/sheet-damage-front.png",
+  "r9-damage-front/work/hyp-compare.png",
+  "r9-dial-thin/texture-sheet-line.png"
+ ]
+}
