@@ -52,6 +52,9 @@ public static class DevSettings
     /// <summary>The side-view mirrors' keys' values offered (I76.Game.Sim.MirrorBands): the one render's field across (45 is the rear mirror alone, the original's), each side mirror's share of the band outside the rear's, and where it sits; a value set by hand shows as the nearest.</summary>
     public static readonly int[] MirrorFovSteps = [45, 60, 75, 90, 105, 120], MirrorShareSteps = [25, 50, 75, 100], MirrorYawSteps = [30, 35, 40, 45, 50, 55, 60], MirrorDropSteps = [0, 50, 100, 125, 150, 200, 300], MirrorOverlapSteps = [0, 3, 6, 9, 12, 15, 20];
     private static readonly string[] MirrorFovNames = [.. MirrorFovSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
+    /// <summary>[port] mirror_round's values offered: the rear mirror's corner radius in its art's pixels, 0 the art's own (the original's).</summary>
+    public static readonly int[] MirrorRoundSteps = [0, 6, 10, 16, 24];
+    private static readonly string[] MirrorRoundNames = [.. MirrorRoundSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
     private static readonly string[] MirrorDropNames = [.. MirrorDropSteps.Select(p => p == 125 ? $"{p}" : $"{p}{M}")];
@@ -99,7 +102,8 @@ public static class DevSettings
     public static readonly DevSetting[] All =
     [
         new("mirror_range", Look(OriginalRecipe.MirrorRangeNames), s => OfChoice(s.MirrorRangeChoice), (s, v) => s.MirrorRangeChoice = ToChoice(v), DevWhen.Live),
-        new("side_mirrors", ["off", "on" + M, "auto" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
+        new("side_mirrors", ["off", "on" + M, "auto" + M, "left" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
+        new("mirror_round", MirrorRoundNames, s => Nearest(MirrorRoundSteps, s.MirrorRound), (s, v) => s.MirrorRound = MirrorRoundSteps[v], DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),
         new("side_mirror_angle", MirrorYawNames, s => Nearest(MirrorYawSteps, s.SideMirrorAngle), (s, v) => s.SideMirrorAngle = MirrorYawSteps[v], DevWhen.Live),

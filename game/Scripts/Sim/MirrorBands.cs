@@ -22,6 +22,14 @@ public static class MirrorBands
         _ => (hasGlass, false),
     };
 
+    /// <summary>Whether a side's mirror shows the view in a mode: Left the driver's (left) one alone, the right one left as the art paints it.</summary>
+    public static bool SideShown(SideMirrorMode mode, bool left) => mode switch
+    {
+        SideMirrorMode.Off => false,
+        SideMirrorMode.Left => left,
+        _ => true,
+    };
+
     /// <summary>The render's width across by default, degrees: the rear mirror's 45 and about 22 a side, a real car's.</summary>
     public const float DefaultFov = 90f;
     /// <summary>Where a side mirror sits by default: degrees from straight ahead, and the margin kept to the window's edge.</summary>
@@ -95,8 +103,136 @@ public static class MirrorBands
     private static float Deg(float r) => r * 180f / MathF.PI;
 }
 
-/// <summary>[port] side_mirrors: off (the original's), on, auto (the default): MirrorBands.Shown.</summary>
-public enum SideMirrorMode { Off, On, Auto }
+/// <summary>[port] side_mirrors: off (the original's), on, auto (the default), left (auto's for the driver's side alone): MirrorBands.Shown, SideShown.</summary>
+public enum SideMirrorMode { Off, On, Auto, Left }
+
+/// <summary>
+/// Graphic Detail's Side Mirrors row over [port] side_mirrors: Off (the original's painted glass), Left (the driver's door mirror
+/// alone) and Both (auto, the default). The key's own words are kept: on (both, and two glasses added to a car without) shows as
+/// Both and stays on until the row is changed.
+/// </summary>
+public static class SideMirrorRow
+{
+    public static readonly string[] Names = ["Off", "Left" + I76.Game.Shell.ShellSettings.PortMark, "Both" + I76.Game.Shell.ShellSettings.PortMark];
+
+    public static int Index(SideMirrorMode m) => m switch { SideMirrorMode.Off => 0, SideMirrorMode.Left => 1, _ => 2 };
+
+    /// <summary>A value picked: nothing when it is what shows (an on set by hand stays on under Both).</summary>
+    public static void Put(I76.Game.Shell.ShellSettings s, int v)
+    {
+        if (Index(s.SideMirrors) == v) return;
+        s.SideMirrors = v switch { 0 => SideMirrorMode.Off, 1 => SideMirrorMode.Left, _ => SideMirrorMode.Auto };
+    }
+
+    /// <summary>A click: the next value, past Both back to Off.</summary>
+    public static void Step(I76.Game.Shell.ShellSettings s) => Put(s, (Index(s.SideMirrors) + 1) % Names.Length);
+
+    /// <summary>The key's word read: off, on, left; anything else (auto, absent, a misspelling) auto.</summary>
+    public static SideMirrorMode Parse(string? word) => word?.Trim().ToLowerInvariant() switch
+    {
+        "on" => SideMirrorMode.On,
+        "off" => SideMirrorMode.Off,
+        "left" => SideMirrorMode.Left,
+        _ => SideMirrorMode.Auto,
+    };
+
+    /// <summary>The key's word written; null for auto, the default, which is not written.</summary>
+    public static string? Word(SideMirrorMode m) => m switch
+    {
+        SideMirrorMode.On => "on",
+        SideMirrorMode.Off => "off",
+        SideMirrorMode.Left => "left",
+        _ => null,
+    };
+}
+
+/// <summary>
+/// [port] mirror_rate, Graphic Detail's Mirror Rate row (the modern look's mirrors, the rear one and the side mirrors' own cameras):
+/// Alternate (the default, unwritten), the rear mirror every second frame as the original draws it and the side mirrors in turn on
+/// those frames (each every fourth, a side alone in view every second); Half, every mirror every second frame (both sides on the same
+/// frame); Full, every mirror every frame. The 1997 look keeps the original's every second frame.
+/// </summary>
+public enum MirrorRate { Alternate, Half, Full }
+
+public static class MirrorRateRow
+{
+    public static readonly string[] Names = ["Alternate*", "Half", "Full*"];
+
+    public static MirrorRate Parse(string? word) => word?.Trim().ToLowerInvariant() switch
+    {
+        "half" => MirrorRate.Half,
+        "full" => MirrorRate.Full,
+        _ => MirrorRate.Alternate,
+    };
+
+    /// <summary>The key's word; null for alternate, the default, which is not written.</summary>
+    public static string? Word(MirrorRate r) => r switch { MirrorRate.Half => "half", MirrorRate.Full => "full", _ => null };
+
+    /// <summary>
+    /// Whether a mirror is drawn this frame: <paramref name="tick"/> the original's every second frame; a side mirror under Alternate
+    /// on its turn, or on every tick when the other side is not drawn (<paramref name="otherSeen"/> false); every frame under Full.
+    /// </summary>
+    public static bool Draws(MirrorRate rate, bool tick, bool side = false, bool turn = true, bool otherSeen = true) => rate switch
+    {
+        MirrorRate.Full => true,
+        MirrorRate.Half => tick,
+        _ => tick && (!side || turn || !otherSeen),
+    };
+}
+
+/// <summary>
+/// Whether a mirror's glass is in the driver's view this frame (the modern look draws a mirror's picture only then: a glass out of
+/// view, or hidden with the interior, gets no render). The test is the frustum's four sides, each through the eye: the glass is out
+/// of view when its box's corners all lie outside one of them, or all behind the eye. A box across a side's corner can pass when the
+/// glass is just out of view (a render too many, never one too few). Camera axes: x right, y up, the view down -z.
+/// </summary>
+public static class MirrorCull
+{
+    /// <summary>
+    /// The view's half fields as tangents widened by <paramref name="marginDegrees"/> each side, from the camera's field
+    /// (<paramref name="fovDegrees"/>, vertical when <paramref name="keepHeight"/>, else across) and the window's width over height.
+    /// </summary>
+    public static (float X, float Y) HalfTangents(float fovDegrees, bool keepHeight, float aspect, float marginDegrees)
+    {
+        float t = MathF.Tan(fovDegrees * MathF.PI / 360f);
+        float tx = keepHeight ? t * aspect : t, ty = keepHeight ? t : t / MathF.Max(aspect, 1e-3f);
+        float m = marginDegrees * MathF.PI / 180f;
+        static float Widen(float tan, float by) => MathF.Tan(MathF.Min(MathF.Atan(tan) + by, 1.55f));
+        return (Widen(tx, m), Widen(ty, m));
+    }
+
+    /// <summary>Whether any of a box's <paramref name="corners"/> (in the camera's frame) may be in a view of half tangents <paramref name="tanX"/>, <paramref name="tanY"/>.</summary>
+    public static bool InView(ReadOnlySpan<System.Numerics.Vector3> corners, float tanX, float tanY)
+    {
+        if (corners.Length == 0) return false;
+        bool right = true, left = true, top = true, bottom = true, behind = true;
+        foreach (var p in corners)
+        {
+            float d = -p.Z;   // distance ahead
+            if (p.X <= tanX * d) right = false;
+            if (p.X >= -tanX * d) left = false;
+            if (p.Y <= tanY * d) top = false;
+            if (p.Y >= -tanY * d) bottom = false;
+            if (d > 0) behind = false;
+        }
+        return !(right || left || top || bottom || behind);
+    }
+
+    /// <summary>The box's corners' angles off the view's axis, degrees (x right, y up; a corner behind the eye past 90 across): where a glass lies against the view's half fields, for the cull log.</summary>
+    public static (float X0, float X1, float Y0, float Y1)? Angles(ReadOnlySpan<System.Numerics.Vector3> corners)
+    {
+        float x0 = float.MaxValue, x1 = float.MinValue, y0 = float.MaxValue, y1 = float.MinValue;
+        bool any = false;
+        foreach (var p in corners)
+        {
+            float d = -p.Z;
+            float ax = MathF.Atan2(p.X, d) * 180f / MathF.PI, ay = MathF.Atan2(p.Y, MathF.Sqrt(d * d + p.X * p.X)) * 180f / MathF.PI;
+            x0 = MathF.Min(x0, ax); x1 = MathF.Max(x1, ax); y0 = MathF.Min(y0, ay); y1 = MathF.Max(y1, ay);
+            any = true;
+        }
+        return any ? (x0, x1, y0, y1) : null;
+    }
+}
 
 /// <summary>[port] side_mirror_render: shared, each side mirror a band of the rear mirror's one render; own (the default), a camera of its own at the door mirror looking back along the car's side (MirrorBands.OwnCamera).</summary>
 public enum SideMirrorRender { Shared, Own }

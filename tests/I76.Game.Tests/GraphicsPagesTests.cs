@@ -21,6 +21,8 @@ public class GraphicsPagesTests
         GraphicsRow.ShadowDetail => s.Graphics[0x6],
         GraphicsRow.ExtInstruments => s.Graphics[0xe],
         GraphicsRow.RearMirror => s.Graphics[0xd],
+        GraphicsRow.SideMirrors => s.SideMirrors,
+        GraphicsRow.MirrorRate => s.MirrorRate,
         GraphicsRow.AntiAliasing => s.Graphics[0x8],
         GraphicsRow.VSync => s.VSync,
         GraphicsRow.MaxFps => s.MaxFps,
@@ -53,6 +55,7 @@ public class GraphicsPagesTests
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CabinsBehindGlass = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
+        s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full;
         return s;
     }
 
@@ -70,11 +73,11 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), then the port's four most used.</summary>
+    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), then the port's most used, Side Mirrors first by Rear Mirror.</summary>
     [Fact]
     public void TheSheetKeepsTheOriginalsRowsInTheirOrder() => Assert.Equal(
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
-         GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
+         GraphicsRow.SideMirrors, GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
     /// <summary>One page under the sheet, Advanced (Look and Display until round 5): 1997 Mode first, its palette grade after it.</summary>
@@ -83,20 +86,21 @@ public class GraphicsPagesTests
     {
         Assert.Equal(["Graphic Detail", "Advanced"], GraphicsPages.Names);
         Assert.Equal([GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsRow.AmbientOcclusion, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.Advanced]);
     }
 
-    /// <summary>Each page fits the sheet's fourteen lines with at least one to spare: the sheet with its blank line and Advanced's entry, Advanced with its name.</summary>
+    /// <summary>Each page fits the sheet's fourteen lines with at least one to spare (the frame-rate estimate's): the sheet with Advanced's entry straight under its twelve rows, Advanced with its name.</summary>
     [Fact]
     public void EveryPageFitsTheSheetsLinesWithOneToSpare()
     {
-        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length + 1, GraphicsPages.FirstEntryLine);
+        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length, GraphicsPages.FirstEntryLine);
         int sheetLast = GraphicsPages.FirstEntryLine + (GraphicsPages.Rows.Length - 1) - 1;
         Assert.True(sheetLast < GraphicsPages.Lines - 1, "the sheet has no line to spare");
+        // Advanced fills the sheet's lines since Mirror Rate: the shell's page leaves out the frame-rate line when its rows reach it
         for (int p = 1; p < GraphicsPages.Rows.Length; p++)
-            Assert.True(GraphicsPages.LinesOf(p)[^1] < GraphicsPages.Lines - 1, $"{GraphicsPages.Names[p]} has no line to spare");
-        Assert.Equal(Enumerable.Range(1, 12), GraphicsPages.LinesOf(GraphicsPages.Advanced));
+            Assert.True(GraphicsPages.LinesOf(p)[^1] < GraphicsPages.Lines, $"{GraphicsPages.Names[p]} does not fit");
+        Assert.Equal(Enumerable.Range(1, 13), GraphicsPages.LinesOf(GraphicsPages.Advanced));
     }
 
     [Fact]

@@ -39,9 +39,10 @@ public class MirrorRimTests
     }
 
     [Fact]
-    public void TheWidthIsTwoThirdsOfTheRearFramesShareOfTheHeight()
+    public void TheWidthIsAFifthOfTheRearFramesShareOfTheHeight()
     {
-        Assert.Equal(6f / 64 * 2 / 3, MirrorRim.RimShare, 0.0001f);
+        // two thirds of the rear frame's share made 70 % narrower (a playtest's ask): 0.3 of it
+        Assert.Equal(6f / 64 * 2 / 3 * 0.3f, MirrorRim.RimShare, 0.0001f);
         Assert.Equal(0.06f * MirrorRim.RimShare, MirrorRim.Width(Quad(0, 1.0f, 0.1f, 1.06f)), 0.0001f);
     }
 

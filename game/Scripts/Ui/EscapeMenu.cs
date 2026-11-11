@@ -450,6 +450,11 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.ShadowDetail: return G(Cycle, "Shadow Detail", 3, offLowHigh, 0x6);
             case GraphicsRow.ExtInstruments: return G(Cycle, "Ext. Instrum. Disp.", 2, offOn, 0xe);
             case GraphicsRow.RearMirror: return G(Cycle, "Rear Mirror", 3, offLowHigh, 0xd);
+            // [port] side_mirrors (SideMirrorRow: Off, Left, Both; an on set by hand shows as Both and is kept unless changed), live
+            // [port] mirror_rate (MirrorRateRow: Alternate, Half, Full), live
+            case GraphicsRow.MirrorRate: return Setting(Cycle, "Mirror Rate", 0, I76.Game.Sim.MirrorRateRow.Names.Length, I76.Game.Sim.MirrorRateRow.Names, s => (int)s.MirrorRate, (s, v) => s.MirrorRate = (I76.Game.Sim.MirrorRate)v, apply: live);
+            case GraphicsRow.SideMirrors:
+                return Keyed(r, "Side Mirrors", I76.Game.Sim.SideMirrorRow.Names, s => I76.Game.Sim.SideMirrorRow.Index(s.SideMirrors), I76.Game.Sim.SideMirrorRow.Put, live);
             // [port] draw_distance in the mission's look (VisibilityRange: Far the original's 600 m, Max* 20 km), live
             case GraphicsRow.VisibilityRange:
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);

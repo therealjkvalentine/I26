@@ -75,6 +75,7 @@ public partial class Cockpit : Node
         var shellSettings = I76.Game.Shell.ShellSettings.Load();
         HeadTracker.Apply(shellSettings);
         OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
+        _roundSetting = shellSettings.MirrorRound;
         SetupMirror();
         CompassOutline();
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
@@ -206,6 +207,7 @@ public partial class Cockpit : Node
                 _roll = 0;
             }
             if (_mirrorView is not null) _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
+            MirrorsUnseen();
         }
         if (shown && !_wasShown) ResetPanels();
         _wasShown = shown;
@@ -429,10 +431,10 @@ public partial class Cockpit : Node
             rollT = System.Math.Clamp(yawT / (Mathf.Pi / 2f), -1f, 1f) * 2 * Mathf.Pi / 180;
             _freeLooking = MathF.Abs(_mouseHead.Yaw) > 15 * Mathf.Pi / 180 || MathF.Abs(_mouseHead.Pitch) > 10 * Mathf.Pi / 180;
         }
-        // capture hook: I76_HEAD=yaw,pitch in the game's degrees
-        if (System.Environment.GetEnvironmentVariable("I76_HEAD") is { } hv && hv.Split(',') is [var hy, var hp]
-            && float.TryParse(hy, System.Globalization.CultureInfo.InvariantCulture, out float fy) && float.TryParse(hp, System.Globalization.CultureInfo.InvariantCulture, out float fp))
-            (yawT, pitchT) = (fy * Mathf.Pi / 180, fp * Mathf.Pi / 180);
+        // capture hook: I76_HEAD=yaw,pitch in the game's degrees, held throughout or (yaw,pitch@from-to) over those frames drawn, the
+        // head easing to it and back as a glance does
+        if (HeadHook is { } hh && (hh.From < 0 || Godot.Engine.GetFramesDrawn() is var fd && fd >= hh.From && fd <= hh.To))
+            (yawT, pitchT) = (hh.Yaw * Mathf.Pi / 180, hh.Pitch * Mathf.Pi / 180);
         // the stick pushed all the way round: the look rear straight over that shoulder (the original's glance machine would swing a left
         // look forward and across to its one rear pose over the right shoulder, a step a tick)
         if (_pose == FreeLook.Pose.Rear)
@@ -474,6 +476,19 @@ public partial class Cockpit : Node
         // arms rise past ±58° / 53° to the side windows (the handguns): the sim moves them with the next tick
         _wantArm[0] = (_state == 4 || _mouseHead.HasOffset) && _yaw > 1.0123f;
         _wantArm[1] = (_state == 0 || _mouseHead.HasOffset) && _yaw < -0.9250f;
+    }
+
+    private static readonly (float Yaw, float Pitch, long From, long To)? HeadHook = ParseHeadHook(System.Environment.GetEnvironmentVariable("I76_HEAD"));
+
+    private static (float, float, long, long)? ParseHeadHook(string? v)
+    {
+        if (v is null) return null;
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        var at = v.Split('@');
+        long from = -1, to = -1;
+        if (at.Length == 2 && at[1].Split('-') is [var a, var b] && long.TryParse(a, out from) && long.TryParse(b, out to)) { }
+        else if (at.Length != 1) return null;
+        return at[0].Split(',') is [var y, var p] && float.TryParse(y, c, out float fy) && float.TryParse(p, c, out float fp) ? (fy, fp, from, to) : null;
     }
 
     // ---- head sway: the eye tilts with the car's acceleration; view only ----
@@ -1361,14 +1376,65 @@ public partial class Cockpit : Node
         }
         MirrorFill();
         _mirrorMat.SetShaderParameter("smooth_edge", _mirrorEdge is not null && _mirrorFill is not null);
+        if (Textures.GetOriginalRgba(member) is { } ro) { _mirrorOriginal = (ro.Rgba, ro.Width, ro.Height); RoundCorners(); }
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir) foreach (var n in new[] { "zmiri101", "zdash101", "zdash102" }) Image(n)?.SavePng(System.IO.Path.Combine(dir, n + ".png"));
         var vt = _mirrorView.GetTexture();
         _mirrorMat.SetShaderParameter("view", vt);
         _mirrorMat.SetShaderParameter("view_nearest", vt);
         foreach (int i in surfaces) mi.SetSurfaceOverrideMaterial(i, _mirrorMat);
         _mirrorHost = mi; _mirrorSurface = surfaces[0];
+        // the rear glass's box, for whether it is in the driver's view (MirrorCull)
+        foreach (int i in surfaces)
+            foreach (var p in mesh.SurfaceGetArrays(i)[(int)Mesh.ArrayType.Vertex].AsVector3Array())
+                _rearBox = _rearBox is { } b ? b.Expand(p) : new Aabb(p, Vector3.Zero);
         _mirrorMode = _mirrorSetting;
         ApplyMirrorMode();
+    }
+
+    /// <summary>The modern look's rounder rear mirror (MirrorRound, [port] mirror_round): the frame's outline and glass fitted from the original art, their corners that many of its pixels round (the glass's less the frame's width at the top); 0, the art's own. The 1997 look's path never reads them.</summary>
+    private void RoundCorners()
+    {
+        if (_mirrorMat is not { } m || _mirrorOriginal.Rgba is not { } rgba) return;
+        var (_, w, h) = _mirrorOriginal;
+        float r = MirrorRound.Radius(System.Environment.GetEnvironmentVariable("I76_MIRROR_ROUND"), _roundSetting);
+        var (outline, glass) = MirrorRound.Masks(rgba, w, h);
+        _fit = MirrorRound.Fit(outline, w, h) is { } o && MirrorRound.Fit(glass, w, h) is { } g ? (o, g) : null;
+        _roundR = r;
+        if (r <= 0 || _fit is not { } fit) m.SetShaderParameter("round_corners", false);
+        else
+        {
+            var (fo, fg) = fit;
+            float ri = Mathf.Max(r - (fg.TL.Y - fo.TL.Y), 1f);
+            Shape(m, MirrorRound.Shrink(fo, r), r, MirrorRound.Shrink(fg, ri), ri, false);
+            if (System.Environment.GetEnvironmentVariable("I76_MIRROR_CULL_LOG") == "1") GD.Print($"mirror-round: r {r} outline {fo} glass {fg} glass r {ri}");
+        }
+        foreach (var sm in new[] { _sideMatL, _sideMatR }) if (sm is not null) AddedFrame(sm);
+    }
+
+    private (MirrorRound.Quad Outline, MirrorRound.Quad Glass)? _fit;
+    private float _roundR;
+
+    private void Shape(ShaderMaterial m, MirrorRound.Quad outer, float r, MirrorRound.Quad inner, float ri, bool glassFromShape)
+    {
+        m.SetShaderParameter("round_corners", true);
+        if (_mirrorOriginal.Rgba is not null) m.SetShaderParameter("art_px", new Vector2(_mirrorOriginal.W, _mirrorOriginal.H));
+        m.SetShaderParameter("outer_tl", outer.TL); m.SetShaderParameter("outer_tr", outer.TR); m.SetShaderParameter("outer_br", outer.BR); m.SetShaderParameter("outer_bl", outer.BL);
+        m.SetShaderParameter("inner_tl", inner.TL); m.SetShaderParameter("inner_tr", inner.TR); m.SetShaderParameter("inner_br", inner.BR); m.SetShaderParameter("inner_bl", inner.BL);
+        m.SetShaderParameter("outer_r", r); m.SetShaderParameter("inner_r", ri);
+        m.SetShaderParameter("glass_from_shape", glassFromShape);
+    }
+
+    /// <summary>
+    /// The added side glasses (side_mirrors=on, a car without door-mirror glass): the rear art's ends, their frame narrowed to 0.3 of its
+    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the rear mirror's rounding.
+    /// </summary>
+    private void AddedFrame(ShaderMaterial sm)
+    {
+        if (_fit is not { } fit) return;
+        var (o, g) = fit;
+        float t = (g.TL.Y - o.TL.Y) * MirrorRim.RimShare / (MirrorRim.RearFrameShare * 2f / 3f);   // 0.3 of the frame's width (I76_MIRROR_RIM=wide: two thirds)
+        float r = Mathf.Max(_roundR, 1f), ri = Mathf.Max(r - t, 1f);
+        Shape(sm, MirrorRound.Shrink(o, r), r, MirrorRound.Shrink(o, t + ri), ri, true);
     }
 
     /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture.</summary>
@@ -1497,14 +1563,24 @@ public partial class Cockpit : Node
     {
         if (_mirrorView is null || _mirrorCam is null) return;
         // off with the ghost cockpit, as the original's
-        if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; return; }
+        if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; MirrorsUnseen(); return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
         if (_sideL is { Visible: true }) SideMirrorYaw();
         // the original redraws it every second frame, and so do both looks (I76_MIRROR_RATE=1: the modern look every frame)
         _mirrorTick = !_mirrorTick;
-        _mirrorView.RenderTargetUpdateMode = !_faithful && MirrorEveryFrame ? SubViewport.UpdateMode.Always : _mirrorTick ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
-        OwnCamerasFrame(_mirrorTick);
+        // the modern look draws it only while something shows it (MirrorCull): its glass in view, the 2D dash's mirror, or a side glass
+        // that shows a band of it; back in view, it is drawn that frame, not on the next tick
+        InView();
+        bool rear = _faithful || CullOff || !Node3D.Dash3D || _rearInView || !_ownOn && (_sideInView[0] || _sideInView[1]);
+        bool rearBack = rear && !_rearSeen && !_faithful && !CullOff;   // the 1997 look and I76_MIRROR_CULL=0 keep the tick alone
+        _rearSeen = rear;
+        if (CullLog && rearBack) GD.Print($"mirror-cull: rear back in view at frame {Godot.Engine.GetFramesDrawn()}, drawn that frame");
+        // Mirror Rate (MirrorRateRow): every second frame (Alternate, Half), or every frame (Full; I76_MIRROR_RATE=1 too)
+        var rate = _faithful ? MirrorRate.Half : _mirrorRate;
+        _mirrorView.RenderTargetUpdateMode = !rear ? SubViewport.UpdateMode.Disabled
+            : MirrorRateRow.Draws(!_faithful && MirrorEveryFrame ? MirrorRate.Full : rate, _mirrorTick) || rearBack ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        OwnCamerasFrame(_mirrorTick, rate);
         // the world's environment as it is now, about twice a second (the lighting calibration's solve ends after the mirror is made)
         if (_mirrorEnv is not null && _mirrorEnvSource is not null && _mirrorCam.Environment == _mirrorEnv && ++_mirrorSync % 30 == 0)
             SyncMirrorEnvironment(_mirrorEnvSource, _mirrorEnv);
@@ -1520,6 +1596,9 @@ public partial class Cockpit : Node
     private float _mirrorHeight;
     private SideMirrorMode _sideMirrors = SideMirrorMode.Auto;
     private SideMirrorRender _sideRender = SideMirrorRender.Own;
+    private MirrorRate _mirrorRate = MirrorRate.Alternate;
+    private int _roundSetting = MirrorRound.DefaultRadius;
+    private (byte[]? Rgba, int W, int H) _mirrorOriginal;
     private float _mirrorFov = MirrorBands.DefaultFov, _sideShare = 1f, _sideAngle = MirrorBands.DefaultYaw, _sideDrop = MirrorBands.DefaultDrop, _sideOverlap = MirrorBands.DefaultOverlap, _sideYaw = float.NaN;
     /// <summary>I76_MIRROR_WIDTH: the wide render's width in pixels instead of the one keeping the rear mirror's pixels per degree (a cost measurement); I76_SIDE_MIRROR_MAP=cylinder: the side glasses' columns spread by angle (docs/dev-hooks.md).</summary>
     private static readonly int? MirrorWidthOverride = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_WIDTH"), out int w) && w >= 256 ? w : null;
@@ -1535,6 +1614,8 @@ public partial class Cockpit : Node
         _sideDrop = s.SideMirrorDrop / 100f;
         _sideOverlap = s.SideMirrorOverlap;
         _sideRender = s.SideMirrorRender;
+        _mirrorRate = s.MirrorRate;
+        if (_roundSetting != s.MirrorRound) { _roundSetting = s.MirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
         ApplyMirrorMode();
     }
@@ -1544,7 +1625,8 @@ public partial class Cockpit : Node
     {
         if (on && _sideL is null) MakeSideMirrors();
         if (_sideL is null || _sideR is null || _sideMatL is null || _sideMatR is null) return;
-        _sideL.Visible = _sideR.Visible = on;
+        _sideL.Visible = on && MirrorBands.SideShown(_sideMirrors, true);
+        _sideR.Visible = on && MirrorBands.SideShown(_sideMirrors, false);
         if (!on) return;
         float t = MathF.Tan(MirrorBands.Fov(fov) * MathF.PI / 360f);
         foreach (var (m, left) in new[] { (_sideMatL, true), (_sideMatR, false) })
@@ -1591,6 +1673,8 @@ public partial class Cockpit : Node
         _sideMatR = (ShaderMaterial)_mirrorMat.Duplicate();
         _sideMatL.SetShaderParameter("art_crop", true);
         _sideMatR.SetShaderParameter("art_crop", true);
+        AddedFrame(_sideMatL);
+        AddedFrame(_sideMatR);
         _sideL = new MeshInstance3D { Mesh = side, MaterialOverride = _sideMatL, Layers = CarNode.CockpitLayer, Name = "MirrorL" };
         _sideR = new MeshInstance3D { Mesh = side, MaterialOverride = _sideMatR, Layers = CarNode.CockpitLayer, Name = "MirrorR" };
         host.AddChild(_sideL);
@@ -1626,7 +1710,7 @@ public partial class Cockpit : Node
     // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
 
     private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre)> _glass = [];
-    private readonly List<MeshInstance3D> _rims = [];
+    private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
     private ShaderMaterial? _rimMat;
 
     /// <summary>The door mirrors' glass shown or hidden and each given its band of the render; made on first use.</summary>
@@ -1634,12 +1718,13 @@ public partial class Cockpit : Node
     {
         if (on && _glass.Count == 0) MakeGlass();
         // the heads turned to the driver while their glass shows the view (MirrorAim); the art's own place otherwise, the 1997 look's
-        foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
-        foreach (var r in _rims) r.Visible = on && _mirrorMode != 0;
+        // Side Mirrors Left: the right one stays as the art paints and places it
+        foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed && MirrorBands.SideShown(_sideMirrors, left) ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
+        foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left);
         foreach (var g in _glass)
         {
-            g.Mesh.Visible = on;
-            if (!on) continue;
+            g.Mesh.Visible = on && MirrorBands.SideShown(_sideMirrors, g.Left);
+            if (!g.Mesh.Visible) continue;
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
             var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
             var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
@@ -1705,7 +1790,7 @@ public partial class Cockpit : Node
                 I76.Game.MeshArrays.AddSurfaceArrays(rm, Mesh.PrimitiveType.Triangles, ra);
                 var rim = new MeshInstance3D { Mesh = rm, MaterialOverride = _rimMat, Layers = CarNode.CockpitLayer, Name = "Rim" + (pane.Left ? "L" : "R"), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
                 host.AddChild(rim);
-                _rims.Add(rim);
+                _rims.Add((rim, pane.Left));
             }
         }
     }
@@ -1794,7 +1879,7 @@ public partial class Cockpit : Node
     private void OwnCameras(bool on, bool quads = false)
     {
         // a side is drawn only where something shows it: its door mirror's glass, or the added glasses (the CC cars have a left glass alone)
-        for (int i = 0; i < 2; i++) _ownUsed[i] = quads || Glass.Any(p => p.Left == (i == 0));
+        for (int i = 0; i < 2; i++) _ownUsed[i] = (quads || Glass.Any(p => p.Left == (i == 0))) && MirrorBands.SideShown(_sideMirrors, i == 0);
         if (on && _ownViews[0] is null)
             for (int i = 0; i < 2; i++)
             {
@@ -1829,15 +1914,18 @@ public partial class Cockpit : Node
     /// <summary>
     /// Where the own cameras stand this frame: at each door mirror's glass (or, for a car without one, a door's height beside the
     /// cab), OwnCamera.OutboardMetres outboard of it, looking back along the side turned outward and a little down
-    /// (OwnCamera.Forward), drawn on the rear mirror's ticks.
+    /// (OwnCamera.Forward), drawn on the rear mirror's ticks by Mirror Rate (MirrorRateRow).
     /// </summary>
-    private void OwnCamerasFrame(bool draw)
+    private void OwnCamerasFrame(bool draw, MirrorRate rate)
     {
         if (!_ownOn) return;
         // one side a mirror tick, in turn: each side mirror every fourth frame, the rear one every second (with both every second
         // frame the two cameras cost 1.6 ms of GPU a frame over the shared render at 3440x1440, docs/deviations.md); a side the
-        // other has no glass for is drawn every tick; I76_OWN_MIRROR_ALT=0 draws both every tick, for a measurement
+        // other has no glass for is drawn every tick; I76_OWN_MIRROR_ALT=0 draws both every tick, as Mirror Rate Half does
         if (draw) _ownTurn = !_ownTurn;
+        // a side whose glass is out of the driver's view gets no render (MirrorCull), and the other is then drawn on every tick; back
+        // in view, a side is drawn that frame, so its glass never shows a picture from when it went out
+        Span<bool> seen = [_ownUsed[0] && (CullOff || _sideInView[0]), _ownUsed[1] && (CullOff || _sideInView[1])];
         for (int i = 0; i < 2; i++)
         {
             if (_ownViews[i] is not { } vp || _ownCams[i] is not { } cam) continue;
@@ -1850,8 +1938,101 @@ public partial class Cockpit : Node
             var forward = _aim[i].Forward;   // the engine's back is this frame's +Z: no mirroring of the forward's x
             var local = Transform3D.Identity.LookingAt(forward, Vector3.Up);
             cam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(local.Basis, at);
-            bool turn = !OwnAlternate || _ownTurn == left || !_ownUsed[left ? 1 : 0];
-            vp.RenderTargetUpdateMode = draw && _ownUsed[i] && turn ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+            bool back = seen[i] && !_ownSeen[i] && !CullOff;
+            bool due = MirrorRateRow.Draws(rate == MirrorRate.Alternate && !OwnAlternate ? MirrorRate.Half : rate, draw, side: true, turn: _ownTurn == left, otherSeen: seen[left ? 1 : 0]);
+            vp.RenderTargetUpdateMode = seen[i] && (due || back) ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+            if (CullLog && vp.RenderTargetUpdateMode == SubViewport.UpdateMode.Once) _ownDrawn[i]++;
+            if (CullLog && back) GD.Print($"mirror-cull: {(left ? "L" : "R")} back in view at frame {Godot.Engine.GetFramesDrawn()}, drawn that frame");
         }
+        _ownSeen[0] = seen[0];
+        _ownSeen[1] = seen[1];
+    }
+
+    // ---- which mirrors are in the driver's view (MirrorCull; the modern look) ----
+
+    /// <summary>I76_MIRROR_CULL=0: every mirror drawn on its tick whether or not its glass is in view (main's, for a measurement); I76_MIRROR_CULL_LOG=1: a line a second, where each glass lies against the view and how often each was drawn.</summary>
+    private static readonly bool CullOff = System.Environment.GetEnvironmentVariable("I76_MIRROR_CULL") == "0";
+    private static readonly bool CullLog = System.Environment.GetEnvironmentVariable("I76_MIRROR_CULL_LOG") == "1";
+    /// <summary>Degrees the view is widened by on every side for the test: a glass at the edge is drawn a little early, never late.</summary>
+    private const float CullMarginDegrees = 2f;
+    private readonly bool[] _sideInView = [true, true], _ownSeen = new bool[2];
+    private readonly int[] _ownDrawn = new int[2];
+    private bool _rearInView = true, _rearSeen;
+    private int _cullFrames, _rearDrawn;
+    /// <summary>The rear mirror's glass, its surfaces' box in the interior's frame (SetupMirror).</summary>
+    private Aabb? _rearBox;
+    private readonly System.Numerics.Vector3[] _corners = new System.Numerics.Vector3[8];
+
+    /// <summary>Out of the car, the ghost cockpit or the mirror off: nothing is in view, so each mirror is drawn afresh when it shows again.</summary>
+    private void MirrorsUnseen()
+    {
+        _rearSeen = false;
+        _ownSeen[0] = _ownSeen[1] = false;
+        foreach (var vp in _ownViews) if (vp is not null) vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
+    }
+
+    /// <summary>Whether the rear glass and each side's glass (the door mirror's, or the added one) is in the eye's view this frame, the head's turn, the head tracker and the Field of View in it: the eye's camera as it stands, in the car's frame.</summary>
+    private void InView()
+    {
+        if (Node3D.CockpitCamera is not { } cam) return;
+        var size = cam.GetViewport()?.GetVisibleRect().Size ?? new Vector2(4, 3);
+        var (tx, ty) = MirrorCull.HalfTangents(cam.Fov, cam.KeepAspect == Camera3D.KeepAspectEnum.Height, size.X / MathF.Max(size.Y, 1), CullMarginDegrees);
+        var toEye = InCar(cam).AffineInverse();
+        (float, float, float, float)? rearAt = null;
+        _rearInView = _mirrorHost is not null && _rearBox is { } rb && Seen(_mirrorHost, rb, toEye, tx, ty, out rearAt);
+        var at = new (float, float, float, float)?[2];
+        for (int i = 0; i < 2; i++)
+        {
+            bool left = i == 0, any = false;
+            foreach (var g in _glass)
+            {
+                if (g.Left != left || g.Mesh.Mesh is not { } m) continue;
+                if (Seen(g.Mesh, m.GetAabb(), toEye, tx, ty, out var a)) any = true;
+                at[i] ??= a;
+            }
+            var quad = left ? _sideL : _sideR;
+            if (quad?.Mesh is { } qm && Seen(quad, qm.GetAabb(), toEye, tx, ty, out _)) any = true;
+            _sideInView[i] = any;
+        }
+        if (!CullLog) return;
+        if (_mirrorView?.RenderTargetUpdateMode is SubViewport.UpdateMode.Once or SubViewport.UpdateMode.Always) _rearDrawn++;
+        if (++_cullFrames % 60 != 0) return;
+        static string A((float X0, float X1, float Y0, float Y1)? a) => a is { } v ? FormattableString.Invariant($"x {v.X0:0.0}..{v.X1:0.0} y {v.Y0:0.0}..{v.Y1:0.0}") : "-";
+        float hx = MathF.Atan(tx) * 180 / MathF.PI - CullMarginDegrees, hy = MathF.Atan(ty) * 180 / MathF.PI - CullMarginDegrees;
+        GD.Print(FormattableString.Invariant($"mirror-cull: half {hx:0.0} x {hy:0.0} | L in={_sideInView[0]} drawn={_ownDrawn[0]}/60 {A(at[0])} | R in={_sideInView[1]} drawn={_ownDrawn[1]}/60 {A(at[1])} | rear in={_rearInView} drawn={_rearDrawn}/60 {A(rearAt)}"));
+        _ownDrawn[0] = _ownDrawn[1] = _rearDrawn = 0;
+    }
+
+    /// <summary>A mesh's box (in its own frame) in view: shown in the tree and not wholly outside the view's sides (MirrorCull.InView); where its corners lie, for the log.</summary>
+    private bool Seen(MeshInstance3D mesh, Aabb box, Transform3D toEye, float tx, float ty, out (float, float, float, float)? at)
+    {
+        at = CullLog ? Where(mesh, box, toEye) : null;
+        if (!mesh.IsVisibleInTree()) return false;
+        Corners(mesh, box, toEye);
+        return MirrorCull.InView(_corners, tx, ty);
+    }
+
+    private (float, float, float, float)? Where(MeshInstance3D mesh, Aabb box, Transform3D toEye)
+    {
+        Corners(mesh, box, toEye);
+        return MirrorCull.Angles(_corners);
+    }
+
+    private void Corners(Node3D node, Aabb box, Transform3D toEye)
+    {
+        var t = toEye * InCar(node);
+        for (int k = 0; k < 8; k++)
+        {
+            var p = t * box.GetEndpoint(k);
+            _corners[k] = new System.Numerics.Vector3(p.X, p.Y, p.Z);
+        }
+    }
+
+    /// <summary>A node's transform in the car's frame (the eye and the interior are under the car; the car's own place in the world is left out, so the test is the frame's head turn whatever the car does).</summary>
+    private Transform3D InCar(Node3D n)
+    {
+        var t = n.Transform;
+        for (var p = n.GetParent() as Node3D; p is not null && p != Node3D; p = p.GetParent() as Node3D) t = p.Transform * t;
+        return t;
     }
 }

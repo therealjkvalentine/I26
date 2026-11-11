@@ -146,7 +146,7 @@ public class MenuTooltipTests
         labels.AddRange(Regex.Matches(checks, @"""([^""]+)""").Select(m => m.Groups[1].Value));
         labels = [.. labels.Distinct()];
         // the Graphic Detail rows' own (G(...), Setting(...) with no Cycle literal) are GraphicsHelp's; the rest are by label
-        var graphics = new HashSet<string> { "VSync", "Max FPS", "Show FPS", "Render Scale", "Vegetation", "Ambient Occlusion", "Field of View", "1997 Mode", "1997 Palette Grade", "Crash Blur", "Hood Gloss", "Visibility Range" };
+        var graphics = new HashSet<string> { "VSync", "Max FPS", "Show FPS", "Render Scale", "Vegetation", "Ambient Occlusion", "Field of View", "1997 Mode", "1997 Palette Grade", "Crash Blur", "Hood Gloss", "Visibility Range", "Mirror Rate" };
         Assert.Contains("Controls", labels);
         Assert.Contains("Arcade Phys.", labels);
         Assert.Contains("Modern Physics", labels);
