@@ -263,6 +263,22 @@ public partial class TerrainNode : Node3D
         c.Mi.MaterialOverride = _modern ? c.Modern : c.Faithful ?? FaithfulMaterial;
     }
 
+    /// <summary>
+    /// The 1997 look's road layers made after the build (MissionBuilder.BakeFaithfulRoads: the originals' where a pack serves the modern
+    /// look's): each chunk with one takes a 1997 material of its own, kept for every later change of the look; the modern look's is untouched.
+    /// </summary>
+    public void SetFaithfulRoadLayers(IReadOnlyDictionary<(int, int), Texture2D> layers, float roadLightY)
+    {
+        foreach (var c in _chunks)
+        {
+            if (!layers.TryGetValue((c.X0, c.Z0), out var layer)) continue;
+            if ((c.Faithful ?? FaithfulMaterial) is not ShaderMaterial f) continue;
+            if (c.Faithful is null || ReferenceEquals(c.Faithful, FaithfulMaterial)) c.Faithful = f = (ShaderMaterial)f.Duplicate();
+            ApplyRoadLayer(f, layer, roadLightY);
+            if (!_modern) c.Mi.MaterialOverride = c.Faithful;
+        }
+    }
+
     private static void ApplyRoadLayer(ShaderMaterial? m, Texture2D? layer, float? lightY)
     {
         if (m is null) return;
