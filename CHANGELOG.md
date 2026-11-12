@@ -18,6 +18,7 @@ Network games use protocol 28: this version does not play with 0.11.0 or earlier
 - The HD damage panel's parts no longer sit in a lighter rectangle of their own (the sheet's olive against the panel's) and the front armour chevron no longer carries the next chevron's dark apex line under it: the sheets' cells now take the panel's own texels wherever the stamp changes nothing (tools/upscale-textures.py --cells; the packs are recut).
 - 1997 look: a crashed helicopter disappears, as in the original, instead of lying there as a yellow hull with its rotor blades still on it; the modern look keeps its burnt shell (#154).
 - Computer cars ordered to attack a building aim at the building, not beside it: the paved lot round a building no longer counts as part of it, so the Leadsled gang now takes down T02's school instead of putting their rounds into its car park, and T01's attackers aim at the Wagon Wheel itself (#154).
+- The cockpit radar beeps steadily while you hold a target, as the original's does: every listed car between where the sweep stopped and your target pings (the radar was silent while a target was held). Each ping is the radar sample's one voice, so the sweep's pings no longer overlap (#154).
 
 ### New
 - The modern look's rear-view mirror has rounder corners: its frame and glass are cut rounder in the mirror's shader on the same flat quad (`[port] mirror_round`, 16 of the art's pixels; 0 for the original art's own corners). The door mirrors' rim is 70 % narrower. The 1997 look keeps the original's.

@@ -95,17 +95,18 @@ public partial class CarNode : Node3D
     /// <summary>
     /// A one-shot of which only one voice plays at a time (the GPW header's "max voices" of -1 means 1):
     /// asked again while it still plays, the new one is dropped, so a held trigger on a broken weapon (wmiss.wav, asked every frame)
-    /// sounds the file's own series of buzzes through, and starts it again when it ends.
+    /// sounds the file's own series of buzzes through, and starts it again when it ends. True when it started.
     /// </summary>
-    public void OneShotSingle(string key, AudioStream? s, float db = 0)
+    public bool OneShotSingle(string key, AudioStream? s, float db = 0)
     {
-        if (s is null) return;
-        if (_single.TryGetValue(key, out var old) && IsInstanceValid(old) && old.Playing) return;
+        if (s is null) return false;
+        if (_single.TryGetValue(key, out var old) && IsInstanceValid(old) && old.Playing) return false;
         var p = new AudioStreamPlayer3D { Bus = "SFX", Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
         AddChild(p);
         p.Finished += p.QueueFree;
         p.Play();
         _single[key] = p;
+        return true;
     }
 
     /// <summary>Stops a <see cref="OneShotSingle"/> voice that still plays (the radar jammer's activation stops clockon.wav).</summary>

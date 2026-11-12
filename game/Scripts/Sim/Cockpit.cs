@@ -968,6 +968,7 @@ public partial class Cockpit : Node
             // flag 0x10 (a target selected): the sweep stops and the locked frame ZRADBnnn follows the target's bearing
             var d = Car.Rot.ToLocal(locked.Pos.ToVector3() - Car.Pos.ToVector3());
             _radarAt = I76.Sim.Weapons.RadarScope.LockedFrame(d.X, d.Z);
+            _radarCur = _radarAt;   // written into the sweep's step: the ping window runs from where the sweep stopped, which resumes from here
             frame = _radarB[_radarAt] ?? _radarF[30];
         }
         else
@@ -1018,8 +1019,8 @@ public partial class Cockpit : Node
                 if (v.Wreck || !Combat.IsContact(Car, v)) continue;   // the contact list: 600 m on the ground, no dead or engine-off car
                 any = true;   // the LED and the growl: any listed car, on the scope or past its range circle
                 if (I76.Sim.Weapons.RadarScope.Project(Car.Rot, Car.Pos.ToVector3(), v.Pos.ToVector3(), R) is not var (nx, nz)) continue;
-                bool inWedge = locked is null && !retry && I76.Sim.Weapons.RadarScope.InPingWedge(_radarPrev, _radarCur, nx, nz);
-                if (inWedge) { if (!pinged) { Sound("cradar.wav"); pinged = true; } _sweptAt[v] = _t; }   // every pass pings; blips in one step share the sound
+                bool inWedge = PingsNow(v, locked, retry) && I76.Sim.Weapons.RadarScope.InPingWedge(_radarPrev, _radarCur, nx, nz);
+                if (inWedge) { if (!pinged) { RadarPing(); pinged = true; } _sweptAt[v] = _t; }   // every pass pings; blips in one step share the sound
                 // a raw bitmap row: bottom-up, as the image stores it
                 // no team colours: palette index 0x69 when listed, 0 as the sweep passes or it is picked, +3 a second back to
                 // 0x69; the target 0xff, which the 1997 CD build never writes (its target fades as the others do)
