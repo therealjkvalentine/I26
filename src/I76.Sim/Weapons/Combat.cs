@@ -66,6 +66,11 @@ public sealed record ShotFired(Vehicle Shooter, Weapon Weapon, Vector3 Muzzle, V
 }
 /// <summary>A round's hit: At is the effect's place (bullets back off 2 m), Hit the struck point, N its normal, Dir the flight.</summary>
 public sealed record Impact(string Effect, string Sound, Vector3 At, object? Victim, uint Kind = 0, Vector3 Hit = default, Vector3 N = default, Vector3 Dir = default) : CombatEvent;
+/// <summary>
+/// The sound of an impact alone, at its place: a network client's own round striking in its prediction (#168). The
+/// server's impact for it brings the effect and the damage, its sound then not played again (ClientWorld).
+/// </summary>
+public sealed record ImpactSound(string Sound, Vector3 At, uint Kind, Vector3 Dir) : CombatEvent;
 public sealed record Explosion(EffectDef Effect, Vector3 At) : CombatEvent;
 public sealed record WeaponClick(Vehicle Shooter, string Sound) : CombatEvent;
 
@@ -1595,7 +1600,16 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     /// <param name="bomblet">A cluster bomb's bomblet going off: the impact alone, no more bomblets.</param>
     private void OnHit(Round r, object? victim, Vector3 at, Vector3 n, Vector3 dir, int node = -1, bool bomblet = false)
     {
-        if (_cosmetic) return;   // a client's own round: the server's impact is the one drawn
+        if (_cosmetic)
+        {
+            // a client's own round: the server's impact is the one drawn and the one that harms; its sound is played now, on
+            // a fresh tick, as the single player's is (#168). Not the lasting kinds' (mines, Blox, the chemical cloud): their
+            // rounds are the server's once it has them.
+            if (!_silent && !bomblet && r.Kind is not (0xf or 0x10 or 0x16) && ImpactClass(victim, node) is var pc and >= 0
+                && ImpactEffect(r.Ord.ImpactXdf[pc]) is not null && r.Ord.ImpactWav[pc] is { Length: > 0 } wav)
+                Events.Add(new ImpactSound(wav, r.Kind is 1 or 6 or 0x12 or 0x15 ? at - dir * 2f : at, r.Kind, dir));
+            return;
+        }
         if (victim is not null && Damage is { } sink)
             for (int i = 0; i < r.Count; i++)
                 sink.Apply(victim, RoundPacket(r), Local(victim, at), node);

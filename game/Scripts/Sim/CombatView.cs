@@ -809,6 +809,11 @@ public partial class CombatView : Node3D
                     }
                     else if (i.Effect.Length == 0 || i.Effect.Equals("null", StringComparison.OrdinalIgnoreCase)) Flash(i.At, 0.5f, 0.08);
                     break;
+                // a network client's own round striking in its prediction: the impact's voice alone, the server's impact
+                // brings the effect (#168)
+                case ImpactSound s:
+                    Sound(s.Sound, s.At, -2, Ds3d.LoudMinDistance);
+                    break;
                 case Explosion when skipBlast:
                     break;
                 // the napalm stream hit burst (xflht1): the modern look draws the fire on the target itself (NapalmModern)
