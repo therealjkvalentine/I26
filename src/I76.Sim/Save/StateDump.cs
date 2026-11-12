@@ -54,6 +54,13 @@ public sealed class StateDump
         return _sb.ToString();
     }
 
+    /// <summary>One object dumped on its own, named <paramref name="path"/> (tests).</summary>
+    internal string DumpObject(string path, object o)
+    {
+        Value(path, o, deep: true);
+        return _sb.ToString();
+    }
+
     private void Line(string path, string value) => _sb.Append(path).Append(" = ").Append(value).Append('\n');
 
     /// <summary>A car, entity, structure, round or melee player by its stable id.</summary>
@@ -204,15 +211,29 @@ public sealed class StateDump
                 Line(path + ".length", items.Count.ToString(CultureInfo.InvariantCulture));
             }
             Line(path + ".count", n.ToString(CultureInfo.InvariantCulture));
+            // the sim's own objects in a list (a pool of linked nodes, as a path search's): each is named by its place before
+            // any is dumped, so the links between them are references, not a walk as deep as the pool is long (a search in
+            // progress chains its 1000 nodes through parents, children and the open tree, which overflowed the stack)
+            var named = new bool[n];
+            for (int i = 0; i < n; i++)
+                if (!homeList && items[i] is { } o && IsPooled(o) && _seen.TryAdd(o, $"{path}[{i}]")) named[i] = true;
             for (int i = 0; i < n; i++)
             {
                 var it = items[i];
                 if (homeList && it is not null && Key(it) is { } ik) Fields($"{path}[{ik}]", it);
+                else if (named[i]) Fields($"{path}[{i}]", it!);
                 else Value($"{path}[{i}]", it, deep);
             }
             return;
         }
         Fields(path, v);
+    }
+
+    /// <summary>A plain object of the sim's (no stable id, no collection, nothing dumped specially) that a list can name by its place.</summary>
+    private bool IsPooled(object o)
+    {
+        var t = o.GetType();
+        return !t.IsValueType && t.Assembly == SimAssembly && o is not IEnumerable && Key(o) is null && Leaf(o) is null;
     }
 
     /// <summary>A dictionary key or set element as a sortable string.</summary>
