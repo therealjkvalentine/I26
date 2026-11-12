@@ -115,8 +115,82 @@ public class HdTexturesFirstStartTests
     [InlineData(true, false, 11264L, false, 4, 4)]   // no 8x folder
     [InlineData(true, true, 3072L, false, 0, 0)]     // a 3 GB card: 1997 both
     [InlineData(false, false, null, false, 0, 0)]    // no pack
+    [InlineData(false, true, 11264L, false, 0, 8)]   // the 8x cockpit-and-cars pack alone: its 8x, the world 1997 (it has none)
+    [InlineData(false, true, 4096L, false, 0, 8)]    // on a 4 GB card too: it takes less than the 4x would
+    [InlineData(false, true, 3072L, false, 0, 0)]    // a 3 GB card: 1997, as for the 4x
     public void TheFirstStartsPair(bool has4x, bool has8x, long? mb, bool shared, int world, int car) =>
         Assert.Equal((world, car), HdTextures.Pick(has4x, has8x, mb, shared));
+}
+
+/// <summary>
+/// [port] texture_packs and HdTextures.WithNewPacks: a 1997 saved with no pack there (nothing else to choose) gives way to the first
+/// start's choice once a pack is installed; a 1997 chosen with a pack there stays.
+/// </summary>
+public class HdTexturesNewPackTests
+{
+    private static readonly (int, int) First = (4, 8);
+
+    [Theory]
+    [InlineData(new int[0], false, "none")]
+    [InlineData(new[] { 8, 4 }, false, "8x 4x")]
+    [InlineData(new[] { 4 }, true, "4x tex-world")]
+    public void ThePacksAreWrittenAndReadBack(int[] sizes, bool plain, string word)
+    {
+        Assert.Equal(word, HdTextures.PacksWord(sizes, plain));
+        Assert.Equal(sizes.Concat(plain ? [0] : Array.Empty<int>()), HdTextures.ParsePacks(word)!);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("4x big")]
+    public void AWordItDidNotWriteIsNone(string? word) => Assert.Null(HdTextures.ParsePacks(word));
+
+    /// <summary>The verification lane's case (e): a settings file saved before the pack was installed keeps 1997 no more.</summary>
+    [Fact]
+    public void A1997SavedWithNoPackTakesTheFirstStartsChoiceOnceAPackIsThere()
+    {
+        Assert.Equal((4, 8), HdTextures.WithNewPacks((0, 0), [], [8, 4], true, First));
+        // a file from before the key, both rows 1997: saved with no pack (with one the rows start at 4x)
+        Assert.Equal((4, 8), HdTextures.WithNewPacks((0, 0), null, [8, 4], true, First));
+        // the first start of a small card is 1997: it stays
+        Assert.Equal((0, 0), HdTextures.WithNewPacks((0, 0), [], [4], true, (0, 0)));
+        // still no pack: nothing to change
+        Assert.Equal((0, 0), HdTextures.WithNewPacks((0, 0), [], [], false, First));
+    }
+
+    /// <summary>A 1997 chosen with a pack there is the player's and survives a new pack.</summary>
+    [Fact]
+    public void A1997ChosenWithAPackThereStays()
+    {
+        Assert.Equal((0, 0), HdTextures.WithNewPacks((0, 0), [4], [8, 4], true, First));
+        Assert.Equal((0, 8), HdTextures.WithNewPacks((0, 8), [8, 4], [8, 4], true, First));
+        Assert.Equal((4, 0), HdTextures.WithNewPacks((4, 0), null, [8, 4], true, First));
+    }
+
+    /// <summary>Car &amp; Dash at 4x saved with only the 4x there: the 8x installed since is taken where the first start takes it.</summary>
+    [Fact]
+    public void ThePairSavedWithoutThe8xTakesItWhereTheFirstStartWould()
+    {
+        Assert.Equal((4, 8), HdTextures.WithNewPacks((4, 4), [4], [8, 4], true, First));
+        Assert.Equal((4, 4), HdTextures.WithNewPacks((4, 4), [4], [8, 4], true, (4, 4)));    // a 4 GB card
+        Assert.Equal((4, 4), HdTextures.WithNewPacks((4, 4), [8, 4], [8, 4], true, First));  // the 4x chosen with the 8x there
+        Assert.Equal((4, 4), HdTextures.WithNewPacks((4, 4), null, [8, 4], true, First));    // before the key: cannot tell, kept
+    }
+}
+
+/// <summary>Car &amp; Dash Textures' sizes: the 8x with the 4x, or the 8x alone when it is the only pack.</summary>
+public class TextureRowSizesTests
+{
+    [Fact]
+    public void TheCarRowOffersThe8xWithOrWithoutThe4x()
+    {
+        Assert.Equal([0, 4, 8], TextureRow.Sizes(GraphicsRow.CarTextures, [8, 4]));
+        Assert.Equal([0, 8], TextureRow.Sizes(GraphicsRow.CarTextures, [8]));
+        Assert.Equal([0, 4], TextureRow.Sizes(GraphicsRow.CarTextures, [4]));
+        Assert.Equal([0, 4], TextureRow.Sizes(GraphicsRow.WorldTextures, [8, 4]));
+        var s = new ShellSettings { CarTextures = 8 };
+        Assert.Equal("8x" + ShellSettings.PortMark, TextureRow.Names(s, GraphicsRow.CarTextures, [8])[TextureRow.Index(s, GraphicsRow.CarTextures, [8])]);
+    }
 }
 
 /// <summary>A fresh block, and so the rows' Reset, takes this machine's first-start choice (ShellSettings.HdDefault, set by Load from HdTextures.FirstStart).</summary>

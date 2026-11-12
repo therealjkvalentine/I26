@@ -189,9 +189,13 @@ public static class TextureRow
     /// <summary>The rows are shown when a pack was found (<paramref name="available"/>: the sizes whose folders are there; <paramref name="anyPack"/>: a plain folder or a zip too).</summary>
     public static bool Offered(int[] available, bool anyPack) => anyPack || available.Length > 0;
 
-    /// <summary>The sizes a row steps through (0 the originals): World 1997 and 4x; Car &amp; Dash the 8x too when its folder is beside the 4x.</summary>
+    /// <summary>
+    /// The sizes a row steps through (0 the originals): World 1997 and 4x; Car &amp; Dash the 8x too when its pack is there, 1997 and 8x
+    /// alone when the 8x is there without the 4x (it holds every car and cockpit texture; its 4x would be the 8x read again).
+    /// </summary>
     public static int[] Sizes(GraphicsRow r, int[] available) =>
-        r == GraphicsRow.CarTextures && available.Contains(Large) && available.Contains(Size) ? [0, Size, Large] : [0, Size];
+        r != GraphicsRow.CarTextures || !available.Contains(Large) ? [0, Size]
+        : available.Any(s => s != Large) ? [0, Size, Large] : [0, Large];
 
     public static int SizeOf(ShellSettings s, GraphicsRow r) => r == GraphicsRow.WorldTextures ? s.WorldTextures : s.CarTextures;
 

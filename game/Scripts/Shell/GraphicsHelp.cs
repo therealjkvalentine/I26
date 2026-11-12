@@ -54,10 +54,10 @@ public static class GraphicsHelp
         GraphicsRow.CrashBlur => "Crash blur: the double image a big hit leaves in the cockpit, as the original's software renderer drew it. Off for none.",
         GraphicsRow.WorldTextures => look1997
             ? "World textures: the ground, buildings and props from the texture pack, for the modern look. The 1997 look always draws the install's own."
-            : "World textures: the ground, buildings and props. 1997 is the install's own; 4x the pack's upscales, no frame cost (the whole 4x pack takes about 0.7 GB of video memory).",
+            : "World textures: the ground, buildings and props. 1997 is the install's own; 4x the pack's upscales, no frame cost (the whole 4x pack takes about 0.7 GB of video memory)." + PacksFound(),
         GraphicsRow.CarTextures => look1997
             ? "Car & dash textures: the cars and your dash and gauges from the texture pack, for the modern look. The 1997 look always draws the install's own."
-            : "Car & dash textures: the cars and your dash and gauges. 1997 is the install's own, 4x the pack; 8x is sharper up close for about 0.5 GB more video memory (most of it the dash), no frame cost. From the next mission.",
+            : "Car & dash textures: the cars and your dash and gauges. 1997 is the install's own, 4x the pack; 8x is sharper up close for about 0.5 GB more video memory (most of it the dash), no frame cost. From the next mission." + PacksFound(),
         GraphicsRow.Vegetation => look1997
             ? "Vegetation: the modern look's shrubs and grass. No cost in the 1997 look."
             : "Vegetation: shrubs and grass on the ground. About 4 % of a full-detail frame at High.",
@@ -76,6 +76,15 @@ public static class GraphicsHelp
         GraphicsRow.Garage3D => "3D garage: Configure Chassis drawn as a 3D garage with your car in it; Off is the original's flat 2D form.",
         _ => throw new ArgumentOutOfRangeException(nameof(row)),
     };
+
+    /// <summary>
+    /// The texture rows' last sentence: which texture packs were found, where when not where the README puts them, and what looked like
+    /// a pack and was not used (HdPacks.RowNote). Empty before the start's scan (the tests' calls).
+    /// </summary>
+    private static string PacksFound()
+    {
+        return I76.Game.Assets.HdPacks.RowNote() is { Length: > 0 } n ? " " + n : "";
+    }
 
     /// <summary>The sheet's entry for the Advanced page.</summary>
     public const string AdvancedEntry = "Advanced: 1997 Mode and its palette, the texture packs, the modern look's extras, render scale and the start-up rows.";
