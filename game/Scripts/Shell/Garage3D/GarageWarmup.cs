@@ -66,6 +66,8 @@ public static class GarageWarmup
             int model = Math.Clamp(setup.Model, 0, data.Models.Count - 1);
             int variant = Math.Clamp(setup.Variant, 1, data.Models[model].Variants.Count);
             var vfs = shell.Vfs;
+            // the look's upscales only: the 1997 look's garage serves the originals (GarageAssets.For)
+            bool hd = GarageAssets.ServesHd(shell);
             string vcf = data.Vcf(model, variant);
             var paint = data.Colours(model, variant);
             (GarageAssets Assets, TripCar Car)? made = null;
@@ -73,7 +75,7 @@ public static class GarageWarmup
             {
                 GarageRoom.MakeTextures();
                 if (I76.Game.Boot.EngineThreads.Quitting) return;
-                var assets = GarageAssets.Held(vfs);
+                var assets = GarageAssets.Held(vfs, hd);
                 // the props' material maps (the Grappler's driver) wait for the main thread to take them, not a deferred call in the middle of this
                 assets.Materials.HoldFlush = true;
                 var car = TripCar.FromVcf(vfs.Read(vcf), n => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, n));

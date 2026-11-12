@@ -21,12 +21,15 @@ public sealed class GarageAssets
     public static GarageAssets For(Shell shell)
     {
         if (GarageWarmup.Busy) throw new InvalidOperationException("the garage's assets are the warm-up thread's until it is done");
-        bool hd = !shell.Faithful && HdTextures.Enabled;
+        bool hd = ServesHd(shell);
         var assets = Held(shell.Vfs, hd);
         assets.Textures.SetHd(hd);
         assets.TakeBack();
         return assets;
     }
+
+    /// <summary>Whether this shell's garage serves the upscales: HD Textures in the modern look.</summary>
+    internal static bool ServesHd(Shell shell) => !shell.Faithful && HdTextures.Enabled;
 
     /// <summary>
     /// On the main thread, once the warm-up's thread is done with them: the props' material maps it left waiting are put on their
