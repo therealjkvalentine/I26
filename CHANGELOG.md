@@ -5,6 +5,7 @@
 Network games use protocol 28: this version does not play with 0.11.0 or earlier, nor with upstream builds of protocol 22.
 
 ### Fixed
+- A briefing that plays while its mission loads keeps its voice through a stall of the game: its sound is decoded up to 4 s ahead into a 4.5 s buffer (0.5 s before), so the voice-over plays on through the load's pauses, and the picture now follows the sound, so after a longer stall the two go on together instead of the picture trailing the voice (by 1.6 s after a 1.5 s and a 6 s stall of T01's briefing, now within 0.1 s) (#157).
 - On the Nitro Pack's main menu, lighting TRAINING (or any button whose words show along the bottom) no longer cuts the bottom off MAP EDITOR: the entry sits a little higher, clear of those words in both games (#156).
 - The nitro and radar jammer sounds, the dry click of a gun and a tyre blowing now go with the car that made them, as the original's sounds on a car do, instead of staying where the key was pressed: at full speed nitro's 4 s burst was left about 200 m behind (seen in #172).
 - In a network game your own weapon cycle and link click (cammo.wav) and the dry click of a gun pressed again before it is ready (wclick.wav) play the moment you press the key, as the nitro and jammer sounds already did, instead of a round trip and the view's 100 ms later; the server's copy of each is not played again, so each is heard once (#168).
