@@ -4,31 +4,46 @@ using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>The modern look's blast for each launcher's impact effects (CombatView.Blast).</summary>
+/// <summary>The modern look's blast for each launcher's impact effects (CombatView.Blast, CombatView.StyleOf).</summary>
 public class MissileBlastTests
 {
     private static EffectDef Effect(string file, float splash = 2, float radius = 5) => new(file, 20, 0, splash, radius, []);
 
     // every rocket, missile and the howitzer: ground, car and building hits (the stock .gdf impact pairs)
+    public static TheoryData<string> Launchers => new() { "xmslg1.xdf", "xmslc1.xdf", "xmslb1.xdf", "XMSLC1.XDF" };
+
     [Theory]
-    [InlineData("xmslg1.xdf")]
-    [InlineData("xmslc1.xdf")]
-    [InlineData("xmslb1.xdf")]
-    [InlineData("XMSLC1.XDF")]
+    [MemberData(nameof(Launchers))]
     public void LauncherImpactsAreLayeredHdBlasts(string file)
     {
         var b = CombatView.Blast(Effect(file));
         Assert.NotNull(b);
-        Assert.True(b!.Value.Size >= ModernFx.LayeredSize, $"{file}: size {b.Value.Size} draws one layer of the low-resolution sequence");
-        Assert.Equal(1f, b.Value.Fire);
+        Assert.Equal(1f, b!.Value.Fire);
+        var st = CombatView.StyleOf(Effect(file));
+        Assert.NotNull(st);
+        // the HD sequence in layers, whatever the size (one layer of the low-resolution sequence was the small puffball)
+        Assert.True(st!.Value.Layered);
     }
 
-    [Fact]
-    public void LauncherBlastsMatchTheMines()
+    [Theory]
+    [MemberData(nameof(Launchers))]
+    public void LauncherBlastsSitOnTheHitWithoutTheWhiteDisc(string file)
     {
-        // the smallest of the other weapons' blasts (the mines', size 4) is the floor for a launcher's
-        Assert.True(CombatView.Blast(Effect("xmslc1.xdf"))!.Value.Size >= CombatView.Blast(Effect("xmine1.xdf", 25))!.Value.Size);
+        var st = CombatView.StyleOf(Effect(file))!.Value;
+        // the HD sequence's first four frames are a white disc (half of the ball or more near-white): started past them
+        Assert.True(st.FirstFrame >= 4);
+        // its fireball sits about 0.25 sizes under the frame's centre: the centre no higher than that puts the ball on the hit,
+        // and the frame hardly turned keeps it there (turned at random it stood up to a size above the hit)
+        Assert.InRange(st.Lift, 0f, 0.3f);
+        Assert.InRange(st.Spin, 0f, 0.5f);
+        Assert.True(st.Flash < 1f && st.Bright < 1f);
     }
+
+    [Theory]
+    [InlineData("xcarx1.xdf", 25)]
+    [InlineData("xgren1.xdf", 95)]
+    [InlineData("xbldx1.xdf", 15)]
+    public void OtherBlastsKeepTheirLayout(string file, float splash) => Assert.Null(CombatView.StyleOf(Effect(file, splash)));
 
     [Theory]
     [InlineData("xbulc1.xdf", 0)]

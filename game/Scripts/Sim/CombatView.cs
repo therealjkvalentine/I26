@@ -387,12 +387,23 @@ public partial class CombatView : Node3D
         if (n.StartsWith("xgren")) return (6f, 2.8, dark, 1f);
         if (n.StartsWith("xclst")) return (4.5f, 2.4, dark, 1f);
         if (n.StartsWith("xmine")) return (4f, 2.4, new Color(0.3f, 0.25f, 0.2f), 1f);
-        // the launchers' blasts (every rocket and missile, the howitzer): as the car deaths and mortars are drawn, the HD sequence in
-        // layers standing on the hit; at 3 a single layer of the lower-resolution sequence floated above the hit as a small puffball
-        if (n.StartsWith("xmsl")) return (ModernFx.LayeredSize, 2.4, dark, 1f);
+        // the launchers' blasts (every rocket and missile, the howitzer): the HD sequence in layers as the car deaths and mortars are,
+        // laid out on the hit (StyleOf); at 3 a single layer of the lower-resolution sequence, turned at random, floated above the hit
+        if (n.StartsWith("xmsl")) return (2.8f, 2.4, dark, 1f);
         if (e.SplashDamage > 0 && !n.StartsWith("xfire")) return (Mathf.Clamp(e.SplashRadius * 0.3f, 2.5f, 8f), 2.5, dark, 1f);
         return null;
     }
+
+    /// <summary>
+    /// The launchers' blasts (every rocket and missile, the howitzer: their xmsl effects) laid out on the hit: the HD sequence in two
+    /// layers from its fifth frame (its first four are a white disc), a little dimmed, its centre on the hit and hardly turned (the
+    /// sequence's fireball sits low in its frame and smoke rises from it: turned at random it stood metres above the hit, or beside
+    /// it), with a weaker fireball flash. Null for the other effects, which keep the car deaths' layout.
+    /// </summary>
+    public static ModernFx.BlastStyle? StyleOf(I76.Formats.Bwd2.EffectDef e) =>
+        System.IO.Path.GetFileNameWithoutExtension(e.File).StartsWith("xmsl", StringComparison.OrdinalIgnoreCase)
+            ? new ModernFx.BlastStyle(Layered: true, Lift: 0.25f, FirstFrame: 4, Bright: 0.85f, Flash: 0.35f, Spin: 0.3f)
+            : null;
 
     private Vector3 CameraPos() => GetViewport().GetCamera3D()?.GlobalPosition ?? Vector3.Zero;
 
@@ -803,7 +814,7 @@ public partial class CombatView : Node3D
                 case Explosion x when IsModern && System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).StartsWith("xflht", StringComparison.OrdinalIgnoreCase):
                     break;
                 case Explosion x when IsModern && _fx.HasExplosions && Blast(x.Effect) is { } bl:
-                    _fx.Explode(G(x.At), bl.Size, bl.Life, bl.Smoke, bl.Fire);
+                    _fx.Explode(G(x.At), bl.Size, bl.Life, bl.Smoke, bl.Fire, StyleOf(x.Effect));
                     if (System.IO.Path.GetFileNameWithoutExtension(x.Effect.File).Equals("xbldx2", StringComparison.OrdinalIgnoreCase)) _fx.Fireworks(G(x.At));
                     break;
                 case Explosion x when Sprites?.Get(x.Effect) is { } look:
