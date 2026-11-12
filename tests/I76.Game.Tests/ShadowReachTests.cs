@@ -62,7 +62,7 @@ public class ShadowReachTests
         for (int i = 0; i < 16; i++) saved.Graphics[i] = (byte)(ShellSettings.DefaultGraphics[i] ^ 1);
         saved.Graphics[0x6] = shadow;
         var g = new ShellSettings().Graphics;
-        ShellSettings.ReadGraphics(g, (byte[])saved.Graphics.Clone(), ShellSettings.Version);
+        ShellSettings.ReadGraphics(g, (byte[])saved.Graphics.Clone(), ShellSettings.ForkVersion);
         Assert.Equal(saved.Graphics, g);
     }
 

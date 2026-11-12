@@ -100,7 +100,7 @@ public static class DevSettings
     public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
     /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, opentrack_path a path, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path"];
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path", "fov_window", "fork_version", "host_bot_skill_difficulty", "turret_slew"];   // from fov_window: rows' keys (Field of View, the host form's Bot Skill, Play Options' Turrets) and the file's own step count
 
     public static readonly DevSetting[] All =
     [
@@ -175,7 +175,7 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
         Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
         // the modern look's dim cabin and driver behind the other cars' windows (Car Interiors' row until round 5)
-        new("cabins_behind_glass", ["false", "true" + M], s => s.CabinsBehindGlass ? 1 : 0, (s, v) => s.CabinsBehindGlass = v != 0, DevWhen.Live,
+        new("car_interiors", ["false", "true" + M], s => s.CabinsBehindGlass ? 1 : 0, (s, v) => s.CabinsBehindGlass = v != 0, DevWhen.Live,
             s => I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(s.CabinsBehindGlass)),
         // the log file (Graphic Detail's Log File row until round 5): Godot reads it at start
         new("log_file", ["false", "true" + M], s => s.LogFile ? 1 : 0, (s, v) => s.LogFile = v != 0, DevWhen.NextStart),

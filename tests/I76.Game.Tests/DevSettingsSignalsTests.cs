@@ -91,7 +91,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("60", Shown("vegetation_density"));
         Assert.Equal("4x*", Shown("world_textures"));
         Assert.Equal("4x*", Shown("car_textures"));
-        Assert.Equal("true*", Shown("cabins_behind_glass"));
+        Assert.Equal("true*", Shown("car_interiors"));
         Assert.Equal("false", Shown("log_file"));
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("on*", Shown("lighting_calibration"));

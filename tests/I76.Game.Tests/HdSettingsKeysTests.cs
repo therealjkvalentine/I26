@@ -26,7 +26,7 @@ public class HdSettingsKeysTests
     }
 
     [Theory]
-    [InlineData("cabins_behind_glass")]
+    [InlineData("car_interiors")]
     [InlineData("hd_menu_art")]
     public void TheDeveloperPanelTogglesThem(string key)
     {
@@ -35,7 +35,7 @@ public class HdSettingsKeysTests
         Assert.Equal(1, e.Get(s));
         e.Set(s, 0);
         Assert.Equal(0, e.Get(s));
-        Assert.False(key == "cabins_behind_glass" ? s.CabinsBehindGlass : s.HdMenuArt);
+        Assert.False(key == "car_interiors" ? s.CabinsBehindGlass : s.HdMenuArt);
         Assert.Equal(["false", "true*"], e.Values);
     }
 }
