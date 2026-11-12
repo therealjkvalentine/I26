@@ -2036,9 +2036,8 @@ public partial class Main : Node3D
     /// ready is kept with "PLEASE STAND BY" faded in (StandByTag), a movie that runs out holds its last frame under it, and the
     /// mission starts by itself the moment it is ready. The port's (the movie must play clean, docs/perf/loadtime-plan.md round 2):
     /// the rest of the load on the main thread never runs under the playing picture, only behind the card or the held frame (after a
-    /// skip the movie plays on under the line while the build's thread works, then stops where it is for the rest: MoviePlayer.HoldPicture);
-    /// and while the build's thread works under the playing picture
-    /// the same line shows faint over it. A movie that could not play brings the card back until the mission is ready. No
+    /// skip it stops where it is for the rest: MoviePlayer.HoldPicture); and while the build's thread works under the playing picture
+    /// the same line shows faint over it and no press skips (none kept for later: MovieSkipGate), a new one after it fades does. A movie that could not play brings the card back until the mission is ready. No
     /// briefing: the card until the build is done.
     /// </summary>
     private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, LoadingScreen loading)
@@ -2086,7 +2085,7 @@ public partial class Main : Node3D
         while (true)
         {
             Noted();
-            // a skip kept while the build's thread works: the movie plays on under the line; the build done, it stands still for the rest
+            // a skip kept (made once the build's thread is done: none counts while it works): the picture stands still for the rest
             if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped) skipped.HoldPicture();
             if (movieStarted && !held && Held())
             {

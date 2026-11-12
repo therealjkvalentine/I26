@@ -10,7 +10,8 @@ namespace I76.Game.Ui;
 /// mission's briefing when its script asks (opcode 51). A thread decodes a
 /// little ahead; the picture follows the clock, dropping frames if the
 /// screen falls behind, and the sound streams as it is decoded. Esc, Space,
-/// Enter or a click skips it. It runs while the tree is paused.
+/// Enter or a click skips it, once the mission loading under it (if any) is
+/// done. It runs while the tree is paused.
 /// </summary>
 public partial class MoviePlayer : CanvasLayer
 {
@@ -29,10 +30,12 @@ public partial class MoviePlayer : CanvasLayer
     public StandByTag? WaitingTag { get; init; }
     /// <summary>
     /// The port's: while true, the mission is loading under the playing picture (its build's thread at work), and
-    /// <see cref="WaitingTag"/> shows over it too, fading out when it turns false.
+    /// <see cref="WaitingTag"/> shows over it too, fading out when it turns false. No press skips meanwhile, nor is one kept for
+    /// later: a new press once it is false does (MovieSkipGate).
     /// </summary>
     public Func<bool>? Loading { get; init; }
     private bool IsWaiting => Waiting?.Invoke() == true;
+    private bool IsLoading => Loading?.Invoke() == true;
     private StandByTag? _tag;
     /// <summary>The movie ran out (or was held after a skip, <see cref="HoldPicture"/>) while <see cref="Waiting"/>: its frame stays up until the mission can start.</summary>
     private bool _held;
@@ -51,12 +54,17 @@ public partial class MoviePlayer : CanvasLayer
     private int _skipAfter = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MOVIE_SKIP"), out int sk2) ? sk2 : -1;
     /// <summary>
     /// Capture hook: I76_MOVIE_INPUT="wheel@N;click@N;key@N" sends, N drawn frames after the first, a notch of the mouse wheel, a left
-    /// click (pressed, then released the next frame) or Enter (likewise) through the engine's input, as the player's would come.
+    /// click (pressed, then released the next frame) or Enter (likewise) through the engine's input, as the player's would come; also
+    /// rclick, esc, space and pad (pad 0's A). <c>N</c> ending in <c>ms</c>: that many milliseconds after the first frame instead (a
+    /// build under the briefing draws at up to 1000 fps).
     /// </summary>
-    private readonly List<(string What, int At)> _inputs = [.. (System.Environment.GetEnvironmentVariable("I76_MOVIE_INPUT") ?? "")
-        .Split(';', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Split('@')).Where(p => p.Length == 2 && int.TryParse(p[1], out _))
-        .Select(p => (p[0], int.Parse(p[1])))];
+    private readonly List<(string What, int At, bool Ms)> _inputs = [.. (System.Environment.GetEnvironmentVariable("I76_MOVIE_INPUT") ?? "")
+        .Split(';', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Split('@')).Where(p => p.Length == 2 && int.TryParse(p[1].TrimEnd('m', 's'), out _))
+        .Select(p => (p[0], int.Parse(p[1].TrimEnd('m', 's')), p[1].EndsWith("ms")))];
     private int _drawn;
+    private ulong _firstFrameAt;
+    /// <summary>The drawn frame an <c>ms</c> input of I76_MOVIE_INPUT came due on (0: not yet).</summary>
+    private readonly Dictionary<int, int> _inputDue = [];
     public event Action? Finished;
 
     private Smacker _movie = null!;
@@ -203,7 +211,8 @@ public partial class MoviePlayer : CanvasLayer
         return o;
     }
 
-    /// <summary>I76_MOVIE_SKIP_MS=N: a skippable movie is skipped N ms after it was put up, as a key would (the load-time harness's skip path).</summary>
+    /// <summary>I76_MOVIE_SKIP_MS=N: a skippable movie is skipped N ms after it was put up, as a key would (the load-time harness's skip path); with the mission
+    /// still loading under it then, the moment the load is done (the first press a player's skip can be).</summary>
     private static readonly int SkipAfterMs = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MOVIE_SKIP_MS"), out int sk) ? sk : -1;
     private readonly ulong _upAt = Time.GetTicksMsec();
 
@@ -213,7 +222,7 @@ public partial class MoviePlayer : CanvasLayer
         if ((_skipWanted || _held) && !IsWaiting) { Finish(); return; }
         TagForLoading();
         if (_held) return;
-        if (SkipAfterMs >= 0 && Skippable && !_done && !_skipWanted && Time.GetTicksMsec() - _upAt >= (ulong)SkipAfterMs) { if (Skip() || _held) return; }
+        if (SkipAfterMs >= 0 && Skippable && !_done && !_skipWanted && !IsLoading && Time.GetTicksMsec() - _upAt >= (ulong)SkipAfterMs) { if (Skip() || _held) return; }
         if (_video is not null) { ReplacementStep(); return; }
         if (_done || _movie is null) return;
         // the clock starts with the first frame, so a slow first decode does not eat into the picture
@@ -228,6 +237,7 @@ public partial class MoviePlayer : CanvasLayer
             }
             _started = true;
             _skipsAtStart = _out?.GetSkips() ?? 0;
+            _firstFrameAt = Time.GetTicksMsec();
             I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
         }
         else if (_out is not null && _audioClock is { } ac && _hold < 0)
@@ -242,7 +252,12 @@ public partial class MoviePlayer : CanvasLayer
         }
         else _clock += delta;
         if (_inputs.Count > 0) SendInputs(++_drawn);
-        if (_skipAfter >= 0 && _skipAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
+        if (_skipAfter >= 0 && _skipAfter-- == 0)
+        {
+            // as a key: not while the mission loads under the picture (dropped, not kept)
+            if (IsLoading) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP while the mission loads, not a skip");
+            else { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
+        }
         if (_endAfter >= 0 && _endAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_END runs it out"); RunOut(); return; }
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare
         if (_hold >= 0 && _frames.IsEmpty && !_decoded) _clock -= delta;   // (a capture runs faster than real time: wait for the decoder)
@@ -330,8 +345,9 @@ public partial class MoviePlayer : CanvasLayer
         GetViewport().SetInputAsHandled();   // (a skip key is the movie's, held or repeating too: nothing under it acts on it)
         if (e is InputEventKey { Echo: true }) return;
         // only a new press made while the movie plays: one already down as it started (the key, click or button that started
-        // the mission) must be let go first
-        if (!_gate.Press(input)) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {input} was down as it started, not a skip"); return; }
+        // the mission) must be let go first; and none while the mission still loads under it (dropped, not kept for later)
+        bool loading = IsLoading;
+        if (!_gate.Press(input, loading)) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {input} {(loading ? "pressed while the mission loads" : "was down as it started")}, not a skip"); return; }
         Skip();
     }
 
@@ -339,8 +355,14 @@ public partial class MoviePlayer : CanvasLayer
 
     private void SendInputs(int frame)
     {
-        foreach (var (what, at) in _inputs)
+        for (int n = 0; n < _inputs.Count; n++)
         {
+            var (what, at, ms) = _inputs[n];
+            if (ms)
+            {
+                if (!_inputDue.ContainsKey(n) && Time.GetTicksMsec() - _firstFrameAt >= (ulong)at) _inputDue[n] = frame;
+                at = _inputDue.TryGetValue(n, out int due) ? due : -2;
+            }
             bool down = frame == at;
             if (!down && frame != at + 1) continue;
             if (down) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_INPUT sends {what}");
@@ -348,7 +370,11 @@ public partial class MoviePlayer : CanvasLayer
             {
                 "wheel" when down => new InputEventMouseButton { ButtonIndex = MouseButton.WheelDown, Pressed = true, Factor = 1 },
                 "click" => new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 },
+                "rclick" => new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = down, ButtonMask = down ? MouseButtonMask.Right : 0 },
                 "key" => new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = down },
+                "esc" => new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = down },
+                "space" => new InputEventKey { Keycode = Key.Space, PhysicalKeycode = Key.Space, Pressed = down },
+                "pad" => new InputEventJoypadButton { Device = 0, ButtonIndex = JoyButton.A, Pressed = down },
                 _ => null,
             };
             if (e is not null) Input.ParseInputEvent(e);
