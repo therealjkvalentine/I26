@@ -376,7 +376,7 @@ public partial class CombatView : Node3D
     /// deaths, buildings, grenades and phosphorus, cluster bombs, missiles,
     /// mines. Bullet puffs and flames (no splash) keep the original sprites.
     /// </summary>
-    private static (float Size, double Life, Color Smoke, float Fire)? Blast(I76.Formats.Bwd2.EffectDef e)
+    public static (float Size, double Life, Color Smoke, float Fire)? Blast(I76.Formats.Bwd2.EffectDef e)
     {
         var n = System.IO.Path.GetFileNameWithoutExtension(e.File).ToLowerInvariant();
         var dark = new Color(0.16f, 0.15f, 0.14f);
@@ -387,7 +387,9 @@ public partial class CombatView : Node3D
         if (n.StartsWith("xgren")) return (6f, 2.8, dark, 1f);
         if (n.StartsWith("xclst")) return (4.5f, 2.4, dark, 1f);
         if (n.StartsWith("xmine")) return (4f, 2.4, new Color(0.3f, 0.25f, 0.2f), 1f);
-        if (n.StartsWith("xmsl")) return (3f, 2.0, dark, 1f);
+        // the launchers' blasts (every rocket and missile, the howitzer): as the car deaths and mortars are drawn, the HD sequence in
+        // layers standing on the hit; at 3 a single layer of the lower-resolution sequence floated above the hit as a small puffball
+        if (n.StartsWith("xmsl")) return (ModernFx.LayeredSize, 2.4, dark, 1f);
         if (e.SplashDamage > 0 && !n.StartsWith("xfire")) return (Mathf.Clamp(e.SplashRadius * 0.3f, 2.5f, 8f), 2.5, dark, 1f);
         return null;
     }

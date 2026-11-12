@@ -443,6 +443,9 @@ public partial class ModernFx : Node3D
         return sp;
     }
 
+    /// <summary>From this size up a blast is drawn from the HD sequence in two layers or more (smaller: one layer of the lower-resolution one).</summary>
+    public const float LayeredSize = 4f;
+
     /// <summary>
     /// An explosion of radius <paramref name="size"/> m from the Unity Labs
     /// flipbooks, layered as C&amp;C Generals did: two or three explosion sprites
@@ -453,9 +456,9 @@ public partial class ModernFx : Node3D
     /// </summary>
     public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f)
     {
-        var main = size >= 4 ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
+        var main = size >= LayeredSize ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
         if (main is null) return false;
-        int layers = size >= 6 ? 3 : size >= 4 ? 2 : 1;
+        int layers = size >= 6 ? 3 : size >= LayeredSize ? 2 : 1;
         for (int k = 0; k < layers; k++)
         {
             var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.35f * k;
