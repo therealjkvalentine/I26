@@ -560,8 +560,11 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
 {
     public const int PingStep = 10;
 
-    /// <summary>Writes the board against <paramref name="sent"/> (the client's board; null or empty: in full) and brings <paramref name="sent"/> up to what the client will have.</summary>
-    public void Write(NetWriter w, Dictionary<byte, PlayerRow>? sent = null)
+    /// <summary>
+    /// Writes the board against <paramref name="sent"/> (the client's board; null or empty: in full) and brings <paramref name="sent"/> up to what the client will have.
+    /// <paramref name="handicaps"/>: the trailing handicap block, only to a client that says <see cref="PeerFeatures.HandicapBoard"/>.
+    /// </summary>
+    public void Write(NetWriter w, Dictionary<byte, PlayerRow>? sent = null, bool handicaps = true)
     {
         bool full = sent is null || sent.Count == 0;
         w.U8((byte)MsgType.Scoreboard);
@@ -569,7 +572,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         w.F32(Clock);
         w.U8((byte)(full ? 1 : 0));
         var rows = new List<(PlayerRow Row, int Mask)>();
-        var handicaps = new List<PlayerRow>();
+        var changed = new List<PlayerRow>();
         foreach (var p in Players)
         {
             var was = full ? null : sent!.GetValueOrDefault(p.Slot);
@@ -577,7 +580,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
                 : (p.Name != was.Name ? 1 : 0) | (p.Team != was.Team ? 2 : 0) | (p.Score != was.Score ? 4 : 0) | (p.Kills != was.Kills ? 8 : 0)
                   | (p.Deaths != was.Deaths ? 16 : 0) | (Math.Abs(p.Ping - was.Ping) >= PingStep ? 32 : 0) | (p.CarSerial != was.CarSerial ? 64 : 0) | (p.Alive != was.Alive ? 128 : 0);
             if (m != 0) rows.Add((p, m));
-            if (p.Handicap != (was?.Handicap ?? 0)) handicaps.Add(p);
+            if (handicaps && p.Handicap != (was?.Handicap ?? 0)) changed.Add(p);
         }
         w.VarU((uint)rows.Count);
         foreach (var (p, m) in rows)
@@ -596,16 +599,16 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         var gone = full ? [] : sent!.Keys.Where(k => !Players.Any(p => p.Slot == k)).ToList();
         w.VarU((uint)gone.Count);
         foreach (var g in gone) w.U8(g);
-        if (handicaps.Count > 0)
+        if (changed.Count > 0)
         {
-            w.VarU((uint)handicaps.Count);
-            foreach (var p in handicaps) { w.U8(p.Slot); w.I8(p.Handicap); }
+            w.VarU((uint)changed.Count);
+            foreach (var p in changed) { w.U8(p.Slot); w.I8(p.Handicap); }
         }
         if (sent is null) return;
         if (full) sent.Clear();
         foreach (var (p, m) in rows)
             sent[p.Slot] = (m & 32) != 0 || !sent.TryGetValue(p.Slot, out var was) ? p : p with { Ping = was.Ping };
-        foreach (var p in handicaps)
+        foreach (var p in changed)
             if (sent.TryGetValue(p.Slot, out var was)) sent[p.Slot] = was with { Handicap = p.Handicap };
         foreach (var g in gone) sent.Remove(g);
     }

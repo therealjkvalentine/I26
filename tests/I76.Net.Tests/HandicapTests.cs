@@ -46,6 +46,22 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Equal([0, 2, 3], third.Players.Select(p => (int)p.Handicap));
     }
 
+    /// <summary>A peer that does not say PeerFeatures.HandicapBoard (an upstream build) gets upstream's board: it ends at the gone list.</summary>
+    [Fact]
+    public void TheLevelsGoOnlyToAPeerThatSaysItReadsThem()
+    {
+        var rows = new List<PlayerRow> { new(0, "a", 0, 100, 1, 0, 40, 5, true) { Handicap = -3 }, new(1, "b", 0, 0, 0, 1, 60, 6, true) { Handicap = 2 } };
+        var sent = new Dictionary<byte, PlayerRow>();
+        var w = new NetWriter();
+        new Scoreboard(20, 1, rows).Write(w, sent, handicaps: false);
+        var r = new NetReader(w.Span);
+        Assert.Equal((byte)MsgType.Scoreboard, r.U8());
+        var board = Scoreboard.Read(ref r, []);
+        Assert.Equal(0, r.Remaining);
+        Assert.All(board.Players, p => Assert.Equal(0, p.Handicap));
+        Assert.Equal(PeerFeatures.HandicapBoard, Protocol.Features & PeerFeatures.HandicapBoard);
+    }
+
     [Fact]
     public void TheRuleRidesInTheAcceptAndTheListing()
     {

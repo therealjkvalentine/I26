@@ -655,10 +655,11 @@ public sealed partial class NetMeleeServer : IDisposable
         {
             _sinceScores = 0;
             var board = Host.Scoreboard();
-            foreach (var (_, s) in _byPeer)
+            foreach (var (id, s) in _byPeer)
             {
                 _msg.Clear();
-                board.Write(_msg, s.Board);
+                // the handicap block to a peer that reads it (an upstream build's board ends before it)
+                board.Write(_msg, s.Board, _joined.TryGetValue(id, out var j) && (j.Features & PeerFeatures.HandicapBoard) != 0);
                 ((NetPeer)s.Connection!).Send(_msg.Span, DeliveryMethod.ReliableOrdered);
                 ScoreBytes += _msg.Length;
             }
