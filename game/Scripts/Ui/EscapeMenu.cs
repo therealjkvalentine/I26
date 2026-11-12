@@ -350,7 +350,7 @@ public sealed partial class EscapeMenu : Control
         List<GraphicsRow> sheetOffered = [];
         foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
         // the sheet's rows over its lines down to the entries' (a blank line, the entries, the frame-rate line under them)
-        int sheetRoom = 14 - 1 - (GraphicsPages.Names.Length - GraphicsPages.Advanced) - 1 - (Settings.MenuFps ? 1 : 0);
+        int sheetRoom = 14 - 1 - (GraphicsPages.Names.Length - GraphicsPages.Advanced) - (Settings.MenuFps ? 1 : 0);
         ScrollIfOver(_graphics, sheetRoom);
         if (sheetRow - 1 > sheetRoom) sheetRow = sheetRoom + 1;
         for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
