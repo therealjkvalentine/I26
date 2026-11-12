@@ -3,7 +3,7 @@ using Godot;
 namespace I76.Game.Sim;
 
 /// <summary>
-/// The modern look's rounder rear mirror ([port] mirror_round, DefaultRadius; I76_MIRROR_ROUND for a review sheet): the mirror's art is a frame on a tapered outline, wider at the
+/// The modern look's rear mirror's corners ([port] mirror_round, the art's own by default; I76_MIRROR_ROUND for a review sheet): the mirror's art is a frame on a tapered outline, wider at the
 /// top, with corners a few of its pixels round, drawn on a flat quad. The shader keeps the art's own smooth outline (MirrorEdge) and
 /// cuts its corners rounder: the frame's outline and the glass's, each fitted here as a trapezoid from the art's masks (its straight
 /// sides, from the rows away from the corners), shrunk by the corner's radius; the shader's rounded shape is that trapezoid's
@@ -76,10 +76,100 @@ public static class MirrorRound
         return (outline, glass);
     }
 
-    /// <summary>[port] mirror_round's default: 16 of the art's pixels (its corners are about 3; the frame about 6 wide), the review sheet's pick over 6 and 10.</summary>
-    public const int DefaultRadius = 16;
+    /// <summary>[port] mirror_round's default: 0, the art's own corners (about 3 of its pixels; the frame about 6 wide). The door mirrors' glass is the one rounded (GlassRound).</summary>
+    public const int DefaultRadius = 0;
 
     /// <summary>The outline's corner radius in the art's pixels (the glass's that less the frame's width at the top): I76_MIRROR_ROUND=R where it is set, else the setting; 0 the art's own corners.</summary>
     public static float Radius(string? hook, int setting = 0) =>
         float.TryParse(hook, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float r) ? Mathf.Clamp(r, 0, 24) : Mathf.Clamp(setting, 0, 24);
+}
+
+/// <summary>
+/// The modern look's rounder door-mirror glass ([port] side_mirror_round; I76_SIDE_MIRROR_ROUND for a review sheet). The door
+/// mirrors' glass is flat faces of the car's interior (MirrorGlass), straight-sided: the Piranha's left a hexagon, its right and the CC
+/// cars' left a four-sided pane, each in a housing of the same straight outline. The glass's mesh keeps its outline; its shader draws
+/// the view inside a rounded shape and the rim's moulding round it (MirrorRim's shading), the corners outside the rounded shape the
+/// moulding's dark, so the housing's outline is kept and the glass in it is rounded. The shape: the pane's outline as the driver sees
+/// it (its picture coordinates, u times the glass's width over height, v: the glass's height is 1), its convex hull eroded by the
+/// radius (Erode) and widened by it again in the shader (the hull's distance less the radius). The radius is a share of the
+/// outline's shorter side, at most just under the largest circle inside it (50 %: a stadium or an oval).
+/// </summary>
+public static class GlassRound
+{
+    /// <summary>[port] side_mirror_round's default, percent of the glass's shorter side.</summary>
+    public const int DefaultShare = 30;
+    /// <summary>The largest share: half the shorter side, a round end.</summary>
+    public const int MaxShare = 50;
+    /// <summary>The shader's corners at most.</summary>
+    public const int MaxCorners = 12;
+
+    /// <summary>The share: I76_SIDE_MIRROR_ROUND=P where it is set, else the setting; 0 the glass's own corners.</summary>
+    public static int Share(string? hook, int setting) =>
+        int.TryParse(hook, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int p) ? Math.Clamp(p, 0, MaxShare) : Math.Clamp(setting, 0, MaxShare);
+
+    /// <summary>The convex hull of a set of points, counter-clockwise (x right, y up), without repeated or collinear points.</summary>
+    public static List<Vector2> Hull(IEnumerable<Vector2> points)
+    {
+        var p = points.Distinct().OrderBy(q => q.X).ThenBy(q => q.Y).ToList();
+        if (p.Count < 3) return p;
+        static float Cross(Vector2 o, Vector2 a, Vector2 b) => (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
+        var h = new List<Vector2>();
+        foreach (var pass in new[] { p, Enumerable.Reverse(p).ToList() })
+        {
+            int start = h.Count;
+            foreach (var q in pass)
+            {
+                while (h.Count >= start + 2 && Cross(h[^2], h[^1], q) <= 1e-9f) h.RemoveAt(h.Count - 1);
+                h.Add(q);
+            }
+            h.RemoveAt(h.Count - 1);
+        }
+        return h;
+    }
+
+    /// <summary>A convex counter-clockwise polygon with every side moved inward by <paramref name="r"/>: the sides' half-planes clipped in turn (a side that vanishes drops out); empty when nothing is left.</summary>
+    public static List<Vector2> Erode(IReadOnlyList<Vector2> hull, float r)
+    {
+        var poly = hull.ToList();
+        for (int i = 0; i < hull.Count && poly.Count > 0; i++)
+        {
+            var a = hull[i]; var e = hull[(i + 1) % hull.Count] - a;
+            if (e.LengthSquared() < 1e-12f) continue;
+            var n = new Vector2(-e.Y, e.X).Normalized();   // inward: the left of a counter-clockwise side
+            float D(Vector2 q) => (q - a).Dot(n) - r;
+            var next = new List<Vector2>();
+            for (int k = 0; k < poly.Count; k++)
+            {
+                var p = poly[k]; var q = poly[(k + 1) % poly.Count];
+                float dp = D(p), dq = D(q);
+                if (dp >= 0) next.Add(p);
+                if ((dp >= 0) != (dq >= 0)) next.Add(p + (q - p) * (dp / (dp - dq)));
+            }
+            poly = next;
+        }
+        return poly.Count >= 3 ? poly : [];
+    }
+
+    /// <summary>The radius of the largest circle inside a convex polygon (the largest erosion that leaves something), found by halving.</summary>
+    public static float Inradius(IReadOnlyList<Vector2> hull)
+    {
+        if (hull.Count < 3) return 0;
+        float lo = 0, hi = Math.Max(hull.Max(q => q.X) - hull.Min(q => q.X), hull.Max(q => q.Y) - hull.Min(q => q.Y));
+        for (int i = 0; i < 24; i++) { float m = (lo + hi) / 2; if (Erode(hull, m).Count > 0) lo = m; else hi = m; }
+        return lo;
+    }
+
+    /// <summary>
+    /// The rounded glass for a share: its core (the hull eroded by the radius, at most <see cref="MaxCorners"/> corners) and the radius;
+    /// null for 0 or a hull that cannot take it (the glass keeps its own corners).
+    /// </summary>
+    public static (List<Vector2> Core, float R)? Shape(IReadOnlyList<Vector2> hull, int share)
+    {
+        if (share <= 0 || hull.Count < 3) return null;
+        float w = hull.Max(q => q.X) - hull.Min(q => q.X), h = hull.Max(q => q.Y) - hull.Min(q => q.Y);
+        float r = Math.Min(share / 100f * Math.Min(w, h), 0.97f * Inradius(hull));
+        if (r <= 0) return null;
+        var core = Erode(hull, r);
+        return core.Count is >= 3 and <= MaxCorners ? (core, r) : null;
+    }
 }

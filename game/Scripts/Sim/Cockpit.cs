@@ -76,6 +76,7 @@ public partial class Cockpit : Node
         HeadTracker.Apply(shellSettings);
         OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
         _roundSetting = shellSettings.MirrorRound;
+        _glassRoundSetting = shellSettings.SideMirrorRound;
         SetupMirror();
         CompassOutline();
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
@@ -1400,7 +1401,6 @@ public partial class Cockpit : Node
         float r = MirrorRound.Radius(System.Environment.GetEnvironmentVariable("I76_MIRROR_ROUND"), _roundSetting);
         var (outline, glass) = MirrorRound.Masks(rgba, w, h);
         _fit = MirrorRound.Fit(outline, w, h) is { } o && MirrorRound.Fit(glass, w, h) is { } g ? (o, g) : null;
-        _roundR = r;
         if (r <= 0 || _fit is not { } fit) m.SetShaderParameter("round_corners", false);
         else
         {
@@ -1413,7 +1413,6 @@ public partial class Cockpit : Node
     }
 
     private (MirrorRound.Quad Outline, MirrorRound.Quad Glass)? _fit;
-    private float _roundR;
 
     private void Shape(ShaderMaterial m, MirrorRound.Quad outer, float r, MirrorRound.Quad inner, float ri, bool glassFromShape)
     {
@@ -1427,14 +1426,16 @@ public partial class Cockpit : Node
 
     /// <summary>
     /// The added side glasses (side_mirrors=on, a car without door-mirror glass): the rear art's ends, their frame narrowed to 0.3 of its
-    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the rear mirror's rounding.
+    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the door mirrors' rounding
+    /// (side_mirror_round: that share of the outline's height, at most half of it).
     /// </summary>
     private void AddedFrame(ShaderMaterial sm)
     {
         if (_fit is not { } fit) return;
         var (o, g) = fit;
         float t = (g.TL.Y - o.TL.Y) * MirrorRim.RimShare / (MirrorRim.RearFrameShare * 2f / 3f);   // 0.3 of the frame's width (I76_MIRROR_RIM=wide: two thirds)
-        float r = Mathf.Max(_roundR, 1f), ri = Mathf.Max(r - t, 1f);
+        float height = o.BL.Y - o.TL.Y;
+        float r = Mathf.Clamp(GlassRound.Share(GlassRoundHook, _glassRoundSetting) / 100f * height, 1f, 0.49f * height), ri = Mathf.Max(r - t, 1f);
         Shape(sm, MirrorRound.Shrink(o, r), r, MirrorRound.Shrink(o, t + ri), ri, true);
     }
 
@@ -1598,7 +1599,8 @@ public partial class Cockpit : Node
     private SideMirrorMode _sideMirrors = SideMirrorMode.Auto;
     private SideMirrorRender _sideRender = SideMirrorRender.Own;
     private MirrorRate _mirrorRate = MirrorRate.Alternate;
-    private int _roundSetting = MirrorRound.DefaultRadius;
+    private int _roundSetting = MirrorRound.DefaultRadius, _glassRoundSetting = GlassRound.DefaultShare;
+    private static readonly string? GlassRoundHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_ROUND");
     private (byte[]? Rgba, int W, int H) _mirrorOriginal;
     private float _mirrorFov = MirrorBands.DefaultFov, _sideShare = 1f, _sideAngle = MirrorBands.DefaultYaw, _sideDrop = MirrorBands.DefaultDrop, _sideOverlap = MirrorBands.DefaultOverlap, _sideYaw = float.NaN;
     /// <summary>I76_MIRROR_WIDTH: the wide render's width in pixels instead of the one keeping the rear mirror's pixels per degree (a cost measurement); I76_SIDE_MIRROR_MAP=cylinder: the side glasses' columns spread by angle (docs/dev-hooks.md).</summary>
@@ -1616,7 +1618,7 @@ public partial class Cockpit : Node
         _sideOverlap = s.SideMirrorOverlap;
         _sideRender = s.SideMirrorRender;
         _mirrorRate = s.MirrorRate;
-        if (_roundSetting != s.MirrorRound) { _roundSetting = s.MirrorRound; RoundCorners(); }
+        if (_roundSetting != s.MirrorRound || _glassRoundSetting != s.SideMirrorRound) { _roundSetting = s.MirrorRound; _glassRoundSetting = s.SideMirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
         ApplyMirrorMode();
     }
@@ -1710,7 +1712,7 @@ public partial class Cockpit : Node
 
     // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
 
-    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre)> _glass = [];
+    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull)> _glass = [];
     private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
     private ShaderMaterial? _rimMat;
 
@@ -1721,11 +1723,13 @@ public partial class Cockpit : Node
         // the heads turned to the driver while their glass shows the view (MirrorAim); the art's own place otherwise, the 1997 look's
         // Side Mirrors Left: the right one stays as the art paints and places it
         foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed && MirrorBands.SideShown(_sideMirrors, left) ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
-        foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left);
+        int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
+        foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left) && !_glass.Any(g => g.Left == left && GlassRound.Shape(g.Hull, share) is not null);
         foreach (var g in _glass)
         {
             g.Mesh.Visible = on && MirrorBands.SideShown(_sideMirrors, g.Left);
             if (!g.Mesh.Visible) continue;
+            RoundGlass(g.Mat, g.Hull, g.Aspect, share);
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
             var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
             var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
@@ -1776,7 +1780,7 @@ public partial class Cockpit : Node
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
             host.AddChild(mi);
             var centre = Vector3.Zero; foreach (var q in v) centre += q; centre /= Math.Max(1, v.Count);
-            _glass.Add((mi, mat, pane.Left, aspect, centre));
+            _glass.Add((mi, mat, pane.Left, aspect, centre, GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)))));
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
             var shifted = pane.Faces.Select(f => f.Select(q => { var g = Coords.ToGodot(q); return g + (near - g).Normalized() * 0.004f; }).ToArray()).ToList();
@@ -1794,6 +1798,26 @@ public partial class Cockpit : Node
                 _rims.Add((rim, pane.Left));
             }
         }
+    }
+
+    /// <summary>
+    /// A door mirror's glass rounded (GlassRound, side_mirror_round): the core and radius in the pane's units, the rim's width and colour;
+    /// the rounded glass draws its own moulding, so the pane's straight rim (MirrorRim) is hidden while it is. 0, the glass's own corners
+    /// and the straight rim.
+    /// </summary>
+    private void RoundGlass(ShaderMaterial m, List<Vector2> hull, float aspect, int share)
+    {
+        if (GlassRound.Shape(hull, share) is not { } shape) { m.SetShaderParameter("pane_round", false); return; }
+        var core = new Vector2[GlassRound.MaxCorners];
+        for (int i = 0; i < shape.Core.Count; i++) core[i] = shape.Core[i];
+        m.SetShaderParameter("pane_round", true);
+        m.SetShaderParameter("pane_aspect", aspect);
+        m.SetShaderParameter("pane_core", core);
+        m.SetShaderParameter("pane_corners", shape.Core.Count);
+        m.SetShaderParameter("pane_r", shape.R);
+        m.SetShaderParameter("rim_w", MirrorRim.RimShare);
+        _rimMat ??= RimMaterial();
+        m.SetShaderParameter("rim_colour", _rimMat.GetShaderParameter("colour"));
     }
 
     /// <summary>Each side's picture (the own camera's forward) and its head's turn (in the car's frame, Godot axes), made once by Aim; left first.</summary>

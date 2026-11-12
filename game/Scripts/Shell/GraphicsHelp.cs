@@ -32,15 +32,12 @@ public static class GraphicsHelp
             ? "Shadow detail: the modern look's sun shadows (the 1997 look keeps the original's). No cost in the 1997 look."
             : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more.",
         GraphicsRow.ExtInstruments => "Ext. instruments: the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost.",
-        GraphicsRow.RearMirror => look1997
-            ? "Rear mirror: the original's small mirror, to 100 m. Little cost in the 1997 look."
-            : "Rear mirror: a second view, behind. Up to 17 % of a full-detail frame; the original's 100 m is on the Developer panel.",
-        GraphicsRow.SideMirrors => look1997
-            ? "Side mirrors: the modern look's view behind in the door mirrors' glass. The 1997 look paints them, as the original. No cost in the 1997 look."
-            : "Side mirrors: the view behind in the door mirrors (the Piranha's two, the CC cars' left one). Left is the driver's alone; Off paints them, as the original. A mirror out of view is not drawn. Both and Left cost the same: one side picture every second frame, about 4 % of a full-detail frame; Off saves it.",
+        GraphicsRow.Mirrors => look1997
+            ? "Mirrors: the original's small rear mirror, to 100 m (Rear + Left and All draw it alone: the 1997 look paints the door mirrors, as the original). Little cost in the 1997 look."
+            : "Mirrors: Rear is the rear-view mirror; Rear + Left adds the driver's door mirror, All both door mirrors where the car has them (the Piranha's two, the CC cars' left one). The rear mirror is up to 17 % of a full-detail frame, a door mirror in view about 4 %; a mirror out of view is not drawn. At 3440x1440 in T05 the graphics card alone could draw about 116 fps with Off, 105 with Rear, 98 with All. The original's 100 m reach is on the Developer panel.",
         GraphicsRow.MirrorRate => look1997
             ? "Mirror rate: how often the modern look's mirrors are drawn. The 1997 look draws its mirror every second frame, as the original."
-            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half.",
+            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half (in T05 at 3440x1440, about 84 fps from the graphics card against 98).",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges). Little cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %.",
