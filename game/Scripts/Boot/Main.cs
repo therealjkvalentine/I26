@@ -4309,6 +4309,7 @@ public partial class Main : Node3D
         if (int.TryParse(System.Environment.GetEnvironmentVariable("I76_REPLAY_AT"), out int replayAt) && _frames == replayAt && !_ended && _menu is null)
         {
             GD.Print($"replay: {I76.Game.Editor.SwitchTimer.Memory()}");
+            if (System.Environment.GetEnvironmentVariable("I76_REPLAY_ORPHANS") == "1") PrintOrphanNodes();   // each with its name and class (debug builds)
             MenuClosed(MenuOutcome.Replay);
             return;
         }
