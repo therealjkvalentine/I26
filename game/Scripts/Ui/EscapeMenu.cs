@@ -53,8 +53,8 @@ public sealed partial class EscapeMenu : Control
         public List<Item> Items = [];
         public int Order;
         /// <summary>The scrolling rows' first pad row, how many show at once (the port's rows under the original's six by default), and how far they are scrolled (in rows).</summary>
-        public int FirstRow { get; init; } = 7;
-        public int VisibleRows { get; init; } = 8;
+        public int FirstRow { get; set; } = 7;
+        public int VisibleRows { get; set; } = 8;
         public int Scroll;
         public int Scrollable => Items.Count(i => i.Scrolls);
         public int MaxScroll => Math.Max(0, Scrollable - VisibleRows);
@@ -245,7 +245,11 @@ public sealed partial class EscapeMenu : Control
             Action("No", 29, () => Switch(_exit.Parent)),
         ];
 
-        // Play Options: the six check boxes commit on Done (msg 7 does nothing), Cancel restores the whole dword
+        // Play Options: the six check boxes commit on Done (msg 7 does nothing), Cancel restores the whole dword. Every row is one list
+        // over the pad's fourteen rows, in the shell's order (the original's check rows, Difficulty, the port's), which scrolls when
+        // it outgrows them; Done and Cancel stay put
+        _play.FirstRow = 1;
+        _play.VisibleRows = 14;
         string[] checks = ["Arcade Phys.", "No Salv. Manag.", "Unlim. Ammo", "Unlim. Armor", "Unlim. Chas. Rein.", "Unlim. Wiper Fluid"];
         for (int k = 0; k < 6; k++)
         {
@@ -263,7 +267,9 @@ public sealed partial class EscapeMenu : Control
                 },
             });
         }
-        // the port's own rows after the original's six, in the shell's order
+        // Difficulty, the original's last row, after them
+        _play.Items.Add(Setting(Cycle, "Difficulty Level", 24, 3, ["Wimp", "Champ", "Badass"], s => s.Difficulty, (s, v) => s.Difficulty = v));
+        // the port's own rows after the original's, in the shell's order
         _play.Items.Add(new Item
         {
             Flags = Check, Label = "Modern Physics", Pair = 26, N = 2,
@@ -311,7 +317,22 @@ public sealed partial class EscapeMenu : Control
                 else if (m == 9) { Settings.ChaseCrosshair = _snap.ChaseCrosshair; it.Value = Settings.ChaseCrosshair ? 1 : 0; }
             },
         });
-        _play.Items.Add(Setting(Cycle, "Difficulty Level", 24, 3, ["Wimp", "Champ", "Badass"], s => s.Difficulty, (s, v) => s.Difficulty = v));
+        // Load During Briefing: from the next mission start (the shell's row); the modern look's only, grey in the 1997 look
+        _play.Items.Add(new Item
+        {
+            Flags = Check, Label = "Load During Briefing", Pair = 34, N = 2, Refused = () => Faithful,
+            Cb = (it, m) =>
+            {
+                if (m == 6) it.Value = Settings.BriefingWhileLoading ? 1 : 0;
+                else if (m == 8) { Settings.BriefingWhileLoading = it.Value != 0; _snap.BriefingWhileLoading = Settings.BriefingWhileLoading; }
+                else if (m == 9) { Settings.BriefingWhileLoading = _snap.BriefingWhileLoading; it.Value = Settings.BriefingWhileLoading ? 1 : 0; }
+            },
+        });
+        // Turrets: the 1998 build's slew or the 1997 CD's, from the resume on (ShellSettings.ApplyTo; Play Options is not on a network game's pad)
+        _play.Items.Add(Setting(Cycle, "Turrets", 35, 2, ["1998", "1997 CD"], s => s.Turrets1997 ? 1 : 0, (s, v) => s.Turrets1997 = v == 1));
+        // every row in the list, its place from 1 in the order added
+        int place = 1;
+        foreach (var it in _play.Items) { it.Pair = place++; it.Scrolls = true; }
         _play.Items.Add(DoneButton());
         _play.Items.Add(CancelButton());
 
@@ -328,12 +349,17 @@ public sealed partial class EscapeMenu : Control
         int sheetRow = 1;
         List<GraphicsRow> sheetOffered = [];
         foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
+        // the sheet's rows over its lines down to the entries' (a blank line, the entries, the frame-rate line under them)
+        int sheetRoom = 14 - 1 - (GraphicsPages.Names.Length - GraphicsPages.Advanced) - (Settings.MenuFps ? 1 : 0);
+        ScrollIfOver(_graphics, sheetRoom);
+        if (sheetRow - 1 > sheetRoom) sheetRow = sheetRoom + 1;
         for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
             List<GraphicsRow> offered = [];
             foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
+            ScrollIfOver(page, 14 - (Settings.MenuFps ? 1 : 0));
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
             page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); _fps.Changed(); Switch(page); } } });
             page.Items.Add(DoneButton());
@@ -370,6 +396,14 @@ public sealed partial class EscapeMenu : Control
             DoneButton(),
             CancelButton(),
         ];
+
+        if (I76.Game.Assets.HiFiAudio.Installed)
+        {
+            // the port's own, only with a pack installed: HiFi Audio on or off (the shell's Audio Control row), live: sounds and movies started
+            // after a change follow it. Under the levels with a blank row between (the network pad's CB Microphone takes rows 11 and 12: row 10 there)
+            _audio.Items.Insert(3, Setting(Cycle, AudioControlRows.HiFiAudio, Net ? 10 : 11, 2, ["Off", "On"], s => s.HiFiAudio ? 1 : 0, (s, v) => s.HiFiAudio = v == 1,
+                apply: () => { I76.Game.Assets.HiFiAudio.Enabled = Settings.HiFiAudio; Live?.Invoke(Settings); }));
+        }
 
         if (Net)
         {
@@ -414,6 +448,19 @@ public sealed partial class EscapeMenu : Control
             for (int k = 0; k < order.Length; k++) if (order[k] is { } sc) sc.Order = _orderBase + k;
             foreach (var page in _graphicsPages) page.Order = _graphics.Order;
         }
+    }
+
+    /// <summary>
+    /// A pad whose rows (Pair 1..n) are more than <paramref name="room"/>: they become a list over its first rows that scrolls
+    /// (upstream's scrolling pads), the rest of the pad staying put. Rows that fit are left as they are.
+    /// </summary>
+    private static void ScrollIfOver(Screen pad, int room)
+    {
+        var rows = pad.Items.Where(i => i.Pair is >= 1 and <= 14 && i.Type != Static).ToList();
+        if (rows.Count <= room) return;
+        pad.FirstRow = 1;
+        pad.VisibleRows = room;
+        foreach (var it in rows) it.Scrolls = true;
     }
 
     /// <summary>A row over a key that may be absent or over two keys (Visibility Range, HD Textures): Done and Cancel copy the row's keys whole (GraphicsPages.Copy).</summary>
@@ -827,7 +874,9 @@ public sealed partial class EscapeMenu : Control
 
     private (Rect4 A, Rect4? B) Rects(Item it)
     {
-        var (a, b) = Layout(it.Scrolls ? it.Pair - _screen.Scroll : it.Pair);
+        // a list row on pad row r: a check row as the original's check rows are laid out, any other as a row of the 640-wide menu
+        int r = it.Pair - _screen.Scroll;
+        var (a, b) = !it.Scrolls ? Layout(it.Pair) : it.Type == Check ? Box(r) : Layout(Math.Clamp(r, 1, 14));
         if (it.Type == Check) a = a with { X0 = a.X0 + 2 + 13 };
         return (a, b);
     }

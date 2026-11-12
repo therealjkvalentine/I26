@@ -292,6 +292,23 @@ public partial class ScenerySpawner : Node3D
         node.Visible = modern.Value == _modern;
     }
 
+    /// <summary>
+    /// I76_SELF_LIT (comparison only): <c>1</c> adds the self-lit faces' own glow and the structure lamps under them (StructureLamps),
+    /// <c>noshadow</c> the same without the lamps' shadows. Off by default: the night's scenery lights are the definitions' own
+    /// (AddLights, AddWindowLights) and the full-bright faces already glow (night_glow).
+    /// </summary>
+    private static readonly string? SelfLitHook = System.Environment.GetEnvironmentVariable("I76_SELF_LIT");
+    private static readonly bool SelfLitOn = SelfLitHook is "1" or "noshadow";
+
+    /// <summary>
+    /// ODEF class 4, the road signs: their self-lit faces (the original draws them at full brightness to be read at night) do not
+    /// glow in the modern look; they are retroreflective, bright in the beam of the lamps beside the eye (RetroLamps).
+    /// </summary>
+    public const uint SignType = 4;
+
+    /// <summary>I76_RETRO_SIGNS (comparison only): <c>1</c> makes the modern look's sign faces retroreflective; off by default.</summary>
+    private static readonly bool RetroSigns = System.Environment.GetEnvironmentVariable("I76_RETRO_SIGNS") == "1";
+
     public void Spawn(MissionWorld world, ModelAssembler asm, MeshBuilder builder, bool skipVehicles = false)
     {
         _world = world; _asm = asm; _meshes = builder;
@@ -332,7 +349,11 @@ public partial class ScenerySpawner : Node3D
             var cardNames = model is null ? null : CardNamesOf(def);
             Func<ModelPart, bool>? include = spinners is null && gates is null && cardNames is null ? null
                 : part => !(spinners?.Any(s => s.Owns(part.NodeName)) ?? false) && !(gates?.Owns(part.NodeName) ?? false) && !(cardNames?.Contains(part.NodeName) ?? false);
-            var mesh = model is null ? null : builder.Build(model, include: include, skipFace: skip);
+            // a structure's self-lit faces shine at night in the modern look (MeshBuilder.SelfLit), its lamps light what is under them
+            bool selfLit = SelfLitOn && !roadPiece && g.Any(p => p.Object.ObjectType != SignType);
+            // a road sign's face is retroreflective (RetroLamps)
+            bool retro = RetroSigns && !roadPiece && !g.Any(p => p.Object.ObjectType != SignType);
+            var mesh = model is null ? null : builder.Build(model, include: include, skipFace: skip, selfLit: selfLit, retro: retro);
             if (mesh is null && gates is not null && cardNames is null)
             {
                 // a model that is nothing but its gate (T12's bcaikgat): no static mesh, only the sliding one
@@ -359,7 +380,7 @@ public partial class ScenerySpawner : Node3D
             if (model is not null && SmokeBase(model) is { } smokeAt)
             {
                 modernDrops = WreckSmoke.IsSpriteFace;
-                modernMesh = builder.Build(model, include: include, skipFace: (part, f) => WreckSmoke.IsSpriteFace(f) || (grounded && GroundDecals.IsGroundFace(part, f, lowest)));
+                modernMesh = builder.Build(model, include: include, skipFace: (part, f) => WreckSmoke.IsSpriteFace(f) || (grounded && GroundDecals.IsGroundFace(part, f, lowest)), selfLit: selfLit, retro: retro);
                 foreach (var pl in list)
                 {
                     Smokers.Add(Coords.ToGame(Coords.ToGodot(pl.Object.Rotation, world.GroundedPosition(pl)) * Coords.ToGodot(smokeAt)));
@@ -412,6 +433,17 @@ public partial class ScenerySpawner : Node3D
             {
                 if (model.Lights.Count > 0) AddLights(model, list, xf);
                 if (I76.Formats.Assembly.NightWindows.For(def) is { } windows) AddWindowLights(model, windows, list, xf);
+            }
+            // upstream's structure lamps, for a comparison only (SelfLitOn)
+            if (Night && selfLit && model is { Kind: "sdf" } && node is not null && StructureLamps.Build(model, builder, include, shadows: SelfLitHook != "noshadow") is { } lamps)
+            {
+                for (int i = 0; i < xf.Count; i++)
+                {
+                    var each = i == xf.Count - 1 ? lamps : (Node3D)lamps.Duplicate();
+                    each.Transform = xf[i];
+                    AddChild(each);
+                    Twin(list[i], each, 0, modern: true);
+                }
             }
             if (spinners is not null) AddSpinners(spinners, model!, builder, skip, list, xf, parent);
             if (gates is not null) AddGates(gates, model!, builder, skip, list, xf, parent);

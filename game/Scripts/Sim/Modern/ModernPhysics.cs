@@ -261,10 +261,10 @@ public partial class ModernPhysics : Node
             var centre = G(bx.Origin + bx.Rot.ToWorld((bx.Min + bx.Max) * 0.5f) - c);
             body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Transform = new Transform3D(BasisOf(bx.Rot), centre) });
         }
-        // the class-0x4000 / 0x5000 parts' spheres
+        // the class-0x4000 / 0x5000 parts' spheres (a breakable's are knocked off, never met: the sim's sign pass has them)
         foreach (var sp in o.Spheres)
         {
-            if (o.SignNode(sp.Node) || sp.Radius < 1e-3f) continue;
+            if (o.Type == 4 || o.SignNode(sp.Node) || sp.Radius < 1e-3f) continue;
             body.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = sp.Radius }, Position = G(sp.Centre - c) });
         }
         if (body.GetChildCount() == 0) { body.Free(); return null; }

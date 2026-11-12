@@ -35,10 +35,10 @@ public sealed partial class MeleeScreen : ShellScreen
         [15] = (489, 630, 453, 471),
         // (the base game's host form: the art's ids above where the original has them, the port's settings HostFormLayout's)
         [22] = (173, 213, 306, 317),
-        // the port's: the internet roster's CONNECT TO SERVER, under the games' list: the address book again, for another server's games (#122)
-        [38] = (31, 196, 290, 305),
         // the Nitro host form's WEAPON RESTRICTIONS (its own rectangle is NitroHost's)
         [24] = (31, 193, 310, 326),
+        // the internet roster's SERVERS (the port's, drawn: NetForms.cs), the address book
+        [39] = (42, 183, 453, 471),
     };
     // The ids each mode keeps (the host forms' NO. DRIVERS ⊟ ⊞ moved down to y 338..353)
     private int[] Live => Mode switch
@@ -49,7 +49,7 @@ public sealed partial class MeleeScreen : ShellScreen
         // the base game's (HostFormLayout): a co-op form has only what a story mission has a use for (no team play, score limit,
         // Bots, map to share, or melee fairness rules)
         3 or 4 => [.. HostFormLayout.Hot(_coopBase).Keys.Order()],
-        8 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 38],
+        8 => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 39],
         _ => [3, 4, 5, 6, 7, 11, 12, 13, 14, 15],
     };
     private bool BaseHost => Hosting && !Nitro;
@@ -117,7 +117,7 @@ public sealed partial class MeleeScreen : ShellScreen
         else if (Notice is { Length: > 0 } n) Say(n);
     }
 
-    private int ListCount => Mode switch { 1 => MeleeData.Scenarios.Length, 7 or 8 => _games.Count, _ => Arenas.Count };
+    private int ListCount => Mode switch { 1 => MeleeData.Scenarios.Length, 7 or 8 => _rows.Count, _ => Arenas.Count };
     /// <summary>
     /// One row of the list. A co-op trip mission's title can be longer than the list is wide ("7. The Blood On The Highway"): the "7. " goes, then
     /// the smaller handwriting (font 0x44), and only then is it cut.
@@ -182,7 +182,6 @@ public sealed partial class MeleeScreen : ShellScreen
         _modeBtnBaked = false;
         _boxBaked = 0;
         _art = null;
-        _serverBtnBaked = false;
         if (Nitro && Mode == 0) Frame.LoadBackground(Shell.Db.BackgroundNative(20), 24, 20);   // base 24's art, byte for byte
         else Frame.LoadBackground(Shell.Db, Mode switch { 0 => 24, 1 => 25, 3 or 4 => 19, _ => 18 });
         Draw();
@@ -197,8 +196,6 @@ public sealed partial class MeleeScreen : ShellScreen
         Frame.Text(_font, 12, 45, _slots[0].Name + (_renaming ? "_" : ""));
         Frame.Text(_font, 288, 58, name);
         if (Mode is 7 or 8) { DrawGames(); DrawBuild(); }
-        if (Mode == 8) DrawServerButton();
-        else if (Mode == 7) { }     // the roster's rows are the games (DrawGames), not the arenas
         else if (ListCount == 0) Frame.Text(_font, x0, 109, "No arenas");
         else
         {
@@ -454,6 +451,7 @@ public sealed partial class MeleeScreen : ShellScreen
         if (Hosting && !Nitro) _setup.CoopHost = _coopBase;
         if (Coop) _setup.CoopArena = Arenas.Count > 0 ? Arenas[Math.Clamp(Area, 0, Arenas.Count - 1)].Msn : _setup.CoopArena;
         if (Hosting) { if (!Coop) _setup.Game = _gameName; _setup.Bots = _bots; _setup.BotSkill = (int)_botSkill; _setup.BotCars = [.. _botCars]; _setup.HostRate = _rate; _setup.HostTurrets = _turrets; }
+        if (Hosting && Shell.Settings.HostBotSkillDifficulty != _botSkillDifficulty) { Shell.Settings.HostBotSkillDifficulty = _botSkillDifficulty; Shell.Settings.Save(); }
         if (Nitro && Hosting)
         {
             _setup.NitroKind = _kind;

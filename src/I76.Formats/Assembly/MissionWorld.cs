@@ -70,7 +70,7 @@ public sealed class MissionWorld
             // at the link's midpoint, lifted by the half height of its box (the stock fences' and tyre walls' boxes are centred)
             var (offset, lift) = def is not null && asm.Assemble(def)?.Parts.FirstOrDefault() is { Mesh.Vertices.Length: > 0 } part
                 ? (part.ToModel.T, -part.Mesh.Vertices.Min(v => v.Y)) : (Vector3.Zero, 0f);
-            foreach (var (rot, pos) in LineObjects.Placements(line, BilinearHeight, offset, lift))
+            foreach (var (rot, pos) in LineObjects.Placements(line, PlacedHeight, offset, lift))
                 LinePlacements.Add(new Placement(new PlacedObject(line.Name, 0, rot, pos, []), def, OnLine: true));
         }
     }
@@ -98,6 +98,34 @@ public sealed class MissionWorld
 
     /// <summary>The terrain was edited: <see cref="Outside"/> is made again from it when next asked for (what holds the old one keeps it).</summary>
     public void ForgetOutside() => Volatile.Write(ref _outside, null);
+
+    private sealed record FootprintSet(long Mark, List<GroundBox> Boxes);
+    private FootprintSet? _footprints;
+
+    /// <summary>
+    /// The outlines of the placed objects' ground-standing parts as they stand now (<see cref="GroundFootprints.Of"/>), from models
+    /// assembled here (an assembler of its own, so any thread may ask); made again when the placements have changed (the map editor).
+    /// </summary>
+    public IReadOnlyList<GroundBox> Footprints()
+    {
+        long mark = PlacementMark();
+        if (_footprints is { } f && f.Mark == mark) return f.Boxes;
+        var boxes = GroundFootprints.Of(this, new ModelAssembler(_vfs));
+        _footprints = new FootprintSet(mark, boxes);
+        return boxes;
+    }
+
+    // what the footprints are made from: every placement's model, position and rotation
+    private long PlacementMark()
+    {
+        var h = new HashCode();
+        foreach (var p in Placements.Concat(LinePlacements))
+        {
+            h.Add(p.Definition); h.Add(p.Object.ObjectType); h.Add(p.Object.Position);
+            foreach (var r in p.Object.Rotation) h.Add(r);
+        }
+        return ((long)Placements.Count << 32) ^ (uint)h.ToHashCode();
+    }
 
     /// <summary>The names WDEF holds, read again: after <see cref="WorldSettings.Patch"/> changed the mission's look in memory (the map editor).</summary>
     public void RefreshLook()
@@ -127,10 +155,27 @@ public sealed class MissionWorld
     /// Where a placed object stands: its file position with the height set to the terrain's bilinear height at its x, z.
     /// The loader (the original's scene loader, called with its ground flag for every ODEF record) overwrites
     /// the node's y with the bilinear terrain height at x and z, so a pole authored at y=100 stands on the ground. The sim's colliders
-    /// and the drawing both use it. A fence link's piece keeps the height its line gave it (from the posts' heights).
+    /// and the drawing both use it. In a map's last cells the samples past the tiles are the outside ground's (<see cref="Outside"/>), as
+    /// the simulation's ground has them: off a high edge the original's 0, so the object sinks toward it as in the original. A fence link's piece keeps the
+    /// height its line gave it (from the posts' heights).
     /// </summary>
     public Vector3 GroundedPosition(Placement p) => p.OnLine ? p.Object.Position
-        : p.Object.Position with { Y = (float)BilinearHeight(p.Object.Position.X, p.Object.Position.Z) };
+        : p.Object.Position with { Y = (float)PlacedHeight(p.Object.Position.X, p.Object.Position.Z) };
+
+    /// <summary><see cref="BilinearHeight"/>, but for a cell with a corner off the tiles, whose samples there are the outside ground's.</summary>
+    private double PlacedHeight(double x, double z)
+    {
+        double fx = SampleScale * x, fz = SampleScale * z;
+        int sx = (int)Math.Floor(fx), sz = (int)Math.Floor(fz);
+        if (Terrain.Sample(sx, sz) is not null && Terrain.Sample(sx + 1, sz) is not null && Terrain.Sample(sx, sz + 1) is not null && Terrain.Sample(sx + 1, sz + 1) is not null
+            || Outside is not { } o)
+            return BilinearHeight(x, z);
+        double S(int a, int b) => Terrain.Sample(a, b) is { } v ? v & MissionFile.HeightMask : o.Raw(a, b);
+        double tx = fx - sx, tz = fz - sz;
+        double a0 = S(sx, sz) + (S(sx + 1, sz) - S(sx, sz)) * tx;
+        double a1 = S(sx, sz + 1) + (S(sx + 1, sz + 1) - S(sx, sz + 1)) * tx;
+        return (a0 + (a1 - a0) * tz) * HeightScale;
+    }
 
     public static int ToSample(double world) => (int)Math.Floor(world * SampleScale + SampleBias);
 

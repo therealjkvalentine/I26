@@ -56,8 +56,10 @@ public sealed partial class MeleeClient
         Successor = null;
         _link = null;
         _lastHeard = Now;
-        // the host hears that we could take over, and where we are at home (a server without migration ignores it)
+        // the host hears that we could take over, and where we are at home (a server without migration ignores it); only a
+        // host of this build, whose savestate this build reads (an upstream host's, or another build's, it could not)
         if (_peer is null || !CanHost || Standby is null) return;
+        if (Accept is { } a && ((a.Features & PeerFeatures.Migration) == 0 || BuildId.Differs(a.Build, Build))) return;
         _w.Clear();
         new HostCandidate(true, (ushort)_net.LocalPort, HomeAddresses ?? HostMigration.LocalAddresses()).Write(_w);
         _peer.Send(_w.Span, DeliveryMethod.ReliableOrdered);

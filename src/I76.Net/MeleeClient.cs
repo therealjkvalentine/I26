@@ -222,7 +222,7 @@ public sealed partial class MeleeClient : IDisposable
     {
         _net.Start();
         State = ClientState.Connecting;
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build };
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features };
         _net.Connect(host, port, JoinData(name, car, team, config, password, paint));
     }
 
@@ -230,7 +230,7 @@ public sealed partial class MeleeClient : IDisposable
     {
         var w = new NetDataWriter();
         var nw = new NetWriter();
-        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build }.Write(nw);
+        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features }.Write(nw);
         w.Put(nw.ToArray());
         return w;
     }
@@ -248,7 +248,7 @@ public sealed partial class MeleeClient : IDisposable
         _net.Start();
         State = ClientState.Connecting;
         _joinData = JoinData(name, car, team, config, password, paint);
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build };
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features };
         _joiner = new AnetJoiner(new LiteNetAnetTransport(_net, _layer), serverHost, serverPort, game, (ep, d) => _net.SendUnconnectedMessage(d, ep),
             privateOverride: privateOverride) { CheckServers = checkServers ?? [] };
         _joiner.Log += m => Log?.Invoke(m);
@@ -520,6 +520,16 @@ public sealed partial class MeleeClient : IDisposable
 
     /// <summary>The prediction could not find a confirmed state: the inputs ask for the motion itself until one comes.</summary>
     public bool NeedExact { get; set; }
+
+    /// <summary>
+    /// The input as this host takes it: the Pistol button only to a host that says it has it (<see cref="PeerFeatures.Pistol"/>);
+    /// another (upstream's) never fires on it, so the prediction must not either. The caller predicts with what this returns.
+    /// </summary>
+    public CarInput ForHost(CarInput input)
+    {
+        if (Accept is not { } a || (a.Features & PeerFeatures.Pistol) == 0) input.Buttons &= ~I76.Sim.Session.CarButtons.Pistol;
+        return input;
+    }
 
     /// <summary>The driver's input for the next tick: sent with the ones before it, unreliably.</summary>
     public void SendInput(CarInput input)

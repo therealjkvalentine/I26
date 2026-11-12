@@ -19,7 +19,7 @@ the `gh-pages` branch (see tools/changes-page/README.md).
 
 - The modern look's lighting is calibrated per mission against the 1997 look's: the ground shows the original's colour and brightness, the frame goes through the display's own curve instead of Filmic, the cars keep the original's paint colours (`[port] lighting_calibration`, on; `off` or `filmic`). [I, K]
 - Night missions are dark as the original's: the ground by moonlight alone, the road a darker band under it, the sky at a quarter, so the headlamps matter (`I76_NIGHT_MOON/GROUND/ROAD/SKY` to compare). The sky's clouds are read through a smooth spline, no 80 px squares. [AP, BB]
-- Headlamps, brake and tail lamps weaker at night and well down by day; Palette Grade moves colours smoothly, no dither; paved roads carry the asphalt grain near the camera. [K]
+- Headlamps, brake and tail lamps weaker at night and well down by day; Palette Grade moves colours smoothly, no dither; paved roads carry the asphalt grain near the camera with `[port] road_grain=true` (off since the upstream merge: upstream's roads). [K]
 - Keyed textures (signs, fences, plants, the cockpit's mirror and compass) are cut along smooth outlines instead of a pixel staircase; road signs by the game's own outline, back-culled. [K, AR]
 - The smoke layer takes the nearest surface under each pixel, so no fringe over a car or hill in front of it, with MSAA too (#95). [I]
 - Rounds striking the ground a third fainter; `[port] effects_size`, `effects_brightness`, `effects_opacity` scale the weapons' effects. [I, AY]

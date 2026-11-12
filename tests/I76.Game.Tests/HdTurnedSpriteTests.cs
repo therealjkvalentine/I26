@@ -50,10 +50,10 @@ public class HdTurnedSpriteTests
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
         for (int y = 0; y < ShellFrame.H; y++)
             for (int x = 0; x < ShellFrame.W; x++)
-                if (f.At(x, y) != 0) { x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y); }
+                if (f.Pixels[y * ShellFrame.W + x] != 0) { x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y); }
         Assert.Equal((x0, y0, x1 - x0 + 1, y1 - y0 + 1), (p.X, p.Y, s.Width, s.Height));
         // turned: the sprite's first pixel lands at the box's bottom-right corner
-        Assert.Equal(1, f.At(p.X + s.Width - 1, p.Y + s.Height - 1));
+        Assert.Equal(1, f.Pixels[(p.Y + s.Height - 1) * ShellFrame.W + p.X + s.Width - 1]);
     }
 
     [Fact]
@@ -76,6 +76,6 @@ public class HdTurnedSpriteTests
         f.HasHdSprite = _ => false;
         f.BlitRotated(Make(3, 3, 0, 0), 50, 50);
         Assert.Empty(f.Placed);
-        Assert.NotEqual(0, f.At(48, 48));
+        Assert.NotEqual(0, f.Pixels[48 * ShellFrame.W + 48]);
     }
 }

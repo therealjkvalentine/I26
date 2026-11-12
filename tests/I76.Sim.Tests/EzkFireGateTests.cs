@@ -11,7 +11,8 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// The AI's fire gate for the EZK mortar (class 3 subtype 3): a skill gate of two rand()%1000 against 3500 x skill, then
-/// the time the target's line passes the muzzle line at a fixed 500 (the muzzle flipped when it points away), kept
+/// the time the target's line passes a line at a fixed 500 along the shooter's forward row (flipped only when the muzzle
+/// points backwards), kept
 /// within 0..0.2 s, the target then within 20 on the ground plane. It used to fall through and never fire.
 /// </summary>
 public class EzkFireGateTests
@@ -26,7 +27,7 @@ public class EzkFireGateTests
     private static readonly Transform Ident = new([1, 0, 0, 0, 1, 0, 0, 0, 1], [0, 0, 0]);
 
     /// <summary>A shooter at the origin facing +z with an EZK on a fixed mount, and a still target.</summary>
-    private static (Combat C, Vehicle Shooter, Vehicle Target, Weapon W) Rig(uint tier = 3)
+    private static (Combat C, Vehicle Shooter, Vehicle Target, Weapon W) Rig(uint tier = 3, bool rear = false)
     {
         var world = new SimWorld(new Flat(), new CrtRand(1));
         var shooter = new Vehicle();
@@ -35,7 +36,7 @@ public class EzkFireGateTests
         var def = Armory.HandgunDef(1) with { Class = 3, Tier = tier, Kind = 7, Speed = 60, Ammo = 100 };
         var w = new Weapon
         {
-            Def = def, Hardpoint = new Hardpoint("hp", 0, 1, 1, Ident), Style = 1, MountKind = 1, BaseRot = Rows.Identity,
+            Def = def, Hardpoint = new Hardpoint("hp", 0, 1, 1, Ident), Style = 1, MountKind = 1, BaseRot = rear ? Rows.AboutY(MathF.PI) : Rows.Identity,
             Hp = 45, MaxHp = 45, Damage = (int)def.Damage, Ammo = 100,
         };
         var a = new Armory();
@@ -50,9 +51,30 @@ public class EzkFireGateTests
         var (c, shooter, target, w) = Rig();
         target.Pos = new Double3(0, 0, 50);                       // reached in 0.1 s at 500
         Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
-        target.Pos = new Double3(0, 0, -50);                      // behind: the muzzle line is flipped
-        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        target.Pos = new Double3(0, 0, -50);                      // behind a forward-mounted EZK: the line never turns to it
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
         target.Pos = new Double3(15, 0, 50);                      // 15 to the side
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+    }
+
+    [Fact]
+    public void ARearMountedEzkFiresBehindAndNotAhead()
+    {
+        // the shooter's forward row flipped because the muzzle points backwards
+        var (c, shooter, target, w) = Rig(rear: true);
+        target.Pos = new Double3(0, 0, -50);
+        Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+        target.Pos = new Double3(0, 0, 50);
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+    }
+
+    [Fact]
+    public void TheLineIgnoresTheMuzzlesElevation()
+    {
+        // the EZK is laid up to 45 degrees; the line still runs level along the car's forward row
+        var (c, shooter, target, w) = Rig();
+        w.GunPitch = 0.7f;
+        target.Pos = new Double3(0, 0, 50);
         Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
     }
 

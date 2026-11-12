@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using I76.Formats.Input;
 using I76.Game.Shell;
+using I76.Game.Sim;
 using I76.Game.Ui;
 using Xunit;
 
@@ -8,7 +9,8 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// The Developer panel's Settings (every key of docs/playing.md's "Settings without a row", each value reading back, the
-/// defaults the file's) and its Signals (the traces' window, the wheel's forces from the effects on it).
+/// defaults the file's) and its Signals (the traces' window, the wheel's forces from the effects on it, the pad's motors and
+/// the telemetry feed).
 /// </summary>
 public class DevSettingsSignalsTests
 {
@@ -54,9 +56,18 @@ public class DevSettingsSignalsTests
     }
 
     [Fact]
+    public void EveryKeyIsOneTheSettingsFileReads()
+    {
+        var shell = File.ReadAllText(RepoFile(Path.Combine("game", "Scripts", "Shell", "Shell.cs")));
+        foreach (var e in DevSettings.Elsewhere) Assert.Contains($"GetValue(\"port\", \"{e.Key}\"", shell);
+        var keys = DevSettings.All.Concat(DevSettings.WithRow).Concat(DevSettings.Elsewhere).Concat(DevSettings.Night).Select(e => e.Key).ToList();
+        Assert.Equal(keys.Count, keys.Distinct().Count());
+    }
+
+    [Fact]
     public void EveryValueReadsBack()
     {
-        foreach (var e in DevSettings.All)
+        foreach (var e in DevSettings.All.Concat(DevSettings.Elsewhere))
         {
             var s = new ShellSettings();
             for (int i = 0; i < e.Values.Length; i++)
@@ -71,7 +82,7 @@ public class DevSettingsSignalsTests
     public void TheDefaultsAreTheFilesAndTheOriginalsAreUnmarked()
     {
         var s = new ShellSettings();
-        string Shown(string key) { var e = DevSettings.All.Concat(DevSettings.WithRow).Single(d => d.Key == key); return e.Values[e.Get(s)]; }
+        string Shown(string key) { var e = DevSettings.All.Concat(DevSettings.WithRow).Concat(DevSettings.Elsewhere).Single(d => d.Key == key); return e.Values[e.Get(s)]; }
         Assert.Equal("look", Shown("draw_distance"));
         Assert.Equal("look", Shown("mirror_range"));
         Assert.Equal("steady*", Shown("sky_drift"));
@@ -80,7 +91,7 @@ public class DevSettingsSignalsTests
         Assert.Equal("60", Shown("vegetation_density"));
         Assert.Equal("4x*", Shown("world_textures"));
         Assert.Equal("4x*", Shown("car_textures"));
-        Assert.Equal("true*", Shown("cabins_behind_glass"));
+        Assert.Equal("true*", Shown("car_interiors"));
         Assert.Equal("false", Shown("log_file"));
         Assert.Equal("true*", Shown("hd_menu_art"));
         Assert.Equal("on*", Shown("lighting_calibration"));
@@ -88,8 +99,21 @@ public class DevSettingsSignalsTests
         foreach (var key in TactileSources.Keys) Assert.Equal(DevSettings.DevOnly.Contains(key) ? "0" : "100", Shown(key));
         Assert.Equal("false", Shown("developer"));
         Assert.Equal("0", Shown("melee_ai"));
-        foreach (var e in DevSettings.All)
-            Assert.Single(e.Values, v => !v.EndsWith(ShellSettings.PortMark, StringComparison.Ordinal) && v != "look");
+        Assert.Equal("true*", Shown("net_names"));
+        Assert.Equal("i26", Shown("telemetry_format"));
+        foreach (var e in DevSettings.All.Concat(DevSettings.Elsewhere))
+            Assert.Single(e.Values, v => !v.EndsWith(DevSettings.PortMark, StringComparison.Ordinal) && v != "look");
+    }
+
+    [Fact]
+    public void ATelemetryFormatReadsAsTheFeedReadsIt()
+    {
+        var e = DevSettings.Elsewhere.Single(d => d.Key == "telemetry_format");
+        var s = new ShellSettings();
+        e.Set(s, 2);
+        Assert.Equal(TelemetryFormat.OutGauge, TelemetryPackets.ParseFormat(s.TelemetryFormat));
+        e.Set(s, 0);
+        Assert.Null(s.TelemetryFormat);
     }
 
     [Theory]

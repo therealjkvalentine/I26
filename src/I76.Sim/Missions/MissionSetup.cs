@@ -273,8 +273,9 @@ public sealed partial class MissionSetup
                  ?? w.Placements.FirstOrDefault(p => p.Object.Name.Equals("spawn", StringComparison.OrdinalIgnoreCase))
                  ?? w.Placements.FirstOrDefault(p => def is not null && string.Equals(p.Definition, def, StringComparison.OrdinalIgnoreCase))
                  ?? w.Placements.FirstOrDefault(p => IsCar(p.Definition));
-        // no car from the shell: the original seeds vppirna1 at start-up and never loads the mission's own car for the player
-        def ??= "vppirna1.vcf";
+        // no car from the shell: the original seeds vppirna1 at start-up and never loads the mission's own car for the player;
+        // a co-op game's "Mission's own car" (seat 0 without a car) is the placement's, as the lobby offers it
+        def ??= coop is not null && IsCar(at?.Definition) ? at!.Definition! : "vppirna1.vcf";
         at ??= new Placement(new PlacedObject(def, 0x10, [1, 0, 0, 0, 1, 0, 0, 0, 1], origin, new byte[0x64]), def);
 
         var order = network ? [] : melee is not null ? [at] : w.Placements.Where(p => IsCar(p.Definition) && p != at).Prepend(at).ToList();
@@ -508,19 +509,17 @@ public sealed partial class MissionSetup
     /// when it is a car (class 1), as the original sets it once the mission is read, whatever the play options say. The
     /// flag picks the cornering law, the AI's planned cornering limit and the steering-slide threshold, and outside a
     /// network game a car resting on its roof is put back on its wheels instead of wrecked. Nothing else decides it (not
-    /// the car file, the team or the car's name); in T05 the label names a wreck, which is not a car. Returns the car
-    /// flagged, or null.
+    /// the car file, the team or the car's name); in T05 the label names a wreck, which is not a car. With more than one
+    /// actor so labelled the last one is the Taurus, as the original keeps the last match. Returns the car flagged, or null.
     /// </summary>
     public static Vehicle? MarkTaurus(IEnumerable<(string Label, byte[] Id, object? Handle)> actors)
     {
-        Vehicle? car = null;
+        object? taurus = null;
         foreach (var (label, _, handle) in actors)
-            if (label.Equals("taurus", StringComparison.OrdinalIgnoreCase) && handle is Entity { Vehicle: { ObjectClass: 1 } v })
-            {
-                v.Flags |= VehicleFlags.LoadBasedCornering;
-                car = v;
-            }
-        return car;
+            if (label.Equals("taurus", StringComparison.OrdinalIgnoreCase)) taurus = handle;
+        if (taurus is not Entity { Vehicle: { ObjectClass: 1 } v }) return null;
+        v.Flags |= VehicleFlags.LoadBasedCornering;
+        return v;
     }
 
     /// <summary>An a1flagN placement (the CTF flag), class 2 or 3.</summary>

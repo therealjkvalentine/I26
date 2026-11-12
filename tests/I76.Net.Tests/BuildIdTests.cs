@@ -4,7 +4,7 @@ using Xunit;
 
 namespace I76.Net.Tests;
 
-/// <summary>The build id on the network forms (protocol 26): what it is, how two compare, the notice's words, and the wire.</summary>
+/// <summary>The build id on the network forms (the play fork's, appended to upstream's messages): what it is, how two compare, the notice's words, and the wire.</summary>
 public class BuildIdTests
 {
     [Fact] public void TheOverrideThenTheArchiveThenTheCheckoutsCommit()
@@ -59,8 +59,8 @@ public class BuildIdTests
         var s = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, []).Write(s);
         var bytes = s.ToArray();
-        Assert.Equal("", SessionInfo.TryRead(bytes[..^(2 + DiscoveryTests.Names)])!.Build);     // the empty string's length byte gone (and protocol 28's crosshair and names after it): a protocol 25 answer
-        Assert.Equal(28, Protocol.Version);
+        Assert.Equal("", SessionInfo.TryRead(bytes[..^1])!.Build);     // the empty string's length byte gone: an upstream host's answer, which ends with its host rules
+        Assert.Equal(24, Protocol.Version);
     }
 
     /// <summary>A joiner on another build is let in, and every player hears it once.</summary>

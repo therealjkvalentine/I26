@@ -14,8 +14,13 @@ public static class WindowApplier
 
     public static (int W, int H) Desktop { get { var s = DisplayServer.ScreenGetSize(); return (s.X, s.Y); } }
 
+    /// <summary>The Resolution last applied (or found at start): a Cancel, a Reset or a menu's restore that leaves it as it is changes nothing, so a window the command line or Alt+Enter chose stays.</summary>
+    private static string? _applied;
+
     public static void Apply(I76.Game.Shell.ShellSettings s, bool atStart = false)
     {
+        if (!atStart && s.Resolution == _applied) return;
+        _applied = s.Resolution;
         if (DisplayServer.GetName() == "headless" || (atStart && CommandLineOwnsStart)) return;
         if (WindowSizes.Parse(s.Resolution) is not { } size)
         {

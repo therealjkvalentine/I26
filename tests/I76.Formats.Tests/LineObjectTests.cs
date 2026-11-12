@@ -27,18 +27,24 @@ public class LineObjectTests(ITestOutputHelper log)
         Assert.Equal(new Vector3(10.5f, 3, 25.3f), World(new Vector3(0.5f, -0.65f, 2.5f)), new Vec3Comparer());
     }
 
-    /// <summary>S07's compound: every afence4 piece of the LDEF rows is centred on its link, foot on the line.</summary>
-    [InstallFact]
-    public void S07BarriersAreCentredOnTheirLinks()
+    /// <summary>
+    /// S07's compound: every piece of the LDEF rows is centred on its link, foot on the line, lifted by its half height:
+    /// the original's node transforms there have afence4's pieces 0.65 up, the tyre wall's (aitire1) 0.60 and afence3's 0.50.
+    /// </summary>
+    [InstallTheory]
+    [InlineData("afence4", 0.65f)]
+    [InlineData("aitire1", 0.60f)]
+    [InlineData("afence3", 0.50f)]
+    public void S07BarriersAreCentredOnTheirLinks(string name, float lift)
     {
         var asm = new ModelAssembler(TestInstall.Vfs);
-        var w = new MissionWorld(TestInstall.Vfs, asm, Path.Combine(TestInstall.Install.MissionDir!, "s07.msn"));
-        var m = asm.Assemble(asm.ResolveDefinition("afence4")!)!;
+        var w = new MissionWorld(TestInstall.Vfs, asm, TestInstall.Install.Resolve("miss16", "s07.msn")!);
+        var m = asm.Assemble(asm.ResolveDefinition(name)!)!;
         var part = m.Parts[0];
-        var pieces = w.LinePlacements.Where(p => p.Object.Name == "afence4").ToList();
-        log.WriteLine($"{pieces.Count} afence4 pieces");
-        Assert.True(pieces.Count > 50);
-        var posts = LineObjects.Read(w.Mission).Where(l => l.Name == "afence4")
+        var pieces = w.LinePlacements.Where(p => p.Object.Name == name).ToList();
+        log.WriteLine($"{pieces.Count} {name} pieces");
+        Assert.NotEmpty(pieces);
+        var posts = LineObjects.Read(w.Mission).Where(l => l.Name == name)
             .SelectMany(l => l.Points.Zip(l.Points.Skip(1), (a, b) => (a, b))).ToList();
         Assert.Equal(posts.Count, pieces.Count);
         for (int i = 0; i < pieces.Count; i++)
@@ -46,7 +52,7 @@ public class LineObjectTests(ITestOutputHelper log)
             var place = Affine.FromEngine(pieces[i].Object.Rotation, w.GroundedPosition(pieces[i]));
             var centre = place.Apply(part.ToModel.Apply(Vector3.Zero));
             var (a, b) = posts[i];
-            var mid = new Vector3((a.X + b.X) / 2, (float)(w.BilinearHeight(a.X, a.Z) + w.BilinearHeight(b.X, b.Z)) / 2 + 0.65f, (a.Z + b.Z) / 2);
+            var mid = new Vector3((a.X + b.X) / 2, (float)(w.BilinearHeight(a.X, a.Z) + w.BilinearHeight(b.X, b.Z)) / 2 + lift, (a.Z + b.Z) / 2);
             Assert.True(Vector3.Distance(centre, mid) < 0.01f, $"piece {i}: centre {centre}, link midpoint {mid}");
         }
     }

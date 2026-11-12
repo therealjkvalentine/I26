@@ -55,6 +55,10 @@ public class T01FollowTests
                 var tv = taurus.Vehicle!;
                 var back = tv.Speed > 1 ? Vector3.Normalize(new Vector3(tv.Vel.X, 0, tv.Vel.Z)) : taurus.Rot.Forward;
                 var goal = stand ? fireworks.Static!.Centre : taurus.Position - back * 15;
+                // Taurus, cornering on load-based grip, can stop right in the line to the stand: go round him
+                var tt = taurus.Position - player.Pos.ToVector3();
+                if (stand && tt.Length() < 15 && Vector3.Dot(tt, player.Rot.Forward) > 0)
+                    goal += new Vector3(player.Rot.Forward.Z, 0, -player.Rot.Forward.X) * 12;
                 var to = goal - player.Pos.ToVector3();
                 float err = MathF.Atan2(to.X, to.Z) - MathF.Atan2(player.Rot.Forward.X, player.Rot.Forward.Z);
                 while (err > MathF.PI) err -= 2 * MathF.PI;

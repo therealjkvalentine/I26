@@ -45,6 +45,7 @@ public partial class ExitWatchdog : Node
     private static PosixSignalRegistration? _winch, _term;
     private static volatile bool _wayland, _termRequested;
     private static int _watching;
+    private static bool _off;
     private bool _quitting;
 
     /// <summary>The code the program is quitting with, for _exit (Godot's OS keeps its own out of reach of C#): set it beside a Quit(code).</summary>
@@ -54,15 +55,19 @@ public partial class ExitWatchdog : Node
     /// <summary>Puts the watchdog under the root once a run (from a node's _Ready: the root is busy then, so deferred).</summary>
     public static void Install(SceneTree tree)
     {
-        // I76_EXIT_WATCHDOG=0 leaves it out (to see the engine's exit as it is)
-        if (_added || System.Environment.GetEnvironmentVariable("I76_EXIT_WATCHDOG") == "0") return;
+        // I76_EXIT_WATCHDOG=0 leaves the watch out (to see the engine's exit as it is); the node stays for the quit's wait for our threads
+        if (_added) return;
         _added = true;
+        _off = System.Environment.GetEnvironmentVariable("I76_EXIT_WATCHDOG") == "0";
         tree.Root.CallDeferred(Node.MethodName.AddChild, new ExitWatchdog { Name = "ExitWatchdog" });
     }
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
+        // the window's close button quits once our threads that make engine resources are done (EngineThreads)
+        GetTree().AutoAcceptQuit = false;
+        if (_off) return;
         if (OperatingSystem.IsLinux() && DisplayServer.GetName() == "Wayland")
         {
             // a handler (which does nothing) so that the signal interrupts poll(); SIGWINCH's default is to ignore it,
@@ -90,15 +95,21 @@ public partial class ExitWatchdog : Node
         if (!_termRequested || _quitting) return;
         _quitting = true;
         GD.Print("exit watchdog: SIGTERM, quitting");
-        GetTree().Quit(143);
+        EngineThreads.QuitWhenDone(GetTree(), 143);
     }
 
-    // the SceneTree is being finalized: what remains is the engine's own cleanup
-    // (and the opentrack the game started, if any, is closed: OpenTrackLauncher)
+    public override void _Notification(int what)
+    {
+        if (what == NotificationWMCloseRequest) EngineThreads.QuitWhenDone(GetTree());
+    }
+
+    // the SceneTree is being finalized: our threads that make engine resources are waited for (EngineThreads), then what
+    // remains is the engine's own cleanup (and the opentrack the game started, if any, is closed: OpenTrackLauncher)
     public override void _ExitTree()
     {
+        EngineThreads.DrainAtExit(ExitCode);
         I76.Game.OpenTrackLauncher.StopOurs();
-        StartWatch();
+        if (!_off) StartWatch();
     }
 
     private static void StartWatch()
@@ -125,7 +136,9 @@ public partial class ExitWatchdog : Node
             System.Threading.Thread.Sleep(NudgeEveryMs);
         }
         System.Console.Error.WriteLine($"exit watchdog: still not out after {ExitAfterMs} ms; ending the process (exit code {ExitCode})");
-        Exit(ExitCode);
+        // libc.so.6 is Linux' alone: on Windows kernel32's ExitProcess (the libc lookup threw there)
+        if (System.OperatingSystem.IsLinux()) Exit(ExitCode);
+        else if (System.OperatingSystem.IsWindows()) ExitProcess((uint)ExitCode);
     }
 
     /// <summary>This process's thread of that name (/proc/self/task/*/comm), or null.</summary>
@@ -144,6 +157,9 @@ public partial class ExitWatchdog : Node
 
     [DllImport("libc.so.6", EntryPoint = "tgkill", SetLastError = true)]
     private static extern int Tgkill(int tgid, int tid, int sig);
+
+    [DllImport("kernel32.dll")]
+    private static extern void ExitProcess(uint code);
 
     [DllImport("libc.so.6", EntryPoint = "_exit")]
     private static extern void Exit(int status);

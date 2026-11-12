@@ -565,6 +565,8 @@ public partial class SimDriver : Node
         if ((int)_drawClock != (int)(_drawClock - delta)) DrawLog.Flush();   // once a second (a run is often ended by a kill)
     }
 
+    private static readonly int StateHashUntil = int.TryParse(System.Environment.GetEnvironmentVariable("I76_STATE_HASH"), out int sh) ? sh : 0;
+
     /// <summary>One tick of the session and what the game does after each: force feedback, impacts, sounds, the debug lines.</summary>
     private void RunTick(bool keys = true)
     {
@@ -574,6 +576,9 @@ public partial class SimDriver : Node
         int tick = Session.Ticks;
         if (Replay is { } replay) sampled = replay.At(tick);   // the keys are still sampled (and dropped) so nothing is left latched
         using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
+        // I76_STATE_HASH=N: the session's state hash every 100 ticks up to tick N (two starts compared: the same game?)
+        if (StateHashUntil > 0 && Session.Ticks <= StateHashUntil && (Session.Ticks % 100 == 0 || Session.Ticks == StateHashUntil))
+            GD.Print($"state hash: tick {Session.Ticks} {Session.StateHash():x16}");
         TraceTick(tick, sampled);
         Inputs?.Add(tick, sampled);
         ForceFeedback.Tick(Combat?.Events, shots, Tick);   // the block the original filled at the frame's end

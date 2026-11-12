@@ -1,5 +1,6 @@
 using Godot;
 using I76.Game.Shell;
+using I76.Game.Sim;
 
 namespace I76.Game.Ui;
 
@@ -21,7 +22,9 @@ public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings,
 /// </summary>
 public static class DevSettings
 {
-    private const string M = ShellSettings.PortMark;
+    /// <summary>Marks a value the original game does not have (ShellSettings.PortMark).</summary>
+    public const string PortMark = ShellSettings.PortMark;
+    private const string M = PortMark;
     private static readonly string[] FalseTrue = ["false", "true" + M];
     /// <summary>A key that follows the look while the file has none: "look", then the table's words.</summary>
     private static string[] Look(string[] names) => ["look", .. Words(names)];
@@ -100,7 +103,7 @@ public static class DevSettings
     public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
     /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, opentrack_path a path, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path"];
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path", "fov_window", "fork_version", "host_bot_skill_difficulty", "turret_slew"];   // from fov_window: rows' keys (Field of View, the host form's Bot Skill, Play Options' Turrets) and the file's own step count
 
     public static readonly DevSetting[] All =
     [
@@ -139,6 +142,7 @@ public static class DevSettings
         new("coop_rolling_start", FalseTrue, s => s.CoopRollingStart ? 1 : 0, (s, v) => s.CoopRollingStart = v != 0, DevWhen.NextMission),
         new("early_tick", FalseTrue, s => s.EarlyTick ? 1 : 0, (s, v) => s.EarlyTick = v != 0, DevWhen.Live),
         new("draw_ahead", FalseTrue, s => s.DrawAhead ? 1 : 0, (s, v) => s.DrawAhead = v != 0, DevWhen.Live),
+        new("road_grain", FalseTrue, s => s.RoadGrain ? 1 : 0, (s, v) => s.RoadGrain = v != 0, DevWhen.NextMission),
         new("sway_snap", ["false" + M, "true"], s => s.SwaySnap ? 1 : 0, (s, v) => s.SwaySnap = v != 0, DevWhen.Live),
         new("low_latency_present", FalseTrue, s => s.LowLatencyPresent ? 1 : 0, (s, v) => s.LowLatencyPresent = v != 0, DevWhen.Live,
             s => I76.Game.FrameLimiter.Apply(s)),
@@ -178,7 +182,7 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
         Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
         // the modern look's dim cabin and driver behind the other cars' windows (Car Interiors' row until round 5)
-        new("cabins_behind_glass", ["false", "true" + M], s => s.CabinsBehindGlass ? 1 : 0, (s, v) => s.CabinsBehindGlass = v != 0, DevWhen.Live,
+        new("car_interiors", ["false", "true" + M], s => s.CabinsBehindGlass ? 1 : 0, (s, v) => s.CabinsBehindGlass = v != 0, DevWhen.Live,
             s => I76.Game.Assets.MaterialLibrary.ApplyCabinsBehindGlass(s.CabinsBehindGlass)),
         // the log file (Graphic Detail's Log File row until round 5): Godot reads it at start
         new("log_file", ["false", "true" + M], s => s.LogFile ? 1 : 0, (s, v) => s.LogFile = v != 0, DevWhen.NextStart),
@@ -210,6 +214,20 @@ public static class DevSettings
         new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Original ? $"{v}" : $"{v}{M}")],
             s => I76.Sim.Views.PaintFinish.Clamp(s.HoodGloss), (s, v) => s.HoodGloss = v, DevWhen.Live,
             s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
+    ];
+
+    /// <summary>
+    /// Keys set elsewhere that the panel steps too, not in docs/playing.md's table: net_names (Ctrl+T in a network game keeps its
+    /// last choice there; docs/deviations.md) and telemetry_format (with [port] telemetry or I76_TELEMETRY_UDP; docs/dev-hooks.md).
+    /// </summary>
+    public static readonly DevSetting[] Elsewhere =
+    [
+        // every name shown at a network game's start (Ctrl+T toggles it in the game; the original starts each game with it off)
+        new("net_names", FalseTrue, s => s.NetNames ? 1 : 0, (s, v) => s.NetNames = v != 0, DevWhen.NextMission),
+        // the telemetry feed's packet for a target that names none ([port] telemetry or I76_TELEMETRY_UDP sets the targets)
+        new("telemetry_format", ["i26", "outsim" + M, "outgauge" + M],
+            s => (int)(TelemetryPackets.ParseFormat(s.TelemetryFormat) ?? TelemetryFormat.I26),
+            (s, v) => s.TelemetryFormat = v == 0 ? null : ((TelemetryFormat)v).ToString().ToLowerInvariant(), DevWhen.NextMission),
     ];
 
     /// <summary>
@@ -265,7 +283,7 @@ public static class DevSettings
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
-        foreach (var e in All.Concat(WithRow)) Add(grid, e);
+        foreach (var e in All.Concat(WithRow).Concat(Elsewhere)) Add(grid, e);
         col.AddChild(grid);
         // the Night group: the modern look's night levels, live in a night mission
         col.AddChild(new Label { Text = "Night (the modern look; 1 as solved for the mission)" });

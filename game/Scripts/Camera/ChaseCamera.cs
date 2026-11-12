@@ -26,8 +26,9 @@ namespace I76.Game.Camera;
 /// engine ramps these axes in its binding layer, which is not
 /// modelled. The mouse (Mouse Camera, on by default) moves the same targets by its motion. An axis bound to the track_yaw_delta or track_pitch_delta rows
 /// (the pad's right stick in the port's preset) turns it in proportion.
-/// When the car dies it swings into an orbit round the wreck, 8 degrees a sim
-/// tick (DeathOrbit: the original's network end-of-match orbit, its only one).
+/// When the car dies (and round the winner at a network match's end) it swings
+/// into an orbit round the wreck, 8 degrees per sim tick's worth of time as the
+/// original's 8 a frame (DeathOrbit).
 /// </summary>
 public partial class ChaseCamera : Camera3D
 {
@@ -125,7 +126,7 @@ public partial class ChaseCamera : Camera3D
         // the port's addition over the original's distance: the mouse wheel's zoom
         if (_epoch != MouseCamera.ZoomEpoch) { _epoch = MouseCamera.ZoomEpoch; _wheel = MouseCamera.ZoomOf(ViewZoom.Kind.Chase); _orbit.Reset(); }   // a new start: no easing from the old
         _wheel = ChaseZoom.Ease(_wheel, MouseCamera.ZoomOf(ViewZoom.Kind.Chase), dt);
-        Fov = ViewFov.Main;
+        Fov = ViewFov.Main;   // live from Graphic Detail
         var (pitch, yaw) = _orbit.View;
         if (Fixed is { } fx) (_orbit.Pitch, _orbit.Yaw, pitch, yaw) = (fx.Pitch, fx.Yaw, fx.Pitch, fx.Yaw);
 

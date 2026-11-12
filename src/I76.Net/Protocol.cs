@@ -13,7 +13,13 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 28;
+    public const ushort Version = 24;
+    /// <summary>
+    /// What this build understands beyond upstream's protocol <see cref="Version"/> (the I26 play fork's additions, each behind
+    /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
+    /// peer, which never says any, gets the layout it reads.
+    /// </summary>
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -68,6 +74,22 @@ public static class Protocol
     public const string Booted = "The host booted you from the game.";
     /// <summary>A banned player's refusal on joining again (the host's /ban; the port's).</summary>
     public const string Banned = "The host has banned you from this game.";
+}
+
+/// <summary>
+/// The I26 play fork's additions to upstream's protocol, each on only when both ends say it (<see cref="JoinRequest.Features"/>,
+/// <see cref="JoinAccept.Features"/>): an upstream peer says none, and the game with it runs on upstream's layout.
+/// </summary>
+[Flags]
+public enum PeerFeatures : uint
+{
+    None = 0,
+    /// <summary>The input's Pistol button (<see cref="I76.Sim.Session.CarButtons.Pistol"/>): a host without it never fires on it, so the client does not send it.</summary>
+    Pistol = 1 << 0,
+    /// <summary>The scoreboard's handicap block (<see cref="Scoreboard"/>).</summary>
+    HandicapBoard = 1 << 1,
+    /// <summary>Host migration with the fork's savestate (<see cref="I76.Sim.Save.SnapshotHeader.CurrentVersion"/>): a game is handed only to a peer that says it, on the same build.</summary>
+    Migration = 1 << 2,
 }
 
 public enum MsgType : byte
@@ -254,12 +276,17 @@ public sealed record JoinRequest(ushort Version, string Name, string Car, byte T
         else w.U8(0);
         // protocol 17, appended: the car's paint (CarPaint.ToBytes; empty for the factory paint)
         w.BlobU16(Paint ?? []);
-        // protocol 26, appended: the joiner's build (BuildId; empty when it cannot tell)
+        // the I26 play fork's, appended (upstream's server stops before them): the joiner's build (BuildId; empty when it
+        // cannot tell) and what it understands beyond upstream's protocol
         w.Str(Build);
+        w.VarU((uint)Features);
     }
 
-    /// <summary>The joiner's build (<see cref="BuildId"/>, protocol 26): the server tells everyone when it is not the host's.</summary>
+    /// <summary>The joiner's build (<see cref="BuildId"/>, the fork's): the server tells everyone when it is not the host's.</summary>
     public string Build { get; init; } = "";
+
+    /// <summary>What the joiner understands beyond upstream's protocol (<see cref="Protocol.Features"/>); none from an upstream joiner.</summary>
+    public PeerFeatures Features { get; init; }
 
     /// <summary>A player coming back to its seat after the host left (host migration): the slot and the seat's token, which the host gave it.</summary>
     public (byte Slot, ulong Token)? Rejoin { get; init; }
@@ -275,6 +302,7 @@ public sealed record JoinRequest(ushort Version, string Name, string Car, byte T
         if (r.Remaining > 0 && r.U8() == 1 && r.Remaining >= 9) j = j with { Rejoin = (r.U8(), r.U32() | (ulong)r.U32() << 32) };
         if (r.Remaining >= 2) j = j with { Paint = r.BlobU16() is { Length: > 0 } p ? p : null };
         if (r.Remaining >= 1) j = j with { Build = r.Str() };
+        if (r.Remaining >= 1) j = j with { Features = (PeerFeatures)r.VarU() };
         return j;
     }
 }
@@ -352,30 +380,39 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         Coop?.Write(w);
         // protocol 20: the CB radio is on in this game (the host's CB Radio option)
         w.Bool(Cb);
-        // protocol 22: the engine stays on in this game (the host's ignition lock), for the client's prediction
-        w.Bool(IgnitionStaysOn);
-        // protocol 23: the host gives players handicaps in this game (the host's Handicaps option); protocol 24: the rule's mode (Off, Manual, Auto)
-        w.U8((byte)Handicaps);
-        // protocol 26: the host's build, for the joiner's own different-build notice (the server's line comes while it loads)
-        w.Str(Build);
-        // protocol 28 (upstream's 22): the chase crosshair is allowed in this game (the host's Chase Crosshair option)
+        // protocol 22: the chase crosshair is allowed in this game (the host's Chase Crosshair option)
         w.Bool(Crosshair);
+        // protocol 23: the engine stays on in this game (the host's ignition lock), for the client's prediction
+        w.Bool(IgnitionStaysOn);
+        // protocol 23: the turrets turn as the 1997 CD build's (the host's Turrets), for the client's prediction
+        w.Bool(Turrets1997);
+        // the I26 play fork's, appended after upstream's last field (an upstream joiner stops before them): the host's
+        // Handicaps mode (Off, Manual, Auto), its build (the joiner's different-build notice) and its features
+        w.U8((byte)Handicaps);
+        w.Str(Build);
+        w.VarU((uint)Features);
     }
 
-    /// <summary>The host's build (<see cref="BuildId"/>, protocol 26; empty when it cannot tell).</summary>
-    public string Build { get; init; } = "";
+    /// <summary>The host's Turrets: the 1997 CD build's turret slew rather than the 1998 build's (protocol 23; the host form's Turrets, i26-server's --turrets-1997).</summary>
+    public bool Turrets1997 { get; init; }
 
-    /// <summary>The host's rule that nobody switches their engine off (protocol 22; the host form's IGN. LOCK, i26-server's --no-ignition-off).</summary>
+    /// <summary>The host's rule that nobody switches their engine off (protocol 23; the host form's Ignition Lock, i26-server's --no-ignition-off).</summary>
     public bool IgnitionStaysOn { get; init; }
 
-    /// <summary>The host's Handicaps rule (protocol 23, the mode since 24; docs/multiplayer.md "Handicaps"): the scoreboard's rows carry each player's level.</summary>
+    /// <summary>The host's build (<see cref="BuildId"/>, the fork's, appended; empty when it cannot tell or the host does not say).</summary>
+    public string Build { get; init; } = "";
+
+    /// <summary>The host's Handicaps rule (the fork's, appended; docs/multiplayer.md "Handicaps"): the scoreboard's rows carry each player's level. Off from an upstream host.</summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
+
+    /// <summary>What the host understands beyond upstream's protocol (<see cref="Protocol.Features"/>); none from an upstream host.</summary>
+    public PeerFeatures Features { get; init; }
 
     /// <summary>The CB radio is allowed in this game (the host form's CB Radio, i26-server's --no-cb turns it off); off, the server relays no voice and the client neither sends nor opens the microphone.</summary>
     public bool Cb { get; init; } = true;
 
     /// <summary>
-    /// The chase crosshair is allowed in this game (protocol 28, upstream's 22; the host form's Chase Crosshair, i26-server's --crosshair): an aiming
+    /// The chase crosshair is allowed in this game (protocol 22; the host form's Chase Crosshair, i26-server's --crosshair): an aiming
     /// aid the original does not have, so off unless the host allows it; allowed, each player's own Chase Crosshair setting decides.
     /// The view's alone: nothing in the simulation reads it.
     /// </summary>
@@ -412,12 +449,16 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         if (kind > MeleeKind.Ctf || goal > MeleeGoal.Kills) throw new WireException($"melee kind {kind} goal {goal}");
         var coop = r.Bool() ? CoopInfo.Read(ref r) : null;
         bool cb = r.Bool();
+        bool crosshair = r.Bool();
         bool ignition = r.Bool();
-        var handicaps = (I76.Sim.Missions.HandicapMode)r.U8();
+        bool turrets1997 = r.Bool();
+        // the fork's tail: an upstream host's accept ends here
+        var handicaps = r.Remaining >= 1 ? (I76.Sim.Missions.HandicapMode)r.U8() : I76.Sim.Missions.HandicapMode.Off;
         if (handicaps > I76.Sim.Missions.HandicapMode.Auto) throw new WireException($"handicaps {handicaps}");
         string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
-        bool crosshair = r.Remaining >= 1 && r.Bool();
-        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash) { Coop = coop, Cb = cb, IgnitionStaysOn = ignition, Handicaps = handicaps, Build = build, Crosshair = crosshair };
+        var features = r.Remaining >= 1 ? (PeerFeatures)r.VarU() : PeerFeatures.None;
+        return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash)
+            { Coop = coop, Cb = cb, Crosshair = crosshair, IgnitionStaysOn = ignition, Turrets1997 = turrets1997, Handicaps = handicaps, Build = build, Features = features };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>
@@ -502,7 +543,7 @@ public sealed record InputMessage(uint Tick, IReadOnlyList<CarInput> Inputs, uin
 /// <summary>One player's line on the scoreboard.</summary>
 public sealed record PlayerRow(byte Slot, string Name, byte Team, int Score, int Kills, int Deaths, ushort Ping, int CarSerial, bool Alive)
 {
-    /// <summary>The host's handicap on the player, −5..+5 (protocol 23; <see cref="I76.Sim.Missions.Handicaps"/>), 0 for none.</summary>
+    /// <summary>The host's handicap on the player, −5..+5 (the fork's; <see cref="I76.Sim.Missions.Handicaps"/>), 0 for none.</summary>
     public sbyte Handicap { get; init; }
 }
 
@@ -510,16 +551,20 @@ public sealed record PlayerRow(byte Slot, string Name, byte Team, int Score, int
 /// Everyone's score and ping (once a second), and the time and score left. On the wire (protocol 13) a delta against the
 /// board last sent to that client (the reliable ordered channel brings every one in order): a flags byte (1: in full,
 /// the client starts from nothing), then each row that changed as its slot, a mask of the fields that follow (name,
-/// team, score, kills, deaths, ping, car, alive; protocol 23 makes it a VarU with 256 for the handicap) and those fields, then the slots that left. A ping goes when it moved
+/// team, score, kills, deaths, ping, car, alive) and those fields, then the slots that left. A ping goes when it moved
 /// <see cref="PingStep"/> ms or more. 64 players' board was 1.5 KB a second to each client; a delta is a few bytes a row
-/// that changed.
+/// that changed. The I26 play fork appends the handicaps that changed (docs/multiplayer.md "Handicaps"): a count, then each
+/// row's slot and level; upstream's reader stops before them, and a board without the block changed none.
 /// </summary>
 public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow> Players)
 {
     public const int PingStep = 10;
 
-    /// <summary>Writes the board against <paramref name="sent"/> (the client's board; null or empty: in full) and brings <paramref name="sent"/> up to what the client will have.</summary>
-    public void Write(NetWriter w, Dictionary<byte, PlayerRow>? sent = null)
+    /// <summary>
+    /// Writes the board against <paramref name="sent"/> (the client's board; null or empty: in full) and brings <paramref name="sent"/> up to what the client will have.
+    /// <paramref name="handicaps"/>: the trailing handicap block, only to a client that says <see cref="PeerFeatures.HandicapBoard"/>.
+    /// </summary>
+    public void Write(NetWriter w, Dictionary<byte, PlayerRow>? sent = null, bool handicaps = true)
     {
         bool full = sent is null || sent.Count == 0;
         w.U8((byte)MsgType.Scoreboard);
@@ -527,20 +572,21 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         w.F32(Clock);
         w.U8((byte)(full ? 1 : 0));
         var rows = new List<(PlayerRow Row, int Mask)>();
+        var changed = new List<PlayerRow>();
         foreach (var p in Players)
         {
             var was = full ? null : sent!.GetValueOrDefault(p.Slot);
-            int m = was is null ? 0xff | (p.Handicap != 0 ? 256 : 0)
+            int m = was is null ? 0xff
                 : (p.Name != was.Name ? 1 : 0) | (p.Team != was.Team ? 2 : 0) | (p.Score != was.Score ? 4 : 0) | (p.Kills != was.Kills ? 8 : 0)
-                  | (p.Deaths != was.Deaths ? 16 : 0) | (Math.Abs(p.Ping - was.Ping) >= PingStep ? 32 : 0) | (p.CarSerial != was.CarSerial ? 64 : 0) | (p.Alive != was.Alive ? 128 : 0)
-                  | (p.Handicap != was.Handicap ? 256 : 0);
+                  | (p.Deaths != was.Deaths ? 16 : 0) | (Math.Abs(p.Ping - was.Ping) >= PingStep ? 32 : 0) | (p.CarSerial != was.CarSerial ? 64 : 0) | (p.Alive != was.Alive ? 128 : 0);
             if (m != 0) rows.Add((p, m));
+            if (handicaps && p.Handicap != (was?.Handicap ?? 0)) changed.Add(p);
         }
         w.VarU((uint)rows.Count);
         foreach (var (p, m) in rows)
         {
             w.U8(p.Slot);
-            w.VarU((uint)m);
+            w.U8((byte)m);
             if ((m & 1) != 0) w.Str(p.Name);
             if ((m & 2) != 0) w.U8(p.Team);
             if ((m & 4) != 0) w.VarI(p.Score);
@@ -549,15 +595,21 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
             if ((m & 32) != 0) w.U16(p.Ping);
             if ((m & 64) != 0) w.VarU((uint)p.CarSerial);
             if ((m & 128) != 0) w.Bool(p.Alive);
-            if ((m & 256) != 0) w.I8(p.Handicap);
         }
         var gone = full ? [] : sent!.Keys.Where(k => !Players.Any(p => p.Slot == k)).ToList();
         w.VarU((uint)gone.Count);
         foreach (var g in gone) w.U8(g);
+        if (changed.Count > 0)
+        {
+            w.VarU((uint)changed.Count);
+            foreach (var p in changed) { w.U8(p.Slot); w.I8(p.Handicap); }
+        }
         if (sent is null) return;
         if (full) sent.Clear();
         foreach (var (p, m) in rows)
             sent[p.Slot] = (m & 32) != 0 || !sent.TryGetValue(p.Slot, out var was) ? p : p with { Ping = was.Ping };
+        foreach (var p in changed)
+            if (sent.TryGetValue(p.Slot, out var was)) sent[p.Slot] = was with { Handicap = p.Handicap };
         foreach (var g in gone) sent.Remove(g);
     }
 
@@ -572,7 +624,7 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         for (int i = 0; i < n; i++)
         {
             byte slot = r.U8();
-            int m = (int)r.VarU();
+            int m = r.U8();
             var p = board.GetValueOrDefault(slot) ?? new PlayerRow(slot, "", 0, 0, 0, 0, 0, 0, false);
             if ((m & 1) != 0) p = p with { Name = r.Str() };
             if ((m & 2) != 0) p = p with { Team = r.U8() };
@@ -582,11 +634,21 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
             if ((m & 32) != 0) p = p with { Ping = r.U16() };
             if ((m & 64) != 0) p = p with { CarSerial = (int)r.VarU() };
             if ((m & 128) != 0) p = p with { Alive = r.Bool() };
-            if ((m & 256) != 0) p = p with { Handicap = (sbyte)System.Math.Clamp((int)r.I8(), I76.Sim.Missions.Handicaps.Min, I76.Sim.Missions.Handicaps.Max) };
             board[slot] = p;
         }
         n = JoinAccept.Count(ref r, 256);
         for (int i = 0; i < n; i++) board.Remove(r.U8());
+        // the fork's handicaps that changed; an upstream host's board ends before them
+        if (r.Remaining > 0)
+        {
+            n = JoinAccept.Count(ref r, 256);
+            for (int i = 0; i < n; i++)
+            {
+                byte slot = r.U8();
+                int level = System.Math.Clamp((int)r.I8(), I76.Sim.Missions.Handicaps.Min, I76.Sim.Missions.Handicaps.Max);
+                if (board.TryGetValue(slot, out var p)) board[slot] = p with { Handicap = (sbyte)level };
+            }
+        }
         return new Scoreboard(tick, clock, [.. board.Values.OrderBy(p => p.Slot)]);
     }
 }

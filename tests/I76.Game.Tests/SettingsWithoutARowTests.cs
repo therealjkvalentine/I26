@@ -100,6 +100,22 @@ public class SettingsWithoutARowTests
         OriginalBehavior.Apply(s);
     }
 
+    /// <summary>[port] road_grain: off by default (upstream's roads), written only when on, applied through OriginalBehavior (MissionBuilder reads it).</summary>
+    [Fact]
+    public void TheRoadGrainIsOffUnlessTheFileSaysTrue()
+    {
+        Assert.False(new ShellSettings().RoadGrain);
+        Assert.False(new ShellSettings().Write(null).HasSectionKey("port", "road_grain"));
+        var f = new ShellSettings { RoadGrain = true }.Write(null);
+        Assert.Equal(true, f.GetValue("port", "road_grain").Obj);
+        var s = ShellSettings.Read(f);
+        Assert.True(s.RoadGrain);
+        OriginalBehavior.Apply(s);
+        Assert.True(OriginalBehavior.RoadGrain);
+        OriginalBehavior.Apply(new ShellSettings());
+        Assert.False(OriginalBehavior.RoadGrain);
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]

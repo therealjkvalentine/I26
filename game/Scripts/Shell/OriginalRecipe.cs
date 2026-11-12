@@ -29,10 +29,10 @@ public static class OriginalRecipe
 
     public static string Word(string name) => name.ToLowerInvariant().Replace(' ', '_');
 
-    internal static int? ReadChoice(ConfigFile c, string key, string[] names) =>
+    internal static int? ReadChoice(SettingsFile c, string key, string[] names) =>
         c.HasSectionKey("port", key) ? ParseChoice((string)c.GetValue("port", key), names) : null;
 
-    internal static void WriteChoice(ConfigFile c, string key, string[] names, int? choice)
+    internal static void WriteChoice(SettingsFile c, string key, string[] names, int? choice)
     {
         if (choice is { } v && v >= 0 && v < names.Length) c.SetValue("port", key, Word(names[v]));
     }

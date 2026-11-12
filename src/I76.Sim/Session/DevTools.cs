@@ -120,9 +120,9 @@ public static class DevTools
         return true;
     }
 
-    /// <summary>A weapon's full load on this car: its file's ammunition, times 1.1 with Heated Seats (SPEC type 8), as the car is built.</summary>
+    /// <summary>A weapon's full load on this car: its file's ammunition with Heated Seats' bonus (SPEC type 8), as the car is built.</summary>
     private static int Loaded(Vehicle v, GizmoDef g) =>
-        v.Loadout?.Specials.Contains(8) == true ? (int)((int)g.Ammo * (double)1.1f) : (int)g.Ammo;
+        Specials.HeatedSeatsAmmo((int)g.Ammo, v.Build?.Specials ?? (IEnumerable<int>?)v.Loadout?.Specials ?? []);
 
     /// <summary>
     /// The weapon on hardpoint <paramref name="hardpoint"/> replaced by <paramref name="g"/>, in place and between ticks: the new one

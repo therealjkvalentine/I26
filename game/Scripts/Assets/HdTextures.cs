@@ -151,6 +151,8 @@ public static class HdTextures
 
     /// <summary>This start's <see cref="PacksWord"/> (what Save writes).</summary>
     public static string PacksNow => PacksWord(AvailableSizes, UserHas(HdPackFolders.Plain));
+    /// <summary>This start's packs as ShellSettings.Read and Write take them: the sizes found, and whether a plain tex-world is there.</summary>
+    public static (int[] Sizes, bool Plain) PacksFound => (AvailableSizes, UserHas(HdPackFolders.Plain));
     /// <summary>A texture pack of any size was found (the rows are shown).</summary>
     public static bool AnyPack => AvailableSizes.Length > 0 || UserHas(HdPackFolders.Plain);
 

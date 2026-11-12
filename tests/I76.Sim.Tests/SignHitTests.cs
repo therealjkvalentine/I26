@@ -12,7 +12,8 @@ using Xunit;
 namespace I76.Sim.Tests;
 
 /// <summary>
-/// Rounds against type-4 placements (road signs, posts): the round is stopped by the sign's sphere (0.75 x its radius)
+/// Rounds against type-4 placements (road signs, posts): the round is stopped by one of the sign's part spheres (0.75 x
+/// the part's radius; the whole sign's for one made without parts)
 /// and plays its impact there; a bullet leaves the sign standing, an explosive round knocks it off; a knocked-off sign
 /// stops nothing. Before, rounds went through them.
 /// </summary>
@@ -100,6 +101,25 @@ public class SignHitTests
         var (c, _, _, behind, _) = Rig(1, 1, offset: 0.8f);       // the round's line 0.8 from its centre, outside 0.75
         var hit = Assert.Single(Fly(c));
         Assert.Same(behind, hit.Victim);
+    }
+
+    [Fact]
+    public void AWideSignStopsRoundsAtItsPostsOnly()
+    {
+        // a two-post sign 8 m wide: each part's sphere stops a round, the gap between them does not (one sphere round the
+        // whole sign, 0.75 of its bounding radius, would have been 3 m round its middle)
+        var (c, _, sign, behind, _) = Rig(1, 1);
+        sign.Radius = 4.5f; sign.BoundRadius = 4.2f; sign.SphereRadius = 3.15f;
+        sign.Spheres.Add(new NodeSphere(new Vector3(-4, 1, 20), 0.75f) { Node = 0 });
+        sign.Spheres.Add(new NodeSphere(new Vector3(4, 1, 20), 0.75f) { Node = 1 });
+        Assert.Same(behind, Assert.Single(Fly(c)).Victim);
+        var (c2, _, sign2, _, _) = Rig(1, 1);
+        sign2.Radius = 4.5f; sign2.BoundRadius = 4.2f; sign2.SphereRadius = 3.15f;
+        sign2.Spheres.Add(new NodeSphere(new Vector3(-4, 1, 20), 0.75f) { Node = 0 });
+        sign2.Spheres.Add(new NodeSphere(new Vector3(0, 1, 20), 0.75f) { Node = 1 });
+        var hit = Assert.Single(Fly(c2));
+        Assert.Same(sign2, hit.Victim);
+        Assert.InRange(hit.Hit.Z, 19.2f, 19.3f);
     }
 
     [Fact]

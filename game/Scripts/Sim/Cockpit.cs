@@ -67,16 +67,26 @@ public partial class Cockpit : Node
     /// <summary>The original radar frame's width, which the scope's and the layout's pixels count in.</summary>
     private int _radarBaseW = 256;
 
+    /// <summary>Made by <see cref="ReadySteps"/>, a step at a time, by whoever added it (a mission loading under its briefing), not all in <see cref="_Ready"/>.</summary>
+    public bool Staged { get; init; }
+
     public override void _Ready()
     {
+        if (!Staged) foreach (var _ in ReadySteps()) { }
+    }
+
+    /// <summary>What <see cref="_Ready"/> makes (the panels, the wheel's, arms' and radar's frames, the mirror), a null between the costly parts.</summary>
+    public IEnumerable<object?> ReadySteps()
+    {
         Panels.Prefetch();
-        LoadArt();
+        foreach (var step in LoadArtSteps()) yield return step;
         _rng = new System.Random();
         var shellSettings = I76.Game.Shell.ShellSettings.Load();
         HeadTracker.Apply(shellSettings);
         OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
         _roundSetting = shellSettings.MirrorRound;
         _glassRoundSetting = shellSettings.SideMirrorRound;
+        yield return null;
         SetupMirror();
         CompassOutline();
         _lookArt.Made((Textures.Hd, _faithful));
@@ -84,7 +94,6 @@ public partial class Cockpit : Node
         Textures.Swapped += ArtSwapped;
     }
 
-    /// <summary>The frames the cockpit swaps in (wheel, arms, radar), from what the factory serves: the originals or a pack's upscales.</summary>
     /// <summary>
     /// The frames LoadArt makes (wheel, arms, shots), as stems: a mission's build prefetches them on its thread (Main.PrefetchCars), with
     /// the radar's (RadarFrames.Prefetch), which are kept in their own form.
@@ -93,17 +102,27 @@ public partial class Cockpit : Node
         new[] { ("zswls{0}{1:00}", 36), ("zhr45{0}{1:00}", 6), ("zhl45{0}{1:00}", 6), ("zsr45{0}{1:00}", 3), ("zsl45{0}{1:00}", 3) }
             .SelectMany(f => Enumerable.Range(1, f.Item2).Select(i => string.Format(f.Item1, lightVariant, i))).Append("zradmask");
 
+    /// <summary>The frames the cockpit swaps in (wheel, arms, radar), from what the factory serves: the originals or a pack's upscales.</summary>
     private void LoadArt()
+    {
+        foreach (var _ in LoadArtSteps()) { }
+    }
+
+    /// <summary><see cref="LoadArt"/> as steps, a null between the costly parts.</summary>
+    private IEnumerable<object?> LoadArtSteps()
     {
         // a pack's upscales of the frames below, read together on worker threads (done already when the build prefetched them); a .dds
         // goes to the GPU as stored, so none is decompressed
         Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>());
         _wheelFrames = Frames("zswls{0}{1:00}", 36);
+        yield return null;
         _armR = Frames("zhr45{0}{1:00}", 6);
         _armL = Frames("zhl45{0}{1:00}", 6);
         _shotR = Frames("zsr45{0}{1:00}", 3);
         _shotL = Frames("zsl45{0}{1:00}", 3);
+        yield return null;
         _radarFrames = RadarFrames.Take(Textures, Resolver);
+        yield return null;
         OriginalArt();
     }
 
@@ -294,7 +313,7 @@ public partial class Cockpit : Node
             SpecialsPanel();
             Radar();
             // the 2D speedometer and tachometer are drawn by the 2D dash and the external instruments, never over the 3D dash
-            // (the ghost cockpit's three panels are not they) or in the binoculars: drawn when they show, from where they were
+            // or in the binoculars: drawn when they show, from where they were
             if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
         }
         WeaponsPanel();
@@ -410,9 +429,6 @@ public partial class Cockpit : Node
     /// <summary>The 3D dash is on; off, the interior model is hidden and the panels are drawn flat (ExtInstruments).</summary>
     public bool Dash3D => Node3D.Dash3D;
 
-    /// <summary>The ghost cockpit over the 3D dash: no interior, no mirror, the overlay's first three panels and the reticles.</summary>
-    public bool Ghost => Node3D.Dash3D && Node3D.GhostCockpit;
-
     private Texture2D? _reticle;
 
     /// <summary>The 32x32 gunsight reticle texture (<c>zretc_1</c>) from the game's archive.</summary>
@@ -421,14 +437,14 @@ public partial class Cockpit : Node
     /// <summary>
     /// The reticle zretc_1 (32x32) the 2D dash draws, with its top-left on the 640x480 frame: the side reticle at (300, 240) when
     /// an arm is raised or busy and the head has turned to its window (yaw beyond 88° right or -83° left), else the forward gunsight at
-    /// (306, 300) with both arms idle and the head within 4° of straight ahead. Not in the binoculars.
+    /// (306, 300) with both arms idle and the head within 4° of straight ahead. Not in the binoculars. Those are the places for the
+    /// original's view; with another Field of View the gun line projects elsewhere, so the sprite's centre moves with it.
     /// </summary>
     public (Texture2D Tex, float X, float Y)? Reticle()
     {
         if (Binoculars) return null;
         if (ReticleTexture is not { } tex) return null;
         bool Up(int ch) => Car.Arms[ch].Busy || Car.Arms.Ready(ch);
-        // the original's places, for its own view; with another Field of View the gun line projects elsewhere, so the sprite's centre moves with it
         (Texture2D, float, float) At(int x, int y)
         {
             var (cx, cy) = I76.Sim.Views.ViewFov.ScreenPoint(x + 16, y + 16, I76.Sim.Views.ViewFov.Main);
@@ -1048,6 +1064,8 @@ public partial class Cockpit : Node
         else if (locked is not null)
         {
             // flag 0x10 (a target selected): the sweep stops and the locked frame ZRADBnnn follows the target's bearing
+            // the frame is written into the sweep's current step, the step it left stays where the sweep stopped: the ping
+            // window below runs from there to the target's bearing, and the sweep resumes from the target's frame
             var d = Car.Rot.ToLocal(locked.Pos.ToVector3() - Car.Pos.ToVector3());
             _radarAt = I76.Sim.Weapons.RadarScope.LockedFrame(d.X, d.Z);
             _radarCur = _radarAt;   // written into the sweep's step: the ping window runs from where the sweep stopped, which resumes from here
@@ -1654,8 +1672,7 @@ public partial class Cockpit : Node
     private void Mirror()
     {
         if (_mirrorView is null || _mirrorCam is null) return;
-        // off with the ghost cockpit, as the original's
-        if (_mirrorMode == 0 || Ghost) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; MirrorsUnseen(); return; }
+        if (_mirrorMode == 0) { _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; MirrorsUnseen(); return; }
         // the eye, not head-turned, its right and forward negated: looking backwards
         _mirrorCam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(new Basis(Vector3.Up, Mathf.Pi), Node3D.Eye);
         if (_sideL is { Visible: true }) SideMirrorYaw();
@@ -2078,7 +2095,7 @@ public partial class Cockpit : Node
     private Aabb? _rearBox;
     private readonly System.Numerics.Vector3[] _corners = new System.Numerics.Vector3[8];
 
-    /// <summary>Out of the car, the ghost cockpit or the mirror off: nothing is in view, so each mirror is drawn afresh when it shows again.</summary>
+    /// <summary>Out of the car or the mirror off: nothing is in view, so each mirror is drawn afresh when it shows again.</summary>
     private void MirrorsUnseen()
     {
         _rearSeen = false;

@@ -29,6 +29,8 @@ public static class OriginalBehavior
     public static bool Antialias1997 = true;
     /// <summary>The 1997 look's even flash: each gun's one flash sprite lit again at the shot's place in its tick ([port] even_flash, on unless false).</summary>
     public static bool EvenFlash = true;
+    /// <summary>The modern look's paved roads carry the asphalt scan's aggregate near the camera ([port] road_grain, off unless true; MissionBuilder).</summary>
+    public static bool RoadGrain;
 
     public static void Apply(I76.Game.Shell.ShellSettings s)
     {
@@ -45,6 +47,7 @@ public static class OriginalBehavior
         SwaySnap = s.SwaySnap;
         Antialias1997 = s.Antialias1997;
         EvenFlash = s.EvenFlash;
+        RoadGrain = s.RoadGrain;
         LampRamp.Setting = s.LampRamp;
         LampStrength.HaloPercent = s.LampHalo;
         DashLight.Percent = s.DashLight;

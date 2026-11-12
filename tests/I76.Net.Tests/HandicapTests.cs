@@ -6,7 +6,7 @@ using Xunit;
 namespace I76.Net.Tests;
 
 /// <summary>
-/// The host's Handicaps (docs/multiplayer.md "Handicaps"; protocol 23): the rule rides in the join accept and the listing, each
+/// The host's Handicaps (docs/multiplayer.md "Handicaps"; the play fork's, appended to upstream's messages): the rule rides in the join accept and the listing, each
 /// player's level in the scoreboard's rows; the host alone sets a level, and only where its rule is on.
 /// </summary>
 public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
@@ -44,6 +44,22 @@ public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)
         rows[0] = rows[0] with { Handicap = 0 };
         var third = Through(new Scoreboard(60, 3, rows), sent, board, out _);
         Assert.Equal([0, 2, 3], third.Players.Select(p => (int)p.Handicap));
+    }
+
+    /// <summary>A peer that does not say PeerFeatures.HandicapBoard (an upstream build) gets upstream's board: it ends at the gone list.</summary>
+    [Fact]
+    public void TheLevelsGoOnlyToAPeerThatSaysItReadsThem()
+    {
+        var rows = new List<PlayerRow> { new(0, "a", 0, 100, 1, 0, 40, 5, true) { Handicap = -3 }, new(1, "b", 0, 0, 0, 1, 60, 6, true) { Handicap = 2 } };
+        var sent = new Dictionary<byte, PlayerRow>();
+        var w = new NetWriter();
+        new Scoreboard(20, 1, rows).Write(w, sent, handicaps: false);
+        var r = new NetReader(w.Span);
+        Assert.Equal((byte)MsgType.Scoreboard, r.U8());
+        var board = Scoreboard.Read(ref r, []);
+        Assert.Equal(0, r.Remaining);
+        Assert.All(board.Players, p => Assert.Equal(0, p.Handicap));
+        Assert.Equal(PeerFeatures.HandicapBoard, Protocol.Features & PeerFeatures.HandicapBoard);
     }
 
     [Fact]

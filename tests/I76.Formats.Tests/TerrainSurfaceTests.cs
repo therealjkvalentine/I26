@@ -77,7 +77,8 @@ public class TerrainSurfaceTests(ITestOutputHelper log)
     /// <summary>
     /// The surface's arrays are the same as the serial build's before its passes ran on every core (hashes taken from
     /// that build on t01: the needle filter, the blur, the open cells, the cone over them and its base, the rims), and
-    /// what the bake cache keeps of them makes the same surface back.
+    /// what the bake cache keeps of them makes the same surface back. The same on every machine: the blur's weights are
+    /// <see cref="DetMath.ExpF"/>'s, not the platform maths library's (Windows' rounds differently in the last place).
     /// </summary>
     [InstallFact]
     public void ParallelBuildAndCachedCopyAreTheSerialBuildsSurface()
@@ -89,12 +90,9 @@ public class TerrainSurfaceTests(ITestOutputHelper log)
         var blobs = surf.ToBlobs();
         static string H(byte[] d) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(d))[..12];
         // _ht, _hb, _open, _anchor, _cone, _coneBase, _under
-        string[] serial = ["FC3C558174ED", "AA7CBF8A0644", "BFF9DCB88C4D", "1C83D94DEC1B", "0BF20A1078AE", "63FB6BB0DF7A", "688C61CA9EE9"];
-        var got = blobs.Skip(1).Select(b => H(b.Data)).ToArray();
-        // _hb, the bilateral blur, weighs by MathF.Exp, the platform's maths library: Windows' rounds differently in the last
-        // place from Linux's, where these were measured (a drawn surface only, the simulation does not read it). Pinned elsewhere.
-        if (OperatingSystem.IsWindows()) { serial[1] = got[1]; }
-        Assert.Equal(serial, got);
+        string[] serial = ["FC3C558174ED", "DE4AEAD0B3EC", "BFF9DCB88C4D", "1C83D94DEC1B", "0BF20A1078AE", "63FB6BB0DF7A", "688C61CA9EE9"];
+        Assert.Equal(serial, blobs.Skip(1).Take(7).Select(b => H(b.Data)).ToArray());
+        Assert.All(blobs[8].Data, b => Assert.Equal(0, b));   // _pin: no objects pin a surface built from seeds alone
         // twice the same, and the same back from its blobs
         Assert.Equal(blobs.Select(b => H(b.Data)), new TerrainSurface(w.Terrain, seeds).ToBlobs().Select(b => H(b.Data)));
         var back = TerrainSurface.FromBlobs(blobs)!;

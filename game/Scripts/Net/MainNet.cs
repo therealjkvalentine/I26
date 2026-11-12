@@ -74,8 +74,9 @@ public partial class Main
                 Handicaps = _opt.Handicaps ?? I76.Game.Shell.ShellSettings.Load().Handicaps,
                 AllowCarReset = _opt.CarReset ?? I76.Game.Shell.ShellSettings.Load().CarReset,
                 AllowCb = _opt.Cb ?? I76.Game.Shell.ShellSettings.Load().CbRadio,
-                IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
                 AllowCrosshair = _opt.Crosshair ?? I76.Game.Shell.ShellSettings.Load().HostCrosshair,
+                Turrets1997 = _opt.Turrets1997 ?? I76.Game.Shell.ShellSettings.Load().HostTurrets1997,
+                IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
             };
             if (_opt.Restrict is { Length: > 0 } spec)
             {
@@ -93,11 +94,11 @@ public partial class Main
                     Ai = 0, Bots = 0, TimeLimit = 0, Name = _opt.GameName ?? $"I76 co-op {coopMission.ToLowerInvariant()}",
                     // the players gather in a lobby first (docs/multiplayer.md "The co-op lobby"): the host form's co-op game always does, the command line's with --coop-lobby
                     Lobby = _opt.CoopLobby,
-                    CoopScale = _opt.CoopScale ?? I76.Game.Shell.ShellSettings.Load().CoopScale,
                     CoopDamage = _opt.CoopDamage ?? I76.Game.Shell.ShellSettings.Load().CoopDamage,
+                    CoopScale = _opt.CoopScale ?? I76.Game.Shell.ShellSettings.Load().CoopScale,
                     CoopRollingStart = _opt.CoopRollingStart ?? I76.Game.Shell.ShellSettings.Load().CoopRollingStart,
                 };
-            GD.Print($"listen server: {o.Arena}, {o.MaxPlayers} seats (about {I76.Game.Shell.MeleeScreen.UploadMbit(o.MaxPlayers):0.#} Mbit/s up when full), rand seed {(uint)o.Seed}{(_opt.FixedSeed is null ? " (clock)" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted weapons {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}{(o.AllowTurrets ? ", several turrets allowed" : "")}");
+            GD.Print($"listen server: {o.Arena}, {o.MaxPlayers} seats (about {I76.Game.Shell.MeleeScreen.UploadMbit(o.MaxPlayers):0.#} Mbit/s up when full), rand seed {(uint)o.Seed}{(_opt.FixedSeed is null ? " (clock)" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted weapons {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}{(o.AllowTurrets ? ", several turrets allowed" : "")}{(o.Coop is null ? "" : $", co-op: damage x{o.CoopDamage:0.##}, extra enemies {o.CoopScale}, rolling start {(o.CoopRollingStart ? "on" : "off")}")}");
             try { await _net.Host(o); }
             catch (System.Exception ex)
             {
@@ -413,8 +414,8 @@ public partial class Main
         // a co-op host form's game: the mission plays in co-op (the arena is its story mission)
         _opt.Coop = n.Connect is null && n.AnetGame is null && n.Coop ? l.Mission : null;
         _opt.CoopLobby = _opt.Coop is not null;
-        _opt.CoopScale = n.CoopScale;
         _opt.CoopDamage = n.CoopDamage;
+        _opt.CoopScale = n.CoopScale;
         _opt.CoopRollingStart = n.CoopRollingStart;
         // a LAN host takes the first free port of the ones a LAN search asks (a second game on one machine)
         _opt.Port = n.Mode == 3 ? FreePort(n.Port, Discovery.PortsSearched) : n.Port;
@@ -443,6 +444,7 @@ public partial class Main
         _opt.IgnitionStaysOn = n.IgnitionStaysOn;
         _opt.Cb = n.Cb;
         _opt.Crosshair = n.Crosshair;
+        _opt.Turrets1997 = n.Turrets1997;
         _opt.Bots = n.Bots;
         _opt.BotSkill = n.BotSkill;
         _opt.BotCars = [.. n.BotCars];
@@ -597,7 +599,7 @@ public partial class Main
             GD.Print($"movie: {name}{(SkipsCutscenes ? "" : " (the host's to skip)")}");
             try
             {
-                var player = new I76.Game.Ui.MoviePlayer { Path = path, Faithful = _opt.Mode1997, Name = "Movie", Skippable = SkipsCutscenes };
+                var player = new I76.Game.Ui.MoviePlayer { Path = path, Faithful = _opt.Mode1997, Nitro = install.IsNitro, Name = "Movie", Skippable = SkipsCutscenes };
                 player.Finished += () => { GD.Print($"movie: {name} over here"); NetMovieOver(); c.SendMovieDone(name); };
                 _netMovie = player;
                 AddChild(player);
@@ -915,6 +917,7 @@ public partial class Main
                 foreach (var m in World.Cars.Values) _bot.Learn(m.Info);
                 input = _bot.Next(Client);
             }
+            input = Client.ForHost(input);
             Client.SendInput(input);
             if (Predictor is not { } p) return;
             p.Step(Client.InputTick, input);

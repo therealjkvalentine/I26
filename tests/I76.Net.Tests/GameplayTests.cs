@@ -46,6 +46,12 @@ public class GameplayTests(Xunit.Abstractions.ITestOutputHelper output)
         var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 7, IgnitionStaysOn = true });
         Assert.True(host.Session.Melee!.Rules.IgnitionStaysOn);
         Assert.True(host.Session.IgnitionStaysOn);
+        Assert.True(host.Info().IgnitionStaysOn);
+        // a host migration's successor reads the options from the savestate's extras (JSON): the lock goes across
+        var json = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        Assert.True(System.Text.Json.JsonSerializer.Deserialize<ServerOptions>(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(host.Options with { Install = "" }, json), json)!.IgnitionStaysOn);
+        // a co-op host's session has it too (no melee rules there)
+        Assert.True(new MeleeHost(new ServerOptions { Install = install, Arena = "t01", Coop = "t01", MaxPlayers = 2, IgnitionStaysOn = true }).Session.IgnitionStaysOn);
         var seat = host.Join("a", "vppirna1.vcf", 0);
         var car = seat.Player.Car;
         uint t = 1;

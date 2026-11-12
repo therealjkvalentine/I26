@@ -131,7 +131,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         if (Original(member) is { } o)
         {
             var rgba = (byte[])o.Rgba.Clone();
-            if (HasKey(rgba)) BleedUnderKey(rgba, o.Width, o.Height);
+            if (TextureReader.HasKey(rgba)) TextureReader.BleedUnderKey(rgba, o.Width, o.Height);
             b = new RoadRaster.Tex(o.Width, o.Height, rgba);
         }
         return _bled[member] = b;
@@ -273,7 +273,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         bool hd = Hd && HdOf(member) is not null;
         var img = hd ? Picture(HdOf(member)!) : Prepare(b).Img;
         // keyed as the original is: an upscale carries the original's key
-        var e = new Entry(ImageTexture.CreateFromImage(img), HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
+        var e = new Entry(ImageTexture.CreateFromImage(img), TextureReader.HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
         _madeBytes += img.GetDataSize();
         if (t0 != 0) { double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds; I76.Game.Boot.LoadProfiler.Texture(hd, img.GetDataSize(), ms); }
         return e;
@@ -475,47 +475,11 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         return default;
     }
 
-    private static bool HasKey(byte[] rgba)
-    {
-        for (int i = 3; i < rgba.Length; i += 4) if (rgba[i] == 0) return true;
-        return false;
-    }
-
     /// <summary>A texture already coloured under its key (Bled, or an upscale fitted over it) with its mipmaps.</summary>
     private static (Image Img, bool Key) Prepare(RoadRaster.Tex t)
     {
         var img = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
         img.GenerateMipmaps();
-        return (img, HasKey(t.Rgba));
-    }
-
-    /// <summary>
-    /// Give keyed texels the colour of an opaque neighbour, so filtering and
-    /// mipmaps do not pull the key colour into the edges. Alpha is untouched.
-    /// </summary>
-    private static void BleedUnderKey(byte[] p, int w, int h)
-    {
-        for (int pass = 0; pass < 4; pass++)
-        {
-            var src = (byte[])p.Clone();
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                {
-                    int i = (y * w + x) * 4;
-                    if (src[i + 3] != 0 || (pass > 0 && (src[i] | src[i + 1] | src[i + 2]) != 0)) continue;
-                    int n = 0, r = 0, g = 0, b = 0;
-                    for (int dy = -1; dy <= 1; dy++)
-                        for (int dx = -1; dx <= 1; dx++)
-                        {
-                            int xx = x + dx, yy = y + dy;
-                            if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-                            int j = (yy * w + xx) * 4;
-                            if (src[j + 3] == 0 && (pass == 0 || (src[j] | src[j + 1] | src[j + 2]) == 0)) continue;
-                            r += src[j]; g += src[j + 1]; b += src[j + 2]; n++;
-                        }
-                    if (n == 0) { if (pass == 0) { p[i] = p[i + 1] = p[i + 2] = 0; } continue; }
-                    p[i] = (byte)(r / n); p[i + 1] = (byte)(g / n); p[i + 2] = (byte)(b / n);
-                }
-        }
+        return (img, TextureReader.HasKey(t.Rgba));
     }
 }

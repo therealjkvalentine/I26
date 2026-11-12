@@ -132,10 +132,12 @@ public sealed partial class ScriptCamera
                 LookAt = _heldLook; Basis = _heldBasis;
                 break;
             case "camobjobj" when O(0) is { } from:
+                _arrived = false;   // the fixed placements clear camIsArrived too
                 Eye = Clamp(from.Position + from.Rot.ToWorld(new Vector3(A(1), A(2), A(3)) / 100f));
                 LookAt = O(4)?.Position;
                 break;
             case "camobjdir" when O(0) is { } o:
+                _arrived = false;
                 Eye = Clamp(o.Position + o.Rot.ToWorld(new Vector3(A(1), A(2), A(3)) / 100f));
                 Basis = Rows.Concat(Rows.Euler(Angle(A(4)), Angle(A(6)), Angle(A(5))), o.Rot);
                 break;
@@ -156,6 +158,7 @@ public sealed partial class ScriptCamera
                 Basis = Rows.Euler(Angle(A(3)), Angle(A(5)), Angle(A(4)));
                 break;
             case "camf12" when O(0) is { } a && O(1) is { } b:
+                _arrived = false;
                 (Eye, LookAt) = F12(a.Position, b.Position, A(2) / 100f, A(3) / 100f);
                 break;
         }

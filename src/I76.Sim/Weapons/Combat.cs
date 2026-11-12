@@ -157,9 +157,9 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     /// <summary>Play Options' Unlim. Ordnance: no cap on the live rounds of a kind (<see cref="Cap"/>). Off, the original's; never in a network game.</summary>
     public bool UnlimitedOrdnance { get; set; }
     /// <summary>
-    /// The turrets' slew as the 1997 CD build turns them: dt·1.5 rad (6.0 a helicopter's) times the turret's health ratio, where
-    /// the 1998 build (GOG's and the Nitro Pack's, the default) turns dt·1.7 (6.8) times 0.75 + 0.25 of it; a network game
-    /// takes 1 for the ratio in both. Off, the 1998 build's; the player's build-rules.cfg (turret_slew), never in a network game.
+    /// The turrets turn as the 1997 CD build turns them: dt·1.5 rad (6.0 a helicopter's) times the turret's health ratio, where the
+    /// 1998 build (GOG's and the Nitro Pack's, the default) turns dt·1.7 (6.8) times 0.75 + 0.25 of it; a network game takes 1 for
+    /// the ratio in both. Play Options' Turrets offline, the host's Turrets online (docs/deviations.md "Turrets").
     /// </summary>
     public bool TurretSlew1997 { get; set; }
     /// <summary>
@@ -683,18 +683,20 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         }
         if (def.Class == 3 && tier == 3)
         {
-            // the EZK: two rand()%1000 against 3500 x skill; then the time the target's line passes the muzzle line at a
-            // fixed 500 (the muzzle row flipped when it points away from the target), kept only within 0..0.2 s, where
-            // the target, put there by the predictor (t + 0.09 s), must be within 20 of the shooter's point at t on the
-            // ground plane. No sight or friendly test.
+            // the EZK: two rand()%1000 against 3500 x skill; then the time the target's line passes a line at a fixed 500
+            // from the shooter along its own forward row (flipped only when that row points away from the muzzle's, so a
+            // rear-mounted EZK looks back; it never turns toward the target), kept only within 0..0.2 s, where the target,
+            // put there by the predictor (t + 0.09 s), must be within 20 of the shooter's point at t on the ground plane.
+            // Positions, not collider centres. No sight or friendly test.
             if (Rand.Next() % 1000 + Rand.Next() % 1000 > p3 * 3500) return false;
             var sp = shooter.Pos.ToVector3();
-            var sv = (Vector3.Dot(f, tc - sp) < 0 ? -f : f) * 500f;
+            var sf = shooter.Rot.Forward;
+            var sv = (Vector3.Dot(sf, f) > 0 ? sf : -sf) * 500f;
             var rv = tvel - sv;
             float rr = rv.LengthSquared();
-            float t = rr < 0.01f ? 1e7f : Vector3.Dot(sp - tc, rv) / rr;
+            float t = rr < 0.01f ? 1e7f : Vector3.Dot(sp - tpos, rv) / rr;
             if (t < 0 || t > 0.2f) return false;
-            var at = tv is null ? tc : TargetPredictor.Predict(tv, t) + (tc - tv.Pos.ToVector3());
+            var at = tv is null ? tpos : TargetPredictor.Predict(tv, t);
             var d = sp + sv * t - at;
             return d.X * d.X + d.Z * d.Z < 400;
         }
@@ -733,9 +735,23 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     }
 
     /// <summary>
+    /// A type-4 placement (a sign, a post) against a round's segment: each part's sphere (0.75 x its SGEO radius), else
+    /// the whole placement's for one made without parts. A segment that starts inside one meets nothing.
+    /// </summary>
+    internal static (float T, Vector3 N)? RaySign(StaticObject o, Vector3 p, Vector3 d)
+    {
+        if (o.Spheres.Count == 0) return StaticWorld.RaySphere(o.Centre, o.SphereRadius, p, d, 1f);
+        (float T, Vector3 N)? best = null;
+        foreach (var s in o.Spheres)
+            if (StaticWorld.RaySphere(s.Centre, s.Radius, p, d, 1f) is { } h && (best is null || h.T < best.Value.T)) best = h;
+        return best;
+    }
+
+    /// <summary>
     /// The AI's sight test: from the shooter's collider centre 1.5 up to the target's centre 1.5 up (centre to centre,
     /// not the gun's own line), against the terrain, then every static collider but an emplacement's and the target's
-    /// own. Structures, scenery, gates and standing signs block; vehicles never do.
+    /// own, each part grown by 3 (<see cref="StaticBlocks"/>). Structures, scenery, gates and standing signs block;
+    /// vehicles never do.
     /// </summary>
     public bool CanSee(Vehicle shooter, object target)
     {
@@ -745,7 +761,11 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         return LineOfSight(a, b) && !StaticBlocks(a, b, target);
     }
 
-    /// <summary>Whether a static collider's shape crosses the line a to b: a sphere 3 beyond its radius first, then its meshes, boxes or a sign's sphere.</summary>
+    /// <summary>
+    /// Whether a static collider blocks the line a to b, with the original's generous shapes: within 3 beyond its radius
+    /// first, then each colliding part grown by 3 on every side: a sphere part at its radius + 3, any other part as its
+    /// bounds box (a mesh's too, never its polygons) grown by 3 in the part's frame.
+    /// </summary>
     private bool StaticBlocks(Vector3 a, Vector3 b, object? skip)
     {
         if (World.Ground is not IHasStatics hs) return false;
@@ -757,11 +777,38 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             float reach = MathF.Max(o.BoundRadius, o.SphereRadius);
             if (o.Centre.X + reach < minX || o.Centre.X - reach > maxX || o.Centre.Z + reach < minZ || o.Centre.Z - reach > maxZ) continue;
             if (!SegmentNear(a, d, o.Centre, reach + 3f)) continue;
-            if (StaticWorld.RayMesh(o.Polys, a, d, 1f).Hit is not null) return true;
-            if (StaticWorld.RayBoxes(o.Boxes, a, d, 1f) is not null) return true;
-            if (o.Type == 4 && SegmentNear(a, d, o.Centre, o.SphereRadius)) return true;
+            foreach (var bx in o.Boxes) if (SegmentInBox(a, d, bx, 3f)) return true;
+            foreach (var bx in o.MeshBounds) if (SegmentInBox(a, d, bx, 3f)) return true;
+            foreach (var sp in o.Spheres) if (SegmentNear(a, d, sp.Centre, sp.Radius + 3f)) return true;
+            // one made without parts (a test's box, a sign without its nodes): its whole sphere, or its polygons' bounds
+            if (o.Boxes.Count + o.MeshBounds.Count + o.Spheres.Count == 0)
+            {
+                if (o.Type == 4) { if (SegmentNear(a, d, o.Centre, o.SphereRadius + 3f)) return true; }
+                else if (o.Polys.Count > 0)
+                {
+                    var lo = o.Polys.SelectMany(q => q.V).Aggregate(Vector3.Min); var hi = o.Polys.SelectMany(q => q.V).Aggregate(Vector3.Max);
+                    if (SegmentInBox(a, d, new NodeBox(Rows.Identity, Vector3.Zero, lo, hi, 0), 3f)) return true;
+                }
+            }
         }
         return false;
+    }
+
+    /// <summary>Whether the segment a + d·t, t in [0, 1], meets the box grown by <paramref name="grow"/> on every side, in its own frame.</summary>
+    private static bool SegmentInBox(Vector3 a, Vector3 d, NodeBox bx, float grow)
+    {
+        var lp = bx.Rot.ToLocal(a - bx.Origin); var lv = bx.Rot.ToLocal(d);
+        float t0 = 0, t1 = 1;
+        for (int k = 0; k < 3; k++)
+        {
+            float lo = bx.Min[k] - grow, hi = bx.Max[k] + grow;
+            if (MathF.Abs(lv[k]) < 1e-8f) { if (lp[k] < lo || lp[k] > hi) return false; continue; }
+            float u = (lo - lp[k]) / lv[k], w = (hi - lp[k]) / lv[k];
+            if (u > w) (u, w) = (w, u);
+            t0 = MathF.Max(t0, u); t1 = MathF.Min(t1, w);
+            if (t0 > t1) return false;
+        }
+        return true;
     }
 
     /// <summary>Whether the segment a + d·t, t in [0, 1], comes within r of c.</summary>
@@ -787,7 +834,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
 
     // ---- fire control ----
 
-    /// <summary>Turrets slew toward the radar target's lead point (aimed as the original's: the target predictor at the round's closest-approach time) at dt·(0.75 + 0.25·HP/max)·1.7 rad (dt·1.7 in a network game; <see cref="TurretSlew1997"/> for the 1997 CD build's), or back to the mount's forward without one.</summary>
+    /// <summary>Turrets slew toward the radar target's lead point (aimed as the original's: the target predictor at the round's closest-approach time) at <see cref="TurretSlew"/>, or back to the mount's forward without one.</summary>
     private void AimTurrets(Vehicle v, Armory a, float dt)
     {
         foreach (var w in a.Weapons.Where(w => w.Style == 3))
@@ -821,11 +868,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 // a turret hung upside down under a body (the Phantom's belly mount) keeps below the body's own level: no aiming up through the hull
                 if (w.BaseRot.Up.Y < -0.5f) pitch = MathF.Max(pitch, 0f);
             }
-            // a helicopter's turrets slew four times as fast (6.8 for type 9); a damaged turret is slower offline only. The 1997
-            // CD build: 1.5 (6.0) times the health ratio itself, so a half-dead turret turns at half speed (TurretSlew1997)
-            float slew = TurretSlew1997
-                ? dt * (NetSession ? 1f : w.HpRatio) * (v.IsHeli ? 6f : 1.5f)
-                : dt * (NetSession ? 1f : 0.75f + 0.25f * w.HpRatio) * (v.IsHeli ? 6.8f : 1.7f);
+            float slew = TurretSlew(w, v.IsHeli, dt);
             float ey = Ai.AiDriver.AngleDelta(w.AimYaw, yaw);
             w.AimYaw += System.Math.Clamp(ey, -slew, slew);
             // the pitch moves only while the yaw error is under 90°, and never for class 3 tier 3 (the EZK);
@@ -841,6 +884,15 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             else w.OnTarget = MathF.Abs(ey) < 0.0349f;
         }
     }
+
+    /// <summary>
+    /// A turret's turn this frame (rad), the most its yaw and its pitch each move: dt·(0.75 + 0.25·HP/max)·1.7 in the 1998 build,
+    /// dt·(HP/max)·1.5 in the 1997 CD build (<see cref="TurretSlew1997"/>: a wrecked turret stands), a helicopter's four times as
+    /// fast (6.8, 6.0 for type 9); in a network game the health term is 1 in both, so a damaged turret is slower offline only.
+    /// </summary>
+    public float TurretSlew(Weapon w, bool heli, float dt) => TurretSlew1997
+        ? dt * (NetSession ? 1f : w.HpRatio) * (heli ? 6f : 1.5f)
+        : dt * (NetSession ? 1f : 0.75f + 0.25f * w.HpRatio) * (heli ? 6.8f : 1.7f);
 
     /// <summary>
     /// The turret's lead time: the closest approach of a round leaving <paramref name="from"/> at <paramref name="round"/>
@@ -998,7 +1050,8 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                     if (w.Ammo != 0 || UnlimitedAmmo)
                     {
                         w.BurstLeft = (int)def.Burst - 1;
-                        if (!Unlimited(v) && w.Ammo < w.BurstLeft) w.BurstLeft = w.Ammo;
+                        // nor the burst clamp: under the latch a car at 0 fires full salvos, the AI's too
+                        if (!UnlimitedAmmo && w.Ammo < w.BurstLeft) w.BurstLeft = w.Ammo;
                         w.WaitB = interval;
                         // base game: droppers dribble below 20 u/s; the Nitro Pack has no gate (its rate follows the speed)
                         if (!NitroRules && Dropper(def) && v.Speed < 20f) w.WaitB = 1f + (interval - 1f) * 0.05f * v.Speed;
@@ -1473,10 +1526,9 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
                 var (t, poly) = StaticWorld.RayMesh(o.Polys, p0, d, 1f);
                 if (poly is not null && t < best) { best = t; victim = o; normal = poly.N; node = poly.Node; }
                 if (StaticWorld.RayBoxes(o.Boxes, p0, d, 1f) is { } bh && bh.T < best) { best = bh.T; victim = o; normal = bh.N; node = bh.Box.Node; }
-                // a sign or post stops the round on its sphere; its own slot knocks it off for an explosive one
-                if (o.Type == 4 && StaticWorld.RaySphere(o.Centre, o.SphereRadius, p0, d, 1f) is { } sh && sh.T < best) { best = sh.T; victim = o; normal = sh.N; node = -1; }
-                // another type's class-0x4000 / 0x5000 parts: their spheres
-                if (o.Type != 4 && StaticWorld.RaySpheres(o.Spheres, p0, d, 1f) is { } ps && ps.T < best) { best = ps.T; victim = o; normal = ps.N; node = ps.Sphere.Node; }
+                if (o.Type != 4 && StaticWorld.RaySpheres(o.Spheres, p0, d, 1f) is { } sh && sh.T < best) { best = sh.T; victim = o; normal = sh.N; node = sh.Sphere.Node; }
+                // a sign or post stops the round on one of its parts' spheres; its own slot knocks it off for an explosive one
+                if (o.Type == 4 && RaySign(o, p0, d) is { } sg && sg.T < best) { best = sg.T; victim = o; normal = sg.N; node = -1; }
             }
         }
         Vector3 at;

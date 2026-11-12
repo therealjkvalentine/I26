@@ -8,12 +8,18 @@ namespace I76.Net.Tests;
 /// <summary>Finding games: the session query and answer, the address book's addresses, a server answering on the LAN.</summary>
 public class DiscoveryTests
 {
-    /// <summary>What a listing with no drivers and no arena name ends with after the crosshair byte: the arena name's length and the drivers' names' count (protocol 22).</summary>
-    internal const int Names = 2;
+    /// <summary>
+    /// The host's rules a listing ends with after the makes and models (protocol 23): Co-op Damage, Co-op Scaling, Rolling Start, the
+    /// ignition lock, the 1997 turrets; then the I26 play fork's build (here empty: its length byte).
+    /// </summary>
+    internal const int Rules = 5 + 1;
 
-    /// <summary>The same for a listing as written: the arena name's length and text, the count, and each listed driver's make and model with its length.</summary>
+    /// <summary>What a listing with no drivers and no arena name ends with after the crosshair byte: the arena name's length and the drivers' names' count (protocol 22), then <see cref="Rules"/>.</summary>
+    internal const int Names = 2 + Rules;
+
+    /// <summary>The same for a listing as written: the arena name's length and text, the count, each listed driver's make and model with its length, and <see cref="Rules"/>.</summary>
     internal static int NamesOf(SessionInfo i) =>
-        2 + System.Text.Encoding.UTF8.GetByteCount(i.ArenaName) + i.Drivers.Sum(d => 1 + System.Text.Encoding.UTF8.GetByteCount(d.Model));
+        2 + Rules + System.Text.Encoding.UTF8.GetByteCount(i.ArenaName) + i.Drivers.Sum(d => 1 + System.Text.Encoding.UTF8.GetByteCount(d.Model));
 
     [Fact]
     public void TheGamesSimulationRateIsListed()
@@ -27,7 +33,7 @@ public class DiscoveryTests
         Assert.Equal(0, SessionInfo.TryRead(w.Span)!.RateHz);
         w = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], RateHz: 60).Write(w);
-        Assert.Equal(0, SessionInfo.TryRead(w.Span[..^(7 + Names)])!.RateHz);       // (protocol 28 ends with the lobby, car reset, CB and ignition bytes, the build and the crosshair byte, after the rate, then the names)
+        Assert.Equal(0, SessionInfo.TryRead(w.Span[..^(5 + Names)])!.RateHz);       // (protocol 22 ends with the lobby, car reset, CB and crosshair bytes, after the rate, then the names)
     }
 
     /// <summary>The host's Car Reset (the reset-upright key) is listed; a build that did not say (no key) is "no".</summary>
@@ -43,7 +49,7 @@ public class DiscoveryTests
         }
         var old = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], RateHz: 60, CarReset: true).Write(old);
-        var older = SessionInfo.TryRead(old.Span[..^(5 + Names)])!;
+        var older = SessionInfo.TryRead(old.Span[..^(3 + Names)])!;
         Assert.False(older.CarReset);
         Assert.True(older.Cb);
         Assert.Equal(60, older.RateHz);
@@ -62,7 +68,7 @@ public class DiscoveryTests
         }
         var old = new NetWriter();
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], CarReset: true, Cb: false).Write(old);
-        Assert.True(SessionInfo.TryRead(old.Span[..^(4 + Names)])!.Cb);
+        Assert.True(SessionInfo.TryRead(old.Span[..^(2 + Names)])!.Cb);
     }
 
     /// <summary>The host's Chase Crosshair is listed; a build that did not say does not allow it.</summary>
@@ -81,6 +87,19 @@ public class DiscoveryTests
         var older = SessionInfo.TryRead(old.Span[..^(1 + Names)])!;
         Assert.False(older.Crosshair);
         Assert.False(older.Cb);
+    }
+
+    /// <summary>The host's rules after the makes and models are listed; a build that did not say has the original's.</summary>
+    [Fact]
+    public void TheGamesHostRulesAreListed()
+    {
+        var info = new SessionInfo(1, Protocol.Version, "g", "t01", 1, 4, false, false, 0, 0, false, [], Coop: true, CoopDamage: 0.75f, CoopScale: 2, RollingStart: true, IgnitionStaysOn: true, Turrets1997: true);
+        var w = new NetWriter();
+        info.Write(w);
+        var back = SessionInfo.TryRead(w.Span)!;
+        Assert.Equal((0.75f, 2, true, true, true), (back.CoopDamage, back.CoopScale, back.RollingStart, back.IgnitionStaysOn, back.Turrets1997));
+        var older = SessionInfo.TryRead(w.Span[..^Rules])!;
+        Assert.Equal((1f, 0, false, false, false), (older.CoopDamage, older.CoopScale, older.RollingStart, older.IgnitionStaysOn, older.Turrets1997));
     }
 
     [Fact]

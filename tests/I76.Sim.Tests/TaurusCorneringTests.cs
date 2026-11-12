@@ -33,7 +33,7 @@ public class TaurusCorneringTests
     {
         if (SnapshotRig.Install is not { } dir) return;
         var setup = Load(dir, mission);
-        var taurus = (Entity)setup.Script!.Vm!.Actors.First(a => a.Label.Equals("taurus", StringComparison.OrdinalIgnoreCase)).Handle!;
+        var taurus = (Entity)setup.Script!.Vm!.Actors.Last(a => a.Label.Equals("taurus", StringComparison.OrdinalIgnoreCase)).Handle!;
         Assert.True(Flagged(taurus.Vehicle!), $"{mission}: {taurus.Name} has load-based cornering");
         Assert.Equal([taurus.Vehicle!], setup.Cars.Select(c => c.Vehicle).Where(Flagged));
     }
@@ -43,7 +43,7 @@ public class TaurusCorneringTests
     {
         if (SnapshotRig.Install is not { } dir) return;
         var setup = Load(dir, "t05");
-        var taurus = setup.Script!.Vm!.Actors.First(a => a.Label.Equals("taurus", StringComparison.OrdinalIgnoreCase)).Handle as Entity;
+        var taurus = setup.Script!.Vm!.Actors.Last(a => a.Label.Equals("taurus", StringComparison.OrdinalIgnoreCase)).Handle as Entity;
         Assert.False(taurus?.Vehicle is { ObjectClass: 1 }, "T05's taurus is no car");
         Assert.DoesNotContain(setup.Cars, c => Flagged(c.Vehicle));
     }
@@ -70,5 +70,20 @@ public class TaurusCorneringTests
         Assert.Null(MissionSetup.MarkTaurus([("taurus", [], wreck)]));
         Assert.Null(MissionSetup.MarkTaurus([("taurus", [], null)]));
         Assert.False(Flagged(heli.Vehicle!));
+    }
+
+    [Fact]
+    public void WithTwoActorsLabelledTaurusTheLastOneIsTheTaurus()
+    {
+        // the original's actor binding keeps the last match: only that car is flagged, and a last match that is no car
+        // flags none
+        Entity Car(string name) => new(name, [], 1, 0) { Vehicle = new Vehicle { ObjectClass = 1 } };
+        var first = Car("a"); var last = Car("b");
+        Assert.Same(last.Vehicle, MissionSetup.MarkTaurus([("taurus", [], first), ("TAURUS", [], last)]));
+        Assert.False(Flagged(first.Vehicle!));
+        Assert.True(Flagged(last.Vehicle!));
+        var c = Car("c");
+        Assert.Null(MissionSetup.MarkTaurus([("taurus", [], c), ("taurus", [], new Entity("wreck", [], 2, 0))]));
+        Assert.False(Flagged(c.Vehicle!));
     }
 }

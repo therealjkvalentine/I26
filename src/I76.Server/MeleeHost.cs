@@ -147,27 +147,6 @@ public sealed record ServerOptions
     /// </summary>
     public bool AllowCb { get; init; } = true;
     /// <summary>
-    /// The engine stays on: nobody switches theirs off in this game (the port's, #108; the host form's IGN. LOCK, i26-server's
-    /// --no-ignition-off), so no car hides from turrets with its engine off. Off by default; a melee's rules carry it
-    /// (<see cref="MeleeRules.IgnitionStaysOn"/>), and it is listed in <see cref="SessionInfo.IgnitionStaysOn"/> and carried in <see cref="JoinAccept.IgnitionStaysOn"/>.
-    /// </summary>
-    public bool IgnitionStaysOn { get; init; }
-    /// <summary>
-    /// A co-op game's Co-op Scaling (the host form's, i26-server's --coop-scale N; docs/deviations.md): each enemy car the script sets
-    /// going gets a copy per human past the first, up to this many (<see cref="CoopSetup.MaxExtraEnemies"/>). 0, the original's, by default.
-    /// </summary>
-    public int CoopScale { get; init; }
-    /// <summary>
-    /// A co-op game's Co-op Damage (the host form's, i26-server's --coop-damage; docs/deviations.md): the humans' cars take this
-    /// times the damage (<see cref="CoopSetup.DamageFactors"/>). 1, the original's, by default; a melee ignores it.
-    /// </summary>
-    public float CoopDamage { get; init; } = 1f;
-    /// <summary>
-    /// A co-op game's Co-op Rolling Start (the host form's, i26-server's --coop-rolling-start; docs/deviations.md): a respawn or a
-    /// joiner beside a teammate driving along comes in at the teammate's speed and heading. Off by default; a melee ignores it.
-    /// </summary>
-    public bool CoopRollingStart { get; init; }
-    /// <summary>
     /// Handicaps (the port's; the host form's, i26-server's --handicaps [auto]; docs/multiplayer.md "Handicaps"): Manual, the host gives
     /// each player a level, −3..+3, that scales the damage their rounds deal (<see cref="MeleeHost.SetHandicap"/>); Auto, the game sets the
     /// levels from the standings ("Auto handicap"). Off by default; listed in <see cref="SessionInfo.Handicaps"/> and carried in
@@ -179,6 +158,33 @@ public sealed record ServerOptions
     /// player's own setting shows it; off by default. Listed in <see cref="SessionInfo.Crosshair"/> and carried in <see cref="JoinAccept.Crosshair"/>; the server itself does nothing with it.
     /// </summary>
     public bool AllowCrosshair { get; init; }
+    /// <summary>
+    /// A co-op game's Co-op Damage (the host form's, i26-server's --coop-damage; docs/deviations.md): the humans' cars take this
+    /// times the damage (<see cref="CoopSetup.DamageFactors"/>). 1, the original's, by default; a melee ignores it.
+    /// </summary>
+    public float CoopDamage { get; init; } = 1f;
+    /// <summary>
+    /// A co-op game's Co-op Scaling (the host form's, i26-server's --coop-scale N; docs/deviations.md): each enemy car the script sets
+    /// going gets a copy per human past the first, up to this many (<see cref="CoopSetup.MaxExtraEnemies"/>). 0, the original's, by default.
+    /// </summary>
+    public int CoopScale { get; init; }
+    /// <summary>
+    /// A co-op game's Co-op Rolling Start (the host form's, i26-server's --coop-rolling-start; docs/deviations.md): a respawn or a
+    /// joiner beside a teammate driving along comes in at the teammate's speed and heading. Off by default; a melee ignores it.
+    /// </summary>
+    public bool CoopRollingStart { get; init; }
+    /// <summary>
+    /// The engine stays on: nobody switches theirs off in this game (the port's, #108; the host form's Ignition Lock, i26-server's
+    /// --no-ignition-off), so no car hides from turrets with its engine off. Off by default; a melee's rules carry it
+    /// (<see cref="MeleeRules.IgnitionStaysOn"/>), and it is listed in <see cref="SessionInfo.IgnitionStaysOn"/> and carried in <see cref="JoinAccept.IgnitionStaysOn"/>.
+    /// </summary>
+    public bool IgnitionStaysOn { get; init; }
+    /// <summary>
+    /// The turrets turn as the 1997 CD build's (the host form's Turrets, i26-server's --turrets-1997; docs/deviations.md "Turrets"):
+    /// 1.5 rad/s (a helicopter's 6.0) where the 1998 build's, the default, turn 1.7 (6.8); the health term is 1 online in both.
+    /// Listed in <see cref="SessionInfo.Turrets1997"/> and carried in <see cref="JoinAccept.Turrets1997"/> for the clients' prediction.
+    /// </summary>
+    public bool Turrets1997 { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
@@ -347,6 +353,7 @@ public sealed partial class MeleeHost : IModeHost
         }
         Mode = (mode ?? (o.Coop is not null ? c => new CoopMode(c) : c => new MeleeMode(c)))(new ModeContext(o, install, Vfs, asm, world, Arena, CarExists, Legal));
         Setup = Mode.Setup;
+        Setup.Combat.TurretSlew1997 = o.Turrets1997;
         Mode.Start(this);
         Session = new SimSession(Setup, SessionOptions.Network, o.Rate)
         {
@@ -592,7 +599,7 @@ public sealed partial class MeleeHost : IModeHost
         [.. _seats.Select(s => Listed(s.Name, s.Actor.CarFile, s.Actor.Team)), .. Mode.Bots.Select(b => Listed(b.Name, b.Player.CarFile, b.Player.Team))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams,
         MapOffer?.Hash, MapOffer?.Shared ?? false, (uint)(MapOffer?.TotalSize ?? 0), Options.Password.Length > 0,
-        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, IgnitionStaysOn: Options.IgnitionStaysOn, Crosshair: Options.AllowCrosshair,
+        Options.Restrictions.IsEmpty ? null : Options.Restrictions, Options.AllowHidden, Coop: Options.Coop is not null, Turrets: Options.AllowTurrets, RateHz: (byte)Session.Rate.Label, CarReset: Options.AllowCarReset, Cb: Options.AllowCb, Crosshair: Options.AllowCrosshair, CoopDamage: Options.Coop is null ? 1f : Options.CoopDamage, CoopScale: Options.Coop is null ? 0 : Math.Clamp(Options.CoopScale, 0, CoopSetup.MaxExtraEnemies), RollingStart: Options.Coop is not null && Options.CoopRollingStart, IgnitionStaysOn: Options.IgnitionStaysOn, Turrets1997: Options.Turrets1997,
         ArenaName: ArenaTitle) { Handicaps = Options.Handicaps, Build = BuildId.Current };
 
     private string? _arenaTitle;
@@ -745,7 +752,11 @@ public sealed partial class MeleeHost : IModeHost
         [.. Setup.World.Vehicles.Select(Info)],
         [.. _structureSerial.Where(kv => kv.Key.Destroyed || kv.Key.Nodes.Any(n => n.Destroyed)).Select(kv => new StructureState(kv.Value, kv.Key.DestroyedMask()))],
         Mode.Rules.Kind, Mode.Rules.Goal, Mode.Rules.GoalValue, Mode.Rules.CtfTeams, (byte)Session.Rate.Label,
-        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash) { Coop = Mode.JoinState(s), Cb = Options.AllowCb, IgnitionStaysOn = Options.IgnitionStaysOn, Handicaps = Options.Handicaps, Build = BuildId.Current, Crosshair = Options.AllowCrosshair };
+        Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash)
+        {
+            Coop = Mode.JoinState(s), Cb = Options.AllowCb, Crosshair = Options.AllowCrosshair, IgnitionStaysOn = Options.IgnitionStaysOn, Turrets1997 = Options.Turrets1997,
+            Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Protocol.Features,
+        };
 
     private CarInfo Info(Vehicle v)
     {

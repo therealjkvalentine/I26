@@ -32,4 +32,18 @@ public class DefaultPlayerCarTests
         var given = MissionSetup.Build(vfs, new MissionWorld(vfs, asm, install.FindMission(msn)!), asm, "vppirna2.vcf");
         Assert.Equal("vppirna2.vcf", given.World.Player!.Definition, ignoreCase: true);
     }
+
+    [Fact]
+    public void ACoopGamesMissionsOwnCarIsThePlacements()
+    {
+        // the co-op lobby's "Mission's own car" is seat 0 without a car: Nitro P01 keeps its vdrampg2, not the Piranha
+        if (NitroDir is null) return;
+        var install = new GameInstall(NitroDir);
+        var vfs = new AssetVfs(install);
+        var asm = new ModelAssembler(vfs);
+        var w = new MissionWorld(vfs, asm, install.FindMission("p01.msn")!);
+        var s = MissionSetup.Build(vfs, w, asm, coop: new CoopSetup([null, null]));
+        Assert.Equal("vdrampg2.vcf", s.World.Player!.Definition, ignoreCase: true);
+        Assert.All(s.World.Humans, h => Assert.Equal("vdrampg2.vcf", h.Definition, ignoreCase: true));
+    }
 }

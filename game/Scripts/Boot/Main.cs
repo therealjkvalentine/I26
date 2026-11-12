@@ -237,6 +237,7 @@ public partial class Main : Node3D
             GD.Print(RenderBackend.Describe());
             if (RenderBackend.Compatibility)
                 GD.Print("renderer: Compatibility (OpenGL): SSAO and some finer effects are off (docs/compatibility-renderer.md)");
+            I76.Game.Assets.HiFiAudio.Probe();
         }
         // release.sh, before the export: the terrain's compressed material pack, for builds that cannot compress (World/TerrainMaterials.WritePrebaked)
         if (OS.GetCmdlineUserArgs() is var cl && Array.IndexOf(cl, "--bake-ground-pack") is var bk and >= 0 && bk + 1 < cl.Length)
@@ -499,6 +500,7 @@ public partial class Main : Node3D
             MissionBuilder.Trace("loading card gone");
         }
         LoadProfiler.Finish(_opt.Mission ?? "-");
+        if (AuditOn && built is not null) AuditAfter();   // I76_BRIEFING_AUDIT: the first seconds after the briefing (MainBriefing.cs)
         if (LoadProfiler.QuitAfter) QuitSoon();
         _loading = false;
         if (_playtestNote is { } note && _opt.Install is not null) { AddChild(new CheckpointNotice { InstallDir = _opt.Install, Faithful = _mode1997, Text = note, Hold = 4.0, Name = "PlaytestNote" }); _playtestNote = null; }
@@ -723,7 +725,7 @@ public partial class Main : Node3D
         I76.Game.ForceFeedback.PadStrength = s.RumbleStrength;
         I76.Game.Ui.ChaseCrosshair.Enabled = s.ChaseCrosshair;
         I76.Game.Ui.ReticleArt.Drawn = s.CrosshairDrawn;
-        I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended;
+        I76.Game.ForceFeedback.Held = () => _menu is not null || _picture is not null || _ended || _loading;     // and nothing behind the loading card
         I76.Game.BassShaker.Held = I76.Game.ForceFeedback.Held;
         // Modern Physics, flipped from Play Options as by F7 (EnableModern keeps a network session on the original's)
         if (_modernSetup is not null && s.ModernPhysics != (_modern?.Enabled == true)) EnableModern(s.ModernPhysics);
@@ -890,6 +892,7 @@ public partial class Main : Node3D
         if (!Enumerable.Range(0, AudioServer.GetBusEffectCount(0)).Any(e => AudioServer.GetBusEffect(0, e) is AudioEffectHardLimiter))
             AudioServer.AddBusEffect(0, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f, Release = 0.1f }, 0);
         I76.Game.Net.CbVoice.Active?.ApplyMic(s.CbMic);
+        I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         AudioServer.SetBusMute(0, LaunchOptions.Muted);   // --mute
         Bus("Music", s.Audio[0]);
         Bus("SFX", s.Audio[1], true);
@@ -1851,7 +1854,16 @@ public partial class Main : Node3D
         if (_sim is not null)
         {
             if (_resumed) { _sim.Resume(); _sim.Hold = System.Environment.GetEnvironmentVariable("I76_CHECKPOINT_HOLD") == "1"; }
-            else { if (_net is null) _sim.Session.SettleCars(); _sim.FirstTick(); }
+            else
+            {
+                if (_net is null) _sim.Session.SettleCars();
+                // tick 0 runs with the game going, as behind the card: a CB line or sound its script starts then is held by the pause
+                // that follows (under a briefing played while loading, at once, in this same step), not heard under the movie
+                bool held = GetTree().Paused;
+                GetTree().Paused = false;
+                _sim.FirstTick();
+                GetTree().Paused = held;
+            }
             UpdateScriptCamera();
         }
         // the plants about the first view, behind the loading card
@@ -1972,7 +1984,7 @@ public partial class Main : Node3D
         }, 64 << 20) { IsBackground = true, Priority = System.Threading.ThreadPriority.Normal, Name = "mission-build" };
         job = new BuildJob(start, thread);
         if (System.Environment.GetEnvironmentVariable("I76_BUILD_PACE") != "0") FrameLimiter.ForBuild();
-        thread.Start();
+        EngineThreads.Start(thread);   // (a quit meanwhile waits for it: the engine must not go from under it)
         return job;
     }
 
@@ -2088,6 +2100,7 @@ public partial class Main : Node3D
         while (true)
         {
             Noted();
+            if (AuditOn) Audit();
             // a skip kept (made once the build's thread is done: none counts while it works): the picture stands still for the rest
             if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped) skipped.HoldPicture();
             if (movieStarted && !held && Held())
@@ -2249,7 +2262,7 @@ public partial class Main : Node3D
         DropMenuMusic();   // a briefing or cut-scene has its own sound; the menu track carried over the loading card ends here
         var player = new MoviePlayer
         {
-            Path = MoviePlayer.Find(install, names[i])!, Faithful = _opt.Mode1997, Name = "Movie",
+            Path = MoviePlayer.Find(install, names[i])!, Faithful = _opt.Mode1997, Nitro = install.IsNitro, Name = "Movie",
             Waiting = waiting, Loading = loading,
             WaitingTag = waiting is null ? null : new StandByTag { Install = install, Name = "StandBy" },
         };
@@ -2273,6 +2286,7 @@ public partial class Main : Node3D
         if (_net is null) GetTree().Paused = true;
         void Resume()
         {
+            MissionBuilder.Trace($"movie {name} over: the mission goes on");
             GetTree().Paused = false;
             if (music is null || !IsInstanceValid(music)) return;
             music.StreamPaused = false;
@@ -3546,6 +3560,9 @@ public partial class Main : Node3D
             GetViewport().SetInputAsHandled();   // so that weapon_cycle (Enter; the exclusions have no Alt) never sees it
             return;
         }
+        // a single-player mission under a movie (its briefing, a script's) takes no input: the movie's skip keys are the movie's,
+        // and nothing else may open a menu, a picture or the pause, whose closing would let the game go on under the movie
+        if (BriefingUp) return;
         if (e is InputEventMouseMotion mm) { MouseCamera.Motion(mm.Relative); return; }
         if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wb && MouseCamera.WheelActive)
         {
@@ -3675,9 +3692,12 @@ public partial class Main : Node3D
 
     private bool PlayerDead => _car is { } c && (c.Sim.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) != 0;
 
+    /// <summary>A movie over a single-player mission (a network game's runs on under its own, with Esc its menu).</summary>
+    private bool BriefingUp => _net is null && !_inMenu && GetNodeOrNull("Movie") is not null;
+
     public override void _UnhandledInput(InputEvent e)
     {
-        if (_inMenu || _menu is not null || _loading || _picture is not null || _installerOnly || InstallerScreen.Busy || _reconfig is not null) return;
+        if (_inMenu || _menu is not null || _loading || _picture is not null || _installerOnly || InstallerScreen.Busy || _reconfig is not null || BriefingUp) return;
         // the typed cheats first, as the original hands every code to the cheat matcher before the menus and the game keys
         if (_sim is not null && e is InputEventKey { Pressed: true } ck && GameKeys.CodeOf(ck) is var cc && (cc & 0xff00) == 0x300)
             TypedCheat(_typer.Push(cc));
@@ -3732,8 +3752,8 @@ public partial class Main : Node3D
             case GameKey.SaveScreen: SaveScreen(); return;
             // TOGGLE_2DGPIT_EXT ('[' in gamekey.map, command 0x5d): flips Ext. Instrum. Disp.'s own byte, so it is kept with the settings
             case GameKey.Toggle2DCockpitExt: ToggleExtInstruments(); return;
-            // TOGGLE_GOSTPIT_DETAIL (']'): the ghost cockpit, which the original allows on its hardware renderers (forced off in software)
-            case GameKey.ToggleGhostCockpit: if (_car is not null) _car.GhostCockpit = !_car.GhostCockpit; return;
+            // TOGGLE_GOSTPIT_DETAIL (']'): the ghost cockpit exists only in render mode 1; on the hardware renderers it is forced off
+            case GameKey.ToggleGhostCockpit: return;
             case GameKey.ToggleFramerate: return;   // a no-op in the release too
             // RAISE_DEAD (case 0x26): a dead network player asks the server for a new car; the server refuses
             // it before 5 s and once the game is decided

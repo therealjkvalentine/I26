@@ -27,8 +27,37 @@ public static class ViewFov
 
     public static void Apply(int choice) => Choice = System.Math.Clamp(choice, 0, Across.Length - 1);
 
-    /// <summary>The choice for a shell.cfg [port] fov value (degrees across the window); absent, 0 or anything not offered is Monitor.</summary>
+    /// <summary>The choice for a shell.cfg [port] fov_window value (degrees across the window); absent, 0 or anything not offered is Monitor.</summary>
     public static int Parse(int? across) => across is { } a && a != 0 && System.Array.IndexOf(Across, a) is var i and >= 0 ? i : Monitor;
+
+    /// <summary>
+    /// shell.cfg [port] fov as upstream writes it: degrees across a 4:3 view, the values its Field of View offers, 90 the
+    /// original's (its height in any window, as Monitor). The port's own choice above is [port] fov_window.
+    /// </summary>
+    public static readonly int[] FourByThreeAcross = [90, 80, 100, 110];
+
+    /// <summary>The vertical field of view (degrees) of <paramref name="across"/> degrees across a 4:3 view: the original's 73.74 at 90.</summary>
+    public static float VerticalFourByThree(int across) => across == 90 ? OriginalVertical : Vertical(across, FourByThree);
+
+    /// <summary>
+    /// The choice for a [port] fov value in the 4:3 meaning: 90, absent or a value not offered is Monitor (the original's
+    /// height); 80, 100 and 110 are the same degrees across the window, which is the same view in a 4:3 window.
+    /// </summary>
+    public static int ParseFourByThree(int? across) =>
+        across is { } a && a != 90 && System.Array.IndexOf(FourByThreeAcross, a) >= 0 ? System.Array.IndexOf(Across, a) : Monitor;
+
+    /// <summary>
+    /// The [port] fov value in the 4:3 meaning for a choice in a window of that shape: the offered value whose height is
+    /// nearest the choice's there (Monitor is 90).
+    /// </summary>
+    public static int ToFourByThree(int choice, float aspect)
+    {
+        float v = VerticalOf(choice, aspect);
+        int best = FourByThreeAcross[0];
+        foreach (int a in FourByThreeAcross)
+            if (System.Math.Abs(VerticalFourByThree(a) - v) < System.Math.Abs(VerticalFourByThree(best) - v)) best = a;
+        return best;
+    }
 
     /// <summary>The vertical field of view (degrees) that puts <paramref name="across"/> degrees across a window of that shape.</summary>
     public static float Vertical(int across, float aspect) =>

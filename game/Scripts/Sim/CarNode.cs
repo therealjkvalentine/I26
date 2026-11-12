@@ -325,7 +325,7 @@ public partial class CarNode : Node3D
         }
     }
 
-    private bool _inCar, _dash3d = true, _ghost, _bodyForMirrors;
+    private bool _inCar, _dash3d = true, _bodyForMirrors;
     private uint? _bodyLayers;
 
     /// <summary>The body kept for the side mirrors' own cameras while the cockpit hides it (Apply).</summary>
@@ -336,16 +336,6 @@ public partial class CarNode : Node3D
     {
         get => _dash3d;
         set { _dash3d = value; Apply(); }
-    }
-
-    /// <summary>
-    /// The ghost cockpit (TOGGLE_GOSTPIT_DETAIL, ']'): with the 3D dash on, the interior model is not drawn and the
-    /// 2D overlay shows only the radar, the damage diagram and the compass. Not kept with the settings.
-    /// </summary>
-    public bool GhostCockpit
-    {
-        get => _ghost;
-        set { _ghost = value; Apply(); }
     }
 
     private bool _outside;
@@ -382,7 +372,7 @@ public partial class CarNode : Node3D
     private void Apply()
     {
         bool inside = _inCar && !_outside, hidden = !I76.Sim.Views.OwnCar.Drawn(_inCar, _hoodView, _outside) || _heliGone;
-        if (_cockpit is not null) _cockpit.Visible = inside && _dash3d && !_ghost;
+        if (_cockpit is not null) _cockpit.Visible = inside && _dash3d;
         if (_body is not null)
         {
             // the side mirrors' own cameras see the body while the cockpit hides it, on their layer alone, casting no shadow into the view
@@ -920,6 +910,24 @@ public partial class CarNode : Node3D
 
     public override void _ExitTree() => HeadCars.Remove(this);
 
+    /// <summary>The modern look's beam: its edge's cosine (SpotLight3D's angle is the half-angle), for RetroLamps.</summary>
+    public static readonly float HeadEdgeCos = Mathf.Cos(Mathf.DegToRad(HeadAngle));
+
+    /// <summary>
+    /// Every lit headlamp's place and beam axis (global), whether or not it carries a real light (MaxHeadLit): what the road signs
+    /// send back toward (RetroLamps). As of the cars' last update.
+    /// </summary>
+    public static IEnumerable<(Vector3 At, Vector3 Aim)> LitHeadlamps()
+    {
+        foreach (var c in HeadCars)
+        {
+            if (!c._lampsOn || !c.IsInsideTree()) continue;
+            for (int i = 0; i < c._lamps.Length; i++)
+                if (c.HeadHeld(i)) { var t = c._lamps[i].GlobalTransform; yield return (t.Origin, -t.Basis.Z.Normalized()); }
+        }
+    }
+    private bool _lampsOn;
+
     /// <summary>How many other cars with lit lamps are nearer the camera than this one (distances as of their last update).</summary>
     private int HeadRank()
     {
@@ -1234,6 +1242,7 @@ public partial class CarNode : Node3D
         if (_head is not null) _head.Visible = shown && lit && !Modern;   // the original's flat lit faces: the 1997 look only (the modern look has its glare and spotlights)
         // the headlamps' real lights: the player's always, the others' only for the nearest few to the camera
         bool headLit = _headRamp > 0f;
+        _lampsOn = headLit;
         var headCam = GetViewport()?.GetCamera3D();
         _headDist2 = (headLit || _tailLamp > 0f || _brakeLamp > 0f) && headCam is not null ? headCam.GlobalPosition.DistanceSquaredTo(GlobalPosition) : float.MaxValue;
         bool lampLights = headLit && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));

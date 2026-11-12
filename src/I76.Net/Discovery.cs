@@ -25,8 +25,8 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
     bool TeamPlay, bool InviteOnly, int MaxScore, float TimeLimit, bool Over, IReadOnlyList<SessionDriver> Drivers,
     I76.Sim.Missions.MeleeKind Kind = I76.Sim.Missions.MeleeKind.Combat, I76.Sim.Missions.MeleeGoal Goal = I76.Sim.Missions.MeleeGoal.None, int GoalValue = 0, byte Teams = 2,
     byte[]? MapHash = null, bool MapShared = false, uint MapSize = 0, bool Locked = false,
-    I76.Sim.Trip.WeaponRestrictions? Restrictions = null, bool Hidden = false, bool HiddenKnown = true, bool Coop = false, byte RateHz = 0, bool Lobby = false, bool Turrets = false, bool CarReset = false, bool Cb = true, bool IgnitionStaysOn = false, bool Crosshair = false,
-    string ArenaName = "")
+    I76.Sim.Trip.WeaponRestrictions? Restrictions = null, bool Hidden = false, bool HiddenKnown = true, bool Coop = false, byte RateHz = 0, bool Lobby = false, bool Turrets = false, bool CarReset = false, bool Cb = true, bool Crosshair = false,
+    string ArenaName = "", float CoopDamage = 1f, int CoopScale = 0, bool RollingStart = false, bool IgnitionStaysOn = false, bool Turrets1997 = false)
 {
     /// <summary>
     /// Whether a joiner's own check lets hidden cars and weapons through: the game allows them, or it does not say
@@ -40,10 +40,10 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
     /// <summary>The arena is a custom map (its hash is known): a player without it downloads it on joining if <see cref="MapShared"/>.</summary>
     public bool CustomMap => MapHash is { Length: 32 };
 
-    /// <summary>The host's Handicaps rule in this game (protocol 23, Auto since 24; the restrictions' flags byte's 8 for on and 16 for Auto, which an older reader never looks at).</summary>
+    /// <summary>The host's Handicaps rule in this game (the I26 play fork's; the restrictions' flags byte's 8 for on and 16 for Auto, which upstream's reader never looks at).</summary>
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
 
-    /// <summary>The host's build (<see cref="BuildId"/>, protocol 26; empty when it does not say): the roster shows it, and a notice when it is not this one's.</summary>
+    /// <summary>The host's build (<see cref="BuildId"/>; the I26 play fork's, after upstream's last block; empty when it does not say): the roster shows it, and a notice when it is not this one's.</summary>
     public string Build { get; init; } = "";
 
     public void Write(NetWriter w)
@@ -86,22 +86,33 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
         t.Bool(CarReset);
         // the CB radio is on in this game (protocol 20), appended the same way; an older host says nothing: on
         t.Bool(Cb);
-        // the engine stays on in this game (protocol 22, the host's ignition lock), appended the same way; an older host says nothing: no
-        t.Bool(IgnitionStaysOn);
-        // the host's build (protocol 26), appended the same way; an older host says nothing: not known
-        t.Str(Build);
-        // the host allows the chase crosshair, an aiming aid of the port's (protocol 28, upstream's 22), appended the same way; an older host says nothing: not allowed
+        // the host allows the chase crosshair, an aiming aid of the port's (protocol 22), appended the same way; an older host says nothing: not allowed
         t.Bool(Crosshair);
-        // the arena's name as the host's lists give it (its AREA OF PLAY; an asker without a custom map has no other), appended the same way (protocol 28, upstream's 22)
+        // the arena's name as the host's lists give it (its AREA OF PLAY; an asker without a custom map has no other), appended the same way (protocol 22)
         t.Str(Clip(ArenaName, MaxArenaName));
+        // the host's rules of the port's that came after the makes and models (protocol 23), appended after them the same way
+        var u = new NetWriter(64);
+        // a co-op game's Co-op Damage in hundredths (100: the original's damage); an older host says nothing: x1
+        u.U8((byte)Math.Clamp((int)MathF.Round(CoopDamage * 100), 0, 255));
+        // a co-op game's Co-op Scaling, the most extra copies of each enemy car; an older host says nothing: none
+        u.U8((byte)Math.Clamp(CoopScale, 0, 255));
+        // a co-op game's Rolling Start; an older host says nothing: off
+        u.Bool(RollingStart);
+        // the engine stays on in this game (the host's ignition lock, #108); an older host says nothing: no
+        u.Bool(IgnitionStaysOn);
+        // the turrets turn as the 1997 CD build's (the host's Turrets); an older host says nothing: the 1998 build's
+        u.Bool(Turrets1997);
+        // the host's build (the I26 play fork's), appended after them the same way: upstream's reader stops before it; a host that says nothing: not known
+        u.Str(Build);
         // (the drivers' makes and models follow the tail, a count byte and a string each)
-        var shown = Shown(AnswerBytes - w.Length - 1 - t.Length - 1);
+        var shown = Shown(AnswerBytes - w.Length - 1 - t.Length - 1 - u.Length);
         w.U8((byte)shown.Count);
         foreach (var d in shown) { w.Str(Clip(d.Name, Protocol.MaxName)); w.Str(Clip(d.Car, 32)); w.U8(d.Team); }
         w.Bytes(t.ToArray());
-        // each driver's make and model where the host says it (a community car), else empty, appended the same way (protocol 28, upstream's 22)
+        // each driver's make and model where the host says it (a community car), else empty, appended the same way (protocol 22)
         w.U8((byte)shown.Count);
         foreach (var d in shown) w.Str(Clip(d.Model, MaxModel));
+        w.Bytes(u.ToArray());
     }
 
     /// <summary>The longest arena name and make and model listed: the files hold 16 and 20 bytes.</summary>
@@ -154,8 +165,6 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
             bool lobby = r.Remaining >= 1 && r.Bool();
             bool carReset = r.Remaining >= 1 && r.Bool();
             bool cb = r.Remaining < 1 || r.Bool();
-            bool ignition = r.Remaining >= 1 && r.Bool();
-            string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
             bool crosshair = r.Remaining >= 1 && r.Bool();
             string arenaName = r.Remaining >= 1 ? r.Str() : "";
             if (r.Remaining >= 1)
@@ -167,8 +176,14 @@ public sealed record SessionInfo(ulong Id, ushort Version, string Name, string A
                     if (i < drivers.Length) drivers[i] = drivers[i] with { Model = model };
                 }
             }
+            float coopDamage = r.Remaining >= 1 ? r.U8() / 100f : 1f;
+            int coopScale = r.Remaining >= 1 ? r.U8() : 0;
+            bool rolling = r.Remaining >= 1 && r.Bool();
+            bool ignition = r.Remaining >= 1 && r.Bool();
+            bool turrets1997 = r.Remaining >= 1 && r.Bool();
+            string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
             return new SessionInfo(id, version, name, arena, players, max, team, invite, score, limit, over, drivers, kind, goal, value, teams, hash, shared, size, locked,
-                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb, IgnitionStaysOn: ignition, Crosshair: crosshair, ArenaName: arenaName) { Handicaps = handicaps, Build = build };
+                restricted.IsEmpty ? null : restricted, hidden, Coop: coop, RateHz: rate, Lobby: lobby, Turrets: turrets, CarReset: carReset, Cb: cb, Crosshair: crosshair, ArenaName: arenaName, CoopDamage: coopDamage, CoopScale: coopScale, RollingStart: rolling, IgnitionStaysOn: ignition, Turrets1997: turrets1997) { Handicaps = handicaps, Build = build };
         }
         catch (WireException) { return null; }
         catch (IndexOutOfRangeException) { return null; }
@@ -280,7 +295,7 @@ public sealed class SessionBrowser : IDisposable
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly List<Found> _found = [];
     private readonly byte[] _query = Discovery.Query();
-    private readonly Dictionary<string, IPAddress?> _resolved = [];
+    private readonly Dictionary<string, Task<IPAddress?>> _resolved = [];
     private readonly Dictionary<IPEndPoint, double> _asked = [];
     private AnetClient? _anet;
     private int _anetSeen = -1;
@@ -351,22 +366,32 @@ public sealed class SessionBrowser : IDisposable
         Expire();
     }
 
-    /// <summary>Asks one address (the address book's): host is a name or an IP.</summary>
+    /// <summary>
+    /// Asks one address (the address book's): host is a name or an IP. A name is looked up once, in the background (the
+    /// form asks every second and must not wait on it): until it is found nothing is sent. False once it was not found.
+    /// </summary>
     public bool Ask(string host, int port)
     {
-        if (!_resolved.TryGetValue(host, out var addr) && !IPAddress.TryParse(host, out addr))
-        {
-            // a name is looked up once (the form asks every second)
-            try { addr = Dns.GetHostAddresses(host).FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork); }
-            catch (System.Net.Sockets.SocketException) { addr = null; }
-            catch (ArgumentException) { addr = null; }
-            _resolved[host] = addr;
-        }
         Expire();
+        if (!IPAddress.TryParse(host, out var addr))
+        {
+            if (!_resolved.TryGetValue(host, out var lookup))
+                _resolved[host] = lookup = Task.Run(async () =>
+                {
+                    try { return (await Dns.GetHostAddressesAsync(host)).FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork); }
+                    catch (System.Net.Sockets.SocketException) { return null; }
+                    catch (ArgumentException) { return null; }
+                });
+            if (!lookup.IsCompleted) return true;
+            addr = lookup.IsCompletedSuccessfully ? lookup.Result : null;
+        }
         if (addr is null) return false;
         AskAt(new IPEndPoint(addr, port));
         return true;
     }
+
+    /// <summary>Whether a name given to <see cref="Ask"/> was looked up and not found.</summary>
+    public bool NotFound(string host) => _resolved.TryGetValue(host, out var t) && t.IsCompleted && (!t.IsCompletedSuccessfully || t.Result is null);
 
     private void AskAt(IPEndPoint ep)
     {

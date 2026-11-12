@@ -80,6 +80,10 @@ public sealed partial class NetMeleeServer
     /// <summary>Something changed the game outside the players' inputs (a test's hook, an admin's action): the successor gets a fresh savestate and does not replay across it.</summary>
     public void MigrationBarrier() { lock (_lock) if (_mig is not null) { _mig.Barrier = true; _mig.Dirty = true; } }
 
+    /// <summary>The peer joined as a fork build that takes the fork's savestate, on this build (one that cannot tell its build counts as this one).</summary>
+    private bool SameBuild(int peer) =>
+        _joined.TryGetValue(peer, out var j) && (j.Features & PeerFeatures.Migration) != 0 && !BuildId.Differs(j.Build, BuildId.Current);
+
     private static ulong Token() => (ulong)Random.Shared.NextInt64() ^ (ulong)Random.Shared.NextInt64() << 1;
 
     private void ReceiveMigration(NetPeer peer, Seat s, MsgType type, ref NetReader r)
@@ -102,8 +106,9 @@ public sealed partial class NetMeleeServer
         foreach (var gone in m.SeatTokens.Keys.Where(k => Host.Seats.All(x => x.Slot != k)).ToList()) m.SeatTokens.Remove(gone);
         foreach (var gone in m.Candidates.Keys.Where(k => !_byPeer.ContainsKey(k) && !_waiting.ContainsKey(k)).ToList()) m.Candidates.Remove(gone);
 
-        // the lowest seat that can host, bar the host's own (the original's rule: the lowest remaining player id)
-        var next = _byPeer.Where(kv => kv.Value.Slot != m.Owner && m.Candidates.TryGetValue(kv.Key, out var c) && c.CanHost)
+        // the lowest seat that can host, bar the host's own (the original's rule: the lowest remaining player id); only a
+        // peer of this build, which reads this savestate (an upstream peer, or another build, is never handed the game)
+        var next = _byPeer.Where(kv => kv.Value.Slot != m.Owner && m.Candidates.TryGetValue(kv.Key, out var c) && c.CanHost && SameBuild(kv.Key))
             .OrderBy(kv => kv.Value.Slot).Select(kv => kv.Value).FirstOrDefault();
         var peer = next?.Connection as NetPeer;
         if (!ReferenceEquals(peer, m.Successor))

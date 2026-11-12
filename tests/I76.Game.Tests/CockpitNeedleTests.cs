@@ -8,8 +8,8 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The 3D dash's needles: needle.geo's faces are untextured, in one RGB the original does not draw as such; the colour
-/// it draws is a palette entry, lit like any object face.
+/// The 3D dash's needles: needle.geo's faces are untextured, in one RGB. The original's 3D card draws that RGB, lit (a
+/// dark crimson, no green, glancing down in the GOG game's m01); its software renderer draws a palette entry instead.
 /// </summary>
 public class CockpitNeedleTests
 {
@@ -27,8 +27,8 @@ public class CockpitNeedleTests
     }
 
     /// <summary>
-    /// The needle was drawn hot pink, needle.geo's own RGB. The original draws a palette entry: measured in the original
-    /// (retail 1.0, software renderer, 640x480, T01 by day, 3D cockpit, glancing down, n = 1 boot, 4 frames parked and 4
+    /// Under the Software renderer the needle was drawn in the entry nearest needle.geo's own RGB, a hot pink. The original's
+    /// software renderer draws another palette entry: measured in the original (retail 1.0, software renderer, 640x480, T01 by day, 3D cockpit, glancing down, n = 1 boot, 4 frames parked and 4
     /// at speed) every needle pixel is a shade of entry 160 (232, 48, 88) through T01's .lum: the speedometer's rows 22..31
     /// ((152, 16, 40), (136, 48, 48), (128, 16, 32), (115, 40, 40), (96, 40, 16), (64, 24, 16)), the tachometer's row 31.
     /// The entry nearest the RGB itself is 220 (250, 0, 50), none of whose shades showed.

@@ -42,7 +42,7 @@ Everything a human does to the simulation, in twelve bytes (`Write` / `Read`: bu
 
 | Field | What |
 |---|---|
-| `Buttons` (held, sampled once a tick) | `ThrottleUp`, `ThrottleDown`, `SteerLeft`, `SteerRight`, `EBrake`, `Fire`, `Hardpoint1..5`, `Horn`, `Cockpit` (the view is in the car, so its arms are live), `RaiseRightArm` / `RaiseLeftArm` (the glance has turned to a window), `Analog`, `Pistol` (protocol 25: the port's pistol key held; a raised arm's .45 fires as with `Fire`, the hardpoints never) |
+| `Buttons` (held, sampled once a tick) | `ThrottleUp`, `ThrottleDown`, `SteerLeft`, `SteerRight`, `EBrake`, `Fire`, `Hardpoint1..5`, `Horn`, `Cockpit` (the view is in the car, so its arms are live), `RaiseRightArm` / `RaiseLeftArm` (the glance has turned to a window), `Analog`, `Pistol` (the play fork's: the port's pistol key held; a raised arm's .45 fires as with `Fire`, the hardpoints never; sent only to a host whose accept says `PeerFeatures.Pistol`) |
 | `Commands` (one-off, applied at the start of the tick) | `Reverse`, `Lights`, `WeaponCycle`, `WeaponLink`, `TargetNearest`, `TargetNext`, `TargetFrontal`, `TargetReset`, `Poem` (the single player's car only), `Skip` (the script's isKeypress), `ShiftUp` / `ShiftDown` (the drive selector, 0..5), `StartEngine` (veh+0xec; nothing reads it yet), `Special1..3` (the jammer, nitro and the exhaust brake, `Specials.Activate`; the charges and the jammer's on-state ride in the own-car block), `RadarRange`, `RadarCamera`, `SelfDestruct`, `TargetPrev`, `RaiseDead` (a dead network player's RAISE_DEAD; the session ignores it, the host asks the melee) |
 | `Steer`, `Throttle` | ±32767 analog positions, read only with `Analog` |
 
@@ -213,14 +213,14 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   The port's RESET_UPRIGHT (id 0x70, U; `CarCommands.ResetUpright`, bit 27 of the commands the wire already carries, so no protocol change) is a fifth, on the Control Configuration's left column. The server applies a client's press
   (`UprightReset`: the terrain under the car, upright, heading kept, at rest; the car's `NetGeneration` bumps so every client snaps to it, and a prediction does not run it itself) unless the host turned it off
   (`ServerOptions.AllowCarReset`, the host form's Car Reset, `--no-car-reset`; default on; listed in `SessionInfo.CarReset`, the discovery answer's last byte, an older host's missing byte reading as off). It never works in a cut-scene (a co-op player's own camera scene too) or while dead.
-- **Ignition stays on** (I26, #108; protocol 22): the host's rule that nobody switches their engine off in the game, so no car
-  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's Ignition Lock
-  row (its options box), IGNITION STAYS ON in the Nitro and co-op forms' game options (shell.cfg `[port] ignition_stays_on`,
+- **Ignition stays on** (I26, #108; protocol 23): the host's rule that nobody switches their engine off in the game, so no car
+  hides from turrets with its engine off. `ServerOptions.IgnitionStaysOn`, off by default: the base host form's Ignition Lock row
+  (a melee's options box; the co-op box leaves it out), IGNITION STAYS ON in the Nitro form's game options (melee and co-op) (shell.cfg `[port] ignition_stays_on`,
   written only when on), `--no-ignition-off` for a listen host and `i26-server`. A melee's rules carry it
   (`MeleeRules.IgnitionStaysOn`, saved in the savestate's build, so a migration's successor keeps it), a co-op host sets it on its
   session; the session's input handling (`SimSession.IgnitionStaysOn`) drops the ignition key while the engine runs, and still
   lets it crank an engine that is off. The join accept carries it (`JoinAccept.IgnitionStaysOn`) so the client's prediction
-  drops the key the same way, and the game's listing shows "Ignition stays on" (`SessionInfo.IgnitionStaysOn`).
+  drops the key the same way, and the game's listing shows "Ignition stays on" (`SessionInfo.IgnitionStaysOn`, with the host's rules after the makes and models).
   The Control Configuration lists four of them in the right column's empty rows, named as the menu names the rest (Chat (online),
   Self Destruct, Respawn (online), Show All Names) with a hint on the left's two (chat, and Ctrl+Del then Space for a new car).
   Left or right click presses a key, with Ctrl, Shift or Alt held. The install's gamekey.map is never written: the choices
@@ -230,12 +230,20 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
 - **Weapon cycle back**: Mouse Options' Wheel Up / Down on Cycle Weapon sends the wheel's step back as `CarCommands.WeaponCyclePrev` (bit 28 of the
   commands the wire already carries, so no protocol change of its own), which the server's input check lets through and a client's prediction runs, as
   `WeaponCycle`.
-- **Chase crosshair** (protocol 28 in the play fork, upstream's 22): the port's aiming aid in the F2 chase view (Mouse Options' Chase Crosshair, `CrosshairPolicy`) shows in a
+- **Chase crosshair** (protocol 22): the port's aiming aid in the F2 chase view (Mouse Options' Chase Crosshair, `CrosshairPolicy`) shows in a
   network game, melee or co-op, only where the host allows it: the host form's CHASE CROSSHAIR (the base form's Chase Crosshair row in its options box, CHASE CROSSHAIR in the Nitro form's game options; shell.cfg `[port] host_crosshair`, written only when
   on; `--crosshair` / `--no-crosshair` for a listen host and `i26-server --crosshair`; `ServerOptions.AllowCrosshair`, off by default, also in
-  the migration's options). `JoinAccept.Crosshair` (last byte, after the play fork's build id) tells the clients, and each player's own setting then decides; the listing
-  carries it (`SessionInfo.Crosshair`, the discovery answer's last byte, a missing byte reading as not allowed) and the session popup says
+  the migration's options). `JoinAccept.Crosshair` (after `Cb`) tells the clients, and each player's own setting then decides; the listing
+  carries it (`SessionInfo.Crosshair`, after the CB byte, a missing byte reading as not allowed) and the session popup says
   `Chase crosshair allowed`. The server does nothing with it and nothing in the simulation reads it.
+- **Turrets** (protocol 23): the turret slew of the 1998 build (GOG's and the Nitro Pack's, the default) or of the 1997 CD build
+  (docs/deviations.md "Turrets (the build's slew)"). Offline it is Play Options' Turrets; in a network game, melee or co-op, it is the
+  host's: the base host form's Turrets row (1998 (GOG/Nitro) or 1997 CD, a click flips it), TURRETS in the Nitro form's game options
+  (shell.cfg `[port] host_turret_slew`, written only for 1997), `--turrets-1997` / `--turrets-1998` for a listen host and
+  `i26-server --turrets-1997` (`ServerOptions.Turrets1997`, off by default, also in the migration's options). The server sets it on its
+  combat (`Combat.TurretSlew1997`); `JoinAccept.Turrets1997` (the last byte) gives it to the clients' mirrors for their prediction, and the
+  listing carries it with the host's rules after the makes and models (`SessionInfo.Turrets1997`); the session popup says "Turrets as on
+  the 1997 CD". Online the health term is 1 in both builds, so only the rate differs (1.5 against 1.7 rad/s, 6.0 against 6.8 a helicopter's).
 - **Console lines**, `NetLines`:
   "*** %s has joined the game" / "*** %s has left the game" (Nitro "*** Player %s ...", "*** A %s team member has joined
   the game!"), "*** %s has been killed" (no killer), "*** %1:s was killed by %2:s", chat "From %s: ", the entry "Say: ".
@@ -321,13 +329,14 @@ saved in the snapshot (the VTAB entry and the melee players; savestate format 13
 it too. A bot seat takes the paint `ServerOptions.PaintOfCar` gives for its chosen car (the game supplies it from the saved variant's sidecar). A co-op
 seat's car keeps its player's paint through the mission's respawns.
 
-### Handicaps (protocol 23)
+### Handicaps (the play fork's wire additions)
 
 I26's; the original has no handicaps (docs/deviations.md). A host rule, off by default: `ServerOptions.Handicaps`, the base host
 form's Handicaps row (its options box, under Ignition Lock), HANDICAPS in the Nitro form's game options (a melee's rule: a co-op game
 hosted from either form has none) (shell.cfg `[port] handicaps`, written only when on), `--handicaps` for a listen host and `i26-server`. The game's listing
-says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which an older reader never looks at) and the
-join accept carries it (`JoinAccept.Handicaps`, after `Cb` and the ignition lock's byte).
+says "Handicaps on" (`SessionInfo.Handicaps`: bit 8 of the restrictions' flags byte, which upstream's reader never looks at) and the
+join accept carries it (`JoinAccept.Handicaps`, the first of the fork's fields after upstream's last, `Turrets1997`). With an upstream
+player in the game the rule still works (the damage is the server's); that player only does not see the levels.
 
 With it on, the host gives each player a level from −5 to +5 (0 none; ±4 and ±5 came with Auto, which needed the reach). A level
 scales the damage that player deals and, inversely, the damage the player takes from other cars, and nothing else (no speed, armour
@@ -346,7 +355,7 @@ on a healthy car, so neither is a way round the level; the taken factor in the d
 (`DamageModel.VehicleSlot`, its fraction carried to the next packet so a flame's one-point ticks still count). Level 0 is the
 original's damage exactly. A wreck's explosion, the terrain and falls are not scaled. The clients' own-car prediction does not know
 the levels (they are not in the snapshot): a scaled ram on one's own car is corrected by the server's state as any other hit. The level is the car's (`Vehicle.Handicap`): `MeleeGame.Rebuild` keeps it through a respawn, it is saved with the car
-(savestate format 16) and so survives a host migration, a new round carries it for the players who carry on, and a joiner's car
+(in the savestate) and so survives a host migration, a new round carries it for the players who carry on, and a joiner's car
 starts at 0 (a co-op seat's car may have had another player's). In a melee bots can have one too; in co-op only the humans have
 seats.
 
@@ -357,18 +366,19 @@ time the window opens the feed says so, and each change is said with its factor.
 Only the host's server sets a level: a client has no message for it, and a game without the rule refuses the host too. With the
 rule's third setting, Auto (below), the game sets the levels itself.
 
-Everyone sees the levels on the scoreboard: `PlayerRow.Handicap` rides in the scoreboard message, whose row field mask becomes a
-VarU with 256 for the level (an sbyte); the score window shows "Name (+2)" by the name (`ScoreTable.HandicapName`), and on the
-host's machine the picked player's level in brackets, "Name [0]". Protocol 23.
+Everyone sees the levels on the scoreboard: `PlayerRow.Handicap` rides at the end of the scoreboard message, after upstream's rows
+and the slots that left: a count, then each row whose level changed as its slot and the level (an sbyte; in full, every level not 0).
+Upstream's reader stops before it, and a board without it changed no level. The score window shows "Name (+2)" by the name
+(`ScoreTable.HandicapName`), and on the host's machine the picked player's level in brackets, "Name [0]".
 
-### Auto handicap (protocol 24)
+### Auto handicap
 
 I26's (docs/deviations.md). The host rule's third setting: Off, Manual (above: the host sets the levels), Auto: the game sets them from
 the standings, so a mixed table (a family, bots of different skill) plays toward the same number of kills by the end without anyone
 having to be told their level. The host form's Handicaps row steps through the three (shell.cfg `[port] handicaps`, "manual" or "auto"; an older
 file's `true` is manual), HANDICAPS in the Nitro form's game options (the co-op form offers Off and Manual: Auto needs a melee's
 kills), `--handicaps auto` for a listen host and `i26-server`. The listing says "Auto handicaps" (`SessionInfo.Handicaps`, the flags
-byte's 16 with the 8) and the join accept carries the mode (`JoinAccept.Handicaps`, a byte in the bool's place: 0 off, 1 manual, 2 auto).
+byte's 16 with the 8) and the join accept carries the mode (`JoinAccept.Handicaps`, a byte: 0 off, 1 manual, 2 auto).
 
 The rule (`MeleeRules.AutoHandicaps`, `MeleeGame.AutoHandicapFrame`, the constants in `Handicaps`), in a combat melee, every tick:
 
@@ -485,6 +495,11 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   a racing bot's AI moves on at 25 m across the ground (`Entity.NavReach`; the AI's own 40 would turn it for the next checkpoint before it was in
   this one); a bot that is still a point ahead of the tracker for 2.5 s (a checkpoint well above or below the car) is sent back for the one it missed. It fires at whatever is ahead and near, as
   a human may (weapons are as free in a race as in combat). A new order starts at its first point (the AI's racer scan, would otherwise pick the nearest).
+  A bot that comes back at a spawn point (behind check1 on every stock arena) wants the checkpoint it wanted, as a human does (the count goes on
+  through a respawn, as in the original), and drives the course to it (`MeleeGame.LeadIn`): from the leg of the course nearest the car, the
+  checkpoints in order (passed, not counted) up to that one; on the leg out of it (the last checkpoint, seen from the start) it goes straight back.
+  Straight at it from the start, the planner took it across the arena into the walls and drops the course goes round, and it died and came back
+  to try the same again. Its 90 s without a checkpoint start again when it comes back, and a point of the course passed on the way counts.
 - **Capture the flag.** Roles by seat order in the team's bots: raider, defender, raider, escort, defender, and again. A carrier goes for the stand
   of its colour. A raider goes to the nearest enemy flag at its stand (`CtfGame` has no dropped flag: a carried flag goes home when its carrier is
   removed or comes back, so there is none to return) and takes it by touch. A defender meets whoever comes within 110 m of its stand, else circles it. An
@@ -610,7 +625,8 @@ the original; single player stays the base melee. They are here server-side
   car (`SimSession.EndBrake`), and a client's prediction from the end event's server tick (`MeleeClient.EndTick`), so
   the predicted car does not snap back. The original holds its car the same way while a network regen's fresh car is
   pending; here a regen's car comes at once.
-- **Wire.** Protocol version 28 (the play fork's pass 19 reconcile) is upstream's 22 on top of the play fork's 27: the join accept ends with the chase crosshair's byte after the build id, and the session answer's tail carries the ignition lock and the build, then the crosshair and the arena's name, then the drivers' makes and models; a play client and an upstream server (22) refuse each other by version. Protocol version 27 added a car death's cause and seed to `KilledEvent` (a byte and a u16 after `DriverKilled`) for a modern-look death by cause that has since been withdrawn: the three bytes stay, written as zero and skipped when read, so the version is unchanged; the savestate is format 25 likewise (a pending death event keeps a zero byte and a zero seed after its flag). Protocol version 26 adds the build id (`BuildId`: the commit's short id, from the assembly's source revision in a checkout or the archive's export-subst in a `git archive`): a string at the end of the join request, the join accept and the session list's answer (a missing one reading as not known). The roster shows the host's build, the host form the own, and a game on another build gets a one-line notice in the roster; a join on another build than the host's is let in (the protocol decides who can play) and the server says so to everyone once, as a `***` line (a co-op lobby's chat line); the joiner, whose copy comes while it loads, puts up its own from the accept. Protocol version 22 adds the host's ignition lock (below, "Ignition stays on"): `JoinAccept.IgnitionStaysOn` (a bool after `Cb`, the last byte) and the session list's answer's last byte (an older host's missing byte reading as off); the savestate is format 19 (`MeleeRules.IgnitionStaysOn` in the build's melee rules). Protocol version 21 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 14, which has no co-op gate hold (format 15, above, "Gates shut behind the player"), and the other way round. Protocol version 20 adds the co-op lobby: `MsgType.LobbyState` (server → client; the mission, the seats, the receiver's id and the host's, the players' ids, names, cars and ready marks, and the mission's own car), `LobbySet` (client → server: the ready mark and a car's file, .vcf and paint), `LobbyStart` (the host's start, forced or not), `LobbyChat`; the session list's answer ends with a byte for a game in its lobby and the anet tag's kind-3 goal nibble has bit 3 for it. The join accept is unchanged; it comes when the host starts the mission. Protocol version 19 adds the co-op camera scenes and movie pause: the snapshot tail's script byte has bit 4, the seats' personal cameras (a count, then a seat byte and a `CameraState` each); `MsgType.MovieDone` (client → server, reliable: the movie's name); `EventKind.MovieEnd`; and `CoopInfo` ends with the movie being played (a string, empty for none). The savestate is format 14 (a personal camera per seat and the scene a thread is in). Protocol version 18 raises a co-op game's seats from 4 to 8: the join accept's `CoopInfo` names up to 8 seats' cars (a version 17 reader refuses more than 4), and nothing else on the wire changes (the savestate's co-op build and the formation are counts, not masks: format 13 stays). Protocol version 17 adds the car's paint (below, "Car paint"): `JoinRequest.Paint` (after the password and the rejoin byte, which is now always written: 0 when the request is no rejoin), `Reconfigure.Paint` and `CarInfo.Paint` (after `Vcf`), each a u16-length blob of `CarPaint.ToBytes` (empty: the factory paint); a request or reconfigure without it still ends cleanly and reads as no paint. The host-migration record is format 2 (the seats' and invites' join records carry the paint) and the savestate is format 13. Protocol version 16 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 11, which a bot game's snapshot can fail to write (a bot given a new route while the AI's nav path walks the old one: format 12 writes such a path by its points), and the other way round. Protocol version 15 adds co-op story missions (above, "Co-op over the network"): their events, the join
+- **Wire (the I26 play fork).** It speaks upstream's protocol 24 with upstream's layout of every message, so a fork player and an upstream player see each other's games and join them. The fork's additions are appended where an upstream reader stops, or negotiated: the join request ends with the joiner's build (`BuildId`: the commit's short id, from the assembly's source revision in a checkout or the archive's export-subst in a `git archive`) and its features (`PeerFeatures`, a VarU of bits: the Pistol button, the scoreboard's handicaps, host migration); the join accept ends, after `Turrets1997`, with the host's Handicaps mode (a byte), its build and its features; the session list's answer ends with the build after upstream's host rules, and the Handicaps rule is bits 8 (on) and 16 (Auto) of the restrictions' flags byte, which upstream's reader never looks at; the scoreboard ends with the handicaps that changed (below, "Handicaps"). A missing field reads as an upstream peer's: no build, no handicaps, no features. The Pistol button (`CarButtons.Pistol`, bit 16 of the input's buttons) goes only to a host that says it (`MeleeClient.ForHost`; upstream's server masks it off, so the client does not predict it either), and a game is handed over (host migration) only between peers that say it and are on the same build, since the savestate is the fork's own format (docs/savestate.md). The roster shows the host's build, the host form the own, and a game on another build gets a one-line notice in the roster; a join on another build than the host's is let in (the protocol decides who can play) and the server says so to everyone once, as a `***` line (a co-op lobby's chat line); the joiner, whose copy comes while it loads, puts up its own from the accept. Before this the fork numbered its own versions 23 to 28 (handicaps, the Pistol button, the build, a car death's cause and seed since withdrawn, the crosshair moved after its own fields) and refused upstream's builds; those numbers are retired, and `KilledEvent` is upstream's again (the car and the flag).
+- **Wire.** Protocol version 24 changes nothing in a message: it keeps builds apart whose ground past a map's edge differs (0.12.0 carried the map's ground on there; from 0.12.1 it is the original's plain at 0 near the map), on which a client predicts its own car. Protocol version 23 adds the host's ignition lock (below, "Ignition stays on"): `JoinAccept.IgnitionStaysOn` (a bool after `Crosshair`), and the host's Turrets (below, "Turrets"): `JoinAccept.Turrets1997` (the last byte); it ends the game's answer with the host's rules after the drivers' makes and models (an older host's answer lacks them and reads as the original's: Co-op Damage x1, Co-op Scaling, Rolling Start and the ignition lock off, the 1998 build's turrets), and it keeps builds apart whose host migration hands over a savestate of format 15, which has no grounded teleport paths (format 16, docs/savestate.md), and the other way round. Protocol version 21 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 14, which has no co-op gate hold (format 15, above, "Gates shut behind the player"), and the other way round. Protocol version 20 adds the co-op lobby: `MsgType.LobbyState` (server → client; the mission, the seats, the receiver's id and the host's, the players' ids, names, cars and ready marks, and the mission's own car), `LobbySet` (client → server: the ready mark and a car's file, .vcf and paint), `LobbyStart` (the host's start, forced or not), `LobbyChat`; the session list's answer ends with a byte for a game in its lobby and the anet tag's kind-3 goal nibble has bit 3 for it. The join accept is unchanged; it comes when the host starts the mission. Protocol version 19 adds the co-op camera scenes and movie pause: the snapshot tail's script byte has bit 4, the seats' personal cameras (a count, then a seat byte and a `CameraState` each); `MsgType.MovieDone` (client → server, reliable: the movie's name); `EventKind.MovieEnd`; and `CoopInfo` ends with the movie being played (a string, empty for none). The savestate is format 14 (a personal camera per seat and the scene a thread is in). Protocol version 18 raises a co-op game's seats from 4 to 8: the join accept's `CoopInfo` names up to 8 seats' cars (a version 17 reader refuses more than 4), and nothing else on the wire changes (the savestate's co-op build and the formation are counts, not masks: format 13 stays). Protocol version 17 adds the car's paint (below, "Car paint"): `JoinRequest.Paint` (after the password and the rejoin byte, which is now always written: 0 when the request is no rejoin), `Reconfigure.Paint` and `CarInfo.Paint` (after `Vcf`), each a u16-length blob of `CarPaint.ToBytes` (empty: the factory paint); a request or reconfigure without it still ends cleanly and reads as no paint. The host-migration record is format 2 (the seats' and invites' join records carry the paint) and the savestate is format 13. Protocol version 16 changes nothing in a message: it keeps builds apart whose host migration hands over a savestate of format 11, which a bot game's snapshot can fail to write (a bot given a new route while the AI's nav path walks the old one: format 12 writes such a path by its points), and the other way round. Protocol version 15 adds co-op story missions (above, "Co-op over the network"): their events, the join
   accept's co-op part, a byte at the end of every snapshot's tail (a melee's 0) and of the session list's answer (whether
   the game is co-op, then the game's simulation rate), and the anet tag's kind 3 (a co-op game; an older build passes it over). Protocol version 14 (0.7.0) changes nothing on the wire: it keeps 0.7 out of games with 0.5/0.6 builds, whose host migration hands over a savestate of format 9, which 0.7 (format 10: the bots) cannot read, and the other way round. Protocol version 9 adds the car's file to the cars the join accept and the spawn event carry when it is a player's own variant (`CarInfo.Vcf`), and the join request's configuration is that file. Protocol version 8 adds the arena's fingerprint to the join accept (the mission file's and the terrain's sizes and CRCs: a client without the host's map, or with another copy, refuses before building). Protocol version 6 (6 sends a structure's whole destroyed state, root and nodes, with the explosions that went with it, in the structure event and the join accept; 5 packs the jammer's "on" into bit 7 of each special's charges byte in the own-car block, so the cockpit plate lights for a client; version 3 had a ten-byte `CarInput`, its commands a u16: 4 widens them to a u32 for the hotkey commands). The join accept carries kind, goal, goal value
   and the team count; every snapshot ends with the flags (team, state, position
@@ -814,16 +830,16 @@ alive it waits: the script then sees the group dead. Seats' deaths and timers ar
 
 Without Rolling Start the fresh car (a respawn's or a joiner's) stands still. **Co-op Rolling Start** (`CoopSetup.RollingStart`, the
 port's: on in a game hosted from the shell unless shell.cfg's `[port] coop_rolling_start` is false, no row on any form; the dedicated
-server's `--coop-rolling-start`) gives it the teammate's speed when the teammate is driving along: on the ground,
+server's `--coop-rolling-start`, off unless given) gives it the teammate's speed when the teammate is driving along: on the ground,
 1 m/s or faster (`ScriptHost.RollingMinSpeed`), not reversing and no more than 15 degrees between its way and its heading
 (`RollingMaxSlip`); the car faces as the teammate does and goes along that heading at the teammate's speed over the ground
-(`ScriptHost.Rolling`). Otherwise it stands still as before. It is part of the savestate's build.
+(`ScriptHost.Rolling`). Otherwise it stands still as before. It is part of the savestate's build. The game's answer lists it after
+the makes and models (`SessionInfo.RollingStart`; protocol 23) and the session popup says "Rolling start".
 
 ### Co-op Scaling
 
-The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the host form's EXTRA ENEMIES row, `[port] coop_scale`,
-`--coop-scale N`; the cap, "+1/player", by default from the shell, so every player past the first brings one more of each enemy
-car; the dedicated server's is 0 unless given). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
+The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the co-op host form's EXTRA ENEMIES row, `[port] coop_scale`,
+`--coop-scale N`; off by default). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
 copies, the cap 1–3 (`CoopSetup.MaxExtraEnemies`), decided once, the first time the script orders it (most stock enemies are given
 their sit or hide order on the first tick, so in a game that started from its lobby the copies are there from the start; a game
 whose players came later has the copies of the humans present when each car was first ordered). A copy is the same car file
@@ -839,6 +855,11 @@ lists, so `allEnemyDead`, `nearestEnemy` and `isWithinEnemy` and every objective
 copy that hits a human is still that human's attacker (`whoShot`). On the server the copies are spawn events with their files
 (`CoopGroup.Spawned`), so the clients' mirrors build them as cars the server names; they are entities and cars of the savestate
 (format 16: `Entity.ExtraOf`, `Entity.Scaled`, the cap in the build), and a restore makes them again (`CoopGroup.BuildEnemy`).
+
+The co-op host form's EXTRA ENEMIES row (a click steps Off, Up to +1, Up to +2, +1/player: the cap 3) and CO-OP SCALING in the Nitro
+form's co-op game options set the cap (shell.cfg [port] `coop_scale`, always written, Off as 0). The game's answer lists it after the makes
+and models (`SessionInfo.CoopScale`; protocol 23) and the session popup says "Co-op scaling up to +2"; a host migration's successor has
+it in its options.
 
 ### Cut-scenes and the controls
 
@@ -941,10 +962,12 @@ from the server.
   successor builds the mission from the options (`ServerOptions.Coop`), restores, and replays the host's inputs; the seats'
   names come from the migration extras (`IHostMode.Restore(drivers, names)`).
 - **Listing.** A co-op game is listed with its mission as the arena (`SessionInfo.Coop`; the anet tag's kind bits 3).
-- **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the host form's DAMAGE TAKEN row, i26-server's and `--host-listen`'s
+- **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the co-op host form's DAMAGE TAKEN row, i26-server's and `--host-listen`'s
   `--coop-damage 0.5|0.75|1|1.5`): the humans' cars take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
   fraction carried per car to its next packet, so small ticks are not lost); x1 by default. It is the server's alone (the clients take damage from the server) and part of the savestate's build,
-  so a successor builds it again from the options. Not listed in the game's info.
+  so a successor builds it again from the options. The co-op host form's DAMAGE TAKEN row (a click steps it) and CO-OP DAMAGE in the Nitro
+  form's co-op game options set it (shell.cfg [port] `coop_damage`, written only when not 1). The game's answer lists it after the makes and
+  models (`SessionInfo.CoopDamage`, in hundredths; protocol 23) and the session popup says "Co-op damage x0.5" when it is not x1.
 - **Not done yet:** the trip campaign.
 
 ### Each player's car
@@ -1258,22 +1281,55 @@ not shown. The port's two transports:
 | Entry | HOST (record 19, NET MELEE·HOST EVENT FORM) | JOIN (record 18, NET MELEE·ENTRY ROSTER) |
 |---|---|---|
 | IPX: the LAN (labelled LAN in the modern look) | mode 3: a listen server on port 7676 (the next free one up to 7679 if it is taken), which answers LAN searches | mode 7: the games a LAN search finds, asked again every second |
-| INTERNET: a lobby server, or an address | mode 4: the address book first; the entry's host is the anet game server the game is listed on (below, "Lobby servers"), its port, if it gives one other than anet's 21157, the one to listen on (`server`, `server:7680`; `:7680` lists nowhere) | mode 8: the address book first; the I26 games the anet server at the entry lists (`server`, `server:21157`), and a game at the entry's address itself (`host`, `host:port`), asked every second |
+| INTERNET: a lobby server, or an address | mode 4: the address book first; the entry's host is the anet game server the game is listed on (below, "Lobby servers"), its port, if it gives one other than anet's 21157, the one to listen on (`server`, `server:7680`; `:7680` lists nowhere) | mode 8: straight to the roster, which searches **every entry of the address book at once** (below, "The internet roster"): the I26 games each anet server lists (`server`, `server:21157`) and a game at an entry's own address (`host`, `host:port`), asked every second, grouped by entry; SERVERS opens the address book |
 
 **The address book** is the original's CONNECT TO SERVER popup (bank 36
 sprite 29) over the form. It lists `user://internet.lst` (the
 original's layout: `u32 n`, then n × {32-byte name, 64-byte address}), three
-entries at a time. A click picks an entry and shows it in the NAME and IP
+entries at a time (the Nitro Pack's art, four). A click picks an entry and shows it in the NAME and IP
 boxes, which edit it in place. NEW adds an empty entry and edits its name,
-then its address. DONE uses the entry picked; with none, or with CANCEL, the
-form goes back to the main menu, as the original's did. The book is saved
+then its address; DELETE removes the entry picked. The Nitro Pack's art has
+DELETE; the base game's has DONE, NEW and CANCEL only, so the port redraws
+that row as four narrower buttons, DONE / NEW / DELETE / CANCEL
+(`AddressBookPopup.DrawBaseButtons`, `ArtButtons`): the art's DONE face
+without its word at each place, the art's own DONE, NEW and CANCEL cut out
+and centred, and DELETE lettered as the art letters its buttons (below,
+"Buttons the art lacks").
+HOST → INTERNET opens it first: DONE uses the entry picked; with none, or
+with CANCEL, the form goes back to the main menu, as the original's did.
+The internet roster opens it from SERVERS: DONE and CANCEL both go back to
+the roster (DONE on an entry scrolls the roster to it). The book is saved
 either way. A player without an internet.lst starts with the community's
 anet servers (`AddressBook.Defaults`, below); an existing book is theirs
-and is never changed. The internet roster (mode 8) has the port's CONNECT TO
-SERVER button under its games' list (#122): it opens the book again, and the
-entry picked lists that server's games in the roster; CANCEL there keeps the
-roster as it was instead of going back to the main menu. A join that fails
-comes back to the roster with its notice and the book, as before.
+and is never changed.
+
+**The internet roster** (mode 8; `ServerBrowser`, `src/I76.Net/ServerBrowser.cs`). The original's JOIN → INTERNET
+connected to the one server picked in the address book and listed its games; I26 goes straight to the roster and searches
+the whole book (docs/deviations.md, "MULTI MELEE"). Each entry gets its own `SessionBrowser` (its own socket, its own anet
+link, its own name lookup in the background), so a server that is slow, silent or not found holds up none of the others, and
+a game is always joined through the server that listed it (its `AnetListing`). An entry is read as before
+(`ServerSource.Parse`): `server` or `server:21157` is an anet server, `host:port` with another port a game at that address,
+`host` alone both. The list has a **header row per entry**, in the book's order: the entry's name in the label face (the art's
+headings', LOCAL DRIVER's), and on the right its state in the handwriting: "2 games", "1 game", "no games", "connecting..."
+(for up to 6 s, `ServerBrowser.AnswerWait`), "not answering", "not found" (the name has no address) or "no address" (the entry
+is not one). The entry's games follow under it, as the rows below; a header row is not joinable (a click or JOIN GAME on it does
+nothing; the highlighted game stays). A game listed on two servers is under both. The box above says "Contacting servers..."
+while every entry is still being reached, "No servers in the book" for an empty book, else "No games found" when there are no
+games. **SERVERS** (the port's, under the list on the line of JOIN GAME and CANCEL: hotspot 39, (42, 453)–(183, 471)) is the
+art's CANCEL face drawn again without its word, and SERVERS lettered as the art letters CANCEL (below); it opens the address
+book, and when that closes the roster searches the book as it now stands: the entries kept go on where they were (no new
+login), new ones start, deleted ones stop (`ServerBrowser.Watch`).
+
+**Buttons the art lacks** (`ArtButtons`, `ShellFrame.Label`, `ShellGlyphs.LabelPixels` / `Label`). The art letters its
+buttons (JOIN GAME, CANCEL, DONE) in an antialiased bold Arial-like sans that no shell font record has. A port's button is
+made from a button of the same art: its face, with the label left out (the ends as they are, the middle tiled from the plain
+columns before the word), at the new size; the art's own word where it has one, cut out and centred; a word it lacks is set
+in Arial Bold like the art's label beside it, measured at run time from the art (its ink's bounds and colour, by brightness
+inside the border). In the 1997 look it is printed at the pixel size that prints the art's word closest to the art's own
+(hinted, as the art's were) in the core's ink and blended into the palette; in the modern look the text layer draws it at the
+window's resolution, as tall as the art's word (less its faint antialiased rim), as wide as the two words' proportions make
+it, in the ink the art's strokes show in on the whole. Both are drawn into the frame, over an upscaled background or popup
+too. Without Arial, the shell's label face (font 0x47), doubled.
 
 **The host form** (the original's modes 3 and 4). The base game's is the original's art (record 19) with every one of the port's
 settings in the options box at its lower left, drawn in the form's own paper and lines (`HostFormLayout`; the play fork's form, with
@@ -1295,14 +1351,14 @@ its art.
   - the switches as check boxes of TEAM PLAY's own: TEAM PLAY, INVITE ONLY, SHARE MAPS, HIDDEN CARS (Hidden Weapons & Cars), CAR RESET, CB RADIO;
   - MAX SCORE with its box and ⊟ ⊞ (1000–100000 in steps of 1000, 20000 to start; the score counts only when its box is ticked);
   - the host's rules, a labelled row each, the name printed, the value handwritten on a ruled blank, a click steps it: SIM RATE,
-    UNLIMITED TURRETS (On, Off), IGNITION LOCK (On, Off), HANDICAPS (Off, Manual, Auto), PASSWORD (None or Set; the password
-    prompt), CHASE CROSSHAIR (On, Off);
+    UNLIMITED TURRETS (On, Off), IGNITION LOCK (On, Off), TURRETS (1998, 1997 CD: below, "Turrets"), HANDICAPS (Off, Manual, Auto),
+    PASSWORD (None or Set; the password prompt), CHASE CROSSHAIR (On, Off);
   the co-op form's box has only what a story mission has a use for, on its first six lines (the rest blank paper): EXTRA ENEMIES
   (Off, Up to +1, Up to +2, +1/player: "Co-op Scaling" above) and DAMAGE TAKEN (x0.5, x0.75, x1, x1.5: "Co-op Damage" above), a
-  labelled row each on a ruled blank, then INVITE ONLY, HIDDEN CARS, CAR RESET and CB RADIO, then SIM RATE and PASSWORD; no BOTS,
-  TEAM PLAY, SHARE MAPS or MAX SCORE, none of a melee's fairness rules (UNLIMITED TURRETS, IGNITION LOCK, HANDICAPS, CHASE
-  CROSSHAIR: a co-op game is hosted without them, and its listing does not mention them), and no ROLLING START row (on, `[port]
-  coop_rolling_start`); every setting has a tooltip saying what it does, by the pointer or beside the pad's focus (`HostFormHelp`:
+  labelled row each on a ruled blank, then INVITE ONLY, HIDDEN CARS, CAR RESET and CB RADIO, then SIM RATE, PASSWORD and TURRETS
+  (the turret slew changes the game, so it is the host's in co-op too); no BOTS, TEAM PLAY, SHARE MAPS or MAX SCORE, none of a
+  melee's fairness rules (UNLIMITED TURRETS, IGNITION LOCK, HANDICAPS, CHASE CROSSHAIR: a co-op game is hosted without them), and no
+  ROLLING START row (on by default, `[port] coop_rolling_start`; the hotspot id 42 stays reserved for it); every setting has a tooltip saying what it does, by the pointer or beside the pad's focus (`HostFormHelp`:
   every row and check box of the box, melee and co-op, and the game type button; the menus' MenuTooltip);
 - the arena's sketch (the port's, `ArenaSketch`), between the car's front and side views, on a scrap of the form's paper
   lightened, its edges torn, turned a degree or two and laid on the sheet with a soft shadow (a hard pixel's in the 1997 look), inset in
@@ -1319,7 +1375,7 @@ its art.
 **The roster** (modes 7 and 8):
 - each game found as its name, `(players/seats)` at x 160 and the arrow
   (bank 36 sprite 14) at x 204; "No games found" in the box above when there
-  are none;
+  are none; on the internet roster under its entry's header row (above, "The internet roster");
 - a row picks the game; its arrow opens the game's popup (bank 36 sprite 13):
   GAME NAME, GAME TYPE (LAN or Internet), SCORE LIMIT ("None"), TEAMS,
   AREA OF PLAY, and each driver's name, make and model, and team ("N/A"). The list shows eight drivers; with more the wheel,
@@ -1389,7 +1445,9 @@ a custom map and the asker's own for the rest; a game listed with no name, or wi
 id. A game that stops answering drops out after 3.5 s. Answers of another
 protocol version are not listed. A game in progress keeps answering, so a
 server is found whenever it is up. The dedicated server answers too, so it
-shows on a LAN roster.
+shows on a LAN roster. An address given by name is looked up once, in the background (`SessionBrowser.Ask` sends nothing
+until it is found, and `NotFound` says when it was not), so a slow name server never holds up the form. The internet roster
+runs one `SessionBrowser` per address book entry (`ServerBrowser`, above).
 
 ### Game passwords
 
@@ -1522,7 +1580,7 @@ compact:
 | snapshot | server → client | unreliable | server tick, the last client tick applied (the ack), the slack (protocol 13: the client's inputs left waiting after the tick took one, −1 when it found none), the baseline (protocol 13: how many ticks back the snapshot it is written against is, 0 for a full one), the recipient's own car, its motion at full precision (protocol 13, `OwnMotion`) or two bytes confirming the client's own prediction of it (header bit 4), the motion's slow part when it changed and its weapons' fire control (protocol 13, `OwnFire`), as byte deltas; then the cars and the rounds in flight that the snapshot's budget carries, each an entry of what changed since the baseline; then the CTF flags and the flame streams (protocol 13), then a byte of what follows of a mission's script (protocol 15: 1 the gates off their places, each structure, node and how far along; 2 the script camera while it holds the view, its eye and what it looks at or its basis; protocol 19: 4 the seats' personal cameras, each a seat byte and a camera; a melee's is 0) (below, "Delta snapshots", "The snapshot budget") |
 | snapshot piece | server → client | unreliable | a snapshot too big for one datagram, in pieces (LiteNetLib fragments only reliable messages); one lost piece loses that snapshot. Since the snapshot budget only when a snapshot's essential entries alone do not fit (a full snapshot's head, a burst of removals): none in the load tests up to 64 players |
 | events | server → client | reliable ordered | one tick's events, stamped with the tick: to each client those it is sent (below, "Events at scale"), effect and sound names by number once sent (protocol 13, `NameTable`: 0 and the string the first time, both ends adding it, then its number + 1) |
-| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left); protocol 23: the mask is a VarU, 256 the host's handicap (an sbyte; "Handicaps") |
+| scoreboard | server → client | reliable, once a second | each player's name, team, score, kills, deaths, ping and whether they are alive; protocol 13: a delta against the board the client has (a flags byte, 1 in full; each row that changed as its slot, a field mask and those fields, a ping only when it moved 10 ms; then the slots that left); the play fork appends the handicaps that changed (a count, then slot and sbyte level each; "Handicaps") |
 | next round | server → client | reliable ordered | a new round on this connection (protocol 12): the arena; a map offer or the join accept follows (above, "Rounds") |
 | chat, leave | client → server | reliable | |
 | host candidate, successor | both | reliable | host migration (protocol 13, above "Host migration"): whether a client can take over and its addresses at home; who takes over, where, and the seat's token |
@@ -2470,8 +2528,9 @@ interstate76.com's two servers joined the default book in 0.8.0; a book saved be
 (`user://internet_i76com.done` marks it), so a player who removes them keeps them removed. battlezone1.net, once
 listed, no longer answers.
 
-Adding and removing servers is the CONNECT TO SERVER popup's NEW and
-editing, as in the original. `i26-server --anet HOST[:PORT]` (repeatable)
+The internet roster lists the games of every server in the book at once, under a header row per server ("From the main
+menu", "The internet roster"). Adding and removing servers is the CONNECT TO SERVER popup's NEW, editing and DELETE,
+opened from the roster's SERVERS or by HOST → INTERNET. `i26-server --anet HOST[:PORT]` (repeatable)
 lists a dedicated server; `--host-listen --anet HOST` a listen server from
 the command line; `--join-anet HOST [--session NAME]` joins a listed game
 (the one named, else the first).
@@ -2583,8 +2642,8 @@ the session's karma and a nonce (`HolePunch`); an older I26 ignores them.
    the server has done anything; with the server down, a listed game is still
    joined that way.
 
-What the player sees: the roster's box says "Contacting SERVER..." or
-"SERVER is not answering" while it has no games; the highlighted game shows
+What the player sees: each server's header row on the roster says "connecting...", "not answering" or "not found" while it
+has no games (the box above, "Contacting servers..." while every one is still being reached); the highlighted game shows
 its ping when it answers I26's query directly (a host behind a filtering NAT
 does not, until introduced); the loading screen says "Joining via server...",
 then "Connecting to the host..."; a failed punch first asks another server
@@ -2655,10 +2714,16 @@ Room`, a servers file `127.0.0.1 localhost`, an empty apps file).
   one machine with no NAT between them the host answers the joiner's first
   probe, before the server's introduction (the NAT cases are the tests
   above). For the Nitro Pack: `I76_ANET_NAV="click:440,300@8;click:390,350@12"`,
-  `I76_ANET_BOOK="click:284,180@24;click:366,415@26"`, `I76_ANET_ARROW=212,180`,
+  `I76_ANET_BOOK="click:284,180@24;click:366,415@26"`, `I76_ANET_ARROW=212,197`,
   `I76_ANET_HOST_IN="$I76_ANET_NAV;click:380,375@16;click:410,402@20;$I76_ANET_BOOK;click:300,462@30"`,
-  `I76_ANET_ROSTER_IN="$I76_ANET_NAV;click:430,375@16;click:410,402@20;$I76_ANET_BOOK;wait:games=1@28"` and
-  `I76_ANET_JOIN_IN="$I76_ANET_ROSTER_IN;click:100,180@32;click:300,462@34"`. Both games passed (October 2026).
+  `I76_ANET_ROSTER_IN="$I76_ANET_NAV;click:430,375@16;click:410,402@20;wait:games=1@28"` and
+  `I76_ANET_JOIN_IN="$I76_ANET_ROSTER_IN;click:100,197@32;click:300,462@34"` (the roster's first row is the server's header,
+  the game the second). Both games passed (October 2026), before the roster searched the whole book; every book the script
+  writes holds the local server alone.
+- `ServerBrowserTests`: the roster's search of a whole book against two `FakeAnetServer`s, a silent socket, a name that is
+  not found, a game at its own address and an entry that is no address: each group's games and state, the silent one
+  holding up nobody, a game two servers list under both (each copy through its own server), and an edited book keeping the
+  searches that stay.
 
 ## Left for later phases
 

@@ -41,10 +41,11 @@ public sealed class FakeAnetServer : IDisposable
 
     public int Port => ((IPEndPoint)_sock.Client.LocalEndPoint!).Port;
 
-    /// <summary>On a thread of its own and the wall clock, or (<paramref name="net"/> given) pumped by that network on its clock.</summary>
-    public FakeAnetServer(TestNet? net = null)
+    /// <summary>A server on <paramref name="bind"/> (default: a free port on 127.0.0.1; a capture's servers sit on anet's port at 127.0.0.x),
+    /// on a thread of its own and the wall clock, or (<paramref name="net"/> given) pumped by that network on its clock.</summary>
+    public FakeAnetServer(TestNet? net = null, IPEndPoint? bind = null)
     {
-        _sock = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        _sock = new UdpClient(bind ?? new IPEndPoint(IPAddress.Loopback, 0));
         _sock.Client.ReceiveTimeout = 20;
         _net = net;
         if (net is not null)

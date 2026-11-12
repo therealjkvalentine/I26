@@ -173,6 +173,8 @@ public sealed class LaunchOptions
     public I76.Sim.Missions.HandicapMode? Handicaps { get; set; }
     /// <summary>--crosshair / --no-crosshair: whether a listen server allows the chase crosshair (null: the setting).</summary>
     public bool? Crosshair { get; set; }
+    /// <summary>--turrets-1997 / --turrets-1998: whether a listen server's turrets turn as the 1997 CD build's (null: the host form's setting).</summary>
+    public bool? Turrets1997 { get; set; }
     /// <summary>--map-downloads ask|always|never: a host's custom map this install lacks (null: the setting).</summary>
     public int? MapDownloads { get; set; }
     /// <summary>--seed N: every mission's rand stream starts at N (spawn points, AI choices, damage rolls, debris), to reproduce a run.</summary>
@@ -360,6 +362,8 @@ public sealed class LaunchOptions
                     break;
                 case "--no-handicaps": o.Handicaps = I76.Sim.Missions.HandicapMode.Off; break;
                 case "--crosshair": o.Crosshair = true; break;
+                case "--turrets-1997": o.Turrets1997 = true; break;
+                case "--turrets-1998": o.Turrets1997 = false; break;
                 case "--no-crosshair": o.Crosshair = false; break;
                 case "--map-downloads":
                 {

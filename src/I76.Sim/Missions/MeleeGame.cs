@@ -39,7 +39,7 @@ public sealed record MeleeRules
     /// </summary>
     public float RespawnDelay { get; init; } = 5f;
     /// <summary>
-    /// The host's rule that nobody switches their engine off in this game (the port's, #108; the host form's IGN. LOCK,
+    /// The host's rule that nobody switches their engine off in this game (the port's, #108; the host form's Ignition Lock,
     /// i26-server's --no-ignition-off): the ignition key only starts an engine that is off. The original has no such rule.
     /// </summary>
     public bool IgnitionStaysOn { get; init; }
@@ -166,6 +166,8 @@ public sealed partial class MeleeGame
     /// <summary>Auto handicap moved a player's level (<see cref="Vehicle.Handicap"/> has the new one); the feed line goes through <see cref="Message"/>.</summary>
     public event Action<MeleePlayer>? HandicapChanged;
     private readonly Dictionary<MeleePlayer, RaceTracker> _races = [];
+    /// <summary>A race: the player's lap counting (null before its first frame in the race).</summary>
+    public RaceTracker? RaceOf(MeleePlayer p) => _races.GetValueOrDefault(p);
     private float? _overAt;
     /// <summary>Who won, by the player who reached the goal (null until someone has, and for a time limit).</summary>
     public MeleePlayer? Winner { get; private set; }
