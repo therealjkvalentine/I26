@@ -41,6 +41,7 @@ public partial class Hud : CanvasLayer
     private TextureRect? _handset;
     private Texture2D? _handsetHalf, _handsetUp;
     private double _handsetT = -1;   // seconds since the handset began to rise (or, negative, to fall)
+    private readonly HandsetGate _handsetGate = new();
     public I76.Formats.Mission.ObjectiveText? Objectives { get; set; }
     /// <summary>True while the debug text shows (Ctrl+F3): the port's CB line rides with it.</summary>
     public Func<bool>? Debug { get; set; }
@@ -115,7 +116,8 @@ public partial class Hud : CanvasLayer
     /// half raised (ZCBH6101) and up (ZCBH6102), played at the table's 10 a
     /// second; drawn at the bottom centre of the 640x480 frame, scaled with it,
     /// in the cockpit, and in the chase view with Ext. Instrum. Disp. on (it is one of
-    /// the external instruments); nearest-neighbour in both looks.
+    /// the external instruments); nearest-neighbour in both looks. A line that starts with the binoculars up does
+    /// not raise it (<see cref="HandsetGate"/>).
     /// </summary>
     private void UpdateHandset(double delta)
     {
@@ -141,7 +143,10 @@ public partial class Hud : CanvasLayer
         // the handset is one of the external instruments: in the chase view only
         // with Ext. Instrum. Disp. on; in the cockpit always, as the 1997 build drew it there
         bool shown = InCockpit?.Invoke() == true || ExtInstruments?.Invoke() != false;
-        bool talking = (h?.Cb.Current is { Speaker: { } sp } && sp == h.Player || Transmitting?.Invoke() == true) && Cutscene?.Invoke() != true && shown;
+        // a line that starts with the binoculars up does not raise it (HandsetGate: the original's 0x423861)
+        object? line = h?.Cb.Current is { Speaker: { } sp } l && sp == h.Player ? l : Transmitting?.Invoke() == true ? HandsetGate.Microphone : null;
+        bool binoculars = InCockpit?.Invoke() == true && Pit?.Invoke() is { Binoculars: true };
+        bool talking = _handsetGate.Raised(line, binoculars) && Cutscene?.Invoke() != true && shown;
         const double Frame = 0.1;
         if (talking) _handsetT = _handsetT < 0 ? 0 : _handsetT + delta;
         else if (_handsetT >= 0) _handsetT = -delta;
