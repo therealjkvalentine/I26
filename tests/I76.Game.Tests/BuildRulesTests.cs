@@ -35,7 +35,7 @@ public class BuildRulesTests
         var full = BuildRules.Complete(mine);
         Assert.StartsWith(mine.TrimEnd(), full);
         Assert.Contains("ai_tactics=1998", full);
-        // turret_slew is Play Options' Turrets now (shell.cfg): the line stays in the player's file, unread
+        // turret_slew is Play Options' Turrets now (shell.cfg): the line stays in the player's file, not a rule here (ShellSettings.Read takes it once)
         Assert.Equal(new BuildRules(Tactics1997: false), BuildRules.Parse(full));
         Assert.DoesNotContain("turret_slew=1998", full);
         Assert.Equal(full, BuildRules.Complete(full));

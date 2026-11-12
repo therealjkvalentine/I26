@@ -157,6 +157,28 @@ public class ShellFileCompatTests
         Assert.Equal((ViewFov.Monitor, 0, (byte)0, (int?)DrawDistance.Far), (back.FieldOfView, back.CoopScale, back.Graphics[0x2], back.DrawDistanceChoice));
     }
 
+    /// <summary>The fork's main kept the turret rule in build-rules.cfg: a 1997 there becomes Play Options' Turrets once, then shell.cfg's key rules.</summary>
+    [Fact]
+    public void TheTurretRuleOfBuildRulesIsTakenOnceIntoPlayOptions()
+    {
+        const string rules = "; my notes\n[rules]\nturret_slew = 1997\nai_tactics=1998\n";
+        var s = ShellSettings.Read(Parse(ForkMainFile), rules);
+        Assert.True(s.Turrets1997);
+        var f = s.Write(null);
+        Assert.Equal(1997L, f.GetValue("port", "turret_slew").Obj);
+        Assert.True(ShellSettings.Read(f, rules).Turrets1997);
+        // set back to 1998 in Play Options, it stays 1998 though build-rules.cfg still says 1997
+        s.Turrets1997 = false;
+        var again = s.Write(null);
+        Assert.Equal(1998L, again.GetValue("port", "turret_slew").Obj);
+        Assert.False(ShellSettings.Read(again, rules).Turrets1997);
+        // no line, a 1998 line or no file: the 1998 build's
+        Assert.False(ShellSettings.Read(Parse(ForkMainFile), "[rules]\nai_tactics=1997\n").Turrets1997);
+        Assert.False(ShellSettings.Read(Parse(ForkMainFile), "turret_slew=1998").Turrets1997);
+        Assert.False(ShellSettings.Read(Parse(ForkMainFile)).Turrets1997);
+        Assert.Null(BuildRules.OldTurrets1997("[rules]\nai_tactics=1997\n"));
+    }
+
     [Fact]
     public void AChosenFieldOfViewIsKeptUnderFovWindow()
     {

@@ -14,7 +14,7 @@ namespace I76.Game.Shell;
 /// only appends the block of a key it does not find, so the player's values and the notes stay. Engine-free but for the
 /// path, so the game tests can call it. The turrets' slew was a key here until upstream made it a setting (Play Options'
 /// Turrets and the host form's, shell.cfg [port] turret_slew and host_turret_slew): a turret_slew line left in a player's file
-/// is no longer read.
+/// is read once, into Play Options' Turrets, while shell.cfg has no turret_slew (<see cref="OldTurrets1997"/>).
 /// </summary>
 public sealed record BuildRules(bool Tactics1997)
 {
@@ -95,6 +95,21 @@ public sealed record BuildRules(bool Tactics1997)
         var v = Values(text);
         bool Is1997(string key) => v.TryGetValue(key, out var s) && s == "1997";
         return new BuildRules(Is1997("ai_tactics"));
+    }
+
+    /// <summary>The turret_slew a text sets from before the key moved to shell.cfg: true for 1997, false for anything else, null when it has none.</summary>
+    public static bool? OldTurrets1997(string? text) =>
+        text is not null && Values(text).TryGetValue("turret_slew", out var v) ? v == "1997" : null;
+
+    /// <summary>The user folder's file's text as it is, or null (none, or unreadable).</summary>
+    public static string? ReadText()
+    {
+        try
+        {
+            var path = Godot.ProjectSettings.GlobalizePath("user://" + FileName);
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>The user folder's file, written or completed first; the defaults when it cannot be read.</summary>

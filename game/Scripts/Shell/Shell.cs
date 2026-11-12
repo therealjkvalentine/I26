@@ -1349,7 +1349,8 @@ public sealed class ShellSettings
     public bool CrosshairDrawn { get; set; } = true;
     /// <summary>
     /// The port's own: the turrets turn as the 1997 CD build's, 1.5 rad/s times their health ratio, rather than the 1998 build's (GOG's
-    /// and the Nitro Pack's) 1.7 times 0.75 + 0.25 of it (Play Options' Turrets; shell.cfg [port] turret_slew = 1997, written only then).
+    /// and the Nitro Pack's) 1.7 times 0.75 + 0.25 of it (Play Options' Turrets; shell.cfg [port] turret_slew, 1997 or 1998, always written;
+    /// a file without it takes build-rules.cfg's turret_slew from before the key moved).
     /// Offline only: a network game's is the host's (<see cref="HostTurrets1997"/>).
     /// </summary>
     public bool Turrets1997 { get; set; }
@@ -1758,12 +1759,12 @@ public sealed class ShellSettings
         if (cfg.Load(Path) != Error.Ok)
         {
             // a first start: the fresh block's textures (4x where the 4x fits; the cars' and the dash's 8x where the dash's fits)
-            var fresh = new ShellSettings();
+            var fresh = new ShellSettings { Turrets1997 = BuildRules.OldTurrets1997(BuildRules.ReadText()) ?? false };
             I76.Game.Assets.HdTextures.WorldSize = fresh.WorldTextures;
             I76.Game.Assets.HdTextures.CarSize = fresh.CarTextures;
             return fresh;
         }
-        var s = Read(SettingsFile.From(cfg));
+        var s = Read(SettingsFile.From(cfg), BuildRules.ReadText());
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
@@ -1771,8 +1772,12 @@ public sealed class ShellSettings
         return s;
     }
 
-    /// <summary>The settings a file holds, with the steps for its version. Engine-free (no globals set), for the tests: <see cref="Load"/>'s reading.</summary>
-    public static ShellSettings Read(SettingsFile c)
+    /// <summary>
+    /// The settings a file holds, with the steps for its version; <paramref name="buildRules"/> is build-rules.cfg's text, whose
+    /// turret_slew from before the key moved to shell.cfg is taken while the file has none. Engine-free (no globals set), for the
+    /// tests: <see cref="Load"/>'s reading.
+    /// </summary>
+    public static ShellSettings Read(SettingsFile c, string? buildRules = null)
     {
         var s = new ShellSettings();
         int shellVersion = (int)c.GetValue("shell", "version", 1);
@@ -1881,8 +1886,9 @@ public sealed class ShellSettings
             : hcp is "auto" ? I76.Sim.Missions.HandicapMode.Auto
             : hcp is "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
         s.HostCrosshair = (bool)c.GetValue("port", "host_crosshair", false);
-        // no version step: absent, the 1998 build's turrets (upstream's keys; build-rules.cfg's turret_slew is no longer read)
-        s.Turrets1997 = (int)c.GetValue("port", "turret_slew", 1998) == 1997;
+        // no version step: absent, build-rules.cfg's turret_slew where a player set it before the key moved here (read once: Write
+        // always puts the key in), else the 1998 build's turrets (upstream's keys)
+        s.Turrets1997 = c.HasSectionKey("port", "turret_slew") ? (int)c.GetValue("port", "turret_slew") == 1997 : BuildRules.OldTurrets1997(buildRules) ?? false;
         s.HostTurrets1997 = (int)c.GetValue("port", "host_turret_slew", 1998) == 1997;
         s.HostBotSkillDifficulty = (bool)c.GetValue("port", "host_bot_skill_difficulty", false);
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
@@ -2096,7 +2102,8 @@ public sealed class ShellSettings
         if (!CbRadio) c.SetValue("port", "cb_radio", false);
         if (Handicaps != I76.Sim.Missions.HandicapMode.Off) c.SetValue("port", "handicaps", Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "auto" : "manual");
         if (HostCrosshair) c.SetValue("port", "host_crosshair", true);
-        if (Turrets1997) c.SetValue("port", "turret_slew", 1997);
+        // always: a file without it takes build-rules.cfg's old turret_slew (Read)
+        c.SetValue("port", "turret_slew", Turrets1997 ? 1997 : 1998);
         if (HostTurrets1997) c.SetValue("port", "host_turret_slew", 1997);
         if (HostBotSkillDifficulty) c.SetValue("port", "host_bot_skill_difficulty", true);
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
