@@ -44,7 +44,9 @@ public class HeadTrackTests
         Assert.Equal((30f, FreeLook.Rest), HeadLook.Scale(10, 0, 3));
         Assert.Equal((-80f, FreeLook.Rest), HeadLook.Scale(-40, 0, 3));                       // 80° each side
         Assert.Equal(FreeLook.Rest - 22, HeadLook.Scale(0, 30, 3).Pitch);                     // looking up: 22° over the forward −13°
-        Assert.Equal(FreeLook.Rest + 25, HeadLook.Scale(0, -30, 3).Pitch);                    // down: 25° under it
+        Assert.Equal(FreeLook.Rest + 20, HeadLook.Scale(0, -20 / 3.0, 3).Pitch, 4);           // down: 20° under it
+        Assert.Equal(CockpitReach.MaxPitch(0), HeadLook.Scale(0, -30, 3).Pitch);              // and no lower than the wheel's hands allow
+        Assert.Equal(CockpitReach.MaxPitch(75), HeadLook.Scale(25, -30, 3).Pitch);            // to the side: above the arms' cut-off ends (#165)
         Assert.Equal(FreeLook.Rest - 5, HeadLook.Scale(0, 2.5, 2).Pitch, 4);
     }
 

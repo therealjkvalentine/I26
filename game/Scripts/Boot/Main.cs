@@ -3511,7 +3511,7 @@ public partial class Main : Node3D
     /// <summary>The script holds the camera (pushCam ... popCam): no view can be selected (the camera view selection at mode 5).</summary>
     private bool CameraHeld => _scriptCam?.Current == true;
 
-    /// <summary>Gate (1): the script polled isKeypress this tick (a skippable cut-scene): only Esc (the skip) and Pause act.</summary>
+    /// <summary>Gate (1): the script polled isKeypress this tick (a skippable cut-scene): Esc is the skip; while the script also holds the camera, only Esc and Pause act.</summary>
     /// (A network co-op mission's script is the host's: its cut-scene is skippable here while it holds the view, and the skip the
     /// host's alone, which the server decides.)
     private bool SkipPolled => _sim?.Script is { } sc && sc.Melee is null && (NetCoop ? sc.Host.View.Active && !sc.Host.View.Personal : sc.Host.SkipPolled >= sc.Host.FsmTick - 1);
@@ -3567,7 +3567,8 @@ public partial class Main : Node3D
             return;
         }
         if (ScriptDrivesPlayer) { GetViewport().SetInputAsHandled(); return; }
-        if (SkipPolled && !(e is InputEventKey sk && GameKeys.CommandOf(sk) is GameKey.MainMenu or GameKey.PauseGame)) GetViewport().SetInputAsHandled();
+        // (a script still asking for the skip key after it gave the camera back takes Esc alone: CutsceneKeys)
+        if (CutsceneKeys.Swallowed(SkipPolled, CameraHeld, e is InputEventKey sk ? GameKeys.CommandOf(sk) : GameKey.None)) GetViewport().SetInputAsHandled();
     }
 
     /// <summary>
@@ -4189,6 +4190,7 @@ public partial class Main : Node3D
         UpdateMouseCapture();
         // the window's shape, for Field of View's Monitor and degree choices (the 3D view is scaled uniformly, so its shape is the window's)
         if (GetViewport().GetVisibleRect().Size is { X: > 0, Y: > 0 } vs) I76.Sim.Views.ViewFov.Aspect = vs.X / vs.Y;
+        I76.Formats.Input.CockpitReach.ViewHeight = I76.Sim.Views.ViewFov.Main;   // the free head's reach below (#165)
         if (_sim?.World.Player is { } ptp && OS.GetEnvironment("I76_PLAYTEST_LOG") is { Length: > 0 } && ++_ptFrames % 20 == 0)
             GD.Print($"playtest car: frame {_ptFrames} at {ptp.Pos.X:0.0}, {ptp.Pos.Z:0.0} speed {ptp.Vel.Length():0.0}");
         if (_installerOnly || _opt.Install is null)

@@ -30,7 +30,7 @@ public readonly record struct HeadPose(double X, double Y, double Z, double Yaw,
 /// <summary>
 /// The head tracker's part in the cockpit's head, apart from the engine so it can be tested. Analog: the tracked yaw and pitch
 /// times the sensitivity, held to the pad's free look reach (<see cref="I76.Formats.Input.FreeLook"/>: 80° each side, 22° above
-/// and 25° below the forward −13°), blended in over 150 ms (a smoothstep) when tracking starts or a glance lets go, and out the
+/// and 25° below the forward −13°, less below to the sides: <see cref="I76.Formats.Input.CockpitReach"/>), blended in over 150 ms (a smoothstep) when tracking starts or a glance lets go, and out the
 /// same way when a glance key or the look stick takes over, packets stop for 500 ms or the mode is turned off. Digital: the
 /// head past a threshold holds the glance left, right or down (to the dash), as those keys do; nodding up does nothing (the
 /// up glance is the look rear).
@@ -74,7 +74,7 @@ public sealed class HeadLook
         const float rest = I76.Formats.Input.FreeLook.Rest;
         float y = Math.Clamp((float)yaw * sensitivity, -I76.Formats.Input.FreeLook.MaxYaw, I76.Formats.Input.FreeLook.MaxYaw);
         float p = Math.Clamp(rest - (float)pitch * sensitivity, rest - I76.Formats.Input.FreeLook.MaxUp, rest + I76.Formats.Input.FreeLook.MaxDown);
-        return (y, p);
+        return (y, Math.Min(p, I76.Formats.Input.CockpitReach.MaxPitch(y)));   // never low enough to the side to see the arms' cut-off ends (#165)
     }
 
     /// <summary>The blend's curve: 0..1 in, smoothstep out.</summary>
