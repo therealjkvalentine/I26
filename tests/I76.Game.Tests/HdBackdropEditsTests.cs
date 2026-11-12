@@ -6,8 +6,8 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// The port's patches to a shell background (ShellFrame.Edits) made to an upscale drawn under the frame: with an HD menu pack
-/// the frame is see-through where it is still the background, so the upscale must carry the same patches (Play Options'
-/// copied check boxes) or the original's printed rows show through.
+/// the frame is see-through where it is still the background, so the upscale must carry the same patches (the host form's
+/// options box, Play Options' copied check boxes) or the original's printed rows show through.
 /// </summary>
 public class HdBackdropEditsTests
 {
@@ -56,6 +56,22 @@ public class HdBackdropEditsTests
         Assert.Equal(3, f.Edits.Count);
         ShellBackdrop.Edit(hd, W * S, H * S, (S, 0, S, 0), f.Edits);
         Assert.Equal(Upscale(Clean(f)), hd);
+    }
+
+    /// <summary>As the host form draws its options box (NetForms): a copy taken first, a stretch of paper copied over the box, then patches pasted back from the copy, one masked to a ring (the check box) and one onto rows the paper copy changed.</summary>
+    [Fact]
+    public void TheUpscaleTakesTheHostFormsMaskedPastes()
+    {
+        var f = Frame();
+        var hd = Upscale(f.CleanCopy());
+        var art = f.CleanCopy();
+        f.CopyBackground(20, 100, 50, 30, 10, 356);
+        f.PasteBackground(art, 87, 381, 11, 11, 30, 360, (c, r) => c is 0 or 10 || r is 0 or 10);
+        f.PasteBackground(art, 10, 425, 40, 2, 10, 370);
+        f.CopyBackground(200, 139, 22, 18, 200, 116);
+        Assert.Equal(4, f.Edits.Count);
+        ShellBackdrop.Edit(hd, W * S, H * S, (S, 0, S, 0), f.Edits);
+        Assert.Equal(Upscale(f.CleanCopy()), hd);
     }
 
     [Fact]
