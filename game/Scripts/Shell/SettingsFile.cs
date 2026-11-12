@@ -24,6 +24,7 @@ public sealed class SettingsFile
     public void SetValue(string section, string key, object value)
     {
         if (value is SettingsValue w) value = w.Obj ?? "";
+        if (value is Variant x) value = Plain(x);
         if (value is int i) value = (long)i;
         else if (value is float f) value = (double)f;
         if (!_values.ContainsKey((section, key))) _order.Add((section, key));
@@ -40,20 +41,24 @@ public sealed class SettingsFile
         var f = new SettingsFile();
         foreach (var s in c.GetSections())
             foreach (var k in c.GetSectionKeys(s))
-            {
-                var v = c.GetValue(s, k);
-                f.SetValue(s, k, v.VariantType switch
-                {
-                    Variant.Type.Bool => (bool)v,
-                    Variant.Type.Int => (long)v,
-                    Variant.Type.Float => (double)v,
-                    Variant.Type.String => (string)v,
-                    Variant.Type.PackedByteArray => (byte[])v,
-                    _ => v,
-                });
-            }
+                f.SetValue(s, k, c.GetValue(s, k));
         return f;
     }
+
+    /// <summary>
+    /// A Variant of a plain type as the plain value (any other type kept as the Variant). Each arm is cast to object: without the
+    /// casts the switch's type is Variant (every arm converts to it), and each value went in boxed as a Variant, which the casts of
+    /// <see cref="SettingsValue"/> read as 0, false or empty.
+    /// </summary>
+    private static object Plain(Variant v) => v.VariantType switch
+    {
+        Variant.Type.Bool => (object)(bool)v,
+        Variant.Type.Int => (object)(long)v,
+        Variant.Type.Float => (object)(double)v,
+        Variant.Type.String => (object)(string)v,
+        Variant.Type.PackedByteArray => (object)(byte[])v,
+        _ => (object)v,
+    };
 
     public ConfigFile ToConfig()
     {

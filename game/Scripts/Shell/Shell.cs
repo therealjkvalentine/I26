@@ -1773,7 +1773,7 @@ public sealed class ShellSettings
             I76.Game.Assets.HdTextures.CarSize = fresh.CarTextures;
             return fresh;
         }
-        var s = Read(SettingsFile.From(cfg), BuildRules.ReadText());
+        var s = Read(SettingsFile.From(cfg), BuildRules.ReadText(), I76.Game.Assets.HdTextures.PacksFound);
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
@@ -1783,10 +1783,11 @@ public sealed class ShellSettings
 
     /// <summary>
     /// The settings a file holds, with the steps for its version; <paramref name="buildRules"/> is build-rules.cfg's text, whose
-    /// turret_slew from before the key moved to shell.cfg is taken while the file has none. Engine-free (no globals set), for the
-    /// tests: <see cref="Load"/>'s reading.
+    /// turret_slew from before the key moved to shell.cfg is taken while the file has none; <paramref name="packs"/> the texture packs
+    /// found now (HdTextures.PacksFound; null, none). Engine-free (no globals set, nothing logged without packs), for the tests:
+    /// <see cref="Load"/>'s reading.
     /// </summary>
-    public static ShellSettings Read(SettingsFile c, string? buildRules = null)
+    public static ShellSettings Read(SettingsFile c, string? buildRules = null, (int[] Sizes, bool Plain)? packs = null)
     {
         var s = new ShellSettings();
         int shellVersion = (int)c.GetValue("shell", "version", 1);
@@ -1812,9 +1813,10 @@ public sealed class ShellSettings
         // no version step: [port] texture_packs names the packs there were at the save. A row at 1997 saved with no pack there had
         // nothing else to choose: with a pack installed since, it takes the first start's choice (HdTextures.WithNewPacks)
         var stored = (s.WorldTextures, s.CarTextures);
+        var (sizesNow, plainNow) = packs ?? ([], false);
         (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.WithNewPacks(stored, I76.Game.Assets.HdTextures.ParsePacks(Word("texture_packs")),
-            I76.Game.Assets.HdTextures.AvailableSizes, I76.Game.Assets.HdTextures.AnyPack, HdDefault);
-        if ((s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
+            sizesNow, sizesNow.Length > 0 || plainNow, HdDefault);
+        if (packs is not null && (s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
             GD.Print($"HD textures: the settings were saved with {Word("texture_packs") ?? "no texture pack (or before the packs were noted)"}; now world {I76.Game.Assets.HdTextures.Word(s.WorldTextures)}, cars and dash {I76.Game.Assets.HdTextures.Word(s.CarTextures)} (was {I76.Game.Assets.HdTextures.Word(stored.Item1)}, {I76.Game.Assets.HdTextures.Word(stored.Item2)})");
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
@@ -2031,7 +2033,7 @@ public sealed class ShellSettings
     public void Save()
     {
         var old = new ConfigFile();
-        Write(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null).ToConfig().Save(Path);
+        Write(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null, I76.Game.Assets.HdTextures.PacksFound).ToConfig().Save(Path);
         I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
     }
 
@@ -2043,7 +2045,7 @@ public sealed class ShellSettings
     public const int WrittenVersion = Version > ForkVersion ? Version : ForkVersion;
 
     /// <summary>The file <see cref="Save"/> writes; <paramref name="old"/> is the file on disk (the other game's Play Options stay). Engine-free, for the tests.</summary>
-    public SettingsFile Write(SettingsFile? old)
+    public SettingsFile Write(SettingsFile? old, (int[] Sizes, bool Plain)? packs = null)
     {
         var c = new SettingsFile();
         // [shell] version: WrittenVersion; the fork's steps go under [port] fork_version (13: the sky's drift is Steady unless the file says
@@ -2099,7 +2101,7 @@ public sealed class ShellSettings
         if (!HiFiAudio) c.SetValue("port", "hd_sounds", false);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
-        c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksNow);
+        c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksWord(packs?.Sizes ?? [], packs?.Plain ?? false));
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them

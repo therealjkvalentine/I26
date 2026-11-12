@@ -179,6 +179,96 @@ public class ShellFileCompatTests
         Assert.Null(BuildRules.OldTurrets1997("[rules]\nai_tactics=1997\n"));
     }
 
+    /// <summary>
+    /// A real player's shell.cfg as the fork's main saved it (settings only; [shell] version 14, no fork_version), every key in it
+    /// read back with the file's value, then written back unchanged.
+    /// </summary>
+    internal const string PlayerFile = """
+        [shell]
+
+        version=14
+        graphics=PackedByteArray(5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1)
+        audio=PackedByteArray(8, 8, 8, 8)
+        play=0
+        difficulty=1
+
+        [port]
+
+        vegetation=1
+        draw_distance=1
+        checkpoints=false
+        force_feedback=false
+        lfe_level=100
+        tactile_eq="13:4, 18:4, 20:3.7, 22:1.6, 25:0, 28:-1.3, 31:-2.5, 35:-3.5, 40:-2.5, 45:-1.3, 50:0, 80:0, 90:1.6, 100:3.7"
+        sim_rate=24
+        crash_blur="off"
+        mouse_camera=2
+        mouse_sensitivity=1.0
+        hood_gloss=10
+        max_fps=0
+        vsync=true
+        developer=true
+        dev_fps=true
+        hd_menu_art=true
+        world_textures="4x"
+        car_textures="8x"
+        handicaps="auto"
+        effects_size=80
+        effects_brightness=75
+        effects_opacity=70
+        lighting_calibration="off"
+        mirror_range="full"
+        brake_lamps="original"
+        mg_tracers="original"
+        """;
+
+    [Fact]
+    public void EveryKeyOfAPlayersFileComesBackWithItsValue()
+    {
+        var file = Parse(PlayerFile);
+        var s = ShellSettings.Read(file);
+        Assert.Equal(1, s.Difficulty);
+        Assert.Equal(0, s.PlayOptions);
+        Assert.Equal(new byte[] { 5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1 }, s.Graphics);
+        Assert.Equal(new byte[] { 8, 8, 8, 8 }, s.Audio);
+        Assert.Equal(1, s.Vegetation);
+        Assert.Equal(DrawDistance.Far, s.DrawDistanceChoice);
+        Assert.False(s.Checkpoints);
+        Assert.False(s.ForceFeedback);
+        Assert.Equal(100, s.LfeLevel);
+        Assert.Equal("13:4, 18:4, 20:3.7, 22:1.6, 25:0, 28:-1.3, 31:-2.5, 35:-3.5, 40:-2.5, 45:-1.3, 50:0, 80:0, 90:1.6, 100:3.7", s.TactileEq);
+        Assert.Equal(24, s.SimRate);
+        Assert.Equal(CrashBlurMode.Parse("off"), s.CrashBlur);
+        Assert.NotEqual(CrashBlurMode.On, s.CrashBlur);
+        Assert.Equal(2, s.MouseCamera);
+        Assert.Equal(1f, s.MouseSensitivity);
+        Assert.Equal(I76.Sim.Views.PaintFinish.Parse("10"), s.HoodGloss);
+        Assert.Equal(FrameLimit.Parse(0), s.MaxFps);
+        Assert.True(s.VSync);
+        Assert.True(s.DeveloperTools);
+        Assert.True(s.DevFps);
+        Assert.True(s.HdMenuArt);
+        Assert.Equal((4, 8), (s.WorldTextures, s.CarTextures));
+        Assert.Equal(I76.Sim.Missions.HandicapMode.Auto, s.Handicaps);
+        Assert.Equal((80, 75, 70), (s.EffectsSize, s.EffectsBrightness, s.EffectsOpacity));
+        Assert.False(s.LightingCalibration);
+        Assert.Equal(1, s.MirrorRangeChoice);
+        Assert.Equal(0, s.BrakeLampChoice);
+        Assert.Equal(0, s.MgTracerChoice);
+        // saved again, every key the file had is there with the same value
+        var back = s.Write(file);
+        foreach (var (section, key, value) in file.Entries)
+        {
+            if (section == "shell" && key == "version") continue;   // WrittenVersion, 14 as well
+            Assert.True(back.HasSectionKey(section, key), $"[{section}] {key} not written");
+            var was = new SettingsValue(value);
+            var now = back.GetValue(section, key);
+            if (value is byte[] bytes) Assert.Equal(bytes, (byte[])now);
+            else Assert.True(was.ToString() == now.ToString(), $"[{section}] {key}: {was} written as {now}");
+        }
+        Assert.Equal(14L, back.GetValue("shell", "version").Obj);
+    }
+
     [Fact]
     public void AChosenFieldOfViewIsKeptUnderFovWindow()
     {
