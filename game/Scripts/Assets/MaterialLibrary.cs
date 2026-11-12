@@ -45,16 +45,17 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// texture stepped by <see cref="Animate"/>. One per .tmt and mode, so every object using it flickers together.
     /// </summary>
     public Material ForAnimated(string[] frames, float fps, FaceMode mode, I76.Formats.Imaging.CarMaterial.Paint? car = null,
-        I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool unlit = false)
+        I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool unlit = false, bool selfLit = false,
+        bool retro = false)
     {
-        var key = $"anim|{string.Join(",", frames)}|{mode}|{(car is null ? "" : "car")}" + (bothSides ? "|2" : "") + (unlit ? "|u" : "");
+        var key = $"anim|{string.Join(",", frames)}|{mode}|{(car is null ? "" : "car")}" + (bothSides ? "|2" : "") + (unlit ? "|u" : "") + (selfLit ? "|s" : "") + (retro ? "|r" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
-        if (ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit) is not ShaderMaterial first)
-            return _cache[key] = ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit);
+        if (ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit, selfLit: selfLit, retro: retro) is not ShaderMaterial first)
+            return _cache[key] = ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit, selfLit: selfLit, retro: retro);
         var mat = (ShaderMaterial)first.Duplicate();
         // the frames' keys differ: frame 0's smooth outline is not theirs
         mat.SetShaderParameter("smooth_key", false);
-        var tex = frames.Select(f => textures.Get(f)?.Texture).OfType<Texture2D>().ToArray();
+        var tex = frames.Select(f => TextureOf(f)).OfType<Texture2D>().ToArray();
         if (tex.Length == frames.Length) _animated.Add((mat, tex, fps, mat.GetShaderParameter("albedo_cockpit").VariantType != Variant.Type.Nil));
         return _cache[key] = mat;
     }
@@ -74,7 +75,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
         }
     }
 
-    /// <summary>A texture member's Godot texture (null if it does not load).</summary>
+    /// <summary>
+    /// A texture member's Godot texture (null if it does not load): the keyed texels' colour bled from their neighbours, for every face
+    /// mode. An opaque face draws index 255 in its own colour in the shader (<see cref="DrawsKeyColour"/>, key_under), which follows
+    /// a pack's upscale and a look change as the texture does.
+    /// </summary>
     public Texture2D? TextureOf(string member) => textures.Get(member)?.Texture;
 
     /// <summary>Decodes a pack's upscales of these texture members together, ahead of their materials (TextureFactory.Prefetch).</summary>
@@ -160,6 +165,12 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>Switches every material between the modern and 1997 shader variants.</summary>
     public void SetMode1997(bool on)
     {
+        foreach (var _ in SetMode1997Steps(on)) { }
+    }
+
+    /// <summary><see cref="SetMode1997"/> as steps, a null after every 10 ms or so of shader swaps (a mission loading under its briefing).</summary>
+    public IEnumerable<object?> SetMode1997Steps(bool on)
+    {
         Mode1997 = on;
         textures.SetMode1997(on);
         if (!on)
@@ -167,8 +178,12 @@ public sealed class MaterialLibrary(TextureFactory textures)
             foreach (var (mat, member) in _smoothKeyPending) SmoothKey(mat, member);
             _smoothKeyPending.Clear();
         }
-        foreach (var m in _cache.Values.OfType<ShaderMaterial>())
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var m in _cache.Values.OfType<ShaderMaterial>().ToList())
+        {
             m.Shader = _oneSided1997.TryGetValue(m, out var pair) ? (on ? pair.Faithful : pair.Modern) : Swap(m.Shader, on);
+            if (sw.Elapsed.TotalMilliseconds > 10) { yield return null; sw.Restart(); }
+        }
     }
 
     /// <summary>How a GEO face draws (its draw mode).</summary>
@@ -189,13 +204,15 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <paramref name="oneSided1997"/>: a keyed or translucent face drawn from the front only in the 1997 look, as the
     /// engine draws every face of a scene object (a face whose plane faces away from the eye is left out
     /// before its mode is read); the modern look keeps it both-sided.
+    /// <paramref name="selfLit"/>: the modern look's night shows it shining of its own (FaceLight.SelfLit, object.gdshaderinc: self_lit).
+    /// <paramref name="retro"/>: a road sign's face, which the modern look's night shows retroreflective (RetroLamps, object.gdshaderinc: retro).
     /// </summary>
     public Material ForTexture(string member, FaceMode mode = FaceMode.Cutout, I76.Formats.Imaging.CarMaterial.Paint? car = null,
         I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool oneSided = false, bool bothSides = false,
-        bool unlit = false, bool oneSided1997 = false, string? scheme = null)
+        bool unlit = false, bool oneSided1997 = false, string? scheme = null, bool selfLit = false, bool retro = false)
     {
         var key = (car is null ? $"{member}|{mode}" + (prop == I76.Formats.Imaging.PropMaterial.Family.General ? "" : $"|prop{(int)prop}") : $"{member}|{mode}|car") + (oneSided ? "|1" : "") + (bothSides ? "|2" : "") + (unlit ? "|u" : "")
-            + (oneSided1997 ? "|f" : "") + (car is not null && scheme is not null ? "|p" + scheme : "");
+            + (oneSided1997 ? "|f" : "") + (car is not null && scheme is not null ? "|p" + scheme : "") + (selfLit ? "|s" : "") + (retro ? "|r" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
         var t = textures.Get(member);
         bool keyed = mode != FaceMode.Opaque && t is { HasKey: true };
@@ -228,6 +245,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
         // scenery's full-bright face (a night station's lit parts): as painted at night in the modern look (StationLight); a car's lamps and
         // windows keep the modern look's own lamps and glass
         if (unlit && car is null && mode != FaceMode.Translucent) mat.SetShaderParameter("night_glow", true);
+        if (selfLit) mat.SetShaderParameter("self_lit", true);
+        if (retro) mat.SetShaderParameter("retro", true);
         // the cockpit's own art (z*: panels, wheel, arms, dash) carries its lighting: the engine applies none
         string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
         if (stem.StartsWith('z') || stem.StartsWith('Z'))
@@ -256,10 +275,15 @@ public sealed class MaterialLibrary(TextureFactory textures)
             }
             if (scheme is not null) RegisterPaint(scheme, mat, member);
         }
-        // scenery and props, in the modern look: their own material maps (PropMaterial), no relief. Not the translucent
-        // faces (lamp cones, rotor blades, explosions), which stay as they are
-        else if (car is null && t is not null && mode != FaceMode.Translucent && PropMaps)
-            SetPropMaps(mat, member, t, prop);
+        else
+        {
+            // scenery and props: an opaque face draws index 255 in its own colour too, as the original's unkeyed draws do (its 3D card
+            // keys only the blended primitives; the software renderer likewise)
+            if (t is not null && DrawsKeyColour(mode, t.HasKey)) { mat.SetShaderParameter("key_under", true); mat.SetShaderParameter("key_fill_color", t.KeyColour); }
+            // in the modern look: their own material maps (PropMaterial), no relief. Not the translucent faces (lamp cones, rotor
+            // blades, explosions), which stay as they are
+            if (car is null && t is not null && mode != FaceMode.Translucent && PropMaps) SetPropMaps(mat, member, t, prop);
+        }
         return _cache[key] = mat;
     }
 
@@ -356,7 +380,11 @@ public sealed class MaterialLibrary(TextureFactory textures)
     private readonly Dictionary<string, Task<I76.Formats.Imaging.PropMaterial.Maps>> _propJobs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(ShaderMaterial Mat, string Member)> _propPending = [];
     private bool _propFlushQueued;
-    /// <summary>The library is filled on a thread other than the main one (a build under the briefing): the maps wait for the owner's <see cref="FlushPropMaps"/> on the main thread instead of the end of a frame, which would run in the middle of the build.</summary>
+    /// <summary>
+    /// The library is filled on a thread other than the main one (a mission built under its briefing, Main.BuildUnderBriefing): the
+    /// maps wait for the owner's <see cref="FlushPropMaps"/> on the main thread once the build is over, instead of the end of a
+    /// frame, which would come in the middle of the build.
+    /// </summary>
     public bool HoldFlush { get; set; }
 
     /// <summary>
@@ -738,17 +766,21 @@ public sealed class MaterialLibrary(TextureFactory textures)
 
     /// <summary>A flat-coloured face's material; a prop's (not a car's) weighed as PropMaterial weighs a texel, in the modern look.</summary>
     public Material ForColour(byte r, byte g, byte b, bool prop = false,
-        I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool oneSided = false, bool unlit = false)
+        I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool oneSided = false, bool unlit = false,
+        bool selfLit = false, bool retro = false)
     {
         prop &= PropMaps;
         bothSides &= !oneSided;
-        var key = (prop ? $"#{r:x2}{g:x2}{b:x2}|prop{(int)family}" : $"#{r:x2}{g:x2}{b:x2}") + (bothSides ? "|2" : "") + (oneSided ? "|1" : "") + (unlit ? "|u" : "");
+        var key = (prop ? $"#{r:x2}{g:x2}{b:x2}|prop{(int)family}" : $"#{r:x2}{g:x2}{b:x2}") + (bothSides ? "|2" : "") + (oneSided ? "|1" : "") + (unlit ? "|u" : "")
+            + (selfLit ? "|s" : "") + (retro ? "|r" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
         var mat = new ShaderMaterial { Shader = Pick(bothSides ? Open : Back) };
         if (oneSided) _oneSided.Add(mat);
         mat.SetShaderParameter("albedo_color", Color.Color8(r, g, b));
         // a plain-coloured face the engine draws at full brightness (a night station's pump island): as the textured ones (FaceLight)
         if (unlit) { mat.SetShaderParameter("unlit_1997", true); if (prop) mat.SetShaderParameter("night_glow", true); }
+        if (selfLit) mat.SetShaderParameter("self_lit", true);
+        if (retro) mat.SetShaderParameter("retro", true);
         if (prop)
         {
             var (rough, metal, spec) = I76.Formats.Imaging.PropMaterial.ForColour(r, g, b, family);

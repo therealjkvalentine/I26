@@ -6,8 +6,8 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// The port's patches to a shell background (ShellFrame.Edits) made to an upscale drawn under the frame: with an HD menu pack
-/// the frame is see-through where it is still the background, so the upscale must carry the same patches (the host form's
-/// rules box, Play Options' copied check boxes) or the original's printed rows show through.
+/// the frame is see-through where it is still the background, so the upscale must carry the same patches (Play Options'
+/// copied check boxes) or the original's printed rows show through.
 /// </summary>
 public class HdBackdropEditsTests
 {
@@ -37,21 +37,25 @@ public class HdBackdropEditsTests
         return px;
     }
 
+    /// <summary>The frame's background now (its pixels where nothing is drawn over it).</summary>
+    private static byte[] Clean(ShellFrame f)
+    {
+        f.RestoreAll();
+        return f.Pixels.ToArray();
+    }
+
     [Fact]
     public void TheUpscaleTakesTheSamePatchesAsTheFrame()
     {
         var f = Frame();
-        var hd = Upscale(f.CleanCopy());
-        // as the host form does: a copy taken first, a stretch of paper copied over the box, then patches pasted back from the copy,
-        // one masked to a ring (the check box) and one onto rows the paper copy changed
-        var art = f.CleanCopy();
+        var hd = Upscale(Clean(f));
+        // Play Options' check box onto rows without one, one of them over another copy
+        f.CopyBackground(200, 139, 22, 18, 200, 116);
         f.CopyBackground(20, 100, 50, 30, 10, 356);
-        f.PasteBackground(art, 87, 381, 11, 11, 30, 360, (c, r) => c is 0 or 10 || r is 0 or 10);
-        f.PasteBackground(art, 10, 425, 40, 2, 10, 370);
-        f.CopyBackground(200, 139, 22, 18, 200, 116);   // Play Options' check box onto a row without one
-        Assert.Equal(4, f.Edits.Count);
+        f.CopyBackground(200, 116, 22, 18, 30, 360);
+        Assert.Equal(3, f.Edits.Count);
         ShellBackdrop.Edit(hd, W * S, H * S, (S, 0, S, 0), f.Edits);
-        Assert.Equal(Upscale(f.CleanCopy()), hd);
+        Assert.Equal(Upscale(Clean(f)), hd);
     }
 
     [Fact]
@@ -75,11 +79,11 @@ public class HdBackdropEditsTests
         var f = Frame();
         int iw = W * S + 1280, ih = H * S;
         var hd = new byte[iw * ih * 4];
-        var inner = Upscale(f.CleanCopy());
+        var inner = Upscale(Clean(f));
         for (int y = 0; y < ih; y++) Array.Copy(inner, y * W * S * 4, hd, (y * iw + 640) * 4, W * S * 4);
         f.CopyBackground(200, 139, 22, 18, 200, 116);
         ShellBackdrop.Edit(hd, iw, ih, (S, 640, S, 0), f.Edits);
-        var want = Upscale(f.CleanCopy());
+        var want = Upscale(Clean(f));
         for (int y = 116 * S; y < 134 * S; y++)
             Assert.True(want.AsSpan(y * W * S * 4, W * S * 4).SequenceEqual(hd.AsSpan((y * iw + 640) * 4, W * S * 4)), $"row {y}");
     }

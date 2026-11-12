@@ -1,5 +1,11 @@
+using I76.Formats.Assembly;
+using I76.Formats.Tests;
+using I76.Formats.Vfs;
 using I76.Game.Boot;
 using I76.Game.Shell;
+using I76.Sim.Missions;
+using I76.Sim.Rng;
+using I76.Sim.Session;
 using Xunit;
 using Stage = I76.Game.Boot.CardSequence.Stage;
 
@@ -100,4 +106,48 @@ public class BriefingOverlapTests
     /// <summary>Upstream's card hold (0.7 s up, between its fades).</summary>
     [Fact]
     public void TheHoldIsUpstreams() => Assert.Equal(0.7, BriefingOverlap.CardHold);
+
+    /// <summary>
+    /// The mission read and the simulation set up on a thread of its own (the build under the briefing: a 64 MB stack, while this
+    /// thread does the same) and here make the same game: the same seed hashes the same, tick for tick, for 30 s of T01 with its
+    /// script and a driver.
+    /// </summary>
+    [InstallFact]
+    public void TheGameSetUpOnTheBuildThreadIsTheSame()
+    {
+        var install = new GameInstall(TestInstall.Dir!);
+        string msn = install.FindMission("t01")!;
+        MissionSetup SetUp()
+        {
+            var vfs = new AssetVfs(install);
+            var asm = new ModelAssembler(vfs);
+            var world = new MissionWorld(vfs, asm, msn);
+            var c = world.Centre();
+            return MissionSetup.Build(vfs, world, asm, "", new System.Numerics.Vector3(c.X, c.Y + 60, c.Z), rand: new CrtRand(5), seed: 5);
+        }
+        MissionSetup? threaded = null;
+        var thread = new Thread(() => threaded = SetUp(), 64 << 20);
+        thread.Start();
+        var here = SetUp();
+        thread.Join();
+        Assert.Equal(Hashes(here), Hashes(threaded!));
+    }
+
+    private static List<ulong> Hashes(MissionSetup setup)
+    {
+        var s = new SimSession(setup, SessionOptions.SinglePlayer);
+        s.AddDriver(setup.World.Player!);
+        var hashes = new List<ulong>();
+        for (int t = 0; t < 600; t++)
+        {
+            // throttle, a slow weave, the guns now and then
+            var b = CarButtons.ThrottleUp | ((t / 40) % 2 == 0 ? CarButtons.SteerLeft : CarButtons.SteerRight);
+            if (t % 120 < 30) b |= CarButtons.Fire;
+            var input = new CarInput { Buttons = b };
+            s.Tick([input]);
+            setup.Combat.Events.Clear(); setup.Damage.Events.Clear();
+            hashes.Add(s.StateHash());
+        }
+        return hashes;
+    }
 }

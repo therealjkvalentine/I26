@@ -349,7 +349,8 @@ public class PredictionTests(Xunit.Abstractions.ITestOutputHelper output)
         float speedAtWin = 0;
         for (uint t = 1; t <= 160; t++)
         {
-            if (t == 100) typeof(I76.Sim.Missions.MeleePlayer).GetProperty(nameof(I76.Sim.Missions.MeleePlayer.Score))!.SetValue(seat.Player, 5000);   // a reaches the goal (the loser's car blows up)
+            // won while the car is at speed: full lock on m01 tops out near 13 m/s by tick 40, then the circle bleeds it off
+            if (t == 35) typeof(I76.Sim.Missions.MeleePlayer).GetProperty(nameof(I76.Sim.Missions.MeleePlayer.Score))!.SetValue(seat.Player, 5000);   // a reaches the goal (the loser's car blows up)
             seat.Inputs.Add(new InputMessage(t, [input]));
             other.Inputs.Add(new InputMessage(t, [input]));
             host.Step();
@@ -373,7 +374,7 @@ public class PredictionTests(Xunit.Abstractions.ITestOutputHelper output)
             predictor.Reconcile();
         }
         output.WriteLine($"won on tick {wonAt} at {speedAtWin:0.0} m/s; {seat.Player.Car.Speed:0.0} m/s 60 ticks later; end heard for server tick {client.EndTick}; {predictor.Compared} compared, {predictor.Inexact} not exact {string.Join(" ", missed)}");
-        Assert.Equal(100u, wonAt);
+        Assert.Equal(35u, wonAt);
         Assert.NotNull(client.EndTick);
         Assert.True(speedAtWin > 10, "not under way at the win");
         Assert.True(seat.Player.Car.Speed < 1, "the car did not stop");

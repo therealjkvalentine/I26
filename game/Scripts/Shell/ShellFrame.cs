@@ -23,6 +23,8 @@ public sealed class ShellFrame
 {
     public const int W = 640, H = 480;
     private readonly byte[] _clean = new byte[W * H];
+    /// <summary>The background as loaded, before the port's edits (<see cref="CopyOriginal"/>).</summary>
+    private readonly byte[] _loaded = new byte[W * H];
     private readonly byte[] _work = new byte[W * H];
     public byte[] Palette { get; private set; } = new byte[768];
     private bool _dirty = true, _black;
@@ -38,6 +40,7 @@ public sealed class ShellFrame
         for (int y = 0; y < Math.Min(H, p.Height); y++)
             Array.Copy(p.Pixels, y * p.Width, _clean, y * W, Math.Min(W, p.Width));
         Array.Copy(_clean, _work, _clean.Length);
+        Array.Copy(_clean, _loaded, _clean.Length);
         UnplaceAll();
         Palette = p.Palette;
         Record = record;
@@ -101,6 +104,26 @@ public sealed class ShellFrame
         for (int r = 0; r < h; r++)
             if (sy + r is >= 0 and < H && dy + r is >= 0 and < H && sx >= 0 && dx >= 0 && sx + w <= W && dx + w <= W)
                 Array.Copy(_clean, (sy + r) * W + sx, _clean, (dy + r) * W + dx, w);
+        Restore(dx, dy, w, h);
+    }
+
+    /// <summary>
+    /// <see cref="CopyBackground"/> from the background as it was loaded, before any edit: a printed check box copied onto a line
+    /// while the line it came from may since have been wiped (Play Options' scrolling list).
+    /// </summary>
+    public void CopyOriginal(int sx, int sy, int w, int h, int dx, int dy)
+    {
+        if (sx < 0 || dx < 0 || sx + w > W || dx + w > W) return;
+        bool changed = false;
+        for (int r = 0; r < h && !changed; r++)
+            if (sy + r is >= 0 and < H && dy + r is >= 0 and < H && !_loaded.AsSpan((sy + r) * W + sx, w).SequenceEqual(_clean.AsSpan((dy + r) * W + dx, w)))
+                changed = true;
+        if (!changed) return;
+        _edits.Add(new BackgroundEdit(0, sx, sy, w, h, dx, dy, null));
+        EditsVersion++;
+        for (int r = 0; r < h; r++)
+            if (sy + r is >= 0 and < H && dy + r is >= 0 and < H)
+                Array.Copy(_loaded, (sy + r) * W + sx, _clean, (dy + r) * W + dx, w);
         Restore(dx, dy, w, h);
     }
 
@@ -382,6 +405,8 @@ public sealed class ShellFrame
         public string? Caption;
         /// <summary>A picture in its own colours drawn into the box (the port's: the host form's printed labels and arena sketch).</summary>
         public Texture2D? Picture;
+        /// <summary>The caption is a button label in the art's bold sans (<see cref="Label"/>), not the handwriting.</summary>
+        public bool Label;
         public Rect2I Box;
         public byte Ink;
         /// <summary>The cell's pixels on the frame, and how many are still the glyph's.</summary>
@@ -461,6 +486,38 @@ public sealed class ShellFrame
 
     /// <summary>Whether strings and pictures go to the text layer (the modern look) rather than into the pixels.</summary>
     public bool Modern => HdFonts is not null;
+
+    /// <summary>
+    /// A button label in the art's own lettering (antialiased Arial Bold, ShellGlyphs): in the modern look its ink fitted to
+    /// <paramref name="box"/>, recorded for the text layer and drawn at the window's resolution; in the 1997 look printed at
+    /// <paramref name="px"/> pixels, hinted, as the art's own were, centred in the box and blended into the frame (each pixel the
+    /// palette's nearest to its coverage of ink over what is under it). False without the face (nothing drawn).
+    /// </summary>
+    public bool Label(Rect2I box, string text, byte ink, int px)
+    {
+        if (HdFonts is not null)
+        {
+            if (ShellGlyphs.LabelAspect(text) is null) return false;
+            Claim(new HdGlyph { Caption = text, Label = true, Box = box, Ink = ink });
+            return true;
+        }
+        if (ShellGlyphs.LabelPixels(text, px) is not { } r) return false;
+        var pal = Palette;
+        var inkC = new Vector3(pal[ink * 3], pal[ink * 3 + 1], pal[ink * 3 + 2]);
+        int x0 = box.Position.X + (box.Size.X - r.W) / 2, y0 = box.Position.Y + (box.Size.Y - r.H + 1) / 2;
+        for (int y = 0; y < r.H; y++)
+            for (int x = 0; x < r.W; x++)
+            {
+                int a = r.A[y * r.W + x], fx = x0 + x, fy = y0 + y;
+                if (a < 16 || fx < 0 || fx >= W || fy < 0 || fy >= H) continue;
+                int i = fy * W + fx, c = _work[i] * 3;
+                var under = new Vector3(pal[c], pal[c + 1], pal[c + 2]);
+                var mix = under.Lerp(inkC, a / 255f);
+                Put(i, Nearest(Color.Color8((byte)mix.X, (byte)mix.Y, (byte)mix.Z)));
+            }
+        _dirty = true;
+        return true;
+    }
 
     private void Claim(HdGlyph g)
     {

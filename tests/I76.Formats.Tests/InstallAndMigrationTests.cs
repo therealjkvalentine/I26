@@ -39,7 +39,7 @@ public sealed class InstallAndMigrationTests : IDisposable
         Assert.Equal(nitro, games.Single(g => g.Game == GogGame.Nitro).InstallDir);
     }
 
-    [Fact]
+    [UnixFact]
     public void App_folder_is_the_one_holding_the_mac_bundle()
     {
         // the paths as this system spells them (on Windows "/Users/p" is C:\Users\p): the code goes through Path, as it should

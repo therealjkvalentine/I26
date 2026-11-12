@@ -87,7 +87,11 @@ public class RoadPieceTypeTests(ITestOutputHelper log)
         Assert.True(bridge.Parts.Count > 1);
     }
 
-    /// <summary>The stock maps' pieces (miss16\, not a player's addon levels) are all painted as before: every road-piece placement a flat piece, its one node its whole model.</summary>
+    /// <summary>
+    /// The stock maps' pieces are all painted as before: every road-piece placement a flat piece, its one node its whole model.
+    /// The stock maps are miss16\'s: neither GOG install ships a mission in addon\, so a level there is the player's (a played
+    /// install with a pack of community levels in it counted hundreds more pieces).
+    /// </summary>
     [InstallFact]
     public void EveryStockPieceIsStillPainted()
     {
@@ -99,10 +103,8 @@ public class RoadPieceTypeTests(ITestOutputHelper log)
             var asm = new ModelAssembler(vfs);
             var models = new Dictionary<string, AssembledModel?>(StringComparer.OrdinalIgnoreCase);
             int pieces = 0, painted = 0, maps = 0;
-            // Only the stock missions: neither GOG install ships a mission file in addon\, so an addon level there is the
-            // player's (this desktop's lab installs hold the co-op pack's auto*/coop*.lvl, 247 more pieces), not stock.
-            if (install.MissionDir is not { } d) continue;
-            foreach (var f in Directory.EnumerateFiles(d).Where(GameInstall.IsMissionFile).Order())
+            Assert.NotNull(install.MissionDir);
+            foreach (var f in Directory.EnumerateFiles(install.MissionDir!).Where(GameInstall.IsMissionFile).Order())
             {
                 MissionWorld w;
                 try { w = new MissionWorld(vfs, asm, f); } catch (FileNotFoundException) { continue; }

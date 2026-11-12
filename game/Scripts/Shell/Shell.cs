@@ -77,6 +77,8 @@ public sealed record NetLaunch(int Mode)
     public I76.Sim.Missions.HandicapMode Handicaps { get; init; }
     /// <summary>Hosting: the chase crosshair may show for the players who have it on (the form's Chase Crosshair; off).</summary>
     public bool Crosshair { get; init; }
+    /// <summary>Hosting: the turrets turn as the 1997 CD build's (the form's Turrets; off: the 1998 build's).</summary>
+    public bool Turrets1997 { get; init; }
     /// <summary>Hosting: the form's Bots, players the server drives (up to the free seats), and how well.</summary>
     public int Bots { get; init; }
     public I76.Sim.Missions.BotSkill BotSkill { get; init; } = I76.Sim.Missions.BotSkill.Normal;
@@ -258,7 +260,7 @@ public partial class Shell : CanvasLayer
     /// <summary>A voice record played async (callback 0x2c), replacing any voice still playing.</summary>
     public void Voice(int record)
     {
-        if (I76.Formats.Audio.SoundFiles.Parse(Db.Wave(record)) is not { } pcm || Assets.AudioBank.ToStream(pcm) is not { } s) return;
+        if (WaveStream(record) is not { } s) return;
         _voice.Stream = s;
         _voice.Play();
     }
@@ -318,7 +320,7 @@ public partial class Shell : CanvasLayer
     }
     private ImageTexture? _tex;
     private ShellScreen? _screen, _overlay, _modal;
-    private readonly Dictionary<int, AudioStreamWav?> _sounds = [];
+    private readonly Dictionary<(int Record, bool HiFi), AudioStream?> _sounds = [];
     private AudioStreamPlayer _sfx = null!, _music = null!;
 
     public override void _Ready()
@@ -689,7 +691,13 @@ public partial class Shell : CanvasLayer
     }
 
     /// <summary>Quit to the desktop (0xc002, the original front end's main loop returns 0xff).</summary>
-    public void Quit() { Trip.Save(); GetTree().Quit(); }
+    public void Quit() { Trip.Save(); I76.Game.Boot.EngineThreads.QuitWhenDone(GetTree()); }
+
+    /// <summary>A database wave record as a stream: its samples, or HiFi Audio's in their place (<see cref="I76.Formats.Audio.AudioPack.ShellName"/>).</summary>
+    private AudioStream? WaveStream(int record) =>
+        I76.Formats.Audio.SoundFiles.Parse(Db.Wave(record)) is { } pcm
+            ? Assets.HiFiAudio.Load(I76.Formats.Audio.AudioPack.ShellName(record), Install.IsNitro, false, pcm.Seconds) ?? Assets.AudioBank.ToStream(pcm)
+            : null;
 
     /// <summary>Options' "Switch Game" (offered when the start showed the game chooser): back to the chooser in this window, then the other game (<see cref="I76.Game.Boot.GameSwitch"/>).</summary>
     public void SwitchGame() { Trip.Save(); I76.Game.Boot.GameSwitch.ToChooser(GetTree()); }
@@ -697,8 +705,8 @@ public partial class Shell : CanvasLayer
     /// <summary>A sound record (72–82), fire and forget (the original blocks until a click has played).</summary>
     public void Sound(int record)
     {
-        if (!_sounds.TryGetValue(record, out var s))
-            _sounds[record] = s = I76.Formats.Audio.SoundFiles.Parse(Db.Wave(record)) is { } pcm ? Assets.AudioBank.ToStream(pcm) : null;
+        var key = (record, Assets.HiFiAudio.Enabled);
+        if (!_sounds.TryGetValue(key, out var s)) _sounds[key] = s = WaveStream(record);
         if (s is null) return;
         _sfx.Stream = s;
         _sfx.Play();
@@ -744,8 +752,15 @@ public partial class Shell : CanvasLayer
     /// <summary>Ends a carried menu track (the mission's music, a briefing, or the shell coming back has taken over).</summary>
     public static void DropCarriedMusic(SceneTree tree) => tree.Root.GetNodeOrNull(CarriedMusicName)?.QueueFree();
 
+    /// <summary>Real time (ms) since the player last moved the mouse, clicked, or pressed a key or a pad button (or a capture script acted).</summary>
+    public ulong SinceInput => Time.GetTicksMsec() - _lastInput;
+    private ulong _lastInput;
+
     public override void _Input(InputEvent e)
     {
+        if (e is InputEventMouseButton or InputEventMouseMotion { Relative: not { X: 0, Y: 0 } } or InputEventKey or InputEventJoypadButton
+            || e is InputEventJoypadMotion jm && Math.Abs(jm.AxisValue) > 0.5f)
+            _lastInput = Time.GetTicksMsec();
         if (e is InputEventMouse m)
         {
             Mouse = ToShell(m.Position);
@@ -836,6 +851,7 @@ public partial class Shell : CanvasLayer
         _frame++;
         foreach (var (f, kind, arg) in _script.Where(e => e.Frame == _frame))
         {
+            _lastInput = Time.GetTicksMsec();
             GD.Print($"shell: script {kind}:{arg}@{f} on {Current?.GetType().Name}");
             if (kind is "move" or "click" or "rclick" && arg.Split(',') is [var x, var y]) Mouse = new Vector2I(int.Parse(x), int.Parse(y));
             if (kind == "click") _clickPending = true;
@@ -1217,6 +1233,8 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
+    /// <summary>The port's own: HiFi Audio's sounds and movie tracks in place of the original's (Audio Control, shown only when a pack is installed); on unless the player turned it off. Stored as [port] hd_sounds, its first name.</summary>
+    public bool HiFiAudio { get; set; } = true;
     /// <summary>
     /// The port's own: the size the texture pack's world textures (the ground, buildings, props, sky) are drawn at in the modern look,
     /// 0 for the install's own (1997) or 4 (Graphic Detail's World Textures; the user folder's tex-world-4x), or another whole multiple
@@ -1329,6 +1347,12 @@ public sealed class ShellSettings
     public bool ChaseCrosshair { get; set; }
     /// <summary>The port's own: the modern look draws the cockpit's gunsight ring as vector geometry at the window's resolution (shell.cfg [port] crosshair_drawn; on; false keeps the game's sprite).</summary>
     public bool CrosshairDrawn { get; set; } = true;
+    /// <summary>
+    /// The port's own: the turrets turn as the 1997 CD build's, 1.5 rad/s times their health ratio, rather than the 1998 build's (GOG's
+    /// and the Nitro Pack's) 1.7 times 0.75 + 0.25 of it (Play Options' Turrets; shell.cfg [port] turret_slew = 1997, written only then).
+    /// Offline only: a network game's is the host's (<see cref="HostTurrets1997"/>).
+    /// </summary>
+    public bool Turrets1997 { get; set; }
     /// <summary>The port's own: the mouse wheel cycles weapons instead of zooming the external views (shell.cfg [port] wheel_cycle_weapon; off).</summary>
     public bool WheelCycleWeapon { get; set; }
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
@@ -1377,6 +1401,13 @@ public sealed class ShellSettings
     public I76.Sim.Missions.HandicapMode Handicaps { get; set; }
     /// <summary>The port's own: a hosted game allows the chase crosshair (the host form's Chase Crosshair; shell.cfg [port] host_crosshair, written only when on).</summary>
     public bool HostCrosshair { get; set; }
+    /// <summary>The port's own: a hosted game's turrets turn as the 1997 CD build's (the host form's Turrets; shell.cfg [port] host_turret_slew = 1997, written only then).</summary>
+    public bool HostTurrets1997 { get; set; }
+    /// <summary>
+    /// The port's own: the host form's Bot Skill is Difficulty (the bots drive at the host's Difficulty Level), not one of melee.cfg's
+    /// Easy, Normal or Hard ([port] host_bot_skill_difficulty, written only when on: melee.cfg's bot_skill stays a value upstream reads).
+    /// </summary>
+    public bool HostBotSkillDifficulty { get; set; }
     /// <summary>The port's own: CB Voice (Play Options; shell.cfg [port] cb_voice, written only when off): push-to-talk voice in network games. Off neither sends nor plays it.</summary>
     public bool CbVoice { get; set; } = true;
     /// <summary>
@@ -1424,16 +1455,16 @@ public sealed class ShellSettings
     public bool CoopOwnCar { get; set; } = true;
     /// <summary>
     /// The port's own: a hosted co-op game's Extra Enemies (the host form's; Co-op Scaling in docs/deviations.md; shell.cfg [port] coop_scale,
-    /// written only when not the cap): each enemy car gets a copy per player past the first, up to this many. The cap by default: every
-    /// extra player brings one more of each enemy; 0 is the mission as written.
+    /// written only when on, as upstream writes it): each enemy car gets a copy per player past the first, up to this many. Off by default
+    /// (upstream's: a co-op game starts as the mission is written); the cap is one more of each enemy per extra player.
     /// </summary>
-    public int CoopScale { get; set; } = I76.Sim.Missions.CoopSetup.MaxExtraEnemies;
+    public int CoopScale { get; set; }
     /// <summary>The port's own: a hosted co-op game's Damage Taken (the host form's; Co-op Damage in docs/deviations.md; shell.cfg [port] coop_damage, written only when not 1): the players' cars take this times the damage.</summary>
     public float CoopDamage { get; set; } = 1f;
     /// <summary>
     /// The port's own: a hosted co-op game's Rolling Start (docs/deviations.md "Co-op Rolling Start"): a respawn or a joiner beside a
     /// teammate driving along comes in at the teammate's speed. On by default; no row on any form (docs/playing.md "Settings without a
-    /// row"): shell.cfg [port] coop_rolling_start, written only when off.
+    /// row"): shell.cfg [port] coop_rolling_start, always written (upstream's build reads an absent key as off).
     /// </summary>
     public bool CoopRollingStart { get; set; } = true;
     /// <summary>
@@ -1515,16 +1546,32 @@ public sealed class ShellSettings
         !string.Equals((word ?? earlier)?.Trim(), "off", StringComparison.OrdinalIgnoreCase);
     /// <summary>
     /// The port's own: the modern look draws a dim cabin and a driver behind the other cars' windows (a shader's box behind the glass, not
-    /// a model). No row (Car Interiors' until round 5): a key, shell.cfg [port] cabins_behind_glass, written only when off (its earlier
-    /// name car_interiors still read). Off: the windows are plain reflective glass.
+    /// a model). No row (Car Interiors' until round 5): a key, upstream's shell.cfg [port] car_interiors, written only when off (the fork's
+    /// own name for it, cabins_behind_glass, still read). Off: the windows are plain reflective glass.
     /// </summary>
     public bool CabinsBehindGlass { get; set; } = true;
     /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Mouse Options' Camera Return); off, it stays where it was left.</summary>
     public bool CameraReturn { get; set; } = true;
     /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Mouse Options' View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
     public bool ZoomReset { get; set; } = true;
-    /// <summary>The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>; shell.cfg [port] fov, degrees across the window, written only when not Monitor).</summary>
+    /// <summary>
+    /// The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>, Monitor
+    /// or degrees across the window; shell.cfg [port] fov_window, written only when not Monitor). [port] fov is upstream's key, degrees across
+    /// a 4:3 view (90 the original's): written beside it in that meaning (ViewFov.ToFourByThree, the nearest height in the window
+    /// now) and read when fov_window is absent
+    /// (<see cref="FovFromFile"/>), so a shell.cfg both builds read is not misread by either.
+    /// </summary>
     public int FieldOfView { get; set; }
+
+    /// <summary>
+    /// The choice for a file's fov keys: fov_window when present; else fov, which a file of the fork's from before fov_window (its
+    /// settings steps 12 to 14, <paramref name="forkFov"/>) wrote in the fork's meaning, and anything else in upstream's (degrees
+    /// across 4:3: ViewFov.ParseFourByThree, 90 and absent Monitor).
+    /// </summary>
+    public static int FovFromFile(int? fovWindow, int? fov, bool forkFov) =>
+        fovWindow is { } w ? I76.Sim.Views.ViewFov.Parse(w)
+        : forkFov ? I76.Sim.Views.ViewFov.Parse(fov)
+        : I76.Sim.Views.ViewFov.ParseFourByThree(fov);
     /// <summary>The port's own: Ctrl+T "show all names" in a network or co-op game starts on, as the player left it (shell.cfg [port] net_names, written only when off). The original's table started off.</summary>
     public bool NetNames { get; set; } = true;
     /// <summary>The port's own: the map editor plays the game's soundtrack while you edit (the editor's MUSIC button; shell.cfg [port] editor_music, written only when off).</summary>
@@ -1654,6 +1701,8 @@ public sealed class ShellSettings
             dm.UnlimitedChassis = (PlayOptions & 0x10) != 0;
         }
         c.Difficulty = c.NetworkGame ? 1 : Math.Clamp(Difficulty, 0, 2);
+        // Turrets: a network game's is the host's (the server's build, a client's join accept)
+        if (!c.NetSession && !c.RemoteSim) c.TurretSlew1997 = Turrets1997;
     }
 
     /// <summary>
@@ -1667,8 +1716,24 @@ public sealed class ShellSettings
         if (g[0x2] == 0) g[0x2] = DefaultGraphics[0x2];
     }
 
-    /// <summary>The version <see cref="Save"/> writes.</summary>
-    public const int Version = 14;
+    /// <summary>
+    /// The [shell] version <see cref="Save"/> writes: upstream's (its steps 1 to 11 are the same in both builds). The fork's own steps
+    /// (12: the Far 0.11.0 wrote on every save is no choice; 13: the sky's drift Steady, Rumble folded into Force Feedback; 14: Terrain
+    /// Detail High) are counted under [port] fork_version (<see cref="ForkVersion"/>), so a step upstream numbers 12 later cannot clash.
+    /// </summary>
+    public const int Version = 11;
+    /// <summary>The [port] fork_version <see cref="Save"/> writes: the fork's steps, numbered on from upstream's.</summary>
+    public const int ForkVersion = 14;
+
+    /// <summary>
+    /// The steps a file has had, for <see cref="Load"/>: [port] fork_version when present; else a [shell] version above upstream's
+    /// (the fork wrote 12 to 14 there before the key); else the file's [shell] version (upstream's own, or an older one of ours),
+    /// whose steps after it are still due. Engine-free, for the tests.
+    /// </summary>
+    public static int StepsDone(int shellVersion, int? forkVersion) => forkVersion ?? shellVersion;
+
+    /// <summary>Whether the file's [port] fov is the fork's (degrees across the window): a file of the fork's from before fov_window, which wrote [shell] version 12 to 14 and no fork_version.</summary>
+    public static bool ForkFovKey(int shellVersion, int? forkVersion) => forkVersion is null && shellVersion > Version;
 
     /// <summary>
     /// A file's graphics block onto <paramref name="into"/> (a fresh block's defaults), with the steps for its version; a block that is not
@@ -1697,7 +1762,9 @@ public sealed class ShellSettings
             I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
             return s;
         }
-        int version = (int)c.GetValue("shell", "version", 1);
+        int shellVersion = (int)c.GetValue("shell", "version", 1);
+        int? forkVersion = c.HasSectionKey("port", "fork_version") ? (int)c.GetValue("port", "fork_version") : null;
+        int version = StepsDone(shellVersion, forkVersion);
         ReadGraphics(s.Graphics, (byte[])c.GetValue("shell", "graphics", s.Graphics), version);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
@@ -1801,6 +1868,10 @@ public sealed class ShellSettings
             : hcp.VariantType == Variant.Type.String && (string)hcp == "auto" ? I76.Sim.Missions.HandicapMode.Auto
             : hcp.VariantType == Variant.Type.String && (string)hcp == "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
         s.HostCrosshair = (bool)c.GetValue("port", "host_crosshair", false);
+        // no version step: absent, the 1998 build's turrets (upstream's keys; build-rules.cfg's turret_slew is no longer read)
+        s.Turrets1997 = (int)c.GetValue("port", "turret_slew", 1998) == 1997;
+        s.HostTurrets1997 = (int)c.GetValue("port", "host_turret_slew", 1998) == 1997;
+        s.HostBotSkillDifficulty = (bool)c.GetValue("port", "host_bot_skill_difficulty", false);
         s.CbVoice = (bool)c.GetValue("port", "cb_voice", true);
         s.EquipmentTips = (bool)c.GetValue("port", "equipment_tips", true);
         // no version step: absent (never chosen, or the old implicit default) is none; a saved device stays
@@ -1818,8 +1889,9 @@ public sealed class ShellSettings
         s.OpenTrackPath = (string)c.GetValue("port", "opentrack_path", "");
         s.OpenTrackAuto = (bool)c.GetValue("port", "opentrack_auto", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
-        // no version step: absent, the cap (one more of each enemy car per extra player)
-        s.CoopScale = Math.Clamp((int)c.GetValue("port", "coop_scale", I76.Sim.Missions.CoopSetup.MaxExtraEnemies), 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies);
+        // no version step: absent, off (upstream's default; the fork's earlier default, the cap, was left out of the file, so an
+        // untouched one moves to off with the default, as a chosen one is kept)
+        s.CoopScale = Math.Clamp((int)c.GetValue("port", "coop_scale", 0), 0, I76.Sim.Missions.CoopSetup.MaxExtraEnemies);
         // no version step: absent, the original's damage
         s.CoopDamage = (float)(double)c.GetValue("port", "coop_damage", 1.0) is var cd && System.Array.IndexOf(I76.Sim.Missions.CoopSetup.DamageFactors, cd) >= 0 ? cd : 1f;
         // no version step: absent, on (a fresh car beside a moving teammate goes at its speed)
@@ -1844,13 +1916,13 @@ public sealed class ShellSettings
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
-        // cabins_behind_glass, else its earlier name car_interiors (read, never written)
+        // the fork's cabins_behind_glass where a file of ours has it, else upstream's car_interiors (the key written)
         s.CabinsBehindGlass = (bool)c.GetValue("port", "cabins_behind_glass", c.GetValue("port", "car_interiors", true)) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
         s.ZoomReset = (bool)c.GetValue("port", "zoom_reset", true);
-        // no version step: absent, Monitor (the original's height, which is what a file without the key meant before; a value from
-        // then, degrees across 4:3, is read as degrees across the window)
-        s.FieldOfView = I76.Sim.Views.ViewFov.Parse((int)c.GetValue("port", "fov", 0));
+        // fov_window, else fov in the meaning of the build that wrote it (FovFromFile); absent, Monitor
+        s.FieldOfView = FovFromFile(c.HasSectionKey("port", "fov_window") ? (int)c.GetValue("port", "fov_window") : null,
+            c.HasSectionKey("port", "fov") ? (int)c.GetValue("port", "fov") : null, ForkFovKey(shellVersion, forkVersion));
         s.NetNames = (bool)c.GetValue("port", "net_names", true);
         s.EditorMusic = (bool)c.GetValue("port", "editor_music", true);
         // the settings without a row (docs/playing.md). No version step: absent, the original's (the look's for the three that follow it),
@@ -1898,7 +1970,10 @@ public sealed class ShellSettings
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
         s.MenuFps = (bool)c.GetValue("port", "menu_fps", true);
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
+        // no version step: absent, a pack's audio plays
+        s.HiFiAudio = (bool)c.GetValue("port", "hd_sounds", true);
         HdAssets.Enabled = s.HdMenuArt;
+        I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
         I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         return s;
@@ -1921,9 +1996,11 @@ public sealed class ShellSettings
     public void Save()
     {
         var c = new ConfigFile();
-        // version 13: the sky's drift is Steady unless the file says original, and the Rumble row is folded into Force Feedback (the keys are the same);
-        // version 14: Terrain Detail starts High (Shadow Detail did too, until it went back to Low with no step: a saved byte is kept)
+        // [shell] version is upstream's; the fork's steps go under [port] fork_version (13: the sky's drift is Steady unless the file says
+        // original, and the Rumble row is folded into Force Feedback (the keys are the same); 14: Terrain Detail starts High (Shadow Detail
+        // did too, until it went back to Low with no step: a saved byte is kept))
         c.SetValue("shell", "version", Version);
+        c.SetValue("port", "fork_version", ForkVersion);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
         c.SetValue("port", "checkpoints", Checkpoints);
@@ -1969,6 +2046,7 @@ public sealed class ShellSettings
         if (DevFps) c.SetValue("port", "dev_fps", true);
         if (!MenuFps) c.SetValue("port", "menu_fps", false);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
+        if (!HiFiAudio) c.SetValue("port", "hd_sounds", false);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
         c.SetValue("shell", "graphics", Graphics);
@@ -1995,6 +2073,9 @@ public sealed class ShellSettings
         if (!CbRadio) c.SetValue("port", "cb_radio", false);
         if (Handicaps != I76.Sim.Missions.HandicapMode.Off) c.SetValue("port", "handicaps", Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "auto" : "manual");
         if (HostCrosshair) c.SetValue("port", "host_crosshair", true);
+        if (Turrets1997) c.SetValue("port", "turret_slew", 1997);
+        if (HostTurrets1997) c.SetValue("port", "host_turret_slew", 1997);
+        if (HostBotSkillDifficulty) c.SetValue("port", "host_bot_skill_difficulty", true);
         if (!CbVoice) c.SetValue("port", "cb_voice", false);
         if (!EquipmentTips) c.SetValue("port", "equipment_tips", false);
         if (CbMic.Length > 0) c.SetValue("port", "cb_mic", CbMic);
@@ -2009,9 +2090,10 @@ public sealed class ShellSettings
         if (OpenTrackPath.Length > 0) c.SetValue("port", "opentrack_path", OpenTrackPath);
         if (OpenTrackAuto) c.SetValue("port", "opentrack_auto", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
-        if (CoopScale != I76.Sim.Missions.CoopSetup.MaxExtraEnemies) c.SetValue("port", "coop_scale", CoopScale);
+        if (CoopScale != 0) c.SetValue("port", "coop_scale", CoopScale);
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
-        if (!CoopRollingStart) c.SetValue("port", "coop_rolling_start", false);
+        // always: upstream reads an absent key as off, the fork as on
+        c.SetValue("port", "coop_rolling_start", CoopRollingStart);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
         if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);
@@ -2026,10 +2108,11 @@ public sealed class ShellSettings
         if (LoadProgress) c.SetValue("port", "load_progress", LoadProgressName(true));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
-        if (!CabinsBehindGlass) c.SetValue("port", "cabins_behind_glass", false);
+        if (!CabinsBehindGlass) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
-        if (FieldOfView != 0) c.SetValue("port", "fov", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);
+        if (FieldOfView != I76.Sim.Views.ViewFov.Monitor) c.SetValue("port", "fov_window", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);
+        c.SetValue("port", "fov", I76.Sim.Views.ViewFov.ToFourByThree(FieldOfView, I76.Sim.Views.ViewFov.Aspect));
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);

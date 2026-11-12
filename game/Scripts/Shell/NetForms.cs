@@ -17,11 +17,13 @@ namespace I76.Game.Shell;
 /// its port (if not anet's 21157) the one to host on.</item>
 /// <item>7 JOIN → IPX: the games a LAN search finds, asked again every
 /// second.</item>
-/// <item>8 JOIN → INTERNET: the address book first; the I26 games the anet
-/// server at that address lists, and a game at the address itself, asked
-/// every second.</item>
+/// <item>8 JOIN → INTERNET: straight to the roster, which searches every
+/// entry of the address book at once (<see cref="ServerBrowser"/>): the I26
+/// games each anet server lists and a game at an entry's own address, asked
+/// every second, under a header row per entry. SERVERS (the port's) opens the
+/// address book to add, edit and delete entries.</item>
 /// </list>
-/// The host form (record 19; the base game's drawn by the port, HostForm.cs)
+/// The host form (record 19; the base game's: the original's art with the port's options box, HostFormLayout)
 /// adds GAME NAME, NO. DRIVERS, TEAM PLAY, INVITE ONLY and MAX SCORE to the
 /// area list; its BROADCAST GAME launches a listen
 /// server and joins it. The roster (record 18) lists the games found as
@@ -63,6 +65,23 @@ public sealed partial class MeleeScreen
     /// </summary>
     private int _bots;
     private I76.Sim.Missions.BotSkill _botSkill = I76.Sim.Missions.BotSkill.Normal;
+    /// <summary>
+    /// Bot Skill's fourth value (the port's): the bots drive at the host's Play Options Difficulty Level (Wimp easy, Champion
+    /// normal, Badass hard), read when the game is broadcast. Kept in shell.cfg (host_bot_skill_difficulty), so melee.cfg's
+    /// bot_skill stays a value upstream's build reads.
+    /// </summary>
+    private bool _botSkillDifficulty;
+    /// <summary>Bot Skill as the form shows it.</summary>
+    private string BotSkillWord => _botSkillDifficulty ? "Difficulty" : _botSkill.ToString();
+    /// <summary>The skill the bots play at.</summary>
+    private I76.Sim.Missions.BotSkill BotSkillPlayed => _botSkillDifficulty ? I76.Sim.Missions.MeleeGame.SkillOfDifficulty(Shell.Settings.Difficulty) : _botSkill;
+    /// <summary>Bot Skill stepped: Easy, Normal, Hard, Difficulty.</summary>
+    private void StepBotSkill(int d)
+    {
+        int i = ((_botSkillDifficulty ? 3 : (int)_botSkill) + d + 4) % 4;
+        _botSkillDifficulty = i == 3;
+        if (i < 3) _botSkill = (I76.Sim.Missions.BotSkill)i;
+    }
     /// <summary>The host form's A.I. CARS (<see cref="BotCarsPopup"/>): the car file of each bot seat, empty for Random. Kept in melee.cfg.</summary>
     private List<string> _botCars = [];
     private int MaxBots => Coop ? 0 : Math.Max(0, _drivers - 1);
@@ -121,17 +140,25 @@ public sealed partial class MeleeScreen
     /// <summary>A join was refused for its password: that game asks for one the next time, whatever its listing said.</summary>
     public static void NoteLocked(string address, ulong anetId) => KnownLocked.Add(anetId != 0 ? $"anet:{anetId}" : address);
 
-    // the roster: the games found, the highlighted one, and where mode 8 asks
+    // the roster: the games found (mode 7's LAN search, mode 8's search of the whole address book), the highlighted one
     private SessionBrowser? _browser;
+    private ServerBrowser? _servers;
     private List<SessionBrowser.Found> _games = [];
+    /// <summary>Mode 8's groups, one per address book entry, as last drawn.</summary>
+    private IReadOnlyList<ServerGroup> _groups = [];
+    /// <summary>
+    /// The list's rows: a game (its index in <see cref="_games"/>) or, in mode 8, an entry's header row (Game −1, not
+    /// joinable): the entry's name and its state, its games under it.
+    /// </summary>
+    private List<(int Group, int Game)> _rows = [];
     private int _game;
     private ulong _gameId;
+    /// <summary>The entry the highlighted game was listed under (a game two servers list is under both).</summary>
+    private string? _gameFrom;
     private int _seen = -1;
     private double _askIn;
-    private (string Host, int Port)? _address;
-    // mode 8: the anet server whose list the roster shows; mode 4: the one the game is listed on
-    private (string Host, int Port)? _anet;
-    private string? _listOn, _serverStatus;
+    // mode 4: the anet server the game is listed on
+    private string? _listOn;
 
     /// <summary>How many games the roster lists (the capture script waits on it).</summary>
     public int GamesFound => _games.Count;
@@ -159,21 +186,45 @@ public sealed partial class MeleeScreen
             _bots = _setup.Bots;
             _botCars = [.. _setup.BotCars];
             _botSkill = (I76.Sim.Missions.BotSkill)Math.Clamp(_setup.BotSkill, 0, 2);
+            _botSkillDifficulty = Shell.Settings.HostBotSkillDifficulty;
             _rate = _setup.HostRate > 0 ? _setup.HostRate : I76.Sim.Session.SimRate.FromLabel(Shell.Settings.SimRate).Label;
         }
     }
 
-    /// <summary>After the entry's first paint: the notice, then the address book in the internet modes.</summary>
+    /// <summary>After the entry's first paint: the notice, then the address book for HOST → INTERNET (JOIN → INTERNET searches the whole book).</summary>
     private void NetShown()
     {
         void Book()
         {
-            if (Mode is not (4 or 8)) return;
+            if (Mode != 4) return;
             Shell.Modal(new AddressBookPopup { Font = _font, Picked = OnAddress });
         }
         if (Notice is { Length: > 0 } n) Say(n, Book);
         else Book();
     }
+
+    /// <summary>The address book's entries as the roster searches them.</summary>
+    private static List<ServerSource> BookSources() => [.. AddressBook.Load().Entries.Select(e => ServerSource.Parse(e.Name, e.Address))];
+
+    /// <summary>
+    /// The roster's SERVERS (the port's): the address book over the form, to add, edit and delete entries. DONE or CANCEL
+    /// closes it, the book saved either way; the roster then searches the book as it is, and DONE on an entry scrolls to it.
+    /// </summary>
+    private void OpenServers() =>
+        Shell.Modal(new AddressBookPopup
+        {
+            Font = _font,
+            Picked = e =>
+            {
+                _servers?.Watch(BookSources());
+                _askIn = 0;
+                PollGames(draw: false);
+                int gi = e is null ? -1 : _groups.ToList().FindIndex(g => g.Source.Name == e.Name && g.Source.Address == e.Address);
+                int at = _rows.FindIndex(r => r.Group == gi && r.Game < 0);
+                if (gi >= 0 && at >= 0) _scroll = Math.Clamp(at, 0, Math.Max(0, _rows.Count - ListRows));
+                Draw();
+            },
+        });
 
     /// <summary>Back from the chassis form: the search starts again by itself (PollGames).</summary>
     private void NetResume() { }
@@ -183,95 +234,79 @@ public sealed partial class MeleeScreen
         Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = text, Closed = () => { Draw(); then?.Invoke(); } });
 
     /// <summary>
-    /// The address book's DONE: nothing picked goes back to
-    /// the main menu; hosting takes the entry's port, joining its address.
+    /// HOST → INTERNET's address book DONE: nothing picked goes back to the main menu; else the entry's host is the anet
+    /// server the game is listed on, and its port the one to host on.
     /// </summary>
     private void OnAddress(AddressBook.Entry? e)
     {
         if (e is null) { StopGames(); Shell.Go(new MainMenuScreen()); return; }
         bool ok = Discovery.TryParseAddress(e.Address, out var host, out var port);
-        bool anetPort = !I76.Net.Anet.AnetClient.HasPort(e.Address) || port == I76.Net.Anet.AnetWire.ServerPort;
-        if (Mode == 4)
-        {
-            // "server" lists the game there and hosts on the default port; "server:7680" hosts on 7680; ":7680" is only the port
-            _port = port > 0 && port != I76.Net.Anet.AnetWire.ServerPort ? port : Protocol.DefaultPort;
-            _listOn = ok ? host : null;
-            Draw();
-            return;
-        }
-        _address = ok && !(anetPort && I76.Net.Anet.AnetClient.HasPort(e.Address)) ? (host, port) : null;
-        _anet = ok && anetPort ? (host, I76.Net.Anet.AnetWire.ServerPort) : null;
-        _games = [];
-        _seen = -1;
-        StopGames();
+        // "server" lists the game there and hosts on the default port; "server:7680" hosts on 7680; ":7680" is only the port
+        _port = port > 0 && port != I76.Net.Anet.AnetWire.ServerPort ? port : Protocol.DefaultPort;
+        _listOn = ok ? host : null;
         Draw();
-        if (!ok) Say($"\"{AddressBookPopup.Fit(_font, e.Address, 150)}\" is no address.");
-        else if (_address is null && _anet is null) Say($"\"{AddressBookPopup.Fit(_font, e.Address, 150)}\" is no address.");
     }
-
-    /// <summary>
-    /// The internet roster's CONNECT TO SERVER (the port's, #122): the address book again; a server picked lists its games here,
-    /// CANCEL keeps the list as it was (the book's CANCEL on entry still goes back to the main menu).
-    /// </summary>
-    private void OtherServer() =>
-        Shell.Modal(new AddressBookPopup { Font = _font, Picked = e => { if (e is null) Draw(); else OnAddress(e); } });
-
-    /// <summary>
-    /// The CONNECT TO SERVER button under the games' list (the port's): CONFIGURE CHASSIS's edges and a plain column of it stretched,
-    /// with its words in the shell's label font, as the host form's game type button is made.
-    /// </summary>
-    private void DrawServerButton()
-    {
-        const int sx = 457, sy = 421, sw = 162, edge = 3;
-        var (x0, x1, y0, y1) = Hot[38];
-        int w = x1 - x0 + 1, h = y1 - y0 + 1;
-        if (!_serverBtnBaked)
-        {
-            _serverBtnBaked = true;
-            for (int tx = 0; tx < w; tx++)
-                Frame.CopyBackground(sx + (tx < edge ? tx : tx >= w - edge ? sw - (w - tx) : edge), sy, 1, h, x0 + tx, y0);
-        }
-        var f = Shell.Db.Font(0x47);
-        const string t = "CONNECT TO SERVER";
-        var ink = ShellFrame.DefaultInk;
-        int tx0 = x0 + (w - f.Measure(t)) / 2, ty0 = y0 + (h - f.Height) / 2 + 1;
-        Frame.Text(f, tx0, ty0, t, ink);
-        Frame.Text(f, tx0 + 1, ty0, t, ink);
-    }
-
-    private bool _serverBtnBaked;
 
     /// <summary>The roster's search: asked every second, the answers taken every frame, the list redrawn when it changes.</summary>
     private void PollGames(bool draw = true)
     {
-        if (Mode == 8 && _address is null && _anet is null) return;
-        _browser ??= new SessionBrowser { Nitro = Nitro };
-        _browser.Poll();
-        if ((_askIn -= Shell.Delta) <= 0)
+        int version;
+        if (Mode == 8)
         {
-            _askIn = 1;
-            if (Mode == 7) _browser.SearchLan();
-            else
+            if (_servers is null) { _servers = new ServerBrowser { Nitro = Nitro }; _servers.Watch(BookSources()); }
+            _servers.Poll();
+            if ((_askIn -= Shell.Delta) <= 0) { _askIn = 1; _servers.Refresh(); }
+            version = _servers.Version;
+        }
+        else
+        {
+            _browser ??= new SessionBrowser { Nitro = Nitro };
+            _browser.Poll();
+            if ((_askIn -= Shell.Delta) <= 0) { _askIn = 1; _browser.SearchLan(); }
+            version = _browser.Version;
+        }
+        if (version == _seen) return;
+        _seen = version;
+        _games = [];
+        _rows = [];
+        if (_servers is { } sv)
+        {
+            _groups = sv.Groups;
+            for (int g = 0; g < _groups.Count; g++)
             {
-                if (_address is { } a) _browser.Ask(a.Host, a.Port);
-                if (_anet is { } s) _browser.List(s.Host, s.Port);
+                _rows.Add((g, -1));
+                foreach (var f in _groups[g].Games) { _rows.Add((g, _games.Count)); _games.Add(f); }
             }
         }
-        if (_browser.Version == _seen && _browser.ServerStatus == _serverStatus) return;
-        _seen = _browser.Version;
-        _serverStatus = _browser.ServerStatus;
-        _games = [.. _browser.Sessions];
-        int keep = _games.FindIndex(g => g.Info.Id == _gameId);
-        _game = keep >= 0 ? keep : 0;
-        if (_games.Count > 0) _gameId = _games[_game].Info.Id;
-        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _games.Count - ListRows));
+        else foreach (var f in _browser!.Sessions) { _rows.Add((-1, _games.Count)); _games.Add(f); }
+        // the highlighted game stays highlighted: under the entry it was picked under, else wherever it is now, else the first
+        int keep = _rows.FindIndex(r => r.Game >= 0 && _games[r.Game].Info.Id == _gameId && From(r.Group) == _gameFrom);
+        if (keep < 0) keep = _rows.FindIndex(r => r.Game >= 0 && _games[r.Game].Info.Id == _gameId);
+        if (keep < 0) keep = _rows.FindIndex(r => r.Game >= 0);
+        if (keep >= 0) Highlight(keep);
+        else _game = 0;
+        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _rows.Count - ListRows));
         if (draw) Draw();   // (under a game's popup the form is drawn again when it closes)
+    }
+
+    /// <summary>An entry of the book as the highlight remembers it (null on the LAN).</summary>
+    private string? From(int group) => group >= 0 && group < _groups.Count ? $"{_groups[group].Source.Name}\n{_groups[group].Source.Address}" : null;
+
+    /// <summary>The game on list row <paramref name="row"/> becomes the highlighted one.</summary>
+    private void Highlight(int row)
+    {
+        var (g, game) = _rows[row];
+        _game = game;
+        _gameId = _games[game].Info.Id;
+        _gameFrom = From(g);
     }
 
     private void StopGames()
     {
         _browser?.Dispose();
         _browser = null;
+        _servers?.Dispose();
+        _servers = null;
         _seen = -1;
         _askIn = 0;
     }
@@ -283,22 +318,28 @@ public sealed partial class MeleeScreen
     {
         // Nitro's art has the list lower (the box and its first row where the host form's are) and the up arrow on the first row
         int top = Nitro ? 130 : 109, nx = Nitro ? 34 : 14;
+        if (Mode == 8) DrawServersButton();
         if (_games.Count == 0)
         {
-            // while an anet server is still being reached, or is not answering, that is what the box says
-            string none = _serverStatus is { } st && !st.StartsWith("Listing") ? st : "No games found";
+            // the box says why there is nothing: no entries, every entry still being reached, or no games anywhere
+            string none = Mode != 8 ? "No games found" : _groups.Count == 0 ? "No servers in the book"
+                : _groups.All(g => g.State == ServerState.Connecting) ? "Contacting servers..." : "No games found";
             Frame.Text(_font, 34, top, AddressBookPopup.Fit(_font, none, 176));
-            return;
         }
-        _game = Math.Clamp(_game, 0, _games.Count - 1);
-        var hi = _games[_game];
-        string ping = (hi.Info.RateHz > 0 ? $"  {hi.Info.RateHz} Hz" : "") + (hi.Ping >= 0 ? $"  {hi.Ping} ms" : "");
-        Frame.Text(_font, 34, top, AddressBookPopup.Fit(_font, RowName(hi.Info), 176 - 8 * ping.Length) + ping);
-        var arrow = Shell.Db.Bank(0x24)[14];
-        for (int k = 0; k < ListRows && _scroll + k < _games.Count; k++)
+        else
         {
-            var g = _games[_scroll + k].Info;
+            _game = Math.Clamp(_game, 0, _games.Count - 1);
+            var hi = _games[_game];
+            string ping = (hi.Info.RateHz > 0 ? $"  {hi.Info.RateHz} Hz" : "") + (hi.Ping >= 0 ? $"  {hi.Ping} ms" : "");
+            Frame.Text(_font, 34, top, AddressBookPopup.Fit(_font, RowName(hi.Info), 176 - 8 * ping.Length) + ping);
+        }
+        var arrow = Shell.Db.Bank(0x24)[14];
+        for (int k = 0; k < ListRows && _scroll + k < _rows.Count; k++)
+        {
             int y = (Nitro ? 171 : 149) + Row * k;
+            var (group, game) = _rows[_scroll + k];
+            if (game < 0) { DrawServerRow(_groups[group], nx, y); continue; }
+            var g = _games[game].Info;
             string tag = TypeTag(g);
             int lockW = g.Locked ? 12 : 0, tagW = tag.Length > 0 ? _font.Measure(tag) : 0;
             // "(players/seats)" is right-aligned to the arrow: "(64/64)" is wider than the original's "(8/8)", and the name gives way
@@ -343,6 +384,50 @@ public sealed partial class MeleeScreen
         return lines;
     }
 
+    /// <summary>
+    /// An entry's header row on the internet roster (not joinable): its name in the form's label face, the art's own
+    /// headings' (LOCAL DRIVER, GAME NAME), and its state in the handwriting right-aligned to where the arrow column starts
+    /// (x 204), where a game row's "(3/8)" ends, so it never reaches the list's edge.
+    /// </summary>
+    private void DrawServerRow(ServerGroup g, int x, int y)
+    {
+        var label = Shell.Db.Font(0x47);
+        string status = g.Status;
+        int sw = _font.Measure(status), sx = 203 - sw;
+        string name = AddressBookPopup.Fit(label, (g.Source.Name.Trim() is { Length: > 0 } n ? n : g.Source.Address).ToUpperInvariant(), sx - 8 - x);
+        int ly = y + Math.Max(0, (_font.Height - label.Height) / 2);
+        Frame.Text(label, x, ly, name, ShellFrame.DefaultInk);
+        Frame.Text(_font, sx, y, status);
+    }
+
+    /// <summary>SERVERS' place (the port's, hotspot 39): under the list, on the line of JOIN GAME and CANCEL.</summary>
+    private static (int X0, int X1, int Y0, int Y1) ServersButton => Hot[39];
+
+    /// <summary>
+    /// SERVERS: the art's CANCEL button (record 18; ArtButtons) drawn again under the list without its word, and SERVERS
+    /// lettered as the art letters CANCEL; the art has no such button.
+    /// </summary>
+    private (Pcx Art, Rect2I Border, ArtButtons.ArtLabel Word)? _cancelArt;
+
+    private void DrawServersButton()
+    {
+        if (_cancelArt is null)
+        {
+            var bg = Shell.Db.Background(18);
+            byte Px(int x, int y) => bg.Pixels[Math.Clamp(y, 0, bg.Height - 1) * bg.Width + Math.Clamp(x, 0, bg.Width - 1)];
+            var c = Hot[15];
+            if (ArtButtons.Label(Px, bg.Palette, new Rect2I(c.X0 - 4, c.Y0 - 4, c.X1 - c.X0 + 8, c.Y1 - c.Y0 + 8)) is not { } border
+                || ArtButtons.Label(Px, bg.Palette, border.Box.Grow(-3)) is not { } word) return;
+            _cancelArt = (bg, border.Box, word);
+        }
+        var (art, b, word0) = _cancelArt.Value;
+        byte P(int x, int y) => art.Pixels[Math.Clamp(y, 0, art.Height - 1) * art.Width + Math.Clamp(x, 0, art.Width - 1)];
+        // the same place against the hotspot as CANCEL's border against its own
+        var dest = new Rect2I(ServersButton.X0 + b.Position.X - Hot[15].X0, b.Position.Y, b.Size.X, b.Size.Y);
+        ArtButtons.Face(Frame, P, b, word0.Box.Position.X, dest, 4);
+        ArtButtons.Letter(Frame, Shell.Db.Font(0x47), "SERVERS", word0, "CANCEL", dest);
+    }
+
     /// <summary>A small padlock (7 x 11) in the form's ink: a game with a password.</summary>
     private void DrawLock(int x, int y)
     {
@@ -361,7 +446,7 @@ public sealed partial class MeleeScreen
     // Its lines: BOTS, the switches as check boxes of TEAM PLAY's own, MAX SCORE, then the host's rules as labelled rows, printed
     // labels and handwritten values on ruled blanks (upstream's labelled row for every rule, 56373bd, in this form's own paper
     // and lines); the co-op form's box has only what a story mission has a use for (HostFormLayout.Fields: Extra Enemies, Damage
-    // Taken, the check boxes, Sim Rate, Password) on its first lines and closes under them. The car panel keeps the original's front view. The boxes,
+    // Taken, the check boxes, Sim Rate, Turrets, Password) on its first lines and closes under them. The car panel keeps the original's front view. The boxes,
     // steppers, rules and the A.I. CARS button are pieces of the record's own art; the labels are set in Arial. The free line
     // every setting has a tooltip (HostFormHelp).
 
@@ -390,7 +475,7 @@ public sealed partial class MeleeScreen
         ScoreOn = _scoreOn,
         MaxScore = _maxScore,
         Bots = Math.Min(_bots, MaxBots),
-        BotSkill = _botSkill.ToString(),
+        BotSkill = BotSkillWord,
         Rate = _rate,
         Turrets = _turrets,
         IgnitionStaysOn = Shell.Settings.IgnitionStaysOn,
@@ -399,6 +484,7 @@ public sealed partial class MeleeScreen
         Crosshair = Shell.Settings.HostCrosshair,
         CoopScale = CoopScaleText,
         CoopDamage = CoopDamageText,
+        Turrets1997 = Shell.Settings.HostTurrets1997,
     };
 
     /// <summary>A ruled blank from x0 to x1 under a baseline: the art's own rule (MAX SCORE's), laid in pieces.</summary>
@@ -495,7 +581,7 @@ public sealed partial class MeleeScreen
             int b = row[HostFormLayout.BotsRow], s = row[HostFormLayout.ScoreRow];
             Label(15, b, "BOTS");
             Value(63, b, $"{Math.Min(_bots, MaxBots):00}", 40);
-            Value(98, b, _botSkill.ToString(), 70);
+            Value(98, b, BotSkillWord, 70);
             PrintedType.Draw(Frame, Shell.Db, 192, b - 2, "A.I. CARS", ButtonCap, ButtonInk, bold: true, centre: true);
             Label(HostFormLayout.LabelA, s, "MAX SCORE");
             if (_scoreOn) Frame.Text(hand, HostFormLayout.CheckA, s - 10, "X", ink);
@@ -629,7 +715,7 @@ public sealed partial class MeleeScreen
 
     /// <summary>
     /// The host form's Extra Enemies (the port's Co-op Scaling; docs/deviations.md): the most extra copies of each enemy car, one per
-    /// player past the first (0 off; the cap, "+1/player", by default).
+    /// player past the first (0 off, the default; the cap, "+1/player").
     /// </summary>
     private void StepCoopScale(int d)
     {
@@ -649,7 +735,7 @@ public sealed partial class MeleeScreen
         Shell.Settings.Save();
     }
 
-    private string CoopDamageText => $"x{Shell.Settings.CoopDamage.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}";
+    private string CoopDamageText => FactorText(Shell.Settings.CoopDamage);
 
     /// <summary>
     /// The host form's Handicaps (the port's; docs/multiplayer.md "Handicaps"), stepped: Off, Manual (the host sets the levels from the
@@ -667,6 +753,15 @@ public sealed partial class MeleeScreen
     private void ToggleCrosshair()
     {
         Shell.Settings.HostCrosshair = !Shell.Settings.HostCrosshair;
+        Shell.Settings.Save();
+    }
+
+    private static string FactorText(float f) => $"x{f.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}";
+
+    /// <summary>The host form's Turrets (the port's): the game's turrets turn as the 1997 CD build's or the 1998 build's (GOG's and the Nitro Pack's, the default).</summary>
+    private void ToggleTurrets1997()
+    {
+        Shell.Settings.HostTurrets1997 = !Shell.Settings.HostTurrets1997;
         Shell.Settings.Save();
     }
 
@@ -859,9 +954,11 @@ public sealed partial class MeleeScreen
     private void OptionsPopup()
     {
         _turretsWas = _turrets;
+        _botSkillDifficultyWas = _botSkillDifficulty;
         _ignitionWas = Shell.Settings.IgnitionStaysOn;
         _coopScaleWas = Shell.Settings.CoopScale;
         _coopDamageWas = Shell.Settings.CoopDamage;
+        _turrets1997Was = Shell.Settings.HostTurrets1997;
         var was = (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill, Shell.Settings.ShareMaps, Shell.Settings.HiddenContent, Shell.Settings.CarReset, Shell.Settings.CbRadio, Shell.Settings.HostCrosshair);
         int wasRate = _rate;
         _handicapsWas = Shell.Settings.Handicaps;
@@ -869,7 +966,7 @@ public sealed partial class MeleeScreen
         OptionsPopupWith(was, wasRate, wasCars);
     }
 
-    private bool _turretsWas, _ignitionWas;
+    private bool _turretsWas, _ignitionWas, _turrets1997Was, _botSkillDifficultyWas;
     private I76.Sim.Missions.HandicapMode _handicapsWas;
     private int _coopScaleWas;
     private float _coopDamageWas;
@@ -886,6 +983,7 @@ public sealed partial class MeleeScreen
                 if (!done)
                 {
                     (_teamPlay, _limit, _limitAt, _inviteOnly, _bots, _botSkill) = (was.Item1, was.Item2, was.Item3, was.Item4, was.Item5, was.Item6);
+                    _botSkillDifficulty = _botSkillDifficultyWas;
                     _rate = wasRate;
                     SetTurrets(_turretsWas);
                     _botCars = wasCars;
@@ -898,6 +996,7 @@ public sealed partial class MeleeScreen
                     if (Shell.Settings.CoopDamage != _coopDamageWas) { Shell.Settings.CoopDamage = _coopDamageWas; Shell.Settings.Save(); }
                     if (Shell.Settings.Handicaps != _handicapsWas) { Shell.Settings.Handicaps = _handicapsWas; Shell.Settings.Save(); }
                     if (Shell.Settings.HostCrosshair != was.Item11) ToggleCrosshair();
+                    if (Shell.Settings.HostTurrets1997 != _turrets1997Was) ToggleTurrets1997();
                 }
                 Draw();
             },
@@ -928,6 +1027,9 @@ public sealed partial class MeleeScreen
     /// <summary>Modern Physics is not a game option: the server runs the original's model for everyone (docs/multiplayer.md), shown as a box that is ticked and cannot be changed.</summary>
     private static readonly OptionRow PhysicsRow = new("ORIGINAL PHYSICS", false, true, "", _ => { }, Locked: true);
 
+    /// <summary>GAME OPTIONS' TURRETS: the build whose turret slew the game plays (the popup's value line is short: 1998 or 1997 CD).</summary>
+    private OptionRow TurretsRow => new("TURRETS:", true, false, HostFormLayout.TurretsShort(Shell.Settings.HostTurrets1997), _ => ToggleTurrets1997());
+
     private IReadOnlyList<OptionRow> OptionRows()
     {
         // a co-op game: no team play, limit or Bots, and none of a melee's fairness rules (turrets, the ignition lock, handicaps,
@@ -943,6 +1045,8 @@ public sealed partial class MeleeScreen
                 new("HIDDEN WPNS & CARS", false, Shell.Settings.HiddenContent, "", _ => ToggleHidden()),
                 new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()),
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
+                // the port's: the build whose turret slew the game plays, a host rule in co-op too (it changes the game)
+                TurretsRow,
                 new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
                 PhysicsRow,
             ];
@@ -977,9 +1081,13 @@ public sealed partial class MeleeScreen
         rows.Add(new("HANDICAPS:", true, false, HandicapWord(Shell.Settings.Handicaps), StepHandicaps));
         // the port's: the chase crosshair, an aiming aid the original does not have, the host's decision (off by default)
         rows.Add(new("CHASE CROSSHAIR", false, Shell.Settings.HostCrosshair, "", _ => ToggleCrosshair()));
+        // the port's: nobody switches their engine off, so no car hides from turrets that way (#108; off by default)
+        rows.Add(new("IGNITION STAYS ON", false, Shell.Settings.IgnitionStaysOn, "", _ => ToggleIgnition()));
+        // the port's: the turrets turn as the 1997 CD build's or the 1998 build's (the default)
+        rows.Add(TurretsRow);
         // the port's: players the server drives (docs/multiplayer.md "Bots"), up to the free seats, and how well
         rows.Add(new("BOTS:", true, false, $"{Math.Min(_bots, MaxBots):00}", d => _bots = Math.Clamp(Math.Min(_bots, MaxBots) + d, 0, MaxBots)));
-        rows.Add(new("BOT SKILL:", true, false, _botSkill.ToString(), d => _botSkill = (I76.Sim.Missions.BotSkill)(((int)_botSkill + d + 3) % 3)));
+        rows.Add(new("BOT SKILL:", true, false, BotSkillWord, StepBotSkill));
         rows.Add(new("A.I. CARS:", false, false, BotCarsText(), _ => { }, Link: true, Locked: MaxBots == 0 || _bots == 0));
         // the port's: the game's simulation rate, which everyone in it plays at, and the physics, which is the original's for everyone
         rows.Add(new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)));
@@ -994,7 +1102,6 @@ public sealed partial class MeleeScreen
         {
             case 6 when Hosting: Broadcast(); return true;
             case 6: JoinGame(); return true;
-            case 38 when Mode == 8: OtherServer(); return true;
             case 8 when Hosting: _drivers = Math.Max(1, _drivers - 1); _bots = Math.Min(_bots, MaxBots); return true;
             case 9 when Hosting: _drivers = Math.Min(MaxSeats, _drivers + 1); return true;
             case 32 when Hosting: SetCoopBase(!_coopBase); return true;
@@ -1002,7 +1109,7 @@ public sealed partial class MeleeScreen
             case 30 when Hosting: _bots = Math.Min(MaxBots, _bots + 1); return true;
             case 33 when Hosting: _rate = StepRate(_rate, 1); return true;
             case 34 when Hosting: BotCarsOpen(null); return true;
-            case 31 when Hosting: _botSkill = (I76.Sim.Missions.BotSkill)(((int)_botSkill + 1) % 3); return true;
+            case 31 when Hosting: StepBotSkill(1); return true;
             case 11 when Hosting:
             {
                 int row = _scroll + (p.Y - 151) / Row;
@@ -1013,18 +1120,20 @@ public sealed partial class MeleeScreen
             }
             case 11:
             {
-                // a row picks the game; its arrow (x from 207) shows the game's popup
+                // a row picks the game; its arrow (x from 207) shows the game's popup; an entry's header row does neither
                 int row = _scroll + (p.Y - (Nitro ? 173 : 151)) / Row;
-                if (row < 0 || row >= _games.Count) return true;
-                if (p.X < 207) { _game = row; _gameId = _games[row].Info.Id; }
+                if (row < 0 || row >= _rows.Count || _rows[row].Game < 0) return true;
+                var g = _games[_rows[row].Game];
+                if (p.X < 207) Highlight(row);
                 else Shell.Modal(new SessionPopup
                 {
-                    Info = _games[row].Info, Type = TypeOf(_games[row]), Data = _data, Font = _font, Closed = Draw, Rules = RulesText(_games[row].Info),
-                    Live = LiveInfo(_games[row].Info.Id),
-                    RuleRows = Nitro ? RuleRows(_games[row].Info) : null,
+                    Info = g.Info, Type = TypeOf(g), Data = _data, Font = _font, Closed = Draw, Rules = RulesText(g.Info),
+                    Live = LiveInfo(g.Info.Id),
+                    RuleRows = Nitro ? RuleRows(g.Info) : null,
                 });
                 return true;
             }
+            case 39 when Mode == 8: OpenServers(); return true;
             case 23: TypePopup(); return true;
             case 25: OptionsPopup(); return true;
             case 16: _teamPlay = !_teamPlay; return true;
@@ -1036,12 +1145,14 @@ public sealed partial class MeleeScreen
             case 26: Shell.Settings.ShareMaps = !Shell.Settings.ShareMaps; Shell.Settings.Save(); return true;
             case 28 when Hosting: ToggleHidden(); return true;
             case 36 when Hosting: ToggleCarReset(); return true;
-            case 39 when Hosting: ToggleIgnition(); return true;
             case 37 when Hosting: ToggleCb(); return true;
-            case 40 when Hosting: StepCoopScale(1); return true;
-            case 41 when Hosting: StepCoopDamage(1); return true;
-            case 43 when Hosting: StepHandicaps(1); return true;
             case 38 when Hosting: ToggleCrosshair(); return true;
+            // upstream's ids for the rules both have (42, Rolling Start, has no row: on unless shell.cfg turns it off); 45 the port's Handicaps
+            case 40 when Hosting: StepCoopDamage(1); return true;
+            case 41 when Hosting: StepCoopScale(1); return true;
+            case 43 when Hosting: ToggleIgnition(); return true;
+            case 44 when Hosting: ToggleTurrets1997(); return true;
+            case 45 when Hosting: StepHandicaps(1); return true;
             case 35 when Hosting: SetTurrets(!_turrets); return true;
             case 27 when Hosting: AskPassword(null, _password, pw => _password = pw ?? _password); return true;
             case 24 when Hosting && Nitro: OpenRestrictions(); return true;
@@ -1086,10 +1197,12 @@ public sealed partial class MeleeScreen
                     Kind = Nitro && !Coop ? Types[_kind].Kind : null, Goal = NitroGoal.Goal, GoalValue = NitroGoal.Value, Minutes = NitroGoal.Minutes, CtfTeams = Types[_kind].Teams,
                     // a co-op game is not a contest: no turret limit, no ignition lock, no handicaps, and the crosshair is each player's own
                     Restrictions = Nitro ? _restrictions : WeaponRestrictions.None, Hidden = Shell.Settings.HiddenContent, Turrets = Coop || _turrets, CarReset = Shell.Settings.CarReset, Cb = Shell.Settings.CbRadio, IgnitionStaysOn = !Coop && Shell.Settings.IgnitionStaysOn, Crosshair = Coop || Shell.Settings.HostCrosshair,
-                    Bots = Math.Min(_bots, MaxBots), BotSkill = _botSkill, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
+                    Bots = Math.Min(_bots, MaxBots), BotSkill = BotSkillPlayed, BotCars = [.. _botCars.Take(Math.Min(_bots, MaxBots))], Rate = _rate,
                     Coop = Coop, StoryCar = Coop && Shell.Settings.CoopOwnCar, CoopScale = Coop ? Shell.Settings.CoopScale : 0, CoopDamage = Coop ? Shell.Settings.CoopDamage : 1f,
                     CoopRollingStart = Coop && Shell.Settings.CoopRollingStart,
                     Handicaps = Coop ? I76.Sim.Missions.HandicapMode.Off : Shell.Settings.Handicaps,
+                    // the build whose turret slew the game plays: the host's, melee or co-op (upstream's host option)
+                    Turrets1997 = Shell.Settings.HostTurrets1997,
                 },
             });
         }
@@ -1110,6 +1223,10 @@ public sealed partial class MeleeScreen
         if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) parts.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
         if (BuildId.Differs(g.Build, BuildId.Current)) parts.Add($"Build {BuildId.Shown(g.Build)}, not yours ({BuildId.Current})");
         if (g.Crosshair && !g.Coop) parts.Add("Chase crosshair allowed");
+        if (g.Turrets1997) parts.Add("Turrets as on the 1997 CD");
+        if (g.Coop && g.CoopDamage != 1f) parts.Add($"Damage taken {FactorText(g.CoopDamage)}");
+        if (g.Coop && g.CoopScale > 0) parts.Add($"Extra enemies {HostFormLayout.CoopScaleWord(g.CoopScale)}");
+        if (g.Coop && g.RollingStart) parts.Add("Rolling start");
         return parts.Count > 0 ? string.Join(". ", parts) : null;
     }
 
@@ -1132,6 +1249,10 @@ public sealed partial class MeleeScreen
         if (g.Handicaps != I76.Sim.Missions.HandicapMode.Off) rows.Add(g.Handicaps == I76.Sim.Missions.HandicapMode.Auto ? "Auto handicaps" : "Handicaps on");
         if (BuildId.Differs(g.Build, BuildId.Current)) rows.Add($"Build {BuildId.Shown(g.Build)}");
         if (g.Crosshair && !g.Coop) rows.Add("Crosshair allowed");
+        if (g.Turrets1997) rows.Add("1997 CD turrets");
+        if (g.Coop && g.CoopDamage != 1f) rows.Add($"Damage taken {FactorText(g.CoopDamage)}");
+        if (g.Coop && g.CoopScale > 0) rows.Add($"Extra enemies {HostFormLayout.CoopScaleWord(g.CoopScale)}");
+        if (g.Coop && g.RollingStart) rows.Add("Rolling start");
         return rows;
     }
 
@@ -1305,6 +1426,25 @@ public sealed class SessionPopup : ShellScreen
 
     private int _scroll, _rulesScroll;
     private const int Rows = 8, RuleRowsShown = 4;
+    // the base popup's rules line: the rules a page at a time when they do not fit on it, the next every RulesPageMs
+    private int _rulesPage, _rulesPages = 1;
+    private long _rulesPageAt = System.Environment.TickCount64;
+    private const int RulesPageMs = 3000;
+
+    /// <summary>The rules ("A. B. C") as lines of at most <paramref name="width"/> pixels, whole rules to a line (one too long alone is fitted).</summary>
+    public static List<string> RulePages(string rules, int width, Func<string, int> measure)
+    {
+        var pages = new List<string>();
+        string line = "";
+        foreach (var part in rules.Split(". ", StringSplitOptions.RemoveEmptyEntries))
+        {
+            string next = line.Length == 0 ? part : line + ". " + part;
+            if (line.Length > 0 && measure(next) > width) { pages.Add(line); line = part; }
+            else line = next;
+        }
+        if (line.Length > 0) pages.Add(line);
+        return pages;
+    }
 
     public override void Enter()
     {
@@ -1354,7 +1494,13 @@ public sealed class SessionPopup : ShellScreen
         }
         bool paged = Info.Drivers.Count > Rows;
         int foot = NitroLayout ? Y + 322 : Y + 238;
-        if (!NitroLayout && Rules is { } r) Frame.Text(Font, X + 18, foot, AddressBookPopup.Fit(Font, r, paged ? 330 : 510));
+        if (!NitroLayout && Rules is { } r)
+        {
+            int width = paged ? 330 : 510;
+            var pages = RulePages(r, width, Font.Measure);
+            _rulesPages = Math.Max(1, pages.Count);
+            Frame.Text(Font, X + 18, foot, AddressBookPopup.Fit(Font, pages.Count > 0 ? pages[_rulesPage % _rulesPages] : "", width));
+        }
         // Nitro's art has no place for the rate: the foot's middle (the base popup's is the rules line)
         if (NitroLayout && Info.RateHz > 0) Frame.Text(Font, X + 210, foot, $"Sim rate {Info.RateHz} Hz");
         if (paged) Frame.Text(Font, X + (NitroLayout ? 18 : 380), foot, $"{_scroll + 1}-{Math.Min(_scroll + Rows, Info.Drivers.Count)} of {Info.Drivers.Count}");
@@ -1395,6 +1541,12 @@ public sealed class SessionPopup : ShellScreen
         {
             Info = now;
             _scroll = Math.Clamp(_scroll, 0, Math.Max(0, Info.Drivers.Count - Rows));
+            Draw();
+        }
+        if (_rulesPages > 1 && System.Environment.TickCount64 - _rulesPageAt >= RulesPageMs)
+        {
+            _rulesPage = (_rulesPage + 1) % _rulesPages;
+            _rulesPageAt = System.Environment.TickCount64;
             Draw();
         }
         if (Shell.Wheel != 0) Scroll(Shell.WheelRows);
@@ -1507,10 +1659,13 @@ public sealed class AddressBook
 /// bank 36 sprite 29 at (184,38) with its shadow. The list shows three
 /// entries 57 px apart from y 223, each its name and, a line below, its
 /// address; a click picks one, shown in the NAME and IP boxes, which edit it
-/// in place. NEW adds an empty entry and edits its name and then its address.
-/// DONE uses the one picked (none: back to the main menu, as CANCEL); the
-/// book is saved either way. The DRIVER box is drawn greyed in the art and
-/// does nothing.
+/// in place. NEW adds an empty entry and edits its name and then its address;
+/// DELETE removes the one picked (the Nitro Pack's art has the button; the
+/// base game's has DONE, NEW and CANCEL only, and the port redraws that row
+/// as four). DONE gives the one picked, CANCEL none, to the caller: HOST →
+/// INTERNET lists its game on it (none: back to the main menu), the internet
+/// roster's SERVERS searches the book again. The book is saved either way.
+/// The DRIVER box is drawn greyed in the art and does nothing.
 /// </summary>
 public sealed class AddressBookPopup : ShellScreen
 {
@@ -1523,9 +1678,19 @@ public sealed class AddressBookPopup : ShellScreen
     // id → x0, x1, y0, y1, relative to the popup
     private static readonly Dictionary<int, (int X0, int X1, int Y0, int Y1)> BaseHot = new()
     {
-        [0] = (52, 68, 167, 181), [1] = (52, 68, 340, 353), [2] = (48, 220, 183, 338), [3] = (193, 262, 371, 386),
-        [4] = (54, 227, 104, 123), [5] = (54, 227, 125, 144), [6] = (101, 169, 371, 387), [7] = (9, 78, 371, 387),
+        [0] = (52, 68, 167, 181), [1] = (52, 68, 340, 353), [2] = (48, 220, 183, 338),
+        [4] = (54, 227, 104, 123), [5] = (54, 227, 125, 144),
+        // the art's DONE (9..78), NEW (101..169) and CANCEL (193..262) redrawn narrower with DELETE (8) among them: BaseButtons
+        [7] = (8, 64, 371, 387), [6] = (74, 130, 371, 387), [8] = (140, 196, 371, 387), [3] = (206, 262, 371, 387),
     };
+    /// <summary>The base art's own buttons (their hotspots as the art has them), whose words are cut out for the redrawn row.</summary>
+    private static readonly Dictionary<string, (int X0, int X1, int Y0, int Y1)> ArtWords = new()
+    {
+        ["DONE"] = (9, 78, 371, 387), ["NEW"] = (101, 169, 371, 387), ["CANCEL"] = (193, 262, 371, 387),
+    };
+    /// <summary>The redrawn row: each button's word and the left of its border; all are <see cref="ButtonW"/> wide.</summary>
+    private static readonly (string Word, int X0)[] BaseButtons = [("DONE", 8), ("NEW", 74), ("DELETE", 140), ("CANCEL", 206)];
+    private const int ButtonW = 57;
     // the Nitro Pack's redrawn popup (bank 36's sprite 28): no DRIVER box, so NAME and IP sit higher; four entries in the list;
     // NEW and DONE over DELETE and CANCEL. Placed by measuring the art (the original's table was not read); 8 is DELETE.
     private static readonly Dictionary<int, (int X0, int X1, int Y0, int Y1)> NitroHot = new()
@@ -1563,10 +1728,43 @@ public sealed class AddressBookPopup : ShellScreen
         Draw();
     }
 
+    /// <summary>
+    /// The base game's button row as four (ArtButtons): the art's row wiped with the paper between its DONE and NEW, DONE's
+    /// face without its word at each new place, the art's own DONE, NEW and CANCEL cut out and centred on theirs, and DELETE,
+    /// which the art lacks, lettered as the art letters DONE. Drawn into the frame over the popup (an upscaled popup included),
+    /// every time the popup is.
+    /// </summary>
+    private void DrawBaseButtons(Sprite art)
+    {
+        byte At(int x, int y) => art.Pixels[Math.Clamp(y, 0, art.Height - 1) * art.Width + Math.Clamp(x, 0, art.Width - 1)];
+        // in the frame's coordinates
+        byte Px(int x, int y) => At(x - X, y - Y);
+        var pal = Frame.Palette;
+        var found = new Dictionary<string, (Rect2I Border, ArtButtons.ArtLabel Word)>();
+        foreach (var (word, r) in ArtWords)
+            if (ArtButtons.Label(Px, pal, new Rect2I(X + r.X0 - 4, Y + r.Y0 - 4, r.X1 - r.X0 + 8, r.Y1 - r.Y0 + 8)) is { } border
+                && ArtButtons.Label(Px, pal, border.Box.Grow(-3)) is { } label)
+                found[word] = (border.Box, label);
+        if (!found.TryGetValue("DONE", out var done)) return;
+        // the paper: columns 82..97, between the art's DONE and NEW, repeated along the row
+        int y0 = done.Border.Position.Y - Y - 2, y1 = done.Border.End.Y - Y + 2;
+        for (int y = y0; y < y1; y++)
+            for (int x = 4; x < 268; x++) Frame.Fill(X + x, Y + y, 1, 1, At(82 + (x - 4) % 16, y));
+        foreach (var (word, x0) in BaseButtons)
+        {
+            var dest = new Rect2I(X + x0, done.Border.Position.Y, ButtonW, done.Border.Size.Y);
+            ArtButtons.Face(Frame, Px, done.Border, done.Word.Box.Position.X, dest, 3);
+            if (found.TryGetValue(word, out var own)) ArtButtons.Word(Frame, Px, own.Word.Box, dest);
+            else ArtButtons.Letter(Frame, Shell.Db.Font(0x47), word, done.Word, "DONE", dest);
+        }
+    }
+
     private void Draw()
     {
         Frame.Restore(X, Y, W + 6, H + 6);
-        Frame.Blit(Shell.Db.Bank(0x24)[29], X, Y);
+        var art = Shell.Db.Bank(0x24)[29];
+        Frame.Blit(art, X, Y);
+        if (!Nitro && art is not null) DrawBaseButtons(art);
         Frame.Fill(X + 6, Y + H, W, 6, 0x0f);
         Frame.Fill(X + W, Y + 6, 6, H, 0x0f);
         if (_sel >= 0 && _sel < _book.Entries.Count)

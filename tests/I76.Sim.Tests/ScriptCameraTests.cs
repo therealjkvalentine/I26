@@ -122,4 +122,30 @@ public class ScriptCameraTests
         Assert.Equal(500f, cam.Eye.X, 3);
         Assert.Equal(cam.Eye, cam.PrevEye);
     }
+
+    [Theory]
+    [InlineData("camObjObj")]
+    [InlineData("camObjDir")]
+    [InlineData("camF12")]
+    public void AFixedPlacementClearsCamIsArrived(string op)
+    {
+        // the fixed placements clear the flag as the path calls do: a path that arrived and is followed by one of
+        // these without a camIsArrived test reads false afterwards
+        var cam = new ScriptCamera((x, z) => 0f);
+        cam.Push();
+        var path = new List<Vector3> { new(0, 0, 0), new(0, 0, 10) };
+        bool held = false;
+        for (int i = 0; i < 200 && !held; i++)
+        {
+            cam.Set("camTransObj", [0, 300, 1550, 0], [null, null, null, null], path);
+            cam.Update(0.036f);
+            held = cam.Eye.Z > 5 && cam.PrevEye == cam.Eye;
+        }
+        Assert.True(held);
+        var a = new Entity("a", [], 1, 0) { StaticPosition = new(0, 0, 0) };
+        var b = new Entity("b", [], 1, 0) { StaticPosition = new(30, 0, 20) };
+        cam.Set(op, [0, 0, 300, -500, 0, 0, 0], [a, b, null, null, b], null);
+        cam.Update(0.036f);
+        Assert.False(cam.ConsumeArrived());
+    }
 }

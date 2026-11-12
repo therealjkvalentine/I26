@@ -65,6 +65,39 @@ public class ViewFovTests
         Assert.Equal(100, ViewFov.Across[ViewFov.Parse(100)]);
     }
 
+    /// <summary>
+    /// [port] fov as upstream writes it, degrees across a 4:3 view (90 the original's, 80 / 100 / 110 scaling the tangent of the
+    /// half angle), read into the port's choice and written back.
+    /// </summary>
+    [Theory]
+    [InlineData(90, 73.74)]
+    [InlineData(80, 64.4)]
+    [InlineData(100, 83.6)]
+    [InlineData(110, 93.9)]
+    public void TheFourByThreeMeaningIsTheFieldAcrossFourByThree(int across, double vertical)
+    {
+        Assert.Contains(across, ViewFov.FourByThreeAcross);
+        float v = ViewFov.VerticalFourByThree(across);
+        Assert.Equal(vertical, v, 0.1);
+        // the same view as that many degrees across a 4:3 window, and written back as the same value
+        int choice = ViewFov.ParseFourByThree(across);
+        Assert.Equal(v, ViewFov.VerticalOf(choice, ViewFov.FourByThree), 0.05f);
+        Assert.Equal(across, ViewFov.ToFourByThree(choice, ViewFov.FourByThree));
+    }
+
+    [Fact]
+    public void TheFourByThreeMeaningKeepsTheOriginalsHeightForAnythingElse()
+    {
+        Assert.Equal(ViewFov.Monitor, ViewFov.ParseFourByThree(null));
+        Assert.Equal(ViewFov.Monitor, ViewFov.ParseFourByThree(90));
+        Assert.Equal(ViewFov.Monitor, ViewFov.ParseFourByThree(137));
+        Assert.Equal(ViewFov.Monitor, ViewFov.ParseFourByThree(95));   // the port's own value is not one upstream offers
+        Assert.Equal(90, ViewFov.ToFourByThree(ViewFov.Monitor, SixteenByNine));
+        // a port value written for upstream: the offered value nearest its height in that window
+        Assert.Equal(80, ViewFov.ToFourByThree(System.Array.IndexOf(ViewFov.Across, 60), ViewFov.FourByThree));
+        Assert.Equal(80, ViewFov.ToFourByThree(ViewFov.Original, SixteenByNine));   // 90 across 16:9 is 58.7 high
+    }
+
     [Fact] public void ApplyChangesTheMainViewsAndClamps()
     {
         float aspect = ViewFov.Aspect;

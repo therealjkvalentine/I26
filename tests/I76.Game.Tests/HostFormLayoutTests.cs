@@ -20,11 +20,11 @@ public class HostFormLayoutTests(ITestOutputHelper output)
     private static readonly HostFormLayout.State Coop = Melee with { Coop = true };
 
     // the ids the form had before upstream drew it, less 7 (the original's driver box, which on a host form only showed the host's own car
-    // again), and the play fork's 39 (the ignition lock), 43 (Handicaps), 40 and 41 (the co-op form's Extra Enemies and Damage Taken); the
-    // melee set is upstream's sheet's. The co-op form keeps only what a story mission has a use for: no melee fairness rule (35, 38, 39,
-    // 43) and no Rolling Start row (42: on unless shell.cfg says otherwise)
-    private static readonly int[] MeleeIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43];
-    private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 36, 37, 40, 41];
+    // again), with upstream's for the rules both have (40 Co-op Damage / DAMAGE TAKEN, 41 Co-op Scaling / EXTRA ENEMIES, 43 Ignition
+    // Lock, 44 Turrets) and the play fork's 45 (Handicaps). The co-op form keeps only what a story mission has a use for: no melee
+    // fairness rule (35, 38, 43, 45) and no Rolling Start row (42: on unless shell.cfg says otherwise), but Turrets (44)
+    private static readonly int[] MeleeIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 43, 44, 45];
+    private static readonly int[] CoopIds = [3, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 22, 27, 28, 32, 33, 36, 37, 40, 41, 44];
 
     private static string Value(HostFormLayout.State s, string label) => HostFormLayout.Fields(s).Single(f => f.Label == label).Value;
 
@@ -33,7 +33,7 @@ public class HostFormLayoutTests(ITestOutputHelper output)
     {
         var fields = HostFormLayout.Fields(Melee);
         // adapted: the rules are labelled rows of the box under MAX SCORE (the rules table is gone, the car's front view back)
-        string[] rules = ["SIM RATE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "PASSWORD", "CHASE CROSSHAIR"];
+        string[] rules = ["SIM RATE", "UNLIMITED TURRETS", "TURRETS", "IGNITION LOCK", "HANDICAPS", "PASSWORD", "CHASE CROSSHAIR"];
         Assert.Equal(rules, fields.Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).Select(f => f.Label));
         Assert.All(fields.Where(f => f.Where == HostFormLayout.Place.BoxRow), f => Assert.True(f.Row > HostFormLayout.ScoreRow));
         string[] checks = ["TEAM PLAY", "INVITE ONLY", "SHARE MAPS", "HIDDEN CARS", "CAR RESET", "CB RADIO"];
@@ -45,7 +45,8 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         Assert.All(fields, f => Assert.InRange(f.Row, 0, HostFormLayout.BoxRow.Length - 1));
         // every line of the box used: the fields' and the stepped lines'
         Assert.Equal(HostFormLayout.BoxLines, fields.Select(f => f.Row).Append(HostFormLayout.BotsRow).Append(HostFormLayout.ScoreRow).Distinct().Count());
-        // adapted: the box's lines (15 apart, was 22) inside its rules, filling it from NO. DRIVERS' rule to its foot
+        // adapted: the box's lines (13 or 14 apart, was 22) inside its rules, filling it from NO. DRIVERS' rule to its foot
+        for (int i = 1; i < HostFormLayout.BoxRow.Length; i++) Assert.InRange(HostFormLayout.BoxRow[i] - HostFormLayout.BoxRow[i - 1], HostFormLayout.LineH, HostFormLayout.LineH + 1);
         var (_, _, by0, by1) = HostFormLayout.BoxInside;
         Assert.All(HostFormLayout.BoxRow, b => Assert.True(b - HostFormLayout.Above >= by0 - 1 && b + HostFormLayout.Below <= by1 + 1));
         Assert.Equal(by1 + 1, HostFormLayout.BoxRow[^1] + HostFormLayout.Below);
@@ -63,7 +64,7 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         // no team, score or map to share; none of a melee's fairness rules; Rolling Start has no row (on unless shell.cfg says otherwise)
         foreach (var gone in new[] { "TEAM PLAY", "SHARE MAPS", "MAX SCORE", "UNLIMITED TURRETS", "IGNITION LOCK", "HANDICAPS", "CHASE CROSSHAIR", "ROLLING START", "CO-OP SCALING", "CO-OP DAMAGE" })
             Assert.DoesNotContain(gone, labels);
-        foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "CAR RESET", "CB RADIO", "SIM RATE" })
+        foreach (var kept in new[] { "INVITE ONLY", "PASSWORD", "HIDDEN CARS", "CAR RESET", "CB RADIO", "SIM RATE", "TURRETS" })
             Assert.Contains(kept, labels);
         // the co-op rules a labelled row each, at the box's top, named in a player's words
         var coopRows = HostFormLayout.Fields(Coop).Where(f => f.Where == HostFormLayout.Place.BoxRow).OrderBy(f => f.Row).ToList();
@@ -73,7 +74,11 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         Assert.Equal(Enumerable.Range(0, HostFormLayout.CoopLines), HostFormLayout.Fields(Coop).Select(f => f.Row).Distinct().Order());
         Assert.True(HostFormLayout.CoopLines < HostFormLayout.BoxLines);
         // no Bots, Max Score or melee rule: their ids are not hotspots
-        foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34, 35, 38, 39, 42, 43 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
+        foreach (int id in new[] { 16, 18, 20, 21, 26, 29, 30, 31, 34, 35, 38, 39, 42, 43, 45 }) Assert.DoesNotContain(id, HostFormLayout.Hot(true).Keys);
+        // upstream's ids: Co-op Damage 40, Co-op Scaling 41, Turrets 44
+        Assert.Equal(40, HostFormLayout.Fields(Coop).Single(f => f.Label == "DAMAGE TAKEN").Id);
+        Assert.Equal(41, HostFormLayout.Fields(Coop).Single(f => f.Label == "EXTRA ENEMIES").Id);
+        Assert.Equal(44, HostFormLayout.Fields(Coop).Single(f => f.Label == "TURRETS").Id);
     }
 
     [Fact]
@@ -93,7 +98,7 @@ public class HostFormLayoutTests(ITestOutputHelper output)
             {
                 Assert.True(0 <= x0 && x0 < x1 && x1 <= 640 && 0 <= y0 && y0 < y1 && y1 <= 480);
                 // the art's own buttons and arrows keep the original's sizes (MAKE / MODEL's arrow is 11 x 15); the port's are bigger
-                // (adapted: a box line is 15 high, was 16+, so all eleven fit)
+                // (adapted: a box line is 13 high at least, was 16+, so all twelve fit)
                 bool art = HostFormLayout.Art.ContainsKey(id);
                 Assert.True(x1 - x0 >= (art ? 11 : 17) && y1 - y0 >= (art ? 11 : HostFormLayout.LineH), $"{id} big enough to hit");
             }
@@ -149,6 +154,8 @@ public class HostFormLayoutTests(ITestOutputHelper output)
         Assert.Equal("+1/player", Value(Coop with { CoopScale = "+1/player" }, "EXTRA ENEMIES"));
         Assert.Equal("20 Hz", Value(Coop with { Rate = 20 }, "SIM RATE"));
         Assert.Equal("Set", Value(Coop with { Password = true }, "PASSWORD"));
+        Assert.Equal("1998", Value(Melee, "TURRETS"));
+        Assert.Equal("1997 CD", Value(Coop with { Turrets1997 = true }, "TURRETS"));
     }
 
     [Fact]

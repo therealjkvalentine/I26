@@ -11,6 +11,10 @@ namespace I76.Game.Ui;
 /// little ahead; the picture follows the clock, dropping frames if the
 /// screen falls behind, and the sound streams as it is decoded. Esc, Space,
 /// Enter or a click skips it. It runs while the tree is paused.
+/// With HiFi Audio on and a track for the movie in the pack, that track plays
+/// in place of the movie's own sound (track 0, the only one the games' movies
+/// have): it starts with the first frame and the picture follows it as it is
+/// heard (<see cref="MovieClock"/>); the end logs how the two met.
 /// </summary>
 public partial class MoviePlayer : CanvasLayer
 {
@@ -19,6 +23,8 @@ public partial class MoviePlayer : CanvasLayer
     public bool Faithful { get; init; }
     /// <summary>Esc, Space, Enter, a click or a pad button skips it (the original: Esc only; docs/deviations.md). Off in a network co-op game for all but the host (their Esc is the menu, over the movie).</summary>
     public bool Skippable { get; init; } = true;
+    /// <summary>The Nitro Pack's movie (HiFi Audio's movies/nitro/ wins then; both games have a CREDF01 and an INTROF01).</summary>
+    public bool Nitro { get; init; }
     /// <summary>
     /// While true (a briefing played while its mission loads, until the mission can start): a skip is not done yet but kept, and
     /// <see cref="WaitingTag"/> fades in over the picture; the movie then ends the moment this turns false. A movie that runs out
@@ -83,8 +89,13 @@ public partial class MoviePlayer : CanvasLayer
     private AudioStreamGeneratorPlayback? _out;
     private Vector2[]? _pending;
     private int _pendingAt;
-    private double _clock;
+    private MovieClock _clock = null!;
     private bool _started, _done;
+    /// <summary>HiFi Audio's track in place of the movie's own sound, or null.</summary>
+    private AudioStreamPlayer? _hifi;
+    private (string Entry, double Seconds, double Own) _hifiInfo;
+    private long _hifiStart;
+    private bool _hifiTold;
     /// <summary>Frames the decoder has made (its thread counts them), for the watch on a decoder that stops.</summary>
     private volatile int _produced;
     private readonly MovieWatch _watch = new();
@@ -102,6 +113,7 @@ public partial class MoviePlayer : CanvasLayer
             CallDeferred(MethodName.Finish);
             return;
         }
+        _clock = new MovieClock(_movie.FrameDuration);
         AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
         _deband = !Faithful && System.Environment.GetEnvironmentVariable("I76_MOVIE_DEBAND") == "1";   // off by default (the user's call); =1 tries it
         _view = new TextureRect
@@ -129,7 +141,23 @@ public partial class MoviePlayer : CanvasLayer
             _view.Texture = _pass.GetTexture();
             _view.Material = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/movie_deband_view.gdshader") };
         }
-        if (_movie.HasAudio(0))
+        // HiFi Audio: the pack's track for this movie, which starts with its first frame (_Process); none, and the movie's own sound streams
+        if (_movie.HasAudio(0) && _hold < 0)
+        {
+            long own = _movie.AudioSamples(0);
+            double ownSeconds = own / (double)_movie.SampleRate(0);
+            if (Assets.HiFiAudio.LoadMovie(System.IO.Path.GetFileName(Path), Nitro, ownSeconds) is { } found)
+            {
+                var (stream, ogg, entry) = found;
+                _hifi = new AudioStreamPlayer { Stream = stream, Name = "HiFiSound", Bus = I76.Game.Boot.Main.MovieBus() };
+                AddChild(_hifi);
+                _hifiInfo = (entry, ogg.Seconds, ownSeconds);
+                GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio {entry} ({ogg.Channels} ch, {ogg.Rate} Hz, {ogg.Samples} samples, {ogg.Seconds:0.000} s) "
+                    + $"in place of its own track ({_movie.SampleRate(0)} Hz, {(_movie.Is16Bit(0) ? 16 : 8)}-bit {(_movie.Stereo(0) ? "stereo" : "mono")}, {own} samples, {ownSeconds:0.000} s; "
+                    + $"the picture {_movie.FrameCount} frames, {_movie.FrameCount * _movie.FrameDuration:0.000} s)");
+            }
+        }
+        if (_movie.HasAudio(0) && _hifi is null)
         {
             var gen = new AudioStreamGenerator { MixRate = _movie.SampleRate(0), BufferLength = SoundBuffer };
             var player = new AudioStreamPlayer { Stream = gen, Name = "Sound", Bus = I76.Game.Boot.Main.MovieBus() };
@@ -156,7 +184,7 @@ public partial class MoviePlayer : CanvasLayer
     private void Decode()
     {
         var m = _movie;
-        int track = m.HasAudio(0) ? 0 : -1;
+        int track = m.HasAudio(0) && _hifi is null ? 0 : -1;   // (HiFi Audio's track in its place: the movie's own is not unpacked)
         bool wide = track >= 0 && m.Is16Bit(0), stereo = track >= 0 && m.Stereo(0);
         try
         {
@@ -164,7 +192,7 @@ public partial class MoviePlayer : CanvasLayer
             {
                 if (_frames.Count >= Ahead) { Thread.Sleep(5); continue; }
                 int index = m.Position;
-                if (!m.NextFrame((t, pcm) => { if (t == track) _sound.Enqueue(Samples(pcm, wide, stereo)); })) break;
+                if (!m.NextFrame(track < 0 ? null : (t, pcm) => { if (t == track) _sound.Enqueue(Samples(pcm, wide, stereo)); })) break;
                 var px = m.Pixels; var pal = m.Palette;
                 if (_deband)
                 {
@@ -229,26 +257,27 @@ public partial class MoviePlayer : CanvasLayer
             _started = true;
             _skipsAtStart = _out?.GetSkips() ?? 0;
             I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
+            if (_hifi is not null) { _hifi.Play(); _hifiStart = System.Diagnostics.Stopwatch.GetTimestamp(); }
         }
         else if (_out is not null && _audioClock is { } ac && _hold < 0)
         {
             // the picture held to the sound (#157): it catches up with sound that played on through a stall the delta did not
             // carry, and waits for sound a hitch longer than its buffer stopped
-            double was = _clock;
+            double was = _clock.Seconds;
             int room = _out.GetFramesAvailable();
-            _clock = ac.Step(_clock, delta, room, !_decoded || !_sound.IsEmpty || (_pending is not null && _pendingAt < _pending.Length));
-            if (was + delta - _clock > 0.05) _waitedForSound += was + delta - _clock;
+            _clock.Set(ac.Step(was, delta, room, !_decoded || !_sound.IsEmpty || (_pending is not null && _pendingAt < _pending.Length)));
+            if (was + delta - _clock.Seconds > 0.05) _waitedForSound += was + delta - _clock.Seconds;
             if (delta > _worstDelta) _worstDelta = delta;
         }
-        else _clock += delta;
+        else _clock.Step(delta, Heard());   // HiFi Audio's track as heard, or the frame's delta
         if (_inputs.Count > 0) SendInputs(++_drawn);
         if (_skipAfter >= 0 && _skipAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
         if (_endAfter >= 0 && _endAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_END runs it out"); RunOut(); return; }
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare
-        if (_hold >= 0 && _frames.IsEmpty && !_decoded) _clock -= delta;   // (a capture runs faster than real time: wait for the decoder)
-        if (_hold >= 0 && _clock >= _hold * _movie.FrameDuration) _clock = _hold * _movie.FrameDuration;
+        if (_hold >= 0 && _frames.IsEmpty && !_decoded) _clock.Set(_clock.Seconds - delta);   // (a capture runs faster than real time: wait for the decoder)
+        if (_hold >= 0 && _clock.Seconds >= _hold * _movie.FrameDuration) _clock.Set(_hold * _movie.FrameDuration);
         PushSound();
-        int want = (int)(_clock / _movie.FrameDuration);
+        int want = _clock.Frame;
         (int Index, byte[] Rgba, byte[]? Pal)? show = null;
         int taken = 0;
         while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; taken++; }
@@ -263,6 +292,7 @@ public partial class MoviePlayer : CanvasLayer
         }
         if (show is { } s)
         {
+            if (s.Index == _movie.FrameCount - 1) TellSync();
             if (s.Pal is not null)
             {
                 var idx = Image.CreateFromData(_movie.Width, _movie.Height, false, Image.Format.R8, s.Rgba);
@@ -290,6 +320,28 @@ public partial class MoviePlayer : CanvasLayer
             case MovieStep.Stalled: GiveUp("the decoder stopped making frames"); RunOut(); break;   // stuck part way: it ends there
         }
     }
+
+    /// <summary>HiFi Audio's track position as heard now (seconds from its first sample), or null when none plays.</summary>
+    private double? Heard() =>
+        _hifi is { } p && p.Playing ? p.GetPlaybackPosition() + AudioServer.GetTimeSinceLastMix() - AudioServer.GetOutputLatency() : null;
+
+    /// <summary>
+    /// The drift check, as the last frame goes up: where HiFi Audio's track is against that frame's time (the picture follows the
+    /// track, so this is under a display frame), the wall clock's view of the same, and the track's end against the picture's.
+    /// </summary>
+    private void TellSync()
+    {
+        if (_hifi is null || _hifiTold) return;
+        _hifiTold = true;
+        double frame = (_movie.FrameCount - 1) * _movie.FrameDuration, end = _movie.FrameCount * _movie.FrameDuration;
+        double wall = System.Diagnostics.Stopwatch.GetElapsedTime(_hifiStart).TotalSeconds;
+        string heard = Heard() is { } h ? $"{h:0.000} s ({Signed((h - frame) * 1000, "0.0")} ms)" : "over";
+        GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio sync: last frame {_movie.FrameCount - 1} (due {frame:0.000} s) up at clock {_clock.Seconds:0.000} s, "
+            + $"the track heard at {heard}, wall {wall:0.000} s; the track ends at {_hifiInfo.Seconds:0.000} s, the picture at {end:0.000} s "
+            + $"({Signed((_hifiInfo.Seconds - end) * 1000, "0.0")} ms, {Signed((_hifiInfo.Seconds - end) / _movie.FrameDuration, "0.00")} frames), its own track at {_hifiInfo.Own:0.000} s");
+    }
+
+    private static string Signed(double v, string format) => (v < 0 ? "-" : "+") + Math.Abs(v).ToString(format, System.Globalization.CultureInfo.InvariantCulture);
 
     private MovieStep Watch(int want) =>
         _watch.Step(System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency, _produced, _decoded, !_frames.IsEmpty, _started, want, _movie.FrameCount);
@@ -394,9 +446,10 @@ public partial class MoviePlayer : CanvasLayer
         _held = true;
         _tag?.ShowNow();   // (the rest of the load follows on the main thread: no frames for a fade)
         _stop = true;   // (the decoder is done with: only the frame shown stays)
-        if (_movie is not null && _video is null) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {(int)(_clock / _movie.FrameDuration)}{Sync()}");
+        if (_movie is not null && _video is null) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
         _out = null;
         GetNodeOrNull<AudioStreamPlayer>("Sound")?.Stop();
+        _hifi?.Stop();
         if (_video is not null) _video.Paused = true;
         GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {why}, its frame held until the mission can start");
     }
@@ -411,7 +464,7 @@ public partial class MoviePlayer : CanvasLayer
 
     /// <summary>The sound against the picture: how far apart they are, and how long the picture has waited for the sound.</summary>
     private string Sync() => _out is not null && _audioClock is { } ac
-        ? $", sound heard to {ac.Heard(_out.GetFramesAvailable()):0.000} s with the picture at {_clock:0.000} s (waited {_waitedForSound * 1000:0} ms for it; longest frame {_worstDelta * 1000:0} ms; buffer {SoundBuffer} s, {Ahead} frames ahead)"
+        ? $", sound heard to {ac.Heard(_out.GetFramesAvailable()):0.000} s with the picture at {_clock.Seconds:0.000} s (waited {_waitedForSound * 1000:0} ms for it; longest frame {_worstDelta * 1000:0} ms; buffer {SoundBuffer} s, {Ahead} frames ahead)"
         : "";
 
     private void GiveUp(string why) => GD.PrintErr($"movie {Path}: {why}, ending it");
@@ -424,6 +477,8 @@ public partial class MoviePlayer : CanvasLayer
         if (_done) return;
         _done = true;
         _stop = true;
+        if (_hifi is not null && !_hifiTold && _started)
+            GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio: ended at clock {_clock.Seconds:0.000} s (frame {_clock.Frame} of {_movie.FrameCount}), the track heard at {(Heard() is { } h ? $"{h:0.000} s" : "its end")}");
         if (_movie is not null && _video is null)
         {
             long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;

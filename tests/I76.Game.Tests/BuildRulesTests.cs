@@ -35,27 +35,30 @@ public class BuildRulesTests
         var full = BuildRules.Complete(mine);
         Assert.StartsWith(mine.TrimEnd(), full);
         Assert.Contains("ai_tactics=1998", full);
-        Assert.Equal(new BuildRules(TurretSlew1997: true, Tactics1997: false), BuildRules.Parse(full));
+        // turret_slew is Play Options' Turrets now (shell.cfg): the line stays in the player's file, unread
+        Assert.Equal(new BuildRules(Tactics1997: false), BuildRules.Parse(full));
+        Assert.DoesNotContain("turret_slew=1998", full);
         Assert.Equal(full, BuildRules.Complete(full));
     }
 
     [Theory]
-    [InlineData("ai_tactics=1997", false, true)]
-    [InlineData("ai_tactics=\"1997\"\nturret_slew=1997", true, true)]
-    [InlineData("turret_slew=1998\nai_tactics=gold", false, false)]
-    [InlineData("; turret_slew=1997", false, false)]
-    public void OnlyThe1997ValueTurnsARuleOn(string text, bool slew, bool tactics) =>
-        Assert.Equal(new BuildRules(slew, tactics), BuildRules.Parse(text));
+    [InlineData("ai_tactics=1997", true)]
+    [InlineData("ai_tactics=\"1997\"\nturret_slew=1997", true)]
+    [InlineData("turret_slew=1997\nai_tactics=gold", false)]
+    [InlineData("; ai_tactics=1997", false)]
+    public void OnlyThe1997ValueTurnsARuleOn(string text, bool tactics) =>
+        Assert.Equal(new BuildRules(tactics), BuildRules.Parse(text));
 
     [Fact]
     public void ANetworkGameKeepsThe1998Rules()
     {
         var world = new I76.Sim.SimWorld(null!, new I76.Sim.Rng.CrtRand(1));
+        // the turrets' slew is no longer the file's: Apply leaves it to the settings (ShellSettings.ApplyTo) and the host
         var c = new Combat(world, _ => null) { NetSession = true };
-        new BuildRules(true, true).Apply(c, null);
+        new BuildRules(true).Apply(c, null);
         Assert.False(c.TurretSlew1997);
         var offline = new Combat(world, _ => null);
-        new BuildRules(true, true).Apply(offline, null);
-        Assert.True(offline.TurretSlew1997);
+        new BuildRules(true).Apply(offline, null);
+        Assert.False(offline.TurretSlew1997);
     }
 }

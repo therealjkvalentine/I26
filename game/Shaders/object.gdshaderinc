@@ -21,6 +21,11 @@ global uniform vec2 i76_fade;
 global uniform bool i76_night;
 global uniform int i76_night_light_count;
 global uniform sampler2D i76_night_lights : filter_nearest;
+// the modern look's night: the headlamps nearest the eye, for the road signs' retroreflection (RetroLamps.cs): column i of
+// i76_retro_at a lamp's position (global) and its strength, of i76_retro_aim its beam's axis and the cosine of the beam's edge
+global uniform int i76_retro_count;
+global uniform mat4 i76_retro_at;
+global uniform mat4 i76_retro_aim;
 #include "res://Shaders/software.gdshaderinc"
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic;
@@ -31,7 +36,18 @@ uniform sampler2D albedo_frames : source_color, filter_linear_mipmap_anisotropic
 uniform bool frames_filtered = false;
 // the same art for the modern look, filtered: linear with its mip levels and anisotropy (i76_cockpit_soft)
 uniform sampler2D albedo_cockpit_soft : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
+// The cockpit's art as the 1997 look draws it (the modern look reads i76_cockpit_soft). The game's own low-resolution art (the
+// 3D card takes no texture over 256 texels a side, so none of it is larger) is point-sampled from its full-size level, its
+// pixels kept as the original's software renderer shows them (its 3D card filtered them): the dials' lettering stays sharp,
+// where a mipmap level greyed it whenever the dash was smaller on screen than its texels. Larger art (a high-resolution
+// replacement) is read through the sampler with its mipmaps.
+vec4 i76_cockpit(vec2 uv) {
+	ivec2 sz = textureSize(albedo_cockpit, 0);
+	if (max(sz.x, sz.y) > 256) return texture(albedo_cockpit, uv);
+	return texelFetch(albedo_cockpit, clamp(ivec2(floor(uv * vec2(sz))), ivec2(0), sz - 1), 0);
+}
 uniform vec4 albedo_color : source_color = vec4(1.0);
+uniform vec4 albedo_color_software : source_color = vec4(0.0);   // with alpha 1, a flat face's colour under the Software renderer, where it is not albedo_color's nearest entry (the gauge needles: the palette entry the original's software renderer draws)
 uniform bool use_texture = false;
 uniform bool alpha_key = false;
 uniform bool round_key = false;   // the face is a disc inscribed in its square (a wheel): edged by an analytic circle, not the texture's alpha
@@ -57,6 +73,9 @@ uniform bool unlit_1997 = false;   // the 1997 look: a face the engine draws at 
 // at i76_night_glow (StationLight: the painted colour's gain through the exposure, times the night_station_light percent; 0 by day)
 uniform bool night_glow = false;
 global uniform float i76_night_glow;
+uniform bool self_lit = false;     // the modern look: a structure's face the art marks to shine of its own (FaceLight.SelfLit), glowing at night
+const float SELF_LIT_GLOW = 1.0;   // the glow: the face's colour, times this
+uniform bool retro = false;        // the modern look: a road sign's face, retroreflective sheeting (RetroLamps), bright in the beam of the lamps beside the eye
 // material maps (modern look): roughness, metallic, clear coat, specular; a car's (CarMaterial) with a tangent-space
 // normal, scenery's and props' (PropMaterial) without
 uniform bool has_maps = false;
@@ -323,6 +342,41 @@ void vertex() {
 
 #ifndef FAITHFUL
 
+// ---- road signs: retroreflection ---------------------------------------------------------------------------------------------------------
+// Sign sheeting sends a lamp's light back toward the lamp, in a narrow cone: the face is bright to an eye beside the lamp (the car's
+// own driver) from far off, and next to nothing to anyone else. Retroreflection.Factor (RetroLamps.cs) is the same rule (and its tests); keep them together.
+// w the face's point and n its outward normal, eye the camera, all global; the light a white face sends to the eye, a multiple of its colour.
+const float RETRO_HOT = 0.262;      // the beam's hot spot, which carries far: 15 degrees off its axis leave 1/e of it
+const float RETRO_LOBE = 0.0873;    // the return cone: 5 degrees between lamp and eye leave 1/e of it
+const float RETRO_REACH = 150.0;    // the falloff with the lamp's distance: half at 150 m, a third at 300 m
+const float RETRO_FAR = 600.0;      // gone by 600 m
+float retro_beam(float c, float edge) {
+	// the lamp's intensity toward the face: the hot spot about the beam's axis, nothing past the beam's edge
+	if (c <= edge) return 0.0;
+	float t = acos(clamp(c, -1.0, 1.0));
+	return exp(-(t * t) / (RETRO_HOT * RETRO_HOT));
+}
+float retro_light(vec3 w, vec3 n, vec3 eye) {
+	vec3 v = normalize(eye - w);
+	float sum = 0.0;
+	for (int i = 0; i < 4; i++) {
+		if (i >= i76_retro_count) break;
+		vec4 a = i76_retro_at[i], b = i76_retro_aim[i];
+		vec3 to = a.xyz - w;
+		float d = length(to);
+		vec3 l = to / max(d, 1e-3);
+		float entrance = dot(n, l);
+		if (entrance <= 0.0) continue;
+		float beam = retro_beam(dot(-l, b.xyz), b.w);
+		if (beam <= 0.0) continue;
+		float alpha = acos(clamp(dot(l, v), -1.0, 1.0));   // the observation angle: lamp, face, eye
+		float lobe = exp(-(alpha * alpha) / (RETRO_LOBE * RETRO_LOBE));
+		float reach = 1.0 / (1.0 + d / RETRO_REACH) * (1.0 - smoothstep(RETRO_FAR * 0.75, RETRO_FAR, d));
+		sum += a.w * beam * sqrt(entrance) * lobe * reach;
+	}
+	return sum;
+}
+
 // ---- windows: dark tinted glass over a vague proxy cabin -------------------------------------------------------------------------
 // No cabin is modelled. A window texel (glass_tex) shows what a ray into the cabin box would see, as a blur: the cabin's walls (dark below
 // the sill, a lighter "outdoors" through the other windows above it) with a few soft dark masses where the driver's head and shoulders and
@@ -582,7 +636,7 @@ void fragment() {
 	}
 #endif
 #ifdef FAITHFUL
-	vec4 c = use_texture ? i76_tex(prelit ? textureLod(albedo_cockpit, tuv, 0.0) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : albedo_color;
+	vec4 c = use_texture ? i76_tex(prelit ? i76_cockpit(tuv) : i76_software ? i76_point(albedo_tex, tuv) : texture(albedo_tex, tuv)) : (i76_software && albedo_color_software.a > 0.5 ? albedo_color_software : albedo_color);
 #else
 	vec4 c = use_texture ? (prelit ? i76_cockpit_soft(tuv) : texture(albedo_tex, tuv)) : albedo_color;
 	if (frames_filtered) c = texture(albedo_frames, tuv);
@@ -774,6 +828,12 @@ void fragment() {
 		CLEARCOAT_ROUGHNESS = mix(ccr, mix(max(ccr, 0.3), ccr, hb), k);
 		METALLIC = mix(mt, mix(mix(min(mt, 0.1), min(mt, 0.5), ha), mt, hb), k);
 	}
+	// a self-lit face at night: its colour shines as the 1997 look draws it, at full brightness (the lit canopy, a lit window, a
+	// lamp); by day the sun outshines it, as it does the original's
+	if (self_lit && i76_night) EMISSION += c.rgb * SELF_LIT_GLOW;
+	// a road sign at night: what the lamps beside the eye send back off its sheeting (by day the sun outshines it)
+	if (retro && i76_night && i76_retro_count > 0 && FRONT_FACING)
+		EMISSION += c.rgb * vec3(1.0, 0.95, 0.8) * retro_light((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz), CAMERA_POSITION_WORLD);
 	if (!prelit && wreck.x > 0.0) {
 		vec3 a = ALBEDO, g;
 		float r = ROUGHNESS, m = METALLIC, s = SPECULAR;

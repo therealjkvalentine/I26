@@ -12,7 +12,8 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// The AI's sight test for guns and missiles: centre to centre, both raised 1.5, against the terrain and then the
-/// static colliders (structures, scenery, standing signs block; cars and emplacements never). It used to run from the
+/// static colliders, each part grown by 3 as the original's (structures, scenery, standing signs block; cars and
+/// emplacements never). It used to run from the
 /// muzzle to the target's centre against the terrain alone, so the AI shot through buildings.
 /// </summary>
 public class AiSightLineTests
@@ -63,11 +64,32 @@ public class AiSightLineTests
     }
 
     [Fact]
-    public void ALowWallUnderTheRaisedLineDoesNotHoldIt()
+    public void APartBlocksWithinThreeOfTheLineAndNotFarther()
     {
+        // the original grows every part's bounds by 3 on every side: a low wall under the raised line (about 2.2) blocks,
+        // and so does a shed whose side is 2.5 from the line; one 3.5 from it does not
         var (c, s, shooter, target, w) = Rig();
-        s.AddBox("wall", 2, new Vector3(-3, 0, 18), new Vector3(3, 1.5f, 22));   // the raised line runs at about 2.2
+        var wall = s.AddBox("wall", 2, new Vector3(-3, 0, 18), new Vector3(3, 1.5f, 22));
+        Assert.False(c.AiShouldFire(shooter, target, w, 1, 1));
+        s.Objects.Remove(wall);
+        var near = s.AddBox("shed", 2, new Vector3(2.5f, 0, 18), new Vector3(8, 4, 22));
+        Assert.False(c.CanSee(shooter, target));
+        s.Objects.Remove(near);
+        s.AddBox("shed", 2, new Vector3(3.5f, 0, 18), new Vector3(9, 4, 22));
+        Assert.True(c.CanSee(shooter, target));
         Assert.True(c.AiShouldFire(shooter, target, w, 1, 1));
+    }
+
+    [Fact]
+    public void ASpherePartBlocksWithinItsRadiusPlusThree()
+    {
+        var (c, s, shooter, target, _) = Rig();
+        var o = new StaticObject { Name = "plane", Type = 2, Centre = new Vector3(4, 1.5f, 20), Radius = 2, BoundRadius = 2, SphereRadius = 1.5f };
+        o.Spheres.Add(new NodeSphere(new Vector3(3.5f, 1.5f, 20), 0.9f));   // 3.5 from the line: within 0.9 + 3
+        s.Objects.Add(o);
+        Assert.False(c.CanSee(shooter, target));
+        o.Spheres[0] = new NodeSphere(new Vector3(3.5f, 1.5f, 20), 0.4f);   // 0.4 + 3: clear
+        Assert.True(c.CanSee(shooter, target));
     }
 
     [Fact]
@@ -89,7 +111,11 @@ public class AiSightLineTests
         c.World.Vehicles.Add(other);
         c.Team = v => v == shooter ? 1 : 2;   // the other cars on another team: the friendly scan (AiFriendlyScanTests) holds for a team-mate on the line
         Assert.True(c.CanSee(shooter, target));
+        // (the gun's friendly scan holds for a car of its team field in the way, the target car in the shed too: that is
+        // not the sight test)
+        c.World.Vehicles.Remove(other); c.World.Vehicles.Remove(target);
         var shed = s.AddBox("shed", 2, new Vector3(-3, 0, 38), new Vector3(3, 4, 42));
+        Assert.True(c.CanSee(shooter, shed));
         Assert.True(c.AiShouldFire(shooter, shed, shed.Centre, Vector3.UnitZ, w, 1, 1));
     }
 

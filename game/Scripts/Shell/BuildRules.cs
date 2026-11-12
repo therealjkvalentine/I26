@@ -12,12 +12,14 @@ namespace I76.Game.Shell;
 /// the 1998 build's value (GOG's) the default (docs/playing.md "Rules that differ between the original's builds"). The file
 /// is written once with every key's facts in comments above it, since ConfigFile drops comments: the game never rewrites it,
 /// only appends the block of a key it does not find, so the player's values and the notes stay. Engine-free but for the
-/// path, so the game tests can call it.
+/// path, so the game tests can call it. The turrets' slew was a key here until upstream made it a setting (Play Options'
+/// Turrets and the host form's, shell.cfg [port] turret_slew and host_turret_slew): a turret_slew line left in a player's file
+/// is no longer read.
 /// </summary>
-public sealed record BuildRules(bool TurretSlew1997, bool Tactics1997)
+public sealed record BuildRules(bool Tactics1997)
 {
     public const string FileName = "build-rules.cfg";
-    public static readonly BuildRules Default = new(false, false);
+    public static readonly BuildRules Default = new(false);
 
     public const string Header = """
         ; I26: the rules that differ between the original's builds (build-rules.cfg, beside shell.cfg in your user folder).
@@ -38,7 +40,7 @@ public sealed record BuildRules(bool TurretSlew1997, bool Tactics1997)
         ; car's step once its own landing has wrecked it; 1.0 finishes that step (no difference to a car that survives).
         ; Elsewhere: the player's damage factor is Play Options' Difficulty Level. The 1997 build has none (Champion's x1.0);
         ; the 1998 build deals x2.0 / x1.0 / x0.75 at Wimp / Champion / Badass with the player's rounds and flame, Wimp a fresh
-        ; install's. Set Champion for the 1997 damage.
+        ; install's. Set Champion for the 1997 damage. The turrets' slew is Play Options' Turrets (and a network host's).
 
         [rules]
         """;
@@ -46,18 +48,6 @@ public sealed record BuildRules(bool TurretSlew1997, bool Tactics1997)
     /// <summary>Each key's block: its comment, then the default line.</summary>
     public static readonly (string Key, string Block)[] Keys =
     [
-        ("turret_slew", """
-            ; turret_slew: how fast a turret turns toward its target: car turrets, gun emplacements and helicopters, the player's
-            ; and the AI's.
-            ;   1998 (default): 1.7 rad/s, a helicopter's 6.8, times 0.75 + 0.25 x the turret's health ratio: a half-dead turret
-            ;     turns at 88 %.
-            ;   1997: 1.5 rad/s, a helicopter's 6.0, times the health ratio itself: 12 % slower when whole, half speed at half
-            ;     health.
-            ;   Read in both builds' code: the same turret update, these constants differ. Here, a car's 7.62 turret on a car
-            ;   circling it 25 m off at 25 m/s hits with 77 % of its rounds whole and 75 % at half health at 1998, 75 % and 7 %
-            ;   at 1997; 15 m off, whole, 64 % and 38 %. A whole turret on a passing car hits alike under both.
-            turret_slew=1998
-            """),
         ("ai_tactics", """
             ; ai_tactics: how an attacking AI car picks its tactic (ram, ride alongside on the road, gun from off road, mine,
             ; stand off, flee).
@@ -104,7 +94,7 @@ public sealed record BuildRules(bool TurretSlew1997, bool Tactics1997)
         if (text is null) return Default;
         var v = Values(text);
         bool Is1997(string key) => v.TryGetValue(key, out var s) && s == "1997";
-        return new BuildRules(Is1997("turret_slew"), Is1997("ai_tactics"));
+        return new BuildRules(Is1997("ai_tactics"));
     }
 
     /// <summary>The user folder's file, written or completed first; the defaults when it cannot be read.</summary>
@@ -129,7 +119,6 @@ public sealed record BuildRules(bool TurretSlew1997, bool Tactics1997)
     public void Apply(Combat c, ScriptHost? host)
     {
         bool offline = !c.NetworkGame;
-        c.TurretSlew1997 = TurretSlew1997 && offline;
         if (host is not null) host.TacticStub1997 = Tactics1997 && offline;
     }
 }

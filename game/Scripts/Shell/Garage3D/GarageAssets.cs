@@ -20,8 +20,30 @@ public sealed class GarageAssets
     /// <summary>The assets of this shell's install (rebuilt when the install changes, as a switch of game does).</summary>
     public static GarageAssets For(Shell shell)
     {
-        if (_held is { } h && h.Vfs == shell.Vfs) { h.Textures.SetHd(!shell.Faithful && HdTextures.Enabled); return h; }
-        return _held = new GarageAssets(shell.Vfs) { Textures = { Hd = !shell.Faithful && HdTextures.Enabled } };
+        if (GarageWarmup.Busy) throw new InvalidOperationException("the garage's assets are the warm-up thread's until it is done");
+        bool hd = !shell.Faithful && HdTextures.Enabled;
+        var assets = Held(shell.Vfs, hd);
+        assets.Textures.SetHd(hd);
+        assets.TakeBack();
+        return assets;
+    }
+
+    /// <summary>
+    /// On the main thread, once the warm-up's thread is done with them: the props' material maps it left waiting are put on their
+    /// materials, and the next ones go on at the end of their frame again (MaterialLibrary.HoldFlush).
+    /// </summary>
+    internal void TakeBack()
+    {
+        if (!Materials.HoldFlush) return;
+        Materials.HoldFlush = false;
+        Materials.FlushPropMaps();
+    }
+
+    /// <summary>The assets of this install, made if need be (the warm-up's thread calls this one); <paramref name="hd"/> whether new ones serve upscales (HD Textures, the modern look).</summary>
+    internal static GarageAssets Held(AssetVfs vfs, bool? hd = null)
+    {
+        if (_held is { } h && h.Vfs == vfs) return h;
+        return _held = new GarageAssets(vfs) { Textures = { Hd = hd ?? HdTextures.Enabled } };
     }
 
     public static void Forget() => _held = null;

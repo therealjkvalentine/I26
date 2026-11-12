@@ -61,7 +61,7 @@ namespace I76.Sim.Collision
                 .Saved(nameof(Destroyed), nameof(Hp), nameof(MaxHp), nameof(Nodes), nameof(NetId), nameof(Collapsed), nameof(Revision), nameof(_gates))
                 // the bounds too: a Refresh that leaves no geometry keeps the last ones (they still place the root for a splash)
                 .Saved(nameof(Centre), nameof(Radius), nameof(BoundRadius))
-                .Derived(geometry, nameof(_intact), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres))
+                .Derived(geometry, nameof(_intact), nameof(_uncollapsed), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres), nameof(MeshBounds))
                 .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
                     nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck));
             a.For<StructureNode>()
@@ -80,6 +80,29 @@ namespace I76.Sim.Collision
         internal bool Pristine =>
             Hp == MaxHp && !Destroyed && !Collapsed && Revision == 0 && !_gates && _intact is null
             && Nodes.All(n => n.Hp == n.MaxHp && !n.Destroyed && (n.Gate is not { } g || (g.X == 0 && g.Target == 1 && !g.Moving)));
+
+        /// <summary>
+        /// Back to <see cref="Pristine"/>: a snapshot leaves out what was pristine when it was taken, so a restore into the
+        /// same session puts back one hit, destroyed, swapped or slid since.
+        /// </summary>
+        internal void ResetToPristine()
+        {
+            Hp = MaxHp; Destroyed = false;
+            foreach (var n in Nodes)
+            {
+                n.Hp = n.MaxHp; n.Destroyed = false;
+                if (n.Gate is { } g) { g.X = 0; g.Target = 1; g.Moving = false; }
+            }
+            if ((_intact ?? _uncollapsed) is { } i)
+            {
+                Polys.Clear(); Polys.AddRange(i.Polys); Surfaces.Clear(); Surfaces.AddRange(i.Surfaces);
+                Boxes.Clear(); Boxes.AddRange(i.Boxes); Spheres.Clear(); Spheres.AddRange(i.Spheres);
+                MeshBounds.Clear(); MeshBounds.AddRange(i.MeshBounds);
+                (Centre, Radius, BoundRadius) = (i.Centre, i.Radius, i.BoundRadius);
+            }
+            _intact = null; _uncollapsed = null; _gates = false;
+            Collapsed = false; Revision = 0;
+        }
 
         internal void Save(SaveWriter w)
         {
@@ -149,7 +172,7 @@ namespace I76.Sim.Damage
             foreach (var e in events ? Events : [])
                 switch (e)
                 {
-                    case VehicleKilled k: w.U8(1); w.Car(k.Vehicle); w.Bool(k.DriverKilled); w.U8(0); w.VarU(0); break;   // snapshot 25's death cause and seed, withdrawn: kept as zeros
+                    case VehicleKilled k: w.U8(1); w.Car(k.Vehicle); w.Bool(k.DriverKilled); break;
                     case VehicleWrecked x: w.U8(2); w.Car(x.Vehicle); break;
                     case TyreBlown t: w.U8(3); w.Car(t.Vehicle); w.Int(t.Slot); break;
                     case PartFlung p: w.U8(4); w.Car(p.Vehicle); w.Int(p.Slot); w.V3(p.Velocity); break;
@@ -171,7 +194,7 @@ namespace I76.Sim.Damage
             for (int k = r.Count(); k > 0; k--)
                 Events.Add(r.U8() switch
                 {
-                    1 => ReadKilled(r),
+                    1 => new VehicleKilled(r.Car()!, r.Bool()),
                     2 => new VehicleWrecked(r.Car()!),
                     3 => new TyreBlown(r.Car()!, r.Int()),
                     4 => new PartFlung(r.Car()!, r.Int(), r.V3()),
@@ -184,14 +207,6 @@ namespace I76.Sim.Damage
                     11 => new SignKnocked((Collision.StaticObject)r.Obj()!, r.V3()),
                     var t => throw new SnapshotFormatException($"bad damage event tag {t}"),
                 });
-        }
-
-        /// <summary>A death as read: snapshot 25's cause byte and seed after the flag, withdrawn, are read and dropped.</summary>
-        private static VehicleKilled ReadKilled(SaveReader r)
-        {
-            var k = new VehicleKilled(r.Car()!, r.Bool());
-            r.U8(); r.VarU();
-            return k;
         }
     }
 }

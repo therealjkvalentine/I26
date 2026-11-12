@@ -5,7 +5,7 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The co-op host form's defaults and words (round 4): Rolling Start on with no row, Extra Enemies at the cap and said as "+1/player",
+/// The co-op host form's defaults and words (round 4; the upstream merge): Rolling Start on with no row, Extra Enemies off (upstream's default) and its cap said as "+1/player",
 /// and the help line (HostFormHelp) for every setting of the options box, melee and co-op.
 /// </summary>
 public class CoopHostFormTests
@@ -19,11 +19,11 @@ public class CoopHostFormTests
     }
 
     [Fact]
-    public void ExtraEnemiesDefaultsToTheCapOnePerPlayer()
+    public void ExtraEnemiesDefaultsToOff()
     {
         Assert.Equal(3, CoopSetup.MaxExtraEnemies);
-        Assert.Equal(CoopSetup.MaxExtraEnemies, new ShellSettings().CoopScale);
-        Assert.Equal("+1/player", HostFormLayout.CoopScaleWord(new ShellSettings().CoopScale));
+        Assert.Equal(0, new ShellSettings().CoopScale);
+        Assert.Equal("Off", HostFormLayout.CoopScaleWord(new ShellSettings().CoopScale));
     }
 
     [Theory]
@@ -60,7 +60,8 @@ public class CoopHostFormTests
                 Assert.All(t, ch => Assert.InRange(ch, ' ', '~'));
                 Assert.DoesNotContain("=", t);   // no config key shown to the player
             }
-        Assert.Contains("per extra player", HostFormHelp.Text(40));
-        Assert.Contains("x1 the original's", HostFormHelp.Text(41));
+        // upstream's ids: 41 Co-op Scaling (EXTRA ENEMIES), 40 Co-op Damage (DAMAGE TAKEN)
+        Assert.Contains("per extra player", HostFormHelp.Text(41));
+        Assert.Contains("x1 the original's", HostFormHelp.Text(40));
     }
 }

@@ -12,13 +12,14 @@ public class StaleModifiersTests
     private static bool ThrottleHeld(Mods engine, bool wDown)
     {
         var t = BindingTable.Parse(Map);
-        return t.Holds("throttle_up", new JoystickBank(new NoPads()), x => x.Channel switch
+        var bank = new JoystickBank(new NoPads());
+        return t.Of("throttle_up").Any(b => InputChord.Holds(b.Terms, bank, x => x.Channel switch
         {
             "W" => wDown,
             "Shift" => engine.HasFlag(Mods.Shift),
             "Control" => engine.HasFlag(Mods.Control),
             _ => false,
-        });
+        }));
     }
 
     [Fact]

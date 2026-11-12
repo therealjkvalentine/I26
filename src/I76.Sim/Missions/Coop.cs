@@ -11,15 +11,6 @@ public sealed record CoopSetup(IReadOnlyList<string?> Cars)
     public float RespawnDelay { get; init; } = 5f;
 
     /// <summary>
-    /// The host's Co-op Scaling (the port's; docs/deviations.md): the most extra copies each enemy car gets, one per human past the
-    /// first (<see cref="ScriptHost.ExtrasOf"/>), up to <see cref="MaxExtraEnemies"/>. 0 (the default) is the original's mission.
-    /// </summary>
-    public int ExtraEnemies { get; init; }
-
-    /// <summary>The cap on <see cref="ExtraEnemies"/>: three, an extra per joiner of a four-player game.</summary>
-    public const int MaxExtraEnemies = 3;
-
-    /// <summary>
     /// The host's Co-op Damage (the port's; docs/deviations.md): every damage the humans' cars take is scaled by this, the
     /// channels truncated as the original truncates its own difficulty factor. 1 (the default) is the original's damage.
     /// </summary>
@@ -32,6 +23,15 @@ public sealed record CoopSetup(IReadOnlyList<string?> Cars)
     public static float? ParseDamageFactor(string s) =>
         float.TryParse(s.TrimStart('x', 'X'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f)
         && System.Array.IndexOf(DamageFactors, f) >= 0 ? f : null;
+
+    /// <summary>
+    /// The host's Co-op Scaling (the port's; docs/deviations.md): the most extra copies each enemy car gets, one per human past the
+    /// first (<see cref="ScriptHost.ExtrasOf"/>), up to <see cref="MaxExtraEnemies"/>. 0 (the default) is the original's mission.
+    /// </summary>
+    public int ExtraEnemies { get; init; }
+
+    /// <summary>The cap on <see cref="ExtraEnemies"/>: three, an extra per joiner of a four-player game.</summary>
+    public const int MaxExtraEnemies = 3;
 
     /// <summary>
     /// The host's Co-op Rolling Start (the port's; docs/deviations.md): a respawn or a joiner comes in beside a teammate who

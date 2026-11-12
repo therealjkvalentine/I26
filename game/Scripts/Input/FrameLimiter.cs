@@ -29,16 +29,25 @@ public static class FrameLimiter
     }
 
     /// <summary>
-    /// The main thread's frames while a mission builds on another thread behind the card or the briefing (Main.BuildBehindCard):
-    /// the renderer takes that thread's calls that return a value once a frame, so the frame rate sets the build's pace (t01's
-    /// terrain chunks: 4.6 s at 240 fps, 1.3 s at 1000, 1.1 s uncapped; docs/perf/loadtime.md). Mailbox (no tearing; plain VSync
-    /// where the driver has none) at up to <see cref="BuildFps"/> (I76_BUILD_FPS overrides it); <see cref="Apply"/> puts the
-    /// player's settings back.
+    /// The main thread's frames while a mission builds on a thread of its own under its briefing or behind the card
+    /// (Main.BuildUnderBriefing): the renderer answers that thread's calls that return a value once a frame, so the frame rate
+    /// sets the build's pace (t01's terrain chunks: 4.6 s at 240 fps, 1.3 s at 1000, 1.1 s uncapped; docs/perf/loadtime.md).
+    /// Up to <see cref="BuildFps"/> frames a second (I76_BUILD_FPS overrides it, 0 uncapped), never under Max FPS, uncapped
+    /// when Max FPS and VSync both are; VSync as Mailbox (no tearing; plain VSync where the driver has none) when it is on.
+    /// Without settings, the build's cap with Mailbox. <see cref="Apply"/> puts the player's settings back.
     /// </summary>
-    public static void ForBuild()
+    public static void ForBuild(I76.Game.Shell.ShellSettings? s = null)
     {
-        Engine.MaxFps = int.TryParse(System.Environment.GetEnvironmentVariable("I76_BUILD_FPS"), out int f) ? f : BuildFps;
-        DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
+        int build = int.TryParse(System.Environment.GetEnvironmentVariable("I76_BUILD_FPS"), out int f) && f >= 0 ? f : BuildFps;
+        if (s is null)
+        {
+            Engine.MaxFps = build;
+            DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
+            return;
+        }
+        int cap = FrameLimit.Fps(s.MaxFps);
+        Engine.MaxFps = (cap == 0 && !s.VSync) || build == 0 ? 0 : System.Math.Max(cap, build);
+        if (s.VSync) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Mailbox);
     }
 
     public const int BuildFps = 1000;

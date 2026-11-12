@@ -7,11 +7,11 @@ namespace I76.Game.Shell;
 /// them, and every one of the port's settings in the options box under NO. DRIVERS, drawn in the form's own paper and lines.
 /// The box is grown upward to hold them: the area list shows four rows (it scrolls, with its bar), and GAME NAME and NO.
 /// DRIVERS close up under it. In the box, one setting a line: BOTS, the switches as check boxes two to a line, MAX SCORE, then
-/// the host's rules as labelled rows: Sim Rate, Unlimited Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair. A co-op
-/// form's box has only what means something in a story mission (<see cref="Fields"/>): Extra Enemies and Damage Taken, the check
-/// boxes, Sim Rate and Password, on the box's first lines, and the box closes under them. Pure layout, no engine: the
+/// the host's rules as labelled rows: Sim Rate, Unlimited Turrets, Turrets, Ignition Lock, Handicaps, Password, Chase Crosshair. A
+/// co-op form's box has only what means something in a story mission (<see cref="Fields"/>): Extra Enemies and Damage Taken, the
+/// check boxes, Sim Rate, Turrets and Password, on the box's first lines, and the box closes under them. Pure layout, no engine: the
 /// hotspot ids are the form's own (MeleeScreen's table), every one kept from the form before (and from upstream's drawn sheet,
-/// 56373bd). Each has a tooltip saying what it is (<see cref="HostFormHelp"/>).
+/// 56373bd, with its later 40..44). Each has a tooltip saying what it is (<see cref="HostFormHelp"/>).
 /// </summary>
 public static class HostFormLayout
 {
@@ -55,9 +55,12 @@ public static class HostFormLayout
     /// <summary>The box's inside, x0, x1, y0, y1 inclusive; its foot rule.</summary>
     public static (int X0, int X1, int Y0, int Y1) BoxInside => (10, 215, BoxTop + 1, BoxFoot - 1);
     public const int BoxFoot = 473;
-    /// <summary>The box's lines: eleven, 15 px apart, filling it from NO. DRIVERS' rule to the foot; a line's baseline is 12 px into it.</summary>
-    public const int BoxLines = 11, LineH = 15, Above = 12, Below = LineH - Above;
-    public static readonly int[] BoxRow = [.. Enumerable.Range(0, BoxLines).Select(k => BoxTop + 1 + Above + k * LineH)];
+    /// <summary>
+    /// The box's lines: twelve (the melee box's rules gained upstream's Turrets), 13 or 14 px apart, filling it from NO. DRIVERS'
+    /// rule to the foot; a line's baseline is 11 px into its strip, 2 px over the strip's foot. LineH is the closest two lines come.
+    /// </summary>
+    public const int BoxLines = 12, LineH = 13, Above = 11, Below = 2;
+    public static readonly int[] BoxRow = [.. Enumerable.Range(0, BoxLines).Select(k => BoxTop + 1 + Above + (int)Math.Round(k * (double)(BoxFoot - BoxTop - 1 - Above - Below) / (BoxLines - 1)))];
     /// <summary>The check boxes' columns: the labels' x and the box's (TEAM PLAY's own, 11 x 11).</summary>
     public const int LabelA = 15, CheckA = 90, LabelB = 112, CheckB = 200;
     /// <summary>A box line's strip between two x: the whole line, Above px over its baseline to Below under.</summary>
@@ -87,6 +90,8 @@ public static class HostFormLayout
         public bool Crosshair { get; init; }
         public string CoopScale { get; init; } = "Off";
         public string CoopDamage { get; init; } = "x1";
+        /// <summary>The host's Turrets: the 1997 CD build's slew rather than the 1998 build's (upstream's host option).</summary>
+        public bool Turrets1997 { get; init; }
     }
 
     /// <summary>Where a setting is drawn in the box: a labelled row, or a check box (column A or B).</summary>
@@ -97,11 +102,17 @@ public static class HostFormLayout
 
     private static string OnOff(bool on) => on ? "On" : "Off";
     /// <summary>
-    /// Extra Enemies' cap in a player's words: Off, Up to +1, Up to +2, and at the cap (<see cref="I76.Sim.Missions.CoopSetup.MaxExtraEnemies"/>,
-    /// the default) "+1/player": every player past the first brings one more of each enemy car.
+    /// Extra Enemies' cap in a player's words: Off (the default), Up to +1, Up to +2, and at the cap
+    /// (<see cref="I76.Sim.Missions.CoopSetup.MaxExtraEnemies"/>) "+1/player": every player past the first brings one more of each enemy car.
     /// </summary>
     public static string CoopScaleWord(int n) => n <= 0 ? "Off" : n >= I76.Sim.Missions.CoopSetup.MaxExtraEnemies ? "+1/player" : $"Up to +{n}";
     private static string Tick(bool on) => on ? "X" : "";
+
+    /// <summary>The Turrets setting's words (Play Options' and the host form's): the build whose turret slew the game plays.</summary>
+    public static string TurretsText(bool cd1997) => cd1997 ? "1997 CD" : "1998 (GOG/Nitro)";
+
+    /// <summary>The same in a short value column (Play Options' sheet, the host box, the Nitro form's game options): the builds by their years.</summary>
+    public static string TurretsShort(bool cd1997) => cd1997 ? "1997 CD" : "1998";
 
     /// <summary>
     /// The settings with a label of their own, by where they go. BOTS and MAX SCORE (melee) are the box's stepped lines, drawn
@@ -109,21 +120,24 @@ public static class HostFormLayout
     /// and no use for a melee's fairness rules either (a turret limit, the ignition lock, handicaps, the crosshair's leave: a story
     /// mission's players are on one side, in the mission's own cars), so a co-op form shows only what a host would set: the co-op
     /// rules (Extra Enemies, Damage Taken) on the box's first lines, then who may join and the players' conveniences as check boxes,
-    /// then Sim Rate and Password. Rolling Start is on unless shell.cfg turns it off, and has no row.
+    /// then Sim Rate, Turrets (the build's turret slew changes the game, so it is a host rule in co-op too) and Password. Rolling
+    /// Start is on unless shell.cfg turns it off, and has no row (its id 42 stays reserved). The ids are upstream's for the settings
+    /// both have (40 Co-op Damage, 41 Co-op Scaling, 43 Ignition Lock, 44 Turrets); Handicaps is 45.
     /// </summary>
     public static List<Field> Fields(State s)
     {
         var l = new List<Field>();
         if (s.Coop)
         {
-            l.Add(new(Place.BoxRow, 0, "EXTRA ENEMIES", s.CoopScale, 40));
-            l.Add(new(Place.BoxRow, 1, "DAMAGE TAKEN", s.CoopDamage, 41));
+            l.Add(new(Place.BoxRow, 0, "EXTRA ENEMIES", s.CoopScale, 41));
+            l.Add(new(Place.BoxRow, 1, "DAMAGE TAKEN", s.CoopDamage, 40));
             l.Add(new(Place.CheckA, 2, "INVITE ONLY", Tick(s.InviteOnly), 17));
             l.Add(new(Place.CheckB, 2, "HIDDEN CARS", Tick(s.Hidden), 28));
             l.Add(new(Place.CheckA, 3, "CAR RESET", Tick(s.CarReset), 36));
             l.Add(new(Place.CheckB, 3, "CB RADIO", Tick(s.Cb), 37));
             l.Add(new(Place.BoxRow, 4, "SIM RATE", $"{s.Rate} Hz", 33));
-            l.Add(new(Place.BoxRow, 5, "PASSWORD", s.Password ? "Set" : "None", 27));
+            l.Add(new(Place.BoxRow, 5, "TURRETS", TurretsShort(s.Turrets1997), 44));
+            l.Add(new(Place.BoxRow, 6, "PASSWORD", s.Password ? "Set" : "None", 27));
             return l;
         }
         l.Add(new(Place.CheckA, 1, "TEAM PLAY", Tick(s.TeamPlay), 16));
@@ -136,15 +150,16 @@ public static class HostFormLayout
         void Rule(string label, string value, int id) => l.Add(new(Place.BoxRow, k++, label, value, id));
         Rule("SIM RATE", $"{s.Rate} Hz", 33);
         Rule("UNLIMITED TURRETS", OnOff(s.Turrets), 35);
-        Rule("IGNITION LOCK", OnOff(s.IgnitionStaysOn), 39);
-        Rule("HANDICAPS", s.Handicaps, 43);
+        Rule("TURRETS", TurretsShort(s.Turrets1997), 44);
+        Rule("IGNITION LOCK", OnOff(s.IgnitionStaysOn), 43);
+        Rule("HANDICAPS", s.Handicaps, 45);
         Rule("PASSWORD", s.Password ? "Set" : "None", 27);
         Rule("CHASE CROSSHAIR", OnOff(s.Crosshair), 38);
         return l;
     }
 
     /// <summary>The co-op form's lines: the first <see cref="CoopLines"/> of the box, whose foot rule then closes it under them (<see cref="CoopBoxFoot"/>); the sheet's paper goes on below.</summary>
-    public const int CoopLines = 6;
+    public const int CoopLines = 7;
     public static int CoopBoxFoot => BoxRow[CoopLines - 1] + Below;
 
     /// <summary>The melee box's stepped lines: BOTS (row 0: its ⊟ ⊞ at x 50 and 81, the skill, A.I. CARS) and MAX SCORE (row 4: its box, ⊟ at 112, ⊞ at 200).</summary>

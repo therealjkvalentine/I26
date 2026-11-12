@@ -12,13 +12,14 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs28()
+    public void TheProtocolIs24()
     {
-        Assert.Equal(28, Protocol.Version);
-        Assert.Equal(25, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        // upstream's number and layout (an upstream peer reads every message); the fork's additions are appended or negotiated (PeerFeatures)
+        Assert.Equal(24, Protocol.Version);
+        Assert.Equal(26, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
-    /// <summary>The host's ignition lock (protocol 22): the join accept's last byte and the listing's; an older listing without it reads as off.</summary>
+    /// <summary>The host's ignition lock (protocol 23): the join accept's last byte and one of the listing's host rules; an older listing without them reads as off.</summary>
     [Fact]
     public void TheIgnitionLockRidesInTheAcceptAndTheListing()
     {
@@ -31,12 +32,17 @@ public class WireTests
             r.U8();
             Assert.Equal(on, JoinAccept.Read(ref r).IgnitionStaysOn);
             w.Clear();
+            (acc with { Turrets1997 = on }).Write(w);
+            var r2 = new NetReader(w.Span);
+            r2.U8();
+            Assert.Equal(on, JoinAccept.Read(ref r2).Turrets1997);
+            w.Clear();
             var info = new SessionInfo(7, Protocol.Version, "Night", "M05.MSN", 1, 8, false, false, 0, 0, false, [], IgnitionStaysOn: on);
             info.Write(w);
             Assert.Equal(on, SessionInfo.TryRead(w.Span)!.IgnitionStaysOn);
             if (!on) continue;
-            // a listing that ends before the byte (an older host): off
-            var older = w.Span[..^(3 + DiscoveryTests.Names)].ToArray();     // (and the build, protocol 26, the crosshair and the names, protocol 28)
+            // a listing that ends before the host's rules (an older host): off
+            var older = w.Span[..^DiscoveryTests.Rules].ToArray();
             var back = SessionInfo.TryRead(older)!;
             Assert.False(back.IgnitionStaysOn);
             Assert.True(back.Cb);
@@ -228,7 +234,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(28, Protocol.Version);
+        Assert.Equal(24, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -285,22 +291,16 @@ public class WireTests
         Assert.Equal(15, ((GameOverEvent)batch.Events[11]).NextRoundSeconds);
     }
 
-    /// <summary>
-    /// A car's death keeps protocol 27's layout with the withdrawn death cause and seed: the flag, then three bytes written as
-    /// zero; a death written by a build that set them still reads, with them dropped.
-    /// </summary>
+    /// <summary>A car's death is upstream's: the car and the driver-killed flag, nothing after (the fork's withdrawn cause and seed bytes are gone), so the next event reads.</summary>
     [Fact]
-    public void ADeathKeepsItsTwoUnusedFields()
+    public void ADeathIsTheCarAndTheFlag()
     {
         var w = new NetWriter();
         new KilledEvent(300, true).Write(w);
-        var mine = w.ToArray();
-        Assert.Equal([0, 0, 0], mine[^3..]);
-        w.Clear();
-        w.U8((byte)EventKind.Killed); w.VarU(300); w.Bool(true); w.U8(2); w.U16(0xbeef);
-        Assert.Equal(mine.Length, w.Length);
+        new WreckedEvent(301).Write(w);
         var r = new NetReader(w.Span);
         Assert.Equal(new KilledEvent(300, true), NetEvent.Read(ref r));
+        Assert.Equal(new WreckedEvent(301), NetEvent.Read(ref r));
         Assert.Equal(0, r.Remaining);
     }
 
@@ -591,7 +591,7 @@ public class RestrictionWireTests
         // an answer written before the fields (it ends at the password flag) has no restrictions and no hidden content
         var w = new NetWriter();
         Info(I76.Sim.Trip.WeaponRestrictions.Normalize(false, [(2, 6)]), true).Write(w);
-        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + DiscoveryTests.Names)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's, the CB's, protocol 22's ignition byte, protocol 26's (empty) build, protocol 28's crosshair and names
+        var cut = w.Span[..^(2 + 3 + 1 + 1 + 1 + 1 + 1 + 1 + DiscoveryTests.Names)].ToArray();     // the flags, the count, the pair, protocol 15's co-op byte, the rate's, protocol 20's lobby byte, the car reset's, the CB's, protocol 22's crosshair and names
         var back = SessionInfo.TryRead(cut)!;
         Assert.NotNull(back);
         Assert.False(back.Hidden);
@@ -606,7 +606,90 @@ public class RestrictionWireTests
         var w = new NetWriter();
         Info(null, false).Write(w);
         var bytes = w.Span.ToArray();
-        bytes[^(9 + DiscoveryTests.Names)] = 200;    // the pair count (before the co-op, rate, lobby, car reset, CB and ignition bytes, the empty build, the crosshair byte and the names), past the most a list carries
+        bytes[^(7 + DiscoveryTests.Names)] = 200;    // the pair count (before the co-op, rate, lobby, car reset, CB and crosshair bytes and the names), past the most a list carries
         Assert.Null(SessionInfo.TryRead(bytes));
+    }
+}
+
+/// <summary>
+/// The play fork on upstream's protocol (docs/multiplayer.md "Wire (the I26 play fork)"): every fork field comes after the last
+/// field upstream's reader takes, so an upstream reader gets upstream's layout and a fork reader of an upstream peer's message
+/// reads the fork's fields as absent.
+/// </summary>
+public class ForkWireTests
+{
+    private static JoinAccept Accept() => new(2, 17, "m05", 1234, "vppirna1.vcf", false, 0, 0, 5, [], [])
+        { Crosshair = true, IgnitionStaysOn = true, Turrets1997 = true };
+
+    [Fact]
+    public void TheAcceptEndsWithUpstreamsFieldsThenTheForks()
+    {
+        var full = new NetWriter();
+        (Accept() with { Handicaps = I76.Sim.Missions.HandicapMode.Auto, Build = "abc1234", Features = Protocol.Features }).Write(full);
+        var plain = new NetWriter();
+        Accept().Write(plain);
+        // the fork's tail: the handicaps byte, the build (length and text) and the features (one VarU byte)
+        int tail = 1 + 1 + 7 + 1;
+        // the same up to upstream's last byte (an accept with none of the fork's has its 3-byte tail: 0, an empty build, no features)
+        Assert.Equal(plain.Span[..^3].ToArray(), full.Span[..^tail].ToArray());
+        var r = new NetReader(full.Span); r.U8();
+        var back = JoinAccept.Read(ref r);
+        Assert.Equal((true, true, true), (back.Crosshair, back.IgnitionStaysOn, back.Turrets1997));
+        Assert.Equal((I76.Sim.Missions.HandicapMode.Auto, "abc1234", Protocol.Features), (back.Handicaps, back.Build, back.Features));
+        // an upstream host's accept ends at Turrets1997: no handicaps, no build, no features
+        var up = new NetReader(full.Span[..^tail]); up.U8();
+        var upstream = JoinAccept.Read(ref up);
+        Assert.Equal((true, true, true), (upstream.Crosshair, upstream.IgnitionStaysOn, upstream.Turrets1997));
+        Assert.Equal((I76.Sim.Missions.HandicapMode.Off, "", PeerFeatures.None), (upstream.Handicaps, upstream.Build, upstream.Features));
+    }
+
+    [Fact]
+    public void TheJoinRequestEndsWithTheBuildAndTheFeatures()
+    {
+        var w = new NetWriter();
+        new JoinRequest(Protocol.Version, "a", "vppirna1.vcf", 0, []) { Build = "abc1234", Features = Protocol.Features }.Write(w);
+        var r = new NetReader(w.Span);
+        var back = JoinRequest.Read(ref r);
+        Assert.Equal(("abc1234", Protocol.Features), (back.Build, back.Features));
+        // upstream's request ends after the paint
+        var up = new NetReader(w.Span[..^(1 + 7 + 1)]);
+        var upstream = JoinRequest.Read(ref up);
+        Assert.Equal(("", PeerFeatures.None), (upstream.Build, upstream.Features));
+    }
+
+    [Fact]
+    public void TheScoreboardsMaskIsAByteAndTheHandicapsComeAfter()
+    {
+        var rows = new List<PlayerRow> { new(1, "a", 0, 10, 1, 0, 30, 5, true) { Handicap = -2 }, new(2, "b", 0, 0, 0, 1, 40, 6, true) };
+        var sent = new Dictionary<byte, PlayerRow>();
+        var w = new NetWriter();
+        new Scoreboard(20, 1, rows).Write(w, sent);
+        var withLevels = w.ToArray();
+        w.Clear();
+        new Scoreboard(20, 1, [.. rows.Select(p => p with { Handicap = 0 })]).Write(w);
+        var plain = w.ToArray();
+        // upstream's board, then the block: a count, then the slot and the level
+        Assert.Equal(plain, withLevels[..plain.Length]);
+        Assert.Equal(new byte[] { 1, 1, unchecked((byte)-2) }, withLevels[plain.Length..]);
+        var board = new Dictionary<byte, PlayerRow>();
+        var r = new NetReader(withLevels); r.U8();
+        Assert.Equal(-2, Scoreboard.Read(ref r, board).Players[0].Handicap);
+        // a level that changes alone is the block alone: no row
+        rows[1] = rows[1] with { Handicap = 3 };
+        w.Clear();
+        new Scoreboard(40, 2, rows).Write(w, sent);
+        r = new NetReader(w.Span); r.U8();
+        var second = Scoreboard.Read(ref r, board);
+        Assert.Equal((-2, 3), (second.Players[0].Handicap, second.Players[1].Handicap));
+        Assert.Equal(3, sent[2].Handicap);
+        Assert.Equal(30, sent[1].Ping);
+    }
+
+    [Fact]
+    public void ThePistolGoesOnlyToAHostThatSaysIt()
+    {
+        using var client = new MeleeClient();
+        var input = new CarInput { Buttons = CarButtons.Pistol | CarButtons.Fire };
+        Assert.Equal(CarButtons.Fire, client.ForHost(input).Buttons);
     }
 }

@@ -6,7 +6,7 @@ using Xunit;
 namespace I76.Net.Tests;
 
 /// <summary>
-/// The host's Handicaps (docs/multiplayer.md "Handicaps"; protocol 23): the rule rides in the join accept and the listing, each
+/// The host's Handicaps (docs/multiplayer.md "Handicaps"; the play fork's, appended to upstream's messages): the rule rides in the join accept and the listing, each
 /// player's level in the scoreboard's rows; the host alone sets a level, and only where its rule is on.
 /// </summary>
 public class HandicapTests(Xunit.Abstractions.ITestOutputHelper output)

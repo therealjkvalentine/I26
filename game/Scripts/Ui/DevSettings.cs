@@ -1,5 +1,6 @@
 using Godot;
 using I76.Game.Shell;
+using I76.Game.Sim;
 
 namespace I76.Game.Ui;
 
@@ -21,7 +22,9 @@ public sealed record DevSetting(string Key, string[] Values, Func<ShellSettings,
 /// </summary>
 public static class DevSettings
 {
-    private const string M = ShellSettings.PortMark;
+    /// <summary>Marks a value the original game does not have (ShellSettings.PortMark).</summary>
+    public const string PortMark = ShellSettings.PortMark;
+    private const string M = PortMark;
     private static readonly string[] FalseTrue = ["false", "true" + M];
     /// <summary>A key that follows the look while the file has none: "look", then the table's words.</summary>
     private static string[] Look(string[] names) => ["look", .. Words(names)];
@@ -207,6 +210,20 @@ public static class DevSettings
     ];
 
     /// <summary>
+    /// Keys set elsewhere that the panel steps too, not in docs/playing.md's table: net_names (Ctrl+T in a network game keeps its
+    /// last choice there; docs/deviations.md) and telemetry_format (with [port] telemetry or I76_TELEMETRY_UDP; docs/dev-hooks.md).
+    /// </summary>
+    public static readonly DevSetting[] Elsewhere =
+    [
+        // every name shown at a network game's start (Ctrl+T toggles it in the game; the original starts each game with it off)
+        new("net_names", FalseTrue, s => s.NetNames ? 1 : 0, (s, v) => s.NetNames = v != 0, DevWhen.NextMission),
+        // the telemetry feed's packet for a target that names none ([port] telemetry or I76_TELEMETRY_UDP sets the targets)
+        new("telemetry_format", ["i26", "outsim" + M, "outgauge" + M],
+            s => (int)(TelemetryPackets.ParseFormat(s.TelemetryFormat) ?? TelemetryFormat.I26),
+            (s, v) => s.TelemetryFormat = v == 0 ? null : ((TelemetryFormat)v).ToString().ToLowerInvariant(), DevWhen.NextMission),
+    ];
+
+    /// <summary>
     /// The Night group: the modern look's night levels on sliders, live in a night mission (I76.Game.World.NightDial; docs/playing.md):
     /// night_moon, night_road and night_sky scale the moon's light on the ground, the road's share of it and the sky's gain as solved
     /// for the mission (1; the moon's and the sky's default is 1.4), night_chroma and night_warm set the moon light's colour on the ground (1, 1), night_station_light the
@@ -259,7 +276,7 @@ public static class DevSettings
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
-        foreach (var e in All.Concat(WithRow)) Add(grid, e);
+        foreach (var e in All.Concat(WithRow).Concat(Elsewhere)) Add(grid, e);
         col.AddChild(grid);
         // the Night group: the modern look's night levels, live in a night mission
         col.AddChild(new Label { Text = "Night (the modern look; 1 as solved for the mission)" });

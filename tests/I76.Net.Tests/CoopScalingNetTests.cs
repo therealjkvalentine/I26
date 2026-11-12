@@ -32,4 +32,16 @@ public class CoopScalingNetTests
             Assert.Equal(2, info.Team);
         }
     }
+
+    /// <summary>The cap is listed for the session popup (a melee lists none) and goes across a host migration with the options (JSON in the savestate's extras).</summary>
+    [Fact]
+    public void TheCapIsListedAndKeptByAMigration()
+    {
+        var json = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        var o = new ServerOptions { Install = "", Coop = "t01", CoopScale = 2 };
+        Assert.Equal(2, System.Text.Json.JsonSerializer.Deserialize<ServerOptions>(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(o, json), json)!.CoopScale);
+        if (HostTests.InstallDir is not { } dir) return;
+        Assert.Equal(2, new MeleeHost(o with { Install = dir, Arena = "t01", MaxPlayers = 2 }).Info().CoopScale);
+        Assert.Equal(0, new MeleeHost(new ServerOptions { Install = dir, Arena = "m01", CoopScale = 2 }).Info().CoopScale);
+    }
 }

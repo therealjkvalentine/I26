@@ -189,9 +189,10 @@ public sealed class OptionsScreen : OverlayScreen
 }
 
 /// <summary>
-/// An overlay whose port rows scroll in the sheet's free lines under the original's (Graphic Detail, Play Options): the mouse
-/// wheel, Up/Down and Page Up/Down, or the pad past the first or last visible row move the list; a thin bar in the sheet's ink,
-/// with an arrow at an end where there is more, marks it. The rest of the sheet (the original's rows, Done, Cancel) stays put.
+/// An overlay whose rows are a scrolling list on the sheet's ruled lines (Play Options: every row, the original's and the port's;
+/// Graphic Detail's pages when their rows overflow the sheet): the mouse wheel, Up/Down and Page Up/Down, or the pad past the
+/// first or last visible row move the list; a thin bar in the sheet's ink, with an arrow at an end where there is more, marks it.
+/// The rest of the sheet (Reset, Done, Cancel, a page's entries) stays put.
 /// </summary>
 public abstract class ScrollingOverlayScreen : OverlayScreen
 {
@@ -256,17 +257,18 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997;
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
     private float _savedHeadSens;
     private bool _savedOtAuto;
-    private static readonly (int Y, string Label, int Bit)[] Rows =
+    /// <summary>The original's six check rows and their bits (Nitro's sheet has only Arcade Phys. and Unlim. Wiper Fluid).</summary>
+    private static readonly (string Label, int Bit)[] Checks =
     [
-        (139, "Arcade Phys.", 0x01), (162, "No Salv. Manag.", 0x02), (185, "Unlim. Ammo", 0x04),
-        (208, "Unlim. Armor", 0x08), (231, "Unlim. Chas. Rein.", 0x10), (254, "Unlim. Wiper Fluid", 0x20),
+        ("Arcade Phys.", 0x01), ("No Salv. Manag.", 0x02), ("Unlim. Ammo", 0x04),
+        ("Unlim. Armor", 0x08), ("Unlim. Chas. Rein.", 0x10), ("Unlim. Wiper Fluid", 0x20),
     ];
     private static int NextRate(int hz)
     {
@@ -275,27 +277,32 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         return o[(i + 1) % o.Length].Label;
     }
     private static readonly string[] Levels = ["Wimp", "Champion", "Badass"];
-    /// <summary>The list slots that are check rows (the others a value): their line gets a check box.</summary>
+    /// <summary>The list slots that are check rows (the others a value): their line gets the sheet's check box.</summary>
     private readonly HashSet<int> _checks = [];
 
     /// <summary>
-    /// Where the port's rows scroll: the base game's sheet has the original's six check rows on consecutive lines from 139 and
-    /// Difficulty on its last line (415), the six lines between for the list; Nitro's keeps Arcade Phys. (139), Unlim. Wiper
-    /// Fluid (185) and Difficulty (323) where its sheet has them, the five lines between the last two for the list.
+    /// Where the list scrolls: every row, one to a ruled line, over the sheet's lines from the original's first row (139) to its
+    /// last (415), thirteen of them, in both games (the sheet's first line, 116, stays blank, as the original left it).
     /// </summary>
-    public static (int Top, int Shown) ListLines(bool nitro) => nitro ? (208, 5) : (277, 6);
+    public static (int Top, int Shown) ListLines(bool nitro) => (139, 13);
+
+    public const string Difficulty = "Difficulty Level";
 
     /// <summary>
-    /// The port's rows, in the list's order (a check row, or a value row stepped by a click): upstream's, then the play fork's own
-    /// (Unlim. Ordnance, Head Tracking and its sensitivity, Melee A.I., Equip. Tooltips). Force Feedback, Rumble Strength and Wheel Strength are the
-    /// Controls sheet's (<see cref="ControlsMenuScreen"/>).
+    /// The port's rows, in the list's order after the original's (a check row, or a value row stepped by a click): upstream's, then
+    /// the play fork's own (Unlim. Ordnance, Head Tracking and its sensitivity, the opentrack rows, Melee A.I., Equip. Tooltips).
+    /// Force Feedback, Rumble and Rumble Strength are the Controls sheet's (<see cref="ControlsMenuScreen"/>), with Wheel Strength.
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
-        "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair",
+        "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets",
         "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
     ];
+
+    /// <summary>Every row of the list, in order: the original's check rows (Nitro's two), Difficulty, then the port's rows.</summary>
+    public static string[] ListRows(bool nitro) =>
+        [.. Checks.Where(c => !nitro || (c.Bit & PlayProfile.NitroMask) != 0).Select(c => c.Label), Difficulty, .. PortRows];
     /// <summary>The Opentrack row's state as last drawn, polled twice a second (<see cref="Tick"/>).</summary>
     private I76.Game.OpenTrackState _otState;
     private double _otPoll;
@@ -321,27 +328,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
         _savedEquipTips = s.EquipmentTips;
+        _savedBriefing = s.BriefingWhileLoading;
+        _savedTurrets1997 = s.Turrets1997;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
-        // the original's six check rows on consecutive ruled lines. The sheet prints a check box only on every other line (where
-        // the original's rows were): the others get Arcade Phys.'s box copied
-        if (!nitro) foreach (int y in new[] { 162, 208, 254 }) Frame.CopyBackground(200, 139, 22, 18, 200, y);
-        // Nitro's table has three rows: Arcade Phys. (222,139), Unlim. Wiper Fluid (222,185), Difficulty (222,323);
-        // the salvage-management and cheat rows are the base game's
-        foreach (var (y, label, bit) in Rows)
-        {
-            if (nitro && (bit & PlayProfile.NitroMask) == 0) continue;
-            int ry = nitro && bit == 0x20 ? 185 : y;
-            Add(222, ry, label, null);
-            // the check strip, x 205..404, y+1..y+12; a set bit shows "x" at (205, y+1)
-            TipLine(Add(205, ry + 1, () => Check((s.PlayOptions & bit) != 0), () => s.PlayOptions ^= bit, Small, w: 200, h: 12), label, -3);
-        }
-        int dy = nitro ? 323 : 415;
-        Add(222, dy, "Difficulty Level", null);
-        TipLine(Add(205, dy + 1, () => "", () => s.Difficulty = s.Difficulty >= 2 ? 0 : s.Difficulty + 1, Small, w: 300, h: 12), "Difficulty Level", -3);
-        Add(398, dy + 2, () => Levels[Math.Clamp(s.Difficulty, 0, 2)], null);
 
-        // the port's own rows, one to a line, scrolling in the free lines
+        // every row in one list, one to a ruled line: a check row (its label, and the check strip x 205..404, y+1..y+12, "x" at
+        // (205, y+1) when set; the sheet's printed box drawn on its line wherever it scrolls to, PrepareLines) or a value row (its
+        // label, a click strip, the value at 398), each with its tooltip. To add a row, add it here in its place (and its label to PortRows)
         int slot = 0;
         void Toggle(string label, Func<bool> get, Action flip)
         {
@@ -357,6 +351,13 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             Listed(Add(398, 0, value, null), slot, 2);
             slot++;
         }
+        // the original's six check rows (Nitro's sheet: Arcade Phys. and Unlim. Wiper Fluid; the salvage-management and cheat rows
+        // are the base game's), then Difficulty, the original's last row
+        foreach (var (label, bit) in Checks)
+            if (!nitro || (bit & PlayProfile.NitroMask) != 0) Toggle(label, () => (s.PlayOptions & bit) != 0, () => s.PlayOptions ^= bit);
+        Step(Difficulty, () => s.Difficulty = s.Difficulty >= 2 ? 0 : s.Difficulty + 1, () => Levels[Math.Clamp(s.Difficulty, 0, 2)]);
+
+        // the port's own rows
         // Hidden Weapons & Cars (docs/hidden-content.md)
         Toggle(PortRows[0], () => s.HiddenContent, () => s.HiddenContent = !s.HiddenContent);
         Toggle(PortRows[1], () => s.ModernPhysics, () => s.ModernPhysics = !s.ModernPhysics);   // Ctrl+F7 flips it in play
@@ -374,13 +375,19 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         Toggle(PortRows[8], () => s.UpdateCheck, () => s.UpdateCheck = !s.UpdateCheck);
         // Chase Crosshair: the aiming mark in the F2 chase view (a network game shows it only when the host allows it)
         Toggle(PortRows[9], () => s.ChaseCrosshair, () => s.ChaseCrosshair = !s.ChaseCrosshair);
+        // Load During Briefing (docs/deviations.md): a mission's briefing plays while the mission builds, the loading card before it
+        // (and after it, while the build finishes, if it is skipped); off, the original's order: the load, then the briefing
+        Toggle(PortRows[10], () => s.BriefingWhileLoading, () => s.BriefingWhileLoading = !s.BriefingWhileLoading);
+        // Turrets (docs/deviations.md): the turret slew of the 1998 build (GOG's and the Nitro Pack's, the default) or the 1997 CD
+        // build's; a network game plays the host's
+        Step(PortRows[11], () => s.Turrets1997 = !s.Turrets1997, () => HostFormLayout.TurretsShort(s.Turrets1997));
         // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
-        Toggle(PortRows[10], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
+        Toggle(PortRows[12], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
         // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
         // (the socket follows the row at once, so the Opentrack row can see poses arriving; Cancel puts it back)
-        Step(PortRows[11], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
+        Step(PortRows[13], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
             () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
-        Step(PortRows[12], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
+        Step(PortRows[14], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
             () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         // Opentrack (docs/playing.md): its state (Missing / Stopped / Running / Tracking); a click when Stopped starts it.
         // Opentrack Auto: a mission with Head Tracking on starts it, and the game closes the one it started when it exits.
@@ -388,27 +395,30 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         I76.Game.HeadTracker.Apply(s);
         _otState = I76.Game.OpenTrackLauncher.State(s);
         _otProfile = I76.Game.OpenTrackLauncher.ProfileDir(s) is { } pd && File.Exists(Path.Combine(pd, I76.Game.OpenTrack.ProfileName)) ? "Present" : "Write";
-        Step(PortRows[13], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
+        Step(PortRows[15], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
             () => I76.Game.OpenTrack.Label(_otState));
-        Toggle(PortRows[14], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
-        Step(PortRows[15], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
+        Toggle(PortRows[16], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
+        Step(PortRows[17], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Step(PortRows[16], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+        Step(PortRows[18], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
-        Toggle(PortRows[17], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        Toggle(PortRows[19], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
 
-    /// <summary>Each visible line of the list gets the sheet's check box when a check row is on it and blank paper when a value row is (or none).</summary>
+    /// <summary>
+    /// Each visible line of the list is wiped to blank paper (the sheet prints check boxes only on some lines, on Nitro's sheet
+    /// fewer) and gets the sheet's printed check box (Arcade Phys.'s, copied) when a check row is on it, so a row's box moves with it.
+    /// </summary>
     protected override void PrepareLines()
     {
         for (int line = 0; line < List.Shown; line++)
         {
             int y = List.Top + List.LineH * line;
             Frame.CopyBackground(300, y, 22, 18, 200, y);
-            if (_checks.Contains(List.SlotOn(line))) Frame.CopyBackground(200, 139, 22, 18, 200, y);
+            if (_checks.Contains(List.SlotOn(line))) Frame.CopyOriginal(200, 139, 22, 18, 200, y);   // the line it comes from may be wiped by now
         }
     }
 
@@ -454,7 +464,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     private void Cancel()
     {
         var s = Shell.Settings;
-        s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair;
+        s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair; s.BriefingWhileLoading = _savedBriefing; s.Turrets1997 = _savedTurrets1997;
         s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens; s.OpenTrackAuto = _savedOtAuto;
         I76.Game.HeadTracker.Apply(s);
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips;
@@ -488,6 +498,21 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     }
 }
 
+/// <summary>
+/// The port's rows under Audio Control's levels: the CB microphone, then (the fork's) Output and LFE Level, and HiFi Audio's switch
+/// only when a pack is installed (the front end's and the mission menu's).
+/// </summary>
+public static class AudioControlRows
+{
+    public const string Mic = "CB Microphone", HiFiAudio = "HiFi Audio", Output = "Output", Lfe = "LFE Level";
+    /// <summary>Upstream's rows (the CB microphone, HiFi Audio with a pack).</summary>
+    public static IReadOnlyList<string> Labels(bool pack) => pack ? [Mic, HiFiAudio] : [Mic];
+    /// <summary>The dotted box's rows under the microphone, in order: Output, LFE Level, and HiFi Audio with a pack.</summary>
+    public static IReadOnlyList<string> BoxRows(bool pack) => pack ? [Output, Lfe, HiFiAudio] : [Output, Lfe];
+    /// <summary>The box rows' baselines: the two at 395 and 414 (19 apart), three at 389, 406 and 423 (17 apart) above Done's line.</summary>
+    public static int[] BoxY(bool pack) => pack ? [389, 406, 423] : [395, 414];
+}
+
 /// <summary>Audio Control, overlay 6: record 7, the music, effects and voice levels with a value and a row of check boxes each.</summary>
 public sealed class AudioScreen : OverlayScreen
 {
@@ -496,6 +521,7 @@ public sealed class AudioScreen : OverlayScreen
     private string _savedMic = "";
     private I76.Formats.Input.AudioOutput _savedOutput;
     private int _savedLfe;
+    private bool _savedHiFi;
     // Number Of Channels (+0x53, 347) is gone: it capped the sound hardware's voices, and this port plays every sound
     private static readonly (int Y, string Label, int Boxes)[] Rows = [(140, "Music Level", 10), (209, "Sfx Level", 10), (278, "Voice Level", 10)];
 
@@ -506,6 +532,7 @@ public sealed class AudioScreen : OverlayScreen
         _savedMic = s.CbMic;
         _savedOutput = s.Output;
         _savedLfe = s.LfeLevel;
+        _savedHiFi = s.HiFiAudio;
         for (int r = 0; r < Rows.Length; r++)
         {
             int row = r;
@@ -521,27 +548,40 @@ public sealed class AudioScreen : OverlayScreen
         }
         // the port's: the microphone the CB voice chat uses (network games), under the levels; a click steps through the input devices
         Frame.CopyBackground(200, 324, 150, 18, 200, 371);      // (the sheet's unused check boxes on that line, wiped)
-        Add(204, 347, "CB Microphone", null);
-        Tip(Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18), () => MenuTips.Of("CB Microphone"), 200, 462, -26, 46);
-        // the port's: what the output carries (the bass shaker's signal mixed into stereo, or on the LFE of 5.1 and 7.1) and that signal's level (0 none), live; a click steps each
-        // in the dotted box under the sheet's rows, its two unused check boxes wiped
+        Add(204, 347, AudioControlRows.Mic, null);
+        Tip(Add(204, 371, () => PlayOptionsScreen.MicLabel(s.CbMic), () => s.CbMic = PlayOptionsScreen.NextMic(s.CbMic), w: 300, h: 18), () => MenuTips.Of(AudioControlRows.Mic), 200, 462, -26, 46);
+        // the port's: what the output carries (the bass shaker's signal mixed into stereo, or on the LFE of 5.1 and 7.1) and that signal's level (0 none), live; a click steps each,
+        // and with a sound pack HiFi Audio's sounds and movie tracks on or off (sounds and movies started after a change follow it).
+        // In the dotted box under the sheet's rows, its two unused check boxes wiped; with the third row the lines close up
         Frame.CopyBackground(250, 403, 22, 20, 202, 403);
         Frame.CopyBackground(250, 403, 22, 20, 330, 403);
         var levels = I76.Formats.Input.AudioOutputs.Levels;
-        Add(204, 395, "Output", null);
-        TipLine(Add(400, 395, () => I76.Formats.Input.AudioOutputs.Names[(int)s.Output],
-            () => { s.Output = (I76.Formats.Input.AudioOutput)(((int)s.Output + 1) % I76.Formats.Input.AudioOutputs.Names.Length); I76.Game.Boot.Main.ApplyOutput(s); }), "Output", -1).TipH = 19;
-        Add(204, 414, "LFE Level", null);
-        TipLine(Add(400, 414, () => $"{s.LfeLevel} %",
-            () => { s.LfeLevel = levels[(Math.Max(0, Array.IndexOf(levels, s.LfeLevel)) + 1) % levels.Length]; I76.Game.Boot.Main.ApplyOutput(s); }), "LFE Level", 0).TipH = 19;
+        bool pack = I76.Game.Assets.HiFiAudio.Installed;
+        int[] boxY = AudioControlRows.BoxY(pack);
+        int tipH = pack ? 17 : 19;
+        Add(204, boxY[0], AudioControlRows.Output, null);
+        TipLine(Add(400, boxY[0], () => I76.Formats.Input.AudioOutputs.Names[(int)s.Output],
+            () => { s.Output = (I76.Formats.Input.AudioOutput)(((int)s.Output + 1) % I76.Formats.Input.AudioOutputs.Names.Length); I76.Game.Boot.Main.ApplyOutput(s); }), AudioControlRows.Output, -1).TipH = tipH;
+        Add(204, boxY[1], AudioControlRows.Lfe, null);
+        TipLine(Add(400, boxY[1], () => $"{s.LfeLevel} %",
+            () => { s.LfeLevel = levels[(Math.Max(0, Array.IndexOf(levels, s.LfeLevel)) + 1) % levels.Length]; I76.Game.Boot.Main.ApplyOutput(s); }), AudioControlRows.Lfe, 0).TipH = tipH;
+        if (pack)
+        {
+            Add(204, boxY[2], AudioControlRows.HiFiAudio, null);
+            // the pack's name in the tooltip (upstream prints it under the row; the box has no line for it here)
+            Tip(Add(400, boxY[2], () => s.HiFiAudio ? "On" : "Off", () => ApplyHiFi(!s.HiFiAudio)),
+                () => $"{MenuTips.Of(AudioControlRows.HiFiAudio)} ({I76.Game.Assets.HiFiAudio.Label})", 200, 462, 0, tipH);
+        }
         Add(350, 438, "Done", () => { s.Save(); Shell.Overlay(new OptionsScreen()); }, Small);
         // Cancel puts the four bytes back but resets only the music live (as written)
         Add(402, 438, "Cancel", () =>
         {
-            Array.Copy(_saved, s.Audio, 4); s.CbMic = _savedMic; s.Output = _savedOutput; s.LfeLevel = _savedLfe;
+            Array.Copy(_saved, s.Audio, 4); s.CbMic = _savedMic; s.Output = _savedOutput; s.LfeLevel = _savedLfe; ApplyHiFi(_savedHiFi);
             I76.Game.Boot.Main.ApplyOutput(s); Apply(0); Shell.Overlay(new OptionsScreen());
         }, Small);
     }
+
+    private void ApplyHiFi(bool on) { Shell.Settings.HiFiAudio = on; I76.Game.Assets.HiFiAudio.Enabled = on; }
 
     // the music level is live; the SFX and voice levels reach their buses and play their preview (cammo.wav for the SFX level, croger.wav for the voice level)
     private void Apply(int row)
@@ -556,11 +596,13 @@ public sealed class AudioScreen : OverlayScreen
 /// the original's order and words, the port's rows a player reaches for most under them and, under a blank line, an entry for
 /// Advanced (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back.
 /// Reset puts the page's rows back (the sheet's: the default profile, as the original's); Done and Cancel, on any page, save or
-/// restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>).
+/// restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>). A page whose rows overflow its lines scrolls them
+/// (upstream's scrolling list, <see cref="ScrollRows{T}"/>): the entries, the frame-rate line and the buttons stay put.
 /// </summary>
-public sealed class GraphicsScreen : OverlayScreen
+public sealed class GraphicsScreen : ScrollingOverlayScreen
 {
     protected override int Record => 9;
+    protected override int MarkX => 386;    // in the gap before the value column
     /// <summary><see cref="GraphicsPages.Sheet"/>, or the page shown.</summary>
     public int Page { get; init; }
     /// <summary>The settings as Graphic Detail was opened, which Cancel restores on any page: taken on the sheet, handed on to a page and back.</summary>
@@ -573,27 +615,35 @@ public sealed class GraphicsScreen : OverlayScreen
     /// <summary>A row's tooltip zone: the whole ruled line, label and value.</summary>
     private const int RowX0 = 200, RowX1 = 462;
 
-    /// <summary>One row on a line: its label and its value (a click on the value is <paramref name="click"/>), the row's tooltip over the line.</summary>
+    /// <summary>The line the page's rows start on: the list's first slot.</summary>
+    private int _firstLine;
+
+    /// <summary>One row on a line: its label and its value (a click on the value is <paramref name="click"/>), the row's tooltip over the line; in the list's slot for that line.</summary>
     private void Row(GraphicsRow r, int line, string label, Func<string> value, Action click)
     {
-        Add(200, LineY(line), label, null);
+        Listed(Add(200, LineY(line), label, null), line - _firstLine);
         // a long value ("Monitor*") ends short of the sheet's edge; a label longer than its column ("Keep Mouse In Window") pushes
         // its value along past the rule
         var it = Add(Math.Max(397, 200 + Label.Measure(label) + 16), LineY(line), value, click);
         it.Right = 461;
         Tip(it, () => GraphicsHelp.Text(r, Shell.Settings.Look1997), RowX0, RowX1, -2, LineH);
+        Listed(it, line - _firstLine);
     }
 
     protected override void Build()
     {
         _saved = Snapshot ?? GraphicsPages.CopyAll(Shell.Settings, new ShellSettings());
-        int line = Page == GraphicsPages.Sheet ? 0 : GraphicsPages.FirstRowLine;
+        int line = _firstLine = Page == GraphicsPages.Sheet ? 0 : GraphicsPages.FirstRowLine;
         if (Page != GraphicsPages.Sheet) Add(200, LineY(GraphicsPages.HeadingLine), GraphicsPages.Names[Page], null);
         foreach (var r in GraphicsPages.Rows[Page])
         {
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
             if (PortRow(r, line)) line++;
         }
+        // the rows' lines: on the sheet down to the entries' line, on a page to the sheet's foot; more rows than that scroll there
+        int room = (Page == GraphicsPages.Sheet ? GraphicsPages.FirstEntryLine : GraphicsPages.Lines) - _firstLine;
+        (List.Top, List.Shown) = (LineY(_firstLine), room);
+        line = _firstLine + Math.Min(line - _firstLine, room);
         if (Page == GraphicsPages.Sheet)
         {
             // the pages' entries under a blank line, each the whole line

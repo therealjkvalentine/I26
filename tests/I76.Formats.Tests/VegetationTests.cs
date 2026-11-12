@@ -733,7 +733,7 @@ public class VegetationTests(ITestOutputHelper output)
         return (w, mask, region, terrain, new VegetationPlacer(region.Biome, new VegetationParams { LowGround = region.LowGround }, terrain, mask, VegHash.Of("T02")));
     }
 
-    /// <summary>T02's sward map is made quickly enough for the loading card (wall clock: left out of a busy machine's runs).</summary>
+    /// <summary>T02's sward map is made quickly enough for the loading card.</summary>
     [InstallFact]
     [Trait("Load", "Sensitive")]   // wall-clock timing: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void T02SwardIsQuick()
@@ -742,12 +742,13 @@ public class VegetationTests(ITestOutputHelper output)
         var sw = System.Diagnostics.Stopwatch.StartNew();
         SwardMap.Build(p, w.Terrain);
         long ms = sw.ElapsedMilliseconds;
+        output.WriteLine($"T02 sward: {ms} ms");
         Assert.True(ms < 1500, $"{ms} ms");
     }
 
     /// <summary>
-    /// The sward map on T02's real terrain (the South Plains): grassy on the
-    /// open prairie, bare under objects (the roads paint over it), and its texels near the placer's own sward at their middles.
+    /// The sward map on T02's real terrain (the South Plains): grassy on the open prairie, bare under objects (the roads
+    /// paint over it), and its texels near the placer's own sward at their middles. How quickly: <see cref="T02SwardIsQuick"/>.
     /// </summary>
     [InstallFact]
     public void T02SwardCoversThePrairieAndKeepsOffObjects()
