@@ -737,10 +737,15 @@ public partial class ScenerySpawner : Node3D
     /// <summary>The keyword placements' debug markers (spawn points, regen points): shown in the flyover, hidden in play.</summary>
     public Node3D Markers { get; } = new() { Name = "Markers" };
 
-    /// <summary>The markers' node is only added to the tree when there is a marker; one that never was would stay a stray node for the rest of the run.</summary>
+    /// <summary>
+    /// The markers' and the road pieces' nodes are only added to the tree when there is one to hold (a mission without
+    /// painted road pieces, as M01, never adds its RoadPieces); one that never was would stay a stray node for the rest of
+    /// the run, one more at every restart.
+    /// </summary>
     public override void _ExitTree()
     {
-        if (Markers.GetParent() is null && IsInstanceValid(Markers)) Markers.Free();
+        foreach (var n in new[] { Markers, RoadPieces })
+            if (IsInstanceValid(n) && n.GetParent() is null) n.Free();
     }
 
     /// <summary>

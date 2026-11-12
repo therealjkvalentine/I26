@@ -14,6 +14,11 @@ namespace I76.Net.Tests.Anet;
 /// </summary>
 public class ServerBrowserTests(ITestOutputHelper log)
 {
+    /// <summary>The hosts' network (TestNet), kept at the wall's pace: the browser and the fake servers answer on their own threads.</summary>
+    private readonly TestNet _net = new() { RealPace = true };
+
+    private void StepHosts() { _net.Settle(); _net.Advance(); }
+
     private static byte[] Tag(string arena) => new I26SessionTag(Protocol.Version, false, false, false, false, I76.Sim.Missions.MeleeKind.Combat, 2,
         I76.Sim.Missions.MeleeGoal.None, arena).Write();
 
@@ -44,14 +49,14 @@ public class ServerBrowserTests(ITestOutputHelper log)
     private static ServerSource AnetAt(string name, int port) => new(name, $"127.0.0.1:{port}", ("127.0.0.1", port), null);
 
     /// <summary>Steps the hosts and the browser (asking again every half second) until <paramref name="done"/>.</summary>
-    private static bool Loop(ServerBrowser b, Func<bool> done, double seconds, params TestPeer[] hosts)
+    private bool Loop(ServerBrowser b, Func<bool> done, double seconds, params TestPeer[] hosts)
     {
         var sw = Stopwatch.StartNew();
         double asked = -1;
         while (sw.Elapsed.TotalSeconds < seconds)
         {
             if (sw.Elapsed.TotalSeconds - asked >= 0.5) { asked = sw.Elapsed.TotalSeconds; b.Refresh(); }
-            foreach (var h in hosts) h.Step();
+            StepHosts();
             b.Poll();
             if (done()) return true;
             Thread.Sleep(5);
@@ -59,9 +64,9 @@ public class ServerBrowserTests(ITestOutputHelper log)
         return false;
     }
 
-    private static TestPeer Host(string name, params int[] servers)
+    private TestPeer Host(string name, params int[] servers)
     {
-        var p = new TestPeer();
+        var p = new TestPeer(_net);
         p.Host = new AnetHost(p.Transport, [.. servers.Select(s => ("127.0.0.1", s))], () => new AnetGame(name, 8, 1, true, Tag("m05")), p.Send);
         return p;
     }
@@ -95,7 +100,7 @@ public class ServerBrowserTests(ITestOutputHelper log)
         using var direct = new DirectGame("Direct");
         var hosts = new[] { alpha, bravo, both };
         var sw = Stopwatch.StartNew();
-        while (sw.Elapsed.TotalSeconds < 5 && !hosts.All(h => h.Host!.Servers.All(s => s.Listed))) { foreach (var h in hosts) h.Step(); Thread.Sleep(5); }
+        while (sw.Elapsed.TotalSeconds < 5 && !hosts.All(h => h.Host!.Servers.All(s => s.Listed))) StepHosts();
         Assert.True(hosts.All(h => h.Host!.Servers.All(s => s.Listed)), "hosts not listed");
 
         using var silent = Silent();

@@ -397,6 +397,23 @@ public class AuditPlannerTests
         Assert.Contains(c, n => n.Road);
     }
 
+    /// <summary>
+    /// The state dump of a search in progress names each pooled node once, by its place, and refers to it after: it walked
+    /// the parents, children and open tree instead, as deep as the pool (hundreds of nodes), and with the install's missions
+    /// (T05 with the cheats) overflowed the test host's stack.
+    /// </summary>
+    [Fact]
+    public void AStateDumpOfASearchInProgressStaysShallow()
+    {
+        var s = PathSearch.Begin(new Vector2(0, 0), new Vector2(4000, 9000));
+        Assert.False(s.Step(new Strip(), true));
+        var dump = new I76.Sim.Save.StateDump().DumpObject("search", s);
+        var paths = dump.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l[..l.IndexOf(" = ", StringComparison.Ordinal)]).ToList();
+        int Links(string p) => p.Split('.').Count(x => x is "Parent" or "L" or "R" || x.StartsWith("Children[", StringComparison.Ordinal));
+        Assert.True(paths.Count(p => p.EndsWith(".X", StringComparison.Ordinal)) > 100, $"{paths.Count} lines");
+        Assert.True(paths.Max(Links) <= 1, paths.MaxBy(Links));
+    }
+
     /// <summary>A search saved mid-way and restored carries on to the same path.</summary>
     [Fact]
     public void ASearchRestoredMidwayFindsTheSamePath()
