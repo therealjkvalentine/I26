@@ -35,15 +35,14 @@ public static class HdAssets
         if (_probed) return;
         _probed = true;
         var env = System.Environment.GetEnvironmentVariable("I76_TEX_DIR");
-        var user = ProjectSettings.GlobalizePath("user://tex-menu/");
         if (env is { Length: > 0 } && Directory.Exists(env)) _source = new HdDirSource(env);
-        else if (Directory.Exists(user) && Directory.EnumerateFileSystemEntries(user).Any()) _source = new HdDirSource(user);
-        else
+        // user://tex-menu/, else where a player may have put it (one level down, beside the program, the zip itself): HdPacks
+        else if (I76.Game.Assets.HdPacks.Found.Get(HdPackDiscovery.Menu) is { } found)
         {
-            var exe = I76.Formats.Installers.ExtractionPlaces.AppFolder(OS.GetExecutablePath());
-            _source = HdPackFinder.Newest(new[] { exe, ProjectSettings.GlobalizePath("user://") }.OfType<string>(), w => GD.PushWarning($"HD menu pack: {w}"));
+            try { _source = found.Open(); }
+            catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException) { GD.PushWarning($"HD menu pack: {found.Path}: {e.Message}"); }
         }
-        if (_source is null) { GD.Print("HD menu art: none (no I76_TEX_DIR, user://tex-menu/ or i76-hd-menus*.zip)"); return; }
+        if (_source is null) { GD.Print("HD menu art: none (no I76_TEX_DIR, and no tex-menu folder or I26-HD-*.zip / i76-hd-*.zip holding one in the user folder or beside the program)"); return; }
         GD.Print($"HD menu art: {_source.Origin} ({_source.Count} files{(_source.Info is { } i ? $", {i}, {i.Date}" : "")})");
         if (_source.Info is { MinEngine.Length: > 0 } p && HdPackInfo.Compare(p.MinEngine, EngineVersion) > 0)
             GD.PushWarning($"HD menu pack needs engine {p.MinEngine}, this is {EngineVersion}");

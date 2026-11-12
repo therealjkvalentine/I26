@@ -1684,6 +1684,9 @@ public sealed class ShellSettings
         RaiseOldDetailDefaults(into, version);
     }
 
+    // the start-up log says once that the texture rows took the packs installed since the file was saved (Load runs often)
+    private static bool _newPacksSaid;
+
     public static ShellSettings Load()
     {
         // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
@@ -1715,6 +1718,13 @@ public sealed class ShellSettings
         (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.FromFile(Word("world_textures"), Word("car_textures"),
             c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt,
             Size("hd_dash_size"), Size("hd_car_size"), Size("hd_texture_size"), HdDefault);
+        // no version step: [port] texture_packs names the packs there were at the save. A row at 1997 saved with no pack there had
+        // nothing else to choose: with a pack installed since, it takes the first start's choice (HdTextures.WithNewPacks)
+        var stored = (s.WorldTextures, s.CarTextures);
+        (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.WithNewPacks(stored, I76.Game.Assets.HdTextures.ParsePacks(Word("texture_packs")),
+            I76.Game.Assets.HdTextures.AvailableSizes, I76.Game.Assets.HdTextures.AnyPack, HdDefault);
+        if ((s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
+            GD.Print($"HD textures: the settings were saved with {Word("texture_packs") ?? "no texture pack (or before the packs were noted)"}; now world {I76.Game.Assets.HdTextures.Word(s.WorldTextures)}, cars and dash {I76.Game.Assets.HdTextures.Word(s.CarTextures)} (was {I76.Game.Assets.HdTextures.Word(stored.Item1)}, {I76.Game.Assets.HdTextures.Word(stored.Item2)})");
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1971,6 +1981,7 @@ public sealed class ShellSettings
         c.SetValue("port", "hd_menu_art", HdMenuArt);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
+        c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksNow);
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them

@@ -46,13 +46,10 @@ public static class HdTextures
     /// <summary>A texture's kind, as the loader reads it.</summary>
     public static TextureKind KindOf(string member) => HdPackFolders.KindOf(member, Cars.ContainsKey(member));
 
-    private static bool UserHas(string folder)
-    {
-        var d = ProjectSettings.GlobalizePath($"user://{folder}/");
-        return Directory.Exists(d) && Directory.EnumerateFileSystemEntries(d).Any();
-    }
+    // a pack of that layout name was found (HdPacks: the user folder, one level down, beside the program or in its zip)
+    private static bool UserHas(string folder) => HdPacks.Found.Has(folder);
 
-    /// <summary>The sizes whose tex-world-Nx folder exists in the user folder, largest first (none: the row is greyed).</summary>
+    /// <summary>The sizes whose tex-world-Nx pack was found (HdPacks), largest first (none: the row is greyed).</summary>
     public static int[] AvailableSizes => HdPackFolders.Available(UserHas);
 
     /// <summary>A size as shell.cfg's world_textures and car_textures write it: 1997 for 0, else 4x, 8x ...</summary>
@@ -136,9 +133,63 @@ public static class HdTextures
         }
     }
 
-    /// <summary>The first start's pair: 4x and the cars' and the dash's pick where the 4x fits, else 1997 both.</summary>
+    /// <summary>
+    /// The first start's pair: 4x and the cars' and the dash's pick where the 4x fits, else 1997 both. The 8x cockpit-and-cars pack
+    /// alone (no 4x) stands on its own: it holds every car and cockpit texture, so the cars and the dash take its 8x and the world, which
+    /// it has none of, stays 1997; it takes less memory than the 4x (about 0.5 GB against 0.7), so it goes where the 4x would.
+    /// </summary>
     public static (int World, int Car) Pick(bool has4x, bool has8x, long? memoryMb, bool sharedMemory) =>
-        DefaultOn(has4x, memoryMb) ? (HdPackFolders.DefaultSize, PickCar(has4x, has8x, memoryMb, sharedMemory)) : (0, 0);
+        DefaultOn(has4x, memoryMb) ? (HdPackFolders.DefaultSize, PickCar(has4x, has8x, memoryMb, sharedMemory))
+        : !has4x && DefaultOn(has8x, memoryMb) ? (0, HdTextureLarge) : (0, 0);
+
+    /// <summary>
+    /// [port] texture_packs: the packs there were when the file was saved, in the file's words ("4x 8x", "tex-world", "none"), so
+    /// that a 1997 saved with nothing else to choose is told from a 1997 chosen with a pack there.
+    /// </summary>
+    public static string PacksWord(int[] sizes, bool plain) =>
+        sizes.Length == 0 && !plain ? "none" : string.Join(" ", sizes.Select(s => $"{s}x").Concat(plain ? [HdPackFolders.Plain] : []));
+
+    /// <summary>This start's <see cref="PacksWord"/> (what Save writes).</summary>
+    public static string PacksNow => PacksWord(AvailableSizes, UserHas(HdPackFolders.Plain));
+    /// <summary>A texture pack of any size was found (the rows are shown).</summary>
+    public static bool AnyPack => AvailableSizes.Length > 0 || UserHas(HdPackFolders.Plain);
+
+    /// <summary>The sizes a <see cref="PacksWord"/> names (a plain tex-world as 0), or null for a word it did not write.</summary>
+    public static int[]? ParsePacks(string? word)
+    {
+        if (word is null) return null;
+        var parts = word.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts is ["none"]) return [];
+        var l = new List<int>();
+        foreach (var p in parts)
+            if (p == HdPackFolders.Plain) l.Add(0);
+            else if (ParseWord(p) is int n && n > 0) l.Add(n);
+            else return null;
+        return [.. l];
+    }
+
+    /// <summary>
+    /// The stored World Textures and Car &amp; Dash Textures with the packs installed since the file was saved: a row at 1997 saved
+    /// when no pack was there (<paramref name="packsThen"/> empty) had nothing else to choose, so with a pack now it takes this
+    /// machine's first-start choice; Car &amp; Dash at 4x saved without the 8x there takes the 8x where the first start would. A file
+    /// from before [port] texture_packs (null) is read as saved without a pack when both rows are 1997 (with a pack there they start
+    /// at 4x, so 1997 for both was a choice only with the rows changed by hand), else as saved with the packs it names. A 1997 saved
+    /// with a pack there is the player's and stays.
+    /// </summary>
+    public static (int World, int Car) WithNewPacks((int World, int Car) stored, int[]? packsThen, int[] sizesNow, bool anyNow, (int World, int Car) firstStart)
+    {
+        if (!anyNow) return stored;
+        packsThen ??= stored == (0, 0) ? [] : null;
+        if (packsThen is null) return stored;
+        var (w, c) = stored;
+        if (packsThen.Length == 0)
+        {
+            if (w == 0) w = firstStart.World;
+            if (c == 0) c = firstStart.Car;
+        }
+        if (c == HdPackFolders.DefaultSize && !packsThen.Contains(HdTextureLarge) && sizesNow.Contains(HdTextureLarge) && firstStart.Car == HdTextureLarge) c = HdTextureLarge;
+        return (w, c);
+    }
 
     public static HdSource? Source => State.Source;
     /// <summary>A pack was found.</summary>
@@ -175,18 +226,14 @@ public static class HdTextures
         {
             // one source per folder, shared by the two chains; the log's source is every folder, largest first
             var folders = world.Concat(car).Distinct().OrderByDescending(HdPackFolders.SizeOf).ToArray();
-            var sources = folders.ToDictionary(f => f, f => (HdSource)new HdDirSource(ProjectSettings.GlobalizePath($"user://{f}/")));
+            var sources = folders.ToDictionary(f => f, f => HdPacks.Found.Get(f)!.Open());
             source = folders.Length == 1 ? sources[folders[0]] : new HdChainSource(folders.Select(f => sources[f]));
             worldChain = worldSize == 0 ? [] : [.. world.Select(f => sources[f])];
             carChain = carSize == 0 ? [] : [.. car.Select(f => sources[f])];
         }
-        else
-        {
-            var exe = I76.Formats.Installers.ExtractionPlaces.AppFolder(OS.GetExecutablePath());
-            source = HdPackFinder.Newest(new[] { exe, ProjectSettings.GlobalizePath("user://") }.OfType<string>(), w => GD.Print($"HD textures: {w}"), "i76-hd-*.zip", "tex-world/");
-        }
+        else source = null;
         if (world.Length + car.Length == 0 && source is { } one) { worldChain = worldSize == 0 ? [] : [one]; carChain = carSize == 0 ? [] : [one]; }
-        GD.Print(source is null ? "HD textures: none (no I76_TEX_DIR/world, user://tex-world-Nx/, user://tex-world/ or i76-hd-*.zip with tex-world/)"
+        GD.Print(source is null ? "HD textures: none (no I76_TEX_DIR/world, and no tex-world-Nx or tex-world folder or I26-HD-*.zip / i76-hd-*.zip holding one in the user folder or beside the program)"
             : $"HD textures: {source.Origin} ({source.Count} files); world {(worldSize == 0 ? "1997" : string.Join(" over ", world))}, cars and dash {(carSize == 0 ? "1997" : string.Join(" over ", car))}");
         return new Probed(source, worldChain, carChain);
     }
