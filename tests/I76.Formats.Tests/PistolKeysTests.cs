@@ -67,7 +67,8 @@ public class PistolKeysTests
         Assert.Equal((int)GameKey.ToggleGhostCockpit, m.Lookup('='));
         Assert.Equal(0, m.Lookup('['));
         Assert.Equal(0, m.Lookup(']'));
-        Assert.Equal([0x5d, 0xc], GameKeyMap.FileOnly.Select(f => f.Id));
+        // the ghost cockpit does nothing in the port: only the outside instruments' key is the file's to move
+        Assert.Equal([0x5d], GameKeyMap.FileOnly.Select(f => f.Id));
         // without the file they stay on the install's keys
         var stock = GameKeyMap.Load(GameKeyMap.Shipped);
         Assert.Equal((int)GameKey.Toggle2DCockpitExt, stock.Lookup('['));

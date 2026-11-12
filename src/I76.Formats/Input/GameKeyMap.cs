@@ -112,11 +112,12 @@ public sealed class GameKeyMap
 
     /// <summary>
     /// Game keys the port's file may move with no row on the screen (set by hand, by id, as the rebinds are kept): the outside
-    /// instruments ('[', 0x5d) and the ghost cockpit (']', 0xc), for a player whose input.map puts commands on those keys.
+    /// instruments ('[', 0x5d), for a player whose input.map puts commands on that key. The ghost cockpit (']', 0xc) does nothing
+    /// in the port, so it has no entry: a 12= line left in the file is not read.
     /// </summary>
     public static readonly (int Id, string Label, string Default)[] FileOnly =
     [
-        (0x5d, "Ext. Instruments", "["), (0xc, "Ghost Cockpit", "]"),
+        (0x5d, "Ext. Instruments", "["),
     ];
 
     /// <summary>The code of a key as gamekey.map or the port's file writes it ("Backspace", "Ctrl+Delete", "Control+Alt+X"), or -1.</summary>
