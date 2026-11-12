@@ -268,7 +268,7 @@ public class SnapshotGuardTests(ITestOutputHelper output)
             var w = s.AllCars().Select(v => v.Armory?.LoadOrder.FirstOrDefault()).FirstOrDefault(x => x is not null);
             var so = setup.Statics.Objects[0];
             setup.Combat.Events.AddRange([new Weapons.Impact("xbulg1.xdf", "wmgr2.wav", Vector3.One, car, 1, Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ),
-                new Weapons.Impact("x", "y", Vector3.Zero, so), new Weapons.WeaponClick(car, "wclick.wav")]);
+                new Weapons.Impact("x", "y", Vector3.Zero, so), new Weapons.WeaponClick(car, "wclick.wav"), new Weapons.ImpactSound("wmgr1.wav", Vector3.One, 1, Vector3.UnitZ)]);
             if (w is not null) setup.Combat.Events.Add(new Weapons.ShotFired(s.AllCars().First(v => v.Armory?.LoadOrder.FirstOrDefault() == w), w, Vector3.One, Vector3.UnitZ));
             // a cluster bomb's bomblets still to go off (their round has left the round list)
             if (w?.Def.Ordnance is { } ord)

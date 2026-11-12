@@ -39,6 +39,8 @@ public sealed class OwnCarPredictor
     private readonly List<(Vehicle Ghost, Double3 Pos, Vector3 Vel, uint At)> _moving = [];
     /// <summary>The clicks played at once and the server tick each is expected in (<see cref="TakeClick"/>).</summary>
     private readonly List<(string Sound, long Tick)> _clicks = [];
+    /// <summary>The own rounds' impact sounds played at once and the server tick each is expected in (<see cref="TakeImpact"/>).</summary>
+    private readonly List<(ImpactSound Sound, long Tick)> _impacts = [];
 
     /// <summary>The own shots drawn at once (null when they are not: <c>predictFire</c> false), and kept square with the server's.</summary>
     public OwnShots? Shots { get; }
@@ -132,6 +134,7 @@ public sealed class OwnCarPredictor
         }
         else World.Session.PredictSelect(_driver!, fresh);   // the weapon cycle and link, which PredictFire runs after the triggers
         // the clicks played at once, for the server's copies to be matched (TakeClick); the server's tick after this input
+        // and the own rounds' impact sounds (#168), for the server's impacts the same way (TakeImpact)
         if (fresh)
             for (int i = had; i < events.Count; i++)
                 if (events[i] is WeaponClick c && c.Shooter == Car && PredictedClick(c.Sound))
@@ -139,6 +142,7 @@ public sealed class OwnCarPredictor
                     if (_clicks.Count >= 16) _clicks.RemoveAt(0);
                     _clicks.Add((c.Sound, tick + 1));
                 }
+                else if (events[i] is ImpactSound s) ExpectImpact(s, tick + 1);
         var m = OwnMotion.Capture(Car!, _driver);
         _predicted[k % Ring] = m;
         if (_predictedTick[k % Ring] != k) _hashed[k % Ring].Clear();
@@ -173,6 +177,40 @@ public sealed class OwnCarPredictor
         int i = _clicks.FindIndex(c => c.Sound.Equals(sound, StringComparison.OrdinalIgnoreCase) && c.Tick <= tick + window);
         if (i < 0) return false;
         _clicks.RemoveAt(i);
+        return true;
+    }
+
+    /// <summary>An own round's impact sound played at once, its server copy expected in the batch of server tick <paramref name="tick"/>.</summary>
+    internal void ExpectImpact(ImpactSound s, long tick)
+    {
+        if (_impacts.Count >= 64) _impacts.RemoveAt(0);
+        _impacts.Add((s, tick));
+    }
+
+    /// <summary>
+    /// How near the server's impact must be to a predicted one to be its copy (metres). The prediction tests its rounds
+    /// against the other cars as the view has them, the server against where they are a round trip and the view's delay
+    /// later: a car at 25 m/s moves 7.5 m in 0.3 s.
+    /// </summary>
+    public const float ImpactMetres = 12;
+
+    /// <summary>
+    /// Whether the server's impact <paramref name="i"/>, in the batch of server tick <paramref name="tick"/>, is one an own
+    /// round's prediction already sounded (#168): a predicted impact of the same sound and round kind within
+    /// <paramref name="window"/> ticks, <see cref="ImpactMetres"/> and 60° of its flight, taken so each matches once. The
+    /// wire's impact names no shooter, so the place and the flight stand for it. A predicted impact the server never sent
+    /// (its round missed there, or was never fired) is let go after the window; a server impact with no prediction (another
+    /// car's round, an own round the server fired and the prediction did not) is played as it comes.
+    /// </summary>
+    public bool TakeImpact(ImpactEvent i, uint tick, uint window)
+    {
+        _impacts.RemoveAll(p => p.Tick + window < tick);
+        int k = _impacts.FindIndex(p => p.Tick <= tick + window && p.Sound.Kind == i.RoundKind
+            && p.Sound.Sound.Equals(i.Sound, StringComparison.OrdinalIgnoreCase)
+            && Vector3.DistanceSquared(p.Sound.At, i.At) <= ImpactMetres * ImpactMetres
+            && (p.Sound.Dir == default || i.Dir == default || Vector3.Dot(Vector3.Normalize(p.Sound.Dir), Vector3.Normalize(i.Dir)) >= 0.5f));
+        if (k < 0) return false;
+        _impacts.RemoveAt(k);
         return true;
     }
 
