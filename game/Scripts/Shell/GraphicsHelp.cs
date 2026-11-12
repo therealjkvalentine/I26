@@ -34,10 +34,10 @@ public static class GraphicsHelp
         GraphicsRow.ExtInstruments => "Ext. instruments: the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost.",
         GraphicsRow.Mirrors => look1997
             ? "Mirrors: the original's small rear mirror, to 100 m (Rear + Left and All draw it alone: the 1997 look paints the door mirrors, as the original). Little cost in the 1997 look."
-            : "Mirrors: Rear is the rear-view mirror; Rear + Left adds the driver's door mirror, All both door mirrors where the car has them (the Piranha's two, the CC cars' left one). The rear mirror is up to 17 % of a full-detail frame, a door mirror in view about 4 %; a mirror out of view is not drawn. The original's 100 m reach is on the Developer panel.",
+            : "Mirrors: Rear is the rear-view mirror; Rear + Left adds the driver's door mirror, All both door mirrors where the car has them (the Piranha's two, the CC cars' left one). The rear mirror is up to 17 % of a full-detail frame, a door mirror in view about 4 %; a mirror out of view is not drawn. At 3440x1440 in T05 the graphics card alone could draw about 116 fps with Off, 105 with Rear, 98 with All. The original's 100 m reach is on the Developer panel.",
         GraphicsRow.MirrorRate => look1997
             ? "Mirror rate: how often the modern look's mirrors are drawn. The 1997 look draws its mirror every second frame, as the original."
-            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half.",
+            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half (in T05 at 3440x1440, about 84 fps from the graphics card against 98).",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges). Little cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %.",
