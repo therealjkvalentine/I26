@@ -136,7 +136,9 @@ public partial class ExitWatchdog : Node
             System.Threading.Thread.Sleep(NudgeEveryMs);
         }
         System.Console.Error.WriteLine($"exit watchdog: still not out after {ExitAfterMs} ms; ending the process (exit code {ExitCode})");
-        Exit(ExitCode);
+        // libc.so.6 is Linux' alone: on Windows kernel32's ExitProcess (the libc lookup threw there)
+        if (System.OperatingSystem.IsLinux()) Exit(ExitCode);
+        else if (System.OperatingSystem.IsWindows()) ExitProcess((uint)ExitCode);
     }
 
     /// <summary>This process's thread of that name (/proc/self/task/*/comm), or null.</summary>
@@ -155,6 +157,9 @@ public partial class ExitWatchdog : Node
 
     [DllImport("libc.so.6", EntryPoint = "tgkill", SetLastError = true)]
     private static extern int Tgkill(int tgid, int tid, int sig);
+
+    [DllImport("kernel32.dll")]
+    private static extern void ExitProcess(uint code);
 
     [DllImport("libc.so.6", EntryPoint = "_exit")]
     private static extern void Exit(int status);
