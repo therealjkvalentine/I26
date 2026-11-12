@@ -857,7 +857,7 @@ copy that hits a human is still that human's attacker (`whoShot`). On the server
 (format 16: `Entity.ExtraOf`, `Entity.Scaled`, the cap in the build), and a restore makes them again (`CoopGroup.BuildEnemy`).
 
 The co-op host form's EXTRA ENEMIES row (a click steps Off, Up to +1, Up to +2, +1/player: the cap 3) and CO-OP SCALING in the Nitro
-form's co-op game options set the cap (shell.cfg [port] `coop_scale`, written only when on). The game's answer lists it after the makes
+form's co-op game options set the cap (shell.cfg [port] `coop_scale`, always written, Off as 0). The game's answer lists it after the makes
 and models (`SessionInfo.CoopScale`; protocol 23) and the session popup says "Co-op scaling up to +2"; a host migration's successor has
 it in its options.
 

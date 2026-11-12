@@ -1455,7 +1455,8 @@ public sealed class ShellSettings
     public bool CoopOwnCar { get; set; } = true;
     /// <summary>
     /// The port's own: a hosted co-op game's Extra Enemies (the host form's; Co-op Scaling in docs/deviations.md; shell.cfg [port] coop_scale,
-    /// written only when on, as upstream writes it): each enemy car gets a copy per player past the first, up to this many. Off by default
+    /// always written, Off as 0, as a fork build from before upstream's default read an absent key as the cap): each enemy car gets a copy
+    /// per player past the first, up to this many. Off by default
     /// (upstream's: a co-op game starts as the mission is written); the cap is one more of each enemy per extra player.
     /// </summary>
     public int CoopScale { get; set; }
@@ -1558,7 +1559,7 @@ public sealed class ShellSettings
     /// The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>, Monitor
     /// or degrees across the window; shell.cfg [port] fov_window, written only when not Monitor). [port] fov is upstream's key, degrees across
     /// a 4:3 view (90 the original's): written beside it in that meaning (ViewFov.ToFourByThree, the nearest height in the window
-    /// now) and read when fov_window is absent
+    /// now; left out at 90, so a fork build from before fov_window reads Monitor) and read when fov_window is absent
     /// (<see cref="FovFromFile"/>), so a shell.cfg both builds read is not misread by either.
     /// </summary>
     public int FieldOfView { get; set; }
@@ -1753,15 +1754,27 @@ public sealed class ShellSettings
     {
         // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
         HdDefault = I76.Game.Assets.HdTextures.FirstStart;
-        var s = new ShellSettings();
-        var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok)
+        var cfg = new ConfigFile();
+        if (cfg.Load(Path) != Error.Ok)
         {
             // a first start: the fresh block's textures (4x where the 4x fits; the cars' and the dash's 8x where the dash's fits)
-            I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
-            I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
-            return s;
+            var fresh = new ShellSettings();
+            I76.Game.Assets.HdTextures.WorldSize = fresh.WorldTextures;
+            I76.Game.Assets.HdTextures.CarSize = fresh.CarTextures;
+            return fresh;
         }
+        var s = Read(SettingsFile.From(cfg));
+        HdAssets.Enabled = s.HdMenuArt;
+        I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
+        I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
+        I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
+        return s;
+    }
+
+    /// <summary>The settings a file holds, with the steps for its version. Engine-free (no globals set), for the tests: <see cref="Load"/>'s reading.</summary>
+    public static ShellSettings Read(SettingsFile c)
+    {
+        var s = new ShellSettings();
         int shellVersion = (int)c.GetValue("shell", "version", 1);
         int? forkVersion = c.HasSectionKey("port", "fork_version") ? (int)c.GetValue("port", "fork_version") : null;
         int version = StepsDone(shellVersion, forkVersion);
@@ -1863,10 +1876,10 @@ public sealed class ShellSettings
         s.CarReset = (bool)c.GetValue("port", "car_reset", true);
         s.IgnitionStaysOn = (bool)c.GetValue("port", "ignition_stays_on", false);
         s.CbRadio = (bool)c.GetValue("port", "cb_radio", true);
-        var hcp = c.GetValue("port", "handicaps", false);
-        s.Handicaps = hcp.VariantType == Variant.Type.Bool ? ((bool)hcp ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off)
-            : hcp.VariantType == Variant.Type.String && (string)hcp == "auto" ? I76.Sim.Missions.HandicapMode.Auto
-            : hcp.VariantType == Variant.Type.String && (string)hcp == "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
+        var hcp = c.GetValue("port", "handicaps", false).Obj;
+        s.Handicaps = hcp is bool hb ? (hb ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off)
+            : hcp is "auto" ? I76.Sim.Missions.HandicapMode.Auto
+            : hcp is "manual" ? I76.Sim.Missions.HandicapMode.Manual : I76.Sim.Missions.HandicapMode.Off;
         s.HostCrosshair = (bool)c.GetValue("port", "host_crosshair", false);
         // no version step: absent, the 1998 build's turrets (upstream's keys; build-rules.cfg's turret_slew is no longer read)
         s.Turrets1997 = (int)c.GetValue("port", "turret_slew", 1998) == 1997;
@@ -1972,10 +1985,6 @@ public sealed class ShellSettings
         s.Renderer = Enum.TryParse<I76.Game.Boot.RendererChoice>((string)c.GetValue("port", "renderer", "Auto"), true, out var rc) ? rc : I76.Game.Boot.RendererChoice.Auto;
         // no version step: absent, a pack's audio plays
         s.HiFiAudio = (bool)c.GetValue("port", "hd_sounds", true);
-        HdAssets.Enabled = s.HdMenuArt;
-        I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
-        I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
-        I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         return s;
     }
 
@@ -1995,11 +2004,26 @@ public sealed class ShellSettings
 
     public void Save()
     {
-        var c = new ConfigFile();
-        // [shell] version is upstream's; the fork's steps go under [port] fork_version (13: the sky's drift is Steady unless the file says
+        var old = new ConfigFile();
+        Write(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null).ToConfig().Save(Path);
+        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
+    }
+
+    /// <summary>
+    /// The [shell] version <see cref="Write"/> puts in the file: the larger of upstream's and the fork's. Upstream's build only asks
+    /// whether a file is older than each of its steps, so it reads this as all of its steps done; a fork build from before
+    /// fork_version reads it as its own steps 12 to 14 done, and does not run them again on a file this build saved.
+    /// </summary>
+    public const int WrittenVersion = Version > ForkVersion ? Version : ForkVersion;
+
+    /// <summary>The file <see cref="Save"/> writes; <paramref name="old"/> is the file on disk (the other game's Play Options stay). Engine-free, for the tests.</summary>
+    public SettingsFile Write(SettingsFile? old)
+    {
+        var c = new SettingsFile();
+        // [shell] version: WrittenVersion; the fork's steps go under [port] fork_version (13: the sky's drift is Steady unless the file says
         // original, and the Rumble row is folded into Force Feedback (the keys are the same); 14: Terrain Detail starts High (Shadow Detail
         // did too, until it went back to Low with no step: a saved byte is kept))
-        c.SetValue("shell", "version", Version);
+        c.SetValue("shell", "version", WrittenVersion);
         c.SetValue("port", "fork_version", ForkVersion);
         c.SetValue("port", "vegetation", Vegetation);
         if (DrawDistanceChoice is { } dd) c.SetValue("port", "draw_distance", dd);
@@ -2052,8 +2076,7 @@ public sealed class ShellSettings
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
-        var old = new ConfigFile();
-        if (old.Load(Path) == Error.Ok)
+        if (old is not null)
         {
             string other = Nitro ? "shell" : "nitro";
             foreach (var k in new[] { "play", "difficulty" })
@@ -2090,7 +2113,8 @@ public sealed class ShellSettings
         if (OpenTrackPath.Length > 0) c.SetValue("port", "opentrack_path", OpenTrackPath);
         if (OpenTrackAuto) c.SetValue("port", "opentrack_auto", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
-        if (CoopScale != 0) c.SetValue("port", "coop_scale", CoopScale);
+        // always: upstream reads an absent key as off, a fork build from before upstream's default as the cap
+        c.SetValue("port", "coop_scale", CoopScale);
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
         // always: upstream reads an absent key as off, the fork as on
         c.SetValue("port", "coop_rolling_start", CoopRollingStart);
@@ -2112,7 +2136,9 @@ public sealed class ShellSettings
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);
         if (FieldOfView != I76.Sim.Views.ViewFov.Monitor) c.SetValue("port", "fov_window", I76.Sim.Views.ViewFov.Across[Math.Clamp(FieldOfView, 0, I76.Sim.Views.ViewFov.Across.Length - 1)]);
-        c.SetValue("port", "fov", I76.Sim.Views.ViewFov.ToFourByThree(FieldOfView, I76.Sim.Views.ViewFov.Aspect));
+        // fov in upstream's meaning, left out at its 90 (the original's height), as upstream's build writes it: absent is then
+        // Monitor to a fork build from before fov_window too, which reads fov as degrees across the window
+        if (I76.Sim.Views.ViewFov.ToFourByThree(FieldOfView, I76.Sim.Views.ViewFov.Aspect) is var fov43 && fov43 != 90) c.SetValue("port", "fov", fov43);
         if (!NetNames) c.SetValue("port", "net_names", false);
         if (!EditorMusic) c.SetValue("port", "editor_music", false);
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
@@ -2151,7 +2177,6 @@ public sealed class ShellSettings
         if (LogFile) c.SetValue("port", "log_file", true);
         if (!BugReportInputs) c.SetValue("port", "bug_report_inputs", false);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
-        c.Save(Path);
-        I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
+        return c;
     }
 }
