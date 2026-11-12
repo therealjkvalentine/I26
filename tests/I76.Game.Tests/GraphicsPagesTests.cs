@@ -20,8 +20,7 @@ public class GraphicsPagesTests
         GraphicsRow.TerrainDetail => s.Graphics[0x2],
         GraphicsRow.ShadowDetail => s.Graphics[0x6],
         GraphicsRow.ExtInstruments => s.Graphics[0xe],
-        GraphicsRow.RearMirror => s.Graphics[0xd],
-        GraphicsRow.SideMirrors => s.SideMirrors,
+        GraphicsRow.Mirrors => (s.Graphics[0xd], s.SideMirrors),
         GraphicsRow.MirrorRate => s.MirrorRate,
         GraphicsRow.AntiAliasing => s.Graphics[0x8],
         GraphicsRow.VSync => s.VSync,
@@ -73,11 +72,11 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), then the port's most used, Side Mirrors first by Rear Mirror.</summary>
+    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), Rear Mirror as Mirrors, then the port's most used.</summary>
     [Fact]
     public void TheSheetKeepsTheOriginalsRowsInTheirOrder() => Assert.Equal(
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.RearMirror,
-         GraphicsRow.SideMirrors, GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
+         GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
     /// <summary>One page under the sheet, Advanced (Look and Display until round 5): 1997 Mode first, its palette grade after it.</summary>
@@ -90,14 +89,16 @@ public class GraphicsPagesTests
             GraphicsPages.Rows[GraphicsPages.Advanced]);
     }
 
-    /// <summary>Each page fits the sheet's fourteen lines with at least one to spare (the frame-rate estimate's): the sheet with Advanced's entry straight under its twelve rows, Advanced with its name.</summary>
+    /// <summary>Each page fits the sheet's fourteen lines with at least one to spare (the frame-rate estimate's): the sheet with Advanced's entry under its eleven rows and a blank line, Advanced with its name.</summary>
     [Fact]
     public void EveryPageFitsTheSheetsLinesWithOneToSpare()
     {
-        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length, GraphicsPages.FirstEntryLine);
+        Assert.Equal(11, GraphicsPages.Rows[GraphicsPages.Sheet].Length);
+        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length + 1, GraphicsPages.FirstEntryLine);
         int sheetLast = GraphicsPages.FirstEntryLine + (GraphicsPages.Rows.Length - 1) - 1;
         Assert.True(sheetLast < GraphicsPages.Lines - 1, "the sheet has no line to spare");
-        // Advanced fills the sheet's lines since Mirror Rate: the shell's page leaves out the frame-rate line when its rows reach it
+        // Advanced fills the sheet's lines with the texture rows shown (Mirror Rate's line): the shell's page leaves out the frame-rate
+        // line when its rows reach it, and shows it without a pack
         for (int p = 1; p < GraphicsPages.Rows.Length; p++)
             Assert.True(GraphicsPages.LinesOf(p)[^1] < GraphicsPages.Lines, $"{GraphicsPages.Names[p]} does not fit");
         Assert.Equal(Enumerable.Range(1, 13), GraphicsPages.LinesOf(GraphicsPages.Advanced));
