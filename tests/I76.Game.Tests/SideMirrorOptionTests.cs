@@ -6,7 +6,8 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's Side Mirrors row (SideMirrorRow over [port] side_mirrors: Off, Left, Both) and the test that leaves a mirror
+/// Graphic Detail's Mirrors row (MirrorsRow over the rear mirror's mode and [port] side_mirrors: Off, Rear, Rear + Left, All), the key's
+/// words (SideMirrorRow) and the test that leaves a mirror
 /// out of view undrawn (MirrorCull). Without the engine.
 /// </summary>
 public class SideMirrorOptionTests
@@ -32,24 +33,57 @@ public class SideMirrorOptionTests
     }
 
     [Fact]
-    public void TheRowIsOffLeftBothAndKeepsAnOnSetByHand()
+    public void TheMirrorsRowIsOffRearRearLeftAllAndAllIsTheDefault()
     {
-        Assert.Equal(["Off", "Left*", "Both*"], SideMirrorRow.Names);
+        Assert.Equal(["Off", "Rear", "Rear + Left*", "All*"], MirrorsRow.Names);
         var s = new ShellSettings();
-        Assert.Equal(2, SideMirrorRow.Index(s.SideMirrors));   // Both, today's default
-        SideMirrorRow.Step(s);
-        Assert.Equal(SideMirrorMode.Off, s.SideMirrors);
-        SideMirrorRow.Step(s);
-        Assert.Equal(SideMirrorMode.Left, s.SideMirrors);
-        SideMirrorRow.Step(s);
-        Assert.Equal(SideMirrorMode.Auto, s.SideMirrors);
-        // on (both, and the added glasses) shows as Both and stays on when Both is picked again
-        var on = new ShellSettings { SideMirrors = SideMirrorMode.On };
-        Assert.Equal(2, SideMirrorRow.Index(on.SideMirrors));
-        SideMirrorRow.Put(on, 2);
-        Assert.Equal(SideMirrorMode.On, on.SideMirrors);
-        SideMirrorRow.Put(on, 1);
-        Assert.Equal(SideMirrorMode.Left, on.SideMirrors);
+        Assert.Equal(MirrorsRow.All, MirrorsRow.Index(s));
+        Assert.Equal(2, s.Graphics[0xd]);   // the original's High
+        MirrorsRow.Step(s);
+        Assert.Equal(MirrorsRow.Off, MirrorsRow.Index(s));
+        Assert.Equal(0, s.Graphics[0xd]);
+        MirrorsRow.Step(s);
+        Assert.Equal((2, SideMirrorMode.Off), (s.Graphics[0xd], s.SideMirrors));   // Rear: on at High again
+        MirrorsRow.Step(s);
+        Assert.Equal((2, SideMirrorMode.Left), (s.Graphics[0xd], s.SideMirrors));
+        MirrorsRow.Step(s);
+        Assert.Equal((2, SideMirrorMode.Auto), (s.Graphics[0xd], s.SideMirrors));
+        Assert.Equal(MirrorsRow.All, MirrorsRow.Index(s));
+    }
+
+    [Theory]
+    [InlineData(0, SideMirrorMode.Auto, MirrorsRow.Off)]   // the rear off draws no mirror at all
+    [InlineData(0, SideMirrorMode.Left, MirrorsRow.Off)]
+    [InlineData(0, SideMirrorMode.On, MirrorsRow.Off)]
+    [InlineData(0, SideMirrorMode.Off, MirrorsRow.Off)]
+    [InlineData(1, SideMirrorMode.Off, MirrorsRow.Rear)]   // the original's Low, objects only
+    [InlineData(2, SideMirrorMode.Off, MirrorsRow.Rear)]
+    [InlineData(2, SideMirrorMode.Left, MirrorsRow.RearLeft)]
+    [InlineData(1, SideMirrorMode.Auto, MirrorsRow.All)]
+    [InlineData(2, SideMirrorMode.On, MirrorsRow.All)]     // on, set by hand
+    public void EveryPairOfKeysShowsTheNearestValue(byte rear, SideMirrorMode side, int shown) => Assert.Equal(shown, MirrorsRow.Index(rear, side));
+
+    [Fact]
+    public void AFileTheRowCannotSayIsKeptUntilTheRowIsChanged()
+    {
+        // the rear off, the side mirrors on: shown as Off, and picking Off again writes nothing
+        var s = new ShellSettings { SideMirrors = SideMirrorMode.Left };
+        s.Graphics[0xd] = 0;
+        MirrorsRow.Put(s, MirrorsRow.Off);
+        Assert.Equal((0, SideMirrorMode.Left), (s.Graphics[0xd], s.SideMirrors));
+        // the rear's Low and an on set by hand stay under Rear and All
+        var low = new ShellSettings { SideMirrors = SideMirrorMode.On };
+        low.Graphics[0xd] = 1;
+        MirrorsRow.Put(low, MirrorsRow.All);
+        Assert.Equal((1, SideMirrorMode.On), (low.Graphics[0xd], low.SideMirrors));
+        MirrorsRow.Put(low, MirrorsRow.Rear);
+        Assert.Equal((1, SideMirrorMode.Off), (low.Graphics[0xd], low.SideMirrors));
+        // Off turns the rear off alone; the side key is kept for the mirror key's back on in play
+        var all = new ShellSettings();
+        MirrorsRow.Put(all, MirrorsRow.Off);
+        Assert.Equal((0, SideMirrorMode.Auto), (all.Graphics[0xd], all.SideMirrors));
+        // the file: nothing written for the defaults
+        Assert.Null(SideMirrorRow.Word(new ShellSettings().SideMirrors));
     }
 
     [Fact]
@@ -68,15 +102,17 @@ public class SideMirrorOptionTests
     }
 
     [Fact]
-    public void TheRowIsOnTheSheetUnderRearMirrorAndCopiedWithIt()
+    public void TheRowIsTheOriginalsSeventhAndCopiesBothKeys()
     {
         var sheet = GraphicsPages.Rows[GraphicsPages.Sheet];
-        Assert.Equal(Array.IndexOf(sheet, GraphicsRow.RearMirror) + 1, Array.IndexOf(sheet, GraphicsRow.SideMirrors));
+        Assert.Equal(GraphicsPages.OriginalRows - 1, Array.IndexOf(sheet, GraphicsRow.Mirrors));
         var to = new ShellSettings();
-        GraphicsPages.Copy(GraphicsRow.SideMirrors, new ShellSettings { SideMirrors = SideMirrorMode.Left }, to);
-        Assert.Equal(SideMirrorMode.Left, to.SideMirrors);
-        Assert.Contains("Left", GraphicsHelp.Text(GraphicsRow.SideMirrors, false));
-        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.SideMirrors, true));
+        var from = new ShellSettings { SideMirrors = SideMirrorMode.Left };
+        from.Graphics[0xd] = 1;
+        GraphicsPages.Copy(GraphicsRow.Mirrors, from, to);
+        Assert.Equal((1, SideMirrorMode.Left), (to.Graphics[0xd], to.SideMirrors));
+        Assert.Contains("Rear + Left", GraphicsHelp.Text(GraphicsRow.Mirrors, false));
+        Assert.Contains("1997 look", GraphicsHelp.Text(GraphicsRow.Mirrors, true));
     }
 
     [Fact]

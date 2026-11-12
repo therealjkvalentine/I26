@@ -31,6 +31,16 @@ uniform vec2 band_angles = vec2(0.0);
 uniform float fov_tan = 1.0;
 // a door mirror's own glass (MirrorGlass): the band's view over the whole face (pane), UV the glass as the driver sees it (0..1 left to right, foot to top)
 uniform bool pane = false;
+// a door mirror's glass rounded (GlassRound, [port] side_mirror_round): in the pane's units (u times pane_aspect, v), the core's
+// convex corners counter-clockwise, its radius; the view inside the rounded shape less the rim's width, the rim's moulding (shaded
+// as mirror_rim.gdshader's) from there to the rounded shape, and the moulding's dark in the corners outside it
+uniform bool pane_round = false;
+uniform float pane_aspect = 1.0;
+uniform vec2 pane_core[12];
+uniform int pane_corners = 0;
+uniform float pane_r = 0.0;
+uniform float rim_w = 0.02;
+uniform vec3 rim_colour : source_color = vec3(0.12, 0.12, 0.13);
 
 // the modern look's rounder corners (MirrorRound, I76_MIRROR_ROUND): the frame's outline and the glass's, each a trapezoid in the art's
 // pixels shrunk by its corner's radius; the rounded shape is within that radius of it
@@ -56,6 +66,21 @@ float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
 		if (all(cond) || all(not(cond))) s = -s;
 	}
 	return s * sqrt(dist);
+}
+
+// the signed distance to the pane's core (negative inside): a convex counter-clockwise polygon
+float sd_core(vec2 p) {
+	float d = 1e9;
+	bool inside = true;
+	for (int i = 0; i < 12; i++) {
+		if (i >= pane_corners) break;
+		vec2 a = pane_core[i], b = pane_core[i + 1 < pane_corners ? i + 1 : 0];
+		vec2 e = b - a, w = p - a;
+		vec2 q = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+		d = min(d, dot(q, q));
+		if (e.x * w.y - e.y * w.x < 0.0) inside = false;
+	}
+	return inside ? -sqrt(d) : sqrt(d);
 }
 
 // inside a rounded shape (its core's distance less the radius), over one screen pixel
@@ -84,6 +109,13 @@ void fragment() {
 	vec2 vuv = vec2(view_x(UV.x), 1.0 - UV.y);
 	if (pane) {
 		ALBEDO = texture(view, vuv).rgb;
+		if (pane_round) {
+			float sd = sd_core(vec2(UV.x * pane_aspect, UV.y)) - pane_r;
+			// the moulding across the rim: 0 at the rounded shape's edge, 1 at the glass's
+			float t = clamp(-sd / rim_w, 0.0, 1.0);
+			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
+			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+		}
 		ALPHA = 1.0;
 	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;

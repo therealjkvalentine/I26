@@ -638,8 +638,9 @@ public sealed class ClientWorld
             case ShotEvent s when Car(s.Car) is { } v && RoundState.WeaponOf(v, s.Weapon) is { } w:
                 combat.Events.Add(new ShotFired(v, w, s.Muzzle, s.Forward));
                 break;
+            // an own round's impact sound was played when it struck in the prediction (#168): the server's brings the rest
             case ImpactEvent i:
-                combat.Events.Add(new Impact(i.Effect, i.Sound, i.At, i.Victim switch { 0 => null, 1 => CarVictim, _ => StructureVictim }, i.RoundKind, i.Hit, i.N, i.Dir));
+                combat.Events.Add(new Impact(i.Effect, i.Sound.Length > 0 && Prediction is { } ip && ip.TakeImpact(i, _releasing, StaleTicks) ? "" : i.Sound,i.At, i.Victim switch { 0 => null, 1 => CarVictim, _ => StructureVictim }, i.RoundKind, i.Hit, i.N, i.Dir));
                 break;
             case ExplosionEvent x when combat.Effects(x.Effect) is { } fx:
                 combat.Events.Add(new Explosion(fx, x.At));

@@ -1588,8 +1588,10 @@ public sealed class ShellSettings
     public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
     /// <summary>The port's own, Graphic Detail's Mirror Rate row (I76.Game.Sim.MirrorRateRow): how often the modern look's mirrors are drawn, alternate (the default: the rear every second frame, the side mirrors in turn), half (every mirror every second frame) or full (every frame) (shell.cfg [port] mirror_rate; written only when not alternate).</summary>
     public I76.Game.Sim.MirrorRate MirrorRate { get; set; } = I76.Game.Sim.MirrorRate.Alternate;
-    /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0 the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not the default).</summary>
+    /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0, the default, the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not 0).</summary>
     public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;
+    /// <summary>The port's own, without a row: the modern look's door mirrors' glass with its corners rounded by that percent of its shorter side (I76.Game.Sim.GlassRound; 0 the glass's own corners, 50 round ends; shell.cfg [port] side_mirror_round; written only when not the default).</summary>
+    public int SideMirrorRound { get; set; } = I76.Game.Sim.GlassRound.DefaultShare;
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -1633,6 +1635,8 @@ public sealed class ShellSettings
     public bool LowLatencyAudio { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look takes Graphic Detail's Anti-Aliasing as the modern one does; off, none, as the 3D card drew it ([port] aa_1997, written when off).</summary>
     public bool Antialias1997 { get; set; } = true;
+    /// <summary>The port's own, without a row: with a texture pack, both looks' pictures kept in video memory from the first change of look (F12) to the mission's end, so later changes are a swap (TextureFactory.KeepBothLooks); off, each change sends them again, for a card short of video memory ([port] fast_look_switch, written when off).</summary>
+    public bool FastLookSwitch { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look's muzzle flash, each gun's one sprite lit again at the shot's place in its tick ([port] even_flash, written when off).</summary>
     public bool EvenFlash { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's lamps warm up and cool down as 1976's incandescent bulbs did instead of switching in one frame (LampRamp; [port] lamp_ramp, written when off).</summary>
@@ -1753,6 +1757,9 @@ public sealed class ShellSettings
         RaiseOldDetailDefaults(into, version);
     }
 
+    // the start-up log says once that the texture rows took the packs installed since the file was saved (Load runs often)
+    private static bool _newPacksSaid;
+
     public static ShellSettings Load()
     {
         // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
@@ -1802,6 +1809,13 @@ public sealed class ShellSettings
         (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.FromFile(Word("world_textures"), Word("car_textures"),
             c.HasSectionKey("port", "hd_textures") ? (bool)c.GetValue("port", "hd_textures") : null, s.HdMenuArt,
             Size("hd_dash_size"), Size("hd_car_size"), Size("hd_texture_size"), HdDefault);
+        // no version step: [port] texture_packs names the packs there were at the save. A row at 1997 saved with no pack there had
+        // nothing else to choose: with a pack installed since, it takes the first start's choice (HdTextures.WithNewPacks)
+        var stored = (s.WorldTextures, s.CarTextures);
+        (s.WorldTextures, s.CarTextures) = I76.Game.Assets.HdTextures.WithNewPacks(stored, I76.Game.Assets.HdTextures.ParsePacks(Word("texture_packs")),
+            I76.Game.Assets.HdTextures.AvailableSizes, I76.Game.Assets.HdTextures.AnyPack, HdDefault);
+        if ((s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
+            GD.Print($"HD textures: the settings were saved with {Word("texture_packs") ?? "no texture pack (or before the packs were noted)"}; now world {I76.Game.Assets.HdTextures.Word(s.WorldTextures)}, cars and dash {I76.Game.Assets.HdTextures.Word(s.CarTextures)} (was {I76.Game.Assets.HdTextures.Word(stored.Item1)}, {I76.Game.Assets.HdTextures.Word(stored.Item2)})");
         // version 5 added Auto Reverse: older files have none, so it is off
         s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
         // version 6 added the look: older files have none, so it is off
@@ -1954,6 +1968,7 @@ public sealed class ShellSettings
         s.SideMirrors = I76.Game.Sim.SideMirrorRow.Parse(c.GetValue("port", "side_mirrors", "auto").ToString());
         s.MirrorRate = I76.Game.Sim.MirrorRateRow.Parse(c.GetValue("port", "mirror_rate", "alternate").ToString());
         s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
+        s.SideMirrorRound = Math.Clamp((int)c.GetValue("port", "side_mirror_round", I76.Game.Sim.GlassRound.DefaultShare), 0, I76.Game.Sim.GlassRound.MaxShare);
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
         s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
@@ -1975,6 +1990,7 @@ public sealed class ShellSettings
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
         s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
+        s.FastLookSwitch = (bool)c.GetValue("port", "fast_look_switch", true);
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
         s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
@@ -2083,6 +2099,7 @@ public sealed class ShellSettings
         if (!HiFiAudio) c.SetValue("port", "hd_sounds", false);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
+        c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksNow);
         c.SetValue("shell", "graphics", Graphics);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
@@ -2156,6 +2173,7 @@ public sealed class ShellSettings
         if (I76.Game.Sim.SideMirrorRow.Word(SideMirrors) is { } sideMirrors) c.SetValue("port", "side_mirrors", sideMirrors);
         if (I76.Game.Sim.MirrorRateRow.Word(MirrorRate) is { } mirrorRate) c.SetValue("port", "mirror_rate", mirrorRate);
         if (MirrorRound != I76.Game.Sim.MirrorRound.DefaultRadius) c.SetValue("port", "mirror_round", MirrorRound);
+        if (SideMirrorRound != I76.Game.Sim.GlassRound.DefaultShare) c.SetValue("port", "side_mirror_round", SideMirrorRound);
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);
@@ -2176,6 +2194,7 @@ public sealed class ShellSettings
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
         if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
+        if (!FastLookSwitch) c.SetValue("port", "fast_look_switch", false);
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
         if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
         if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);

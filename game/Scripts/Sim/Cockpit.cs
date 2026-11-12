@@ -85,9 +85,11 @@ public partial class Cockpit : Node
         HeadTracker.Apply(shellSettings);
         OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
         _roundSetting = shellSettings.MirrorRound;
+        _glassRoundSetting = shellSettings.SideMirrorRound;
         yield return null;
         SetupMirror();
         CompassOutline();
+        _lookArt.Made((Textures.Hd, _faithful));
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
         Textures.Swapped += ArtSwapped;
     }
@@ -121,6 +123,12 @@ public partial class Cockpit : Node
         yield return null;
         _radarFrames = RadarFrames.Take(Textures, Resolver);
         yield return null;
+        OriginalArt();
+    }
+
+    /// <summary>What LoadArt reads of the originals, whatever is served (the radar's mask and its measure).</summary>
+    private void OriginalArt()
+    {
         _radarMember = Resolver.FindByStem("zradf000");
         _radarDiffs.Clear();
         if (_radarMember is not null && Textures.GetOriginalRgba(_radarMember) is { } r0) _radarBaseW = r0.Width;
@@ -132,19 +140,78 @@ public partial class Cockpit : Node
     /// <summary>
     /// The HD Textures row or a flip of the look changed what the factory serves: the panels, the radar's and the wheel's
     /// frames are made again at its scale (the 1997 look always the originals) and everything is redrawn. The mirror's art is
-    /// the factory's own texture, swapped in place.
+    /// the factory's own texture, swapped in place. A change of look calls this twice (the factory's swap, then Faithful): the
+    /// work is done once, before the frame is drawn.
     /// </summary>
     private void ArtSwapped()
     {
-        Panels.Prefetch();
-        Panels.Reload();
-        LoadArt();
-        MirrorFill();
-        CompassOutline();
-        ResetPanels();
-        _repaintWeapons = _repaintSpecials = _radarRedraw = true;
+        if (_artPending) return;
+        _artPending = true;
+        CallDeferred(MethodName.RedrawArt);
+    }
+    private bool _artPending;
+
+    /// <summary>
+    /// The art for what the factory serves and the look (TextureFactory.KeepBothLooks): kept from the first time each is shown to the
+    /// mission's end, so a change back takes it as it was instead of reading and decoding the pack's pictures again.
+    /// </summary>
+    private sealed record LookArt((string?, ImageTexture?[], bool) Wheel, (string?, ImageTexture?[], bool) ArmR, (string?, ImageTexture?[], bool) ArmL,
+        (string?, ImageTexture?[], bool) ShotR, (string?, ImageTexture?[], bool) ShotL, RadarFrames Radar, Godot.Image? MirrorFill, Godot.Image? CompassFill);
+    private readonly Assets.LookKept<(bool Hd, bool Faithful), LookArt> _lookArt = new();
+    private bool KeepLooks => Textures.KeepBothLooks && Assets.TextureFactory.FastLookSwitch;
+
+    private void RedrawArt()
+    {
+        _artPending = false;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        Panels.KeepLooks = _lookArt.Keep = KeepLooks;
+        // the art shown until now kept for a change back, and this look's if it was shown before
+        bool had = _lookArt.Change((Textures.Hd, _faithful), () => new LookArt(_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames, _mirrorFillImage, _compassFillImage), out var a);
+        bool panelsKept = Panels.Holds;
+        if (!panelsKept) Panels.Prefetch();
+        bool restored = Panels.Reload();
+        double panelsMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        if (had)
+        {
+            (_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames) = (a.Wheel, a.ArmR, a.ArmL, a.ShotR, a.ShotL, a.Radar);
+            OriginalArt();
+            MirrorFill(a.MirrorFill);
+            CompassOutline(a.CompassFill);
+        }
+        else
+        {
+            LoadArt();
+            MirrorFill();
+            CompassOutline();
+        }
+        // panels kept show as their look left them: redrawn one group a frame over the next four (each 8x group is 5-17 ms at
+        // 3440x1440, all at once 40-60 ms in the first frame); made again, they are bare and all are redrawn in the next frame
+        if (restored) _repaintStep = 1;
+        else
+        {
+            ResetPanels();
+            _repaintWeapons = _repaintSpecials = _radarRedraw = true;
+        }
         _wheelShown = -1;
         _armShown[0] = _armShown[1] = (-1, -1);
+        GD.Print($"cockpit art: panels {(panelsKept ? "kept" : "made")} in {panelsMs:0} ms, frames and radar {(had ? "kept" : "made")}, all in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");
+        _artRedrawnAt = System.Diagnostics.Stopwatch.GetTimestamp();
+    }
+    /// <summary>When the art was last made again (the next frame's panels repaint is timed for the log).</summary>
+    private long _artRedrawnAt;
+
+    /// <summary>The kept panels' redraw after a change of look, a group a frame (0: none under way).</summary>
+    private int _repaintStep;
+
+    private void RepaintStep()
+    {
+        switch (_repaintStep++)
+        {
+            case 1: _gear = -1; _compass = float.NaN; System.Array.Fill(_parts, -1); _speedFrame = _tachFrame = -1; break;
+            case 2: _specRows = null; _repaintSpecials = true; break;
+            case 3: _radarRedraw = true; break;
+            default: _repaintWeapons = true; _repaintStep = 0; break;
+        }
     }
 
     /// <summary>
@@ -162,6 +229,10 @@ public partial class Cockpit : Node
     {
         Controls.LookingBack = null;
         Textures.Swapped -= ArtSwapped;
+        // the other look's frames kept for F12 go with the mission (the materials hold the shown look's)
+        foreach (var art in _lookArt.Release())
+            foreach (var set in new[] { art.Wheel, art.ArmR, art.ArmL, art.ShotR, art.ShotL })
+                foreach (var t in set.Item2) t?.Dispose();
         Panels.Free();
         _radarLive?.Free();
     }
@@ -206,6 +277,7 @@ public partial class Cockpit : Node
 
     public override void _Process(double delta)
     {
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         DashStats.Begin();
         float dt = (float)System.Math.Clamp(delta, 0.001, 0.2);
         _steps = SimClock.Take(ref _lastTick);   // the ammo digits and the binocular glance step once a frame of the original: a sim tick
@@ -228,6 +300,7 @@ public partial class Cockpit : Node
             if (_mirrorView is not null) _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
             MirrorsUnseen();
         }
+        if (_repaintStep > 0) RepaintStep();
         if (shown && !_wasShown) ResetPanels();
         _wasShown = shown;
         if (pit) Head(dt);
@@ -256,6 +329,11 @@ public partial class Cockpit : Node
         _pinned = pit;
         Panels.Commit();
         DashStats.End();
+        if (_artRedrawnAt != 0)
+        {
+            GD.Print($"cockpit art: the next frame's panels drawn in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");
+            _artRedrawnAt = 0;
+        }
     }
 
     // ---- binoculars ----
@@ -603,14 +681,18 @@ public partial class Cockpit : Node
     /// <summary>The compass's smooth outline's two pictures (the mask's field, the art with its colours spread), or null.</summary>
     public (Texture2D Edge, Texture2D Fill)? CompassEdge => _compassEdge is not null && _compassFill is not null ? (_compassEdge, _compassFill) : null;
 
-    private void CompassOutline()
+    /// <summary>The compass's fill as made for the art served now (kept with a look's art, LookArt).</summary>
+    private Godot.Image? _compassFillImage;
+
+    /// <param name="kept">The fill made before for the art served now (a change back to a look shown before), or null to make it.</param>
+    private void CompassOutline(Godot.Image? kept = null)
     {
         if (Resolver.FindByStem("zcm_") is not { } member) return;
         if (_compassEdge is null && Textures.GetOriginalRgba(member) is { } o)
             _compassEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.R8, MirrorEdge.KeyField(o.Rgba, o.Width, o.Height)));
-        if (Textures.GetRgba(member) is { } a)
+        if ((kept ?? (Textures.GetRgba(member) is { } a ? Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.KeyFill(a.Rgba, a.Width, a.Height, Textures.Scale(member))) : null)) is { } img)
         {
-            var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.KeyFill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+            _compassFillImage = img;
             if (_compassFill is null) _compassFill = ImageTexture.CreateFromImage(img);
             else _compassFill.SetImage(img);
         }
@@ -1418,7 +1500,6 @@ public partial class Cockpit : Node
         float r = MirrorRound.Radius(System.Environment.GetEnvironmentVariable("I76_MIRROR_ROUND"), _roundSetting);
         var (outline, glass) = MirrorRound.Masks(rgba, w, h);
         _fit = MirrorRound.Fit(outline, w, h) is { } o && MirrorRound.Fit(glass, w, h) is { } g ? (o, g) : null;
-        _roundR = r;
         if (r <= 0 || _fit is not { } fit) m.SetShaderParameter("round_corners", false);
         else
         {
@@ -1431,7 +1512,6 @@ public partial class Cockpit : Node
     }
 
     private (MirrorRound.Quad Outline, MirrorRound.Quad Glass)? _fit;
-    private float _roundR;
 
     private void Shape(ShaderMaterial m, MirrorRound.Quad outer, float r, MirrorRound.Quad inner, float ri, bool glassFromShape)
     {
@@ -1445,22 +1525,33 @@ public partial class Cockpit : Node
 
     /// <summary>
     /// The added side glasses (side_mirrors=on, a car without door-mirror glass): the rear art's ends, their frame narrowed to 0.3 of its
-    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the rear mirror's rounding.
+    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the door mirrors' rounding
+    /// (side_mirror_round: that share of the outline's height, at most half of it).
     /// </summary>
     private void AddedFrame(ShaderMaterial sm)
     {
         if (_fit is not { } fit) return;
         var (o, g) = fit;
         float t = (g.TL.Y - o.TL.Y) * MirrorRim.RimShare / (MirrorRim.RearFrameShare * 2f / 3f);   // 0.3 of the frame's width (I76_MIRROR_RIM=wide: two thirds)
-        float r = Mathf.Max(_roundR, 1f), ri = Mathf.Max(r - t, 1f);
+        float height = o.BL.Y - o.TL.Y;
+        float r = Mathf.Clamp(GlassRound.Share(GlassRoundHook, _glassRoundSetting) / 100f * height, 1f, 0.49f * height), ri = Mathf.Max(r - t, 1f);
         Shape(sm, MirrorRound.Shrink(o, r), r, MirrorRound.Shrink(o, t + ri), ri, true);
     }
 
-    /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture.</summary>
-    private void MirrorFill()
+    /// <summary>The mirror's fill as made for the art served now (kept with a look's art, LookArt).</summary>
+    private Godot.Image? _mirrorFillImage;
+
+    /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture; <paramref name="kept"/>: made before for it.</summary>
+    private void MirrorFill(Godot.Image? kept = null)
     {
-        if (_mirrorMat is null || Resolver.FindByStem("zmiri101") is not { } member || Textures.GetRgba(member) is not { } a) return;
-        var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+        if (_mirrorMat is null || Resolver.FindByStem("zmiri101") is not { } member) return;
+        var img = kept;
+        if (img is null)
+        {
+            if (Textures.GetRgba(member) is not { } a) return;
+            img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+        }
+        _mirrorFillImage = img;
         if (_mirrorFill is null) { _mirrorFill = ImageTexture.CreateFromImage(img); _mirrorMat.SetShaderParameter("fill", _mirrorFill); }
         else _mirrorFill.SetImage(img);
     }
@@ -1615,7 +1706,8 @@ public partial class Cockpit : Node
     private SideMirrorMode _sideMirrors = SideMirrorMode.Auto;
     private SideMirrorRender _sideRender = SideMirrorRender.Own;
     private MirrorRate _mirrorRate = MirrorRate.Alternate;
-    private int _roundSetting = MirrorRound.DefaultRadius;
+    private int _roundSetting = MirrorRound.DefaultRadius, _glassRoundSetting = GlassRound.DefaultShare;
+    private static readonly string? GlassRoundHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_ROUND");
     private (byte[]? Rgba, int W, int H) _mirrorOriginal;
     private float _mirrorFov = MirrorBands.DefaultFov, _sideShare = 1f, _sideAngle = MirrorBands.DefaultYaw, _sideDrop = MirrorBands.DefaultDrop, _sideOverlap = MirrorBands.DefaultOverlap, _sideYaw = float.NaN;
     /// <summary>I76_MIRROR_WIDTH: the wide render's width in pixels instead of the one keeping the rear mirror's pixels per degree (a cost measurement); I76_SIDE_MIRROR_MAP=cylinder: the side glasses' columns spread by angle (docs/dev-hooks.md).</summary>
@@ -1633,7 +1725,7 @@ public partial class Cockpit : Node
         _sideOverlap = s.SideMirrorOverlap;
         _sideRender = s.SideMirrorRender;
         _mirrorRate = s.MirrorRate;
-        if (_roundSetting != s.MirrorRound) { _roundSetting = s.MirrorRound; RoundCorners(); }
+        if (_roundSetting != s.MirrorRound || _glassRoundSetting != s.SideMirrorRound) { _roundSetting = s.MirrorRound; _glassRoundSetting = s.SideMirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
         ApplyMirrorMode();
     }
@@ -1727,7 +1819,7 @@ public partial class Cockpit : Node
 
     // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
 
-    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre)> _glass = [];
+    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull)> _glass = [];
     private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
     private ShaderMaterial? _rimMat;
 
@@ -1738,11 +1830,13 @@ public partial class Cockpit : Node
         // the heads turned to the driver while their glass shows the view (MirrorAim); the art's own place otherwise, the 1997 look's
         // Side Mirrors Left: the right one stays as the art paints and places it
         foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed && MirrorBands.SideShown(_sideMirrors, left) ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
-        foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left);
+        int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
+        foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left) && !_glass.Any(g => g.Left == left && GlassRound.Shape(g.Hull, share) is not null);
         foreach (var g in _glass)
         {
             g.Mesh.Visible = on && MirrorBands.SideShown(_sideMirrors, g.Left);
             if (!g.Mesh.Visible) continue;
+            RoundGlass(g.Mat, g.Hull, g.Aspect, share);
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
             var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
             var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
@@ -1793,7 +1887,7 @@ public partial class Cockpit : Node
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
             host.AddChild(mi);
             var centre = Vector3.Zero; foreach (var q in v) centre += q; centre /= Math.Max(1, v.Count);
-            _glass.Add((mi, mat, pane.Left, aspect, centre));
+            _glass.Add((mi, mat, pane.Left, aspect, centre, GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)))));
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
             var shifted = pane.Faces.Select(f => f.Select(q => { var g = Coords.ToGodot(q); return g + (near - g).Normalized() * 0.004f; }).ToArray()).ToList();
@@ -1811,6 +1905,26 @@ public partial class Cockpit : Node
                 _rims.Add((rim, pane.Left));
             }
         }
+    }
+
+    /// <summary>
+    /// A door mirror's glass rounded (GlassRound, side_mirror_round): the core and radius in the pane's units, the rim's width and colour;
+    /// the rounded glass draws its own moulding, so the pane's straight rim (MirrorRim) is hidden while it is. 0, the glass's own corners
+    /// and the straight rim.
+    /// </summary>
+    private void RoundGlass(ShaderMaterial m, List<Vector2> hull, float aspect, int share)
+    {
+        if (GlassRound.Shape(hull, share) is not { } shape) { m.SetShaderParameter("pane_round", false); return; }
+        var core = new Vector2[GlassRound.MaxCorners];
+        for (int i = 0; i < shape.Core.Count; i++) core[i] = shape.Core[i];
+        m.SetShaderParameter("pane_round", true);
+        m.SetShaderParameter("pane_aspect", aspect);
+        m.SetShaderParameter("pane_core", core);
+        m.SetShaderParameter("pane_corners", shape.Core.Count);
+        m.SetShaderParameter("pane_r", shape.R);
+        m.SetShaderParameter("rim_w", MirrorRim.RimShare);
+        _rimMat ??= RimMaterial();
+        m.SetShaderParameter("rim_colour", _rimMat.GetShaderParameter("colour"));
     }
 
     /// <summary>Each side's picture (the own camera's forward) and its head's turn (in the car's frame, Godot axes), made once by Aim; left first.</summary>

@@ -24,7 +24,7 @@ public class GraphicsHelpTests
 
     [Theory]
     [InlineData(GraphicsRow.AmbientOcclusion, "29 %")]
-    [InlineData(GraphicsRow.RearMirror, "17 %")]
+    [InlineData(GraphicsRow.Mirrors, "17 %")]
     [InlineData(GraphicsRow.AntiAliasing, "12 %")]
     [InlineData(GraphicsRow.ShadowDetail, "8 %")]
     [InlineData(GraphicsRow.TerrainDetail, "6 %")]
@@ -50,7 +50,7 @@ public class GraphicsHelpTests
     [Fact]
     public void TheMirrorsLineNamesItsTwoReaches()
     {
-        var t = GraphicsHelp.Text(GraphicsRow.RearMirror, false)!;
+        var t = GraphicsHelp.Text(GraphicsRow.Mirrors, false)!;
         Assert.Contains("100 m", t);
         Assert.Contains("Developer panel", t);
         Assert.DoesNotContain("=", t);   // no config key shown to the player

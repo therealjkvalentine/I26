@@ -13,9 +13,10 @@ public static class DevTips
     public static string? Of(string key) => key switch
     {
         "mirror_range" => "Rear mirror reach: the original's 100 m, or the whole view (about 0.2 ms more a frame). Look follows the look in use.",
-        "side_mirrors" => "Modern look: the view behind in the door mirrors' painted glass (Piranha both, CC cars the left), from the one mirror render; on also adds two glasses to cars without; left the driver's alone (Graphic Detail's Side Mirrors row); off is the original's.",
+        "side_mirrors" => "Modern look: the view behind in the door mirrors' painted glass (Piranha both, CC cars the left); on also adds two glasses to cars without; left the driver's alone; off is the original's (Graphic Detail's Mirrors row: Rear is off, Rear + Left left, All auto).",
         "mirror_fov" => "With the side mirrors on, how wide the one mirror render sees, degrees across: the rear mirror keeps its 45, the sides share the rest.",
-        "mirror_round" => "Modern look: the rear mirror's frame and glass corners that many of its art's pixels round; 0 is the art's own (the original's), 16 the default.",
+        "mirror_round" => "Modern look: the rear mirror's frame and glass corners that many of its art's pixels round; 0, the default, is the art's own (the original's).",
+        "side_mirror_round" => "Modern look: the door mirrors' glass corners rounded, percent of the glass's shorter side; 0 is the glass's own straight corners, 50 round ends.",
         "side_mirror_share" => "How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward.",
         "side_mirror_angle" => "Where the side mirrors sit, degrees to the left and right of straight ahead; kept inside the window's view.",
         "side_mirror_drop" => "How far below the rear mirror's row the side mirrors hang, in percent of the rear mirror's height; 0 is its row.",
@@ -52,6 +53,7 @@ public static class DevTips
         "menu_fps" => "Graphic Detail's last line: the frame rate measured behind the Esc menu's pads, and estimated on the main menu's sheet. false hides it.",
         "low_latency_audio" => "A 5 ms sound buffer and a faster physics step: sounds start about 15 ms sooner. Turn off if the sound crackles. Next start.",
         "aa_1997" => "The 1997 look takes Graphic Detail's Anti-Aliasing; false draws its edges unsmoothed, as the 3D card did.",
+        "fast_look_switch" => "With an HD texture pack, F12 keeps both looks' textures and cockpit art from the first switch, so later switches are quick; false sends them again each time (less video memory).",
         "even_flash" => "The 1997 look: a gun's muzzle flash lit at each shot between ticks, so a fast gun flashes evenly.",
         "lamp_ramp" => "The modern look's head, brake and tail lamps warm up and cool down as 1976's bulbs did; off switches them in one frame, as the original.",
         "lamp_halo" => "The modern look's lamp lens glows and glares (the halo round a lit lamp), in percent; 65 is a third under the earlier strength. The beams keep their light.",

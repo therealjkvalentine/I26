@@ -42,6 +42,7 @@ public sealed partial class Combat
             nameof(Impact.N), nameof(Impact.Dir));
         a.For<Explosion>().Saved(nameof(Explosion.Effect), nameof(Explosion.At));
         a.For<WeaponClick>().Saved(nameof(WeaponClick.Shooter), nameof(WeaponClick.Sound));
+        a.For<ImpactSound>().Saved(nameof(ImpactSound.Sound), nameof(ImpactSound.At), nameof(ImpactSound.Kind), nameof(ImpactSound.Dir));
     }
 
     private static IEnumerable<KeyValuePair<Vehicle, T>> ById<T>(Dictionary<Vehicle, T> d) => d.OrderBy(kv => kv.Key.NetId);
@@ -155,6 +156,7 @@ public sealed partial class Combat
             case Impact i: w.U8(2); w.Str(i.Effect); w.Str(i.Sound); w.V3(i.At); w.Obj(i.Victim); w.U32(i.Kind); w.V3(i.Hit); w.V3(i.N); w.V3(i.Dir); break;
             case Explosion x: w.U8(3); w.Str(x.Effect.File); w.V3(x.At); break;
             case WeaponClick c: w.U8(4); w.Car(c.Shooter); w.Str(c.Sound); break;
+            case ImpactSound s: w.U8(5); w.Str(s.Sound); w.V3(s.At); w.U32(s.Kind); w.V3(s.Dir); break;
             default: throw new InvalidOperationException($"snapshot: no tag for a {e.GetType().Name}");
         }
     }
@@ -165,6 +167,7 @@ public sealed partial class Combat
         2 => new Impact(r.Str() ?? "", r.Str() ?? "", r.V3(), r.Obj(), r.U32(), r.V3(), r.V3(), r.V3()),
         3 => r.Str() is var file && file is not null && effects(file) is { } fx ? new Explosion(fx, r.V3()) : throw r.Mismatch($"effect {file}"),
         4 => new WeaponClick(r.Car()!, r.Str() ?? ""),
+        5 => new ImpactSound(r.Str() ?? "", r.V3(), r.U32(), r.V3()),
         var t => throw new SnapshotFormatException($"bad combat event tag {t}"),
     };
 }

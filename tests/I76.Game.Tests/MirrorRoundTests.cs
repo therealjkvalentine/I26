@@ -52,4 +52,49 @@ public class MirrorRoundTests
         Assert.Equal(24f, MirrorRound.Radius("99"));
         Assert.Null(MirrorRound.Fit(new bool[16], 4, 4));
     }
+
+    [Fact]
+    public void TheRearMirrorKeepsTheArtsCornersByDefault()
+    {
+        Assert.Equal(0, MirrorRound.DefaultRadius);
+        Assert.Equal(0, new I76.Game.Shell.ShellSettings().MirrorRound);
+        Assert.Equal(GlassRound.DefaultShare, new I76.Game.Shell.ShellSettings().SideMirrorRound);
+        Assert.Equal(GlassRound.DefaultShare, GlassRound.Share(null, GlassRound.DefaultShare));
+        Assert.Equal(50, GlassRound.Share("80", 0));
+        Assert.Equal(10, GlassRound.Share("10", 25));
+    }
+
+    /// <summary>A door mirror's glass: the hull of its corners counter-clockwise, without the points inside it.</summary>
+    [Fact]
+    public void TheGlassOutlineIsItsHull()
+    {
+        var h = GlassRound.Hull([new(0, 0), new(2, 0), new(2, 1), new(0, 1), new(1, 0.5f), new(1, 0)]);
+        Assert.Equal(4, h.Count);
+        float area = 0;
+        for (int i = 0; i < h.Count; i++) area += h[i].X * h[(i + 1) % h.Count].Y - h[(i + 1) % h.Count].X * h[i].Y;
+        Assert.True(area > 0, "counter-clockwise");
+    }
+
+    [Fact]
+    public void TheRoundedGlassIsTheHullErodedByTheRadius()
+    {
+        var rect = GlassRound.Hull([new(0, 0), new(2, 0), new(2, 1), new(0, 1)]);
+        Assert.Equal(0.5f, GlassRound.Inradius(rect), 0.001f);
+        Assert.Null(GlassRound.Shape(rect, 0));   // the glass's own corners
+        // 25 % of the shorter side: a radius of 0.25, the core the rectangle 0.25 in from each side
+        var (core, r) = GlassRound.Shape(rect, 25)!.Value;
+        Assert.Equal(0.25f, r, 0.001f);
+        Assert.Equal(0.25f, core.Min(q => q.X), 0.001f);
+        Assert.Equal(1.75f, core.Max(q => q.X), 0.001f);
+        Assert.Equal(0.75f, core.Max(q => q.Y), 0.001f);
+        // 50 %: round ends, just inside the largest circle (a stadium's core is nearly a line)
+        var (line, rr) = GlassRound.Shape(rect, 50)!.Value;
+        Assert.InRange(rr, 0.48f, 0.5f);
+        Assert.InRange(line.Max(q => q.Y) - line.Min(q => q.Y), 0f, 0.05f);
+        // a hexagon's short sides drop out as it erodes; the core stays convex and inside it
+        var hex = GlassRound.Hull(Enumerable.Range(0, 6).Select(k => new Vector2(Mathf.Cos(k * Mathf.Pi / 3), 0.6f * Mathf.Sin(k * Mathf.Pi / 3))));
+        var (hc, hr) = GlassRound.Shape(hex, 35)!.Value;
+        Assert.True(hc.Count is >= 3 and <= GlassRound.MaxCorners);
+        Assert.True(hr > 0 && hr < GlassRound.Inradius(hex));
+    }
 }

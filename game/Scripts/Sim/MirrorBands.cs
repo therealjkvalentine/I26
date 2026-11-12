@@ -107,26 +107,11 @@ public static class MirrorBands
 public enum SideMirrorMode { Off, On, Auto, Left }
 
 /// <summary>
-/// Graphic Detail's Side Mirrors row over [port] side_mirrors: Off (the original's painted glass), Left (the driver's door mirror
-/// alone) and Both (auto, the default). The key's own words are kept: on (both, and two glasses added to a car without) shows as
-/// Both and stays on until the row is changed.
+/// [port] side_mirrors' words (SideMirrorRow.Parse, Word): off, left, auto (the default, unwritten) and on, set by hand (both, and two
+/// glasses added to a car without). Graphic Detail's Mirrors row (MirrorsRow) sets off, left and auto.
 /// </summary>
 public static class SideMirrorRow
 {
-    public static readonly string[] Names = ["Off", "Left" + I76.Game.Shell.ShellSettings.PortMark, "Both" + I76.Game.Shell.ShellSettings.PortMark];
-
-    public static int Index(SideMirrorMode m) => m switch { SideMirrorMode.Off => 0, SideMirrorMode.Left => 1, _ => 2 };
-
-    /// <summary>A value picked: nothing when it is what shows (an on set by hand stays on under Both).</summary>
-    public static void Put(I76.Game.Shell.ShellSettings s, int v)
-    {
-        if (Index(s.SideMirrors) == v) return;
-        s.SideMirrors = v switch { 0 => SideMirrorMode.Off, 1 => SideMirrorMode.Left, _ => SideMirrorMode.Auto };
-    }
-
-    /// <summary>A click: the next value, past Both back to Off.</summary>
-    public static void Step(I76.Game.Shell.ShellSettings s) => Put(s, (Index(s.SideMirrors) + 1) % Names.Length);
-
     /// <summary>The key's word read: off, on, left; anything else (auto, absent, a misspelling) auto.</summary>
     public static SideMirrorMode Parse(string? word) => word?.Trim().ToLowerInvariant() switch
     {
@@ -144,6 +129,45 @@ public static class SideMirrorRow
         SideMirrorMode.Left => "left",
         _ => null,
     };
+}
+
+/// <summary>
+/// Graphic Detail's Mirrors row (the original's Rear Mirror row and the port's side mirrors in one): Off, Rear (the rear-view mirror
+/// alone), Rear + Left (and the driver's door mirror) and All (the default: both door mirrors where the car has them). The row keeps
+/// the two keys it is over: the rear mirror's mode (the graphics block's +0xd, the original's Off, Low or High: Low, objects only,
+/// shows as on and is kept until the row is changed) and [port] side_mirrors. The rear mirror off draws no mirror at all, so a file
+/// with the rear off and the side mirrors on shows as Off, and nothing is written until the row is changed; an on set by hand shows
+/// as All and is kept under it. Off turns the rear mirror's mode off alone (side_mirrors is kept: the ` key that turns the mirror back
+/// on in play brings back what was shown); turning the rear on from Off puts back High, the original's default.
+/// </summary>
+public static class MirrorsRow
+{
+    public static readonly string[] Names = ["Off", "Rear", "Rear + Left" + I76.Game.Shell.ShellSettings.PortMark, "All" + I76.Game.Shell.ShellSettings.PortMark];
+    public const int Off = 0, Rear = 1, RearLeft = 2, All = 3;
+    /// <summary>The rear mirror's mode in the graphics block: off, objects only, full.</summary>
+    public const int RearByte = 0xd, RearHigh = 2;
+
+    /// <summary>The value shown for the rear mirror's mode and side_mirrors.</summary>
+    public static int Index(byte rear, SideMirrorMode side) => rear == 0 ? Off : side switch
+    {
+        SideMirrorMode.Off => Rear,
+        SideMirrorMode.Left => RearLeft,
+        _ => All,
+    };
+
+    public static int Index(I76.Game.Shell.ShellSettings s) => Index(s.Graphics[RearByte], s.SideMirrors);
+
+    /// <summary>A value picked: nothing when it is what shows; Off the rear mirror's mode off; otherwise the rear mirror on (its mode kept, or High from off) and side_mirrors to match.</summary>
+    public static void Put(I76.Game.Shell.ShellSettings s, int v)
+    {
+        if (Index(s) == v) return;
+        if (v == Off) { s.Graphics[RearByte] = 0; return; }
+        if (s.Graphics[RearByte] == 0) s.Graphics[RearByte] = RearHigh;
+        s.SideMirrors = v switch { Rear => SideMirrorMode.Off, RearLeft => SideMirrorMode.Left, _ => SideMirrorMode.Auto };
+    }
+
+    /// <summary>A click: the next value, past All back to Off.</summary>
+    public static void Step(I76.Game.Shell.ShellSettings s) => Put(s, (Index(s) + 1) % Names.Length);
 }
 
 /// <summary>

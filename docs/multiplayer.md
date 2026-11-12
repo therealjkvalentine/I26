@@ -2095,6 +2095,24 @@ tick (not a replay) also runs the own car's weapons, and only for drawing (`SimS
 - **Impacts and damage stay the server's**, drawn when the view reaches them: a predicted round vanishes where it meets
   something, and the server's impact comes about a round trip and 100 ms later, at the server's point (which, with the
   car predicted exactly, is the same for a hit on scenery; a car is drawn 100 ms behind, so a hit on one can differ).
+  **The impact's sound is the exception** (#168): a predicted round of the fast kinds that strikes on a fresh tick
+  leaves `ImpactSound` (the sound the server's impact would carry: the pair's .wav when its effect loads, placed as the
+  impact is) in the mirror's events, and the views play it at once, as a single player hears it. The predictor keeps
+  each with the server tick it is expected in (`OwnCarPredictor.ExpectImpact`). The wire's impact names no shooter, so
+  `TakeImpact` matches the server's impact by what it carries: the same sound and round kind, within 0.36 s
+  (`StaleTicks`) of the batch's tick, 12 m (`ImpactMetres`: the prediction meets the other cars where the view has
+  them, the server where they are a round trip and the view's delay later) and 60° of the flight, each taken once;
+  the server's copy is then drawn without its sound. A predicted impact the server never sent (the round missed for
+  the server, or the shot was refused) is let go after the window, not played again; a server impact with no
+  predicted one (another car's round, an adopted own round, a damaged weapon's, a cluster bomb's bomblets) plays as it
+  comes. Two clients, 50, 100 and 200 ms each way, a gun at a car 25 m off: its hits heard 3, 5 and 7 ticks after the
+  press at every latency (before: 8/10/12, 10/12/14, 14/16/18), once each (`HitSoundTests`). Nothing on the wire
+  changes.
+- **Being hit stays the server's**, on the view's clock: the round that hits the own car is another machine's, decided
+  by the server from that player's input, so no client can know it sooner than the server's event reaches it. It is
+  heard when the view reaches the server's tick, a one-way trip and the view's 0.1 s (and up to a tick) after the
+  server made it, with the shooter's flash, tracer and the damage panel's change, which are on the same clock;
+  playing it on arrival would gain the 0.1 s but sound the hit before the round is seen to arrive.
 - **Missiles** home on the radar target as the client has it (the target is in the own-car block, the cars where the
   view draws them): the visual follows what the player sees; the server's missile decides.
 - **Flames.** The own car's streams are its own copy in the mirror, grown by the predicted shots and built from the
