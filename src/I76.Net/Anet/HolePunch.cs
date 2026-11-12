@@ -56,7 +56,7 @@ public sealed class AnetHost : IDisposable
     private readonly List<AnetClient> _clients = [];
     private readonly Func<AnetGame> _describe;
     private readonly Action<IPEndPoint, byte[]> _sendUnconnected;
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Func<double> _clock;
     private readonly List<(List<IPEndPoint> To, double Until)> _bursts = [];
     private double _nextDescribe, _nextProbe;
     private uint _nonce = (uint)Random.Shared.Next();
@@ -68,13 +68,14 @@ public sealed class AnetHost : IDisposable
     public int Answered, Introductions;
 
     public AnetHost(IAnetTransport transport, IEnumerable<(string Host, int Port)> servers, Func<AnetGame> describe,
-        Action<IPEndPoint, byte[]> sendUnconnected, ushort species = AnetSpecies.I26, AnetAddress? privateOverride = null)
+        Action<IPEndPoint, byte[]> sendUnconnected, ushort species = AnetSpecies.I26, AnetAddress? privateOverride = null, Func<double>? clock = null)
     {
+        _clock = clock ?? WallClock();
         _describe = describe;
         _sendUnconnected = sendUnconnected;
         foreach (var (h, p) in servers)
         {
-            var c = new AnetClient(transport, h, p, species, () => _clock.Elapsed.TotalSeconds, Karma) { PrivateOverride = privateOverride };
+            var c = new AnetClient(transport, h, p, species, _clock, Karma) { PrivateOverride = privateOverride };
             c.Log += m => Log?.Invoke(m);
             c.RequestOpen += (seen, reported) => Introduce(seen, reported);
             _clients.Add(c);
@@ -117,13 +118,13 @@ public sealed class AnetHost : IDisposable
         // the same joiner asking again (a second try) starts its burst over
         _bursts.RemoveAll(b => b.To[0].Equals(to[0]));
         if (_bursts.Count >= MaxBursts) return;
-        _bursts.Add((to, _clock.Elapsed.TotalSeconds + HolePunch.HostBurst));
+        _bursts.Add((to, _clock() + HolePunch.HostBurst));
         foreach (var ep in to) _sendUnconnected(ep, HolePunch.Message(HolePunch.Kind.HostProbe, Karma, _nonce++));
     }
 
     public void Update()
     {
-        double now = _clock.Elapsed.TotalSeconds;
+        double now = _clock();
         if (now >= _nextDescribe)
         {
             _nextDescribe = now + 1;
@@ -165,6 +166,13 @@ public sealed class AnetHost : IDisposable
 
     public bool AnyListed => _clients.Any(c => c.Listed);
 
+    /// <summary>Seconds since now, on the wall clock (a host's or joiner's own unless the tests give it theirs).</summary>
+    internal static Func<double> WallClock()
+    {
+        var sw = Stopwatch.StartNew();
+        return () => sw.Elapsed.TotalSeconds;
+    }
+
     public void Dispose()
     {
         foreach (var c in _clients) c.Dispose();
@@ -186,7 +194,7 @@ public sealed class AnetJoiner : IDisposable
     private readonly IAnetTransport _transport;
     private readonly ushort _species;
     private readonly Action<IPEndPoint, byte[]> _sendUnconnected;
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Func<double> _clock;
     private readonly IPEndPoint[] _targets;
     private double _nextProbe, _askedAt = -1, _checkUntil = -1;
     private uint _nonce = (uint)Random.Shared.Next();
@@ -210,13 +218,14 @@ public sealed class AnetJoiner : IDisposable
     public event Action<string>? Log;
 
     public AnetJoiner(IAnetTransport transport, string serverHost, int serverPort, AnetSession target, Action<IPEndPoint, byte[]> sendUnconnected,
-        ushort species = AnetSpecies.I26, AnetAddress? privateOverride = null)
+        ushort species = AnetSpecies.I26, AnetAddress? privateOverride = null, Func<double>? clock = null)
     {
+        _clock = clock ?? AnetHost.WallClock();
         Target = target;
         _transport = transport;
         _species = species;
         _sendUnconnected = sendUnconnected;
-        _client = new AnetClient(transport, serverHost, serverPort, species, () => _clock.Elapsed.TotalSeconds) { PrivateOverride = privateOverride, Reconnect = false };
+        _client = new AnetClient(transport, serverHost, serverPort, species, _clock) { PrivateOverride = privateOverride, Reconnect = false };
         _client.Log += m => Log?.Invoke(m);
         _targets = target.Master == target.KeyAddress ? [target.Master.ToEndPoint()] : [target.Master.ToEndPoint(), target.KeyAddress.ToEndPoint()];
     }
@@ -231,7 +240,7 @@ public sealed class AnetJoiner : IDisposable
     public void Update()
     {
         if (Reached is not null || Failed is not null) return;
-        double now = _clock.Elapsed.TotalSeconds;
+        double now = _clock();
         _client.Update();
         if (_askedAt < 0 && _client.State == AnetState.Online && _client.IndirectJoin(Target)) _askedAt = now;
         if (now >= _nextProbe)
@@ -253,7 +262,7 @@ public sealed class AnetJoiner : IDisposable
             if (_client.PublicAddress is not null && other.Host is { Length: > 0 })
             {
                 _checkUntil = now + CheckTime;
-                _check = new AnetClient(_transport, other.Host, other.Port, _species, () => _clock.Elapsed.TotalSeconds) { Reconnect = false };
+                _check = new AnetClient(_transport, other.Host, other.Port, _species, _clock) { Reconnect = false };
                 _check.Log += m => Log?.Invoke(m);
                 return;
             }

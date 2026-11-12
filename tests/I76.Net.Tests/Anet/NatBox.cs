@@ -42,17 +42,27 @@ public sealed class NatBox : IDisposable
     private readonly CancellationTokenSource _stop = new();
     private int _nextPort = 20000 + Random.Shared.Next(30000);
     private readonly List<Thread> _threads = [];
+    private readonly TestNet? _net;
+    private readonly List<(UdpClient Sock, IPEndPoint Local, Action<IPEndPoint, byte[]> Handle)> _socks = [];
+    private readonly Action? _pump;
     public int Dropped, Forwarded;
 
     public IPEndPoint Inside => (IPEndPoint)_inside.Client.LocalEndPoint!;
     public IPAddress Public => _public;
 
-    public NatBox(int id, Mapping mapping)
+    /// <summary>A thread per socket, or (<paramref name="net"/> given) pumped by that network with the rest of it.</summary>
+    public NatBox(int id, Mapping mapping, TestNet? net = null)
     {
         _id = id;
         _mapping = mapping;
+        _net = net;
         _public = new IPAddress([127, 0, 0, (byte)(id + 1)]);
         _inside = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        if (net is not null)
+        {
+            _pump = () => { foreach (var (s, at, h) in _socks.ToArray()) UdpPump.Drain(s, (f, d) => { net.Arrived(at); h(f, d); }); };
+            net.Pump(_pump);
+        }
         Run(_inside, InsideLoop);
     }
 
@@ -67,6 +77,13 @@ public sealed class NatBox : IDisposable
 
     private void Run(UdpClient sock, Action<IPEndPoint, byte[]> handle)
     {
+        if (_net is not null)
+        {
+            var at = TestNet.LocalOf(sock);
+            _net.Add(at);
+            _socks.Add((sock, at, handle));
+            return;
+        }
         var t = new Thread(() =>
         {
             while (!_stop.IsCancellationRequested)
@@ -110,6 +127,7 @@ public sealed class NatBox : IDisposable
         });
         pub.Allowed[dest] = 0;
         pub.Sock.Send(payload, payload.Length, dest);
+        _net?.Sent(dest);
         Interlocked.Increment(ref Forwarded);
     }
 
@@ -147,7 +165,8 @@ public sealed class NatBox : IDisposable
         var b = new byte[6 + payload.Length];
         AnetAddress.From(source).Write(b);
         payload.CopyTo(b, 6);
-        try { _inside.Send(b, b.Length, new IPEndPoint(IPAddress.Loopback, insidePort)); }
+        var to = new IPEndPoint(IPAddress.Loopback, insidePort);
+        try { _inside.Send(b, b.Length, to); _net?.Sent(to); }
         catch (SocketException) { }
         catch (ObjectDisposedException) { }
     }
@@ -159,6 +178,11 @@ public sealed class NatBox : IDisposable
     public void Dispose()
     {
         _stop.Cancel();
+        if (_net is not null)
+        {
+            _net.Unpump(_pump!);
+            foreach (var (_, at, _) in _socks) _net.Remove(at);
+        }
         _inside.Dispose();
         foreach (var p in _pubs.Values) p.Sock.Dispose();
         foreach (var t in _threads) t.Join(500);

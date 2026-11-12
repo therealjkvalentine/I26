@@ -32,19 +32,49 @@ public sealed class FakeAnetServer : IDisposable
     private readonly Dictionary<IPEndPoint, Client> _clients = [];
     private readonly Dictionary<ulong, Rec> _sessions = [];
     private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private readonly Thread _thread;
+    private readonly Thread? _thread;
     private volatile bool _stop;
     private readonly object _lock = new();
+    private readonly TestNet? _net;
+    private readonly Action? _pump;
     public int Logins, Publishes, Introductions;
 
     public int Port => ((IPEndPoint)_sock.Client.LocalEndPoint!).Port;
 
-    public FakeAnetServer()
+    /// <summary>On a thread of its own and the wall clock, or (<paramref name="net"/> given) pumped by that network on its clock.</summary>
+    public FakeAnetServer(TestNet? net = null)
     {
         _sock = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         _sock.Client.ReceiveTimeout = 20;
+        _net = net;
+        if (net is not null)
+        {
+            var self = TestNet.LocalOf(_sock);
+            net.Add(self);
+            _pump = () => Pump(self);
+            net.Pump(_pump);
+            return;
+        }
         _thread = new Thread(Run) { IsBackground = true, Name = "fake anet server" };
         _thread.Start();
+    }
+
+    private void Pump(IPEndPoint self)
+    {
+        double now = _net!.Now;
+        UdpPump.Drain(_sock, (from, d) => { _net.Arrived(self); Datagram(from, d, now); });
+        foreach (var (ep, c) in _clients.ToList())
+        {
+            c.Link.Update(now);
+            Drain(c, now);
+            if (c.Link.Closed) Drop(ep, now);
+        }
+    }
+
+    private void SendTo(IPEndPoint to, byte[] x)
+    {
+        _sock.Send(x, x.Length, to);
+        _net?.Sent(to);
     }
 
     public int SessionCount { get { lock (_lock) return _sessions.Count; } }
@@ -80,7 +110,7 @@ public sealed class FakeAnetServer : IDisposable
         if (!_clients.TryGetValue(from, out var c))
         {
             if (d[1] != AnetWire.Syn) return;
-            var link = new DpioLink(x => _sock.Send(x, x.Length, from)) { Timeout = 41 };
+            var link = new DpioLink(x => SendTo(from, x)) { Timeout = 41 };
             var self = AnetAddress.From(new IPEndPoint(IPAddress.Loopback, Port));
             // the server's SYN: its own address, the client's as seen, capabilities, its address again (dpio_openHdl2)
             link.Open(now, AnetWire.SynBody(self, AnetAddress.From(from), 0, self));
@@ -156,7 +186,8 @@ public sealed class FakeAnetServer : IDisposable
     public void Dispose()
     {
         _stop = true;
-        _thread.Join(1000);
+        _thread?.Join(1000);
+        if (_net is not null) { _net.Unpump(_pump!); _net.Remove(TestNet.LocalOf(_sock)); }
         _sock.Dispose();
     }
 }

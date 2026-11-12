@@ -7,7 +7,10 @@ using Xunit.Abstractions;
 
 namespace I76.Net.Tests.Anet;
 
-/// <summary>A bare LiteNetLib endpoint with anet on its socket, optionally behind a <see cref="NatBox"/>: a host or a joiner without the game.</summary>
+/// <summary>
+/// A bare LiteNetLib endpoint with anet on its socket, optionally behind a <see cref="NatBox"/>: a host or a joiner without the game.
+/// Its manager runs in manual mode, pumped and updated by its <see cref="TestNet"/> on that network's clock.
+/// </summary>
 internal sealed class TestPeer : IDisposable
 {
     public readonly EventBasedNetListener Listener = new();
@@ -18,11 +21,17 @@ internal sealed class TestPeer : IDisposable
     public AnetJoiner? Joiner;
     public NetPeer? Connected;
     public readonly NatBox? Nat;
+    private readonly TestNet _world;
+    private readonly IPEndPoint _local;
+    private readonly Action _pump;
+    private readonly Action<double> _tick;
 
-    public TestPeer(NatBox? nat = null)
+    public TestPeer(TestNet world, NatBox? nat = null)
     {
         Nat = nat;
-        Layer = new AnetLayer(nat?.Tunnel());
+        _world = world;
+        var counting = new CountingLayer(world, nat?.Tunnel());
+        Layer = new AnetLayer(counting);
         Net = new NetManager(Listener, Layer) { UnconnectedMessagesEnabled = true, IPv6Enabled = false, AutoRecycle = true, DisconnectTimeout = 5000 };
         Listener.NetworkReceiveUnconnectedEvent += (ep, r, t) =>
         {
@@ -32,8 +41,15 @@ internal sealed class TestPeer : IDisposable
         };
         Listener.ConnectionRequestEvent += r => r.AcceptIfKey("i26 test");
         Listener.PeerConnectedEvent += p => Connected = p;
-        Net.Start(IPAddress.Loopback, IPAddress.IPv6Loopback, 0);
+        Net.StartInManualMode(IPAddress.Loopback, IPAddress.IPv6Loopback, 0);
         Transport = new LiteNetAnetTransport(Net, Layer);
+        _local = new IPEndPoint(IPAddress.Loopback, Net.LocalPort);
+        counting.Local = _local;
+        world.Add(_local);
+        _pump = Step;
+        _tick = dt => Net.ManualUpdate((float)(dt * 1000));
+        world.Pump(_pump);
+        world.Ticker(_tick);
     }
 
     /// <summary>Our own address as the anet client should report it: behind the box, the private one it gives us.</summary>
@@ -53,6 +69,9 @@ internal sealed class TestPeer : IDisposable
         Host?.Dispose();
         Joiner?.Dispose();
         Net.Stop();
+        _world.Unpump(_pump);
+        _world.Unticker(_tick);
+        _world.Remove(_local);
     }
 }
 
@@ -60,39 +79,41 @@ internal sealed class TestPeer : IDisposable
 /// Listing, publishing and the server's introduction end to end over real
 /// UDP on this machine, against the in-process <see cref="FakeAnetServer"/>
 /// (and the real anet server when I76_ANET_SERVER names its binary, see
-/// <see cref="RealAnetServer"/>), with and without emulated NATs.
+/// <see cref="RealAnetServer"/>), with and without emulated NATs. Everything but the real server runs on the test's
+/// <see cref="TestNet"/>: one thread, and a clock that waits for the datagrams (the seconds below are that clock's).
 /// </summary>
 public class AnetPunchTests(ITestOutputHelper log)
 {
     private static readonly byte[] User = new I26SessionTag(Protocol.Version, false, true, false, false, I76.Sim.Missions.MeleeKind.Combat, 2,
         I76.Sim.Missions.MeleeGoal.None, "m05").Write();
 
-    private static bool Loop(Func<bool> done, double seconds, params TestPeer[] peers)
+    private readonly TestNet _net = new();
+
+    private bool Loop(Func<bool> done, double seconds)
     {
-        var sw = Stopwatch.StartNew();
-        while (sw.Elapsed.TotalSeconds < seconds)
-        {
-            foreach (var p in peers) p.Step();
-            if (done()) return true;
-            Thread.Sleep(5);
-        }
-        return false;
+        var wall = System.Diagnostics.Stopwatch.StartNew();
+        double from = _net.Now;
+        bool ok = _net.Until(done, seconds);
+        log.WriteLine($"(network clock {from:0.000} -> {_net.Now:0.000} s in {wall.Elapsed.TotalSeconds:0.00} s; {_net.Lost} datagrams given up)");
+        return ok;
     }
+
+    private NatBox Nat(int id, NatBox.Mapping mapping) => new(id, mapping, _net);
 
     private (TestPeer Host, TestPeer Joiner, AnetSession Session) Setup(int serverPort, NatBox? hostNat, NatBox? joinerNat, NatBox? browserNat = null)
     {
-        var host = new TestPeer(hostNat);
+        var host = new TestPeer(_net, hostNat);
         host.Host = new AnetHost(host.Transport, [("127.0.0.1", serverPort)], () => new AnetGame("Punch test", 8, 1, true, User), host.Send,
-            privateOverride: host.Private);
+            privateOverride: host.Private, clock: _net.Clock);
         host.Host.Log += m => log.WriteLine($"host: {m}");
-        Assert.True(Loop(() => host.Host.AnyListed, 5, host), $"host not listed: {host.Host.Status}");
+        Assert.True(Loop(() => host.Host.AnyListed, 5), $"host not listed: {host.Host.Status}");
         log.WriteLine(host.Host.Status);
 
         // a browser on its own socket lists the game (the game's roster and its join are separate sockets too)
-        using var browser = new TestPeer(browserNat);
-        var lister = new AnetClient(browser.Transport, "127.0.0.1", serverPort, AnetSpecies.I26) { PrivateOverride = browser.Private };
+        using var browser = new TestPeer(_net, browserNat);
+        var lister = new AnetClient(browser.Transport, "127.0.0.1", serverPort, AnetSpecies.I26, _net.Clock) { PrivateOverride = browser.Private };
         AnetSession? found = null;
-        Assert.True(Loop(() => { lister.Update(); found = lister.Sessions.Values.FirstOrDefault(s => s.Name == "Punch test"); return found is not null; }, 5, host, browser),
+        Assert.True(Loop(() => { lister.Update(); found = lister.Sessions.Values.FirstOrDefault(s => s.Name == "Punch test"); return found is not null; }, 5),
             $"not listed: {lister.State} {lister.Problem}");
         lister.Dispose();
         Assert.Equal(Protocol.Version, found!.Tag!.Protocol);
@@ -106,8 +127,8 @@ public class AnetPunchTests(ITestOutputHelper log)
     /// <summary>A joiner of the listed session behind <paramref name="nat"/> (none: on the open internet).</summary>
     private TestPeer Joiner(int serverPort, AnetSession found, NatBox? nat, string name = "joiner", IReadOnlyList<(string, int)>? check = null, double punchTime = 10)
     {
-        var joiner = new TestPeer(nat);
-        joiner.Joiner = new AnetJoiner(joiner.Transport, "127.0.0.1", serverPort, found, joiner.Send, privateOverride: joiner.Private)
+        var joiner = new TestPeer(_net, nat);
+        joiner.Joiner = new AnetJoiner(joiner.Transport, "127.0.0.1", serverPort, found, joiner.Send, privateOverride: joiner.Private, clock: _net.Clock)
         {
             CheckServers = check ?? [], PunchTime = punchTime,
         };
@@ -117,21 +138,21 @@ public class AnetPunchTests(ITestOutputHelper log)
 
     private bool PunchAndConnect(TestPeer host, TestPeer joiner)
     {
-        bool reached = Loop(() => joiner.Joiner!.Reached is not null || joiner.Joiner.Failed is not null, 20, host, joiner);
+        bool reached = Loop(() => joiner.Joiner!.Reached is not null || joiner.Joiner.Failed is not null, 20);
         Assert.True(reached, "the joiner neither reached the host nor gave up");
         if (joiner.Joiner!.Reached is not { } at) return false;
         joiner.Net.Connect(at, "i26 test");
-        Assert.True(Loop(() => joiner.Connected is not null && host.Connected is not null, 5, host, joiner), $"no connection to {at}");
+        Assert.True(Loop(() => joiner.Connected is not null && host.Connected is not null, 5), $"no connection to {at}");
         log.WriteLine($"connected to {at}; the host sees {host.Connected}");
         return true;
     }
 
     public static IEnumerable<object[]> Servers() => RealAnetServer.Available ? [["fake"], ["real"]] : [["fake"]];
 
-    private static IDisposable StartServer(string kind, out int port)
+    private IDisposable StartServer(string kind, out int port)
     {
-        if (kind == "real") { var r = new RealAnetServer(); port = r.Port; return r; }
-        var f = new FakeAnetServer();
+        if (kind == "real") { _net.RealPace = true; var r = new RealAnetServer(); port = r.Port; return r; }
+        var f = new FakeAnetServer(_net);
         port = f.Port;
         return f;
     }
@@ -152,8 +173,8 @@ public class AnetPunchTests(ITestOutputHelper log)
     public void PartyLineNatsPunchThrough(string server)
     {
         using var srv = StartServer(server, out int port);
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        using var natB = new NatBox(2, NatBox.Mapping.EndpointIndependent);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        using var natB = Nat(2, NatBox.Mapping.EndpointIndependent);
         var (host, joiner, s) = Setup(port, natA, natB, natB);
         using (host) using (joiner)
         {
@@ -171,8 +192,8 @@ public class AnetPunchTests(ITestOutputHelper log)
     public void SymmetricNatFailsWithTheForwardingHint(string server)
     {
         using var srv = StartServer(server, out int port);
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        using var natB = new NatBox(2, NatBox.Mapping.Symmetric);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        using var natB = Nat(2, NatBox.Mapping.Symmetric);
         var (host, joiner, s) = Setup(port, natA, natB, natB);
         using (host) using (joiner)
         {
@@ -192,8 +213,8 @@ public class AnetPunchTests(ITestOutputHelper log)
     public void ASequentialSymmetricNatIsReachedAroundTheSeenPort(string server)
     {
         using var srv = StartServer(server, out int port);
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        using var natB = new NatBox(2, NatBox.Mapping.SymmetricSequential);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        using var natB = Nat(2, NatBox.Mapping.SymmetricSequential);
         var (host, joiner, _) = Setup(port, natA, natB, natB);
         using (host) using (joiner)
         {
@@ -210,10 +231,10 @@ public class AnetPunchTests(ITestOutputHelper log)
     [Fact]
     public void EveryJoinerGetsInWhileTheEarlierOnesStayConnected()
     {
-        using var srv = new FakeAnetServer();
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        var nats = new[] { new NatBox(2, NatBox.Mapping.EndpointIndependent), new NatBox(3, NatBox.Mapping.EndpointIndependent),
-            new NatBox(4, NatBox.Mapping.SymmetricSequential), new NatBox(5, NatBox.Mapping.EndpointIndependent), new NatBox(6, NatBox.Mapping.EndpointIndependent) };
+        using var srv = new FakeAnetServer(_net);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        var nats = new[] { Nat(2, NatBox.Mapping.EndpointIndependent), Nat(3, NatBox.Mapping.EndpointIndependent),
+            Nat(4, NatBox.Mapping.SymmetricSequential), Nat(5, NatBox.Mapping.EndpointIndependent), Nat(6, NatBox.Mapping.EndpointIndependent) };
         var (host, first, s) = Setup(srv.Port, natA, nats[0], nats[0]);
         var all = new List<TestPeer> { first };
         try
@@ -224,18 +245,18 @@ public class AnetPunchTests(ITestOutputHelper log)
             {
                 var j = Joiner(srv.Port, s, nat, $"joiner {i}");
                 all.Add(j);
-                Assert.True(Loop(() => j.Joiner!.Reached is not null || j.Joiner.Failed is not null, 20, [host, .. all]), $"joiner {i} neither reached the host nor gave up");
+                Assert.True(Loop(() => j.Joiner!.Reached is not null || j.Joiner.Failed is not null, 20), $"joiner {i} neither reached the host nor gave up");
                 Assert.True(j.Joiner!.Reached is not null, $"joiner {i}: {j.Joiner.Failed}");
                 j.Net.Connect(j.Joiner.Reached!, "i26 test");
-                Assert.True(Loop(() => j.Connected is not null && host.Net.ConnectedPeersCount == i, 5, [host, .. all]), $"joiner {i} did not connect");
+                Assert.True(Loop(() => j.Connected is not null && host.Net.ConnectedPeersCount == i, 5), $"joiner {i} did not connect");
             }
             // three at once (two NATs of their own and the household again)
             var batch = new[] { Joiner(srv.Port, s, nats[3], "joiner 5"), Joiner(srv.Port, s, nats[4], "joiner 6"), Joiner(srv.Port, s, nats[1], "joiner 7") };
             all.AddRange(batch);
-            Assert.True(Loop(() => batch.All(j => j.Joiner!.Reached is not null || j.Joiner.Failed is not null), 20, [host, .. all]));
+            Assert.True(Loop(() => batch.All(j => j.Joiner!.Reached is not null || j.Joiner.Failed is not null), 20));
             foreach (var j in batch) Assert.True(j.Joiner!.Reached is not null, j.Joiner.Failed);
             foreach (var j in batch) j.Net.Connect(j.Joiner!.Reached!, "i26 test");
-            Assert.True(Loop(() => host.Net.ConnectedPeersCount == 7 && all.All(j => j.Connected is not null), 5, [host, .. all]), $"{host.Net.ConnectedPeersCount} connected");
+            Assert.True(Loop(() => host.Net.ConnectedPeersCount == 7 && all.All(j => j.Connected is not null), 5), $"{host.Net.ConnectedPeersCount} connected");
             log.WriteLine($"introductions {host.Host!.Introductions}, answered {host.Host.Answered}");
         }
         finally
@@ -250,10 +271,10 @@ public class AnetPunchTests(ITestOutputHelper log)
     [Fact]
     public void AFailedPunchBlamesTheJoinersSymmetricNat()
     {
-        using var srv = new FakeAnetServer();
-        using var other = new FakeAnetServer();
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        using var natB = new NatBox(2, NatBox.Mapping.Symmetric);
+        using var srv = new FakeAnetServer(_net);
+        using var other = new FakeAnetServer(_net);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        using var natB = Nat(2, NatBox.Mapping.Symmetric);
         var (host, plain, s) = Setup(srv.Port, natA, null, natB);
         plain.Dispose();
         using var joiner = Joiner(srv.Port, s, natB, check: [("127.0.0.1", other.Port)], punchTime: 4);
@@ -270,10 +291,10 @@ public class AnetPunchTests(ITestOutputHelper log)
     [Fact]
     public void AFailedPunchBlamesTheHostsRouterWhenTheJoinersIsFine()
     {
-        using var srv = new FakeAnetServer();
-        using var other = new FakeAnetServer();
-        using var natA = new NatBox(1, NatBox.Mapping.Symmetric);
-        using var natB = new NatBox(2, NatBox.Mapping.EndpointIndependent);
+        using var srv = new FakeAnetServer(_net);
+        using var other = new FakeAnetServer(_net);
+        using var natA = Nat(1, NatBox.Mapping.Symmetric);
+        using var natB = Nat(2, NatBox.Mapping.EndpointIndependent);
         var (host, plain, s) = Setup(srv.Port, natA, null, natB);
         using (host)
         {
@@ -291,7 +312,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     public void SameNatJoinsAtThePrivateAddress(string server)
     {
         using var srv = StartServer(server, out int port);
-        using var nat = new NatBox(1, NatBox.Mapping.EndpointIndependent);
+        using var nat = Nat(1, NatBox.Mapping.EndpointIndependent);
         var (host, joiner, s) = Setup(port, nat, nat, nat);
         using (host) using (joiner)
         {
@@ -305,14 +326,15 @@ public class AnetPunchTests(ITestOutputHelper log)
     [Fact]
     public void AListingThatDoesNotSayItsHiddenRuleLeavesItToTheHost()
     {
-        using var srv = new FakeAnetServer();
-        using var natA = new NatBox(1, NatBox.Mapping.EndpointIndependent);
-        using var host = new TestPeer(natA);
-        host.Host = new AnetHost(host.Transport, [("127.0.0.1", srv.Port)], () => new AnetGame("Old host", 8, 1, true, User), host.Send, privateOverride: host.Private);
-        Assert.True(Loop(() => host.Host.AnyListed, 5, host));
+        using var srv = new FakeAnetServer(_net);
+        using var natA = Nat(1, NatBox.Mapping.EndpointIndependent);
+        using var host = new TestPeer(_net, natA);
+        host.Host = new AnetHost(host.Transport, [("127.0.0.1", srv.Port)], () => new AnetGame("Old host", 8, 1, true, User), host.Send, privateOverride: host.Private, clock: _net.Clock);
+        Assert.True(Loop(() => host.Host.AnyListed, 5));
+        _net.RealPace = true;   // the browser has its own socket and thread
         using var browser = new SessionBrowser();
         SessionBrowser.Found? f = null;
-        Assert.True(Loop(() => { browser.List("127.0.0.1", srv.Port); browser.Poll(); return (f = browser.Sessions.FirstOrDefault()) is not null; }, 5, host));
+        Assert.True(Loop(() => { browser.List("127.0.0.1", srv.Port); browser.Poll(); return (f = browser.Sessions.FirstOrDefault()) is not null; }, 5));
         Assert.False(f!.Info.HiddenKnown);
         Assert.True(f.Info.MayBringHidden);
     }
@@ -324,14 +346,14 @@ public class AnetPunchTests(ITestOutputHelper log)
         using var probe = new System.Net.Sockets.UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         int dead = ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
         probe.Dispose();
-        using var host = new TestPeer();
-        host.Host = new AnetHost(host.Transport, [("127.0.0.1", dead)], () => new AnetGame("Lonely", 4, 1, true, User), host.Send);
-        Assert.True(Loop(() => host.Host.Status.StartsWith("Not listed"), 10, host), host.Host.Status);
+        using var host = new TestPeer(_net);
+        host.Host = new AnetHost(host.Transport, [("127.0.0.1", dead)], () => new AnetGame("Lonely", 4, 1, true, User), host.Send, clock: _net.Clock);
+        Assert.True(Loop(() => host.Host.Status.StartsWith("Not listed"), 10), host.Host.Status);
         log.WriteLine(host.Host.Status);
         var s = new AnetSession(AnetAddress.From(new IPEndPoint(IPAddress.Loopback, host.Net.LocalPort)), host.Host.Karma,
             AnetAddress.From(new IPEndPoint(IPAddress.Loopback, host.Net.LocalPort)), 4, 1, AnetSession.FlagsOpen, "Lonely", "", User);
-        using var joiner = new TestPeer();
-        joiner.Joiner = new AnetJoiner(joiner.Transport, "127.0.0.1", dead, s, joiner.Send);
+        using var joiner = new TestPeer(_net);
+        joiner.Joiner = new AnetJoiner(joiner.Transport, "127.0.0.1", dead, s, joiner.Send, clock: _net.Clock);
         Assert.True(PunchAndConnect(host, joiner));
     }
 }
