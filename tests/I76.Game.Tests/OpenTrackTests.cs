@@ -44,7 +44,7 @@ public class OpenTrackTests
 
     [Fact] public void LinuxLooksOnPathThenTheUsualPlaces()
     {
-        var c = OpenTrack.Candidates("", Os.Linux, Env(("PATH", "/usr/bin:/users/u/bin".Replace(':', Path.PathSeparator))), "/users/u").Select(p => p.Replace('\\', '/')).ToList();
+        var c = OpenTrack.Candidates("", Os.Linux, Env(("PATH", "/usr/bin:/users/u/bin")), "/users/u").Select(p => p.Replace('\\', '/')).ToList();
         Assert.Equal(["/usr/bin/opentrack", "/users/u/bin/opentrack", "/usr/local/bin/opentrack", "/usr/bin/opentrack", "/opt/opentrack/bin/opentrack",
             "/users/u/.local/bin/opentrack"], c);
         Assert.DoesNotContain(c, p => p.EndsWith(".exe"));
