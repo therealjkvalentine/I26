@@ -1584,6 +1584,8 @@ public sealed class ShellSettings
     public bool LowLatencyAudio { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look takes Graphic Detail's Anti-Aliasing as the modern one does; off, none, as the 3D card drew it ([port] aa_1997, written when off).</summary>
     public bool Antialias1997 { get; set; } = true;
+    /// <summary>The port's own, without a row: with a texture pack, both looks' pictures kept in video memory from the first change of look (F12) to the mission's end, so later changes are a swap (TextureFactory.KeepBothLooks); off, each change sends them again, for a card short of video memory ([port] fast_look_switch, written when off).</summary>
+    public bool FastLookSwitch { get; set; } = true;
     /// <summary>The port's own, without a row: the 1997 look's muzzle flash, each gun's one sprite lit again at the shot's place in its tick ([port] even_flash, written when off).</summary>
     public bool EvenFlash { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's lamps warm up and cool down as 1976's incandescent bulbs did instead of switching in one frame (LampRamp; [port] lamp_ramp, written when off).</summary>
@@ -1893,6 +1895,7 @@ public sealed class ShellSettings
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
         s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
+        s.FastLookSwitch = (bool)c.GetValue("port", "fast_look_switch", true);
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
         s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
@@ -2070,6 +2073,7 @@ public sealed class ShellSettings
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
         if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
+        if (!FastLookSwitch) c.SetValue("port", "fast_look_switch", false);
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
         if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
         if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);

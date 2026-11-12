@@ -166,12 +166,12 @@ public partial class DamageSmoke : Node3D
         cell = default;
         if (Builder.Resolver is not { } res || Builder.Textures is not { } tf) return null;
         Image? img = null;
-        tf.Prefetch(Enumerable.Range(0, 36).Select(j => res.FindByStem($"{Kinds[j / 12]}_{j % 12 / 4 + 1}0{j % 4 + 1}")).OfType<string>(), rgba: true);
+        // the 1997 look's puffs alone draw it: the originals' frames whatever a pack serves, as a start in that look or without a pack makes it
         for (int k = 0; k < 3; k++)
             for (int i = 0; i < 12; i++)
             {
                 string n = $"{Kinds[k]}_{i / 4 + 1}0{i % 4 + 1}";
-                if (res.FindByStem(n) is not { } m || tf.GetRgba(m) is not { } t) { GD.Print($"damage smoke: texture {n} not found"); return null; }
+                if (res.FindByStem(n) is not { } m || tf.GetOriginalRgba(m) is not { } t) { GD.Print($"damage smoke: texture {n} not found"); return null; }
                 if (img is null) { cell = new Vector2I(t.Width, t.Height); img = Image.CreateEmpty(cell.X * 12, cell.Y * 3, false, Image.Format.Rgba8); }
                 if (t.Width != cell.X || t.Height != cell.Y) { GD.Print($"damage smoke: {n} is {t.Width}x{t.Height}, not {cell.X}x{cell.Y}"); return null; }
                 img.BlitRect(Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba), new Rect2I(0, 0, t.Width, t.Height), new Vector2I(i * cell.X, k * cell.Y));

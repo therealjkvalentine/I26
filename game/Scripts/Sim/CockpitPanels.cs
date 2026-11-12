@@ -35,6 +35,8 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         public byte[]? Before;
         /// <summary>Uploaded since it was made or reloaded: the GPU holds WorkBytes as they stood at the last Commit.</summary>
         public bool Uploaded;
+        /// <summary>Taken back as a look kept left it (Reload): its next redraw from the original image sends only what differs.</summary>
+        public bool Restored;
         /// <summary>The rectangles written since the last upload, in texels, rows from the top of the picture.</summary>
         public readonly List<Rect2I> Dirty = [];
         /// <summary>The rectangle (texels, rows from the top) the draws are held to while an element is redrawn (Region, ClipTo).</summary>
@@ -44,13 +46,33 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     private readonly List<Rect2I> _upload = [];
 
     private readonly Dictionary<string, Target?> _targets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Image?> _sheets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, byte[]?> _sheetBytes = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _scales = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, Image?> _sheets = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, byte[]?> _sheetBytes = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _scales = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The modern look's labels, made once per plate, text and scale: RGBA8 at the target's scale, stored bottom-up.</summary>
-    private readonly Dictionary<(string, string, int), byte[]> _labels = new();
+    private Dictionary<(string, string, int), byte[]> _labels = new();
     /// <summary>The modern look's counter drum cells, per strip, cell row, drum style, edge, housing colour and scale.</summary>
-    private readonly Dictionary<(string, int, DrumStyle, EdgeFade, (byte, byte, byte), int), byte[]> _cells = new();
+    private Dictionary<(string, int, DrumStyle, EdgeFade, (byte, byte, byte), int), byte[]> _cells = new();
+
+    /// <summary>
+    /// What a Reload makes for one look (what the factory serves and the panels' look settings): the panels' and sheets' pictures and
+    /// what is made from them. Kept (<see cref="KeepLooks"/>) when the look changes, for a change back.
+    /// </summary>
+    private sealed record LookState(Dictionary<string, Image?> Sheets, Dictionary<string, byte[]?> SheetBytes, Dictionary<string, int> Scales,
+        Dictionary<(string, string, int), byte[]> Labels, Dictionary<(string, int, DrumStyle, EdgeFade, (byte, byte, byte), int), byte[]> Cells,
+        Dictionary<string, (byte[] Base, byte[] Work, int W, int H, int S)> Targets);
+    private readonly Assets.LookKept<(bool Hd, int LabelScale, bool KeyRuled), LookState> _looks = new() { Keep = false };
+
+    /// <summary>
+    /// Keep each look's panels and sheets from the first change of look to the mission's end (TextureFactory.KeepBothLooks), so a
+    /// change back makes nothing again: the pack's pictures are not read and decoded again.
+    /// </summary>
+    public bool KeepLooks { get => _looks.Keep; set => _looks.Keep = value; }
+
+    private (bool, int, bool) LookKey => (textures.Hd, LabelScale, KeyRuledLines);
+
+    /// <summary>Whether the panels for what is served now are kept (a Reload takes them as they were: no Prefetch wanted).</summary>
+    public bool Holds => _looks.Has(LookKey);
 
     /// <summary>The panels the modern look's labels are drawn on (the weapons and the specials panels).</summary>
     private static readonly HashSet<string> Labelled = new(["zbk_.map", "zbks_.map"], StringComparer.OrdinalIgnoreCase);
@@ -81,6 +103,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
 
     private Image? Load(string tex)
     {
+        _looks.Made(LookKey);
         if (Member(tex) is not { } member || textures.GetRgba(member) is not { } t) return null;
         _scales[tex] = textures.Scale(member);
         return Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
@@ -99,18 +122,45 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// Makes the panels and sheets again from what the factory now serves (the originals or a pack's upscales): each live
     /// texture keeps its identity (the materials and the 2D dash hold it) and takes the new size, blank until redrawn.
     /// </summary>
-    public void Reload()
+    /// <returns>Whether every panel was taken back as a look kept left it (none made again).</returns>
+    public bool Reload()
     {
-        _sheets.Clear(); _sheetBytes.Clear(); _scales.Clear(); _labels.Clear(); _cells.Clear();
+        bool all = true;
+        // the panels shown until now kept for a change back (their dictionaries go with them), and this look's if it was shown before
+        LookState? kept = _looks.Change(LookKey, () => new LookState(_sheets, _sheetBytes, _scales, _labels, _cells,
+            _targets.Where(kv => kv.Value is not null && kv.Value.Uploaded && !kv.Value.Whole && kv.Value.Dirty.Count == 0)
+                .ToDictionary(kv => kv.Key, kv => (kv.Value!.BaseBytes, kv.Value.WorkBytes, kv.Value.W, kv.Value.H, kv.Value.S), StringComparer.OrdinalIgnoreCase)),
+            out var found) ? found : null;
+        if (kept is not null) (_sheets, _sheetBytes, _scales, _labels, _cells) = (kept.Sheets, kept.SheetBytes, kept.Scales, kept.Labels, kept.Cells);
+        else (_sheets, _sheetBytes, _scales, _labels, _cells) = (new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new(), new());
         foreach (var (dst, t) in _targets)
         {
-            if (t is null || LoadTarget(dst) is not { } img) continue;
+            if (t is null) continue;
+            t.Before = null; t.Whole = t.Diff = false; t.Dirty.Clear(); t.Clip = null;
+            t.Live.KeepSizes = KeepLooks;
+            // a look shown before: its panel as the GPU kept it (LiveTexture.Show), drawn as it was left, so the redraw that follows sends
+            // only what differs from it (Restored), not the whole panel
+            if (kept?.Targets.TryGetValue(dst, out var k) == true)
+            {
+                // (a panel of one size in both looks has one texture: the kept picture goes up whole instead)
+                bool shown = t.Live.Show(k.W, k.H);
+                if (!shown && k.W == t.Live.Width && k.H == t.Live.Height) { t.Live.Set(k.Work, k.W, k.H); shown = true; }
+                if (shown)
+                {
+                    (t.BaseBytes, t.WorkBytes, t.W, t.H, t.S) = (k.Base, k.Work, k.W, k.H, k.S);
+                    t.Uploaded = t.Restored = true;
+                    continue;
+                }
+            }
+            all = false;
+            if (LoadTarget(dst) is not { } img) continue;
             var bytes = img.GetData();
-            t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone(); t.Before = null;
-            t.W = img.GetWidth(); t.H = img.GetHeight(); t.S = ScaleOf(dst); t.Whole = t.Diff = false; t.Dirty.Clear(); t.Clip = null;
+            (t.W, t.H, t.S) = (img.GetWidth(), img.GetHeight(), ScaleOf(dst));
+            t.BaseBytes = bytes; t.WorkBytes = (byte[])bytes.Clone(); t.Restored = false;
             t.Live.Set(t.WorkBytes, t.W, t.H);
             t.Uploaded = true;
         }
+        return all && kept is not null;
     }
 
     private Target? TargetOf(string dst)
@@ -229,7 +279,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         if (TargetOf(dst) is not { } t) return;
         if (!t.Whole)
         {
-            t.Diff = diff && t.Uploaded && t.Dirty.Count == 0;
+            t.Diff = (diff || t.Restored) && t.Uploaded && t.Dirty.Count == 0;
             if (t.Diff)
             {
                 // the panel as it stood at the last upload (what the GPU holds), kept to compare with
@@ -531,6 +581,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         {
             if (t is null) continue;
             t.Clip = null;
+            t.Restored = false;
             _upload.Clear();
             if (t.Whole)
             {
@@ -599,6 +650,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// <summary>Lets the panels' GPU textures go (the cockpit leaving the tree).</summary>
     public void Free()
     {
+        _looks.Release();
         foreach (var t in _targets.Values) t?.Live.Free();
     }
 }

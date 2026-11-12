@@ -380,7 +380,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public I76.Formats.Mission.WorldSettings? Settings { get; private set; }
     public I76.Formats.Mission.LightPreset Light { get; private set; } = I76.Formats.Mission.Lighting.ForHour(12);
     public Texture2DArray? Horizon { get; private set; }
-    /// <summary>The panels' foot colour (HorizonFade): what the 1997 look's ground fades into at the Faded draw distance; null without panels.</summary>
+    /// <summary>The horizon panels the 1997 look's sky dome draws: the originals' where a pack serves the modern look's, else <see cref="Horizon"/>.</summary>
+    public Texture2DArray? Horizon1997 { get; private set; }
+    /// <summary>The panels' foot colour (HorizonFade, the originals'): what the 1997 look's ground fades into at the Faded draw distance; null without panels.</summary>
     public Color? HorizonFadeColour { get; private set; }
     /// <summary>The horizon panels' images (kept for the modern look's distant terrain, which measures them off the main thread).</summary>
     public Image[]? HorizonImages { get; private set; }
@@ -446,7 +448,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             // the map editor's session store, keyed by content) is kept for the same mission's next build; another mission starts it empty
             if (kitKey is not null) { if (SessionStore.Active) SessionStore.Clear(); else SessionStore.Begin(); }
             Resolver = new TextureResolver(vfs);
-            Textures = new TextureFactory(Resolver, pal) { Hd = !Look1997 && HdTextures.Enabled, PackPalette = packPalette };
+            Textures = new TextureFactory(Resolver, pal) { Hd = !Look1997 && HdTextures.Enabled, PackPalette = packPalette, KeepBothLooks = true };
             Materials = new MaterialLibrary(Textures) { HoldFlush = OffMainThread };
             var meshes = Meshes = new MeshBuilder(Resolver, Materials);
             // (the parts' cache holds the meshes, not this builder: a kit kept holds nothing of the mission's world)
@@ -483,24 +485,35 @@ public sealed class MissionBuilder(AssetVfs vfs)
         Image[]? panels = null;
         if (I76.Formats.Mission.HorizonList.Parse(Settings is { Horizon.Length: > 0 } ? vfs.TryRead(Settings.Horizon) : null) is { } hz)
         {
-            var imgs = new Godot.Collections.Array<Image>();
-            var feet = new List<(byte[], int, int)>();
-            foreach (var n in hz)
+            Godot.Collections.Array<Image> Panels(Func<string, RoadRaster.Tex?> get, List<(byte[], int, int)> feet)
             {
-                if (resolver.FindByStem(n) is not { } m || textures.GetRgba(m) is not { } t) { imgs.Clear(); break; }
-                feet.Add((t.Rgba, t.Width, t.Height));
-                var im = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
-                if (imgs.Count > 0 && (im.GetWidth() != imgs[0].GetWidth() || im.GetHeight() != imgs[0].GetHeight()))
-                    im.Resize(imgs[0].GetWidth(), imgs[0].GetHeight());
-                im.GenerateMipmaps();
-                imgs.Add(im);
+                var imgs = new Godot.Collections.Array<Image>();
+                foreach (var n in hz)
+                {
+                    if (resolver.FindByStem(n) is not { } m || get(m) is not { } t) { imgs.Clear(); break; }
+                    feet.Add((t.Rgba, t.Width, t.Height));
+                    var im = Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba);
+                    if (imgs.Count > 0 && (im.GetWidth() != imgs[0].GetWidth() || im.GetHeight() != imgs[0].GetHeight()))
+                        im.Resize(imgs[0].GetWidth(), imgs[0].GetHeight());
+                    im.GenerateMipmaps();
+                    imgs.Add(im);
+                }
+                return imgs;
             }
+            var feet = new List<(byte[], int, int)>();
+            var imgs = Panels(textures.GetRgba, feet);
+            // the 1997 look's sky dome and fog: the originals' panels where a pack serves them (as a start in that look or without a pack makes them)
+            var feet97 = feet;
+            Godot.Collections.Array<Image>? imgs97 = null;
+            if (textures.Hd && hz.Any(n => resolver.FindByStem(n) is { } m && HdTextures.Has(m))) { feet97 = []; imgs97 = Panels(textures.GetOriginalRgba, feet97); }
             if (imgs.Count == I76.Formats.Mission.HorizonList.Panels)
             {
-                Horizon = new Texture2DArray();
+                Horizon = Horizon1997 = new Texture2DArray();
                 Horizon.CreateFromImages(imgs);
-                if (I76.Formats.Imaging.HorizonFade.Colour(feet) is { } hc) HorizonFadeColour = new Color(hc.R, hc.G, hc.B);
+                if (imgs97 is { Count: I76.Formats.Mission.HorizonList.Panels }) { Horizon1997 = new Texture2DArray(); Horizon1997.CreateFromImages(imgs97); }
+                if (I76.Formats.Imaging.HorizonFade.Colour(feet97) is { } hc) HorizonFadeColour = new Color(hc.R, hc.G, hc.B);
                 GC.KeepAlive(imgs);   // held past the call (see MeshArrays)
+                GC.KeepAlive(imgs97);
                 if (defer) HorizonImages = [.. imgs];
                 else if (EarlyHorizon && !huge) panels = [.. imgs.Select(im => (Image)im.Duplicate())];
             }

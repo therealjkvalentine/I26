@@ -753,6 +753,7 @@ public partial class Main : Node3D
         // HD Textures: the modern look's textures swapped in place, as a flip of the look does (the 1997 look keeps the originals)
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
         I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
+        I76.Game.Assets.TextureFactory.FastLookSwitch = s.FastLookSwitch;
         _builder?.Textures?.SetHd(!_mode1997 && s.HdTextures);
         _brightnessLevel = s.Graphics[0xc];
         _nightDial = s.Night;
@@ -865,6 +866,8 @@ public partial class Main : Node3D
     }
 
     private bool _extInstruments = true;
+    /// <summary>TextureFactory.KeepAhead has textures left to take (a new scene starts with it on).</summary>
+    private bool _keepAhead = true;
     private FrameTargetNode? _frameTarget;
     private PlayFpsRecorder? _fpsRecorder;
     private int _skippedTick = int.MinValue;
@@ -2419,7 +2422,7 @@ public partial class Main : Node3D
         mat.SetShaderParameter("scroll_per_second", I76.Game.Sim.SimClock.SkyRate(I76.Game.Sim.SimClock.SkyScrollPerSecond));   // the 1997 sky scrolls a fixed amount a frame, the sim tick
         var light = _builder.Light;
         var l = Coords.ToGodot(light.Direction).Normalized();
-        if (_builder.Horizon is { } hz) { mat.SetShaderParameter("horizon", hz); mat.SetShaderParameter("has_horizon", true); }
+        if (_builder.Horizon1997 is { } hz) { mat.SetShaderParameter("horizon", hz); mat.SetShaderParameter("has_horizon", true); }
         if (_builder.Sprite is { } sp)
         {
             mat.SetShaderParameter("sprite", sp);
@@ -2723,6 +2726,8 @@ public partial class Main : Node3D
         var m = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_modern.gdshader") };
         foreach (var p in new[] { "clouds", "horizon", "has_horizon", "sprite", "has_sprite", "sprite_dir", "sprite_radius" })
             m.SetShaderParameter(p, dome.GetShaderParameter(p));
+        // the panels a pack serves (the dome's are the originals' then, MissionBuilder.Horizon1997)
+        if (_builder?.Horizon is { } hz) m.SetShaderParameter("horizon", hz);
         bool day = light.IsDay;
         if (_builder?.Palette is { } pal)
         {
@@ -3379,17 +3384,20 @@ public partial class Main : Node3D
         // both looks paint the roads and the road pieces into the terrain (RoadRaster); their meshes stay hidden
         if (_builder?.Scenery is { } scn) scn.RoadPieces.Visible = false;
         if (_builder?.Roads is { } r) r.Visible = false;
+        MissionBuilder.Trace("look: roads, terrain");
         _env.Environment = on ? _env1997 : _modernEnv;
         // 1997: no shadow map (the original had none: its drop shadows are projected polygons, DropShadows)
         _sun.ShadowEnabled = !on;
         UpdateDrops();
         ApplyDrawDistance();
-        // (each is a change of the renderer's shadow settings, which it pays for even when the value is the one it has: only when it is not)
-        if (_shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : RenderingServer.ShadowQuality.SoftLow);
-        _shadowFilterSet = on;
+        // (each is a change of the renderer's shadow settings, which it pays for even when the value is the one it has: only when it is not.
+        // The 1997 look's sun casts none, so a change to it keeps the modern look's once they are set: going back to the modern look then
+        // changes nothing, where the two changes back cost the first frame about 0.13 s at 3440x1440)
+        bool shadowsSet = !on || _shadowFilterSet is null;
+        if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : RenderingServer.ShadowQuality.SoftLow);
         // crisp: a bigger atlas, no blur and a shorter reach, so the near texels are fine
-        if (_atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
-        _atlasSet = on;
+        if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
+        if (shadowsSet) _shadowFilterSet = _atlasSet = on;
         _sun.ShadowBlur = on ? 0f : 1f;
         _sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
         MissionBuilder.Trace("look: shadows, draw distance");
@@ -3397,7 +3405,9 @@ public partial class Main : Node3D
         if (_builder?.Scenery is { } scenery) scenery.Modern = !on;
         MissionBuilder.Trace("look: materials, scenery");
         if (_pit is not null) _pit.Faithful = on;
+        MissionBuilder.Trace("look: cockpit");
         if (_sim is not null) foreach (var c in _sim.Cars) { c.Modern = !on; if (c.Wrecked) _damageView?.Rebuild(c); }   // the wreck's shape: modern shell or the 1997 box
+        MissionBuilder.Trace("look: cars");
         GetViewport().Msaa3D = Msaa1997(on);
         MissionBuilder.Trace("look: msaa");
         ApplyModernQuality();
@@ -3492,6 +3502,8 @@ public partial class Main : Node3D
     public override void _ExitTree()
     {
         if (Controls.Held == _held) Controls.Held = null;   // (a reloaded scene may have set its own already)
+        // the other look's pictures kept for F12 go with the mission (the restart cache keeps the look shown)
+        if (_builder?.Textures?.ReleaseOtherLook() is > 0 and var freed) GD.Print($"look change: the other look's pictures let go, {freed >> 20} MB");
         if (I76.Game.ForceFeedback.Held?.Target == this) I76.Game.ForceFeedback.Held = null;   // it would keep this scene, and all it built, alive
         MouseCamera.Active = false;
         MouseCamera.CockpitActive = false;
@@ -3635,10 +3647,30 @@ public partial class Main : Node3D
     private void ToggleLook()
     {
         bool to1997 = _wantModern || !_mode1997;   // a second press while the modern look builds cancels it
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         SetMode1997(to1997);
         var ls = I76.Game.Shell.ShellSettings.Load();
         ls.Look1997 = _lookSaved = to1997;
         ls.Save();
+        LookSwitchTiming(to1997, t0);
+    }
+
+    /// <summary>
+    /// The log's "look switch" line: how long the key's frame and the three after it took from the press (a frame of the new look
+    /// is on screen at the first), and the memory a second later.
+    /// </summary>
+    private async void LookSwitchTiming(bool to1997, long t0)
+    {
+        double set = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        var at = new double[4];
+        for (int i = 0; i < at.Length; i++)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            at[i] = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        }
+        GD.Print($"look switch: to the {(to1997 ? "1997" : "modern")} look, set in {set:0} ms, frames drawn at {string.Join(", ", at.Select(a => a.ToString("0")))} ms");
+        for (int i = 0; i < 60 && IsInstanceValid(this); i++) await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (IsInstanceValid(this)) GD.Print($"look switch memory: {I76.Game.Editor.SwitchTimer.Memory()}");
     }
 
     private bool PlayerDead => _car is { } c && (c.Sim.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) != 0;
@@ -4203,6 +4235,8 @@ public partial class Main : Node3D
             return;
         }
         if (_loading) return;
+        // the textures with an upscale take their pictures as kept ones, two a frame, ahead of the first F12 (TextureFactory.KeepAhead)
+        if (_keepAhead && _loaded && _frames > 60) _keepAhead = _builder?.Textures?.KeepAhead(2) == true;
         if (!_switchFrameLogged) { _switchFrameLogged = true; I76.Game.Editor.SwitchTimer.Mark(I76.Game.Editor.EditorSession.Playtest ? "playtest: first interactive frame" : "editor: first interactive frame", true); }
         // I76_PLAYTEST_RETURN=N (capture): F5 is pressed N frames after a playtest opened
         if (I76.Game.Editor.EditorSession.Playtest && _sim is not null && _debugReturn > 0 && ++_playFrames == _debugReturn) Input.ParseInputEvent(new InputEventKey { Keycode = Key.F5, PhysicalKeycode = Key.F5, Pressed = true });

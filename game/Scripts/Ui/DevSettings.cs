@@ -150,6 +150,8 @@ public static class DevSettings
         new("menu_fps", ["false", "true" + M], s => s.MenuFps ? 1 : 0, (s, v) => s.MenuFps = v != 0, DevWhen.NextScreen),
         new("aa_1997", FalseTrue, s => s.Antialias1997 ? 1 : 0, (s, v) => s.Antialias1997 = v != 0, DevWhen.Live),
         new("even_flash", FalseTrue, s => s.EvenFlash ? 1 : 0, (s, v) => s.EvenFlash = v != 0, DevWhen.Live),
+        new("fast_look_switch", FalseTrue, s => s.FastLookSwitch ? 1 : 0, (s, v) => s.FastLookSwitch = v != 0, DevWhen.Live,
+            s => I76.Game.Assets.TextureFactory.FastLookSwitch = s.FastLookSwitch),
         new("lamp_ramp", ["off", "on" + M], s => s.LampRamp ? 1 : 0, (s, v) => s.LampRamp = v != 0, DevWhen.Live),
         new("lamp_halo", HaloNames, s => NearestHaloStep(s.LampHalo), (s, v) => s.LampHalo = HaloSteps[v], DevWhen.Live),
         new("dash_light", DashLightNames, s => Nearest(DashLightSteps, s.DashLight), (s, v) => s.DashLight = DashLightSteps[v], DevWhen.Live,

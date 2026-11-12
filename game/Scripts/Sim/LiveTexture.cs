@@ -43,6 +43,26 @@ public sealed class LiveTexture
         else { _img = Image.CreateFromData(w, h, false, Image.Format.Rgba8, rgba); _img.GenerateMipmaps(); _imgTex = ImageTexture.CreateFromImage(_img); (Width, Height) = (w, h); DashStats.Upload(rgba.Length); }
     }
 
+    /// <summary>
+    /// A size changed from is kept with its texture as it stood (the panels of a look shown before: TextureFactory.KeepBothLooks), and
+    /// <see cref="Show"/> takes it again without making or sending anything. <see cref="Free"/> lets them go.
+    /// </summary>
+    public bool KeepSizes { get; set; }
+    private readonly Dictionary<(int W, int H), (Rid Rid, int Levels, Rid[] Views, Rid[] Sets, Rid Whole)> _sizes = [];
+
+    /// <summary>
+    /// The texture of size w x h kept from before (KeepSizes), shown again as it stood when it was left; false when none is kept
+    /// (Set then). The caller's next whole upload brings it up to date.
+    /// </summary>
+    public bool Show(int w, int h)
+    {
+        if (_rd is null || w == Width && h == Height || !_sizes.Remove((w, h), out var k)) return false;
+        if (_rid.IsValid) _sizes[(Width, Height)] = (_rid, _levels, _views, _sets, _whole);
+        (_rid, _levels, _views, _sets, _whole, Width, Height) = (k.Rid, k.Levels, k.Views, k.Sets, k.Whole, w, h);
+        _rdTex!.TextureRdRid = _rid;
+        return true;
+    }
+
     /// <summary>The whole picture, of any size (a size change makes the GPU texture again under the same Texture).</summary>
     public void Set(byte[] rgba, int w, int h)
     {
@@ -74,6 +94,13 @@ public sealed class LiveTexture
             return;
         }
         var old = _rid;
+        if (KeepSizes && _rid.IsValid)
+        {
+            // the texture of the size left kept with its levels (a change of look back to it takes it again, Show)
+            _sizes[(Width, Height)] = (_rid, _levels, _views, _sets, _whole);
+            (_views, _sets, _whole, old) = ([], [], default, default);
+        }
+        if (_sizes.Remove((w, h), out var stale)) { FreeKept(stale); }
         FreeLevels();
         if (_whole.IsValid) { _rd.FreeRid(_whole); _whole = default; }
         int levels = Kernel(_rd) ? LevelCount(w, h) : 1;
@@ -334,6 +361,14 @@ public sealed class LiveTexture
         _sets = []; _views = [];
     }
 
+    private void FreeKept((Rid Rid, int Levels, Rid[] Views, Rid[] Sets, Rid Whole) k)
+    {
+        foreach (var s in k.Sets) if (s.IsValid) _rd!.FreeRid(s);
+        foreach (var v in k.Views) if (v.IsValid) _rd!.FreeRid(v);
+        if (k.Whole.IsValid) _rd!.FreeRid(k.Whole);
+        _rd!.FreeRid(k.Rid);
+    }
+
     /// <summary>Lets the GPU textures go (the cockpit leaving the tree): the Texture shows nothing after.</summary>
     public void Free()
     {
@@ -341,6 +376,8 @@ public sealed class LiveTexture
         FreeLevels();
         if (_whole.IsValid) { _rd.FreeRid(_whole); _whole = default; }
         if (_rid.IsValid) { _rdTex!.TextureRdRid = default; _rd.FreeRid(_rid); _rid = default; }
+        foreach (var k in _sizes.Values) FreeKept(k);
+        _sizes.Clear();
         foreach (var st in _staging.Values) _rd.FreeRid(st);
         _staging.Clear();
     }
