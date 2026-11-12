@@ -95,17 +95,18 @@ public partial class CarNode : Node3D
     /// <summary>
     /// A one-shot of which only one voice plays at a time (the GPW header's "max voices" of -1 means 1):
     /// asked again while it still plays, the new one is dropped, so a held trigger on a broken weapon (wmiss.wav, asked every frame)
-    /// sounds the file's own series of buzzes through, and starts it again when it ends.
+    /// sounds the file's own series of buzzes through, and starts it again when it ends. True when it started.
     /// </summary>
-    public void OneShotSingle(string key, AudioStream? s, float db = 0)
+    public bool OneShotSingle(string key, AudioStream? s, float db = 0)
     {
-        if (s is null) return;
-        if (_single.TryGetValue(key, out var old) && IsInstanceValid(old) && old.Playing) return;
+        if (s is null) return false;
+        if (_single.TryGetValue(key, out var old) && IsInstanceValid(old) && old.Playing) return false;
         var p = new AudioStreamPlayer3D { Bus = "SFX", Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
         AddChild(p);
         p.Finished += p.QueueFree;
         p.Play();
         _single[key] = p;
+        return true;
     }
 
     /// <summary>Stops a <see cref="OneShotSingle"/> voice that still plays (the radar jammer's activation stops clockon.wav).</summary>
@@ -378,7 +379,7 @@ public partial class CarNode : Node3D
 
     private void Apply()
     {
-        bool inside = _inCar && !_outside, hidden = !I76.Sim.Views.OwnCar.Drawn(_inCar, _hoodView, _outside);
+        bool inside = _inCar && !_outside, hidden = !I76.Sim.Views.OwnCar.Drawn(_inCar, _hoodView, _outside) || _heliGone;
         if (_cockpit is not null) _cockpit.Visible = inside && _dash3d && !_ghost;
         if (_body is not null)
         {
@@ -393,6 +394,20 @@ public partial class CarNode : Node3D
         foreach (var (_, node) in _weapons) node.Visible = !hidden && !_flung.Contains(node);
         // a turret's gun too: the in-car view draws the interior, not the car's outside (its underside showed through the roof)
         foreach (var (node, _) in _turrets) node.Visible = !hidden && !_flung.Contains(node);
+    }
+
+    /// <summary>
+    /// A crashed helicopter in the 1997 look: the original's crash hides the helicopter and everything on it, leaving the
+    /// explosions and the debris; the modern look keeps its burnt shell (docs/deviations.md).
+    /// </summary>
+    private bool _heliGone;
+
+    private void UpdateHeliGone()
+    {
+        bool gone = Wrecked && Sim.IsHeli && !Modern;
+        if (gone == _heliGone) return;
+        _heliGone = gone;
+        Apply();
     }
 
     /// <summary>
@@ -1267,6 +1282,7 @@ public partial class CarNode : Node3D
         // grounded step (the strip update is not called in the air, so a flying car's strips keep the speed it left with)
         _stripClock += (float)GetProcessDeltaTime();
         UpdateRotors((float)GetProcessDeltaTime());
+        UpdateHeliGone();
         if ((Sim.Flags & VehicleFlags.Airborne) == 0)
             _stripSpeed = System.Numerics.Vector3.Dot(Sim.Vel, Sim.Rot.Forward) < 0 ? -Sim.Speed : Sim.Speed;
         // the driver behind the glass turns the wheel as the car steers (Vehicle.Steer: the cockpit's own, and what a network snapshot carries
