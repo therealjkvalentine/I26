@@ -3,8 +3,10 @@ namespace I76.Game.Ui;
 /// <summary>
 /// Which presses skip a movie: only a new press made while it plays. A key or button already down when the movie starts (the
 /// Enter, click or pad button that started the mission, a key held from the menu) counts only after it has been let go and pressed
-/// again; a press of something not seen let go is never taken for a new one. The inputs are named by the caller ("key:Escape",
-/// "mouse:Left", "pad0:A"); engine-free so the rule is tested (MovieSkipGateTests).
+/// again; a press of something not seen let go is never taken for a new one. While the mission still loads under its briefing (the
+/// port's, the faint "PLEASE STAND BY" up over the picture) no press skips and none is kept for later: only a new press made once the
+/// load is done does. The inputs are named by the caller ("key:Escape", "mouse:Left", "pad0:A"); engine-free so the rule is tested
+/// (MovieSkipGateTests).
 /// </summary>
 public sealed class MovieSkipGate
 {
@@ -18,6 +20,13 @@ public sealed class MovieSkipGate
 
     /// <summary>A press of <paramref name="input"/>: true when it is a new one (the input was up), the skip the player asked for.</summary>
     public bool Press(string input) => _down.Add(input);
+
+    /// <summary>
+    /// A press of <paramref name="input"/> with the mission <paramref name="loading"/> under the movie or not: the skip only when it is
+    /// new and the load is done. A press while it loads is dropped, not kept: it counts as down until let go, so only a press made
+    /// after the load skips.
+    /// </summary>
+    public bool Press(string input, bool loading) => Press(input) && !loading;
 
     /// <summary>A release: the input's next press counts.</summary>
     public void Release(string input) => _down.Remove(input);

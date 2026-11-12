@@ -5,7 +5,8 @@ namespace I76.Game.Boot;
 /// original loads the whole mission behind its loading card, then plays the WRLD briefing, then starts (re/subsystems/mission.md:
 /// the movie at 0x40371c after the load). Here, as upstream's 0.12 does, the card comes up, holds <see cref="CardHold"/>, goes to
 /// black and the briefing plays while the build goes on; a skip before the mission is ready is kept under "PLEASE STAND BY"
-/// (StandByTag) and the mission starts by itself when it is. Off: the original's order.
+/// (StandByTag) and the mission starts by itself when it is. The port's: no press skips while the build's thread works under the
+/// playing picture (the line faint over it), nor is kept for later; a new one after does (MovieSkipGate). Off: the original's order.
 /// </summary>
 public static class BriefingOverlap
 {

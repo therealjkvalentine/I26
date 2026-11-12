@@ -3,7 +3,7 @@ using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>Only a new press made while a movie plays skips it (MovieSkipGate).</summary>
+/// <summary>Only a new press made while a movie plays, and not while its mission still loads under it, skips it (MovieSkipGate).</summary>
 public class MovieSkipGateTests
 {
     [Fact]
@@ -36,6 +36,42 @@ public class MovieSkipGateTests
         Assert.False(g.Press("key:Space"));
         g.Release("key:Space");
         Assert.True(g.Press("key:Space"));
+    }
+
+    /// <summary>A briefing played while its mission loads: no press skips until the load is done, and none is kept for after it.</summary>
+    [Fact]
+    public void NoPressSkipsWhileTheMissionLoads()
+    {
+        var g = new MovieSkipGate();
+        g.HeldAtStart([]);
+        foreach (var input in new[] { "mouse:Left", "mouse:Right", "mouse:Middle", "key:Escape", "key:Space", "key:Enter", "key:KpEnter", "pad0:A", "pad0:B", "pad0:Start" })
+            Assert.False(g.Press(input, loading: true));
+        g.Release("mouse:Left");
+        Assert.False(g.Press("mouse:Left", loading: true));   // pressed again, still loading
+        g.Release("mouse:Left");
+        Assert.True(g.Press("mouse:Left", loading: false));   // a new press once it is done: the skip
+    }
+
+    /// <summary>A press made while the mission loads and still down when the load ends is not a skip: it must be let go and pressed again.</summary>
+    [Fact]
+    public void APressFromTheLoadStillDownAfterItIsNotASkip()
+    {
+        var g = new MovieSkipGate();
+        Assert.False(g.Press("key:Enter", loading: true));
+        Assert.False(g.Press("key:Enter", loading: false));   // (the load done, the same press seen again without a release)
+        Assert.True(g.Press("pad0:A", loading: false));       // another input's own new press
+        g.Release("key:Enter");
+        Assert.True(g.Press("key:Enter", loading: false));
+    }
+
+    /// <summary>A movie with no load under it (the intro, a cut-scene, a briefing after the load) skips at once, as before.</summary>
+    [Fact]
+    public void WithoutALoadAFreshPressSkips()
+    {
+        var g = new MovieSkipGate();
+        g.HeldAtStart(["key:Enter"]);
+        Assert.True(g.Press("key:Escape", loading: false));
+        Assert.False(g.Press("key:Enter", loading: false));   // the start's own press, still down
     }
 
     [Fact]
