@@ -250,7 +250,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
 
     /// <summary>What it holds, bytes, roughly: the textures made (their pictures as sent to the GPU) and the texels kept on the CPU (the
     /// originals', and the upscales' decoded). The restart cache's measure (World.RestartCache).</summary>
-    public long Bytes => _madeBytes + _rgba.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _bled.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _hd.Values.Sum(h => h?.Size ?? 0);
+    public long Bytes => _madeBytes + _rgba.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _bled.Values.Sum(t => t?.Rgba.LongLength ?? 0) + _hd.Values.Sum(h => h?.Size ?? 0) + KeptBytes.Other;
 
     /// <summary>How many textures it has made.</summary>
     public int Made => _cache.Count;
@@ -331,6 +331,113 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <summary>The look's pictures on the textures made so far: the originals in the 1997 look, the modern look's per the HD Textures row.</summary>
     public void SetMode1997(bool on) => SetHd(!on && HdTextures.Enabled);
 
+    /// <summary>
+    /// [port] fast_look_switch (on by default): a texture with an upscale keeps both looks' pictures on the GPU from the first change
+    /// of look on (<see cref="KeptLook"/>), so the next changes swap them without a read, a decode or an upload. Off (a card short of
+    /// video memory): each change sends the look's picture again from the copy kept here. Needs a RenderingDevice (Forward+, Mobile);
+    /// the Compatibility renderer always sends again. A mission's factory (MissionBuilder), while <see cref="FastLookSwitch"/>.
+    /// </summary>
+    public bool KeepBothLooks { get; set; }
+
+    /// <summary>[port] fast_look_switch (ShellSettings.FastLookSwitch), applied with the graphics settings.</summary>
+    public static bool FastLookSwitch { get; set; } = true;
+
+    private static readonly bool HasRd = RenderingServer.GetRenderingDevice() is not null;
+
+    /// <summary>A texture's two pictures on the GPU (KeepBothLooks): each its own texture, which the entry's texture shows by turns.</summary>
+    private sealed class KeptLook
+    {
+        public ImageTexture? Modern, Faithful;
+        public Rid ModernRd, FaithfulRd;
+        public long ModernBytes, FaithfulBytes;
+        public ImageTexture? Of(bool hd) => hd ? Modern : Faithful;
+
+        /// <summary>Lets one look's texture go (not the one shown).</summary>
+        public long Drop(bool hd)
+        {
+            long b = hd ? ModernBytes : FaithfulBytes;
+            if (hd) { Modern?.Dispose(); (Modern, ModernRd, ModernBytes) = (null, default, 0); }
+            else { Faithful?.Dispose(); (Faithful, FaithfulRd, FaithfulBytes) = (null, default, 0); }
+            return b;
+        }
+    }
+    private readonly Dictionary<string, KeptLook> _kept = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The look's picture for the GPU: the upscale's (as it is sent) or the original's.</summary>
+    private Image LookPicture(string member, HdPic h, bool hd) => hd ? Picture(h) : Prepare(Bled(member)!).Img;
+
+    /// <summary>
+    /// The entry's texture shows <paramref name="hd"/>'s picture, kept on the GPU: made (sent) the first time each look is shown, then
+    /// a swap of what the entry's texture points at. The texture the materials hold is the same object throughout; its size is the
+    /// picture's, as SetImage would leave it.
+    /// </summary>
+    private void ShowKept(string member, Entry e, HdPic h, bool hd)
+    {
+        if (!_kept.TryGetValue(member, out var k))
+        {
+            // the picture the entry holds now becomes the other look's own texture (sent again: the entry's is let go below)
+            _kept[member] = k = new KeptLook();
+            Keep(k, member, h, !hd);
+        }
+        if (k.Of(hd) is null) Keep(k, member, h, hd);
+        Point(e, k, hd);
+    }
+
+    private Queue<string>? _ahead;
+    private int _aheadDone;
+    private double _aheadMs;
+
+    /// <summary>
+    /// Ahead of the first change of look (KeepBothLooks), a few at a call: an entry with an upscale read already takes the picture it
+    /// shows as a kept texture of its own (sent again, its own let go: the same memory), so the first change sends only the other look's.
+    /// The main thread, a few a frame once the mission runs (Main): about a third of a millisecond each. False when none are left.
+    /// </summary>
+    public bool KeepAhead(int count)
+    {
+        if (!(KeepBothLooks && FastLookSwitch && HasRd)) return false;
+        _ahead ??= new Queue<string>(_cache.Keys);
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (count > 0 && _ahead.TryDequeue(out var member))
+        {
+            if (_kept.ContainsKey(member) || _cache[member] is not { } e || !_hd.TryGetValue(member, out var h) || h is null) continue;
+            var k = _kept[member] = new KeptLook();
+            Keep(k, member, h, Hd);
+            Point(e, k, Hd);
+            _aheadDone++;
+            count--;
+        }
+        _aheadMs += System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        if (_ahead.Count > 0) return true;
+        if (_aheadDone > 0) GD.Print($"look change: {_aheadDone} textures kept ahead of the first change, {_aheadMs:0} ms on the main thread in all");
+        _aheadDone = 0;
+        return false;
+    }
+
+    /// <summary>The entry's texture shows the kept picture of <paramref name="hd"/>'s look (no upload: a swap of what it points at).</summary>
+    private static void Point(Entry e, KeptLook k, bool hd)
+    {
+        RenderingServer.TextureReplace(e.Texture.GetRid(), RenderingServer.TextureRdCreate(hd ? k.ModernRd : k.FaithfulRd));
+        var t = k.Of(hd)!;
+        e.Texture.SetSizeOverride(new Vector2I(t.GetWidth(), t.GetHeight()));
+    }
+
+    private void Keep(KeptLook k, string member, HdPic h, bool hd)
+    {
+        var img = LookPicture(member, h, hd);
+        var t = ImageTexture.CreateFromImage(img);
+        var rd = RenderingServer.TextureGetRdTexture(t.GetRid());
+        if (hd) (k.Modern, k.ModernRd, k.ModernBytes) = (t, rd, img.GetDataSize()); else (k.Faithful, k.FaithfulRd, k.FaithfulBytes) = (t, rd, img.GetDataSize());
+    }
+
+    /// <summary>The bytes of the pictures kept on the GPU for both looks (KeepBothLooks), the look shown now and the other.</summary>
+    public (long Shown, long Other) KeptBytes => (_kept.Values.Sum(k => Hd ? k.ModernBytes : k.FaithfulBytes), _kept.Values.Sum(k => Hd ? k.FaithfulBytes : k.ModernBytes));
+
+    /// <summary>
+    /// The mission ends: the pictures of the look not shown now are let go (KeepBothLooks; each entry keeps the one it shows, which a
+    /// restart of the same mission takes as it is). The next change of look makes them again. Returns the bytes let go.
+    /// </summary>
+    public long ReleaseOtherLook() => _kept.Values.Sum(k => k.Drop(!Hd));
+
     /// <summary>Serve the upscales or the originals, swapping the pictures of the textures made so far.</summary>
     public void SetHd(bool on)
     {
@@ -338,19 +445,27 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         Hd = on;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         int swapped = 0;
+        bool keep = KeepBothLooks && FastLookSwitch && HasRd;
+        // the upscales not read yet (a 1997 start's first change): read and decoded together on the workers, not one by one here
+        if (on) Prefetch(_cache.Where(kv => kv.Value is not null).Select(kv => kv.Key));
         foreach (var (member, e) in _cache)
         {
             if (e is null || HdOf(member) is not { } h) continue;
+            if (keep) { ShowKept(member, e, h, on); swapped++; continue; }
+            // the setting turned off in the mission: the texture takes its picture as its own again below, then the kept ones go
+            _kept.Remove(member, out var was);
             // both pictures of each are kept from the first change on: the next change is a swap, paid for in memory (a choice, not
             // an oversight: re-reading the pack would make every change as slow as the first; the log line below says what is held)
             if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Picture(h), Prepare(Bled(member)!).Img);
             e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
+            if (was is not null) { was.Drop(true); was.Drop(false); }
             swapped++;
         }
         double texMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         Swapped?.Invoke();
         GD.Print($"look change: {(on ? "upscales" : "originals")} on {swapped} textures in {texMs:0} ms, art redrawn by {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms; "
-            + $"both pictures held: the pack's {_looks.Values.Sum(p => (long)p.Modern.GetDataSize()) >> 20} MB, the originals' {_looks.Values.Sum(p => (long)p.Faithful.GetDataSize()) >> 20} MB");
+            + (keep ? $"both looks kept on the GPU: this look's {KeptBytes.Shown >> 20} MB, the other's {KeptBytes.Other >> 20} MB"
+                : $"both pictures held: the pack's {_looks.Values.Sum(p => (long)p.Modern.GetDataSize()) >> 20} MB, the originals' {_looks.Values.Sum(p => (long)p.Faithful.GetDataSize()) >> 20} MB"));
     }
 
     /// <summary>What index 255 decodes to in the original (its first keyed texel's colour, before any bleed).</summary>

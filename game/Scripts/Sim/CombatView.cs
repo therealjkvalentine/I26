@@ -199,8 +199,9 @@ public partial class CombatView : Node3D
     private CaltropPatches _caltrops = null!;
     private ChemClouds _chem = null!;
 
+    /// <summary>The original's frame (the chemical cloud's 1997 puffs: that look is drawn from the originals whatever a pack serves).</summary>
     private Image? ImageByStem(string n) =>
-        Builder?.Resolver?.FindByStem(n) is { } m && Builder.Textures?.GetRgba(m) is { } t ? Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba) : null;
+        Builder?.Resolver?.FindByStem(n) is { } m && Builder.Textures?.GetOriginalRgba(m) is { } t ? Image.CreateFromData(t.Width, t.Height, false, Image.Format.Rgba8, t.Rgba) : null;
     private readonly Dictionary<object, double> _slickVoice = [];
     private readonly Dictionary<object, double> _chemBlast = [];
     private readonly Dictionary<string, StandardMaterial3D?> _slickMaterials = new(StringComparer.OrdinalIgnoreCase);

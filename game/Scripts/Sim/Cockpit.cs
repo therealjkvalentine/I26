@@ -78,6 +78,7 @@ public partial class Cockpit : Node
         _roundSetting = shellSettings.MirrorRound;
         SetupMirror();
         CompassOutline();
+        _lookArt.Made((Textures.Hd, _faithful));
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
         Textures.Swapped += ArtSwapped;
     }
@@ -102,6 +103,12 @@ public partial class Cockpit : Node
         _shotR = Frames("zsr45{0}{1:00}", 3);
         _shotL = Frames("zsl45{0}{1:00}", 3);
         _radarFrames = RadarFrames.Take(Textures, Resolver);
+        OriginalArt();
+    }
+
+    /// <summary>What LoadArt reads of the originals, whatever is served (the radar's mask and its measure).</summary>
+    private void OriginalArt()
+    {
         _radarMember = Resolver.FindByStem("zradf000");
         _radarDiffs.Clear();
         if (_radarMember is not null && Textures.GetOriginalRgba(_radarMember) is { } r0) _radarBaseW = r0.Width;
@@ -113,19 +120,78 @@ public partial class Cockpit : Node
     /// <summary>
     /// The HD Textures row or a flip of the look changed what the factory serves: the panels, the radar's and the wheel's
     /// frames are made again at its scale (the 1997 look always the originals) and everything is redrawn. The mirror's art is
-    /// the factory's own texture, swapped in place.
+    /// the factory's own texture, swapped in place. A change of look calls this twice (the factory's swap, then Faithful): the
+    /// work is done once, before the frame is drawn.
     /// </summary>
     private void ArtSwapped()
     {
-        Panels.Prefetch();
-        Panels.Reload();
-        LoadArt();
-        MirrorFill();
-        CompassOutline();
-        ResetPanels();
-        _repaintWeapons = _repaintSpecials = _radarRedraw = true;
+        if (_artPending) return;
+        _artPending = true;
+        CallDeferred(MethodName.RedrawArt);
+    }
+    private bool _artPending;
+
+    /// <summary>
+    /// The art for what the factory serves and the look (TextureFactory.KeepBothLooks): kept from the first time each is shown to the
+    /// mission's end, so a change back takes it as it was instead of reading and decoding the pack's pictures again.
+    /// </summary>
+    private sealed record LookArt((string?, ImageTexture?[], bool) Wheel, (string?, ImageTexture?[], bool) ArmR, (string?, ImageTexture?[], bool) ArmL,
+        (string?, ImageTexture?[], bool) ShotR, (string?, ImageTexture?[], bool) ShotL, RadarFrames Radar, Godot.Image? MirrorFill, Godot.Image? CompassFill);
+    private readonly Assets.LookKept<(bool Hd, bool Faithful), LookArt> _lookArt = new();
+    private bool KeepLooks => Textures.KeepBothLooks && Assets.TextureFactory.FastLookSwitch;
+
+    private void RedrawArt()
+    {
+        _artPending = false;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        Panels.KeepLooks = _lookArt.Keep = KeepLooks;
+        // the art shown until now kept for a change back, and this look's if it was shown before
+        bool had = _lookArt.Change((Textures.Hd, _faithful), () => new LookArt(_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames, _mirrorFillImage, _compassFillImage), out var a);
+        bool panelsKept = Panels.Holds;
+        if (!panelsKept) Panels.Prefetch();
+        bool restored = Panels.Reload();
+        double panelsMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        if (had)
+        {
+            (_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames) = (a.Wheel, a.ArmR, a.ArmL, a.ShotR, a.ShotL, a.Radar);
+            OriginalArt();
+            MirrorFill(a.MirrorFill);
+            CompassOutline(a.CompassFill);
+        }
+        else
+        {
+            LoadArt();
+            MirrorFill();
+            CompassOutline();
+        }
+        // panels kept show as their look left them: redrawn one group a frame over the next four (each 8x group is 5-17 ms at
+        // 3440x1440, all at once 40-60 ms in the first frame); made again, they are bare and all are redrawn in the next frame
+        if (restored) _repaintStep = 1;
+        else
+        {
+            ResetPanels();
+            _repaintWeapons = _repaintSpecials = _radarRedraw = true;
+        }
         _wheelShown = -1;
         _armShown[0] = _armShown[1] = (-1, -1);
+        GD.Print($"cockpit art: panels {(panelsKept ? "kept" : "made")} in {panelsMs:0} ms, frames and radar {(had ? "kept" : "made")}, all in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");
+        _artRedrawnAt = System.Diagnostics.Stopwatch.GetTimestamp();
+    }
+    /// <summary>When the art was last made again (the next frame's panels repaint is timed for the log).</summary>
+    private long _artRedrawnAt;
+
+    /// <summary>The kept panels' redraw after a change of look, a group a frame (0: none under way).</summary>
+    private int _repaintStep;
+
+    private void RepaintStep()
+    {
+        switch (_repaintStep++)
+        {
+            case 1: _gear = -1; _compass = float.NaN; System.Array.Fill(_parts, -1); _speedFrame = _tachFrame = -1; break;
+            case 2: _specRows = null; _repaintSpecials = true; break;
+            case 3: _radarRedraw = true; break;
+            default: _repaintWeapons = true; _repaintStep = 0; break;
+        }
     }
 
     /// <summary>
@@ -143,6 +209,10 @@ public partial class Cockpit : Node
     {
         Controls.LookingBack = null;
         Textures.Swapped -= ArtSwapped;
+        // the other look's frames kept for F12 go with the mission (the materials hold the shown look's)
+        foreach (var art in _lookArt.Release())
+            foreach (var set in new[] { art.Wheel, art.ArmR, art.ArmL, art.ShotR, art.ShotL })
+                foreach (var t in set.Item2) t?.Dispose();
         Panels.Free();
         _radarLive?.Free();
     }
@@ -187,6 +257,7 @@ public partial class Cockpit : Node
 
     public override void _Process(double delta)
     {
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         DashStats.Begin();
         float dt = (float)System.Math.Clamp(delta, 0.001, 0.2);
         _steps = SimClock.Take(ref _lastTick);   // the ammo digits and the binocular glance step once a frame of the original: a sim tick
@@ -209,6 +280,7 @@ public partial class Cockpit : Node
             if (_mirrorView is not null) _mirrorView.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
             MirrorsUnseen();
         }
+        if (_repaintStep > 0) RepaintStep();
         if (shown && !_wasShown) ResetPanels();
         _wasShown = shown;
         if (pit) Head(dt);
@@ -237,6 +309,11 @@ public partial class Cockpit : Node
         _pinned = pit;
         Panels.Commit();
         DashStats.End();
+        if (_artRedrawnAt != 0)
+        {
+            GD.Print($"cockpit art: the next frame's panels drawn in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");
+            _artRedrawnAt = 0;
+        }
     }
 
     // ---- binoculars ----
@@ -587,14 +664,18 @@ public partial class Cockpit : Node
     /// <summary>The compass's smooth outline's two pictures (the mask's field, the art with its colours spread), or null.</summary>
     public (Texture2D Edge, Texture2D Fill)? CompassEdge => _compassEdge is not null && _compassFill is not null ? (_compassEdge, _compassFill) : null;
 
-    private void CompassOutline()
+    /// <summary>The compass's fill as made for the art served now (kept with a look's art, LookArt).</summary>
+    private Godot.Image? _compassFillImage;
+
+    /// <param name="kept">The fill made before for the art served now (a change back to a look shown before), or null to make it.</param>
+    private void CompassOutline(Godot.Image? kept = null)
     {
         if (Resolver.FindByStem("zcm_") is not { } member) return;
         if (_compassEdge is null && Textures.GetOriginalRgba(member) is { } o)
             _compassEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.R8, MirrorEdge.KeyField(o.Rgba, o.Width, o.Height)));
-        if (Textures.GetRgba(member) is { } a)
+        if ((kept ?? (Textures.GetRgba(member) is { } a ? Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.KeyFill(a.Rgba, a.Width, a.Height, Textures.Scale(member))) : null)) is { } img)
         {
-            var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.KeyFill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+            _compassFillImage = img;
             if (_compassFill is null) _compassFill = ImageTexture.CreateFromImage(img);
             else _compassFill.SetImage(img);
         }
@@ -1438,11 +1519,20 @@ public partial class Cockpit : Node
         Shape(sm, MirrorRound.Shrink(o, r), r, MirrorRound.Shrink(o, t + ri), ri, true);
     }
 
-    /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture.</summary>
-    private void MirrorFill()
+    /// <summary>The mirror's fill as made for the art served now (kept with a look's art, LookArt).</summary>
+    private Godot.Image? _mirrorFillImage;
+
+    /// <summary>The smooth outline's fill from the art served now (the originals or a pack's upscale), in the same texture; <paramref name="kept"/>: made before for it.</summary>
+    private void MirrorFill(Godot.Image? kept = null)
     {
-        if (_mirrorMat is null || Resolver.FindByStem("zmiri101") is not { } member || Textures.GetRgba(member) is not { } a) return;
-        var img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+        if (_mirrorMat is null || Resolver.FindByStem("zmiri101") is not { } member) return;
+        var img = kept;
+        if (img is null)
+        {
+            if (Textures.GetRgba(member) is not { } a) return;
+            img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+        }
+        _mirrorFillImage = img;
         if (_mirrorFill is null) { _mirrorFill = ImageTexture.CreateFromImage(img); _mirrorMat.SetShaderParameter("fill", _mirrorFill); }
         else _mirrorFill.SetImage(img);
     }
