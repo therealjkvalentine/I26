@@ -3,6 +3,7 @@ using I76.Sim.Damage;
 using I76.Sim.Math;
 using I76.Sim.Session;
 using I76.Sim.Vehicles;
+using I76.Sim.Weapons;
 
 namespace I76.Net;
 
@@ -36,6 +37,8 @@ public sealed class OwnCarPredictor
     private readonly List<Vehicle> _order = [];
     private readonly Dictionary<int, Vehicle> _ghosts = [];
     private readonly List<(Vehicle Ghost, Double3 Pos, Vector3 Vel, uint At)> _moving = [];
+    /// <summary>The clicks played at once and the server tick each is expected in (<see cref="TakeClick"/>).</summary>
+    private readonly List<(string Sound, long Tick)> _clicks = [];
 
     /// <summary>The own shots drawn at once (null when they are not: <c>predictFire</c> false), and kept square with the server's.</summary>
     public OwnShots? Shots { get; }
@@ -119,13 +122,23 @@ public sealed class OwnCarPredictor
         PlaceGhosts(tick);
         World.Session.NetEndTick = (int?)_client.EndTick;
         _damage.Fresh = fresh;
+        var events = World.Setup.Combat.Events;
+        int had = events.Count;
         World.Session.PredictTick(_driver!, _inputs[k % Ring], tick, _order, _damage, fresh);
         if (Shots is { } shots)
         {
             shots.Tick = k;
             World.Session.PredictFire(_driver!, fresh);
         }
-        else World.Session.PredictSelect(_driver!);   // the weapon cycle and link, which PredictFire runs after the triggers
+        else World.Session.PredictSelect(_driver!, fresh);   // the weapon cycle and link, which PredictFire runs after the triggers
+        // the clicks played at once, for the server's copies to be matched (TakeClick); the server's tick after this input
+        if (fresh)
+            for (int i = had; i < events.Count; i++)
+                if (events[i] is WeaponClick c && c.Shooter == Car && PredictedClick(c.Sound))
+                {
+                    if (_clicks.Count >= 16) _clicks.RemoveAt(0);
+                    _clicks.Add((c.Sound, tick + 1));
+                }
         var m = OwnMotion.Capture(Car!, _driver);
         _predicted[k % Ring] = m;
         if (_predictedTick[k % Ring] != k) _hashed[k % Ring].Clear();
@@ -139,6 +152,28 @@ public sealed class OwnCarPredictor
             hashed.Add((h, m));
         }
         _client.ReportMotion(k, h);
+    }
+
+    /// <summary>
+    /// The own car's clicks the prediction plays when it first runs the press (#168): cammo.wav (the weapon cycle and
+    /// link) and wclick.wav (the dry click). The specials' sounds are left out: every server copy of those is dropped.
+    /// </summary>
+    public static bool PredictedClick(string sound) =>
+        sound.Equals("cammo.wav", StringComparison.OrdinalIgnoreCase) || sound.Equals("wclick.wav", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the server's <paramref name="sound"/> on the own car, in the batch of server tick <paramref name="tick"/>,
+    /// was already played by the prediction (a predicted click within <paramref name="window"/> ticks of it, taken so
+    /// each matches once). A predicted click the server never sent is let go once it is older than the window; a server
+    /// click the prediction did not make (an auto-cycle off a weapon shot to nothing) is played as it comes.
+    /// </summary>
+    public bool TakeClick(string sound, uint tick, uint window)
+    {
+        _clicks.RemoveAll(c => c.Tick + window < tick);
+        int i = _clicks.FindIndex(c => c.Sound.Equals(sound, StringComparison.OrdinalIgnoreCase) && c.Tick <= tick + window);
+        if (i < 0) return false;
+        _clicks.RemoveAt(i);
+        return true;
     }
 
     /// <summary>The prediction for client tick <paramref name="tick"/> whose hash ends in <paramref name="echo"/> (a confirmed motion), if still kept.</summary>

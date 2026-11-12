@@ -65,7 +65,14 @@ public partial class MoviePlayer : CanvasLayer
     private volatile bool _decoded;
     private readonly ConcurrentQueue<(int Index, byte[] Rgba, byte[]? Pal)> _frames = new();
     private readonly ConcurrentQueue<Vector2[]> _sound = new();
-    private const int Ahead = 20;          // frames decoded ahead of the picture
+    /// <summary>
+    /// Frames decoded ahead of the picture, their sound with them: 20, or 60 (4 s at 15 a second) for a briefing over a
+    /// mission's load (<see cref="Loading"/>), whose main-thread steps can hold the game for a second or more (#157).
+    /// </summary>
+    private int Ahead => Loading is null ? 20 : 60;
+    /// <summary>The sound's buffer (seconds): over a load it carries the sound through a hitch of the main thread that feeds it.</summary>
+    private float SoundBuffer => Loading is null ? 0.5f : 4.5f;
+    private MovieAudioClock? _audioClock;
     private TextureRect _view = null!;
     private ImageTexture? _tex, _palTex, _blkTex;
     /// <summary>Palette-constrained debanding and deblocking in shaders: off by default (smooth-scaled raw frames); I76_MOVIE_DEBAND=1 turns it on.</summary>
@@ -124,11 +131,13 @@ public partial class MoviePlayer : CanvasLayer
         }
         if (_movie.HasAudio(0))
         {
-            var gen = new AudioStreamGenerator { MixRate = _movie.SampleRate(0), BufferLength = 0.5f };
+            var gen = new AudioStreamGenerator { MixRate = _movie.SampleRate(0), BufferLength = SoundBuffer };
             var player = new AudioStreamPlayer { Stream = gen, Name = "Sound", Bus = I76.Game.Boot.Main.MovieBus() };
             AddChild(player);
             player.Play();
             _out = (AudioStreamGeneratorPlayback)player.GetStreamPlayback();
+            // the buffer's room before anything is pushed is its size: what is pushed less what is still in it has been heard
+            _audioClock = new MovieAudioClock(_movie.SampleRate(0), _out.GetFramesAvailable());
         }
         AddTag(new Vector2(_movie.Width, _movie.Height));
         _thread = new Thread(Decode) { IsBackground = true, Name = "smacker" };
@@ -221,6 +230,16 @@ public partial class MoviePlayer : CanvasLayer
             _skipsAtStart = _out?.GetSkips() ?? 0;
             I76.Game.World.MissionBuilder.Trace($"movie: first frame of {System.IO.Path.GetFileName(Path)}");
         }
+        else if (_out is not null && _audioClock is { } ac && _hold < 0)
+        {
+            // the picture held to the sound (#157): it catches up with sound that played on through a stall the delta did not
+            // carry, and waits for sound a hitch longer than its buffer stopped
+            double was = _clock;
+            int room = _out.GetFramesAvailable();
+            _clock = ac.Step(_clock, delta, room, !_decoded || !_sound.IsEmpty || (_pending is not null && _pendingAt < _pending.Length));
+            if (was + delta - _clock > 0.05) _waitedForSound += was + delta - _clock;
+            if (delta > _worstDelta) _worstDelta = delta;
+        }
         else _clock += delta;
         if (_inputs.Count > 0) SendInputs(++_drawn);
         if (_skipAfter >= 0 && _skipAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
@@ -288,6 +307,7 @@ public partial class MoviePlayer : CanvasLayer
             }
             int n = Math.Min(room, _pending.Length - _pendingAt);
             _out.PushBuffer(_pending.AsSpan(_pendingAt, n).ToArray());
+            _audioClock?.Pushed(n);
             _pendingAt += n;
             room -= n;
         }
@@ -374,6 +394,7 @@ public partial class MoviePlayer : CanvasLayer
         _held = true;
         _tag?.ShowNow();   // (the rest of the load follows on the main thread: no frames for a fade)
         _stop = true;   // (the decoder is done with: only the frame shown stays)
+        if (_movie is not null && _video is null) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {(int)(_clock / _movie.FrameDuration)}{Sync()}");
         _out = null;
         GetNodeOrNull<AudioStreamPlayer>("Sound")?.Stop();
         if (_video is not null) _video.Paused = true;
@@ -387,6 +408,11 @@ public partial class MoviePlayer : CanvasLayer
         if (_video is null && !_started) return;   // (from the picture's first frame: its lettering made meanwhile, under the black)
         if (Loading()) _tag.FadeIn(faint: true); else _tag.FadeOut();
     }
+
+    /// <summary>The sound against the picture: how far apart they are, and how long the picture has waited for the sound.</summary>
+    private string Sync() => _out is not null && _audioClock is { } ac
+        ? $", sound heard to {ac.Heard(_out.GetFramesAvailable()):0.000} s with the picture at {_clock:0.000} s (waited {_waitedForSound * 1000:0} ms for it; longest frame {_worstDelta * 1000:0} ms; buffer {SoundBuffer} s, {Ahead} frames ahead)"
+        : "";
 
     private void GiveUp(string why) => GD.PrintErr($"movie {Path}: {why}, ending it");
 
@@ -402,7 +428,7 @@ public partial class MoviePlayer : CanvasLayer
         {
             long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;
             Last = (_shown, _dropped, _late, _worstShowGap * 1000, skips);
-            GD.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} frames");
+            GD.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} mixes{Sync()}");
         }
         if (_video is not null)
             GD.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
@@ -428,6 +454,8 @@ public partial class MoviePlayer : CanvasLayer
     private int _lateFrames;
     private int _shown, _dropped, _late;
     private long _skipsAtStart;
+    /// <summary>How long the picture has waited for its sound (a hitch longer than the sound's buffer), and the longest frame.</summary>
+    private double _waitedForSound, _worstDelta;
     private double _lastShown, _worstShowGap;
     /// <summary>The last Smacker movie's pace: frames shown, dropped (their turn passed unseen), late (over two frames after the one before), the worst gap, the audio generator's underrun frames.</summary>
     public static (int Shown, int Dropped, int Late, double WorstMs, long AudioSkips) Last;

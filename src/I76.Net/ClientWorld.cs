@@ -606,10 +606,16 @@ public sealed class ClientWorld
         var batches = _waiting.GetRange(0, n);
         _waiting.RemoveRange(0, n);
         foreach (var batch in batches)
+        {
+            _releasing = batch.Tick;
             foreach (var e in batch.Events)
                 // long gone (what came while the arena loaded): what it left, not the shots and bangs of it
                 if (batch.Tick + StaleTicks >= upTo || !Cosmetic(e)) Guard(e.GetType().Name, () => Apply(e));
+        }
     }
+
+    /// <summary>The server tick of the batch being released.</summary>
+    private uint _releasing;
 
     /// <summary>Events older than this when they are released change state only (a client catching up after its load).</summary>
     /// <summary>0.36 s in ticks: older cosmetic events are dropped, and a view this far off its target jumps.</summary>
@@ -639,6 +645,9 @@ public sealed class ClientWorld
                 break;
             // the own specials' sounds were played when the prediction first ran the press
             case ClickEvent c when Prediction is not null && c.Car == OwnSerial && SpecialSound(c.Sound):
+                break;
+            // the own weapon cycle / link and dry clicks too, each server copy of one the prediction played (#168)
+            case ClickEvent c when Prediction is { } p && c.Car == OwnSerial && OwnCarPredictor.PredictedClick(c.Sound) && p.TakeClick(c.Sound, _releasing, StaleTicks):
                 break;
             case ClickEvent c when Car(c.Car) is { } v:
                 combat.Events.Add(new WeaponClick(v, c.Sound));

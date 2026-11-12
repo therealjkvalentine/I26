@@ -242,6 +242,91 @@ public class PredictionTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// #168: the own weapon cycle clicks (cammo.wav, forward and back) and the dry click (wclick.wav, a hardpoint pressed again
+    /// while its interval runs) play at once from the prediction, on the tick the key is sent, with the snapshots and
+    /// events 6 ticks late; the server's copies are not played again, so each is heard once.
+    /// </summary>
+    [Fact]
+    public void OwnClicksAreHeardAtOnceAndOnce()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 7 });
+        var seat = host.Join("a", "vppirna1.vcf", 0);
+        var mirror = new ClientWorld(HostTests.Mirror("m01"), host.AcceptFor(seat));
+        var client = new MeleeClient();
+        var predictor = new OwnCarPredictor(mirror, client);
+        // the slowest hardpoint with rounds: pressed, let go and pressed again inside its interval, the second press is dry
+        var arm = seat.Player.Car.Armory!;
+        int hp = Enumerable.Range(0, Math.Min(5, arm.Weapons.Count)).Where(i => arm.Weapons[i].Ammo != 0 && arm.Weapons[i].Def.Kind is not (9 or 10 or 11))
+            .OrderBy(i => arm.Weapons[i].Def.Rate).First();
+        output.WriteLine($"dry click on hardpoint {hp + 1}: kind {arm.Weapons[hp].Def.Kind}, rate {arm.Weapons[hp].Def.Rate}/s");
+        var late = new Queue<(Snapshot S, EventBatch? E)>();
+        var pressed = new Dictionary<uint, string>
+        {
+            [60] = "cammo.wav", [100] = "cammo.wav", [140] = "cammo.wav", [180] = "wclick.wav",
+        };
+        var heard = new List<(uint Tick, string Sound)>();
+        for (uint t = 1; t <= 240; t++)
+        {
+            var input = new CarInput { Buttons = CarButtons.ThrottleUp };
+            // (this car has no two weapons of a kind to link: the link key asks for no click on it, here or on the server)
+            if (t is 60 or 100) input.Commands = CarCommands.WeaponCycle;
+            if (t is 120) input.Commands = CarCommands.WeaponLink;
+            if (t is 140) input.Commands = CarCommands.WeaponCyclePrev;
+            if (t is 178 or 180) input.Buttons |= (CarButtons)((uint)CarButtons.Hardpoint1 << hp);
+            seat.Inputs.Add(new InputMessage(t, [input]));
+            host.Step();
+            var events = host.TakeEvents();
+            predictor.Step(t, input);
+            late.Enqueue((Through(host, seat), events.Count > 0 ? new EventBatch(host.Tick, events) : null));
+            while (late.Count > 6)
+            {
+                var (s, e) = late.Dequeue();
+                if (e is not null) client.Events.Enqueue(e);
+                client.Inject(s);
+            }
+            mirror.Advance(host.Session.TickSeconds, client);
+            predictor.Reconcile();
+            foreach (var c in mirror.Setup.Combat.Events.OfType<I76.Sim.Weapons.WeaponClick>())
+                if (OwnCarPredictor.PredictedClick(c.Sound)) heard.Add((t, c.Sound));
+            mirror.Setup.Combat.Events.Clear();
+        }
+        output.WriteLine($"heard: {string.Join(", ", heard.Select(h => $"{h.Sound} on {h.Tick}"))}");
+        Assert.Equal(pressed.Select(p => (p.Key, p.Value)), heard);
+    }
+
+    /// <summary>
+    /// A click the prediction played is matched once by the server's copy within the window; one the server sends that
+    /// the prediction did not make is played; a predicted one the server never sent is let go after the window.
+    /// </summary>
+    [Fact]
+    public void AServerClickIsTakenOnlyForAPredictedOne()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 7 });
+        var seat = host.Join("a", "vppirna1.vcf", 0);
+        var mirror = new ClientWorld(HostTests.Mirror("m01"), host.AcceptFor(seat));
+        var client = new MeleeClient();
+        var predictor = new OwnCarPredictor(mirror, client);
+        for (uint t = 1; t <= 40; t++)
+        {
+            var input = new CarInput { Commands = t is 20 or 30 ? CarCommands.WeaponCycle : 0 };
+            seat.Inputs.Add(new InputMessage(t, [input]));
+            host.Step();
+            host.TakeEvents();
+            predictor.Step(t, input);
+            client.Inject(Through(host, seat));
+            predictor.Reconcile();
+        }
+        uint at = host.Tick;
+        // the two predicted cycles: the first matches near its tick, once; the second has gone stale by tick + 30
+        Assert.False(predictor.TakeClick("wclick.wav", at - 20, 7));
+        Assert.True(predictor.TakeClick("cammo.wav", at - 20, 7));
+        Assert.False(predictor.TakeClick("cammo.wav", at + 30, 7));
+        Assert.False(predictor.TakeClick("cammo.wav", at + 31, 7));
+    }
+
+    /// <summary>
     /// Once a network game is won every machine's own car brakes with the wheel straight (throttle −1, steer 0) for the
     /// 10 s to the end, whatever the keys say; the prediction brakes from the server's tick of the win as soon as the
     /// end event comes with the snapshots, so the predicted car agrees with the server's throughout.

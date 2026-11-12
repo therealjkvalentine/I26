@@ -1808,7 +1808,11 @@ client's own car; the game's `NetView` drives it.
   the damage model's timer runs), lights, the drive selector and reverse, the
   specials (nitro, the jammer, the exhaust brake; on a fresh tick nitro's and the jammer's sounds, bnitro.wav and
   cjamm.wav, play from the predicted car at once and the server's click for them is not played: 0.5.0 left them to the
-  server's click, a round trip and the view's 100 ms late, and testers heard "a delay on the nitrous") and the weapon selection and link. The dash, the
+  server's click, a round trip and the view's 100 ms late, and testers heard "a delay on the nitrous") and the weapon selection and link
+  (on a fresh tick their cammo.wav plays at once, and so does wclick.wav, the dry click of a hardpoint pressed again inside its
+  interval, but not for a weapon the server's jam can catch or one with no rounds, whose triggers the server lets go;
+  each server copy of a click so played, matched by sound within 0.36 s of its tick, is not played again, and a server
+  click the prediction did not make, such as the auto-cycle off a weapon shot to nothing, plays as it comes: #168). The dash, the
   speedometer, the PRNDL strip, the engine's sound and the force feedback read
   the predicted car. On a fresh tick (not a replay) the ignition and the
   engine's start and stop go to the damage view, so they are heard at once
