@@ -60,7 +60,7 @@ public static class MenuTips
         ["CB Voice"] = "CB voice: push-to-talk voice chat in network games (the Poem key); the microphone is in Audio Control.",
         ["Check for Updates"] = "Check for updates: at start, ask GitHub once whether a newer release exists. Nothing about you is sent.",
         ["Chase Crosshair"] = "Chase crosshair: an aiming mark in the F2 chase view. Online, only if the host allows it.",
-        ["Load During Briefing"] = "Load during briefing: the briefing plays while the mission loads. Off, the original's order: the load, then the briefing.",
+        ["Load During Briefing"] = "Load during briefing: the briefing plays while the mission loads. Off, the original's order: the load, then the briefing. The modern look only: the 1997 look always loads first, as the original.",
         ["Turrets"] = "Turrets: how fast turrets turn, as in the 1998 build (GOG and the Nitro Pack) or the 1997 CD. Online, the host's choice.",
         ["Unlim. Ordnance"] = "Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
         ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",

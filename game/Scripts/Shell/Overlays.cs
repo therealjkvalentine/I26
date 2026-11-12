@@ -376,8 +376,9 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Chase Crosshair: the aiming mark in the F2 chase view (a network game shows it only when the host allows it)
         Toggle(PortRows[9], () => s.ChaseCrosshair, () => s.ChaseCrosshair = !s.ChaseCrosshair);
         // Load During Briefing (docs/deviations.md): a mission's briefing plays while the mission builds, the loading card before it
-        // (and after it, while the build finishes, if it is skipped); off, the original's order: the load, then the briefing
-        Toggle(PortRows[10], () => s.BriefingWhileLoading, () => s.BriefingWhileLoading = !s.BriefingWhileLoading);
+        // (and after it, while the build finishes, if it is skipped); off, the original's order: the load, then the briefing. The modern
+        // look's only (BriefingOverlap.Threaded): in the 1997 look the row shows no check and a click does nothing, the tooltip says why
+        Toggle(PortRows[10], () => !s.Look1997 && s.BriefingWhileLoading, () => { if (!s.Look1997) s.BriefingWhileLoading = !s.BriefingWhileLoading; });
         // Turrets (docs/deviations.md): the turret slew of the 1998 build (GOG's and the Nitro Pack's, the default) or the 1997 CD
         // build's; a network game plays the host's
         Step(PortRows[11], () => s.Turrets1997 = !s.Turrets1997, () => HostFormLayout.TurretsShort(s.Turrets1997));

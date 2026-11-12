@@ -317,10 +317,10 @@ public sealed partial class EscapeMenu : Control
                 else if (m == 9) { Settings.ChaseCrosshair = _snap.ChaseCrosshair; it.Value = Settings.ChaseCrosshair ? 1 : 0; }
             },
         });
-        // Load During Briefing: from the next mission start (the shell's row)
+        // Load During Briefing: from the next mission start (the shell's row); the modern look's only, grey in the 1997 look
         _play.Items.Add(new Item
         {
-            Flags = Check, Label = "Load During Briefing", Pair = 34, N = 2,
+            Flags = Check, Label = "Load During Briefing", Pair = 34, N = 2, Refused = () => Faithful,
             Cb = (it, m) =>
             {
                 if (m == 6) it.Value = Settings.BriefingWhileLoading ? 1 : 0;
