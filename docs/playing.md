@@ -378,11 +378,14 @@ effects only, the original's and the default), Pad Enhanced\* (and short pulses 
 the starter, each kind of weapon's shot and a light engine growl) and Wheel (Windows). Controls' Rumble
 Strength sets 25 to 150 % on every level sent to the pad. Both apply when a mission starts, and from the Esc menu at once.
 
-**Briefings while loading.** A mission's briefing plays while the mission loads (Play Options' Load During Briefing, after
-Chase Crosshair in its list; on by default, in both looks): the loading card shows first, then the briefing, and a briefing
-watched to its end goes straight into the mission. Skip it before the mission is ready and "PLEASE STAND BY . . ."
-shows in the movie's corner until it is, then the mission starts by itself; a briefing that ends first waits on its last
-frame the same way. Off, the mission loads behind the card first and the briefing plays after, as in the original.
+**Briefings while loading.** In the modern look a mission's briefing plays while the mission loads (Play Options' Load
+During Briefing, after Chase Crosshair in its list; on by default): the loading card shows first, then the briefing, and a
+briefing watched to its end goes straight into the mission. While "PLEASE STAND BY . . ." shows faint in the movie's corner
+the mission is still loading and the briefing cannot be skipped (a press then is not saved up either); once the line has
+faded, a press skips it, the picture stands still for the rest of the load and the mission starts by itself. A briefing
+that ends before the load waits on its last frame the same way. Off, and always in the 1997 look (the row is grey on the
+Esc menu's pad and shows no check in the shell's list there), the mission loads behind the card first and the briefing
+plays after, as in the original.
 
 **Joysticks.** A flight stick, wheel or any other USB device that is not a game pad is found too (it is joystick 1 when
 there is no game pad). Out of the box the stick steers sideways and accelerates (forward) or brakes (back), the trigger
