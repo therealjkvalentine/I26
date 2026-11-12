@@ -54,7 +54,7 @@ public static class OpenTrack
             yield return "/Applications/opentrack.app/Contents/MacOS/opentrack";
             yield return Path.Combine(home, "Applications", "opentrack.app", "Contents", "MacOS", "opentrack");
         }
-        foreach (var dir in (env("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var dir in (env("PATH") ?? "").Split(os == Os.Windows ? ';' : ':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             yield return Path.Combine(dir, exe);
         if (os == Os.Linux)
         {
