@@ -45,6 +45,7 @@ public static class DevTips
         "coop_rolling_start" => "A co-op game you host: a player who respawns beside a moving teammate comes in at that teammate's speed and heading.",
         "early_tick" => "The 1997 look: a driving or weapon key runs the next tick at once instead of waiting for it, about 20 ms sooner.",
         "draw_ahead" => "Your car and the camera drawn at the newest tick carried forward, not between the last two: steering shows up to a tick sooner.",
+        "road_grain" => "The modern look: the paved roads carry an asphalt grain near the camera (the fetched Asphalt015 scan, fine noise without it). False draws them as upstream does, the road layer's colour alone. From the next mission.",
         "low_latency_present" => "With VSync on, each refresh shows the newest finished frame: about 11 ms less lag at 180 Hz, more GPU power used.",
         "target_fps" => "Holds this frame rate by drawing the 3D view at a lower Render Scale (down to 67 %) while the graphics card is what keeps the game under it. 0: off.",
         "render_scale_cap" => "How far video memory holds Render Scale over 100 % down. auto: the 3D view's buffers within three quarters of the card's memory, less the textures. off: no cap. A number: the buffers' MiB.",

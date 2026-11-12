@@ -85,8 +85,16 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// </summary>
     public static bool RoadsFromOriginals => I76.Game.Editor.EditorSession.Active;
 
-    /// <summary>I76_ROAD_GRAIN (comparison only): <c>1</c> lays the asphalt scan's aggregate over the modern look's paved roads near the camera.</summary>
-    private static readonly bool RoadGrain = System.Environment.GetEnvironmentVariable("I76_ROAD_GRAIN") == "1";
+    /// <summary>
+    /// The asphalt scan's aggregate over the modern look's paved roads near the camera: [port] road_grain (OriginalBehavior.RoadGrain,
+    /// off: the roads as upstream draws them), or I76_ROAD_GRAIN for a capture (<c>1</c> on, <c>0</c> off, whatever the setting).
+    /// </summary>
+    private static bool RoadGrain => System.Environment.GetEnvironmentVariable("I76_ROAD_GRAIN") switch
+    {
+        "1" => true,
+        "0" => false,
+        _ => I76.Game.Sim.OriginalBehavior.RoadGrain,
+    };
 
     /// <summary>The 1997 look's road layers from the originals, still to bake (a modern start with a pack serving the roads): BakeFaithfulRoads.</summary>
     private Func<Dictionary<(int, int), Image>>? _faithfulRoads;
@@ -623,7 +631,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
                 }
                 else if (flat.Count > 0 && RoadGrain)
                 {
-                    // the paved roads' aggregate near the camera (GroundPaint.ApplyRoads): I76_ROAD_GRAIN=1 only, the roads otherwise as
+                    // the paved roads' aggregate near the camera (GroundPaint.ApplyRoads): [port] road_grain only, the roads otherwise as
                     // upstream draws them (the road layer's colour alone)
                     if (!TerrainMaterials.AsphaltReady)
                     {

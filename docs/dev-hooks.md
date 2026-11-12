@@ -307,6 +307,7 @@ the car's `VehicleFlags` in hex).
 | `I76_OUTSIDE_DEBUG` | debug | `1`: OutsideTerrain prints a line every 30 frames: the look, the eye, the chunks wanted and drawn, the jobs running and the levels. |
 | `I76_BAKE_CACHE` | tuning | `0`: no bake cache: road layers, ground materials and terrain surfaces are made afresh and not kept (`user://cache/terrain/`, keyed by their inputs, 1 GB at most). |
 | `I76_GROUND_MATERIALS` | tuning | `0`: procedural ground only (and a painted ground without the asphalt scan). |
+| `I76_ROAD_GRAIN` | capture | `1` or `0`: the modern look's paved roads with or without the asphalt grain near the camera for the run, whatever `[port] road_grain` says (docs/playing.md, "Settings without a row"; before and after captures at road level). |
 | `I76_GROUND_PAINT` | tuning | `0`: a painted ground (M15's parking lot, GroundMarkings) drawn as fitted noise like a natural one. |
 | `I76_MAT_COMPRESS` | tuning | `0`: uncompressed material arrays (editor builds only). |
 | `I76_PROP_MAPS` | tuning | `0`: no material maps on scenery. |

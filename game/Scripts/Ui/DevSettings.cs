@@ -138,6 +138,7 @@ public static class DevSettings
         new("coop_rolling_start", FalseTrue, s => s.CoopRollingStart ? 1 : 0, (s, v) => s.CoopRollingStart = v != 0, DevWhen.NextMission),
         new("early_tick", FalseTrue, s => s.EarlyTick ? 1 : 0, (s, v) => s.EarlyTick = v != 0, DevWhen.Live),
         new("draw_ahead", FalseTrue, s => s.DrawAhead ? 1 : 0, (s, v) => s.DrawAhead = v != 0, DevWhen.Live),
+        new("road_grain", FalseTrue, s => s.RoadGrain ? 1 : 0, (s, v) => s.RoadGrain = v != 0, DevWhen.NextMission),
         new("sway_snap", ["false" + M, "true"], s => s.SwaySnap ? 1 : 0, (s, v) => s.SwaySnap = v != 0, DevWhen.Live),
         new("low_latency_present", FalseTrue, s => s.LowLatencyPresent ? 1 : 0, (s, v) => s.LowLatencyPresent = v != 0, DevWhen.Live,
             s => I76.Game.FrameLimiter.Apply(s)),

@@ -1625,6 +1625,8 @@ public sealed class ShellSettings
     public bool DrawAhead { get; set; }
     /// <summary>The port's own, without a row: the head sway takes a height under 0.005 from its target at once, as the original (HeadSway.SnapSmall; [port] sway_snap, written when on).</summary>
     public bool SwaySnap { get; set; }
+    /// <summary>The port's own, without a row: the modern look's paved roads carry the asphalt scan's aggregate near the camera (OriginalBehavior.RoadGrain; [port] road_grain, written when on). Off: the roads as upstream draws them.</summary>
+    public bool RoadGrain { get; set; }
     /// <summary>The port's own, without a row: with VSync on, the newest finished frame is shown at each refresh (the mailbox swap) instead of each frame queued for one in turn (FrameLimit.SwapFor; [port] low_latency_present, written when off).</summary>
     public bool LowLatencyPresent { get; set; } = true;
     /// <summary>The port's own, without a row: a 5 ms audio output buffer (next start) and Godot's physics step at 240 a second, so a car's sounds start sooner (StartupSettings.AudioLatency; [port] low_latency_audio, written when off).</summary>
@@ -1968,6 +1970,8 @@ public sealed class ShellSettings
         s.ReadNight(k => c.HasSectionKey("port", k) ? System.Convert.ToString(c.GetValue("port", k).Obj, System.Globalization.CultureInfo.InvariantCulture) : null);
         s.DrawAhead = (bool)c.GetValue("port", "draw_ahead", false);
         s.SwaySnap = (bool)c.GetValue("port", "sway_snap", false);
+        // no version step: absent, off (upstream's roads)
+        s.RoadGrain = (bool)c.GetValue("port", "road_grain", false);
         s.LowLatencyPresent = (bool)c.GetValue("port", "low_latency_present", true);
         s.LowLatencyAudio = (bool)c.GetValue("port", "low_latency_audio", true);
         s.Antialias1997 = (bool)c.GetValue("port", "aa_1997", true);
@@ -2168,6 +2172,7 @@ public sealed class ShellSettings
         WriteNight((k, v) => c.SetValue("port", k, v));
         if (DrawAhead) c.SetValue("port", "draw_ahead", true);
         if (SwaySnap) c.SetValue("port", "sway_snap", true);
+        if (RoadGrain) c.SetValue("port", "road_grain", true);
         if (!LowLatencyPresent) c.SetValue("port", "low_latency_present", false);
         if (!LowLatencyAudio) c.SetValue("port", "low_latency_audio", false);
         if (!Antialias1997) c.SetValue("port", "aa_1997", false);
