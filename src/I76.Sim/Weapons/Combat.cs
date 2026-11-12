@@ -955,8 +955,10 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         }
         if (dt <= w.WaitA || dt <= w.WaitB)
         {
-            // a fresh press while the interval or burst cooldown still runs gives the player the dry click, once per press
-            if (w.Trigger && !w.WasFiring && World.IsHuman(v) && !_cosmetic) Events.Add(new WeaponClick(v, "wclick.wav"));
+            // a fresh press while the interval or burst cooldown still runs gives the player the dry click, once per press;
+            // a client's prediction gives it at once on a fresh tick (not for a weapon the jam can catch, nor an empty one:
+            // the server's network branch lets their triggers go), and the server's copy is then not played
+            if (w.Trigger && !w.WasFiring && World.IsHuman(v) && (!_cosmetic || !_silent && w.Ammo != 0)) Events.Add(new WeaponClick(v, "wclick.wav"));
             if (w.WaitA > 0) w.WaitA -= dt;
             if (w.WaitB > 0) w.WaitB -= dt;
         }
