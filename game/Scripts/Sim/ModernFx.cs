@@ -79,6 +79,7 @@ public partial class ModernFx : Node3D
         public float FrameRate;           // looping books: frames per second
         public Vector3 At, Velocity;
         public float Size0, Size1, FadeIn, FadeOut, Opacity = 1f;
+        public float FrameFrom;           // played books: the frame the sprite starts on
     }
     private double _t;
 
@@ -463,6 +464,20 @@ public partial class ModernFx : Node3D
         return sp;
     }
 
+    /// <summary>From this size up a blast is drawn from the HD sequence in two layers or more (smaller: one layer of the lower-resolution one).</summary>
+    public const float LayeredSize = 4f;
+
+    /// <summary>
+    /// How a blast is laid out, beyond its size: the HD sequence in layers whatever the size, how high above the hit the
+    /// sequence's centre stands (in sizes), the frame it starts on (the HD sequence's first frames are a white disc),
+    /// its brightness, the fireball flash's strength, when the smoke starts (in lives) and how far the sequence may be turned
+    /// (radians, at random either way; a full turn: any way up). The default is the car deaths'.
+    /// </summary>
+    public readonly record struct BlastStyle(bool Layered = false, float Lift = 0.55f, float FirstFrame = 0f, float Bright = 1f, float Flash = 1f, float SmokeDelay = 0.35f, float Spin = Mathf.Tau)
+    {
+        public BlastStyle() : this(false) { }
+    }
+
     /// <summary>
     /// An explosion of radius <paramref name="size"/> m from the Unity Labs
     /// flipbooks, layered as C&amp;C Generals did: two or three explosion sprites
@@ -471,30 +486,34 @@ public partial class ModernFx : Node3D
     /// light and sparks. <paramref name="smoke"/> tints the smoke (white
     /// phosphorus: white). False when the flipbooks are missing.
     /// </summary>
-    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f)
+    public bool Explode(Vector3 at, float size, double life, Color smoke, float fire = 1f, BlastStyle? style = null)
     {
-        var main = size >= 4 ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
+        var st = style ?? new BlastStyle();
+        bool layered = size >= LayeredSize || st.Layered;
+        var main = layered ? _explosionHd ?? _explosion : _explosion ?? _explosionHd;
         if (main is null) return false;
-        int layers = size >= 6 ? 3 : size >= 4 ? 2 : 1;
+        int layers = size >= 6 ? 3 : layered ? 2 : 1;
         for (int k = 0; k < layers; k++)
         {
             var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.35f * k;
             float s = size * (2.1f - 0.3f * k);
-            var sp = AddSprite(main, at + off + Vector3.Up * size * (0.55f + 0.15f * k), s * 0.9f, s * 1.1f, k * 0.09, life * (0.9f - 0.08f * k), GD.Randf() * Mathf.Tau);
+            var sp = AddSprite(main, at + off + Vector3.Up * size * (st.Lift + 0.15f * k), s * 0.9f, s * 1.1f, k * 0.09, life * (0.9f - 0.08f * k), st.Spin >= Mathf.Tau ? GD.Randf() * Mathf.Tau : (GD.Randf() - 0.5f) * st.Spin);
             sp.Velocity = Vector3.Up * size * 0.12f;
             sp.FadeOut = 0.25f;
+            sp.FrameFrom = Mathf.Min(st.FirstFrame, main.Frames - 1);
             if (fire < 1f) sp.Node.SetInstanceShaderParameter("tint", new Color(1.15f, 1.15f, 1.15f));
+            else if (st.Bright != 1f) sp.Node.SetInstanceShaderParameter("tint", new Color(st.Bright, st.Bright, st.Bright));
         }
-        if (_fireball is not null && fire > 0.5f)
+        if (_fireball is not null && fire > 0.5f && st.Flash > 0)
         {
-            var fb = AddSprite(_fireball, at + Vector3.Up * size * 0.5f, size * 1.4f, size * 2.4f, 0, 0.55, GD.Randf() * Mathf.Tau);
-            fb.Loop = true; fb.FrameRate = 40; fb.FadeOut = 0.7f;
+            var fb = AddSprite(_fireball, at + Vector3.Up * size * Mathf.Min(0.5f, st.Lift), size * 1.4f, size * 2.4f, 0, 0.55, GD.Randf() * Mathf.Tau);
+            fb.Loop = true; fb.FrameRate = 40; fb.FadeOut = 0.7f; fb.Opacity = st.Flash;
         }
         if (_smoke is not null)
             for (int k = 0; k < layers * 2; k++)
             {
                 var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.8f;
-                var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (0.35 + 0.08 * k), 3.5 + GD.Randf(), GD.Randf() * Mathf.Tau);
+                var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (st.SmokeDelay + 0.08 * k), 3.5 + GD.Randf(), GD.Randf() * Mathf.Tau);
                 sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.2f; sm.FadeOut = 0.6f; sm.Opacity = 0.6f;
                 sm.Velocity = new Vector3(GD.Randf() - 0.5f, 2.2f + GD.Randf() * 1.5f, GD.Randf() - 0.5f);
                 sm.Node.SetInstanceShaderParameter("tint", smoke.Lerp(Colors.White, 0.2f) * 1.6f);
@@ -796,7 +815,7 @@ public partial class ModernFx : Node3D
             float k = (float)(age / sp.Life);
             if (k >= 1f) { sp.Node.QueueFree(); _sprites.RemoveAt(i); continue; }
             sp.Node.Visible = true;
-            float frame = sp.Loop ? (float)(age * sp.FrameRate % sp.Book.Frames) : k * (sp.Book.Frames - 1);
+            float frame = sp.Loop ? (float)(age * sp.FrameRate % sp.Book.Frames) : sp.FrameFrom + k * (sp.Book.Frames - 1 - sp.FrameFrom);
             float fade = (sp.FadeIn > 0 ? Mathf.Clamp(k / sp.FadeIn, 0, 1) : 1) * (sp.FadeOut > 0 ? Mathf.Clamp((1 - k) / sp.FadeOut, 0, 1) : 1);
             sp.Node.SetInstanceShaderParameter("frame", frame);
             sp.Node.SetInstanceShaderParameter("opacity", fade * sp.Opacity);
