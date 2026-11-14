@@ -975,6 +975,7 @@ public partial class Main
                         if (!(Predictor is { Ready: true } && m == World.Own && !World.OwnFromSnapshots)) n.SetPoses(m.PrevRot, m.PrevPos, m.Rot, m.Pos);
                     }
                     n.Visible = World.Drawn(m);
+                    n.WreckHidden = m.Present && !n.Visible;
                     // a car first drawn dead (it died before this client joined, or was rebuilt for a reconfigure while dead) never had
                     // its death's event here: its node takes the look of the state the car is in
                     if (m.Present && _settled.Add(n) && (m.Vehicle.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) != 0 && !n.Wrecked) Settle?.Invoke(m.Vehicle, n);

@@ -114,7 +114,8 @@ public partial class WreckFire : Node3D
     {
         using var _view = Hitch.Time(Hitch.Phase.Views);
         _age += delta;
-        bool carGone = !IsInstanceValid(Car) || !Car.IsInsideTree();
+        // a car taken out of the world, or a network player's wreck hidden at its wreck time (ClientWorld.Drawn): the fire dies down
+        bool carGone = !IsInstanceValid(Car) || !Car.IsInsideTree() || Car.WreckHidden;
         if (carGone && _gone < 0) _gone = _age;
         if (!carGone) Follow();
         Apply(delta);
