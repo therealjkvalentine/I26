@@ -714,6 +714,7 @@ public partial class Main
         _audio = audio;
         AddCombatView(setup.Combat, () => view.TickAlpha);
         var damageView = new DamageView { Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = _carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Name = "Damage" };
+        view.Settle = damageView.Settle;
         // one car this game cannot draw must not take the others with it (they were all left undrawn after it); it is drawn
         // as the stand-in car (the mirror's own fallback for a car it cannot build), so the player is still seen
         void AddCar(MirrorCar m)
@@ -898,6 +899,10 @@ public partial class Main
         private readonly bool _trace = System.Environment.GetEnvironmentVariable("I76_NET_DEBUG") == "2";
         private int _told;
         private readonly Dictionary<I76.Sim.Vehicles.Vehicle, bool> _engineOn = [];
+        /// <summary>The car nodes looked at once they had a state (a node that came up dead is given the dead car's look).</summary>
+        private readonly HashSet<CarNode> _settled = [];
+        /// <summary>Gives a car node the look of its car's state (DamageView.Settle).</summary>
+        public System.Action<I76.Sim.Vehicles.Vehicle, CarNode>? Settle { get; set; }
 
         public int Tick => (int)World.IntervalTo;
         public double ClockScale => Client.ClockScale;
@@ -969,7 +974,11 @@ public partial class Main
                         _poses[m] = m.PoseVersion;
                         if (!(Predictor is { Ready: true } && m == World.Own && !World.OwnFromSnapshots)) n.SetPoses(m.PrevRot, m.PrevPos, m.Rot, m.Pos);
                     }
-                    n.Visible = m.Present;
+                    n.Visible = World.Drawn(m);
+                    n.WreckHidden = m.Present && !n.Visible;
+                    // a car first drawn dead (it died before this client joined, or was rebuilt for a reconfigure while dead) never had
+                    // its death's event here: its node takes the look of the state the car is in
+                    if (m.Present && _settled.Add(n) && (m.Vehicle.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) != 0 && !n.Wrecked) Settle?.Invoke(m.Vehicle, n);
                     // the engine loop follows the car's ignition (the server's engine events are not sent): a car whose engine
                     // stopped goes quiet, and sounds again when it has started
                     bool on = (m.Vehicle.Flags & I76.Sim.Vehicles.VehicleFlags.EngineOn) != 0;
@@ -981,6 +990,7 @@ public partial class Main
                     _engineOn[m.Vehicle] = on;
                 }
             if (_poses.Count > World.Cars.Count + 16) foreach (var gone in _poses.Keys.Where(k => !World.Cars.ContainsValue(k)).ToList()) _poses.Remove(gone);
+            if (_settled.Count > Nodes.Count + 16) _settled.RemoveWhere(k => !GodotObject.IsInstanceValid(k) || !Nodes.ContainsValue(k));
             return World.Alpha;
         }
 

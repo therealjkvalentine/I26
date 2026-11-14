@@ -408,6 +408,9 @@ public partial class CarNode : Node3D
     /// their child the tail lamp and the brake lamp are hidden, and with them
     /// the port's beams, glares and brake glow. A renewed car is whole again.
     /// </summary>
+    /// <summary>A network player's wreck past its wreck time, hidden on this machine (ClientWorld.Drawn): its fire dies down as a removed car's.</summary>
+    public bool WreckHidden { get; set; }
+
     public bool Wrecked { get; private set; }
 
     public void SetWrecked(bool on)

@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using I76.Net;
 using I76.Server;
 using I76.Sim.Missions;
@@ -92,6 +92,56 @@ public class NetRulesTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     private static bool Dead(Vehicle v) => (v.Flags & VehicleFlags.Dead) != 0;
+
+    /// <summary>
+    /// Another player's wreck (the original's wreck timer, 10 s after the death): every machine but the dead player's own hides
+    /// it and takes it out of the collisions then, and the respawn replaces it. Over the wire: for its first 10 s every client
+    /// draws it; after them the server's car is out of the collisions (its wreck flag), the other clients no longer draw it, a
+    /// player joining then never does, and its owner still does (the death orbit is on it); the respawn brings it back for all.
+    /// Before, it stayed solid and drawn on every machine for as long as its player waited to come back (a "ghost carcass").
+    /// </summary>
+    [Fact]
+    public void AnotherPlayersWreckIsHiddenAfterItsWreckTimeAndTheRespawnBringsTheCarBack()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01" });
+        var a = host.Join("a", "vppirna1.vcf", 0);
+        var b = host.Join("b", "vcgcour1.vcf", 0);
+        var rig = new Rig(host);
+        var ca = rig.Add(a);
+        var cb = rig.Add(b);
+        bool press = false;
+        CarInput Raise(Client c) => new() { Commands = press && c == cb ? CarCommands.RaiseDead : 0 };
+        MirrorCar Wreck(Client c) => c.Mirror.Cars[b.CarSerial];
+        rig.Run(1);
+        Kill(host, b.Player.Car, a.Player.Car);
+        rig.Run(8, Raise);
+        output.WriteLine($"8 s after the death: wreck {b.Player.Car.Wreck}, drawn by a {ca.Mirror.Drawn(Wreck(ca))}, by b {cb.Mirror.Drawn(Wreck(cb))}");
+        Assert.False(b.Player.Car.Wreck);
+        Assert.True(ca.Mirror.Drawn(Wreck(ca)), "a fresh wreck is drawn by everyone");
+        Assert.True(cb.Mirror.Drawn(Wreck(cb)));
+        rig.Run(3, Raise);
+        output.WriteLine($"11 s after the death: wreck {b.Player.Car.Wreck}, drawn by a {ca.Mirror.Drawn(Wreck(ca))}, by b {cb.Mirror.Drawn(Wreck(cb))}");
+        Assert.True(b.Player.Car.Wreck, "the server's car is out of the collisions");
+        Assert.True(Dead(b.Player.Car));
+        Assert.False(ca.Mirror.Drawn(Wreck(ca)), "another player's wreck is hidden");
+        Assert.True(cb.Mirror.Drawn(Wreck(cb)), "its owner's view stays on it");
+        // a player joining now never draws it
+        var c = host.Join("c", "vppirna1.vcf", 0);
+        var cc = rig.Add(c);
+        rig.Run(1, Raise);
+        output.WriteLine($"a late joiner: drawn {cc.Mirror.Drawn(Wreck(cc))}");
+        Assert.False(cc.Mirror.Drawn(Wreck(cc)), "a late joiner does not draw the wreck");
+        Assert.True(cc.Mirror.Drawn(cc.Mirror.Cars[a.CarSerial]), "the late joiner draws the live car");
+        // RAISE_DEAD: the car is back, drawn by all and colliding again
+        press = true;
+        rig.Tick(Raise);
+        press = false;
+        rig.Run(1, Raise);
+        Assert.False(b.Player.Destroyed);
+        Assert.False(b.Player.Car.Wreck);
+        foreach (var x in rig.Clients) Assert.True(x.Mirror.Drawn(Wreck(x)), "the respawned car is drawn");
+    }
 
     /// <summary>
     /// RAISE_DEAD over the wire (confirmed in the real game): pressed 3 s after the death it is refused; the
@@ -407,7 +457,7 @@ public class NetRulesTests(Xunit.Abstractions.ITestOutputHelper output)
         var end = Assert.Single(events.OfType<EndEvent>());
         Assert.Equal((false, (sbyte)a.Slot, a.Player.Score), (end.TimeUp, end.Winner, end.Count));
         Assert.True(I76.Sim.Damage.DamageModel.IsDead(b.Player.Car));
-        // the blow-up has no killer: "*** b has been killed" on every machine, a death and −500 (to 0) for b
+        // the blow-up has no killer: "*** b has been killed" on every machine, a death and âˆ’500 (to 0) for b
         Assert.Contains(events, x => x is KillEvent k && k.Victim == b.CarSerial && k.Attacker == 0);
         Assert.Equal((1, 0), (b.Player.Deaths, b.Player.Score));
         // and the time limit
