@@ -186,6 +186,8 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_CHECKPOINT_RETRY` | test | Choose "Retry from Checkpoint" at that frame, if one is kept (not again in the retry). |
 | `I76_CHECKPOINT_HOLD` | capture | `1`: a retry's restored scene holds still (no ticks, Modern Physics' body held), to be captured against the checkpoint's frame. |
 | `I76_NET_TEST` | test | `players[,seconds]`: run a network game headless-style for a test, then quit. |
+| `I76_LOBBY_START` | capture | `N`: a listen host's co-op lobby starts the mission by itself (forced) once N players are in it, the first time it opens (a lobby gone back to stays, for its picture; the play fork's co-op flow captures). |
+| `I76_NET_SHOT` | capture | `PATH@SECONDS[;PATH@SECONDS...]`: a network game saves its window at those seconds after its scene first runs (the mission built, or a lobby gone back to), and plays on; taken in order across the run's scenes, each counting from its own start. |
 | `I76_LOBBY_SHOT` | capture | `PLAYERS[,FRAMES]`: a game in a co-op lobby (`--host-listen --coop M --coop-lobby`, or joining one) saves the screenshot, FRAMES (20) frames after the lobby holds that many players, and quits; a network game does not count frames towards `--quit-after` while it loads. |
 | `I76_NET_TEST_SECONDS` | test | Length of the lossy-network bot test in `I76.Net.Tests` (default a minute). |
 | `I76_NET_LAG` | test | `ms[,loss%[,jitter]]`: join through a local lag and loss proxy (jitter in ms, a tenth of the delay by default). |

@@ -124,6 +124,49 @@ public partial class Main
         GD.Print($"network: co-op: the host chooses {kind}: {server.CoopChoose(kind) ?? "done"}");
     }
 
+    // ---- capture hooks (docs/dev-hooks.md) ----
+
+    /// <summary>I76_LOBBY_START=N: a listen host's lobby starts the mission by itself (forced) once N players are in it, the first time it opens (a lobby gone back to stays).</summary>
+    private static readonly int LobbyStartAt = int.TryParse(System.Environment.GetEnvironmentVariable("I76_LOBBY_START"), out int ls) ? ls : 0;
+    private static bool _lobbyStarted;
+
+    private void NetCaptureLobby(MeleeClient c)
+    {
+        if (LobbyStartAt <= 0 || _lobbyStarted || _net?.Server is not { } server || (c.Lobby?.Members.Count ?? 0) < LobbyStartAt) return;
+        _lobbyStarted = true;
+        GD.Print($"network: I76_LOBBY_START: the lobby starts with {c.Lobby!.Members.Count} players: {server.StartLobby(force: true) ?? "started"}");
+    }
+
+    /// <summary>The lobby's frame: its start hook, and the pictures (a lobby gone back to is pictured as the game is).</summary>
+    private void NetCaptureLobbyFrame(MeleeClient c)
+    {
+        NetCaptureLobby(c);
+        if (_lobbyStarted || LobbyStartAt <= 0) NetCaptureShot();
+    }
+
+    /// <summary>
+    /// I76_NET_SHOT="PATH@SECONDS[;PATH@SECONDS...]": a network game saves its window at those seconds after its scene first watched the
+    /// network (the mission built), without quitting: each game of a two-window capture its own pictures. Taken in order across the run's
+    /// scenes (the next mission's counts its seconds from its own start).
+    /// </summary>
+    private static readonly (string Path, double At)[] NetShots = [.. (System.Environment.GetEnvironmentVariable("I76_NET_SHOT") ?? "")
+        .Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(t => t.Split('@')).Where(p => p.Length == 2 && double.TryParse(p[1], System.Globalization.CultureInfo.InvariantCulture, out _))
+        .Select(p => (p[0], double.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture)))];
+    private double _netShotT0 = -1;
+    private static int _netShotsTaken;
+
+    private void NetCaptureShot()
+    {
+        if (NetShots.Length == 0 || _netShotsTaken >= NetShots.Length) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (_netShotT0 < 0) _netShotT0 = now;
+        var (path, at) = NetShots[_netShotsTaken];
+        if (now - _netShotT0 < at) return;
+        _netShotsTaken++;
+        GetViewport().GetTexture().GetImage().SavePng(path);
+        GD.Print($"screenshot: {path} ({now - _netShotT0:0.0} s)");
+    }
+
     /// <summary>The host's word that everyone has loaded and somebody skipped: this game's briefing ends too, and the feed says who skipped.</summary>
     private void NetBriefingSkip(MeleeClient c)
     {

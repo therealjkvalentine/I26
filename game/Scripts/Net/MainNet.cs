@@ -295,6 +295,7 @@ public partial class Main
             GD.Print($"screenshot: {_opt.Screenshot}");
             GetTree().Quit();
         }
+        NetCaptureLobbyFrame(c);
         while (c.ReconfigureAnswers.TryDequeue(out var a))
         {
             GD.Print($"network: lobby: the car was {(a.Taken ? "taken" : $"refused: {a.Text}")}");
@@ -645,6 +646,7 @@ public partial class Main
         var c = _net!.Client;
         NetMovie(c);
         NetBriefingSkip(c);
+        NetCaptureShot();
         // this game took over as host (host migration): the host's prompts and boots are its own now
         if (_netHud is { Server: null } hud && _net.Server is { } taken) { hud.Server = taken; hud.Host = true; }
         // the server started another round on this connection: reload as a fresh join, the seat kept
