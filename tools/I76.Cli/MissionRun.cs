@@ -131,6 +131,7 @@ public static class MissionRun
         bool ignited = false;
         bool cam = false;
         int depth = 0;
+        int lever = setup.World.Player?.DriveState ?? 3;
         int frames = replay is not null && !timed ? replay.Count : (int)(seconds / Tick);
         for (int f = 0; f < frames; f++)
         {
@@ -260,6 +261,7 @@ public static class MissionRun
                 }
             if (h.View.Active != cam) { cam = h.View.Active; Console.WriteLine($"{T()} camera {(cam ? "scripted" : "released")}"); }
             if (h.View.Depth != depth) { depth = h.View.Depth; Console.WriteLine($"{T()} camera stack {depth} ({h.View.Op})"); }
+            if (setup.World.Player is { } lp && lp.DriveState != lever) { lever = lp.DriveState; Console.WriteLine($"{T()} player's lever {"PRND21"[System.Math.Clamp(lever, 0, 5)]}"); }
             if (script.Result is { } r)
             {
                 var msg = h.End is { FailMessage: >= 0 and var m } && setup.ObjectiveText is { } t && m < t.Failures.Count ? ": " + t.Failures[m] : "";

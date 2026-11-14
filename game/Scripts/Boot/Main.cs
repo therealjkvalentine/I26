@@ -1636,7 +1636,7 @@ public partial class Main : Node3D
         AddMirrorTarget(combat);
         // a mission (or, with View Zoom Reset, a respawn) starts every view at the original's framing
         if (!MouseCamera.KeepZoom || _zoomMission != _opt.Mission) { MouseCamera.ResetAllZooms(); _zoomMission = _opt.Mission; }
-        _zoomView = null;
+        _zoomView.Forget();
         _chase = new ChaseCamera { Target = _car, Far = 20000, Near = 0.25f, Name = "Chase",
             LocalCentre = Coords.ToGodot(_playerCollider.Centre), Radius = _playerCollider.Radius,
             // the camera works relative to the floating origin: the terrain is asked at the world point and answered relative again
@@ -3476,14 +3476,15 @@ public partial class Main : Node3D
         return _chase?.Current == true ? I76.Sim.Views.ViewZoom.Kind.Chase : null;
     }
 
-    private I76.Sim.Views.ViewZoom.Kind? _zoomView;
-    /// <summary>The wheel's zoom lasts as long as the view it was made in: a switch into a view (or the hand-back from a cut-scene) starts it at the original's framing.</summary>
+    private readonly ZoomViewTracker _zoomView = new();
+    /// <summary>
+    /// The wheel's zoom lasts as long as the view it was made in: a switch into a view (or the hand-back from a cut-scene) starts it at the original's
+    /// framing. A menu over the mission (the Escape menu and its Options pages, a picture, the Developer panel) is not a switch (#190).
+    /// </summary>
     private void TrackViewForZoom(bool inMission)
     {
-        var now = inMission && !CameraHeld ? WheelViewNow() : null;
-        if (now == _zoomView) return;
-        _zoomView = now;
-        if (now is not null && !MouseCamera.KeepZoom) MouseCamera.ResetAllZooms();
+        bool over = _sim is not null && !_inMenu && !_loading && (_menu is not null || _picture is not null || _reconfig is not null || _dev is not null);
+        if (_zoomView.Switched(inMission && !CameraHeld ? WheelViewNow() : null, over) && !MouseCamera.KeepZoom) MouseCamera.ResetAllZooms();
     }
 
     /// <summary>
