@@ -490,6 +490,15 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
                 Events.Add(new VehicleWrecked(v));
                 return;
             }
+            // a player's car in a network melee: the original hides that car's wreck on every other machine and takes it out of
+            // the collisions at the wreck timer's end, while the player's own machine keeps it in view (the camera is on it) until
+            // the respawn replaces it. Here every machine's copy is the server's: it stops colliding, and the clients other than its
+            // owner's stop drawing it (ClientWorld.Drawn); the owner's prediction marks its own copy alike. RAISE_DEAD brings it back
+            if (!World.Coop && v.Health is { Network: true })
+            {
+                v.Wreck = true;
+                Events.Add(new VehicleWrecked(v));
+            }
         }
         v.Flags = (VehicleFlags)(g & 0xffff73f7);
     }

@@ -99,6 +99,9 @@ public partial class DamageView : Node3D
             if (o.Destroyed || o.Nodes.Any(n => n.Destroyed)) Destroy(o, quiet: true);
     }
 
+    /// <summary>One car's look from its state: a network car first drawn dead (it died before this client joined), whose death's event never came here.</summary>
+    public void Settle(I76.Sim.Vehicles.Vehicle v, CarNode car) => Resync(v, car);
+
     private void Resync(I76.Sim.Vehicles.Vehicle v, CarNode car)
     {
         uint f = (uint)v.Flags;

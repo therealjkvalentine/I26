@@ -190,6 +190,7 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   flagged 0x100000, which only the host's SR handler sets on a *remote* player's fresh car (cleared by its first `ST`):
   the player's own car never comes back by itself. I26: the input's `RaiseDead` command, the server's
   `MeleeGame.RequestRespawn`; the client's predicted car stays dead (it does not drive) until the respawn's snapshot.
+  At the wreck timer's end (10 s after the death) the original hides a remote player's wreck on every other machine and drops it from the collisions, its owner's machine keeping it in view until the respawn replaces it: here the server's car takes the wreck flag (out of the collisions and the rounds), the clients other than its owner's stop drawing it (`ClientWorld.Drawn`), a player joining later never sees it, and RAISE_DEAD clears it. A client that first sees a car already dead (it joined after the death) gives the car's node the dead car's look (`DamageView.Settle`).
   The AI fill keeps its own wreck respawn. Headless bots (`i26-server --bots`, the tests' and load tests' bots) press
   it 5.5 s after a death and each second after.
 - **Deaths** (also in the Nitro Pack): booked only with no killer (a death and

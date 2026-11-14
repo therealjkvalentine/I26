@@ -51,6 +51,13 @@ public sealed class ClientWorld
     public Dictionary<int, MirrorCar> Cars { get; } = [];
     public MirrorCar? Own => Cars.GetValueOrDefault(OwnSerial);
 
+    /// <summary>
+    /// Whether the view draws the car: once it has a state, and not as another player's wreck past its wreck time (the server's
+    /// <see cref="Vehicle.Wreck"/>), which the original hides on every machine but its owner's, where the camera stays on it until
+    /// the respawn; the own car is always drawn.
+    /// </summary>
+    public bool Drawn(MirrorCar m) => m.Present && (!m.Vehicle.Wreck || m == Own);
+
     /// <summary>How far behind the newest snapshot the view runs.</summary>
     public double Delay { get; set; } = 0.1;
     /// <summary>The view's place in server ticks (fractional), the interval it is in, and how far into it.</summary>
