@@ -8,4 +8,11 @@ namespace I76.Sim.Views;
 public static class OwnCar
 {
     public static bool Drawn(bool cockpit, bool hoodView, bool scriptCamera) => scriptCamera || !(cockpit || hoodView);
+
+    /// <summary>
+    /// Whether one of a helicopter's rotors is drawn: with the body, or from the seat with the 3D dash when the interior carries
+    /// that rotor too (the original's cockpit model has the main rotor, not the tail's). The modern look's disc follows this.
+    /// </summary>
+    public static bool RotorDrawn(bool cockpit, bool hoodView, bool scriptCamera, bool dash3d, bool inInterior) =>
+        Drawn(cockpit, hoodView, scriptCamera) || (cockpit && !scriptCamera && dash3d && inInterior);
 }

@@ -1549,11 +1549,14 @@ public partial class Main : Node3D
                 if (builder.Meshes!.Build(interior, wheels: false, include: p => p.NodeName == n && !LowResTwin(interior, p.NodeName) && !Hood(p)) is { } hm && hm.GetSurfaceCount() > 0)
                     heads.Add((hm, I76.Formats.Assembly.MirrorGlass.Side(n) == true));
         heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
-        node.AddCockpit(interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null), eye,
+        // a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
+        node.AddCockpit(interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p)), eye,
             interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1')),
             interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6')),
             interior is null ? null : frameOf => builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && Hood(p), frameOf: frameOf),
             heads);
+        if (interior is not null && vehicle.IsHeli && I76.Formats.Assembly.RotorBlades.Places(interior) is { Count: > 0 } rotorsInside)
+            node.AddCockpitRotor(builder.Meshes!.Build(interior, wheels: false, include: CarNode.IsRotor), rotorsInside);
         MissionBuilder.Trace("spawn: cockpit meshes");
         yield return null;
         // the gauge needles: needle.geo at the VLOCs of kind 35 (speedo) and 36 (tacho), turned every frame
