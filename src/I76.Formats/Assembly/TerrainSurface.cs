@@ -24,7 +24,8 @@ namespace I76.Formats.Assembly;
 /// lean back) and are pushed along its normal by a fractal relief, strongest
 /// on steep ground, with ledge-like bands. How far they may move grows with
 /// their height above (or below) the nearest drivable ground, so a wall still
-/// meets the ground where the cars meet it.</item>
+/// meets the ground where the cars meet it; the lean too moves a point no further,
+/// so a wall of any height keeps its top.</item>
 /// </list>
 /// </summary>
 public sealed class TerrainSurface : ITerrainSurface
@@ -641,6 +642,11 @@ public sealed class TerrainSurface : ITerrainSurface
             {
                 cone += 4 * SmoothStep(2, 12, cone - Bilerp(_coneBase, fx, fz)) * (0.6 + Noise.Fbm(px / 26, 0.5, pz / 26, 3));
                 y += (SoftMin(y, cone, 1.5) - y) * lean;
+                // but no lower than its freedom: the cone rises 20 m a sample, so a wall taller than that over too little ground behind
+                // it (a custom map's 100-400 m wall, a narrow tower, a map's boundary wall seen from outside) lost its top; it now
+                // stands as tall as the simulation's, its rim rounded by at most the freedom
+                double least = b - allow;
+                if (y < least + 1.5) y = -SoftMin(-y, -least, 1.5);
             }
         }
         // the softened surface's normal (game frame), and how steep it is
