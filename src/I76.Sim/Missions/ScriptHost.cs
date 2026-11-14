@@ -115,7 +115,8 @@ public sealed partial class ScriptHost : IFsmHost
     /// <summary>
     /// The order opcodes: their fields, then the script's AI order, which is the AI's
     /// whole tick for the frame. The player's car obeys only while the script
-    /// holds the camera; otherwise its orders are dropped (the keys drive it).
+    /// holds the camera; otherwise its orders are dropped (the keys drive it), but for the
+    /// lever a drive order's start would have moved out of P.
     /// In co-op every human's car is the player's in this.
     /// </summary>
     public void Order(object actor, object? target, AiOrder order, IReadOnlyList<Vector3>? path, float speed, int followFlag = 0, float f1 = 0, float f2 = 0, object? reference = null)
@@ -123,7 +124,15 @@ public sealed partial class ScriptHost : IFsmHost
         var e = E(actor);
         if (e.Vehicle is null) return;
         bool human = IsHumanEntity(e);
-        if (human && !View.Active) return;
+        if (human && !View.Active)
+        {
+            // The original runs the order, whose start (goto, evade, race, follow) puts the car in D with the handbrake off. Here the order
+            // goes, but a car still in P from the script's hide is put in D, so the car is handed over as the original's is (#191: the
+            // Nitro Pack's Never Get Out hides the player through its intro and orders a goto only after the skip has let go of the camera).
+            if (order is AiOrder.Goto or AiOrder.Evade or AiOrder.Race or AiOrder.Follow && e.Vehicle.DriveState == 0 && !e.Dead)
+            { e.Vehicle.Handbrake = 0; e.Vehicle.Gear = 1f; e.Vehicle.DriveState = 3; }
+            return;
+        }
         if (human) Moved(e);
         var t = target as Entity;
         if (order is AiOrder.Goto or AiOrder.Evade or AiOrder.Race) { e.Path = path; e.OrderSpeed = speed; e.Ai.CommandSpeed = speed; }
