@@ -2049,8 +2049,37 @@ public partial class Main : Node3D
     }
 
     /// <summary>
+    /// The shaders a mission's build makes its materials with, in the order it comes to them (the ground, sky and horizon, the roads,
+    /// the modern ground, the scenery's objects, their shadows, the plants). A shader first loaded on the build's thread is made on
+    /// the main thread with the frame's other queued calls, under the briefing if the card is gone; loaded here instead, one a
+    /// frame behind the still card, and kept for the run, the build finds them made (docs/perf/loadtime.md "The briefing's pace").
+    /// </summary>
+    private static readonly string[] BuildShaders =
+    [
+        "terrain_faithful", "sky_dome", "sky_fog", "sky_modern", "horizon_terrain", "horizon_rim", "horizon_near", "road",
+        "terrain_modern", "terrain_modern_night", "outside_1997", "object_translucent", "object_back", "object_back_key",
+        "object_disabled", "object_open", "drop_shadow_soft", "vegetation", "vegetation_shade",
+    ];
+    private static readonly List<Shader> _builtShaders = [];
+
+    /// <summary>The port's: <see cref="BuildShaders"/> loaded one a frame while the card is up (<paramref name="cardStill"/>), before the build's thread asks for them.</summary>
+    private async void WarmShadersUnderCard(System.Func<bool> cardStill)
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_CARD_SHADERS") == "0" || _builtShaders.Count > 0) return;
+        int made = 0;
+        foreach (var name in BuildShaders)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInsideTree() || !cardStill()) break;
+            if (ResourceLoader.Exists($"res://Shaders/{name}.gdshader") && GD.Load<Shader>($"res://Shaders/{name}.gdshader") is { } sh) { _builtShaders.Add(sh); made++; }
+        }
+        MissionBuilder.Trace($"card: {made} of the build's {BuildShaders.Length} shaders made");
+    }
+
+    /// <summary>
     /// The card and the briefing while the world builds (CardSequence), as upstream's 0.12 shows them: the card held
-    /// <see cref="BriefingOverlap.CardHold"/>, then black and the briefing while the build goes on; a skip before the mission is
+    /// ([port] briefing_card_hold, the port's 3 s to upstream's 0.7, the build going behind it from the start; a new press once the
+    /// build is done skips the briefing there, none counts before), then black and the briefing while the build goes on; a skip before the mission is
     /// ready is kept with "PLEASE STAND BY" faded in (StandByTag), a movie that runs out holds its last frame under it, and the
     /// mission starts by itself the moment it is ready. The port's (the movie must play clean, docs/perf/loadtime-plan.md round 2):
     /// the rest of the load on the main thread never runs under the playing picture, only behind the card or the held frame (after a
@@ -2060,8 +2089,30 @@ public partial class Main : Node3D
     /// </summary>
     private async System.Threading.Tasks.Task<(Load, Node3D?, System.Exception?)> BuildBehindCard(BuildJob job, string? briefing, LoadingScreen loading)
     {
-        double hold = 2 * loading.FadeSeconds + BriefingOverlap.CardHold;   // (Step is given the card's time plus its fade-out: in, held, out)
+        double cardHold = I76.Game.Shell.ShellSettings.Load().BriefingCardHold;
+        double hold = 2 * loading.FadeSeconds + cardHold;   // (Step is given the card's time plus its fade-out: in, held, out)
         var seq = new CardSequence(briefing is not null, hold);
+        MissionBuilder.Trace($"card: held {cardHold:0.0} s before the briefing");
+        // the card's skip: the presses made on it (MovieSkipGate: none counts while the build works, a key still down from the menu
+        // must be let go first); one once the build is done skips the briefing, the card up for the rest of the load
+        var cardGate = new I76.Game.Ui.MovieSkipGate();
+        cardGate.HeldAtStart(MoviePlayer.HeldSkipInputs());
+        bool cardSkipped = false;
+        // capture hook: I76_CARD_INPUT="click@500;esc@4000" presses (and lets go a frame later) a skip input that many ms after the card came up
+        var cardScript = (System.Environment.GetEnvironmentVariable("I76_CARD_INPUT") ?? "").Split(';', System.StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Split('@')).Where(p => p.Length == 2 && int.TryParse(p[1], out _)).Select(p => (What: p[0], At: int.Parse(p[1]))).ToList();
+        string? cardRelease = null;
+        var cardListener = new CardInput { Owner = this, Name = "CardInput" };
+        AddChild(cardListener);
+        _cardInput = e =>
+        {
+            if (e is InputEventKey { AltPressed: true } || MoviePlayer.SkipInput(e) is not { } input) return;   // (Alt+Enter is the window's)
+            GetViewport().SetInputAsHandled();
+            if (!e.IsPressed()) { cardGate.Release(input); return; }
+            if (e is InputEventKey { Echo: true }) return;
+            if (cardGate.Press(input, loading: !job.Done)) cardSkipped = true;
+            else GD.Print($"card: {input} {(job.Done ? "was down as it came up" : "pressed while the mission loads")}, not a skip");
+        };
         var over = new System.Threading.Tasks.TaskCompletionSource();
         _cardClock ??= System.Diagnostics.Stopwatch.StartNew();
         bool cardUp = true, movieStarted = false, held = false;
@@ -2088,6 +2139,7 @@ public partial class Main : Node3D
         // a step may run: the card up and still (not fading), the briefing held or over; under the playing briefing only with the hook
         bool Gate() => !fading && (cardUp || held || over.Task.IsCompleted || (underMovie && movieStarted));
         WarmModernFxUnderCard();
+        WarmShadersUnderCard(() => cardUp && !fading);
         void StartAttach()
         {
             if (attach is not null || !early || !job.Done || job.Error is not null) return;
@@ -2104,6 +2156,13 @@ public partial class Main : Node3D
         {
             Noted();
             if (AuditOn) Audit();
+            if (cardRelease is { } up) { if (MoviePlayer.Scripted(up, false) is { } ue) Input.ParseInputEvent(ue); cardRelease = null; }
+            if (_cardInput is not null && cardScript.Count > 0 && _cardClock.Elapsed.TotalMilliseconds >= cardScript[0].At)
+            {
+                GD.Print($"card: I76_CARD_INPUT sends {cardScript[0].What} at {_cardClock.Elapsed.TotalMilliseconds:0} ms (the build {(job.Done ? "done" : "going")})");
+                if (MoviePlayer.Scripted(cardScript[0].What, true) is { } de) { Input.ParseInputEvent(de); cardRelease = cardScript[0].What; }
+                cardScript.RemoveAt(0);
+            }
             // a skip kept (made once the build's thread is done: none counts while it works): the picture stands still for the rest
             if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped) skipped.HoldPicture();
             if (movieStarted && !held && Held())
@@ -2117,7 +2176,13 @@ public partial class Main : Node3D
             StartAttach();
             var was = seq.Now;
             // the card's time is to the movie's first frame: it starts fading out that much before
-            var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted);
+            var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted, cardSkipped && !fading);
+            if (now != CardSequence.Stage.Card) _cardInput = null;
+            if (seq.SkippedOnCard && was == CardSequence.Stage.Card)
+            {
+                LoadProfiler.Event("skipped on the card");
+                MissionBuilder.Trace("card: the briefing skipped on it: the rest of the load behind it");
+            }
             if (now == CardSequence.Stage.Movie && !movieStarted)
             {
                 if (cardUp)
@@ -2164,6 +2229,8 @@ public partial class Main : Node3D
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!IsInsideTree()) break;
         }
+        _cardInput = null;
+        cardListener.QueueFree();
         _cardDown = !cardUp;
         if (attach is not null)
         {
@@ -2187,6 +2254,16 @@ public partial class Main : Node3D
     public const double AttachAfterMovieBudgetMs = 250;
     /// <summary>The briefing ended with the rest of the load done: no card after it (_Ready skips the card's fade out).</summary>
     private bool _cardDown;
+    /// <summary>The loading card's skip presses while it leads a briefing (BuildBehindCard), or null.</summary>
+    private System.Action<InputEvent>? _cardInput;
+
+    /// <summary>The card's presses, taken while the tree is paused too (the rest of the load can run behind the card, the world held still).</summary>
+    private sealed partial class CardInput : Node
+    {
+        public required Main Owner { get; init; }
+        public override void _Ready() => ProcessMode = ProcessModeEnum.Always;
+        public override void _Input(InputEvent e) => Owner._cardInput?.Invoke(e);
+    }
 
     /// <summary>The thread's builder becomes the game's, the props' maps put on (here as at the end of a built frame).</summary>
     private void Adopt(BuildJob job)

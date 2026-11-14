@@ -164,6 +164,12 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     private ArrayMesh? Build(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
         Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false)
+        => ToMesh(Surfaces(model, wheels, include, origin, skipFace, paint, bothSides, oneSided1997, frameOf, selfLit, retro));
+
+    /// <summary>The surfaces <see cref="Build"/> makes its mesh of, by material.</summary>
+    private Dictionary<Material, Surface> Surfaces(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
+        Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
+        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false)
     {
         selfLit &= model.Kind == "sdf";
         retro &= model.Kind == "sdf";
@@ -261,15 +267,16 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                     var at = Affine.FromEngine([1, 0, 0, 0, 1, 0, 0, 0, 1], new System.Numerics.Vector3(t[0], t[1], t[2]));
                     part.Parts.Add(new ModelPart(w.Intact.Name, w.Intact, at.Compose(w.Node)));
                 }
-            if (part.Parts.Count > 0 && Build(part, false, null, default, null, paint) is { } wm)
-                for (int i = 0; i < wm.GetSurfaceCount(); i++)
+            // their surfaces as made, not a mesh's read back from the renderer: from the thread of a build under the briefing that read
+            // stalled the main thread's frame for the graphics card (about 100 ms a vehicle, a late frame of the movie)
+            if (part.Parts.Count > 0)
+                foreach (var (mat, w) in Surfaces(part, false, null, default, null, paint))
                 {
-                    var mat = wm.SurfaceGetMaterial(i);
-                    var arr = wm.SurfaceGetArrays(i);
+                    if (w.V.Count == 0) continue;
                     if (!surfaces.TryGetValue(mat, out var sw)) surfaces[mat] = sw = new Surface();
-                    sw.V.AddRange((Vector3[])arr[(int)Mesh.ArrayType.Vertex]);
-                    sw.N.AddRange((Vector3[])arr[(int)Mesh.ArrayType.Normal]);
-                    sw.UV.AddRange((Vector2[])arr[(int)Mesh.ArrayType.TexUV]);
+                    sw.V.AddRange(w.V);
+                    sw.N.AddRange(w.N);
+                    sw.UV.AddRange(w.UV);
                 }
         }
         // Wheels without their own mesh: synthesised (see Wheels).
@@ -296,7 +303,7 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         }
         cabin.Apply(surfaces.Values, cabin.Rows, eye);
         if (seams is not null && estimate && !KeepsNormals) SmoothFromFaces(seams);
-        return ToMesh(surfaces);
+        return surfaces;
     }
 
     /// <summary>

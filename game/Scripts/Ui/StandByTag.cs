@@ -9,9 +9,11 @@ namespace I76.Game.Ui;
 /// The boot screen's "PLEASE STAND BY . . ." (its line's lettering and fit, I76's or Nitro's), small in the
 /// bottom-right corner of a movie's picture (the picture's own rect, not the bars beside it): a briefing played while its mission
 /// loads fades it in over <see cref="FadeSeconds"/> when the player waits on the mission (a skip asked for before the mission can
-/// start, or the movie run out), and goes with the movie when the mission starts (MoviePlayer.Waiting). Set again in
-/// Impact at the window's resolution in both looks, as the boot screen's line is, with a faint shadow so it reads over a bright
-/// frame; without Impact on the system, the picture's own pixels (loadgame.pcx), scaled down into its palette.
+/// start, or the movie run out), and goes with the movie when the mission starts (MoviePlayer.Waiting). The port's: faint while the
+/// mission still builds under the playing picture, and then READY in its place, as faint, ending where the line ends, for the rest
+/// of the movie: a press skips now (StandByLine says which, <see cref="Show"/>). Set again in Impact at the window's resolution in
+/// both looks, as the boot screen's line is, with a faint shadow so it reads over a bright frame; without Impact on the system, the
+/// picture's own pixels (loadgame.pcx), scaled down into its palette (READY, which it does not have, in the engine's own font).
 /// </summary>
 public partial class StandByTag : Control
 {
@@ -28,6 +30,9 @@ public partial class StandByTag : Control
     public const double FadeSeconds = 0.4;
     private bool _fading;
     private float _to;
+    /// <summary>What the line says now (its lettering laid out for it).</summary>
+    private StandByLine.Says _says = StandByLine.Says.StandBy;
+    private Label? _readyArt;
 
     private ImpactLayer? _impact;
     private TextureRect? _art;
@@ -54,6 +59,12 @@ public partial class StandByTag : Control
         {
             Texture = ImageTexture.CreateFromImage(img), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
             TextureFilter = TextureFilterEnum.Nearest, MouseFilter = MouseFilterEnum.Ignore,
+        });
+        AddChild(_readyArt = new Label
+        {
+            Text = StandByLine.Text(StandByLine.Says.Ready, ""), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            MouseFilter = MouseFilterEnum.Ignore, Visible = false,
+            LabelSettings = new LabelSettings { FontColor = Colors.White, ShadowColor = new Color(0, 0, 0, 0.45f), ShadowOffset = Vector2.One },
         });
     }
 
@@ -95,18 +106,49 @@ public partial class StandByTag : Control
     }
 
     /// <summary>In over <see cref="FadeSeconds"/> (once): the player asked to skip, or the movie ran out, before the mission is ready.</summary>
-    public void FadeIn(bool faint = false)
+    public void FadeIn(bool faint = false) => Show(StandByLine.Says.StandBy, faint);
+
+    /// <summary>
+    /// The line saying <paramref name="says"/>, faint or in full: faded to it over <see cref="FadeSeconds"/>; new words fade the old
+    /// out first (half that), then in. Once in full (the player waits on the mission) it stays so.
+    /// </summary>
+    public void Show(StandByLine.Says says, bool faint)
     {
+        if (says == StandByLine.Says.Nothing) return;
         float to = faint ? FaintOpacity : Opacity;
-        if (_fading && (_to == to || (faint && _to == Opacity))) return;   // (once waited on, it stays opaque)
+        if (_fading && _to == Opacity && (faint || _says == says)) return;   // (once waited on, it stays opaque)
+        if (_fading && _says == says && _to == to) return;
+        bool swap = _says != says && Visible && Modulate.A > 0.01f;
         _fading = true;
         _to = to;
-        if (!Visible) Modulate = new Color(1, 1, 1, 0);
+        if (!Visible) { Modulate = new Color(1, 1, 1, 0); Say(says); }
         Visible = true;
         _tween?.Kill();
         _tween = CreateTween().SetPauseMode(Tween.TweenPauseMode.Process);
-        _tween.TweenProperty(this, "modulate:a", to, FadeSeconds * System.Math.Abs(to - Modulate.A));
+        if (swap)
+        {
+            _tween.TweenProperty(this, "modulate:a", 0f, FadeSeconds / 2 * Modulate.A);
+            _tween.TweenCallback(Callable.From(() => Say(says)));
+            _tween.TweenProperty(this, "modulate:a", to, FadeSeconds * to);
+        }
+        else
+        {
+            Say(says);
+            _tween.TweenProperty(this, "modulate:a", to, FadeSeconds * System.Math.Abs(to - Modulate.A));
+        }
     }
+
+    /// <summary>The lettering for <paramref name="says"/>, laid out again when it changes.</summary>
+    private void Say(StandByLine.Says says)
+    {
+        if (_says == says) return;
+        _says = says;
+        _laidFor = -Vector2.One;
+        if (Visible) Layout();
+    }
+
+    /// <summary>What the line says now (a log's).</summary>
+    public StandByLine.Says Says => _says;
 
     private Tween? _tween;
 
@@ -131,6 +173,7 @@ public partial class StandByTag : Control
         _tween?.Kill();
         _fading = true;
         _to = Opacity;
+        Say(StandByLine.Says.StandBy);
         Modulate = new Color(1, 1, 1, Opacity);
         Visible = true;
     }
@@ -176,6 +219,15 @@ public partial class StandByTag : Control
             var size = new Vector2(_artSize.X * k, _artSize.Y * k);
             _art.Position = (r.End - Vector2.One * Margin * px).Round() - size - GlobalPosition;   // (the corner kept Margin in from the picture's)
             _art.Size = size;
+            _art.Visible = _says != StandByLine.Says.Ready;
+            if (_readyArt is not null)
+            {
+                // READY in the engine's font, its capitals about as tall as the line's, ending where it ends
+                _readyArt.LabelSettings.FontSize = Mathf.Max(6, Mathf.RoundToInt(size.Y * 1.25f));
+                _readyArt.Position = _art.Position - new Vector2(0, size.Y);
+                _readyArt.Size = new Vector2(size.X, size.Y * 2);
+                _readyArt.Visible = _says == StandByLine.Says.Ready;
+            }
         }
         if (_impact is not null)
         {
@@ -185,11 +237,19 @@ public partial class StandByTag : Control
             var off = (view - new Vector2(ShellFrame.W, ShellFrame.H) * s) / 2;
             var inkOnScreen = r.Position + at * px;
             var boxInFrame = (inkOnScreen - off) / s - new Vector2(_ink.Position.X - _box.Position.X, _ink.Position.Y - _box.Position.Y) * Scale;
-            var small = _spec with { Size = _spec.Size * Scale, Track = _spec.Track * Scale, X = _spec.X * Scale, Baseline = _spec.Baseline * Scale, WordSpace = _spec.WordSpace * Scale };
+            // READY (the port's) set as the line is, its last letter ending where the line's last dot does
+            var small = _spec with
+            {
+                Text = StandByLine.Text(_says, _spec.Text), EndAs = _says == StandByLine.Says.Ready ? _spec.Text : null,
+                Size = _spec.Size * Scale, Track = _spec.Track * Scale, X = _spec.X * Scale, Baseline = _spec.Baseline * Scale, WordSpace = _spec.WordSpace * Scale,
+            };
             _impact.Clear();
             int bx = Mathf.RoundToInt(boxInFrame.X), by = Mathf.RoundToInt(boxInFrame.Y);
             _impact.Put(bx + 1, by + 1, 0, 0, small, new Color(0, 0, 0, 0.45f));   // its shadow, faint, a frame pixel down and right
             _impact.Put(bx, by, 0, 0, small, Colors.White);
+            // the other words drawn clear off the screen, so that their glyphs are made with these (a briefing's READY comes mid-movie)
+            var other = small with { Text = StandByLine.Text(_says == StandByLine.Says.Ready ? StandByLine.Says.StandBy : StandByLine.Says.Ready, _spec.Text), EndAs = null };
+            _impact.Put(bx, by - 2 * ShellFrame.H, 0, 0, other, new Color(1, 1, 1, 0));
         }
     }
 }

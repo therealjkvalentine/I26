@@ -36,8 +36,8 @@ public partial class MoviePlayer : CanvasLayer
     public StandByTag? WaitingTag { get; init; }
     /// <summary>
     /// The port's: while true, the mission is loading under the playing picture (its build's thread at work), and
-    /// <see cref="WaitingTag"/> shows over it too, fading out when it turns false. No press skips meanwhile, nor is one kept for
-    /// later: a new press once it is false does (MovieSkipGate).
+    /// <see cref="WaitingTag"/> shows over it too, faint, saying READY when it turns false (StandByLine). No press skips meanwhile,
+    /// nor is one kept for later: a new press once it is false does (MovieSkipGate).
     /// </summary>
     public Func<bool>? Loading { get; init; }
     private bool IsWaiting => Waiting?.Invoke() == true;
@@ -297,14 +297,17 @@ public partial class MoviePlayer : CanvasLayer
         int taken = 0;
         while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; taken++; }
         if (taken > 1) _dropped += taken - 1;   // frames whose turn passed between two of the game's frames: never shown
+        double wallS = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
         if (show is not null)
         {
             // the picture's pace: a frame shown more than two of the movie's frames after the one before it is late
-            double nowS = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
-            if (_lastShown > 0 && nowS - _lastShown > 2 * _movie.FrameDuration) { _late++; _worstShowGap = Math.Max(_worstShowGap, nowS - _lastShown); }
-            _lastShown = nowS;
+            if (_lastShown > 0 && wallS - _lastShown > 2 * _movie.FrameDuration) { _late++; _worstShowGap = Math.Max(_worstShowGap, wallS - _lastShown); }
+            _lastShown = wallS;
             _shown++;
         }
+        _pace ??= new MoviePace(_movie.FrameDuration);
+        _pace.Frame(wallS, show?.Index ?? -1);
+        PaceRow(wallS, show?.Index ?? -1);
         if (show is { } s)
         {
             if (s.Index == _movie.FrameCount - 1) TellSync();
@@ -380,19 +383,22 @@ public partial class MoviePlayer : CanvasLayer
         }
     }
 
+    /// <summary>
+    /// The skip input an event is, named for MovieSkipGate, or null: Esc, Space, Enter, a mouse button (not the wheel, whose notches
+    /// come as presses) or any pad's A, B or Start (not only one the pad list knows yet: the intro plays before it has looked).
+    /// </summary>
+    public static string? SkipInput(InputEvent e) => e switch
+    {
+        InputEventKey { Keycode: Key.Escape or Key.Space or Key.Enter or Key.KpEnter } k => "key:" + k.Keycode,
+        InputEventMouseButton m when MovieSkipGate.SkipsWith((int)m.ButtonIndex) => "mouse:" + m.ButtonIndex,
+        InputEventJoypadButton { ButtonIndex: JoyButton.A or JoyButton.B or JoyButton.Start } j => $"pad{j.Device}:{j.ButtonIndex}",
+        _ => null,
+    };
+
     public override void _Input(InputEvent e)
     {
         if (_done || !Skippable) return;
-        // Esc, Space, Enter, a mouse button (not the wheel, whose notches come as presses) or any pad's A, B or Start (not only one the
-        // pad list knows yet: the intro plays before it has looked)
-        string? input = e switch
-        {
-            InputEventKey { Keycode: Key.Escape or Key.Space or Key.Enter or Key.KpEnter } k => "key:" + k.Keycode,
-            InputEventMouseButton m when MovieSkipGate.SkipsWith((int)m.ButtonIndex) => "mouse:" + m.ButtonIndex,
-            InputEventJoypadButton { ButtonIndex: JoyButton.A or JoyButton.B or JoyButton.Start } j => $"pad{j.Device}:{j.ButtonIndex}",
-            _ => null,
-        };
-        if (input is null) return;
+        if (SkipInput(e) is not { } input) return;
         if (!e.IsPressed()) { _gate.Release(input); return; }
         GetViewport().SetInputAsHandled();   // (a skip key is the movie's, held or repeating too: nothing under it acts on it)
         if (e is InputEventKey { Echo: true }) return;
@@ -418,23 +424,25 @@ public partial class MoviePlayer : CanvasLayer
             bool down = frame == at;
             if (!down && frame != at + 1) continue;
             if (down) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_INPUT sends {what}");
-            InputEvent? e = what switch
-            {
-                "wheel" when down => new InputEventMouseButton { ButtonIndex = MouseButton.WheelDown, Pressed = true, Factor = 1 },
-                "click" => new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 },
-                "rclick" => new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = down, ButtonMask = down ? MouseButtonMask.Right : 0 },
-                "key" => new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = down },
-                "esc" => new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = down },
-                "space" => new InputEventKey { Keycode = Key.Space, PhysicalKeycode = Key.Space, Pressed = down },
-                "pad" => new InputEventJoypadButton { Device = 0, ButtonIndex = JoyButton.A, Pressed = down },
-                _ => null,
-            };
-            if (e is not null) Input.ParseInputEvent(e);
+            if (Scripted(what, down) is { } e) Input.ParseInputEvent(e);
         }
     }
 
-    /// <summary>The skip keys and buttons down as the movie starts (MovieSkipGate: they must be let go before they skip).</summary>
-    private static IEnumerable<string> HeldSkipInputs()
+    /// <summary>A capture hook's input by name (I76_MOVIE_INPUT, I76_CARD_INPUT), pressed or let go, or null.</summary>
+    public static InputEvent? Scripted(string what, bool down) => what switch
+    {
+        "wheel" when down => new InputEventMouseButton { ButtonIndex = MouseButton.WheelDown, Pressed = true, Factor = 1 },
+        "click" => new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 },
+        "rclick" => new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = down, ButtonMask = down ? MouseButtonMask.Right : 0 },
+        "key" => new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = down },
+        "esc" => new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = down },
+        "space" => new InputEventKey { Keycode = Key.Space, PhysicalKeycode = Key.Space, Pressed = down },
+        "pad" => new InputEventJoypadButton { Device = 0, ButtonIndex = JoyButton.A, Pressed = down },
+        _ => null,
+    };
+
+    /// <summary>The skip keys and buttons down now (MovieSkipGate: those down as a movie or the card starts must be let go before they skip).</summary>
+    public static IEnumerable<string> HeldSkipInputs()
     {
         foreach (var k in (Key[])[Key.Escape, Key.Space, Key.Enter, Key.KpEnter])
             if (Input.IsKeyPressed(k) || Input.IsPhysicalKeyPressed(k)) yield return "key:" + k;
@@ -455,7 +463,7 @@ public partial class MoviePlayer : CanvasLayer
         return false;
     }
 
-    private bool _skipWanted;
+    private bool _skipWanted, _toldReady;
 
     /// <summary>The movie is over by itself: it ends, or, while <see cref="Waiting"/>, its last frame stays up under the stand-by line until the mission can start.</summary>
     private void RunOut()
@@ -480,12 +488,16 @@ public partial class MoviePlayer : CanvasLayer
         GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {why}, its frame held until the mission can start");
     }
 
-    /// <summary>The port's: the stand-by line over the playing picture while the mission loads under it (<see cref="Loading"/>), out when it is done.</summary>
+    /// <summary>
+    /// The port's: the stand-by line over the playing picture while the mission loads under it (<see cref="Loading"/>), READY in its
+    /// place once it is done (StandByLine), from the picture's first frame (its lettering made meanwhile, under the black).
+    /// </summary>
     private void TagForLoading()
     {
         if (_tag is null || Loading is null || _skipWanted || _held) return;
-        if (_video is null && !_started) return;   // (from the picture's first frame: its lettering made meanwhile, under the black)
-        if (Loading()) _tag.FadeIn(faint: true); else _tag.FadeOut();
+        var (says, faint) = StandByLine.For(_video is not null || _started, Loading(), false);
+        if (says == StandByLine.Says.Ready && !_toldReady) { _toldReady = true; GD.Print($"movie {System.IO.Path.GetFileName(Path)}: the load under it done, READY: a press skips now"); }
+        _tag.Show(says, faint);
     }
 
     /// <summary>The sound against the picture: how far apart they are, and how long the picture has waited for the sound.</summary>
@@ -494,6 +506,70 @@ public partial class MoviePlayer : CanvasLayer
         : "";
 
     private void GiveUp(string why) => GD.PrintErr($"movie {Path}: {why}, ending it");
+
+    /// <summary>The picture's pace (late frames against their schedule, the longest frame of the game) while it played.</summary>
+    private MoviePace? _pace;
+    /// <summary>The last Smacker movie's pace: its frames, those that came up over 1.5 frame times late, the latest's lateness and the game's longest frame (ms).</summary>
+    public static (int Frames, int Late, double LateMs, double WorstFrameMs) LastPace;
+
+    /// <summary>
+    /// I76_MOVIE_PACE=FILE.csv (debug): one row for each of the game's frames while the movie plays: the wall time from its first
+    /// frame, the frame's length, the movie's frame shown (-1: none), the picture's clock against the sound heard, the collections
+    /// and their pause, the pipelines compiled, the video memory of textures and buffers, and the load's last stamp. Late frames
+    /// set against what the frames around them did say what the load did under them (tools/load-time/pace.py).
+    /// </summary>
+    private static readonly string? PaceLog = System.Environment.GetEnvironmentVariable("I76_MOVIE_PACE") is { Length: > 0 } pl ? pl : null;
+    private System.IO.StreamWriter? _paceOut;
+    private double _paceStart, _paceLast;
+
+    private void PaceRow(double wall, int shown)
+    {
+        if (PaceLog is null) return;
+        if (_paceOut is null)
+        {
+            try
+            {
+                // a second movie of the run (a warm start's) goes to FILE.2.csv, and so on
+                string path = PaceLog;
+                for (int n = 2; System.IO.File.Exists(path) && _paceFiles.Contains(path); n++) path = PaceLog.Replace(".csv", $".{n}.csv");
+                _paceFiles.Add(path);
+                _paceOut = new System.IO.StreamWriter(path, false);
+                _paceOut.WriteLine("t_ms,frame_ms,shown,clock_ms,heard_ms,offset_ms,gc0,gc1,gc2,gc_pause_ms,pipelines,tex_mb,buf_mb,draw_ms,loading,stage");
+                // the renderer's part of each frame: from its pre-draw to its post-draw signal (the queued calls of other threads run in it)
+                RenderingServer.Singleton.FramePreDraw += PacePreDraw;
+                RenderingServer.Singleton.FramePostDraw += PacePostDraw;
+            }
+            catch (System.IO.IOException ex) { GD.PrintErr($"movie pace: {ex.Message}"); return; }
+            _paceStart = _paceLast = wall;
+        }
+        double heard = _out is not null && _audioClock is { } ac ? ac.Heard(_out.GetFramesAvailable()) : double.NaN;
+        long pipes = 0;
+        foreach (var k in new[] { RenderingServer.RenderingInfo.PipelineCompilationsCanvas, RenderingServer.RenderingInfo.PipelineCompilationsMesh,
+                     RenderingServer.RenderingInfo.PipelineCompilationsSurface, RenderingServer.RenderingInfo.PipelineCompilationsDraw, RenderingServer.RenderingInfo.PipelineCompilationsSpecialization })
+            pipes += (long)RenderingServer.GetRenderingInfo(k);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        _paceOut.WriteLine(string.Create(inv, $"{(wall - _paceStart) * 1000:0.00},{(wall - _paceLast) * 1000:0.00},{shown},{_clock.Seconds * 1000:0.0},{heard * 1000:0.0},{(_clock.Seconds - heard) * 1000:0.0},"
+            + $"{System.GC.CollectionCount(0)},{System.GC.CollectionCount(1)},{System.GC.CollectionCount(2)},{System.GC.GetTotalPauseDuration().TotalMilliseconds:0.00},{pipes},"
+            + $"{Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576.0:0.00},{Performance.GetMonitor(Performance.Monitor.RenderBufferMemUsed) / 1048576.0:0.00},"
+            + $"{_paceDraw * 1000:0.00},{(IsLoading ? 1 : 0)},\"{I76.Game.World.MissionBuilder.LastStage.Replace("\"", "'")}\""));
+        _paceLast = wall;
+        _paceDraw = 0;
+    }
+
+    private double _preDrawAt, _paceDraw;
+    private void PacePreDraw() => _preDrawAt = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+    private void PacePostDraw() { if (_preDrawAt > 0) _paceDraw += System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency - _preDrawAt; }
+
+    private void ClosePace()
+    {
+        if (_paceOut is null) return;
+        _paceOut.Dispose();
+        _paceOut = null;
+        RenderingServer.Singleton.FramePreDraw -= PacePreDraw;
+        RenderingServer.Singleton.FramePostDraw -= PacePostDraw;
+    }
+
+    private static readonly HashSet<string> _paceFiles = [];
 
     /// <summary>Ends the movie at once, as a skip does (what follows it runs): a mission whose build under its briefing failed.</summary>
     public void End() => Finish();
@@ -510,7 +586,14 @@ public partial class MoviePlayer : CanvasLayer
             long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;
             Last = (_shown, _dropped, _late, _worstShowGap * 1000, skips);
             GD.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} mixes{Sync()}");
+            if (_pace is not null)
+            {
+                var (late, lateBy) = _pace.Late();
+                LastPace = (_pace.Frames, late, lateBy * 1000, _pace.WorstFrame * 1000);
+                GD.Print($"movie pace: {System.IO.Path.GetFileName(Path)}: {_pace.Frames} frames, {late} came up over {MoviePace.LateFrames} frame times late (the latest {lateBy * 1000:0} ms), the game's longest frame {_pace.WorstFrame * 1000:0} ms");
+            }
         }
+        ClosePace();
         if (_video is not null)
             GD.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
         _video?.Stop();
@@ -524,6 +607,7 @@ public partial class MoviePlayer : CanvasLayer
 
     public override void _ExitTree()
     {
+        ClosePace();
         _stop = true;
         _thread?.Join(1000);
     }

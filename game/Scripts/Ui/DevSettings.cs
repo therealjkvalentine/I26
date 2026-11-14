@@ -25,6 +25,9 @@ public static class DevSettings
     /// <summary>Marks a value the original game does not have (ShellSettings.PortMark).</summary>
     public const string PortMark = ShellSettings.PortMark;
     private const string M = PortMark;
+    /// <summary>briefing_card_hold's steps on the panel, seconds (the file takes any from 0 to 10; 0, no hold of its own, is the one unmarked).</summary>
+    private static readonly double[] CardHolds = [0, 0.7, 1, 2, 3, 4, 5, 6, 8, 10];
+    private static int NearestCardHold(double v) => System.Array.IndexOf(CardHolds, CardHolds.MinBy(h => System.Math.Abs(h - v)));
     private static readonly string[] FalseTrue = ["false", "true" + M];
     /// <summary>A key that follows the look while the file has none: "look", then the table's words.</summary>
     private static string[] Look(string[] names) => ["look", .. Words(names)];
@@ -129,6 +132,8 @@ public static class DevSettings
         new("menu_warmup", ["off", "on" + M], s => s.MenuWarmup ? 1 : 0, (s, v) => s.MenuWarmup = v != 0, DevWhen.NextScreen),
         new("movie_ignition", ["off", "on" + M], s => s.MovieIgnition ? 1 : 0, (s, v) => s.MovieIgnition = v != 0, DevWhen.Live),
         new("briefing_while_loading", ["off", "on" + M], s => s.BriefingWhileLoading ? 1 : 0, (s, v) => s.BriefingWhileLoading = v != 0, DevWhen.NextMission),
+        new("briefing_card_hold", [.. CardHolds.Select(h => h.ToString(System.Globalization.CultureInfo.InvariantCulture) + (h == 0 ? "" : M))],
+            s => NearestCardHold(s.BriefingCardHold), (s, v) => s.BriefingCardHold = CardHolds[v], DevWhen.NextMission),
         new("melee_ai", ["0", "1" + M, "2" + M, "3" + M], s => (int)s.MeleeAi, (s, v) => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)v, DevWhen.NextMission),
         new("effects_size", EffectNames, s => NearestStep(s.EffectsSize), (s, v) => s.EffectsSize = EffectSteps[v], DevWhen.Live),
         new("effects_brightness", EffectNames, s => NearestStep(s.EffectsBrightness), (s, v) => s.EffectsBrightness = EffectSteps[v], DevWhen.Live),
