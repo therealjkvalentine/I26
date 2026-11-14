@@ -61,7 +61,9 @@ public static class MenuTips
         ["Check for Updates"] = "Check for updates: at start, ask GitHub once whether a newer release exists. Nothing about you is sent.",
         ["Chase Crosshair"] = "Chase crosshair: an aiming mark in the F2 chase view. Online, only if the host allows it.",
         ["Load During Briefing"] = "Load during briefing: the briefing plays while the mission loads. Off, the original's order: the load, then the briefing. The modern look only: the 1997 look always loads first, as the original.",
-        ["Turrets"] = "Turrets: how fast turrets turn, as in the 1998 build (GOG and the Nitro Pack) or the 1997 CD. Online, the host's choice.",
+        // the one text of the row wherever it is (Play Options, the Esc pad, the host forms: HostFormHelp, docs/playing.md); the
+        // numbers are TurretSlewTests' (half a turn at 1.7 / 1.5 rad/s, the health factors)
+        ["Turrets"] = "Turrets: how fast every turret turns to aim, yours and the enemy's. 1998 (GOG, Nitro Pack): half a turn in 1.8 s, and damage slows it by a quarter at most. 1997 CD: half a turn in 2.1 s, slower with every hit: at half health it cannot follow a car circling close by, and a wrecked one stands still. Online: the host's choice, and damage never slows a turret.",
         ["Unlim. Ordnance"] = "Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
         ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",
         ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",

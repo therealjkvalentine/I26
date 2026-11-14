@@ -31,7 +31,7 @@ public static class HostFormHelp
         33 => "Sim Rate: simulation steps a second, for everyone",
         35 => "Unlimited Turrets: any number of roof turrets a car",
         43 => "Ignition Lock: nobody may switch their engine off",
-        44 => "Turrets: the 1998 build's turret aim, or the 1997 CD's",
+        44 => MenuTips.Of("Turrets"),   // Play Options' row's text: the same choice
         45 => "Handicaps: per-player damage levels, by you or Auto",
         27 => "Password: a word joiners must give; click to set",
         38 => "Chase Crosshair: players who have it on may see it",
