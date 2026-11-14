@@ -1704,6 +1704,9 @@ compact:
 | lobby set, start | client → server | reliable | protocol 20: the ready mark and a new car (answered by `reconfigure answer`); the host's start (forced or not) |
 | voice, voice from | client → server → clients | unreliable | protocol 20: the CB radio (below, "CB voice"): one 20 ms Opus frame of a player's voice with a sequence number and a start/end mark; the server relays it undecoded, with the sender's slot, to the seats that may hear it |
 | join wait | server → client | reliable | protocol 13, before the seat: an invite-only game is asking its host (above, "The original's rules") |
+| co-op stage (60), co-op wait (61) | client → server, server → client | reliable ordered | the play fork's, only between peers that say `PeerFeatures.CoopWait`: where a game is in a co-op start (a byte), and whom the start waits for (the seconds left, then each name and stage; above, "Waiting for the others") |
+| co-op skip (62) | server → client | reliable ordered | the play fork's (`CoopSkip`): the briefing ends here, this player skipped theirs (above, "The briefing for everyone") |
+| co-op next (63) | server → client | reliable ordered | the play fork's (`CoopNext`): what follows the co-op mission (Next, Replay, Lobby or Host), on which mission and in how many seconds; the next round follows (above, "On to the next mission") |
 
 - **A car in a snapshot** (78 bytes in full; an entry of what changed since the baseline, about 15–30 bytes for a car
   driving, 2 for one standing still):
