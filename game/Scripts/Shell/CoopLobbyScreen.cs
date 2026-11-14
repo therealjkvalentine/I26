@@ -182,6 +182,15 @@ public sealed class CoopLobbyScreen : ShellScreen
         }
     }
 
+    /// <summary>The mission's line over the list: its title and what it is about (the fork's; MissionTitles.CoopSummary), as the host form's list rows tell it.</summary>
+    public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
+    {
+        if (State() is not { } s || p.X < 28 || p.X > 214 || p.Y < BoxY - 2 || p.Y > BoxY + 16) return null;
+        string title = I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
+        string what = I76.Formats.Mission.MissionTitles.CoopSummary(Shell.Install, s.Mission, Shell.Vfs);
+        return (what.Length > 0 ? $"{title}: {what}" : title, new Rect2I(28, BoxY - 2, 186, 18));
+    }
+
     public override bool TextEditing => _typing;
     public override void StopEditing() { _typing = false; Draw(); }
 

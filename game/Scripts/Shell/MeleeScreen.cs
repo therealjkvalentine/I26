@@ -142,6 +142,21 @@ public sealed partial class MeleeScreen : ShellScreen
 
     private string ListName(int i) => Mode == 1 ? MeleeData.Scenarios[i].Name : Arenas[i].Name;
 
+    /// <summary>
+    /// A co-op list row's tooltip (the fork's; upstream #197): the mission's title and what it is about, its first objective in the mission's
+    /// own words (MissionTitles.CoopSummary), so a mission is told by more than its name.
+    /// </summary>
+    private (string Text, Rect2I Zone)? CoopRowTip(Vector2I p)
+    {
+        if (!Coop || Mode is 7 or 8 || p.X < 28 || p.X > 224 || p.Y < 151) return null;
+        int k = ListRowAt(p.Y), i = _scroll + k;
+        if (k < 0 || k >= Rows || i < 0 || i >= ListCount) return null;
+        var (name, msn) = Arenas[i];
+        string what = I76.Formats.Mission.MissionTitles.CoopSummary(Shell.Install, msn, Shell.Vfs);
+        int y = ListRowY(k);
+        return (what.Length > 0 ? $"{name}: {what}" : name, new Rect2I(28, y, 196, Row));
+    }
+
     private void AddDriver()
     {
         if (_slots.Count > MaxOpponents || _pool.Count == 0) return;
@@ -249,6 +264,7 @@ public sealed partial class MeleeScreen : ShellScreen
     public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
     {
         _carTipShown = false;
+        if (CoopRowTip(p) is { } coop) return coop;
         if (HostTipAt(p) is { } host) return host;
         if (StoryCar || _slots.Count == 0) return null;
         var (_, model, variant) = _slots[_shown];

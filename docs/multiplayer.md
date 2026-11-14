@@ -1177,6 +1177,10 @@ MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 
   chase crosshair is each player's own setting (`NetLaunch` carries them so; the dedicated server's flags still apply to its games).
   The base form leaves those out of its options box, and the co-op rules take its first rows.
 - The car panel shows "Mission's own car" (the default) or the player's pick (above).
+- **What each mission is about** (the play fork's; upstream #197: "a mission listed as Roswell is not in Roswell"): besides the scene's name
+  and the arena sketch on its scrap, the pointer on a co-op list row shows a tooltip with the mission's title and its first objective in
+  the mission's own words (`MissionTitles.CoopSummary`: the first line of its objective text, WRLD +0x45's .npt, that is not hidden, read
+  from the install), and the lobby's mission line shows the same.
 - Hosting opens the lobby (above, "The co-op lobby"), where the host starts the mission. BROADCAST GAME hosts it as `--host-listen --coop MISSION --coop-lobby` does (`NetLaunch.Coop`, `MainNet.ApplyNetLaunch`).
 - The roster (JOIN) lists a co-op game with a "co-op" tag after its name, "co-op lobby" while the host has not started it (the anet tag's kind bits 3 and the session
   answer's flag; protocol 20), its top line adds the mission's title when the name does not say it, and the game's popup (the arrow)

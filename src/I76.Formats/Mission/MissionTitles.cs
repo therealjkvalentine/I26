@@ -141,6 +141,29 @@ public static class MissionTitles
         return null;
     }
 
+    /// <summary>
+    /// A co-op mission's line for the lists (upstream #197: the names alone say little): its first objective as the mission's own objective text
+    /// (WRLD +0x45's .npt, the notepad's first line, read from the install; <paramref name="vfs"/> the caller's, if it has one), the first one not hidden; empty when it has none.
+    /// Read once a mission and install.
+    /// </summary>
+    public static string CoopSummary(GameInstall install, string mission, AssetVfs? vfs = null)
+    {
+        string key = install.Root + "|" + mission.ToLowerInvariant();
+        lock (Summaries) if (Summaries.TryGetValue(key, out var known)) return known;
+        string line = "";
+        try
+        {
+            if (install.FindMission(mission) is { } path && WorldSettings.Read(new MissionFile(path))?.Text is { Length: > 0 } npt
+                && (vfs ?? new AssetVfs(install)).TryRead(npt.Contains('.') ? npt : npt + ".npt") is { } bytes)
+                line = ObjectiveText.Parse(Encoding.Latin1.GetString(bytes)).Objectives.FirstOrDefault(o => !o.Hidden).Text?.Trim() ?? "";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or IndexOutOfRangeException or UnauthorizedAccessException) { }
+        lock (Summaries) Summaries[key] = line;
+        return line;
+    }
+
+    private static readonly Dictionary<string, string> Summaries = new(StringComparer.Ordinal);
+
     /// <summary>The title a co-op mission goes by in the lists (the stem's upper case for one the install does not list).</summary>
     public static string CoopTitle(GameInstall install, string mission) =>
         CoopList(install).FirstOrDefault(m => m.Stem.Equals(mission, StringComparison.OrdinalIgnoreCase))?.Title is { Length: > 0 } t ? t : mission.ToUpperInvariant();

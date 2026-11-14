@@ -334,7 +334,8 @@ in the same cars (MISSION COMPLETE, "Next mission: ... in 15 s"); the host's Esc
 (everyone back to the game's lobby, still ready). After the trip's last mission the group is back in the lobby. After a failed mission
 the host chooses on the end menu: Replay Mission (everyone again from the start), Back to Lobby, Leave Match (back to the menus) or
 Exit I76 (back to the desktop); the others see that the host is choosing. The host's Esc menu has Replay Mission and Back to Lobby
-during the mission as well.
+during the mission as well. In the host form's co-op list, and on the lobby's mission line, the pointer on a mission shows what it is
+about (its first objective).
 
 **CB voice.** In network games the CB radio sends your voice while you hold the poetry key (C). Sending needs a
 microphone, and the game does not open the audio input (so no system asks for microphone access) until you pick one:

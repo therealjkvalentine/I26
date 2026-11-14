@@ -534,5 +534,29 @@ public class CoopFlowTests(ITestOutputHelper output)
         Assert.NotNull(g.Server.CoopChoose(CoopPlanKind.Replay));
     }
 
+    // ---- the co-op list's lines ----
+
+    /// <summary>Each co-op mission has a line saying what it is about: its first objective, in the mission's own words, read from the install.</summary>
+    [Fact]
+    public void EveryCoopMissionHasALineSayingWhatItIsAbout()
+    {
+        if (Install is not { } install) return;
+        var i = new I76.Formats.Vfs.GameInstall(install);
+        var vfs = new I76.Formats.Vfs.AssetVfs(i);
+        var list = I76.Formats.Mission.MissionTitles.Coop(i);
+        Assert.NotEmpty(list);
+        int with = 0;
+        foreach (var m in list)
+        {
+            string line = I76.Formats.Mission.MissionTitles.CoopSummary(i, m.Stem, vfs);
+            output.WriteLine($"{m.Stem} {m.Title}: {line}");
+            if (line.Length > 0) with++;
+            Assert.DoesNotContain("(hidden)", line, StringComparison.OrdinalIgnoreCase);
+        }
+        // every stock story mission has objective text; a missing line is a reading fault
+        Assert.Equal(list.Count, with);
+        Assert.Same(I76.Formats.Mission.MissionTitles.CoopSummary(i, list[0].Stem), I76.Formats.Mission.MissionTitles.CoopSummary(i, list[0].Stem));
+    }
+
     internal static string Describe(CoopWait? w) => w is null ? "none" : $"{w.SecondsLeft} s: {string.Join(", ", w.Players.Select(p => $"{p.Name} {p.Stage}"))}";
 }
