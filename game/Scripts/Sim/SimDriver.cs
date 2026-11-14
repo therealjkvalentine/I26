@@ -336,10 +336,18 @@ public partial class SimDriver : Node
         if (Controls.Down("steer_right")) b |= CarButtons.SteerRight;
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
         Controls.PollAxes();
-        var input = new CarInput { Buttons = b };
-        if (Controls.AxesActive && (b & (CarButtons.ThrottleUp | CarButtons.ThrottleDown | CarButtons.SteerLeft | CarButtons.SteerRight)) == 0)
-        { input.Buttons |= CarButtons.Analog; input.Throttle = Controls.AxisThrottle; input.Steer = Controls.AxisSteer; }
-        return input;
+        return I76.Sim.Session.StickRows.Mix(b, RuleDriving(), Controls.AxesActive, Controls.AxisThrottle, Controls.AxisSteer);
+    }
+
+    /// <summary>The driving buttons only an axis rule holds (StickRows): not the capture hooks' holds, which stand for keys.</summary>
+    private CarButtons RuleDriving()
+    {
+        var r = CarButtons.None;
+        if (!HoldThrottle && Controls.DownByRuleAlone("throttle_up")) r |= CarButtons.ThrottleUp;
+        if (!_holdBrake && Controls.DownByRuleAlone("throttle_down")) r |= CarButtons.ThrottleDown;
+        if (_holdSteer != "left" && Controls.DownByRuleAlone("steer_left")) r |= CarButtons.SteerLeft;
+        if (_holdSteer != "right" && Controls.DownByRuleAlone("steer_right")) r |= CarButtons.SteerRight;
+        return r;
     }
 
     /// <summary>The player's input for the tick about to run: the keys held now, the cockpit's arms, and one of each pending command.</summary>
@@ -370,12 +378,12 @@ public partial class SimDriver : Node
         _keysAtTick = new CarInput { Buttons = b, Steer = Controls.AxesActive ? Controls.AxisSteer : (short)0, Throttle = Controls.AxesActive ? Controls.AxisThrottle : (short)0 };
         b |= _latch;   // a key tapped and let go between two ticks still counts for the tick
         _latch = CarButtons.None;
-        bool analog = Controls.AxesActive && (b & (CarButtons.ThrottleUp | CarButtons.ThrottleDown | CarButtons.SteerLeft | CarButtons.SteerRight)) == 0;
         var c = _commands.Take();
         // I76_AUTO_TARGET: the nearest enemy whenever there is no target, for captures
         if (_autoTarget && Combat is { } ac && Player?.Sim is { } ap && ac.RadarTarget.GetValueOrDefault(ap) is null) c |= CarCommands.TargetNearest;
-        var input = new CarInput { Buttons = b, Commands = c };
-        if (analog) { input.Buttons |= CarButtons.Analog; input.Throttle = Controls.AxisThrottle; input.Steer = Controls.AxisSteer; }
+        // the stick's rows unless a driving key is held (the original's), an axis rule's driving command taking only its own row
+        var input = I76.Sim.Session.StickRows.Mix(b, RuleDriving(), Controls.AxesActive, Controls.AxisThrottle, Controls.AxisSteer);
+        input.Commands = c;
         // the port's Auto Reverse (Play Options): the keys rewritten here, so the sim and the wire are the original's
         if (AutoReverse && Player?.Sim is { ObjectClass: 1 } car && (car.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) == 0)
         {

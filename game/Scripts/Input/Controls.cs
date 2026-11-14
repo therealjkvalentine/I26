@@ -444,6 +444,14 @@ public static class Controls
         return Table.Rules.Holds(Table, command, Pads, TermLive);
     }
 
+    /// <summary>Whether only an axis rule holds the command (a pedal past its line), no key or button bound to it.</summary>
+    public static bool DownByRuleAlone(string command)
+    {
+        if (Held?.Invoke() == true) return false;
+        Refresh();
+        return Table.Rules.Held(command) && !Table.Rules.BindingHolds(Table, command, Pads, TermLive);
+    }
+
     /// <summary>The term, as it stands while this event happens (Shift and Control by the event's own flags).</summary>
     private static bool TermUnder(InputTerm t, InputEvent e)
     {

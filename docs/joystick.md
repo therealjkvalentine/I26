@@ -133,6 +133,9 @@ line does not chatter. `level` holds the command while past (a handbrake), `edge
 over, it does not change again), `momentary` presses it going in and again coming out (reverse, a toggle, held only while pushed). One each
 way on an axis; the axis keeps what else it does. The Joystick screen's axis list has *Pushed + / - : a command...* (half the travel in, a
 third out; held for a held command such as the e-brake or fire, else pressed once), the row shows them, and clearing the axis clears them.
+A threshold that holds Accelerate, Brake or a steer command is not a key for the original's rule that a driving key held gives the keys
+both the throttle and the steering (`StickRows`): it takes only its own row, full that way, and the stick keeps the other (a wheel's gas
+pedal on a threshold no longer stops the wheel steering; #173). A key or button held still takes both, as in the original.
 
 **Device presets** (`DevicePresets`): a known wheel or stick is recognised by its USB vendor and product ids (Godot's joy info) or, without
 them, its name, and its preset is what the pad defaults are for it (no saved map, Restore Defaults) instead of the generic stick's; a saved map

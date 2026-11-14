@@ -143,9 +143,12 @@ public sealed partial class PadRules
     public bool Masks(InputBlock b) => b.Terms.Length > 0 && _out.Masked.Count > 0 && _out.Masked.Any(m => Same(m, b.Terms[0]));
 
     /// <summary>Whether the command is held: a rule holds it, or a block of a command whose inputs give it holds (input.map's chords, a taken-over input left out).</summary>
-    public bool Holds(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down)
+    public bool Holds(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down) =>
+        Held(command) || BindingHolds(table, command, bank, down);
+
+    /// <summary>Whether the bindings' own blocks hold the command (a key, a button, a chord), whatever a rule holds.</summary>
+    public bool BindingHolds(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down)
     {
-        if (Held(command)) return true;
         foreach (var c in Sources(command))
             foreach (var b in table.Of(c))
                 if (!Masks(b) && InputChord.Holds(b.Terms, bank, down)) return true;
