@@ -6,7 +6,9 @@ using I76.Game.Shell;
 namespace I76.Game.Ui;
 
 /// <summary>What the escape menu leaves behind: the game state it sets.</summary>
-public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpoint, Developer, SelfDestruct }
+public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpoint, Developer, SelfDestruct,
+    /// <summary>The fork's co-op host's choices (docs/multiplayer.md "On to the next mission"): the next mission now, back to the lobby.</summary>
+    CoopNext, CoopLobby }
 
 /// <summary>
 /// The engine's own 2D menu, the "Spanner's Cafe" order pad:
@@ -87,6 +89,12 @@ public sealed partial class EscapeMenu : Control
     public bool CanRetry { get; init; }
     /// <summary>The port's Developer panel is on (docs/dev-hooks.md): the main pad offers it on the free line under Controls.</summary>
     public bool Developer { get; init; }
+    /// <summary>
+    /// The fork's co-op host (docs/multiplayer.md "On to the next mission"): the next mission's title when the group can go on to it now
+    /// (Next Mission), and whether it can go back to the lobby (Back to Lobby); rows 7 and 9 of the network pad, under Controls.
+    /// </summary>
+    public string? CoopNextTitle { get; init; }
+    public bool CoopLobby { get; init; }
     /// <summary>A network game: Self Destruct is refused now (the car dead, or the game decided).</summary>
     public Func<bool>? SelfDestructRefused { get; init; }
     /// <summary>Once a frame while the tree is paused under the menu: what play would draw that a paused node does not (the rear mirror), so the measured frame rate is play's.</summary>
@@ -229,6 +237,8 @@ public sealed partial class EscapeMenu : Control
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
         // list, the line under Report a Bug (row 14)
         if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer Tools", BugRow + 1, () => Close(MenuOutcome.Developer)));
+        // the co-op host's choices for the whole group (the fork's), on the free rows under Controls, apart from Leave Match and Exit I76
+        if (Net) InsertCoopRows();
 
         _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
@@ -569,6 +579,16 @@ public sealed partial class EscapeMenu : Control
         _bug.Items.Add(new Item { Flags = Button, Label = "Done", Pair = 15, Cb = (_, m) => { if (m == 4) Switch(_main); } });
         _bug.Selected = _bug.Items.Count - 1;
         Switch(_bug);
+    }
+
+    /// <summary>The co-op host's rows on the network pad (rows 7 to 9), before Report a Bug: the pad's order is its rows' order.</summary>
+    private void InsertCoopRows()
+    {
+        var rows = new List<Item>();
+        if (CoopNextTitle is not null) rows.Add(Action(I76.Net.Hud.NetMenu.Next, 7, () => Close(MenuOutcome.CoopNext)));
+        if (CoopLobby) rows.Add(Action(I76.Net.Hud.NetMenu.Lobby, 9, () => AskExit(_main, MenuOutcome.CoopLobby, I76.Net.Hud.NetMenu.LobbyQuestion)));
+        int at = _main.Items.FindIndex(i => i.Pair == BugRow);
+        _main.Items.InsertRange(at < 0 ? _main.Items.Count - 1 : at, rows);
     }
 
     private const string SweetheartLine = "Are you gonna leave me, Sweetheart?";

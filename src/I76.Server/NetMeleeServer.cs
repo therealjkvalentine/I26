@@ -559,6 +559,7 @@ public sealed partial class NetMeleeServer : IDisposable
             CoopStartTick();
             Send();
             MigrationTick();
+            CoopEndTick();
             if (Host.Over && CarriesOn && OverAt is { } over && (_skipPause || Now - over >= Options.RoundPause)) StartNextRound();
             PumpMaps();
             _net.TriggerUpdate();

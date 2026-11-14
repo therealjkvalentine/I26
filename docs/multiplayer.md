@@ -952,7 +952,8 @@ from the server.
   the snapshots already.
 - **The end** (`MissionEndEvent`): won or failed and the failure's line; each client's game ends as single player's (the
   outro on a win; the end menu with the line, Leave Match and Exit I76, on a failure). The game over follows 5 s later;
-  there are no rounds, and a host leaving after the end does not hand the game on. Everyone leaving ends it too.
+  there are no rounds, and a host leaving after the end does not hand the game on. Everyone leaving ends it too. (The play fork's lobby
+  games go on after a won mission: "On to the next mission", below.)
 - **Deaths and respawns.** A human's death is a `KillEvent` (the feed's line) and its respawn after `RespawnDelay` a
   `RenewedEvent` (the car rebuilt in place); being put back from the map's edge is a `***` line. The HUD's death card
   counts down to the car beside a teammate (no keys: it comes by itself). The scoreboard (Tab) lists the players with their
@@ -1102,6 +1103,39 @@ the others' briefings (the owner: "cutscene skips for others once everyone is re
 - **Tests** (`CoopFlowTests`): the rule (a builder holds it, an upstream game until its inputs, nobody skipped, alone, a game still in the
   last mission's ending); a skip ending the other's briefing only once she reached hers; an upstream player holding the skip until its
   inputs and never sent it; an upstream host ending nothing.
+
+### On to the next mission (the play fork's, `PeerFeatures.CoopNext`)
+
+Upstream's co-op game is over with its mission: to play on, the host hosts again and everyone joins and readies again (upstream #197; the
+owner: "when a coop mission is completed, the next coop mission should load for now, maybe someday group salvage but not yet").
+
+- **The plan.** When a lobby's co-op mission is won the server plans what follows (`NetMeleeServer.CoopNext.cs`): the trip's next mission
+  (`MissionTitles.NextCoop`: T01 to T17 in order; the Nitro Pack's driver's next in SCENARIO.DAT), or, after the trip's last and for a
+  mission that is no trip's (A01, the scenarios, B01), back to the lobby. It goes to every peer that says `CoopNext` as `MsgType.CoopNext`
+  (63: the kind, Next, Replay, Lobby or Host, the mission and the seconds), and the game over says the server carries on
+  (`GameOverEvent.NextRoundSeconds`, `CoopMode.NextRoundSeconds`). There is no salvage step.
+- **The hold.** `ServerOptions.CoopNextSeconds` (15) from the end, so the outcome can be read: MISSION COMPLETE, "Next mission: Scene 6: Out
+  of Gas in 9 s" on every game (the notice of "Waiting for the others"). Each game plays the mission's outro meanwhile, its own; one still
+  in its outro when the round comes builds the next mission after it (its seat says Ending, "watching the ending", and the next start waits
+  for it). The listen host can go on at once (its Esc menu's **Next Mission**) or take everyone back to the lobby (**Back to Lobby**,
+  asked first: "Back to the lobby with everyone (the game's setup)?"); `NetMeleeServer.CoopChoose`.
+- **Going on** (`CarryOn`), as a melee's next round: the next mission is built from the game's options (only the mission and the seed
+  change: the same seats, Co-op Scaling, Damage Taken, Rolling Start, password, listing), the players still connected are sent
+  `MsgType.NextRound` and then seated together, the host first in seat 0, each in the car it played, before any accept is written, as a
+  lobby's start deals them; the start then waits for every game to load and plays the briefings over the built mission ("The briefing
+  for everyone"). Nobody hosts, joins or readies again. **Back to the lobby** reopens the lobby with everyone in it, each with the car they
+  played and **ready** (they readied once), the host to press START.
+- **The game** (`MainNetCoop.cs`): a won mission in such a game does not go back to the menus; it plays its outro over the game and stays,
+  carries the session into the next round when it comes (after its outro), and does not time out while the host has a plan.
+- **An upstream player** hears no plan; at a won mission's end its game goes back to its menus after its outro, as upstream's does, so at
+  the next mission the server lets it go with "The host went on to the next mission (your build cannot follow: join again)." rather than
+  seat a car that would only leave. Back to the lobby takes it along: upstream's client reads the next round and the lobby as a join does.
+  **An upstream host** plans nothing: the game ends with the mission, its game over saying no round follows.
+- **A dedicated server** (`i26-server --coop M`) goes on by itself after a win and stays up for it (`CoopGoesOn`).
+- **Tests** (`CoopFlowTests`): the plan's round trip and lines, the trip's order (T05 to T06, T16 to T17, nothing after T17, A01 or a
+  scenario); a won mission going on to the next with the same seats and cars when the countdown is due, its start waiting for both again;
+  the host's Next Mission at once; the host's Back to Lobby with everyone ready in their cars and the plain start going again; the trip's
+  last mission back to the lobby; an upstream player let go at the next mission with the reason; an upstream host ending the game.
 
 ### Hosting and joining from the shell
 

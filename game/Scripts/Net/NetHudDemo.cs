@@ -10,7 +10,7 @@ namespace I76.Game.Net;
 /// teams' window held), teamplay, ctf, race, chat (a conversation), typing (the entry open), dead, ready (dead, the
 /// respawn open), end-win, end-lose, timeup, final, invite, boot, host (this machine hosts), page2, pad, locked (the
 /// standings locked up, a cursor on a row), me:NAME (your own row's name); the fork's co-op notices: coopwait (the start held for two players),
-/// coopwait-upstream (the same from a host that names nobody).
+/// coopwait-upstream (the same from a host that names nobody), coopnext (a won mission, the next counting down), cooplast (after the trip's last).
 /// </summary>
 public sealed class NetHudDemo
 {
@@ -197,6 +197,9 @@ public sealed class NetHudDemo
         if (Has("coopwait"))
             f.Notice = new(NetHud.StandBy, new CoopWait(87, [(Name(1), CoopStage.Briefing), (Name(4), CoopStage.Building)]).Lines(87 - (t % 10)));
         if (Has("coopwait-upstream")) f.Notice = new(NetHud.StandBy, CoopWait.Unnamed);
+        // coopnext (a won mission, the next one counting down), cooplast (after the trip's last, back to the lobby)
+        if (Has("coopnext")) f.Notice = new(CoopPlan.Head(true), new CoopPlan(CoopPlanKind.Next, "t06", 15).Lines(I76.Formats.Mission.MissionTitles.TripTitle(6), 15 - (t % 15), host));
+        if (Has("cooplast")) f.Notice = new(CoopPlan.Head(true), new CoopPlan(CoopPlanKind.Lobby, "t17", 15).Lines(I76.Formats.Mission.MissionTitles.TripTitle(17), 15 - (t % 15), host));
         return f;
     }
 

@@ -378,7 +378,7 @@ public partial class NetHud : CanvasLayer
             }
             // a co-op mission's end is the game's own (the outro, the end menu): no standings over it
             case GameOverEvent when Coop: Decided = true; break;
-            case MissionEndEvent me: Decided = true; GD.Print($"[co-op] the mission is {(me.Won ? "won" : "failed")}{(me.Text.Length > 0 ? ": " + me.Text : "")}"); break;
+            case MissionEndEvent me: Decided = true; _coopWon = me.Won; GD.Print($"[co-op] the mission is {(me.Won ? "won" : "failed")}{(me.Text.Length > 0 ? ": " + me.Text : "")}"); break;
             // the script's presentation is the game's HUD's (the radio, the notepad); the log says what came
             case RadioEvent r: GD.Print($"[co-op] radio: {r.Sound}"); break;
             case ObjectiveEvent o: GD.Print($"[co-op] objective {o.Number}: {Objectives.Describe(o.Flags)}"); break;

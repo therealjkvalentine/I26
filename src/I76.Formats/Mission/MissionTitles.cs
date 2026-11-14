@@ -115,6 +115,32 @@ public static class MissionTitles
         return o;
     }
 
+    /// <summary>
+    /// The mission a co-op group goes on to after winning this one (the play fork's, docs/multiplayer.md "On to the next mission"): the base
+    /// game's trip in order (T01 to T17), the Nitro Pack's driver's next in SCENARIO.DAT; null after the trip's last, for a mission that is no
+    /// trip's (A01, the scenarios, B01, a P mission SCENARIO.DAT does not list) and for one the co-op list does not hold.
+    /// </summary>
+    public static string? NextCoop(GameInstall install, string mission)
+    {
+        var list = CoopList(install);
+        string m = mission.ToLowerInvariant();
+        bool Listed(string stem) => list.Any(x => x.Stem.Equals(stem, StringComparison.OrdinalIgnoreCase));
+        if (!Listed(m)) return null;
+        if (!install.IsNitro)
+            return m.Length == 3 && m[0] == 't' && int.TryParse(m.AsSpan(1), out int n) && Listed($"t{n + 1:00}") ? $"t{n + 1:00}" : null;
+        if (install.Resolve("addon", "SCENARIO.DAT") is not { } sc) return null;
+        ScenarioDat dat;
+        try { dat = ScenarioDat.Parse(File.ReadAllText(sc, Encoding.Latin1)); }
+        catch (IOException) { return null; }
+        foreach (var c in dat.Characters)
+        {
+            int i = c.Missions.FindIndex(x => x.Stem.Equals(m, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) continue;
+            return i + 1 < c.Missions.Count && Listed(c.Missions[i + 1].Stem) ? c.Missions[i + 1].Stem.ToLowerInvariant() : null;
+        }
+        return null;
+    }
+
     /// <summary>The title a co-op mission goes by in the lists (the stem's upper case for one the install does not list).</summary>
     public static string CoopTitle(GameInstall install, string mission) =>
         CoopList(install).FirstOrDefault(m => m.Stem.Equals(mission, StringComparison.OrdinalIgnoreCase))?.Title is { Length: > 0 } t ? t : mission.ToUpperInvariant();

@@ -18,9 +18,17 @@ public partial class NetHud
 
     public const string StandBy = "PLEASE STAND BY";
 
-    /// <summary>The co-op notice for this frame, or null.</summary>
+    /// <summary>The co-op mission's outcome once the server has said it (won or failed), for the notice of what follows.</summary>
+    private bool? _coopWon;
+    /// <summary>A co-op mission's title by its stem ("Scene 6: Out of Gas"), for the notice of what follows.</summary>
+    public Func<string, string>? MissionTitle { get; init; }
+
+    /// <summary>The co-op notice for this frame, or null: what follows the mission once the host has a plan (the fork's), else the start's wait.</summary>
     private NetHudFrame.NoticeInfo? CoopNotice(double delta)
     {
+        if (Coop && _coopWon is { } won && Client.Has(PeerFeatures.CoopNext) && Client.Plan is { } plan)
+            return new NetHudFrame.NoticeInfo(CoopPlan.Head(won),
+                plan.Lines(MissionTitle?.Invoke(plan.Mission) ?? plan.Mission.ToUpperInvariant(), plan.Seconds - (Client.Now - Client.PlanAt), Server is not null));
         if (!Coop || Client.State != ClientState.Joined || _started) return null;
         // the start is over once the server's tick moves on from where this game found it (a movie's stand-still is not the start's)
         _startTick ??= Client.NewestTick;

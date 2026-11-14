@@ -21,13 +21,13 @@ public class CoopFlowTests(ITestOutputHelper output)
         private readonly ITestOutputHelper _out;
         public readonly List<string> Log = [];
 
-        public Game(string install, ITestOutputHelper output, string mission = "t01", double loadSeconds = 30, PeerFeatures? hostFeatures = null, bool listenHost = true)
+        public Game(string install, ITestOutputHelper output, string mission = "t01", double loadSeconds = 30, PeerFeatures? hostFeatures = null, bool listenHost = true, double nextSeconds = 15)
         {
             _out = output;
             Server = new NetMeleeServer(new ServerOptions
             {
                 Install = install, Arena = mission, Coop = mission, MaxPlayers = 4, Port = 0, Seed = 7, Name = "co-op", ListenHost = listenHost,
-                Lobby = true, LoadSeconds = loadSeconds, Features = hostFeatures ?? Protocol.Features,
+                Lobby = true, LoadSeconds = loadSeconds, Features = hostFeatures ?? Protocol.Features, CoopNextSeconds = nextSeconds,
             });
             Server.Log += m => { lock (Log) Log.Add(m); output.WriteLine($"[server] {m}"); };
             Server.Start();
@@ -70,6 +70,14 @@ public class CoopFlowTests(ITestOutputHelper output)
         }
 
         public void Pump(int ms) => Wait(() => false, ms);
+
+        /// <summary>Everyone's game sends inputs until the mission runs (every game loaded), then the host's script ends it.</summary>
+        public void PlayAndEnd(bool won)
+        {
+            uint tick = Tick;
+            Assert.True(WaitDriving(() => Tick > tick + 5, Players.Select(p => p.Client)), "the mission did not start");
+            Server.Invoke(h => h.Setup.Script!.Host.EndMission(won, 0, won ? -2 : 0));
+        }
         public uint Tick => Server.Invoke(h => (uint)h.Tick);
 
         public void Dispose()
@@ -269,6 +277,160 @@ public class CoopFlowTests(ITestOutputHelper output)
         // its Briefing is before its build there: the notice says so without claiming she has loaded
         Assert.True(g.WaitDriving(() => hal.StartWait is { Players: [("Ann", CoopStage.Unknown)] }, [hal]), Describe(hal.StartWait));
     }
+
+    // ---- on to the next mission ----
+
+    [Fact]
+    public void TheTripGoesOnInItsOrderAndStopsAfterItsLast()
+    {
+        var w = new NetWriter();
+        new CoopPlan(CoopPlanKind.Next, "t06", 15).Write(w);
+        var r = new NetReader(w.ToArray());
+        Assert.Equal(MsgType.CoopNext, (MsgType)r.U8());
+        Assert.Equal(new CoopPlan(CoopPlanKind.Next, "t06", 15), CoopPlan.Read(ref r));
+        Assert.Equal(["Next mission: Scene 6: Out of Gas in 12 s", "the same players, cars and settings"], new CoopPlan(CoopPlanKind.Next, "t06", 15).Lines("Scene 6: Out of Gas", 11.2, host: false));
+        Assert.Equal("MISSION COMPLETE", CoopPlan.Head(true));
+        if (Install is not { } install) return;
+        var i = new I76.Formats.Vfs.GameInstall(install);
+        if (i.IsNitro) return;
+        Assert.Equal("t06", I76.Formats.Mission.MissionTitles.NextCoop(i, "t05"));
+        Assert.Equal("t17", I76.Formats.Mission.MissionTitles.NextCoop(i, "T16"));
+        Assert.Null(I76.Formats.Mission.MissionTitles.NextCoop(i, "t17"));
+        // no trip's: training and the scenarios end in the lobby
+        Assert.Null(I76.Formats.Mission.MissionTitles.NextCoop(i, "a01"));
+        Assert.Null(I76.Formats.Mission.MissionTitles.NextCoop(i, "s02"));
+        Assert.Null(I76.Formats.Mission.MissionTitles.NextCoop(i, "m01"));
+    }
+
+    /// <summary>A won mission plans the next with a countdown; when it is due the players go on together: the same seats, cars and settings, no lobby.</summary>
+    [Fact]
+    public void AWonMissionGoesOnToTheNextWithTheSamePlayersAndCars()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 2);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann", car: "vcgcour1.vcf");
+        g.Start();
+        g.PlayAndEnd(won: true);
+        Assert.True(g.WaitDriving(() => hal.Plan is not null && ann.Plan is not null, [hal, ann]), "no plan came");
+        Assert.Equal(new CoopPlan(CoopPlanKind.Next, "t06", 2), ann.Plan);
+        // when it is due: the next round, then the accept, on the same connection
+        int rounds = hal.Rounds;
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.Rounds > rounds && p.Client.State == ClientState.Joined), 15000),
+            string.Join(", ", g.Players.Select(p => $"{p.Name} {p.Client.State} round {p.Client.Rounds}")));
+        Assert.All(g.Players, p => Assert.Equal("t06", p.Client.Accept!.Arena));
+        Assert.Equal([0, 1], g.Players.Select(p => (int)p.Client.Accept!.Coop!.Seat));
+        Assert.Equal("vcgcour1.vcf", ann.Accept!.Car);
+        Assert.Null(hal.Lobby);
+        Assert.Null(g.Server.CoopPlanNow);
+        Assert.Equal(1, g.Server.Round);
+        // the next mission's start waits for both again
+        uint tick = g.Tick;
+        g.WaitDriving(() => false, [hal], 400);
+        Assert.Equal(tick, g.Tick);
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 3, [hal, ann]));
+    }
+
+    /// <summary>The host need not wait: Back to Lobby takes everyone back with their cars and ready marks, and the plain start goes again.</summary>
+    [Fact]
+    public void TheHostTakesEveryoneBackToTheLobbyReadyWithTheirCars()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05");
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann", car: "vcgcour1.vcf");
+        g.Start();
+        g.PlayAndEnd(won: true);
+        Assert.True(g.WaitDriving(() => ann.Plan is not null, [hal, ann]));
+        Assert.Equal(CoopPlanKind.Next, g.Server.CoopPlanNow!.Kind);
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Lobby));
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.InLobby && p.Client.Lobby!.Members.Count == 2)),
+            string.Join(", ", g.Players.Select(p => $"{p.Name} {p.Client.State}")));
+        var members = hal.Lobby!.Members;
+        Assert.Equal(["Hal", "Ann"], members.Select(m => m.Name));
+        Assert.All(members, m => Assert.True(m.Ready));
+        Assert.Equal("vcgcour1.vcf", members[1].Car);
+        Assert.True(hal.Lobby.IsHost);
+        Assert.Equal("t05", hal.Lobby.Mission);
+        Assert.True(g.Server.InLobby);
+        // everyone is ready: the plain start goes
+        Assert.Null(g.Server.StartLobby());
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.Joined)));
+        Assert.Equal("vcgcour1.vcf", ann.Accept!.Car);
+    }
+
+    /// <summary>The host's Next Mission goes at once, without waiting for the countdown.</summary>
+    [Fact]
+    public void TheHostsNextMissionGoesNow()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 60);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        g.PlayAndEnd(won: true);
+        Assert.True(g.WaitDriving(() => ann.Plan is not null, [hal, ann]));
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Next));
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.Joined && p.Client.Accept!.Arena == "t06")));
+    }
+
+    [Fact]
+    public void AfterTheTripsLastMissionTheGroupIsBackInTheLobby()
+    {
+        if (Install is not { } install) return;
+        if (new I76.Formats.Vfs.GameInstall(install).IsNitro) return;
+        using var g = new Game(install, output, mission: "t17", nextSeconds: 1);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        g.PlayAndEnd(won: true);
+        Assert.True(g.WaitDriving(() => ann.Plan is not null, [hal, ann]));
+        Assert.Equal(CoopPlanKind.Lobby, ann.Plan!.Kind);
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.InLobby), 15000));
+        Assert.All(hal.Lobby!.Members, m => Assert.True(m.Ready));
+    }
+
+    /// <summary>An upstream player hears no plan and is let go with the reason at the next mission (its game leaves a won mission anyway); the others go on.</summary>
+    [Fact]
+    public void AnUpstreamPlayerIsLetGoAtTheNextMission()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 1);
+        var hal = g.Join("Hal");
+        var old = g.Join("Old", upstream: true);
+        g.Start();
+        g.PlayAndEnd(won: true);
+        Assert.True(g.Wait(() => old.State == ClientState.Disconnected, 15000), $"{old.State}");
+        Assert.Equal(NetMeleeServer.CoopLeftBehindText, old.Reason);
+        Assert.Null(old.Plan);
+        Assert.True(g.Wait(() => hal.State == ClientState.Joined && hal.Accept!.Arena == "t06", 15000));
+        Assert.Equal(1, g.Server.Invoke(h => h.Seats.Count));
+    }
+
+    /// <summary>A host without CoopNext (upstream's): the won mission ends the game as before, its game over saying nothing follows.</summary>
+    [Fact]
+    public void AnUpstreamHostEndsTheGameAtTheMissionsEnd()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 1,
+            hostFeatures: PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        g.PlayAndEnd(won: true);
+        GameOverEvent? over = null;
+        Assert.True(g.WaitDriving(() =>
+        {
+            while (hal.Events.TryDequeue(out var b)) over ??= b.Events.OfType<GameOverEvent>().FirstOrDefault();
+            return over is not null;
+        }, [hal, ann], 15000), "no game over");
+        Assert.Equal(0, over!.NextRoundSeconds);
+        g.Pump(1500);
+        Assert.Null(hal.Plan);
+        Assert.Equal(0, g.Server.Round);
+        Assert.Null(g.Server.CoopPlanNow);
+    }
+
 
     internal static string Describe(CoopWait? w) => w is null ? "none" : $"{w.SecondsLeft} s: {string.Join(", ", w.Players.Select(p => $"{p.Name} {p.Stage}"))}";
 }

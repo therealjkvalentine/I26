@@ -648,10 +648,16 @@ public partial class Main
         // this game took over as host (host migration): the host's prompts and boots are its own now
         if (_netHud is { Server: null } hud && _net.Server is { } taken) { hud.Server = taken; hud.Host = true; }
         // the server started another round on this connection: reload as a fresh join, the seat kept
-        if (c.Rounds > _roundsAtBuild && c.State is not (ClientState.Disconnected or ClientState.Rejected)) { CarryNetwork(); return; }
-        // a server that carries on is waited for (its pause, and some leeway for it to build the next arena)
+        if (c.Rounds > _roundsAtBuild && c.State is not (ClientState.Disconnected or ClientState.Rejected))
+        {
+            // a co-op mission's ending (its outro) plays out first; the server's next mission waits for this game meanwhile
+            if (_netOutro is null) CarryNetwork();
+            return;
+        }
+        // a server that carries on is waited for (its pause, and some leeway for it to build the next arena); a co-op game that goes on
+        // (the fork's) for as long as its host has a plan
         double wait = _netNextRound > 0 ? _netNextRound + 30 : 8;
-        if (_netOverAt is { } over && now - over > wait) BackFromNetwork(NetRows(), null);
+        if (_netOverAt is { } over && now - over > wait && !NetCoopGoesOn(c)) BackFromNetwork(NetRows(), null);
         else if (c.State is ClientState.Disconnected or ClientState.Rejected)
             BackFromNetwork(NetRows(), _netOverAt is null || _netNextRound > 0 ? $"The game ended: {(c.Reason ?? "the server went away").TrimEnd('.')}." : null);
     }
@@ -806,6 +812,7 @@ public partial class Main
             Nitro = _builder.Vfs.Install.IsNitro, LeeFont = _builder.Vfs.Install.FindFile("Lee_____.ttf"),
             Won = () => _netWinOrbit = true, Modern = () => !_mode1997, Cutscene = () => accept.Coop is not null && _scriptCam?.Current == true,
             CanChat = () => !_inMenu && _menu is null && _picture is null && !_loading && _reconfig is null, HostStatus = () => _net?.Server?.AnetStatus,
+            MissionTitle = CoopTitle,
         });
         // the server's different-build line came while this one loaded, before the feed was up: the joiner's own, from the accept
         if (_net.Server is null && I76.Net.BuildId.Differs(accept.Build, I76.Net.BuildId.Current))

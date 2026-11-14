@@ -329,7 +329,9 @@ mission on the spot (debug), Ctrl+F2 or Ctrl+` the Developer panel when it is tu
 **Co-op starts.** In a co-op game the mission starts for everyone together, once every player's game has loaded it. While it waits, the
 players already in it see PLEASE STAND BY with who is still loading or watching the briefing; after two minutes it starts without them
 and they join in when they are ready. Each player's briefing plays once their mission has loaded; when everyone has loaded and
-anyone skips theirs (Esc), the briefing ends for everyone.
+anyone skips theirs (Esc), the briefing ends for everyone. A won mission goes on by itself to the trip's next mission with everyone
+in the same cars (MISSION COMPLETE, "Next mission: ... in 15 s"); the host's Esc menu has Next Mission (now) and Back to Lobby
+(everyone back to the game's lobby, still ready). After the trip's last mission the group is back in the lobby.
 
 **CB voice.** In network games the CB radio sends your voice while you hold the poetry key (C). Sending needs a
 microphone, and the game does not open the audio input (so no system asks for microphone access) until you pick one:

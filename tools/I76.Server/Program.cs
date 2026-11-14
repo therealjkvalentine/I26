@@ -278,7 +278,7 @@ while (!done.Wait(1000))
 {
     if (server.Fault is not null) { Log("the server stopped on an error (above)"); return 1; }
     if (server.AnetStatus is { } st && st != lastAnet) { Log($"anet: {st}"); lastAnet = st; }
-    if (!server.CarriesOn && server.OverAt is { } over && System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency - over > 20) break;
+    if (!server.CarriesOn && !server.CoopGoesOn && server.OverAt is { } over && System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency - over > 20) break;
 }
 Log("stopping");
 return 0;
