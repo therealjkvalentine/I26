@@ -34,6 +34,22 @@ public class ViewZoomResetTests
         MouseCamera.WheelView = null;
     }
 
+    /// <summary>#190: the Escape menu (and its Options pages) over the F2 view is not a switch of view; leaving the view for another, or a cut-scene, is.</summary>
+    [Fact] public void AMenuOverTheViewDoesNotStartTheZoomOver()
+    {
+        var t = new ZoomViewTracker();
+        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // into F2: the original's framing
+        Assert.False(t.Switched(ViewZoom.Kind.Chase, false));
+        Assert.False(t.Switched(null, true));                   // the Escape menu, the Options pages
+        Assert.False(t.Switched(null, true));
+        Assert.False(t.Switched(ViewZoom.Kind.Chase, false));   // closed: the same view, its zoom kept
+        Assert.False(t.Switched(null, false));                  // a cut-scene takes the camera
+        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // and hands it back: a new start, as before
+        Assert.True(t.Switched(ViewZoom.Kind.Overhead, false)); // another view
+        Assert.False(t.Switched(null, true));
+        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // a view switched while the menu was up (none can be): still a switch
+    }
+
     [Fact] public void SideMouseButtonsResolveToMouseDeviceAndNotJoystick()
     {
         Assert.Contains("Mouse4Btn", Controls.MouseNames);
