@@ -42,6 +42,15 @@ public partial class LoadingScreen : CanvasLayer
     /// <summary>From black to the picture over 32 steps.</summary>
     public SignalAwaiter FadeIn() => Ramp(Colors.White);
 
+    /// <summary>
+    /// The progress wheel on the card ([port] load_progress), or, whatever the setting, the card brought back after a briefing the
+    /// player skipped before the rest of the load was done (Main.BuildBehindCard): the wait shows how far it has to go.
+    /// </summary>
+    public void ShowProgress()
+    {
+        if (_root.GetNodeOrNull("Progress") is null) _root.AddChild(new LoadProgressView { Faithful = Faithful, Name = "Progress" });
+    }
+
     /// <summary>Back to black.</summary>
     public SignalAwaiter FadeOut() => Ramp(Colors.Black);
 
@@ -163,7 +172,7 @@ public partial class LoadingScreen : CanvasLayer
         AddChild(_status);
         // the port's progress wheel, over the picture and fading with it ([port] load_progress); up once the load begins (a network game's
         // card is up first while it hosts or joins)
-        if (ShellSettings.Load().LoadProgress) _root.AddChild(new LoadProgressView { Faithful = Faithful, Name = "Progress" });
+        if (ShellSettings.Load().LoadProgress) ShowProgress();
         // Nitro: a mission named p.. shows addon\pNNload.pcx, anything else loadscr.pcx
         var path = (Install.IsNitro && Mission is { Length: > 1 } m && char.ToLowerInvariant(m[0]) == 'p' ? Install.Resolve("addon", System.IO.Path.GetFileNameWithoutExtension(m) + "load.pcx") : null)
             ?? Install.Resolve("addon", "loadscr.pcx") ?? Install.FindFile("loadscr.pcx");

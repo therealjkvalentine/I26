@@ -36,7 +36,7 @@ public partial class MoviePlayer : CanvasLayer
     public StandByTag? WaitingTag { get; init; }
     /// <summary>
     /// The port's: while true, the mission is loading under the playing picture (its build's thread at work), and
-    /// <see cref="WaitingTag"/> shows over it too, faint, saying READY when it turns false (StandByLine). No press skips meanwhile,
+    /// <see cref="WaitingTag"/> shows over it too, faint (READY once <see cref="Waiting"/> is false: StandByLine). No press skips meanwhile,
     /// nor is one kept for later: a new press once it is false does (MovieSkipGate).
     /// </summary>
     public Func<bool>? Loading { get; init; }
@@ -456,6 +456,7 @@ public partial class MoviePlayer : CanvasLayer
     /// <summary>A skip asked for (true when the movie ended): at once, or, while <see cref="Waiting"/>, kept with the stand-by line faded in.</summary>
     private bool Skip()
     {
+        if (!_skipWanted) I76.Game.World.MissionBuilder.Trace($"movie: skip pressed ({(IsWaiting ? "the mission not ready" : "the mission ready")})");
         if (!IsWaiting) { Finish(); return true; }
         if (!_skipWanted) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: skip asked for, kept until the mission is ready");
         _skipWanted = true;
@@ -465,12 +466,14 @@ public partial class MoviePlayer : CanvasLayer
 
     private bool _skipWanted, _toldReady;
 
-    /// <summary>The movie is over by itself: it ends, or, while <see cref="Waiting"/>, its last frame stays up under the stand-by line until the mission can start.</summary>
+    /// <summary>
+    /// The movie is over by itself: it ends. While <see cref="Waiting"/> what follows it shows the wait (Main.BuildBehindCard: the
+    /// loading card again, with its progress wheel), rather than its last frame standing still.
+    /// </summary>
     private void RunOut()
     {
-        if (!IsWaiting) { Finish(); return; }
-        _tag?.FadeIn();   // (the player waits on the mission now)
-        Hold("over");
+        if (IsWaiting) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: over before the mission is ready, the loading card follows");
+        Finish();
     }
 
     /// <summary>The picture stands still where it is, its sound stopped, until the mission can start (_Process ends it then).</summary>
@@ -489,14 +492,14 @@ public partial class MoviePlayer : CanvasLayer
     }
 
     /// <summary>
-    /// The port's: the stand-by line over the playing picture while the mission loads under it (<see cref="Loading"/>), READY in its
-    /// place once it is done (StandByLine), from the picture's first frame (its lettering made meanwhile, under the black).
+    /// The port's: the stand-by line over the playing picture while the mission is not ready (<see cref="Waiting"/>), READY in its
+    /// place once it is (StandByLine), from the picture's first frame (its lettering made meanwhile, under the black).
     /// </summary>
     private void TagForLoading()
     {
         if (_tag is null || Loading is null || _skipWanted || _held) return;
-        var (says, faint) = StandByLine.For(_video is not null || _started, Loading(), false);
-        if (says == StandByLine.Says.Ready && !_toldReady) { _toldReady = true; GD.Print($"movie {System.IO.Path.GetFileName(Path)}: the load under it done, READY: a press skips now"); }
+        var (says, faint) = StandByLine.For(_video is not null || _started, !IsWaiting, false);
+        if (says == StandByLine.Says.Ready && !_toldReady) { _toldReady = true; GD.Print($"movie {System.IO.Path.GetFileName(Path)}: the mission ready, READY: a press starts it"); }
         _tag.Show(says, faint);
     }
 
