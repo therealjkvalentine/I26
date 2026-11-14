@@ -203,6 +203,13 @@ public sealed class CoopMode : IHostMode
 
     private long _loadAt;
 
+    /// <summary>The mission has started: its first tick has run (or runs this one).</summary>
+    public bool Started => _started;
+
+    /// <summary>A lobby start's seconds left before the mission starts without the players still loading; null with no lobby, before the start, or once started.</summary>
+    public double? LoadLeft => _o.Lobby && _loadAt != 0 && !_started
+        ? Math.Max(0, _o.LoadSeconds - System.Diagnostics.Stopwatch.GetElapsedTime(_loadAt).TotalSeconds * NetClock.Scale) : null;
+
     /// <summary>
     /// A lobby's start (docs/multiplayer.md "The co-op lobby"): every seat was dealt at once, and the mission's first tick waits until each
     /// player's game has built it and sent an input, so the cars appear at the start together. A player still loading after

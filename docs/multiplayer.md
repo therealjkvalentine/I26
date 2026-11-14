@@ -1056,6 +1056,28 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
   message (and a later join turned away); a guest leaving; the host's boot; a full lobby; a dedicated server starting when enough are all ready
   (`--start-when 2`) and the console's forced start; and a game with no lobby seating at once.
 
+### Waiting for the others (the play fork's, `PeerFeatures.CoopWait`)
+
+While a lobby's start is held for a game still loading, the players already in the mission stood still with nothing on screen to say why
+(upstream #196). Now each game says where it is, and the host says whom it waits for:
+
+- **The client** sends `MsgType.CoopStage` (60, one byte, `CoopStage`) when it changes: Building (the accept is in and the mission builds),
+  Briefing, Skipped, Ready (built, its inputs follow) and Ending (the last mission's outro still plays, before the next mission). Sent only
+  to a host whose accept says `CoopWait`; kept and said again at a new accept (`MeleeClient.SendCoopStage`).
+- **The server** (`NetMeleeServer.Coop.cs`), each tick of a lobby's co-op mission before it starts, lists the seats whose game has not sent an
+  input (`CoopStart.Waiting`) with what each said, and when the list changes sends `MsgType.CoopWait` (61: the seconds left of
+  `ServerOptions.LoadSeconds`, then each player's name and stage) to every seat whose join said `CoopWait`; an empty list once the mission
+  starts. An upstream player says nothing and is listed as Unknown ("loading or watching the briefing"). The log says it too
+  ("co-op: the start waits for Ann (watching the briefing)").
+- **The notice** (`NetHud.Coop.cs`, both looks): PLEASE STAND BY, "Waiting for 1 player", a line a player ("Ann: watching the briefing",
+  "Bob: loading"), and "starting without them in 87 s", counted down on the client. The 1997 look letters it in the console's Lee, red, high
+  in the middle; the modern look in a panel at the top centre, its head in Impact. It goes when the server's tick moves on (the start).
+- **An upstream host** says nothing: the game cannot name anyone, so once the start has stood still for 2 s it shows PLEASE STAND BY,
+  "Waiting for the other players", "loading or watching the briefing" until the tick moves.
+- **Tests** (`CoopFlowTests`): the message's round trip and an unknown stage read as Unknown; the notice's lines; a two-player start
+  where the loaded player hears whom it waits for, sees the stage change and the list empty when the start goes; an upstream player listed
+  without a stage and told nothing; an upstream host (no `CoopWait` in its accept) saying nothing and hearing nothing.
+
 ### Hosting and joining from the shell
 
 MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 4, above) with a way to make it a co-op game:

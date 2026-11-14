@@ -69,6 +69,9 @@ public sealed class NetHudFrame
     public sealed record FinalInfo(IReadOnlyList<Standing> Standings, double? NextRound);
     public enum PromptKind { Invite, Boot }
     public sealed record PromptInfo(PromptKind Kind, string Name);
+    /// <summary>A co-op notice over the game (the fork's: whom the start waits for, what follows the mission): its head and its lines.</summary>
+    public sealed record NoticeInfo(string Head, IReadOnlyList<string> Lines);
+    public NoticeInfo? Notice;
 
     public string TeamName(int team) => MeleeGame.TeamName(Kind, team);
 }

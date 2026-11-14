@@ -229,7 +229,9 @@ public partial class Main
             // a co-op story mission: built as a mission (its script the host's), not as a melee arena
             GD.Print($"network: the game is the co-op mission {acc.Arena}, seat {coop.Seat} of {coop.SeatCars.Count}");
             // the lobby's start: everyone plays the briefing now, each their own (the server holds the mission until every game has built it)
-            if (lobbied && !_opt.SkipMovies) await CoopBriefing(acc.Arena);
+            if (lobbied && !_opt.SkipMovies) { _net.Client.SendCoopStage(CoopStage.Briefing); await CoopBriefing(acc.Arena); }
+            // the host that listens hears where this game is (docs/multiplayer.md "Waiting for the others"): the others' notice names it
+            _net.Client.SendCoopStage(CoopStage.Building);
             _opt.Melee = false;
             return true;
         }

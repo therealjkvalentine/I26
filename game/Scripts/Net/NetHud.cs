@@ -472,6 +472,7 @@ public partial class NetHud : CanvasLayer
         bool modern = IsModern;
         if (_demo is not null) _demo.Classic = !modern;
         var f = _demo?.Frame(_t, Server is not null || Host) ?? Gather();
+        f.Notice ??= CoopNotice(delta);
         bool cut = Cutscene?.Invoke() == true && !_chat.Active;
         _classic.Visible = !modern && !cut;
         _modern.Visible = modern && !cut;

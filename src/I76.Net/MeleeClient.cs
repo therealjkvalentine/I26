@@ -217,12 +217,18 @@ public sealed partial class MeleeClient : IDisposable
     /// <summary>The build the join request names (<see cref="BuildId"/>; another in tests).</summary>
     public string Build { get; init; } = BuildId.Current;
 
+    /// <summary>What the join request says this build understands beyond upstream's protocol (<see cref="Protocol.Features"/>; none in a test's upstream client).</summary>
+    public PeerFeatures Features { get; init; } = Protocol.Features;
+
+    /// <summary>Both ends of this game have the fork's feature (this client's join said it, the host's accept says it).</summary>
+    public bool Has(PeerFeatures f) => (Features & f) == f && Accept is { } a && (a.Features & f) == f;
+
     /// <summary>Starts connecting to host:port with the join request (name, car, team).</summary>
     public void Connect(string host, int port, string name, string car, byte team = 0, byte[]? config = null, string password = "", byte[]? paint = null)
     {
         _net.Start();
         State = ClientState.Connecting;
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features };
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Features };
         _net.Connect(host, port, JoinData(name, car, team, config, password, paint));
     }
 
@@ -230,7 +236,7 @@ public sealed partial class MeleeClient : IDisposable
     {
         var w = new NetDataWriter();
         var nw = new NetWriter();
-        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features }.Write(nw);
+        new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Features }.Write(nw);
         w.Put(nw.ToArray());
         return w;
     }
@@ -248,7 +254,7 @@ public sealed partial class MeleeClient : IDisposable
         _net.Start();
         State = ClientState.Connecting;
         _joinData = JoinData(name, car, team, config, password, paint);
-        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Protocol.Features };
+        _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Features };
         _joiner = new AnetJoiner(new LiteNetAnetTransport(_net, _layer), serverHost, serverPort, game, (ep, d) => _net.SendUnconnectedMessage(d, ep),
             privateOverride: privateOverride) { CheckServers = checkServers ?? [] };
         _joiner.Log += m => Log?.Invoke(m);
@@ -355,6 +361,7 @@ public sealed partial class MeleeClient : IDisposable
                 ResetMigration();
                 MovieName = null;
                 SetMovie(Accept.Coop?.Movie);
+                CoopAccepted();
                 Joined?.Invoke(Accept);
                 break;
             case MsgType.Snapshot when Accept is not null:
@@ -423,6 +430,7 @@ public sealed partial class MeleeClient : IDisposable
                 MovieName = null;
                 _movieFinished = null;
                 NextArena = arena;
+                CoopNewRound();
                 NewRound?.Invoke(arena);
                 break;
             }
@@ -449,7 +457,7 @@ public sealed partial class MeleeClient : IDisposable
                 foreach (var c in CarList.Read(ref r).Cars) CarAnswers.Enqueue(c);
                 break;
             default:
-                ReceiveMigration(type, ref r, data.Length);
+                if (!ReceiveCoop(type, ref r)) ReceiveMigration(type, ref r, data.Length);
                 break;
         }
     }
