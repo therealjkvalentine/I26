@@ -25,6 +25,8 @@ public sealed class ControllerScreen : OverlayScreen
     private PadDiagram? _diagram;
     private Control? _layer;
     private int _sel;
+    /// <summary>The stick axis pushed last frame (StickPick), so a held push selects once.</summary>
+    private string? _pushed;
     private readonly PadMenu _menu = new();
     private bool _replugged, _hadPad;
 
@@ -468,8 +470,8 @@ public sealed class ControllerScreen : OverlayScreen
         : Layer ? [$"SECOND COMMANDS, with {ShiftName} held:", "click an input or press A to choose"]
         : ["Click an input, or pick it with the D-pad", "and press A, to choose what it does"];
     private string[] Help => _map.Shift is null
-        ? ["Right-click or Delete clears the selected input.", "Start is Done, B is Cancel."]
-        : ["Right-click or Delete clears the selected input.", $"Hold {ShiftName} or press Tab for the second commands.", "Start is Done, B is Cancel."];
+        ? ["Push a stick up or across to pick that axis.", "Right-click or Delete clears the selected input.", "Start is Done, B is Cancel."]
+        : ["Push a stick up or across to pick that axis.", "Right-click or Delete clears the selected input.", $"Hold {ShiftName} or press Tab for the second commands.", "Start is Done, B is Cancel."];
 
     protected override void DrawExtra()
     {
@@ -561,6 +563,8 @@ public sealed class ControllerScreen : OverlayScreen
     private void Open(El e, bool byPad)
     {
         Shell.Sound(82);
+        // a stick's row (one for its two axes when they do the same thing) clicked while the stick is pushed: the axis it is pushed along
+        if (e.Axis && e.Group is "LS" or "RS" && StickPick.Pushed(ReadPad()) is { } pushed && pushed.StartsWith(e.Group)) e = Els.First(x => x.Key == pushed);
         _sel = Array.IndexOf(Walk, e.Key);
         // the shift itself: a click shows the other layer
         if (IsShift(e) && !byPad) { _shiftView = !_shiftView; Redraw(); return; }
@@ -659,8 +663,12 @@ public sealed class ControllerScreen : OverlayScreen
         if (_replugged || Controls.HasPad != _hadPad) { _replugged = false; _hadPad = Controls.HasPad; Redraw(); }
         // the shift pressed or let go: the rows are the other layer's
         if (Layer != _shownLayer) { _shownLayer = Layer; Redraw(); }
-        // the D-pad, A, B and Start only; a stick, a trigger or any other button just shows on the drawing
-        var act = _menu.Update(ReadPad());
+        // the D-pad, A, B and Start only; a stick, a trigger or any other button just shows on the drawing, but a stick pushed past half
+        // its travel selects the axis it is pushed along (StickPick): an axis without a row of its own is reached that way
+        var pad = ReadPad();
+        if (StickPick.Pushed(pad) is { } pushed && pushed != _pushed && Array.IndexOf(Walk, pushed) is var pi && pi != _sel) { _sel = pi; Shell.Sound(82); Redraw(); }
+        _pushed = StickPick.Pushed(pad);
+        var act = _menu.Update(pad);
         if ((act & PadMenu.Act.Prev) != 0) Step(-1);
         if ((act & PadMenu.Act.Next) != 0) Step(1);
         if ((act & PadMenu.Act.Open) != 0) { Open(Selected, true); return; }
