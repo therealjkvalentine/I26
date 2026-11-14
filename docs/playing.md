@@ -331,7 +331,10 @@ players already in it see PLEASE STAND BY with who is still loading or watching 
 and they join in when they are ready. Each player's briefing plays once their mission has loaded; when everyone has loaded and
 anyone skips theirs (Esc), the briefing ends for everyone. A won mission goes on by itself to the trip's next mission with everyone
 in the same cars (MISSION COMPLETE, "Next mission: ... in 15 s"); the host's Esc menu has Next Mission (now) and Back to Lobby
-(everyone back to the game's lobby, still ready). After the trip's last mission the group is back in the lobby.
+(everyone back to the game's lobby, still ready). After the trip's last mission the group is back in the lobby. After a failed mission
+the host chooses on the end menu: Replay Mission (everyone again from the start), Back to Lobby, Leave Match (back to the menus) or
+Exit I76 (back to the desktop); the others see that the host is choosing. The host's Esc menu has Replay Mission and Back to Lobby
+during the mission as well.
 
 **CB voice.** In network games the CB radio sends your voice while you hold the poetry key (C). Sending needs a
 microphone, and the game does not open the audio input (so no system asks for microphone access) until you pick one:

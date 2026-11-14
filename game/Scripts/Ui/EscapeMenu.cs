@@ -8,7 +8,7 @@ namespace I76.Game.Ui;
 /// <summary>What the escape menu leaves behind: the game state it sets.</summary>
 public enum MenuOutcome { Resume, Replay, Reconfigure, Abort, Exit, RetryCheckpoint, Developer, SelfDestruct,
     /// <summary>The fork's co-op host's choices (docs/multiplayer.md "On to the next mission"): the next mission now, back to the lobby.</summary>
-    CoopNext, CoopLobby }
+    CoopNext, CoopLobby, CoopReplay }
 
 /// <summary>
 /// The engine's own 2D menu, the "Spanner's Cafe" order pad:
@@ -95,6 +95,10 @@ public sealed partial class EscapeMenu : Control
     /// </summary>
     public string? CoopNextTitle { get; init; }
     public bool CoopLobby { get; init; }
+    /// <summary>The fork's co-op host can replay the mission for everyone (Replay Mission, row 8 of the network pad, and of the end menu after a failure).</summary>
+    public bool CoopReplay { get; init; }
+    /// <summary>A co-op player whose host chooses what follows a failure (the fork's): the end menu says so, over Leave Match and Exit I76.</summary>
+    public bool CoopWaitHost { get; init; }
     /// <summary>A network game: Self Destruct is refused now (the car dead, or the game decided).</summary>
     public Func<bool>? SelfDestructRefused { get; init; }
     /// <summary>Once a frame while the tree is paused under the menu: what play would draw that a paused node does not (the rear mirror), so the measured frame rate is play's.</summary>
@@ -427,12 +431,14 @@ public sealed partial class EscapeMenu : Control
 
         if (End is { } netEnd && Net)
         {
-            // a network co-op mission's end: nothing to replay or reconfigure here, the host's game is over for everyone
-            _end.Items = [
-                Text(netEnd.Message, 47),
-                Action(I76.Net.Hud.NetMenu.Leave, 10, () => AskExit(_end, MenuOutcome.Abort, LeaveLine)),
-                Action(I76.Net.Hud.NetMenu.Exit, 11, () => AskExit(_end, MenuOutcome.Exit, QuitLine)),
-            ];
+            // a network co-op mission's end: nothing to reconfigure here; the fork's host replays it or takes everyone back to the lobby for the
+            // whole group (rows 8 and 9, where the single-player end menu has Replay and Reconfigure), the others are told the host chooses
+            _end.Items = [Text(netEnd.Message, 47)];
+            if (CoopReplay) _end.Items.Add(Action(I76.Net.Hud.NetMenu.Replay, 8, () => AskExit(_end, MenuOutcome.CoopReplay, I76.Net.Hud.NetMenu.ReplayQuestion)));
+            if (CoopLobby) _end.Items.Add(Action(I76.Net.Hud.NetMenu.Lobby, 9, () => AskExit(_end, MenuOutcome.CoopLobby, I76.Net.Hud.NetMenu.LobbyQuestion)));
+            if (CoopWaitHost) _end.Items.Add(Text(I76.Net.Hud.NetMenu.WaitingForHost, 8));
+            _end.Items.Add(Action(I76.Net.Hud.NetMenu.Leave, 10, () => AskExit(_end, MenuOutcome.Abort, LeaveLine)));
+            _end.Items.Add(Action(I76.Net.Hud.NetMenu.Exit, 11, () => AskExit(_end, MenuOutcome.Exit, QuitLine)));
             _end.Selected = 1;
         }
         else if (End is { } end)
@@ -586,6 +592,7 @@ public sealed partial class EscapeMenu : Control
     {
         var rows = new List<Item>();
         if (CoopNextTitle is not null) rows.Add(Action(I76.Net.Hud.NetMenu.Next, 7, () => Close(MenuOutcome.CoopNext)));
+        if (CoopReplay) rows.Add(Action(I76.Net.Hud.NetMenu.Replay, 8, () => AskExit(_main, MenuOutcome.CoopReplay, I76.Net.Hud.NetMenu.ReplayQuestion)));
         if (CoopLobby) rows.Add(Action(I76.Net.Hud.NetMenu.Lobby, 9, () => AskExit(_main, MenuOutcome.CoopLobby, I76.Net.Hud.NetMenu.LobbyQuestion)));
         int at = _main.Items.FindIndex(i => i.Pair == BugRow);
         _main.Items.InsertRange(at < 0 ? _main.Items.Count - 1 : at, rows);

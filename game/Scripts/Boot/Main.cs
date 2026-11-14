@@ -550,7 +550,7 @@ public partial class Main : Node3D
             Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
             PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
             SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
-            CoopNextTitle = NetCoopNextTitle(), CoopLobby = NetCoopCanLobby(),
+            CoopNextTitle = NetCoopNextTitle(), CoopLobby = NetCoopHost, CoopReplay = NetCoopHost, CoopWaitHost = end is not null && NetCoopFlow && !NetCoopHost,
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
         layer.AddChild(_menu);
@@ -665,7 +665,7 @@ public partial class Main : Node3D
             case MenuOutcome.RetryCheckpoint:
                 RetryCheckpoint();
                 break;
-            case MenuOutcome.CoopNext or MenuOutcome.CoopLobby:
+            case MenuOutcome.CoopNext or MenuOutcome.CoopLobby or MenuOutcome.CoopReplay:
                 GetTree().Paused = false;
                 NetCoopChoose(o);   // the co-op host's choice for the group (MainNetCoop.cs)
                 break;

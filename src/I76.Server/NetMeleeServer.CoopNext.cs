@@ -30,28 +30,31 @@ public sealed partial class NetMeleeServer
     public bool CoopGoesOn { get { lock (_lock) return _plan is not null; } }
 
     /// <summary>
-    /// The host's choice at a co-op mission's end (a listen host's menu; the console's): <see cref="CoopPlanKind.Next"/> now (the plan's
-    /// next mission), or <see cref="CoopPlanKind.Lobby"/> (back to the lobby with everyone). Null when done, else why not.
+    /// The host's choice for the whole group (a listen host's menu; the console's), in the mission or at its end: <see cref="CoopPlanKind.Next"/>
+    /// now (after a win, the plan's next mission), <see cref="CoopPlanKind.Replay"/> (this mission again from its start) or
+    /// <see cref="CoopPlanKind.Lobby"/> (back to the lobby with everyone). Null when done, else why not.
     /// </summary>
     public string? CoopChoose(CoopPlanKind kind)
     {
         lock (_lock)
         {
             if (Host.Mode is not CoopMode cm || (Options.Features & PeerFeatures.CoopNext) == 0 || !Options.Lobby) return "not a co-op game that goes on";
-            if (cm.Result is null) return "the mission is still on";
+            if (_lobbyOpen) return "the game is in its lobby";
             string mission = Options.Coop ?? Options.Arena;
+            bool won = cm.Result == true;
             switch (kind)
             {
                 case CoopPlanKind.Next when _plan is { Kind: CoopPlanKind.Next } p:
-                    CarryOn(CoopPlanKind.Next, p.Mission);
+                    CarryOn(CoopPlanKind.Next, p.Mission, won);
                     return null;
                 case CoopPlanKind.Next:
                     return "there is no next mission";
-                case CoopPlanKind.Lobby:
-                    CarryOn(CoopPlanKind.Lobby, mission);
+                case CoopPlanKind.Replay or CoopPlanKind.Lobby:
+                    Log?.Invoke($"co-op: the host chooses {(kind == CoopPlanKind.Replay ? "to replay the mission" : "the lobby")}{(cm.Result is null ? " in the mission" : "")}");
+                    CarryOn(kind, mission, won);
                     return null;
                 default:
-                    return $"{kind} is not a choice here";
+                    return $"{kind} is not a choice";
             }
         }
     }
@@ -65,16 +68,25 @@ public sealed partial class NetMeleeServer
             _planned = true;
             PlanFor(cm, won);
         }
-        if (_plan is { Kind: not CoopPlanKind.Host } p && Now >= _planDue) CarryOn(p.Kind, p.Mission);
+        if (_plan is { Kind: not CoopPlanKind.Host } p && Now >= _planDue) CarryOn(p.Kind, p.Mission, won);
     }
 
-    /// <summary>A won mission goes on to the trip's next (back to the lobby after the last); a failed one ends as before.</summary>
+    /// <summary>
+    /// A won mission goes on to the trip's next (back to the lobby after the last); a failed one waits for the listen host's choice (Replay
+    /// Mission or Back to Lobby), and on a dedicated server, which has no host, goes back to the lobby after the hold.
+    /// </summary>
     private void PlanFor(CoopMode cm, bool won)
     {
-        if (!won) return;
         string mission = Options.Coop ?? Options.Arena;
-        var next = I76.Formats.Mission.MissionTitles.NextCoop(new I76.Formats.Vfs.GameInstall(Options.Install), mission);
         int hold = (int)Math.Ceiling(Options.CoopNextSeconds);
+        if (!won)
+        {
+            SetPlan(Options.ListenHost ? new CoopPlan(CoopPlanKind.Host, mission, 0) : new CoopPlan(CoopPlanKind.Lobby, mission, hold));
+            // an upstream game on its end menu waits as long as the game over lets it (its own Leave Match stays)
+            cm.NextRoundSeconds = (byte)(Options.ListenHost ? 255 : Math.Clamp(hold, 1, 255));
+            return;
+        }
+        var next = I76.Formats.Mission.MissionTitles.NextCoop(new I76.Formats.Vfs.GameInstall(Options.Install), mission);
         SetPlan(next is not null ? new CoopPlan(CoopPlanKind.Next, next, hold) : new CoopPlan(CoopPlanKind.Lobby, mission, hold));
         // the game over says the server carries on: an upstream game waits for it rather than leaving at once
         cm.NextRoundSeconds = (byte)Math.Clamp(hold, 1, 255);
@@ -98,12 +110,13 @@ public sealed partial class NetMeleeServer
     /// <summary>
     /// The players go on: <paramref name="mission"/> is built as a new game with this game's options, and the players still connected are told
     /// (<see cref="MsgType.NextRound"/>) and either seated in it at once, every seat dealt before any accept as a lobby's start deals them (the
-    /// host first, in seat 0), each in the car it played; or, for <see cref="CoopPlanKind.Lobby"/>, gathered in the lobby again, ready.
+    /// host first, in seat 0), each in the car it played; or, for <see cref="CoopPlanKind.Lobby"/>, gathered in the lobby again, ready. A peer
+    /// without <see cref="PeerFeatures.CoopNext"/> follows where upstream's client can (its game reads a next round and its accept or lobby as
+    /// a join): into the lobby, and into a replay of a mission it has not won (a won mission's end has taken its game back to its menus).
     /// </summary>
-    private void CarryOn(CoopPlanKind kind, string mission)
+    private void CarryOn(CoopPlanKind kind, string mission, bool won)
     {
         _plan = null;
-        _planned = false;
         var old = Host;
         var o = old.Options with { Arena = mission, Coop = mission, Seed = unchecked(old.Options.Seed * 1103515245 + 12345) };
         MeleeHost next;
@@ -113,6 +126,7 @@ public sealed partial class NetMeleeServer
             Log?.Invoke($"co-op: {mission} could not be built ({ex.Message}): the game ends here");
             return;
         }
+        _planned = false;
         var carried = _byPeer.OrderBy(kv => kv.Key == _hostPeer ? 0 : 1).ThenBy(kv => kv.Value.Slot).Select(kv => ((NetPeer)kv.Value.Connection!, kv.Value)).ToList();
         old.Log -= _hostLog;
         Host = next;
@@ -124,13 +138,13 @@ public sealed partial class NetMeleeServer
         _waitTold = "";
         _coopSkipped.Clear();
         _skipTold.Clear();
-        Log?.Invoke($"co-op: {(kind == CoopPlanKind.Lobby ? "back to the lobby of" : "on to")} {mission}, {carried.Count} players carry on");
+        Log?.Invoke($"co-op: {kind switch { CoopPlanKind.Lobby => "back to the lobby of", CoopPlanKind.Replay => "again:", _ => "on to" }} {mission}, {carried.Count} players carry on");
         var seating = new List<(NetPeer Peer, JoinRequest Request)>();
         foreach (var (peer, s) in carried)
         {
             var j = (_joined.GetValueOrDefault(peer.Id) ?? new JoinRequest(Protocol.Version, s.Name, s.Actor.CarFile, 0, [])) with { Name = s.Name, Team = 0 };
             // a peer that cannot play on with the group (an upstream build) is let go with the reason, rather than seated and gone
-            if (kind != CoopPlanKind.Lobby && !Both(peer.Id, PeerFeatures.CoopNext))
+            if ((kind == CoopPlanKind.Next || kind == CoopPlanKind.Replay && won) && !Both(peer.Id, PeerFeatures.CoopNext))
             {
                 Log?.Invoke($"co-op: {s.Name} cannot follow into {mission} (its build does not go on): let go");
                 _joined.Remove(peer.Id);

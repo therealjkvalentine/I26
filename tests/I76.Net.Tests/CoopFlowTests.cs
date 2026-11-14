@@ -432,5 +432,107 @@ public class CoopFlowTests(ITestOutputHelper output)
     }
 
 
+    // ---- replay and back to the lobby ----
+
+    /// <summary>A failed mission waits for the host (no countdown); its Replay Mission starts it again for everyone, the same seats and cars.</summary>
+    [Fact]
+    public void AFailedMissionWaitsForTheHostWhoReplaysItForEveryone()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 1);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann", car: "vcgcour1.vcf");
+        g.Start();
+        g.PlayAndEnd(won: false);
+        Assert.True(g.WaitDriving(() => ann.Plan is not null, [hal, ann]));
+        Assert.Equal(new CoopPlan(CoopPlanKind.Host, "t05", 0), ann.Plan);
+        Assert.Equal(["Waiting for the host to choose"], ann.Plan!.Lines("Scene 5: Save Taurus", 0, host: false));
+        // nothing happens by itself
+        int rounds = hal.Rounds;
+        g.Pump(2500);
+        Assert.Equal(rounds, hal.Rounds);
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Replay));
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.Rounds > rounds && p.Client.State == ClientState.Joined)));
+        Assert.All(g.Players, p => Assert.Equal("t05", p.Client.Accept!.Arena));
+        Assert.Equal([0, 1], g.Players.Select(p => (int)p.Client.Accept!.Coop!.Seat));
+        Assert.Equal("vcgcour1.vcf", ann.Accept!.Car);
+        Assert.Contains(g.Log, l => l.Contains("the host chooses to replay the mission"));
+    }
+
+    /// <summary>The host's Esc menu replays the mission, or takes everyone back to the lobby, while it is still being played.</summary>
+    [Fact]
+    public void TheHostReplaysOrGoesBackToTheLobbyFromTheMission()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05");
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        uint tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal, ann]));
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Replay));
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.Rounds == 1 && p.Client.State == ClientState.Joined)));
+        // in the replay: back to the lobby, everyone kept and ready
+        tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal, ann]));
+        Assert.NotNull(g.Server.CoopChoose(CoopPlanKind.Next));      // no next mission in a mission still played
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Lobby));
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.InLobby && p.Client.Lobby!.Members.Count == 2)));
+        Assert.All(hal.Lobby!.Members, m => Assert.True(m.Ready));
+        Assert.NotNull(g.Server.CoopChoose(CoopPlanKind.Replay));    // the lobby is the host's START now
+    }
+
+    /// <summary>An upstream player follows a replay of a failed mission and the lobby (its client reads a next round as a join), with no plan said to it.</summary>
+    [Fact]
+    public void AnUpstreamPlayerFollowsAReplayAndTheLobby()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05");
+        var hal = g.Join("Hal");
+        var old = g.Join("Old", upstream: true);
+        g.Start();
+        g.PlayAndEnd(won: false);
+        Assert.True(g.WaitDriving(() => hal.Plan is not null, [hal, old]));
+        Assert.Null(old.Plan);
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Replay));
+        Assert.True(g.Wait(() => old.Rounds == 1 && old.State == ClientState.Joined && old.Accept!.Arena == "t05"), $"{old.State} {old.Reason}");
+        Assert.Equal(2, g.Server.Invoke(h => h.Seats.Count));
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Lobby));
+        Assert.True(g.Wait(() => old.State == ClientState.InLobby && old.Lobby!.Members.Count == 2), $"{old.State}");
+    }
+
+    /// <summary>A dedicated server has no host to choose: a failed mission goes back to the lobby after the hold, everyone ready, and starts itself.</summary>
+    [Fact]
+    public void ADedicatedServerGoesBackToTheLobbyAfterAFailure()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 1, listenHost: false);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        g.PlayAndEnd(won: false);
+        Assert.True(g.WaitDriving(() => ann.Plan is not null, [hal, ann]));
+        Assert.Equal(CoopPlanKind.Lobby, ann.Plan!.Kind);
+        // everyone is back and ready, so the dedicated server's lobby starts the mission again by itself
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.Rounds >= 1 && p.Client.State == ClientState.Joined), 15000),
+            string.Join(", ", g.Players.Select(p => $"{p.Name} {p.Client.State}")));
+    }
+
+    /// <summary>A host without CoopNext: a failure ends the game as before (each player's end menu; nothing follows).</summary>
+    [Fact]
+    public void AnUpstreamHostEndsAFailedGameAsBefore()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", hostFeatures: PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        g.PlayAndEnd(won: false);
+        g.WaitDriving(() => false, [hal, ann], 1500);
+        Assert.Null(hal.Plan);
+        Assert.Null(g.Server.CoopPlanNow);
+        Assert.NotNull(g.Server.CoopChoose(CoopPlanKind.Replay));
+    }
+
     internal static string Describe(CoopWait? w) => w is null ? "none" : $"{w.SecondsLeft} s: {string.Join(", ", w.Players.Select(p => $"{p.Name} {p.Stage}"))}";
 }

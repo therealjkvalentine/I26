@@ -32,6 +32,7 @@ public static class MenuTips
         [I76.Net.Hud.NetMenu.Leave] = "Leave the network game for the main menu.",
         [I76.Net.Hud.NetMenu.Exit] = "Quit the network game and the program.",
         [I76.Net.Hud.NetMenu.Next] = "Next Mission: the host takes everyone on to the next mission now, the same cars and settings.",
+        [I76.Net.Hud.NetMenu.Replay] = "Replay Mission: the host starts this mission again from its beginning for everyone, the same cars and settings.",
         [I76.Net.Hud.NetMenu.Lobby] = "Back to Lobby: the host takes everyone back to the game's lobby (its setup), each with their car and ready mark.",
 
         // ---- the Esc menu's other pads

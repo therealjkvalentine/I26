@@ -1137,6 +1137,30 @@ owner: "when a coop mission is completed, the next coop mission should load for 
   the host's Next Mission at once; the host's Back to Lobby with everyone ready in their cars and the plain start going again; the trip's
   last mission back to the lobby; an upstream player let go at the next mission with the reason; an upstream host ending the game.
 
+### Replay and back to the lobby (the play fork's, `PeerFeatures.CoopNext`)
+
+After a failed co-op mission upstream offers only Leave Match and Exit I76 (the owner: "menu options in coop after you lose should let you
+replay, and the clarification we did to differentiate going back to the game host setting lobby, back to main menu, or exiting game").
+
+- **The host decides** for the whole group (no vote): a failure's plan is Host ("Waiting for the host to choose" on the others' notice; no
+  countdown). The listen host's end menu (the network end pad) has **Replay Mission** (row 8, where single player's end menu has Replay)
+  and **Back to Lobby** (row 9, where it has Reconfigure) over **Leave Match** and **Exit I76** (rows 10 and 11, where it has Abort Mission
+  and Exit Game); the others' end menu says "Waiting for the host: Replay Mission or Back to Lobby" on row 8 over the same two. The labels
+  and their questions follow the network menu's own clarification (Leave Match "Leave this match (back to the menus)?", Exit I76 "Quit
+  Interstate '76 (back to the desktop)?", instead of Leave Game and Exit Game): Replay Mission asks "Replay this mission with everyone (back
+  to its start)?" and Back to Lobby "Back to the lobby with everyone (the game's setup)?", so the four cannot be taken for each other.
+- **In the mission** the listen host's Esc menu has the same two on its free rows under Controls (8 and 9; Next Mission on row 7 after a
+  win), for the group at any time; every player keeps Leave Match, Self Destruct and Exit I76 on rows 1 to 3.
+- **Replay** (`NetMeleeServer.CoopChoose(Replay)`) builds the mission again from its start and seats everyone at once in the cars they
+  played, as the next mission is carried; **Back to Lobby** gathers everyone in the lobby with their cars and ready marks.
+- **A dedicated server** has no host to choose: a failure goes back to the lobby after the hold, everyone ready, so its lobby starts the
+  mission again by itself.
+- **An upstream player** follows a replay of a mission it has not won and the lobby (upstream's client reads a next round and its accept or
+  lobby as a join does), with no plan said to it and its own end menu's Leave Match and Exit I76. **An upstream host** offers none of this.
+- **Tests** (`CoopFlowTests`): a failure waiting for the host and its replay seating everyone again; the host's replay and back to the lobby
+  from a mission still played; an upstream player following a replay and the lobby; a dedicated server back in the lobby and starting again;
+  an upstream host ending a failed game as before.
+
 ### Hosting and joining from the shell
 
 MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 4, above) with a way to make it a co-op game:

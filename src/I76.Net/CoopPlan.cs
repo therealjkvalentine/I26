@@ -49,10 +49,10 @@ public sealed record CoopPlan(CoopPlanKind Kind, string Mission, int Seconds)
         string when = left >= 1 ? $" in {(int)Math.Ceiling(left)} s" : "";
         return Kind switch
         {
-            CoopPlanKind.Next => [$"Next mission: {title}{when}", host ? "Esc: Next Mission now or Back to Lobby" : "the same players, cars and settings"],
+            CoopPlanKind.Next => [$"Next mission: {title}{when}", host ? "Esc: Next Mission now, Replay Mission or Back to Lobby" : "the same players, cars and settings"],
             CoopPlanKind.Replay => [$"Replaying {title}{when}"],
             CoopPlanKind.Lobby => [$"Back to the lobby{when}", "your car and ready mark are kept"],
-            _ => [host ? "Esc: Replay Mission or Back to Lobby" : "Waiting for the host to choose"],
+            _ => [host ? "Your menu: Replay Mission or Back to Lobby" : "Waiting for the host to choose"],
         };
     }
 }

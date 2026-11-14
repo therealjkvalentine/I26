@@ -116,14 +116,11 @@ public partial class Main
     /// <summary>The next mission's title when the host can take the group on to it now (its menu's Next Mission), else null.</summary>
     private string? NetCoopNextTitle() => NetCoopHost && _net!.Server!.CoopPlanNow is { Kind: CoopPlanKind.Next } p ? CoopTitle(p.Mission) : null;
 
-    /// <summary>The host can take the group back to the lobby (its menu's Back to Lobby): the mission is over and the group goes on.</summary>
-    private bool NetCoopCanLobby() => NetCoopHost && _net!.Server!.CoopPlanNow is not null;
-
     /// <summary>The host's choice from its menu, for everyone.</summary>
     private void NetCoopChoose(I76.Game.Ui.MenuOutcome o)
     {
         if (_net?.Server is not { } server) return;
-        var kind = o == I76.Game.Ui.MenuOutcome.CoopNext ? CoopPlanKind.Next : CoopPlanKind.Lobby;
+        var kind = o switch { I76.Game.Ui.MenuOutcome.CoopNext => CoopPlanKind.Next, I76.Game.Ui.MenuOutcome.CoopReplay => CoopPlanKind.Replay, _ => CoopPlanKind.Lobby };
         GD.Print($"network: co-op: the host chooses {kind}: {server.CoopChoose(kind) ?? "done"}");
     }
 
