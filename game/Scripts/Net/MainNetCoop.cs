@@ -137,11 +137,16 @@ public partial class Main
         GD.Print($"network: I76_LOBBY_START: the lobby starts with {c.Lobby!.Members.Count} players: {server.StartLobby(force: true) ?? "started"}");
     }
 
-    /// <summary>The lobby's frame: its start hook, and the pictures (a lobby gone back to is pictured as the game is).</summary>
+    /// <summary>The lobbies this run has been in, and whether this scene's is counted.</summary>
+    private static int _lobbiesSeen;
+    private bool _lobbyCounted;
+
+    /// <summary>The lobby's frame: its start hook, and the pictures of a lobby gone back to (the first is the start's, not pictured).</summary>
     private void NetCaptureLobbyFrame(MeleeClient c)
     {
+        if (!_lobbyCounted) { _lobbyCounted = true; _lobbiesSeen++; }
         NetCaptureLobby(c);
-        if (_lobbyStarted || LobbyStartAt <= 0) NetCaptureShot();
+        if (_lobbiesSeen > 1) NetCaptureShot();
     }
 
     /// <summary>
