@@ -14,7 +14,7 @@ namespace I76.Game.Tests;
 /// <summary>
 /// A mission start's card and briefing while the world builds ([port] briefing_while_loading): which starts build on a thread,
 /// which play the briefing during it, the key's states (upstream's true/false and the fork's older words), and the card's
-/// sequence (CardSequence: upstream's short hold, then the briefing).
+/// sequence (CardSequence: the card's hold with the build behind it, a skip on it once built, then the briefing).
 /// </summary>
 public class BriefingOverlapTests
 {
@@ -103,9 +103,76 @@ public class BriefingOverlapTests
         Assert.False(s.MovieShown);
     }
 
-    /// <summary>Upstream's card hold (0.7 s up, between its fades).</summary>
+    /// <summary>Upstream's card hold (0.7 s up, between its fades), and the port's longer default: the card read before the briefing.</summary>
     [Fact]
-    public void TheHoldIsUpstreams() => Assert.Equal(0.7, BriefingOverlap.CardHold);
+    public void TheHoldIsThePortsLongerOne()
+    {
+        Assert.Equal(0.7, BriefingOverlap.UpstreamCardHold);
+        Assert.Equal(3.0, BriefingOverlap.DefaultCardHold);
+        Assert.Equal(BriefingOverlap.DefaultCardHold, new ShellSettings().BriefingCardHold);
+    }
+
+    /// <summary>[port] briefing_card_hold: seconds, held to 0..10; absent or not a number, the default.</summary>
+    [Theory]
+    [InlineData("2", 2.0)]
+    [InlineData("4.5", 4.5)]
+    [InlineData("\"3\"", 3.0)]
+    [InlineData("0", 0.0)]
+    [InlineData("-1", 0.0)]
+    [InlineData("60", 10.0)]
+    [InlineData("long", 3.0)]
+    [InlineData("nan", 3.0)]
+    [InlineData(null, 3.0)]
+    public void TheHoldReadsSeconds(string? value, double expected) => Assert.Equal(expected, BriefingOverlap.ParseHold(value));
+
+    /// <summary>
+    /// The card for its hold with the build going behind it from the start: a build done while the card is up goes on to the
+    /// briefing as any other, at the hold's end, not before.
+    /// </summary>
+    [Fact]
+    public void ABuildDoneOnTheCardStillShowsTheBriefingAfterTheHold()
+    {
+        var s = new CardSequence(briefing: true, holdSeconds: 3.64);
+        Assert.Equal(Stage.Card, s.Step(1.0, built: true, movieOver: false));
+        Assert.Equal(Stage.Card, s.Step(3.6, built: true, movieOver: false));
+        Assert.Equal(Stage.Movie, s.Step(3.64, built: true, movieOver: false));
+        Assert.True(s.MovieShown);
+        Assert.False(s.SkippedOnCard);
+    }
+
+    /// <summary>A press on the card while the mission builds is no skip (the caller drops it: MovieSkipGate); one once it is built skips the briefing, the card staying up for the rest of the load.</summary>
+    [Fact]
+    public void APressOnTheCardSkipsOnlyOnceTheBuildIsDone()
+    {
+        var s = new CardSequence(briefing: true, holdSeconds: 3.64);
+        Assert.Equal(Stage.Card, s.Step(1.0, built: false, movieOver: false, skipped: true));   // (a gate would not pass it; nor does this)
+        Assert.False(s.SkippedOnCard);
+        Assert.Equal(Stage.Attach, s.Step(2.0, built: true, movieOver: false, skipped: true));
+        Assert.True(s.SkippedOnCard);
+        Assert.False(s.MovieShown);
+        Assert.Equal(Stage.Attach, s.Step(9.0, built: true, movieOver: false));   // (and stays there: no movie after)
+    }
+
+    /// <summary>A start without a briefing has nothing to skip on its card: a press changes nothing, the card is up for the load.</summary>
+    [Fact]
+    public void WithoutABriefingAPressOnTheCardChangesNothing()
+    {
+        var s = new CardSequence(briefing: false, holdSeconds: 3.64);
+        Assert.Equal(Stage.Card, s.Step(1.0, built: false, movieOver: false, skipped: true));
+        Assert.False(s.SkippedOnCard);
+        Assert.Equal(Stage.Attach, s.Step(5.0, built: true, movieOver: false, skipped: true));
+        Assert.False(s.SkippedOnCard);
+    }
+
+    /// <summary>A press while the movie plays is the movie's (MoviePlayer, MovieSkipGate): the sequence goes on when the movie is over.</summary>
+    [Fact]
+    public void APressDuringTheMovieIsNotTheCards()
+    {
+        var s = new CardSequence(briefing: true, holdSeconds: 1.34);
+        s.Step(2, built: false, movieOver: false);
+        Assert.Equal(Stage.Movie, s.Step(3, built: true, movieOver: false, skipped: true));
+        Assert.False(s.SkippedOnCard);
+    }
 
     /// <summary>
     /// The mission read and the simulation set up on a thread of its own (the build under the briefing: a 64 MB stack, while this

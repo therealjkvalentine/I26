@@ -14,9 +14,9 @@ namespace I76.Game.Shell;
 public static class ImpactLabels
 {
     /// <summary>One label: the text, the font size, tracking and extra word spacing in shell pixels, the pen's start and baseline in the box, the slant in degrees.</summary>
-    /// <summary>A label's fit; Strike draws a line through it, Centre sets it in the middle of its box (X unused).</summary>
+    /// <summary>A label's fit; Strike draws a line through it, Centre sets it in the middle of its box (X unused); EndAs sets it to end where that text, set from X, would.</summary>
     public sealed record Spec(string Text, float Size, float Track, float X, float Baseline, float WordSpace, string? Underline = null, float Slant = ImpactLabels.Slant,
-        bool Strike = false, bool Centre = false, int Dim = 0x6d6d6d);
+        bool Strike = false, bool Centre = false, int Dim = 0x6d6d6d, string? EndAs = null);
 
     /// <summary>The lit sprite of each pair (the dim one is the next, OTHER's 46 is 45's dim) → its label.</summary>
     public static readonly Dictionary<int, Spec> Lit = new()
@@ -185,6 +185,7 @@ public partial class ImpactLayer : Control
             int px = Mathf.Max(1, Mathf.RoundToInt(spec.Size * s));
             float k = spec.Size * s / px;     // the integer font size's remainder, made up in the advance
             float pen = spec.Centre ? (box.Size.X * s - Advance(spec, spec.Text.Length, px, k, s)) / 2 : spec.X * s;
+            if (spec.EndAs is { } end) pen += Advance(spec with { Text = end }, end.Length, px, k, s) - Advance(spec, spec.Text.Length, px, k, s);
             var baseline = at.Y + spec.Baseline * s;
             for (int i = 0; i < spec.Text.Length; i++)
             {

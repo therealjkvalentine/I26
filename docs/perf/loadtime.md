@@ -388,3 +388,44 @@ decoded copies were still there beside the new ones); video memory 4676 -> 4360 
 off against on: 0 pixels differ outside the cockpit's top panels and the Developer fps line, at all three ticks. Those (the radar's
 sweep, the weapon counters' drums, the fps text) run on the wall clock and differ between two runs of the same build by as much
 (44-103 thousand pixels off against on, 54-112 thousand on against on), so they are counted apart.
+
+## The briefing's pace (branch feat/loading-card-ready)
+
+T01 at 3440x1440 (windowed, VSync, the owner's settings), a scratch user folder whose shader, pipeline and terrain caches are
+reset to a played-in copy before every run; "cold" is the process's first start, "warm" the same mission again in it
+(`I76_LOAD_PROFILE_NEXT=t01`, what Replay Mission finds); the briefing skipped the moment the game lets it
+(`I76_MOVIE_SKIP_MS=0`), so the movie plays exactly over the build. Both builds run from the same drive, interleaved; the
+desktop was shared with other work all day, so single runs move by a second and a 100 ms frame either way.
+
+**How it is measured.** `I76_MOVIE_PACE=FILE.csv` logs each of the game's frames while a Smacker movie plays: the movie frame
+shown, the picture's clock against the sound heard, the collections and their pause, the pipelines compiled, the video memory
+of textures and buffers, the time between the renderer's pre- and post-draw signals (another thread's queued renderer calls
+run there) and the load's last stamp. `tools/load-time/pace.py` sets the late frames against the build's phases
+(`I76_LOAD_PROFILE_CSV`). A movie frame is late when it came up more than 1.5 movie frames (100 ms) after it was due on the
+steadiest schedule of the half second before (MoviePace; the picture follows the sound, which `--audio-driver Dummy` mixes a
+few per cent slow under load, so a longer window counts that drift as lateness).
+
+**What the late frames were.** Not collections (5-20 ms pauses), not pipeline compilations (none under the movie), not the
+F12 pictures (made after the mission starts). Each long frame was the renderer running one queued call from the build's
+thread for 80-110 ms: in the build's last phase ("scenery spawn" to "done", and the cars' prefetch), the scenery vehicles'
+wheels were assembled as a mesh and then read back (`SurfaceGetArrays`), and a car's window paint read its mask texture back
+(`GetImage`); a read back from the graphics card waits for the frames in flight. Two or three such frames a cold start, with
+the packs or without. A 250-550 ms frame now and then came from the ground materials' imported textures read back the same
+way ("ground materials"), which the 0.7 s card left under the movie. Spreading the build's uploads over frames (each texture
+or mesh waiting for its share of a frame) was tried and dropped: no fewer late frames, the build 2-3 s longer.
+
+**What changed.** The wheels' surfaces are merged as made, the paint masks' texels kept; the build's shaders (ground, sky,
+horizon, roads, objects, shadows, plants) are loaded one a frame behind the card; the card holds 3 s, so the ground materials
+are made behind it.
+
+| T01 | late frames while loading, before | after | longest game frame, before | after |
+|---|---|---|---|---|
+| cold, packs (5 / 3 runs) | 0, 0, 1, 0, 5 | 0, 0, 1 | 67-90 ms, one 248 ms | 55-68 ms |
+| cold, no packs (3 / 2 runs) | 3, 2, 4 | 0, 0 | 111-195 ms | 10-15 ms |
+| warm, packs, the movie's first 6 s | 1 | 0 | 177 ms | 57 ms |
+| warm, no packs, the movie's first 6 s | 0 | 0 | 45 ms | 68 ms |
+
+Earlier the same day, with other lanes' builds running, the before build showed up to 6 late frames and 408-552 ms frames.
+From the click to the mission (the briefing skipped as soon as allowed), medians: cold with packs 17.2 s before, 16.7 s
+after; cold without 15.5 -> 13.6 s; warm with packs 7.6 -> 8.0 s (the 3 s card: a warm build is done in about 2 s, and the
+rest of the load runs behind the card); warm without 8.1 -> 7.3 s.

@@ -143,6 +143,9 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_MOVIE_HOLD` | capture | Hold a movie on a frame number. |
 | `I76_MOVIE_SHOT` | capture | `out.png@SECONDS`: an HD movie (`movies/*.ogv`) saves the window when its stream reaches that time, and logs the stream's and the wall clock's time. |
 | `I76_MOVIE_LOG` | debug | `1`: an HD movie logs its stream time against the wall clock each second and every frame that came more than 1/15 s after the last. Its end line (always) gives the stream's length, the wall-clock time it took and the late frames. |
+| `I76_MOVIE_PACE` | debug | `FILE.csv`: a row for each of the game's frames while a Smacker movie plays (the movie frame shown, the picture's clock against the sound heard, collections and their pause, pipelines compiled, texture and buffer video memory, the renderer's draw time, the load's last stamp); a second movie of the run goes to `FILE.2.csv`. `tools/load-time/pace.py` reads it against `I76_LOAD_PROFILE_CSV`. Every movie's end prints a `movie pace:` line (frames over 1.5 frame times late, the longest frame) and the load profile's result line carries it. |
+| `I76_CARD_INPUT` | test | `click@500;esc@4000` (the names of `I76_MOVIE_INPUT`): presses a skip input that many ms after the loading card before a briefing came up, let go a frame later: a press while the mission builds is dropped, one after skips the briefing. |
+| `I76_CARD_SHADERS` | debug | `0`: the build's shaders are not loaded behind the loading card (Main.BuildShaders). |
 
 ## Map editor (docs/map-editor.md)
 

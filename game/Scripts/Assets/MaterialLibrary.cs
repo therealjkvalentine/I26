@@ -294,6 +294,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
         public PaintMasks? Masks;
         public readonly List<(ShaderMaterial Mat, string Member)> Mats = [];
         public readonly Dictionary<string, ImageTexture> Textures = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The paint masks' own texels (a mask texture's top level), kept so that nothing asks the renderer for them back.</summary>
+        public readonly Dictionary<string, byte[]> MaskTexels = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private readonly Dictionary<string, PaintScheme> _paintSchemes = [];
@@ -335,6 +337,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
             var img = Image.CreateFromData(mk.Width, mk.Height, false, Image.Format.Rg8, rg);
             img.GenerateMipmaps();
             ps.Textures[member] = tex = ImageTexture.CreateFromImage(img);
+            ps.MaskTexels[member] = rg;
         }
         mat.SetShaderParameter("paint_mask", tex);
         mat.SetShaderParameter("has_paint_mask", true);
@@ -344,7 +347,10 @@ public sealed class MaterialLibrary(TextureFactory textures)
         {
             if (!ps.Textures.TryGetValue(member + "#glass", out var gp) || !ps.Textures.TryGetValue(member + "#trim", out var gt))
             {
-                var (bf, tr) = GlassPaint(ge, tex.GetImage().GetData()[..(ge.Width * ge.Height * 2)]);
+                // the mask's texels as made above, not read back from the renderer: from the thread of a build under the briefing that
+                // read stalled the main thread's frame for the graphics card (about 100 ms, a late frame of the movie)
+                var texels = ps.MaskTexels.TryGetValue(member, out var kept) ? kept : tex.GetImage().GetData();
+                var (bf, tr) = GlassPaint(ge, texels[..(ge.Width * ge.Height * 2)]);
                 var bi = Image.CreateFromData(ge.Width, ge.Height, false, Image.Format.Rgba8, bf);
                 var ti = Image.CreateFromData(ge.Width, ge.Height, false, Image.Format.Rg8, tr);
                 bi.GenerateMipmaps(); ti.GenerateMipmaps();
