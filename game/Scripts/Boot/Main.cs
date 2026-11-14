@@ -1543,11 +1543,19 @@ public partial class Main : Node3D
         static bool Hood(I76.Formats.Assembly.ModelPart p) => p.Mesh.Faces.Any(f => I76.Formats.Assembly.DamageTextures.Zone(f.Texture) >= 0);
         // the door mirrors' heads apart (each its own mesh: the modern look's side mirrors turn them to the driver, MirrorAim)
         static bool? Head(I76.Formats.Assembly.ModelPart p) => I76.Formats.Assembly.MirrorGlass.Side(p.NodeName);
-        var heads = new List<(Mesh Mesh, bool Left)>();
+        // its painted glass a mesh of its own (the modern look's door mirrors with the moulding's outer edge rounded hide it where the
+        // housing's corners are cut away)
+        var heads = new List<(Mesh Mesh, Mesh? Paint, bool Left)>();
         if (interior is not null)
             foreach (var n in interior.Parts.Where(p => Head(p) is not null && !LowResTwin(interior, p.NodeName) && !Hood(p)).Select(p => p.NodeName).Distinct())
-                if (builder.Meshes!.Build(interior, wheels: false, include: p => p.NodeName == n && !LowResTwin(interior, p.NodeName) && !Hood(p)) is { } hm && hm.GetSurfaceCount() > 0)
-                    heads.Add((hm, I76.Formats.Assembly.MirrorGlass.Side(n) == true));
+            {
+                bool Part(I76.Formats.Assembly.ModelPart p) => p.NodeName == n && !LowResTwin(interior, p.NodeName) && !Hood(p);
+                var housing = builder.Meshes!.Build(interior, wheels: false, include: Part, skipFace: (_, f) => I76.Formats.Assembly.MirrorGlass.IsGlass(f));
+                var paint = builder.Meshes!.Build(interior, wheels: false, include: Part, skipFace: (_, f) => !I76.Formats.Assembly.MirrorGlass.IsGlass(f));
+                if (paint is { } pm && pm.GetSurfaceCount() == 0) paint = null;
+                if (housing is null || housing.GetSurfaceCount() == 0) { housing = paint; paint = null; }
+                if (housing is not null) heads.Add((housing, paint, I76.Formats.Assembly.MirrorGlass.Side(n) == true));
+            }
         heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
         // a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
         node.AddCockpit(interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p)), eye,

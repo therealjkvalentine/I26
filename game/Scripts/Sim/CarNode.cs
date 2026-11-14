@@ -135,7 +135,9 @@ public partial class CarNode : Node3D
     public MeshInstance3D? CockpitMesh => _cockpit;
     /// <summary>The interior's door mirror heads (housing and glass), each its own mesh under the cockpit's, left first.</summary>
     public IReadOnlyList<(MeshInstance3D Mesh, bool Left)> MirrorHeads => _mirrorHeads;
-    private readonly List<(MeshInstance3D Mesh, bool Left)> _mirrorHeads = [];
+    /// <summary>The door mirror heads' painted glass, each under its head (MirrorGlass.IsGlass), left first.</summary>
+    public IReadOnlyList<(MeshInstance3D Mesh, bool Left)> MirrorPaint => _mirrorPaint;
+    private readonly List<(MeshInstance3D Mesh, bool Left)> _mirrorHeads = [], _mirrorPaint = [];
     /// <summary>The render layer of the interior (the mirror's camera leaves it out).</summary>
     public const uint CockpitLayer = 4;
     /// <summary>Every visual under a car (body, wheels, lamps, weapons): ground decals (oil, scorch) leave this layer out, so they paint the road, not the cars on it.</summary>
@@ -209,7 +211,7 @@ public partial class CarNode : Node3D
     /// the interior's damage-textured parts (the hood's V5 FT TP) for a .TMT entry per face, again as the front zone is hit.
     /// </summary>
     public void AddCockpit(Mesh? interior, System.Numerics.Vector3 eye, Mesh? ring1 = null, Mesh? ring6 = null, Func<Func<string, int>, Mesh?>? hood = null,
-        IReadOnlyList<(Mesh Mesh, bool Left)>? mirrorHeads = null)
+        IReadOnlyList<(Mesh Mesh, Mesh? Paint, bool Left)>? mirrorHeads = null)
     {
         if (interior is not null && interior.GetSurfaceCount() == 0) interior = null;   // a car with no cockpit model (the Armadillo)
         HasInterior = interior is not null;
@@ -222,12 +224,18 @@ public partial class CarNode : Node3D
             if (ring1 is not null) { Rtc1 = new MeshInstance3D { Mesh = ring1, Name = "Ring1", Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc1); }
             if (ring6 is not null) { Rtc6 = new MeshInstance3D { Mesh = ring6, Name = "Ring6", Visible = false, Layers = _ringDrawn ? 0u : CockpitLayer }; _cockpit.AddChild(Rtc6); }
             // the door mirrors' heads (…MIRL, …MIRR) apart, so the modern look's side mirrors can turn them to the driver (Cockpit, MirrorAim)
-            foreach (var (mesh, left) in mirrorHeads ?? [])
+            foreach (var (mesh, paint, left) in mirrorHeads ?? [])
             {
                 var h = new MeshInstance3D { Mesh = mesh, Name = left ? "MirrorHeadL" : "MirrorHeadR", Layers = CockpitLayer };
                 _cockpit.AddChild(h);
                 if (Paint is not null) ApplyPaint(h);
                 _mirrorHeads.Add((h, left));
+                // its painted glass, turned with it
+                if (paint is null) continue;
+                var g = new MeshInstance3D { Mesh = paint, Name = left ? "MirrorPaintL" : "MirrorPaintR", Layers = CockpitLayer };
+                h.AddChild(g);
+                if (Paint is not null) ApplyPaint(g);
+                _mirrorPaint.Add((g, left));
             }
         }
         Eye = Coords.ToGodot(eye);
@@ -321,6 +329,7 @@ public partial class CarNode : Node3D
             if (_cockpit?.Mesh is not { } m) return null;
             var b = _hood?.Mesh is { } h ? m.GetAabb().Merge(h.GetAabb()) : m.GetAabb();
             foreach (var (head, _) in _mirrorHeads) if (head.Mesh is { } hm) b = b.Merge(hm.GetAabb());
+            foreach (var (paint, _) in _mirrorPaint) if (paint.Mesh is { } pm) b = b.Merge(pm.GetAabb());
             return b;
         }
     }
@@ -450,6 +459,7 @@ public partial class CarNode : Node3D
         foreach (var m in BurntMeshes()) ApplyPaint(m);
         foreach (var m in new[] { _cockpit, _hood }) if (m is not null) ApplyPaint(m);
         foreach (var (h, _) in _mirrorHeads) ApplyPaint(h);
+        foreach (var (g, _) in _mirrorPaint) ApplyPaint(g);
     }
 
     private void ApplyPaint(MeshInstance3D m)

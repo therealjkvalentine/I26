@@ -172,4 +172,115 @@ public static class GlassRound
         var core = Erode(hull, r);
         return core.Count is >= 3 and <= MaxCorners ? (core, r) : null;
     }
+
+    // ---- the moulding's outer edge rounded too ([port] side_mirror_rim_out) ----
+
+    /// <summary>[port] side_mirror_rim_out's default: the moulding's outer edge this many of its own widths beyond the rounded glass's outline.</summary>
+    public const int DefaultRimOut = 2;
+    /// <summary>The largest growth offered, in the moulding's widths.</summary>
+    public const int MaxRimOut = 6;
+
+    /// <summary>
+    /// How the moulding's outer edge is drawn: Off, the housing's straight outline with the moulding's dark in the corners (the look
+    /// before the outer edge was rounded); otherwise rounded, Widths of the moulding's own width beyond the rounded glass's outline
+    /// (0: the rounded outline itself, inside the housing's), or as far as covers the housing's corners (Cover); outside it the housing's
+    /// corners cut away (their painted glass not drawn), or with Dark the moulding's dark kept out to the housing's straight edge.
+    /// </summary>
+    public readonly record struct RimOut(bool On, float Widths, bool Cover = false, bool Dark = false)
+    {
+        public static readonly RimOut Housing = new(false, 0);
+    }
+
+    /// <summary>
+    /// The outer edge: I76_SIDE_MIRROR_RIM_OUT where it is set (N widths, "in" for 0, "cover"; ",dark" after either keeps the housing's
+    /// corners dark; "0" or "off" the housing's outline), else the setting (0 the housing's outline, else that many widths).
+    /// </summary>
+    public static RimOut Out(string? hook, int setting)
+    {
+        if (!string.IsNullOrWhiteSpace(hook))
+        {
+            var parts = hook.Split(',', StringSplitOptions.TrimEntries);
+            bool dark = parts.Skip(1).Any(p => p.Equals("dark", StringComparison.OrdinalIgnoreCase));
+            string w = parts[0].ToLowerInvariant();
+            if (w is "off" or "0") return RimOut.Housing;
+            if (w == "in") return new(true, 0, false, dark);
+            if (w == "cover") return new(true, 0, true, dark);
+            if (float.TryParse(w, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f))
+                return new(true, Math.Clamp(f, 0, MaxRimOut), false, dark);
+        }
+        return setting <= 0 ? RimOut.Housing : new(true, Math.Min(setting, MaxRimOut));
+    }
+
+    /// <summary>The distance from a point to a convex counter-clockwise polygon, 0 inside it.</summary>
+    public static float Distance(IReadOnlyList<Vector2> poly, Vector2 p)
+    {
+        bool inside = true;
+        float d = float.MaxValue;
+        for (int i = 0; i < poly.Count; i++)
+        {
+            var a = poly[i]; var e = poly[(i + 1) % poly.Count] - a; var w = p - a;
+            float len = e.LengthSquared();
+            var q = len > 1e-12f ? w - e * Math.Clamp(w.Dot(e) / len, 0f, 1f) : w;
+            d = Math.Min(d, q.Length());
+            if (e.X * w.Y - e.Y * w.X < 0) inside = false;
+        }
+        return inside ? 0 : d;
+    }
+
+    /// <summary>
+    /// The growth beyond the rounded outline (the core widened by <paramref name="r"/>) that takes in every corner of the hull: the
+    /// housing's corners furthest outside the rounded glass.
+    /// </summary>
+    public static float Cover(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float r) =>
+        hull.Count == 0 ? 0 : Math.Max(0, hull.Max(v => Distance(core, v)) - r);
+
+    /// <summary>
+    /// A convex polygon holding the core widened by <paramref name="radius"/> (every point within it of the core): a circle of
+    /// <paramref name="steps"/> points round each corner, on the polygon that holds the circle, their hull. The mesh the rounded
+    /// moulding is drawn on when its outer edge reaches past the housing's.
+    /// </summary>
+    public static List<Vector2> Around(IReadOnlyList<Vector2> core, float radius, int steps = 16)
+    {
+        float far = radius / MathF.Cos(MathF.PI / steps);
+        var pts = new List<Vector2>();
+        foreach (var c in core)
+            for (int k = 0; k < steps; k++)
+            {
+                float a = 2 * MathF.PI * k / steps;
+                pts.Add(c + new Vector2(MathF.Cos(a), MathF.Sin(a)) * far);
+            }
+        return Hull(pts);
+    }
+
+    /// <summary>
+    /// The plane a pane lies in, as its picture coordinates (U, V: the shader's, u times the aspect and v) map onto it: the
+    /// least-squares P = O + U·A + V·B through its corners, so a point outside the glass's own outline (the moulding grown past it)
+    /// lands in the glass's plane with the picture coordinates the shader reads there.
+    /// </summary>
+    public static (Vector3 O, Vector3 A, Vector3 B)? Plane(IReadOnlyList<(Vector2 Uv, Vector3 P)> pts)
+    {
+        if (pts.Count < 3) return null;
+        // the normal equations of [1 U V] against each of x, y, z
+        double n = pts.Count, su = 0, sv = 0, suu = 0, svv = 0, suv = 0;
+        foreach (var (uv, _) in pts) { su += uv.X; sv += uv.Y; suu += uv.X * uv.X; svv += uv.Y * uv.Y; suv += uv.X * uv.Y; }
+        double[,] m = { { n, su, sv }, { su, suu, suv }, { sv, suv, svv } };
+        double det = m[0, 0] * (m[1, 1] * m[2, 2] - m[1, 2] * m[2, 1]) - m[0, 1] * (m[1, 0] * m[2, 2] - m[1, 2] * m[2, 0]) + m[0, 2] * (m[1, 0] * m[2, 1] - m[1, 1] * m[2, 0]);
+        if (Math.Abs(det) < 1e-12) return null;
+        double[] Solve(Func<Vector3, float> axis)
+        {
+            double b0 = 0, b1 = 0, b2 = 0;
+            foreach (var (uv, p) in pts) { double c = axis(p); b0 += c; b1 += c * uv.X; b2 += c * uv.Y; }
+            var b = new[] { b0, b1, b2 };
+            var x = new double[3];
+            for (int col = 0; col < 3; col++)
+            {
+                var k = (double[,])m.Clone();
+                for (int row = 0; row < 3; row++) k[row, col] = b[row];
+                x[col] = (k[0, 0] * (k[1, 1] * k[2, 2] - k[1, 2] * k[2, 1]) - k[0, 1] * (k[1, 0] * k[2, 2] - k[1, 2] * k[2, 0]) + k[0, 2] * (k[1, 0] * k[2, 1] - k[1, 1] * k[2, 0])) / det;
+            }
+            return x;
+        }
+        var X = Solve(p => p.X); var Y = Solve(p => p.Y); var Z = Solve(p => p.Z);
+        return (new Vector3((float)X[0], (float)Y[0], (float)Z[0]), new Vector3((float)X[1], (float)Y[1], (float)Z[1]), new Vector3((float)X[2], (float)Y[2], (float)Z[2]));
+    }
 }
