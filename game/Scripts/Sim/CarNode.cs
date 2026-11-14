@@ -614,8 +614,7 @@ public partial class CarNode : Node3D
     }
 
     /// <summary>A helicopter's rotor part: a flat disc textured with the animated blade flipbook (BLADE101..).</summary>
-    public static bool IsRotor(I76.Formats.Assembly.ModelPart p) =>
-        p.Mesh.Faces.Length > 0 && p.Mesh.Faces.All(f => f.Texture.StartsWith("BLADE", StringComparison.OrdinalIgnoreCase));
+    public static bool IsRotor(I76.Formats.Assembly.ModelPart p) => I76.Formats.Assembly.RotorBlades.Is(p);
 
     /// <summary>A rotor's disc in the car's frame (engine axes): where, which axis it turns about, how wide.</summary>
     public readonly record struct RotorSpec(System.Numerics.Vector3 Centre, int Axis, float Radius);
@@ -637,7 +636,26 @@ public partial class CarNode : Node3D
     }
 
     private readonly List<(MeshInstance3D Disc, float Dir, float Speed)> _rotors = [];
-    private MeshInstance3D? _rotorOriginal;
+    private MeshInstance3D? _rotorOriginal, _rotorInterior;
+    // the discs whose rotor the interior carries too (the main one): drawn from the seat with the 3D dash (OwnCar.RotorDrawn)
+    private readonly HashSet<MeshInstance3D> _rotorInside = [];
+    // the discs' parent: beside the body, not under it, so the cockpit's hiding the body leaves them to OwnCar.RotorDrawn
+    private Node3D? _rotorHolder;
+
+    /// <summary>
+    /// The interior's own rotor (detail 5 carries the main rotor, overhead from the seat): the original's blades in the 1997
+    /// look, under the cockpit; the modern look draws the disc there instead. <paramref name="places"/> are its parts' places.
+    /// </summary>
+    public void AddCockpitRotor(Mesh? blades, IReadOnlyList<System.Numerics.Vector3> places)
+    {
+        if (_cockpit is not null && blades is not null && blades.GetSurfaceCount() > 0)
+        {
+            _rotorInterior = new MeshInstance3D { Mesh = blades, Name = "RotorBladesInside", Layers = CockpitLayer, Visible = !Modern };
+            _cockpit.AddChild(_rotorInterior);
+        }
+        foreach (var (disc, _, _) in _rotors)
+            if (places.Any(p => Coords.ToGodot(p).DistanceTo(disc.Position) < 0.5f)) _rotorInside.Add(disc);
+    }
     private float _rotorSpin = -1, _rotorPhase;
     private static ShaderMaterial? _rotorMat;
 
@@ -651,6 +669,7 @@ public partial class CarNode : Node3D
         if (original is not null) { _rotorOriginal = new MeshInstance3D { Mesh = original, Name = "RotorBlades" }; _body.AddChild(_rotorOriginal); }
         _rotorMat ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/rotor_disc.gdshader") };
         _rotorMat.SetShaderParameter("scene_light", sceneLight);
+        if (specs.Count > 0 && _rotorHolder is null) { _rotorHolder = new Node3D { Name = "Rotors" }; AddChild(_rotorHolder); }
         foreach (var sp in specs)
         {
             var mat = (ShaderMaterial)_rotorMat.Duplicate();
@@ -664,7 +683,7 @@ public partial class CarNode : Node3D
                 // the plane faces +Y; a rotor turning about X lies on its side
                 Basis = sp.Axis == 0 ? new Basis(Vector3.Back, -Mathf.Pi / 2) : sp.Axis == 2 ? new Basis(Vector3.Right, Mathf.Pi / 2) : Basis.Identity,
             };
-            _body.AddChild(disc);
+            _rotorHolder!.AddChild(disc);
             _rotors.Add((disc, main ? 1f : -1f, main ? 5.5f : 16f));
         }
     }
@@ -675,6 +694,8 @@ public partial class CarNode : Node3D
         if (_rotors.Count == 0 && _rotorOriginal is null) return;
         bool modern = Modern;
         if (_rotorOriginal is not null) _rotorOriginal.Visible = !modern;
+        if (_rotorInterior is not null) _rotorInterior.Visible = !modern;
+        if (_rotorHolder is not null) _rotorHolder.Position = _body?.Position ?? Vector3.Zero;   // with the body (a modern wreck's drop)
         float target = (((uint)Sim.Flags & 0x80) != 0 || (Sim.Flags & VehicleFlags.Dead) != 0) ? 0f : 1f;
         if (_rotorSpin < 0) _rotorSpin = target;
         _rotorSpin = Mathf.MoveToward(_rotorSpin, target, dt / (target > _rotorSpin ? 3f : 5f));
@@ -682,8 +703,9 @@ public partial class CarNode : Node3D
         float blur = Mathf.SmoothStep(0.12f, 0.6f, _rotorSpin);
         foreach (var (disc, dir, rps) in _rotors)
         {
-            disc.Visible = modern;
-            if (!modern) continue;
+            disc.Visible = modern && !_heliGone && _body is not null
+                && I76.Sim.Views.OwnCar.RotorDrawn(_inCar, _hoodView, _outside, _dash3d && _cockpit is not null, _rotorInside.Contains(disc));
+            if (!disc.Visible) continue;
             disc.SetInstanceShaderParameter("angle", dir * _rotorPhase * rps * Mathf.Tau);
             disc.SetInstanceShaderParameter("blur", blur);
         }
