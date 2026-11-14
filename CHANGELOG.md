@@ -5,6 +5,7 @@
 Network games use upstream's protocol 24: this version plays with upstream's 0.12.1 builds, and not with any earlier build of this fork (protocol 28) or 0.11.0 and earlier. Between this fork and an upstream build the fork's additions (handicaps on a fork host, the Pistol keys, host migration) are left out.
 
 ### Fixed
+- In a network game the target's health bar no longer goes away once that car's brakes, engine or suspension take a hit: another player's (or a bot's) bar shows the original's network steps, whole, two thirds or one third, as the original's does online, instead of shrinking to a pixel or two (the single-player reading of a car with a damaged part, which is under 1 %).
 - Opening the Escape menu (or its Options pages) in a mission or a network game no longer puts the F2 chase view back to its close starting zoom: the mouse wheel's zoom and the camera's swing stay as you left them until you change view (#190).
 - A racing wheel keeps steering while a pedal set on the Joystick screen to hold Accelerate or Brake (Pushed + / -) is pressed: such a pedal now takes only the throttle; a key or button held still takes both the throttle and the steering, as in the original (#173).
 - On the Controller screen a stick's up / down can be bound again (say, the right stick to accelerate and brake): push the stick up or across and that axis is selected, and a click on the stick's row opens the axis it is pushed along. A stick's row could only give its left / right before.
