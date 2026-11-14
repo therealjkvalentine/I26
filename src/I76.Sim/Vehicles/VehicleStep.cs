@@ -254,6 +254,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         float throttle = v.Throttle;
         accelOut = default;
         var flags = v.Flags;
+        // the handbrake slide's latched sense belongs to the slide it began: a car not sliding has none
+        if ((flags & VehicleFlags.Sliding) == 0) flags &= ~VehicleFlags.SlideAgainstGear;
 
         // ---- airborne ----
         if ((flags & VehicleFlags.Airborne) != 0 || (flags & VehicleFlags.JustLanded) == 0)
@@ -313,7 +315,20 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             else
             {
                 triggered = true; sliding = true;
-                if ((flags & VehicleFlags.Sliding) == 0) yawFactor = signedSpeed * 0.1f;
+                if ((flags & VehicleFlags.Sliding) == 0)
+                {
+                    yawFactor = signedSpeed * 0.1f;
+                    // I26 (docs/deviations.md, "Handbrake rolling backwards"): the original's first-step kick is signed by the
+                    // travel, so rolling backwards it negates the yaw rate the car had, and its slide steers by the gear, so
+                    // rolling against the gear it then holds the reversed sense. A human's steering keeps its sense at the
+                    // press: the kick is by the speed alone, and a slide begun against the gear steers by the travel.
+                    // Rolling the gear's way, forwards in drive or backwards in reverse, the slide is the original's.
+                    if (isPlayer)
+                    {
+                        yawFactor = MathF.Abs(yawFactor);
+                        if (signedSpeed * v.Gear < 0) flags |= VehicleFlags.SlideAgainstGear;
+                    }
+                }
             }
         }
         else
@@ -413,7 +428,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             }
             else
             {
-                yaw = v.Steer * v.Gear * MathF.PI;
+                float sense = (flags & VehicleFlags.SlideAgainstGear) != 0 ? -v.Gear : v.Gear;
+                yaw = v.Steer * sense * MathF.PI;
                 if (v.Speed < 1f) yaw *= v.Speed;
                 float rate = v.P.YawRateLimit * dt;
                 if (rate >= 0 && rate <= 0.95f && MathF.Abs(yaw - v.AngVel.Y) >= 0.005f) yaw = rate * (yaw - v.AngVel.Y) + v.AngVel.Y;

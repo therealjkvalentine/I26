@@ -557,6 +557,8 @@ public partial class ModernCar : RigidBody3D
     private static readonly bool _physTelemetry = System.Environment.GetEnvironmentVariable("I76_TELEMETRY") == "phys";
 
     private bool _sliding;
+    /// <summary>The slide was begun by the handbrake with the car rolling against its gear: it steers by the travel (I26).</summary>
+    private bool _slideAgainstGear;
     /// <summary>The assist ran the original's blend this step (veh flag 0x2000: past the load-based cap, under twice it).</summary>
     private bool _blending;
     private float _leanTarget;
@@ -642,6 +644,7 @@ public partial class ModernCar : RigidBody3D
         float sp = MathF.Sqrt(vf * vf + vlat * vlat) * (vf < 0 ? -1 : 1);
         var (yawCmd, _, _, sideFriction, maxLatLoad) = OriginalYaw(sp, gn);
         // sliding: on the handbrake, or knocked sideways; it grips again under 3 u/s of slip (the original's exit)
+        bool wasSliding = _sliding, handEntry = !_sliding && hand && MathF.Abs(vf) > 2;
         if (hand && MathF.Abs(vf) > 2) _sliding = true;
         // (a knock: the original's grip would take any slip out at once, but past its cap it carries the slip, unbounded,
         // in its blend, and so does this)
@@ -650,6 +653,11 @@ public partial class ModernCar : RigidBody3D
         // the turn asks for more than twice the load-based cap: the original's YawRate reports it slid, and
         // the frame goes to the sliding model (a hard turn at speed: full lock above the speed where steering saturates)
         if (!_sliding && maxLatLoad > 0 && MathF.Abs(yawCmd * sp) > 2 * maxLatLoad) _sliding = true;
+        float gearSign = V.Gear < 0 ? -1 : 1;
+        // I26, as the sim's step (docs/deviations.md, "Handbrake rolling backwards"): a slide the handbrake begins with the car
+        // rolling against its gear steers by the travel until it ends, so the steering keeps its sense at the press
+        if (!_sliding) _slideAgainstGear = false;
+        else if (!wasSliding) _slideAgainstGear = handEntry && vf * gearSign < 0;
         float u = av.Dot(up);                                  // + turns the nose toward the right: the original's yaw is −u
         // the original sets the yaw rate and the velocity outright (they are kinematic in its grounded model), so the
         // assist works on the velocities, as a constraint would: the solver still answers contacts after it
@@ -658,7 +666,7 @@ public partial class ModernCar : RigidBody3D
         else
         {
             // the sliding model: steer·gear·π, eased at 2.66/L a second
-            float slideYaw = V.Steer * (V.Gear < 0 ? -1 : 1) * MathF.PI * (MathF.Abs(vf) < 1 ? MathF.Abs(vf) : 1);
+            float slideYaw = V.Steer * (_slideAgainstGear ? -gearSign : gearSign) * MathF.PI * (MathF.Abs(vf) < 1 ? MathF.Abs(vf) : 1);
             want = -slideYaw;
             response = 1f / MathF.Max(V.P.YawRateLimit, 0.5f);
         }

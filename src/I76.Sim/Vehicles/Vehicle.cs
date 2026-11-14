@@ -228,6 +228,13 @@ public enum VehicleFlags : uint
     Disabled = 0x8000,
     /// <summary>The horn key is held (set by honk_horn in a network game only, the caller); remote clients play the horn from it.</summary>
     Honking = 0x200000,
+    /// <summary>
+    /// I26, not the original's: a human's handbrake slide that began with the car rolling against its gear (backwards in
+    /// drive, forwards in reverse). The slide's commanded yaw takes the travel's sense (−gear) instead of the gear's, so the
+    /// steering does not reverse at the press. Set at the slide's first step, kept while it slides, cleared when it ends
+    /// (docs/deviations.md, "Handbrake rolling backwards").
+    /// </summary>
+    SlideAgainstGear = 0x40000000,
 }
 
 /// <summary>Where the vehicle step hands damage to the damage model.</summary>
