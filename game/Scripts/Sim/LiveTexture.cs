@@ -14,7 +14,15 @@ namespace I76.Game.Sim;
 /// </summary>
 public sealed class LiveTexture
 {
-    private readonly RenderingDevice? _rd = RenderingServer.GetRenderingDevice();
+    private readonly RenderingDevice? _rd = UsesDevice(RenderingServer.GetCurrentRenderingMethod(), RenderingServer.GetRenderingDevice() is not null)
+        ? RenderingServer.GetRenderingDevice() : null;
+
+    /// <summary>
+    /// Whether the GPU path is taken: a RenderingDevice, and a renderer that draws with it. The Compatibility (OpenGL) renderer hands
+    /// out a device too, but its textures are not the ones it draws, and every copy and compute call on it fails off its render
+    /// thread (thousands of errors a second with the cockpit's radar sweeping, the mission held up): there the ImageTexture path.
+    /// </summary>
+    public static bool UsesDevice(string renderingMethod, bool hasDevice) => hasDevice && renderingMethod != "gl_compatibility";
     private readonly Texture2Drd? _rdTex;
     private readonly ImageTexture? _imgTex;
     private Image? _img;

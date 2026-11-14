@@ -6,6 +6,16 @@ namespace I76.Game.Tests;
 /// <summary>The live textures' mip chain: each level a 2x2 box of the one above, made again only under the rectangles that changed.</summary>
 public class LiveTextureMipTests
 {
+    /// <summary>The GPU path only on Forward+ and Mobile: the Compatibility renderer's device is not the one it draws with.</summary>
+    [Theory]
+    [InlineData("forward_plus", true, true)]
+    [InlineData("mobile", true, true)]
+    [InlineData("gl_compatibility", true, false)]
+    [InlineData("gl_compatibility", false, false)]
+    [InlineData("forward_plus", false, false)]
+    public void TheCompatibilityRendererTakesTheImageTexturePath(string method, bool hasDevice, bool uses) =>
+        Assert.Equal(uses, LiveTexture.UsesDevice(method, hasDevice));
+
     private static byte[] Picture(int w, int h, int seed)
     {
         var r = new Random(seed);
