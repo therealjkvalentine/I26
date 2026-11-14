@@ -728,8 +728,10 @@ public sealed class StandingsScreen : ShellScreen
     public bool TeamPlay { get; init; }
     /// <summary>A Nitro network game's kind: race and CTF show only the score column on their own backgrounds.</summary>
     public I76.Sim.Missions.MeleeKind Kind { get; init; }
-    /// <summary>The team names: the base game's eight, and Nitro's table goes on to four more.</summary>
-    private static readonly string[] TeamNames = [.. MeleeScreen.Teams, "Red Dawn", "Gang Green", "Purple Reign", "Black Plague"];
+
+    /// <summary>A team's header row: a capture the flag game's teams are its own colours (1 Red Dawn ... 4 Black Plague), the others the eight of team play.</summary>
+    public static string TeamHeader(I76.Sim.Missions.MeleeKind kind, int team) =>
+        team is >= 1 and <= 8 && (kind != I76.Sim.Missions.MeleeKind.Ctf || team <= 4) ? I76.Sim.Missions.MeleeGame.TeamName(kind, team) : "";
 
     public override void Repaint()
     {
@@ -748,8 +750,7 @@ public sealed class StandingsScreen : ShellScreen
                 // One header per team (its name, the members' sums), then its members as "  name"
                 foreach (var g in sorted.GroupBy(r => r.Team).OrderByDescending(g => g.Sum(r => r.Score)))
                 {
-                    int t = g.Key - 1;
-                    lines.Add((true, t >= 0 && t < TeamNames.Length ? TeamNames[t] : "", "", g.Sum(r => r.Deaths), g.Sum(r => r.Kills), g.Sum(r => r.Score)));
+                    lines.Add((true, TeamHeader(Kind, g.Key), "", g.Sum(r => r.Deaths), g.Sum(r => r.Kills), g.Sum(r => r.Score)));
                     foreach (var r in g) lines.Add((false, "  " + r.Driver, Shell.Melee.CarName(r.Car), r.Deaths, r.Kills, r.Score));
                 }
             }

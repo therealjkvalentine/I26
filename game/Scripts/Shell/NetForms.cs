@@ -1173,8 +1173,9 @@ public sealed partial class MeleeScreen
         Draw();
     }
 
-    private void ChooseTeam(Action<int> then) =>
-        Shell.Modal(new TeamPopup { Font = _font, Picked = t => { Draw(); if (t >= 0) then(t + 1); } });
+    /// <summary>CHOOSE A TEAM, then <paramref name="then"/> with the team (1-based); <paramref name="ctfTeams"/> 2-4 for a capture the flag game's own popup.</summary>
+    private void ChooseTeam(Action<int> then, int ctfTeams = 0) =>
+        Shell.Modal(new TeamPopup { Font = _font, CtfTeams = ctfTeams, Picked = t => { Draw(); if (t >= 0) then(t + 1); } });
 
     /// <summary>BROADCAST GAME: CHOOSE A TEAM with team play, then a listen server with the form's rules, joined at once.</summary>
     private void Broadcast()
@@ -1206,7 +1207,9 @@ public sealed partial class MeleeScreen
                 },
             });
         }
-        if (_teamPlay && !Coop) ChooseTeam(Go); else Go(0);
+        // the Nitro Pack's BROADCAST: a capture the flag game asks with its own popup, its 2 to 4 teams
+        if (Nitro && !Coop && CtfKind) ChooseTeam(Go, Types[_kind].Teams);
+        else if (_teamPlay && !Coop) ChooseTeam(Go); else Go(0);
     }
 
     /// <summary>A game's WEAPON RESTRICTIONS and Hidden Weapons &amp; Cars as the session popup shows them, or null for neither.</summary>
@@ -1305,7 +1308,12 @@ public sealed partial class MeleeScreen
                 },
             });
         }
-        void Team(string password) { if (g.Info.TeamPlay) ChooseTeam(t => Go(t, password)); else Go(0, password); }
+        // a capture the flag game asks with its own popup, its 2 to 4 teams (the Nitro Pack's join)
+        void Team(string password)
+        {
+            if (g.Info.Kind == I76.Sim.Missions.MeleeKind.Ctf && !g.Info.Coop) ChooseTeam(t => Go(t, password), Math.Clamp((int)g.Info.Teams, 2, 4));
+            else if (g.Info.TeamPlay) ChooseTeam(t => Go(t, password)); else Go(0, password);
+        }
         // a locked game (its listing says so, or it refused us before) asks for its password first
         bool locked = g.Info.Locked || KnownLocked.Contains(g.Anet is { } al ? $"anet:{al.Session.Id}" : $"{g.EndPoint.Address}:{g.EndPoint.Port}");
         if (locked) AskPassword(g.Info.Name, "", pw => { if (!string.IsNullOrEmpty(pw)) Team(pw); });
@@ -1340,33 +1348,59 @@ internal static class Typing
 /// shadow, an X at x 228 by the team picked, eight rows, DONE
 /// and CANCEL. All eight rows pick (team 1–8; the eighth, MEN IN BLACK, is
 /// Entity.Team8, since 0 is nobody's in the port).
+/// The Nitro Pack's front end asks a capture the flag game's team with a popup of the game's own colours instead
+/// (<see cref="CtfTeams"/>): its bank 30 sprite 46, 45 or 44 (231x208: RED DAWN, GANG GREEN, and PURPLE REIGN and
+/// BLACK PLAGUE as the game has them) centred on the screen at (205,136), the rows' hotspots the eight-team popup's first
+/// ones, the X at x 36 in it, DONE and CANCEL lower; the pick is the CTF team (1 Red Dawn ... 4 Black Plague).
 /// </summary>
 public sealed class TeamPopup : ShellScreen
 {
     public required ShellFont Font { get; init; }
     /// <summary>The row picked (0..7), or −1 for CANCEL.</summary>
     public required Action<int> Picked { get; init; }
+    /// <summary>A capture the flag game's team count (2–4): the Nitro Pack's popup of its teams. 0, the eight teams of team play.</summary>
+    public int CtfTeams { get; init; }
     public override bool EscapeOpensOptions => false;
-    private const int X = 191, Y = 83, Picks = 8;
     private static readonly (int X0, int X1, int Y0, int Y1)[] Row =
         [(37, 190, 56, 70), (37, 162, 82, 95), (37, 175, 108, 121), (37, 222, 134, 147), (37, 178, 160, 173), (37, 173, 186, 199), (37, 163, 212, 225), (37, 170, 238, 251)];
-    private static readonly (int X0, int X1, int Y0, int Y1) Done = (90, 162, 286, 303), Cancel = (169, 241, 286, 303);
     private int _team;
+
+    /// <summary>
+    /// The popup the front end shows: for a capture the flag game of 2–4 teams on the Nitro Pack its own (the native bank 30
+    /// sprite), else the eight teams' (no native sprite: the base game's bank 36 sprite 19, the Nitro Pack's copy of it). Centred
+    /// on 640x480; the X's column, the rows that pick, DONE and CANCEL in the popup's own coordinates.
+    /// </summary>
+    public sealed record Layout(int? NativeSprite, int X, int Y, int W, int H, int MarkX, int Picks, (int X0, int X1, int Y0, int Y1) Done, (int X0, int X1, int Y0, int Y1) Cancel)
+    {
+        public static Layout For(int ctfTeams, bool nitro) => ctfTeams is >= 2 and <= 4 && nitro
+            ? new(48 - ctfTeams, 320 - 231 / 2, 240 - 208 / 2, 231, 208, 36, ctfTeams, (58, 129, 180, 196), (137, 208, 180, 196))
+            : new(null, 320 - 259 / 2, 240 - 314 / 2, 259, 314, 37, 8, (90, 162, 286, 303), (169, 241, 286, 303));
+    }
+
+    private Layout L => _layout ??= Layout.For(CtfTeams, Shell.Install.IsNitro);
+    private Layout? _layout;
+    private int X => L.X;
+    private int Y => L.Y;
+    private int W => L.W;
+    private int H => L.H;
+    private int Picks => L.Picks;
+    private (int X0, int X1, int Y0, int Y1) Done => L.Done;
+    private (int X0, int X1, int Y0, int Y1) Cancel => L.Cancel;
 
     public override void Enter() => Draw();
 
     private void Draw()
     {
-        Frame.Restore(X, Y, 265, 320);
-        Frame.Blit(Shell.Db.Bank(0x24)[19], X, Y);
-        Frame.Fill(X + 6, Y + 314, 259, 6, 0x0f);
-        Frame.Fill(X + 259, Y + 6, 6, 314, 0x0f);
-        Frame.Text(Font, 228, Y + Row[_team].Y0, "X");
+        Frame.Restore(X, Y, W + 6, H + 6);
+        Frame.Blit(L.NativeSprite is { } n ? Shell.Db.BankNative(30)[n] : Shell.Db.Bank(0x24)[19], X, Y);
+        Frame.Fill(X + 6, Y + H, W, 6, 0x0f);
+        Frame.Fill(X + W, Y + 6, 6, H, 0x0f);
+        Frame.Text(Font, X + L.MarkX, Y + Row[_team].Y0, "X");
     }
 
-    private static bool In((int X0, int X1, int Y0, int Y1) r, Vector2I p) => r.X0 < p.X - X && p.X - X < r.X1 && r.Y0 < p.Y - Y && p.Y - Y < r.Y1;
+    private bool In((int X0, int X1, int Y0, int Y1) r, Vector2I p) => r.X0 < p.X - X && p.X - X < r.X1 && r.Y0 < p.Y - Y && p.Y - Y < r.Y1;
 
-    private static PadRegion Reg((int X0, int X1, int Y0, int Y1) r) => PadRegion.Of((r.X0 + X, r.X1 + X, r.Y0 + Y, r.Y1 + Y));
+    private PadRegion Reg((int X0, int X1, int Y0, int Y1) r) => PadRegion.Of((r.X0 + X, r.X1 + X, r.Y0 + Y, r.Y1 + Y));
     public override IReadOnlyList<PadRegion> PadRegions => [.. Row.Take(Picks).Select(Reg), Reg(Done), Reg(Cancel)];
 
     public override void Tick()
@@ -1383,7 +1417,7 @@ public sealed class TeamPopup : ShellScreen
     private void Close(int team)
     {
         Shell.Sound(82);
-        Frame.Restore(X, Y, 265, 320);
+        Frame.Restore(X, Y, W + 6, H + 6);
         Shell.Modal(null);
         Picked(team);
     }
