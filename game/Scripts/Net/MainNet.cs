@@ -229,7 +229,10 @@ public partial class Main
             // a co-op story mission: built as a mission (its script the host's), not as a melee arena
             GD.Print($"network: the game is the co-op mission {acc.Arena}, seat {coop.Seat} of {coop.SeatCars.Count}");
             // the lobby's start: everyone plays the briefing now, each their own (the server holds the mission until every game has built it)
-            if (lobbied && !_opt.SkipMovies) { _net.Client.SendCoopStage(CoopStage.Briefing); await CoopBriefing(acc.Arena); }
+            // with a host that ends the briefing for everyone (docs/multiplayer.md "The briefing for everyone") it plays once the mission is
+            // built, the original's order, and this game's inputs wait for it (NetBriefingAfterLoad); else before the build, as upstream's
+            _netBriefing = (lobbied || carried) && !_opt.SkipMovies && _net.Client.Has(PeerFeatures.CoopSkip) ? BriefingOf(acc.Arena) : null;
+            if (lobbied && !_opt.SkipMovies && !_net.Client.Has(PeerFeatures.CoopSkip)) { _net.Client.SendCoopStage(CoopStage.Briefing); await CoopBriefing(acc.Arena); }
             // the host that listens hears where this game is (docs/multiplayer.md "Waiting for the others"): the others' notice names it
             _net.Client.SendCoopStage(CoopStage.Building);
             _opt.Melee = false;
@@ -641,6 +644,7 @@ public partial class Main
         double now = Time.GetTicksMsec() / 1000.0;
         var c = _net!.Client;
         NetMovie(c);
+        NetBriefingSkip(c);
         // this game took over as host (host migration): the host's prompts and boots are its own now
         if (_netHud is { Server: null } hud && _net.Server is { } taken) { hud.Server = taken; hud.Host = true; }
         // the server started another round on this connection: reload as a fresh join, the seat kept
@@ -701,7 +705,7 @@ public partial class Main
         _objectives = setup.ObjectiveText;
         // a co-op mission's movies (T05, T06) are played from the client's word (NetMovie), the game standing still for them
         var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
-        var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor };
+        var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor, Hold = () => _netBriefing is not null || _netBriefingPlayer is not null };
         Controls.Held = _held = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null;   // #109: Esc's arrow keys turned the head
         _sim = new SimDriver { Session = mirror.Session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio, Remote = view,
             InputHeld = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null,
@@ -909,7 +913,9 @@ public partial class Main
         public int Tick => (int)World.IntervalTo;
         public double ClockScale => Client.ClockScale;
         /// <summary>A co-op movie is playing: the server does not tick, and this client neither predicts nor draws on.</summary>
-        public bool Frozen => Client.MovieName is not null;
+        public bool Frozen => Client.MovieName is not null || Hold?.Invoke() == true;
+        /// <summary>This game holds its inputs back too (the fork's: its briefing plays over the built mission, which the server holds for it).</summary>
+        public System.Func<bool>? Hold { get; init; }
 
         private CarNode? OwnNode => World.Own is { } me ? Nodes.GetValueOrDefault(me.Vehicle) : null;
 

@@ -177,5 +177,98 @@ public class CoopFlowTests(ITestOutputHelper output)
         Assert.True(g.WaitDriving(() => g.Tick > tick + 3, [hal, ann]));
     }
 
+    // ---- the briefing for everyone ----
+
+    [Fact]
+    public void OneSkipEndsTheBriefingsOnlyOnceEveryGameHasLoaded()
+    {
+        CoopStart.Seat S(string n, bool input, CoopStage st, bool skipped = false) => new(n, input, st, skipped);
+        // Hal skipped and plays; Ann watches over her built mission: hers ends, Hal's name on it
+        Assert.Equal("Hal", CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready, true), S("Ann", false, CoopStage.Briefing)]));
+        // Bob still builds: nobody's briefing is cut short until he has loaded
+        Assert.Null(CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready, true), S("Ann", false, CoopStage.Briefing), S("Bob", false, CoopStage.Building)]));
+        // an upstream game says nothing: loaded only once its inputs come
+        Assert.Null(CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready, true), S("Ann", false, CoopStage.Briefing), S("Old", false, CoopStage.Unknown)]));
+        Assert.Equal("Hal", CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready, true), S("Ann", false, CoopStage.Briefing), S("Old", true, CoopStage.Unknown)]));
+        // nobody skipped, or alone: nothing ends
+        Assert.Null(CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready), S("Ann", false, CoopStage.Briefing)]));
+        Assert.Null(CoopStart.SkippedBy([S("Hal", false, CoopStage.Skipped, true)]));
+        // a game still watching the last mission's ending has not loaded this one
+        Assert.Null(CoopStart.SkippedBy([S("Hal", true, CoopStage.Ready, true), S("Ann", false, CoopStage.Ending)]));
+        var w = new NetWriter();
+        new CoopSkip("Hal").Write(w);
+        var r = new NetReader(w.ToArray());
+        Assert.Equal(MsgType.CoopSkip, (MsgType)r.U8());
+        Assert.Equal("Hal skipped the briefing", CoopSkip.Read(ref r).Line);
+    }
+
+    /// <summary>Hal skips his briefing; Ann's mission still builds, so hers is not cut; once she watches it over her built mission, it ends.</summary>
+    [Fact]
+    public void ASkipEndsTheOthersBriefingOnceTheyHaveLoaded()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        Assert.True(hal.Has(PeerFeatures.CoopSkip));
+        hal.SendCoopStage(CoopStage.Briefing);
+        hal.SendCoopStage(CoopStage.Skipped);
+        hal.SendCoopStage(CoopStage.Ready);
+        ann.SendCoopStage(CoopStage.Building);
+        g.WaitDriving(() => false, [hal], 700);
+        Assert.Null(ann.SkippedBy);
+        ann.SendCoopStage(CoopStage.Briefing);
+        Assert.True(g.WaitDriving(() => ann.SkippedBy is not null, [hal]), "Ann's briefing was not ended");
+        Assert.Equal("Hal", ann.SkippedBy!.Name);
+        Assert.Null(hal.SkippedBy);
+        // she comes in; the mission starts for both
+        ann.SendCoopStage(CoopStage.Ready);
+        uint tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 3, [hal, ann]));
+        Assert.Contains(g.Log, l => l.Contains("Ann's briefing ends: everyone has loaded and Hal skipped theirs"));
+    }
+
+    /// <summary>An upstream player says nothing: the others' briefings wait for its inputs (it is loaded only then), and it is never sent the fork's word.</summary>
+    [Fact]
+    public void AnUpstreamPlayerIsNeverCutShortAndHoldsTheSkipUntilItsInputsCome()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        var old = g.Join("Old", upstream: true);
+        g.Start();
+        hal.SendCoopStage(CoopStage.Skipped);
+        hal.SendCoopStage(CoopStage.Ready);
+        ann.SendCoopStage(CoopStage.Briefing);
+        g.WaitDriving(() => false, [hal], 700);
+        Assert.Null(ann.SkippedBy);
+        // the upstream game has built its mission (its inputs come): Ann's briefing ends
+        Assert.True(g.WaitDriving(() => ann.SkippedBy is not null, [hal, old]), "Ann's briefing was not ended once the upstream game had loaded");
+        Assert.Null(old.SkippedBy);
+        Assert.DoesNotContain(g.Log, l => l.Contains("Old's briefing ends"));
+    }
+
+    /// <summary>A host without CoopSkip (upstream's): the fork's game keeps upstream's order (the briefing before the build) and hears no skip.</summary>
+    [Fact]
+    public void AnUpstreamHostEndsNoBriefing()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, hostFeatures: PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        g.Start();
+        Assert.False(hal.Has(PeerFeatures.CoopSkip));
+        Assert.True(hal.Has(PeerFeatures.CoopWait));
+        hal.SendCoopStage(CoopStage.Skipped);
+        hal.SendCoopStage(CoopStage.Ready);
+        ann.SendCoopStage(CoopStage.Briefing);
+        g.WaitDriving(() => false, [hal], 800);
+        Assert.Null(ann.SkippedBy);
+        // its Briefing is before its build there: the notice says so without claiming she has loaded
+        Assert.True(g.WaitDriving(() => hal.StartWait is { Players: [("Ann", CoopStage.Unknown)] }, [hal]), Describe(hal.StartWait));
+    }
+
     internal static string Describe(CoopWait? w) => w is null ? "none" : $"{w.SecondsLeft} s: {string.Join(", ", w.Players.Select(p => $"{p.Name} {p.Stage}"))}";
 }

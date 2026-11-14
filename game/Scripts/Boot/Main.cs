@@ -509,6 +509,7 @@ public partial class Main : Node3D
         if (_editorMode) return;
         // The original's start-up plays the mission's briefing (WRLD +0x04) before it starts, and the music after it
         // (a network co-op mission has none: its host's mission runs from the first player in, docs/deviations.md)
+        if (NetBriefingAfterLoad()) return;   // a network co-op game's briefing over the built mission, the music after it (MainNetCoop.cs)
         if (built is not null) StartMissionMusic();   // its briefing played over the build
         else if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
             MissionMovie(new GameInstall(_opt.Install), ws.Briefing);

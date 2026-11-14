@@ -1004,7 +1004,8 @@ Single player plays the mission's briefing movie after the loading card and befo
 player sees their own (`Main.CoopBriefing`, from the loading card; Esc skips it). Since protocol 20 a game in its lobby plays it **at the start**,
 after the accept, while the server waits for every game to load (below, "The co-op lobby"); only a player joining a mission already running plays it
 before joining (a joiner would otherwise stand in a running mission under it; the roster's "co-op" against "co-op lobby" says which). The command line (`--host-listen --coop`, `--connect`)
-and `--skip-movies` have none, as before.
+and `--skip-movies` have none, as before. The play fork plays the lobby start's briefing after the build instead, and ends it for everyone
+on one skip once all have loaded (below, "The briefing for everyone").
 
 ### The co-op lobby (protocol 20)
 
@@ -1077,6 +1078,30 @@ While a lobby's start is held for a game still loading, the players already in t
 - **Tests** (`CoopFlowTests`): the message's round trip and an unknown stage read as Unknown; the notice's lines; a two-player start
   where the loaded player hears whom it waits for, sees the stage change and the list empty when the start goes; an upstream player listed
   without a stage and told nothing; an upstream host (no `CoopWait` in its accept) saying nothing and hearing nothing.
+
+### The briefing for everyone (the play fork's, `PeerFeatures.CoopSkip`)
+
+Upstream plays each player's briefing before that game builds the mission, so a player who skips is in the mission at once and waits for
+the others' briefings (the owner: "cutscene skips for others once everyone is ready and loaded in game and someone has skipped it").
+
+- **The order.** With a host whose accept says `CoopSkip`, a lobby start (and the next mission of a trip, below) builds the mission first,
+  behind the loading card, then plays the briefing over it, as the original plays a mission's briefing after its load. Meanwhile the game
+  sends no inputs (`NetView.Frozen`: the briefing holds it as a movie does), so the server's start still waits for it; it says Building,
+  then Briefing, then (a skip) Skipped and Ready (`MainNetCoop.cs`, `Main.NetBriefingAfterLoad`). The briefing here is the network game's
+  own player, not one played over a build: the fork's rule that no press skips while the mission still loads under a briefing (the READY
+  line, `MovieSkipGate`) does not arise, as nothing loads under it. The only change to the skip itself is that `MoviePlayer` remembers it
+  was skipped (`MoviePlayer.Skipped`, set in `Skip`).
+- **One skip ends them all.** Once every seat's game has built the mission (it says Briefing, Skipped or Ready, or its inputs have come)
+  and at least one player has skipped, the server sends `MsgType.CoopSkip` (62, the skipper's name) to each game still watching
+  (`CoopStart.SkippedBy`): its briefing ends, its feed says "Ann skipped the briefing", and its inputs follow. Any one skip is enough
+  (not a majority): nobody waits on a cut-scene. A game still building is never cut short; it is told only once it reaches its briefing,
+  which then ends at once if the skip came before.
+- **An upstream player** says nothing and plays its briefing before it builds: it counts as loaded only once its inputs come (its briefing
+  is over then), so the others' briefings play on until then, and it is never sent `CoopSkip`. A fork game whose host lacks `CoopSkip`
+  keeps upstream's order, and a fork build that says `CoopWait` but not `CoopSkip` has its Briefing read as not loaded.
+- **Tests** (`CoopFlowTests`): the rule (a builder holds it, an upstream game until its inputs, nobody skipped, alone, a game still in the
+  last mission's ending); a skip ending the other's briefing only once she reached hers; an upstream player holding the skip until its
+  inputs and never sent it; an upstream host ending nothing.
 
 ### Hosting and joining from the shell
 

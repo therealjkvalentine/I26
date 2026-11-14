@@ -26,6 +26,9 @@ public static class CoopStages
     /// <summary>A stage off the wire: one this build does not know reads as <see cref="CoopStage.Unknown"/>.</summary>
     public static CoopStage Of(byte b) => b <= (byte)CoopStage.Ending ? (CoopStage)b : CoopStage.Unknown;
 
+    /// <summary>The mission is built in that game (its briefing may still play).</summary>
+    public static bool Loaded(CoopStage s) => s is CoopStage.Briefing or CoopStage.Skipped or CoopStage.Ready;
+
     /// <summary>What a waited-for player is doing, as the notice says it.</summary>
     public static string Doing(CoopStage s) => s switch
     {
@@ -92,4 +95,26 @@ public static class CoopStart
     /// <summary>The players the start waits for: those whose game has not sent an input yet, with what each says it is doing.</summary>
     public static List<(string Name, CoopStage Stage)> Waiting(IEnumerable<Seat> seats) =>
         [.. seats.Where(s => !s.Input).Select(s => (s.Name, s.Stage))];
+
+    /// <summary>
+    /// Who skipped their briefing, once every seat's game has built the mission (an input sent, or it says <see cref="CoopStages.Loaded"/>)
+    /// and somebody skipped (<see cref="PeerFeatures.CoopSkip"/>): the briefings still playing then end for everyone. Null while any game
+    /// still loads (a game still loading is never cut short; an upstream game, which says nothing, counts as loaded only once its inputs
+    /// come, its briefing played before its build) or when nobody skipped. Any one skip is enough: nobody waits on a cut-scene.
+    /// </summary>
+    public static string? SkippedBy(IReadOnlyCollection<Seat> seats)
+    {
+        if (seats.Count < 2 || !seats.All(s => s.Input || CoopStages.Loaded(s.Stage))) return null;
+        return seats.FirstOrDefault(s => s.Skipped).Name;
+    }
+}
+
+/// <summary>The server's word that a briefing ends for everyone (the fork's, <see cref="MsgType.CoopSkip"/>): the player who skipped theirs.</summary>
+public sealed record CoopSkip(string Name)
+{
+    public void Write(NetWriter w) { w.U8((byte)MsgType.CoopSkip); w.Str(Name); }
+    public static CoopSkip Read(ref NetReader r) => new(r.Str());
+
+    /// <summary>The line the others see.</summary>
+    public string Line => $"{Name} skipped the briefing";
 }

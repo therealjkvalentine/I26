@@ -27,10 +27,14 @@ public sealed partial class MeleeClient
         _peer.Send(_w.Span, DeliveryMethod.ReliableOrdered);
     }
 
+    /// <summary>The host's word that this game's briefing ends: everyone has built the mission and this player skipped theirs (<see cref="MsgType.CoopSkip"/>); the game takes it.</summary>
+    public CoopSkip? SkippedBy { get; set; }
+
     /// <summary>A new accept (a start, the next round): the last round's word goes, and the stage is told to this host if it listens.</summary>
     private void CoopAccepted()
     {
         StartWait = null;
+        SkippedBy = null;
         if (CoopStageNow != CoopStage.Unknown) SendCoopStage(CoopStageNow);
     }
 
@@ -45,6 +49,9 @@ public sealed partial class MeleeClient
             case MsgType.CoopWait when Has(PeerFeatures.CoopWait):
                 StartWait = CoopWait.Read(ref r);
                 StartWaitAt = Now;
+                return true;
+            case MsgType.CoopSkip when Has(PeerFeatures.CoopSkip):
+                SkippedBy = CoopSkip.Read(ref r);
                 return true;
         }
         return false;
