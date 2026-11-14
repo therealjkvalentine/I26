@@ -524,7 +524,7 @@ public sealed class ListPopup : ShellScreen
             (X, Y, TextX, TextY, Visible, Up, Down, List, Cancel) = (nl.X, nl.Y, nl.TextX, nl.TextY, nl.Visible, nl.Up, nl.Down, nl.List, nl.Cancel);
             if (DeleteRequested is not null) (Done, DeleteBtn) = (nl.Done, nl.Delete);
         }
-        else if (DeleteRequested is not null) DrawnDelete = (Cancel.X0 - 49, Cancel.X0 - 4, Cancel.Y0, Cancel.Y1);
+        else if (DeleteRequested is not null) LayOutDelete();
         var s = Art;
         _w = s?.Width ?? 200; _h = s?.Height ?? 236;
         _scroll = Math.Clamp(Scroll, 0, Math.Max(0, Items.Count - Visible));
@@ -564,24 +564,70 @@ public sealed class ListPopup : ShellScreen
     }
 
     /// <summary>
-    /// The DELETE button: CANCEL's frame and fill (read from the popup's art, so both looks and every palette agree) with
-    /// the word in the shell's label font; there is no such sprite in the base game's banks.
+    /// Where DELETE and CANCEL go when DELETE is drawn: the row from just right of the down arrow to CANCEL's right border shared
+    /// by two buttons as the address book's are (57 px wide, 8 apart: CANCEL's 71 px leave no room for a second one beside the
+    /// arrow), CANCEL moved right to keep its right edge. Found from the art's own CANCEL (its border and its word), so both
+    /// looks and every palette agree; without them, the art's places as given.
+    /// </summary>
+    private void LayOutDelete()
+    {
+        _cancelArt = null;
+        if (Art is not { } a || CancelArt(a) is not { } art) { DrawnDelete = (Cancel.X0 - 49, Cancel.X0 - 4, Cancel.Y0, Cancel.Y1); return; }
+        _cancelArt = art;
+        var b = art.Border;
+        int right = b.End.X, left = Down.X1 + 2, w = (right - left - DeleteGap) / 2;
+        DrawnDelete = (left, left + w - 1, b.Position.Y, b.End.Y - 1);
+        Cancel = (right - w, right - 1, b.Position.Y, b.End.Y - 1);
+    }
+
+    /// <summary>The gap between the two buttons, as the address book's (its 57 px buttons 9 px apart, start to start 66).</summary>
+    private const int DeleteGap = 8;
+
+    /// <summary>The art's CANCEL: its border's bounds and its word, relative to the popup (the art's own coordinates).</summary>
+    private (Rect2I Border, ArtButtons.ArtLabel Word)? _cancelArt;
+
+    private (Rect2I Border, ArtButtons.ArtLabel Word)? CancelArt(Sprite a)
+    {
+        byte Px(int x, int y) => a.Pixels[Math.Clamp(y, 0, a.Height - 1) * a.Width + Math.Clamp(x, 0, a.Width - 1)];
+        var pal = Frame.Palette;
+        if (pal is null) return null;
+        var c = Cancel;
+        return ArtButtons.Label(Px, pal, new Rect2I(c.X0 - 4, c.Y0 - 4, c.X1 - c.X0 + 9, c.Y1 - c.Y0 + 9)) is { } border
+            && ArtButtons.Label(Px, pal, border.Box.Grow(-3)) is { } word ? (border.Box, word) : null;
+    }
+
+    /// <summary>
+    /// DELETE and CANCEL drawn into the frame over the popup (so they show over an upscaled popup too): the paper under the row
+    /// first (the plain paper between the down arrow and CANCEL, repeated), then each button with CANCEL's face; DELETE is lettered
+    /// like CANCEL's word (<see cref="ArtButtons.Letter"/>: Arial Bold as tall as it, in its ink).
+    /// There is no DELETE in the base game's banks.
     /// </summary>
     private void DrawDeleteButton((int X0, int X1, int Y0, int Y1) d)
     {
-        var a = Art;
-        if (a is null) return;
-        // CANCEL's own pixels, its label's columns stretched out of the plain ones beside them (the arrow above must stay clear)
-        int x = X + d.X0, y = Y + d.Y0, w = d.X1 - d.X0 + 1, h = d.Y1 - d.Y0 + 1, cw = Cancel.X1 - Cancel.X0 + 1, edge = 6;
-        for (int ty = 0; ty < h; ty++)
-            for (int tx = 0; tx < w; tx++)
-            {
-                int sx = tx < edge ? tx : tx >= w - edge ? cw - (w - tx) : edge;
-                int px = Math.Clamp(Cancel.X0 + sx, 0, a.Width - 1), py = Math.Clamp(Cancel.Y0 + ty, 0, a.Height - 1);
-                if (a.Opaque[py * a.Width + px]) Frame.Fill(x + tx, y + ty, 1, 1, a.Pixels[py * a.Width + px]);
-            }
-        var f = Shell.Db.Font(0x47);
-        Frame.Text(f, x + (w - f.Measure("DELETE")) / 2, y + (h - f.Height) / 2, "DELETE", ShellFrame.DefaultInk);
+        if (Art is not { } a) return;
+        byte At(int x, int y) => a.Pixels[Math.Clamp(y, 0, a.Height - 1) * a.Width + Math.Clamp(x, 0, a.Width - 1)];
+        byte Px(int x, int y) => At(x - X, y - Y);
+        if (_cancelArt is not var (border, word))
+        {
+            Frame.Text(Shell.Db.Font(0x47), X + d.X0 + 2, Y + d.Y0 + 2, "DELETE", ShellFrame.DefaultInk);
+            return;
+        }
+        // the paper: the art's plain columns between the arrow and the old CANCEL, along the row and two pixels round it
+        int p0 = Down.X1 + 2, plain = Math.Max(1, border.Position.X - 3 - p0);
+        for (int y = border.Position.Y - 2; y < border.End.Y + 2; y++)
+            for (int x = p0; x < border.End.X + 1; x++) Frame.Fill(X + x, Y + y, 1, 1, At(p0 + (x - p0) % plain, y));
+        var src = new Rect2I(X + border.Position.X, Y + border.Position.Y, border.Size.X, border.Size.Y);
+        var label = new ArtButtons.ArtLabel(new Rect2I(X + word.Box.Position.X, Y + word.Box.Position.Y, word.Box.Size.X, word.Box.Size.Y), word.Ink, word.Soft);
+        Rect2I Dest((int X0, int X1, int Y0, int Y1) r) => new(X + r.X0, Y + r.Y0, r.X1 - r.X0 + 1, r.Y1 - r.Y0 + 1);
+        var del = Dest(d);
+        var cancel = Dest(Cancel);
+        ArtButtons.Face(Frame, Px, src, label.Box.Position.X, del, 3);
+        ArtButtons.Face(Frame, Px, src, label.Box.Position.X, cancel, 3);
+        // the art's own word where it is printed in the frame's pixels (the 1997 look); lettered as DELETE is where the words are
+        // drawn at the window's resolution (the modern look), so the two match and neither is the 640x480 word blown up
+        if (Frame.HdFonts is null) ArtButtons.Word(Frame, Px, label.Box, cancel);
+        else ArtButtons.Letter(Frame, Shell.Db.Font(0x47), "CANCEL", label, "CANCEL", cancel);
+        ArtButtons.Letter(Frame, Shell.Db.Font(0x47), "DELETE", label, "CANCEL", del);
     }
 
     private Vector2I _lastMouse;
