@@ -1598,6 +1598,8 @@ public sealed class ShellSettings
     public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;
     /// <summary>The port's own, without a row: the modern look's door mirrors' glass with its corners rounded by that percent of its shorter side (I76.Game.Sim.GlassRound; 0 the glass's own corners, 50 round ends; shell.cfg [port] side_mirror_round; written only when not the default).</summary>
     public int SideMirrorRound { get; set; } = I76.Game.Sim.GlassRound.DefaultShare;
+    /// <summary>The port's own, without a row: the modern look's door mirrors' moulding with its outer edge rounded too, that many of its own widths beyond the rounded glass, the housing's corners outside it cut away (I76.Game.Sim.GlassRound.RimOut; 0 the housing's straight outline, the look before; shell.cfg [port] side_mirror_rim_out; written only when not the default).</summary>
+    public int SideMirrorRimOut { get; set; } = I76.Game.Sim.GlassRound.DefaultRimOut;
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -1978,6 +1980,7 @@ public sealed class ShellSettings
         s.MirrorRate = I76.Game.Sim.MirrorRateRow.Parse(c.GetValue("port", "mirror_rate", "alternate").ToString());
         s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
         s.SideMirrorRound = Math.Clamp((int)c.GetValue("port", "side_mirror_round", I76.Game.Sim.GlassRound.DefaultShare), 0, I76.Game.Sim.GlassRound.MaxShare);
+        s.SideMirrorRimOut = Math.Clamp((int)c.GetValue("port", "side_mirror_rim_out", I76.Game.Sim.GlassRound.DefaultRimOut), 0, I76.Game.Sim.GlassRound.MaxRimOut);
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
         s.SideMirrorAngle = Math.Clamp((int)c.GetValue("port", "side_mirror_angle", (int)I76.Game.Sim.MirrorBands.DefaultYaw), 15, 75);
@@ -2184,6 +2187,7 @@ public sealed class ShellSettings
         if (I76.Game.Sim.MirrorRateRow.Word(MirrorRate) is { } mirrorRate) c.SetValue("port", "mirror_rate", mirrorRate);
         if (MirrorRound != I76.Game.Sim.MirrorRound.DefaultRadius) c.SetValue("port", "mirror_round", MirrorRound);
         if (SideMirrorRound != I76.Game.Sim.GlassRound.DefaultShare) c.SetValue("port", "side_mirror_round", SideMirrorRound);
+        if (SideMirrorRimOut != I76.Game.Sim.GlassRound.DefaultRimOut) c.SetValue("port", "side_mirror_rim_out", SideMirrorRimOut);
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);

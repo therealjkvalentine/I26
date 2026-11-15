@@ -1725,6 +1725,7 @@ public partial class Cockpit : Node
         _sideOverlap = s.SideMirrorOverlap;
         _sideRender = s.SideMirrorRender;
         _mirrorRate = s.MirrorRate;
+        _rimOutSetting = s.SideMirrorRimOut;
         if (_roundSetting != s.MirrorRound || _glassRoundSetting != s.SideMirrorRound) { _roundSetting = s.MirrorRound; _glassRoundSetting = s.SideMirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
         ApplyMirrorMode();
@@ -1819,7 +1820,15 @@ public partial class Cockpit : Node
 
     // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
 
-    private readonly List<(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull)> _glass = [];
+    /// <summary>A door mirror's glass: its mesh (Faces, the pane's own; or the plane's grown one while the moulding's outer edge reaches past it), its material, side, picture aspect, middle, convex outline in the shader's units, the plane its picture coordinates map onto, and the driver's eye in its frame.</summary>
+    private sealed record GlassPane(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull, ArrayMesh Faces, (Vector3 O, Vector3 A, Vector3 B)? Plane, Vector3 Eye)
+    {
+        public (float Grow, bool Dark) GrownFor = (float.NaN, false);
+        public ArrayMesh? Grown;
+    }
+    private readonly List<GlassPane> _glass = [];
+    private static readonly string? RimOutHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_RIM_OUT");
+    private int _rimOutSetting = GlassRound.DefaultRimOut;
     private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
     private ShaderMaterial? _rimMat;
 
@@ -1831,12 +1840,16 @@ public partial class Cockpit : Node
         // Side Mirrors Left: the right one stays as the art paints and places it
         foreach (var (head, left) in Node3D.MirrorHeads) head.Transform = on && _aimed && MirrorBands.SideShown(_sideMirrors, left) ? _aim[left ? 0 : 1].Turn : Transform3D.Identity;
         int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
+        var rimOut = GlassRound.Out(RimOutHook, _rimOutSetting);
         foreach (var (r, left) in _rims) r.Visible = on && _mirrorMode != 0 && MirrorBands.SideShown(_sideMirrors, left) && !_glass.Any(g => g.Left == left && GlassRound.Shape(g.Hull, share) is not null);
+        // the housing's painted glass hidden behind a glass whose moulding is rounded outside too (its corners cut away)
+        foreach (var (paint, left) in Node3D.MirrorPaint) paint.Visible = true;
         foreach (var g in _glass)
         {
             g.Mesh.Visible = on && MirrorBands.SideShown(_sideMirrors, g.Left);
-            if (!g.Mesh.Visible) continue;
-            RoundGlass(g.Mat, g.Hull, g.Aspect, share);
+            if (!g.Mesh.Visible) { g.Mesh.Mesh = g.Faces; continue; }
+            if (RoundGlass(g, share, rimOut) && _mirrorMode != 0)
+                foreach (var (paint, left) in Node3D.MirrorPaint) if (left == g.Left) paint.Visible = false;
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
             var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
             var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
@@ -1887,7 +1900,8 @@ public partial class Cockpit : Node
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
             host.AddChild(mi);
             var centre = Vector3.Zero; foreach (var q in v) centre += q; centre /= Math.Max(1, v.Count);
-            _glass.Add((mi, mat, pane.Left, aspect, centre, GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)))));
+            var plane = GlassRound.Plane([.. v.Zip(t, (p, uv) => (new Vector2(uv.X * aspect, uv.Y), p))]);
+            _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y))), mesh, plane, near));
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
             var shifted = pane.Faces.Select(f => f.Select(q => { var g = Coords.ToGodot(q); return g + (near - g).Normalized() * 0.004f; }).ToArray()).ToList();
@@ -1912,19 +1926,73 @@ public partial class Cockpit : Node
     /// the rounded glass draws its own moulding, so the pane's straight rim (MirrorRim) is hidden while it is. 0, the glass's own corners
     /// and the straight rim.
     /// </summary>
-    private void RoundGlass(ShaderMaterial m, List<Vector2> hull, float aspect, int share)
+    /// <remarks>
+    /// With the moulding's outer edge rounded too (GlassRound.RimOut, side_mirror_rim_out) the glass is drawn on a flat polygon in the
+    /// pane's plane holding the ring (and, with its corners dark, the pane's outline), the pane's picture coordinates carried onto it;
+    /// true then, and the housing's painted glass is hidden. Otherwise the pane's own faces, as before.
+    /// </remarks>
+    private bool RoundGlass(GlassPane g, int share, GlassRound.RimOut rimOut)
     {
-        if (GlassRound.Shape(hull, share) is not { } shape) { m.SetShaderParameter("pane_round", false); return; }
+        var m = g.Mat;
+        if (GlassRound.Shape(g.Hull, share) is not { } shape)
+        {
+            m.SetShaderParameter("pane_round", false); m.SetShaderParameter("rim_round", false);
+            g.Mesh.Mesh = g.Faces;
+            return false;
+        }
         var core = new Vector2[GlassRound.MaxCorners];
         for (int i = 0; i < shape.Core.Count; i++) core[i] = shape.Core[i];
         m.SetShaderParameter("pane_round", true);
-        m.SetShaderParameter("pane_aspect", aspect);
+        m.SetShaderParameter("pane_aspect", g.Aspect);
         m.SetShaderParameter("pane_core", core);
         m.SetShaderParameter("pane_corners", shape.Core.Count);
         m.SetShaderParameter("pane_r", shape.R);
         m.SetShaderParameter("rim_w", MirrorRim.RimShare);
         _rimMat ??= RimMaterial();
         m.SetShaderParameter("rim_colour", _rimMat.GetShaderParameter("colour"));
+        bool round = rimOut.On && g.Plane is not null && g.Hull.Count <= GlassRound.MaxCorners;
+        m.SetShaderParameter("rim_round", round);
+        if (!round) { g.Mesh.Mesh = g.Faces; return false; }
+        float grow = rimOut.Cover ? GlassRound.Cover(g.Hull, shape.Core, shape.R) : rimOut.Widths * MirrorRim.RimShare;
+        var hull = new Vector2[GlassRound.MaxCorners];
+        for (int i = 0; i < g.Hull.Count; i++) hull[i] = g.Hull[i];
+        m.SetShaderParameter("rim_out", grow);
+        m.SetShaderParameter("rim_dark", rimOut.Dark);
+        m.SetShaderParameter("pane_hull", hull);
+        m.SetShaderParameter("pane_hull_n", g.Hull.Count);
+        if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
+        {
+            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, rimOut.Dark ? [.. GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), .. g.Hull.Select(q => q + (q - g.Hull.Aggregate(Vector2.Zero, (a, b) => a + b) / g.Hull.Count).Normalized() * GrowMargin)]
+                : GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), g.Eye);
+            g.GrownFor = (grow, rimOut.Dark);
+        }
+        g.Mesh.Mesh = g.Grown;
+        return true;
+    }
+
+    /// <summary>How far the grown glass's mesh reaches past the ring's outer edge, in the glass's heights: room for the edge's one-pixel blend.</summary>
+    private const float GrowMargin = 0.02f;
+
+    /// <summary>
+    /// The grown glass: the hull of the outline's points as one flat fan in the pane's plane, the UVs the shader's picture coordinates;
+    /// one-sided, its face toward <paramref name="eye"/> (the driver's, in the head's frame), so nothing of it is drawn from behind.
+    /// </summary>
+    private static ArrayMesh GrownGlass((Vector3 O, Vector3 A, Vector3 B) plane, float aspect, IEnumerable<Vector2> outline, Vector3 eye)
+    {
+        var poly = GlassRound.Hull(outline);
+        var v = new List<Vector3>(); var t = new List<Vector2>();
+        var at = poly.Select(q => plane.O + plane.A * q.X + plane.B * q.Y).ToArray();
+        // Godot's front faces wind clockwise as seen: the face toward the eye has its right-handed normal pointing away from it
+        bool flip = at.Length >= 3 && (at[1] - at[0]).Cross(at[2] - at[0]).Dot(eye - at[0]) > 0;
+        for (int k = 1; k + 1 < poly.Count; k++)
+            foreach (var i in flip ? new[] { 0, k + 1, k } : new[] { 0, k, k + 1 }) { v.Add(at[i]); t.Add(new Vector2(poly[i].X / aspect, poly[i].Y)); }
+        var a = new Godot.Collections.Array();
+        a.Resize((int)Mesh.ArrayType.Max);
+        a[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+        a[(int)Mesh.ArrayType.TexUV] = t.ToArray();
+        var mesh = new ArrayMesh();
+        I76.Game.MeshArrays.AddSurfaceArrays(mesh, Mesh.PrimitiveType.Triangles, a);
+        return mesh;
     }
 
     /// <summary>Each side's picture (the own camera's forward) and its head's turn (in the car's frame, Godot axes), made once by Aim; left first.</summary>

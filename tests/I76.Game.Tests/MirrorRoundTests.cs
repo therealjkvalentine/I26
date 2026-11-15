@@ -97,4 +97,74 @@ public class MirrorRoundTests
         Assert.True(hc.Count is >= 3 and <= GlassRound.MaxCorners);
         Assert.True(hr > 0 && hr < GlassRound.Inradius(hex));
     }
+
+    [Fact]
+    public void TheMouldingsOuterEdgeIsRoundedTwoWidthsOutByDefault()
+    {
+        Assert.Equal(GlassRound.DefaultRimOut, new I76.Game.Shell.ShellSettings().SideMirrorRimOut);
+        Assert.Equal(new GlassRound.RimOut(true, 2), GlassRound.Out(null, GlassRound.DefaultRimOut));
+        Assert.False(GlassRound.Out(null, 0).On);                     // 0: the housing's straight outline, the look before
+        Assert.False(GlassRound.Out("off", 3).On);
+        Assert.Equal(new GlassRound.RimOut(true, 0), GlassRound.Out("in", 0));
+        Assert.Equal(new GlassRound.RimOut(true, 0, true, true), GlassRound.Out("cover,dark", 0));
+        Assert.Equal(new GlassRound.RimOut(true, 1.5f, false, true), GlassRound.Out("1.5, dark", 0));
+        Assert.Equal(GlassRound.MaxRimOut, GlassRound.Out("40", 0).Widths);
+        Assert.Equal(GlassRound.MaxRimOut, GlassRound.Out(null, 99).Widths);
+    }
+
+    [Fact]
+    public void ADistanceToAConvexOutlineIsNoughtInside()
+    {
+        var sq = GlassRound.Hull([new(0, 0), new(1, 0), new(1, 1), new(0, 1)]);
+        Assert.Equal(0f, GlassRound.Distance(sq, new(0.5f, 0.5f)));
+        Assert.Equal(0.5f, GlassRound.Distance(sq, new(1.5f, 0.5f)), 0.0001f);
+        Assert.Equal(MathF.Sqrt(2), GlassRound.Distance(sq, new(2, 2)), 0.0001f);
+    }
+
+    /// <summary>The growth that takes in the housing's corners: a rectangle's corner lies r·√2 from its core, so r·(√2 − 1) beyond the rounded outline.</summary>
+    [Fact]
+    public void CoverReachesTheHousingsCorners()
+    {
+        var rect = GlassRound.Hull([new(0, 0), new(2, 0), new(2, 1), new(0, 1)]);
+        var (core, r) = GlassRound.Shape(rect, 25)!.Value;
+        float g = GlassRound.Cover(rect, core, r);
+        Assert.Equal(0.25f * (MathF.Sqrt(2) - 1), g, 0.0005f);
+        Assert.All(rect, c => Assert.True(GlassRound.Distance(core, c) <= r + g + 1e-4f));
+        // a hexagon's blunter corners stick out less than a rectangle's of the same rounding
+        var hex = GlassRound.Hull(Enumerable.Range(0, 6).Select(k => new Vector2(Mathf.Cos(k * Mathf.Pi / 3), Mathf.Sin(k * Mathf.Pi / 3))));
+        var (hc, hr) = GlassRound.Shape(hex, 30)!.Value;
+        Assert.True(GlassRound.Cover(hex, hc, hr) < 0.42f * hr);
+    }
+
+    /// <summary>The grown glass's mesh holds the whole ring: every point within the radius of the core is inside it, and it reaches no further than the circles' outer polygon.</summary>
+    [Fact]
+    public void TheGrownMeshHoldsTheRing()
+    {
+        var rect = GlassRound.Hull([new(0, 0), new(2, 0), new(2, 1), new(0, 1)]);
+        var (core, r) = GlassRound.Shape(rect, 30)!.Value;
+        float R = r + 0.06f;
+        var around = GlassRound.Around(core, R);
+        Assert.True(around.Count <= 4 * 16);
+        foreach (var c in core)
+            for (int k = 0; k < 360; k += 5)
+            {
+                var p = c + new Vector2(Mathf.Cos(Mathf.DegToRad(k)), Mathf.Sin(Mathf.DegToRad(k))) * R;
+                Assert.True(GlassRound.Distance(around, p) < 1e-4f, $"{p} outside");
+            }
+        Assert.All(around, q => Assert.InRange(GlassRound.Distance(core, q), R - 1e-4f, R / MathF.Cos(MathF.PI / 16) + 1e-4f));
+    }
+
+    /// <summary>The pane's plane from its corners' picture coordinates: recovered exactly for a flat pane, and a point past its outline lands in it.</summary>
+    [Fact]
+    public void ThePlaneMapsPictureCoordinatesOntoThePane()
+    {
+        var o = new Vector3(-0.9f, 1.05f, -0.3f); var a = new Vector3(0.12f, 0.01f, 0.05f); var b = new Vector3(-0.01f, 0.08f, 0.02f);
+        var pts = new (Vector2, Vector3)[] { (new(0, 0), o), (new(1.6f, 0), o + a * 1.6f), (new(1.6f, 1), o + a * 1.6f + b), (new(0, 1), o + b), (new(0.8f, 1.1f), o + a * 0.8f + b * 1.1f) };
+        var (po, pa, pb) = GlassRound.Plane(pts)!.Value;
+        Assert.True(po.DistanceTo(o) < 1e-4f && pa.DistanceTo(a) < 1e-4f && pb.DistanceTo(b) < 1e-4f);
+        var out_ = po + pa * -0.1f + pb * 1.2f;
+        Assert.True(out_.DistanceTo(o + a * -0.1f + b * 1.2f) < 1e-4f);
+        // collinear corners hold no plane
+        Assert.Null(GlassRound.Plane([(new(0, 0), o), (new(1, 0), o + a), (new(2, 0), o + a * 2)]));
+    }
 }

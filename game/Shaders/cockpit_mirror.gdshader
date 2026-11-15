@@ -41,6 +41,15 @@ uniform int pane_corners = 0;
 uniform float pane_r = 0.0;
 uniform float rim_w = 0.02;
 uniform vec3 rim_colour : source_color = vec3(0.12, 0.12, 0.13);
+// the moulding's outer edge rounded too (GlassRound.RimOut, [port] side_mirror_rim_out): the rounded outline widened by rim_out (the
+// glass's mesh grown past the housing's outline to hold it, in the glass's plane), the moulding's shading spread across the whole
+// ring; outside it nothing is drawn (the housing's painted glass is hidden), or with rim_dark the moulding's dark out to the housing's
+// own outline (pane_hull, the pane's convex outline counter-clockwise, as pane_core)
+uniform bool rim_round = false;
+uniform float rim_out = 0.0;
+uniform bool rim_dark = false;
+uniform vec2 pane_hull[12];
+uniform int pane_hull_n = 0;
 
 // the modern look's rounder corners (MirrorRound, I76_MIRROR_ROUND): the frame's outline and the glass's, each a trapezoid in the art's
 // pixels shrunk by its corner's radius; the rounded shape is within that radius of it
@@ -83,6 +92,21 @@ float sd_core(vec2 p) {
 	return inside ? -sqrt(d) : sqrt(d);
 }
 
+// the signed distance to the pane's own outline (negative inside)
+float sd_hull(vec2 p) {
+	float d = 1e9;
+	bool inside = true;
+	for (int i = 0; i < 12; i++) {
+		if (i >= pane_hull_n) break;
+		vec2 a = pane_hull[i], b = pane_hull[i + 1 < pane_hull_n ? i + 1 : 0];
+		vec2 e = b - a, w = p - a;
+		vec2 q = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+		d = min(d, dot(q, q));
+		if (e.x * w.y - e.y * w.x < 0.0) inside = false;
+	}
+	return inside ? -sqrt(d) : sqrt(d);
+}
+
 // inside a rounded shape (its core's distance less the radius), over one screen pixel
 float rounded(float sd) {
 	return clamp(0.5 - sd / max(fwidth(sd), 1e-4), 0.0, 1.0);
@@ -109,14 +133,24 @@ void fragment() {
 	vec2 vuv = vec2(view_x(UV.x), 1.0 - UV.y);
 	if (pane) {
 		ALBEDO = texture(view, vuv).rgb;
-		if (pane_round) {
+		ALPHA = 1.0;
+		if (pane_round && rim_round) {
+			vec2 p = vec2(UV.x * pane_aspect, UV.y);
+			float sd = sd_core(p) - pane_r;
+			// the moulding across the whole ring: 0 at its outer edge, 1 at the glass's
+			float t = clamp((rim_out - sd) / (rim_out + rim_w), 0.0, 1.0);
+			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
+			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+			float ring = rounded(sd - rim_out);
+			ALPHA = rim_dark ? max(ring, rounded(sd_hull(p))) : ring;
+			if (ALPHA <= 0.0) discard;
+		} else if (pane_round) {
 			float sd = sd_core(vec2(UV.x * pane_aspect, UV.y)) - pane_r;
 			// the moulding across the rim: 0 at the rounded shape's edge, 1 at the glass's
 			float t = clamp(-sd / rim_w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
 			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
 		}
-		ALPHA = 1.0;
 	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
 		float solid = cut(e.r), g = cut(e.g);

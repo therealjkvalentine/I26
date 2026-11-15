@@ -64,6 +64,9 @@ public static class DevSettings
     /// <summary>[port] side_mirror_round's values offered: the door mirrors' glass corners, percent of its shorter side (0 the glass's own, the original's; 50 round ends).</summary>
     public static readonly int[] GlassRoundSteps = [0, 15, 30, 50];
     private static readonly string[] GlassRoundNames = [.. GlassRoundSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
+    /// <summary>[port] side_mirror_rim_out's values offered: the door mirrors' moulding's outer edge, in its own widths beyond the rounded glass (0 the housing's straight outline).</summary>
+    public static readonly int[] RimOutSteps = [0, 1, 2, 3, 4];
+    private static readonly string[] RimOutNames = [.. RimOutSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
     private static readonly string[] MirrorDropNames = [.. MirrorDropSteps.Select(p => p == 125 ? $"{p}" : $"{p}{M}")];
@@ -114,6 +117,7 @@ public static class DevSettings
         new("side_mirrors", ["off", "on" + M, "auto" + M, "left" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
         new("mirror_round", MirrorRoundNames, s => Nearest(MirrorRoundSteps, s.MirrorRound), (s, v) => s.MirrorRound = MirrorRoundSteps[v], DevWhen.Live),
         new("side_mirror_round", GlassRoundNames, s => Nearest(GlassRoundSteps, s.SideMirrorRound), (s, v) => s.SideMirrorRound = GlassRoundSteps[v], DevWhen.Live),
+        new("side_mirror_rim_out", RimOutNames, s => Nearest(RimOutSteps, s.SideMirrorRimOut), (s, v) => s.SideMirrorRimOut = RimOutSteps[v], DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),
         new("side_mirror_angle", MirrorYawNames, s => Nearest(MirrorYawSteps, s.SideMirrorAngle), (s, v) => s.SideMirrorAngle = MirrorYawSteps[v], DevWhen.Live),
