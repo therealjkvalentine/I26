@@ -62,6 +62,7 @@ namespace I76.Sim.Collision
                 // the bounds too: a Refresh that leaves no geometry keeps the last ones (they still place the root for a splash)
                 .Saved(nameof(Centre), nameof(Radius), nameof(BoundRadius))
                 .Derived(geometry, nameof(_intact), nameof(_uncollapsed), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres), nameof(MeshBounds))
+                .Derived("whether every node is a sign, from the node types, kept for the node count it was found at", nameof(_sign), nameof(_signNodes))
                 .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
                     nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck));
             a.For<StructureNode>()

@@ -157,7 +157,18 @@ public sealed partial class StaticObject
     /// a sign node) goes to the sign's slot (measured in the original: M10's billboards, placed as type 4, are type-2
     /// nodes that stop a car and lose HP to it, and are not thrown).
     /// </summary>
-    public bool SignPlacement => Type == 4 && Nodes.TrueForAll(n => n.Sign);
+    public bool SignPlacement
+    {
+        get
+        {
+            // asked for every object by every car every tick (Solid too): found again only when the node list grows (the
+            // mission build fills it; a node's type never changes)
+            if (_signNodes != Nodes.Count) { _sign = Type == 4 && Nodes.TrueForAll(n => n.Sign); _signNodes = Nodes.Count; }
+            return _sign;
+        }
+    }
+    private int _signNodes = -1;
+    private bool _sign;
 
     /// <summary>Thrown by the sign's slot: the root's HP zeroed by it (a root that only lost a child keeps its 400). Its collider is gone.</summary>
     public bool Knocked => Type == 4 && Destroyed && Hp == 0;

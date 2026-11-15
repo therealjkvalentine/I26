@@ -585,8 +585,13 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     private static List<Collision.Poly> SignPolys(Collision.StaticObject o) => o.Polys.FindAll(q => o.SignNode(q.Node));
 
     /// <summary>A structure's polygons without its unfelt nodes' (static for the same reason as <see cref="SignPolys"/>).</summary>
-    private static List<Collision.Poly> FeltPolys(Collision.StaticObject o) =>
-        o.Polys.Exists(q => o.Unfelt(q.Node)) ? o.Polys.FindAll(q => !o.Unfelt(q.Node)) : o.Polys;
+    private static List<Collision.Poly> FeltPolys(Collision.StaticObject o)
+    {
+        foreach (var q in o.Polys) if (o.Unfelt(q.Node)) return Felt(o);
+        return o.Polys;
+    }
+
+    private static List<Collision.Poly> Felt(Collision.StaticObject o) => o.Polys.FindAll(q => !o.Unfelt(q.Node));
 
     /// <summary>
     /// The per-frame object pass for this car against the static world
@@ -616,24 +621,21 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         bool driveOn = false;
         foreach (var o in wg.World.Objects)
         {
+            // (the tests below in the order they decide; the XZ box first of all for the rest, as it rules out most of the
+            // map and has no effect of its own)
+            bool signPlacement = o.SignPlacement;
+            if (!signPlacement && (o.Centre.X + o.Radius < minX || o.Centre.X - o.Radius > maxX || o.Centre.Z + o.Radius < minZ || o.Centre.Z - o.Radius > maxZ)) continue;
             if (!o.Solid) continue;
-            if (o.SignPlacement)
+            if (signPlacement)
             {
                 // a sign: each part's sphere against the car's box, now and at the end of the frame; no response, it is knocked off
-                foreach (var sp in o.Spheres.Count > 0 ? o.Spheres : [new Collision.NodeSphere(o.Centre, o.SphereRadius)])
-                {
-                    float reach = r + sp.Radius + v.Speed * dtFrame;
-                    if ((new Vector2(sp.Centre.X - c.X, sp.Centre.Z - c.Z)).LengthSquared() > reach * reach) continue;
-                    if (!SphereHitsBox(v, sp.Centre, sp.Radius, dtFrame)) continue;
-                    ObjectHits.Add((v, o.Name, o.Type, Vector3.UnitY, v.Speed));
-                    Damage?.StaticContact(v, o, new Contact { Hit = true, Other = o });
-                    break;
-                }
+                // (one made without spheres is its placement's sphere)
+                if (o.Spheres.Count == 0) SignTouch(v, o, o.Centre, o.SphereRadius, r, c, dtFrame);
+                else foreach (var sp in o.Spheres) if (SignTouch(v, o, sp.Centre, sp.Radius, r, c, dtFrame)) break;
                 continue;
             }
             // another model moves this car: of the rest, only a structure's sign nodes, which that model leaves out
             if (signsOnly && !o.Nodes.Exists(n => n.Sign)) continue;
-            if (o.Centre.X + o.Radius < minX || o.Centre.X - o.Radius > maxX || o.Centre.Z + o.Radius < minZ || o.Centre.Z - o.Radius > maxZ) continue;
             if (!SweptSphere(c, v.Vel, o.Centre, r + o.Radius, dtFrame)) continue;
             foreach (var b in o.Boxes)
             {
@@ -754,6 +756,17 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     }
 
     /// <summary>A sphere against the car's COLP box (x0..x3, y1..y3, z0..z3) at the start and the end of the frame's motion.</summary>
+    /// <summary>A sign part's sphere against the car (<see cref="ObjectContacts"/>): on a touch the hit and the knock, and true.</summary>
+    private bool SignTouch(Vehicle v, Collision.StaticObject o, Vector3 centre, float radius, float r, Vector3 c, float dtFrame)
+    {
+        float reach = r + radius + v.Speed * dtFrame;
+        if ((new Vector2(centre.X - c.X, centre.Z - c.Z)).LengthSquared() > reach * reach) return false;
+        if (!SphereHitsBox(v, centre, radius, dtFrame)) return false;
+        ObjectHits.Add((v, o.Name, o.Type, Vector3.UnitY, v.Speed));
+        Damage?.StaticContact(v, o, new Contact { Hit = true, Other = o });
+        return true;
+    }
+
     private static bool SphereHitsBox(Vehicle v, Vector3 centre, float radius, float dt)
     {
         var min = new Vector3(v.BoxX[0], v.BoxY[1], v.BoxZ[0]); var max = new Vector3(v.BoxX[3], v.BoxY[3], v.BoxZ[3]);
