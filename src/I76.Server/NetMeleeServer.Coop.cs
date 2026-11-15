@@ -40,6 +40,7 @@ public sealed partial class NetMeleeServer
     private void CoopForget(int peer)
     {
         _coopStage.Remove(peer);
+        _carriedAt.Remove(peer);
         _coopSkipped.Remove(peer);
         _skipTold.Remove(peer);
     }

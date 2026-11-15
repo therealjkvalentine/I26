@@ -22,6 +22,21 @@ public sealed partial class NetMeleeServer
     private double _planDue;
     /// <summary>This mission's end has been planned for.</summary>
     private bool _planned;
+    /// <summary>
+    /// The peers carried into a new mission, and when: an input of theirs sent in the last mission (in flight, or the old scene's before it
+    /// reloads) would count as the new mission's game loaded and start it before anyone has built it, so their inputs are not taken until
+    /// their game says it builds the new one (<see cref="MsgType.CoopStage"/>), or, from a game that does not say, for a second.
+    /// </summary>
+    private readonly Dictionary<int, double> _carriedAt = [];
+
+    /// <summary>An input to drop: its peer was carried into this mission and its game has not been heard building it yet.</summary>
+    private bool CoopDropsInput(int peer)
+    {
+        if (!_carriedAt.TryGetValue(peer, out double at)) return false;
+        if (Both(peer, PeerFeatures.CoopWait) ? _coopStage.GetValueOrDefault(peer) is CoopStage.Unknown or CoopStage.Ending : Now - at < 1.0) return true;
+        _carriedAt.Remove(peer);
+        return false;
+    }
 
     /// <summary>What follows the co-op mission now (null while it plays, or when nothing does).</summary>
     public CoopPlan? CoopPlanNow { get { lock (_lock) return _plan; } }
@@ -151,6 +166,9 @@ public sealed partial class NetMeleeServer
                 Turn(peer, CoopLeftBehindText);
                 continue;
             }
+            _carriedAt[peer.Id] = Now;
+            // what it said of the last mission's start no longer counts (a game still in the last one's ending says so again)
+            if (_coopStage.GetValueOrDefault(peer.Id) != CoopStage.Ending) _coopStage.Remove(peer.Id);
             _msg.Clear();
             _msg.U8((byte)MsgType.NextRound);
             _msg.Str(mission);

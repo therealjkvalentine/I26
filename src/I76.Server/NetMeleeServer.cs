@@ -495,6 +495,7 @@ public sealed partial class NetMeleeServer : IDisposable
             case MsgType.Input:
             {
                 var m = InputMessage.Read(ref r);
+                if (CoopDropsInput(peer.Id)) break;
                 s.Inputs.Add(m);
                 Host.AckSnapshot(s, m.SnapshotAck);
                 break;

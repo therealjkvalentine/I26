@@ -13,7 +13,7 @@ public sealed partial class MeleeClient
     /// <summary>When <see cref="StartWait"/> came, on this client's clock (its seconds count down from then).</summary>
     public double StartWaitAt { get; private set; }
 
-    /// <summary>Where this game is in the co-op start (<see cref="SendCoopStage"/>), told again to a host met afresh (a new accept).</summary>
+    /// <summary>Where this game is in the co-op start (<see cref="SendCoopStage"/>); a new accept starts it afresh.</summary>
     public CoopStage CoopStageNow { get; private set; }
 
     /// <summary>This game's stage in the co-op start: sent to a host that says <see cref="PeerFeatures.CoopWait"/>, kept for the next accept otherwise.</summary>
@@ -34,13 +34,15 @@ public sealed partial class MeleeClient
     public CoopPlan? Plan { get; private set; }
     public double PlanAt { get; private set; }
 
-    /// <summary>A new accept (a start, the next round): the last round's word goes, and the stage is told to this host if it listens.</summary>
+    /// <summary>A new accept (a start, the next round): the last round's word goes, and a game still in the last mission's ending says so to this host.</summary>
     private void CoopAccepted()
     {
         StartWait = null;
         SkippedBy = null;
         Plan = null;
-        if (CoopStageNow != CoopStage.Unknown) SendCoopStage(CoopStageNow);
+        // the last mission's stage is not this one's, but for a game still in its ending (it builds this one after it)
+        if (CoopStageNow == CoopStage.Ending) SendCoopStage(CoopStage.Ending);
+        else CoopStageNow = CoopStage.Unknown;
     }
 
     /// <summary>The next round is coming: the last round's word goes.</summary>

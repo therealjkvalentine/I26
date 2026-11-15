@@ -713,7 +713,9 @@ public partial class Main
         _objectives = setup.ObjectiveText;
         // a co-op mission's movies (T05, T06) are played from the client's word (NetMovie), the game standing still for them
         var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
-        var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor, Hold = () => _netBriefing is not null || _netBriefingPlayer is not null };
+        // inputs held back while the fork's briefing plays over the built mission, and once the next round has begun on this connection (an
+        // input of this old scene would count as the next mission's game loaded, its start going before anyone has built it)
+        var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor, Hold = () => _netBriefing is not null || _netBriefingPlayer is not null || client.Rounds > _roundsAtBuild };
         Controls.Held = _held = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null;   // #109: Esc's arrow keys turned the head
         _sim = new SimDriver { Session = mirror.Session, Name = "Sim", HoldThrottle = _opt.HoldThrottle, HoldFire = _opt.HoldFire, Origin = () => _origin, Audio = audio, Remote = view,
             InputHeld = () => _menu is not null || _picture is not null || _reconfig is not null || GetNodeOrNull("Movie") is not null,

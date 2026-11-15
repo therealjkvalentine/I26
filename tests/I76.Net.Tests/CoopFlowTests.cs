@@ -33,10 +33,14 @@ public class CoopFlowTests(ITestOutputHelper output)
             Server.Start();
         }
 
-        /// <summary>A player joins the lobby; <paramref name="upstream"/> plays an upstream build (it says none of the fork's features).</summary>
-        public MeleeClient Join(string name, bool upstream = false, string car = Protocol.MissionCar)
+        /// <summary>
+        /// A player joins the lobby; <paramref name="upstream"/> plays an upstream build (it says none of the fork's features). A fork game says it
+        /// builds the mission once each accept is in, as the game does (<paramref name="building"/> false leaves that to the test).
+        /// </summary>
+        public MeleeClient Join(string name, bool upstream = false, string car = Protocol.MissionCar, bool building = true)
         {
             var c = new MeleeClient { Features = upstream ? PeerFeatures.None : Protocol.Features };
+            if (!upstream && building) c.Joined += _ => c.SendCoopStage(CoopStage.Building);
             c.Log += m => _out.WriteLine($"[{name}] {m}");
             c.Connect("127.0.0.1", Server.Port, name, car);
             Players.Add((name, c));
@@ -457,6 +461,35 @@ public class CoopFlowTests(ITestOutputHelper output)
         Assert.Equal([0, 1], g.Players.Select(p => (int)p.Client.Accept!.Coop!.Seat));
         Assert.Equal("vcgcour1.vcf", ann.Accept!.Car);
         Assert.Contains(g.Log, l => l.Contains("the host chooses to replay the mission"));
+    }
+
+    /// <summary>
+    /// The old mission's inputs (in flight at the carry, or the old scene's before it reloads) do not count as the new mission's games loaded:
+    /// a carried game's inputs are taken only once it says it builds the new mission.
+    /// </summary>
+    [Fact]
+    public void TheLastMissionsInputsDoNotStartTheNext()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05");
+        var hal = g.Join("Hal", building: false);
+        var ann = g.Join("Ann", building: false);
+        g.Start();
+        hal.SendCoopStage(CoopStage.Building);
+        ann.SendCoopStage(CoopStage.Building);
+        uint tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal, ann]));
+        // the host replays while both games keep driving through it, saying nothing of the new mission
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Replay));
+        Assert.True(g.WaitDriving(() => g.Players.All(p => p.Client.Rounds == 1 && p.Client.State == ClientState.Joined), [hal, ann]));
+        tick = g.Tick;
+        g.WaitDriving(() => false, [hal, ann], 1500);
+        Assert.Equal(tick, g.Tick);
+        Assert.DoesNotContain(g.Log.ToList().SkipWhile(l => !l.Contains("again: t05")), l => l.Contains("every player has loaded"));
+        // they say they build it: their inputs count, and it starts
+        hal.SendCoopStage(CoopStage.Building);
+        ann.SendCoopStage(CoopStage.Building);
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 3, [hal, ann]));
     }
 
     /// <summary>The host's Esc menu replays the mission, or takes everyone back to the lobby, while it is still being played.</summary>
