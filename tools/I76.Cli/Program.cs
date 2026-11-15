@@ -31,6 +31,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] props OUT [--maps]        every scenery texture over all missions, who uses it, and its prop material map
 //   i76 [--install DIR] key-edge OUT SCALE NAME...   each keyed texture's smooth outline (the modern look's cut-out edge) as a PGM field at SCALE texels a pixel, 128 on the edge
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
+//   i76 [--install DIR] [--nitro-install DIR] target-weight [--buffer 0.10] [--tsv OUT] [--md OUT] [--cars OUT] [MISSION...]   each trip mission's (and Nitro scenario's) opposition weight and a fair player car's budget (TargetWeightCommand)
 //   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
 
 var argv = args.ToList();
@@ -52,6 +53,7 @@ if (argv.Count > 0 && argv[0] == "car-table") return I76.Cli.CarTableCommand.Run
 if (argv.Count > 0 && (argv[0] == "car-views" || argv[0] == "car-project" || argv[0] == "car-glass")) return I76.Cli.CarSamCommand.Run(argv, installDir);
 if (argv.Count > 0 && argv[0] == "respray-preview") return I76.Cli.ResprayCommand.Run(argv, installDir);
 if (argv.Count > 0 && argv[0] == "keysheet") return I76.Cli.KeySheetCommand.Run(argv, installDir);
+if (argv.Count > 0 && argv[0] == "target-weight") return I76.Cli.TargetWeightCommand.Run(argv, installDir);
 if (argv.Count == 0 || installDir is null)
 {
     Console.Error.WriteLine("usage: i76 [--install DIR] verify|ls|cat|dump|mission|fsm-disasm ...  (or set I76_INSTALL)");
