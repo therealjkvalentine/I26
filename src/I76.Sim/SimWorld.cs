@@ -224,12 +224,7 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
     private static (Vector3 C, float R) Sphere(Vehicle v)
     {
         var mid = new Vector3((v.BoxX[0] + v.BoxX[3]) / 2, (v.BoxY[1] + v.BoxY[3]) / 2, (v.BoxZ[0] + v.BoxZ[3]) / 2);
-        float r = 0;
-        foreach (var x in new[] { v.BoxX[0], v.BoxX[3] })
-            foreach (var y in new[] { v.BoxY[1], v.BoxY[3] })
-                foreach (var z in new[] { v.BoxZ[0], v.BoxZ[3] })
-                    r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x, y, z)));
-        return (v.Pos.ToVector3() + v.Rot.ToWorld(mid), r + 0.1f);
+        return (v.Pos.ToVector3() + v.Rot.ToWorld(mid), VehicleStep.CornerReach(v, mid) + 0.1f);
     }
 
     /// <summary>

@@ -563,6 +563,32 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     }
 
     /// <summary>
+    /// The farthest of the car's 8 box corners {x0,x3}x{y1,y3}x{z0,z3} from <paramref name="mid"/>: its body sphere's radius before
+    /// the 0.1 margin. Read in locals, not arrays: it runs for every car against every other and every object, every tick.
+    /// </summary>
+    internal static float CornerReach(Vehicle v, Vector3 mid)
+    {
+        float x0 = v.BoxX[0], x3 = v.BoxX[3], y1 = v.BoxY[1], y3 = v.BoxY[3], z0 = v.BoxZ[0], z3 = v.BoxZ[3];
+        float r = 0;
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y1, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y1, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y3, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y3, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y1, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y1, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y3, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y3, z3)));
+        return r;
+    }
+
+    /// <summary>A structure's polygons on its sign nodes (a lambda of its own: one inline in the loop below would make a closure for every object, every tick).</summary>
+    private static List<Collision.Poly> SignPolys(Collision.StaticObject o) => o.Polys.FindAll(q => o.SignNode(q.Node));
+
+    /// <summary>A structure's polygons without its unfelt nodes' (static for the same reason as <see cref="SignPolys"/>).</summary>
+    private static List<Collision.Poly> FeltPolys(Collision.StaticObject o) =>
+        o.Polys.Exists(q => o.Unfelt(q.Node)) ? o.Polys.FindAll(q => !o.Unfelt(q.Node)) : o.Polys;
+
+    /// <summary>
     /// The per-frame object pass for this car against the static world
     /// (mesh class): XZ boxes,
     /// a swept-sphere test, then the four mid-height box corners as rays
@@ -576,20 +602,15 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         if (ground is not Collision.IHasStatics wg) return;
         var p0 = v.Pos.ToVector3();
         // body sphere: the 8 corners {x0,x3}×{y1,y3}×{z0,z3}, + 0.1
-        float r = 0;
         var mid = new Vector3((v.BoxX[0] + v.BoxX[3]) / 2, (v.BoxY[1] + v.BoxY[3]) / 2, (v.BoxZ[0] + v.BoxZ[3]) / 2);
-        foreach (var x in new[] { v.BoxX[0], v.BoxX[3] })
-            foreach (var y in new[] { v.BoxY[1], v.BoxY[3] })
-                foreach (var z in new[] { v.BoxZ[0], v.BoxZ[3] })
-                    r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x, y, z)));
-        r += 0.1f;
+        float r = CornerReach(v, mid) + 0.1f;
         var c = p0 + v.Rot.ToWorld(mid);
         var c2 = c + v.Vel * dtFrame;
         float minX = MathF.Min(c.X, c2.X) - r, maxX = MathF.Max(c.X, c2.X) + r;
         float minZ = MathF.Min(c.Z, c2.Z) - r, maxZ = MathF.Max(c.Z, c2.Z) + r;
         float ym = (v.BoxY[1] + v.BoxY[3]) * 0.5f;
-        var corners = new[] { new Vector3(v.BoxX[0], ym, v.BoxZ[0]), new Vector3(v.BoxX[3], ym, v.BoxZ[0]),
-                              new Vector3(v.BoxX[3], ym, v.BoxZ[3]), new Vector3(v.BoxX[0], ym, v.BoxZ[3]) };
+        Span<Vector3> corners = [new Vector3(v.BoxX[0], ym, v.BoxZ[0]), new Vector3(v.BoxX[3], ym, v.BoxZ[0]),
+                                 new Vector3(v.BoxX[3], ym, v.BoxZ[3]), new Vector3(v.BoxX[0], ym, v.BoxZ[3])];
         float best = float.MaxValue;
         Contact rec = default;
         bool driveOn = false;
@@ -634,7 +655,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
                     rec = hit with { Other = o, Node = sp.Node };
                 }
             }
-            var polys = signsOnly ? o.Polys.FindAll(q => o.SignNode(q.Node)) : o.Polys.Exists(q => o.Unfelt(q.Node)) ? o.Polys.FindAll(q => !o.Unfelt(q.Node)) : o.Polys;
+            var polys = signsOnly ? SignPolys(o) : FeltPolys(o);
             if (polys.Count == 0) continue;
             foreach (var corner in corners)
             {

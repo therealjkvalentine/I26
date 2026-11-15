@@ -432,12 +432,17 @@ public sealed partial class FsmVm
         if (_warned.Add(what)) _host.Log(what);
     }
 
+    /// <summary>The prototype table's names in lower case, made once each (an opcode runs every tick).</summary>
+    private string?[]? _lower;
+    private string Lower(int proto) => (_lower ??= new string?[_p.Prototypes.Count])[proto] ??= _p.Prototypes[proto].ToLowerInvariant();
+
     /// <summary>The original's script opcode handler: the game opcode named by the mission's prototype table.</summary>
     private void Exec(Thread t, int proto)
     {
         var name = proto >= 0 && proto < _p.Prototypes.Count ? _p.Prototypes[proto] : "";
+        var lower = proto >= 0 && proto < _p.Prototypes.Count ? Lower(proto) : "";
         var h = _host;
-        switch (name.ToLowerInvariant())
+        switch (lower)
         {
             case "null": break;
             case "behave": case "do": Warn($"FSM: {name} is not implimented"); break;
@@ -678,7 +683,7 @@ public sealed partial class FsmVm
                 var objs = Enumerable.Range(0, t.Args.Count).Select(i => (object?)null).ToArray();
                 IReadOnlyList<Vector3>? path = null;
                 // co-op: a camera on the group watches the matched human, else the lead
-                switch (name.ToLowerInvariant())
+                switch (lower)
                 {
                     case "camobjobj": objs[0] = Act(t, 0); if (objs.Length > 4) objs[4] = Act(t, 4); break;
                     case "camobjdir": if (objs.Length > 0) objs[0] = Act(t, 0); break;
