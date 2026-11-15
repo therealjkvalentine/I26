@@ -1660,8 +1660,8 @@ public sealed class ShellSettings
     public bool EvenFlash { get; set; } = true;
     /// <summary>The port's own, without a row: the modern look's lamps warm up and cool down as 1976's incandescent bulbs did instead of switching in one frame (LampRamp; [port] lamp_ramp, written when off).</summary>
     public bool LampRamp { get; set; } = true;
-    /// <summary>The port's own, without a row: the modern look's lamp lens glows and glares in percent (LampStrength.Halo; [port] lamp_halo, 65, written when not the default).</summary>
-    public int LampHalo { get; set; } = I76.Game.Sim.LampStrength.HaloDefault;
+    /// <summary>The port's own, without a row: the modern look's lamp lens glows and glares in percent (LampHalo.Factor; [port] lamp_halo, 65, written when not the default).</summary>
+    public int LampHalo { get; set; } = I76.Game.Sim.LampHalo.Default;
     /// <summary>The port's own, without a row: the modern look's dash lamps behind the speedometer's and tachometer's needles at night, in percent: 100 as light as by day (DashLight; [port] dash_light, 100, written when not the default).</summary>
     public int DashLight { get; set; } = I76.Game.Sim.DashLight.Default;
 
@@ -2016,7 +2016,7 @@ public sealed class ShellSettings
         s.FastLookSwitch = (bool)c.GetValue("port", "fast_look_switch", true);
         s.EvenFlash = (bool)c.GetValue("port", "even_flash", true);
         s.LampRamp = !string.Equals(c.GetValue("port", "lamp_ramp", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
-        s.LampHalo = I76.Game.Sim.LampStrength.ParseHalo(Pct("lamp_halo"));
+        s.LampHalo = I76.Game.Sim.LampHalo.Parse(Pct("lamp_halo"));
         s.ReadDashLight(Pct);
         s.NightStationLight = I76.Game.World.StationLight.Parse(Pct("night_station_light"));
         s.ReadHeadlampThrow(Pct);
@@ -2222,7 +2222,7 @@ public sealed class ShellSettings
         if (!FastLookSwitch) c.SetValue("port", "fast_look_switch", false);
         if (!EvenFlash) c.SetValue("port", "even_flash", false);
         if (!LampRamp) c.SetValue("port", "lamp_ramp", "off");
-        if (LampHalo != I76.Game.Sim.LampStrength.HaloDefault) c.SetValue("port", "lamp_halo", LampHalo);
+        if (LampHalo != I76.Game.Sim.LampHalo.Default) c.SetValue("port", "lamp_halo", LampHalo);
         WriteDashLight((k, v) => c.SetValue("port", k, v));
         if (NightStationLight != I76.Game.World.StationLight.Default) c.SetValue("port", "night_station_light", NightStationLight);
         WriteHeadlampThrow((k, v) => c.SetValue("port", k, v));

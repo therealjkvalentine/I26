@@ -247,7 +247,7 @@ public partial class VegetationNode : Node3D
     private void ApplyReach()
     {
         _throw = I76.Game.Sim.HeadlampThrow.Current;
-        _night = I76.Game.Sim.LampStrength.Current <= 0;
+        _night = I76.Game.Sim.Daylight.Current <= 0;
         _level = VegLevels.For(_levelIndex, VegLevels.LampReachNow, _night);
         foreach (var c in _chunks.Values) c.Tier = -1;
         _lookPending = true;
@@ -807,7 +807,7 @@ public partial class VegetationNode : Node3D
         UpdateSward(delta);
         // the headlamps' throw changed (the Developer panel, the settings): the bushes' reach follows it
         // and night or day (the mission's light, set after the plants are made): the shrubs' far mesh stays out of the beam
-        if (_levelIndex > 0 && (I76.Game.Sim.HeadlampThrow.Current != _throw || (I76.Game.Sim.LampStrength.Current <= 0) != _night))
+        if (_levelIndex > 0 && (I76.Game.Sim.HeadlampThrow.Current != _throw || (I76.Game.Sim.Daylight.Current <= 0) != _night))
         {
             if (I76.Game.Sim.HeadlampThrow.Current != _throw) _tumble?.SetLevel(_levelIndex);
             ApplyReach();

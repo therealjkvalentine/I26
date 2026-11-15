@@ -75,23 +75,24 @@ public class LampRampTests
     [Fact]
     public void TheHaloIsATHirdUnderByDefaultAndReadsItsPercent()
     {
-        int was = LampStrength.HaloPercent;
+        int was = LampHalo.Percent;
         try
         {
-            Assert.Equal(65, LampStrength.HaloDefault);
+            Assert.Equal(65, LampHalo.Default);
             Assert.Equal(65, new ShellSettings().LampHalo);
-            Assert.Equal(65, LampStrength.ParseHalo(null));
-            Assert.Equal(65, LampStrength.ParseHalo("many"));
-            Assert.Equal(100, LampStrength.ParseHalo("100"));
-            Assert.Equal(200, LampStrength.ParseHalo("999"));
-            Assert.Equal(0, LampStrength.ParseHalo("-5"));
+            Assert.Equal(65, LampHalo.Parse(null));
+            Assert.Equal(65, LampHalo.Parse(""));
+            Assert.Equal(65, LampHalo.Parse("many"));
+            Assert.Equal(100, LampHalo.Parse("100"));
+            Assert.Equal(200, LampHalo.Parse("999"));
+            Assert.Equal(0, LampHalo.Parse("-5"));
             OriginalBehavior.Apply(new ShellSettings { LampHalo = 100 });
-            Assert.Equal(100, LampStrength.HaloPercent);
-            if (LampStrength.HaloHook is null) Assert.Equal(1f, LampStrength.Halo);
+            Assert.Equal(100, LampHalo.Percent);
+            if (LampHalo.Hook is null) Assert.Equal(1f, LampHalo.Factor);
             OriginalBehavior.Apply(new ShellSettings());
-            if (LampStrength.HaloHook is null) Assert.Equal(0.65f, LampStrength.Halo);
+            if (LampHalo.Hook is null) Assert.Equal(0.65f, LampHalo.Factor);
         }
-        finally { LampStrength.HaloPercent = was; }
+        finally { LampHalo.Percent = was; }
     }
 
     [Fact]

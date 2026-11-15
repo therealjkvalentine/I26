@@ -80,7 +80,7 @@ public static class MuzzleReach
     public const float DayFloor = 0.12f;
 
     /// <summary>
-    /// A shot's light at <paramref name="daylight"/> (LampStrength.Daylight: 1 in full sun, 0 at night) and the setting
+    /// A shot's light at <paramref name="daylight"/> (Daylight: 1 in full sun, 0 at night) and the setting
     /// <paramref name="percent"/>: each figure from <see cref="Before"/> (0) to the table's (100), on past it to 200. The daylight
     /// scales the table's energies only, so 0 is the light before the key, day and night.
     /// </summary>
@@ -89,7 +89,7 @@ public static class MuzzleReach
         float t = Math.Clamp(percent, 0, 200) / 100f;
         var n = Night(g);
         var b = Before;
-        float day = LampStrength.Scale(daylight, DayFloor);
+        float day = Daylight.Scale(daylight, DayFloor);
         static float Lerp(float a, float z, float k) => a * (1 - k) + z * k;
         Lamp L(Lamp a, Lamp z) => new(
             Math.Max(0.5f, Lerp(a.Range, z.Range, t)),
@@ -107,5 +107,5 @@ public static class MuzzleReach
     }
 
     /// <summary>The light now: the setting (or the hook) at the mission's daylight.</summary>
-    public static Flash Current(Gun g) => For(g, LampStrength.Current, Setting);
+    public static Flash Current(Gun g) => For(g, Daylight.Current, Setting);
 }

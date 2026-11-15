@@ -49,7 +49,7 @@ public static class OriginalBehavior
         EvenFlash = s.EvenFlash;
         RoadGrain = s.RoadGrain;
         LampRamp.Setting = s.LampRamp;
-        LampStrength.HaloPercent = s.LampHalo;
+        LampHalo.Percent = s.LampHalo;
         DashLight.Percent = s.DashLight;
         HeadlampThrow.Percent = s.HeadlampThrow;
         MuzzleReach.Percent = s.MuzzleReach;

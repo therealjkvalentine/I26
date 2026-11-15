@@ -43,7 +43,7 @@ public static class DevSettings
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
     public static readonly int[] HaloSteps = [25, 50, 65, 75, 100, 125, 150];
-    private static readonly string[] HaloNames = [.. HaloSteps.Select(p => p == I76.Game.Sim.LampStrength.HaloDefault ? $"{p}" : $"{p}{M}")];
+    private static readonly string[] HaloNames = [.. HaloSteps.Select(p => p == I76.Game.Sim.LampHalo.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestHaloStep(int percent) => Array.IndexOf(HaloSteps, HaloSteps.MinBy(p => Math.Abs(p - percent)));
     /// <summary>The dash lamps' values offered (I76.Game.Sim.DashLight): 0 the original's needles, unlit at night.</summary>
     public static readonly int[] DashLightSteps = [0, 25, 50, 75, 100, 125, 150];
