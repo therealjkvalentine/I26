@@ -457,11 +457,21 @@ class TruckStopTests(unittest.TestCase):
                 cross = int(y) + 6 - np.sum(np.clip(col[int(y) - 6:int(y) + 6], 0, 1))   # blue rows above it, white below
                 self.assertAlmostEqual(cross / s, y / s, delta=0.25, msg=f"{tex} x {x}")
 
+    def test_the_side_window_card_is_the_same_card_on_its_painted_rows(self):
+        ops = [o for o in spec_of("truck-stop-fn_1cfl1.json")["ops"] if o["op"] == "text"]
+        self.assertEqual([o["text"] for o in ops], [t for t, _, _ in spanners.CARD_LINES])
+        x0, y0, x1, y1 = spanners.SIDE_CARD
+        for o, (ty, by) in zip(ops, spanners.SIDE_ROWS):
+            self.assertEqual((o["box"][1], o["box"][3]), (ty, by))
+            self.assertTrue(x0 <= o["box"][0] < o["box"][2] <= x1)
+        erased = [o["rect"] for o in spec_of("truck-stop-fn_1cfl1.json")["ops"] if o["op"] == "erase" and o.get("fill") == spanners.CARD_PAPER]
+        self.assertEqual([(r[1], r[3]) for r in erased], [(65, 95.0), (100.0, 104)])        # the painted box (rows 95 to 100) kept
+
     def test_the_cafe_frames_run_on_one_line_through_their_texels(self):
         for tex, (what, ink, poly, rects) in spanners.FRAMES.items():
             ops = spec_of(f"truck-stop-{tex}.json")["ops"]
-            self.assertEqual([o["op"] for o in ops], ["erase"] * len(rects) + ["lines"])
-            segs = ops[-1]["segments"]
+            self.assertEqual([o["op"] for o in ops[:len(rects) + 1]], ["erase"] * len(rects) + ["lines"])
+            segs = ops[len(rects)]["segments"]
             self.assertEqual(len(segs), len(poly) - 1)
             self.assertTrue(all(s0[2:4] == s1[:2] for s0, s1 in zip(segs, segs[1:])))   # joined end to end
 

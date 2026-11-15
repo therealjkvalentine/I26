@@ -2,7 +2,7 @@
  "textures": [
   "fn_1cfl1"
  ],
- "note": "the cafe's left side of Spanner's truck stop: its roof frame line; written by gen/spanners.py",
+ "note": "the cafe's left side of Spanner's truck stop: its roof frame line and its window card; written by gen/spanners.py",
  "ops": [
   {
    "op": "erase",
@@ -96,6 +96,188 @@
      83.61,
      51.0
     ]
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    99,
+    65,
+    107,
+    95.0
+   ],
+   "fill": [
+    156,
+    210,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    99,
+    100.0,
+    107,
+    104
+   ],
+   "fill": [
+    156,
+    210,
+    222
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Lola's",
+   "font": "Lobster",
+   "cap": 1.4,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    101.826,
+    66.6,
+    103.913,
+    68.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TRUCKER'S",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.5,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    99.391,
+    70.0,
+    106.522,
+    72.5
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FEAST",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 5.1,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    100.565,
+    72.8,
+    105.565,
+    77.9
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ALL YOU CAN EAT",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.0,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    99.304,
+    81.0,
+    106.783,
+    83.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "STEAK &",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.0,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    100.043,
+    84.0,
+    106.13,
+    87.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "EGGS",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.8,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    101.13,
+    87.2,
+    105.0,
+    91.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "$4.99",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.0,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    101.391,
+    91.0,
+    104.609,
+    93.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Family Restaurant",
+   "font": "Lobster",
+   "cap": 1.4,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    100.087,
+    100.6,
+    106.13,
+    102.0
    ]
   }
  ]

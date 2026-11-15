@@ -157,6 +157,21 @@ ROOF_EDGES = {
     "fn_1str1": ("the store's right side", (0.34843, 8.539), (28.0, 128.0), [24, 40, 131], [222, 218, 213]),
 }
 
+# the card in the cafe's side window (fn_1cfl1): the same card as the front's, its painted rows of ink (the paper's box, each
+# line's rows as painted, top to bottom; the small box at rows 95 to 100, which the movie's card has not, kept as painted); each
+# line across the card at the movie card's places
+SIDE_CARD = (99, 65, 107, 104)
+SIDE_ROWS = [(66.6, 68.0), (70.0, 72.5), (72.8, 77.9), (81.0, 83.0), (84.0, 87.0), (87.2, 91.0), (91.0, 93.0), (100.6, 102.0)]
+
+def side_card(book):
+    x0, y0, x1, y1 = SIDE_CARD
+    ops = [{"op": "erase", "rect": [x0, y0, x1, 95.0], "fill": CARD_PAPER}, {"op": "erase", "rect": [x0, 100.0, x1, y1], "fill": CARD_PAPER}]
+    for (t, line, face), (ty, by) in zip(CARD_LINES, SIDE_ROWS):
+        bx0, _, bx1, _ = card_box(SIDE_CARD, line)
+        ops.append({"op": "text", "text": t, **(SCRIPT if face == "script" else book), "cap": round(by - ty, 3), "colour": CARD_INK,
+                    "box": [bx0, ty, bx1, by]})
+    return ops
+
 def frame(ink, poly, rects):
     ops = [{"op": "erase", "rect": list(r), "where": {"lum_below": 100}, "grow": 0.5, "halo": {"within": 0.7, "lum_below": 110}}
            for r in rects]
@@ -172,8 +187,9 @@ def roof_edge(line, span, blue, white):
     return [{"op": "lines", "width": 2.5, "colour": white, "cap": "butt", "segments": [seg(0.75)]},
             {"op": "lines", "width": 2.0, "colour": blue, "cap": "butt", "segments": [seg(-1.0)]}]
 
-def edges():
+def edges(book=BOOK):
     out = {t: (f"{what} of Spanner's truck stop: its roof frame line", frame(ink, poly, rects)) for t, (what, ink, poly, rects) in FRAMES.items()}
+    out["fn_1cfl1"] = (out["fn_1cfl1"][0] + " and its window card", out["fn_1cfl1"][1] + side_card(book))
     out.update({t: (f"{what} of Spanner's truck stop: its roof edge", roof_edge(line, span, blue, white))
                 for t, (what, line, span, blue, white) in ROOF_EDGES.items()})
     return out
@@ -192,6 +208,6 @@ if __name__ == "__main__":
     for tex, (what, ops) in specs(book).items():
         s = {"textures": [tex], "note": f"{what}: its lettering; written by gen/spanners.py", "ops": ops}
         with open(os.path.join(out_dir, f"signs-{tex}.json"), "w", encoding="utf-8") as f: json.dump(s, f, indent=1, ensure_ascii=False); f.write("\n")
-    for tex, (what, ops) in edges().items():
+    for tex, (what, ops) in edges(book).items():
         s = {"textures": [tex], "note": f"{what}; written by gen/spanners.py", "ops": ops}
         with open(os.path.join(out_dir, f"truck-stop-{tex}.json"), "w", encoding="utf-8") as f: json.dump(s, f, indent=1, ensure_ascii=False); f.write("\n")
