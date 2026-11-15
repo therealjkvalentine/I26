@@ -99,4 +99,18 @@ public class StandByLineTests
         Assert.Equal(width, last);
         Assert.Equal(0, StandByLine.Filled(0.5, 0));
     }
+
+    [Theory]
+    [InlineData(480, 1920, 1440, 640, 480)]   // a 4:3 upscale of a 640x480 briefing: the SMK's own picture
+    [InlineData(480, 2560, 1440, 853.33, 480)] // a wider replacement: its aspect at the SMK's height
+    [InlineData(240, 1440, 1080, 320, 240)]   // a 320x240 movie's replacement: the line as big against it as over the SMK
+    [InlineData(480, 0, 0, 640, 480)]         // no size yet: 4:3
+    public void OverAReplacementTheLineIsLaidOutInTheSmksPixels(float smkHeight, float w, float h, float x, float y)
+    {
+        var (px, py) = StandByLine.ReplacementPicture(smkHeight, w, h);
+        Assert.Equal(x, px, 1);
+        Assert.Equal(y, py, 1);
+        // (a 4x3 picture, as it was, leaves no room for the line's 14-pixel margin: it was drawn off the screen)
+        Assert.True(py > 2 * 14 + 10);
+    }
 }

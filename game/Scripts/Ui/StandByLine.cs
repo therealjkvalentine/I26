@@ -50,4 +50,15 @@ public static class StandByLine
         if (progress >= 1) return width;
         return System.Math.Min(width - 1, (int)System.Math.Floor(progress * width));
     }
+
+    /// <summary>
+    /// The picture, in the SMK's pixels, that the line is laid out on over an upscaled replacement of it: the SMK's height
+    /// (<paramref name="smkHeight"/>) at the replacement's aspect (<paramref name="width"/> by <paramref name="height"/>; 4:3 when it
+    /// has no size yet), so that the line sits where it does over the SMK, whatever the replacement's resolution.
+    /// </summary>
+    public static (float X, float Y) ReplacementPicture(float smkHeight, float width, float height)
+    {
+        float aspect = width > 0 && height > 0 ? width / height : 4f / 3f;
+        return (smkHeight * aspect, smkHeight);
+    }
 }
