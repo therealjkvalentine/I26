@@ -20,6 +20,8 @@ public partial class CabClip : Node
     /// <summary>The cars of this frame (global positions and node ids; the first <see cref="Count"/>), for the tumbleweeds to burst against (World/Tumbleweeds.cs).</summary>
     public static readonly Vector3[] Positions = new Vector3[Max];
     public static readonly ulong[] Ids = new ulong[Max];
+    /// <summary>Each car's footprint, half its width and half its length (its collision box), for the brush impacts' knocks.</summary>
+    public static readonly Vector2[] Halves = new Vector2[Max];
     public static int Count { get; private set; }
 
     public required Func<CarNode?> Player { get; init; }
@@ -90,6 +92,8 @@ public partial class CabClip : Node
             if (n > 0 && g.DistanceSquaredTo(at) > Reach * Reach) return;
             Positions[n] = g;
             Ids[n] = car.GetInstanceId();
+            var bx = car.Sim.BoxX; var bz = car.Sim.BoxZ;
+            Halves[n] = new Vector2((bx[3] - bx[0]) * 0.5f, (bz[3] - bz[0]) * 0.5f);
             _img.SetPixel(n++, 0, new Color(g.X, g.Y, g.Z, Radius));
         }
         if (p is not null) Add(p);

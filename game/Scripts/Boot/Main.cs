@@ -1113,6 +1113,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("spawn: session");
         var ground = setup.Ground;
         var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
+        I76.Game.World.BrushImpacts.Audio = audio;
         _script = setup.Script;
         // Voice Level 0 or 1: the original queues no CB line, so scripts do not wait on silent ones (a network game keeps its radio on)
         if (_script is not null && _net is null) _script.Host.Cb.Enabled = () => VoiceLevel >= 2;

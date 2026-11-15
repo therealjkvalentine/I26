@@ -69,6 +69,14 @@ public partial class BrushImpacts : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", Vector4.Zero);
         _current = this;
         MakeLook();
+        // I76_BRUSH_FALL=shape[,base,per-speed]: the knock's curve (smooth, snap, topple) and time, for comparing them in captures
+        if (System.Environment.GetEnvironmentVariable("I76_BRUSH_FALL") is { Length: > 0 } fall)
+        {
+            var parts = fall.Split(',');
+            if (System.Enum.TryParse<BrushKnock.Shape>(parts[0], true, out var shape)) BrushKnock.Fall = shape;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            if (parts.Length > 2 && float.TryParse(parts[1], inv, out float b0) && float.TryParse(parts[2], inv, out float b1)) { BrushKnock.Base = b0; BrushKnock.PerSpeed = b1; }
+        }
     }
 
     public override void _ExitTree()
@@ -182,7 +190,12 @@ public partial class BrushImpacts : Node3D
             if (_t >= _bursts[i].Until) { _bursts[i].P.QueueFree(); _bursts.RemoveAt(i); }
     }
 
-    /// <summary>The cars (CabClip's, this frame) lay the plants down along their track; one striking a standing shrub at speed throws leaves.</summary>
+    /// <summary>
+    /// The cars (CabClip's, this frame) knock the plants down: every plant whose crown the car's footprint reaches starts to
+    /// fall at once, along the car's way and out to the side it was struck on, over <see cref="BrushKnock.Seconds"/> (a tenth
+    /// to a fifth of a second at speed, slower and less far for a nudge), with a knock at the plant (<see cref="Knock"/>)
+    /// and, for a shrub at speed, its leaves thrown; the track behind lays the rest down the same way.
+    /// </summary>
     private void Cars()
     {
         for (int i = 0; i < CabClip.Count; i++)
@@ -194,32 +207,84 @@ public partial class BrushImpacts : Node3D
             move.Y = 0;
             float len = move.Length();
             _cars[id] = (p, prev.Leaves);
-            if (_dt <= 0 || len < 1.2f * _dt || len > 60f * _dt) continue;
+            if (_dt <= 0 || len < 0.5f * _dt || len > 60f * _dt) continue;
             // on the ground: a car in the air passes over
             if (Veg.GroundY(p) is not { } gy || p.Y - gy > 2.2f) continue;
             var fwd = new System.Numerics.Vector2(move.X, move.Z) / len;
+            var side = new System.Numerics.Vector2(-fwd.Y, fwd.X);
             float speed = len / _dt;
-            if (speed > 4f && _t - prev.Leaves > 0.2)
+            float secs = BrushKnock.Seconds(speed), depth = BrushKnock.Depth(speed);
+            // the depth is the bend drawn; the field holds the laid value the shader draws it from
+            float lay = depth >= 1 ? 1f : BrushKnock.LayFor(depth);
+            var half = CabClip.Halves[i];
+            float hw = MathF.Max(half.X, 0.6f), hl = MathF.Max(half.Y, 1.2f);
+            // the plants the footprint reaches this frame (the box swept from where it was)
+            Veg.PlantsNear(p - move * 0.5f, hl + len * 0.5f + 0.5f, _near, 48);
+            foreach (var s in _near)
             {
-                Veg.PlantsNear(p, 1.2f, _near, 8);
-                foreach (var s in _near)
+                var r = G(s.Root);
+                float fx = r.X - _o.X, fz = r.Z - _o.Z;
+                var d = new System.Numerics.Vector2(r.X - p.X, r.Z - p.Z);
+                float a = System.Numerics.Vector2.Dot(d, fwd), b = System.Numerics.Vector2.Dot(d, side);
+                float ox = MathF.Max(0, a - hl) + MathF.Max(0, -hl - len - a), oz = MathF.Max(0, MathF.Abs(b) - hw);
+                float reach = s.Radius * 0.75f;
+                if (ox * ox + oz * oz > reach * reach) continue;
+                // beyond the field the plants are not bent: nothing to knock (a far car's knock would never end)
+                if (r.Y > p.Y + 1.5f || r.Y + s.Height < p.Y - 1.5f || !_field.Covers(fx, fz)) continue;
+                bool standing = !_field.Falling(fx, fz) && _field.Lay(fx, fz) < 0.3f;
+                // along the way, pushed out to the side it was struck on (the plants under the middle mostly straight on)
+                float out_ = Math.Clamp(b / hw, -1f, 1f) * 0.8f;
+                var way = System.Numerics.Vector2.Normalize(fwd + side * out_);
+                _field.Stamp(fx, fz, 0.75f, lay, 0.4f, 0, way, 0, secs);
+                if (!standing) continue;
+                if (s.Height >= 0.35f) Knock(id, r, s, speed);
+                if (speed > 4f && s.Height >= 0.5f && _t - _cars[id].Leaves > 0.2)
                 {
-                    var r = G(s.Root);
-                    if (s.Height < 0.5f || _field.Lay(r.X - _o.X, r.Z - _o.Z) > 0.5f) continue;
                     var dir = new Vector3(fwd.X, 0, fwd.Y);
                     Leaves(r + Vector3.Up * s.Height * 0.5f, (dir * 0.8f + Vector3.Up).Normalized(), s.Ground, 10, MathF.Min(s.Radius * 0.5f, 0.6f), 2);
                     _cars[id] = (p, _t);
-                    break;
                 }
             }
+            if (Trace && i == 0 && Engine.GetFramesDrawn() % 2 == 0)
+                GD.Print(System.FormattableString.Invariant($"brush-trace: t {_t:0.000} speed {speed:0.0} car {p.X:0.00},{p.Z:0.00} plants {_near.Count}"));
             int steps = Math.Max(1, (int)MathF.Ceiling(len / 0.75f));
             for (int k = 1; k <= steps; k++)
             {
                 var q = prev.P + move * (k / (float)steps);
-                _field.Stamp(q.X - _o.X, q.Z - _o.Z, 1.9f, 1f, 0.4f, 0, fwd, 0.8f);
+                _field.Stamp(q.X - _o.X, q.Z - _o.Z, 1.9f, lay, 0.4f, 0, fwd, 0.8f, secs);
             }
         }
         if (_cars.Count > CabClip.Max * 2) _cars.Clear();
+    }
+
+    // ---- the knock's sound ----
+
+    /// <summary>The game's sounds (Main sets it with the mission's bank): the knock is the original's own for a car running a small prop down.</summary>
+    public static Assets.AudioBank? Audio { get; set; }
+    /// <summary>
+    /// The original's sound for a car knocking a sign or post off (class-4 objects: the short knock vnvco3, once per object):
+    /// its nearest to a car going through a bush. Its own voice name, so it never takes the signs' voice.
+    /// </summary>
+    public const string KnockSample = "vnvco3.wav";
+    private const string KnockVoice = "brush-knock";
+    private const int KnockVoices = 4;
+    private readonly KnockSounds _knocks = new();
+    /// <summary>I76_BRUSH_TRACE=1: a line for each knock (the plant, the car's speed, the fall's time) and the car every other frame.</summary>
+    private static readonly bool Trace = System.Environment.GetEnvironmentVariable("I76_BRUSH_TRACE") == "1";
+
+    /// <summary>A knock at the plant's root (positional, so it passes by), pitched and levelled for the plant and the car's speed, rate-limited.</summary>
+    private void Knock(ulong car, Vector3 root, PlantSpot s, float speed)
+    {
+        if (Trace) GD.Print(System.FormattableString.Invariant($"brush-trace: t {_t:0.000} frame {Engine.GetFramesDrawn()} knock at {root.X:0.00},{root.Z:0.00} height {s.Height:0.00} radius {s.Radius:0.00} speed {speed:0.0} fall {BrushKnock.Seconds(speed):0.000} s depth {BrushKnock.Depth(speed):0.00}"));
+        if (Audio is null || !_knocks.Try(car, _t) || Audio.Get(KnockSample) is not { } stream) return;
+        var (pitch, db) = BrushKnock.Voice(speed, s.Height, root.X - _o.X, root.Z - _o.Z);
+        var v = Voice3D.OneShot(stream, KnockVoice, (50, KnockVoices), I76.Sim.Sound.Ds3d.MinDistance, db);
+        v.PitchScale = pitch;
+        // placed before it enters the tree: the voice's range check runs as it does
+        v.Position = ToLocal(root + Vector3.Up * MathF.Min(s.Height * 0.5f, 0.8f));
+        AddChild(v);
+        v.Start();
+        if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {KnockSample} pitch {pitch:0.00} {db:0.0} dB at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
     }
 
     // ---- fire ----

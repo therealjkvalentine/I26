@@ -5,7 +5,8 @@ namespace I76.Formats.Vegetation;
 /// <summary>
 /// The modern look's brush impacts (docs/modern-vegetation.md, Brush impacts): a square of cells round the camera that
 /// says how the plants standing in each are disturbed. The vegetation shader reads it as a texture at each plant's root:
-/// laid down (bent over away from a car or a blast, rising again over <see cref="Recover"/> seconds), the way it lies,
+/// laid down (bent over away from a car or a blast, going down over a fraction of a second when a car strikes it
+/// (<see cref="BrushKnock"/>), rising again over <see cref="Recover"/> seconds), the way it lies,
 /// scorched by a fire, and shaken (a round or a blast, dying away in about a second). Pure: the game moves it with the
 /// camera, stamps it and uploads <see cref="Encode"/>; coordinates are the drawing's ground plane (x, z).
 /// </summary>
@@ -23,6 +24,8 @@ public sealed class BrushField
     private readonly float[] _lay = new float[Size * Size], _dx = new float[Size * Size], _dz = new float[Size * Size];
     private readonly float[] _shake = new float[Size * Size], _scorch = new float[Size * Size];
     private readonly float[] _scratch = new float[Size * Size];
+    // a fall under way (a car's knock): its progress (0..1 of its time), 1 / its time (0: none), and the bend drawn at its start and end
+    private readonly float[] _fallU = new float[Size * Size], _fallRate = new float[Size * Size], _fallFrom = new float[Size * Size], _fallTo = new float[Size * Size];
     private readonly byte[] _ang = new byte[Size * Size];
     // the cells that may be disturbed (inclusive; empty when _bi1 < _bi0): decay and encoding look at no others
     private int _bi0 = Size, _bj0 = Size, _bi1 = -1, _bj1 = -1;
@@ -48,7 +51,7 @@ public sealed class BrushField
         if (Math.Abs(cx - X0) < Step && Math.Abs(cz - Z0) < Step) return;
         int sx = cx - X0, sz = cz - Z0;
         if (Active > 0)
-            foreach (var a in new[] { _lay, _dx, _dz, _shake, _scorch })
+            foreach (var a in new[] { _lay, _dx, _dz, _shake, _scorch, _fallU, _fallRate, _fallFrom, _fallTo })
             {
                 Array.Copy(a, _scratch, a.Length);
                 Array.Clear(a);
@@ -79,6 +82,10 @@ public sealed class BrushField
     public float Lay(float x, float z) => Index(x, z, out int k) ? _lay[k] : 0;
     public float Shake(float x, float z) => Index(x, z, out int k) ? _shake[k] : 0;
     public float Scorch(float x, float z) => Index(x, z, out int k) ? _scorch[k] : 0;
+    /// <summary>Whether the field reaches (x, z): only there are plants bent (and knocked).</summary>
+    public bool Covers(float x, float z) => Index(x, z, out _);
+    /// <summary>Whether the plants in the cell are going down now (a knock's fall under way).</summary>
+    public bool Falling(float x, float z) => Index(x, z, out int k) && _fallRate[k] > 0;
     /// <summary>The way the plants in the cell lie (a unit vector; zero when none was set).</summary>
     public Vector2 Direction(float x, float z) => Index(x, z, out int k) ? new Vector2(_dx[k], _dz[k]) : Vector2.Zero;
 
@@ -86,9 +93,11 @@ public sealed class BrushField
     /// Disturbs the cells within <paramref name="radius"/> of (x, z), full over the inner part and fading to the edge: each
     /// cell keeps the stronger of what it had and this. The plants lie along <paramref name="way"/> (a unit vector) or, when
     /// null, away from the middle; <paramref name="sweep"/> bends the way outward toward the stamp's sides (a car: its
-    /// heading, the plants beside it pushed out too).
+    /// heading, the plants beside it pushed out too). With <paramref name="seconds"/> above 0 the plants do not go down at
+    /// once but fall over that time along <see cref="BrushKnock.Curve(float)"/> (a car's knock); a fall already under way
+    /// keeps its pace, only going deeper or quicker.
     /// </summary>
-    public void Stamp(float x, float z, float radius, float lay, float shake, float scorch = 0, Vector2? way = null, float sweep = 0)
+    public void Stamp(float x, float z, float radius, float lay, float shake, float scorch = 0, Vector2? way = null, float sweep = 0, float seconds = 0)
     {
         int i0 = (int)MathF.Floor((x - radius) / Cell) - X0, i1 = (int)MathF.Floor((x + radius) / Cell) - X0;
         int j0 = (int)MathF.Floor((z - radius) / Cell) - Z0, j1 = (int)MathF.Floor((z + radius) / Cell) - Z0;
@@ -114,7 +123,12 @@ public sealed class BrushField
                 {
                     // the way follows the stronger push
                     if (nl >= _lay[k] * 0.8f) { _dx[k] = dir.X / dl; _dz[k] = dir.Y / dl; _ang[k] = Angle(_dx[k], _dz[k]); }
-                    _lay[k] = MathF.Max(_lay[k], nl);
+                    if (seconds <= 0) { _lay[k] = MathF.Max(_lay[k], nl); if (_fallRate[k] > 0 && BrushKnock.Drawn(nl) >= _fallTo[k]) _fallRate[k] = 0; }
+                    else if (_fallRate[k] > 0) { _fallTo[k] = MathF.Max(_fallTo[k], BrushKnock.Drawn(nl)); _fallRate[k] = MathF.Max(_fallRate[k], 1f / seconds); }
+                    else if (BrushKnock.Drawn(nl) > BrushKnock.Drawn(_lay[k]) + 0.01f)
+                    {
+                        _fallFrom[k] = BrushKnock.Drawn(_lay[k]); _fallTo[k] = BrushKnock.Drawn(nl); _fallU[k] = 0; _fallRate[k] = 1f / seconds;
+                    }
                 }
                 if (shake > 0)
                 {
@@ -157,7 +171,15 @@ public sealed class BrushField
             {
                 int k = j * Size + i;
                 bool any = false;
-                if (_lay[k] > 0) { _lay[k] = MathF.Max(0, _lay[k] - rise); moving = true; any = true; }
+                if (_fallRate[k] > 0)
+                {
+                    // a knock: down along the curve, then laid at its depth (the shader's bend is full from 0.6) and rising from there
+                    _fallU[k] += dt * _fallRate[k];
+                    if (_fallU[k] >= 1) { _fallRate[k] = 0; _lay[k] = MathF.Max(_lay[k], _fallTo[k] >= 0.999f ? 1f : BrushKnock.LayFor(_fallTo[k])); }
+                    else _lay[k] = MathF.Max(_lay[k], BrushKnock.LayFor(_fallFrom[k] + (_fallTo[k] - _fallFrom[k]) * BrushKnock.Curve(_fallU[k])));
+                    moving = true; any = true;
+                }
+                else if (_lay[k] > 0) { _lay[k] = MathF.Max(0, _lay[k] - rise); moving = true; any = true; }
                 if (_shake[k] > 0) { _shake[k] = _shake[k] < 0.01f ? 0 : _shake[k] * keep; moving = true; any = true; }
                 if (_scorch[k] > 0) any = true;
                 if (!any) continue;
@@ -192,7 +214,7 @@ public sealed class BrushField
 
     public void Clear()
     {
-        foreach (var a in new[] { _lay, _dx, _dz, _shake, _scorch }) Array.Clear(a);
+        foreach (var a in new[] { _lay, _dx, _dz, _shake, _scorch, _fallU, _fallRate, _fallFrom, _fallTo }) Array.Clear(a);
         Array.Clear(_ang);
         Active = 0;
         _bi0 = Size; _bj0 = Size; _bi1 = -1; _bj1 = -1;
