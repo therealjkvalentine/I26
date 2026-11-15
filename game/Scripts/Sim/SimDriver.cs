@@ -92,6 +92,7 @@ public partial class SimDriver : Node
     private readonly bool _holdBrake = System.Environment.GetEnvironmentVariable("I76_HOLD_BRAKE") is not null;
     private readonly string? _holdSteer = System.Environment.GetEnvironmentVariable("I76_HOLD_STEER");
     private readonly bool _autoTarget = System.Environment.GetEnvironmentVariable("I76_AUTO_TARGET") is not null;
+    private readonly bool _targetLog = System.Environment.GetEnvironmentVariable("I76_TARGET_LOG") is { Length: > 0 } and not "0";
     // I76_HOLD_HARDPOINT=N: keep hardpoint key N (1-5) down, for off-screen captures
     private readonly int _holdHardpoint = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HOLD_HARDPOINT"), out int hk) && hk is >= 1 and <= 5 ? hk : 0;
     private bool _hooked;
@@ -245,6 +246,7 @@ public partial class SimDriver : Node
 
     public override void _UnhandledInput(InputEvent e)
     {
+        if (_targetLog) TargetKeyLog(e);
         // the commands of input.map (Controls): each goes to the sim with the next tick
         if (Controls.Suspended && e is not (InputEventJoypadButton or InputEventAction)) return;   // typing a chat line: the pad (and its rules) still plays
         if (e is not (InputEventKey { Pressed: true, Echo: false } or InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true } or InputEventAction { Pressed: true }) || Player?.Sim is null) return;
@@ -271,9 +273,33 @@ public partial class SimDriver : Node
         else if (Controls.Pressed(e, "prev_target")) _commands.Push(CarCommands.TargetPrev);
         else if (Controls.Pressed(e, "TARGET_NEAREST_ENEMY")) _commands.Push(CarCommands.TargetNearest);
         else if (Controls.Pressed(e, "NEXT_TARGET")) _commands.Push(CarCommands.TargetNext);
-        else if (Controls.Pressed(e, "frontal_target")) _commands.Push(CarCommands.TargetFrontal);
+        else if (Controls.Pressed(e, "frontal_target"))
+        {
+            _commands.Push(CarCommands.TargetFrontal);
+            // I76_TARGET_LOG: the press seen here (a network client's: the host's log says what it picked)
+            if (_targetLog) GD.Print($"target ahead: pressed ({e.AsText()}) before tick {Session.Ticks}");
+        }
         else if (Controls.Pressed(e, "RESET_TARGET")) _commands.Push(CarCommands.TargetReset);
     }
+
+    /// <summary>
+    /// I76_TARGET_LOG: a frontal_target key that reached the game and pressed nothing, or pressed it while another command bound to
+    /// the same key took the event first (the chain above takes one command an event), or with no car or with the fly camera on.
+    /// </summary>
+    private void TargetKeyLog(InputEvent e)
+    {
+        if (e is not (InputEventKey { Pressed: true, Echo: false } or InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true })) return;
+        if (Controls.WhyNotPressed(e, "frontal_target") is { } why) { GD.Print($"target ahead: {e.AsText()} not taken: {why}"); return; }
+        if (!Controls.Pressed(e, "frontal_target")) return;
+        string? lost = Player?.Sim is null ? "no car to drive" : FlyCameraActive?.Invoke() == true ? "the fly camera has the key"
+            : Combat is null ? "no combat in this game"
+            : Array.Find(EarlierCommands, c => (c != "POETRY" || Remote is null) && Controls.Pressed(e, c)) is { } first ? $"{first}, bound to the same input, took the event first" : null;
+        if (lost is not null) GD.Print($"target ahead: {e.AsText()} not taken: {lost}");
+    }
+
+    /// <summary>The commands the input chain tries before frontal_target (one command an event).</summary>
+    private static readonly string[] EarlierCommands = ["weapon_cycle", "weapon_link", "toggle_lights", "POETRY", "reverse_direction", "shift_up", "shift_down",
+        "start_engine", "special1", "special2", "special3", "RADAR_RANGE_TOGGLE", "radar_range_reset", "RADAR_CAMERA_TOGGLE", "prev_target", "TARGET_NEAREST_ENEMY", "NEXT_TARGET"];
 
     /// <summary>A typed cheat that changes the simulation (getdown, the flat tyres), with the next tick.</summary>
     public void Cheat(CarCommands c) => _commands.Push(c);
