@@ -80,6 +80,16 @@ public partial class Main : Node3D
     /// <summary>The two headlamps: the centres of the HLGT part's left and right halves, or null without one.</summary>
     private static System.Numerics.Vector3[]? HeadlampCentres(I76.Formats.Assembly.AssembledModel m) => LampCentres(m, "HLGT", rear: false);
 
+    /// <summary>
+    /// How far the body reaches behind each rear lamp under it (a bumper, a pickup's bed or tailgate, a rear weapon), 0 where
+    /// nothing does: the lamp's light on the ground stands that far back so its cone falls on the road and not on the car.
+    /// </summary>
+    private static float[] RearOverhangs(I76.Formats.Assembly.AssembledModel m, System.Numerics.Vector3[] lamps)
+    {
+        var pts = m.Parts.Where(p => !CarNode.IsLamp(p.NodeName)).SelectMany(p => p.Mesh.Vertices.Select(x => p.ToModel.Apply(x))).ToList();
+        return lamps.Select(a => pts.Where(q => MathF.Abs(q.X - a.X) < 0.6f && q.Y <= a.Y + 0.05f && q.Z < a.Z).Select(q => a.Z - q.Z).DefaultIfEmpty(0f).Max()).ToArray();
+    }
+
     /// <summary>A lamp part's two halves (left and right of centre), each at its centre, pushed to its outer face (front or back).</summary>
     private static System.Numerics.Vector3[]? LampCentres(I76.Formats.Assembly.AssembledModel m, string code, bool rear)
     {
@@ -90,16 +100,6 @@ public partial class Main : Node3D
         System.Numerics.Vector3 Centre(List<System.Numerics.Vector3> l) =>
             (l.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / l.Count) with { Z = rear ? l.Min(q => q.Z) : l.Max(q => q.Z) };
         return [Centre(left), Centre(right)];
-    }
-
-    /// <summary>
-    /// How far the body reaches behind each rear lamp under it (a bumper, a pickup's bed or tailgate, a rear weapon), 0 where
-    /// nothing does: the lamp's light on the ground stands that far back so its cone falls on the road and not on the car.
-    /// </summary>
-    private static float[] RearOverhangs(I76.Formats.Assembly.AssembledModel m, System.Numerics.Vector3[] lamps)
-    {
-        var pts = m.Parts.Where(p => !CarNode.IsLamp(p.NodeName)).SelectMany(p => p.Mesh.Vertices.Select(x => p.ToModel.Apply(x))).ToList();
-        return lamps.Select(a => pts.Where(q => MathF.Abs(q.X - a.X) < 0.6f && q.Y <= a.Y + 0.05f && q.Z < a.Z).Select(q => a.Z - q.Z).DefaultIfEmpty(0f).Max()).ToArray();
     }
 
     /// <summary>
@@ -2569,7 +2569,7 @@ public partial class Main : Node3D
         I76.Game.World.ObjectLight.Set("i76_light_dir", l);
         _lightDir = l;
         I76.Game.World.ObjectLight.Set("i76_light_intensity", light.Intensity);
-        I76.Game.Sim.LampStrength.Set(I76.Game.Sim.LampStrength.Daylight(light.IsDay, light.Intensity));
+        I76.Game.Sim.LampStrength.Set(I76.Game.Sim.Daylight.Of(light.IsDay, light.Intensity));
         I76.Game.World.ObjectLight.Set("i76_ambient", light.Ambient);
         I76.Game.World.ObjectLight.Set("i76_night", !light.IsDay);
         I76.Game.World.ObjectLight.Set("i76_fade", new Vector2(I76.Formats.Mission.Lighting.FadeA, I76.Formats.Mission.Lighting.FadeB));

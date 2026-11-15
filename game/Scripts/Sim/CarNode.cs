@@ -1232,7 +1232,7 @@ public partial class CarNode : Node3D
         // look, every level is its switch, as the original draws them. A fresh car's lamps stand at their switches
         bool ramp = Modern && LampRamp.Enabled;
         // the glows' and glares' share ([port] lamp_halo); a change (the Developer panel) re-applies every level
-        float halo = LampStrength.Halo;
+        float halo = LampHalo.Factor;
         if (halo != _haloApplied) (_haloApplied, _headApplied, _rearLevel, _brakeGlowApplied, _tailGlowApplied) = (halo, -1, -1, -1, -1);
         float headTarget = lampsOn ? 1f : 0f, brakeTarget = Modern && shown && braking ? 1f : 0f, tailTarget = Modern && shown && lit ? 1f : 0f;
         float rearTarget = !Modern || !shown ? 0f : braking ? 1f : lightsOn ? 0.3f : 0f;
@@ -1282,8 +1282,8 @@ public partial class CarNode : Node3D
         _headDist2 = (headLit || _tailLamp > 0f || _brakeLamp > 0f) && headCam is not null ? headCam.GlobalPosition.DistanceSquaredTo(GlobalPosition) : float.MaxValue;
         bool lampLights = headLit && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));
         for (int i = 0; i < _lamps.Length; i++) _lamps[i].Visible = lampLights && HeadHeld(i);
-        bool dayChanged = LampStrength.Current != _lampDaylight;
-        _lampDaylight = LampStrength.Current;
+        bool dayChanged = Daylight.Current != _lampDaylight;
+        _lampDaylight = Daylight.Current;
         int throwNow = HeadlampThrow.Current;
         if (dayChanged || _headRamp != _headApplied || throwNow != _throwApplied)
         {
@@ -1293,7 +1293,7 @@ public partial class CarNode : Node3D
             _throwApplied = throwNow;
             // the filament's level on the energy, its colour cooling toward orange over the last of a fall (LampRamp.Warmth)
             _headApplied = _headRamp;
-            float headE = LampStrength.HeadEnergy * HeadlampThrow.EnergyScale(throwNow) * LampStrength.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp;
+            float headE = LampStrength.HeadEnergy * HeadlampThrow.EnergyScale(throwNow) * Daylight.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp;
             var (wr, wg, wb) = LampRamp.Warmth(_headRamp);
             var warm = new Color(HeadColour.R * wr, HeadColour.G * wg, HeadColour.B * wb);
             foreach (var l in _lamps) { l.LightEnergy = headE; l.LightColor = warm; }
@@ -1301,8 +1301,8 @@ public partial class CarNode : Node3D
                 foreach (var g in _glare) { g.SetInstanceShaderParameter("level", _headRamp * halo); g.SetInstanceShaderParameter("warmth", new Vector3(wr, wg, wb)); }
         }
         // the rear lamps' light on the ground: the tail filament's with the lights on, the brake's brighter one over it, a night's
-        // only (LampStrength.RearGround); like the headlamps', the player's always and only the nearest few other cars'
-        float rearE = rearOk ? LampStrength.RearGround(_tailLamp, _brakeLamp, _lampDaylight) : 0f;
+        // only (RearLampLight); like the headlamps', the player's always and only the nearest few other cars'
+        float rearE = rearOk ? RearLampLight.Energy(_tailLamp, _brakeLamp, Daylight.Current) : 0f;
         if (rearE != _rearGroundApplied) { _rearGroundApplied = rearE; foreach (var l in _rearLights) l.LightEnergy = rearE; }
         bool rearLights = rearE > 0f && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));
         for (int i = 0; i < _rearLights.Length; i++) _rearLights[i].Visible = rearLights && RearHeld(i);

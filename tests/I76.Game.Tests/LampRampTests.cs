@@ -1,5 +1,6 @@
 using I76.Game.Shell;
 using I76.Game.Sim;
+using I76.Game.Ui;
 using Xunit;
 
 namespace I76.Game.Tests;
@@ -71,27 +72,33 @@ public class LampRampTests
         Assert.InRange(b, LampRamp.CoolB, g);     // red-shifted: blue goes first
     }
 
+    private static DevSetting Key(string key) => Assert.Single(DevSettings.All, e => e.Key == key);
+
     /// <summary>[port] lamp_halo: the glows and glares at 65 % by default (a third under), 0 to 200, the default for a word that is not a number.</summary>
     [Fact]
     public void TheHaloIsATHirdUnderByDefaultAndReadsItsPercent()
     {
-        int was = LampStrength.HaloPercent;
+        int was = LampHalo.Percent;
         try
         {
-            Assert.Equal(65, LampStrength.HaloDefault);
+            Assert.Equal(65, LampHalo.Default);
             Assert.Equal(65, new ShellSettings().LampHalo);
-            Assert.Equal(65, LampStrength.ParseHalo(null));
-            Assert.Equal(65, LampStrength.ParseHalo("many"));
-            Assert.Equal(100, LampStrength.ParseHalo("100"));
-            Assert.Equal(200, LampStrength.ParseHalo("999"));
-            Assert.Equal(0, LampStrength.ParseHalo("-5"));
+            Assert.Equal(65, LampHalo.Parse(null));
+            Assert.Equal(65, LampHalo.Parse(""));
+            Assert.Equal(65, LampHalo.Parse("many"));
+            Assert.Equal(100, LampHalo.Parse("100"));
+            Assert.Equal(200, LampHalo.Parse("999"));
+            Assert.Equal(0, LampHalo.Parse("-5"));
+            var e = Key("lamp_halo");
+            Assert.Equal(DevWhen.Live, e.When);
+            Assert.Equal("65", e.Values[e.Get(new ShellSettings())]);
             OriginalBehavior.Apply(new ShellSettings { LampHalo = 100 });
-            Assert.Equal(100, LampStrength.HaloPercent);
-            if (LampStrength.HaloHook is null) Assert.Equal(1f, LampStrength.Halo);
+            Assert.Equal(100, LampHalo.Percent);
+            if (LampHalo.Hook is null) Assert.Equal(1f, LampHalo.Factor);
             OriginalBehavior.Apply(new ShellSettings());
-            if (LampStrength.HaloHook is null) Assert.Equal(0.65f, LampStrength.Halo);
+            if (LampHalo.Hook is null) Assert.Equal(0.65f, LampHalo.Factor);
         }
-        finally { LampStrength.HaloPercent = was; }
+        finally { LampHalo.Percent = was; }
     }
 
     [Fact]
@@ -102,6 +109,8 @@ public class LampRampTests
         {
             var s = new ShellSettings();
             Assert.True(s.LampRamp);
+            var e = Key("lamp_ramp");
+            Assert.Equal(DevWhen.Live, e.When);
             OriginalBehavior.Apply(new ShellSettings { LampRamp = false });
             Assert.Equal(LampRamp.Hook is { } h ? h != 0 : false, LampRamp.Enabled);
             if (LampRamp.Hook is null)

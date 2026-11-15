@@ -24,11 +24,11 @@ public static class DashLight
     /// </summary>
     public const float DayMatch = 0.2f;
 
-    /// <summary>The lamps' level at <paramref name="daylight"/> (LampStrength.Daylight: 1 in full sun, 0 at night): the share of the needle's colour shown.</summary>
+    /// <summary>The lamps' level at <paramref name="daylight"/> (Daylight.Of: 1 in full sun, 0 at night): the share of the needle's colour shown.</summary>
     public static float Level(float daylight, int percent) => Math.Clamp(percent, 0, 200) / 100f * DayMatch * (1f - Math.Clamp(daylight, 0f, 1f));
 
     /// <summary>The level now: the setting (or the hook) at the mission's daylight.</summary>
-    public static float Current => Level(LampStrength.Current, Hook ?? Percent);
+    public static float Current => Level(Daylight.Current, Hook ?? Percent);
 
     /// <summary>The object shader's global (object.gdshaderinc, the materials with dash_lamp).</summary>
     public const string Global = "i76_dash_light";

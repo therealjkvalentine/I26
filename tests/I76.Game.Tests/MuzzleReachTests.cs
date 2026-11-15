@@ -43,7 +43,9 @@ public class MuzzleReachTests
         }
         // absent or not a number: the default; out of range: the end
         Assert.Equal(100, MuzzleReach.Parse(null));
+        Assert.Equal(100, MuzzleReach.Parse(""));
         Assert.Equal(100, MuzzleReach.Parse("far"));
+        Assert.Equal(50, MuzzleReach.Parse("50"));
         Assert.Equal(200, MuzzleReach.Parse("999"));
         Assert.Equal(0, MuzzleReach.Parse("-3"));
         int was = MuzzleReach.Percent;
@@ -55,10 +57,15 @@ public class MuzzleReachTests
             Assert.Equal(100, MuzzleReach.Percent);
         }
         finally { MuzzleReach.Percent = was; }
-        Assert.Contains(I76.Game.Ui.DevSettings.All, e => e.Key == "muzzle_reach" && e.When == I76.Game.Ui.DevWhen.Live);
+        // the Developer panel steps it live; a value set by hand shows as the nearest step
+        var e = Assert.Single(I76.Game.Ui.DevSettings.All, e => e.Key == "muzzle_reach");
+        Assert.Equal(I76.Game.Ui.DevWhen.Live, e.When);
+        Assert.Equal("0*", e.Values[e.Get(new ShellSettings { MuzzleReach = 0 })]);
+        Assert.Equal("125*", e.Values[e.Get(new ShellSettings { MuzzleReach = 120 })]);
+        Assert.Equal("100", e.Values[e.Get(new ShellSettings())]);
     }
 
-    /// <summary>Every stock gun's ordnance kind (GDFC +0x5a, the install's .gdf files) to its row; the droppers and flamers have no light.</summary>
+    /// <summary>Every stock gun's ordnance kind (the install's weapon definitions) to its row; the droppers and flamers have no light.</summary>
     [Theory]
     [InlineData(0x12u, MuzzleReach.Gun.Handgun)]       // gh45
     [InlineData(1u, MuzzleReach.Gun.MachineGun)]       // gmlight, gmmedium, gmheavy and their turrets

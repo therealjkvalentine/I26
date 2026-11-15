@@ -61,7 +61,7 @@ public class DashLightTests
     {
         foreach (var p in Lighting.Presets)
         {
-            float level = DashLight.Level(LampStrength.Daylight(p.IsDay, p.Intensity), 100);
+            float level = DashLight.Level(Daylight.Of(p.IsDay, p.Intensity), 100);
             if (!p.IsDay) Assert.Equal(DashLight.DayMatch, level);
             else Assert.Equal(DashLight.DayMatch * (1f - Math.Clamp(p.Intensity, 0f, 1f)), level, 5);
         }
