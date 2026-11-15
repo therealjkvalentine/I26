@@ -34,19 +34,22 @@ public static class TickBench
     {
         public bool Split;
         public readonly long[] Excl = new long[Sections];
+        public readonly long[] ExclAlloc = new long[Sections];
         public long Start, Stop, AllocStart, AllocEnd;
         private readonly TickSection[] _stack = new TickSection[64];
         private int _depth;
-        private long _mark;
+        private long _mark, _amark;
 
         public void Begin(TickSection s)
         {
             long now = Stopwatch.GetTimestamp();
-            if (s == TickSection.Tick) { AllocStart = GC.GetAllocatedBytesForCurrentThread(); Start = Stopwatch.GetTimestamp(); Array.Clear(Excl); _depth = 0; now = Start; }
+            if (s == TickSection.Tick) { AllocStart = GC.GetAllocatedBytesForCurrentThread(); Start = Stopwatch.GetTimestamp(); Array.Clear(Excl); Array.Clear(ExclAlloc); _depth = 0; now = Start; }
             if (!Split && s != TickSection.Tick) return;
-            if (_depth > 0) Excl[(int)_stack[_depth - 1]] += now - _mark;
+            long a = GC.GetAllocatedBytesForCurrentThread();
+            if (_depth > 0) { Excl[(int)_stack[_depth - 1]] += now - _mark; ExclAlloc[(int)_stack[_depth - 1]] += a - _amark; }
             _stack[_depth++] = s;
-            _mark = now;
+            _amark = a;
+            _mark = Stopwatch.GetTimestamp();
         }
 
         public void End(TickSection s)
@@ -55,8 +58,11 @@ public static class TickBench
             if (s == TickSection.Tick) { Stop = now; AllocEnd = GC.GetAllocatedBytesForCurrentThread(); }
             if (!Split && s != TickSection.Tick) return;
             if (_depth == 0) return;
+            long a = GC.GetAllocatedBytesForCurrentThread();
             Excl[(int)_stack[--_depth]] += now - _mark;
-            _mark = now;
+            ExclAlloc[(int)_stack[_depth]] += a - _amark;
+            _amark = a;
+            _mark = Stopwatch.GetTimestamp();
         }
     }
 
@@ -114,12 +120,15 @@ public static class TickBench
         var us = new double[ticks];
         var alloc = new long[ticks];
         var excl = new double[Sections, ticks];
+        var exclAlloc = new long[Sections];
         var burstUs = new List<double>();
         var slow = new List<string>();
-        using var csv = perTick is null ? null : new StreamWriter(perTick);
+        var csv = perTick is null ? null : new StreamWriter(perTick);
         csv?.WriteLine("tick,us,alloc_bytes,gc0,gc1,gc2,gc_pause_us,jit_methods,jit_us,cars,rounds," + string.Join(",", SectionNames.Skip(1)) + ",other");
         string log = "";
         sc.Setup.Script!.Host.Logged += m => log += (log.Length > 0 ? " | " : "") + m;
+        using var types = args.Contains("--alloc-types") ? new AllocTypes(Environment.CurrentManagedThreadId) : null;
+        if (types is not null) csv = null;
         TickProbe.Timer = timer;
         int g0 = GC.CollectionCount(0), g1 = GC.CollectionCount(1), g2 = GC.CollectionCount(2);
         int gc0 = 0, gc1 = 0, gc2 = 0;
@@ -143,7 +152,8 @@ public static class TickBench
             double jitUs = (System.Runtime.JitInfo.GetCompilationTime(currentThread: true) - jt).TotalMilliseconds * 1000;
             gc0 += d0; gc1 += d1; gc2 += d2;
             double sum = 0;
-            for (int s = 1; s < Sections; s++) { excl[s, t] = timer.Excl[s] * f; sum += excl[s, t]; }
+            for (int s = 1; s < Sections; s++) { excl[s, t] = timer.Excl[s] * f; sum += excl[s, t]; exclAlloc[s] += timer.ExclAlloc[s]; }
+            exclAlloc[0] += timer.ExclAlloc[0];
             excl[0, t] = split ? System.Math.Max(0, us[t] - sum) : 0;      // what no section holds: the tick's own bookkeeping
             int cars = sc.Setup.World.Vehicles.Count(v => !v.Wreck), rounds = sc.Setup.Combat.Rounds.Count;
             csv?.WriteLine(string.Create(CultureInfo.InvariantCulture,
@@ -183,6 +193,9 @@ public static class TickBench
             o.Append("  split, mean us a tick:");
             for (int s = 1; s < Sections; s++) o.Append(string.Create(inv, $" {SectionNames[s]} {Enumerable.Range(0, ticks).Average(t => excl[s, t]):0.0}"));
             o.AppendLine(string.Create(inv, $" other {Enumerable.Range(0, ticks).Average(t => excl[0, t]):0.0}"));
+            o.Append("  split, mean bytes allocated a tick:");
+            for (int s = 0; s < Sections; s++) o.Append(string.Create(inv, $" {(s == 0 ? "other" : SectionNames[s])} {exclAlloc[s] / (double)ticks:0}"));
+            o.AppendLine();
         }
         if (burstUs.Count > 0)
         {
@@ -191,9 +204,49 @@ public static class TickBench
         }
         o.AppendLine($"  slow ticks (>= {slowMs} ms): {slow.Count}");
         foreach (var line in slow.Take(40)) o.AppendLine("    " + line);
+        if (types is not null)
+        {
+            Thread.Sleep(1000);
+            o.AppendLine("  allocation samples on the tick's thread after the load, by type (the runtime samples about every 100 kB):");
+            foreach (var line in types.Report()) o.AppendLine("    " + line);
+        }
+        csv?.Dispose();
         o.AppendLine(string.Create(inv, $"  last StateHash {sc.Session.StateHash():x16}"));
         Console.Write(o.ToString());
         return 0;
+    }
+
+    /// <summary>The runtime's allocation samples (GCAllocationTick) on one thread, counted by type.</summary>
+    private sealed class AllocTypes : System.Diagnostics.Tracing.EventListener
+    {
+        private readonly Dictionary<string, (int N, long Bytes)> _by = [];
+        private long _thread = -1;
+        public AllocTypes(int _) { _thread = GetCurrentThreadId(); }
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern int GetCurrentThreadId();
+        protected override void OnEventSourceCreated(System.Diagnostics.Tracing.EventSource source)
+        {
+            if (source.Name == "Microsoft-Windows-DotNETRuntime")
+                EnableEvents(source, System.Diagnostics.Tracing.EventLevel.Verbose, (System.Diagnostics.Tracing.EventKeywords)0x1);
+        }
+        protected override void OnEventWritten(System.Diagnostics.Tracing.EventWrittenEventArgs e)
+        {
+            if (e.EventName is null || !e.EventName.StartsWith("GCAllocationTick") || e.Payload is null) return;
+            if (_thread >= 0 && e.OSThreadId != _thread) return;
+            int ti = e.PayloadNames!.IndexOf("TypeName");
+            int ai = e.PayloadNames.IndexOf("AllocationAmount64");
+            string type = ti >= 0 ? e.Payload[ti]?.ToString() ?? "?" : "?";
+            long amt = ai >= 0 ? Convert.ToInt64(e.Payload[ai]) : 100_000;
+            lock (_by) { var (n, b) = _by.GetValueOrDefault(type); _by[type] = (n + 1, b + amt); }
+        }
+        public IEnumerable<string> Report()
+        {
+            lock (_by)
+            {
+                long all = _by.Values.Sum(x => x.Bytes);
+                return _by.OrderByDescending(x => x.Value.Bytes).Take(30)
+                    .Select(x => string.Create(CultureInfo.InvariantCulture, $"{100.0 * x.Value.Bytes / all,5:0.0} %  {x.Value.Bytes / 1048576.0,7:0.0} MB  {x.Key}")).ToList();
+            }
+        }
     }
 
     private static Scenario Build(GameInstall install, string name, SimRate rate, int burstN, int every)
