@@ -21,6 +21,8 @@ internal sealed class TestPeer : IDisposable
     public AnetJoiner? Joiner;
     public NetPeer? Connected;
     public readonly NatBox? Nat;
+    /// <summary>This machine drops the hole punch's datagrams (a firewall on it): it hears neither probes nor answers.</summary>
+    public bool DropPunch;
     private readonly TestNet _world;
     private readonly IPEndPoint _local;
     private readonly Action _pump;
@@ -36,6 +38,7 @@ internal sealed class TestPeer : IDisposable
         Listener.NetworkReceiveUnconnectedEvent += (ep, r, t) =>
         {
             var d = r.GetRemainingBytesSpan();
+            if (DropPunch && HolePunch.TryRead(d, out _, out _, out _)) return;
             if (Host?.HandleUnconnected(ep, d) == true) return;
             Joiner?.HandleUnconnected(ep, d);
         };
@@ -319,6 +322,33 @@ public class AnetPunchTests(ITestOutputHelper log)
             // the box does not hairpin: only the private address answers
             Assert.True(PunchAndConnect(host, joiner));
             Assert.Equal(s.KeyAddress.ToEndPoint(), joiner.Joiner!.Reached);
+        }
+    }
+
+    /// <summary>
+    /// Two computers behind one router (the owner's report: a game hosted at home, joined from the next room through the internet
+    /// list), and nothing of the punch gets through at home (a firewall on one of them): the failure names that, at once, rather
+    /// than ask a second server and blame a router's symmetric NAT and a port to forward.
+    /// </summary>
+    [Fact]
+    public void AHostOnTheSameNetworkThatNeverAnswersIsBlamedOnAFirewall()
+    {
+        using var srv = new FakeAnetServer(_net);
+        using var other = new FakeAnetServer(_net);
+        using var nat = Nat(1, NatBox.Mapping.EndpointIndependent);
+        var (host, plain, s) = Setup(srv.Port, nat, nat, nat);
+        plain.Dispose();
+        using (host)
+        {
+            using var joiner = Joiner(srv.Port, s, nat, check: [("127.0.0.1", other.Port)], punchTime: 4);
+            joiner.DropPunch = true;
+            Assert.False(PunchAndConnect(host, joiner));
+            Assert.Equal("SameNetwork", joiner.Joiner!.Verdict.ToString());
+            Assert.StartsWith("the host is on your own network but did not answer there", joiner.Joiner.Failed);
+            Assert.Contains("firewall", joiner.Joiner.Failed);
+            Assert.Contains($"UDP port {s.KeyAddress.Port}", joiner.Joiner.Failed);
+            Assert.DoesNotContain("symmetric", joiner.Joiner.Failed);
+            Assert.True(host.Host!.Introductions >= 1, "the server did introduce them");
         }
     }
 
