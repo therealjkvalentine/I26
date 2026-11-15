@@ -599,6 +599,48 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public Vehicle? FrontalTarget(Vehicle me) =>
         !RadarBlank(me) && ArcPick(me, me.Rot.Forward) is { } v && IsContact(me, v) ? v : null;
 
+    /// <summary>
+    /// What a Q press made of what is ahead of <paramref name="me"/>, in a line (the I76_TARGET_LOG dev hook): what it picked, or why it
+    /// picked nothing (the radar blank, the arc's nearest not a radar contact, nothing in the arc), then every vehicle within 45 degrees of
+    /// the nose and 650 m, nearest first (at most five), with what the arc made of it: picked, passed over (a helicopter, an emplacement,
+    /// a wreck: the arc takes cars only), outside the 15 degrees (the angles across and up from the nose), or behind a nearer one.
+    /// </summary>
+    public string FrontalReport(Vehicle me)
+    {
+        var picked = FrontalTarget(me);
+        var arc = ArcPick(me, me.Rot.Forward);
+        string head;
+        if (picked is not null) head = $"picked {LogName(picked)}{(Team(picked) == Team(me) && !FreeForAll ? " (on the presser's own side)" : "")}";
+        else if (UserRadarDark && me == World.Player) head = "nothing: the radar is dark (setUserRadar)";
+        else if (IsJamming(me)) head = "nothing: the presser's own jammer blanks its radar";
+        else if (World.Vehicles.FirstOrDefault(v => IsJamming(v) && IsContact(me, v)) is { } jam) head = $"nothing: the radar is jammed by {LogName(jam)} at {Planar(me, jam):0} m";
+        else if (arc is not null) head = $"nothing: the arc's nearest, {LogName(arc)}, is not a radar contact ({(IsDead(arc) ? "dead" : Planar(me, arc) > ContactRange ? "past 600 m on the ground" : "engine off")})";
+        else head = "nothing in the 15 degree arc";
+        var p = me.Pos.ToVector3();
+        var ahead = new List<(float D, string Text)>();
+        foreach (var v in World.Vehicles)
+        {
+            if (v == me) continue;
+            var d = ColliderCentre(v) - p;
+            float dist = d.Length();
+            if (dist >= ArcRange || dist < 0.01f) continue;
+            var l = me.Rot.ToLocal(d);
+            if (l.Z <= 0 || Vector3.Dot(d, me.Rot.Forward) < dist * 0.7071f) continue;
+            float across = MathF.Atan2(l.X, l.Z) * 180f / MathF.PI, up = MathF.Atan2(l.Y, new Vector2(l.X, l.Z).Length()) * 180f / MathF.PI;
+            float dot = Vector3.Dot(d, me.Rot.Forward);
+            string what = v == arc ? (v == picked ? "picked" : "the arc's pick")
+                : v.IsHeli ? "passed over: a helicopter" : v.IsEmplacement ? "passed over: an emplacement" : v.Wreck ? "passed over: a wreck"
+                : dist * dist * ArcCos2 >= dot * dot ? "outside the 15 degrees" : "behind the arc's pick";
+            string state = IsDead(v) ? ", dead" : !IsLive(v) ? ", engine off" : "";
+            ahead.Add((dist, $"{LogName(v)} team {Team(v)}{state} {dist:0} m {across:+0;-0;0} across {up:+0;-0;0} up: {what}"));
+        }
+        var listed = ahead.OrderBy(a => a.D).Take(5).Select(a => a.Text).ToList();
+        return $"{head}; within 45 degrees ahead: {(listed.Count == 0 ? "none" : string.Join("; ", listed))}";
+    }
+
+    /// <summary>A vehicle in a log line: its .vcf (or kind) and network id.</summary>
+    private static string LogName(Vehicle v) => $"{v.Definition ?? (v.IsHeli ? "helicopter" : v.IsEmplacement ? "emplacement" : "car")}#{v.NetId}";
+
     // ---- the AI's trigger ----
 
     /// <summary>

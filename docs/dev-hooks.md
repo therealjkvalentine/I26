@@ -108,6 +108,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_MELEE_OPPONENTS` | capture | `a.vcf,b.vcf`: opponents for `--melee`. |
 | `I76_HOLD_HARDPOINT` | capture | `N` (1-5): keep hardpoint key N down. |
 | `I76_HOLD_BRAKE`, `I76_AUTO_TARGET` | capture | Hold the brake; target automatically. |
+| `I76_TARGET_LOG` | debug | `1`: a `target ahead:` line for every Q (frontal_target) press: on the machine pressing it, `pressed (Q) before tick N`, or `not taken:` and why (Shift or Control held against the binding's `-` terms, a chat line, a network game's menu or picture over the game, another command bound to the same key taking it first, the fly camera); where the session runs (single player, a listen host, `i26-server`), what the press picked or why nothing (the radar jammed or dark, the arc's nearest a dead or engine-off car, nothing in the 15 degree arc) and every vehicle within 45 degrees of the nose with its angles across and up and what the arc made of it (a helicopter or emplacement passed over, a wreck, outside the 15 degrees, behind the arc's pick). A network client's press is logged on the host. |
 | `I76_HOLD_STEER` | capture | `left` or `right`: keep that steering key down. |
 | `I76_GARAGE_DEBUG` | debug | `1`: every 20 frames the 3D garage prints its viewport, camera and car (`garage3d: container ...`). |
 | `I76_GARAGE_CAM` | capture | `x,y,z,tx,ty,tz`: the 3D garage's camera held at that world point, looking at the other (the bay is 16 m wide, 18 deep; the turntable's middle is the origin, the car faces -Z). |

@@ -234,6 +234,9 @@ public partial class Main : Node3D
         {
             _buildPrinted = true;
             GD.Print(BuildInfo.Line);
+            RenderBackend.NoteStart(I76.Game.Shell.ShellSettings.Load().Renderer, StartupSettings.D3D12Offered);
+            // I76_TARGET_LOG=1 (docs/dev-hooks.md): a line for every Q (target ahead) press this game's session applies (a host's: every seat's)
+            if (System.Environment.GetEnvironmentVariable("I76_TARGET_LOG") is { Length: > 0 } and not "0") I76.Sim.Session.SimSession.TargetLog = m => GD.Print(m);
             GD.Print(RenderBackend.Describe());
             if (RenderBackend.Compatibility)
                 GD.Print("renderer: Compatibility (OpenGL): SSAO and some finer effects are off (docs/compatibility-renderer.md)");

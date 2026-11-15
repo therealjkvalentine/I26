@@ -179,6 +179,8 @@ var o = new ServerOptions
 };
 o = o with { MapTotalBytesPerSecond = Math.Max(o.MapBytesPerSecond, MapTransferLimits.DefaultTotalBytesPerSecond) };
 void Log(string m) => Console.WriteLine($"{DateTime.Now:HH:mm:ss} {m}");
+// I76_TARGET_LOG=1 (docs/dev-hooks.md): a line for every seat's Q (target ahead) press, what it picked or why nothing
+if (Environment.GetEnvironmentVariable("I76_TARGET_LOG") is { Length: > 0 } and not "0") I76.Sim.Session.SimSession.TargetLog = Log;
 Log($"{o.Name}: building {o.Arena} from {o.Install}, seed {o.Seed}");
 var sw = System.Diagnostics.Stopwatch.StartNew();
 using var server = new NetMeleeServer(o);

@@ -5,7 +5,7 @@ using Godot;
 namespace I76.Game.Boot;
 
 /// <summary>
-/// The settings Godot reads only at start, which Graphic Detail offers as "(restart)" rows: the log file and the renderer; and the
+/// The settings Godot reads only at start, which Graphic Detail offers as rows taking effect from the next start: the log file and the renderer; and the
 /// audio input, on only while a CB Microphone is chosen (the macOS driver creates its input only at start). Godot
 /// reads project settings, then the override file project.godot names (application/config/project_settings_override), so the
 /// rows write that file for the next start; none of them on (Log off, Renderer Auto, no microphone) is no file. A --rendering-driver or
@@ -72,5 +72,5 @@ public static class AudioLatency
     public static int PhysicsFor(bool lowLatency) => lowLatency ? PhysicsRate : StockPhysicsRate;
 }
 
-/// <summary>Graphic Detail's Renderer (restart): Auto leaves it to Godot (Vulkan, Direct3D 12 on Windows where it prefers it, OpenGL where neither runs).</summary>
+/// <summary>Graphic Detail's Renderer (from the next start): Auto leaves it to Godot (Vulkan, Direct3D 12 on Windows where it prefers it, OpenGL where neither runs).</summary>
 public enum RendererChoice { Auto = 0, Vulkan = 1, D3D12 = 2, OpenGL = 3 }

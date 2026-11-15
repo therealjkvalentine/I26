@@ -131,7 +131,7 @@ are for another game and are not listed.
 | Page | Rows, in order |
 |---|---|
 | Graphic Detail | Screen Resolution, Monitor Brightness, Visibility Range, Terrain Detail, Shadow Detail, Ext. Instrum. Disp., Mirrors, Anti-Aliasing, Field of View, VSync, Max FPS; Advanced... |
-| Advanced | 1997 Mode, 1997 Palette Grade, Crash Blur, World Textures, Car & Dash Textures, Vegetation, Ambient Occlusion, Mirror Rate, Hood Gloss, Render Scale, Show FPS, Renderer (restart), 3D Garage |
+| Advanced | 1997 Mode, 1997 Palette Grade, Crash Blur, World Textures, Car & Dash Textures, Vegetation, Ambient Occlusion, Mirror Rate, Hood Gloss, Render Scale, Show FPS, Renderer, 3D Garage |
 
 (Look and Display, the two pages before round 5, are Advanced; Anti-Aliasing, Field of View, VSync and Max FPS moved up to the sheet. Car Interiors and Log File have no row now: `car_interiors` and `log_file`, below.) A page whose rows outgrow the sheet scrolls them, as Play Options does (the mouse wheel, Up and Down, Page Up and Page Down, or the pad past the last row); the entries, the frame-rate line and the buttons stay put. Neither page does today.
 

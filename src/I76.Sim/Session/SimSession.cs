@@ -241,6 +241,13 @@ public sealed partial class SimSession
     }
 
     /// <param name="fresh">A prediction's first run of this input (not a replay): its specials' sounds play at once.</param>
+    /// <summary>
+    /// The I76_TARGET_LOG dev hook (docs/dev-hooks.md): a line for every Q (target ahead) press the session applies, saying what the press
+    /// picked or why it picked nothing (<see cref="Weapons.Combat.FrontalReport"/>). In a network game the host's (or the server's) log has
+    /// it, for every seat. Null: nothing is logged.
+    /// </summary>
+    public static Action<string>? TargetLog { get; set; }
+
     private void ApplyCommands(Driver d, bool predict = false, bool fresh = false)
     {
         var p = d.Car;
@@ -303,7 +310,11 @@ public sealed partial class SimSession
         if ((c & CarCommands.TargetPrev) != 0) { if (cb.NextRestarts(p)) cb.RadarCamera.Remove(p); cb.RadarTarget[p] = cb.PrevTarget(p); }
         if ((c & CarCommands.TargetNearest) != 0) { cb.RadarCamera.Remove(p); cb.RadarTarget[p] = cb.NearestEnemy(p); }
         if ((c & CarCommands.TargetNext) != 0) { if (cb.NextRestarts(p)) cb.RadarCamera.Remove(p); cb.RadarTarget[p] = cb.NextTarget(p); }
-        if ((c & CarCommands.TargetFrontal) != 0 && (cb.RadarTarget[p] = cb.FrontalTarget(p)) is null) cb.RadarCamera.Remove(p);
+        if ((c & CarCommands.TargetFrontal) != 0)
+        {
+            if (TargetLog is { } log) log($"target ahead: {p.Definition ?? "car"}#{p.NetId} at tick {Ticks}: {cb.FrontalReport(p)}");
+            if ((cb.RadarTarget[p] = cb.FrontalTarget(p)) is null) cb.RadarCamera.Remove(p);
+        }
         if ((c & CarCommands.TargetReset) != 0) { cb.RadarTarget[p] = null; cb.RadarCamera.Remove(p); }
     }
 

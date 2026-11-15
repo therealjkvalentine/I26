@@ -471,6 +471,31 @@ public static class Controls
         return e is InputEventMouseButton { Pressed: true } mb && ButtonOf(t.Channel) is { } btn && mb.ButtonIndex == btn;
     }
 
+    /// <summary>
+    /// For a dev log (I76_TARGET_LOG): when the event is a "+" input of one of the command's blocks and yet did not press it, why (the
+    /// game's keys held back, a "-" term held such as Shift or Control, a "+" one not, the binding's pad gone, an axis rule masking it);
+    /// null when it pressed the command or is none of its inputs.
+    /// </summary>
+    public static string? WhyNotPressed(InputEvent e, string command)
+    {
+        if (e is InputEventAction || Pressed(e, command)) return null;
+        foreach (var b in Table.Rules.Sources(command).SelectMany(c => Table.Of(c)))
+            for (int i = 0; i < b.Terms.Length; i++)
+            {
+                if (!b.Terms[i].Plus || !Goes(e, b.Terms[i])) continue;
+                if (Held?.Invoke() == true) return "the game's keys are held back (a menu, picture or movie over the network game)";
+                if (Suspended) return "a chat line is being typed";
+                if (InputChord.IsDead(b.Terms[^1], Pads)) return "its binding's device is not connected";
+                if (Table.Rules.Masks(b)) return "an axis rule masks its binding";
+                int at = i;
+                var off = b.Terms.Where((t, j) => j != at && !InputChord.IsDead(t, Pads)
+                        && (JoystickBank.DeviceOf(t.Device) >= 0 ? InputChord.Held(t, Pads, TermDown) : TermUnder(t, e)) != t.Plus)
+                    .Select(t => (t.Plus ? "not held: " : "held: ") + t.Channel);
+                return "the rest of its chord did not hold (" + string.Join(", ", off) + ")";
+            }
+        return null;
+    }
+
     /// <summary>Whether the event is the command's input going down: a "+" term of one of its blocks, the rest of the chord holding.</summary>
     public static bool Pressed(InputEvent e, string command)
     {

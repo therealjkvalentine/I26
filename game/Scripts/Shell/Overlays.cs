@@ -620,7 +620,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
     private int _firstLine;
 
     /// <summary>One row on a line: its label and its value (a click on the value is <paramref name="click"/>), the row's tooltip over the line; in the list's slot for that line.</summary>
-    private void Row(GraphicsRow r, int line, string label, Func<string> value, Action click)
+    private Item Row(GraphicsRow r, int line, string label, Func<string> value, Action click)
     {
         Listed(Add(200, LineY(line), label, null), line - _firstLine);
         // a long value ("Monitor*") ends short of the sheet's edge; a label longer than its column ("Keep Mouse In Window") pushes
@@ -629,6 +629,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
         it.Right = 461;
         Tip(it, () => GraphicsHelp.Text(r, Shell.Settings.Look1997), RowX0, RowX1, -2, LineH);
         Listed(it, line - _firstLine);
+        return it;
     }
 
     protected override void Build()
@@ -753,14 +754,18 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.RenderScale:
                 Row(r, line, "Render Scale", () => I76.Game.Boot.RenderScale.Label(st.RenderScale), () => { st.RenderScale = (st.RenderScale + 1) % I76.Game.Boot.RenderScale.Names.Length; I76.Game.Boot.RenderScale.Apply(st); });
                 break;
-            // the renderer: Auto, Vulkan, D3D12 (Windows only) or OpenGL, read by Godot at start (an unavailable choice falls back there)
+            // the renderer: Auto, Vulkan, D3D12 (Windows only) or OpenGL, read by Godot at start (an unavailable choice falls back there);
+            // the value says what runs: "Auto (Vulkan)", or "OpenGL (fallback)" when the choice did not start (RenderBackend.RowText)
             case GraphicsRow.Renderer:
-                Row(r, line, "Renderer (restart)", () => st.Renderer == I76.Game.Boot.RendererChoice.D3D12 && !I76.Game.Boot.StartupSettings.D3D12Offered ? "Auto" : st.Renderer.ToString(), () =>
+                (string Value, string? Note) RendererText() => I76.Game.Boot.RenderBackend.RowText(st.Renderer, I76.Game.Boot.RenderBackend.StartChoice,
+                    I76.Game.Boot.RenderBackend.Driver, I76.Game.Boot.StartupSettings.D3D12Offered);
+                var rend = Row(r, line, "Renderer", () => RendererText().Value, () =>
                 {
                     var all = I76.Game.Boot.StartupSettings.D3D12Offered ? new[] { I76.Game.Boot.RendererChoice.Auto, I76.Game.Boot.RendererChoice.Vulkan, I76.Game.Boot.RendererChoice.D3D12, I76.Game.Boot.RendererChoice.OpenGL }
                         : new[] { I76.Game.Boot.RendererChoice.Auto, I76.Game.Boot.RendererChoice.Vulkan, I76.Game.Boot.RendererChoice.OpenGL };
                     st.Renderer = all[(Math.Max(0, Array.IndexOf(all, st.Renderer)) + 1) % all.Length];
                 });
+                Tip(rend, () => GraphicsHelp.Text(r, Shell.Settings.Look1997) + (RendererText().Note is { } note ? " " + note : ""), RowX0, RowX1, -2, LineH);
                 break;
             // the modern look's plants (docs/modern-vegetation.md)
             case GraphicsRow.Vegetation:
