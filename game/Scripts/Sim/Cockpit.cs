@@ -2088,6 +2088,8 @@ public partial class Cockpit : Node
     private readonly SubViewport?[] _ownViews = new SubViewport?[2];
     private readonly Camera3D?[] _ownCams = new Camera3D?[2];
     private static readonly (float Fov, float Yaw, float Outboard, float Pitch) OwnAim = OwnCamera.Aim(System.Environment.GetEnvironmentVariable("I76_OWN_MIRROR"));
+    /// <summary>I76_MIRROR_SELF=0: the own body left out of the side pictures, so a capture's difference from one with it measures the body's share of the glass.</summary>
+    private static readonly bool OwnSelfHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_SELF") != "0";
     private bool _ownOn;
     private readonly bool[] _ownUsed = [true, true];
     private bool _ownTurn;
@@ -2119,7 +2121,7 @@ public partial class Cockpit : Node
             bool left = i == 0;
             cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
-            cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF) | CarNode.OwnBodyLayer;
+            cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u);
             foreach (var g in _glass.Where(g => g.Left == left)) { g.Mat.SetShaderParameter("view", vp.GetTexture()); g.Mat.SetShaderParameter("band", new Vector2(0, 1)); }
             var sm = left ? _sideMatL : _sideMatR;
             if (sm is not null) { sm.SetShaderParameter("view", vp.GetTexture()); sm.SetShaderParameter("band", new Vector2(0, 1)); sm.SetShaderParameter("cylindrical", false); }
