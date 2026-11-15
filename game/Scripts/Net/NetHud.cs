@@ -289,7 +289,8 @@ public partial class NetHud : CanvasLayer
     {
         if (World.Cars.GetValueOrDefault(serial)?.Info is not { } i) return "?";
         return i.Owner >= 0 ? (i.Name.Length > 0 ? i.Name : SlotName(i.Owner))
-            : I76.Formats.Shell.MeleeDrivers.ForFillEntity(i.Name) ?? $"AI {System.IO.Path.GetFileNameWithoutExtension(i.Def)}";
+            // a Co-op Scaling copy as the car it copies (the same file, its original's name)
+            : I76.Formats.Shell.MeleeDrivers.ForFillEntity(I76.Sim.Missions.ScriptHost.OriginalName(i.Name)) ?? $"AI {System.IO.Path.GetFileNameWithoutExtension(i.Def)}";
     }
 
     private int CarTeam(int serial) => World.Cars.GetValueOrDefault(serial)?.Info.Team ?? 0;

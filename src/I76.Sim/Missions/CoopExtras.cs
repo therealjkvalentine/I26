@@ -17,7 +17,7 @@ namespace I76.Sim.Missions;
 /// does not drive a second time: it follows its original, keeping station beside and behind it, and fires at the human the
 /// original's order is against. Once the original is dead it attacks the nearest human until it is destroyed. Each copy wears
 /// a respray of its own (<see cref="ExtraPaint"/>), the original keeping the mission's paint, and its name carries its number
-/// (<see cref="ExtraName"/>), which a client's target tag reads.
+/// (<see cref="ExtraName"/>); players see it as the car it copies (<see cref="OriginalName"/>).
 /// </summary>
 public sealed partial class ScriptHost
 {
@@ -93,8 +93,11 @@ public sealed partial class ScriptHost
     /// <summary>A human the original was aimed at is the human nearest the copy (with its hysteresis); anyone else stays.</summary>
     private Entity? Aimed(Entity? target, Entity copy) => target is not null && IsHumanEntity(target) ? NearestHuman(copy) as Entity : target;
 
-    /// <summary>The name of an original's k-th copy (from 1): the original's, then "+k", which a client's target tag reads.</summary>
+    /// <summary>The name of an original's k-th copy (from 1): the original's, then "+k" (the server's own tell; players are shown the original's, <see cref="OriginalName"/>).</summary>
     public static string ExtraName(string original, int k) => $"{original}+{k}";
+
+    /// <summary>The name a car is shown by: a copy's is its original's (<see cref="ExtraName"/> without the "+k"), any other car's its own.</summary>
+    public static string OriginalName(string name) => ExtraIndex(name) > 0 ? name[..name.LastIndexOf('+')] : name;
 
     /// <summary>The copy number in a car's name (<see cref="ExtraName"/>), 0 for a car that is no copy.</summary>
     public static int ExtraIndex(string name) =>
