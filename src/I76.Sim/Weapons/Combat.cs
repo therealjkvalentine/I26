@@ -1256,13 +1256,13 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     /// </summary>
     private Vehicle? HeatTarget(Vector3 muzzle, Rows rot, Vehicle shooter)
     {
-        Vehicle? best = null; float bd = 650f * 650f;
+        Vehicle? best = null; float bd = HeatRange * HeatRange;
         foreach (var v in World.Vehicles)
         {
             if (v == shooter || !Hot(v)) continue;
             var d = Collider(v).Centre - muzzle;
             float d2 = d.LengthSquared();
-            if (d2 > 650f * 650f) continue;
+            if (d2 > HeatRange * HeatRange) continue;
             if (MathF.Abs(Vector3.Dot(v.Rot.Forward, rot.Forward)) <= 0.94f) continue;
             float along = Vector3.Dot(d, rot.Forward);
             if (along < 0 || along * along <= 0.8830222f * d2 || d2 >= bd) continue;
