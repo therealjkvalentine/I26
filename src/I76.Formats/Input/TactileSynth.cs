@@ -489,7 +489,22 @@ public sealed class TactileSynth
     }
 
     private sealed class Voice { public float Hz, Level, Fall, Left, Hold; public double Phase; }
-    private readonly List<Voice> _thumps = [], _grains = [];
+    private readonly List<Voice> _thumps = new(MaxThumps), _grains = new(MaxGrains);
+    // ended voices kept for the next: no allocation in the synth once both pools have been full
+    private readonly Stack<Voice> _free = new(MaxThumps + MaxGrains);
+
+    private Voice NewVoice(float hz, float level, float fall, float left, float hold)
+    {
+        var v = _free.Count > 0 ? _free.Pop() : new Voice();
+        v.Hz = hz; v.Level = level; v.Fall = fall; v.Left = left; v.Hold = hold; v.Phase = 0;
+        return v;
+    }
+
+    private void End(List<Voice> pool, int i)
+    {
+        _free.Push(pool[i]);
+        pool.RemoveAt(i);
+    }
     private float _engHz = EngineHz(0), _engTarget, _roadTarget, _eng, _road;
     // the road bed in two slots: a change of surface starts the other on the new band and the old one fades
     private readonly Biquad[] _bands = new Biquad[2];
@@ -645,10 +660,10 @@ public sealed class TactileSynth
             int q = 0;
             for (int i = 1; i < _thumps.Count; i++) if (_thumps[i].Level < _thumps[q].Level) q = i;
             if (_thumps[q].Level >= level) return;
-            _thumps.RemoveAt(q);
+            End(_thumps, q);
         }
         float hold = Math.Clamp(t.Hold, 0f, t.Seconds * 0.9f);
-        _thumps.Add(new Voice { Hz = t.Hz, Level = level, Fall = MathF.Log(100f) / (t.Seconds - hold), Left = t.Seconds, Hold = hold });
+        _thumps.Add(NewVoice(t.Hz, level, MathF.Log(100f) / (t.Seconds - hold), t.Seconds, hold));
     }
 
     /// <summary>Everything silent (the pause, a menu over the game): the transients stop, the beds fade out over 30 ms.</summary>
@@ -657,6 +672,8 @@ public sealed class TactileSynth
         _engTarget = _roadTarget = _rotorTarget = 0;
         _lumpLevel = _grainLevel = _mps = _strip = 0;
         _toEcho = -1;
+        foreach (var v in _thumps) _free.Push(v);
+        foreach (var v in _grains) _free.Push(v);
         _thumps.Clear();
         _grains.Clear();
         _travelSeen = false;
@@ -696,8 +713,8 @@ public sealed class TactileSynth
     {
         if (level <= 0) return;
         level *= EqGain(hz);
-        if (_grains.Count >= MaxGrains) _grains.RemoveAt(0);
-        _grains.Add(new Voice { Hz = hz, Level = level, Fall = MathF.Log(100f) / seconds, Left = seconds });
+        if (_grains.Count >= MaxGrains) End(_grains, 0);
+        _grains.Add(NewVoice(hz, level, MathF.Log(100f) / seconds, seconds, 0f));
     }
 
     /// <summary>The next <paramref name="dst"/>.Length samples at <paramref name="rate"/> Hz.</summary>
@@ -789,7 +806,7 @@ public sealed class TactileSynth
                 x += t.Level * (float)Math.Sin(t.Phase);
                 t.Phase += 2 * Math.PI * t.Hz * dt;
                 t.Level *= MathF.Exp(-t.Fall * dt);
-                if ((t.Left -= dt) <= 0) _grains.RemoveAt(v);
+                if ((t.Left -= dt) <= 0) End(_grains, v);
             }
             for (int v = _thumps.Count - 1; v >= 0; v--)
             {
@@ -797,7 +814,7 @@ public sealed class TactileSynth
                 x += t.Level * (float)Math.Sin(t.Phase);
                 t.Phase += 2 * Math.PI * t.Hz * dt;
                 if (t.Hold > 0) t.Hold -= dt; else t.Level *= MathF.Exp(-t.Fall * dt);
-                if ((t.Left -= dt) <= 0) _thumps.RemoveAt(v);
+                if ((t.Left -= dt) <= 0) End(_thumps, v);
             }
             if (TestInput is { } probe) x += probe();
             float y = Ceiling * MathF.Tanh(Gain * _lp.Run(_hp.Run(x)) / Ceiling);

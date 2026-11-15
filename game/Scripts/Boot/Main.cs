@@ -138,6 +138,8 @@ public partial class Main : Node3D
     private static bool HandgunMuzzle(string node) => node.Length >= 8 && node[4..8].ToUpperInvariant() is "GRPF" or "GLPF";
     private bool _lightOnly;
     private int _frames, _ptFrames;
+    /// <summary>The missions loaded in this run (I76_ABORT_AT's count): kept across the scene's reloads.</summary>
+    private static int _missionLoads;
     /// <summary>Game-space position of the Godot origin (floating origin).</summary>
     private System.Numerics.Vector3 _origin;
     private const float RebaseDistance = 2000f;
@@ -4442,6 +4444,15 @@ public partial class Main : Node3D
         if (!_resumed && int.TryParse(System.Environment.GetEnvironmentVariable("I76_CHECKPOINT_RETRY"), out int retryAt) && _frames == retryAt && CanRetry && _menu is null)
         {
             RetryCheckpoint();
+            return;
+        }
+        if (_frames == 0) _missionLoads++;
+        // test hook: I76_ABORT_AT=frame:load chooses Abort Mission (back to the menu) at that frame of that mission load (1 the first)
+        if (System.Environment.GetEnvironmentVariable("I76_ABORT_AT") is { } abortAt && abortAt.Split(':') is [var af, var al]
+            && int.TryParse(af, out int abortFrame) && int.TryParse(al, out int abortLoad) && _frames == abortFrame && _missionLoads == abortLoad && !_ended && _menu is null)
+        {
+            GD.Print($"abort: load {_missionLoads}, frame {_frames}");
+            MenuClosed(MenuOutcome.Abort);
             return;
         }
         // test hook: I76_REPLAY_AT=frame chooses Replay Mission from the menu at that frame (every load: a run of restarts)
