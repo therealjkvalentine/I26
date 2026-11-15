@@ -47,9 +47,9 @@ public partial class NetHudClassic : Control
         }
         _feed = Make(16, HorizontalAlignment.Left);
         _entry = Make(16, HorizontalAlignment.Left);
-        // the fork's co-op notice (whom the start waits for, what follows the mission): the console's lettering, centred high up
+        // the fork's co-op notice (whom the start waits for, what follows the mission): the console's lettering, centred under the cockpit's top panels
         _notice = Make(20, HorizontalAlignment.Center);
-        _notice.AnchorLeft = 0; _notice.AnchorRight = 1; _notice.AnchorTop = _notice.AnchorBottom = 0.16f;
+        _notice.AnchorLeft = 0; _notice.AnchorRight = 1; _notice.AnchorTop = _notice.AnchorBottom = 0.33f;
         _notice.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         var lee = new FontFile { Antialiasing = TextServer.FontAntialiasing.Gray, Hinting = TextServer.Hinting.None };
         bool hasLee = LeeFont is { } lf && System.IO.File.Exists(lf) && lee.LoadDynamicFont(lf) == Error.Ok;
