@@ -63,7 +63,7 @@ namespace I76.Sim.Collision
                 // the bounds too: a Refresh that leaves no geometry keeps the last ones (they still place the root for a splash)
                 .Saved(nameof(Centre), nameof(Radius), nameof(BoundRadius))
                 .Derived(geometry, nameof(_intact), nameof(_uncollapsed), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres), nameof(MeshBounds))
-                .Derived("whether every node is a sign, from the node types, kept for the node count it was found at", nameof(_sign), nameof(_signNodes))
+                .Transient("a cache of whether every node is a sign (from the node types), found again when asked", nameof(_sign), nameof(_signNodes))
                 .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
                     nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck));
             a.For<StructureNode>()
@@ -76,7 +76,7 @@ namespace I76.Sim.Collision
             a.For<StaticWorld>()
                 .Saved(nameof(StaticWorld.Objects))
                 .Derived("the placements with a gate, found when first asked for", "_gated")
-                .Derived("the object pass's grid over the placements' bounds, built again when they change", "_index");
+                .Transient("the object pass's grid over the placements' bounds, a cache built again when they change", "_index");
         }
 
         /// <summary>As the mission build left it: nothing hit, destroyed, swapped or slid.</summary>
