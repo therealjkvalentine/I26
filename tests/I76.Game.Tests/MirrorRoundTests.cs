@@ -154,6 +154,53 @@ public class MirrorRoundTests
         Assert.All(around, q => Assert.InRange(GlassRound.Distance(core, q), R - 1e-4f, R / MathF.Cos(MathF.PI / 16) + 1e-4f));
     }
 
+    /// <summary>
+    /// The ring is the same width on screen all round: a glass seen foreshortened (its picture stretched 1.6 times across and
+    /// sheared, as the Piranha's left glass is near the screen's edge) has its glass's edge one ring width inside the outer edge
+    /// everywhere, edge middles and corners, within a quarter of a pixel; the ring as a band of picture units drew its sides
+    /// 1.6 times as wide as its top.
+    /// </summary>
+    [Fact]
+    public void TheRingIsTheSameWidthOnScreenAllRound()
+    {
+        var rect = GlassRound.Hull([new(0, 0), new(1.5f, 0), new(1.5f, 1), new(0, 1)]);
+        var (core, r) = GlassRound.Shape(rect, GlassRound.DefaultShare)!.Value;
+        float rimW = MirrorRim.RimShare, rimOut = GlassRound.DefaultRimOut * rimW;
+        // screen pixels from picture units: 400 px per unit up, stretched and sheared across
+        float k = 400, ax = 1.6f * k, sh = 0.3f * k;
+        Vector2 ToScreen(Vector2 p) => new(ax * p.X + sh * p.Y, k * p.Y);
+        Vector2 ToPicture(Vector2 s) => new((s.X - sh * s.Y / k) / ax, s.Y / k);
+        float Sd(Vector2 s) => GlassRound.Distance(core, ToPicture(s)) - r;
+        float pxPerUnit = MathF.Sqrt(ax * k);
+        (float In, float Width) At(Vector2 s)
+        {
+            // the screen gradient as the shader's dFdx / dFdy take it, a pixel apart
+            float g = new Vector2(Sd(s + new Vector2(0.5f, 0)) - Sd(s - new Vector2(0.5f, 0)), Sd(s + new Vector2(0, 0.5f)) - Sd(s - new Vector2(0, 0.5f))).Length();
+            return GlassRound.RingOnScreen(Sd(s), g, rimOut, rimW, pxPerUnit);
+        }
+        var mid = ToScreen(new Vector2(0.75f, 0.5f));
+        float width = (rimOut + rimW) * pxPerUnit;
+        Assert.InRange(width, 7, 15);
+        var seen = new List<float>(); var before = new List<float>();
+        for (int deg = 0; deg < 360; deg += 3)
+        {
+            var dir = new Vector2(MathF.Cos(MathF.PI * deg / 180), MathF.Sin(MathF.PI * deg / 180));
+            // the outer edge along the ray from the middle, then a ring's width inward along the outline's normal on screen
+            float lo = 0, hi = 2000;
+            for (int i = 0; i < 60; i++) { float m = (lo + hi) / 2; if (At(mid + dir * m).In > 0) lo = m; else hi = m; }
+            var edge = mid + dir * lo;
+            var n = new Vector2(Sd(edge + new Vector2(0.01f, 0)) - Sd(edge - new Vector2(0.01f, 0)), Sd(edge + new Vector2(0, 0.01f)) - Sd(edge - new Vector2(0, 0.01f))).Normalized();
+            for (lo = 0, hi = 3 * width; hi - lo > 1e-4f;) { float m = (lo + hi) / 2; if (At(edge - n * m).In < At(edge - n * m).Width) lo = m; else hi = m; }
+            seen.Add(lo);
+            Assert.InRange(lo, width - 0.25f, width + 0.25f);
+            // the band of picture units it replaces: the glass from rimW inside the rounded outline
+            for (lo = 0, hi = 6 * width; hi - lo > 1e-4f;) { float m = (lo + hi) / 2; if (Sd(edge - n * m) > -rimW) lo = m; else hi = m; }
+            before.Add(lo);
+        }
+        Assert.True(seen.Max() - seen.Min() < 0.5f);
+        Assert.True(before.Max() / before.Min() > 1.4f, $"{before.Min()}..{before.Max()}");
+    }
+
     /// <summary>The pane's plane from its corners' picture coordinates: recovered exactly for a flat pane, and a point past its outline lands in it.</summary>
     [Fact]
     public void ThePlaneMapsPictureCoordinatesOntoThePane()
