@@ -1469,6 +1469,7 @@ public partial class Cockpit : Node
         _mirrorFlat = new Godot.Environment { BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = MirrorBackground,
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
+        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1") _mirrorMat.SetShaderParameter("rim_key", true);
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {
@@ -1524,18 +1525,20 @@ public partial class Cockpit : Node
     }
 
     /// <summary>
-    /// The added side glasses (side_mirrors=on, a car without door-mirror glass): the rear art's ends, their frame narrowed to 0.3 of its
-    /// width as the door mirrors' rim is (MirrorRim): the glass is the outline drawn in by that, its corners the door mirrors' rounding
+    /// The added side glasses (side_mirrors=on, a car without door-mirror glass): the rear art's ends, their frame narrowed to 0.15 of its
+    /// width as the door mirrors' rim is (MirrorRim.Narrowing): the glass is the outline drawn in by that, its corners the door mirrors' rounding
     /// (side_mirror_round: that share of the outline's height, at most half of it).
     /// </summary>
     private void AddedFrame(ShaderMaterial sm)
     {
         if (_fit is not { } fit) return;
         var (o, g) = fit;
-        float t = (g.TL.Y - o.TL.Y) * MirrorRim.RimShare / (MirrorRim.RearFrameShare * 2f / 3f);   // 0.3 of the frame's width (I76_MIRROR_RIM=wide: two thirds)
+        float t = (g.TL.Y - o.TL.Y) * MirrorRim.RimShare / (MirrorRim.RearFrameShare * 2f / 3f);   // MirrorRim.Narrowing of the frame's width (I76_MIRROR_RIM=wide: two thirds)
         float height = o.BL.Y - o.TL.Y;
         float r = Mathf.Clamp(GlassRound.Share(GlassRoundHook, _glassRoundSetting) / 100f * height, 1f, 0.49f * height), ri = Mathf.Max(r - t, 1f);
         Shape(sm, MirrorRound.Shrink(o, r), r, MirrorRound.Shrink(o, t + ri), ri, true);
+        // the shader draws the frame t wide as seen across the glass and that many screen pixels all round
+        sm.SetShaderParameter("frame_t", t);
     }
 
     /// <summary>The mirror's fill as made for the art served now (kept with a look's art, LookArt).</summary>
@@ -1784,6 +1787,20 @@ public partial class Cockpit : Node
         _sideMatR = (ShaderMaterial)_mirrorMat.Duplicate();
         _sideMatL.SetShaderParameter("art_crop", true);
         _sideMatR.SetShaderParameter("art_crop", true);
+        if (_mirrorOriginal.Rgba is { } rgba)
+        {
+            var (fr, fg, fb) = MirrorRim.FrameColour(rgba, _mirrorOriginal.W, _mirrorOriginal.H);
+            foreach (var sm in new[] { _sideMatL, _sideMatR }) sm.SetShaderParameter("rim_colour", new Color(fr / 255f, fg / 255f, fb / 255f));
+        }
+        // the quad's plane by the art's pixels the shader's frame is measured in (each half shows a quarter of the art across)
+        var uvs = arrays[(int)Mesh.ArrayType.TexUV].AsVector2Array();
+        var art = _mirrorOriginal.Rgba is not null ? new Vector2(_mirrorOriginal.W, _mirrorOriginal.H) : new Vector2(256, 64);
+        if (uvs.Length == half.Length && GlassRound.Plane([.. half.Select((p, i) => (new Vector2(uvs[i].X * 0.5f * art.X, uvs[i].Y * art.Y), p))]) is { } plane)
+            foreach (var sm in new[] { _sideMatL, _sideMatR })
+            {
+                sm.SetShaderParameter("pane_mid", half.Aggregate(Vector3.Zero, (a, b) => a + b) / half.Length);
+                sm.SetShaderParameter("pane_a", plane.A); sm.SetShaderParameter("pane_b", plane.B); sm.SetShaderParameter("pane_half", new Vector2(0.25f * art.X, 0.5f * art.Y));
+            }
         AddedFrame(_sideMatL);
         AddedFrame(_sideMatR);
         _sideL = new MeshInstance3D { Mesh = side, MaterialOverride = _sideMatL, Layers = CarNode.CockpitLayer, Name = "MirrorL" };
@@ -1960,6 +1977,9 @@ public partial class Cockpit : Node
         m.SetShaderParameter("rim_dark", rimOut.Dark);
         m.SetShaderParameter("pane_hull", hull);
         m.SetShaderParameter("pane_hull_n", g.Hull.Count);
+        var (po, pa, pb) = g.Plane!.Value;
+        // the ring as many screen pixels wide all round as it is across the glass as seen (the shader's px_per_unit)
+        m.SetShaderParameter("pane_mid", po + pa * (g.Aspect / 2) + pb / 2); m.SetShaderParameter("pane_half", new Vector2(g.Aspect / 2, 0.5f)); m.SetShaderParameter("pane_a", pa); m.SetShaderParameter("pane_b", pb);
         if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
         {
             g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, rimOut.Dark ? [.. GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), .. g.Hull.Select(q => q + (q - g.Hull.Aggregate(Vector2.Zero, (a, b) => a + b) / g.Hull.Count).Normalized() * GrowMargin)]

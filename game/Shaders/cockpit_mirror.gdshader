@@ -50,6 +50,19 @@ uniform float rim_out = 0.0;
 uniform bool rim_dark = false;
 uniform vec2 pane_hull[12];
 uniform int pane_hull_n = 0;
+// the ring the same width on screen all round (perspective stretches a glass near the screen's edge across its sight line; the
+// sides of the Piranha's left glass drew half as wide again as its top): the outer edge is the rounded outline widened by rim_out,
+// the glass's edge that many screen pixels inside it, the ring's width (rim_out + rim_w) at the glass's scale as seen. The added
+// glasses' frame the same (frame_t of the art's pixels). pane_mid, pane_a, pane_b: the glass's plane in the mesh's
+// frame, its middle and the steps of one shape unit across and up (a picture unit of u times pane_aspect, v; or an art pixel), and
+// half its box in those units
+uniform vec3 pane_mid;
+uniform vec2 pane_half = vec2(0.5);
+uniform vec3 pane_a;
+uniform vec3 pane_b;
+uniform float frame_t = 0.0;
+// screen pixels per shape unit across the glass's outline as seen (the mean round it): the same at every vertex
+varying flat float px_per_unit;
 
 // the modern look's rounder corners (MirrorRound, I76_MIRROR_ROUND): the frame's outline and the glass's, each a trapezoid in the art's
 // pixels shrunk by its corner's radius; the rounded shape is within that radius of it
@@ -61,6 +74,9 @@ uniform float outer_r = 0.0;
 uniform float inner_r = 0.0;
 // the added side glasses: the glass is the inner shape alone (the art's frame narrowed to the inner shape's inset), not the art's glass
 uniform bool glass_from_shape = false;
+// I76_MIRROR_RIM_KEY: the side mirrors' rim (the door glasses' moulding, the added glasses' frame) flat magenta, for measuring its width
+uniform bool rim_key = false;
+const vec3 KEY = vec3(1.0, 0.0, 1.0);
 
 // the signed distance to a convex quad (negative inside), corners in order
 float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
@@ -127,6 +143,43 @@ float view_x(float u) {
 	return 1.0 - m;
 }
 
+vec2 screen_px(vec3 local, mat4 modelview, mat4 projection, vec2 viewport) {
+	vec4 c = projection * (modelview * vec4(local, 1.0));
+	return c.xy / c.w * 0.5 * viewport;
+}
+
+void vertex() {
+	px_per_unit = 0.0;
+	if ((pane && rim_round) || (glass_from_shape && round_corners)) {
+		// the scale across the outline at eight points round the glass's box (its edges' middles and corners), averaged, weighed
+		// by how far they are on screen (fading out over 3 % of the window past its edge): the mean width a band of even
+		// picture units drew round the glass as seen, so the even ring is that band's width there scaled, and a glass cut by
+		// the window's edge (the Piranha's left at the foot of a 21:9 one) is measured where it is seen
+		const float STEP = 0.01;
+		float sum = 0.0, wsum = 0.0, mid_scale = 0.0;
+		for (int i = -1; i <= 1; i++)
+			for (int j = -1; j <= 1; j++) {
+				vec3 at = pane_mid + pane_a * (float(i) * pane_half.x) + pane_b * (float(j) * pane_half.y);
+				vec4 c = PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(at, 1.0));
+				if (c.w <= 0.0) continue;
+				vec2 s = c.xy / c.w * 0.5 * VIEWPORT_SIZE;
+				vec2 su = (screen_px(at + pane_a * STEP, MODELVIEW_MATRIX, PROJECTION_MATRIX, VIEWPORT_SIZE) - s) / STEP;
+				vec2 sv = (screen_px(at + pane_b * STEP, MODELVIEW_MATRIX, PROJECTION_MATRIX, VIEWPORT_SIZE) - s) / STEP;
+				float k = sqrt(abs(su.x * sv.y - su.y * sv.x));
+				if (i == 0 && j == 0) { mid_scale = k; continue; }
+				// at an edge's middle or a corner, the scale across the outline there (the glass's units across it per screen
+				// pixel, inverted): the width a band of even picture units drew there before
+				vec2 n = normalize(vec2(float(i), float(j)));
+				mat2 jac = mat2(su, sv);
+				if (abs(determinant(jac)) > 1e-6) k = 1.0 / length(transpose(inverse(jac)) * n);
+				vec2 out_by = max(abs(s) - 0.5 * VIEWPORT_SIZE, vec2(0.0)) / (0.03 * VIEWPORT_SIZE);
+				float wt = clamp(1.0 - max(out_by.x, out_by.y), 0.0, 1.0);
+				sum += k * wt; wsum += wt;
+			}
+		px_per_unit = wsum > 0.0 ? sum / wsum : mid_scale;
+	}
+}
+
 void fragment() {
 	if (hidden) discard;
 	vec2 auv = art_uv(UV);
@@ -137,11 +190,14 @@ void fragment() {
 		if (pane_round && rim_round) {
 			vec2 p = vec2(UV.x * pane_aspect, UV.y);
 			float sd = sd_core(p) - pane_r;
+			// screen pixels in from the ring's outer edge: the outline's distance over its gradient on screen
+			float px = (rim_out - sd) / max(length(vec2(dFdx(sd), dFdy(sd))), 1e-7);
+			float w = max((rim_out + rim_w) * px_per_unit, 1.0);
 			// the moulding across the whole ring: 0 at its outer edge, 1 at the glass's
-			float t = clamp((rim_out - sd) / (rim_out + rim_w), 0.0, 1.0);
+			float t = clamp(px / w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
-			float ring = rounded(sd - rim_out);
+			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
+			float ring = clamp(px + 0.5, 0.0, 1.0);
 			ALPHA = rim_dark ? max(ring, rounded(sd_hull(p))) : ring;
 			if (ALPHA <= 0.0) discard;
 		} else if (pane_round) {
@@ -149,8 +205,20 @@ void fragment() {
 			// the moulding across the rim: 0 at the rounded shape's edge, 1 at the glass's
 			float t = clamp(-sd / rim_w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, rounded(sd + rim_w));
 		}
+	} else if (smooth_edge && !faithful && glass_from_shape && round_corners) {
+		// the added glasses: the rounded outline, the frame frame_t of the art's pixels wide at the glass's scale as seen and that
+		// many screen pixels all round (the art's own outline and its frame's narrow foot not used)
+		float so = sd_quad(auv * art_px, outer_tl, outer_tr, outer_br, outer_bl) - outer_r;
+		float px = -so / max(length(vec2(dFdx(so), dFdy(so))), 1e-7);
+		float w = max(frame_t * px_per_unit, 1.0);
+		float solid = clamp(px + 0.5, 0.0, 1.0);
+		if (solid <= 0.0) discard;
+		// the frame's own colours where the art has its frame, the rear frame's mean colour where the rounded outline reaches past it
+		vec3 frame = mix(rim_colour, texture(fill, auv).rgb, cut(texture(edge, auv).r));
+		ALBEDO = mix(rim_key ? KEY : frame, texture(view, vuv).rgb, clamp(px - w + 0.5, 0.0, 1.0));
+		ALPHA = solid;
 	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
 		float solid = cut(e.r), g = cut(e.g);
@@ -164,7 +232,7 @@ void fragment() {
 			float inner = rounded(sd_quad(p, inner_tl, inner_tr, inner_br, inner_bl) - inner_r);
 			glass = glass_from_shape ? inner : min(glass, inner);
 		}
-		ALBEDO = mix(texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
+		ALBEDO = mix(rim_key && glass_from_shape ? KEY : texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
 		ALPHA = solid;
 	} else {
 		vec4 a = texture(art, auv);

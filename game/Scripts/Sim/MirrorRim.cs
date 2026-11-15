@@ -6,16 +6,19 @@ namespace I76.Game.Sim;
 /// A rim round a side mirror's glass (docs/deviations.md, Side-view mirrors): the moulding inside the housing's edge. The pane's
 /// outline (the edges its faces do not share) is the housing's edge; it is drawn inward in the pane's plane by the rim's width, over
 /// the glass's outer band, the ring between the two outlines as triangles, so the glass shows inside the lip. The rear mirror's own
-/// frame is 6 of its art's 64 rows, about a tenth of its height; the side mirrors' rim is a fifth of that in the glass's own
-/// height (RimShare: two thirds of it until a playtest asked for a rim 70 % narrower), the same width on every edge (a corner's
-/// mitre up to twice it), and its colour the rear frame's. The rim's UV.y is 0 at the housing's edge and 1 at the glass, for the bevel.
+/// frame is 6 of its art's 64 rows, about a tenth of its height; the side mirrors' rim is a tenth of that in the glass's own
+/// height (RimShare: two thirds of it until a playtest asked for a rim 70 % narrower, 0.3 of the two thirds until one asked for it
+/// half as wide again), the same width on every edge (a corner's mitre up to twice it), and its colour the rear frame's. The rim's
+/// UV.y is 0 at the housing's edge and 1 at the glass, for the bevel.
 /// </summary>
 public static class MirrorRim
 {
     /// <summary>The rear mirror's frame: 6 rows of its art's 64.</summary>
     public const float RearFrameShare = 6f / 64f;
-    /// <summary>The side mirrors' rim as a share of the glass's height: 0.3 of two thirds of the rear frame's (I76_MIRROR_RIM=wide: the two thirds, for a before | after).</summary>
-    public static readonly float RimShare = RearFrameShare * 2f / 3f * (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM") == "wide" ? 1f : 0.3f);
+    /// <summary>The side mirrors' rim's share of the rear frame's two thirds: 0.15 (0.3 until a playtest asked for the border half as wide).</summary>
+    public const float Narrowing = 0.15f;
+    /// <summary>The side mirrors' rim as a share of the glass's height: <see cref="Narrowing"/> of two thirds of the rear frame's (I76_MIRROR_RIM=wide: the two thirds, for a before | after).</summary>
+    public static readonly float RimShare = RearFrameShare * 2f / 3f * (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM") == "wide" ? 1f : Narrowing);
 
     /// <summary>The outline of a set of faces: the edges used by one face only, chained into loops (each a list of corners in order).</summary>
     public static List<List<Vector3>> Outline(IReadOnlyList<Vector3[]> faces, float tolerance = 1e-4f)
