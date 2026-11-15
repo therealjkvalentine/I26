@@ -46,15 +46,18 @@ public partial class TargetIndicator : Control
 
     public override void _Process(double delta) => QueueRedraw();
 
-    /// <summary>The target's health as a 0–1 fraction for the bar (the health percentage: HealthGauge); none left once it is dead.</summary>
-    private static float Health(Vehicle v) => Combat.IsDead(v) ? 0 : I76.Sim.Damage.HealthGauge.Fraction(v);
+    /// <summary>
+    /// The target's health as a 0–1 fraction for the bar (the health percentage: HealthGauge); none left once it is dead. A network
+    /// client's (its combat a mirror's) other cars read the original's network step (HealthGauge.Bar).
+    /// </summary>
+    private float Health(Vehicle v, Vehicle me) => Combat.IsDead(v) ? 0 : I76.Sim.Damage.HealthGauge.Bar(v, Combat.RemoteSim && v != me);
 
     public override void _Draw()
     {
         if (Player() is not { } p || Combat.RadarTarget.GetValueOrDefault(p) is not { } t || Combat.IsDead(t)) return;
         var cam = GetViewport().GetCamera3D();
         if (cam is null) return;
-        if (Look1997?.On() == true) { Look1997.Draw(this, cam, t, Health(t), Mirror); return; }
+        if (Look1997?.On() == true) { Look1997.Draw(this, cam, t, Health(t, p), Mirror); return; }
         var origin = Origin();
         int team = Combat.Team(t), mine = Combat.Team(p);
         var col = Combat.IsDead(t) ? new Color(0.5f, 0.5f, 0.5f) : team == 0 ? new Color(0.85f, 0.85f, 0.85f) : team == mine ? new Color(0.35f, 1f, 0.45f) : new Color(1f, 0.3f, 0.2f);
@@ -106,7 +109,7 @@ public partial class TargetIndicator : Control
 
         // the health bar over the box, the original's size and place (TargetHealthBar) at the window's scale; the distance under it
         var outline = new Color(0, 0, 0, 0.55f);
-        float hp = TargetHealthBar.Percent(Health(t));
+        float hp = TargetHealthBar.Percent(Health(t, p));
         var (outer, inner) = TargetHealthBar.Rects(hp, (int)(sc.X / k) * k, y0, k);
         // white unhurt, then red, yellow and green by thirds (the colours the original builds)
         var fill = TargetHealthBar.Band(hp) switch { 3 => new Color(1f, 1f, 1f), 2 => new Color(0.32f, 0.61f, 0.32f), 1 => new Color(0.8f, 0.78f, 0.13f), _ => new Color(0.82f, 0f, 0.16f) };

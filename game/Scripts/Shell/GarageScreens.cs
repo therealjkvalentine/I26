@@ -61,8 +61,13 @@ public abstract class GarageBase : TripScreen
 
     protected static bool In(Vector2I m, (int X0, int X1, int Y0, int Y1) r) => r.X0 < m.X && m.X < r.X1 && r.Y0 < m.Y && m.Y < r.Y1;
 
+    /// <summary>
+    /// A notice over the screen; closed, it puts the clean background back under itself (179..479, 194..304), so without a next
+    /// step the screen draws itself again: FIELD SALVAGE's weapons list runs under it from its tenth row (CAN'T SALVAGE FROM A DREAM
+    /// after T04 left the tenth and eleventh entries cut to their first pixels).
+    /// </summary>
     protected void Notice(int sprite, Action? then = null) =>
-        Shell.Modal(new NoticePopup { Sprite = sprite, Ok = new Rect2I(119, 61, 42, 16), Closed = then });
+        Shell.Modal(new NoticePopup { Sprite = sprite, Ok = new Rect2I(119, 61, 42, 16), Closed = then ?? Repaint });
 
     // ---- the equipment tooltips (the port's; PartTips): a part row explains its part, beside the row
 

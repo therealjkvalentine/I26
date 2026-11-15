@@ -95,6 +95,32 @@ public class TurretSlewTests
         Assert.Equal(Dt * rate, w.AimYaw, 5);
     }
 
+    /// <summary>
+    /// What the Turrets row's help says, measured: the time a car's turret takes to swing half a turn onto a target straight
+    /// behind, ticking at 20 Hz. 1998: 1.85 s whole, 2.11 s at half health, 2.46 s wrecked (offline). 1997 CD: 2.09 s whole,
+    /// 4.19 s at half health, never when wrecked. Online both take their whole turret's time whatever the damage.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, 45, 1.848f)]
+    [InlineData(false, false, 22, 2.112f)]
+    [InlineData(false, false, 0, 2.464f)]
+    [InlineData(true, false, 45, 2.094f)]
+    [InlineData(true, false, 22, 4.189f)]
+    [InlineData(true, false, 0, float.PositiveInfinity)]
+    [InlineData(false, true, 0, 1.848f)]
+    [InlineData(true, true, 0, 2.094f)]
+    public void HalfATurnTakes(bool cd1997, bool network, int hp, float seconds)
+    {
+        // just off dead astern, so the turret swings one way
+        var (c, w) = Rig(network, new Vector3(-0.5f, 0, -50), hp, cd1997);
+        if (hp == 22) w.MaxHp = 44;   // exactly half
+        float t = 0;
+        for (int k = 0; k < 400 && !w.OnTarget; k++) { c.Frame(Dt); t += Dt; }
+        if (float.IsPositiveInfinity(seconds)) { Assert.False(w.OnTarget); Assert.Equal(0f, w.AimYaw); return; }
+        // on target within 2 degrees: up to a tick earlier than the full half turn
+        Assert.InRange(t, seconds * (1 - 0.0349f / MathF.PI) - Dt - 0.01f, seconds + Dt);
+    }
+
     /// <summary>A helicopter's turrets turn four times as fast in both builds: 6.8 and 6.0.</summary>
     [Fact]
     public void AHelicoptersTurretsTurnFourTimesAsFast()

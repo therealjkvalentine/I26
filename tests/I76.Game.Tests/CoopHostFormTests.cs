@@ -56,12 +56,23 @@ public class CoopHostFormTests
                 var t = HostFormHelp.Text(f.Id)!;
                 // the tooltip starts with the setting's name, in a player's words, and stays a short sentence or two
                 Assert.StartsWith(f.Label.Split(' ')[0], t.ToUpperInvariant());
-                Assert.InRange(t.Length, 10, 200);
+                // (Turrets has Play Options' text, which says what each build does in play)
+                Assert.InRange(t.Length, 10, f.Id == 44 ? 400 : 200);
                 Assert.All(t, ch => Assert.InRange(ch, ' ', '~'));
                 Assert.DoesNotContain("=", t);   // no config key shown to the player
             }
         // upstream's ids: 41 Co-op Scaling (EXTRA ENEMIES), 40 Co-op Damage (DAMAGE TAKEN)
         Assert.Contains("per extra player", HostFormHelp.Text(41));
         Assert.Contains("x1 the original's", HostFormHelp.Text(40));
+    }
+
+    /// <summary>The Turrets row says the same wherever it is, and what each value does in play.</summary>
+    [Fact]
+    public void TheTurretsHelpIsPlayOptionsTextAndSaysWhatChanges()
+    {
+        var t = MenuTips.Of("Turrets")!;
+        Assert.Equal(t, HostFormHelp.Text(44));
+        foreach (var part in new[] { "1998 (GOG, Nitro Pack): half a turn in 1.8 s", "1997 CD: half a turn in 2.1 s", "wrecked one stands still", "Online: the host's choice" })
+            Assert.Contains(part, t);
     }
 }

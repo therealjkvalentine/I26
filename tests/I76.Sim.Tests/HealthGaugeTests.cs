@@ -29,4 +29,29 @@ public class HealthGaugeTests
 
     [Fact]
     public void AnythingWithoutAStateReadsWhole() => Assert.Equal(1f, HealthGauge.Fraction(new Vehicle()));
+
+    /// <summary>A network game's remote car: the original's step from its owner's reading, 100 above 66.67, 66.67 above 33.33, else 33.33.</summary>
+    [Theory]
+    [InlineData(1f, 1f)]
+    [InlineData(0.6668f, 1f)]
+    [InlineData(0.6667f, 0.6667f)]
+    [InlineData(0.34f, 0.6667f)]
+    [InlineData(0.3333f, 0.3333f)]
+    [InlineData(0.006f, 0.3333f)]   // brakes scratched: the unscaled branch
+    [InlineData(0f, 0.3333f)]
+    public void ARemoteCarReadsTheNetworkStep(float full, float shown) => Assert.Equal(shown, HealthGauge.Remote(full));
+
+    [Fact]
+    public void OnlyARemoteCarIsStepped()
+    {
+        var v = new Vehicle();
+        v.Health = new VehicleDamage(v, false);
+        v.Health.Slots[9] = new BrakePart(v.P, 100) { Hp = 60 };
+        Assert.Equal(0.006f, HealthGauge.Bar(v, remote: false), 4);
+        Assert.Equal(0.3333f, HealthGauge.Bar(v, remote: true));
+        var heli = new Vehicle { Heli = new HeliState() };
+        heli.Heli.SetPool(1000);
+        heli.Heli.Hp = 100;
+        Assert.Equal(0.1f, HealthGauge.Bar(heli, remote: true), 4);
+    }
 }

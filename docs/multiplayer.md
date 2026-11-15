@@ -1608,7 +1608,12 @@ compact:
     change together (`VehicleDamage.ArmourStep`), so one number writes both;
   - engine, suspension and brake health, a byte each (HP/max × 255; 0 only
     when gone, 255 only when whole). With the zones, that is all the target
-    box's bar reads (`VehicleDamage.BarRatio`);
+    box's bar reads. It shows another car in the original's network steps
+    (`HealthGauge.Bar`): the original's health percentage of a remote car is
+    the step its owner sends, 100 above 66.67, 66.67 above 33.33, else 33.33,
+    so the bar never goes below a third, where read in full a car with its
+    brakes, engine or suspension scratched is below 1 % (the unscaled branch
+    kept offline) and its bar a pixel or two wide;
   - turret aim.
 - **The recipient's own car** also carries the radar target, the
   speedometer, the selection and link group, each weapon's ammo and health,
