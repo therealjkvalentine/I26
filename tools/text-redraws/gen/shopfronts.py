@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Writes signs-cx_1bdf1.json and signs-cg_1b1f2.json: the small print of two shop signs that the upscale reads wrong. Dear Jane
+"""Writes signs-cx_1bdf1.json, signs-cg_1b1f2.json and signs-cy_1sg23.json: the lettering of three shop signs that the upscale
+reads wrong. Dear Jane
 Tractors' board (bcxwhse1) comes out "AUTHORIZED DEALER - SALES B SERVICE" and its STANFILL above the name blurs; Krager Mags'
-sign (bcgarag2) melts PERFORMANCE WHEELS AND SUSPENSION under the name into blots.
+sign (bcgarag2) melts PERFORMANCE WHEELS AND SUSPENSION under the name into blots; the warehouse's 32 x 16 OFFICE sign comes out
+0FFICE with blots in the letters.
 
 Each line is set from a font on its painted ink box, read off the original to a fraction of a texel (the r8 lanes' rule): Dear
 Jane's condensed capitals in Archivo Narrow Bold, the name and the two small lines in the name's dark red; Krager's slanted white
-capitals in Arimo Bold emboldened 0.2 texel a side, slanted as painted. The painted letters are taken off (with the upscale's soft edge, made opaque) and
+capitals in Arimo Bold emboldened 0.2 texel a side, slanted as painted; OFFICE's heavy condensed
+capitals in Anton. The painted letters are taken off (with the upscale's soft edge, made opaque) and
 filled from the board round them.
 
     python3 tools/text-redraws/gen/shopfronts.py
@@ -24,6 +27,8 @@ SIGNS = {
     "cg_1b1f2": ("Krager Mags' sign (bcgarag2)", ("above", 120, 110), [
         ("PERFORMANCE WHEELS", (35.0, 26.28, 93.0, 31.0), ARIMO, [250, 250, 252], 0.2),
         ("AND SUSPENSION", (40.35, 31.74, 85.13, 37.0), ARIMO, [250, 250, 252], 0.2)]),
+    "cy_1sg23": ("the Fletcher & Sons warehouse's small OFFICE sign (bcywhse1, T08)", ("above", 150, 140), [
+        ("OFFICE", (3.82, 3.24, 27.24, 12.0), {"font": "Anton"}, [252, 246, 246], 0)]),
 }
 
 
