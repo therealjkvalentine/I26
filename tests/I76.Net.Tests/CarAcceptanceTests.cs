@@ -56,9 +56,9 @@ public class CarAcceptanceTests(ITestOutputHelper output)
 
     private static string Rattler(MeleeHost h) => h.OfferedModels.First(m => HiddenContent.ModelName(h.Vfs, m).Equals("Phaedra Rattler", StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The garage moves armour between zones, chassis and the pool, never adds: any such split of a stock total passes, one point more does not.</summary>
+    /// <summary>The garage moves armour between zones, chassis and the pool, never adds: any such split of a stock total passes. One point more passes too: the stock total is a guideline (the over-stock amount is reported), only a negative zone is refused.</summary>
     [Fact]
-    public void AGarageMaxedVariantPassesAndOnePointMoreDoesNot()
+    public void AGarageMaxedVariantPassesAndOnePointMoreIsOnlyReported()
     {
         foreach (var install in Installs())
         {
@@ -74,7 +74,10 @@ public class CarAcceptanceTests(ITestOutputHelper output)
                 car.Armour[0] = total;
                 Assert.True(host.CheckJoin(stem + "9.vcf", car.ToVcf()) is not { } why || !why.Contains("armour"), $"{stem} maxed: {host.CheckJoin(stem + "9.vcf", car.ToVcf())}");
                 car.Armour[0]++;
-                Assert.Contains("armour beyond", host.CheckJoin(stem + "9.vcf", car.ToVcf()) ?? "");
+                Assert.True(host.CheckJoin(stem + "9.vcf", car.ToVcf()) is not { } over || !over.Contains("armour"), $"{stem} one over: {host.CheckJoin(stem + "9.vcf", car.ToVcf())}");
+                Assert.Equal(1, I76.Sim.Trip.CarConfigCheck.ArmourOverStock);
+                car.Armour[0] = -1;
+                Assert.Contains("negative armour", host.CheckJoin(stem + "9.vcf", car.ToVcf()) ?? "");
             }
         }
     }

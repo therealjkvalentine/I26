@@ -175,7 +175,7 @@ public static class GlassRound
 
     // ---- the moulding's outer edge rounded too ([port] side_mirror_rim_out) ----
 
-    /// <summary>[port] side_mirror_rim_out's default: the moulding's outer edge this many of its own widths beyond the rounded glass's outline.</summary>
+    /// <summary>[port] side_mirror_rim_out's default: the moulding's outer edge this many of its widths before the halving (MirrorRim.OuterShare) beyond the rounded glass's outline.</summary>
     public const int DefaultRimOut = 2;
     /// <summary>The largest growth offered, in the moulding's widths.</summary>
     public const int MaxRimOut = 6;
@@ -215,11 +215,12 @@ public static class GlassRound
     /// Where a pixel lies in the ring, as cockpit_mirror.gdshader draws it with the outer edge rounded: screen pixels in from the outer
     /// edge (the rounded outline widened by <paramref name="rimOut"/>; negative outside it), the outline's distance <paramref name="sd"/>
     /// over its gradient on screen (<paramref name="unitsPerPx"/>, picture units a screen pixel along it), and the ring's width in
-    /// screen pixels, its picture width at the glass's scale as seen (<paramref name="pxPerUnit"/>, the mean scale across its outline round it). The glass
-    /// shows from that width in, so its edge is the outer edge inset by one width all round, however the glass is foreshortened.
+    /// screen pixels, its picture width <paramref name="ringW"/> (MirrorRim.RingWidth) at the glass's scale as seen (<paramref name="pxPerUnit"/>,
+    /// the mean scale across its outline round it). The glass shows from that width in, so its edge is the outer edge inset by one
+    /// width all round, however the glass is foreshortened.
     /// </summary>
-    public static (float In, float Width) RingOnScreen(float sd, float unitsPerPx, float rimOut, float rimW, float pxPerUnit) =>
-        ((rimOut - sd) / Math.Max(unitsPerPx, 1e-7f), Math.Max((rimOut + rimW) * pxPerUnit, 1f));
+    public static (float In, float Width) RingOnScreen(float sd, float unitsPerPx, float rimOut, float ringW, float pxPerUnit) =>
+        ((rimOut - sd) / Math.Max(unitsPerPx, 1e-7f), Math.Max(ringW * pxPerUnit, 1f));
 
     /// <summary>The distance from a point to a convex counter-clockwise polygon, 0 inside it.</summary>
     public static float Distance(IReadOnlyList<Vector2> poly, Vector2 p)
