@@ -81,6 +81,8 @@ public sealed class CoopGroup
     public int ExtraEnemies { get; init; }
     /// <summary>Builds an enemy car's copy from its .vcf (an AI car's damage state, the night's lights), not placed.</summary>
     internal Func<string, Vehicle>? BuildEnemy { get; init; }
+    /// <summary>The primary paint of a car file's paint scheme (cached by the build), which a copy's respray stands clear of (<see cref="ExtraPaint"/>).</summary>
+    internal Func<string, I76.Formats.Imaging.ResprayPaint.PaintRef?>? SchemePaint { get; init; }
     /// <summary>Co-op Scaling made a copy of an enemy car (its car and .vcf): the server names it to the clients.</summary>
     public event Action<Vehicle, string>? Spawned;
     internal void RaiseSpawned(Vehicle v, string def) => Spawned?.Invoke(v, def);

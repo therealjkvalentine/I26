@@ -208,7 +208,8 @@ public sealed partial class ScriptHost : IFsmHost
         e.ShotTick = e.RammedTick = e.AttackedTick = -10;
         return true;
     }
-    public object? LastAttacker(object o, int kind) => kind switch { 0 => E(o).LastRammer, 1 => E(o).LastShooter, _ => E(o).LastAttacker };
+    /// <summary>whoRammed / whoShot / whoAttacked; a Co-op Scaling copy is named as its original (CoopExtras: the script never holds a copy).</summary>
+    public object? LastAttacker(object o, int kind) => ScriptHandle(kind switch { 0 => E(o).LastRammer, 1 => E(o).LastShooter, _ => E(o).LastAttacker });
     public bool KilledByPlayer(object o) => E(o).KilledByPlayer;
     public void SetSkill(object o, int a, int b) { foreach (var e in WithExtras(o)) { e.SkillA = a; e.SkillB = b; e.Ai.SetSkill(a, b); } }
     /// <summary>setAgg: aggression n−1, and the next order re-chooses the tactic.</summary>

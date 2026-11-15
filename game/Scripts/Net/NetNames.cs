@@ -13,6 +13,8 @@ namespace I76.Game.Net;
 /// player's car); on, every player's car that is alive and engine-on. The text is the player's name,
 /// centred above the car in the team's colour, when it is in front of the camera and on screen; it
 /// does not depend on the view. The key exists only in network games; the table starts on and the last choice is kept in shell.cfg (the original's started off and was not saved).
+/// The port's, in co-op: a radar target that is one of Co-op Scaling's copies of a mission car is tagged EXTRA and its number
+/// (<see cref="I76.Sim.Missions.ScriptHost.ExtraIndex"/>), with the toggle either way, so the mission's own car (no tag) is told from its copies.
 /// </summary>
 public partial class NetNames : CanvasLayer
 {
@@ -59,15 +61,19 @@ public partial class NetNames : CanvasLayer
     public IEnumerable<MirrorCar> Shown()
     {
         if (World.Own is not { } me) yield break;
+        var tc = World.Setup.Combat?.RadarTarget.GetValueOrDefault(me.Vehicle) is { } t ? World.Cars.Values.FirstOrDefault(c => c.Vehicle == t) : null;
         if (!All)
         {
-            if (World.Setup.Combat?.RadarTarget.GetValueOrDefault(me.Vehicle) is { } t && World.Cars.Values.FirstOrDefault(c => c.Vehicle == t) is { IsPlayer: true } tc && Visible(tc))
-                yield return tc;
+            if (tc is not null && (tc.IsPlayer || IsExtra(tc)) && Visible(tc)) yield return tc;
             yield break;
         }
         foreach (var c in World.Cars.Values)
             if (c != me && c.IsPlayer && c.Present && Visible(c)) yield return c;
+        if (tc is not null && IsExtra(tc) && Visible(tc)) yield return tc;
     }
+
+    /// <summary>A computer car that is a Co-op Scaling copy (its name carries the copy's number).</summary>
+    private static bool IsExtra(MirrorCar c) => !c.IsPlayer && I76.Sim.Missions.ScriptHost.ExtraIndex(c.Info.Name) > 0;
 
     private static bool Visible(MirrorCar c) => c.Vehicle.Flags.HasFlag(VehicleFlags.EngineOn) && !Combat.IsDead(c.Vehicle);
 
@@ -107,7 +113,8 @@ public partial class NetNames : CanvasLayer
             {
                 if (drawn >= MaxNames) break;
                 var v = c.Vehicle;
-                string name = c.Info.Owner < 0 ? I76.Formats.Shell.MeleeDrivers.ForFillEntity(c.Info.Name) ?? c.Info.Name
+                string name = c.Info.Owner < 0 ? I76.Sim.Missions.ScriptHost.ExtraIndex(c.Info.Name) is var xk and > 0 ? $"EXTRA {xk}"
+                        : I76.Formats.Shell.MeleeDrivers.ForFillEntity(c.Info.Name) ?? c.Info.Name
                     : c.Info.Name.Length > 0 ? c.Info.Name : $"player {c.Info.Owner + 1}";
                 var width = font.GetStringSize(name, HorizontalAlignment.Left, -1, fs).X;
                 var at = new Vector2(s.X - width / 2, s.Y - 9);

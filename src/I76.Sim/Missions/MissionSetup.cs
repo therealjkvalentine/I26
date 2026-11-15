@@ -396,6 +396,7 @@ public sealed partial class MissionSetup
                 for (int k = 0; k < seatCars.Count; k++)
                     seats.Add(new CoopSeat { Index = k, Entity = host.Of(seatCars[k].Car)!, CarFile = seatCars[k].Def });
                 bool shellCar = requested is { Length: > 0 };
+                var schemePaints = new Dictionary<string, I76.Formats.Imaging.ResprayPaint.PaintRef?>(StringComparer.OrdinalIgnoreCase);
                 host.Coop = new CoopGroup(seats, coop!.RespawnDelay, (vcf, seat) =>
                 {
                     // a respawn's car: as the seat's first (the damage state, a helicopter's block, the handguns, the night's lights)
@@ -416,6 +417,8 @@ public sealed partial class MissionSetup
                         if (night) v.Flags |= VehicleFlags.Lights;
                         return v;
                     },
+                    // its paint is told from the original's (ExtraPaint): the original's scheme's primary paint, read once per car file
+                    SchemePaint = vcf => schemePaints.TryGetValue(vcf, out var sp) ? sp : schemePaints[vcf] = ExtraPaint.SchemeOf(vfs, vcf),
                 };
             }
             ms = new MissionScript(program, host, rand, seed, nitroDriver, i76Lines);
@@ -489,6 +492,8 @@ public sealed partial class MissionSetup
             var host = ms.Host;
             host.Damage = damage;
             damage.Killed += v => { if (host.Of(v) is { } e) host.Died(e); };
+            // Co-op Scaling: a copy and its original never hurt each other (CoopExtras)
+            if (host.Coop is { ExtraEnemies: > 0 }) damage.Spares = host.Spares;
             if (game is not null) { damage.KilledBy += game.Credit; game.Explode = damage.Destroy; }
             damage.Recorded += (victim, attacker, kind, mask) =>
             {

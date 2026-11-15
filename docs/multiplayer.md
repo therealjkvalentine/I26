@@ -852,15 +852,27 @@ copies, the cap 1–3 (`CoopSetup.MaxExtraEnemies`), decided once, the first tim
 their sit or hide order on the first tick, so in a game that started from its lobby the copies are there from the start; a game
 whose players came later has the copies of the humans present when each car was first ordered). A copy is the same car file
 (an AI car's damage state, the night's lights) placed beside the original by the formation's rule (`SpawnSpace.Beside`), facing and
-moving as it does, with its skill and aggression. Every order the script gives the original goes to its living copies in the same
-tick, a human target or follow reference taken as the human nearest the copy (`NearestHuman`); its settings (skill, aggression,
-avoidance, attacker cap, start, lights, siren) and a teleport (beside it again) too. Once the original is dead or gone, each living
-copy attacks the human nearest it every tick until destroyed (`ScriptHost.ExtrasFrame`).
+moving as it does, with its skill and aggression, in a respray of its own (`ExtraPaint`: the k-th of the garage's classic paints that
+stands clear of the original's colour, its respray's or its paint scheme's primary paint as the respray reads it from the body
+textures; the original keeps the mission's paint), and named after the original with its number (`ScriptHost.ExtraName`, "t09dl01+2"),
+which a client's target tag shows as EXTRA 2 over a copy that is the radar target (`NetNames`; the original has no tag). Every
+order the script gives the original reaches its living copies in the same tick as a plan of their own: an attack, guard, sit or
+hide as the original's, a human target taken as the human nearest the copy (`NearestHuman`); a goto, evade, race or follow is not
+driven a second time: the copy follows its original (the follow order, its station `ScriptHost.Station`: 6 m to the side, 8 m
+behind, then 16), firing at the human the original's order is against (none for a goto; a follow's fire reference when it fires).
+The original's settings (skill, aggression, avoidance, attacker cap, start, lights, siren) and a teleport (beside it again) reach the
+copies too. Once the original is dead or gone, each living copy attacks the human nearest it every tick until destroyed
+(`ScriptHost.ExtrasFrame`).
 
 The script never sees a copy: no instance id (the registry's lookups miss it), no actor slot, and left out of the host's vehicle
 lists, so `allEnemyDead`, `nearestEnemy` and `isWithinEnemy` and every objective and counter follow the originals alone
-(`CoopScalingTests`: T02's objective succeeds when its three enemy cars die, their six copies alive, as without the option). A
-copy that hits a human is still that human's attacker (`whoShot`). On the server the copies are spawn events with their files
+(`CoopScalingTests`: T02's objective succeeds when its three enemy cars die, their six copies alive, as without the option). A copy
+that hits a human is named as its original by `whoShot`, `whoRammed` and `whoAttacked` (`ScriptHost.ScriptHandle`), so no copy ever
+enters the actor table, and a copy and its original (or two copies of it) do each other no damage and record no attack
+(`DamageModel.Spares`): a copy cannot hurt, disable or kill the car the mission is about, nor set its `isShot`/`isAttacked`. So a
+copy of a car the script tests (T09's Callisto, disabled not killed) can neither win nor lose the mission (`CoopExtrasScriptTests`).
+A client builds a copy (a car the server made during the mission) with a damage state as the mission's own cars have, so its
+target bar follows the server's snapshots (upstream #194). On the server the copies are spawn events with their files
 (`CoopGroup.Spawned`), so the clients' mirrors build them as cars the server names; they are entities and cars of the savestate
 (format 16: `Entity.ExtraOf`, `Entity.Scaled`, the cap in the build), and a restore makes them again (`CoopGroup.BuildEnemy`).
 
