@@ -62,6 +62,13 @@ public sealed partial class Ptable
     /// <summary>The AI order: the order's state machine, one frame of it, then the guns.</summary>
     public void Issue(Entity e, Entity? target, AiOrder order, bool resetAlways)
     {
+        Session.TickProbe.Begin(Session.TickSection.Ai);
+        IssueOrder(e, target, order, resetAlways);
+        Session.TickProbe.End(Session.TickSection.Ai);
+    }
+
+    private void IssueOrder(Entity e, Entity? target, AiOrder order, bool resetAlways)
+    {
         if (e.Vehicle is null) return;
         if (target is not null && target.Removed) { Brake(e); return; }
         int ord = (int)order;

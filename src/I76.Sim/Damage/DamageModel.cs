@@ -137,6 +137,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// <param name="node">The structure node a round or ram touched (<see cref="StaticObject.Nodes"/>), −1 for the root, as a splash hits it.</param>
     public void Apply(object victim, DamagePacket p, Vector3 hitLocal, int node)
     {
+        Session.TickProbe.Begin(Session.TickSection.Damage);
+        ApplyPacket(victim, p, hitLocal, node);
+        Session.TickProbe.End(Session.TickSection.Damage);
+    }
+
+    private void ApplyPacket(object victim, DamagePacket p, Vector3 hitLocal, int node)
+    {
         switch (victim)
         {
             case Vehicle v:

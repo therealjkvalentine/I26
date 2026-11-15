@@ -97,6 +97,7 @@ public sealed partial class MissionScript
         if (++_frames > 3) Host.Now += frameDelta;
         Host.FsmTick = Vm is not null && !GotDown ? Vm.TickCount : ++_ticks;
         Host.FrameDelta = frameDelta;
+        Session.TickProbe.Begin(Session.TickSection.Script);
         if (Melee is not null) Melee.Frame(frameDelta);
         else if (GotDown) GetDownFrame();
         else
@@ -108,12 +109,19 @@ public sealed partial class MissionScript
             if (Vm is not null) Host.FsmTick = Vm.TickCount;
             Host.ExtrasFrame();
         }
+        Session.TickProbe.End(Session.TickSection.Script);
         // The emplacements' fire pass, right after the FSM and before the weapons
+        Session.TickProbe.Begin(Session.TickSection.Weapons);
         if (Combat is { } c) Vehicles.Emplacements.Frame(c.World, c, Melee?.Rules.Network == true);
+        Session.TickProbe.End(Session.TickSection.Weapons);
+        Session.TickProbe.Begin(Session.TickSection.Script);
         Host.Ptable.EndFrame();
         Host.View.Update(frameDelta);
         Host.UpdatePersonalViews(frameDelta);
         Host.Cb.Update(Host.Now * 1000.0);
+        Session.TickProbe.End(Session.TickSection.Script);
+        Session.TickProbe.Begin(Session.TickSection.Weapons);
         Combat?.Frame(frameDelta);
+        Session.TickProbe.End(Session.TickSection.Weapons);
     }
 }

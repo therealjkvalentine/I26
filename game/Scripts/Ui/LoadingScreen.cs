@@ -43,12 +43,16 @@ public partial class LoadingScreen : CanvasLayer
     public SignalAwaiter FadeIn() => Ramp(Colors.White);
 
     /// <summary>
-    /// The progress wheel on the card ([port] load_progress), or, whatever the setting, the card brought back after a briefing the
-    /// player skipped before the rest of the load was done (Main.BuildBehindCard): the wait shows how far it has to go.
+    /// The card brought back after a briefing the player skipped (or that could not play) before the rest of the load was done
+    /// (Main.BuildBehindCard): PLEASE STAND BY in its corner, as over the briefing, opaque, with the progress line under it
+    /// (StandByTag), so the wait shows how far it has to go. The port's; the original's card is a still picture.
     /// </summary>
-    public void ShowProgress()
+    public void ShowStandBy()
     {
-        if (_root.GetNodeOrNull("Progress") is null) _root.AddChild(new LoadProgressView { Faithful = Faithful, Name = "Progress" });
+        if (_root.GetNodeOrNull("StandBy") is not null) return;
+        var tag = new StandByTag { Install = Install, Name = "StandBy", ZIndex = 1 };   // (over the card's picture and its Impact line)
+        _root.AddChild(tag);
+        tag.ShowNow();
     }
 
     /// <summary>Back to black.</summary>
@@ -170,9 +174,6 @@ public partial class LoadingScreen : CanvasLayer
         _status.AddThemeColorOverride("font_outline_color", Colors.Black);
         _status.AddThemeConstantOverride("outline_size", 5);
         AddChild(_status);
-        // the port's progress wheel, over the picture and fading with it ([port] load_progress); up once the load begins (a network game's
-        // card is up first while it hosts or joins)
-        if (ShellSettings.Load().LoadProgress) ShowProgress();
         // Nitro: a mission named p.. shows addon\pNNload.pcx, anything else loadscr.pcx
         var path = (Install.IsNitro && Mission is { Length: > 1 } m && char.ToLowerInvariant(m[0]) == 'p' ? Install.Resolve("addon", System.IO.Path.GetFileNameWithoutExtension(m) + "load.pcx") : null)
             ?? Install.Resolve("addon", "loadscr.pcx") ?? Install.FindFile("loadscr.pcx");

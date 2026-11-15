@@ -187,7 +187,9 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     public void Frame(float dt)
     {
         FrameDt = dt;
-        foreach (var k in _nextTimer.Keys.ToList()) _nextTimer[k] = System.Math.Max(0, _nextTimer[k] - dt);
+        _timerKeys.Clear();
+        _timerKeys.AddRange(_nextTimer.Keys);   // (a list kept for it: the keys' order, without a new list every tick)
+        foreach (var k in _timerKeys) _nextTimer[k] = System.Math.Max(0, _nextTimer[k] - dt);
         FindJammers();
         DropLostTargets();
         UpdateArcs();
@@ -328,6 +330,7 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     private const float ArcCos2 = 0.9330127f;   // a 15 degree half-angle
 
     private readonly Dictionary<Vehicle, float> _nextTimer = [];
+    private readonly List<Vehicle> _timerKeys = [];
     /// <summary>The arc targets (front, rear, right, left), refilled each frame by <see cref="UpdateArcs"/>.</summary>
     private readonly Dictionary<Vehicle, Vehicle?[]> _arcs = [];
 
@@ -961,27 +964,31 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
     {
         float k = dt * 4f;
         bool kOk = k >= 0 && k <= 0.95f;
-        // the handguns too: the original walks every weapon instance, and theirs are class 1 (the side arcs)
-        foreach (var w in a.Weapons.Concat(a.Handguns.OfType<Weapon>()))
+        // the handguns too: the original walks every weapon instance, and theirs are class 1 (the side arcs) (two loops, not a
+        // LINQ chain: this runs for every armed car every tick)
+        foreach (var w in a.Weapons) AimFixedOne(v, w, k, kOk);
+        foreach (var hg in a.Handguns) if (hg is not null) AimFixedOne(v, hg, k, kOk);
+    }
+
+    private void AimFixedOne(Vehicle v, Weapon w, float k, bool kOk)
+    {
+        if (w.Style == 3 || !(w.Def.Class is 1 or 2 || (w.Def.Class == 4 && w.Def.Tier is 0 or 5))) return;
+        if (AimTargetFor(v, w.MountKind) is not { } t)
         {
-            if (w.Style == 3 || !(w.Def.Class is 1 or 2 || (w.Def.Class == 4 && w.Def.Tier is 0 or 5))) continue;
-            if (AimTargetFor(v, w.MountKind) is not { } t)
-            {
-                w.GunPitchWant = 0;
-                w.GunPitch = kOk && MathF.Abs(w.GunPitch) >= 0.005f ? w.GunPitch - w.GunPitch * k : 0;
-                continue;
-            }
-            var f = Rows.Concat(w.BaseRot, v.Rot).Forward;
-            var muzzle = v.Pos.ToVector3() + v.Rot.ToWorld(w.MuzzlePos);
-            var d = (t is Vehicle tv ? tv.Pos.ToVector3() + tv.Rot.ToWorld(new Vector3((tv.BoxX[0] + tv.BoxX[3]) / 2, (tv.BoxY[1] + tv.BoxY[3]) / 2, (tv.BoxZ[0] + tv.BoxZ[3]) / 2))
-                : AimPointOf(t)) - muzzle;
-            float len = d.Length(), fl = f.Length();
-            if (len < 1e-4f || fl < 1e-4f) continue;
-            float want = System.Math.Clamp(MathF.Asin(System.Math.Clamp(d.Y / len, -1f, 1f)) - MathF.Asin(System.Math.Clamp(f.Y / fl, -1f, 1f)), -0.17453292f, 0.17453292f);
-            w.GunPitchWant = want;
-            float diff = want - w.GunPitch;
-            w.GunPitch = kOk && MathF.Abs(diff) >= 0.005f ? w.GunPitch + diff * k : want;
+            w.GunPitchWant = 0;
+            w.GunPitch = kOk && MathF.Abs(w.GunPitch) >= 0.005f ? w.GunPitch - w.GunPitch * k : 0;
+            return;
         }
+        var f = Rows.Concat(w.BaseRot, v.Rot).Forward;
+        var muzzle = v.Pos.ToVector3() + v.Rot.ToWorld(w.MuzzlePos);
+        var d = (t is Vehicle tv ? tv.Pos.ToVector3() + tv.Rot.ToWorld(new Vector3((tv.BoxX[0] + tv.BoxX[3]) / 2, (tv.BoxY[1] + tv.BoxY[3]) / 2, (tv.BoxZ[0] + tv.BoxZ[3]) / 2))
+            : AimPointOf(t)) - muzzle;
+        float len = d.Length(), fl = f.Length();
+        if (len < 1e-4f || fl < 1e-4f) return;
+        float want = System.Math.Clamp(MathF.Asin(System.Math.Clamp(d.Y / len, -1f, 1f)) - MathF.Asin(System.Math.Clamp(f.Y / fl, -1f, 1f)), -0.17453292f, 0.17453292f);
+        w.GunPitchWant = want;
+        float diff = want - w.GunPitch;
+        w.GunPitch = kOk && MathF.Abs(diff) >= 0.005f ? w.GunPitch + diff * k : want;
     }
 
     /// <summary>The 4Get-U-Not's tone this frame per shooter: msllock1.wav while it locks, msllock2.wav once locked.</summary>

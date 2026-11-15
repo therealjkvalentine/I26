@@ -472,6 +472,37 @@ The parts that are pure (the AI's steering target, each car's ground queries) ar
 revisiting only for a mode with fifty or more cars; the form would be "compute in parallel, apply in list order", with the random
 draws left in the apply phase.
 
+### 2.9b The two structural options, measured (tick-bench)
+
+[tick-bench.md](tick-bench.md) times the tick headless, section by section, after the perf/sim-tick-budget work (this
+desktop, the machine 20-100 % busy, pinned to one core). Per tick at 20 Hz, us (`--split`):
+
+| | AI | collision pass | cars' updates (substeps) | script | weapons, rounds | the rest | whole tick (median) |
+|---|---|---|---|---|---|---|---|
+| T05 start (17 cars) | 44 | 66 | 90 | 95 | 59 | 12 | ~0.31 ms |
+| melee, eight bots | 250 | 21 | 170 | 46 | 140 | 7 | ~0.53 ms |
+
+**(a) A deterministic parallel-for inside the tick.** What is independent as the code stands: the collision pass's detection
+(pure reads until each car's record is written, which would go in list order) and the ground queries inside the cars'
+updates: about 10-15 % of the tick. The cars' updates themselves draw the shared `rand()` stream as they go (rough ground,
+the steering's jitter), the AI draws it in its tactic choice and issues orders that later cars read, the rounds damage cars in
+list order: making those parallel means "compute in parallel, apply and draw in list order", a restructuring of each step
+whose every slip changes the game. Amdahl with 15 % parallel: at most 1.18x on any number of cores; with the whole of the
+cars' updates (30 %, after that restructuring) 1.36x on 16 cores, 1.35x on 8, less the fork and join (5-20 us a region on a
+busy machine, several regions a substep). On a machine twice this fast that is 0.25 -> about 0.19 ms on a melee tick frame:
+**0.06 ms of the 5 ms budget. No-go**: too little for the risk to determinism, as 2.9 said.
+
+**(b) The tick on its own thread.** It takes the tick off the main thread's path on the frames where one lands, if the main
+thread has other work to do meanwhile (it has: the draw is 5-7 ms). Measured, the typical tick is now 0.12 (T01) to 0.55 ms
+(the eight-car melee) here, so about 0.06-0.28 ms on the new machine: 1-6 % of a 5 ms frame, and at 200 fps a 20-24 Hz
+tick lands on one frame in eight to ten (60 Hz: one in three). A network client's re-simulation burst (8 predicted ticks of
+its car) is 0.17-0.26 ms here (p99 0.5-0.7 ms): it would move too, which is where the option pays most, and it is small. What
+it would not fix without the bounded-wait deviation of 2.8: the rare slow tick (a first-time compile, a collection that
+stops every thread anyway). Cost L, risk medium to high (every reader of live state moves to the tick's view). **No-go for
+now**: the budget it buys (at most 0.3 ms on a tick frame) is less than the main thread's own scripts' slack work (2.3)
+offers for far less risk. Revisit if the tick grows past about 1 ms on the new machine (more cars, 60 Hz with a full
+network melee) or once the main thread's other work is under budget and a tick frame is the slowest frame left.
+
 ### 2.10 What should not be threaded
 
 - **The sim's rules** (2.9): order is the specification.

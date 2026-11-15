@@ -288,6 +288,9 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   the host to let you in..."; a listen host's own first join goes straight in (`ServerOptions.ListenHost`); the anet
   listing shows an invite-only game as joinable. A dedicated server (`--invite-only`) asks on its console ("*** Let NAME
   join the game? (y / n / s; turned away in 30 s)"); unanswered, the join is turned away, as the original's.
+- **Armour total.** The garage conserves a model's armour and chassis total, and `CarConfigCheck` used to refuse a joining car
+  that carried more than the heaviest stock variant. It is now a guideline: such a car joins, `CarConfigCheck.ArmourOverStock`
+  says by how much; only a negative zone is refused.
 - **Strict car checks** (the Nitro Pack's car check): besides the garage's rules
   (`CarConfigCheck`), `CarConfigCheck.Strict` refuses the same special twice, a second turret, a dropper off a dropper
   mount, a gun on one, a turret off a turret mount. The tank cannons and the howitzer were always refused online:
@@ -1555,7 +1558,7 @@ messages; `src/I76.Net/Discovery.cs`):
 
 | Message | Way | What |
 |---|---|---|
-| query | anyone → server: a LAN broadcast to ports 7676–7679, the same at 127.0.0.1, or one address | `"I76Q"`, protocol version |
+| query | anyone → server: a LAN broadcast to ports 7676–7679 (255.255.255.255 and each of the asker's networks' own broadcast address), the same at 127.0.0.1, or one address | `"I76Q"`, protocol version |
 | session | server → asker | `"I76S"`, protocol version, session id (random per server), game name, arena, players, seats, team play, invite only, score and time limits, whether it is over, each player's name, car and team, the Nitro kind, goal and team count, a custom map's hash, whether it is shared and its size, whether the game is locked (protocol 12; the password itself is never sent), ...; protocol 22 ends with the arena's name and each listed player's make and model where the host says it (below) |
 
 **The names on the roster** (`SessionDriver`, `NetLines.GameName`, `NetLines.AreaName`). The game popup's MAKE / MODEL is the car's
@@ -1577,6 +1580,16 @@ server is found whenever it is up. The dedicated server answers too, so it
 shows on a LAN roster. An address given by name is looked up once, in the background (`SessionBrowser.Ask` sends nothing
 until it is found, and `NotFound` says when it was not), so a slow name server never holds up the form. The internet roster
 runs one `SessionBrowser` per address book entry (`ServerBrowser`, above).
+
+**The LAN search asks each network's own broadcast address too** (`Discovery.SubnetBroadcasts`, `SessionBrowser.SearchLan`). Until
+then it asked 255.255.255.255 alone (LiteNetLib's `SendBroadcast`). That limited broadcast leaves by one interface only (on Windows
+the one ranked first, which a virtual switch or a VPN adapter can be), and not every machine answers it. Measured on a home network
+with three machines: a Mac hosting a game answered a query to its own address and one to 192.168.1.255, from two Windows machines,
+and none to 255.255.255.255, which a Windows host beside it answered; so neither Windows machine listed the Mac's game, on this build
+and on the day before's alike. The search now also sends the same query, as a plain unconnected message, to the broadcast address of
+every IPv4 network the machine is on (the interface up, not loopback or link-local, with a mask shorter than /31), looked up again
+every 5 s. A host that hears both answers both; it is one game by its id. Nothing on the wire changes, and an older host answers the
+new search as it answers a query to its address.
 
 ### Game passwords
 
