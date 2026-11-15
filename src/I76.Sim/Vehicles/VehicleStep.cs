@@ -602,6 +602,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     /// suppression). The record is then the vehicle callback's
     /// to consume on the next substep.
     /// </summary>
+    private int[] _near = new int[64];
+
     private void ObjectContacts(Vehicle v, float dtFrame, bool signsOnly = false)
     {
         if (ground is not Collision.IHasStatics wg) return;
@@ -619,8 +621,25 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         float best = float.MaxValue;
         Contact rec = default;
         bool driveOn = false;
-        foreach (var o in wg.World.Objects)
+        // the objects whose bounds meet the swept box, in the list's order: the tests below rule out every other one (a sign's
+        // reach takes the car's speed besides, hence the margin)
+        float e = MathF.Abs(v.Speed * dtFrame) + 1f;
+        var objects = wg.World.Objects;
+        int epoch = Volatile.Read(ref Collision.StaticObject.BoundsEpoch);
+        int near = wg.World.Near(minX - e, maxX + e, minZ - e, maxZ + e, ref _near);
+        for (int ni = 0, done = -1; ni < near; ni++)
         {
+            // a contact's damage that moved some placement's bounds (a collapse, a refresh): the rest of the pass as the list now is
+            if (Volatile.Read(ref Collision.StaticObject.BoundsEpoch) != epoch)
+            {
+                epoch = Volatile.Read(ref Collision.StaticObject.BoundsEpoch);
+                near = wg.World.Near(minX - e, maxX + e, minZ - e, maxZ + e, ref _near);
+                ni = 0;
+                while (ni < near && _near[ni] <= done) ni++;
+                if (ni >= near) break;
+            }
+            done = _near[ni];
+            var o = objects[done];
             // (the tests below in the order they decide; the XZ box first of all for the rest, as it rules out most of the
             // map and has no effect of its own)
             bool signPlacement = o.SignPlacement;

@@ -170,6 +170,13 @@ public sealed partial class StaticObject
     private int _signNodes = -1;
     private bool _sign;
 
+    /// <summary>
+    /// Counts the changes to any placement's bounds (its centre, XZ radius, sphere radius or part spheres), in every world: the
+    /// object pass's index (<see cref="ObjectIndex"/>) is built again after one. Whatever sets those must call <see cref="BoundsChanged"/>.
+    /// </summary>
+    internal static int BoundsEpoch;
+    internal static void BoundsChanged() => Interlocked.Increment(ref BoundsEpoch);
+
     /// <summary>Thrown by the sign's slot: the root's HP zeroed by it (a root that only lost a child keeps its 400). Its collider is gone.</summary>
     public bool Knocked => Type == 4 && Destroyed && Hp == 0;
 
@@ -189,6 +196,7 @@ public sealed partial class StaticObject
         Centre = r.Centre; Radius = r.Radius; BoundRadius = r.BoundRadius;
         Collapsed = true;
         Revision++;
+        BoundsChanged();
     }
 
     private (Poly[] Polys, Poly[] Surfaces, NodeBox[] Boxes, NodeSphere[] Spheres, NodeBox[] MeshBounds, Vector3 Centre, float Radius, float BoundRadius)? _intact;
@@ -241,6 +249,7 @@ public sealed partial class StaticObject
             Radius = pts.Max(q => new Vector2(q.X - Centre.X, q.Z - Centre.Z).Length());
             BoundRadius = pts.Max(q => Vector3.Distance(q, Centre));
         }
+        BoundsChanged();
     }
 
     private bool _gates;
@@ -380,6 +389,10 @@ public sealed class StaticWorld
 {
     public List<StaticObject> Objects { get; } = [];
 
+    private readonly ObjectIndex _index = new();
+    /// <summary>The indices into <see cref="Objects"/>, ascending, of the objects whose XZ bounds meet the box (<see cref="ObjectIndex"/>); the count.</summary>
+    internal int Near(float minX, float maxX, float minZ, float maxZ, ref int[] into) => _index.Near(Objects, minX, maxX, minZ, maxZ, ref into);
+
     private List<StaticObject>? _gated;
     /// <summary>The placements with a gate (type-7 node).</summary>
     public IReadOnlyList<StaticObject> Gated => _gated ??= [.. Objects.Where(o => o.Nodes.Any(n => n.Gate is not null))];
@@ -511,6 +524,7 @@ public sealed class StaticWorld
         o.BoundRadius = all.Max(p => Vector3.Distance(p, o.Centre));
         o.SphereRadius = 0.75f * o.BoundRadius;
         o.Radius = all.Max(p => new Vector2(p.X - o.Centre.X, p.Z - o.Centre.Z).Length());
+        StaticObject.BoundsChanged();
         return o;
     }
 

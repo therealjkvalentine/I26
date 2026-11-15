@@ -22,7 +22,8 @@ namespace I76.Sim
                 .Structural("the session's options, set by the build", nameof(VehicleStep.NetSession))
                 .Structural("the session's cut-scene test, set by the session", nameof(VehicleStep.ScriptDrives))
                 .Transient("a per-tick output (sounds, the views), cleared at the next tick", nameof(VehicleStep.ObjectHits), nameof(VehicleStep.Impacts),
-                    nameof(VehicleStep.CarHits), nameof(VehicleStep.Landings), nameof(VehicleStep.DriveOns), nameof(VehicleStep.Honks));
+                    nameof(VehicleStep.CarHits), nameof(VehicleStep.Landings), nameof(VehicleStep.DriveOns), nameof(VehicleStep.Honks))
+                .Transient("the object pass's scratch list of the objects near the car, filled and read within the pass", "_near");
         }
 
         internal void Save(SaveWriter w)
@@ -74,7 +75,8 @@ namespace I76.Sim.Collision
                 .Structural("the gate's record and placement", nameof(GateMotion.Offset), nameof(GateMotion.Delta), nameof(GateMotion.World), nameof(GateMotion.Rate));
             a.For<StaticWorld>()
                 .Saved(nameof(StaticWorld.Objects))
-                .Derived("the placements with a gate, found when first asked for", "_gated");
+                .Derived("the placements with a gate, found when first asked for", "_gated")
+                .Derived("the object pass's grid over the placements' bounds, built again when they change", "_index");
         }
 
         /// <summary>As the mission build left it: nothing hit, destroyed, swapped or slid.</summary>
@@ -103,6 +105,7 @@ namespace I76.Sim.Collision
             }
             _intact = null; _uncollapsed = null; _gates = false;
             Collapsed = false; Revision = 0;
+            BoundsChanged();
         }
 
         internal void Save(SaveWriter w)
@@ -137,6 +140,7 @@ namespace I76.Sim.Collision
             Collapsed = collapsed;
             Revision = revision;
             (Centre, Radius, BoundRadius) = (centre, radius, bound);
+            BoundsChanged();
         }
     }
 }
