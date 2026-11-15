@@ -234,6 +234,7 @@ public partial class Main : Node3D
         {
             _buildPrinted = true;
             GD.Print(BuildInfo.Line);
+            RenderBackend.NoteStart(I76.Game.Shell.ShellSettings.Load().Renderer, StartupSettings.D3D12Offered);
             GD.Print(RenderBackend.Describe());
             if (RenderBackend.Compatibility)
                 GD.Print("renderer: Compatibility (OpenGL): SSAO and some finer effects are off (docs/compatibility-renderer.md)");
