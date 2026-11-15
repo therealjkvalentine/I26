@@ -4,8 +4,9 @@ namespace I76.Sim.Collision;
 /// A grid over the static objects' XZ bounds, for the object pass (<see cref="Vehicles.VehicleStep"/>'s ObjectContacts), which
 /// tested every car against every object of the map every tick. <see cref="Near"/> gives the indices, in the list's order, of
 /// every object whose bounds meet a box: a superset of the objects the pass's own first tests let through, which it then runs
-/// as before, so its contacts are the same. An object's bounds are the ones those tests read: a sign placement's part spheres
-/// (or its own sphere), anything else's centre and XZ radius. The grid is built again whenever the list or any placement's bounds
+/// as before, so its contacts are the same; the ground query (<see cref="WorldGround.Query"/>) asks it for the structures under a
+/// point the same way. An object's bounds are the ones those tests read: its centre and XZ radius, and for a sign placement
+/// its part spheres (or its own sphere) besides. The grid is built again whenever the list or any placement's bounds
 /// changed (<see cref="StaticObject.BoundsEpoch"/>: the builds, a collapse, a refresh after a node's death or a gate's slide,
 /// a restore). An object whose bounds are not finite is in every answer.
 /// </summary>
@@ -18,7 +19,8 @@ internal sealed class ObjectIndex
     private StaticObject? _first, _last;
     private float _x0, _z0, _cell = MinCell;
     private int _nx, _nz;
-    private int[] _start = [], _items = [], _always = [];
+    private int[] _start = [], _items = [], _always = [], _counts = [];
+    private int _alwaysCount;
     private int[] _seen = [];
     private int _stamp;
     private float[] _lx = [], _hx = [], _lz = [], _hz = [];
@@ -43,7 +45,7 @@ internal sealed class ObjectIndex
             }
             if (++_stamp == int.MaxValue) { Array.Clear(_seen); _stamp = 1; }
             int n = 0;
-            foreach (int i in _always) Add(i, ref into, ref n);
+            for (int a = 0; a < _alwaysCount; a++) Add(_always[a], ref into, ref n);
             int ix0 = X(minX), ix1 = X(maxX), iz0 = Z(minZ), iz1 = Z(maxZ);
             for (int iz = iz0; iz <= iz1; iz++)
                 for (int ix = ix0; ix <= ix1; ix++)
@@ -83,46 +85,49 @@ internal sealed class ObjectIndex
         _last = count > 0 ? objects[^1] : null;
         if (_lx.Length < count) { _lx = new float[count]; _hx = new float[count]; _lz = new float[count]; _hz = new float[count]; }
         if (_seen.Length < count) { _seen = new int[count]; _stamp = 0; }
-        var always = new List<int>();
+        if (_always.Length < count) _always = new int[count];
+        _alwaysCount = 0;
         float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
         for (int i = 0; i < count; i++)
         {
             var o = objects[i];
-            float lx, hx, lz, hz;
+            float lx = o.Centre.X - o.Radius, hx = o.Centre.X + o.Radius, lz = o.Centre.Z - o.Radius, hz = o.Centre.Z + o.Radius;
             if (o.SignPlacement)
             {
-                if (o.Spheres.Count == 0) (lx, hx, lz, hz) = (o.Centre.X - o.SphereRadius, o.Centre.X + o.SphereRadius, o.Centre.Z - o.SphereRadius, o.Centre.Z + o.SphereRadius);
-                else
+                if (o.Spheres.Count == 0)
                 {
-                    (lx, hx, lz, hz) = (float.MaxValue, float.MinValue, float.MaxValue, float.MinValue);
+                    lx = MathF.Min(lx, o.Centre.X - o.SphereRadius); hx = MathF.Max(hx, o.Centre.X + o.SphereRadius);
+                    lz = MathF.Min(lz, o.Centre.Z - o.SphereRadius); hz = MathF.Max(hz, o.Centre.Z + o.SphereRadius);
+                }
+                else
                     foreach (var sp in o.Spheres)
                     {
                         lx = MathF.Min(lx, sp.Centre.X - sp.Radius); hx = MathF.Max(hx, sp.Centre.X + sp.Radius);
                         lz = MathF.Min(lz, sp.Centre.Z - sp.Radius); hz = MathF.Max(hz, sp.Centre.Z + sp.Radius);
                     }
-                }
             }
-            else (lx, hx, lz, hz) = (o.Centre.X - o.Radius, o.Centre.X + o.Radius, o.Centre.Z - o.Radius, o.Centre.Z + o.Radius);
             (_lx[i], _hx[i], _lz[i], _hz[i]) = (lx, hx, lz, hz);
-            if (!(float.IsFinite(lx) && float.IsFinite(hx) && float.IsFinite(lz) && float.IsFinite(hz)) || lx > hx || lz > hz) { always.Add(i); continue; }
+            if (!(float.IsFinite(lx) && float.IsFinite(hx) && float.IsFinite(lz) && float.IsFinite(hz)) || lx > hx || lz > hz) { _always[_alwaysCount++] = i; continue; }
             x0 = MathF.Min(x0, lx); x1 = MathF.Max(x1, hx); z0 = MathF.Min(z0, lz); z1 = MathF.Max(z1, hz);
         }
-        _always = [.. always];
-        if (x0 > x1) { _nx = _nz = 0; _start = [0]; _items = []; return; }
+        if (x0 > x1) { _nx = _nz = 0; return; }
         _cell = MathF.Max(MinCell, MathF.Max(x1 - x0, z1 - z0) / MaxCells);
         (_x0, _z0) = (x0, z0);
         _nx = System.Math.Clamp((int)MathF.Floor((x1 - x0) / _cell) + 1, 1, MaxCells + 1);
         _nz = System.Math.Clamp((int)MathF.Floor((z1 - z0) / _cell) + 1, 1, MaxCells + 1);
-        // counts, then offsets, then the items (each object in every cell its bounds cover, in index order within a cell)
-        var counts = new int[_nx * _nz + 1];
+        // counts, then offsets, then the items (each object in every cell its bounds cover, in index order within a cell);
+        // the arrays are kept for the next build (a sliding gate builds it again every frame)
+        int cells = _nx * _nz + 1;
+        if (_counts.Length < cells) { _counts = new int[cells]; _start = new int[cells]; }
+        var counts = _counts;
+        Array.Clear(counts, 0, cells);
         for (int pass = 0; pass < 2; pass++)
         {
             if (pass == 1)
             {
                 int sum = 0;
-                for (int c = 0; c < counts.Length; c++) { int k = counts[c]; counts[c] = sum; sum += k; }
-                _start = (int[])counts.Clone();
-                _items = new int[sum];
+                for (int c = 0; c < cells; c++) { int k = counts[c]; counts[c] = sum; _start[c] = sum; sum += k; }
+                if (_items.Length < sum) _items = new int[sum];
             }
             for (int i = 0; i < count; i++)
             {

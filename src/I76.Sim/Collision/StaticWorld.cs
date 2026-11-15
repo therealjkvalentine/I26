@@ -571,6 +571,7 @@ public sealed class StaticWorld
         Face(-Vector3.UnitY, 0, 1, 5, 4); Face(Vector3.UnitY, 2, 3, 7, 6);
         Face(-Vector3.UnitZ, 0, 1, 3, 2); Face(Vector3.UnitZ, 4, 5, 7, 6);
         Objects.Add(o);
+        StaticObject.BoundsChanged();
         return o;
     }
 
@@ -687,8 +688,15 @@ public sealed class WorldGround(TerrainGround terrain, StaticWorld world) : IGro
         float near = -1e30f, below = -1e30f;
         Vector3 nn = Vector3.UnitY, nb = Vector3.UnitY;
         float fx = (float)x, fy = (float)y, fz = (float)z;
-        foreach (var s in world.Objects)
+        // the structures whose bounds hold the point (a unit's margin over the test below), in the list's order: no other one
+        // can pass it
+        var objects = world.Objects;
+        var under = _under ??= new int[64];
+        int count = world.Near(fx - 1f, fx + 1f, fz - 1f, fz + 1f, ref under);
+        _under = under;
+        for (int k = 0; k < count; k++)
         {
+            var s = objects[under[k]];
             if (s.Surfaces.Count == 0 || !s.Solid) continue;
             float dx = fx - s.Centre.X, dz = fz - s.Centre.Z;
             if (dx * dx + dz * dz > s.Radius * s.Radius) continue;
@@ -705,6 +713,9 @@ public sealed class WorldGround(TerrainGround terrain, StaticWorld world) : IGro
         if (below > -1e30f) return (below, nb);
         return terrain.Query(x, y, z);
     }
+
+    /// <summary>The query's list of nearby structures, one per thread (the game's threads ask the ground too).</summary>
+    [ThreadStatic] private static int[]? _under;
 
     public int SurfaceId(double x, double z) => terrain.SurfaceId(x, z);
     public bool Impassable(double x, double z) => terrain.Impassable(x, z);
