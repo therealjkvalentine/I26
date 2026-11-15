@@ -11,10 +11,17 @@ namespace I76.Net;
 /// </summary>
 public static class NetBind
 {
+    /// <summary>
+    /// What the shipped game, server and browser bind: every address, exactly what LiteNetLib 2.1.4's <c>Start()</c>,
+    /// <c>Start(port)</c> and <c>StartInManualMode(port)</c> pass on themselves (LiteNetManager.cs), so starting through here
+    /// changes nothing for them: the IPv4 socket still gets SO_BROADCAST and the IPv6 one the same port.
+    /// </summary>
+    public static readonly IPAddress DefaultV4 = IPAddress.Any, DefaultV6 = IPAddress.IPv6Any;
+
     /// <summary>The IPv4 address new sockets bind to (default: every address).</summary>
-    public static IPAddress V4 { get; set; } = IPAddress.Any;
+    public static IPAddress V4 { get; set; } = DefaultV4;
     /// <summary>The IPv6 address new sockets bind to (default: every address).</summary>
-    public static IPAddress V6 { get; set; } = IPAddress.IPv6Any;
+    public static IPAddress V6 { get; set; } = DefaultV6;
 
     /// <summary>Binds new sockets to loopback only.</summary>
     public static void Loopback() { V4 = IPAddress.Loopback; V6 = IPAddress.IPv6Loopback; }
