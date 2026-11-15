@@ -131,6 +131,7 @@ public static class DevSettings
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
         new("sky_speed", SpeedNames, s => NearestSpeedStep(s.SkySpeed), (s, v) => s.SkySpeed = SpeedSteps[v], DevWhen.NextMission),
         new("death_orbit_speed", SpeedNames, s => NearestSpeedStep(s.DeathOrbitSpeed), (s, v) => s.DeathOrbitSpeed = SpeedSteps[v], DevWhen.Live),
+        new("helicopter_hearing", Look(OriginalRecipe.HelicopterHearingNames), s => OfChoice(s.HelicopterHearingChoice), (s, v) => s.HelicopterHearingChoice = ToChoice(v), DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
         new("menu_warmup", ["off", "on" + M], s => s.MenuWarmup ? 1 : 0, (s, v) => s.MenuWarmup = v != 0, DevWhen.NextScreen),
@@ -188,6 +189,7 @@ public static class DevSettings
         Source(I76.Formats.Input.TactileSource.Explosions),
         Source(I76.Formats.Input.TactileSource.Offroad),
         Source(I76.Formats.Input.TactileSource.Bumps),
+        Source(I76.Formats.Input.TactileSource.Helicopters),
         Source(I76.Formats.Input.TactileSource.Cracks, "rec. 100"),
         Source(I76.Formats.Input.TactileSource.Strip, "rec. 100"),
         // the modern look's dim cabin and driver behind the other cars' windows (Car Interiors' row until round 5)

@@ -60,13 +60,13 @@ public static class AudioOutputs
 /// <summary>
 /// The shaker signal's sources, each with a level of its own ([port] lfe_engine ... lfe_bumps, 0 to 200 %, 100 by default).
 /// Off-road is a share of the road's on off-road ground (dirt, sand, rough), on top of lfe_road; Bumps the knock of a wheel
-/// crossing onto or off a road or a bridge.
+/// crossing onto or off a road or a bridge; Helicopters the rotor thump of a helicopter near the car.
 /// </summary>
-public enum TactileSource { Engine, Road, Hits, Shots, Explosions, Offroad, Bumps, Cracks, Strip }
+public enum TactileSource { Engine, Road, Hits, Shots, Explosions, Offroad, Bumps, Cracks, Strip, Helicopters }
 
 public static class TactileSources
 {
-    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip"];
+    public static readonly string[] Keys = ["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip", "lfe_helicopters"];
     public const int Default = 100, Max = 200;
     /// <summary>
     /// The developer's listening options, none in the game's roads (they have neither): filled cracks across asphalt and a
@@ -154,6 +154,8 @@ public sealed class TactileEvents
     public readonly List<float> Crossings = [];
     /// <summary>The car runs along a paved road's edge, one side's wheels on it and the other's off (the rumble strip).</summary>
     public bool Shoulder;
+    /// <summary>Each helicopter whose rotor loop is sounding, by its distance from the listener (m): its thump (<see cref="TactileSynth.RotorLevel"/>).</summary>
+    public readonly List<float> Rotors = [];
 
     public void Clear()
     {
@@ -165,6 +167,7 @@ public sealed class TactileEvents
         Hits.Clear();
         Blasts.Clear();
         Crossings.Clear();
+        Rotors.Clear();
         Shoulder = false;
     }
 }
@@ -456,6 +459,24 @@ public sealed class TactileSynth
         _ => null,
     };
 
+    /// <summary>
+    /// A helicopter's rotor felt: a <see cref="RotorHz"/> tone pulsed at the blade passes (<see cref="RotorPulseHz"/>, aheli.wav's own 0.087 s), the
+    /// thump of its sound's low end. <see cref="RotorFull"/> overhead (inside <see cref="RotorNear"/>), 1/r out to
+    /// <see cref="RotorKnee"/> (the medium band's middle), then fading to nothing at <see cref="RotorRange"/>: felt overhead,
+    /// present at medium range, not at all far off, where the sound alone tells of it. Its pulses peak at twice the level, -12 dBFS
+    /// before the LFE gain overhead (the shots' and the engine's level), in a band of its own under the cabin ring and the hits (docs/lfe-bands.md).
+    /// </summary>
+    public const float RotorHz = 19f, RotorPulseHz = 11.5f, RotorFull = 0.125f, RotorNear = 50f, RotorKnee = 150f, RotorRange = 400f;
+
+    /// <summary>The rotor thump's level for a helicopter <paramref name="metres"/> away (0 at or past <see cref="RotorRange"/>).</summary>
+    public static float RotorLevel(float metres)
+    {
+        if (!(metres < RotorRange)) return 0f;
+        float r = Math.Max(metres, RotorNear);
+        if (r <= RotorKnee) return RotorFull * RotorNear / r;
+        return RotorFull * RotorNear / RotorKnee * (RotorRange - r) / (RotorRange - RotorKnee);
+    }
+
     /// <summary>An explosion seen from the car, by the falloff of <see cref="BlastRange"/>; none at or past it.</summary>
     public static Thump? BlastThump(float metres)
     {
@@ -483,6 +504,8 @@ public sealed class TactileSynth
     private uint _noise = 0x9E3779B9u, _vary = 0x85EBCA6Bu;
     private float _driftLevel, _driftHz, _toEcho = -1, _echoLevel, _echoHz, _strip, _stripNow;
     private double _stripPhase;
+    private float _rotorTarget, _rotor;
+    private double _rotorPhase, _pulsePhase;
     private int _lumps;
     private Biquad _hp, _lp;
     private Biquad[] _roadEq = [];
@@ -594,7 +617,14 @@ public sealed class TactileSynth
         foreach (var s in e.Shots) if (ShotThump(s.Class) is { } t) Add(t, W(TactileSource.Shots) * Tune.ShotTrim);
         foreach (var (ch, amount) in e.Hits) foreach (var t in HitParts(Tune, ch, amount)) AddHeld(t, W(TactileSource.Hits));
         foreach (var d in e.Blasts) if (BlastThump(d) is { } t) Add(t, W(TactileSource.Explosions));
+        // the nearest helicopter's thump (two together are not felt twice as hard)
+        float rotor = 0;
+        foreach (var d in e.Rotors) rotor = Math.Max(rotor, RotorLevel(d));
+        _rotorTarget = rotor * EqGain(RotorHz) * W(TactileSource.Helicopters);
     }
+
+    /// <summary>The rotor thump's level now (before the LFE gain), for the tests and the panel.</summary>
+    public float RotorNow => _rotor;
 
     private void Add(Thump t, float weight) => Add(t with { Level = t.Level * weight });
 
@@ -624,7 +654,7 @@ public sealed class TactileSynth
     /// <summary>Everything silent (the pause, a menu over the game): the transients stop, the beds fade out over 30 ms.</summary>
     public void Reset()
     {
-        _engTarget = _roadTarget = 0;
+        _engTarget = _roadTarget = _rotorTarget = 0;
         _lumpLevel = _grainLevel = _mps = _strip = 0;
         _toEcho = -1;
         _thumps.Clear();
@@ -713,6 +743,17 @@ public sealed class TactileSynth
                 _stripPhase += 2 * Math.PI * f * dt;
                 if (_stripPhase > 2 * Math.PI) _stripPhase -= 2 * Math.PI;
                 x += _stripNow * EqGain((float)f) * (float)Math.Sin(_stripPhase);
+            }
+            // a helicopter's rotor: the tone under a raised-cosine pulse a blade pass, cubed for a thump rather than a wobble
+            _rotor += (_rotorTarget - _rotor) * glide;
+            if (_rotor > 1e-5f)
+            {
+                _rotorPhase += 2 * Math.PI * RotorHz * dt;
+                if (_rotorPhase > 2 * Math.PI) _rotorPhase -= 2 * Math.PI;
+                _pulsePhase += 2 * Math.PI * RotorPulseHz * dt;
+                if (_pulsePhase > 2 * Math.PI) _pulsePhase -= 2 * Math.PI;
+                float pulse = 0.5f + 0.5f * (float)Math.Cos(_pulsePhase);
+                x += _rotor * pulse * pulse * pulse * 2f * (float)Math.Sin(_rotorPhase);
             }
             // the lumps and the grit, by the distance driven
             if (_mps > 0.5f)

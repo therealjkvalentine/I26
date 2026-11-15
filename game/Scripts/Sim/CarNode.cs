@@ -27,17 +27,20 @@ public partial class CarNode : Node3D
     /// The engine loop: the car's own engsnd.dat sound. Its pitch follows the
     /// engine's rpm as the original's (EngineSoundPitch).
     /// </summary>
-    public void SetEngineSound(AudioStream? loop, bool player, bool revable = true, int volume = 100)
+    public void SetEngineSound(AudioStream? loop, bool player, bool revable = true, int volume = 100, bool rotor = false)
     {
         if (loop is null) return;
         _engineVolume = volume;
+        _engineRotor = rotor;
         _engineRevable = revable;
         _engineRate = loop is AudioStreamWav wav && wav.MixRate > 0 ? wav.MixRate : 11025f;
         (_engineLoop, _enginePlayer) = (loop, player);
         // a DirectSound3D voice as the original's (a mode-1 loop, started at any range): min distance 10, held at
         // 400 m, parked past 600 m from the followed car (Voice3D). The player's own sits at the listener in the cockpit
         // (dead centre, GitHub #83); Godot's model cut a far helicopter's loop at 250 m, so it fell silent.
-        _engine = new Voice3D { Stream = loop, Autoplay = true, BaseDb = -6 + SoundFiles.VolumeDb(_engineVolume), Name = "Engine" };
+        // a helicopter's rotor loop carries further by default ([port] helicopter_hearing, OriginalBehavior.RotorHearing)
+        _engine = new Voice3D { Stream = loop, Autoplay = true, BaseDb = -6 + SoundFiles.VolumeDb(_engineVolume), Name = "Engine", Rotor = rotor,
+            Hearing = rotor ? OriginalBehavior.RotorHearing(!Modern) : null };
         AddChild(_engine);
         Voice3D.Trace($"engine loop on: {Name}{(_engine.Playing ? "" : " (parked, out of range)")}");
     }
@@ -46,12 +49,12 @@ public partial class CarNode : Node3D
     private bool _engineRevable = true;
     private float _engineRate = 11025f;
     private int _engineVolume = 100;   // the file's GAS0 volume, percent
-    private bool _enginePlayer;
+    private bool _enginePlayer, _engineRotor;
 
     /// <summary>The engine running again (a car renewed after its death: a network melee's respawn).</summary>
     public void RestartEngine()
     {
-        if (_engine is null && _engineLoop is not null) SetEngineSound(_engineLoop, _enginePlayer, _engineRevable, _engineVolume);
+        if (_engine is null && _engineLoop is not null) SetEngineSound(_engineLoop, _enginePlayer, _engineRevable, _engineVolume, _engineRotor);
     }
 
     private Voice3D? _horn;
@@ -1317,7 +1320,11 @@ public partial class CarNode : Node3D
             for (int i = 0; i < _rearGlare.Length; i++) { _rearGlare[i].Visible = rear > 0 && RearHeld(i); _rearGlare[i].SetInstanceShaderParameter("level", rear); }
         }
         _siren?.Update(shown, !Wrecked, Modern);
-        if (_engine is not null) _engine.PitchScale = _engineRevable ? EngineSoundPitch.Scale(Sim.Engine.Rpm, _engineRate) : 1f;
+        if (_engine is not null)
+        {
+            _engine.PitchScale = _engineRevable ? EngineSoundPitch.Scale(Sim.Engine.Rpm, _engineRate) : 1f;
+            if (_engineRotor) _engine.Hearing = OriginalBehavior.RotorHearing(!Modern);   // live: the look or the key may change
+        }
         double gx = Lerp(_prevPos.X, _pos.X), gz = Lerp(_prevPos.Z, _pos.Z);
         double gy = far ? GroundForDisplay!(gx, gz) : Lerp(_prevPos.Y, _pos.Y);
         if (live is { } lp) (gx, gy, gz) = (lp.Pos.X, lp.Pos.Y, lp.Pos.Z);

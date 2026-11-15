@@ -45,6 +45,7 @@ Under the sounds' energy where it can be, every event its own frequency, one or 
 | asphalt bed | continuous | 56 Hz, narrow | unchanged | quiet; 4 to 7 dB under the dirt road |
 | filled cracks (dev only, `lfe_cracks`) | event | 38 Hz | **46** | out of the engine's idle |
 | rumble strip (dev only, `lfe_strip`) | continuous tone | speed / 30.5 cm folded under 60 | unchanged | only along a road's edge |
+| helicopter rotor (`lfe_helicopters`) | continuous tone, pulsed | (none) | **19 Hz, pulsed at 11.5 Hz** (the loop's own blade passes) | under the cabin ring and the hits; it shares the explosions' 17 to 21 Hz roll, which is a short event: the pulse tells them apart |
 
 What still overlaps, and why it is left: the off-road beds are broad noise (sand's -3 dB edges 17 to 54 Hz) under every
 event, but they are 10 to 20 dB under the events' peaks (the road trim of the headroom plan), and the events are tones at

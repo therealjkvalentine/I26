@@ -247,6 +247,8 @@ public partial class BassShaker : Node
                     }
             }
         }
+        // the helicopters' rotor loops sounding now, by their distance from the listener (none parked, none stopped)
+        I76.Game.Sim.Voice3D.RotorDistances(e.Rotors);
         me._synth.Step(e);
     }
 }
