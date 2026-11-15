@@ -9,13 +9,16 @@ using I76.Sim.Weapons;
 namespace I76.Game.Shell;
 
 /// <summary>
-/// One part's tooltip (the port's: the original's garage had no help): what it does in the game, a second line of its numbers, and
-/// where each number came from (for the read-through table; never shown).
+/// One part's tooltip (the port's: the original's garage had no help): what it does in the game, a second line of its numbers, for a
+/// weapon a third of its range, and where each number came from (for the read-through table; never shown).
 /// </summary>
 public sealed record PartTip(string Effect, string? Numbers, string Source)
 {
-    /// <summary>The tooltip's text: the effect, then the numbers on a line of their own.</summary>
-    public string Text => Numbers is null ? Effect : Effect + "\n" + Numbers;
+    /// <summary>A weapon's range on a line of its own (<see cref="Combat.RangeOf"/>); null for none, or where it is not one number.</summary>
+    public string? Range { get; init; }
+
+    /// <summary>The tooltip's text: the effect, then the numbers and the range on lines of their own.</summary>
+    public string Text => (Numbers is null ? Effect : Effect + "\n" + Numbers) + (Range is null ? "" : "\n" + Range);
 }
 
 /// <summary>
@@ -79,6 +82,9 @@ public sealed class PartTips
             if (db.ById(name.Trim(), t) is { } p) return Text(p);
         return null;
     }
+
+    /// <summary>A flight longer than this is shown as "over 1 km": past the radar and the original's drawn world, where it lands is the mount's last fraction of a degree.</summary>
+    public const float LongRange = 1000f;
 
     public static readonly PartTip Empty = new("Nothing fitted here.", null, "hand-written");
     public static readonly PartTip Paint = new("A paint scheme. Looks only: no effect on the car.", null, "hand-written (paint is a .vtf skin; the sim never reads it)");
@@ -155,7 +161,6 @@ public sealed class PartTips
             src.Add($"{fx} XDFC: +0x1c splash {e.SplashDamage.ToString(Inv)}, +0x20 radius {e.SplashRadius.ToString(Inv)}");
         }
         string ch = Channels(mask);
-        bool lobbed = (g.Ordnance?.Gravity ?? 0) != 0;
         // the interval between shots: 1 / rate, or the pause after a burst (Combat's fire control)
         string rate = g.Rate <= 0 ? "" : g.Rate >= 1 ? $"{N(g.Rate)} a second" : $"one every {N(1 / g.Rate)} s";
         if (g.Burst > 1) rate = $"bursts of {g.Burst}" + (g.Delay > 0 ? $", {N(g.Delay)} s apart" : $" at {N(g.Rate)} a second");
@@ -185,18 +190,50 @@ public sealed class PartTips
             dmg = "a hit kills the driver outright, armor or not";
             src.Add("VehicleDamage.ComponentLoop: packet flag 0x10 (kind 0x16), the Nitro Pack only, after the Cup Holders' roll");
         }
-        // the sim's own reach for a round that flies (Combat.Reach: its speed toward the ordnance's terminal speed over its life);
-        // a lobbed shell's depends on the aim, a dropper's round lies where it fell, the fire stream is an emitter's
-        float reachM = Combat.Reach(g);
-        string reach = lobbed || g.Class is 5 or 6 || reachM <= 0 ? "" : $", reach {N(MathF.Round(reachM / 10) * 10)} m";
-        if (reach.Length > 0) src.Add($"Combat.Reach {reachM.ToString("0.#", Inv)} m (ORDF terminal speed {g.Ordnance!.TerminalSpeed.ToString(Inv)})");
+        // the range on level ground from a car standing still, as the sim flies the round (Combat.RangeOf); a dropper's line 1 already
+        // says where its round goes
+        var reach = Combat.RangeOf(g);
+        // a handgun part (the hidden gh45) is not what the driver fires: that is Armory.HandgunDef (Handgun below)
+        string? range = g.Class == 1 ? null : RangeLine(reach);
+        src.Add(RangeSource(g, reach));
         // a blast of a point or two (the missiles' xmslc1) is left out of the words: it is in the source line
         string boom = blast is null || blast.SplashDamage < 10 || chemical ? "" : $" + {N(blast.SplashDamage)} within {N(blast.SplashRadius)} m";
-        string line1 = $"{what}: {dmg}{boom}, {rate}{reach}.".Replace(", .", ".").Replace(":, ", ": ");
+        string line1 = $"{what}: {dmg}{boom}, {rate}.".Replace(", .", ".").Replace(":, ", ": ");
         string ammo = g.Ammo >= 0x0fffffff ? "Never runs dry" : $"{g.Ammo} rounds";
         string turret = p.IsTurret ? " Roof turret: aims itself." : "";
         string line2 = $"{ammo}, {g.HitPoints} hit points, {Lbs(g.Mass)}.{turret}";
-        return new(line1, line2, string.Join("; ", src));
+        return new(line1, line2, string.Join("; ", src)) { Range = range };
+    }
+
+    /// <summary>A distance as the tooltips give it: to the metre under 30 m, to 5 m under 100, to 10 m above; past <see cref="LongRange"/> only that.</summary>
+    public static string Metres(float m) =>
+        m > LongRange ? "over 1 km" : $"{N(m < 30 ? MathF.Round(m) : m < 100 ? MathF.Round(m / 5) * 5 : MathF.Round(m / 10) * 10)} m";
+
+    /// <summary>The range line: how far the round goes on level ground from a car standing still, or null where it is not one number.</summary>
+    public static string? RangeLine(WeaponReach r) => r.Kind switch
+    {
+        RangeKind.Flies when r.Lock > 0 => $"Range {Metres(r.Far)}; locks on within {Metres(r.Lock)}.",
+        // a flame stream: from a roof mount, which tips it down, to a level one
+        RangeKind.Stream when Metres(r.Near) != Metres(r.Far) => $"Range {Metres(r.Near)[..^2]}-{Metres(r.Far)}.",
+        RangeKind.Flies or RangeKind.Stream => $"Range {Metres(r.Far)}.",
+        // the EZK lays its own elevation for the target, from level to 45 degrees
+        RangeKind.Lands when r.Far - r.Near > 1 => $"Lands {Metres(r.Near)[..^2]}-{Metres(r.Far)} out: it aims itself.",
+        RangeKind.Lands => $"Lands {Metres(r.Far)} out on level ground.",
+        _ => null,
+    };
+
+    private static string RangeSource(GizmoDef g, WeaponReach r)
+    {
+        string fly = $"Combat.RangeOf {r.Kind}: near {r.Near.ToString("0.#", Inv)} m, far {r.Far.ToString("0.#", Inv)} m" + (r.Lock > 0 ? $", lock {r.Lock.ToString(Inv)} m" : "");
+        string rest = $"GPOF rest elevation {(Combat.RestElevation(g) * 180 / MathF.PI).ToString("0.#", Inv)} deg, muzzle {Combat.RangeMuzzleHeight.ToString(Inv)} m up";
+        return r.Kind switch
+        {
+            RangeKind.Flies or RangeKind.Lands => $"{fly} (GDFC +0x56 speed {g.Speed.ToString(Inv)}, +0x46 life {g.Life.ToString(Inv)}; ORDF terminal speed {g.Ordnance!.TerminalSpeed.ToString(Inv)}, gravity {g.Ordnance.Gravity.ToString(Inv)}; {rest}; the 20 Hz step)",
+            RangeKind.Stream => $"{fly} (Combat.FlameReach {Combat.FlameReach.ToString(Inv)} m; {rest})",
+            RangeKind.Dropped => "range: none (a dropper: line 1 says it is dropped behind)",
+            RangeKind.Aimed => "range: omitted (a turret's mortar pitches along its line to the target, Combat.AimTurrets)",
+            _ => "range: omitted (no ordnance the step flies)",
+        };
     }
 
     /// <summary>The driver's .45 (Armory.HandgunDef: built in, no file).</summary>
@@ -205,10 +242,11 @@ public sealed class PartTips
         get
         {
             var g = Armory.HandgunDef(1);
-            float reach = Combat.Reach(g);
-            return new($"Driver's .45: 5 points a hit, {N(g.Rate)} a second, reach {N(MathF.Round(reach / 10) * 10)} m.",
+            var reach = Combat.RangeOf(g);
+            return new($"Driver's .45: 5 points a hit, {N(g.Rate)} a second.",
                 "On a car under a third whole, it hits the driver. Never runs dry.",
-                $"Armory.HandgunDef: rate {g.Rate.ToString(Inv)}, Combat.Reach {reach.ToString("0.#", Inv)} m, ammo 0x0fffffff; DamageModel.Apply: a kind-0x12 round does 5 to a car over 33 % health, else it goes for the driver (hand-written: literals there)");
+                $"Armory.HandgunDef: rate {g.Rate.ToString(Inv)}, ammo 0x0fffffff; {RangeSource(g, reach)} (the GRPF / GLPF muzzles are level on every player car); DamageModel.Apply: a kind-0x12 round does 5 to a car over 33 % health, else it goes for the driver (hand-written: literals there)")
+            { Range = RangeLine(reach) };
         }
     }
 

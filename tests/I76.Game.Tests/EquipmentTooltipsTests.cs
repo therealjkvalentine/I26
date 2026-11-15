@@ -5,7 +5,8 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// The equipment tooltips on the garage's lists (PartTips through the menus' MenuTooltip): Play Options' row and its default, the
-/// tooltip's two lines, and the box beside a part row, never over it, inside the screen at 4:3 and on the owner's ultrawide.
+/// tooltip's two lines (a weapon's three, its range last), and the box beside a part row, never over it, inside the screen at 4:3 (the
+/// smallest window, 640x480, too) and on the owner's ultrawide.
 /// </summary>
 public class EquipmentTooltipsTests
 {
@@ -30,7 +31,7 @@ public class EquipmentTooltipsTests
         Assert.Equal(TooltipPlacement.Wrap("one two three", Measure, 40), GraphicsHelp.Wrap("one two three", Measure, 40));
     }
 
-    public static IEnumerable<object[]> Screens => [[1280f, 960f], [3440f, 1440f]];
+    public static IEnumerable<object[]> Screens => [[640f, 480f], [1280f, 960f], [3440f, 1440f]];
 
     /// <summary>
     /// The garage's rows in shell units (x, y, w, h): BUILD AND REPAIR's part, weapon and special rows, the repair order, DEFENSE's cells,
@@ -52,7 +53,8 @@ public class EquipmentTooltipsTests
     {
         float scale = Math.Min(w / 640, h / 480), offX = (w - 640 * scale) / 2, offY = (h - 480 * scale) / 2;
         float bw = TooltipPlacement.MaxWidth(scale, w);
-        foreach (int lines in new[] { 2, 4 })
+        // two lines, a weapon's three (its range), and a long first line wrapped once more
+        foreach (int lines in new[] { 2, 3, 4 })
         {
             float bh = (lines * 11f + 8) * scale;
             foreach (var (x, y, rw, rh) in GarageRows)

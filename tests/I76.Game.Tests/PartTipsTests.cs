@@ -22,7 +22,8 @@ public class PartTipsTests
     private static void Plain(PartTip t, string what)
     {
         var lines = t.Text.Split('\n');
-        Assert.True(lines.Length <= 2, $"{what}: {lines.Length} lines");
+        // two lines; a weapon's range on a third
+        Assert.True(lines.Length <= (t.Range is null ? 2 : 3), $"{what}: {lines.Length} lines");
         foreach (var l in lines)
         {
             Assert.False(string.IsNullOrWhiteSpace(l), $"{what}: an empty line");
@@ -81,7 +82,9 @@ public class PartTipsTests
         Plain(PartTips.Handgun, ".45");
         var g = Armory.HandgunDef(1);
         Assert.Contains($"{g.Rate.ToString(Inv)} a second", PartTips.Handgun.Text);
-        Assert.Contains($"reach {MathF.Round(Combat.Reach(g) / 10) * 10} m", PartTips.Handgun.Text);
+        // its round flies level from the side window for its 2.5 s at 120
+        Assert.EndsWith("\nRange 300 m.", PartTips.Handgun.Text);
+        Assert.DoesNotContain("reach", PartTips.Handgun.Text);
         Plain(PartTips.Paint, "paint");
         Plain(PartTips.Empty, "empty");
         var tips = new PartTips(null, false);
