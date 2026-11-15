@@ -143,7 +143,8 @@ public static class MissionTitles
 
     /// <summary>
     /// A co-op mission's line for the lists (upstream #197: the names alone say little): its first objective as the mission's own objective text
-    /// (WRLD +0x45's .npt, the notepad's first line, read from the install; <paramref name="vfs"/> the caller's, if it has one), the first one not hidden; empty when it has none.
+    /// (WRLD +0x45's .npt, read from the install; <paramref name="vfs"/> the caller's, if it has one): the first one shown at the start, else the first (most
+    /// trip missions reveal theirs as they go); empty when it has none.
     /// Read once a mission and install.
     /// </summary>
     public static string CoopSummary(GameInstall install, string mission, AssetVfs? vfs = null)
@@ -155,7 +156,11 @@ public static class MissionTitles
         {
             if (install.FindMission(mission) is { } path && WorldSettings.Read(new MissionFile(path))?.Text is { Length: > 0 } npt
                 && (vfs ?? new AssetVfs(install)).TryRead(npt.Contains('.') ? npt : npt + ".npt") is { } bytes)
-                line = ObjectiveText.Parse(Encoding.Latin1.GetString(bytes)).Objectives.FirstOrDefault(o => !o.Hidden).Text?.Trim() ?? "";
+            {
+                // the first shown at the start; a mission whose objectives all come later (most of the trip's) by its first
+                var obj = ObjectiveText.Parse(Encoding.Latin1.GetString(bytes)).Objectives;
+                line = (obj.FirstOrDefault(o => !o.Hidden).Text ?? obj.FirstOrDefault().Text)?.Trim() ?? "";
+            }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or IndexOutOfRangeException or UnauthorizedAccessException) { }
         lock (Summaries) Summaries[key] = line;
