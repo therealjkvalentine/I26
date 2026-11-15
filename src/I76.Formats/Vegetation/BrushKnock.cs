@@ -60,7 +60,7 @@ public static class BrushKnock
     /// brush's crackle and not a sign's knock (the owner's review, section ES). I76_BUSH_KNOCK=name,semitones,dB tries others.
     /// </summary>
     public const string DefaultSample = "vnvco3.wav";
-    public const float DefaultSemitones = 7f, DefaultDb = -6f;
+    public const float DefaultSemitones = 9f, DefaultDb = -8f;
 
     /// <summary>The sound in use (<see cref="DefaultSample"/>).</summary>
     public static string Sample { get; set; } = DefaultSample;
