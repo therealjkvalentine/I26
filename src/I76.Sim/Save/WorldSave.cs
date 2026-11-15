@@ -151,7 +151,7 @@ namespace I76.Sim.Damage
                 .Structural("the mission build's world and combat", nameof(World), nameof(Combat))
                 .Structural("the mission build's co-op damage factor (the snapshot's SessionBuild.Coop)", nameof(CoopDamageFactor))
                 .Transient("the hooks of the script host, the melee, the salvage and the views (set again by whoever builds the session)",
-                    nameof(Recorded), nameof(Killed), nameof(Salvageable), nameof(KilledBy), nameof(Damaging));
+                    nameof(Recorded), nameof(Killed), nameof(Salvageable), nameof(KilledBy), nameof(Damaging), nameof(Spares));
             a.For<VehicleKilled>().Saved(nameof(VehicleKilled.Vehicle), nameof(VehicleKilled.DriverKilled));
             a.For<VehicleWrecked>().Saved(nameof(VehicleWrecked.Vehicle));
             a.For<TyreBlown>().Saved(nameof(TyreBlown.Vehicle), nameof(TyreBlown.Slot));
