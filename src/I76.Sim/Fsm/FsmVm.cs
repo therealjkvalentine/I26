@@ -468,7 +468,7 @@ public sealed partial class FsmVm
             case "iswithin":
             {
                 float r = V(t, 2);
-                bool Near(object a, object b) => Vector3.DistanceSquared(h.Position(a), h.Position(b)) < r * r;
+                bool Near(object a, object b) => Vector3.DistanceSquared(_host.Position(a), _host.Position(b)) < r * r;
                 bool ga = Group(t, 0), gb = Group(t, 1);
                 if (ga && gb) t.Cond = Any(t, _ => 0 < r * r);
                 else if (ga) t.Cond = O(t, 1) is { } b && GateHold(t, h.Position(b), Any(t, a => Near(a, b)));
@@ -483,7 +483,7 @@ public sealed partial class FsmVm
                 bool sq = !name.Equals("isWithinNav", StringComparison.OrdinalIgnoreCase);
                 t.Cond = Test(t, 1, o =>
                 {
-                    var p = h.Position(o);
+                    var p = _host.Position(o);
                     float dx = path[0].X - p.X, dz = path[0].Z - p.Z;
                     return !sq ? dx * dx + dz * dz < r * r : MathF.Abs(dx) < r && MathF.Abs(dz) < r;
                 });
@@ -496,18 +496,19 @@ public sealed partial class FsmVm
                 // The AI vehicle lists of teams 1..7 but its own (no emplacements, no structures)
                 t.Cond = Test(t, 0, o =>
                 {
-                    var p = h.Position(o); int team = h.Team(o);
-                    foreach (var x in h.AiVehicles)
+                    var hs = _host;
+                    var p = hs.Position(o); int team = hs.Team(o);
+                    foreach (var x in hs.AiVehicles)
                     {
-                        if (ReferenceEquals(x, o) || h.Team(x) == team || h.Team(x) == 0 || h.IsDead(x)) continue;
-                        var q = h.Position(x);
+                        if (ReferenceEquals(x, o) || hs.Team(x) == team || hs.Team(x) == 0 || hs.IsDead(x)) continue;
+                        var q = hs.Position(x);
                         if ((q.X - p.X) * (q.X - p.X) + (q.Z - p.Z) * (q.Z - p.Z) < r * r) return true;
                     }
                     return false;
                 });
                 break;
             }
-            case "hplesser": { int pct = V(t, 2); t.Cond = Test(t, 0, o => h.HealthPercent(o) < pct); break; }
+            case "hplesser": { int pct = V(t, 2); t.Cond = Test(t, 0, o => _host.HealthPercent(o) < pct); break; }
             case "isairborne": t.Cond = Test(t, 0, h.IsAirborne); break;
             case "isarrived": t.Cond = Test(t, 0, h.ConsumeArrived); break;
             case "isatfollow": t.Cond = Test(t, 0, h.ConsumeAtFollow); break;
@@ -525,15 +526,15 @@ public sealed partial class FsmVm
             case "allenemydead":
             {
                 var o = O(t, 0); int team = o is null ? 0 : h.Team(o);
-                t.Cond = h.AiVehicles.Where(x => h.Team(x) != team && h.Team(x) != 0).All(h.IsDead);
+                t.Cond = h.AiVehicles.Where(x => _host.Team(x) != team && _host.Team(x) != 0).All(h.IsDead);
                 break;
             }
             case "allblgdead": t.Cond = h.Structures.All(h.IsDead); break;
             case "cansee":
             {
                 bool ga = Group(t, 0), gb = Group(t, 1);
-                if (ga && !gb) t.Cond = O(t, 1) is { } b && Any(t, a => h.CanSee(a, b));
-                else if (gb && !ga) t.Cond = O(t, 0) is { } a && Any(t, b => h.CanSee(a, b));
+                if (ga && !gb) t.Cond = O(t, 1) is { } b && Any(t, a => _host.CanSee(a, b));
+                else if (gb && !ga) t.Cond = O(t, 0) is { } a && Any(t, b => _host.CanSee(a, b));
                 else { var a = Act(t, 0); var b = Act(t, 1); t.Cond = a is not null && b is not null && h.CanSee(a, b); }
                 break;
             }
@@ -565,7 +566,7 @@ public sealed partial class FsmVm
                 bool blg = name.Equals("nearestBlg", StringComparison.OrdinalIgnoreCase);
                 // nearestEnemy (Nitro): live vehicles of the AI lists, teams 1..7 but its own;
                 // nearestBlg: live structures of the root collider lists, any team
-                var pool = blg ? h.Structures.Where(x => !h.IsDead(x)) : h.AiVehicles.Where(x => h.Team(x) != team && h.Team(x) != 0 && !h.IsDead(x));
+                var pool = blg ? h.Structures.Where(x => !_host.IsDead(x)) : h.AiVehicles.Where(x => _host.Team(x) != team && _host.Team(x) != 0 && !_host.IsDead(x));
                 object? best = null; float bd = float.MaxValue;
                 foreach (var x in pool)
                 {
@@ -679,8 +680,10 @@ public sealed partial class FsmVm
                     int seat = t.Bound >= 0 ? t.Bound : t.Match is { } mm ? _host.HumanSeat(mm) : t.Prefer >= 0 ? t.Prefer : _host.LeadSeat;
                     if (seat >= 0 && _host.Human(seat) is not null) { t.Scene = seat; t.SceneDepth = 0; }
                 }
-                var ints = Enumerable.Range(0, t.Args.Count).Select(i => V(t, i)).ToArray();
-                var objs = Enumerable.Range(0, t.Args.Count).Select(i => (object?)null).ToArray();
+                // (loops, not a lambda over t: one would make every opcode's call allocate the closure)
+                var ints = new int[t.Args.Count];
+                for (int i = 0; i < ints.Length; i++) ints[i] = V(t, i);
+                var objs = new object?[t.Args.Count];
                 IReadOnlyList<Vector3>? path = null;
                 // co-op: a camera on the group watches the matched human, else the lead
                 switch (lower)
