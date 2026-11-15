@@ -288,6 +288,9 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   the host to let you in..."; a listen host's own first join goes straight in (`ServerOptions.ListenHost`); the anet
   listing shows an invite-only game as joinable. A dedicated server (`--invite-only`) asks on its console ("*** Let NAME
   join the game? (y / n / s; turned away in 30 s)"); unanswered, the join is turned away, as the original's.
+- **Armour total.** The garage conserves a model's armour and chassis total, and `CarConfigCheck` used to refuse a joining car
+  that carried more than the heaviest stock variant. It is now a guideline: such a car joins, `CarConfigCheck.ArmourOverStock`
+  says by how much; only a negative zone is refused.
 - **Strict car checks** (the Nitro Pack's car check): besides the garage's rules
   (`CarConfigCheck`), `CarConfigCheck.Strict` refuses the same special twice, a second turret, a dropper off a dropper
   mount, a gun on one, a turret off a turret mount. The tank cannons and the howitzer were always refused online:
