@@ -104,7 +104,7 @@ the `gh-pages` branch (see tools/changes-page/README.md).
 - The movies' top octave shelved so cut-scenes are not brighter than the game; the effects' tone adjustable (`[port] movie_eq`, `game_eq`). [K]
 - Force feedback on a DirectInput wheel or stick on Windows with the original's effects (Controls' Force Feedback Wheel, Wheel Strength); Pad Enhanced adds pulses for the nitrous, handbrake, gears, starter and shots (Rumble Strength). [D]
 - `[port] movie_ignition=on`: the modern look's ignition plays the briefing movie's engine start-up, cut from your own install at run time. [AC]
-- Helicopters heard from further off: loud overhead, placeable at medium range, faint out to 2 km with the highs gone first, instead of a car engine's sound that is gone at 600 m (`[port] helicopter_hearing`, the modern look's default; `I76_HELI_HEARING`); the rotor's thump on the bass shaker (`lfe_helicopters`). [EX]
+- Helicopters heard from further off: loud overhead, placeable at medium range, faint out to 2 km with the highs gone first, instead of a car engine's sound that is gone at 600 m (`[port] helicopter_hearing`, the modern look's default; `I76_HELI_HEARING`); the rotor's thump on the bass shaker (`lfe_helicopters`). [EY]
 
 ## Controls and input
 
