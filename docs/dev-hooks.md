@@ -130,8 +130,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_NET_BOT` | capture | `1`: in a network game the own car drives itself as `i26-server --bots`' hunters do (`BotDriver`): makes for the nearest car and fires at it, and comes back after dying; in a co-op mission it plays as a teammate (hunts only the enemy team, keeps up with the lead, the lead with Taurus). For footage with nobody at the wheel. |
 | `I76_LOADING_CARD` | capture | Show that mission's loading card (e.g. `b01`). |
 | `I76_LOADING_SHOT` | capture | `PATH`: save the loading screen's frames (PATH_n.png, numbered on through a run's later cards; each frame's time in the log, `loading shot:`). |
-| `I76_LOAD_WHEEL` | capture | `STYLE[:FRACTION]`: the loading card's progress wheel in that variant (0 the steel wheel lit as it fills, the default; 1 a white wedge in a dim wheel; 2 as 0 with the stage's word), held at that fraction. |
-| `I76_LOAD_WHEEL_SHEET` | capture | `PATH`: once the card is up, every variant of the progress wheel at 25, 50, 75 and 100 % saved as PATH_s{variant}_{per cent}.png, then the game quits. |
+| `I76_STANDBY_LINE` | capture | `PX[:FRACTION]`: the progress line under PLEASE STAND BY (StandByTag) PX thick at 1080 lines (1.5 by default: 2 px at 1080 and 1440), held at FRACTION (0 to 1) instead of the load's progress. |
 | `I76_LOADING_ANSWER` | capture | `N`: answer the loading screen's question (a host's custom map: 0 Download, 1 Always, 2 Cancel) with that button once it has been up 60 frames. |
 | `I76_PIT_DUMP` | capture | `DIR`: dump the cockpit panel textures once, at frame 15. |
 | `I76_FRAMES_POINT` | capture | `1`: the steering wheel's and arms' frames from a pack are point-sampled from the full-size level, as before round 7 (the modern look reads them filtered with mipmaps: Cockpit.Frames), for a before \| after capture. |
