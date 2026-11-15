@@ -50,8 +50,23 @@ public partial class BassShaker : Node
         AudioServer.SetBusMute(bus, levelPercent <= 0);
         // the level is the synth's, before its limiter: a gain on the bus would put the loud thumps over the Master limiter
         AudioServer.SetBusVolumeDb(bus, 0f);
-        if (_instance is { } me) { me._synth.Eq = eq; me._synth.LowPassHz = crossover; me._synth.Gain = _gain; me._synth.SetWeights(sources); }
+        if (_instance is { } me)
+        {
+            // the worker owns the synth while it runs: it takes the settings whole, before its next sample
+            if (me._stream is { } st) st.Settings = Settings();
+            else Settings().ApplyTo(me._synth);
+        }
     }
+
+    private static TactileSettings Settings() => new(_gain, _eq, _crossover, [.. _sources]);
+
+    /// <summary>
+    /// I76_SHAKER_THREAD=0: the synthesis on the main thread as before (filled each frame, stepped each tick), for a measurement
+    /// or a fallback. Otherwise a worker of its own synthesises and pushes (<see cref="TactileStream"/>; docs/perf/threading-plan.md 2.4).
+    /// </summary>
+    private static readonly bool Threaded = System.Environment.GetEnvironmentVariable("I76_SHAKER_THREAD") != "0";
+    /// <summary>The frames the worker keeps queued: 50 ms, as the generator's length was meant (it rounds to a power of two: 85-93 ms, which the old path filled).</summary>
+    public const float QueueSeconds = 0.05f;
 
     private static int TactileBus()
     {
@@ -83,6 +98,22 @@ public partial class BassShaker : Node
     private AudioStreamGeneratorPlayback? _playback;
     private float[] _block = [];
     private Vector2[] _frames = [];
+    private TactileStream? _stream;
+    private long _logMade;
+    private double _logSqWas;
+
+    /// <summary>The generator's playback as the worker's sink: the mono block into frames, one push a block (the worker is its only writer).</summary>
+    private sealed class GeneratorSink(AudioStreamGeneratorPlayback playback, bool stereoPair, int capacity) : ITactileSink
+    {
+        private readonly Vector2[] _frames = new Vector2[TactileStream.Block];
+        public int Capacity => capacity;
+        public int Space => playback.GetFramesAvailable();
+        public void Push(ReadOnlySpan<float> block)
+        {
+            for (int i = 0; i < block.Length; i++) _frames[i] = new Vector2(stereoPair ? block[i] : 0, block[i]);
+            playback.PushBuffer(_frames);
+        }
+    }
 
     /// <summary>The output has an LFE channel (3.1, 5.1 or 7.1).</summary>
     public static bool HasLfe => AudioServer.GetSpeakerMode() != AudioServer.SpeakerMode.ModeStereo;
@@ -100,7 +131,7 @@ public partial class BassShaker : Node
                 _ => "stereo",
             };
             if (Playing is null) return $"bass shaker: {speakers} output, no LFE channel: silent";
-            float peak = _instance?._out is null ? 0 : _instance._synth.Peak;
+            float peak = _instance?._out is null ? 0 : _instance.Peak;
             string to = Playing == true ? $"both channels of {speakers}, under {_crossover:0} Hz" : $"LFE of {speakers}";
             return $"bass shaker: {to}{(_eq is null ? "" : ", EQ on")}, peak {(peak > 0 ? $"{20 * MathF.Log10(peak):0.0} dBFS" : "silent")}"
                 + (_instance is { } me ? "\n" + me.Readout() : "");
@@ -129,18 +160,32 @@ public partial class BassShaker : Node
     /// I76_LFE_LOG: the panel's road line on stdout, with the clock (s since the shaker opened), the car's x, z and speed (m/s),
     /// and the signal's RMS and peak over the interval (dBFS), for a scripted drive (tools/TactileRender/plot_sweeps.py reads it).
     /// </summary>
+    private float Peak => _stream?.Peak ?? _synth.Peak;
+
     private void Log(int n, double delta)
     {
         _logClock += delta;
-        for (int i = 0; i < n; i++) _logSq += _block[i] * _block[i];
-        _logN += n;
+        if (_stream is { } st)
+        {
+            // the worker's running totals since the last line
+            long made = st.Made;
+            double sq = st.SumSquares;
+            _logSq += sq - _logSqWas; _logN += (int)(made - _logMade);
+            _logSqWas = sq; _logMade = made;
+        }
+        else
+        {
+            for (int i = 0; i < n; i++) _logSq += _block[i] * _block[i];
+            _logN += n;
+        }
         if ((_logIn -= delta) > 0) return;
         _logIn = LogEvery;
         float rms = _logN > 0 ? MathF.Sqrt((float)(_logSq / _logN)) : 0;
         _logSq = 0; _logN = 0;
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         string car = Player?.Invoke() is { } v ? string.Create(inv, $"x {v.Pos.X:0.0}, z {v.Pos.Z:0.0}, speed {v.Vel.Length():0.0} m/s") : "no car";
-        GD.Print(string.Create(inv, $"lfe: t {_logClock:0.000}, {car}, {Readout()}, rms {(rms > 0 ? 20 * MathF.Log10(rms) : -999):0.0} dBFS, peak {(_synth.Peak > 0 ? 20 * MathF.Log10(_synth.Peak) : -999):0.0} dBFS"));
+        float peak = Peak;
+        GD.Print(string.Create(inv, $"lfe: t {_logClock:0.000}, {car}, {Readout()}, rms {(rms > 0 ? 20 * MathF.Log10(rms) : -999):0.0} dBFS, peak {(peak > 0 ? 20 * MathF.Log10(peak) : -999):0.0} dBFS"));
     }
 
     public override void _ExitTree()
@@ -153,12 +198,10 @@ public partial class BassShaker : Node
     {
         TactileBus();
         _stereoPair = stereoPair;
-        _synth.Eq = _eq;
-        _synth.LowPassHz = _crossover;
-        _synth.Gain = _gain;
-        _synth.SetWeights(_sources);
+        Settings().ApplyTo(_synth);
         float rate = AudioServer.GetMixRate();
-        // 50 ms of queue: a 60 fps frame fills it with room to spare, and a hit is felt within about three frames
+        // Godot rounds the ring up to a power of two (4096 frames: 85 ms at 48 kHz); the main-thread path keeps it full, the
+        // worker keeps QueueSeconds in it, so a hit is felt about 35-40 ms sooner
         var gen = new AudioStreamGenerator { MixRate = rate, BufferLength = 0.05f };
         // the centre target sends the frame's right half to the LFE at full level whatever VolumeDb says: the level is the synth's and the bus's
         _out = new AudioStreamPlayer { Name = "BassShaker", Stream = gen, Bus = BusName, ProcessMode = ProcessModeEnum.Always,
@@ -166,10 +209,30 @@ public partial class BassShaker : Node
         AddChild(_out);
         _out.Play();
         _playback = (AudioStreamGeneratorPlayback)_out.GetStreamPlayback();
+        _capacity = _playback.GetFramesAvailable();   // nothing pushed yet: the generator's whole ring
+        if (Threaded)
+        {
+            _stream = new TactileStream(_synth, new GeneratorSink(_playback, stereoPair, _capacity), (int)rate, QueueSeconds);
+            if (Times.On) Times.Attach(_stream, (int)rate);
+            _stream.Start();
+            _logMade = 0; _logSqWas = 0;
+            if (Times.On) GD.Print($"bass shaker: worker started, {TactileStream.Running} running");
+        }
+        if (Times.On) Times.Opened(Threaded, (int)rate, _capacity, _stream?.Depth ?? _capacity);
     }
+
+    private int _capacity;
+    private bool _errorShown;
 
     private void Close()
     {
+        // the worker first: after Stop the synth is this thread's again, and nothing pushes into a freed player
+        if (_stream is { } st)
+        {
+            st.Dispose();
+            if (Times.On) GD.Print($"bass shaker: worker stopped, {TactileStream.Running} running, {st.Dropped} ticks dropped");
+        }
+        _stream = null;
         _out?.QueueFree();
         _out = null;
         _playback = null;
@@ -180,11 +243,29 @@ public partial class BassShaker : Node
 
     public override void _Process(double delta)
     {
+        long t0 = Times.On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        Process(delta);
+        if (Times.On) Times.Frame(delta, System.Diagnostics.Stopwatch.GetTimestamp() - t0, GetTree());
+    }
+
+    private void Process(double delta)
+    {
         bool? want = Playing;
         if (_out is not null && want != _stereoPair) Close();
         if (want is { } pair && _out is null) Open(pair);
         if (_playback is null) { I76.Game.Ui.DevSignals.Shaker(0); return; }
-        if (GetTree().Paused || Held?.Invoke() == true) { _synth.Reset(); _hits.Clear(); _crossings.Reset(); }
+        bool held = GetTree().Paused || Held?.Invoke() == true;
+        if (held) { _hits.Clear(); _crossings.Reset(); }
+        if (_stream is { } st)
+        {
+            // the worker synthesises and pushes; this thread only says whether the game is held
+            st.Hold = held;
+            if (st.Error is { } err && !_errorShown) { _errorShown = true; GD.PrintErr($"bass shaker: the worker stopped: {err}"); }
+            I76.Game.Ui.DevSignals.Shaker(st.Peak);
+            if (LogEvery > 0) Log(0, delta);
+            return;
+        }
+        if (held) _synth.Reset();
         int n = _playback.GetFramesAvailable();
         if (n <= 0) return;
         if (_block.Length < n) { _block = new float[n]; _frames = new Vector2[n]; }
@@ -207,8 +288,25 @@ public partial class BassShaker : Node
     public static void Tick(IReadOnlyList<CombatEvent>? events, int from, float dt)
     {
         if (_instance is not { _out: not null } me || me.GetTree().Paused || Held?.Invoke() == true) return;
-        var e = me._events;
-        e.Clear();
+        long t0 = Times.On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        // threaded: the tick's inputs go into the worker's next slot (none free: the worker has stalled over a second, the tick is dropped)
+        var st = me._stream;
+        var e = st is null ? me._events : st.Begin();
+        if (e is null) { me._hits.Clear(); return; }
+        if (st is null) e.Clear();
+        Gather(me, e, events, from, dt);
+        if (st is not null) st.Commit();
+        else me._synth.Step(e);
+        if (Times.On)
+        {
+            Times.Tick(System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            // the old path's step lands after what the generator holds now: its delay (outside the timed span)
+            if (st is null && me._playback is { } pb) Times.Latency(me._capacity - pb.GetFramesAvailable());
+        }
+    }
+
+    private static void Gather(BassShaker me, TactileEvents e, IReadOnlyList<CombatEvent>? events, int from, float dt)
+    {
         e.Hits.AddRange(me._hits);
         me._hits.Clear();
         if (me.Player?.Invoke() is { } v)
@@ -249,6 +347,5 @@ public partial class BassShaker : Node
         }
         // the helicopters' rotor loops sounding now, by their distance from the listener (none parked, none stopped)
         I76.Game.Sim.Voice3D.RotorDistances(e.Rotors);
-        me._synth.Step(e);
     }
 }
