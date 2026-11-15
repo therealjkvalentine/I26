@@ -503,6 +503,12 @@ public sealed partial class MissionSetup
             damage.Killed += v => { if (host.Of(v) is { } e) host.Died(e); };
             // Co-op Scaling: a copy and its original never hurt each other (CoopExtras)
             if (host.Coop is { ExtraEnemies: > 0 }) damage.Spares = host.Spares;
+            // with Extra Enemies on, the cars the mission fails on losing take less (CoopSetup.EscortHealth): derived from the build alone
+            if (host.Coop is { ExtraEnemies: > 0 } && coop is not null && ms.Vm is { } vm && host.Escorts(vm) is { Count: > 0 } escorts)
+            {
+                damage.EscortFactor = coop.EscortDamageFactor;
+                damage.Escorted = v => host.Of(v) is { } e && escorts.Contains(e);
+            }
             if (game is not null) { damage.KilledBy += game.Credit; game.Explode = damage.Destroy; }
             damage.Recorded += (victim, attacker, kind, mask) =>
             {

@@ -34,6 +34,16 @@ public sealed record CoopSetup(IReadOnlyList<string?> Cars)
     public const int MaxExtraEnemies = 3;
 
     /// <summary>
+    /// With <see cref="ExtraEnemies"/> on, a car the mission fails on losing (an escort: Fsm.CoopEscorts; not a human, not an
+    /// enemy) lasts this many times as long under the same fire: it takes 1 / this of every damage (the port's; docs/deviations.md).
+    /// Derived from the build alone (the co-op game and its Extra Enemies), so a successor and a restore agree without a wire change.
+    /// </summary>
+    public const float EscortHealth = 1.5f;
+
+    /// <summary>The damage factor on an escort: 1 / <see cref="EscortHealth"/> with Extra Enemies on, else 1 (the original's).</summary>
+    public float EscortDamageFactor => ExtraEnemies > 0 ? 1f / EscortHealth : 1f;
+
+    /// <summary>
     /// The host's Co-op Rolling Start (the port's; docs/deviations.md): a respawn or a joiner comes in beside a teammate who
     /// is driving along at that teammate's speed and heading, rather than standing still. Off by default.
     /// </summary>
@@ -170,6 +180,20 @@ public sealed partial class ScriptHost
         if (e.CoopAim is { } cur && cur != best && c.SeatOf(cur) is { Alive: true } && D2(cur, at) <= bd * AimHysteresis * AimHysteresis) best = cur;
         e.CoopAim = best;
         return best;
+    }
+
+    /// <summary>
+    /// Co-op's escorted cars: the vehicles of the actors whose death fails the mission (<see cref="Fsm.FsmVm.EscortSlots"/>),
+    /// not a human's, not an enemy's (T09's Callisto is to be disabled, not protected), not a gun emplacement; a structure
+    /// the script guards (S03's oil wells) is no vehicle and is left alone.
+    /// </summary>
+    public HashSet<Entity> Escorts(Fsm.FsmVm vm)
+    {
+        var set = new HashSet<Entity>();
+        if (Coop is null) return set;
+        foreach (int i in vm.EscortSlots)
+            if (vm.Actors[i].Handle is Entity { Vehicle: { Emplacement: null } } e && !IsHumanEntity(e) && e.Team != 2 && e.ExtraOf is null) set.Add(e);
+        return set;
     }
 
     /// <summary>whoX on the group: the attacker of the human whose last hit of that kind is the latest (seat order on a tie).</summary>

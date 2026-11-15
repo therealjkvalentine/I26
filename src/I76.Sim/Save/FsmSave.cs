@@ -20,7 +20,7 @@ public sealed partial class FsmVm
         a.For<FsmVm>()
             .Saved(nameof(Data), nameof(Threads), nameof(Actors), nameof(TickCount), nameof(Watchdog), nameof(_warned), nameof(_shadows), nameof(_grounded))
             .Structural("the mission's program and the script host, and the session's rand stream", nameof(_p), nameof(_host), nameof(_rand))
-            .Structural("co-op's group slots and routines, found again from the program and the seats by the build", nameof(_group), nameof(_coop), nameof(Routines), nameof(_personalCams), nameof(CameraSites), nameof(GateSites))
+            .Structural("co-op's group slots and routines, found again from the program and the seats by the build", nameof(_group), nameof(_coop), nameof(Routines), nameof(_personalCams), nameof(CameraSites), nameof(GateSites), nameof(EscortSlots))
             .Transient("a cache of the prototype names in lower case, made from the program as the opcodes run (it decides nothing)", nameof(_lower))
             .Transient("set and taken within one instruction", nameof(_restart));
         a.For<Thread>().Saved(nameof(Thread.Stack), nameof(Thread.Args), nameof(Thread.Pc), nameof(Thread.Fp), nameof(Thread.Sp), nameof(Thread.Cond),
