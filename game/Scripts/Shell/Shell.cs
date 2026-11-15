@@ -1645,8 +1645,8 @@ public sealed class ShellSettings
     public int DeathOrbit { get; set; }
     /// <summary>The port's own, without a row: the clouds' drift in percent of the earlier rate, 0 to 200 ([port] sky_speed, written when not 50). Drawn only.</summary>
     public int SkySpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
-    /// <summary>The port's own, without a row: the death orbit's turn in percent of the earlier rate, 0 to 200 ([port] death_orbit_speed, written when not 50). Drawn only.</summary>
-    public int DeathOrbitSpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
+    /// <summary>The port's own, without a row: the death orbit's turn in percent of the earlier rate, 0 to 200 ([port] death_orbit_speed, written when not 25). Drawn only.</summary>
+    public int DeathOrbitSpeed { get; set; } = I76.Sim.Views.PresentationSpeed.DefaultOrbit;
     /// <summary>The port's own, without a row: in the 1997 look a change of the keys runs the next sim tick at once instead of waiting for it (TickPacer; [port] early_tick, written when off).</summary>
     public bool EarlyTick { get; set; } = true;
     /// <summary>The port's own, without a row: the player's car (and the cameras on it) drawn at the newest sim tick carried forward by the time since it, not between the last two ticks; both looks, offline (DrawAhead; [port] draw_ahead, written when on).</summary>
@@ -2045,18 +2045,18 @@ public sealed class ShellSettings
         return s;
     }
 
-    /// <summary>[port] sky_speed and death_orbit_speed: absent, 50 (docs/deviations.md "Sky scroll", "Death orbit"). <paramref name="value"/> gives a key's text, or null.</summary>
+    /// <summary>[port] sky_speed and death_orbit_speed: absent, 50 for the sky and 25 for the orbit (docs/deviations.md "Sky scroll", "Death orbit"). <paramref name="value"/> gives a key's text, or null.</summary>
     public void ReadSpeeds(Func<string, string?> value)
     {
         SkySpeed = I76.Sim.Views.PresentationSpeed.Parse(value("sky_speed"));
-        DeathOrbitSpeed = I76.Sim.Views.PresentationSpeed.Parse(value("death_orbit_speed"));
+        DeathOrbitSpeed = I76.Sim.Views.PresentationSpeed.Parse(value("death_orbit_speed"), I76.Sim.Views.PresentationSpeed.DefaultOrbit);
     }
 
-    /// <summary>The two keys, each only when not the default (50); <paramref name="set"/> writes a [port] key.</summary>
+    /// <summary>The two keys, each only when not its default (sky 50, orbit 25); <paramref name="set"/> writes a [port] key.</summary>
     public void WriteSpeeds(Action<string, int> set)
     {
         if (SkySpeed != I76.Sim.Views.PresentationSpeed.Default) set("sky_speed", I76.Sim.Views.PresentationSpeed.Clamp(SkySpeed));
-        if (DeathOrbitSpeed != I76.Sim.Views.PresentationSpeed.Default) set("death_orbit_speed", I76.Sim.Views.PresentationSpeed.Clamp(DeathOrbitSpeed));
+        if (DeathOrbitSpeed != I76.Sim.Views.PresentationSpeed.DefaultOrbit) set("death_orbit_speed", I76.Sim.Views.PresentationSpeed.Clamp(DeathOrbitSpeed));
     }
 
     public void Save()

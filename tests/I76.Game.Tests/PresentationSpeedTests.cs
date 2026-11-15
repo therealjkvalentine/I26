@@ -6,7 +6,7 @@ using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>[port] sky_speed and death_orbit_speed: drawn-only percentages, 50 by default; 100 is the rate before the keys.</summary>
+/// <summary>[port] sky_speed and death_orbit_speed: drawn-only percentages, 50 by default (the orbit 25); 100 is the rate before the keys.</summary>
 [Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets a global: not alongside the other settings tests
 public class PresentationSpeedTests
 {
@@ -39,7 +39,51 @@ public class PresentationSpeedTests
         var e = new ShellSettings { SkySpeed = 7, DeathOrbitSpeed = 7 };
         e.ReadSpeeds(k => Key(plain, k));
         Assert.Equal(50, e.SkySpeed);
-        Assert.Equal(50, e.DeathOrbitSpeed);
+        Assert.Equal(25, e.DeathOrbitSpeed);
+    }
+
+    [Fact]
+    public void TheOrbitDefaultsToAQuarterAndTheSkyStaysAtHalf()
+    {
+        Assert.Equal(25, PresentationSpeed.DefaultOrbit);
+        Assert.Equal(50, PresentationSpeed.Default);
+        Assert.Equal(25, new ShellSettings().DeathOrbitSpeed);
+        Assert.Equal(50, new ShellSettings().SkySpeed);
+        OriginalBehavior.Apply(new ShellSettings());
+        Assert.Equal(0.25f, OriginalBehavior.OrbitSpeed);
+        Assert.Equal(0.5f, OriginalBehavior.SkySpeed);
+    }
+
+    [Fact]
+    public void AFileThatNamesTheOrbitsValueKeepsItAndAnUnreadableOneGetsTheDefault()
+    {
+        foreach (int v in new[] { 50, 100, 10, 0 })
+        {
+            string text = Cfg(new ShellSettings { DeathOrbitSpeed = v });
+            var r = new ShellSettings();
+            r.ReadSpeeds(k => Key(text, k));
+            Assert.Equal(v, r.DeathOrbitSpeed);
+        }
+        // 50 is no longer the default, so it is written; 25 is not
+        Assert.Equal("50", Key(Cfg(new ShellSettings { DeathOrbitSpeed = 50 }), "death_orbit_speed"));
+        Assert.Null(Key(Cfg(new ShellSettings { DeathOrbitSpeed = 25 }), "death_orbit_speed"));
+        var f = new ShellSettings();
+        f.ReadSpeeds(k => k == "death_orbit_speed" ? "fast" : null);
+        Assert.Equal(25, f.DeathOrbitSpeed);
+    }
+
+    [Fact]
+    public void TheOrbitRowOffersTheSlowSteps()
+    {
+        var e = Assert.Single(DevSettings.All, d => d.Key == "death_orbit_speed");
+        Assert.Equal(new[] { 0, 10, 15, 25, 35, 50, 75, 100, 150, 200 }, DevSettings.OrbitSpeedSteps);
+        Assert.Equal(DevSettings.OrbitSpeedSteps.Length, e.Values.Length);
+        var s = new ShellSettings();
+        Assert.Equal("25", e.Values[e.Get(s)]);
+        foreach (int i in new[] { 1, 2, 4, 5, 7 }) { e.Set(s, i); Assert.Equal(DevSettings.OrbitSpeedSteps[i], s.DeathOrbitSpeed); }
+        s.DeathOrbitSpeed = 12;   // set by hand: the nearest step shows
+        Assert.Equal(DevSettings.OrbitSpeedSteps[1], DevSettings.OrbitSpeedSteps[e.Get(s)]);
+        Assert.Contains("100 is the original", DevTips.Of("death_orbit_speed"));
     }
 
     [Theory]
@@ -88,15 +132,12 @@ public class PresentationSpeedTests
     }
 
     [Fact]
-    public void TheDeveloperPanelHasBothRowsAtFifty()
+    public void TheDeveloperPanelsSkyRowIsAtFifty()
     {
-        foreach (var key in new[] { "sky_speed", "death_orbit_speed" })
-        {
-            var e = Assert.Single(DevSettings.All, d => d.Key == key);
-            var s = new ShellSettings();
-            Assert.Equal("50", e.Values[e.Get(s)]);
-            e.Set(s, 4);
-            Assert.Equal("100*", e.Values[e.Get(s)]);
-        }
+        var e = Assert.Single(DevSettings.All, d => d.Key == "sky_speed");
+        var s = new ShellSettings();
+        Assert.Equal("50", e.Values[e.Get(s)]);
+        e.Set(s, 4);
+        Assert.Equal("100*", e.Values[e.Get(s)]);
     }
 }

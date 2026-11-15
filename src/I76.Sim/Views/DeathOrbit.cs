@@ -21,7 +21,7 @@ public sealed class DeathOrbit
     /// <summary>The port's earlier orbit, [port] death_orbit=smooth: a steady 0.35 rad (20 degrees) a second, on the render delta.</summary>
     public const float SmoothRadiansPerSecond = 0.35f;
 
-    /// <summary>[port] death_orbit_speed as a factor of the turn (1: the rate above; 0.5 by default), drawn only.</summary>
+    /// <summary>[port] death_orbit_speed as a factor of the turn (1: the rate above; 0.25 by default), drawn only.</summary>
     public float Speed = 1f;
 
     private float _yaw, _shown;
