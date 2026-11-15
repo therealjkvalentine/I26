@@ -181,6 +181,48 @@ public partial class CombatEffectsTests(Xunit.Abstractions.ITestOutputHelper out
     }
 
     /// <summary>
+    /// A respawn starts the shot counts again from the server's: the shots of the last life are not counted as taken
+    /// back (the respawn's snapshot was compared before the car's new generation was seen, so every earlier shot was).
+    /// </summary>
+    [Fact]
+    public void ARespawnTakesNoShotsBack()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 3 });
+        var seat = host.Join("a", "vppirna1.vcf", 0);
+        var c = Connect(host, seat, HostTests.Mirror("m01"));
+        var rig = new Rig(host, late: 4);
+        rig.Clients.Add(c);
+        var key = Key(seat.Player.Car, w => w.Def.Kind == 1);
+        bool fire = false;
+        CarInput Input(Client _) => new() { Buttons = fire ? key : 0 };
+        for (int i = 0; i < 10; i++) rig.Tick(Input);
+        fire = true;
+        for (int i = 0; i < 40; i++) rig.Tick(Input);
+        fire = false;
+        for (int i = 0; i < 10; i++) rig.Tick(Input);
+        int predicted = c.Predictor!.Shots!.Predicted;
+        Assert.True(predicted > 0);
+        Assert.Equal(0, c.Predictor.Shots.Rejected);
+        int gen = seat.Player.Car.NetGeneration;
+        host.Setup.Damage.Destroy(seat.Player.Car);
+        for (int i = 0; i < (int)(host.Options.RespawnDelay / host.Session.TickSeconds) + 10; i++) rig.Tick(Input);
+        Assert.Null(host.Game.RequestRespawn(seat.Player));
+        for (int i = 0; i < 20; i++) rig.Tick(Input);
+        Assert.NotEqual(gen, seat.Player.Car.NetGeneration);
+        Assert.Equal(seat.Player.Car.NetGeneration & 0xff, c.Mirror.Own!.Vehicle.NetGeneration & 0xff);
+        output.WriteLine($"{predicted} shots in the first life; after the respawn rejected {c.Predictor.Shots.Rejected}");
+        Assert.Equal(0, c.Predictor.Shots.Rejected);
+        // and the new life's shots are counted as before
+        fire = true;
+        for (int i = 0; i < 20; i++) rig.Tick(Input);
+        fire = false;
+        for (int i = 0; i < 10; i++) rig.Tick(Input);
+        Assert.True(c.Predictor.Shots.Predicted > predicted);
+        Assert.Equal(0, c.Predictor.Shots.Rejected);
+    }
+
+    /// <summary>
     /// A weapon under 70 % of its hit points can jam online, and the jam is the server's roll: the client draws none of
     /// its shots at once (drawn, 62-63 % of them were taken back, measured at 20 % over 240 s) and shows the server's
     /// shots and rounds as they come. A healthy one is drawn at once.
@@ -235,48 +277,6 @@ public partial class CombatEffectsTests(Xunit.Abstractions.ITestOutputHelper out
         Assert.Equal(served, rig.ServerShotsDrawn[c]);
         Assert.True(c.Predictor.Shots.Adopted > 0);
         Assert.True(shownRounds > 0, "none of the server's rounds was drawn");
-    }
-
-    /// <summary>
-    /// A respawn starts the shot counts again from the server's: the shots of the last life are not counted as taken
-    /// back (the respawn's snapshot was compared before the car's new generation was seen, so every earlier shot was).
-    /// </summary>
-    [Fact]
-    public void ARespawnTakesNoShotsBack()
-    {
-        if (HostTests.InstallDir is not { } install) return;
-        var host = new MeleeHost(new ServerOptions { Install = install, Arena = "m01", Seed = 3 });
-        var seat = host.Join("a", "vppirna1.vcf", 0);
-        var c = Connect(host, seat, HostTests.Mirror("m01"));
-        var rig = new Rig(host, late: 4);
-        rig.Clients.Add(c);
-        var key = Key(seat.Player.Car, w => w.Def.Kind == 1);
-        bool fire = false;
-        CarInput Input(Client _) => new() { Buttons = fire ? key : 0 };
-        for (int i = 0; i < 10; i++) rig.Tick(Input);
-        fire = true;
-        for (int i = 0; i < 40; i++) rig.Tick(Input);
-        fire = false;
-        for (int i = 0; i < 10; i++) rig.Tick(Input);
-        int predicted = c.Predictor!.Shots!.Predicted;
-        Assert.True(predicted > 0);
-        Assert.Equal(0, c.Predictor.Shots.Rejected);
-        int gen = seat.Player.Car.NetGeneration;
-        host.Setup.Damage.Destroy(seat.Player.Car);
-        for (int i = 0; i < (int)(host.Options.RespawnDelay / host.Session.TickSeconds) + 10; i++) rig.Tick(Input);
-        Assert.Null(host.Game.RequestRespawn(seat.Player));
-        for (int i = 0; i < 20; i++) rig.Tick(Input);
-        Assert.NotEqual(gen, seat.Player.Car.NetGeneration);
-        Assert.Equal(seat.Player.Car.NetGeneration & 0xff, c.Mirror.Own!.Vehicle.NetGeneration & 0xff);
-        output.WriteLine($"{predicted} shots in the first life; after the respawn rejected {c.Predictor.Shots.Rejected}");
-        Assert.Equal(0, c.Predictor.Shots.Rejected);
-        // and the new life's shots are counted as before
-        fire = true;
-        for (int i = 0; i < 20; i++) rig.Tick(Input);
-        fire = false;
-        for (int i = 0; i < 10; i++) rig.Tick(Input);
-        Assert.True(c.Predictor.Shots.Predicted > predicted);
-        Assert.Equal(0, c.Predictor.Shots.Rejected);
     }
 
     /// <summary>
