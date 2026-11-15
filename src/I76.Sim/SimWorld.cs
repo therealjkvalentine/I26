@@ -70,9 +70,12 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         Time += frameDelta;
         // the gates' pass-A tick: they slide while the script has them moving
         if (Ground is Collision.IHasStatics hs) hs.World.TickGates(frameDelta);
+        Session.TickProbe.Begin(Session.TickSection.Ai);
         foreach (var (v, (ai, target)) in Ai)
             if (target(v) is { } t) Sim.Ai.AiDriver.DriveTo(v, ai, Ground, t, ai.CommandSpeed, frameDelta, traction: m => Step.TractionLimit(v, m, IsFar(v)));
             else { v.Throttle = -1; v.Steer = 0; }
+        Session.TickProbe.End(Session.TickSection.Ai);
+        Session.TickProbe.Begin(Session.TickSection.Contacts);
         // the original's pass: each mover against every later mover, then against the statics. A car's record is the
         // last one written, so a scenery contact in the same pass overwrites a car-car one: the wall wins.
         for (int i = 0; i < Vehicles.Count; i++)
@@ -83,6 +86,8 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
             // the pre-test: a still body meets no scenery (a helicopter on its pad; cars keep the port's sweep as it was)
             if (!v.Wreck && !Crashed(v) && !v.IsEmplacement && !(v.IsHeli && Still(v))) Step.StaticContacts(v, frameDelta, signsOnly: External?.Invoke(v) == true);
         }
+        Session.TickProbe.End(Session.TickSection.Contacts);
+        Session.TickProbe.Begin(Session.TickSection.Physics);
         foreach (var v in Vehicles)
         {
             if (v.Wreck) continue;
@@ -102,6 +107,7 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
             if (IsFar(v)) FarFrame(v, frameDelta, player);
             else Step.Frame(v, frameDelta, player);
         }
+        Session.TickProbe.End(Session.TickSection.Physics);
     }
 
     /// <summary>
