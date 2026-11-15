@@ -9,6 +9,8 @@ LUNCH & DINNER SERVED and the card's capitals, a brush script for "Lola's" and "
 says, where and in which colours. The window card is the movie's (Lola's, TRUCKER'S FEAST, ALL YOU CAN EAT, STEAK & EGGS,
 $4.99, Family Restaurant): its painted lines fall where the movie's card has them, so each line is set on the card's paper at
 the movie card's proportions. The name board (Lola's over the door, FAMILY RESTAURANT) is set on its painted ink boxes; the
+window band, which the face's stretch in the game (3.57 to 1) would show 2.7 times too wide on its painted box, at the movie's
+proportions on the painted line's centre; the
 window frame's bars that cross the board and the band are drawn again over the lettering as straight lines, as the movie shows
 them in front of it.
 
@@ -38,8 +40,15 @@ BOARD_LINES = [("Lola's", (45.85, 9.99, 62.94, 31.04), "script"),
 # (the pale pane line at 52 lies under the lettering, the dark bars over it, as painted)
 BOARD_UNDER = [(52, 2, [193, 186, 185])]
 BOARD_BARS = [(63, 1, [86, 84, 86]), (73, 1, [98, 97, 90]), (103, 1, [78, 76, 78]), (113, 1, [106, 103, 106])]
-# the window's band: LUNCH & DINNER SERVED in grey on the dark glass, the window's bars in front of it (x, width, colour)
+# the window's band: LUNCH & DINNER SERVED in grey on the dark glass (its painted ink box), the window's bars in front of it (x,
+# width, colour). The cafe front's face maps 22.0 m by 6.16 m onto the square texture, so a texel is 3.57 times as wide in the
+# game as it is tall: set on its painted box (52 by 3.7 texels) the line would show 2.7 times as wide as its face. It is set as the
+# movie shows it instead: a cap of BAND_CAP texels on the painted line's centre, its letters BAND_WIDE times the face's own width
+# in the game (the movie's book face, measured against Libre Caslon's: 21.4 caps over the line less its two mullion gaps)
 BAND = ("LUNCH & DINNER SERVED", (46.36, 98.33, 98.55, 102.0), [150, 150, 154])
+FACE_STRETCH = 22.0 / 6.16
+BAND_CAP = 5.0
+BAND_WIDE = 1.2
 BAND_BARS = [(63, 1, [123, 121, 123]), (73, 1, [106, 105, 106]), (88, 2, [102, 135, 140])]
 # the window cards: the paper (x0, y0, x1, y1) of each, its colour and the card's ink
 CARDS = [(46, 58, 52, 96), (75, 56, 82, 95)]
@@ -70,11 +79,20 @@ def card_box(card, line):
     sx, sy = (px1 - px0) / (mx1 - mx0), (py1 - py0) / (my1 - my0)
     return tuple(round(v, 3) for v in (px0 + (x0 - mx0) * sx, py0 + (y0 - my0) * sy, px0 + (x1 - mx0) * sx, py0 + (y1 - my0) * sy))
 
+def run_caps(face, text):
+    """The run's advance (the letters' widths, as text-redraws sets a "width") in caps of the face."""
+    import importlib.util
+    sp = importlib.util.spec_from_file_location("text_redraws", os.path.join(os.path.dirname(OUT), "text-redraws.py"))
+    tr = importlib.util.module_from_spec(sp); sp.loader.exec_module(tr)
+    f = tr.load_font(face["font"], 400, face.get("variation"))
+    b = f.getbbox("H", anchor="ls")
+    return sum(f.getlength(c) for c in text) / (b[3] - b[1])
+
 def bars(defs, y0, y1):
     return {"op": "lines", "width": 1, "cap": "butt",
             "segments": [[x + w / 2, y0, x + w / 2, y1, w, c] for x, w, c in defs]}
 
-def cafe(book):
+def cafe(book, painted=False):
     ops = [{"op": "erase", "rect": list(BOARD), "fill": BOARD_PAPER}, bars(BOARD_UNDER, BOARD[1], BOARD[3])]
     for t, box, face in BOARD_LINES:
         ops.append({"op": "text", "text": t, **(SCRIPT if face == "script" else book), "cap": round(box[3] - box[1], 2),
@@ -83,7 +101,9 @@ def cafe(book):
     t, (x0, y0, x1, y1), ink = BAND
     ops.append({"op": "erase", "rect": [x0 - 1.0, y0 - 0.6, x1 + 0.8, y1 + 0.4], "where": {"lum_above": 60}, "grow": 0.5,
                 "halo": {"within": 0.8, "lum_above": 50}})
-    ops.append({"op": "text", "text": t, **book, "cap": round(y1 - y0, 2), "colour": ink, "box": [x0, y0, x1, y1]})
+    if painted: ops.append({"op": "text", "text": t, **book, "cap": round(y1 - y0, 2), "colour": ink, "box": [x0, y0, x1, y1]})
+    else: ops.append({"op": "text", "text": t, **book, "cap": BAND_CAP, "colour": ink, "center": [round((x0 + x1) / 2, 3), round((y0 + y1) / 2, 3)],
+                      "width": round(BAND_WIDE * run_caps(book, t) * BAND_CAP / FACE_STRETCH, 3)})
     ops.append(bars(BAND_BARS, y0 - 0.6, y1 + 0.4))
     for card in CARDS:
         ops.append({"op": "erase", "rect": list(card), "fill": CARD_PAPER})
@@ -158,8 +178,8 @@ def edges():
                 for t, (what, line, span, blue, white) in ROOF_EDGES.items()})
     return out
 
-def specs(book=BOOK):
-    out = {"fn_1cff1": ("the cafe front of Spanner's truck stop: its name board, window band and cards", cafe(book)),
+def specs(book=BOOK, painted=False):
+    out = {"fn_1cff1": ("the cafe front of Spanner's truck stop: its name board, window band and cards", cafe(book, painted)),
            "fn_1s2_1": ("TRUCK STOP - RESTAURANT on Spanner's truck stop", truck_stop()),
            "fn_1gar1": ("the garage wall of Spanner's truck stop", garage())}
     for tex, (what, bar, box, ink, lines) in SPANNERS.items():

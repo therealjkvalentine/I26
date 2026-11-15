@@ -371,8 +371,7 @@ class TruckStopTests(unittest.TestCase):
         "signs-fn_1s2_1.json": {"TRUCK STOP - RESTAURANT": (5.71, 27.95, 122.65, 36.94)},
         "signs-fn_1gar1.json": {'We are a "Service Station"': (29.15, 68.19, 104.07, 79.07),
                                 "Visit our Full-Service Garage": (28.0, 89.93, 105.19, 101.0)},
-        "signs-fn_1cff1.json": {"FAMILY": (74.0, 8.29, 90.63, 19.0), "RESTAURANT": (68.07, 21.22, 102.78, 32.75),
-                                "LUNCH & DINNER SERVED": (46.36, 98.33, 98.55, 102.0)},
+        "signs-fn_1cff1.json": {"FAMILY": (74.0, 8.29, 90.63, 19.0), "RESTAURANT": (68.07, 21.22, 102.78, 32.75)},
     }
     SIZE = {"signs-fn_1cff1.json": (128, 128), "signs-fn_1gar1.json": (128, 128)}
 
@@ -388,9 +387,22 @@ class TruckStopTests(unittest.TestCase):
         lola = next(o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text" and o["text"] == "Lola's")
         self.assertEqual((lola["font"], tuple(lola["box"])), ("Lobster", (45.85, 9.99, 62.94, 31.04)))
 
+    def test_the_window_band_shows_at_the_movies_proportions(self):
+        """The cafe front's texel is 3.57 times as wide in the game as it is tall (22.0 m by 6.16 m on a square texture): the
+        band is set on its painted line's centre, 5 texels high, its letters 1.2 times the face's own width once stretched (the
+        movie's), not on the painted box (52 by 3.7 texels: 2.7 times too wide); its ink stays on the dark glass under the cards."""
+        op = next(o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text" and o["text"] == "LUNCH & DINNER SERVED")
+        self.assertEqual((op["cap"], op["center"]), (5.0, [72.455, 100.165]))
+        self.assertAlmostEqual(op["width"] * 22.0 / 6.16 / (spanners.run_caps(spanners.BOOK, op["text"]) * op["cap"]), 1.2, delta=0.005)
+        for s in (4, 8):
+            x0, y0, x1, y1 = ink_box(op, 128, 128, s)
+            self.assertAlmostEqual((x0 + x1) / 2, 72.455, delta=0.3)
+            self.assertGreater(y0, 96.5); self.assertLess(y1, 104.0)                    # under the cards, above the sill
+            self.assertLess(x1 - x0, 98.55 - 46.36)
+
     def test_the_window_cards_are_the_movies_card(self):
         """Both cards carry the movie card's eight lines, top to bottom, each inside its card's paper at the movie card's places."""
-        ops = [o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text"]
+        ops = [o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text" and "box" in o]
         words = [t for t, _, _ in spanners.CARD_LINES]
         self.assertEqual(words, ["Lola's", "TRUCKER'S", "FEAST", "ALL YOU CAN EAT", "STEAK &", "EGGS", "$4.99", "Family Restaurant"])
         for card in spanners.CARDS:
