@@ -456,15 +456,25 @@ reads; hidden with the plants in the 1997 look; shell.cfg `[port] brush_impacts=
   (halving every 0.3 s). It goes to the vegetation shader as one RGBA8 texture (`i76_veg_field`, nearest, and
   `i76_veg_field_rect`), uploaded only on frames where a cell changed, and only the changed rectangle re-encoded. In the
   vertex shader each plant reads the cell at its root: laid down, each vertex is turned about the root toward the way it
-  lies by up to 92 degrees times its sway weight (so the stems curve and keep their length; never below the ground),
+  lies by up to 92 degrees times its sway weight, fully laid times its square root (so the stems curve and keep their length and a shrub lies flat rather than keeping its middle up; never below the ground),
   less for the stiff ones (cacti and yuccas about half of it); shaken, the crown swings to and fro along that way; scorched,
   it darkens toward char. No per-plant state: thousands of plants cost one texture fetch each. The map's placed trees
   (Seminole's pines) are solid and left out.
 - **Rounds.** A round striking the ground within a plant's crown (its root within the crown's reach, the hit below its
   top) shakes it along the round's way and throws 12 leaves and 2 twigs (18 and 4 for the heavy guns), straw off the
   grasses; at most 4 bursts a frame and 40 alive.
-- **Cars.** Every car on the ground (CabClip's, within 120 m) lays the cells along its track down within 1.9 m, along its
-  heading, those at the sides leaning out too; a car at more than 4 m/s meeting a standing shrub throws its leaves.
+- **Cars.** Every car on the ground (CabClip's, within 120 m) knocks down each plant whose crown (three quarters of its
+  reach) its footprint (its collision box, swept over the frame) touches: the plant's cell starts to fall at once, along
+  the car's way and out to the side it was struck on, and is down after `BrushKnock.Seconds` = 0.05 + 1.2 / speed (m/s)
+  seconds, at least 0.06 and at most 0.7 (0.14 s at 30 mph, 0.10 at 60, 0.08 at 100, 0.32 at 10), along a snap (1 - (1 - u)^3 of the
+  drawn bend: most of the way in the first third, settling as it lands); a car creeping under 4 m/s bends it only partway
+  (0.55 at walking pace). The track behind lays the cells within 1.9 m down the same way, those at the sides leaning out
+  too; a blast still lays them at once. Each standing plant of 0.35 m or more knocked makes the original's sound for a
+  car running a sign or post down (`vnvco3`, a 0.39 s knock; the original has no plants a car goes through, and its saguaro's
+  `vnvcs5` is a 2.6 s crash) at the plant, positional (DirectSound's rule, min distance 10 m), on the Effects bus, HiFi
+  Audio's replacement when a pack has one: pitched 0.85-1.15 by the plant's place (lower for a big one), -14 dB creeping
+  to 0 dB at 100 mph, ±1.5 dB per plant, at most one every 0.08 s a car, 12 a second in all and 4 at once (its own voice
+  name: the signs' knock is never taken). A car at more than 4 m/s knocking a shrub of 0.5 m or more throws its leaves.
   The shader's existing parting (Cars and plants) still bends the plants round the car while it is there; the field keeps
   them down after it has gone.
 - **Blasts.** A blast of the modern look's explosion table (car deaths, buildings, grenades, mines, missiles, ...; the

@@ -102,10 +102,13 @@ void vertex() {
 			vec4 b = textureLod(i76_veg_field, buv, 0.0);
 			float a = b.g * 6.2832;
 			vec2 way = vec2(cos(a), sin(a));
-			float lay = smoothstep(0.0, 0.6, b.r) * (1.0 - 0.55 * stiff);
+			float down = smoothstep(0.0, 0.6, b.r);
+			float lay = down * (1.0 - 0.55 * stiff);
 			float shake = b.a * (1.0 - 0.75 * stiff) * s * s * min(height, 2.0) * 0.22 * sin(TIME * 17.0 + phase * 3.0);
 			vec3 p = VERTEX - origin;
-			float th = lay * 1.6 * s;
+			// laid fully, the stems bend from low down (the square root of the sway weight), so a shrub a car went over lies flat
+			// rather than keeping its middle up through the car
+			float th = lay * 1.6 * mix(s, sqrt(s), down);
 			float along = dot(p.xz, way);
 			vec2 side = p.xz - way * along;
 			float nh = along * cos(th) + p.y * sin(th);
