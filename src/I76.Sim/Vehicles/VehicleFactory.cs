@@ -59,12 +59,16 @@ public static class VehicleFactory
     public static void AddDriverHandguns(AssetVfs vfs, string vcfName, Vehicle v)
     {
         if (v.IsEmplacement) return;
-        var interior = new I76.Formats.Assembly.ModelAssembler(vfs) { Detail = '5' }.Assemble(vcfName);
-        if (interior is null || vfs.TryRead(vcfName) is not { } vcfBytes || new Bwd2File(vcfBytes).First("VCFC") is not { } vcc
-            || vfs.TryRead(Bin.CStr(vcfBytes, vcc.PayloadOffset + 0x10, 13)) is not { } vdfBytes) return;
-        bool Has(string code) => interior.Parts.Any(p => p.NodeName.Length >= 8 && p.NodeName[4..8].Equals(code, StringComparison.OrdinalIgnoreCase));
-        bool right = Has("GUNR"), left = Has("GUNL");
+        var (right, left) = CarFiles.Arms(vfs, vcfName, () =>
+        {
+            var interior = new I76.Formats.Assembly.ModelAssembler(vfs) { Detail = '5' }.Assemble(vcfName);
+            if (interior is null) return (false, false);
+            bool Has(string code) => interior.Parts.Any(p => p.NodeName.Length >= 8 && p.NodeName[4..8].Equals(code, StringComparison.OrdinalIgnoreCase));
+            return (Has("GUNR"), Has("GUNL"));
+        });
         if (!right && !left) return;
+        if (CarFiles.TryRead(vfs, vcfName) is not { } vcfBytes || new Bwd2File(vcfBytes).First("VCFC") is not { } vcc
+            || CarFiles.TryRead(vfs, Bin.CStr(vcfBytes, vcc.PayloadOffset + 0x10, 13)) is not { } vdfBytes) return;
         v.Armory ??= new Weapons.Armory();
         v.Armory.AddHandguns(new Bwd2File(vdfBytes), right, left);
     }
@@ -84,7 +88,7 @@ public static class VehicleFactory
     /// so they have no specials and none of the specials' load-time effects (the blower among them).</param>
     public static Vehicle Create(AssetVfs vfs, string vcfName, bool meleeBrakes = false, bool bodySound = false, bool specials = true)
     {
-        var vcf = new Bwd2File(vfs.Read(vcfName));
+        var vcf = new Bwd2File(CarFiles.Read(vfs, vcfName));
         var vcfc = vcf.First("VCFC") ?? throw new InvalidDataException($"{vcfName}: no VCFC");
         int p = vcfc.PayloadOffset;
         byte[] d = vcf.Data;
@@ -92,7 +96,7 @@ public static class VehicleFactory
         string[] wdfNames = [.. Enumerable.Range(0, 3).Select(a => Bin.CStr(d, p + 0x36 + 13 * a, 13))];
         int engNum = Bin.I32(d, p + 0x2a), suspId = Bin.I32(d, p + 0x2e), brakeId = Bin.I32(d, p + 0x32);
 
-        var vdf = new Bwd2File(vfs.Read(vdfName));
+        var vdf = new Bwd2File(CarFiles.Read(vfs, vdfName));
         var vdfc = vdf.First("VDFC")!.Value;
         bool heavy = HeavyBody(Bin.U32(vdf.Data, vdfc.PayloadOffset + 0x18));
         int soundNum = (bodySound || heavy) && engNum is >= 0 and <= 3 && BodySoundRow(vfs, vdfName) is { } bodyRow ? bodyRow : engNum;
@@ -115,7 +119,7 @@ public static class VehicleFactory
         // wheels: WLOC slot k → the wheel object (0 FR, 1 FL, 2/3 middle, 4 RR, 5 RL)
         var wloc = vdf.Locations().Where(l => l.Tag == "WLOC").Select(l => new Vector3(l.Transform.Translation[0], l.Transform.Translation[1], l.Transform.Translation[2])).ToArray();
         // the middle pair exists when its .wdf is named (its wheel is set); "null" is no middle axle
-        bool middle = wdfNames[1].Length > 0 && !wdfNames[1].Equals("null", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(wdfNames[1]) is not null && wloc.Length >= 4;
+        bool middle = wdfNames[1].Length > 0 && !wdfNames[1].Equals("null", StringComparison.OrdinalIgnoreCase) && CarFiles.TryRead(vfs, wdfNames[1]) is not null && wloc.Length >= 4;
         if (middle) { v.MiddleRight = new Wheel(); v.MiddleLeft = new Wheel(); }
         Wheel?[] slots = [v.FrontRight, v.FrontLeft, v.MiddleRight, v.MiddleLeft, v.RearRight, v.RearLeft];
         for (int k = 0; k < 6 && k < wloc.Length; k++)
@@ -126,7 +130,7 @@ public static class VehicleFactory
         for (int kind = 0; kind < 3; kind++)
         {
             if (wdfNames[kind].Length == 0 || wdfNames[kind].Equals("null", StringComparison.OrdinalIgnoreCase)) continue;
-            if (vfs.TryRead(wdfNames[kind]) is not { } wd) continue;
+            if (CarFiles.TryRead(vfs, wdfNames[kind]) is not { } wd) continue;
             var wdf = new Bwd2File(wd);
             if (wdf.First("WDFC") is not { } wc) continue;
             float grip = Bin.F32(wdf.Data, wc.PayloadOffset + 0x30);
@@ -183,7 +187,7 @@ public static class VehicleFactory
 
     public static (List<Component> Engines, List<Component> Brakes, List<Component> Suspensions) ReadComponents(AssetVfs vfs)
     {
-        var cdf = new Bwd2File(vfs.Read("compnent.cdf"));
+        var cdf = new Bwd2File(CarFiles.Read(vfs, "compnent.cdf"));
         Component R(Chunk c, int a, int b, int cc) =>
             new(Bin.F32(cdf.Data, c.PayloadOffset + a), Bin.F32(cdf.Data, c.PayloadOffset + b), cc < 0 ? 0 : Bin.F32(cdf.Data, c.PayloadOffset + cc), Bin.I32(cdf.Data, c.PayloadOffset));
         return (cdf.All("ENGN").Select(c => R(c, 4, 8, -1)).ToList(),
@@ -238,7 +242,7 @@ public static class VehicleFactory
     /// <summary>engsnd.dat's ENGINE SND FILE for an ENG NUM (column 4).</summary>
     public static string? EngineSound(AssetVfs vfs, int engNum)
     {
-        if (vfs.TryRead("engsnd.dat") is not { } d) return null;
+        if (CarFiles.TryRead(vfs, "engsnd.dat") is not { } d) return null;
         foreach (var line in Bin.Latin1(d).Split('\n'))
         {
             var t = line.Trim();
@@ -252,7 +256,7 @@ public static class VehicleFactory
     /// <summary>engsnd.dat's REVABLE (column 2) for an ENG NUM: a loop that is not revable (helicopters, balloon, tank) plays at its own rate, never re-pitched (the re-pitching is installed only for revable rows).</summary>
     public static bool EngineRevable(AssetVfs vfs, int engNum)
     {
-        if (vfs.TryRead("engsnd.dat") is not { } d) return true;
+        if (CarFiles.TryRead(vfs, "engsnd.dat") is not { } d) return true;
         foreach (var line in Bin.Latin1(d).Split('\n'))
         {
             var t = line.Trim();
@@ -266,7 +270,7 @@ public static class VehicleFactory
     /// <summary>engsnd.dat's IGN NORM / DMG1 / DMG2 sounds and times for an ENG NUM (columns 6..11).</summary>
     public static IgnitionRow? IgnitionFor(AssetVfs vfs, int engNum)
     {
-        if (vfs.TryRead("engsnd.dat") is not { } d) return null;
+        if (CarFiles.TryRead(vfs, "engsnd.dat") is not { } d) return null;
         foreach (var line in Bin.Latin1(d).Split('\n'))
         {
             var t = line.Trim();
@@ -283,7 +287,7 @@ public static class VehicleFactory
     /// <summary>engsnd.dat's HORN SND FILE for an ENG NUM (column 5): the stuck horn of a car whose driver was shot.</summary>
     public static string? HornSound(AssetVfs vfs, int engNum)
     {
-        if (vfs.TryRead("engsnd.dat") is not { } d) return null;
+        if (CarFiles.TryRead(vfs, "engsnd.dat") is not { } d) return null;
         foreach (var line in Bin.Latin1(d).Split('\n'))
         {
             var t = line.Trim();
@@ -302,12 +306,12 @@ public static class VehicleFactory
     public const string SirenSound = "aps2.wav";
 
     /// <summary>Whether the horn file of an ENG NUM loops when started with no voice settings (its GAS0 mode): the police car's aps2.wav does.</summary>
-    public static bool HornLoops(AssetVfs vfs, int engNum) => HornSound(vfs, engNum) is { } horn && I76.Formats.Audio.SoundFiles.Loops(vfs, horn);
+    public static bool HornLoops(AssetVfs vfs, int engNum) => HornSound(vfs, engNum) is { } horn && CarFiles.Loops(vfs, horn);
 
     /// <summary>engsnd.dat: "ENG NUM, ENG COMP ID, ..." per line.</summary>
     public static int EngineCompId(AssetVfs vfs, int engNum)
     {
-        if (vfs.TryRead("engsnd.dat") is not { } d) return 0;
+        if (CarFiles.TryRead(vfs, "engsnd.dat") is not { } d) return 0;
         foreach (var line in Bin.Latin1(d).Split('\n'))
         {
             var t = line.Trim();
