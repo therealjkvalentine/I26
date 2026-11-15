@@ -185,7 +185,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         // A dying (0x8000) or dead (0x20) car brakes, every substep
         if (((uint)v.Flags & 0x8020) != 0) v.Throttle = -1;
         float speed0 = v.Speed;
-        foreach (var w in v.Wheels) w.Spin += speed0 * dt;
+        foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) w.Spin += speed0 * dt;   // (Wheels' order, on the stack: Wheels makes an array a call)
         v.FrontRight.SteerAngle = v.FrontLeft.SteerAngle = v.Steer * -MathF.PI / 4;
 
         var oldFlags = v.Flags;
@@ -232,7 +232,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             v.Flags = flags & ~VehicleFlags.Sliding;
             Skid(v.RearLeft, false);
             Skid(v.RearRight, false);
-            foreach (var w in v.Wheels.Concat(v.MiddleWheels)) Suspension(v, w, true, 0, 0);   // locked, surface 0 in flight; the middle pair too
+            foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) Suspension(v, w, true, 0, 0);   // locked, surface 0 in flight; the middle pair too
+            if (v.MiddleRight is { } mr && v.MiddleLeft is { } ml) { Suspension(v, mr, true, 0, 0); Suspension(v, ml, true, 0, 0); }
         }
         // With the step's flags and signed speed
         v.Engine.Update(v.Throttle, signedSpeed, v.Flags, v.Gear < 0, v.DriveState, FrameDelta);
@@ -374,7 +375,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             slope = gSlope;
             bool locked = tipped || v.Throttle < -0.5f || v.Handbrake != 0;
             if ((v.Flags & VehicleFlags.CommandedYaw) == 0)
-                foreach (var w in v.Wheels) WheelForce(v, w, gripLoad, locked, ref resist, ref torque);
+                foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) WheelForce(v, w, gripLoad, locked, ref resist, ref torque);
             else
             {
                 // Sideways friction, -(right·v)/|v| · maxFriction, along right
@@ -1200,7 +1201,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         Suspension(v, v.FrontRight, false, f8 + fc, v.Surface);
         Suspension(v, v.RearLeft, false, -fc - f8, v.Surface);
         Suspension(v, v.RearRight, false, f8 - fc, v.Surface);
-        foreach (var w in v.MiddleWheels) Suspension(v, w, false, 0, v.Surface);   // the middle pair (if any): no weight transfer
+        if (v.MiddleRight is { } mr && v.MiddleLeft is { } ml) { Suspension(v, mr, false, 0, v.Surface); Suspension(v, ml, false, 0, v.Surface); }   // the middle pair (if any): no weight transfer
 
         var pos = v.Pos.ToVector3();
         bool inverted = v.Rot.Up.Y <= 0.1f;
