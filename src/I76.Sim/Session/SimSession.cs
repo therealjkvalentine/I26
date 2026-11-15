@@ -198,6 +198,7 @@ public sealed partial class SimSession
     /// <summary>One tick; inputs[i] drives <see cref="Drivers"/>[i] (a missing one is no keys at all).</summary>
     public void Tick(IReadOnlyList<CarInput> inputs)
     {
+        TickProbe.Begin(TickSection.Tick);
         AssignIds();
         foreach (var d in _drivers)
         {
@@ -212,8 +213,10 @@ public sealed partial class SimSession
             }
         }
         // the keys pressed since the last tick (SimDriver._UnhandledInput), then the held ones (its _Process)
+        TickProbe.Begin(TickSection.Controls);
         foreach (var d in _drivers) ApplyCommands(d);
         foreach (var d in _drivers) ApplyControls(d, EndBrake(Ticks));
+        TickProbe.End(TickSection.Controls);
         Misfires.Clear();
         World.Step.Impacts.Clear();
         World.Step.ObjectHits.Clear();
@@ -227,17 +230,24 @@ public sealed partial class SimSession
         Ticks++;
         FrameDone?.Invoke();
         // the drivers' triggers are a per-frame request, set before the weapons run; then the selection (the order)
+        TickProbe.Begin(TickSection.Controls);
         foreach (var d in _drivers) { Triggers(d); Select(d); }
+        TickProbe.End(TickSection.Controls);
         _skip = _drivers.Any(d => d.Input.Has(CarCommands.Skip));
         Script?.AfterFrame(TickSeconds);
+        TickProbe.Begin(TickSection.Weapons);
         Boom();
         if (Script is null && Combat is not null)
         {
             Vehicles.Emplacements.Frame(World, Combat, Melee?.Rules.Network == true);
             Combat.Frame(TickSeconds);
         }
+        TickProbe.End(TickSection.Weapons);
+        TickProbe.Begin(TickSection.Controls);
         foreach (var d in _drivers) Arms(d);
+        TickProbe.End(TickSection.Controls);
         AssignIds();
+        TickProbe.End(TickSection.Tick);
     }
 
     /// <param name="fresh">A prediction's first run of this input (not a replay): its specials' sounds play at once.</param>

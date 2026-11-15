@@ -224,7 +224,7 @@ public sealed class Armory
         foreach (var m in vcf.WeaponMounts().Where(w => !w.Empty))
         {
             if (hps.FirstOrDefault(h => h.Id == m.Slot) is not { } hp) continue;
-            if (vfs.TryRead(m.Gizmo) is not { } gd || GizmoDef.Read(m.Gizmo, gd) is not { } g) continue;
+            if (Vehicles.CarFiles.TryRead(vfs, m.Gizmo) is not { } gd || GizmoDef.Read(m.Gizmo, gd) is not { } g) continue;
             a.Weapons.Add(Mount(g, hp));
         }
         a.LoadOrder.AddRange(a.Weapons);

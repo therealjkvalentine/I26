@@ -25,7 +25,8 @@ public sealed partial class Combat
             .Transient("the host's hook", nameof(HandgunShot))
             .Transient("a per-frame output for the sounds, rebuilt by every frame's aims", nameof(LockTone), nameof(LockedOn))
             .Transient("a network client's own predicted rounds and their hook: drawn only, never in a server's or a single player's state", nameof(PredictedRounds), nameof(PredictedShot))
-            .Transient("set only inside PredictFrame and BuildFlameView, false between ticks", nameof(_cosmetic), nameof(_silent));
+            .Transient("set only inside PredictFrame and BuildFlameView, false between ticks", nameof(_cosmetic), nameof(_silent))
+            .Transient("the frame's scratch copy of the next-target timers' keys, filled and read within the frame", nameof(_timerKeys));
         a.For<Round>()
             .Saved(nameof(Round.Kind), nameof(Round.Shooter), nameof(Round.Def), nameof(Round.Pos), nameof(Round.Rot), nameof(Round.LocalVel), nameof(Round.Life),
                 nameof(Round.Age), nameof(Round.Travelled), nameof(Round.Count), nameof(Round.Damage), nameof(Round.Target), nameof(Round.PrevPos), nameof(Round.Vel),

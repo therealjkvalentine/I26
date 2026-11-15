@@ -185,7 +185,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         // A dying (0x8000) or dead (0x20) car brakes, every substep
         if (((uint)v.Flags & 0x8020) != 0) v.Throttle = -1;
         float speed0 = v.Speed;
-        foreach (var w in v.Wheels) w.Spin += speed0 * dt;
+        foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) w.Spin += speed0 * dt;   // (Wheels' order, on the stack: Wheels makes an array a call)
         v.FrontRight.SteerAngle = v.FrontLeft.SteerAngle = v.Steer * -MathF.PI / 4;
 
         var oldFlags = v.Flags;
@@ -232,7 +232,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             v.Flags = flags & ~VehicleFlags.Sliding;
             Skid(v.RearLeft, false);
             Skid(v.RearRight, false);
-            foreach (var w in v.Wheels.Concat(v.MiddleWheels)) Suspension(v, w, true, 0, 0);   // locked, surface 0 in flight; the middle pair too
+            foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) Suspension(v, w, true, 0, 0);   // locked, surface 0 in flight; the middle pair too
+            if (v.MiddleRight is { } mr && v.MiddleLeft is { } ml) { Suspension(v, mr, true, 0, 0); Suspension(v, ml, true, 0, 0); }
         }
         // With the step's flags and signed speed
         v.Engine.Update(v.Throttle, signedSpeed, v.Flags, v.Gear < 0, v.DriveState, FrameDelta);
@@ -374,7 +375,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             slope = gSlope;
             bool locked = tipped || v.Throttle < -0.5f || v.Handbrake != 0;
             if ((v.Flags & VehicleFlags.CommandedYaw) == 0)
-                foreach (var w in v.Wheels) WheelForce(v, w, gripLoad, locked, ref resist, ref torque);
+                foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) WheelForce(v, w, gripLoad, locked, ref resist, ref torque);
             else
             {
                 // Sideways friction, -(right·v)/|v| · maxFriction, along right
@@ -563,6 +564,37 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     }
 
     /// <summary>
+    /// The farthest of the car's 8 box corners {x0,x3}x{y1,y3}x{z0,z3} from <paramref name="mid"/>: its body sphere's radius before
+    /// the 0.1 margin. Read in locals, not arrays: it runs for every car against every other and every object, every tick.
+    /// </summary>
+    internal static float CornerReach(Vehicle v, Vector3 mid)
+    {
+        float x0 = v.BoxX[0], x3 = v.BoxX[3], y1 = v.BoxY[1], y3 = v.BoxY[3], z0 = v.BoxZ[0], z3 = v.BoxZ[3];
+        float r = 0;
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y1, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y1, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y3, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x0, y3, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y1, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y1, z3)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y3, z0)));
+        r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x3, y3, z3)));
+        return r;
+    }
+
+    /// <summary>A structure's polygons on its sign nodes (a lambda of its own: one inline in the loop below would make a closure for every object, every tick).</summary>
+    private static List<Collision.Poly> SignPolys(Collision.StaticObject o) => o.Polys.FindAll(q => o.SignNode(q.Node));
+
+    /// <summary>A structure's polygons without its unfelt nodes' (static for the same reason as <see cref="SignPolys"/>).</summary>
+    private static List<Collision.Poly> FeltPolys(Collision.StaticObject o)
+    {
+        foreach (var q in o.Polys) if (o.Unfelt(q.Node)) return Felt(o);
+        return o.Polys;
+    }
+
+    private static List<Collision.Poly> Felt(Collision.StaticObject o) => o.Polys.FindAll(q => !o.Unfelt(q.Node));
+
+    /// <summary>
     /// The per-frame object pass for this car against the static world
     /// (mesh class): XZ boxes,
     /// a swept-sphere test, then the four mid-height box corners as rays
@@ -571,48 +603,59 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     /// suppression). The record is then the vehicle callback's
     /// to consume on the next substep.
     /// </summary>
+    private int[] _near = new int[64];
+
     private void ObjectContacts(Vehicle v, float dtFrame, bool signsOnly = false)
     {
         if (ground is not Collision.IHasStatics wg) return;
         var p0 = v.Pos.ToVector3();
         // body sphere: the 8 corners {x0,x3}×{y1,y3}×{z0,z3}, + 0.1
-        float r = 0;
         var mid = new Vector3((v.BoxX[0] + v.BoxX[3]) / 2, (v.BoxY[1] + v.BoxY[3]) / 2, (v.BoxZ[0] + v.BoxZ[3]) / 2);
-        foreach (var x in new[] { v.BoxX[0], v.BoxX[3] })
-            foreach (var y in new[] { v.BoxY[1], v.BoxY[3] })
-                foreach (var z in new[] { v.BoxZ[0], v.BoxZ[3] })
-                    r = MathF.Max(r, Vector3.Distance(mid, new Vector3(x, y, z)));
-        r += 0.1f;
+        float r = CornerReach(v, mid) + 0.1f;
         var c = p0 + v.Rot.ToWorld(mid);
         var c2 = c + v.Vel * dtFrame;
         float minX = MathF.Min(c.X, c2.X) - r, maxX = MathF.Max(c.X, c2.X) + r;
         float minZ = MathF.Min(c.Z, c2.Z) - r, maxZ = MathF.Max(c.Z, c2.Z) + r;
         float ym = (v.BoxY[1] + v.BoxY[3]) * 0.5f;
-        var corners = new[] { new Vector3(v.BoxX[0], ym, v.BoxZ[0]), new Vector3(v.BoxX[3], ym, v.BoxZ[0]),
-                              new Vector3(v.BoxX[3], ym, v.BoxZ[3]), new Vector3(v.BoxX[0], ym, v.BoxZ[3]) };
+        Span<Vector3> corners = [new Vector3(v.BoxX[0], ym, v.BoxZ[0]), new Vector3(v.BoxX[3], ym, v.BoxZ[0]),
+                                 new Vector3(v.BoxX[3], ym, v.BoxZ[3]), new Vector3(v.BoxX[0], ym, v.BoxZ[3])];
         float best = float.MaxValue;
         Contact rec = default;
         bool driveOn = false;
-        foreach (var o in wg.World.Objects)
+        // the objects whose bounds meet the swept box, in the list's order: the tests below rule out every other one (a sign's
+        // reach takes the car's speed besides, hence the margin)
+        float e = MathF.Abs(v.Speed * dtFrame) + 1f;
+        var objects = wg.World.Objects;
+        int epoch = Volatile.Read(ref Collision.StaticObject.BoundsEpoch);
+        int near = wg.World.Near(minX - e, maxX + e, minZ - e, maxZ + e, ref _near);
+        for (int ni = 0, done = -1; ni < near; ni++)
         {
+            // a contact's damage that moved some placement's bounds (a collapse, a refresh): the rest of the pass as the list now is
+            if (Volatile.Read(ref Collision.StaticObject.BoundsEpoch) != epoch)
+            {
+                epoch = Volatile.Read(ref Collision.StaticObject.BoundsEpoch);
+                near = wg.World.Near(minX - e, maxX + e, minZ - e, maxZ + e, ref _near);
+                ni = 0;
+                while (ni < near && _near[ni] <= done) ni++;
+                if (ni >= near) break;
+            }
+            done = _near[ni];
+            var o = objects[done];
+            // (the tests below in the order they decide; the XZ box first of all for the rest, as it rules out most of the
+            // map and has no effect of its own)
+            bool signPlacement = o.SignPlacement;
+            if (!signPlacement && (o.Centre.X + o.Radius < minX || o.Centre.X - o.Radius > maxX || o.Centre.Z + o.Radius < minZ || o.Centre.Z - o.Radius > maxZ)) continue;
             if (!o.Solid) continue;
-            if (o.SignPlacement)
+            if (signPlacement)
             {
                 // a sign: each part's sphere against the car's box, now and at the end of the frame; no response, it is knocked off
-                foreach (var sp in o.Spheres.Count > 0 ? o.Spheres : [new Collision.NodeSphere(o.Centre, o.SphereRadius)])
-                {
-                    float reach = r + sp.Radius + v.Speed * dtFrame;
-                    if ((new Vector2(sp.Centre.X - c.X, sp.Centre.Z - c.Z)).LengthSquared() > reach * reach) continue;
-                    if (!SphereHitsBox(v, sp.Centre, sp.Radius, dtFrame)) continue;
-                    ObjectHits.Add((v, o.Name, o.Type, Vector3.UnitY, v.Speed));
-                    Damage?.StaticContact(v, o, new Contact { Hit = true, Other = o });
-                    break;
-                }
+                // (one made without spheres is its placement's sphere)
+                if (o.Spheres.Count == 0) SignTouch(v, o, o.Centre, o.SphereRadius, r, c, dtFrame);
+                else foreach (var sp in o.Spheres) if (SignTouch(v, o, sp.Centre, sp.Radius, r, c, dtFrame)) break;
                 continue;
             }
             // another model moves this car: of the rest, only a structure's sign nodes, which that model leaves out
             if (signsOnly && !o.Nodes.Exists(n => n.Sign)) continue;
-            if (o.Centre.X + o.Radius < minX || o.Centre.X - o.Radius > maxX || o.Centre.Z + o.Radius < minZ || o.Centre.Z - o.Radius > maxZ) continue;
             if (!SweptSphere(c, v.Vel, o.Centre, r + o.Radius, dtFrame)) continue;
             foreach (var b in o.Boxes)
             {
@@ -634,7 +677,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
                     rec = hit with { Other = o, Node = sp.Node };
                 }
             }
-            var polys = signsOnly ? o.Polys.FindAll(q => o.SignNode(q.Node)) : o.Polys.Exists(q => o.Unfelt(q.Node)) ? o.Polys.FindAll(q => !o.Unfelt(q.Node)) : o.Polys;
+            var polys = signsOnly ? SignPolys(o) : FeltPolys(o);
             if (polys.Count == 0) continue;
             foreach (var corner in corners)
             {
@@ -733,6 +776,17 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     }
 
     /// <summary>A sphere against the car's COLP box (x0..x3, y1..y3, z0..z3) at the start and the end of the frame's motion.</summary>
+    /// <summary>A sign part's sphere against the car (<see cref="ObjectContacts"/>): on a touch the hit and the knock, and true.</summary>
+    private bool SignTouch(Vehicle v, Collision.StaticObject o, Vector3 centre, float radius, float r, Vector3 c, float dtFrame)
+    {
+        float reach = r + radius + v.Speed * dtFrame;
+        if ((new Vector2(centre.X - c.X, centre.Z - c.Z)).LengthSquared() > reach * reach) return false;
+        if (!SphereHitsBox(v, centre, radius, dtFrame)) return false;
+        ObjectHits.Add((v, o.Name, o.Type, Vector3.UnitY, v.Speed));
+        Damage?.StaticContact(v, o, new Contact { Hit = true, Other = o });
+        return true;
+    }
+
     private static bool SphereHitsBox(Vehicle v, Vector3 centre, float radius, float dt)
     {
         var min = new Vector3(v.BoxX[0], v.BoxY[1], v.BoxZ[0]); var max = new Vector3(v.BoxX[3], v.BoxY[3], v.BoxZ[3]);
@@ -1147,7 +1201,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         Suspension(v, v.FrontRight, false, f8 + fc, v.Surface);
         Suspension(v, v.RearLeft, false, -fc - f8, v.Surface);
         Suspension(v, v.RearRight, false, f8 - fc, v.Surface);
-        foreach (var w in v.MiddleWheels) Suspension(v, w, false, 0, v.Surface);   // the middle pair (if any): no weight transfer
+        if (v.MiddleRight is { } mr && v.MiddleLeft is { } ml) { Suspension(v, mr, false, 0, v.Surface); Suspension(v, ml, false, 0, v.Surface); }   // the middle pair (if any): no weight transfer
 
         var pos = v.Pos.ToVector3();
         bool inverted = v.Rot.Up.Y <= 0.1f;
