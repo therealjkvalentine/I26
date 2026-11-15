@@ -292,7 +292,7 @@ public sealed class SessionBrowser : IDisposable
     private readonly EventBasedNetListener _listener = new();
     private readonly NetManager _net;
     private readonly AnetLayer _layer;
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Func<double> _clock;
     private readonly List<Found> _found = [];
     private readonly byte[] _query = Discovery.Query();
     private readonly Dictionary<string, Task<IPAddress?>> _resolved = [];
@@ -312,21 +312,29 @@ public sealed class SessionBrowser : IDisposable
     public double Timeout { get; init; } = 3.5;
     /// <summary>A Nitro Pack install lists only Nitro games from a server, the base game only its own.</summary>
     public bool Nitro { get; init; }
+    /// <summary>How <see cref="Ask"/> looks a name up (the system's DNS unless the tests give theirs); null: not found.</summary>
+    public Func<string, Task<IPAddress?>> Resolve { get; init; } = LookUp;
 
     /// <summary>The games found, in the order they were first seen.</summary>
     public IReadOnlyList<Found> Sessions => _found;
     /// <summary>Bumped whenever the list or a game's answer changes (the form redraws).</summary>
     public int Version { get; private set; }
 
-    public SessionBrowser(PacketLayerBase? inner = null)
+    /// <summary>
+    /// <paramref name="clock"/> (seconds) is the wall clock unless the tests give theirs; <paramref name="manual"/> starts the
+    /// manager in LiteNetLib's manual mode, for tests that pump it (<see cref="Poll"/>) and step it (<see cref="ManualUpdate"/>)
+    /// from their own thread.
+    /// </summary>
+    public SessionBrowser(PacketLayerBase? inner = null, Func<double>? clock = null, bool manual = false)
     {
+        _clock = clock ?? AnetHost.WallClock();
         _layer = new AnetLayer(inner);
         _net = new NetManager(_listener, _layer) { UnconnectedMessagesEnabled = true, IPv6Enabled = false, AutoRecycle = true };
         _listener.NetworkReceiveUnconnectedEvent += (ep, reader, type) =>
         {
             if (SessionInfo.TryRead(reader.GetRemainingBytesSpan()) is not { } info) return;
             if (info.Version != Protocol.Version) return;
-            var now = _clock.Elapsed.TotalSeconds;
+            var now = _clock();
             ep = AnetLayer.Normal(ep);
             int ping = _asked.TryGetValue(ep, out var at) ? (int)((now - at) * 1000) : -1;
             // a listed game answering at its public or own address: its own answer fills in the listing
@@ -348,8 +356,24 @@ public sealed class SessionBrowser : IDisposable
                 _found[i] = _found[i] with { Info = info, Seen = now, Ping = ping >= 0 ? ping : _found[i].Ping };
             }
         };
-        _net.Start();
+        if (manual) _net.StartInManualMode(IPAddress.Any, IPAddress.IPv6Any, 0);
+        else _net.Start();
     }
+
+    /// <summary>The browser's own port (its socket answers come back to).</summary>
+    public int LocalPort => _net.LocalPort;
+    /// <summary>False once disposed.</summary>
+    public bool Running => _net.IsRunning;
+
+    /// <summary>A manual-mode browser's step: LiteNetLib's update for <paramref name="seconds"/> of its clock.</summary>
+    public void ManualUpdate(double seconds) => _net.ManualUpdate((float)(seconds * 1000));
+
+    private static Task<IPAddress?> LookUp(string host) => Task.Run(async () =>
+    {
+        try { return (await Dns.GetHostAddressesAsync(host)).FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork); }
+        catch (System.Net.Sockets.SocketException) { return null; }
+        catch (ArgumentException) { return null; }
+    });
 
     private static bool SameInfo(SessionInfo a, SessionInfo b) =>
         a with { Drivers = [], MapHash = null } == b with { Drivers = [], MapHash = null } && a.Drivers.SequenceEqual(b.Drivers)
@@ -376,12 +400,7 @@ public sealed class SessionBrowser : IDisposable
         if (!IPAddress.TryParse(host, out var addr))
         {
             if (!_resolved.TryGetValue(host, out var lookup))
-                _resolved[host] = lookup = Task.Run(async () =>
-                {
-                    try { return (await Dns.GetHostAddressesAsync(host)).FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork); }
-                    catch (System.Net.Sockets.SocketException) { return null; }
-                    catch (ArgumentException) { return null; }
-                });
+                _resolved[host] = lookup = Resolve(host);
             if (!lookup.IsCompleted) return true;
             addr = lookup.IsCompletedSuccessfully ? lookup.Result : null;
         }
@@ -395,7 +414,7 @@ public sealed class SessionBrowser : IDisposable
 
     private void AskAt(IPEndPoint ep)
     {
-        _asked[ep] = _clock.Elapsed.TotalSeconds;
+        _asked[ep] = _clock();
         _net.SendUnconnectedMessage(_query, ep);
     }
 
@@ -406,7 +425,7 @@ public sealed class SessionBrowser : IDisposable
     public void List(string host, int port = AnetWire.ServerPort)
     {
         if (_anet is { } a && (a.Host != host || a.Port != port)) { a.Dispose(); _anet = null; DropListed(); }
-        _anet ??= new AnetClient(new LiteNetAnetTransport(_net, _layer), host, port, AnetSpecies.I26);
+        _anet ??= new AnetClient(new LiteNetAnetTransport(_net, _layer), host, port, AnetSpecies.I26, _clock);
         foreach (var f in _found)
             if (f.Anet is { } l)
             {
@@ -437,7 +456,7 @@ public sealed class SessionBrowser : IDisposable
     {
         if (_anet is not { } a || a.Version == _anetSeen) return;
         _anetSeen = a.Version;
-        var now = _clock.Elapsed.TotalSeconds;
+        var now = _clock();
         var keep = new HashSet<ulong>();
         foreach (var s in a.Sessions.Values)
         {
@@ -476,7 +495,7 @@ public sealed class SessionBrowser : IDisposable
 
     private void Expire()
     {
-        var now = _clock.Elapsed.TotalSeconds;
+        var now = _clock();
         if (_found.RemoveAll(f => f.Anet is null && now - f.Seen > Timeout) > 0) Version++;
     }
 
@@ -493,7 +512,7 @@ public sealed class SessionBrowser : IDisposable
     private void Introduce()
     {
         if (_anet is not { State: AnetState.Online } a) return;
-        var now = _clock.Elapsed.TotalSeconds;
+        var now = _clock();
         foreach (var f in _found)
         {
             if (f.Anet is not { } l || _answered.Contains(f.Info.Id)) continue;

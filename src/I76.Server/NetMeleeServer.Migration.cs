@@ -57,6 +57,7 @@ public sealed partial class NetMeleeServer
         public required Dictionary<ulong, (JoinRequest Request, double Age)> Invites;
         public readonly Dictionary<int, (JoinRequest Request, double Age)> PendingInvites = [];
         public readonly Dictionary<int, Seat> Pending = [];   // peer id → seat it rejoins
+        public readonly Dictionary<int, JoinRequest> Rejoins = [];   // peer id → its rejoin's own request (its build and features)
         public double ProbeAt;
         public bool Released;
     }
@@ -347,6 +348,7 @@ public sealed partial class NetMeleeServer
         }
         var peer = req.Accept();
         _resume.Pending[peer.Id] = seat;
+        _resume.Rejoins[peer.Id] = j;
     }
 
     private bool BindRejoin(NetPeer peer)
@@ -364,7 +366,11 @@ public sealed partial class NetMeleeServer
         if (_resume is not { } rs || !rs.Pending.Remove(peer.Id, out var seat)) return false;
         var s = Host.Bind(seat, peer);
         _byPeer[peer.Id] = s;
-        _joined[peer.Id] = rs.Requests.GetValueOrDefault(s.Slot) ?? new JoinRequest(Protocol.Version, s.Name, s.Actor.CarFile, (byte)s.Actor.Team, []);
+        var joined = rs.Requests.GetValueOrDefault(s.Slot) ?? new JoinRequest(Protocol.Version, s.Name, s.Actor.CarFile, (byte)s.Actor.Team, []);
+        // the savestate's request is the seat's (its car, name, paint); the client's build and features are what its rejoin
+        // says: without them every player came back as an upstream peer, and nobody could take over from the new host
+        if (rs.Rejoins.Remove(peer.Id, out var again)) joined = joined with { Build = again.Build, Features = again.Features };
+        _joined[peer.Id] = joined;
         if (_mig is not null) _mig.Told.Remove(peer.Id);
         _msg.Clear();
         Host.AcceptFor(s).Write(_msg);
