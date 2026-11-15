@@ -11,8 +11,8 @@ namespace I76.Game.Sim;
 /// own (CombatView). [port] muzzle_reach in percent: 100 the table below; 0 the light as it was before the key (a 4 m pool, 0.8,
 /// 1.2 m ahead of the muzzle, that lit little but the firing car: the near light at those figures, the far one dark); between and
 /// above, each figure goes along the line from that one to the table's. I76_MUZZLE_REACH overrides the file for a run,
-/// I76_MUZZLE_OFF=1 leaves the lights out (for measuring them). The original's (retail, at night only) is an omni light of range
-/// 25 m on objects alone, never the ground (docs/deviations.md); the 1997 look draws none of this.
+/// I76_MUZZLE_OFF=1 leaves the lights out (for measuring them). The original's (at night only) is an omni light of range 25 m
+/// on objects alone, never the ground (docs/deviations.md); the 1997 look draws none of this.
 /// </summary>
 public static class MuzzleReach
 {
@@ -27,7 +27,7 @@ public static class MuzzleReach
     /// <summary>The setting now: the hook, else the file's, 0 to 200.</summary>
     public static int Setting => Math.Clamp(Hook ?? Percent, 0, 200);
 
-    /// <summary>What fires: the light's row (by the ordnance kind, GDFC +0x5a).</summary>
+    /// <summary>What fires: the light's row (by the weapon's ordnance kind).</summary>
     public enum Gun { Handgun, MachineGun, Cannon, Rocket, Mortar, Other }
 
     public static Gun Of(uint kind) => kind switch
