@@ -15,13 +15,14 @@ namespace I76.Cli;
 /// i76 tick-bench: the simulation's tick timed headless (docs/perf/tick-bench.md).
 ///
 ///   i76 tick-bench SCENARIO [--rate 20|24|60...] [--minutes 5] [--split] [--hashes FILE] [--ticks FILE] [--cpu MASK] [--slow-ms 1]
-///                  [--burst N] [--every K] [--gen0 BYTES]
+///                  [--burst N] [--every K] [--warm]
 ///
 /// SCENARIO: t01, t05, t06 (the mission from its start, nobody at the wheel, as i76 run plays it, ticked on past its end),
 /// melee8 (M01 as a network melee of eight bots, the server's session), resim (melee8 plus, every K ticks, a client's
 /// re-simulation burst: N predicted ticks of one bot's car from a capture, then the capture restored; the burst is timed apart).
 /// --hashes writes the StateHash after every tick and times nothing (the hashing allocates; a timed run never hashes).
 /// --split times the sections inside the tick (TickProbe; costs a little). --ticks writes a row a tick (CSV).
+/// --warm compiles the sim's code before the first tick (SimWarm), as a game would behind its loading card.
 /// --cpu pins the process to the processors in MASK (hex, default c0: the last physical core's two threads) at high priority.
 /// </summary>
 public static class TickBench
@@ -101,6 +102,14 @@ public static class TickBench
         var loadWatch = Stopwatch.StartNew();
         var sc = Build(install, name, rate, burstN, every);
         double loadS = loadWatch.Elapsed.TotalSeconds;
+        // --warm: the sim's code compiled before the first tick, as a game would behind its loading card (SimWarm)
+        string warmed = "";
+        if (args.Contains("--warm"))
+        {
+            var ww = Stopwatch.StartNew();
+            int n = SimWarm.Prepare(2, typeof(SimSession).Assembly, typeof(I76.Formats.Vfs.AssetVfs).Assembly, typeof(MeleeHost).Assembly, typeof(I76.Net.Protocol).Assembly);
+            warmed = string.Create(CultureInfo.InvariantCulture, $", warm {ww.Elapsed.TotalSeconds:0.0} s ({n} methods)");
+        }
         int ticks = rate.TicksFor((float)(minutes * 60));
         var timer = new Timer { Split = split };
 
@@ -184,7 +193,7 @@ public static class TickBench
         Array.Sort(steady);
         var inv = CultureInfo.InvariantCulture;
         var o = new StringBuilder();
-        o.AppendLine(string.Create(inv, $"tick-bench {name} {rate.Label} Hz: {ticks} ticks ({minutes:0.#} min of game time), load {loadS:0.0} s, run {wallS:0.0} s wall, {cpuS:0.0} s cpu; affinity 0x{(long)proc.ProcessorAffinity:x}; split {(split ? "on" : "off")}; {Environment.ProcessorCount} processors"));
+        o.AppendLine(string.Create(inv, $"tick-bench {name} {rate.Label} Hz: {ticks} ticks ({minutes:0.#} min of game time), load {loadS:0.0} s{warmed}, run {wallS:0.0} s wall, {cpuS:0.0} s cpu; affinity 0x{(long)proc.ProcessorAffinity:x}; split {(split ? "on" : "off")}; {Environment.ProcessorCount} processors"));
         o.AppendLine(string.Create(inv, $"  tick ms: mean {us.Average() / 1000:0.000}  median {P(0.5) / 1000:0.000}  p95 {P(0.95) / 1000:0.000}  p99 {P(0.99) / 1000:0.000}  p99.9 {P(0.999) / 1000:0.000}  max {sorted[^1] / 1000:0.000}"));
         o.AppendLine(string.Create(inv, $"  over 1 ms: {us.Count(x => x >= 1000)}  over 3 ms: {us.Count(x => x >= 3000)}  over 5 ms: {us.Count(x => x >= 5000)}"));
         o.AppendLine(string.Create(inv, $"  alloc a tick: mean {alloc.Average() / 1024:0.00} kB, steady (after 10 s) median {steady[steady.Length / 2] / 1024.0:0.00} kB, p99 {steady[(int)(steady.Length * 0.99)] / 1024.0:0.00} kB, max {alloc.Max() / 1024.0:0.0} kB; total {alloc.Sum() / 1048576.0:0.0} MB"));
