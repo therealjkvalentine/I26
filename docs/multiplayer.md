@@ -858,7 +858,8 @@ whose players came later has the copies of the humans present when each car was 
 moving as it does, with its skill and aggression, in a respray of its own (`ExtraPaint`: the k-th of the garage's classic paints that
 stands clear of the original's colour, its respray's or its paint scheme's primary paint as the respray reads it from the body
 textures; the original keeps the mission's paint), and named after the original with its number (`ScriptHost.ExtraName`, "t09dl01+2"),
-which a client's target tag shows as EXTRA 2 over a copy that is the radar target (`NetNames`; the original has no tag). Every
+the server's own tell: the players see a copy as the car it copies (`ScriptHost.OriginalName`; `NetNames.Tag`: a mission's own car
+has no name tag, so neither has its copy; the kill feed names both alike). Every
 order the script gives the original reaches its living copies in the same tick as a plan of their own: an attack, guard, sit or
 hide as the original's, a human target taken as the human nearest the copy (`NearestHuman`); a goto, evade, race or follow is not
 driven a second time: the copy follows its original (the follow order, its station `ScriptHost.Station`: 6 m to the side, 8 m
@@ -884,6 +885,26 @@ form's co-op game options set the cap (shell.cfg [port] `coop_scale`, always wri
 and models (`SessionInfo.CoopScale`; protocol 23) and the session popup says "Co-op scaling up to +2"; a host migration's successor has
 it in its options.
 
+### Escorted cars
+
+The port's (`CoopSetup.EscortHealth`, `DamageModel.EscortFactor`, `Fsm.CoopEscorts`; no row of its own: it follows EXTRA ENEMIES). With
+Co-op Scaling on (any level above 0) the enemies are more and the cars the players must keep alive take their fire, so in a co-op
+game each car the mission fails on losing takes 1/1.5 of every damage (each channel's fraction carried, as Co-op Damage's): it lasts
+half again as long under the same fire, its armour, health bar and repairs as they were. Off, single player and a melee: the original's.
+
+The cars are found in the script, by its rules (`CoopEscorts.Analyze`, `FsmVm.EscortSlots`): an actor whose `isDead` holds a rule that
+fails the mission (`failAllObj`, `failAll`), directly, after a wait for the radio or a timer (T15's), or through a cell it sets or
+counts that another rule fails on (S05's bus sets a flag, P19's helicopter too). Of those, `ScriptHost.Escorts` keeps the vehicles
+that are not a human's, not the enemy's (T09's Callisto, T12's tanker, P02's clown, P15's hearses: to be stopped, not protected),
+not a gun emplacement and not a copy; a structure the script guards (S03's oil wells, S04's post office, T08's warehouse, the
+Nitro towns' buildings) is no vehicle and is left alone. The stock escorts: S02 Taurus, S05 the bus, T01-T03, T10, T11, T14 Taurus,
+T05 and T16 the van, B01 Taurus; P01 the two milk tankers and Jade, P03 the friend, P04 Jade, P05 Toupee, P06 Taurus, P07 the wingman,
+P08 the three buses and Taurus, P12 Taurus's helicopter, P17 the bus, P18 Skeeter's van, P19 the escape helicopter (`CoopEscortTests`).
+
+Only the host's sim damages anything: a client's mirror takes each car's health from the snapshots and never scales it, so a client
+of any build reads the host's numbers. The factor is derived from the build (`SessionBuild.Coop`: co-op and its Extra Enemies), which
+the savestate carries, so a host migration's successor and a restore have it again; nothing on the wire changes. A stock upstream host
+plays its own rule (no bonus); under a fork host an upstream client sees the escort last longer and nothing else differs.
 ### Cut-scenes and the controls
 
 A cut-scene (the script holding the camera) drives the lead; every driver's keys are held as the one player's were
@@ -987,7 +1008,7 @@ from the server.
   names come from the migration extras (`IHostMode.Restore(drivers, names)`).
 - **Listing.** A co-op game is listed with its mission as the arena (`SessionInfo.Coop`; the anet tag's kind bits 3).
 - **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the co-op host form's DAMAGE TAKEN row, i26-server's and `--host-listen`'s
-  `--coop-damage 0.5|0.75|1|1.5`): the humans' cars take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
+  `--coop-damage 0.5|0.75|1|1.5`): the humans' cars (theirs alone: an escort or any computer car is not scaled by it; see "Escorted cars") take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
   fraction carried per car to its next packet, so small ticks are not lost); x1 by default. It is the server's alone (the clients take damage from the server) and part of the savestate's build,
   so a successor builds it again from the options. The co-op host form's DAMAGE TAKEN row (a click steps it) and CO-OP DAMAGE in the Nitro
   form's co-op game options set it (shell.cfg [port] `coop_damage`, written only when not 1). The game's answer lists it after the makes and
