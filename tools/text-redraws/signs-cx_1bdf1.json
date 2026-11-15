@@ -1,0 +1,125 @@
+{
+ "textures": [
+  "cx_1bdf1"
+ ],
+ "note": "Dear Jane Tractors' board (bcxwhse1): its small print; written by gen/shopfronts.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    52.17,
+    18.82,
+    77.6,
+    24.79
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    20.06,
+    23.83,
+    109.98,
+    32.14
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    11.28,
+    32.22,
+    117.33,
+    38.44
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "STANFILL",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 4.37,
+   "colour": [
+    112,
+    7,
+    8
+   ],
+   "alpha": "set",
+   "box": [
+    53.17,
+    19.62,
+    76.6,
+    23.99
+   ]
+  },
+  {
+   "op": "text",
+   "text": "DEAR JANE TRACTORS",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 6.71,
+   "colour": [
+    112,
+    7,
+    8
+   ],
+   "alpha": "set",
+   "box": [
+    21.06,
+    24.63,
+    108.98,
+    31.34
+   ]
+  },
+  {
+   "op": "text",
+   "text": "AUTHORIZED DEALER - SALES & SERVICE",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 4.62,
+   "colour": [
+    112,
+    7,
+    8
+   ],
+   "alpha": "set",
+   "box": [
+    12.28,
+    33.02,
+    116.33,
+    37.64
+   ]
+  }
+ ]
+}

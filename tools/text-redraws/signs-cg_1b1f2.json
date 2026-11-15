@@ -1,0 +1,114 @@
+{
+ "textures": [
+  "cg_1b1f2"
+ ],
+ "note": "Krager Mags' sign (bcgarag2): its small print; written by gen/shopfronts.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    34.0,
+    25.48,
+    94.0,
+    31.8
+   ],
+   "where": {
+    "lum_above": 120
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 110
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    39.35,
+    30.94,
+    86.13,
+    37.8
+   ],
+   "where": {
+    "lum_above": 120
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 110
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "PERFORMANCE WHEELS",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.2,
+   "cap": 4.72,
+   "colour": [
+    250,
+    250,
+    252
+   ],
+   "alpha": "set",
+   "quad": [
+    [
+     35.944,
+     26.28
+    ],
+    [
+     93.0,
+     26.28
+    ],
+    [
+     92.056,
+     31.0
+    ],
+    [
+     35.0,
+     31.0
+    ]
+   ],
+   "fit": "ink"
+  },
+  {
+   "op": "text",
+   "text": "AND SUSPENSION",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.2,
+   "cap": 5.26,
+   "colour": [
+    250,
+    250,
+    252
+   ],
+   "alpha": "set",
+   "quad": [
+    [
+     41.402,
+     31.74
+    ],
+    [
+     85.13,
+     31.74
+    ],
+    [
+     84.07799999999999,
+     37.0
+    ],
+    [
+     40.35,
+     37.0
+    ]
+   ],
+   "fit": "ink"
+  }
+ ]
+}
