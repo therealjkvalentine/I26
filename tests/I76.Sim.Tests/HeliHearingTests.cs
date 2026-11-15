@@ -19,18 +19,19 @@ public class HeliHearingTests
     [Fact]
     public void Overhead_is_loud_medium_is_clear_and_far_is_faint()
     {
-        // overhead: the helicopters fly 10 to 115 m over the player; full inside 50 m, 10 dB over the original's there
-        Assert.Equal(-4f, H.Db(0f));
-        Assert.Equal(-4f, H.Db(50f));
-        Assert.True(H.Db(50f) - Ds3d.AttenuationDb(50f) >= 9.9f);
-        // medium: an attack run's 100 to 600 m, 3 dB and more over the original's, -14 dB at 150 m
-        Assert.InRange(H.Db(150f), -14.5f, -13f);
-        Assert.InRange(H.Db(400f), -24f, -22f);
-        Assert.InRange(H.Db(600f), -28f, -26f);       // the original parks the loop here
+        // overhead: the helicopters fly 10 to 115 m over the player; full inside 50 m, about 13.5 dB over the original's there
+        // (the first cut's -4 dB, 3.5 dB louder after the playtest)
+        Assert.Equal(-0.5f, H.Db(0f));
+        Assert.Equal(-0.5f, H.Db(50f));
+        Assert.InRange(H.Db(50f) - Ds3d.AttenuationDb(50f), 13.4f, 13.6f);
+        // medium: an attack run's 100 to 600 m, 6 dB and more over the original's, -10 dB at 150 m
+        Assert.InRange(H.Db(150f), -11f, -9.5f);
+        Assert.InRange(H.Db(400f), -20.5f, -18.5f);
+        Assert.InRange(H.Db(600f), -24.5f, -22.5f);       // the original parks the loop here
         Assert.False(Ds3d.LoopStarts(600f));
         // far: the helicopters waiting 1 to 2 km off, faint
-        Assert.InRange(H.Db(1000f), -34f, -32f);
-        Assert.InRange(H.Db(1800f), -41f, -40f);
+        Assert.InRange(H.Db(1000f), -30.5f, -28.5f);
+        Assert.InRange(H.Db(1800f), -37.5f, -36.5f);
         // beyond: silent, and parked at the range
         Assert.True(H.Db(1999f) < -80f);
         Assert.Equal(float.NegativeInfinity, H.Db(2000f));

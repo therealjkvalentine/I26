@@ -14,7 +14,7 @@ namespace I76.Sim.Sound;
 /// Presentation only: the levels are the voice's, before the Effects slider.
 /// </summary>
 public sealed record HeliHearing(
-    float NearMetres = 50f, float NearDb = -4f, float Rolloff = 1f, float ExcessDbPerKm = 3f,
+    float NearMetres = 50f, float NearDb = -0.5f, float Rolloff = 1f, float ExcessDbPerKm = 3f,
     float FadeMetres = 1800f, float RangeMetres = 2000f,
     float ShelfStartMetres = 150f, float ShelfFarDb = -18f, float ShelfHz = 500f)
 {
@@ -29,9 +29,10 @@ public sealed record HeliHearing(
         helicopter && string.Equals(engineSound, RotorLoop, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The fork's bands, against the original's near level (0 dB inside 10 m): -4 dB to 50 m, -14 at 150 m, -23 at 400, -33 at 1000,
-    /// -40 at 1800, silent at 2000. The rotor loop is 10 dB hotter than a car's engine loop (aheli -7 dBFS RMS, einp1 -17), so overhead it
-    /// stands about 8 dB over the player's own engine, at 150 m just under it, at 400 m 10 dB under, at 1.8 km 28 dB under.
+    /// The fork's bands, against the original's near level (0 dB inside 10 m): -0.5 dB to 50 m, -10 at 150 m, -20 at 400, -29 at 1000,
+    /// -37 at 1800, silent at 2000: 3.5 dB (half as loud again) over the first cut's, which a playtest found too quiet. The rotor loop
+    /// is 10 dB hotter than a car's engine loop (aheli -7 dBFS RMS, einp1 -17), so overhead it stands about 11 dB over the player's
+    /// own engine, at 150 m about level with it, at 400 m 7 dB under, at 1.8 km 25 dB under.
     /// </summary>
     public static readonly HeliHearing Default = new();
 
