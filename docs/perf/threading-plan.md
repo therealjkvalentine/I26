@@ -387,17 +387,20 @@ underrun counts and delays mean nothing; the real driver's are below.
 Measured (`I76_SHAKER_TIMES`, the shaker's own main-thread time a frame: its process step and the ticks' gathering; LFE 100 %,
 the owner's tactile_eq; 3440x1440, uncapped; the before and after runs interleaved; the machine shared with other lanes):
 
-| Scene, Dummy driver (others' share of the machine, before / after) | main thread ms a frame, mean / p99 / max: before | after | fps before / after |
+| Scene, driver (runs before + after; others' share of the machine) | main thread ms a frame, mean / p99 / max: before -> after | tick to shaker, ms (mean, range) | underruns |
 |---|---|---|---|
-| T05 start (55 % / 19 %) | 0.113 / 0.77 / 2.77 | 0.004 / 0.020 / 0.029 | 77 / 98 |
-| T05 start (17 % / 19 %) | 0.068 / 0.65 / 0.82 | 0.007 / 0.028 / 0.072 | 102 / 77 |
-| Melee, five cars firing (26 % / 40 %) | 0.066 / 0.80 / 2.68 | 0.0035 / 0.015 / 0.10 | 126 / 119 |
+| T05 start, WASAPI 96 kHz (2 + 2; 22-59 %) | 0.218 / 1.33 / 2.53 -> 0.006 / 0.024 / 0.18 | 74 (37-85) -> 49 (40-51) | 0 -> 0 |
+| Melee, five cars firing, WASAPI 96 kHz (1 + 1; 14-58 %) | 0.155 / 0.39 / 3.72 -> 0.004 / 0.015 / 0.19 | 77 (64-85) -> 50 (40-51) | 0 -> 0 |
+| T05 start, Dummy 44.1 kHz (2 + 2; 17-55 %) | 0.090 / 0.71 / 2.77 -> 0.006 / 0.024 / 0.07 | (the driver drains in bursts) | |
+| Melee, five cars firing, Dummy 44.1 kHz (1 + 1; 26-40 %) | 0.066 / 0.80 / 2.68 -> 0.003 / 0.015 / 0.10 | | |
 
-Before, the frames with a fill (about eleven a second with this driver) took 0.55-0.8 ms of shaker time, up to 2.8; after, no
-frame's exceeds 0.1 ms and the p99 is 0.015-0.028 ms (the 0.02 ms target is met at p99, not yet on every frame). The fps
-columns follow the machine's load, not the change: the average saving is 0.06-0.11 ms a frame, about 1 % (104 -> 105 fps at
-T05's quiet 9.6 ms frame; 200 -> 203 at a 5 ms one), and the slow frames lose their 0.6-0.8 ms. The worker's own passes take
-0.33-0.45 ms each on its thread. The real driver's delay and underruns are still to be measured (the owner's hold, 2026-11-15).
+With the real device (96 kHz here: the generator is 8192 frames, 85 ms) the old path filled on nearly every frame, 0.15-0.24 ms
+on average with frames to 2.5-3.7 ms; after, the shaker's main-thread time is under 0.025 ms at p99 and 0.19 ms at worst (the
+0.02 ms target is met at the median and close at p99, not on every frame). In fps, at T05's quiet 9.6 ms frame: 104 -> 106; at a
+5 ms frame: 200 -> 208; the slow frames lose up to 2.5-3.7 ms. The fps measured in these runs follow the machine's load, not the
+change. The worker's passes take 0.16-0.19 ms each on its own thread (one of 11.5 ms with the machine 58 % busy elsewhere, and
+still no underrun). A tick is felt 49-50 ms after its step instead of 74-77, and never later than 51 ms. Two Replay Missions and
+an Abort Mission (`I76_REPLAY_AT`, `I76_ABORT_AT`, the real driver) each stopped the worker: none left running.
 
 The signal: a 20 s scripted drive (every source, the owner's tactile_eq) rendered through main's synth in place and through the
 worker under a real-time mixer is byte-identical; the tests hold it to that for an 8 s drive, and check that a worker held for
