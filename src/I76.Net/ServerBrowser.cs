@@ -55,8 +55,19 @@ public sealed class ServerBrowser : IDisposable
     }
 
     private readonly List<Slot> _slots = [];
-    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private readonly Func<double> _clock;
+    private readonly Func<SessionBrowser> _newBrowser;
     private List<ServerGroup>? _groups;
+
+    /// <summary>
+    /// The wall clock and a <see cref="SessionBrowser"/> of its own per entry, unless the tests give their clock (seconds) and
+    /// their browsers (on that clock, pumped from their thread).
+    /// </summary>
+    public ServerBrowser(Func<double>? clock = null, Func<SessionBrowser>? newBrowser = null)
+    {
+        _clock = clock ?? AnetHost.WallClock();
+        _newBrowser = newBrowser ?? (() => new SessionBrowser { Nitro = Nitro });
+    }
 
     /// <summary>A Nitro Pack install lists only Nitro games, the base game only its own.</summary>
     public bool Nitro { get; init; }
@@ -90,8 +101,8 @@ public sealed class ServerBrowser : IDisposable
         foreach (var s in _slots)
         {
             if (!s.Source.Valid) continue;
-            s.Browser ??= new SessionBrowser { Nitro = Nitro };
-            if (s.Since < 0) s.Since = _clock.Elapsed.TotalSeconds;
+            s.Browser ??= _newBrowser();
+            if (s.Since < 0) s.Since = _clock();
             if (s.Source.Direct is { } d) s.Browser.Ask(d.Host, d.Port);
             if (s.Source.Anet is { } a) s.Browser.List(a.Host, a.Port);
         }
@@ -113,7 +124,7 @@ public sealed class ServerBrowser : IDisposable
     {
         if (!s.Source.Valid) return ServerState.NoAddress;
         if (s.Browser is not { } b) return ServerState.Connecting;
-        bool waited = _clock.Elapsed.TotalSeconds - s.Since >= AnswerWait;
+        bool waited = _clock() - s.Since >= AnswerWait;
         if (s.Source.Anet is not null && b.Server is { } a)
             return a.State switch
             {
