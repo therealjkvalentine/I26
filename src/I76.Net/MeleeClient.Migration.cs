@@ -173,7 +173,7 @@ public sealed partial class MeleeClient
                 return;
             }
             BecameHost = true;
-            _net.Start();
+            NetBind.Start(_net);
             Rejoin(new IPEndPoint(IPAddress.Loopback, _takeoverPort));
             HostTakenOver?.Invoke();
             return;
