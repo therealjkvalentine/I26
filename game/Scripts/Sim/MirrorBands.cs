@@ -264,7 +264,7 @@ public enum SideMirrorRender { Shared, Own }
 /// <summary>
 /// The side mirrors' own cameras (side_mirror_render=own, the default): one at each door mirror's
 /// height and length, OutboardMetres outboard of the glass (the nearer the eye is to the flank's line, the more of the flank lies
-/// inside the picture's inner edge: at 20 cm and more none of it does), looking back along the car's side turned YawDegrees outward and PitchDegrees down, FovDegrees
+/// inside the picture's inner edge: at 20 cm and more none of it does), looking back along the car's side turned YawDegrees outward and PitchDegrees down (negative: up), FovDegrees
 /// across a 512x256 picture, the two drawn in turn on the rear mirror's ticks (each every fourth frame): the picture's inner edge looks FovDegrees / 2 - YawDegrees
 /// inboard of straight back (InboardDegrees), so the car's flank is a sliver at that edge and the rest is the adjoining lane well
 /// back, as a real door mirror shows; the flank is the car's own body, drawn for these cameras alone (CarNode.OwnBodyLayer).
@@ -272,7 +272,8 @@ public enum SideMirrorRender { Shared, Own }
 /// </summary>
 public static class OwnCamera
 {
-    public const float FovDegrees = 40f, OutboardMetres = 0.05f, YawDegrees = 15f, PitchDegrees = 3f;
+    /// <summary>PitchDegrees: level (3 down until a playtest asked for the side mirrors about 5 degrees up; 5 up left the CC cars' and the Piranha's left glass mostly sky, the road a strip in a corner, so 3).</summary>
+    public const float FovDegrees = 40f, OutboardMetres = 0.05f, YawDegrees = 15f, PitchDegrees = 0f;
     public const int Width = 512, Height = 256;
     /// <summary>How far inboard of straight back the picture's inner edge looks: where the flank shows.</summary>
     public const float InboardDegrees = FovDegrees / 2 - YawDegrees;
@@ -316,8 +317,12 @@ public static class OwnCamera
 /// </summary>
 public static class MirrorAim
 {
-    /// <summary>The share of the picture's width the car's own flank fills at the inner edge (an eighth: a sliver, as a driver sets it).</summary>
-    public const float FlankShare = 0.125f;
+    /// <summary>
+    /// How far inboard of the flank's line the picture's inner edge looks, as a share of its width: 0.105 (an eighth until a playtest
+    /// asked for half as much of the car in the glass: at an eighth and 3 degrees down the Piranha's flank filled 4.6 % of its left
+    /// glass and 5.1 % of its right, in their lower inner corner; 0.8 degrees further out and level, 2.1 and 2.4 %).
+    /// </summary>
+    public const float FlankShare = 0.105f;
 
     /// <summary>
     /// The picture's yaw outward from straight back for a camera at <paramref name="cam"/> beside a body <paramref name="halfWidth"/>

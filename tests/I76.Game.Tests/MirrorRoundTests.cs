@@ -165,7 +165,7 @@ public class MirrorRoundTests
     {
         var rect = GlassRound.Hull([new(0, 0), new(1.5f, 0), new(1.5f, 1), new(0, 1)]);
         var (core, r) = GlassRound.Shape(rect, GlassRound.DefaultShare)!.Value;
-        float rimW = MirrorRim.RimShare, rimOut = GlassRound.DefaultRimOut * rimW;
+        float rimW = MirrorRim.OuterShare, rimOut = GlassRound.DefaultRimOut * rimW, ringW = MirrorRim.RingWidth(rimOut);
         // screen pixels from picture units: 400 px per unit up, stretched and sheared across
         float k = 400, ax = 1.6f * k, sh = 0.3f * k;
         Vector2 ToScreen(Vector2 p) => new(ax * p.X + sh * p.Y, k * p.Y);
@@ -176,10 +176,10 @@ public class MirrorRoundTests
         {
             // the screen gradient as the shader's dFdx / dFdy take it, a pixel apart
             float g = new Vector2(Sd(s + new Vector2(0.5f, 0)) - Sd(s - new Vector2(0.5f, 0)), Sd(s + new Vector2(0, 0.5f)) - Sd(s - new Vector2(0, 0.5f))).Length();
-            return GlassRound.RingOnScreen(Sd(s), g, rimOut, rimW, pxPerUnit);
+            return GlassRound.RingOnScreen(Sd(s), g, rimOut, ringW, pxPerUnit);
         }
         var mid = ToScreen(new Vector2(0.75f, 0.5f));
-        float width = (rimOut + rimW) * pxPerUnit;
+        float width = ringW * pxPerUnit;
         Assert.InRange(width, 7, 15);
         var seen = new List<float>(); var before = new List<float>();
         for (int deg = 0; deg < 360; deg += 3)
@@ -199,6 +199,33 @@ public class MirrorRoundTests
         }
         Assert.True(seen.Max() - seen.Min() < 0.5f);
         Assert.True(before.Max() / before.Min() > 1.4f, $"{before.Min()}..{before.Max()}");
+    }
+
+    /// <summary>
+    /// The halving moved the glass's edge out, not the outer edge in: the ring's outer edge is where it was before (the default two of
+    /// the rim's widths before the halving beyond the rounded glass, 0.0375 of the glass's height, where it covered the housing's edges),
+    /// the ring half as wide as it was there (the outer edge plus the old rim inside the outline: 0.05625, now 0.028125), so the
+    /// glass's edge lies 0.0094 beyond the rounded outline where it lay 0.01875 inside it.
+    /// </summary>
+    [Fact]
+    public void TheOuterEdgeStaysWhereItWasAndTheGlassGrowsOut()
+    {
+        float before = 6f / 64 * 2 / 3 * 0.3f;   // the rim's width before the halving
+        Assert.Equal(before, MirrorRim.OuterShare, 0.00001f);
+        float rimOut = GlassRound.DefaultRimOut * MirrorRim.OuterShare;
+        Assert.Equal(0.0375f, rimOut, 0.00001f);
+        Assert.Equal((rimOut + before) / 2, MirrorRim.RingWidth(rimOut), 0.00001f);
+        Assert.Equal(0.028125f, MirrorRim.RingWidth(rimOut), 0.00001f);
+        // seen square at 400 px a glass height: the outer edge where the outline's distance is rimOut, the glass one width inside it
+        float k = 400;
+        var (atOuter, width) = GlassRound.RingOnScreen(rimOut, 1 / k, rimOut, MirrorRim.RingWidth(rimOut), k);
+        Assert.Equal(0f, atOuter, 0.001f);
+        Assert.Equal(11.25f, width, 0.01f);
+        float glassEdge = rimOut - width / k;
+        Assert.Equal(rimOut - 0.028125f, glassEdge, 0.0001f);
+        Assert.True(glassEdge > -before && glassEdge > 0);   // beyond the rounded outline, where the old ring's inner edge lay inside it
+        // "in" (no outer growth): the ring the rim alone, inside the outline as before
+        Assert.Equal(MirrorRim.RimShare, MirrorRim.RingWidth(0), 0.00001f);
     }
 
     /// <summary>The pane's plane from its corners' picture coordinates: recovered exactly for a flat pane, and a point past its outline lands in it.</summary>
