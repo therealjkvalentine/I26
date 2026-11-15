@@ -63,8 +63,8 @@ public partial class VegetationNode : Node3D
         public int Tier = -1;        // every plant in this tier, or 3: split per plant
         public System.Numerics.Vector2 SplitAt;   // where the eye was at the last per-plant split
         public bool Casting;
-        public bool GrassOn;
-        public bool Merged;          // drawn by FarGroups now         // the ground layer's grass tufts drawn (the chunk within their reach; its other plants reach farther)
+        public bool GrassOn;         // the ground layer's grass tufts drawn (the chunk within their reach; its other plants reach farther)
+        public bool Merged;          // drawn by FarGroups now
         public bool Drawn = true;    // false: every plant beyond its fade: no node shown
         public float Distance, Far;
         public float[] Shade = [];   // the shrubs' shade quads (16 floats each: the transform's rows, custom data), made with the groups
