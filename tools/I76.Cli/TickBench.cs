@@ -222,6 +222,7 @@ public static class TickBench
         }
         csv?.Dispose();
         o.AppendLine(string.Create(inv, $"  last StateHash {sc.Session.StateHash():x16}"));
+        if (name is not ("melee8" or "resim")) o.AppendLine(string.Create(inv, $"  install identity {I76.Sim.Save.SessionBuild.InstallIdentity(install, name):x16} (TickBudgetTests' recorded hashes are of one install)"));
         Console.Write(o.ToString());
         return 0;
     }
