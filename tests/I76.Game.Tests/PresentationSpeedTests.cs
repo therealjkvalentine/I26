@@ -24,13 +24,18 @@ public class PresentationSpeedTests
     [Fact]
     public void TheKeysRoundTripThroughShellCfg()
     {
-        string text = Cfg(new ShellSettings { SkySpeed = 100, DeathOrbitSpeed = 25 });
+        string text = Cfg(new ShellSettings { SkySpeed = 100, DeathOrbitSpeed = 50 });
         Assert.Equal("100", Key(text, "sky_speed"));
-        Assert.Equal("25", Key(text, "death_orbit_speed"));
+        Assert.Equal("50", Key(text, "death_orbit_speed"));
         var r = new ShellSettings();
         r.ReadSpeeds(k => Key(text, k));
         Assert.Equal(100, r.SkySpeed);
-        Assert.Equal(25, r.DeathOrbitSpeed);
+        Assert.Equal(50, r.DeathOrbitSpeed);
+
+        // each key is written only when it differs from its own default (sky 50, orbit 25)
+        Assert.Null(Key(Cfg(new ShellSettings { SkySpeed = 50, DeathOrbitSpeed = 25 }), "sky_speed"));
+        Assert.Null(Key(Cfg(new ShellSettings { SkySpeed = 50, DeathOrbitSpeed = 25 }), "death_orbit_speed"));
+        Assert.Equal("25", Key(Cfg(new ShellSettings { SkySpeed = 25 }), "sky_speed"));
 
         // the default is not written, and an absent key reads as the default
         string plain = Cfg(new ShellSettings());
