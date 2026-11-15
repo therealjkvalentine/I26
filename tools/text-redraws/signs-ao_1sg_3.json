@@ -1,0 +1,86 @@
+{
+ "textures": [
+  "ao_1sg_3"
+ ],
+ "note": "the Gas Parade billboard (aobilbd3: M10, T02, T06): its small print; written by gen/billboards.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    8.97,
+    44.14,
+    120.35,
+    52.64
+   ],
+   "where": {
+    "lum_above": 140
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    19.11,
+    53.45,
+    109.65,
+    61.53
+   ],
+   "where": {
+    "lum_above": 140
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "Gas - #2 Diesel - Food - Trucks Welcome",
+   "font": "Bitter",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 6.9,
+   "colour": [
+    241,
+    241,
+    247
+   ],
+   "box": [
+    9.97,
+    44.94,
+    119.35,
+    51.84
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "32 miles - at Ropesville",
+   "font": "Bitter",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 6.48,
+   "colour": [
+    234,
+    235,
+    243
+   ],
+   "box": [
+    20.11,
+    54.25,
+    108.65,
+    60.73
+   ],
+   "alpha": "set"
+  }
+ ]
+}
