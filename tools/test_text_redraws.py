@@ -357,6 +357,102 @@ class WorldLetteringTests(unittest.TestCase):
         self.assertEqual(spec_of("milk-truck-mt31bkl1.json")["ops"], spec_of("milk-truck-mt31bkr1.json")["ops"])
 
 
+_sspec = importlib.util.spec_from_file_location("spanners", os.path.join(HERE, "text-redraws", "gen", "spanners.py"))
+spanners = importlib.util.module_from_spec(_sspec); _sspec.loader.exec_module(spanners)
+
+class TruckStopTests(unittest.TestCase):
+    """Spanner's truck stop (bfnspan1: T13, T14, S01) and its guide sign (gen/spanners.py): each line on the painted letters' ink
+    box (pinned here, in texels, as measured off the original), the cafe's window cards laid out as the T14 briefing movie's
+    card, the window frame in front of the lettering, the roof edges straight."""
+    BOXES = {
+        "signs-se1spn_1.json": {"SPANNER'S": (20.63, 10.23, 107.65, 20.7), "TRUCK STOP": (19.99, 30.16, 105.92, 39.35),
+                                "NEXT EXIT - 1/2 MILE": (11.13, 42.01, 114.9, 48.81), "GAS - FOOD - SHOWERS": (6.26, 54.69, 122.85, 61.77)},
+        "signs-fn_1s1_1.json": {"SPANNER'S": (17.84, 25.63, 111.06, 36.88)},
+        "signs-fn_1s2_1.json": {"TRUCK STOP - RESTAURANT": (5.71, 27.95, 122.65, 36.94)},
+        "signs-fn_1gar1.json": {'We are a "Service Station"': (29.15, 68.19, 104.07, 79.07),
+                                "Visit our Full-Service Garage": (28.0, 89.93, 105.19, 101.0)},
+        "signs-fn_1cff1.json": {"FAMILY": (74.0, 8.29, 90.63, 19.0), "RESTAURANT": (68.07, 21.22, 102.78, 32.75),
+                                "LUNCH & DINNER SERVED": (46.36, 98.33, 98.55, 102.0)},
+    }
+    SIZE = {"signs-fn_1cff1.json": (128, 128), "signs-fn_1gar1.json": (128, 128)}
+
+    def test_every_line_is_on_the_originals_ink_box_at_4x_and_8x(self):
+        for name, want in self.BOXES.items():
+            ops = [op for op in spec_of(name)["ops"] if op["op"] == "text"]
+            w, h = self.SIZE.get(name, (128, 64))
+            for t, painted in want.items():
+                op = next(o for o in ops if o["text"] == t)          # the first: the name board's, not a card's
+                self.assertEqual(tuple(op["box"]), painted, f"{name} {t}")
+                for s in (4, 8):
+                    self.assertLess(np.abs(ink_box(op, w, h, s) - painted).max(), 0.35, f"{name} {t} at {s}x")
+        lola = next(o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text" and o["text"] == "Lola's")
+        self.assertEqual((lola["font"], tuple(lola["box"])), ("Lobster", (45.85, 9.99, 62.94, 31.04)))
+
+    def test_the_window_cards_are_the_movies_card(self):
+        """Both cards carry the movie card's eight lines, top to bottom, each inside its card's paper at the movie card's places."""
+        ops = [o for o in spec_of("signs-fn_1cff1.json")["ops"] if o["op"] == "text"]
+        words = [t for t, _, _ in spanners.CARD_LINES]
+        self.assertEqual(words, ["Lola's", "TRUCKER'S", "FEAST", "ALL YOU CAN EAT", "STEAK &", "EGGS", "$4.99", "Family Restaurant"])
+        for card in spanners.CARDS:
+            x0, y0, x1, y1 = card
+            on = [o for o in ops if o["box"][0] >= x0 - 1e-6 and o["box"][2] <= x1 + 1e-6 and o["box"][1] >= y0 - 1e-6 and o["box"][3] <= y1 + 1e-6]
+            self.assertEqual([o["text"] for o in on], words, card)
+            tops = [o["box"][1] for o in on]; self.assertEqual(tops, sorted(tops))
+            for o, (_, line, _) in zip(on, spanners.CARD_LINES):
+                mx0, my0, mx1, my1 = spanners.MOVIE_CARD
+                self.assertAlmostEqual((o["box"][1] - y0) / (y1 - y0), (line[1] - my0) / (my1 - my0), delta=0.01)
+                self.assertAlmostEqual((o["box"][2] - x0) / (x1 - x0), (line[2] - mx0) / (mx1 - mx0), delta=0.01)
+
+    def test_the_window_frame_is_in_front_of_the_lettering(self):
+        ops = spec_of("signs-fn_1cff1.json")["ops"]
+        kinds = [o["op"] for o in ops]
+        first_text = kinds.index("text")
+        under = ops[1]; self.assertEqual(under["op"], "lines"); self.assertLess(1, first_text)
+        self.assertEqual([s[0] for s in under["segments"]], [53.0])                          # the pale pane line, under the words
+        bars = [o for o in ops[first_text:] if o["op"] == "lines"]
+        self.assertEqual([s[0] for s in bars[0]["segments"]], [63.5, 73.5, 103.5, 113.5])    # the board's dark bars, over them
+        self.assertEqual([s[0] for s in bars[1]["segments"]], [63.5, 73.5, 89.0])            # the window's, over the band
+        band = next(i for i, o in enumerate(ops) if o["op"] == "text" and o["text"] == "LUNCH & DINNER SERVED")
+        self.assertLess(band, ops.index(bars[1]))
+
+    def test_the_signs_key_specks_are_filled(self):
+        """TRUCK STOP - RESTAURANT: the original's keyed texels inside its letters become part of the face, then the letters
+        go and are set again; nothing outside the line's rect changes."""
+        ops = spec_of("signs-fn_1s2_1.json")["ops"]
+        orig = blank(128, 64, (240, 240, 244)); orig[30:35, 20:24, :3] = 6; orig[32, 21, 3] = 0
+        px = np.repeat(np.repeat(orig, 4, 0), 4, 1)
+        out = tr.apply_ops(px, orig, ops)
+        self.assertTrue((out[..., 3] == 255).all())
+        self.assertTrue((out[:100, :, :3] == px[:100, :, :3]).all() and (out[160:, :, :3] == px[160:, :, :3]).all())
+
+    def test_the_roof_edges_cross_once_on_their_line(self):
+        """A store side's blue roof over its white wall, with the upscale's ticks along the edge: after the spec, every column
+        is blue above the fitted line and white below it, crossing within a quarter texel of it."""
+        for tex, (what, (a, b), (xa, xb), blue, white) in spanners.ROOF_EDGES.items():
+            orig = blank(128, 128, white)
+            yy, xx = np.mgrid[0:128, 0:128]
+            orig[(yy + 0.5) < a * (xx + 0.5) + b] = blue + [255]
+            s = 4; px = np.repeat(np.repeat(orig, s, 0), s, 1).copy()
+            rng = np.random.default_rng(1)
+            for x in rng.integers(int(xa * s) + 8, int(xb * s) - 8, 40):        # ticks of the other colour across the edge
+                y = int((a * (x / s) + b) * s); px[y - 2:y + 2, x:x + 2, :3] = white if rng.random() < 0.5 else blue
+            out = tr.apply_ops(px, orig, spec_of(f"truck-stop-{tex}.json")["ops"])[..., :3].astype(float)
+            for x in range(int(xa * s) + 4, int(xb * s) - 4, 7):
+                col = (out[:, x, 0] - blue[0]) / (white[0] - blue[0])            # 0 blue, 1 white
+                y = (a * ((x + 0.5) / s) + b) * s
+                self.assertLess(np.abs(col[:int(y) - 6]).max() if int(y) > 6 else 0, 0.02, f"{tex} x {x}: blue above")
+                self.assertLess(np.abs(col[int(y) + 6:int(y) + 40] - 1).max(), 0.02, f"{tex} x {x}: white below")
+                cross = int(y) + 6 - np.sum(np.clip(col[int(y) - 6:int(y) + 6], 0, 1))   # blue rows above it, white below
+                self.assertAlmostEqual(cross / s, y / s, delta=0.25, msg=f"{tex} x {x}")
+
+    def test_the_cafe_frames_run_on_one_line_through_their_texels(self):
+        for tex, (what, ink, poly, rects) in spanners.FRAMES.items():
+            ops = spec_of(f"truck-stop-{tex}.json")["ops"]
+            self.assertEqual([o["op"] for o in ops], ["erase"] * len(rects) + ["lines"])
+            segs = ops[-1]["segments"]
+            self.assertEqual(len(segs), len(poly) - 1)
+            self.assertTrue(all(s0[2:4] == s1[:2] for s0, s1 in zip(segs, segs[1:])))   # joined end to end
+
 _gspec = importlib.util.spec_from_file_location("dials", os.path.join(HERE, "text-redraws", "gen", "dials.py"))
 dials = importlib.util.module_from_spec(_gspec); _gspec.loader.exec_module(dials)
 

@@ -1,0 +1,46 @@
+{
+ "textures": [
+  "fn_1s1_1"
+ ],
+ "note": "the SPANNER'S sign on the truck stop: its lettering; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    17,
+    25,
+    112,
+    37
+   ],
+   "where": {
+    "lum_below": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   }
+  },
+  {
+   "op": "text",
+   "text": "SPANNER'S",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.25,
+   "cap": 11.25,
+   "colour": [
+    0,
+    18,
+    139
+   ],
+   "box": [
+    17.84,
+    25.63,
+    111.06,
+    36.88
+   ]
+  }
+ ]
+}

@@ -1,0 +1,160 @@
+{
+ "textures": [
+  "se1spn_1"
+ ],
+ "note": "Spanner's guide sign by the road: its lettering; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    19,
+    9,
+    108.3,
+    21
+   ],
+   "where": {
+    "lum_below": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    18.99,
+    29.36,
+    106.92,
+    40.15
+   ],
+   "where": {
+    "lum_above": 120
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 110
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10.13,
+    41.21,
+    115.9,
+    49.61
+   ],
+   "where": {
+    "lum_above": 120
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 110
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.26,
+    53.89,
+    123.85,
+    62.57
+   ],
+   "where": {
+    "lum_above": 120
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 110
+   }
+  },
+  {
+   "op": "text",
+   "text": "SPANNER'S",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.25,
+   "cap": 10.47,
+   "colour": [
+    1,
+    8,
+    135
+   ],
+   "box": [
+    20.63,
+    10.23,
+    107.65,
+    20.7
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TRUCK STOP",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.25,
+   "cap": 9.19,
+   "colour": [
+    252,
+    250,
+    252
+   ],
+   "box": [
+    19.99,
+    30.16,
+    105.92,
+    39.35
+   ]
+  },
+  {
+   "op": "text",
+   "text": "NEXT EXIT - 1/2 MILE",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.25,
+   "cap": 6.8,
+   "colour": [
+    252,
+    250,
+    252
+   ],
+   "box": [
+    11.13,
+    42.01,
+    114.9,
+    48.81
+   ]
+  },
+  {
+   "op": "text",
+   "text": "GAS - FOOD - SHOWERS",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.25,
+   "cap": 7.08,
+   "colour": [
+    252,
+    250,
+    252
+   ],
+   "box": [
+    6.26,
+    54.69,
+    122.85,
+    61.77
+   ]
+  }
+ ]
+}

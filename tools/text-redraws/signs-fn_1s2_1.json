@@ -1,0 +1,60 @@
+{
+ "textures": [
+  "fn_1s2_1"
+ ],
+ "note": "TRUCK STOP - RESTAURANT on Spanner's truck stop: its lettering; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    4.5,
+    27.0,
+    124.0,
+    38.0
+   ],
+   "where": {
+    "keyed": true
+   },
+   "opaque": true,
+   "grow": 0.3
+  },
+  {
+   "op": "erase",
+   "rect": [
+    4.5,
+    27.0,
+    124.0,
+    38.0
+   ],
+   "where": {
+    "lum_below": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 170
+   }
+  },
+  {
+   "op": "text",
+   "text": "TRUCK STOP - RESTAURANT",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.2,
+   "cap": 8.99,
+   "colour": [
+    6,
+    5,
+    6
+   ],
+   "box": [
+    5.71,
+    27.95,
+    122.65,
+    36.94
+   ]
+  }
+ ]
+}
