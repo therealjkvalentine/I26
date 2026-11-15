@@ -380,7 +380,15 @@ public partial class Main : Node3D
                 Install = install, Name = "Shell", Faithful = _opt.Mode1997,
                 Developer = _opt.Dev || System.Environment.GetEnvironmentVariable("I76_DEV") == "1",
                 LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError,
-                OnLaunch = l => { LoadProfiler.Click(); GD.Print($"shell: launch {l.Mission} ({l.Kind})"); _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene(); },
+                OnLaunch = l =>
+                {
+                    LoadProfiler.Click();
+                    GD.Print($"shell: launch {l.Mission} ({l.Kind})");
+                    // a checkpoint bookmark's: taken once, for this start (a Replay of it starts the mission over)
+                    if (l.Resume is { } resume) { l = l with { Resume = null }; ResumeFromBookmark(l, resume); }
+                    else (_retry, _resumeNotice) = (null, null);
+                    _launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene();
+                },
                 OnEditor = () =>
                 {
                     GetNodeOrNull("Shell")?.QueueFree();
@@ -508,6 +516,7 @@ public partial class Main : Node3D
         if (LoadProfiler.QuitAfter) QuitSoon();
         _loading = false;
         if (_playtestNote is { } note && _opt.Install is not null) { AddChild(new CheckpointNotice { InstallDir = _opt.Install, Faithful = _mode1997, Text = note, Hold = 4.0, Name = "PlaytestNote" }); _playtestNote = null; }
+        ShowResumeNotice();
         // a checkpoint's retry goes on from where it was: the music there, no briefing
         if (_resumed) { ResumeMusic(); return; }
         if (_editorMode) return;
@@ -554,6 +563,7 @@ public partial class Main : Node3D
             PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
             SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
             CoopNextTitle = NetCoopNextTitle(), CoopLobby = NetCoopHost, CoopReplay = NetCoopHost, CoopWaitHost = end is not null && NetCoopFlow && !NetCoopHost,
+            SaveBookmark = CanSaveBookmark ? SaveCheckpointBookmark : null,
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
         layer.AddChild(_menu);

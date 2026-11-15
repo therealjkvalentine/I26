@@ -5,8 +5,9 @@ namespace I76.Game.Shell;
 
 /// <summary>
 /// The one place the upscaled menu art is found. None ships with the port; sources in order:
-/// $I76_TEX_DIR (a folder, for development), user://tex-menu/ (a folder), then the newest
-/// i76-hd-menus*.zip next to the executable or in user:// (the HD Menu Pack, read in place).
+/// $I76_TEX_DIR (a folder, for development), else the tex-menu pack HdPacks found: user://tex-menu/, or where a
+/// player may have put it (one folder too deep, inside the folder Windows' Extract All made, beside the program, or the
+/// I26-HD-*.zip / i76-hd-*.zip archive itself, read in place).
 /// Paths are relative to the tex-menu layout ("shellbg1.webp", "nitro/load/loadgame.webp").
 /// shell.cfg's [port] hd_menu_art (no row; the Developer panel's Settings) switches it all off; the 1997 look never asks.
 /// </summary>
