@@ -804,6 +804,7 @@ public partial class VegetationNode : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Vegetation);
         UpdateSward(delta);
         // the headlamps' throw changed (the Developer panel, the settings): the bushes' reach follows it
         // and night or day (the mission's light, set after the plants are made): the shrubs' far mesh stays out of the beam

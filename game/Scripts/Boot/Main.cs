@@ -311,6 +311,7 @@ public partial class Main : Node3D
         // once a run, under the root: sees the engine's exit through (an exit hang of Godot's on Wayland)
         ExitWatchdog.Install(GetTree());
         HitchWatch.Install(GetTree());
+        FrameSections.Install(GetTree());
         MusicProbe.Install(GetTree());
         Controls.InstallDir = _opt.Install;
         GameKeys.InstallDir = _opt.Install;
@@ -4307,6 +4308,7 @@ public partial class Main : Node3D
 
         public override void _Process(double delta)
         {
+            using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Recorders);
             _n++;
             Record();
             Owner.UpdateMouseCapture();
@@ -4355,6 +4357,7 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Main);
         if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
         FrameLimiter.Pace();
         UpdateMouseCapture();
@@ -4434,7 +4437,7 @@ public partial class Main : Node3D
             _cam.SetYawPitch(fa[3], fa[4]);
         }
         LeaveDeadCockpit();
-        if (PlayerDead && _net is null && FrameProfiler.Enabled) FrameProfiler.PlayerDied();
+        if (PlayerDead && _net is null && (FrameProfiler.Enabled || FrameSections.On)) FrameProfiler.PlayerDied();
         if (_car is not null) _car.HoodView = _preset is { Current: true, Mode: PresetCamera.View.Orbit };   // F6 does not draw the player's car
         TrackLatestRound();
         CheckpointFrame();

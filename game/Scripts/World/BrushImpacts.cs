@@ -153,6 +153,7 @@ public partial class BrushImpacts : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Brush);
         _dt = (float)delta;
         _t += delta;
         _burstsThisFrame = 0;

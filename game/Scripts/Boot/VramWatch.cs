@@ -18,6 +18,7 @@ public partial class VramWatch : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Recorders);
         _next -= delta;
         if (_next > 0) return;
         _next = _every;

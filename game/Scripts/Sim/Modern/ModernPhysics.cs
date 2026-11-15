@@ -136,6 +136,7 @@ public partial class ModernPhysics : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Physics);
         UpdateActive();
         if (!Active) { _prev = _cur = (Car.Pos, BasisOf(Car.Rot)); return; }
         var p = Car.Pos;

@@ -849,6 +849,7 @@ public sealed partial class EscapeMenu : Control
     /// </summary>
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
         if (_closed) return;
         using var _ = Hitch.Time(Hitch.Phase.Shell);
         MeasureFps();

@@ -158,6 +158,7 @@ public partial class Voice3D : AudioStreamPlayer3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Voices);
         Cull();
         Attenuate();
         // I76_AUDIO_LOG: a rotor loop's distance and level once a second (a capture's Dummy driver cannot be listened to)

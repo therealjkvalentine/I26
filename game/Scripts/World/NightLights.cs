@@ -47,6 +47,7 @@ public partial class NightLights : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Lights);
         _active.Clear();
         _cars.Clear();
         var cam = GetViewport().GetCamera3D();

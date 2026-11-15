@@ -67,6 +67,7 @@ public partial class SkidMarks : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.SkidMarks);
         _t += (float)delta;
         bool modern = Cars.Values.FirstOrDefault()?.Modern ?? true;
         if (!_seen || modern != _modern)

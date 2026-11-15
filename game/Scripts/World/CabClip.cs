@@ -70,6 +70,7 @@ public partial class CabClip : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CabClip);
         var p = Player();
         bool on = false;
         if (!Off && p is not null && p.IsInsideTree() && p.CockpitCamera is { Current: true } && !p.SeenFromOutside && !p.Wrecked && Box(p, out var c, out var h))

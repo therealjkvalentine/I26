@@ -217,6 +217,7 @@ public partial class OutsideTerrain : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Outside);
         if (_ground is null || _world is null || GetViewport()?.GetCamera3D() is not { } cam) return;
         var eye = ToLocal(cam.GlobalPosition);
         float ex = eye.X, ez = -eye.Z;   // game frame

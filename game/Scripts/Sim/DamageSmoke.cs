@@ -224,6 +224,7 @@ public partial class DamageSmoke : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         if (!_ready) return;
         bool modern = Cars.Values.FirstOrDefault()?.Modern ?? true;

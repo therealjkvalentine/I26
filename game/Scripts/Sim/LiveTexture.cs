@@ -48,7 +48,7 @@ public sealed class LiveTexture
     public LiveTexture(byte[] rgba, int w, int h)
     {
         if (_rd is not null) { _rdTex = new Texture2Drd(); Set(rgba, w, h); }
-        else { _img = Image.CreateFromData(w, h, false, Image.Format.Rgba8, rgba); _img.GenerateMipmaps(); _imgTex = ImageTexture.CreateFromImage(_img); (Width, Height) = (w, h); DashStats.Upload(rgba.Length); }
+        else { _img = Image.CreateFromData(w, h, false, Image.Format.Rgba8, rgba); _img.GenerateMipmaps(); _imgTex = ImageTexture.CreateFromImage(_img); (Width, Height) = (w, h); { DashStats.Upload(rgba.Length); I76.Game.Boot.FrameSections.Upload(rgba.Length); } }
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ public sealed class LiveTexture
     /// <summary>The whole picture, of any size (a size change makes the GPU texture again under the same Texture).</summary>
     public void Set(byte[] rgba, int w, int h)
     {
-        DashStats.Upload((long)w * h * 4);
+        { DashStats.Upload((long)w * h * 4); I76.Game.Boot.FrameSections.Upload((long)w * h * 4); }
         if (_rd is null)
         {
             // the engine's own mip chain: the whole picture goes up anyway here
@@ -180,10 +180,14 @@ public sealed class LiveTexture
             }
             int bytes = bw * bh * 4;
             if (_pack.Length < bytes) _pack = new byte[System.Math.Max(bytes, _pack.Length * 2)];
-            for (int y = 0; y < h; y++) System.Buffer.BlockCopy(rgba, ((y0 + y) * Width + x0) * 4, _pack, y * bw * 4, w * 4);
-            _rd.TextureUpdate(st, 0, _pack.AsSpan(0, bytes));
-            _rd.TextureCopy(st, _rid, Vector3.Zero, new Vector3(x0, y0, 0), new Vector3(w, h, 1), 0, 0, 0, 0);
-            DashStats.Upload(bytes);
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.LivePack))
+                for (int y = 0; y < h; y++) System.Buffer.BlockCopy(rgba, ((y0 + y) * Width + x0) * 4, _pack, y * bw * 4, w * 4);
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.LiveSend))
+            {
+                _rd.TextureUpdate(st, 0, _pack.AsSpan(0, bytes));
+                _rd.TextureCopy(st, _rid, Vector3.Zero, new Vector3(x0, y0, 0), new Vector3(w, h, 1), 0, 0, 0, 0);
+            }
+            { DashStats.Upload(bytes); I76.Game.Boot.FrameSections.Upload(bytes); }
             Levels(x0, y0, x1, y1);
         }
     }
@@ -192,6 +196,7 @@ public sealed class LiveTexture
     private void Levels(int x0, int y0, int x1, int y1)
     {
         if (_levels <= 1) return;
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.LiveLevels);
         Span<byte> rect = stackalloc byte[16];
         long cl = _rd!.ComputeListBegin();
         _rd.ComputeListBindComputePipeline(cl, s_pipeline);

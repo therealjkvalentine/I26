@@ -121,6 +121,7 @@ public partial class FpsOverlay : Control
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.UiFps);
         // real time, not the process delta: a time scale or a paused tree does not change what the machine is doing
         ulong now = Time.GetTicksUsec();
         double dt = (now - _last) / 1e6;

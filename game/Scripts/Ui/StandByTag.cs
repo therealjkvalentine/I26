@@ -191,6 +191,7 @@ public partial class StandByTag : Control
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.UiStandBy);
         if (Visible && GetViewportRect().Size != _laidFor) Layout();
     }
 

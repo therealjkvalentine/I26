@@ -367,6 +367,7 @@ public partial class DamageView : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.DamageView);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         _t += delta;
         foreach (var e in Damage.Events)

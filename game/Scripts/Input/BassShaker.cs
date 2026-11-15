@@ -180,6 +180,7 @@ public partial class BassShaker : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Feedback);
         bool? want = Playing;
         if (_out is not null && want != _stereoPair) Close();
         if (want is { } pair && _out is null) Open(pair);

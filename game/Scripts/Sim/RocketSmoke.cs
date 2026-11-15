@@ -102,6 +102,7 @@ public partial class RocketSmoke : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         float dt = (float)Math.Min(delta, 0.25);
         _mat.SetShaderParameter("scene_light", SceneLight);
         var cam = GetViewport().GetCamera3D();

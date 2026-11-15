@@ -59,6 +59,7 @@ public partial class GroundClutterView : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Clutter);
         if (!Visible || _world is null || GetViewport()?.GetCamera3D() is not { } cam) return;
         var gb = GlobalBasis.Inverse();
         var local = ToLocal(cam.GlobalPosition);

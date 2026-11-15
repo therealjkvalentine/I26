@@ -44,7 +44,11 @@ public partial class TargetIndicator : Control
         MouseFilter = MouseFilterEnum.Ignore;
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
+        QueueRedraw();
+    }
 
     /// <summary>
     /// The target's health as a 0–1 fraction for the bar (the health percentage: HealthGauge); none left once it is dead. A network
@@ -54,6 +58,7 @@ public partial class TargetIndicator : Control
 
     public override void _Draw()
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
         if (Player() is not { } p || Combat.RadarTarget.GetValueOrDefault(p) is not { } t || Combat.IsDead(t)) return;
         var cam = GetViewport().GetCamera3D();
         if (cam is null) return;

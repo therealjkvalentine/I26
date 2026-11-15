@@ -164,6 +164,7 @@ public partial class DropShadows : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.DropShadows);
         int used = 0, grown = 0;
         Growing = false;
         var origin = Origin();

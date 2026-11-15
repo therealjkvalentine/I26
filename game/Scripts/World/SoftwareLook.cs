@@ -178,6 +178,7 @@ public partial class SoftwareLook : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.SoftwareLook);
         if (_lut is null && _lutJob is { IsCompleted: true } job && _grade is not null)
         {
             var img = Image.CreateFromData(_lutSide, _lutSide, false, Image.Format.Rgb8, job.Result);

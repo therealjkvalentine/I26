@@ -277,6 +277,7 @@ public partial class Cockpit : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cockpit);
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         DashStats.Begin();
         float dt = (float)System.Math.Clamp(delta, 0.001, 0.2);
@@ -311,7 +312,7 @@ public partial class Cockpit : Node
             Compass();
             DamagePanel();
             SpecialsPanel();
-            Radar();
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitRadar)) Radar();
             // the 2D speedometer and tachometer are drawn by the 2D dash and the external instruments, never over the 3D dash
             // or in the binoculars: drawn when they show, from where they were
             if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
@@ -322,12 +323,12 @@ public partial class Cockpit : Node
             Wheel(dt);
             Arms();
             Needles();
-            Mirror();
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitMirror)) Mirror();
         }
         // the dash in the eye's frame, the eye and the needles moved for the frame; once more on leaving the car, to let it go
         if (pit || _pinned) Node3D.PinCockpit(pit);
         _pinned = pit;
-        Panels.Commit();
+        using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitPanels)) Panels.Commit();
         DashStats.End();
         if (_artRedrawnAt != 0)
         {
@@ -1195,6 +1196,7 @@ public partial class Cockpit : Node
     private void RadarCompose(byte[] frame, int w, int h, int k, string? range, string? led, Rect2I r)
     {
         if (r.Size.X <= 0 || r.Size.Y <= 0) return;
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarCompose);
         for (int y = r.Position.Y; y < r.End.Y; y++) System.Buffer.BlockCopy(frame, (y * w + r.Position.X) * 4, _radarWork!, (y * w + r.Position.X) * 4, r.Size.X * 4);
         // the stamps count rows from the top of the picture
         var top = new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y);
@@ -1295,6 +1297,7 @@ public partial class Cockpit : Node
     /// <summary>The radar screen's picture (w x h RGBA8, raw rows) to its texture: whole, or only <paramref name="rects"/> (raw rows) of it.</summary>
     private void UploadRadar(byte[] px, int w, int h, List<Rect2I>? rects)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarUpload);
         // a frame of another size (the art made again at another scale, the weapon camera's) is a new picture in the same texture
         RadarScale = System.Math.Max(1, w / _radarBaseW);
         if (_radarLive is null) _radarLive = new LiveTexture(px, w, h);

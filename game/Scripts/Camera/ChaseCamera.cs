@@ -89,6 +89,7 @@ public partial class ChaseCamera : Camera3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cameras);
         if (Target is null) return;
         var t = Target.GlobalTransform;
         var centreG = t * LocalCentre;

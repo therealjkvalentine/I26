@@ -57,6 +57,7 @@ public partial class PresetCamera : Camera3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cameras);
         if (Target is null) return;
         float dt = Mathf.Clamp((float)delta, 0.001f, 0.2f);
         if (Mode != View.Orbit) Fov = ViewFov.Main;   // live from Graphic Detail

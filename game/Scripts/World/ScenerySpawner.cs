@@ -714,6 +714,7 @@ public partial class ScenerySpawner : Node3D
     /// </summary>
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Scenery);
         TurnCards();
         if (GateShift is { } shift)
             foreach (var g in _gates)

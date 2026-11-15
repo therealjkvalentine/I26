@@ -106,6 +106,7 @@ public partial class TumbleweedNode : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Tumbleweeds);
         if (!IsVisibleInTree() || _field.Count == 0 || GetViewport()?.GetCamera3D() is not { } cam || GetParent<Node3D>() is not { } veg) return;
         // the game frame: the vegetation node sits in the world root, the game frame mirrored and shifted
         var l = veg.ToLocal(cam.GlobalPosition);

@@ -518,6 +518,7 @@ public partial class SimDriver : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Sim);
         if (FpsLog) LogFrames(delta);
         if (Remote is { } remote)
         {
@@ -609,7 +610,7 @@ public partial class SimDriver : Node
         if (!keys) sampled = default;   // sampled and dropped all the same, so nothing is left latched
         int tick = Session.Ticks;
         if (Replay is { } replay) sampled = replay.At(tick);   // the keys are still sampled (and dropped) so nothing is left latched
-        using (Hitch.Time(Hitch.Phase.Sim)) Session.Tick([sampled]);
+        using (Hitch.Time(Hitch.Phase.Sim)) using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.SimTick)) Session.Tick([sampled]);
         // I76_STATE_HASH=N: the session's state hash every 100 ticks up to tick N (two starts compared: the same game?)
         if (StateHashUntil > 0 && Session.Ticks <= StateHashUntil && (Session.Ticks % 100 == 0 || Session.Ticks == StateHashUntil))
             GD.Print($"state hash: tick {Session.Ticks} {Session.StateHash():x16}");

@@ -81,6 +81,7 @@ public partial class FrameTargetNode : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Recorders);
         double gpu = RenderingServer.ViewportGetMeasuredRenderTimeGpu(GetViewport().GetViewportRid());
         if (gpu <= 0 || _target.Add(gpu, delta * 1000, _current, _player) is not { } step) return;
         _current = step;

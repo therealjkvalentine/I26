@@ -615,6 +615,7 @@ public partial class TerrainNode : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Terrain);
         if (_stream) StreamUpdateTimed();
         if (!_modern) { if (Editing) PumpEdits(); if (ModernAttached) Warm(); if (Audit) AuditGround(); return; }
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();

@@ -19,6 +19,7 @@ public partial class DebugOverlay : CanvasLayer
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
         _label.Text = $"{Engine.GetFramesPerSecond():0} fps\n" + (Text?.Invoke() ?? "");
     }
 }
