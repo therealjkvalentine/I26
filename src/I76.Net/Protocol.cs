@@ -19,7 +19,7 @@ public static class Protocol
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
     /// peer, which never says any, gets the layout it reads.
     /// </summary>
-    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration;
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -90,6 +90,22 @@ public enum PeerFeatures : uint
     HandicapBoard = 1 << 1,
     /// <summary>Host migration with the fork's savestate (<see cref="I76.Sim.Save.SnapshotHeader.CurrentVersion"/>): a game is handed only to a peer that says it, on the same build.</summary>
     Migration = 1 << 2,
+    /// <summary>
+    /// A co-op mission's start says whom it waits for (docs/multiplayer.md "Waiting for the others"): the client tells its stage
+    /// (<see cref="MsgType.CoopStage"/>), the server the players still loading (<see cref="MsgType.CoopWait"/>). Without it nothing is said either way.
+    /// </summary>
+    CoopWait = 1 << 3,
+    /// <summary>
+    /// A co-op mission's briefing plays over the built mission, and once every game has built it one player's skip ends the others' too
+    /// (docs/multiplayer.md "The briefing for everyone"): <see cref="MsgType.CoopSkip"/>. Without it each briefing plays before its build, as upstream's.
+    /// </summary>
+    CoopSkip = 1 << 4,
+    /// <summary>
+    /// A co-op game goes on after its mission with the same players (docs/multiplayer.md "On to the next mission"): the server's plan
+    /// (<see cref="MsgType.CoopNext"/>), then the next round as a melee's (<see cref="MsgType.NextRound"/>, the accept or the lobby). A peer
+    /// without it is not taken into a next mission (it leaves at a won mission's end, as before).
+    /// </summary>
+    CoopNext = 1 << 5,
 }
 
 public enum MsgType : byte
@@ -172,6 +188,15 @@ public enum MsgType : byte
     MigrationState = 42,
     /// <summary>Host → successor, reliable ordered on <see cref="HostMigration.Channel"/>: one tick's inputs, for the replay.</summary>
     MigrationLog = 43,
+    // the I26 play fork's own messages: each sent only to a peer that says its PeerFeatures bit, numbered apart from upstream's
+    /// <summary>Client → server, reliable (<see cref="PeerFeatures.CoopWait"/>): one byte, where this game is in the co-op start (<see cref="I76.Net.CoopStage"/>).</summary>
+    CoopStage = 60,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.CoopWait"/>): the co-op start waits for these players (<see cref="I76.Net.CoopWait"/>).</summary>
+    CoopWait = 61,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.CoopSkip"/>): end the briefing, this player skipped theirs (<see cref="I76.Net.CoopSkip"/>).</summary>
+    CoopSkip = 62,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.CoopNext"/>): what follows the co-op mission, and when (<see cref="I76.Net.CoopPlan"/>).</summary>
+    CoopNext = 63,
 }
 
 /// <summary>A dead player's new car for the next respawn: a car file, and its .vcf when the server's install may lack it (as a join's configuration).</summary>

@@ -49,6 +49,8 @@ public partial class MoviePlayer : CanvasLayer
     public bool Held => _held;
     /// <summary>A skip was asked for while <see cref="Waiting"/>: kept, the stand-by line up, the movie playing on until the mission is ready or held.</summary>
     public bool SkipWanted => _skipWanted;
+    /// <summary>The player skipped it (a skip press taken, kept or done), as against its running out or being ended (a network co-op briefing tells the host).</summary>
+    public bool Skipped { get; private set; }
     /// <summary>
     /// The port's: after a kept skip, the picture stops where it is (its sound too), as a movie run out holds its last frame, so that
     /// what is left of the load runs behind a still picture instead of under a playing one (Main.BuildBehindCard).
@@ -456,6 +458,7 @@ public partial class MoviePlayer : CanvasLayer
     /// <summary>A skip asked for (true when the movie ended): at once, or, while <see cref="Waiting"/>, kept with the stand-by line faded in.</summary>
     private bool Skip()
     {
+        Skipped = true;
         if (!_skipWanted) I76.Game.World.MissionBuilder.Trace($"movie: skip pressed ({(IsWaiting ? "the mission not ready" : "the mission ready")})");
         if (!IsWaiting) { Finish(); return true; }
         if (!_skipWanted) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: skip asked for, kept until the mission is ready");

@@ -107,6 +107,7 @@ public sealed partial class NetMeleeServer : IDisposable
         _listener.PeerDisconnectedEvent += (p, info) =>
         {
             _joined.Remove(p.Id);
+            CoopForget(p.Id);
             if (_invites.FindIndex(x => x.Peer.Id == p.Id) is var ii and >= 0) { Log?.Invoke($"{_invites[ii].Request.Name} left before the host answered ({info.Reason})"); _invites.RemoveAt(ii); }
             if (_byPeer.Remove(p.Id, out var s)) Host.Leave(s, info.Reason.ToString());
             else if (_lobby.Find(x => x.Peer.Id == p.Id) is { } lm) LobbyLeft(lm, info.Reason.ToString());
@@ -494,6 +495,7 @@ public sealed partial class NetMeleeServer : IDisposable
             case MsgType.Input:
             {
                 var m = InputMessage.Read(ref r);
+                if (CoopDropsInput(peer.Id)) break;
                 s.Inputs.Add(m);
                 Host.AckSnapshot(s, m.SnapshotAck);
                 break;
@@ -537,7 +539,7 @@ public sealed partial class NetMeleeServer : IDisposable
                 Host.Leave(s, "left");
                 break;
             default:
-                ReceiveMigration(peer, s, type, ref r);
+                if (!ReceiveCoop(peer, s, type, ref r)) ReceiveMigration(peer, s, type, ref r);
                 break;
         }
     }
@@ -555,8 +557,10 @@ public sealed partial class NetMeleeServer : IDisposable
             if (!(Options.Rounds && !Host.Over && Host.Seats.Count == 0 && _waiting.Count == 0) && !HoldForRejoins()) Host.Step();
             ExpireInvites();
             LobbyTick();
+            CoopStartTick();
             Send();
             MigrationTick();
+            CoopEndTick();
             if (Host.Over && CarriesOn && OverAt is { } over && (_skipPause || Now - over >= Options.RoundPause)) StartNextRound();
             PumpMaps();
             _net.TriggerUpdate();

@@ -259,6 +259,7 @@ public partial class NetHudModern : Control
             CbPanel(f, sr, v);
         }
         if (f.Prompt is { } p) Prompt(p, new Vector2(v.X / 2, top));
+        if (f.Notice is { } nt && f.Final is null && !board) Notice(nt, new Vector2(v.X / 2, Math.Max(top, v.Y * 0.16f) + (f.Prompt is null ? 0 : U(140))));
         if (f.Final is { } fin) Results(f, fin, v);
         else if (f.End is { } e && f.Death is null) EndBanner(f, e, v);
         if (f.Board is { } b) Board(f, b, v, sr);
@@ -627,6 +628,30 @@ public partial class NetHudModern : Control
         {
             float w2 = HintWidth(hh, ["Enter"], null, "START NOW");
             Hint(new Vector2(hx - w2 - U(28), y), hh, ["Enter"], null, "START NOW", HudStyle.Amber);
+        }
+    }
+
+    /// <summary>
+    /// A co-op notice (the fork's: whom the start waits for, what follows the mission): a panel at the top centre, its head in Impact as
+    /// the boot screen's PLEASE STAND BY is lettered, the first line under it bright and the rest quieter.
+    /// </summary>
+    private void Notice(NetHudFrame.NoticeInfo n, Vector2 topCentre)
+    {
+        int head = Px(26), size = Px(19);
+        float lineH = U(28), pad = U(28), headH = HudStyle.Title.GetHeight(head);
+        float w = Measure(HudStyle.Title, n.Head, head).X;
+        for (int i = 0; i < n.Lines.Count; i++) w = Math.Max(w, Measure(i == 0 ? HudStyle.Bold : HudStyle.Regular, n.Lines[i], size).X);
+        w = Math.Min(w + 2 * pad, _view.X - U(24));
+        var r = new Rect2(topCentre.X - w / 2, topCentre.Y, w, U(16) + headH + U(8) + n.Lines.Count * lineH + U(12));
+        Panel(r);
+        float y = r.Position.Y + U(16);
+        TextCentre(HudStyle.Title, n.Head, new Vector2(r.GetCenter().X, y), head, HudStyle.Amber);
+        y += headH + U(8);
+        for (int i = 0; i < n.Lines.Count; i++)
+        {
+            var font = i == 0 ? HudStyle.Bold : HudStyle.Regular;
+            TextCentre(font, Fit(font, n.Lines[i], size, w - 2 * U(12)), new Vector2(r.GetCenter().X, y), size, i == 0 ? HudStyle.Parchment : HudStyle.ParchmentDim);
+            y += lineH;
         }
     }
 

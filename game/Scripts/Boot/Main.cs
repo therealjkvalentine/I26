@@ -336,7 +336,8 @@ public partial class Main : Node3D
             // that nobody's mission waits for it (the server holds a new mission for its first player's inputs, and a late joiner would
             // stand in a running one); Esc skips it
             // (a joiner of a game the roster showed in its lobby, or a host, has it when the mission starts, in StartNetwork)
-            if (_launch is { Kind: I76.Game.Shell.GameKind.Multiplayer, Net: { Coop: true, Connect: not null, InLobby: false } } && !_opt.SkipMovies) await CoopBriefing(_launch.Mission);
+            // (not again for a co-op game that goes on to its next mission on this connection: StartNetwork plays that one's, MainNetCoop.cs)
+            if (_launch is { Kind: I76.Game.Shell.GameKind.Multiplayer, Net: { Coop: true, Connect: not null, InLobby: false } } && !_opt.SkipMovies && _carriedNet is null) await CoopBriefing(_launch.Mission);
             if (!await StartNetwork(loading)) return;
         }
         // the map editor, or a playtest of the map in it: the mission is the editor's, with its edited heights (EditorSession.Prepare)
@@ -512,6 +513,7 @@ public partial class Main : Node3D
         if (_editorMode) return;
         // The original's start-up plays the mission's briefing (WRLD +0x04) before it starts, and the music after it
         // (a network co-op mission has none: its host's mission runs from the first player in, docs/deviations.md)
+        if (NetBriefingAfterLoad()) return;   // a network co-op game's briefing over the built mission, the music after it (MainNetCoop.cs)
         if (built is not null) StartMissionMusic();   // its briefing played over the build
         else if (_builder?.Settings is { Briefing.Length: > 0 } ws && !_opt.SkipMovies && _net is null && MoviePlayer.Find(new GameInstall(_opt.Install), ws.Briefing) is not null)
             MissionMovie(new GameInstall(_opt.Install), ws.Briefing);
@@ -551,6 +553,7 @@ public partial class Main : Node3D
             Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
             PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
             SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
+            CoopNextTitle = NetCoopNextTitle(), CoopLobby = NetCoopHost, CoopReplay = NetCoopHost, CoopWaitHost = end is not null && NetCoopFlow && !NetCoopHost,
             Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
         };
         layer.AddChild(_menu);
@@ -664,6 +667,10 @@ public partial class Main : Node3D
                 break;
             case MenuOutcome.RetryCheckpoint:
                 RetryCheckpoint();
+                break;
+            case MenuOutcome.CoopNext or MenuOutcome.CoopLobby or MenuOutcome.CoopReplay:
+                GetTree().Paused = false;
+                NetCoopChoose(o);   // the co-op host's choice for the group (MainNetCoop.cs)
                 break;
             case MenuOutcome.Replay:
                 LoadProfiler.Again("replay");
@@ -4455,7 +4462,9 @@ public partial class Main : Node3D
         {
             // a network game runs on under the map or the notepad: the end comes over them, so they go
             if (_net is not null && _picture is not null) { _picture.QueueFree(); _picture = null; }
-            if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
+            // a co-op game that goes on after its mission (the fork's, MainNetCoop.cs): no way back to the menus, the next mission follows
+            if (NetCoopEnded(result)) _endMenuShown = true;
+            else if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
             else
             {
                 if (result) GD.Print("mission won with the cheats marker set: the cheater's end menu");

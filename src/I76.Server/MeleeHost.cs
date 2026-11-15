@@ -205,6 +205,10 @@ public sealed record ServerOptions
     public bool HostMigration { get; init; }
     /// <summary>A downloaded custom map's folder to play from (a successor taking over a game on a map it downloaded); null: the install's own.</summary>
     public string? MapDir { get; init; }
+    /// <summary>What the host says it understands beyond upstream's protocol (<see cref="Protocol.Features"/>; fewer in a test's upstream host): its accept says these, and it uses no other.</summary>
+    public PeerFeatures Features { get; init; } = Protocol.Features;
+    /// <summary>A lobby's co-op game that goes on (the fork's): seconds from a mission's end to what follows it (the game over 5 s in, the outcome readable the rest).</summary>
+    public double CoopNextSeconds { get; init; } = 15;
 }
 
 /// <summary>The host's answer to an invite-only join (INVITE_ACCEPT, INVITE_DECLINE, INVITE_SKIP).</summary>
@@ -755,7 +759,7 @@ public sealed partial class MeleeHost : IModeHost
         Map?.MissionSize ?? 0, Map?.MissionCrc ?? 0, Map?.TerrainSize ?? 0, Map?.TerrainCrc ?? 0, MapSet?.Hash)
         {
             Coop = Mode.JoinState(s), Cb = Options.AllowCb, Crosshair = Options.AllowCrosshair, IgnitionStaysOn = Options.IgnitionStaysOn, Turrets1997 = Options.Turrets1997,
-            Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Protocol.Features,
+            Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Options.Features,
         };
 
     private CarInfo Info(Vehicle v)

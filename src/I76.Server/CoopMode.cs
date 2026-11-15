@@ -74,6 +74,10 @@ public sealed class CoopMode : IHostMode
     }
 
     public bool Ended => _endTold is not null;
+    /// <summary>The mission's outcome once it has ended (won or failed), null before.</summary>
+    public bool? Result => _endTold;
+    /// <summary>The game over's word that the server carries on in this many seconds (a co-op game that goes on: the fork's next mission, replay or lobby); 0 ends it.</summary>
+    public byte NextRoundSeconds { get; set; }
     public bool Over => _deserted || (_endTold is not null && Script.Now - _endAt >= EndSeconds);
     public ModeRules Rules => new(false, MeleeKind.Combat, MeleeGoal.None, 0, 2);
     public IReadOnlyList<BotSeat> Bots => [];
@@ -202,6 +206,13 @@ public sealed class CoopMode : IHostMode
     }
 
     private long _loadAt;
+
+    /// <summary>The mission has started: its first tick has run (or runs this one).</summary>
+    public bool Started => _started;
+
+    /// <summary>A lobby start's seconds left before the mission starts without the players still loading; null with no lobby, before the start, or once started.</summary>
+    public double? LoadLeft => _o.Lobby && _loadAt != 0 && !_started
+        ? Math.Max(0, _o.LoadSeconds - System.Diagnostics.Stopwatch.GetElapsedTime(_loadAt).TotalSeconds * NetClock.Scale) : null;
 
     /// <summary>
     /// A lobby's start (docs/multiplayer.md "The co-op lobby"): every seat was dealt at once, and the mission's first tick waits until each
@@ -342,7 +353,7 @@ public sealed class CoopMode : IHostMode
         var standings = _host.Seats.Select(s => ((byte)s.Slot, s.Actor.Deaths)).ToList();
         _host.Log($"game over: {(_deserted ? "everyone left" : _endTold == true ? "the mission was won" : "the mission failed")}; " +
                   string.Join(", ", _host.Seats.Select(s => $"{s.Name} {s.Actor.Deaths} deaths")));
-        return new GameOverEvent(standings, 0);
+        return new GameOverEvent(standings, NextRoundSeconds);
     }
 
     public IEnumerable<PlayerRow> Board() =>

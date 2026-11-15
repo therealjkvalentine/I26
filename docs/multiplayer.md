@@ -959,7 +959,8 @@ from the server.
   the snapshots already.
 - **The end** (`MissionEndEvent`): won or failed and the failure's line; each client's game ends as single player's (the
   outro on a win; the end menu with the line, Leave Match and Exit I76, on a failure). The game over follows 5 s later;
-  there are no rounds, and a host leaving after the end does not hand the game on. Everyone leaving ends it too.
+  there are no rounds, and a host leaving after the end does not hand the game on. Everyone leaving ends it too. (The play fork's lobby
+  games go on after a won mission: "On to the next mission", below.)
 - **Deaths and respawns.** A human's death is a `KillEvent` (the feed's line) and its respawn after `RespawnDelay` a
   `RenewedEvent` (the car rebuilt in place); being put back from the map's edge is a `***` line. The HUD's death card
   counts down to the car beside a teammate (no keys: it comes by itself). The scoreboard (Tab) lists the players with their
@@ -1011,7 +1012,8 @@ Single player plays the mission's briefing movie after the loading card and befo
 player sees their own (`Main.CoopBriefing`, from the loading card; Esc skips it). Since protocol 20 a game in its lobby plays it **at the start**,
 after the accept, while the server waits for every game to load (below, "The co-op lobby"); only a player joining a mission already running plays it
 before joining (a joiner would otherwise stand in a running mission under it; the roster's "co-op" against "co-op lobby" says which). The command line (`--host-listen --coop`, `--connect`)
-and `--skip-movies` have none, as before.
+and `--skip-movies` have none, as before. The play fork plays the lobby start's briefing after the build instead, and ends it for everyone
+on one skip once all have loaded (below, "The briefing for everyone").
 
 ### The co-op lobby (protocol 20)
 
@@ -1063,6 +1065,109 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
   message (and a later join turned away); a guest leaving; the host's boot; a full lobby; a dedicated server starting when enough are all ready
   (`--start-when 2`) and the console's forced start; and a game with no lobby seating at once.
 
+### Waiting for the others (the play fork's, `PeerFeatures.CoopWait`)
+
+While a lobby's start is held for a game still loading, the players already in the mission stood still with nothing on screen to say why
+(upstream #196). Now each game says where it is, and the host says whom it waits for:
+
+- **The client** sends `MsgType.CoopStage` (60, one byte, `CoopStage`) when it changes: Building (the accept is in and the mission builds),
+  Briefing, Skipped, Ready (built, its inputs follow) and Ending (the last mission's outro still plays, before the next mission). Sent only
+  to a host whose accept says `CoopWait`; kept and said again at a new accept (`MeleeClient.SendCoopStage`).
+- **The server** (`NetMeleeServer.Coop.cs`), each tick of a lobby's co-op mission before it starts, lists the seats whose game has not sent an
+  input (`CoopStart.Waiting`) with what each said, and when the list changes sends `MsgType.CoopWait` (61: the seconds left of
+  `ServerOptions.LoadSeconds`, then each player's name and stage) to every seat whose join said `CoopWait`; an empty list once the mission
+  starts. An upstream player says nothing and is listed as Unknown ("loading or watching the briefing"). The log says it too
+  ("co-op: the start waits for Ann (watching the briefing)").
+- **The notice** (`NetHud.Coop.cs`, both looks): PLEASE STAND BY, "Waiting for 1 player", a line a player ("Ann: watching the briefing",
+  "Bob: loading"), and "starting without them in 87 s", counted down on the client. The 1997 look letters it in the console's Lee, red, high
+  in the middle; the modern look in a panel at the top centre, its head in Impact. It goes when the server's tick moves on (the start).
+- **An upstream host** says nothing: the game cannot name anyone, so once the start has stood still for 2 s it shows PLEASE STAND BY,
+  "Waiting for the other players", "loading or watching the briefing" until the tick moves.
+- **Tests** (`CoopFlowTests`): the message's round trip and an unknown stage read as Unknown; the notice's lines; a two-player start
+  where the loaded player hears whom it waits for, sees the stage change and the list empty when the start goes; an upstream player listed
+  without a stage and told nothing; an upstream host (no `CoopWait` in its accept) saying nothing and hearing nothing.
+
+### The briefing for everyone (the play fork's, `PeerFeatures.CoopSkip`)
+
+Upstream plays each player's briefing before that game builds the mission, so a player who skips is in the mission at once and waits for
+the others' briefings (the owner: "cutscene skips for others once everyone is ready and loaded in game and someone has skipped it").
+
+- **The order.** With a host whose accept says `CoopSkip`, a lobby start (and the next mission of a trip, below) builds the mission first,
+  behind the loading card, then plays the briefing over it, as the original plays a mission's briefing after its load. Meanwhile the game
+  sends no inputs (`NetView.Frozen`: the briefing holds it as a movie does), so the server's start still waits for it; it says Building,
+  then Briefing, then (a skip) Skipped and Ready (`MainNetCoop.cs`, `Main.NetBriefingAfterLoad`). The briefing here is the network game's
+  own player, not one played over a build: the fork's rule that no press skips while the mission still loads under a briefing (the READY
+  line, `MovieSkipGate`) does not arise, as nothing loads under it. The only change to the skip itself is that `MoviePlayer` remembers it
+  was skipped (`MoviePlayer.Skipped`, set in `Skip`).
+- **One skip ends them all.** Once every seat's game has built the mission (it says Briefing, Skipped or Ready, or its inputs have come)
+  and at least one player has skipped, the server sends `MsgType.CoopSkip` (62, the skipper's name) to each game still watching
+  (`CoopStart.SkippedBy`): its briefing ends, its feed says "Ann skipped the briefing", and its inputs follow. Any one skip is enough
+  (not a majority): nobody waits on a cut-scene. A game still building is never cut short; it is told only once it reaches its briefing,
+  which then ends at once if the skip came before.
+- **An upstream player** says nothing and plays its briefing before it builds: it counts as loaded only once its inputs come (its briefing
+  is over then), so the others' briefings play on until then, and it is never sent `CoopSkip`. A fork game whose host lacks `CoopSkip`
+  keeps upstream's order, and a fork build that says `CoopWait` but not `CoopSkip` has its Briefing read as not loaded.
+- **Tests** (`CoopFlowTests`): the rule (a builder holds it, an upstream game until its inputs, nobody skipped, alone, a game still in the
+  last mission's ending); a skip ending the other's briefing only once she reached hers; an upstream player holding the skip until its
+  inputs and never sent it; an upstream host ending nothing.
+
+### On to the next mission (the play fork's, `PeerFeatures.CoopNext`)
+
+Upstream's co-op game is over with its mission: to play on, the host hosts again and everyone joins and readies again (upstream #197; the
+owner: "when a coop mission is completed, the next coop mission should load for now, maybe someday group salvage but not yet").
+
+- **The plan.** When a lobby's co-op mission is won the server plans what follows (`NetMeleeServer.CoopNext.cs`): the trip's next mission
+  (`MissionTitles.NextCoop`: T01 to T17 in order; the Nitro Pack's driver's next in SCENARIO.DAT), or, after the trip's last and for a
+  mission that is no trip's (A01, the scenarios, B01), back to the lobby. It goes to every peer that says `CoopNext` as `MsgType.CoopNext`
+  (63: the kind, Next, Replay, Lobby or Host, the mission and the seconds), and the game over says the server carries on
+  (`GameOverEvent.NextRoundSeconds`, `CoopMode.NextRoundSeconds`). There is no salvage step.
+- **The hold.** `ServerOptions.CoopNextSeconds` (15) from the end, so the outcome can be read: MISSION COMPLETE, "Next mission: Scene 6: Out
+  of Gas in 9 s" on every game (the notice of "Waiting for the others"). Each game plays the mission's outro meanwhile, its own; one still
+  in its outro when the round comes builds the next mission after it (its seat says Ending, "watching the ending", and the next start waits
+  for it). The listen host can go on at once (its Esc menu's **Next Mission**) or take everyone back to the lobby (**Back to Lobby**,
+  asked first: "Back to the lobby with everyone (the game's setup)?"); `NetMeleeServer.CoopChoose`.
+- **Going on** (`CarryOn`), as a melee's next round: the next mission is built from the game's options (only the mission and the seed
+  change: the same seats, Co-op Scaling, Damage Taken, Rolling Start, password, listing), the players still connected are sent
+  `MsgType.NextRound` and then seated together, the host first in seat 0, each in the car it played, before any accept is written, as a
+  lobby's start deals them; the start then waits for every game to load and plays the briefings over the built mission ("The briefing
+  for everyone"). Nobody hosts, joins or readies again. **Back to the lobby** reopens the lobby with everyone in it, each with the car they
+  played and **ready** (they readied once), the host to press START.
+- **The game** (`MainNetCoop.cs`): a won mission in such a game does not go back to the menus; it plays its outro over the game and stays,
+  carries the session into the next round when it comes (after its outro), and does not time out while the host has a plan.
+- **An upstream player** hears no plan; at a won mission's end its game goes back to its menus after its outro, as upstream's does, so at
+  the next mission the server lets it go with "The host went on to the next mission (your build cannot follow: join again)." rather than
+  seat a car that would only leave. Back to the lobby takes it along: upstream's client reads the next round and the lobby as a join does.
+  **An upstream host** plans nothing: the game ends with the mission, its game over saying no round follows.
+- **A dedicated server** (`i26-server --coop M`) goes on by itself after a win and stays up for it (`CoopGoesOn`).
+- **Tests** (`CoopFlowTests`): the plan's round trip and lines, the trip's order (T05 to T06, T16 to T17, nothing after T17, A01 or a
+  scenario); a won mission going on to the next with the same seats and cars when the countdown is due, its start waiting for both again;
+  the host's Next Mission at once; the host's Back to Lobby with everyone ready in their cars and the plain start going again; the trip's
+  last mission back to the lobby; an upstream player let go at the next mission with the reason; an upstream host ending the game.
+
+### Replay and back to the lobby (the play fork's, `PeerFeatures.CoopNext`)
+
+After a failed co-op mission upstream offers only Leave Match and Exit I76 (the owner: "menu options in coop after you lose should let you
+replay, and the clarification we did to differentiate going back to the game host setting lobby, back to main menu, or exiting game").
+
+- **The host decides** for the whole group (no vote): a failure's plan is Host ("Waiting for the host to choose" on the others' notice; no
+  countdown). The listen host's end menu (the network end pad) has **Replay Mission** (row 8, where single player's end menu has Replay)
+  and **Back to Lobby** (row 9, where it has Reconfigure) over **Leave Match** and **Exit I76** (rows 10 and 11, where it has Abort Mission
+  and Exit Game); the others' end menu says "Waiting for the host: Replay Mission or Back to Lobby" on row 8 over the same two. The labels
+  and their questions follow the network menu's own clarification (Leave Match "Leave this match (back to the menus)?", Exit I76 "Quit
+  Interstate '76 (back to the desktop)?", instead of Leave Game and Exit Game): Replay Mission asks "Replay this mission with everyone (back
+  to its start)?" and Back to Lobby "Back to the lobby with everyone (the game's setup)?", so the four cannot be taken for each other.
+- **In the mission** the listen host's Esc menu has the same two on its free rows under Controls (8 and 9; Next Mission on row 7 after a
+  win), for the group at any time; every player keeps Leave Match, Self Destruct and Exit I76 on rows 1 to 3.
+- **Replay** (`NetMeleeServer.CoopChoose(Replay)`) builds the mission again from its start and seats everyone at once in the cars they
+  played, as the next mission is carried; **Back to Lobby** gathers everyone in the lobby with their cars and ready marks.
+- **A dedicated server** has no host to choose: a failure goes back to the lobby after the hold, everyone ready, so its lobby starts the
+  mission again by itself.
+- **An upstream player** follows a replay of a mission it has not won and the lobby (upstream's client reads a next round and its accept or
+  lobby as a join does), with no plan said to it and its own end menu's Leave Match and Exit I76. **An upstream host** offers none of this.
+- **Tests** (`CoopFlowTests`): a failure waiting for the host and its replay seating everyone again; the host's replay and back to the lobby
+  from a mission still played; an upstream player following a replay and the lobby; a dedicated server back in the lobby and starting again;
+  an upstream host ending a failed game as before.
+
 ### Hosting and joining from the shell
 
 MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 4, above) with a way to make it a co-op game:
@@ -1079,6 +1184,10 @@ MELEE → MULTI MELEE → HOST (IPX or INTERNET) opens the host form (mode 3 or 
   chase crosshair is each player's own setting (`NetLaunch` carries them so; the dedicated server's flags still apply to its games).
   The base form leaves those out of its options box, and the co-op rules take its first rows.
 - The car panel shows "Mission's own car" (the default) or the player's pick (above).
+- **What each mission is about** (the play fork's; upstream #197: "a mission listed as Roswell is not in Roswell"): besides the scene's name
+  and the arena sketch on its scrap, the pointer on a co-op list row shows a tooltip with the mission's title and its first objective in
+  the mission's own words (`MissionTitles.CoopSummary`: the first line of its objective text, WRLD +0x45's .npt, that is not hidden, read
+  from the install), and the lobby's mission line shows the same.
 - Hosting opens the lobby (above, "The co-op lobby"), where the host starts the mission. BROADCAST GAME hosts it as `--host-listen --coop MISSION --coop-lobby` does (`NetLaunch.Coop`, `MainNet.ApplyNetLaunch`).
 - The roster (JOIN) lists a co-op game with a "co-op" tag after its name, "co-op lobby" while the host has not started it (the anet tag's kind bits 3 and the session
   answer's flag; protocol 20), its top line adds the mission's title when the name does not say it, and the game's popup (the arrow)
@@ -1602,6 +1711,9 @@ compact:
 | lobby set, start | client → server | reliable | protocol 20: the ready mark and a new car (answered by `reconfigure answer`); the host's start (forced or not) |
 | voice, voice from | client → server → clients | unreliable | protocol 20: the CB radio (below, "CB voice"): one 20 ms Opus frame of a player's voice with a sequence number and a start/end mark; the server relays it undecoded, with the sender's slot, to the seats that may hear it |
 | join wait | server → client | reliable | protocol 13, before the seat: an invite-only game is asking its host (above, "The original's rules") |
+| co-op stage (60), co-op wait (61) | client → server, server → client | reliable ordered | the play fork's, only between peers that say `PeerFeatures.CoopWait`: where a game is in a co-op start (a byte), and whom the start waits for (the seconds left, then each name and stage; above, "Waiting for the others") |
+| co-op skip (62) | server → client | reliable ordered | the play fork's (`CoopSkip`): the briefing ends here, this player skipped theirs (above, "The briefing for everyone") |
+| co-op next (63) | server → client | reliable ordered | the play fork's (`CoopNext`): what follows the co-op mission (Next, Replay, Lobby or Host), on which mission and in how many seconds; the next round follows (above, "On to the next mission") |
 
 - **A car in a snapshot** (78 bytes in full; an entry of what changed since the baseline, about 15–30 bytes for a car
   driving, 2 for one standing still):

@@ -15,7 +15,7 @@ namespace I76.Game.Net;
 public partial class NetHudClassic : Control
 {
     public string? LeeFont { get; init; }
-    private Label _info = null!, _feed = null!, _banner = null!, _prompt = null!, _entry = null!;
+    private Label _info = null!, _feed = null!, _banner = null!, _prompt = null!, _entry = null!, _notice = null!;
     private readonly List<Label> _cols = [];
     private Control _board = null!;
     private ColorRect _cursor = null!;
@@ -47,9 +47,13 @@ public partial class NetHudClassic : Control
         }
         _feed = Make(16, HorizontalAlignment.Left);
         _entry = Make(16, HorizontalAlignment.Left);
+        // the fork's co-op notice (whom the start waits for, what follows the mission): the console's lettering, centred under the cockpit's top panels
+        _notice = Make(20, HorizontalAlignment.Center);
+        _notice.AnchorLeft = 0; _notice.AnchorRight = 1; _notice.AnchorTop = _notice.AnchorBottom = 0.33f;
+        _notice.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         var lee = new FontFile { Antialiasing = TextServer.FontAntialiasing.Gray, Hinting = TextServer.Hinting.None };
         bool hasLee = LeeFont is { } lf && System.IO.File.Exists(lf) && lee.LoadDynamicFont(lf) == Error.Ok;
-        foreach (var l in _cols.Append(_feed).Append(_entry))
+        foreach (var l in _cols.Append(_feed).Append(_entry).Append(_notice))
         {
             if (hasLee) l.AddThemeFontOverride("font", lee);
             l.AddThemeColorOverride("font_color", Red);
@@ -90,6 +94,7 @@ public partial class NetHudClassic : Control
         _info.AddThemeFontSizeOverride("font_size", (int)(16 * m));
         _info.OffsetLeft = -420 * m; _info.OffsetRight = -16 * m; _info.OffsetTop = 12 * m;
         _prompt.AddThemeFontSizeOverride("font_size", (int)(20 * m));
+        _notice.AddThemeFontSizeOverride("font_size", (int)(22 * m));
         _banner.AddThemeFontSizeOverride("font_size", (int)(34 * m));
         var c = HudLayout.ClassicConsole(v.X, v.Y, 8);
         _feed.Position = new Vector2(c.X, c.Y); _feed.Size = new Vector2(c.W, c.H);
@@ -179,6 +184,8 @@ public partial class NetHudClassic : Control
             { } p => $"Let {p.Name} join the game? (CTRL-Y / CTRL-N) ",
             _ => "",
         };
+        _notice.Visible = !board && f.Final is null;
+        _notice.Text = f.Notice is { } nt ? nt.Head + "\n" + string.Join('\n', nt.Lines) : "";
         if (f.Final is { } fin)
             _banner.Text = "THE MELEE IS OVER\n" + string.Join('\n', fin.Standings.Select((x, i) => $"{i + 1}. {x.Name}  {x.Score}")) + "\n\n" + (fin.NextRound is { } nr
                 ? $"Next round in {Math.Max(0, (int)Math.Ceiling(nr))} s{(f.Host ? "  (Enter: now)" : "")}   Ctrl+F10 leaves"
