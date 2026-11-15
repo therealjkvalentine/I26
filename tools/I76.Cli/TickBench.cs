@@ -42,9 +42,10 @@ public static class TickBench
 
         public void Begin(TickSection s)
         {
+            // a timed run without --split reads the clock at the tick's two ends only
+            if (!Split && s != TickSection.Tick) return;
             long now = Stopwatch.GetTimestamp();
             if (s == TickSection.Tick) { AllocStart = GC.GetAllocatedBytesForCurrentThread(); Start = Stopwatch.GetTimestamp(); Array.Clear(Excl); Array.Clear(ExclAlloc); _depth = 0; now = Start; }
-            if (!Split && s != TickSection.Tick) return;
             long a = GC.GetAllocatedBytesForCurrentThread();
             if (_depth > 0) { Excl[(int)_stack[_depth - 1]] += now - _mark; ExclAlloc[(int)_stack[_depth - 1]] += a - _amark; }
             _stack[_depth++] = s;
@@ -54,9 +55,9 @@ public static class TickBench
 
         public void End(TickSection s)
         {
+            if (!Split && s != TickSection.Tick) return;
             long now = Stopwatch.GetTimestamp();
             if (s == TickSection.Tick) { Stop = now; AllocEnd = GC.GetAllocatedBytesForCurrentThread(); }
-            if (!Split && s != TickSection.Tick) return;
             if (_depth == 0) return;
             long a = GC.GetAllocatedBytesForCurrentThread();
             Excl[(int)_stack[--_depth]] += now - _mark;
