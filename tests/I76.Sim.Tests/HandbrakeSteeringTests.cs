@@ -152,45 +152,60 @@ public class HandbrakeSteeringTests(Xunit.Abstractions.ITestOutputHelper output)
         SameAsTheOriginal(Rolling(signedSpeed, gear), Rolling(signedSpeed, gear), i => (i < 20 ? 0.5f : -0.5f, 0f, 0), 40);
     }
 
+    /// <summary>
+    /// The session's sequence with the steer held: forwards, a handbrake turn until the car rolls nearly straight backwards,
+    /// the handbrake let go until it grips, then the handbrake again. The yaw rate on each tick from the second grip on.
+    /// </summary>
+    private (float Before, List<float> After) TurnThenPressAgain(bool human)
+    {
+        var step = new VehicleStep(new Flat(), new CrtRand(1));
+        var v = Rolling(30f, 1f);
+        v.Steer = 1f;
+        for (int i = 0; i < 6; i++) step.Frame(v, Tick, human);
+        Assert.True(v.AngVel.Y > 0.1f, $"forwards a positive steer gives a positive yaw rate: {v.AngVel.Y}");
+        float SignedSpeed() => Vector3.Dot(v.Vel, v.Rot.Forward);
+        // the handbrake turn: the original's J-turn, its yaw rate the steer's sense throughout
+        v.Handbrake = 1;
+        int t = 0;
+        for (; t < 100 && SignedSpeed() > -0.9f * v.Speed && v.Speed > 2f; t++)
+        {
+            step.Frame(v, Tick, human);
+            Assert.True(v.AngVel.Y > 0, $"tick {t} of the turn: yaw rate {v.AngVel.Y}");
+        }
+        // let go: the car grips rolling backwards, turning the other way for the same steer (reversing's sense, the original's)
+        v.Handbrake = 0;
+        for (int i = 0; i < 40 && Sliding(v); i++) step.Frame(v, Tick, human);
+        for (int i = 0; i < 3; i++) step.Frame(v, Tick, human);
+        Assert.False(Sliding(v), "the car grips again after the turn");
+        Assert.True(SignedSpeed() < -8f, $"rolling backwards after the turn: {SignedSpeed()}");
+        float before = v.AngVel.Y;
+        output.WriteLine($"{(human ? "human" : "original")}: turn {t} ticks, second press at signed speed {SignedSpeed():0.00}, yaw rate {before:0.000}");
+        v.Handbrake = 1;
+        var after = new List<float>();
+        for (int i = 0; i < 30 && v.Speed > 2f; i++)
+        {
+            step.Frame(v, Tick, human);
+            after.Add(v.AngVel.Y);
+        }
+        return (before, after);
+    }
+
     [Fact]
     public void ForwardThenAHandbrakeTurnThenTheHandbrakeAgainKeepsTheSense()
     {
-        // the session's sequence: forwards with a right steer held, a handbrake turn until the car rolls backwards, the handbrake
-        // released, and once the car grips rolling backwards, the handbrake again. At the second press the yaw rate keeps its sign.
-        var step = new VehicleStep(new Flat(), new CrtRand(1));
-        var v = Rolling(24f, 1f);
-        v.Steer = 0.5f;
-        for (int i = 0; i < 6; i++) step.Frame(v, Tick, true);
-        Assert.True(v.AngVel.Y > 0.1f, $"forwards a positive steer gives a positive yaw rate: {v.AngVel.Y}");
-        float SignedSpeed() => Vector3.Dot(v.Vel, v.Rot.Forward);
-        // the handbrake turn: held until the car's travel is behind its nose
-        v.Handbrake = 1;
-        int t = 0;
-        for (; t < 120 && SignedSpeed() >= 0 && v.Speed > 2f; t++)
-        {
-            step.Frame(v, Tick, true);
-            Assert.True(v.AngVel.Y > 0, $"tick {t} of the turn: yaw rate {v.AngVel.Y}");   // the original's J-turn, unchanged
-        }
-        v.Handbrake = 0;
-        // now steer the other way, as a driver straightening a reverse would, until the slide ends with the car still rolling back
-        v.Steer = -0.5f;
-        for (int i = 0; i < 120 && Sliding(v) && v.Speed > 4f; i++) step.Frame(v, Tick, true);
-        if (Sliding(v) || SignedSpeed() > -4f)
-        {
-            // the turn bled the speed off before the car gripped rolling backwards: the constructed cases above cover the press
-            output.WriteLine($"not reached: sliding {Sliding(v)}, signed speed {SignedSpeed()} after {t} ticks of the turn");
-            return;
-        }
-        for (int i = 0; i < 3; i++) step.Frame(v, Tick, true);
-        Assert.False(Sliding(v));
-        float before = v.AngVel.Y;
-        Assert.True(before > 0.05f, $"rolling backwards a negative steer gives a positive yaw rate: {before}");
-        output.WriteLine($"second press at signed speed {SignedSpeed()}, yaw rate {before}");
-        v.Handbrake = 1;
-        for (int i = 0; i < 20 && v.Speed > 2f; i++)
-        {
-            step.Frame(v, Tick, true);
-            Assert.True(v.AngVel.Y > 0, $"tick {i} after the second press: yaw rate {v.AngVel.Y} (before it {before})");
-        }
+        var (before, after) = TurnThenPressAgain(human: true);
+        Assert.True(before < -0.1f, $"rolling backwards a positive steer gives a negative yaw rate: {before}");
+        Assert.NotEmpty(after);
+        for (int i = 0; i < after.Count; i++)
+            Assert.True(after[i] < 0, $"tick {i} after the second press: yaw rate {after[i]} (before it {before})");
+    }
+
+    [Fact]
+    public void TheOriginalReversesAtTheSecondPress()
+    {
+        // the reported behaviour, kept for the computer's cars: the press turns the yaw rate round
+        var (before, after) = TurnThenPressAgain(human: false);
+        Assert.True(before < -0.1f, $"yaw rate before the press {before}");
+        Assert.True(after[0] > 0, $"the original's first sliding tick: yaw rate {after[0]}");
     }
 }
