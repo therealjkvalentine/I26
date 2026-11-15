@@ -134,10 +134,11 @@ public class BrushKnockTests
         var slow = BrushKnock.Voice(3, 1, 10, 10).Db;
         var fast = BrushKnock.Voice(100 * Mph, 1, 10, 10).Db;
         Assert.True(fast - slow > 10, $"{slow} -> {fast}");
-        Assert.InRange(fast, -1.6f, 1.6f);
+        Assert.InRange(fast, BrushKnock.DefaultDb - 1.6f, BrushKnock.DefaultDb + 1.6f);
         // a row of bushes 2 m apart: pitches spread over most of the range, none the same
         var pitches = Enumerable.Range(0, 12).Select(i => BrushKnock.Voice(20, 1, 100 + 2 * i, 50).Pitch).ToList();
-        Assert.All(pitches, p => Assert.InRange(p, 0.75f, 1.25f));
+        float shift = BrushKnock.Ratio(BrushKnock.DefaultSemitones);
+        Assert.All(pitches, p => Assert.InRange(p, 0.75f * shift, 1.25f * shift));
         Assert.True(pitches.Max() - pitches.Min() > 0.12f);
         Assert.Equal(pitches.Count, pitches.Distinct().Count());
         // the same plant always sounds the same (each player's machine alike)
@@ -146,6 +147,41 @@ public class BrushKnockTests
         var big = Enumerable.Range(0, 40).Average(i => BrushKnock.Voice(20, 3, i * 1.3f, 7).Pitch);
         var small = Enumerable.Range(0, 40).Average(i => BrushKnock.Voice(20, 0.5f, i * 1.3f, 7).Pitch);
         Assert.True(big < small);
+    }
+
+    [Fact]
+    public void TheDefaultKnockIsHigherAndQuieterThanTheSignsAndStillLouderTheFaster()
+    {
+        Assert.Equal("vnvco3.wav", BrushKnock.DefaultSample);
+        Assert.InRange(BrushKnock.DefaultSemitones, 4f, 12f);
+        Assert.InRange(BrushKnock.DefaultDb, -10f, -4f);
+        Assert.Equal(1.4983f, BrushKnock.Ratio(7), 3);
+        Assert.Equal(2f, BrushKnock.Ratio(12), 4);
+        // the sign plays at its own level (0 dB); the bush's loudest is quieter, and 10 / 30 / 60 mph rise
+        var levels = new[] { 10, 30, 60 }.Select(m => BrushKnock.Voice(m * Mph, 1, 10, 10).Db).ToList();
+        Assert.True(levels[0] < levels[1] && levels[1] < levels[2], string.Join(", ", levels));
+        Assert.True(BrushKnock.Voice(100 * Mph, 1, 10, 10).Db < -3f);
+        // the pitch is above the sign's for every plant
+        Assert.All(Enumerable.Range(0, 30), i => Assert.True(BrushKnock.Voice(20, 2, i * 1.7f, 3).Pitch > 1.1f));
+    }
+
+    [Fact]
+    public void TheEnvHookReadsNameSemitonesAndDb()
+    {
+        var (s, st, db) = (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb);
+        try
+        {
+            Assert.False(BrushKnock.Apply(""));
+            Assert.False(BrushKnock.Apply("vland,x"));
+            Assert.Equal(BrushKnock.DefaultSample, BrushKnock.Sample);
+            Assert.True(BrushKnock.Apply("vland,4,-10"));
+            Assert.Equal(("vland.wav", 4f, -10f), (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb));
+            Assert.True(BrushKnock.Apply("cgrowl"));
+            Assert.Equal(("cgrowl.wav", 4f, -10f), (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb));
+            Assert.True(BrushKnock.Apply("vnvco3.wav,100,-100"));
+            Assert.Equal((24f, -40f), (BrushKnock.Semitones, BrushKnock.OffsetDb));
+        }
+        finally { BrushKnock.Sample = s; BrushKnock.Semitones = st; BrushKnock.OffsetDb = db; }
     }
 
     [Fact]
