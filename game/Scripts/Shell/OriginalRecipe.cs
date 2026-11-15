@@ -18,6 +18,7 @@ public static class OriginalRecipe
     public static readonly string[] DeathOrbitNames = ["Original", "Smooth"];
     public static readonly string[] MusicTrackNames = ["Original", "All"];
     public static readonly string[] OrdnanceNames = ["Original", "Unlimited"];
+    public static readonly string[] HelicopterHearingNames = ["Original", "Far"];
 
     /// <summary>A stored word as an index into <paramref name="names"/> ("unlimited" for "Unlimited"); null when absent or unknown.</summary>
     public static int? ParseChoice(string? word, string[] names)

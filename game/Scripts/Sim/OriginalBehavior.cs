@@ -3,7 +3,7 @@ namespace I76.Game.Sim;
 /// <summary>
 /// The drawing-side settings without a row (shell.cfg's [port] keys, docs/playing.md; the words are I76.Game.Shell.OriginalRecipe's),
 /// applied with the graphics settings (Main.ApplyGraphics): the mirror's far clip, the brake lamps' hold, the modern look's
-/// machine gun rounds and specials panel, lamp ramp, the 1997 sky's drift, the death orbit's turn and the deaths by cause. Engine-free. The simulation's own (the live ordnance
+/// machine gun rounds and specials panel, the helicopters' hearing, lamp ramp, the 1997 sky's drift, the death orbit's turn and the deaths by cause. Engine-free. The simulation's own (the live ordnance
 /// cap, Play Options' Unlim. Ordnance) is the combat's (PlayOptionsCombat).
 /// </summary>
 public static class OriginalBehavior
@@ -14,7 +14,7 @@ public static class OriginalBehavior
     public static int Resolve(int? choice, bool look1997) => I76.Formats.Shell.LookChoice.Resolve(choice, look1997);
 
     /// <summary>The player's choices (null: follow the look).</summary>
-    public static int? MirrorRange, BrakeLamps, MgTracers, SpecialsPanel;
+    public static int? MirrorRange, BrakeLamps, MgTracers, SpecialsPanel, HelicopterHearing;
     /// <summary>The sky steps once a tick whatever the mirror does (the default; [port] sky_drift=original gives the original's second step), and the orbit's smooth turn.</summary>
     public static bool SteadySky = true, SmoothOrbit;
     /// <summary>[port] sky_speed and death_orbit_speed as factors (PresentationSpeed; 0.5 by default): drawn only.</summary>
@@ -38,6 +38,7 @@ public static class OriginalBehavior
         BrakeLamps = s.BrakeLampChoice;
         MgTracers = s.MgTracerChoice;
         SpecialsPanel = s.SpecialsPanelChoice;
+        HelicopterHearing = s.HelicopterHearingChoice;
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
         SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(s.SkySpeed);
@@ -69,6 +70,16 @@ public static class OriginalBehavior
 
     /// <summary>Whether a machine gun's round is drawn as the original's one-pixel line: always in the 1997 look (the bolts are the modern look's).</summary>
     public static bool LineTracers(bool look1997) => look1997 || Resolve(MgTracers, look1997) == Original;
+
+    /// <summary>I76_HELI_HEARING: the far hearing's bands tried without a rebuild (HeliHearing.Parse; docs/dev-hooks.md), else the fork's.</summary>
+    public static readonly I76.Sim.Sound.HeliHearing FarHearing =
+        I76.Sim.Sound.HeliHearing.Parse(System.Environment.GetEnvironmentVariable("I76_HELI_HEARING")) ?? I76.Sim.Sound.HeliHearing.Default;
+
+    /// <summary>
+    /// A helicopter's rotor loop in a look ([port] helicopter_hearing): the original's car-engine voice (null: full to 10 m, held at -32 dB
+    /// from 400 m, parked at 600 m), or Far, the three bands heard out to 2 km (the modern look's default).
+    /// </summary>
+    public static I76.Sim.Sound.HeliHearing? RotorHearing(bool look1997) => Resolve(HelicopterHearing, look1997) == Updated ? FarHearing : null;
 
     /// <summary>Whether the 3D dash's specials panel shows its art with square texels (PanelAspect.SquareFit): the modern look's, never the 1997 look's.</summary>
     public static bool SquareSpecials(bool look1997) => !look1997 && Resolve(SpecialsPanel, look1997) == Updated;

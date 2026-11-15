@@ -324,9 +324,10 @@ public class TactileSynthTests
                 case TactileSource.Explosions: e.Blasts.Add(60f); break;
                 case TactileSource.Offroad: e.Surface = 2; e.Mph = 40; break;
                 case TactileSource.Bumps: e.Mph = 40; e.Crossings.Add(1f); break;
+                case TactileSource.Helicopters: e.Rotors.Add(80f); break;
             }
             s.Step(e);
-            bool bed = src is TactileSource.Engine or TactileSource.Road or TactileSource.Offroad;
+            bool bed = src is TactileSource.Engine or TactileSource.Road or TactileSource.Offroad or TactileSource.Helicopters;
             return Rms(Run(s, bed ? 2.0 : 0.3).AsSpan(bed ? Rate / 2 : 0));
         }
         foreach (var src in Enum.GetValues<TactileSource>().Except(TactileSources.DevOnly))   // the dev-only ones: their own tests
@@ -342,11 +343,50 @@ public class TactileSynthTests
         only.SetWeights([0, 100, 100, 100, 100, 100, 100, 0, 0]);
         only.Step(new TactileEvents { EngineOn = true, Rpm = 600, Surface = 6, Mph = 40 });
         Assert.True(Rms(Run(only, 2.0).AsSpan(Rate / 2)) > 0.01f);
-        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip"], TactileSources.Keys);
-        Assert.Equal([100, 100, 100, 100, 100, 100, 100, 0, 0], TactileSources.Defaults());
+        Assert.Equal(["lfe_engine", "lfe_road", "lfe_hits", "lfe_shots", "lfe_explosions", "lfe_offroad", "lfe_bumps", "lfe_cracks", "lfe_strip", "lfe_helicopters"], TactileSources.Keys);
+        Assert.Equal([100, 100, 100, 100, 100, 100, 100, 0, 0, 100], TactileSources.Defaults());
         Assert.Equal(Enum.GetValues<TactileSource>().Length, TactileSources.Keys.Length);
         Assert.Equal(200, TactileSources.Clamp(999));
         Assert.Equal(0, TactileSources.Clamp(-5));
+    }
+
+    /// <summary>
+    /// A helicopter's rotor on the shaker: strongest overhead, present at medium range, nothing far off (past 400 m, where the
+    /// sound alone tells of it), the nearest of two felt, not their sum; it follows lfe_helicopters and stops with the pause.
+    /// </summary>
+    [Fact]
+    public void A_helicopters_rotor_is_felt_overhead_and_at_medium_range_only()
+    {
+        Assert.Equal(TactileSynth.RotorFull, TactileSynth.RotorLevel(20f));
+        Assert.Equal(TactileSynth.RotorFull, TactileSynth.RotorLevel(50f));
+        Assert.Equal(TactileSynth.RotorFull / 3f, TactileSynth.RotorLevel(150f), 4);
+        Assert.InRange(TactileSynth.RotorLevel(300f), 0.005f, TactileSynth.RotorLevel(150f));
+        Assert.Equal(0f, TactileSynth.RotorLevel(400f));
+        Assert.Equal(0f, TactileSynth.RotorLevel(1500f));
+        Assert.Equal(0f, TactileSynth.RotorLevel(float.NaN));
+        for (float d = 50f; d < 400f; d += 5f) Assert.True(TactileSynth.RotorLevel(d + 5f) <= TactileSynth.RotorLevel(d));
+        float Felt(params float[] metres)
+        {
+            var s = new TactileSynth { Gain = 0.25f };
+            var e = new TactileEvents();
+            e.Rotors.AddRange(metres);
+            s.Step(e);
+            return Rms(Run(s, 2.0).AsSpan(Rate / 2));
+        }
+        float over = Felt(40f), medium = Felt(250f);
+        Assert.True(over > 0.01f);
+        Assert.InRange(medium / over, 0.1f, 0.4f);
+        Assert.Equal(0f, Felt(1000f));
+        Assert.Equal(0f, Felt());
+        Assert.Equal(over, Felt(40f, 250f), 3);
+        // under its own band: the tone's frequency carries most of it, nothing past the crossover
+        var t = new TactileSynth { Gain = 0.25f };
+        var ev = new TactileEvents(); ev.Rotors.Add(40f); t.Step(ev);
+        var sig = Run(t, 2.0).AsSpan(Rate / 2);
+        Assert.True(Amplitude(sig, TactileSynth.RotorHz) > 2f * Amplitude(sig, 60f));
+        t.Reset();
+        Run(t, 0.5);
+        Assert.Equal(0f, t.RotorNow, 4);
     }
 
     [Fact]

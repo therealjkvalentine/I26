@@ -36,7 +36,7 @@ public class SettingsWithoutARowTests
     {
         foreach (var names in new[] { OriginalRecipe.MirrorRangeNames, OriginalRecipe.BrakeLampNames, OriginalRecipe.MgTracerNames,
             OriginalRecipe.SkyDriftNames, OriginalRecipe.DeathOrbitNames, OriginalRecipe.MusicTrackNames, OriginalRecipe.OrdnanceNames,
-            OriginalRecipe.SpecialsPanelNames })
+            OriginalRecipe.SpecialsPanelNames, OriginalRecipe.HelicopterHearingNames })
             Assert.Equal("original", OriginalRecipe.Word(names[0]));
     }
 
@@ -74,6 +74,34 @@ public class SettingsWithoutARowTests
         Assert.False(OriginalBehavior.SquareSpecials(false));
         OriginalBehavior.Apply(new ShellSettings { SpecialsPanelChoice = OriginalBehavior.Updated });
         Assert.False(OriginalBehavior.SquareSpecials(true));
+        OriginalBehavior.Apply(new ShellSettings());
+    }
+
+    /// <summary>
+    /// [port] helicopter_hearing: follows the look (the original's car-engine voice in the 1997 look, the far bands in the modern one)
+    /// until the file says original or far; the key is written only when chosen, so a file from before it loads as it was.
+    /// </summary>
+    [Fact]
+    public void TheHelicoptersHearingFollowsTheLookUntilTheFileChooses()
+    {
+        Assert.Equal("original", OriginalRecipe.Word(OriginalRecipe.HelicopterHearingNames[0]));
+        Assert.Equal("far", OriginalRecipe.Word(OriginalRecipe.HelicopterHearingNames[1]));
+        var s = new ShellSettings();
+        Assert.Null(s.HelicopterHearingChoice);
+        Assert.False(s.Write(null).HasSectionKey("port", "helicopter_hearing"));
+        OriginalBehavior.Apply(s);
+        Assert.Null(OriginalBehavior.RotorHearing(true));
+        Assert.Same(OriginalBehavior.FarHearing, OriginalBehavior.RotorHearing(false));
+        Assert.Equal(2000f, OriginalBehavior.RotorHearing(false)!.RangeMetres);
+        foreach (var (word, look1997, far) in new[] { ("original", false, false), ("far", true, true), ("Far", false, true) })
+        {
+            var f = new ShellSettings().Write(null);
+            f.SetValue("port", "helicopter_hearing", word);
+            var read = ShellSettings.Read(f);
+            OriginalBehavior.Apply(read);
+            Assert.Equal(far, OriginalBehavior.RotorHearing(look1997) is not null);
+            Assert.Equal(OriginalRecipe.Word(word), (string)read.Write(null).GetValue("port", "helicopter_hearing"));
+        }
         OriginalBehavior.Apply(new ShellSettings());
     }
 

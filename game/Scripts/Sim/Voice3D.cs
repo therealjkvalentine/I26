@@ -10,7 +10,8 @@ namespace I76.Game.Sim;
 /// cannot hold at a max distance (its max distance silences, and fades
 /// linearly on the way), so the volume is worked out here each frame from
 /// the distance to the listener and Godot only pans; its distance low-pass,
-/// which DirectSound did not have, is off.
+/// which DirectSound did not have, is off. A helicopter's rotor loop heard far
+/// (<see cref="Hearing"/>, [port] helicopter_hearing) has its own curve, range and that filter.
 /// </summary>
 public partial class Voice3D : AudioStreamPlayer3D
 {
@@ -19,6 +20,29 @@ public partial class Voice3D : AudioStreamPlayer3D
 
     /// <summary>The voice's own volume, before the distance.</summary>
     public float BaseDb { get; set; }
+
+    /// <summary>A helicopter's rotor loop heard further (<see cref="HeliHearing"/>, [port] helicopter_hearing=far): its curve, shelf and range; null the original's DirectSound rules.</summary>
+    public HeliHearing? Hearing { get; set; }
+
+    /// <summary>A helicopter's rotor loop (with either hearing): felt on the bass shaker while it sounds (<see cref="RotorDistances"/>).</summary>
+    public bool Rotor { get; init; }
+
+    /// <summary>The rotor voices made and not yet freed.</summary>
+    private static readonly HashSet<Voice3D> Rotors = [];
+    private float _earDistance = float.PositiveInfinity;
+
+    /// <summary>The distance from the listener of each rotor loop sounding now (not parked, not stopped: the hidden helicopter of P13 has none).</summary>
+    public static void RotorDistances(List<float> into)
+    {
+        Rotors.RemoveWhere(v => !IsInstanceValid(v) || v.IsQueuedForDeletion());
+        foreach (var v in Rotors)
+            if (v.Playing && v.IsInsideTree() && float.IsFinite(v._earDistance)) into.Add(v._earDistance);
+    }
+
+    public override void _ExitTree()
+    {
+        if (Rotor) Rotors.Remove(this);
+    }
 
     public Voice3D()
     {
@@ -116,6 +140,7 @@ public partial class Voice3D : AudioStreamPlayer3D
     /// </summary>
     public override void _EnterTree()
     {
+        if (Rotor) Rotors.Add(this);
         Cull();
         Attenuate();
     }
@@ -135,7 +160,15 @@ public partial class Voice3D : AudioStreamPlayer3D
     {
         Cull();
         Attenuate();
+        // I76_AUDIO_LOG: a rotor loop's distance and level once a second (a capture's Dummy driver cannot be listened to)
+        if (LogEnabled && Rotor && (_rotorLogIn -= delta) <= 0)
+        {
+            _rotorLogIn = 1;
+            Trace(System.FormattableString.Invariant($"rotor {Who}: {(Playing ? "sounding" : _parked ? "parked" : "stopped")} at {_earDistance:0} m from the listener, {VolumeDb:0.0} dB, filter {AttenuationFilterDb:0.0} dB over {AttenuationFilterCutoffHz:0} Hz, hearing {(Hearing is null ? "original" : "far")}"));
+        }
     }
+
+    private double _rotorLogIn;
 
     /// <summary>
     /// Every frame from the voice pump: a voice whose object is 600 m or more from the followed car is stopped. A
@@ -145,7 +178,8 @@ public partial class Voice3D : AudioStreamPlayer3D
     private void Cull()
     {
         if (Followed?.Invoke() is not { } at || !IsInsideTree()) return;
-        bool far = !Ds3d.LoopStarts(GlobalPosition.DistanceTo(at));
+        // a helicopter heard far is parked at its range instead of the original's 600 m
+        bool far = Hearing is { } h ? !h.Plays(GlobalPosition.DistanceTo(at)) : !Ds3d.LoopStarts(GlobalPosition.DistanceTo(at));
         bool loops = Assets.AudioBank.Loops(Stream);
         if (far && !_parked)
         {
@@ -171,8 +205,17 @@ public partial class Voice3D : AudioStreamPlayer3D
         // The player's own car's voices in the cockpit sit at the listener: centred, at full volume
         bool atEar = IsInsideTree() && GetParent() is { } car && PlayerCar?.Invoke() == car && Ds3d.AtListener(true, InCockpit?.Invoke() == true);
         PanningStrength = atEar ? 0 : 1;
-        float db = BaseDb + (ear is null || atEar || !IsInsideTree() ? 0 : Ds3d.AttenuationDb(GlobalPosition.DistanceTo(ear.GlobalPosition), MinDistance));
+        bool placed = ear is not null && !atEar && IsInsideTree();
+        float dist = placed ? GlobalPosition.DistanceTo(ear!.GlobalPosition) : 0f;
+        _earDistance = atEar ? 0f : placed ? dist : float.PositiveInfinity;
+        var hearing = Hearing;
+        float db = BaseDb + (!placed ? 0 : hearing is not null ? Math.Max(hearing.Db(dist), -80f) : Ds3d.AttenuationDb(dist, MinDistance));
         // a car at a NaN position (a respawn or a lost snapshot) would set a NaN volume: the engine logs an error for every voice, every frame
-        if (!float.IsNaN(db)) VolumeDb = db;
+        if (float.IsNaN(db)) return;
+        VolumeDb = db;
+        // the far helicopter's highs go first: Godot's distance filter, a high shelf it scales by the voice's volume (HeliHearing.GodotFilterDb);
+        // off for every other voice, as DirectSound had none
+        AttenuationFilterDb = hearing is not null && placed ? HeliHearing.GodotFilterDb(hearing.ShelfDb(dist), Math.Min(db, MaxDb)) : 0f;
+        AttenuationFilterCutoffHz = hearing?.ShelfHz ?? 20500;
     }
 }
