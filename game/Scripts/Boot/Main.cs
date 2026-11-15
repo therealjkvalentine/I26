@@ -2163,8 +2163,15 @@ public partial class Main : Node3D
                 if (MoviePlayer.Scripted(cardScript[0].What, true) is { } de) { Input.ParseInputEvent(de); cardRelease = cardScript[0].What; }
                 cardScript.RemoveAt(0);
             }
-            // a skip kept (made once the build's thread is done: none counts while it works): the picture stands still for the rest
-            if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped) skipped.HoldPicture();
+            // a skip kept (made once the build's thread is done: none counts while it works) with the rest of the load still to run:
+            // the briefing ends and the card comes back with its progress wheel for the rest (the line said PLEASE STAND BY, not
+            // READY: a press then is not a promise that the mission starts at once)
+            if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped)
+            {
+                MissionBuilder.Trace("briefing skipped before the mission is ready: the card again, with its progress");
+                LoadProfiler.Event("skip to the card");
+                skipped.End();
+            }
             if (movieStarted && !held && Held())
             {
                 held = true;
@@ -2217,6 +2224,7 @@ public partial class Main : Node3D
             if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && !cardUp)
             {
                 cardUp = true;
+                loading.ShowProgress();
                 OnNextDraw(() => LoadProfiler.Event("card again"));
                 fading = true;
                 await loading.FadeIn();

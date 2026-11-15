@@ -10,7 +10,7 @@ namespace I76.Game.Ui;
 /// bottom-right corner of a movie's picture (the picture's own rect, not the bars beside it): a briefing played while its mission
 /// loads fades it in over <see cref="FadeSeconds"/> when the player waits on the mission (a skip asked for before the mission can
 /// start, or the movie run out), and goes with the movie when the mission starts (MoviePlayer.Waiting). The port's: faint while the
-/// mission still builds under the playing picture, and then READY in its place, as faint, ending where the line ends, for the rest
+/// mission is not ready to start, and then READY in its place, as faint, ending where the line ends, for the rest
 /// of the movie: a press skips now (StandByLine says which, <see cref="Show"/>). Set again in Impact at the window's resolution in
 /// both looks, as the boot screen's line is, with a faint shadow so it reads over a bright frame; without Impact on the system, the
 /// picture's own pixels (loadgame.pcx), scaled down into its palette (READY, which it does not have, in the engine's own font).

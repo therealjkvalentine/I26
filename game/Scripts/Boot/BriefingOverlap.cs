@@ -7,7 +7,8 @@ namespace I76.Game.Boot;
 /// <see cref="DefaultCardHold"/>; upstream's <see cref="UpstreamCardHold"/>) with the build already going behind it, goes to black
 /// and the briefing plays while the build goes on; a skip before the mission is ready is kept under "PLEASE STAND BY" (StandByTag)
 /// and the mission starts by itself when it is. The port's: no press skips while the build's thread works (the card, or the line
-/// faint over the playing picture), nor is kept for later; a new one after does (MovieSkipGate), and the line says READY then.
+/// faint over the playing picture), nor is kept for later; a new one after does (MovieSkipGate: the card comes back with its progress
+/// for the rest of the load), and the line says READY only once the mission is ready, when a press starts it at once.
 /// Off: the original's order.
 /// </summary>
 public static class BriefingOverlap
