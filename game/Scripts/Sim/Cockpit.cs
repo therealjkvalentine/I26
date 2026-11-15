@@ -1970,10 +1970,12 @@ public partial class Cockpit : Node
         bool round = rimOut.On && g.Plane is not null && g.Hull.Count <= GlassRound.MaxCorners;
         m.SetShaderParameter("rim_round", round);
         if (!round) { g.Mesh.Mesh = g.Faces; return false; }
-        float grow = rimOut.Cover ? GlassRound.Cover(g.Hull, shape.Core, shape.R) : rimOut.Widths * MirrorRim.RimShare;
+        // the outer edge in the rim's widths before the halving (MirrorRim.OuterShare): where it covered the housing's edges
+        float grow = rimOut.Cover ? GlassRound.Cover(g.Hull, shape.Core, shape.R) : rimOut.Widths * MirrorRim.OuterShare;
         var hull = new Vector2[GlassRound.MaxCorners];
         for (int i = 0; i < g.Hull.Count; i++) hull[i] = g.Hull[i];
         m.SetShaderParameter("rim_out", grow);
+        m.SetShaderParameter("ring_w", MirrorRim.RingWidth(grow));
         m.SetShaderParameter("rim_dark", rimOut.Dark);
         m.SetShaderParameter("pane_hull", hull);
         m.SetShaderParameter("pane_hull_n", g.Hull.Count);
