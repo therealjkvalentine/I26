@@ -2123,7 +2123,7 @@ public partial class Cockpit : Node
             bool left = i == 0;
             cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
-            cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u);
+            cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u);
             foreach (var g in _glass.Where(g => g.Left == left)) { g.Mat.SetShaderParameter("view", vp.GetTexture()); g.Mat.SetShaderParameter("band", new Vector2(0, 1)); }
             var sm = left ? _sideMatL : _sideMatR;
             if (sm is not null) { sm.SetShaderParameter("view", vp.GetTexture()); sm.SetShaderParameter("band", new Vector2(0, 1)); sm.SetShaderParameter("cylindrical", false); }
