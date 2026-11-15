@@ -230,6 +230,51 @@ public static class Discovery
     /// <summary>The ports a LAN search asks on: the default and the next few (a second server on one machine).</summary>
     public const int PortsSearched = 4;
 
+    /// <summary>
+    /// A network's own broadcast address (192.168.1.255 for 192.168.1.81/24); null where there is none to ask: no mask, a
+    /// single address (/32, a VPN's) or a point-to-point pair (/31).
+    /// </summary>
+    public static IPAddress? SubnetBroadcast(IPAddress address, IPAddress? mask)
+    {
+        if (mask is null || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || mask.AddressFamily != address.AddressFamily) return null;
+        byte[] a = address.GetAddressBytes(), m = mask.GetAddressBytes();
+        uint bits = (uint)(m[0] << 24 | m[1] << 16 | m[2] << 8 | m[3]);
+        if (bits == 0 || bits >= 0xFFFFFFFE) return null;
+        for (int i = 0; i < 4; i++) a[i] |= (byte)~m[i];
+        return new IPAddress(a);
+    }
+
+    /// <summary>
+    /// The broadcast address of every network this machine is on (IPv4, the interface up, not loopback or link-local). A LAN
+    /// search asks these as well as 255.255.255.255: the limited broadcast leaves by one interface only (the one Windows
+    /// ranks first, which a virtual switch or a VPN adapter can be), and not every machine answers it. Measured on a home
+    /// network: a Mac hosting a game answered a query to its address and one to 192.168.1.255 from two Windows machines, and
+    /// none to 255.255.255.255, which a Windows host on the same network answered.
+    /// </summary>
+    public static List<IPAddress> SubnetBroadcasts()
+    {
+        var found = new List<IPAddress>();
+        try
+        {
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up
+                    || ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                foreach (var u in ni.GetIPProperties().UnicastAddresses)
+                {
+                    if (u.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
+                    var b = u.Address.GetAddressBytes();
+                    if (b[0] == 169 && b[1] == 254) continue;
+                    IPAddress? mask;
+                    try { mask = u.IPv4Mask; } catch (PlatformNotSupportedException) { mask = null; }
+                    if (SubnetBroadcast(u.Address, mask) is { } bc && !found.Contains(bc)) found.Add(bc);
+                }
+            }
+        }
+        catch (System.Net.NetworkInformation.NetworkInformationException) { }
+        return found;
+    }
+
     public static byte[] Query()
     {
         var w = new NetWriter(16);
@@ -379,16 +424,32 @@ public sealed class SessionBrowser : IDisposable
         a with { Drivers = [], MapHash = null } == b with { Drivers = [], MapHash = null } && a.Drivers.SequenceEqual(b.Drivers)
         && (a.MapHash ?? []).AsSpan().SequenceEqual(b.MapHash ?? []);
 
-    /// <summary>Asks the LAN: a broadcast to the default port and the next few, and the same at 127.0.0.1.</summary>
+    /// <summary>
+    /// Asks the LAN: a broadcast to the default port and the next few, the same to each of this machine's networks' own
+    /// broadcast address (<see cref="Discovery.SubnetBroadcasts"/>: a host that does not answer 255.255.255.255), and at
+    /// 127.0.0.1. A host that hears two of them answers twice; it is one game by its id.
+    /// </summary>
     public void SearchLan(int basePort = Protocol.DefaultPort)
     {
+        double now = _clock();
+        // the networks are looked up again every few seconds (a cable plugged in, Wi-Fi joined while the roster is open)
+        if (now >= _subnetsAt) { _subnetsAt = now + 5; _subnets = Subnets(); }
         for (int p = basePort; p < basePort + Discovery.PortsSearched; p++)
         {
             _net.SendBroadcast(_query, p);
+            foreach (var net in _subnets) _net.SendUnconnectedMessage(_query, new IPEndPoint(net, p));
             _net.SendUnconnectedMessage(_query, new IPEndPoint(IPAddress.Loopback, p));
         }
         Expire();
     }
+
+    /// <summary>
+    /// The networks' broadcast addresses a LAN search asks: this machine's, unless the tests give theirs; none from a socket
+    /// kept on loopback (<see cref="NetBind"/>: the tests ask nobody else's machine).
+    /// </summary>
+    public Func<List<IPAddress>> Subnets { get; init; } = () => NetBind.V4.Equals(NetBind.DefaultV4) ? Discovery.SubnetBroadcasts() : [];
+    private List<IPAddress> _subnets = [];
+    private double _subnetsAt;
 
     /// <summary>
     /// Asks one address (the address book's): host is a name or an IP. A name is looked up once, in the background (the
