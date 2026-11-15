@@ -14,6 +14,10 @@ namespace I76.Game.Ui;
 /// of the movie: a press skips now (StandByLine says which, <see cref="Show"/>). Set again in Impact at the window's resolution in
 /// both looks, as the boot screen's line is, with a faint shadow so it reads over a bright frame; without Impact on the system, the
 /// picture's own pixels (loadgame.pcx), scaled down into its palette (READY, which it does not have, in the engine's own font).
+/// Under PLEASE STAND BY, the port's progress line: as wide as the words' ink, a little below it, its whole length faint (so it
+/// reads as a bar, not an underline) with the words' shadow under it, filled white from the left with the load's progress
+/// (LoadProgress; StandByLine.Filled, StandByLine.Thickness), fading with the words; none under READY. Three rectangles, the
+/// filled one resized only when a pixel more is filled.
 /// </summary>
 public partial class StandByTag : Control
 {
@@ -41,6 +45,25 @@ public partial class StandByTag : Control
     private ImpactLabels.Spec _spec = null!;
     private Vector2 _laidFor = -Vector2.One;
 
+    /// <summary>The progress line (filled), its faint track and their shadow; where it starts, its full width and thickness (screen pixels), and how much is filled.</summary>
+    private ColorRect _line = null!, _lineTrack = null!, _lineShadow = null!;
+    /// <summary>How bright the line's unfilled length is against the filled.</summary>
+    private const float TrackAlpha = 0.3f;
+    private Vector2 _lineAt;
+    private int _lineW, _lineH, _lineShadowOff, _lineFilled = -2;   // (-1: not shown; -2: not drawn yet)
+    /// <summary>Capture hook I76_STANDBY_LINE=PX[:FRACTION]: the line PX thick at 1080 lines, held at FRACTION (the sheet's variants).</summary>
+    private static readonly (float Px, double? Fixed) LineHook = ParseLineHook(System.Environment.GetEnvironmentVariable("I76_STANDBY_LINE"));
+
+    private static (float, double?) ParseLineHook(string? hook)
+    {
+        if (hook is not { Length: > 0 }) return (StandByLine.LinePx, null);
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        var parts = hook.Split(':');
+        float px = float.TryParse(parts[0], System.Globalization.NumberStyles.Float, ci, out float p) && p > 0 ? p : StandByLine.LinePx;
+        double? at = parts.Length > 1 && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, ci, out double f) ? f : null;
+        return (px, at);
+    }
+
     public override void _Ready()
     {
         SetAnchorsPreset(LayoutPreset.FullRect);
@@ -49,6 +72,9 @@ public partial class StandByTag : Control
         (_box, _spec) = I76.Game.Boot.BootSplash.StandBy(nitro);
         _ink = I76.Game.Boot.BootSplash.StandByInk(nitro);
         Visible = false;   // (until FadeIn)
+        AddChild(_lineShadow = new ColorRect { Color = new Color(0, 0, 0, 0.45f), MouseFilter = MouseFilterEnum.Ignore, Visible = false, Name = "LineShadow" });
+        AddChild(_lineTrack = new ColorRect { Color = new Color(1, 1, 1, TrackAlpha), MouseFilter = MouseFilterEnum.Ignore, Visible = false, Name = "LineTrack" });
+        AddChild(_line = new ColorRect { Color = Colors.White, MouseFilter = MouseFilterEnum.Ignore, Visible = false, Name = "Line" });
         AddChild(_impact = new ImpactLayer { Name = "Impact" });
         if (_impact.Available) return;
         _impact.QueueFree();
@@ -191,7 +217,44 @@ public partial class StandByTag : Control
 
     public override void _Process(double delta)
     {
-        if (Visible && GetViewportRect().Size != _laidFor) Layout();
+        if (!Visible) return;
+        if (GetViewportRect().Size != _laidFor) Layout();
+        UpdateLine();
+    }
+
+    /// <summary>The line filled to the load's progress now (only its width changes, and only when a pixel more is filled).</summary>
+    private void UpdateLine()
+    {
+        bool shown = StandByLine.LineShown(_says) && _lineW > 0 && (LoadProgress.Active || LineHook.Fixed is not null);
+        int filled = shown ? StandByLine.Filled(LineHook.Fixed ?? LoadProgress.Model.Value, _lineW) : -1;
+        if (filled == _lineFilled) return;
+        bool was = _lineFilled >= 0;
+        _lineFilled = filled;
+        if (filled < 0) { _line.Visible = _lineTrack.Visible = _lineShadow.Visible = false; return; }
+        if (!was)
+        {
+            var full = new Vector2(_lineW, _lineH);
+            _lineTrack.Position = _lineAt;
+            _lineTrack.Size = full;
+            _lineShadow.Position = _lineAt + Vector2.One * _lineShadowOff;
+            _lineShadow.Size = full;
+            _lineTrack.Visible = _lineShadow.Visible = true;
+        }
+        _line.Visible = filled > 0;
+        _line.Position = _lineAt;
+        _line.Size = new Vector2(filled, _lineH);
+    }
+
+    /// <summary>The line's place under the words' ink (<paramref name="ink"/>, on the screen), <paramref name="frame"/> screen pixels a frame pixel.</summary>
+    private void PlaceLine(Rect2 ink, float frame)
+    {
+        float height = GetViewportRect().Size.Y;
+        _lineH = StandByLine.Thickness(height, LineHook.Px);
+        _lineShadowOff = Mathf.Max(1, Mathf.RoundToInt(frame));
+        var at = new Vector2(ink.Position.X, ink.End.Y + _lineShadowOff).Round() - GlobalPosition;
+        _lineAt = at;
+        _lineW = Mathf.RoundToInt(ink.Size.X);
+        _lineFilled = -2;   // (placed again: drawn again at the next frame)
     }
 
     /// <summary>The picture's rect on the screen: fitted and centred, as the movie's TextureRect (KeepAspectCentered, the whole window) draws it.</summary>
@@ -219,6 +282,7 @@ public partial class StandByTag : Control
             var size = new Vector2(_artSize.X * k, _artSize.Y * k);
             _art.Position = (r.End - Vector2.One * Margin * px).Round() - size - GlobalPosition;   // (the corner kept Margin in from the picture's)
             _art.Size = size;
+            PlaceLine(new Rect2(_art.Position + GlobalPosition, size), k);
             _art.Visible = _says != StandByLine.Says.Ready;
             if (_readyArt is not null)
             {
@@ -236,6 +300,7 @@ public partial class StandByTag : Control
             float s = Mathf.Min(view.X / ShellFrame.W, view.Y / ShellFrame.H);
             var off = (view - new Vector2(ShellFrame.W, ShellFrame.H) * s) / 2;
             var inkOnScreen = r.Position + at * px;
+            PlaceLine(new Rect2(inkOnScreen, tag * px), s);
             var boxInFrame = (inkOnScreen - off) / s - new Vector2(_ink.Position.X - _box.Position.X, _ink.Position.Y - _box.Position.Y) * Scale;
             // READY (the port's) set as the line is, its last letter ending where the line's last dot does
             var small = _spec with

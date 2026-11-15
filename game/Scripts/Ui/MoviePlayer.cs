@@ -471,7 +471,7 @@ public partial class MoviePlayer : CanvasLayer
 
     /// <summary>
     /// The movie is over by itself: it ends. While <see cref="Waiting"/> what follows it shows the wait (Main.BuildBehindCard: the
-    /// loading card again, with its progress wheel), rather than its last frame standing still.
+    /// loading card again, with PLEASE STAND BY and its progress line), rather than its last frame standing still.
     /// </summary>
     private void RunOut()
     {

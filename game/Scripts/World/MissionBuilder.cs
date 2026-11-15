@@ -304,7 +304,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var index = new RoadRaster.Index(flat, tris, TerrainNode.Chunk * 5f);
         bool soft = SoftCompressRoadLayers;
         long tRaster = 0, tMips = 0, tComp = 0;
-        // the loading card's wheel: a bake not in the cache is most of a cold start's build, a chunk at a time
+        // the load's progress (the line under PLEASE STAND BY): a bake not in the cache is most of a cold start's build, a chunk at a time
         int baked = 0;
         I76.Game.Ui.LoadProgress.Weigh(I76.Game.Ui.LoadProgressModel.RoadBake, I76.Game.Ui.LoadProgressModel.ColdRoadBakeMs);
         System.Threading.Tasks.Parallel.ForEach(origins, o =>
@@ -457,7 +457,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         {
             (Resolver, Textures, Materials, Meshes, _carParts, _kit) = (kit.Resolver, kit.Textures, kit.Materials, kit.Meshes, kit.CarParts, kit);
             kit.Materials.HoldFlush = OffMainThread;
-            I76.Game.Ui.LoadProgress.Restarted();   // the card's wheel on the restart's measured shares
+            I76.Game.Ui.LoadProgress.Restarted();   // the load's progress on the restart's measured shares
             GD.Print($"restart cache: {world.Mission.Name}'s textures ({kit.Textures.Made}, {kit.Textures.Bytes >> 20} MB), materials, meshes and cars' parts kept from its last build");
         }
         else

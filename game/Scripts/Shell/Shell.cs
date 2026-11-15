@@ -1336,10 +1336,6 @@ public sealed class ShellSettings
 
     /// <summary>A hand-written flag's word: true, 1, on or yes (any case) turn it on; anything else, or nothing, leaves it off.</summary>
     public static bool DeveloperWord(string? word) => word?.Trim().ToLowerInvariant() is "true" or "1" or "on" or "yes";
-    /// <summary>[port] load_progress's word: off (or false, 0, no) hides the loading card's wheel; anything else, or none, shows it.</summary>
-    public static bool LoadProgressWord(string? word) => word?.Trim().Trim('"').ToLowerInvariant() is not ("off" or "false" or "0" or "no");
-    /// <summary>The word the file keeps for <paramref name="on"/>.</summary>
-    public static string LoadProgressName(bool on) => on ? "on" : "off";
     /// <summary>The port's own: the 1997 look draws as the original's software renderer did rather than its 3D card (Graphic Detail's 1997 Renderer; SoftwareLook). Off unless set: a file without the key is a 3D card.</summary>
     public bool SoftwareRenderer { get; set; }
     /// <summary>The port's own: the modern look's frame matched to the mission's 8-bit palette (Graphic Detail's Palette Grade; SoftwareLook). Off unless set.</summary>
@@ -1518,8 +1514,6 @@ public sealed class ShellSettings
     public double BriefingCardHold { get; set; } = I76.Game.Boot.BriefingOverlap.DefaultCardHold;
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
-    /// <summary>The port's own, without a row: the loading card's progress wheel (Ui/LoadProgressView.cs; [port] load_progress, off by default since the loading follows upstream's, written only when on).</summary>
-    public bool LoadProgress { get; set; }
     /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
     /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
@@ -1976,7 +1970,7 @@ public sealed class ShellSettings
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.BriefingCardHold = I76.Game.Boot.BriefingOverlap.ParseHold(c.HasSectionKey("port", "briefing_card_hold") ? c.GetValue("port", "briefing_card_hold").ToString() : null);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
-        s.LoadProgress = LoadProgressWord(c.GetValue("port", "load_progress", "off").ToString());
+        // [port] load_progress (the loading card's progress wheel, withdrawn for the line under PLEASE STAND BY) is no longer read, as any key this version does not know; Save drops it
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
@@ -2189,7 +2183,6 @@ public sealed class ShellSettings
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (BriefingCardHold != I76.Game.Boot.BriefingOverlap.DefaultCardHold) c.SetValue("port", "briefing_card_hold", BriefingCardHold);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
-        if (LoadProgress) c.SetValue("port", "load_progress", LoadProgressName(true));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CabinsBehindGlass) c.SetValue("port", "car_interiors", false);
