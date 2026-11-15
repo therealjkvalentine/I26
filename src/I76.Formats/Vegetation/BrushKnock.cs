@@ -55,17 +55,55 @@ public static class BrushKnock
     }
 
     /// <summary>
+    /// The install's sound a car going through a bush plays: the original's knock for a car running a sign down (vnvco3), which the bush
+    /// shares with the signs, so it is pitched <see cref="DefaultSemitones"/> up and <see cref="DefaultDb"/> quieter to read as a
+    /// brush's crackle and not a sign's knock (the owner's review, section ES). I76_BUSH_KNOCK=name,semitones,dB tries others.
+    /// </summary>
+    public const string DefaultSample = "vnvco3.wav";
+    public const float DefaultSemitones = 7f, DefaultDb = -6f;
+
+    /// <summary>The sound in use (<see cref="DefaultSample"/>).</summary>
+    public static string Sample { get; set; } = DefaultSample;
+    /// <summary>The pitch shift in semitones, on top of each plant's own pitch (<see cref="DefaultSemitones"/>).</summary>
+    public static float Semitones { get; set; } = DefaultSemitones;
+    /// <summary>The level offset in dB on the speed curve (<see cref="DefaultDb"/>).</summary>
+    public static float OffsetDb { get; set; } = DefaultDb;
+
+    /// <summary>The pitch scale for a shift of <paramref name="semitones"/>.</summary>
+    public static float Ratio(float semitones) => MathF.Pow(2f, semitones / 12f);
+
+    /// <summary>
+    /// Reads I76_BUSH_KNOCK's value, "name[,semitones[,dB]]" (a name with no ".wav" gets one); false for an empty or unreadable value,
+    /// leaving the settings as they were.
+    /// </summary>
+    public static bool Apply(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var parts = text.Split(',');
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        float semi = Semitones, db = OffsetDb;
+        if (parts.Length > 1 && !float.TryParse(parts[1], System.Globalization.NumberStyles.Float, inv, out semi)) return false;
+        if (parts.Length > 2 && !float.TryParse(parts[2], System.Globalization.NumberStyles.Float, inv, out db)) return false;
+        var name = parts[0].Trim();
+        if (name.Length == 0) return false;
+        Sample = name.Contains('.') ? name : name + ".wav";
+        Semitones = Math.Clamp(semi, -24f, 24f);
+        OffsetDb = Math.Clamp(db, -40f, 12f);
+        return true;
+    }
+
+    /// <summary>
     /// The knock's sound for a plant at (<paramref name="x"/>, <paramref name="z"/>) of <paramref name="height"/> metres struck at
-    /// <paramref name="speed"/> m/s: a pitch of its own (0.85-1.15, lower for a big plant) and a level, louder the faster the car
-    /// (-14 dB creeping to 0 dB at 100 mph), each plant a little apart (±1.5 dB) so a row of them does not sound as one sample.
+    /// <paramref name="speed"/> m/s: a pitch of its own (0.85-1.15, lower for a big plant, times <see cref="Ratio"/> of <see cref="Semitones"/>) and a level, louder the faster the car
+    /// (-14 dB creeping to 0 dB at 100 mph, plus <see cref="OffsetDb"/>), each plant a little apart (±1.5 dB) so a row of them does not sound as one sample.
     /// </summary>
     public static (float Pitch, float Db) Voice(float speed, float height, float x, float z)
     {
         uint h = Hash(x, z);
         float r1 = (h & 0xffff) / 65535f, r2 = (h >> 16) / 65535f;
         float size = Math.Clamp(1.12f - 0.08f * height, 0.85f, 1.1f);
-        float pitch = Math.Clamp(size * (0.88f + 0.24f * r1), 0.75f, 1.25f);
-        float db = -14f + 14f * Math.Clamp(speed / 44.7f, 0f, 1f) + (r2 - 0.5f) * 3f;
+        float pitch = Math.Clamp(size * (0.88f + 0.24f * r1), 0.75f, 1.25f) * Ratio(Semitones);
+        float db = -14f + 14f * Math.Clamp(speed / 44.7f, 0f, 1f) + (r2 - 0.5f) * 3f + OffsetDb;
         return (pitch, db);
     }
 

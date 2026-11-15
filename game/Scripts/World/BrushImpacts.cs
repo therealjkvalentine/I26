@@ -69,6 +69,8 @@ public partial class BrushImpacts : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", Vector4.Zero);
         _current = this;
         MakeLook();
+        // I76_BUSH_KNOCK=name,semitones,dB: the knock's sound, pitch shift and level offset, for trying others without a rebuild
+        if (BrushKnock.Apply(System.Environment.GetEnvironmentVariable("I76_BUSH_KNOCK"))) GD.Print(System.FormattableString.Invariant($"bush knock: {BrushKnock.Sample} {BrushKnock.Semitones:0.#} semitones {BrushKnock.OffsetDb:0.#} dB"));
         // I76_BRUSH_FALL=shape[,base,per-speed]: the knock's curve (smooth, snap, topple) and time, for comparing them in captures
         if (System.Environment.GetEnvironmentVariable("I76_BRUSH_FALL") is { Length: > 0 } fall)
         {
@@ -263,9 +265,9 @@ public partial class BrushImpacts : Node3D
     public static Assets.AudioBank? Audio { get; set; }
     /// <summary>
     /// The original's sound for a car knocking a sign or post off (class-4 objects: the short knock vnvco3, once per object):
-    /// its nearest to a car going through a bush. Its own voice name, so it never takes the signs' voice.
+    /// its nearest to a car going through a bush, pitched up and quieter so it does not sound as the signs (BrushKnock.DefaultSample).
+    /// Its own voice name, so it never takes the signs' voice.
     /// </summary>
-    public const string KnockSample = "vnvco3.wav";
     private const string KnockVoice = "brush-knock";
     private const int KnockVoices = 4;
     private readonly KnockSounds _knocks = new();
@@ -276,7 +278,7 @@ public partial class BrushImpacts : Node3D
     private void Knock(ulong car, Vector3 root, PlantSpot s, float speed)
     {
         if (Trace) GD.Print(System.FormattableString.Invariant($"brush-trace: t {_t:0.000} frame {Engine.GetFramesDrawn()} knock at {root.X:0.00},{root.Z:0.00} height {s.Height:0.00} radius {s.Radius:0.00} speed {speed:0.0} fall {BrushKnock.Seconds(speed):0.000} s depth {BrushKnock.Depth(speed):0.00}"));
-        if (Audio is null || !_knocks.Try(car, _t) || Audio.Get(KnockSample) is not { } stream) return;
+        if (Audio is null || !_knocks.Try(car, _t) || Audio.Get(BrushKnock.Sample) is not { } stream) return;
         var (pitch, db) = BrushKnock.Voice(speed, s.Height, root.X - _o.X, root.Z - _o.Z);
         var v = Voice3D.OneShot(stream, KnockVoice, (50, KnockVoices), I76.Sim.Sound.Ds3d.MinDistance, db);
         v.PitchScale = pitch;
@@ -284,7 +286,7 @@ public partial class BrushImpacts : Node3D
         v.Position = ToLocal(root + Vector3.Up * MathF.Min(s.Height * 0.5f, 0.8f));
         AddChild(v);
         v.Start();
-        if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {KnockSample} pitch {pitch:0.00} {db:0.0} dB at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
+        if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {BrushKnock.Sample} pitch {pitch:0.00} {db:0.0} dB at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
     }
 
     // ---- fire ----
