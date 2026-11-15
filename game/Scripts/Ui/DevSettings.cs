@@ -39,6 +39,9 @@ public static class DevSettings
     public static readonly int[] SpeedSteps = [0, 25, 50, 75, 100, 125, 150, 200];
     private static readonly string[] SpeedNames = [.. SpeedSteps.Select(p => p == I76.Sim.Views.PresentationSpeed.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestSpeedStep(int percent) => Array.IndexOf(SpeedSteps, SpeedSteps.MinBy(p => Math.Abs(p - percent)));
+    /// <summary>The death orbit's percentages offered: slow ones added for the owner's "slower still"; 100 is the original's 8 degrees a tick.</summary>
+    public static readonly int[] OrbitSpeedSteps = [0, 10, 15, 25, 35, 50, 75, 100, 150, 200];
+    private static readonly string[] OrbitSpeedNames = [.. OrbitSpeedSteps.Select(p => p == I76.Sim.Views.PresentationSpeed.DefaultOrbit ? $"{p}" : $"{p}{M}")];
     public static readonly int[] EffectSteps = [25, 50, 75, 100, 125, 150];
     private static readonly string[] EffectNames = [.. EffectSteps.Select(p => p == I76.Sim.Views.EffectsLook.Default ? $"{p}" : $"{p}{M}")];
     public static int NearestStep(int percent) => Array.IndexOf(EffectSteps, EffectSteps.MinBy(p => Math.Abs(p - percent)));
@@ -130,7 +133,7 @@ public static class DevSettings
         new("sky_drift", Words(OriginalRecipe.SkyDriftNames), s => s.SkyDrift, (s, v) => s.SkyDrift = v, DevWhen.Live),
         new("death_orbit", Words(OriginalRecipe.DeathOrbitNames), s => s.DeathOrbit, (s, v) => s.DeathOrbit = v, DevWhen.Live),
         new("sky_speed", SpeedNames, s => NearestSpeedStep(s.SkySpeed), (s, v) => s.SkySpeed = SpeedSteps[v], DevWhen.NextMission),
-        new("death_orbit_speed", SpeedNames, s => NearestSpeedStep(s.DeathOrbitSpeed), (s, v) => s.DeathOrbitSpeed = SpeedSteps[v], DevWhen.Live),
+        new("death_orbit_speed", OrbitSpeedNames, s => Nearest(OrbitSpeedSteps, s.DeathOrbitSpeed), (s, v) => s.DeathOrbitSpeed = OrbitSpeedSteps[v], DevWhen.Live),
         new("helicopter_hearing", Look(OriginalRecipe.HelicopterHearingNames), s => OfChoice(s.HelicopterHearingChoice), (s, v) => s.HelicopterHearingChoice = ToChoice(v), DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),

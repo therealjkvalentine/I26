@@ -155,6 +155,8 @@ public class BrushKnockTests
         Assert.Equal("vnvco3.wav", BrushKnock.DefaultSample);
         Assert.InRange(BrushKnock.DefaultSemitones, 4f, 12f);
         Assert.InRange(BrushKnock.DefaultDb, -10f, -4f);
+        Assert.Equal(9f, BrushKnock.DefaultSemitones);
+        Assert.Equal(-8f, BrushKnock.DefaultDb);
         Assert.Equal(1.4983f, BrushKnock.Ratio(7), 3);
         Assert.Equal(2f, BrushKnock.Ratio(12), 4);
         // the sign plays at its own level (0 dB); the bush's loudest is quieter, and 10 / 30 / 60 mph rise
