@@ -356,8 +356,8 @@ public sealed class SessionBrowser : IDisposable
                 _found[i] = _found[i] with { Info = info, Seen = now, Ping = ping >= 0 ? ping : _found[i].Ping };
             }
         };
-        if (manual) _net.StartInManualMode(IPAddress.Any, IPAddress.IPv6Any, 0);
-        else _net.Start();
+        if (manual) NetBind.StartInManualMode(_net);
+        else NetBind.Start(_net);
     }
 
     /// <summary>The browser's own port (its socket answers come back to).</summary>

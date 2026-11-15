@@ -226,7 +226,7 @@ public sealed partial class MeleeClient : IDisposable
     /// <summary>Starts connecting to host:port with the join request (name, car, team).</summary>
     public void Connect(string host, int port, string name, string car, byte team = 0, byte[]? config = null, string password = "", byte[]? paint = null)
     {
-        _net.Start();
+        NetBind.Start(_net);
         State = ClientState.Connecting;
         _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Features };
         _net.Connect(host, port, JoinData(name, car, team, config, password, paint));
@@ -251,7 +251,7 @@ public sealed partial class MeleeClient : IDisposable
     public void ConnectVia(string serverHost, int serverPort, AnetSession game, string name, string car, byte team = 0, byte[]? config = null,
         AnetAddress? privateOverride = null, string password = "", IReadOnlyList<(string Host, int Port)>? checkServers = null, byte[]? paint = null)
     {
-        _net.Start();
+        NetBind.Start(_net);
         State = ClientState.Connecting;
         _joinData = JoinData(name, car, team, config, password, paint);
         _request = new JoinRequest(Protocol.Version, name, car, team, config ?? [], password, paint) { Build = Build, Features = Features };
