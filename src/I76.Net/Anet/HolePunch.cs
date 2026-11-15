@@ -258,6 +258,8 @@ public sealed class AnetJoiner : IDisposable
         }
         if (_askedAt >= 0 && now - _askedAt > PunchTime)
         {
+            // the host is behind our own router: its address at home never answered, and no second server can say more
+            if (SameNetwork(_client.PublicAddress)) { Verdict = NatVerdict.SameNetwork; Fail(FailureText(Verdict, Target.KeyAddress.Port)); return; }
             var other = CheckServers.FirstOrDefault(c => !(c.Host.Equals(_client.Host, StringComparison.OrdinalIgnoreCase) && c.Port == _client.Port));
             if (_client.PublicAddress is not null && other.Host is { Length: > 0 })
             {
@@ -291,9 +293,18 @@ public sealed class AnetJoiner : IDisposable
         return FailureText(Verdict, Target.KeyAddress.Port);
     }
 
+    /// <summary>
+    /// The host's public address is our own (one router, two computers at home) and it has an address of its own there: the
+    /// join goes to that address, no router is in the way, and a punch that still fails was stopped on one of the computers.
+    /// </summary>
+    private bool SameNetwork(AnetAddress? ours) => ours is { } us && us.Ip == Target.Master.Ip && Target.KeyAddress != Target.Master;
+
     /// <summary>What a failed punch tells the player: whose router, and the port the host can forward (its game's own UDP port).</summary>
     public static string FailureText(NatVerdict verdict, int hostPort) => verdict switch
     {
+        NatVerdict.SameNetwork =>
+            "the host is on your own network but did not answer there: a firewall on the host's computer or yours may be blocking the game "
+            + $"(Windows Firewall: allow the game on private networks; macOS: Local Network in Privacy & Security; UDP port {hostPort})",
         NatVerdict.JoinerSymmetric =>
             "your router gives every connection a new port (a symmetric NAT, as phone hotspots and shared ISP addresses do), so the host's "
             + $"router cannot answer you. The host can forward UDP port {hostPort} to their computer, or join from another network",
@@ -321,8 +332,11 @@ public sealed class AnetJoiner : IDisposable
     }
 }
 
-/// <summary>Whose router stopped a failed hole punch (<see cref="AnetJoiner.CheckServers"/>).</summary>
-public enum NatVerdict { Unknown, JoinerSymmetric, HostSide }
+/// <summary>
+/// Whose router stopped a failed hole punch (<see cref="AnetJoiner.CheckServers"/>), or none: the host shares our public
+/// address (<see cref="SameNetwork"/>, the same home network), where only a firewall on one of the two computers is left.
+/// </summary>
+public enum NatVerdict { Unknown, JoinerSymmetric, HostSide, SameNetwork }
 
 /// <summary>
 /// I26's anet species: the session type a game logs in with, which keys its

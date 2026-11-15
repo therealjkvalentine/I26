@@ -816,7 +816,7 @@ public partial class Main
             Client = client, World = mirror, Name = "NetHud", Predictor = predictor, Host = _net.Server is not null, Server = _net.Server,
             Nitro = _builder.Vfs.Install.IsNitro, LeeFont = _builder.Vfs.Install.FindFile("Lee_____.ttf"),
             Won = () => _netWinOrbit = true, Modern = () => !_mode1997, Cutscene = () => accept.Coop is not null && _scriptCam?.Current == true,
-            CanChat = () => !_inMenu && _menu is null && _picture is null && !_loading && _reconfig is null, HostStatus = () => _net?.Server?.AnetStatus,
+            CanChat = () => !_inMenu && _menu is null && _picture is null && !_loading && _reconfig is null, HostStatus = () => _net?.Server?.AnetStatus ?? _net?.FirewallNote,
             MissionTitle = CoopTitle,
         });
         // the server's different-build line came while this one loaded, before the feed was up: the joiner's own, from the accept

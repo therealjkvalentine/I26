@@ -22,7 +22,7 @@ public partial class NetHud : CanvasLayer
     /// <summary>The own car's prediction: with I76_NET_DEBUG its last error and correction go under the ping.</summary>
     public OwnCarPredictor? Predictor { get; init; }
     private readonly bool _debug = System.Environment.GetEnvironmentVariable("I76_NET_DEBUG") is { Length: > 0 } and not "0";
-    /// <summary>A listen server's listing on anet servers ("Listed on ...", "Not listed: ..."), null when not listed anywhere.</summary>
+    /// <summary>A listen server's listing on anet servers ("Listed on ...", "Not listed: ..."), or its firewall's line (HostFirewall.Hint); null when it has neither.</summary>
     public Func<string?>? HostStatus { get; init; }
     /// <summary>This game is a listen server's own: Enter starts the next round without the wait, and the host's prompts and boots are its.</summary>
     public bool Host { get; set; }

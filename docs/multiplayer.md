@@ -1292,7 +1292,8 @@ nix develop -c dotnet run --project tools/I76.Server -- [--install DIR] [--game 
   answer an invite-only join (`--invite-only`), `say TEXT` sends a line that starts with a command's word, `help`.
 - Ctrl+C stops it. When a melee is over it carries on with another round
   (below, "Rounds"); `--once` exits instead, after 20 s for the clients to see the standings.
-- The port is UDP. Open it in the firewall for a LAN game.
+- The port is UDP. Open it in the firewall for a LAN game. On Windows a host says so itself when Defender Firewall's rules do not
+  let its program be reached ("Windows Firewall may be blocking this game: allow it on private networks": below, "Finding games").
 - The game's rand stream (spawn points, AI choices, damage rolls, debris) is
   seeded from the clock, as the original's `srand(time(NULL))`. `--seed N`
   fixes it, so a melee can be replayed; the seed is in the first log line.
@@ -1590,6 +1591,17 @@ and on the day before's alike. The search now also sends the same query, as a pl
 every IPv4 network the machine is on (the interface up, not loopback or link-local, with a mask shorter than /31), looked up again
 every 5 s. A host that hears both answers both; it is one game by its id. Nothing on the wire changes, and an older host answers the
 new search as it answers a query to its address.
+
+**A host Windows Firewall hides** (`HostFirewall`). A search that a firewall stops looks, on both computers, exactly like no game
+being there: the host never hears the question. Measured on two machines: a Windows host whose program had no firewall rule listened
+on 0.0.0.0:7676, answered its own machine's search and no other computer's (neither the broadcast nor a query to its address); the
+same build with an Allow rule answered both. A host on Windows reads Defender Firewall's rules from the registry (no rights needed)
+when it starts listening: if the firewall is on and, on a private and on a public network alike, a Block rule names the program or no
+Allow rule covers it for UDP on its port, its log and the HUD's host line (where "Listed on SERVER" goes; an internet game shows that
+instead) say "Windows Firewall may be blocking this game: allow it on private networks". It is looked at again every 10 s and goes
+once the rules allow the game (the player said yes to Windows' question). A program allowed on private networks alone is never called
+blocked (the rules do not say which the network is); other systems and other firewalls are not looked at. `i26-server` logs the same
+line.
 
 ### Game passwords
 
@@ -2804,6 +2816,11 @@ whose router stopped it and the port the host can forward
 (`AnetJoiner.FailureText`), e.g. "Could not join: your router gives every
 connection a new port (a symmetric NAT, ...). The host can forward UDP port
 7604 to their computer, or join from another network.". The
+A host that shares the joiner's public address (two computers at home behind one router) is joined at its own address there, with no
+router in the way: when that fails the form says so at once, without asking a second server ("Could not join: the host is on your own
+network but did not answer there: a firewall on the host's computer or yours may be blocking the game (Windows Firewall: allow the game
+on private networks; macOS: Local Network in Privacy & Security; UDP port 7676)", `NatVerdict.SameNetwork`); it used to blame the host's
+router and a symmetric NAT. The
 host's HUD reads "Listed on SERVER", "Contacting SERVER..." or "Not listed:
 SERVER is not answering" (the game runs and takes direct joins either way).
 

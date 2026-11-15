@@ -25,7 +25,20 @@ public partial class NetSession : Node
 
     public override void _Ready() => ProcessMode = ProcessModeEnum.Always;
 
-    public override void _Process(double delta) => Client.Poll();
+    public override void _Process(double delta)
+    {
+        Client.Poll();
+        // the host said yes to Windows' question after the game began, or made a rule: the line goes
+        if (FirewallNote is not null && Server is { } s && (_firewallIn -= delta) <= 0)
+        {
+            _firewallIn = 10;
+            System.Threading.Tasks.Task.Run(() => { if (HostFirewall.Blocked(s.Port) != true) FirewallNote = null; });
+        }
+    }
+
+    /// <summary>A listen server Windows Firewall keeps other computers from (<see cref="HostFirewall"/>): the host's one line, else null.</summary>
+    public string? FirewallNote { get; private set; }
+    private double _firewallIn = 10;
 
     /// <summary>Builds and starts the listen server (seconds: it loads the arena), off the main thread.</summary>
     public async System.Threading.Tasks.Task<NetMeleeServer> Host(ServerOptions o)
@@ -34,6 +47,7 @@ public partial class NetSession : Node
         Server.Log += m => GD.Print($"[server] {m}");
         Server.Start();
         GD.Print($"listen server: {o.Arena} on UDP {Server.Port}");
+        if (HostFirewall.Blocked(Server.Port) == true) GD.Print($"listen server: {FirewallNote = HostFirewall.Hint} (UDP port {Server.Port})");
         if (o.Kind != I76.Sim.Missions.MeleeKind.Combat || o.Goal != I76.Sim.Missions.MeleeGoal.None) GD.Print($"listen server: {o.Kind}, goal {o.Goal} {o.GoalValue}, {o.CtfTeams} teams");
         return Server;
     }
