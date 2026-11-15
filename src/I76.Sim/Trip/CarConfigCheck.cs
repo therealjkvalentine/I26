@@ -19,6 +19,9 @@ public static class CarConfigCheck
     public const int MaxBytes = 2048;
     private const int MaxWeapons = 16;
 
+    /// <summary>How far the last car passed by <see cref="Check"/> carries armour and chassis over the heaviest stock variant's total (0: within it). A guideline: the host may log or show it; it refuses nothing.</summary>
+    [System.ThreadStatic] public static int ArmourOverStock;
+
     /// <summary>
     /// Checks <paramref name="vcf"/> as a variant of the model whose first variant is <paramref name="stem"/>1.vcf.
     /// Returns the car in the form the garage writes it (nothing but what was checked), or null with
@@ -52,7 +55,10 @@ public static class CarConfigCheck
         for (int n = 1; n < 10 && vfs.TryRead($"{stem}{n}.vcf") is { } sd; n++)
             if (n == 1 || vfs.InArchive($"{stem}{n}.vcf")) allowed = System.Math.Max(allowed, Total(TripCar.FromVcf(sd)));
         if (secret is { } body) allowed += body.Total;      // the secret replaces the zones it names, keeping the rest of the Rattler's
-        if (car.Armour.Any(a => a < 0) || car.Chassis.Any(c => c < 0) || car.Ninth < 0 || Total(car) > allowed) { error = "armour beyond the model's"; return null; }
+        // The stock total is a guideline, not a limit (a playtest's ruling: a car carrying more than any stock variant joined a
+        // game the day before and must go on joining): only a negative zone is refused. ArmourOverStock says by how much.
+        if (car.Armour.Any(a => a < 0) || car.Chassis.Any(c => c < 0) || car.Ninth < 0) { error = "negative armour"; return null; }
+        ArmourOverStock = System.Math.Max(0, Total(car) - allowed);
 
         // parts: components by ordinal, tyres and guns by file, each one the install has
         var engOrdinal = I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, car.Engine);
