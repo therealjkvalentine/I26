@@ -1469,6 +1469,7 @@ public partial class Cockpit : Node
         _mirrorFlat = new Godot.Environment { BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = MirrorBackground,
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
+        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1") _mirrorMat.SetShaderParameter("rim_key", true);
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {

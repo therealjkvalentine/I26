@@ -61,6 +61,9 @@ uniform float outer_r = 0.0;
 uniform float inner_r = 0.0;
 // the added side glasses: the glass is the inner shape alone (the art's frame narrowed to the inner shape's inset), not the art's glass
 uniform bool glass_from_shape = false;
+// I76_MIRROR_RIM_KEY: the side mirrors' rim (the door glasses' moulding, the added glasses' frame) flat magenta, for measuring its width
+uniform bool rim_key = false;
+const vec3 KEY = vec3(1.0, 0.0, 1.0);
 
 // the signed distance to a convex quad (negative inside), corners in order
 float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
@@ -140,7 +143,7 @@ void fragment() {
 			// the moulding across the whole ring: 0 at its outer edge, 1 at the glass's
 			float t = clamp((rim_out - sd) / (rim_out + rim_w), 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, rounded(sd + rim_w));
 			float ring = rounded(sd - rim_out);
 			ALPHA = rim_dark ? max(ring, rounded(sd_hull(p))) : ring;
 			if (ALPHA <= 0.0) discard;
@@ -149,7 +152,7 @@ void fragment() {
 			// the moulding across the rim: 0 at the rounded shape's edge, 1 at the glass's
 			float t = clamp(-sd / rim_w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, rounded(sd + rim_w));
 		}
 	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
@@ -164,7 +167,7 @@ void fragment() {
 			float inner = rounded(sd_quad(p, inner_tl, inner_tr, inner_br, inner_bl) - inner_r);
 			glass = glass_from_shape ? inner : min(glass, inner);
 		}
-		ALBEDO = mix(texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
+		ALBEDO = mix(rim_key && glass_from_shape ? KEY : texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
 		ALPHA = solid;
 	} else {
 		vec4 a = texture(art, auv);
