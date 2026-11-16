@@ -892,12 +892,26 @@ public partial class CarNode : Node3D
             AddChild(l);
             return l;
         }).ToArray();
+        // and the lamp's light further back along the road, on the ground alone (RearLampLight.Wash): what the mirrors see of it
+        foreach (var l in _rearWash) l.QueueFree();
+        var w = RearLampLight.Wash;
+        _rearWash = w.Share <= 0f ? [] : at.Select((p, i) =>
+        {
+            float back = RearSetBack + (overhang is { } o && i < o.Length ? o[i] : 0f);
+            float yaw = p.X > 0.05f ? w.Yaw : p.X < -0.05f ? -w.Yaw : 0f;   // outward
+            var l = new SpotLight3D { Position = Coords.ToGodot(p) + new Vector3(0, 0, back), RotationDegrees = new Vector3(w.Pitch, 180f + yaw, 0),
+                SpotRange = w.Range, SpotAngle = w.Angle, SpotAttenuation = w.Attenuation, SpotAngleAttenuation = 0.8f, LightEnergy = 0,
+                LightColor = RearColour, ShadowEnabled = false, Visible = false, Name = "RearWash", LightCullMask = RearLampLight.WashLayers };
+            AddChild(l);
+            return l;
+        }).ToArray();
         _lampDaylight = -1;
     }
 
     // The rear lamps' light on the ground (Godot's SpotAngle is the cone's half-angle): its axis 38 degrees down, its edges 6 and 70
     // degrees down, so the pool starts a few tens of centimetres behind the lamp and fades out over the next few metres; red through the lens.
-    private const float RearSetBack = 0.08f, RearPitch = -38f, RearAngle = 32f, RearRange = 6f, RearAttenuation = 1.2f;
+    private const float RearSetBack = 0.08f, RearPitch = RearLampLight.PoolPitch, RearAngle = RearLampLight.PoolAngle, RearRange = RearLampLight.PoolRange, RearAttenuation = 1.2f;
+    private SpotLight3D[] _rearWash = [];
     private static readonly Color RearColour = new(1f, 0.06f, 0.03f);
 
     private SirenBar? _siren;
@@ -1320,9 +1334,15 @@ public partial class CarNode : Node3D
         // the rear lamps' light on the ground: the tail filament's with the lights on, the brake's brighter one over it, a night's
         // only (RearLampLight); like the headlamps', the player's always and only the nearest few other cars'
         float rearE = rearOk ? RearLampLight.Energy(_tailLamp, _brakeLamp, Daylight.Current) : 0f;
-        if (rearE != _rearGroundApplied) { _rearGroundApplied = rearE; foreach (var l in _rearLights) l.LightEnergy = rearE; }
+        if (rearE != _rearGroundApplied)
+        {
+            _rearGroundApplied = rearE;
+            foreach (var l in _rearLights) l.LightEnergy = rearE;
+            foreach (var l in _rearWash) l.LightEnergy = rearE * RearLampLight.Wash.Share;
+        }
         bool rearLights = rearE > 0f && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));
         for (int i = 0; i < _rearLights.Length; i++) _rearLights[i].Visible = rearLights && RearHeld(i);
+        for (int i = 0; i < _rearWash.Length; i++) _rearWash[i].Visible = rearLights && RearHeld(i);
         // the pool lies on the road ahead, so it shows from the cockpit too (the body hidden there)
         if (_lightPool is not null) _lightPool.Visible = !Wrecked && lit && !Modern;
         for (int i = 0; i < _glare.Length; i++) _glare[i].Visible = shown && headLit && Modern && HeadHeld(i);
