@@ -11,7 +11,8 @@ namespace I76.Game.Boot;
 /// section counts in its parent too (sim.tick in sim, the cockpit's parts in cockpit). With them: the frame's wall time (from the start of
 /// one frame's process step to the next's: render and swap included), the span of every node's process step (nodes), the engine's process
 /// and physics times, the renderer's CPU and GPU time, the sim ticks run, the garbage collections by generation and their pause, the
-/// bytes allocated (main thread and every thread) and the texture uploads counted by <see cref="Upload"/>.
+/// bytes allocated (main thread and every thread), the texture uploads counted by <see cref="Upload"/>, and the time the JIT spent
+/// compiling on the main thread and the methods it compiled there (a first use of a path, or tiering it up).
 ///
 /// Off (the variable unset) a scope is a struct whose Dispose tests one static field: nothing is allocated, nothing timed. On, the rows
 /// go into an array made at the start and are written when the game quits, so the measuring allocates nothing a frame either.
@@ -72,7 +73,7 @@ public static partial class FrameSections
     private static readonly string[] Fixed =
     [
         "frame", "t_ms", "wall_ms", "nodes_ms", "deferred_ms", "draw_ms", "after_ms", "process_ms", "physics_ms", "render_cpu_ms", "gpu_ms", "ticks", "gc0", "gc1", "gc2",
-        "gc_pause_ms", "alloc_main_kb", "alloc_all_kb", "uploads", "upload_kb",
+        "gc_pause_ms", "alloc_main_kb", "alloc_all_kb", "uploads", "upload_kb", "jit_ms", "jit_methods",
     ];
 
     private static bool _installed;
@@ -96,7 +97,8 @@ public static partial class FrameSections
         private int _n;
         private long _start, _nodesEnd, _preDraw, _postDraw, _first, _alloc, _allAlloc, _frame;
         private int _g0, _g1, _g2;
-        private System.TimeSpan _pause;
+        private System.TimeSpan _pause, _jit;
+        private long _jitN;
         private bool _measuring, _done;
         private AllocTypes? _types;
 
@@ -124,6 +126,8 @@ public static partial class FrameSections
             _pause = System.GC.GetTotalPauseDuration();
             _alloc = System.GC.GetAllocatedBytesForCurrentThread();
             _allAlloc = System.GC.GetTotalAllocatedBytes(false);
+            _jit = System.Runtime.JitInfo.GetCompilationTime(true);
+            _jitN = System.Runtime.JitInfo.GetCompiledMethodCount(true);
             _start = now;
         }
 
@@ -168,6 +172,8 @@ public static partial class FrameSections
                 _rows[o + c++] = (System.GC.GetTotalAllocatedBytes(false) - _allAlloc) / 1024.0;
                 _rows[o + c++] = _uploads;
                 _rows[o + c++] = _uploadBytes / 1024.0;
+                _rows[o + c++] = (System.Runtime.JitInfo.GetCompilationTime(true) - _jit).TotalMilliseconds;
+                _rows[o + c++] = System.Runtime.JitInfo.GetCompiledMethodCount(true) - _jitN;
                 for (int i = 0; i < (int)Sec.Count; i++) _rows[o + c++] = Ms(Ticks[i]);
                 for (int i = 0; i < (int)Sec.Count; i++) _rows[o + c++] = Bytes[i] / 1024.0;
                 _n++;
