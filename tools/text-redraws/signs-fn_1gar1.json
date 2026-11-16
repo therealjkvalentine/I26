@@ -1,0 +1,82 @@
+{
+ "textures": [
+  "fn_1gar1"
+ ],
+ "note": "the garage wall of Spanner's truck stop: its lettering; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    28.15,
+    67.39,
+    105.07,
+    79.86999999999999
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    27.0,
+    89.13000000000001,
+    106.19,
+    101.8
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   }
+  },
+  {
+   "op": "text",
+   "text": "We are a \"Service Station\"",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 10.88,
+   "colour": [
+    0,
+    11,
+    147
+   ],
+   "box": [
+    29.15,
+    68.19,
+    104.07,
+    79.07
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Visit our Full-Service Garage",
+   "font": "ArchivoNarrow",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 11.07,
+   "colour": [
+    0,
+    11,
+    147
+   ],
+   "box": [
+    28.0,
+    89.93,
+    105.19,
+    101.0
+   ]
+  }
+ ]
+}

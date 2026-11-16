@@ -1,0 +1,568 @@
+{
+ "textures": [
+  "fn_1cff1"
+ ],
+ "note": "the cafe front of Spanner's truck stop: its name board, window band and cards: its lettering; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    35,
+    8,
+    123,
+    35
+   ],
+   "fill": [
+    255,
+    250,
+    246
+   ]
+  },
+  {
+   "op": "lines",
+   "width": 1,
+   "cap": "butt",
+   "segments": [
+    [
+     53.0,
+     8,
+     53.0,
+     35,
+     2,
+     [
+      193,
+      186,
+      185
+     ]
+    ]
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Lola's",
+   "font": "Lobster",
+   "cap": 21.05,
+   "colour": [
+    16,
+    29,
+    54
+   ],
+   "box": [
+    45.85,
+    9.99,
+    62.94,
+    31.04
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FAMILY",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 10.71,
+   "colour": [
+    16,
+    29,
+    54
+   ],
+   "box": [
+    74.0,
+    8.29,
+    90.63,
+    19.0
+   ]
+  },
+  {
+   "op": "text",
+   "text": "RESTAURANT",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 11.53,
+   "colour": [
+    16,
+    29,
+    54
+   ],
+   "box": [
+    68.07,
+    21.22,
+    102.78,
+    32.75
+   ]
+  },
+  {
+   "op": "lines",
+   "width": 1,
+   "cap": "butt",
+   "segments": [
+    [
+     63.5,
+     8,
+     63.5,
+     35,
+     1,
+     [
+      86,
+      84,
+      86
+     ]
+    ],
+    [
+     73.5,
+     8,
+     73.5,
+     35,
+     1,
+     [
+      98,
+      97,
+      90
+     ]
+    ],
+    [
+     103.5,
+     8,
+     103.5,
+     35,
+     1,
+     [
+      78,
+      76,
+      78
+     ]
+    ],
+    [
+     113.5,
+     8,
+     113.5,
+     35,
+     1,
+     [
+      106,
+      103,
+      106
+     ]
+    ]
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    45.36,
+    97.73,
+    99.35,
+    102.4
+   ],
+   "where": {
+    "lum_above": 60
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 50
+   }
+  },
+  {
+   "op": "text",
+   "text": "LUNCH & DINNER SERVED",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 5.0,
+   "colour": [
+    150,
+    150,
+    154
+   ],
+   "center": [
+    72.455,
+    100.165
+   ],
+   "width": 32.233
+  },
+  {
+   "op": "lines",
+   "width": 1,
+   "cap": "butt",
+   "segments": [
+    [
+     63.5,
+     97.73,
+     63.5,
+     102.4,
+     1,
+     [
+      123,
+      121,
+      123
+     ]
+    ],
+    [
+     73.5,
+     97.73,
+     73.5,
+     102.4,
+     1,
+     [
+      106,
+      105,
+      106
+     ]
+    ],
+    [
+     89.0,
+     97.73,
+     89.0,
+     102.4,
+     2,
+     [
+      102,
+      135,
+      140
+     ]
+    ]
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    46,
+    58,
+    52,
+    96
+   ],
+   "fill": [
+    156,
+    210,
+    222
+   ]
+  },
+  {
+   "op": "erase",
+   "rect": [
+    75,
+    56,
+    82,
+    95
+   ],
+   "fill": [
+    156,
+    210,
+    222
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Lola's",
+   "font": "Lobster",
+   "cap": 1.927,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    48.12,
+    58.964,
+    49.685,
+    60.891
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TRUCKER'S",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.479,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    46.293,
+    64.746,
+    51.641,
+    67.225
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FEAST",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.442,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    47.174,
+    68.051,
+    50.924,
+    71.493
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ALL YOU CAN EAT",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.065,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    46.228,
+    74.522,
+    51.837,
+    76.587
+   ]
+  },
+  {
+   "op": "text",
+   "text": "STEAK &",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.891,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    46.783,
+    77.826,
+    51.348,
+    80.717
+   ]
+  },
+  {
+   "op": "text",
+   "text": "EGGS",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.717,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    47.598,
+    82.37,
+    50.5,
+    86.087
+   ]
+  },
+  {
+   "op": "text",
+   "text": "$4.99",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.993,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    47.793,
+    87.188,
+    50.207,
+    91.181
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Family Restaurant",
+   "font": "Lobster",
+   "cap": 2.341,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    46.815,
+    92.971,
+    51.348,
+    95.312
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Lola's",
+   "font": "Lobster",
+   "cap": 1.978,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    77.473,
+    56.989,
+    79.299,
+    58.967
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TRUCKER'S",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.543,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    75.342,
+    62.924,
+    81.582,
+    65.467
+   ]
+  },
+  {
+   "op": "text",
+   "text": "FEAST",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.533,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    76.37,
+    66.315,
+    80.745,
+    69.848
+   ]
+  },
+  {
+   "op": "text",
+   "text": "ALL YOU CAN EAT",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.119,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    75.266,
+    72.957,
+    81.81,
+    75.076
+   ]
+  },
+  {
+   "op": "text",
+   "text": "STEAK &",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 2.967,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    75.913,
+    76.348,
+    81.239,
+    79.315
+   ]
+  },
+  {
+   "op": "text",
+   "text": "EGGS",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.815,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    76.864,
+    81.011,
+    80.25,
+    84.826
+   ]
+  },
+  {
+   "op": "text",
+   "text": "$4.99",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 4.097,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    77.092,
+    85.957,
+    79.908,
+    90.054
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Family Restaurant",
+   "font": "Lobster",
+   "cap": 2.402,
+   "colour": [
+    22,
+    38,
+    56
+   ],
+   "box": [
+    75.951,
+    91.891,
+    81.239,
+    94.293
+   ]
+  }
+ ]
+}

@@ -1,0 +1,77 @@
+{
+ "textures": [
+  "fn_1cfr1"
+ ],
+ "note": "the cafe's right side of Spanner's truck stop: its roof frame line; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    6.0,
+    10.5,
+    17.5,
+    21.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.7,
+    "lum_below": 110
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    17.0,
+    21.0,
+    27.5,
+    34.5
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.7,
+    "lum_below": 110
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    18.0,
+    10.5,
+    25.0,
+    16.0
+   ],
+   "where": {
+    "lum_below": 100
+   },
+   "grow": 0.5,
+   "halo": {
+    "within": 0.7,
+    "lum_below": 110
+   }
+  },
+  {
+   "op": "lines",
+   "width": 1.2,
+   "colour": [
+    65,
+    62,
+    60
+   ],
+   "cap": "round",
+   "segments": [
+    [
+     5.56,
+     11.0,
+     26.6,
+     34.0
+    ]
+   ]
+  }
+ ]
+}

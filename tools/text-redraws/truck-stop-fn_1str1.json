@@ -1,0 +1,44 @@
+{
+ "textures": [
+  "fn_1str1"
+ ],
+ "note": "the store's right side of Spanner's truck stop: its roof edge; written by gen/spanners.py",
+ "ops": [
+  {
+   "op": "lines",
+   "width": 2.5,
+   "colour": [
+    222,
+    218,
+    213
+   ],
+   "cap": "butt",
+   "segments": [
+    [
+     28.0,
+     19.045,
+     128.0,
+     53.888
+    ]
+   ]
+  },
+  {
+   "op": "lines",
+   "width": 2.0,
+   "colour": [
+    24,
+    40,
+    131
+   ],
+   "cap": "butt",
+   "segments": [
+    [
+     28.0,
+     17.295,
+     128.0,
+     52.138
+    ]
+   ]
+  }
+ ]
+}
