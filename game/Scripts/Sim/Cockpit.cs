@@ -1552,7 +1552,6 @@ public partial class Cockpit : Node
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
         if (RimKeyHook) _mirrorMat.SetShaderParameter("rim_key", true);
-        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_GAP") == "1") _mirrorMat.SetShaderParameter("rim_gap", true);
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {
@@ -1930,6 +1929,10 @@ public partial class Cockpit : Node
     /// <summary>I76_MIRROR_RIM_KEY=1: the rim flat magenta and the pane's outline outside it cyan (the grown glass then takes in the pane's outline, as with dark corners).</summary>
     private static readonly bool RimKeyHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1";
     /// <summary>I76_MIRROR_POINTS=1: the door mirror head's vertices drawn as yellow dots and its glass's as green ones over everything, and both logged in the glass's picture units (mirror-points:), to find which points show past the ring.</summary>
+    /// <summary>I76_MIRROR_RIM_POINTS: "uniform" grows the whole ring evenly until the glass outline's corners fit inside it; "off" the ring's outer edge as round as the glass's, the corners left to stick out (the look before); otherwise tighter outer corners where needed.</summary>
+    private static readonly string? PointsVariant = System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_POINTS");
+    /// <summary>How far inside the ring's outer edge the glass outline's corners lie, in the glass's heights (about a pixel at 3440x1440).</summary>
+    private const float PointMargin = 0.004f;
     private static readonly bool PointsHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_POINTS") == "1";
 
     private void MarkPoints(Node3D host, List<Vector3> glass, (Vector3 O, Vector3 A, Vector3 B) pl, Vector3 eye, bool left, float aspect, System.Numerics.Vector2[][] uvs)
@@ -1957,7 +1960,7 @@ public partial class Cockpit : Node
         {
             var a = new Godot.Collections.Array(); a.Resize((int)Mesh.ArrayType.Max);
             a[(int)Mesh.ArrayType.Vertex] = pts.Distinct().ToArray();
-            var pm = new ArrayMesh(); pm.AddSurfaceFromArrays(Mesh.PrimitiveType.Points, a);
+            var pm = new ArrayMesh(); I76.Game.MeshArrays.AddSurfaceArrays(pm, Mesh.PrimitiveType.Points, a);
             var mat = new ShaderMaterial { Shader = new Shader { Code = "shader_type spatial; render_mode unshaded, depth_test_disabled, cull_disabled; uniform vec3 c; void vertex() { POINT_SIZE = 5.0; } void fragment() { ALBEDO = c; }" } };
             mat.SetShaderParameter("c", colour);
             var mi = new MeshInstance3D { Mesh = pm, MaterialOverride = mat, Layers = CarNode.CockpitLayer, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
@@ -2095,8 +2098,23 @@ public partial class Cockpit : Node
         float grow = rimOut.Cover ? GlassRound.Cover(g.Hull, shape.Core, shape.R) : rimOut.Widths * MirrorRim.OuterShare;
         var hull = new Vector2[GlassRound.MaxCorners];
         for (int i = 0; i < g.Hull.Count; i++) hull[i] = g.Hull[i];
+        float ringW = MirrorRim.RingWidth(grow);
+        // the outer edge holds every corner of the glass's outline (the housing's edge) inside it, so none shows past the ring as a
+        // point: its corners tighter where the outline's are sharper (the band thicker there), or (I76_MIRROR_RIM_POINTS=uniform)
+        // the whole ring grown evenly until they fit, the band as wide all round
+        var outer = (Core: shape.Core, R: shape.R);
+        if (PointsVariant == "uniform") grow = GlassRound.UniformGrow(g.Hull, shape.Core, shape.R, grow, PointMargin);
+        else if (PointsVariant != "off") outer = GlassRound.OuterShape(g.Hull, shape.Core, shape.R, grow, PointMargin);
+        if (PointsHook)
+            foreach (var v in g.Hull)
+                GD.Print($"mirror-points: {(g.Left ? "L" : "R")} corner {v.X:0.0000} {v.Y:0.0000} past-round {GlassRound.Distance(shape.Core, v) - shape.R - grow:0.0000} past-outer {GlassRound.Distance(outer.Core, v) - outer.R - grow:0.0000} outer-r {outer.R:0.0000} glass-r {shape.R:0.0000}");
+        var ocore = new Vector2[GlassRound.MaxCorners];
+        for (int i = 0; i < outer.Core.Count; i++) ocore[i] = outer.Core[i];
+        m.SetShaderParameter("pane_ocore", ocore);
+        m.SetShaderParameter("pane_ocorners", outer.Core.Count);
+        m.SetShaderParameter("pane_or", outer.R);
         m.SetShaderParameter("rim_out", grow);
-        m.SetShaderParameter("ring_w", MirrorRim.RingWidth(grow));
+        m.SetShaderParameter("ring_w", ringW);   // the band as wide as before whichever way the outer edge reaches
         m.SetShaderParameter("rim_dark", rimOut.Dark);
         m.SetShaderParameter("pane_hull", hull);
         m.SetShaderParameter("pane_hull_n", g.Hull.Count);
@@ -2105,8 +2123,7 @@ public partial class Cockpit : Node
         m.SetShaderParameter("pane_mid", po + pa * (g.Aspect / 2) + pb / 2); m.SetShaderParameter("pane_half", new Vector2(g.Aspect / 2, 0.5f)); m.SetShaderParameter("pane_a", pa); m.SetShaderParameter("pane_b", pb);
         if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
         {
-            // the pane's outline in it too: the moulding's dark reaches the housing's corners (the shader's union with the outline)
-            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(g.Hull, shape.Core, shape.R + grow, GrowMargin), g.Eye);
+            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(g.Hull, outer.Core, outer.R + grow, GrowMargin), g.Eye);
             g.GrownFor = (grow, rimOut.Dark);
         }
         g.Mesh.Mesh = g.Grown;
