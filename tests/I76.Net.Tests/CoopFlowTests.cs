@@ -567,6 +567,99 @@ public class CoopFlowTests(ITestOutputHelper output)
         Assert.NotNull(g.Server.CoopChoose(CoopPlanKind.Replay));
     }
 
+    /// <summary>
+    /// The host's line names the key that goes on now (Enter, a melee's START NOW's) and the menu key for the rest; Esc is the menu's, never
+    /// the skip (the owner: "esc to skip to next mission doesn't work that is for the menu"). Enter goes on only for the host, only to a next mission.
+    /// </summary>
+    [Fact]
+    public void TheHostsNoticeNamesEnterForNextMissionAndEscForTheMenu()
+    {
+        var next = new CoopPlan(CoopPlanKind.Next, "t06", 15);
+        Assert.Equal(["Next mission: Scene 6: Out of Gas in 12 s", "Enter: Next Mission now   Esc: menu (Replay, Lobby)"], next.Lines("Scene 6: Out of Gas", 11.2, host: true));
+        // the menu key as the player has bound it
+        Assert.Equal("Enter: Next Mission now   F1: menu (Replay, Lobby)", next.Lines("Scene 6: Out of Gas", 0, host: true, menu: "F1")[1]);
+        Assert.Equal(["Esc: menu (Replay Mission or Back to Lobby)"], new CoopPlan(CoopPlanKind.Host, "t05", 0).Lines("Scene 5: Save Taurus", 0, host: true));
+        Assert.All(new[] { next, new CoopPlan(CoopPlanKind.Host, "t05", 0) }, p => Assert.DoesNotContain(p.Lines("x", 0, host: false), l => l.Contains("Esc")));
+        Assert.True(CoopPlan.NowKeyGoes(next, host: true));
+        Assert.False(CoopPlan.NowKeyGoes(next, host: false));
+        Assert.False(CoopPlan.NowKeyGoes(new CoopPlan(CoopPlanKind.Host, "t05", 0), host: true));
+        Assert.False(CoopPlan.NowKeyGoes(new CoopPlan(CoopPlanKind.Lobby, "t17", 15), host: true));
+        Assert.False(CoopPlan.NowKeyGoes(null, host: true));
+    }
+
+    // ---- one player (the owner: "okay fine on one player coop") ----
+
+    /// <summary>
+    /// The host alone: START needs nobody's ready mark, the mission waits only for the host's own game, no wait names anybody else, the won
+    /// mission goes on to the trip's next with the host in seat 0, and that one starts too.
+    /// </summary>
+    [Fact]
+    public void AHostAloneStartsPlaysAndGoesOnToTheNextMission()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05", nextSeconds: 1);
+        var hal = g.Join("Hal");
+        Assert.True(hal.Lobby!.IsHost);
+        Assert.Single(hal.Lobby.Members);
+        // the plain start (not forced): there is nobody to be ready
+        Assert.Null(g.Server.StartLobby());
+        Assert.True(g.Wait(() => hal.State == ClientState.Joined), $"{hal.State} {hal.Reason}");
+        Assert.Equal(0, (int)hal.Accept!.Coop!.Seat);
+        var waits = new List<string>();
+        var named = new HashSet<string>();
+        void Seen() { if (hal.StartWait is { } w) { waits.Add(Describe(w)); foreach (var p in w.Players) named.Add(p.Name); } }
+        // the host's briefing over the built mission: the start waits for it alone
+        hal.SendCoopStage(CoopStage.Briefing);
+        uint tick = g.Tick;
+        g.Wait(() => { Seen(); return false; }, 500);
+        Assert.Equal(tick, g.Tick);
+        hal.SendCoopStage(CoopStage.Skipped);
+        hal.SendCoopStage(CoopStage.Ready);
+        Assert.True(g.WaitDriving(() => { Seen(); return g.Tick > tick + 5; }, [hal]), "the mission did not start for the host alone");
+        Assert.Contains(g.Log, l => l.Contains("every player has loaded: the mission starts"));
+        // nobody else's briefing to end, and no wait for players who are not there
+        Assert.DoesNotContain(g.Log, l => l.Contains("briefing ends"));
+        output.WriteLine($"Hal's waits: {(waits.Count == 0 ? "none" : string.Join(" | ", waits.Distinct()))}");
+        // the host's own game is never told to wait for itself: alone, nobody is named
+        Assert.Empty(named);
+        // won: the next mission, the host alone in seat 0, and its start goes when the host's game is up
+        g.Server.Invoke(h => h.Setup.Script!.Host.EndMission(true, 0, -2));
+        Assert.True(g.WaitDriving(() => hal.Plan is not null, [hal]), "no plan came");
+        Assert.Equal(new CoopPlan(CoopPlanKind.Next, "t06", 1), hal.Plan);
+        Assert.True(g.Wait(() => hal.Rounds == 1 && hal.State == ClientState.Joined, 15000), $"{hal.State} round {hal.Rounds}");
+        Assert.Equal("t06", hal.Accept!.Arena);
+        Assert.Equal(0, (int)hal.Accept.Coop!.Seat);
+        Assert.Equal(1, g.Server.Invoke(h => h.Seats.Count));
+        hal.SendCoopStage(CoopStage.Building);
+        tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal]), "the next mission did not start for the host alone");
+    }
+
+    /// <summary>The host alone fails and replays the mission; a player who comes in later is seated beside the host, as a late joiner is.</summary>
+    [Fact]
+    public void AHostAloneReplaysAndAPlayerCanJoinLater()
+    {
+        if (Install is not { } install) return;
+        using var g = new Game(install, output, mission: "t05");
+        var hal = g.Join("Hal");
+        Assert.Null(g.Server.StartLobby());
+        Assert.True(g.Wait(() => hal.State == ClientState.Joined));
+        g.PlayAndEnd(won: false);
+        Assert.True(g.WaitDriving(() => hal.Plan is not null, [hal]));
+        Assert.Equal(CoopPlanKind.Host, hal.Plan!.Kind);
+        Assert.Null(g.Server.CoopChoose(CoopPlanKind.Replay));
+        Assert.True(g.Wait(() => hal.Rounds == 1 && hal.State == ClientState.Joined && hal.Accept!.Arena == "t05"), $"{hal.State}");
+        uint tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal]));
+        // the game has started: a joiner is not put in a lobby but seated in the mission where it is (seat 1, beside the host)
+        var ann = new MeleeClient { Features = Protocol.Features };
+        g.Players.Add(("Ann", ann));
+        ann.Connect("127.0.0.1", g.Server.Port, "Ann", Protocol.MissionCar);
+        Assert.True(g.WaitDriving(() => ann.State == ClientState.Joined, [hal]), $"Ann: {ann.State} {ann.Reason}");
+        Assert.Equal(1, (int)ann.Accept!.Coop!.Seat);
+        Assert.Equal(2, g.Server.Invoke(h => h.Seats.Count));
+    }
+
     // ---- the co-op list's lines ----
 
     /// <summary>Each co-op mission has a line saying what it is about: its first objective, in the mission's own words, read from the install.</summary>

@@ -90,7 +90,11 @@ public sealed record CoopWait(int SecondsLeft, IReadOnlyList<(string Name, CoopS
 public static class CoopStart
 {
     /// <summary>A seat as the start sees it: its player's name, whether its game has sent an input (its mission runs), what it says it is doing, and whether it skipped its briefing.</summary>
-    public readonly record struct Seat(string Name, bool Input, CoopStage Stage, bool Skipped = false);
+    public readonly record struct Seat(string Name, bool Input, CoopStage Stage, bool Skipped = false)
+    {
+        /// <summary>The server's peer of the seat (which game is told what): each game hears whom it waits for, never itself.</summary>
+        public int Peer { get; init; } = -1;
+    }
 
     /// <summary>The players the start waits for: those whose game has not sent an input yet, with what each says it is doing.</summary>
     public static List<(string Name, CoopStage Stage)> Waiting(IEnumerable<Seat> seats) =>

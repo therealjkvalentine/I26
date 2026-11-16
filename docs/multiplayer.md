@@ -1111,8 +1111,9 @@ While a lobby's start is held for a game still loading, the players already in t
   to a host whose accept says `CoopWait`; kept and said again at a new accept (`MeleeClient.SendCoopStage`).
 - **The server** (`NetMeleeServer.Coop.cs`), each tick of a lobby's co-op mission before it starts, lists the seats whose game has not sent an
   input (`CoopStart.Waiting`) with what each said, and when the list changes sends `MsgType.CoopWait` (61: the seconds left of
-  `ServerOptions.LoadSeconds`, then each player's name and stage) to every seat whose join said `CoopWait`; an empty list once the mission
-  starts. An upstream player says nothing and is listed as Unknown ("loading or watching the briefing"). The log says it too
+  `ServerOptions.LoadSeconds`, then each player's name and stage) to every seat whose join said `CoopWait`, each told the others and never
+  itself (a host alone, in its own briefing, is told nobody: the owner, "okay fine on one player coop"); an empty list once the mission
+  starts. A co-op game may start with the host alone (START asks no one's ready mark); later players join it in progress as late joiners. An upstream player says nothing and is listed as Unknown ("loading or watching the briefing"). The log says it too
   ("co-op: the start waits for Ann (watching the briefing)").
 - **The notice** (`NetHud.Coop.cs`, both looks): PLEASE STAND BY, "Waiting for 1 player", a line a player ("Ann: watching the briefing",
   "Bob: loading"), and "starting without them in 87 s", counted down on the client. The 1997 look letters it in the console's Lee, red, high
@@ -1175,7 +1176,9 @@ owner: "when a coop mission is completed, the next coop mission should load for 
 - **The hold.** `ServerOptions.CoopNextSeconds` (15) from the end, so the outcome can be read: MISSION COMPLETE, "Next mission: Scene 6: Out
   of Gas in 9 s" on every game (the notice of "Waiting for the others"). Each game plays the mission's outro meanwhile, its own; one still
   in its outro when the round comes builds the next mission after it (its seat says Ending, "watching the ending", and the next start waits
-  for it). The listen host can go on at once (its Esc menu's **Next Mission**) or take everyone back to the lobby (**Back to Lobby**,
+  for it). The listen host can go on at once (**Enter**, as a melee's START NOW, which its notice names: "Enter: Next Mission now   Esc:
+  menu (Replay, Lobby)", the menu key as bound; or its Esc menu's **Next Mission**; Esc itself is the menu's, never the skip:
+  `CoopPlan.NowKeyGoes`) or take everyone back to the lobby (**Back to Lobby**,
   asked first: "Back to the lobby with everyone (the game's setup)?"); `NetMeleeServer.CoopChoose`.
 - **Going on** (`CarryOn`), as a melee's next round: the next mission is built from the game's options (only the mission and the seed
   change: the same seats, Co-op Scaling, Damage Taken, Rolling Start, password, listing), the players still connected are sent

@@ -28,7 +28,8 @@ public partial class NetHud
     {
         if (Coop && _coopWon is { } won && Client.Has(PeerFeatures.CoopNext) && Client.Plan is { } plan)
             return new NetHudFrame.NoticeInfo(CoopPlan.Head(won),
-                plan.Lines(MissionTitle?.Invoke(plan.Mission) ?? plan.Mission.ToUpperInvariant(), plan.Seconds - (Client.Now - Client.PlanAt), Server is not null));
+                plan.Lines(MissionTitle?.Invoke(plan.Mission) ?? plan.Mission.ToUpperInvariant(), plan.Seconds - (Client.Now - Client.PlanAt), Server is not null,
+                    menu: I76.Game.GameKeys.KeyOf((int)I76.Formats.Input.GameKey.MainMenu) is { Length: > 0 } mk ? mk : "Esc"));
         if (!Coop || Client.State != ClientState.Joined || _started) return null;
         // the start is over once the server's tick moves on from where this game found it (a movie's stand-still is not the start's)
         _startTick ??= Client.NewestTick;

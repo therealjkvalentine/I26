@@ -144,8 +144,8 @@ public sealed class CoopLobbyScreen : ShellScreen
     }
 
     /// <summary>
-    /// The form's JOIN GAME button says READY, NOT READY or START instead: its edges and a plain column of it stretched over the label,
-    /// the new word in the shell's label font (as the host form's game type button is made).
+    /// The form's JOIN GAME button says READY, NOT READY or START instead: its edges and a plain column of it stretched over the label
+    /// (a change to the background, so an upscaled background is changed the same way).
     /// </summary>
     private void BakeButton()
     {
@@ -155,10 +155,33 @@ public sealed class CoopLobbyScreen : ShellScreen
         for (int x = x0 + edge; x < x1 - edge; x++) Frame.CopyBackground(plain, y0, 1, h, x, y0);
     }
 
+    /// <summary>The art's JOIN GAME border (the button the word is centred across) and CANCEL's word beside it (record 18's own pixels; ArtButtons).</summary>
+    private (Rect2I Join, ArtButtons.ArtLabel Cancel)? _art;
+    private bool _artRead;
+
+    private (Rect2I Join, ArtButtons.ArtLabel Cancel)? Art()
+    {
+        if (_artRead) return _art;
+        _artRead = true;
+        var bg = Shell.Db.Background(18);
+        byte Px(int x, int y) => bg.Pixels[Math.Clamp(y, 0, bg.Height - 1) * bg.Width + Math.Clamp(x, 0, bg.Width - 1)];
+        Rect2I Around((int X0, int X1, int Y0, int Y1) r) => new(r.X0 - 4, r.Y0 - 4, r.X1 - r.X0 + 8, r.Y1 - r.Y0 + 8);
+        if (ArtButtons.Label(Px, bg.Palette, Around(Hot[6])) is { } join && ArtButtons.Label(Px, bg.Palette, Around(Hot[15])) is { } cancel
+            && ArtButtons.Label(Px, bg.Palette, cancel.Box.Grow(-3)) is { } word)
+            _art = (join.Box, word);
+        return _art;
+    }
+
+    /// <summary>
+    /// The left button's word, lettered as the art letters CANCEL beside it (<see cref="ArtButtons.Letter"/>: Arial Bold as tall as CANCEL's
+    /// word, on its line, as heavy, in its ink; at the window's resolution in the modern look, into the palette in the 1997 look), centred
+    /// across the JOIN GAME button it replaces. Without the art's measure, or without Arial, the shell's label face doubled for weight.
+    /// </summary>
     private void DrawLeftButton(LobbyState s)
     {
         string t = s.IsHost ? "START" : s.Me?.Ready == true ? "NOT READY" : "READY";
         var f = Shell.Db.Font(0x47);
+        if (Art() is var (join, cancel)) { ArtButtons.Letter(Frame, f, t, cancel, "CANCEL", join); return; }
         int w = 370 - 229, tx = 229 + (w - f.Measure(t)) / 2, ty = 455 + (14 - f.Height) / 2 + 1;
         Frame.Text(f, tx, ty, t, ShellFrame.DefaultInk);
         Frame.Text(f, tx + 1, ty, t, ShellFrame.DefaultInk);
