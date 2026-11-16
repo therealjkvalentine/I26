@@ -856,8 +856,26 @@ public partial class Shell : CanvasLayer
     /// <summary>The capture script is held on a condition: the game does not count the frames towards --quit-after.</summary>
     public static bool ScriptWaiting => _waiting is not null;
 
+    /// <summary>The capture script's series of pictures under way: the prefix, every how many frames, how many, from which frame, how many taken.</summary>
+    private (string Prefix, int Every, int Count, int From, int Taken)? _series;
+    private ulong _seriesNext;
+
+    private void SaveShot(string path)
+    {
+        GetViewport().GetTexture().GetImage().SavePng(path);
+        // (the wall clock too: two games' series are put side by side by it)
+        GD.Print($"shell: screenshot {path} at frame {_frame}, {DateTime.UtcNow:HH:mm:ss.fff}");
+    }
+
     private void Scripted()
     {
+        // a series goes on through the script's sleeps, on the wall clock
+        if (_series is { } s && Time.GetTicksMsec() >= _seriesNext)
+        {
+            _seriesNext = Time.GetTicksMsec() + (ulong)s.Every;
+            SaveShot($"{s.Prefix}_{s.Taken:0000}.png");
+            _series = s.Taken + 1 >= s.Count ? null : s with { Taken = s.Taken + 1 };
+        }
         if (_waiting is { } w) { if (!w()) return; _waiting = null; }
         _frame++;
         foreach (var (f, kind, arg) in _script.Where(e => e.Frame == _frame))
@@ -912,6 +930,17 @@ public partial class Shell : CanvasLayer
             if (kind == "overlay" && arg == "graphics") Overlay(new GraphicsScreen());
             if (kind == "overlay" && arg == "audio") Overlay(new AudioScreen());
             if (kind == "type") _typed.Append(arg);
+            // capture hook: "shot:PATH@frame" saves the window then, "series:PREFIX,MS,COUNT@frame" saves COUNT pictures MS milliseconds apart from then
+            // (PREFIX_0000.png, ...), "quit:@frame" ends the game: a hosted shell's pictures (the co-op lobby's) on its own frames
+            if (kind == "shot") SaveShot(arg);
+            if (kind == "series" && arg.Split(',') is [var sp, var se, var sc] && int.TryParse(se, out int every) && int.TryParse(sc, out int count)) _series = (sp, Math.Max(1, every), count, _frame, 0);
+            if (kind == "quit") GetTree().Quit();
+            // capture hook: "sleep:SECONDS@frame" holds the script (and its frame count) that long on the wall clock: two games' steps in step
+            if (kind == "sleep" && double.TryParse(arg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double secs))
+            {
+                ulong until = Time.GetTicksMsec() + (ulong)(secs * 1000);
+                _waiting = () => Time.GetTicksMsec() >= until;
+            }
             // capture hook: "keyev:Semicolon,58,shift@frame" a key press as the window delivers it (keycode, Unicode, modifiers; Unicode 0 for none)
             if (kind == "keyev" && arg.Split(',') is [var kn, var ku, ..var km] && Enum.TryParse<Key>(kn, true, out var kk))
                 Input.ParseInputEvent(new InputEventKey
