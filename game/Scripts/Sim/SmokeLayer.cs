@@ -685,6 +685,10 @@ public sealed class MirrorDraw
     private readonly float[] _buf;
     private readonly Node3D _node;
 
+    private float[] _key = [];
+    private int[] _idx = [];
+    private static readonly StringName SceneLightName = "scene_light", SunViewName = "sun_view";
+
     public MirrorDraw(Node parent, int capacity, System.Numerics.Vector3 tint)
     {
         _buf = new float[capacity * 16];
@@ -713,19 +717,20 @@ public sealed class MirrorDraw
         count = Math.Min(count, _buf.Length / 16);
         // the mirror looks backward: its far-to-near order is the reverse of the main camera's more often than not, so sort by its own depth
         var ct = cam.GlobalTransform;
-        var key = new float[count]; var idx = new int[count];
+        if (_key.Length < count) (_key, _idx) = (new float[count], new int[count]);   // kept: they were two new arrays a frame
+        var key = _key; var idx = _idx;
         for (int j = 0; j < count; j++)
         {
             key[j] = ct.Basis.Z.Dot(new Vector3(src[j * 16 + 3], src[j * 16 + 7], src[j * 16 + 11]) - ct.Origin);   // -depth along the view
             idx[j] = j;
         }
-        Array.Sort(key, idx);
+        Array.Sort(key, idx, 0, count);
         for (int j = 0; j < count; j++) Array.Copy(src, idx[j] * 16, _buf, j * 16, 16);
         SmokeLayer.Thin(_buf, count, cam);
-        _mat.SetShaderParameter("scene_light", sceneLight);
+        _mat.SetShaderParameter(SceneLightName, sceneLight);
         _sun ??= _node.GetTree().Root.FindChildren("*", "DirectionalLight3D", true, false).OfType<DirectionalLight3D>().FirstOrDefault();
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;
-        _mat.SetShaderParameter("sun_view", ct.Basis.Inverse() * toSun);
+        _mat.SetShaderParameter(SunViewName, ct.Basis.Inverse() * toSun);
         SmokeLayer.Lights(_mat);
         _mm.Buffer = _buf;
         _mm.VisibleInstanceCount = count;

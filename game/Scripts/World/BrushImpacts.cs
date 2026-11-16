@@ -151,6 +151,8 @@ public partial class BrushImpacts : Node3D
 
     // ---- the frame ----
 
+    private static readonly StringName FieldRectName = "i76_veg_field_rect";   // set every frame: made once
+
     public override void _Process(double delta)
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Brush);
@@ -180,7 +182,7 @@ public partial class BrushImpacts : Node3D
             _img.SetData(BrushField.Size, BrushField.Size, false, Image.Format.Rgba8, _bytes);
             _tex.Update(_img);
         }
-        RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", new Vector4(_field.MinX + _o.X, _field.MinZ + _o.Z, 1f / (BrushField.Size * BrushField.Cell), 1f));
+        RenderingServer.GlobalShaderParameterSet(FieldRectName, new Vector4(_field.MinX + _o.X, _field.MinZ + _o.Z, 1f / (BrushField.Size * BrushField.Cell), 1f));
         Expire();
         if (Debug) _ticks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
         if (Debug && ++_frame % 30 == 0)

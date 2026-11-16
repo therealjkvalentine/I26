@@ -140,7 +140,12 @@ public sealed partial class PadRules
     }
 
     /// <summary>Whether the block does nothing this frame: a pad block whose input a rule has taken over.</summary>
-    public bool Masks(InputBlock b) => b.Terms.Length > 0 && _out.Masked.Count > 0 && _out.Masked.Any(m => Same(m, b.Terms[0]));
+    public bool Masks(InputBlock b)
+    {
+        if (b.Terms.Length == 0) return false;
+        foreach (var m in _out.Masked) if (Same(m, b.Terms[0])) return true;
+        return false;
+    }
 
     /// <summary>Whether the command is held: a rule holds it, or a block of a command whose inputs give it holds (input.map's chords, a taken-over input left out).</summary>
     public bool Holds(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down) =>
@@ -149,9 +154,18 @@ public sealed partial class PadRules
     /// <summary>Whether the bindings' own blocks hold the command (a key, a button, a chord), whatever a rule holds.</summary>
     public bool BindingHolds(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down)
     {
-        foreach (var c in Sources(command))
-            foreach (var b in table.Of(c))
-                if (!Masks(b) && InputChord.Holds(b.Terms, bank, down)) return true;
+        // Sources' order, without its iterator (asked many times a frame): the command itself, then those redirected to it
+        if (!_out.Redirects.ContainsKey(command) && BlocksHold(table, command, bank, down)) return true;
+        foreach (var (from, to) in _out.Redirects)
+            if (to.Equals(command, StringComparison.OrdinalIgnoreCase) && BlocksHold(table, from, bank, down)) return true;
+        return false;
+    }
+
+    private bool BlocksHold(BindingTable table, string command, JoystickBank bank, Func<InputTerm, bool> down)
+    {
+        var blocks = table.Of(command);
+        for (int i = 0; i < blocks.Count; i++)
+            if (!Masks(blocks[i]) && InputChord.Holds(blocks[i].Terms, bank, down)) return true;
         return false;
     }
 }

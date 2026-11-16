@@ -722,8 +722,8 @@ public partial class CarNode : Node3D
             disc.Visible = modern && !_heliGone && _body is not null
                 && I76.Sim.Views.OwnCar.RotorDrawn(_inCar, _hoodView, _outside, _dash3d && _cockpit is not null, _rotorInside.Contains(disc));
             if (!disc.Visible) continue;
-            disc.SetInstanceShaderParameter("angle", dir * _rotorPhase * rps * Mathf.Tau);
-            disc.SetInstanceShaderParameter("blur", blur);
+            disc.SetInstanceShaderParameter(SnAngle, dir * _rotorPhase * rps * Mathf.Tau);
+            disc.SetInstanceShaderParameter(SnBlur, blur);
         }
     }
 
@@ -1024,6 +1024,17 @@ public partial class CarNode : Node3D
     /// The wheels' meshes made to match the sim's blown tyres (wheel+0x44), however they changed: a hit,
     /// a respawn or renewal, a network snapshot or a late join. <paramref name="build"/> makes slot's mesh.
     /// </summary>
+    /// <summary>Whether a tyre was blown (or put back) since its mesh was last set: <see cref="SyncTyres"/> has something to do.</summary>
+    public bool TyresChanged
+    {
+        get
+        {
+            for (int slot = 0; slot < 6; slot++)
+                if (Sim.WheelAt(slot) is { } w && w.Blown != _blownShown[slot]) return true;
+            return false;
+        }
+    }
+
     public void SyncTyres(Func<int, bool, Mesh?> build)
     {
         for (int slot = 0; slot < 6; slot++)
@@ -1193,6 +1204,9 @@ public partial class CarNode : Node3D
         return new Rows(Turn(rows.Right), Turn(rows.Up), Turn(rows.Forward));
     }
 
+    // the per-frame shader parameters' names, made once: a string argument makes a StringName (and its tracking) every call
+    private static readonly StringName SnLevel = "level", SnWarmth = "warmth", SnWheelTurn = "wheel_turn", SnSteer = "steer", SnLean = "lean", SnAngle = "angle", SnBlur = "blur";
+
     /// <summary>Draw at alpha between the previous and current step, relative to the floating origin.</summary>
     public void Place(float alpha, System.Numerics.Vector3 origin)
     {
@@ -1214,7 +1228,7 @@ public partial class CarNode : Node3D
             var (g, wi) = _turrets[ti];
             if (Sim.Armory?.LoadOrder.ElementAtOrDefault(wi) is not { } wp) continue;
             var turned = wp.TurretRot(LerpAngle(_aimPrev[ti].Yaw, _aimCur[ti].Yaw, alpha), (float)Lerp(_aimPrev[ti].Pitch, _aimCur[ti].Pitch));
-            g.Basis = (Coords.ToGodot(turned.ToEngine()) * Coords.ToGodot(wp.BaseRot.ToEngine()).Inverse()).Orthonormalized();
+            g.Basis = (Coords.ToGodot(turned) * Coords.ToGodot(wp.BaseRot).Inverse()).Orthonormalized();
         }
         // Lamps work while their end of the car holds half its armour and chassis
         bool frontOk = Sim.Health is not { } hd || hd.ZoneRatio(0) >= 0.5f, rearOk = Sim.Health is not { } hr || hr.ZoneRatio(3) >= 0.5f;
@@ -1268,14 +1282,14 @@ public partial class CarNode : Node3D
         {
             float level = Modern && shown ? BrakeLevel * _brakeRamp * halo : 0f;
             _brakeGlow.Visible = level > 0f;
-            if (_brakeGlow.Visible && level != _brakeGlowApplied) _brakeGlow.SetInstanceShaderParameter("level", _brakeGlowApplied = level);
+            if (_brakeGlow.Visible && level != _brakeGlowApplied) _brakeGlow.SetInstanceShaderParameter(SnLevel, _brakeGlowApplied = level);
         }
         if (_tailGlow is not null)
         {
             // the tail filament stays lit under the brake's brighter one (a dual-filament bulb): its glow gives way as the brake's rises
             float level = Modern && shown && rearOk ? TailLevel * _tailRamp * (1f - _brakeRamp) * halo : 0f;
             _tailGlow.Visible = level > 0f;
-            if (_tailGlow.Visible && level != _tailGlowApplied) _tailGlow.SetInstanceShaderParameter("level", _tailGlowApplied = level);
+            if (_tailGlow.Visible && level != _tailGlowApplied) _tailGlow.SetInstanceShaderParameter(SnLevel, _tailGlowApplied = level);
         }
         if (_head is not null) _head.Visible = shown && lit && !Modern;   // the original's flat lit faces: the 1997 look only (the modern look has its glare and spotlights)
         // the headlamps' real lights: the player's always, the others' only for the nearest few to the camera
@@ -1301,7 +1315,7 @@ public partial class CarNode : Node3D
             var warm = new Color(HeadColour.R * wr, HeadColour.G * wg, HeadColour.B * wb);
             foreach (var l in _lamps) { l.LightEnergy = headE; l.LightColor = warm; }
             if (Modern)
-                foreach (var g in _glare) { g.SetInstanceShaderParameter("level", _headRamp * halo); g.SetInstanceShaderParameter("warmth", new Vector3(wr, wg, wb)); }
+                foreach (var g in _glare) { g.SetInstanceShaderParameter(SnLevel, _headRamp * halo); g.SetInstanceShaderParameter(SnWarmth, new Vector3(wr, wg, wb)); }
         }
         // the rear lamps' light on the ground: the tail filament's with the lights on, the brake's brighter one over it, a night's
         // only (RearLampLight); like the headlamps', the player's always and only the nearest few other cars'
@@ -1317,7 +1331,7 @@ public partial class CarNode : Node3D
         if (rear != _rearLevel)
         {
             _rearLevel = rear;
-            for (int i = 0; i < _rearGlare.Length; i++) { _rearGlare[i].Visible = rear > 0 && RearHeld(i); _rearGlare[i].SetInstanceShaderParameter("level", rear); }
+            for (int i = 0; i < _rearGlare.Length; i++) { _rearGlare[i].Visible = rear > 0 && RearHeld(i); _rearGlare[i].SetInstanceShaderParameter(SnLevel, rear); }
         }
         _siren?.Update(shown, !Wrecked, Modern);
         if (_engine is not null)
@@ -1329,7 +1343,7 @@ public partial class CarNode : Node3D
         double gy = far ? GroundForDisplay!(gx, gz) : Lerp(_prevPos.Y, _pos.Y);
         if (live is { } lp) (gx, gy, gz) = (lp.Pos.X, lp.Pos.Y, lp.Pos.Z);
         else if (ahead is { } aq) (gx, gy, gz) = (aq.Pos.X, aq.Pos.Y, aq.Pos.Z);
-        Transform = new Transform3D(Coords.ToGodot(rows.ToEngine()), Coords.ToGodot(gx - origin.X, gy - origin.Y, gz - origin.Z));
+        Transform = new Transform3D(Coords.ToGodot(rows), Coords.ToGodot(gx - origin.X, gy - origin.Y, gz - origin.Z));
         NightLight = _lightPool is not null && lit && !Wrecked ? (Transform * _lightPoolAt, -Transform.Basis.Z.Normalized()) : null;
         // the wheel strips' clock and speed: the real frame time, and the signed speed of the last
         // grounded step (the strip update is not called in the air, so a flying car's strips keep the speed it left with)
@@ -1343,7 +1357,7 @@ public partial class CarNode : Node3D
         if (_body is not null)
         {
             float st = ForcedSteer ?? Sim.Steer;
-            if (MathF.Abs(st - _steerShown) > 0.002f) { _steerShown = st; _body.SetInstanceShaderParameter("steer", st); }
+            if (MathF.Abs(st - _steerShown) > 0.002f) { _steerShown = st; _body.SetInstanceShaderParameter(SnSteer, st); }
             // and he is thrown against the car's sideways acceleration: a spring on his lean, so a hard turn or a hit yanks him over and he
             // settles back (the sim moves the car at its own rate: the acceleration is taken across each change of velocity)
             float dt = (float)GetProcessDeltaTime();
@@ -1357,7 +1371,7 @@ public partial class CarNode : Node3D
             else if (_velAge > 0.2f) _leanTarget = 0;
             _leanSpeed += ((_leanTarget - _lean) * 70f - _leanSpeed * 10f) * dt;
             _lean = Math.Clamp(_lean + _leanSpeed * dt, -1.5f, 1.5f);
-            if (MathF.Abs(_lean - _leanShown) > 0.004f) { _leanShown = _lean; _body.SetInstanceShaderParameter("lean", _lean); }
+            if (MathF.Abs(_lean - _leanShown) > 0.004f) { _leanShown = _lean; _body.SetInstanceShaderParameter(SnLean, _lean); }
             if (!_phaseSet) { _phaseSet = true; _body.SetInstanceShaderParameter("idle_phase", (GetInstanceId() % 997) * 0.37f); }
         }
         for (int wi = 0; wi < _wheels.Count; wi++)
@@ -1382,7 +1396,7 @@ public partial class CarNode : Node3D
             // the face's painted light stays where the engine's hubcap frames kept it: the shader reads it turned back by the
             // picture's own turn (Basis(Right, -spin) is a turn by +spin in wheel space, UvTurn's sense in the texture)
             if (StillWheelLight && look is { StillLight: { } still, Smooth: { } sm } && node is MeshInstance3D swi && swi.Mesh == sm)
-                swi.SetInstanceShaderParameter("wheel_turn", new Vector3(still.X, still.Y, Mathf.PosMod(still.Z * spin, Mathf.Tau)));
+                swi.SetInstanceShaderParameter(SnWheelTurn, new Vector3(still.X, still.Y, Mathf.PosMod(still.Z * spin, Mathf.Tau)));
             if (front) basis = new Basis(Vector3.Up, -steerA) * basis;
             node.Transform = new Transform3D(basis, Coords.ToGodot(centre with { Y = centre.Y + travelA }));
         }

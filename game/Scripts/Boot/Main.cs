@@ -1764,7 +1764,7 @@ public partial class Main : Node3D
             if ((target - eye).LengthSquared() > 1e-4f) _scriptCam.LookAtFromPosition(eye, target, Vector3.Up);
             else _scriptCam.Position = eye;
         }
-        else if (view.Basis is { } b) _scriptCam.Transform = new Transform3D(Coords.ToGodot(b.ToEngine()), eye);
+        else if (view.Basis is { } b) _scriptCam.Transform = new Transform3D(Coords.ToGodot(b), eye);
         else _scriptCam.Position = eye;
     }
 
@@ -3448,12 +3448,17 @@ public partial class Main : Node3D
         bool fresh = _carCastersSeen != CarNode.PartsVersion;
         _carCastersSeen = CarNode.PartsVersion;
         foreach (var car in _sim.Cars)
-            foreach (var mi in car.DropCasters)
+        {
+            // by index: a foreach over the list interface was an enumerator object a car a frame
+            var casters = car.DropCasters;
+            for (int k = 0; k < casters.Count; k++)
             {
+                var mi = casters[k];
                 if (fresh && _dropsOffMap && mi.CastShadow == GeometryInstance3D.ShadowCastingSetting.On) mi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
                 if (mi.IsVisibleInTree() && mi.Mesh is ArrayMesh m)
                     yield return (m, mi.GlobalTransform, false);
             }
+        }
     }
     private int _carCastersSeen = -1;
 

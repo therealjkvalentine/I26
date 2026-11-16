@@ -11,7 +11,7 @@ public sealed class GodotPads : IPadSource
         && (int)JoyButton.DpadUp == PadButton.DpadUp && (int)JoyButton.DpadLeft == PadButton.DpadLeft && (int)JoyButton.Misc1 == PadButton.Misc1
         && (int)JoyButton.Touchpad == PadButton.Touchpad ? 1 : 0);
 
-    private static List<int> _devices = [];
+    private static readonly List<int> _devices = [], s_all = [], s_known = [];
     private static int _standard;
     private static float _dead = -1;
     private static ulong _devicesAt = ulong.MaxValue;
@@ -26,10 +26,15 @@ public sealed class GodotPads : IPadSource
             using var _ = Hitch.Time(Hitch.Phase.PadEnum);
             // the pads Godot has a standard layout for come first (joystick1 stays the pad when a stick is also plugged in), then every other
             // device: a flight stick or wheel has no mapping and arrives with raw axis and button numbers
-            var all = Input.GetConnectedJoypads().Select(d => (int)d).ToList();
-            var known = all.Where(d => Input.IsJoyKnown(d)).ToList();
+            // into lists kept from frame to frame (the engine's array aside, this was five lists and their LINQ a frame)
+            var all = s_all; all.Clear();
+            foreach (var d in Input.GetConnectedJoypads()) all.Add((int)d);
+            var known = s_known; known.Clear();
+            foreach (int d in all) if (Input.IsJoyKnown(d)) known.Add(d);
             _standard = known.Count;
-            _devices = [.. known, .. all.Where(d => !known.Contains(d))];
+            _devices.Clear();
+            _devices.AddRange(known);
+            foreach (int d in all) if (!known.Contains(d)) _devices.Add(d);
         }
         return _devices;
     }

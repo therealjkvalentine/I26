@@ -325,5 +325,8 @@ public partial class DropShadows : Node3D
 
     /// <summary>ShadowDrape.Plane in Godot space; a car's plane may be a bridge deck's (the structure query is too dear for every prop in reach, which stand on the terrain).</summary>
     private Vector4? Plane(Vector3 centre, Vector3 l, bool onStructures) =>
-        ShadowDrape.Plane(N(centre), N(l), onStructures ? SurfaceN : (x, _, z) => GroundN(x, z)) is { } p ? new Vector4(p.X, p.Y, p.Z, p.W) : null;
+        ShadowDrape.Plane(N(centre), N(l), onStructures ? _surfaceN ??= SurfaceN : _groundN3 ??= (x, _, z) => GroundN(x, z)) is { } p ? new Vector4(p.X, p.Y, p.Z, p.W) : null;
+
+    // the queries as delegates made once (each caster asks every frame; a method group or lambda was a new delegate each time)
+    private Func<float, float, float, float>? _surfaceN, _groundN3;
 }

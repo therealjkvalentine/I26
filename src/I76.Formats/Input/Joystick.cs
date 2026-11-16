@@ -492,8 +492,10 @@ public static class InputChord
     {
         if (terms.Count == 0) return true;
         if (IsDead(terms[^1], bank)) return false;
-        foreach (var t in terms)
+        // by index: a foreach over the list interface makes an enumerator object (asked for every bound key a frame)
+        for (int i = 0; i < terms.Count; i++)
         {
+            var t = terms[i];
             if (IsDead(t, bank)) continue;
             if (Held(t, bank, down) != t.Plus) return false;
         }

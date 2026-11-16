@@ -129,7 +129,7 @@ public partial class CaltropPatches : Node3D
     /// <summary>The drop's jacks: scattered over its quad (its density the same wherever it lies), each turned about the vertical, on the drawn ground.</summary>
     private void Scatter(Round r, int slot, Aabb box, Func<System.Numerics.Vector3, Vector3> toGodot)
     {
-        var basis = Coords.ToGodot(r.Rot.ToEngine());
+        var basis = Coords.ToGodot(r.Rot);
         var at = toGodot(r.Pos);
         var node = toGodot(_anchor);
         int seed = (int)((uint)(r.Pos.X * 7 + r.Pos.Z * 13) & 0x7fffffff) + r.NetId;

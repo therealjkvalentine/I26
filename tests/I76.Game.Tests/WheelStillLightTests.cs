@@ -32,7 +32,9 @@ public class WheelStillLightTests
         // the light at rest is read at the texel's place turned on by wt.z (from +u toward +v), over the light where it is
         Assert.Contains("wt.xy + vec2(c * d.x - s * d.y, s * d.x + c * d.y)", shader);
         var car = Repo("game", "Scripts", "Sim", "CarNode.cs");
-        Assert.Contains("SetInstanceShaderParameter(\"wheel_turn\"", car);
+        // the parameter's name is made once (a StringName kept by CarNode), set every frame
+        Assert.Contains("SnWheelTurn = \"wheel_turn\"", car);
+        Assert.Contains("SetInstanceShaderParameter(SnWheelTurn, ", car);
         Assert.Contains("I76_WHEEL_LIGHT", car);
         var mesh = Repo("game", "Scripts", "Assets", "MeshBuilder.cs");
         Assert.Contains("SetShaderParameter(\"wheel_light\"", mesh);

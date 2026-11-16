@@ -175,6 +175,9 @@ public partial class Hud : CanvasLayer
         _handset.Position = new Vector2(size.X / 2 - 128 * k, size.Y - 128 * k);
     }
 
+    // looked up every frame: the paths made once (a string argument is a new NodePath every call)
+    private static readonly NodePath TargetPath = "Target", CrosshairPath = "Crosshair";
+
     public override void _Process(double delta)
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Hud);
@@ -194,8 +197,8 @@ public partial class Hud : CanvasLayer
             bool inCar = InCockpit?.Invoke() == true;
             _instruments.Visible = Car?.Invoke() is not null && !cut && (inCar ? pit is { Dash3D: false, Binoculars: false } : ExtInstruments?.Invoke() == true);
         }
-        if (GetNodeOrNull<CanvasItem>("Target") is { } target) target.Visible = !cut;
-        if (GetNodeOrNull<CanvasItem>("Crosshair") is { } ch)
+        if (GetNodeOrNull<CanvasItem>(TargetPath) is { } target) target.Visible = !cut;
+        if (GetNodeOrNull<CanvasItem>(CrosshairPath) is { } ch)
             ch.Visible = !cut && I76.Sim.Views.CrosshairPolicy.Shown(ChaseCrosshair.Enabled, Network?.Invoke() == true, HostAllowsCrosshair?.Invoke() == true);
         if (_binoMask is not null)
         {
