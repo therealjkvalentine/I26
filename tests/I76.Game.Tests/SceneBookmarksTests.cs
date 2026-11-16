@@ -54,6 +54,18 @@ public class SceneBookmarksTests : IDisposable
         Assert.Equal("save008", marks.Entries.Where(e => e.Name == "Title 1").Single().Stem);   // after the largest stem there was
     }
 
+    /// <summary>A scene's bookmark made under the name an earlier build gave it ("The Bar-D", before the article was dropped) is that scene's still.</summary>
+    [Fact] public void ABookmarkUnderTheScenesFormerNameIsLeftAlone()
+    {
+        var marks = new Bookmarks();
+        marks.Entries.Add(new Bookmarks.Entry(3, "The Bar-D", "save000", 0, false));
+        marks.Entries.Add(new Bookmarks.Entry(5, "The Save Taurus", "save001", 0, false));   // no scene was ever called that: a bookmark of its own
+        var (made, had) = SceneBookmarks.Generate(marks, I76.Formats.Mission.MissionTitles.SceneName, n => $"car {n}", (stem, json) => File.WriteAllText(Path.Combine(_dir, $"bookmark_{stem}.json"), json));
+        Assert.Equal((16, 1), (made, had));
+        Assert.DoesNotContain(marks.Entries, e => e.Name == "Bar-D");
+        Assert.Contains(marks.Entries, e => e.Scene == 5 && e.Name == "Save Taurus");
+    }
+
     [InstallFact] public void TheInstallHasEachScenesCarAndTitle()
     {
         var vfs = TestInstall.Vfs;

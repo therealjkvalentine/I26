@@ -47,7 +47,7 @@ public class MissionTitlesTests
         // the campaign (A01, T01-T17), then the scenarios in the shell's own order; no melee arena
         string[] t = [.. Enumerable.Range(1, 17).Select(i => $"t{i:00}")];
         Assert.Equal(["a01", .. t, .. MissionTitles.BaseScenarios.Select(s => s.Msn)], list);
-        Assert.Equal("Scene 3: The Bar-D", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t03").Title);
+        Assert.Equal("Scene 3: Bar-D", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t03").Title);
         Assert.Equal("Scene 17: Malocchio", MissionTitles.Coop(TestInstall.Install).First(m => m.Stem == "t17").Title);
         Assert.Equal("Training", MissionTitles.CoopTitle(TestInstall.Install, "a01"));
         Assert.Equal("Oil Well Well", MissionTitles.CoopTitle(TestInstall.Install, "S03"));
@@ -140,6 +140,22 @@ public class MissionTitlesTests
         Assert.Equal("Scene 18", MissionTitles.TripTitle(18));
         Assert.DoesNotContain("Roswell", MissionTitles.SceneNames);
         Assert.DoesNotContain("The Desert War", MissionTitles.SceneNames);
+    }
+
+    /// <summary>The port's scene names lead with no article (the owner: "we do not need "the" infront of the mission descriptions").</summary>
+    [Fact]
+    public void NoSceneNameBeginsWithThe()
+    {
+        Assert.All(MissionTitles.SceneNames, n => Assert.False(n.StartsWith("the ", StringComparison.OrdinalIgnoreCase), n));
+        Assert.Equal("Scene 3: Bar-D", MissionTitles.TripTitle(3));
+        Assert.Equal("Scene 13: Truckstop", MissionTitles.TripTitle(13));
+        // a mid-name "the" is the name's own
+        Assert.Equal("Escort the Van", MissionTitles.SceneName(14));
+        // the scenes renamed keep their earlier names for the bookmarks made under them; the others' are their own
+        Assert.Equal("The Komplex", MissionTitles.FormerSceneName(12));
+        Assert.Equal("Save Taurus", MissionTitles.FormerSceneName(5));
+        // the original's own titles are left as they are (its melee lobby's table)
+        Assert.Equal("The Crater", MissionTitles.BaseArenas[0].Name);
     }
 
     [InstallFact]

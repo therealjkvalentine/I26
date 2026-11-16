@@ -207,14 +207,18 @@ public static class MissionTitles
     /// T01-T17's names, the port's (docs/deviations.md "Scene names"): the original shows a trip mission only as "Scene N" and its
     /// objectives, so each is named by its objectives (the place, the job or the target). The titles the executable holds
     /// for the 17 are never shown by the original and mostly fit other stories than the missions that shipped; they are not used.
-    /// Short enough that "Scene 13: The Truckstop" fits the host form's list row.
+    /// Short enough that "Scene 10: Van to Tatum" fits the host form's list row. No name begins with an article (the owner: "we do not
+    /// need "the" infront of the mission descriptions"): "Bar-D", not "The Bar-D".
     /// </summary>
     public static readonly string[] SceneNames =
     [
-        "Meet Taurus", "Levelland School", "The Bar-D", "Dream Race", "Save Taurus", "Out of Gas",
-        "Highway 380", "The Warehouse", "Disable Calisto", "Van to Tatum", "The Pecos", "The Komplex",
-        "The Truckstop", "Escort the Van", "To Fort Davis", "Fort Davis", "Malocchio",
+        "Meet Taurus", "Levelland School", "Bar-D", "Dream Race", "Save Taurus", "Out of Gas",
+        "Highway 380", "Warehouse", "Disable Calisto", "Van to Tatum", "Pecos", "Komplex",
+        "Truckstop", "Escort the Van", "To Fort Davis", "Fort Davis", "Malocchio",
     ];
+
+    /// <summary>A scene's name as an earlier build gave it ("The Bar-D"), so a bookmark made under it is still that scene's.</summary>
+    public static string FormerSceneName(int n) => n is 3 or 8 or 11 or 12 or 13 ? "The " + SceneName(n) : SceneName(n);
 
     /// <summary>A01's name: the original's main menu button that starts it.</summary>
     public const string TrainingName = "Training";

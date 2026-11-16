@@ -26,7 +26,9 @@ public static class SceneBookmarks
         for (int scene = 1; scene <= Count; scene++)
         {
             var n = name(scene);
-            if (marks.Entries.Any(e => e.Scene == scene && e.Name == n)) { had++; continue; }
+            // (or under the name an earlier build gave the scene: "The Bar-D")
+            string was = I76.Formats.Mission.MissionTitles.FormerSceneName(scene);
+            if (marks.Entries.Any(e => e.Scene == scene && (e.Name == n || e.Name == was))) { had++; continue; }
             var stem = marks.NextStem();
             writeCar(stem, carJson(scene));
             marks.Entries.Add(new Bookmarks.Entry(scene, n, stem, 0, false));
