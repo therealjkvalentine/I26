@@ -222,20 +222,32 @@ public static class GlassRound
     public static (float In, float Width) RingOnScreen(float sd, float unitsPerPx, float rimOut, float ringW, float pxPerUnit) =>
         ((rimOut - sd) / Math.Max(unitsPerPx, 1e-7f), Math.Max(ringW * pxPerUnit, 1f));
 
-    /// <summary>Screen pixels the ring's outer edge reaches past the pane's own outline (cockpit_mirror.gdshader's HULL_OVER), and the blend where the two meet (HULL_SMOOTH).</summary>
-    public const float HullOver = 0.5f, HullSmooth = 1.5f;
-
     /// <summary>
-    /// Screen pixels in from the ring's outer edge as cockpit_mirror.gdshader draws it: the rounded ring's (<paramref name="pxRing"/>,
-    /// RingOnScreen's In) and the pane's own outline's (<paramref name="pxOutline"/>, its distance in over its gradient on screen),
-    /// whichever is further in, blended over HullSmooth pixels where they meet: the outer edge takes in a housing corner sharper than
-    /// the ring's and HullOver pixels past it, and elsewhere is the ring's.
+    /// The ring's outer edge's shape: the pane's outline eroded by a corner radius and widened by it again, and <paramref name="grow"/>
+    /// beyond that, as the glass's rounded shape (<paramref name="core"/>, <paramref name="r"/>) is; its corners as round as the
+    /// glass's, or rounder in no corner, but tighter wherever a corner of the outline (the housing's edge) would stick out past it
+    /// as a point: there the radius is the largest that keeps every corner of the outline <paramref name="margin"/> inside the outer
+    /// edge. Along the straight runs the edge is where it was (the outline lies on them); only the corners differ.
     /// </summary>
-    public static float OuterIn(float pxRing, float pxOutline)
+    public static (List<Vector2> Core, float R) OuterShape(IReadOnlyList<Vector2> hull, List<Vector2> core, float r, float grow, float margin)
     {
-        float h = MathF.Max(HullSmooth - MathF.Abs(pxRing - (pxOutline + HullOver)), 0) / HullSmooth;
-        return MathF.Max(pxRing, pxOutline + HullOver) + h * h * HullSmooth * 0.25f;
+        bool Holds(List<Vector2> c, float rr) => c.Count >= 3 && hull.All(v => Distance(c, v) - rr <= grow - margin);
+        if (Holds(core, r)) return (core, r);
+        float ro = r;
+        for (int i = 0; i < 60; i++)
+        {
+            ro *= 0.9f;
+            if (ro < 1e-4f) break;
+            var c = Erode(hull, ro);
+            if (c.Count is >= 3 and <= MaxCorners && Holds(c, ro)) return (c, ro);
+        }
+        // the outline itself, widened by grow: every corner inside it
+        return ([.. hull], 0f);
     }
+
+    /// <summary>The ring's outer edge grown evenly instead (I76_MIRROR_RIM_POINTS=uniform): the glass's rounded shape widened just enough that every corner of the outline lies <paramref name="margin"/> inside it, or <paramref name="grow"/> where that is further.</summary>
+    public static float UniformGrow(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float r, float grow, float margin) =>
+        Math.Max(grow, Cover(hull, core, r) + margin);
 
     /// <summary>The distance from a point to a convex counter-clockwise polygon, 0 inside it.</summary>
     public static float Distance(IReadOnlyList<Vector2> poly, Vector2 p)
@@ -261,9 +273,8 @@ public static class GlassRound
         hull.Count == 0 ? 0 : Math.Max(0, hull.Max(v => Distance(core, v)) - r);
 
     /// <summary>
-    /// The points the grown glass's mesh is the hull of: the rounded ring's outer edge (the core widened by <paramref name="radius"/>) and
-    /// the pane's own outline, each <paramref name="margin"/> further out (room for the edge's one-pixel blend). The ring's outer edge
-    /// takes in the outline (cockpit_mirror.gdshader), so the moulding's dark reaches a housing corner sharper than the ring's.
+    /// The points the grown glass's mesh is the hull of: the ring's outer edge (its core widened by <paramref name="radius"/>) and
+    /// the pane's own outline, each <paramref name="margin"/> further out (room for the edge's one-pixel blend).
     /// </summary>
     public static List<Vector2> GrownOutline(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float radius, float margin)
     {

@@ -230,39 +230,39 @@ public class MirrorRoundTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The ring's outer edge reaches the housing's corners: a pane sharper-cornered than the rounded ring (a parallelogram sheared as
-    /// the CC cars' glass is, seen at 400 px a glass height) had its corners outside the ring's outer edge; the outer edge now takes
-    /// in the pane's own outline and half a pixel past it, so every corner is covered, while along the straight runs (the outline lies
-    /// there already, the ring's outer edge two widths past it) the edge is exactly the ring's, the band as wide as before.
+    /// No corner of the glass's outline (the housing's edge) shows past the ring as a point: on a pane sharper-cornered than the rounded
+    /// glass (a parallelogram sheared as the CC cars' glass is) the ring as round as the glass left corners outside its outer edge;
+    /// the outer edge's corners are now tightened until every corner of the outline lies inside it, while along the straight runs
+    /// it is where it was (the outline lies on them), so the band is as wide there. The even variant grows the whole ring instead.
     /// </summary>
     [Fact]
-    public void TheOuterEdgeReachesTheHousingsCorners()
+    public void TheRingHidesTheOutlinesPoints()
     {
         var pane = GlassRound.Hull([new(0, 0), new(1.4f, 0), new(1.8f, 1), new(0.4f, 1)]);
         var (core, r) = GlassRound.Shape(pane, GlassRound.DefaultShare)!.Value;
-        float rimOut = GlassRound.DefaultRimOut * MirrorRim.OuterShare, k = 400;
-        float RingIn(Vector2 p) => (rimOut - (GlassRound.Distance(core, p) - r)) * k;
-        float OutlineIn(Vector2 p) => -SignedDistance(pane, p) * k;
-        int opened = 0;
-        foreach (var c in pane)
-        {
-            if (RingIn(c) < 0) opened++;
-            Assert.True(GlassRound.OuterIn(RingIn(c), OutlineIn(c)) >= GlassRound.HullOver - 0.01f, $"corner {c} uncovered");
-            // half the overlap past the corner along its bisector is still inside the outer edge
-            var mid = pane.Aggregate(Vector2.Zero, (a, b) => a + b) / pane.Count;
-            var past = c + (c - mid).Normalized() * (GlassRound.HullOver / 2 / k);
-            Assert.True(GlassRound.OuterIn(RingIn(past), OutlineIn(past)) > 0, $"just past {c} uncovered");
-        }
-        Assert.True(opened >= 2, $"the ring alone left {opened} corners open");
-        // the straight runs: each side's middle, the outer edge the ring's alone
+        float grow = GlassRound.DefaultRimOut * MirrorRim.OuterShare, margin = 0.004f;
+        Assert.Contains(pane, v => GlassRound.Distance(core, v) - r > grow);   // as round as the glass: points stick out
+        var (oc, or) = GlassRound.OuterShape(pane, core, r, grow, margin);
+        Assert.True(or < r);
+        Assert.All(pane, v => Assert.True(GlassRound.Distance(oc, v) - or <= grow - margin + 1e-5f, $"{v} past the ring"));
+        // the straight runs: each side's middle as far inside the outer edge as inside the glass's rounded shape's
         for (int i = 0; i < pane.Count; i++)
         {
             var m = (pane[i] + pane[(i + 1) % pane.Count]) / 2;
-            Assert.Equal(RingIn(m), GlassRound.OuterIn(RingIn(m), OutlineIn(m)), 0.001f);
+            Assert.Equal(SignedDistance(core, m) - r, SignedDistance(oc, m) - or, 0.0005f);
         }
-        // how much thicker the band gets at the sharpest corner: the corner's distance in from the ring's outer edge, in ring widths
-        float widest = pane.Max(c => -RingIn(c)) / (MirrorRim.RingWidth(rimOut) * k);
-        output.WriteLine($"sharpest corner past the ring: {widest:0.00} ring widths");
+        // the band at the sharpest corner, in ring widths (the glass's edge stays one width inside the round shape's outer edge)
+        float corner = pane.Max(v => GlassRound.Distance(core, v) - r - grow) / MirrorRim.RingWidth(grow) + 1;
+        output.WriteLine($"outer corner radius {or:0.000} (glass {r:0.000}); band at the sharpest corner about {corner:0.0} ring widths");
+        // a glass whose corners fit already keeps its shape
+        var rect = GlassRound.Hull([new(0, 0), new(1.5f, 0), new(1.5f, 1), new(0, 1)]);
+        var rs = GlassRound.Shape(rect, GlassRound.DefaultShare)!.Value;
+        float rg = GlassRound.UniformGrow(rect, rs.Core, rs.R, grow, margin);
+        // the even variant: grown until the corners fit, never less than before
+        float ug = GlassRound.UniformGrow(pane, core, r, grow, margin);
+        Assert.True(ug > grow);
+        Assert.All(pane, v => Assert.True(GlassRound.Distance(core, v) - r <= ug - margin + 1e-5f));
+        Assert.True(rg >= grow);
     }
 
     private static float SignedDistance(List<Vector2> poly, Vector2 p)
