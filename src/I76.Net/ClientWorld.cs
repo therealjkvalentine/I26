@@ -127,6 +127,7 @@ public sealed class ClientWorld
         Setup = setup;
         setup.Combat.RemoteSim = true;   // the server decides who jams: a car's flag is the truth here
         setup.Combat.TurretSlew1997 = accept.Turrets1997;   // the host's turret rule, for the prediction
+        setup.World.WrecksStaySolid = accept.WrecksSolid && (accept.Features & PeerFeatures.WrecksSolid) != 0;   // and its wreck rule, as it stood at the join
         _cars = cars ?? new MeleeMirrorCars(setup.Melee ?? throw new ArgumentException("the mirror must be set up as a network melee"));
         // the session numbers the structures (and a mission's own cars) as the server's does; it is never ticked
         Session = new SimSession(setup, SessionOptions.Network, accept.Rate) { IgnitionStaysOn = accept.IgnitionStaysOn };   // the host's rule, for the prediction
@@ -293,6 +294,8 @@ public sealed class ClientWorld
 
     public void Advance(double dt, MeleeClient client)
     {
+        // the host's wreck rule as it holds now (it goes off while a player without it is in the game), for the prediction
+        if (client.Accept is not null) Setup.World.WrecksStaySolid = client.WrecksSolid;
         // a new round on this connection is the next mirror's (the scene that builds it reloads after this one's last
         // frames, or was loading when it began): this one must not take its events, or the cars spawned at its start are
         // lost to both. (A client with no accept and no round is a test's feed.)

@@ -132,6 +132,7 @@ public static class DevSettings
         new("sky_speed", SpeedNames, s => NearestSpeedStep(s.SkySpeed), (s, v) => s.SkySpeed = SpeedSteps[v], DevWhen.NextMission),
         new("death_orbit_speed", SpeedNames, s => NearestSpeedStep(s.DeathOrbitSpeed), (s, v) => s.DeathOrbitSpeed = SpeedSteps[v], DevWhen.Live),
         new("helicopter_hearing", Look(OriginalRecipe.HelicopterHearingNames), s => OfChoice(s.HelicopterHearingChoice), (s, v) => s.HelicopterHearingChoice = ToChoice(v), DevWhen.Live),
+        new("wreck_solid", Look(OriginalRecipe.WreckSolidNames), s => OfChoice(s.WreckSolidChoice), (s, v) => s.WreckSolidChoice = ToChoice(v), DevWhen.Live),
         new("music_tracks", Words(OriginalRecipe.MusicTrackNames), s => s.MusicTracks, (s, v) => s.MusicTracks = v, DevWhen.Live),
         new("garage_radio", ["off", "on" + M], s => s.GarageRadio ? 1 : 0, (s, v) => s.GarageRadio = v != 0, DevWhen.NextScreen),
         new("menu_warmup", ["off", "on" + M], s => s.MenuWarmup ? 1 : 0, (s, v) => s.MenuWarmup = v != 0, DevWhen.NextScreen),

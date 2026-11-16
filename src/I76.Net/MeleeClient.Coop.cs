@@ -48,6 +48,13 @@ public sealed partial class MeleeClient
     /// <summary>The next round is coming: the last round's word goes.</summary>
     private void CoopNewRound() => StartWait = null;   // (the plan stays: the game that carries on reads it after the reload)
 
+    /// <summary>
+    /// Wrecks stay solid in this game now (the port's rule; <see cref="PeerFeatures.WrecksSolid"/>): the accept's word, then the
+    /// server's <see cref="MsgType.WreckRule"/> whenever a player without the rule comes or goes. The mirror's prediction follows it
+    /// (<see cref="ClientWorld.Advance"/>). Never on with an upstream host.
+    /// </summary>
+    public bool WrecksSolid { get; private set; }
+
     /// <summary>The fork's co-op messages from a host that says their bit; false for any other message.</summary>
     private bool ReceiveCoop(MsgType type, ref NetReader r)
     {
@@ -63,6 +70,9 @@ public sealed partial class MeleeClient
             case MsgType.CoopNext when Has(PeerFeatures.CoopNext):
                 Plan = CoopPlan.Read(ref r);
                 PlanAt = Now;
+                return true;
+            case MsgType.WreckRule when Has(PeerFeatures.WrecksSolid):
+                WrecksSolid = r.Bool();
                 return true;
         }
         return false;

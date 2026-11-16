@@ -82,7 +82,10 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         {
             var v = Vehicles[i];
             for (int j = i + 1; j < Vehicles.Count; j++)
+            {
                 if (!v.Wreck && !Vehicles[j].Wreck && !Crashed(v) && !Crashed(Vehicles[j]) && !v.IsEmplacement && !Vehicles[j].IsEmplacement) PairContacts(v, Vehicles[j], frameDelta);
+                else if (WrecksStaySolid) WreckPair(v, Vehicles[j], frameDelta);
+            }
             // the pre-test: a still body meets no scenery (a helicopter on its pad; cars keep the port's sweep as it was)
             if (!v.Wreck && !Crashed(v) && !v.IsEmplacement && !(v.IsHeli && Still(v))) Step.StaticContacts(v, frameDelta, signsOnly: External?.Invoke(v) == true);
         }
@@ -123,6 +126,8 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         foreach (var o in cars)
         {
             if (ReferenceEquals(o, v)) { past = true; continue; }
+            // a wreck that stays solid stops this car as the server's pass has it (WreckPair): this car's record alone
+            if (o.Wreck && SolidWreck(o)) { if (!(past ? PairContacts(v, o, frameDelta, oneSided: v) : PairContacts(o, v, frameDelta, oneSided: v))) PushOut(v, o); continue; }
             if (o.Wreck || Crashed(o) || o.IsEmplacement) continue;
             // the server tests (earlier, later) in its list order
             if (past) PairContacts(v, o, frameDelta, oneSided: v);
@@ -189,8 +194,84 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         bool Near(Vector3 at) => (v.Pos.ToVector3() - at).LengthSquared() <= r * r;
     }
 
-    /// <summary>For two COLP boxes: XZ boxes, swept spheres, then the mesh test both ways.</summary>
-    private void PairContacts(Vehicle a, Vehicle b, float dt, Vehicle? oneSided = null)
+    /// <summary>
+    /// The port's rule, off in the original (docs/deviations.md, "Wrecks stay solid"): a computer car's wreck goes on stopping
+    /// the humans' cars after its wreck timer has unlinked its collider, for as long as it is drawn. It stands where it is, as
+    /// scenery does; computer cars pass through it as in the original, and so does everything while the rule is off. A rule of
+    /// the session: the player's setting offline, the host's in a network game.
+    /// </summary>
+    public bool WrecksStaySolid { get => Step.WrecksAreScenery; set => Step.WrecksAreScenery = value; }
+
+    /// <summary>A human's car met a wreck that stays solid (the damage model's: the car is damaged as by scenery).</summary>
+    public Action<Vehicle, Vehicle, Contact>? WreckContact { get; set; }
+
+    /// <summary>
+    /// A wreck the rule keeps solid: a computer car's (a network player's wreck is hidden, a melee's is taken out of the world,
+    /// a crashed helicopter is not drawn in the 1997 look: none of them is).
+    /// </summary>
+    public bool SolidWreck(Vehicle v) => WrecksStaySolid && v.Wreck && !v.IsHeli && !v.IsEmplacement && !IsHuman(v);
+
+    /// <summary>One of the pair is a wreck: with the rule on, a human's live car against a solid wreck, the car's record alone.</summary>
+    private void WreckPair(Vehicle a, Vehicle b, float dt)
+    {
+        if (a.Wreck == b.Wreck) return;
+        var (wreck, car) = a.Wreck ? (a, b) : (b, a);
+        if (Crashed(car) || car.IsEmplacement || !SolidWreck(wreck) || !IsHuman(car)) return;
+        // it stands: whatever motion its last step left it is not carried into the test
+        if (wreck.Vel != default || wreck.AngVel != default) { wreck.Vel = default; wreck.AngVel = default; wreck.Speed = 0; }
+        if (PairContacts(a, b, dt, oneSided: car)) WreckContact?.Invoke(car, wreck, car.Rec);
+        else PushOut(car, wreck);
+    }
+
+    /// <summary>
+    /// The pair test casts each box's points along the frame's motion and takes a point already inside the other box for no
+    /// hit, as the original's does: between two cars that is a car pushed along, but a wreck that stands would let the car
+    /// that got a point into it (thrown round by its own bounce, turned on the spot) drive on through. So a point of either
+    /// box found inside the other writes the car a contact of its own, out of the wreck along the line between the two.
+    /// </summary>
+    private static void PushOut(Vehicle car, Vehicle wreck)
+    {
+        var (cc, rc) = Sphere(car);
+        var (cw, rw) = Sphere(wreck);
+        if ((cc - cw).LengthSquared() > (rc + rw) * (rc + rw)) return;
+        if (PointInside(car, wreck) is not { } at)
+        {
+            if (PointInside(wreck, car) is not { } theirs) return;
+            // the wreck's point, in the car's frame
+            at = car.Rot.ToLocal(wreck.Pos.ToVector3() + wreck.Rot.ToWorld(theirs) - car.Pos.ToVector3());
+        }
+        var n = car.Pos.ToVector3() - wreck.Pos.ToVector3();
+        n.Y = 0;
+        n = n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : -car.Rot.Forward;
+        // already on its way out: the step's answer turns the velocity about the normal, which would send it back in
+        if (Vector3.Dot(car.Vel, n) > 0.5f) return;
+        if (at.X * at.X < 1e-4f && at.Z * at.Z < 1e-4f) at = new Vector3(0, at.Y, car.BoxZ[3]);
+        car.Rec = new Contact { Hit = true, Other = wreck, OtherMass = wreck.P.Mass, OtherVel = default, T = 0, C = at, RelVel = -car.Vel, N = n };
+    }
+
+    /// <summary>
+    /// The push-out takes the other box a metre taller and deeper: the pair test's one ring of points at mid-height passes over
+    /// a low box (a wreck on its roof is 1 m high) when the car rides up on its springs after a few blows, and the car is in.
+    /// A car a metre clear of the wreck (off a ramp) is over it.
+    /// </summary>
+    private const float HeightSlack = 1f;
+
+    /// <summary>The first of <paramref name="p"/>'s eight mid-height sample points (its own frame) that lies inside <paramref name="q"/>'s box (<see cref="HeightSlack"/>).</summary>
+    private static Vector3? PointInside(Vehicle p, Vehicle q)
+    {
+        float ym = (p.BoxY[1] + p.BoxY[3]) / 2, xm = (p.BoxX[0] + p.BoxX[3]) / 2, zm = (p.BoxZ[0] + p.BoxZ[3]) / 2;
+        var pPos = p.Pos.ToVector3(); var qPos = q.Pos.ToVector3();
+        for (int i = 0; i < 8; i++)
+        {
+            var lp = new Vector3(i is 0 or 6 or 7 ? p.BoxX[0] : i is 1 or 5 ? xm : p.BoxX[3], ym, i <= 2 ? p.BoxZ[0] : i is 3 or 7 ? zm : p.BoxZ[3]);
+            var l = q.Rot.ToLocal(pPos + p.Rot.ToWorld(lp) - qPos);
+            if (l.X > q.BoxX[0] && l.X < q.BoxX[3] && l.Y > q.BoxY[1] - HeightSlack && l.Y < q.BoxY[3] + HeightSlack && l.Z > q.BoxZ[0] && l.Z < q.BoxZ[3]) return lp;
+        }
+        return null;
+    }
+
+    /// <summary>For two COLP boxes: XZ boxes, swept spheres, then the mesh test both ways. Whether a record was written.</summary>
+    private bool PairContacts(Vehicle a, Vehicle b, float dt, Vehicle? oneSided = null)
     {
         var (ca, ra) = Sphere(a);
         var (cb, rb) = Sphere(b);
@@ -198,27 +279,28 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         float minAz = MathF.Min(ca.Z, ca.Z + a.Vel.Z * dt) - ra, maxAz = MathF.Max(ca.Z, ca.Z + a.Vel.Z * dt) + ra;
         float minBx = MathF.Min(cb.X, cb.X + b.Vel.X * dt) - rb, maxBx = MathF.Max(cb.X, cb.X + b.Vel.X * dt) + rb;
         float minBz = MathF.Min(cb.Z, cb.Z + b.Vel.Z * dt) - rb, maxBz = MathF.Max(cb.Z, cb.Z + b.Vel.Z * dt) + rb;
-        if (maxAx < minBx || maxBx < minAx || maxAz < minBz || maxBz < minAz) return;
+        if (maxAx < minBx || maxBx < minAx || maxAz < minBz || maxBz < minAz) return false;
         // Both still -> no contact
-        if (a.Vel.LengthSquared() < 3e-8f && b.Vel.LengthSquared() < 3e-8f) return;
+        if (a.Vel.LengthSquared() < 3e-8f && b.Vel.LengthSquared() < 3e-8f) return false;
         var dv = a.Vel - b.Vel;
         var d0 = cb - ca;
         float vv = dv.LengthSquared();
         float t = vv < 1e-4f ? dt : Vector3.Dot(dv, d0) / vv;
         if (t > dt) t = dt;
         var d = t > 0 ? d0 - dv * t : d0;
-        if (d.LengthSquared() > (ra + rb) * (ra + rb)) return;
+        if (d.LengthSquared() > (ra + rb) * (ra + rb)) return false;
         if (BoxVsBox(a, b, dt) is not { } hit)
         {
-            if (BoxVsBox(b, a, dt) is not { } hit2) return;
-            if (oneSided is not null) { if (oneSided == a) a.Rec = hit2.Q; else b.Rec = hit2.P; return; }
+            if (BoxVsBox(b, a, dt) is not { } hit2) return false;
+            if (oneSided is not null) { if (oneSided == a) a.Rec = hit2.Q; else b.Rec = hit2.P; return true; }
             b.Rec = hit2.P; a.Rec = hit2.Q;
             CarContact?.Invoke(b, a, b.Rec); CarContact?.Invoke(a, b, a.Rec);
-            return;
+            return true;
         }
-        if (oneSided is not null) { if (oneSided == a) a.Rec = hit.P; else b.Rec = hit.Q; return; }
+        if (oneSided is not null) { if (oneSided == a) a.Rec = hit.P; else b.Rec = hit.Q; return true; }
         a.Rec = hit.P; b.Rec = hit.Q;
         CarContact?.Invoke(a, b, a.Rec); CarContact?.Invoke(b, a, b.Rec);
+        return true;
     }
 
     private static (Vector3 C, float R) Sphere(Vehicle v)

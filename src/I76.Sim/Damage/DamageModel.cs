@@ -126,6 +126,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         world.Step.Damage = this;
         world.HeliDamage = this;
         world.CarContact = CarContact;
+        world.WreckContact = WreckContact;
     }
 
     public static bool IsDead(Vehicle v) => (v.Flags & VehicleFlags.Dead) != 0;
@@ -634,6 +635,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         if (AiRammedHuman(self, other, rec)) return;
         Record(self, other, DamageKind.Collision, 8);
     }
+
+    /// <summary>
+    /// A human's car against a wreck that stays solid (the port's rule, <see cref="SimWorld.WrecksStaySolid"/>): the car takes
+    /// what scenery gives it, trunc(m_self·d²·KOther); the wreck takes nothing and is nobody's rammer.
+    /// </summary>
+    public void WreckContact(Vehicle self, Vehicle wreck, Contact rec) =>
+        VehicleSlot(self, Impact(null, self.P.Mass, KOther, rec.N, -self.Vel), rec.C);
 
     /// <summary>
     /// Co-op only (the port's own; docs/deviations.md): an AI car that drove into a human does not name that human its

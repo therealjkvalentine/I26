@@ -61,7 +61,7 @@ public sealed partial class Combat
         object? victim = null;
         foreach (var v in World.Vehicles)
         {
-            if (v == shooter || v.Wreck || v.IsEmplacement) continue;
+            if (v == shooter || v.Wreck && !World.SolidWreck(v) || v.IsEmplacement) continue;
             if (SegmentVsVehicle(v, p0, d) is { } h && h.T < best) { best = h.T; victim = v; }
         }
         if (World.Ground is IHasStatics hs)

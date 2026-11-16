@@ -344,6 +344,7 @@ public sealed partial class MeleeClient : IDisposable
             case MsgType.JoinAccept:
                 WaitingForHost = false;
                 Accept = JoinAccept.Read(ref r);
+                WrecksSolid = Accept.WrecksSolid && Has(PeerFeatures.WrecksSolid);
                 CbMuted = false;
                 Lobby = null;
                 _names.Clear();

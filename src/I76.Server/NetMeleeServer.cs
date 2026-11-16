@@ -558,6 +558,7 @@ public sealed partial class NetMeleeServer : IDisposable
             ExpireInvites();
             LobbyTick();
             CoopStartTick();
+            WreckRuleTick();
             Send();
             MigrationTick();
             CoopEndTick();

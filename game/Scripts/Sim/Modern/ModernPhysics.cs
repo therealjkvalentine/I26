@@ -295,7 +295,8 @@ public partial class ModernPhysics : Node
             if (vn < 0)
             {
                 float m = v.P.Mass, mo = MathF.Max(other.P.Mass, 1f);
-                float j = -(1 + 0.3f) * vn / (1 / m + 1 / mo);
+                // a wreck that stays solid (the port's rule) stands as scenery does: nothing of the blow goes into it
+                float j = -(1 + 0.3f) * vn / (1 / m + (other.Wreck ? 0 : 1 / mo));
                 // at the centre of mass's height: the pair test's points are at the boxes' mid-height, well above
                 // the bumpers, and would lift the nose of a car that rams another
                 var com = _car.Transform.Basis * _car.CenterOfMass;

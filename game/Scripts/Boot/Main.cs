@@ -4356,6 +4356,8 @@ public partial class Main : Node3D
         if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
         FrameLimiter.Pace();
         UpdateMouseCapture();
+        // [port] wreck_solid follows the look in use and the key as they are now (F12, the Developer panel), between ticks
+        if (_sim?.Combat is { } wc) I76.Game.Sim.OriginalBehavior.ApplyWrecks(wc, _mode1997);
         // the window's shape, for Field of View's Monitor and degree choices (the 3D view is scaled uniformly, so its shape is the window's)
         if (GetViewport().GetVisibleRect().Size is { X: > 0, Y: > 0 } vs) I76.Sim.Views.ViewFov.Aspect = vs.X / vs.Y;
         I76.Formats.Input.CockpitReach.ViewHeight = I76.Sim.Views.ViewFov.Main;   // the free head's reach below (#165)

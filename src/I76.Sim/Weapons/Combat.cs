@@ -1559,8 +1559,9 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
         float best = 2f; object? victim = null; Vector3 normal = default; int node = -1;
         foreach (var v in World.Vehicles)
         {
-            // an emplacement is hit through its static collider (any node maps to the root)
-            if (v.Wreck || v.IsEmplacement || (v == r.Shooter && ShooterExcluded(r))) continue;
+            // an emplacement is hit through its static collider (any node maps to the root); a wreck that stays solid
+            // (the port's rule) stops a round as it did while its wreck timer ran
+            if (v.Wreck && !World.SolidWreck(v) || v.IsEmplacement || (v == r.Shooter && ShooterExcluded(r))) continue;
             if (SegmentVsVehicle(v, p0, d) is { } h && h.T < best) { best = h.T; victim = v; normal = h.N; }
         }
         if (World.Ground is IHasStatics hs)
