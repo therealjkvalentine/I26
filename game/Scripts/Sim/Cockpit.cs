@@ -277,6 +277,7 @@ public partial class Cockpit : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cockpit);
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         DashStats.Begin();
         float dt = (float)System.Math.Clamp(delta, 0.001, 0.2);
@@ -311,7 +312,7 @@ public partial class Cockpit : Node
             Compass();
             DamagePanel();
             SpecialsPanel();
-            Radar();
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitRadar)) Radar();
             // the 2D speedometer and tachometer are drawn by the 2D dash and the external instruments, never over the 3D dash
             // or in the binoculars: drawn when they show, from where they were
             if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
@@ -322,12 +323,12 @@ public partial class Cockpit : Node
             Wheel(dt);
             Arms();
             Needles();
-            Mirror();
+            using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitMirror)) Mirror();
         }
         // the dash in the eye's frame, the eye and the needles moved for the frame; once more on leaving the car, to let it go
         if (pit || _pinned) Node3D.PinCockpit(pit);
         _pinned = pit;
-        Panels.Commit();
+        using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CockpitPanels)) Panels.Commit();
         DashStats.End();
         if (_artRedrawnAt != 0)
         {
@@ -1075,7 +1076,7 @@ public partial class Cockpit : Node
         {
             _radarAt = -1;
             retry = _radarLate && _t < _radarNext && !_radarRedraw;
-            if (_t < _radarNext && !_radarRedraw && !_radarLate) return;
+            if (_t < _radarNext && !_radarRedraw && !_radarLate) { RadarAhead(); return; }
             if (!retry)
             {
                 _radarPrev = _radarCur;
@@ -1155,6 +1156,13 @@ public partial class Cockpit : Node
             }
             if (range != _radarDrawn.Range) { RadarStampRect(_radarDrawn.Range, "range_pos", k, h); RadarStampRect(range, "range_pos", k, h); }
             if (led != _radarDrawn.Led) { RadarStampRect(_radarDrawn.Led, "led_pos", k, h); RadarStampRect(led, "led_pos", k, h); }
+            // what is drawn over the frame, before and after, whether it changed or not: a step shown from the strips sent ahead
+            // (RadarFlip) puts the raw frame wherever it changed, and these are drawn over it again
+            _radarSmall.Clear();
+            foreach (var (r, _) in _radarDrawn.Ops) CockpitPanels.AddRect(_radarSmall, r);
+            foreach (var (r, _) in _radarOps) CockpitPanels.AddRect(_radarSmall, r);
+            RadarStampRect(_radarDrawn.Range, "range_pos", k, h, _radarSmall); RadarStampRect(range, "range_pos", k, h, _radarSmall);
+            RadarStampRect(_radarDrawn.Led, "led_pos", k, h, _radarSmall); RadarStampRect(led, "led_pos", k, h, _radarSmall);
         }
         if (!_radarDrawn.Update(frame, range, led, _radarOps, redraw)) return;
         // drawn into one buffer kept from frame to frame: the frame's texels, the range plate, the blips, the LED; in the changed
@@ -1163,10 +1171,14 @@ public partial class Cockpit : Node
         {
             if (_radarWork?.Length != bytes.Length) _radarWork = new byte[bytes.Length];
             RadarCompose(bytes, w, h, k, range, led, new Rect2I(0, 0, w, h));
+            _radarWorkStale = false;
             UploadRadar(_radarWork, w, h, null);
             return;
         }
         if (_radarRects.Count == 0) return;
+        if (!ReferenceEquals(was, frame) && RadarFlip(bytes, was!, frame, w, h, k, range, led)) return;
+        // after a flip the kept buffer is drawn only where it was sent: made whole again before an upload may send all of it
+        if (_radarWorkStale) { RadarCompose(bytes, w, h, k, range, led, new Rect2I(0, 0, w, h)); _radarWorkStale = false; }
         foreach (var r in _radarRects) RadarCompose(bytes, w, h, k, range, led, r.Intersection(new Rect2I(0, 0, w, h)));
         UploadRadar(_radarWork!, w, h, _radarRects);
     }
@@ -1184,17 +1196,81 @@ public partial class Cockpit : Node
         return _radarDiffs[(a, b)] = d;
     }
 
-    /// <summary>Adds a stamped sprite's rectangle on the radar screen (raw rows) to the changed ones.</summary>
-    private void RadarStampRect(string? sprite, string anchor, int k, int h)
+    /// <summary>Adds a stamped sprite's rectangle on the radar screen (raw rows) to the changed ones (or to <paramref name="into"/>).</summary>
+    private void RadarStampRect(string? sprite, string anchor, int k, int h, List<Rect2I>? into = null)
     {
         if (sprite is not null && Panels.StampRect(k, "zrad.map", sprite, anchor) is { } r)
-            CockpitPanels.AddRect(_radarRects, new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y));
+            CockpitPanels.AddRect(into ?? _radarRects, new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y));
+    }
+
+    private readonly List<Rect2I> _radarSmall = [];
+    /// <summary>The kept buffer holds the last frame's texels where a flip copied the new ones on the GPU only.</summary>
+    private bool _radarWorkStale;
+    private readonly List<int> _radarAhead = [];
+
+    /// <summary>
+    /// Between the sweep's steps: the next step's frame (decoded ahead on its worker) sent to the radar's texture a few strips a frame,
+    /// the strips its change crosses, spread over the frames left before the step. The screen shown is not touched; the step then
+    /// copies the changed rectangles into place on the GPU (<see cref="RadarFlip"/>) instead of sending megabytes in its own frame.
+    /// </summary>
+    private void RadarAhead()
+    {
+        if (_radarLive is not { StripCount: > 0 } live || _radarDrawn.Frame is not RadarFrames.Frame shown) return;
+        var next = _radarF[I76.Sim.Weapons.RadarScope.NextSweep(_radarCur)];
+        if (next is null || ReferenceEquals(next, shown) || next.W != live.Width || next.H != live.Height || shown.W != next.W || shown.H != next.H
+            || !_radarFrames.Ready(next) || !_radarFrames.Ready(shown)) return;
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarUpload);
+        MissingStrips(live, RadarDiff(shown, next, next.W, next.H), next, _radarAhead);
+        if (_radarAhead.Count == 0) return;
+        double dt = System.Math.Max(GetProcessDeltaTime(), 0.001);
+        int frames = System.Math.Max(1, (int)((_radarNext - _t) / dt) - 1);
+        int n = (_radarAhead.Count + frames - 1) / frames;
+        var bytes = _radarFrames.Bytes(next);
+        for (int i = 0; i < n; i++) live.SendStrip(bytes, _radarAhead[i], next);
+    }
+
+    /// <summary>The strips the rectangles cross that do not hold <paramref name="frame"/>, into <paramref name="into"/>.</summary>
+    private static void MissingStrips(LiveTexture live, List<Rect2I> rects, RadarFrames.Frame frame, List<int> into)
+    {
+        into.Clear();
+        foreach (var r in rects)
+        {
+            int s0 = System.Math.Max(0, r.Position.Y) / LiveTexture.StripRows, s1 = (System.Math.Min(live.Height, r.End.Y) - 1) / LiveTexture.StripRows;
+            for (int s = s0; s <= s1 && s < live.StripCount; s++)
+                if (!ReferenceEquals(live.StripOf(s), frame) && !into.Contains(s)) into.Add(s);
+        }
+    }
+
+    /// <summary>
+    /// A sweep step from <paramref name="was"/> to <paramref name="frame"/> shown from the strips sent ahead: the rectangles where the
+    /// frames differ copied into place on the GPU, then the blips, the range plate and the LED (before and after) drawn over them and
+    /// sent as before; the picture is the one the rectangles' upload made. False (the usual upload then) where most of the strips were
+    /// not sent ahead (the frame came late, a step skipped, the frame rate too low to spread them).
+    /// </summary>
+    private bool RadarFlip(byte[] bytes, RadarFrames.Frame was, RadarFrames.Frame frame, int w, int h, int k, string? range, string? led)
+    {
+        if (_radarLive is not { StripCount: > 0 } live || live.Width != w || live.Height != h || !_radarFrames.Ready(was)) return false;
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarUpload);
+        var diff = RadarDiff(was, frame, w, h);
+        MissingStrips(live, diff, frame, _radarAhead);
+        // the few still missing go now (they and the copy are ordered on the GPU); more than a quarter of the screen: the usual upload
+        if ((long)_radarAhead.Count * LiveTexture.StripRows * 4 > h) return false;
+        foreach (int s in _radarAhead) live.SendStrip(bytes, s, frame);
+        live.FromStrips(diff);
+        var screen = new Rect2I(0, 0, w, h);
+        foreach (var r in _radarSmall) RadarCompose(bytes, w, h, k, range, led, r.Intersection(screen));
+        if (_radarSmall.Count > 0) live.Update(_radarWork!, _radarSmall);
+        // the kept buffer is drawn only where it is sent; checked, it is made whole first so the GPU's copy is checked against all of it
+        _radarWorkStale = true;
+        if (DashStats.Verify) { RadarCompose(bytes, w, h, k, range, led, screen); _radarWorkStale = false; DashStats.Check("radar", live.Expected(_radarWork!), live.ReadBack()); }
+        return true;
     }
 
     /// <summary>The radar screen drawn in one rectangle <paramref name="r"/> (raw rows) of the kept buffer: the frame, the range plate, the blips, the LED.</summary>
     private void RadarCompose(byte[] frame, int w, int h, int k, string? range, string? led, Rect2I r)
     {
         if (r.Size.X <= 0 || r.Size.Y <= 0) return;
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarCompose);
         for (int y = r.Position.Y; y < r.End.Y; y++) System.Buffer.BlockCopy(frame, (y * w + r.Position.X) * 4, _radarWork!, (y * w + r.Position.X) * 4, r.Size.X * 4);
         // the stamps count rows from the top of the picture
         var top = new Rect2I(r.Position.X, h - r.End.Y, r.Size.X, r.Size.Y);
@@ -1295,6 +1371,7 @@ public partial class Cockpit : Node
     /// <summary>The radar screen's picture (w x h RGBA8, raw rows) to its texture: whole, or only <paramref name="rects"/> (raw rows) of it.</summary>
     private void UploadRadar(byte[] px, int w, int h, List<Rect2I>? rects)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarUpload);
         // a frame of another size (the art made again at another scale, the weapon camera's) is a new picture in the same texture
         RadarScale = System.Math.Max(1, w / _radarBaseW);
         if (_radarLive is null) _radarLive = new LiveTexture(px, w, h);
@@ -1342,7 +1419,7 @@ public partial class Cockpit : Node
         }
         _wcamView.RenderTargetUpdateMode = SubViewport.UpdateMode.Always;
         // the pitch node: the car's pose, the mount's base, the yaw and the pitch (Armory.MuzzleRot), at the turret's pivot, looking down +Z
-        var mount = Node3D.GlobalTransform * new Transform3D(Coords.ToGodot(turret.MuzzleRot.ToEngine()), Coords.ToGodot(turret.TurretPivot ?? turret.MuzzlePos));
+        var mount = Node3D.GlobalTransform * new Transform3D(Coords.ToGodot(turret.MuzzleRot), Coords.ToGodot(turret.TurretPivot ?? turret.MuzzlePos));
         // the view only, not the aim: a helicopter's turret hangs under the body, so its frame is turned over (or on its side) and the horizon
         // with it. The camera keeps the gun's line and rolls to the world's up; aimed straight up or down it has no horizon, and keeps the mount's roll.
         var gun = -mount.Basis.Z;

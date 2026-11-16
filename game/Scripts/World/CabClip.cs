@@ -70,17 +70,18 @@ public partial class CabClip : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CabClip);
         var p = Player();
         bool on = false;
         if (!Off && p is not null && p.IsInsideTree() && p.CockpitCamera is { Current: true } && !p.SeenFromOutside && !p.Wrecked && Box(p, out var c, out var h))
         {
             on = true;
             var inv = (p.GlobalTransform * new Transform3D(Basis.Identity, c)).AffineInverse();
-            RenderingServer.GlobalShaderParameterSet("i76_cab_inv", inv);
-            RenderingServer.GlobalShaderParameterSet("i76_cab_half", h);
+            RenderingServer.GlobalShaderParameterSet(CabInvName, inv);
+            RenderingServer.GlobalShaderParameterSet(CabHalfName, h);
             Inv = inv; Half = h;
         }
-        if (!on && _lastOn && !Off) { RenderingServer.GlobalShaderParameterSet("i76_cab_half", Vector3.Zero); Half = Vector3.Zero; }
+        if (!on && _lastOn && !Off) { RenderingServer.GlobalShaderParameterSet(CabHalfName, Vector3.Zero); Half = Vector3.Zero; }
         _lastOn = on;
 
         int n = 0;
@@ -101,6 +102,9 @@ public partial class CabClip : Node
         Count = n;
         if (Off) return;
         if (n > 0) _tex.Update(_img);
-        RenderingServer.GlobalShaderParameterSet("i76_car_count", n);
+        RenderingServer.GlobalShaderParameterSet(CarCountName, n);
     }
+
+    // the per-frame globals' names made once (a string argument is a new StringName every call)
+    private static readonly StringName CabInvName = "i76_cab_inv", CabHalfName = "i76_cab_half", CarCountName = "i76_car_count";
 }

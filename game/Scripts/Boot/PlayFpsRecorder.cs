@@ -40,6 +40,7 @@ public partial class PlayFpsRecorder : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Recorders);
         ulong now = Time.GetTicksUsec(), frame = Engine.GetProcessFrames();
         // the first frame after a pause or a stall would carry the paused time
         bool steady = _last != 0 && frame == _frame + 1;

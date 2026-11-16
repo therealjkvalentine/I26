@@ -16,7 +16,8 @@ public partial class TerrainNode
     public const float StreamRadius = 7000f;
     private float _radius = StreamRadius, _keep = StreamRadius + 1000f;
     private static readonly int MaxStreamJobs = Math.Clamp(System.Environment.ProcessorCount * 2, 8, 32);
-    private const double StreamBudgetMs = 3;
+    /// <summary>The main thread's time a frame for finished chunks after the first (it was 3 ms: most of a frame at 180 Hz).</summary>
+    private const double StreamBudgetMs = 1;
 
     private bool _stream;
     private static readonly bool Dbg = OS.GetEnvironment("I76_STREAM_DEBUG") == "1";
@@ -28,6 +29,7 @@ public partial class TerrainNode
 
     private sealed record Streamed((Vector3[] V, Vector3[] N, Vector2[] Uv, Vector2[] Uv2, int[] I) Arrays, TerrainLodMesh Coarse, float Lo, float Hi);
     private readonly Dictionary<(int, int), Task<Streamed>> _jobs = [];
+    private readonly List<(int, int)> _jobKeys = [];
     private bool _streamFirst = true;
     /// <summary>The first look makes what is within this of the camera before the first frame (metres).</summary>
     private const float FirstLookRadius = 1000f;
@@ -115,7 +117,9 @@ public partial class TerrainNode
         bool first = _streamFirst || (at - _streamAt).Length() > 2000f;
         // the chunks that finished: put them in, a few a frame
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-        foreach (var k in _jobs.Keys.ToList())
+        _jobKeys.Clear();
+        _jobKeys.AddRange(_jobs.Keys);   // a copy kept from frame to frame (the jobs are removed below); ToList was a new list a frame
+        foreach (var k in _jobKeys)
         {
             var t = _jobs[k];
             if (!t.IsCompleted) continue;

@@ -67,6 +67,7 @@ public partial class SkidMarks : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.SkidMarks);
         _t += (float)delta;
         bool modern = Cars.Values.FirstOrDefault()?.Modern ?? true;
         if (!_seen || modern != _modern)
@@ -134,7 +135,20 @@ public partial class SkidMarks : Node3D
 
     // ---- the triggers, as the original's: the sliding flag, on the two rear tyres
 
-    private static IEnumerable<(int Idx, Wheel W)> Rears(Vehicle v) { yield return (0, v.RearLeft); yield return (1, v.RearRight); }
+    // the two rear wheels, walked without an iterator object (every car, every frame)
+    private static RearPair Rears(Vehicle v) => new(v);
+
+    private readonly struct RearPair(Vehicle v)
+    {
+        public Enumerator GetEnumerator() => new(v);
+
+        public struct Enumerator(Vehicle v)
+        {
+            private int _i = -1;
+            public bool MoveNext() => ++_i < 2;
+            public readonly (int Idx, Wheel W) Current => _i == 0 ? (0, v.RearLeft) : (1, v.RearRight);
+        }
+    }
 
     private static bool Marks(Vehicle v) => !v.IsHeli && !v.IsEmplacement && (v.RearLeft.Offset.Z != 0 || v.RearRight.Offset.Z != 0 || v.RearLeft.Offset.X != 0);
 

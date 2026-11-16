@@ -78,6 +78,7 @@ public partial class TargetViewCamera : Camera3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cameras);
         if (!Current || Player is not { } pn) return;
         Fov = ViewFov.Main;
         float dt0 = Mathf.Clamp((float)delta, 0.001f, 0.2f);

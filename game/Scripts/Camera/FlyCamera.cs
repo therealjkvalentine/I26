@@ -48,6 +48,7 @@ public partial class FlyCamera : Camera3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Cameras);
         if (!Current) return;   // WASDQE are the radar camera, targets...: only the current fly camera reads them
         var d = Vector3.Zero;
         if (Input.IsKeyPressed(Key.W)) d -= Basis.Z;

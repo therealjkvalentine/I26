@@ -227,6 +227,7 @@ public partial class ForceFeedback : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Feedback);
         _throttle.Pump();
         // the pause (+0x08 cleared): DISFFC_STOPALL, and the DLL forgets what was playing
         bool quiet = !Enabled || GetTree().Paused || Held?.Invoke() == true || !Device;

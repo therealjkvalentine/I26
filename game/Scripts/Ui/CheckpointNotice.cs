@@ -44,6 +44,7 @@ public partial class CheckpointNotice : CanvasLayer
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
         // the game's clock: a pause holds the notice too
         if (GetTree().Paused) return;
         _t += delta;

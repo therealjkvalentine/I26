@@ -21,7 +21,11 @@ public partial class CockpitReticle : Control
         MouseFilter = MouseFilterEnum.Ignore;
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
+        QueueRedraw();
+    }
 
     /// <summary>
     /// The ring quad's plane as texture space maps it: the mesh-local position of uv (0, 0) and the steps for one unit of u and of v
@@ -62,6 +66,7 @@ public partial class CockpitReticle : Control
 
     public override void _Draw()
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
         if (!ReticleArt.Drawn || Pit() is not { Faithful: false, Binoculars: var bino } pit || !InCockpit()) return;
         var node = pit.Node3D;
         var ring = bino ? node.Rtc6 : node.Rtc1;

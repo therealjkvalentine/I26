@@ -70,7 +70,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         foreach (var (mat, frames, fps, cockpit) in _animated)
         {
             var t = frames[(int)(seconds * fps) % frames.Length];
-            mat.SetShaderParameter("albedo_tex", t);
+            mat.SetShaderParameter(AlbedoTex, t);
             if (cockpit) SetCockpitArt(mat, t);
         }
     }
@@ -140,6 +140,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
         m.SetShaderParameter("albedo_cockpit", t);
         m.SetShaderParameter("albedo_cockpit_soft", t);
     }
+
+    // the name set every frame for each animated texture, made once (a string argument is a new StringName every call)
+    private static readonly StringName AlbedoTex = "albedo_tex";
 
     /// <summary>A material drawn from both sides: itself if it already is, is a back-to-back face's or is not an object material, else a copy, made once and kept.</summary>
     public Material BothSides(Material m)

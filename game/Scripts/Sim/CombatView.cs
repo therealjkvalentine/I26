@@ -85,6 +85,8 @@ public partial class CombatView : Node3D
     }
 
     private readonly Dictionary<string, Voice3D> _lockTones = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<KeyValuePair<string, Voice3D>> _lockScratch = [];
+    private readonly List<KeyValuePair<Weapon, double>> _gunScratch = [];
     private readonly List<string> _lockWanted = [];
 
     /// <summary>
@@ -100,7 +102,9 @@ public partial class CombatView : Node3D
             if (Combat.LockedOn.Contains(me)) _lockWanted.Add("msllock3.wav");
         }
         var car = Combat.World.Player is { } p ? CarOf?.Invoke(p) : null;
-        foreach (var (name, v) in _lockTones.ToList())
+        _lockScratch.Clear();
+        foreach (var kv in _lockTones) _lockScratch.Add(kv);   // a copy kept from frame to frame (ToList was a new list a frame)
+        foreach (var (name, v) in _lockScratch)
         {
             if (IsInstanceValid(v) && car is not null && v.GetParent() == car && _lockWanted.Contains(name)) continue;
             if (IsInstanceValid(v)) v.QueueFree();
@@ -123,7 +127,9 @@ public partial class CombatView : Node3D
     /// </summary>
     private void StopIdleGuns()
     {
-        foreach (var (w, last) in _gunLastShot.ToList())
+        _gunScratch.Clear();
+        foreach (var kv in _gunLastShot) _gunScratch.Add(kv);
+        foreach (var (w, last) in _gunScratch)
         {
             if (!_gunSounds.TryGetValue(w, out var p) || !IsInstanceValid(p)) { _gunLastShot.Remove(w); _gunGap.Remove(w); _gunPrevShot.Remove(w); _gunSounds.Remove(w); continue; }
             // never past one run of the sample: a slow weapon (a mine a second) plays it once, not round again
@@ -429,6 +435,8 @@ public partial class CombatView : Node3D
     private Vector3 CameraPos() => GetViewport().GetCamera3D()?.GlobalPosition ?? Vector3.Zero;
 
     private Vector3 G(System.Numerics.Vector3 p) => Coords.ToGodot(p - Origin());
+    private Func<System.Numerics.Vector3, Vector3>? _g;
+    private Func<I76.Sim.Weapons.Round, Aabb?>? _patch;
 
     private World.Drawn1997? _drawn;
 
@@ -477,7 +485,7 @@ public partial class CombatView : Node3D
             return uvs[best];
         }
         Vector2 c00 = Corner(x0, z0), c10 = Corner(x1, z0), c01 = Corner(x0, z1), c11 = Corner(x1, z1);
-        var basis = Coords.ToGodot(r.Rot.ToEngine());
+        var basis = Coords.ToGodot(r.Rot);
         var centre = at + basis * new Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2);
         var mesh = GroundMark.Drape(basis.X, basis.Z, centre, x1 - x0, z1 - z0, SlickSpacing, SlickLift, DrawnY,
             (u, v) => c00.Lerp(c10, u).Lerp(c01.Lerp(c11, u), v));
@@ -800,6 +808,7 @@ public partial class CombatView : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.CombatView);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         _t += delta;
         bool skipBlast = false;
@@ -953,10 +962,12 @@ public partial class CombatView : Node3D
         float serverAlpha = Alpha?.Invoke() ?? 1f, predictedAlpha = PredictedAlpha?.Invoke() ?? serverAlpha;
         float alpha = serverAlpha;
         _contrails.Frame(rounds, serverAlpha, modern, predictedFrom, predictedAlpha);
-        _oil.Frame(rounds, modern, G);
-        _caltrops.Frame(rounds, modern, G, r => OrdnanceMesh(r.Def)?.GetAabb());
-        _fire.Frame(rounds, modern, G, CameraPos());
-        _chem.Frame(rounds, modern, G, delta);
+        // the delegates made once (method groups and a lambda passed every frame were four or five new delegates a frame)
+        var g = _g ??= G;
+        _oil.Frame(rounds, modern, g);
+        _caltrops.Frame(rounds, modern, g, _patch ??= r => OrdnanceMesh(r.Def)?.GetAabb());
+        _fire.Frame(rounds, modern, g, CameraPos());
+        _chem.Frame(rounds, modern, g, delta);
         while (_pool.Count < rounds.Count)
         {
             var m = new MeshInstance3D { Mesh = _box, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
@@ -1010,7 +1021,7 @@ public partial class CombatView : Node3D
                 // the fireball is a card: the frame's camera-facing turn instead of its own pose (the position stays)
                 var pose = ball && GetViewport()?.GetCamera3D() is { } cam
                     ? Coords.ToGodot(I76.Formats.Assembly.Billboard.EngineRows(Coords.ToGame(-cam.GlobalBasis.Z)))
-                    : Coords.ToGodot(r.Rot.ToEngine());
+                    : Coords.ToGodot(r.Rot);
                 mi.Transform = draped is not null ? new Transform3D(Basis.Identity, G(r.Pos)) : new Transform3D(pose, head);
                 mi.MaterialOverride = slick ? SlickMaterial(r) : ball ? FireballMaterial(r) : null;
                 mi.CastShadow = slick || ball ? GeometryInstance3D.ShadowCastingSetting.Off : GeometryInstance3D.ShadowCastingSetting.On;

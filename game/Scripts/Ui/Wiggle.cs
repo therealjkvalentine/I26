@@ -72,6 +72,7 @@ public partial class Wiggle : CanvasLayer
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.UiWiggle);
         // I76_CRASH_BLUR_AT=N (capture hook): at frame N the player takes the impact an AI car at 25 m/s head-on dealt (783), as the sim would send it
         if (CaptureAt >= 0 && ++_frames == CaptureAt)
         {

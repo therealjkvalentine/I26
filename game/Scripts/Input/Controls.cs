@@ -396,7 +396,12 @@ public static class Controls
         : name.EndsWith("Control", StringComparison.OrdinalIgnoreCase) ? Godot.Input.IsKeyPressed(Key.Ctrl)
         : KeyOf(name) is { } k && Godot.Input.IsKeyPressed(k);
 
-    private static bool IsModifier(string name) => ModifierNames.Any(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    private static bool IsModifier(string name)
+    {
+        // a loop, not Any with a lambda: asked for every bound key a frame, the lambda's closure was garbage each time
+        foreach (var (n, _) in ModifierNames) if (n.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     /// <summary>
     /// Every input event, first: a Shift, Control or Alt the engine still holds while the event's own flags (the system's, of the
@@ -431,6 +436,8 @@ public static class Controls
 
     // a term counts while a chat line is typed only if it is a pad's
     private static bool TermLive(InputTerm t) => (!Suspended || JoystickBank.DeviceOf(t.Device) >= 0) && TermDown(t);
+    // made once: a method group passed as a delegate is a new delegate every call (Down is asked many times a frame)
+    private static readonly Func<InputTerm, bool> s_termLive = TermLive;
 
     /// <summary>A network game's menu, picture or movie is up over the running game: the sim does not wait, so the player's own
     /// keys are held back (no glance, no steering) while it is, but the menus still read the keyboard.</summary>
@@ -441,7 +448,7 @@ public static class Controls
     {
         if (Held?.Invoke() == true) return false;
         Refresh();
-        return Table.Rules.Holds(Table, command, Pads, TermLive);
+        return Table.Rules.Holds(Table, command, Pads, s_termLive);
     }
 
     /// <summary>Whether only an axis rule holds the command (a pedal past its line), no key or button bound to it.</summary>
@@ -449,7 +456,7 @@ public static class Controls
     {
         if (Held?.Invoke() == true) return false;
         Refresh();
-        return Table.Rules.Held(command) && !Table.Rules.BindingHolds(Table, command, Pads, TermLive);
+        return Table.Rules.Held(command) && !Table.Rules.BindingHolds(Table, command, Pads, s_termLive);
     }
 
     /// <summary>The term, as it stands while this event happens (Shift and Control by the event's own flags).</summary>

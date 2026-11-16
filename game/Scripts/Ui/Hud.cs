@@ -175,8 +175,12 @@ public partial class Hud : CanvasLayer
         _handset.Position = new Vector2(size.X / 2 - 128 * k, size.Y - 128 * k);
     }
 
+    // looked up every frame: the paths made once (a string argument is a new NodePath every call)
+    private static readonly NodePath TargetPath = "Target", CrosshairPath = "Crosshair";
+
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Hud);
         // a destroyed player's screen is the death orbit alone: the instruments, the brackets and the handset go until a
         // network game's respawn gives the car back (the original draws none of them for a dead driver)
         bool dead = Car?.Invoke() is { } me && (me.Flags & VehicleFlags.Dead) != 0;
@@ -193,8 +197,8 @@ public partial class Hud : CanvasLayer
             bool inCar = InCockpit?.Invoke() == true;
             _instruments.Visible = Car?.Invoke() is not null && !cut && (inCar ? pit is { Dash3D: false, Binoculars: false } : ExtInstruments?.Invoke() == true);
         }
-        if (GetNodeOrNull<CanvasItem>("Target") is { } target) target.Visible = !cut;
-        if (GetNodeOrNull<CanvasItem>("Crosshair") is { } ch)
+        if (GetNodeOrNull<CanvasItem>(TargetPath) is { } target) target.Visible = !cut;
+        if (GetNodeOrNull<CanvasItem>(CrosshairPath) is { } ch)
             ch.Visible = !cut && I76.Sim.Views.CrosshairPolicy.Shown(ChaseCrosshair.Enabled, Network?.Invoke() == true, HostAllowsCrosshair?.Invoke() == true);
         if (_binoMask is not null)
         {
@@ -279,7 +283,11 @@ public partial class ChaseCrosshair : Control
         TextureFilter = TextureFilterEnum.Nearest;
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
+        QueueRedraw();
+    }
 
     /// <summary>The weapons that fire with the trigger now: the selected one, and with the link on the ones linked to it.</summary>
     private static IEnumerable<I76.Sim.Weapons.Weapon> Firing(I76.Sim.Weapons.Armory a)
@@ -293,6 +301,7 @@ public partial class ChaseCrosshair : Control
 
     public override void _Draw()
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Hud);
         if (!Enabled || InCockpit?.Invoke() == true || Player() is not { } p || I76.Sim.Weapons.Combat.IsDead(p) || p.Armory is not { } a) return;
         var cam = GetViewport().GetCamera3D();
         if (cam is not I76.Game.Camera.ChaseCamera { Fixed: null }) return;

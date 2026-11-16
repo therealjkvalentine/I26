@@ -243,6 +243,7 @@ public partial class BassShaker : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Feedback);
         long t0 = Times.On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         Process(delta);
         if (Times.On) Times.Frame(delta, System.Diagnostics.Stopwatch.GetTimestamp() - t0, GetTree());
@@ -273,7 +274,7 @@ public partial class BassShaker : Node
         I76.Game.Ui.DevSignals.Shaker(_synth.Peak);
         if (LogEvery > 0) Log(n, delta);
         for (int i = 0; i < n; i++) _frames[i] = new Vector2(_stereoPair ? _block[i] : 0, _block[i]);
-        _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
+        _playback.PushBuffer(_frames.AsSpan(0, n));   // a span: the slice was a new array most frames
     }
 
     /// <summary>A damage packet reaching the player's car (DamageModel.Damaging): felt at the next tick.</summary>

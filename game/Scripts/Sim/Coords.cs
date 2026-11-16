@@ -27,6 +27,10 @@ public static class Coords
                          new Vector3(M(0, 2), M(1, 2), M(2, 2)));
     }
 
+    /// <summary>The same for a rotation's rows, without the array <c>ToEngine</c> makes (the cars and rounds are placed every frame).</summary>
+    public static Basis ToGodot(I76.Sim.Math.Rows r) =>
+        new(new Vector3(r.Right.X, r.Right.Y, -r.Right.Z), new Vector3(r.Up.X, r.Up.Y, -r.Up.Z), new Vector3(-r.Forward.X, -r.Forward.Y, r.Forward.Z));
+
     /// <summary>An Affine (already column-vector maths, R·p + t) to Godot.</summary>
     public static Transform3D ToGodot(Affine a)
     {

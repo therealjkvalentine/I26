@@ -125,6 +125,7 @@ public partial class TelemetryOut : Node
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Telemetry);
         if (_driver is null) return;
         ulong usec = Time.GetTicksUsec();
         if (_startUsec == ulong.MaxValue) _startUsec = usec;

@@ -51,7 +51,7 @@ public sealed class CarVoices(SimDriver d)
     {
         if (file is null || d.Audio?.Get(file) is not { } s) return;
         if (voices.TryGetValue(v, out var old) && Live(old) && old.Playing) return;
-        var car = d.Cars.FirstOrDefault(c => c.Sim == v);
+        var car = CarOf(v);
         if (car is null) return;
         var p = Voice3D.OneShot(s);
         p.Name = name;
@@ -90,6 +90,13 @@ public sealed class CarVoices(SimDriver d)
     /// priority 60, two voices of it at once, so it loops until it is stopped. Off, the car's siren is stopped; so is it when the
     /// car's death timer ends in a wreck (it wails through the 10 s the car burns).
     /// </summary>
+    /// <summary>The vehicle's node (a loop, not FirstOrDefault with a lambda: its closure was made for every entity every frame).</summary>
+    private CarNode? CarOf(Vehicle v)
+    {
+        foreach (var c in d.Cars) if (c.Sim == v) return c;
+        return null;
+    }
+
     private void Sirens()
     {
         if (d.Script?.Host.Entities is not { } entities || d.Audio is null) return;
@@ -103,7 +110,7 @@ public sealed class CarVoices(SimDriver d)
             _sirenWas[e] = on;
             if (!on) { if (_sirens.Remove(v, out var s) && Live(s)) { s.Stop(); s.QueueFree(); Voice3D.Trace($"stop Siren on {e.Name}"); } }
             else if (_sirenLoops != true) Once(_sirens, v, file, "Siren");
-            else if (d.Audio.Get(file, loop: true) is { } loop && d.Cars.FirstOrDefault(c => c.Sim == v) is { } car)
+            else if (d.Audio.Get(file, loop: true) is { } loop && CarOf(v) is { } car)
             {
                 if (_sirens.Remove(v, out var old) && Live(old)) { old.Stop(); old.QueueFree(); }
                 var p = Voice3D.OneShot(loop, file, d.Audio.Limits(file));

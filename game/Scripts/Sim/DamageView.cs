@@ -367,6 +367,7 @@ public partial class DamageView : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.DamageView);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         _t += delta;
         foreach (var e in Damage.Events)
@@ -482,16 +483,21 @@ public partial class DamageView : Node3D
                 }
         foreach (var car in Cars.Values)
         {
+            // the lambda (a closure a car) made only for a car with a tyre to change: every frame it was garbage for every car
+            if (!car.TyresChanged) continue;
             I76.Formats.Assembly.AssembledModel? m = null;
             car.SyncTyres((slot, blown) => TyreMesh(car.Definition, slot, blown, ref m));
         }
         for (int i = _debris.Count - 1; i >= 0; i--)
             if (_t > _debris[i].Until) { _debris[i].Body.QueueFree(); _debris.RemoveAt(i); }
-        foreach (var (car, fire) in _fires.Where(kv => kv.Value.Finished).ToList())
-        {
-            _fires.Remove(car);
-            fire.QueueFree();
-        }
+        List<(CarNode, WreckFire)>? done = null;
+        foreach (var (car, fire) in _fires) if (fire.Finished) (done ??= []).Add((car, fire));
+        if (done is not null)
+            foreach (var (car, fire) in done)
+            {
+                _fires.Remove(car);
+                fire.QueueFree();
+            }
     }
 
     /// <summary>

@@ -19,7 +19,10 @@ public static class Hitch
     private static long[] _kinds = new long[5];
 
     /// <summary>The render pipelines compiled so far, by kind: canvas, mesh (at load), surface (first draw), draw (a stall in the draw call), specialization (in the background).</summary>
-    private static long[] Kinds() => new[] { RenderingServer.RenderingInfo.PipelineCompilationsCanvas, RenderingServer.RenderingInfo.PipelineCompilationsMesh, RenderingServer.RenderingInfo.PipelineCompilationsSurface, RenderingServer.RenderingInfo.PipelineCompilationsDraw, RenderingServer.RenderingInfo.PipelineCompilationsSpecialization }.Select(k => (long)RenderingServer.GetRenderingInfo(k)).ToArray();
+    private static readonly RenderingServer.RenderingInfo[] KindInfo = [RenderingServer.RenderingInfo.PipelineCompilationsCanvas, RenderingServer.RenderingInfo.PipelineCompilationsMesh, RenderingServer.RenderingInfo.PipelineCompilationsSurface, RenderingServer.RenderingInfo.PipelineCompilationsDraw, RenderingServer.RenderingInfo.PipelineCompilationsSpecialization];
+    private static long[] Kinds() { var k = new long[KindInfo.Length]; KindsInto(k); return k; }
+    // read every frame into the kept array (it was a new array and a LINQ chain a frame)
+    private static void KindsInto(long[] into) { for (int i = 0; i < KindInfo.Length; i++) into[i] = (long)RenderingServer.GetRenderingInfo(KindInfo[i]); }
     private static readonly long[] Ticks = new long[(int)Phase.Count];
     private static readonly long[] Worst = new long[(int)Phase.Count];     // the longest single scope of each phase this frame
     private static readonly string[] Names = ["input sampling", "rumble driver call", "force feedback tick", "sim tick", "shell", "joypad enumeration", "pad hot-plug handling", "mission build (behind the loading card)", "effect views (combat, damage, fire, smoke)"];
@@ -80,7 +83,7 @@ public static class Hitch
             if (LimitMs < 200) { var now = Kinds(); line += $" pipelines {now.Sum() - _pipes} (total {now.Sum()}; canvas/mesh/surface/draw/specialization {string.Join('/', now.Select((n, k) => n - _kinds[k]))})"; }
             if (LimitMs < 200) line += $" [terrain update {I76.Game.Boot.FrameProfiler.TerrainUpdateMs:0.0} ms, gc0 {GC.CollectionCount(0)} gc2 {GC.CollectionCount(2)}]";
         }
-        { _kinds = Kinds(); _pipes = _kinds.Sum(); }
+        { KindsInto(_kinds); long p = 0; foreach (long k in _kinds) p += k; _pipes = p; }
         if (reset) { Array.Clear(Ticks); Array.Clear(Worst); }
         return line;
     }

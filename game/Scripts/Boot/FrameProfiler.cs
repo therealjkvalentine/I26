@@ -52,6 +52,10 @@ public partial class FrameProfiler : Node
 
     /// <summary>The mission is built and its first tick done (Main): I76_FRAME_PROFILE_SKIP_MS counts from here.</summary>
     public static void MarkLoaded() => _loadedAt = Now();
+    /// <summary>When the mission counted as loaded (Stopwatch milliseconds; 0: not yet), for <see cref="FrameSections"/>'s window too.</summary>
+    public static double LoadedAt => _loadedAt;
+    /// <summary>The player's car was destroyed since the start (<see cref="PlayerDied"/>).</summary>
+    public static bool Died => _died;
     private readonly Dictionary<string, List<double>> _series = [];
     private readonly Dictionary<string, double> _frame = [];
     private readonly List<string> _order = [];

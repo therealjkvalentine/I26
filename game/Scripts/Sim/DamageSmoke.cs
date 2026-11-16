@@ -224,6 +224,7 @@ public partial class DamageSmoke : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         if (!_ready) return;
         bool modern = Cars.Values.FirstOrDefault()?.Modern ?? true;
@@ -528,7 +529,7 @@ public partial class DamageSmoke : Node3D
         float ox = r1 - 0.5f, oz = RearZ(car) - 1 + r2 - 0.5f, oy = 0.2f + 1 + 0.5f * r3;
         // from the car where the sim has it at this tick, not where it is drawn this frame (between two ticks): spawned off the drawn
         // car and drawn at its ticks, a puff jumped against the car by up to a tick's travel from frame to frame, through the cab at speed
-        var off = Coords.ToGame(Coords.ToGodot(v.Rot.ToEngine()) * new Vector3(ox, oy, -oz));
+        var off = Coords.ToGame(Coords.ToGodot(v.Rot) * new Vector3(ox, oy, -oz));
         var g = new I76.Sim.Math.Double3(v.Pos.X + off.X, v.Pos.Y + off.Y, v.Pos.Z + off.Z);
         var vel = v.Vel;
         float speed = v.Speed;

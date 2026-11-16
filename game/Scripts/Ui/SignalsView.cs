@@ -51,7 +51,11 @@ public partial class SignalsView : Control
         if (what == NotificationThemeChanged) UpdateMinimumSize();
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
+        QueueRedraw();
+    }
 
     public override void _Draw()
     {

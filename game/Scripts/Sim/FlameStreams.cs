@@ -55,6 +55,7 @@ public partial class FlameStreams : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         _t += delta;
         _im.ClearSurfaces();
         bool modern = Modern?.Invoke() ?? true;

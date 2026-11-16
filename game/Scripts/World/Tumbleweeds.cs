@@ -24,6 +24,7 @@ public partial class TumbleweedNode : Node3D
     private readonly float[][] _buf = new float[Variants][];
     private MultiMeshInstance3D _shade = null!;
     private readonly float[] _shadeBuf = new float[Capacity * 16];
+    private readonly int[] _counts = new int[Variants];
     private ShaderMaterial _material = null!, _shadeMaterial = null!;
     // the cars' last positions (game frame), by node id, for their velocity
     private readonly Dictionary<ulong, System.Numerics.Vector3> _carsBefore = [];
@@ -106,6 +107,7 @@ public partial class TumbleweedNode : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Tumbleweeds);
         if (!IsVisibleInTree() || _field.Count == 0 || GetViewport()?.GetCamera3D() is not { } cam || GetParent<Node3D>() is not { } veg) return;
         // the game frame: the vegetation node sits in the world root, the game frame mirrored and shifted
         var l = veg.ToLocal(cam.GlobalPosition);
@@ -168,7 +170,8 @@ public partial class TumbleweedNode : Node3D
         // the anchor moves in 256 m steps, so the instances' offsets stay small (float precision far out on the map)
         var anchor = new Vector3(MathF.Round(eye.X / 256f) * 256f, 0, MathF.Round(eye.Z / 256f) * 256f);
         var at = Coords.ToGodot(anchor.X, 0, anchor.Z);
-        var counts = new int[Variants];
+        var counts = _counts;   // kept (a new array a frame before)
+        System.Array.Clear(counts);
         int shades = 0;
         void Add(in Tumble t)
         {

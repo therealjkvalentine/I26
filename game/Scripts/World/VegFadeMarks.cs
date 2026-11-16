@@ -19,10 +19,15 @@ public partial class VegFadeMarks : Control
         MouseFilter = MouseFilterEnum.Ignore;
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
+        QueueRedraw();
+    }
 
     public override void _Draw()
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Overlays);
         if (GetViewport()?.GetCamera3D() is not { } cam) return;
         var font = ThemeDB.FallbackFont;
         foreach (var (g, d, kind) in Marks)

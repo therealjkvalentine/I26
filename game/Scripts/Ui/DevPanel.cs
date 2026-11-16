@@ -184,7 +184,11 @@ public partial class DevPanel : Control
         _rescale();
     }
 
-    public override void _Process(double delta) => _status.Text = Host.DevStatus();
+    public override void _Process(double delta)
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
+        _status.Text = Host.DevStatus();
+    }
 
     public override void _Input(InputEvent e)
     {

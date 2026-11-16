@@ -19,6 +19,9 @@ public partial class DebugOverlay : CanvasLayer
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Ui);
+        // made only while it shows (Ctrl+F3 sets Visible before the frame's process step): hidden, it was some 10 kB of strings a frame
+        if (!Visible) return;
         _label.Text = $"{Engine.GetFramesPerSecond():0} fps\n" + (Text?.Invoke() ?? "");
     }
 }

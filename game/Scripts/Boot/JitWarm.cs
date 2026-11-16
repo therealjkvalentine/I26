@@ -13,6 +13,29 @@ public static class JitWarm
 {
     private static int _done;
 
+    /// <summary>
+    /// The game's, the simulation's and the formats' code compiled behind the first mission's loading card, on a worker below the main
+    /// thread's priority, once a run: the first use of a path in play (a weapon's first shot, a wreck's first fire, a menu) then no
+    /// longer stops a frame for the JIT. I76_JIT_WARM=0 leaves it out (docs/dev-hooks.md).
+    /// </summary>
+    public static void Start()
+    {
+        if (System.Environment.GetEnvironmentVariable("I76_JIT_WARM") == "0" || System.Threading.Volatile.Read(ref _done) == 1) return;
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            var me = System.Threading.Thread.CurrentThread;
+            var was = me.Priority;
+            me.Priority = System.Threading.ThreadPriority.BelowNormal;
+            try
+            {
+                var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                int n = Prepare(typeof(JitWarm).Assembly, typeof(I76.Sim.Session.SimSession).Assembly, typeof(I76.Formats.Vfs.AssetVfs).Assembly);
+                Godot.GD.Print($"jit warm-up: {n} methods compiled ahead in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");
+            }
+            finally { me.Priority = was; }
+        });
+    }
+
     /// <summary>Every method of these assemblies' types compiled, once a run (the second call does nothing); the count compiled.</summary>
     public static int Prepare(params Assembly[] assemblies)
     {

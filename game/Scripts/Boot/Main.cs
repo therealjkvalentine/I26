@@ -313,6 +313,7 @@ public partial class Main : Node3D
         // once a run, under the root: sees the engine's exit through (an exit hang of Godot's on Wayland)
         ExitWatchdog.Install(GetTree());
         HitchWatch.Install(GetTree());
+        FrameSections.Install(GetTree());
         MusicProbe.Install(GetTree());
         Controls.InstallDir = _opt.Install;
         GameKeys.InstallDir = _opt.Install;
@@ -1763,7 +1764,7 @@ public partial class Main : Node3D
             if ((target - eye).LengthSquared() > 1e-4f) _scriptCam.LookAtFromPosition(eye, target, Vector3.Up);
             else _scriptCam.Position = eye;
         }
-        else if (view.Basis is { } b) _scriptCam.Transform = new Transform3D(Coords.ToGodot(b.ToEngine()), eye);
+        else if (view.Basis is { } b) _scriptCam.Transform = new Transform3D(Coords.ToGodot(b), eye);
         else _scriptCam.Position = eye;
     }
 
@@ -1786,6 +1787,7 @@ public partial class Main : Node3D
     {
         var install = new GameInstall(_opt.Install!);
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        JitWarm.Start();
         var vfs = new AssetVfs(install);
         var msn = MissionPath(install);
         var builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
@@ -3447,12 +3449,17 @@ public partial class Main : Node3D
         bool fresh = _carCastersSeen != CarNode.PartsVersion;
         _carCastersSeen = CarNode.PartsVersion;
         foreach (var car in _sim.Cars)
-            foreach (var mi in car.DropCasters)
+        {
+            // by index: a foreach over the list interface was an enumerator object a car a frame
+            var casters = car.DropCasters;
+            for (int k = 0; k < casters.Count; k++)
             {
+                var mi = casters[k];
                 if (fresh && _dropsOffMap && mi.CastShadow == GeometryInstance3D.ShadowCastingSetting.On) mi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
                 if (mi.IsVisibleInTree() && mi.Mesh is ArrayMesh m)
                     yield return (m, mi.GlobalTransform, false);
             }
+        }
     }
     private int _carCastersSeen = -1;
 
@@ -4307,6 +4314,7 @@ public partial class Main : Node3D
 
         public override void _Process(double delta)
         {
+            using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Recorders);
             _n++;
             Record();
             Owner.UpdateMouseCapture();
@@ -4355,6 +4363,7 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Main);
         if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
         FrameLimiter.Pace();
         UpdateMouseCapture();
@@ -4434,7 +4443,7 @@ public partial class Main : Node3D
             _cam.SetYawPitch(fa[3], fa[4]);
         }
         LeaveDeadCockpit();
-        if (PlayerDead && _net is null && FrameProfiler.Enabled) FrameProfiler.PlayerDied();
+        if (PlayerDead && _net is null && (FrameProfiler.Enabled || FrameSections.On)) FrameProfiler.PlayerDied();
         if (_car is not null) _car.HoodView = _preset is { Current: true, Mode: PresetCamera.View.Orbit };   // F6 does not draw the player's car
         TrackLatestRound();
         CheckpointFrame();
