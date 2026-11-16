@@ -33,6 +33,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
 //   i76 [--install DIR] [--nitro-install DIR] target-weight [--buffer 0.10] [--tsv OUT] [--md OUT] [--cars OUT] [MISSION...]   each trip mission's (and Nitro scenario's) opposition weight and a fair player car's budget (TargetWeightCommand)
 //   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
+//   i76 [--install DIR] tick-bench t01|t05|t06|melee8|resim [--rate HZ] [--minutes 5] [--split] [--hashes FILE]   the sim's tick timed headless (docs/perf/tick-bench.md)
 
 var argv = args.ToList();
 if (argv.Count > 0 && argv[0] == "installer") return I76.Cli.InstallerCommand.Run(argv);
@@ -671,6 +672,8 @@ switch (argv[0])
         return I76.Cli.MissionRun.Run(install, argv);
     case "melee-sim":
         return I76.Cli.MeleeSim.Run(install, argv);
+    case "tick-bench":
+        return I76.Cli.TickBench.Run(install, argv);
     case "wakecheck":
         return I76.Cli.WakeCheck.Run(install, argv);
     case "airtime":

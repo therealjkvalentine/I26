@@ -138,6 +138,8 @@ public partial class Main : Node3D
     private static bool HandgunMuzzle(string node) => node.Length >= 8 && node[4..8].ToUpperInvariant() is "GRPF" or "GLPF";
     private bool _lightOnly;
     private int _frames, _ptFrames;
+    /// <summary>The missions loaded in this run (I76_ABORT_AT's count): kept across the scene's reloads.</summary>
+    private static int _missionLoads;
     /// <summary>Game-space position of the Godot origin (floating origin).</summary>
     private System.Numerics.Vector3 _origin;
     private const float RebaseDistance = 2000f;
@@ -428,7 +430,7 @@ public partial class Main : Node3D
         // with no briefing to build under, the main thread builds behind the card as the original loads: the thread would only add its
         // queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
         threaded &= briefing is not null;
-        // the card's wheel (LoadProgressView) from 0: the load's stamps move it from here, the build's thread's among them
+        // the load's progress (LoadProgress, the line under PLEASE STAND BY: StandByTag) from 0: the load's stamps move it from here, the build's thread's among them
         if (_opt.Install is not null && _opt.Mission is not null) I76.Game.Ui.LoadProgress.Begin();
         BuildJob? job = threaded ? StartBuildJob() : null;
         // up, and drawn once, before the build (a threaded build: already going)
@@ -487,14 +489,12 @@ public partial class Main : Node3D
         // the rest of the load: under the briefing it ran already, a few milliseconds a frame (BuildBehindCard, AttachSteps); else here
         if (built is null || !_attachedUnderMovie)
         {
-            // straight through, no frame between the steps: the card's wheel is drawn at the load's stamps (LoadProgressView.Present)
-            I76.Game.Ui.LoadProgress.Blocking = loading is not null;
-            try { await RunSteps(AttachSteps(built, loading), 0); }
-            finally { I76.Game.Ui.LoadProgress.Blocking = false; }
+            // straight through, no frame between the steps (the still card, as the original's)
+            await RunSteps(AttachSteps(built, loading), 0);
         }
         if (!IsInsideTree() || _attachFailed) return;
         MissionBuilder.Trace("effects rehearsal");
-        I76.Game.Ui.LoadProgress.Finish();   // the card's wheel full as the card goes
+        I76.Game.Ui.LoadProgress.Finish();   // the progress full as the card goes
         if (loading is not null && _cardDown)
         {
             // the briefing over and the load done under it: the mission at once (the card was never brought back)
@@ -1212,7 +1212,7 @@ public partial class Main : Node3D
         {
             var node = MakeNode(vehicle, carDef);
             MissionBuilder.Trace($"spawn: car {carDef}");
-            if (vehicle != world.Player) I76.Game.Ui.LoadProgress.Part(I76.Game.Ui.LoadProgressModel.CarsMade, ++otherMade, others);   // the card's wheel a car at a time
+            if (vehicle != world.Player) I76.Game.Ui.LoadProgress.Part(I76.Game.Ui.LoadProgressModel.CarsMade, ++otherMade, others);   // the progress a car at a time
             yield return null;   // a car a step
             if (vehicle != world.Player) continue;
             pos = vehicle.Pos.ToVector3(); def = carDef;
@@ -2195,7 +2195,7 @@ public partial class Main : Node3D
                 cardScript.RemoveAt(0);
             }
             // a skip kept (made once the build's thread is done: none counts while it works) with the rest of the load still to run:
-            // the briefing ends and the card comes back with its progress wheel for the rest (the line said PLEASE STAND BY, not
+            // the briefing ends and the card comes back with PLEASE STAND BY and its progress line for the rest (the line said PLEASE STAND BY, not
             // READY: a press then is not a promise that the mission starts at once)
             if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped)
             {
@@ -2255,7 +2255,7 @@ public partial class Main : Node3D
             if (now is CardSequence.Stage.CardAgain or CardSequence.Stage.Attach && !cardUp)
             {
                 cardUp = true;
-                loading.ShowProgress();
+                loading.ShowStandBy();
                 OnNextDraw(() => LoadProfiler.Event("card again"));
                 fading = true;
                 await loading.FadeIn();
@@ -4445,6 +4445,15 @@ public partial class Main : Node3D
         if (!_resumed && int.TryParse(System.Environment.GetEnvironmentVariable("I76_CHECKPOINT_RETRY"), out int retryAt) && _frames == retryAt && CanRetry && _menu is null)
         {
             RetryCheckpoint();
+            return;
+        }
+        if (_frames == 0) _missionLoads++;
+        // test hook: I76_ABORT_AT=frame:load chooses Abort Mission (back to the menu) at that frame of that mission load (1 the first)
+        if (System.Environment.GetEnvironmentVariable("I76_ABORT_AT") is { } abortAt && abortAt.Split(':') is [var af, var al]
+            && int.TryParse(af, out int abortFrame) && int.TryParse(al, out int abortLoad) && _frames == abortFrame && _missionLoads == abortLoad && !_ended && _menu is null)
+        {
+            GD.Print($"abort: load {_missionLoads}, frame {_frames}");
+            MenuClosed(MenuOutcome.Abort);
             return;
         }
         // test hook: I76_REPLAY_AT=frame chooses Replay Mission from the menu at that frame (every load: a run of restarts)

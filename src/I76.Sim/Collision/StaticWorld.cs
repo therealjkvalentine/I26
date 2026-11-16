@@ -157,7 +157,25 @@ public sealed partial class StaticObject
     /// a sign node) goes to the sign's slot (measured in the original: M10's billboards, placed as type 4, are type-2
     /// nodes that stop a car and lose HP to it, and are not thrown).
     /// </summary>
-    public bool SignPlacement => Type == 4 && Nodes.TrueForAll(n => n.Sign);
+    public bool SignPlacement
+    {
+        get
+        {
+            // asked for every object by every car every tick (Solid too): found again only when the node list grows (the
+            // mission build fills it; a node's type never changes)
+            if (_signNodes != Nodes.Count) { _sign = Type == 4 && Nodes.TrueForAll(n => n.Sign); _signNodes = Nodes.Count; }
+            return _sign;
+        }
+    }
+    private int _signNodes = -1;
+    private bool _sign;
+
+    /// <summary>
+    /// Counts the changes to any placement's bounds (its centre, XZ radius, sphere radius or part spheres), in every world: the
+    /// object pass's index (<see cref="ObjectIndex"/>) is built again after one. Whatever sets those must call <see cref="BoundsChanged"/>.
+    /// </summary>
+    internal static int BoundsEpoch;
+    internal static void BoundsChanged() => Interlocked.Increment(ref BoundsEpoch);
 
     /// <summary>Thrown by the sign's slot: the root's HP zeroed by it (a root that only lost a child keeps its 400). Its collider is gone.</summary>
     public bool Knocked => Type == 4 && Destroyed && Hp == 0;
@@ -178,6 +196,7 @@ public sealed partial class StaticObject
         Centre = r.Centre; Radius = r.Radius; BoundRadius = r.BoundRadius;
         Collapsed = true;
         Revision++;
+        BoundsChanged();
     }
 
     private (Poly[] Polys, Poly[] Surfaces, NodeBox[] Boxes, NodeSphere[] Spheres, NodeBox[] MeshBounds, Vector3 Centre, float Radius, float BoundRadius)? _intact;
@@ -230,6 +249,7 @@ public sealed partial class StaticObject
             Radius = pts.Max(q => new Vector2(q.X - Centre.X, q.Z - Centre.Z).Length());
             BoundRadius = pts.Max(q => Vector3.Distance(q, Centre));
         }
+        BoundsChanged();
     }
 
     private bool _gates;
@@ -369,6 +389,10 @@ public sealed class StaticWorld
 {
     public List<StaticObject> Objects { get; } = [];
 
+    private readonly ObjectIndex _index = new();
+    /// <summary>The indices into <see cref="Objects"/>, ascending, of the objects whose XZ bounds meet the box (<see cref="ObjectIndex"/>); the count.</summary>
+    internal int Near(float minX, float maxX, float minZ, float maxZ, ref int[] into) => _index.Near(Objects, minX, maxX, minZ, maxZ, ref into);
+
     private List<StaticObject>? _gated;
     /// <summary>The placements with a gate (type-7 node).</summary>
     public IReadOnlyList<StaticObject> Gated => _gated ??= [.. Objects.Where(o => o.Nodes.Any(n => n.Gate is not null))];
@@ -500,6 +524,7 @@ public sealed class StaticWorld
         o.BoundRadius = all.Max(p => Vector3.Distance(p, o.Centre));
         o.SphereRadius = 0.75f * o.BoundRadius;
         o.Radius = all.Max(p => new Vector2(p.X - o.Centre.X, p.Z - o.Centre.Z).Length());
+        StaticObject.BoundsChanged();
         return o;
     }
 
@@ -546,6 +571,7 @@ public sealed class StaticWorld
         Face(-Vector3.UnitY, 0, 1, 5, 4); Face(Vector3.UnitY, 2, 3, 7, 6);
         Face(-Vector3.UnitZ, 0, 1, 3, 2); Face(Vector3.UnitZ, 4, 5, 7, 6);
         Objects.Add(o);
+        StaticObject.BoundsChanged();
         return o;
     }
 
@@ -662,8 +688,15 @@ public sealed class WorldGround(TerrainGround terrain, StaticWorld world) : IGro
         float near = -1e30f, below = -1e30f;
         Vector3 nn = Vector3.UnitY, nb = Vector3.UnitY;
         float fx = (float)x, fy = (float)y, fz = (float)z;
-        foreach (var s in world.Objects)
+        // the structures whose bounds hold the point (a unit's margin over the test below), in the list's order: no other one
+        // can pass it
+        var objects = world.Objects;
+        var under = _under ??= new int[64];
+        int count = world.Near(fx - 1f, fx + 1f, fz - 1f, fz + 1f, ref under);
+        _under = under;
+        for (int k = 0; k < count; k++)
         {
+            var s = objects[under[k]];
             if (s.Surfaces.Count == 0 || !s.Solid) continue;
             float dx = fx - s.Centre.X, dz = fz - s.Centre.Z;
             if (dx * dx + dz * dz > s.Radius * s.Radius) continue;
@@ -680,6 +713,9 @@ public sealed class WorldGround(TerrainGround terrain, StaticWorld world) : IGro
         if (below > -1e30f) return (below, nb);
         return terrain.Query(x, y, z);
     }
+
+    /// <summary>The query's list of nearby structures, one per thread (the game's threads ask the ground too).</summary>
+    [ThreadStatic] private static int[]? _under;
 
     public int SurfaceId(double x, double z) => terrain.SurfaceId(x, z);
     public bool Impassable(double x, double z) => terrain.Impassable(x, z);

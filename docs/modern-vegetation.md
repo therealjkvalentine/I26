@@ -472,8 +472,8 @@ reads; hidden with the plants in the 1997 look; shell.cfg `[port] brush_impacts=
   too; a blast still lays them at once. Each standing plant of 0.35 m or more knocked makes the original's sound for a
   car running a sign or post down (`vnvco3`, a 0.39 s knock; the original has no plants a car goes through, and its saguaro's
   `vnvcs5` is a 2.6 s crash) at the plant, positional (DirectSound's rule, min distance 10 m), on the Effects bus, HiFi
-  Audio's replacement when a pack has one: pitched 0.85-1.15 by the plant's place (lower for a big one) and then seven
-  semitones up, -14 dB creeping to 0 dB at 100 mph and then 6 dB down (the first knock sounded as the signs'; `I76_BUSH_KNOCK`
+  Audio's replacement when a pack has one: pitched 0.85-1.15 by the plant's place (lower for a big one) and then nine
+  semitones up, -14 dB creeping to 0 dB at 100 mph and then 8 dB down (the first knock sounded as the signs', the owner then asked for a bit higher and a little quieter: 7 semitones and 6 dB became 9 and 8; `I76_BUSH_KNOCK`
   tries other sounds, pitches and levels),  ±1.5 dB per plant, at most one every 0.08 s a car, 12 a second in all and 4 at once (its own voice
   name: the signs' knock is never taken). A car at more than 4 m/s knocking a shrub of 0.5 m or more throws its leaves.
   The shader's existing parting (Cars and plants) still bends the plants round the car while it is there; the field keeps

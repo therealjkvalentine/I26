@@ -288,6 +288,9 @@ by itself in 43 s; Space 3 s after a death was refused, 6.5 s after it brought a
   the host to let you in..."; a listen host's own first join goes straight in (`ServerOptions.ListenHost`); the anet
   listing shows an invite-only game as joinable. A dedicated server (`--invite-only`) asks on its console ("*** Let NAME
   join the game? (y / n / s; turned away in 30 s)"); unanswered, the join is turned away, as the original's.
+- **Armour total.** The garage conserves a model's armour and chassis total, and `CarConfigCheck` used to refuse a joining car
+  that carried more than the heaviest stock variant. It is now a guideline: such a car joins, `CarConfigCheck.ArmourOverStock`
+  says by how much; only a negative zone is refused.
 - **Strict car checks** (the Nitro Pack's car check): besides the garage's rules
   (`CarConfigCheck`), `CarConfigCheck.Strict` refuses the same special twice, a second turret, a dropper off a dropper
   mount, a gun on one, a turret off a turret mount. The tank cannons and the howitzer were always refused online:
@@ -855,7 +858,8 @@ whose players came later has the copies of the humans present when each car was 
 moving as it does, with its skill and aggression, in a respray of its own (`ExtraPaint`: the k-th of the garage's classic paints that
 stands clear of the original's colour, its respray's or its paint scheme's primary paint as the respray reads it from the body
 textures; the original keeps the mission's paint), and named after the original with its number (`ScriptHost.ExtraName`, "t09dl01+2"),
-which a client's target tag shows as EXTRA 2 over a copy that is the radar target (`NetNames`; the original has no tag). Every
+the server's own tell: the players see a copy as the car it copies (`ScriptHost.OriginalName`; `NetNames.Tag`: a mission's own car
+has no name tag, so neither has its copy; the kill feed names both alike). Every
 order the script gives the original reaches its living copies in the same tick as a plan of their own: an attack, guard, sit or
 hide as the original's, a human target taken as the human nearest the copy (`NearestHuman`); a goto, evade, race or follow is not
 driven a second time: the copy follows its original (the follow order, its station `ScriptHost.Station`: 6 m to the side, 8 m
@@ -881,6 +885,26 @@ form's co-op game options set the cap (shell.cfg [port] `coop_scale`, always wri
 and models (`SessionInfo.CoopScale`; protocol 23) and the session popup says "Co-op scaling up to +2"; a host migration's successor has
 it in its options.
 
+### Escorted cars
+
+The port's (`CoopSetup.EscortHealth`, `DamageModel.EscortFactor`, `Fsm.CoopEscorts`; no row of its own: it follows EXTRA ENEMIES). With
+Co-op Scaling on (any level above 0) the enemies are more and the cars the players must keep alive take their fire, so in a co-op
+game each car the mission fails on losing takes 1/1.5 of every damage (each channel's fraction carried, as Co-op Damage's): it lasts
+half again as long under the same fire, its armour, health bar and repairs as they were. Off, single player and a melee: the original's.
+
+The cars are found in the script, by its rules (`CoopEscorts.Analyze`, `FsmVm.EscortSlots`): an actor whose `isDead` holds a rule that
+fails the mission (`failAllObj`, `failAll`), directly, after a wait for the radio or a timer (T15's), or through a cell it sets or
+counts that another rule fails on (S05's bus sets a flag, P19's helicopter too). Of those, `ScriptHost.Escorts` keeps the vehicles
+that are not a human's, not the enemy's (T09's Callisto, T12's tanker, P02's clown, P15's hearses: to be stopped, not protected),
+not a gun emplacement and not a copy; a structure the script guards (S03's oil wells, S04's post office, T08's warehouse, the
+Nitro towns' buildings) is no vehicle and is left alone. The stock escorts: S02 Taurus, S05 the bus, T01-T03, T10, T11, T14 Taurus,
+T05 and T16 the van, B01 Taurus; P01 the two milk tankers and Jade, P03 the friend, P04 Jade, P05 Toupee, P06 Taurus, P07 the wingman,
+P08 the three buses and Taurus, P12 Taurus's helicopter, P17 the bus, P18 Skeeter's van, P19 the escape helicopter (`CoopEscortTests`).
+
+Only the host's sim damages anything: a client's mirror takes each car's health from the snapshots and never scales it, so a client
+of any build reads the host's numbers. The factor is derived from the build (`SessionBuild.Coop`: co-op and its Extra Enemies), which
+the savestate carries, so a host migration's successor and a restore have it again; nothing on the wire changes. A stock upstream host
+plays its own rule (no bonus); under a fork host an upstream client sees the escort last longer and nothing else differs.
 ### Cut-scenes and the controls
 
 A cut-scene (the script holding the camera) drives the lead; every driver's keys are held as the one player's were
@@ -984,7 +1008,7 @@ from the server.
   names come from the migration extras (`IHostMode.Restore(drivers, names)`).
 - **Listing.** A co-op game is listed with its mission as the arena (`SessionInfo.Coop`; the anet tag's kind bits 3).
 - **Co-op Damage** (`ServerOptions.CoopDamage`, `CoopSetup.DamageFactor`; the co-op host form's DAMAGE TAKEN row, i26-server's and `--host-listen`'s
-  `--coop-damage 0.5|0.75|1|1.5`): the humans' cars take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
+  `--coop-damage 0.5|0.75|1|1.5`): the humans' cars (theirs alone: an escort or any computer car is not scaled by it; see "Escorted cars") take that times every damage (`DamageModel.CoopDamageFactor`, each channel's
   fraction carried per car to its next packet, so small ticks are not lost); x1 by default. It is the server's alone (the clients take damage from the server) and part of the savestate's build,
   so a successor builds it again from the options. The co-op host form's DAMAGE TAKEN row (a click steps it) and CO-OP DAMAGE in the Nitro
   form's co-op game options set it (shell.cfg [port] `coop_damage`, written only when not 1). The game's answer lists it after the makes and
@@ -1289,7 +1313,8 @@ nix develop -c dotnet run --project tools/I76.Server -- [--install DIR] [--game 
   answer an invite-only join (`--invite-only`), `say TEXT` sends a line that starts with a command's word, `help`.
 - Ctrl+C stops it. When a melee is over it carries on with another round
   (below, "Rounds"); `--once` exits instead, after 20 s for the clients to see the standings.
-- The port is UDP. Open it in the firewall for a LAN game.
+- The port is UDP. Open it in the firewall for a LAN game. On Windows a host says so itself when Defender Firewall's rules do not
+  let its program be reached ("Windows Firewall may be blocking this game: allow it on private networks": below, "Finding games").
 - The game's rand stream (spawn points, AI choices, damage rolls, debris) is
   seeded from the clock, as the original's `srand(time(NULL))`. `--seed N`
   fixes it, so a melee can be replayed; the seed is in the first log line.
@@ -1555,7 +1580,7 @@ messages; `src/I76.Net/Discovery.cs`):
 
 | Message | Way | What |
 |---|---|---|
-| query | anyone → server: a LAN broadcast to ports 7676–7679, the same at 127.0.0.1, or one address | `"I76Q"`, protocol version |
+| query | anyone → server: a LAN broadcast to ports 7676–7679 (255.255.255.255 and each of the asker's networks' own broadcast address), the same at 127.0.0.1, or one address | `"I76Q"`, protocol version |
 | session | server → asker | `"I76S"`, protocol version, session id (random per server), game name, arena, players, seats, team play, invite only, score and time limits, whether it is over, each player's name, car and team, the Nitro kind, goal and team count, a custom map's hash, whether it is shared and its size, whether the game is locked (protocol 12; the password itself is never sent), ...; protocol 22 ends with the arena's name and each listed player's make and model where the host says it (below) |
 
 **The names on the roster** (`SessionDriver`, `NetLines.GameName`, `NetLines.AreaName`). The game popup's MAKE / MODEL is the car's
@@ -1577,6 +1602,27 @@ server is found whenever it is up. The dedicated server answers too, so it
 shows on a LAN roster. An address given by name is looked up once, in the background (`SessionBrowser.Ask` sends nothing
 until it is found, and `NotFound` says when it was not), so a slow name server never holds up the form. The internet roster
 runs one `SessionBrowser` per address book entry (`ServerBrowser`, above).
+
+**The LAN search asks each network's own broadcast address too** (`Discovery.SubnetBroadcasts`, `SessionBrowser.SearchLan`). Until
+then it asked 255.255.255.255 alone (LiteNetLib's `SendBroadcast`). That limited broadcast leaves by one interface only (on Windows
+the one ranked first, which a virtual switch or a VPN adapter can be), and not every machine answers it. Measured on a home network
+with three machines: a Mac hosting a game answered a query to its own address and one to 192.168.1.255, from two Windows machines,
+and none to 255.255.255.255, which a Windows host beside it answered; so neither Windows machine listed the Mac's game, on this build
+and on the day before's alike. The search now also sends the same query, as a plain unconnected message, to the broadcast address of
+every IPv4 network the machine is on (the interface up, not loopback or link-local, with a mask shorter than /31), looked up again
+every 5 s. A host that hears both answers both; it is one game by its id. Nothing on the wire changes, and an older host answers the
+new search as it answers a query to its address.
+
+**A host Windows Firewall hides** (`HostFirewall`). A search that a firewall stops looks, on both computers, exactly like no game
+being there: the host never hears the question. Measured on two machines: a Windows host whose program had no firewall rule listened
+on 0.0.0.0:7676, answered its own machine's search and no other computer's (neither the broadcast nor a query to its address); the
+same build with an Allow rule answered both. A host on Windows reads Defender Firewall's rules from the registry (no rights needed)
+when it starts listening: if the firewall is on and, on a private and on a public network alike, a Block rule names the program or no
+Allow rule covers it for UDP on its port, its log and the HUD's host line (where "Listed on SERVER" goes; an internet game shows that
+instead) say "Windows Firewall may be blocking this game: allow it on private networks". It is looked at again every 10 s and goes
+once the rules allow the game (the player said yes to Windows' question). A program allowed on private networks alone is never called
+blocked (the rules do not say which the network is); other systems and other firewalls are not looked at. `i26-server` logs the same
+line.
 
 ### Game passwords
 
@@ -2791,6 +2837,11 @@ whose router stopped it and the port the host can forward
 (`AnetJoiner.FailureText`), e.g. "Could not join: your router gives every
 connection a new port (a symmetric NAT, ...). The host can forward UDP port
 7604 to their computer, or join from another network.". The
+A host that shares the joiner's public address (two computers at home behind one router) is joined at its own address there, with no
+router in the way: when that fails the form says so at once, without asking a second server ("Could not join: the host is on your own
+network but did not answer there: a firewall on the host's computer or yours may be blocking the game (Windows Firewall: allow the game
+on private networks; macOS: Local Network in Privacy & Security; UDP port 7676)", `NatVerdict.SameNetwork`); it used to blame the host's
+router and a symmetric NAT. The
 host's HUD reads "Listed on SERVER", "Contacting SERVER..." or "Not listed:
 SERVER is not answering" (the game runs and takes direct joins either way).
 

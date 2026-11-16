@@ -47,4 +47,56 @@ public class StandByLineTests
         At(true, true);    // ready
         Assert.Equal([(Says.Nothing, true), (Says.StandBy, true), (Says.Ready, true)], seen);
     }
+
+    [Theory]
+    [InlineData(Says.StandBy, true)]
+    [InlineData(Says.Ready, false)]
+    [InlineData(Says.Nothing, false)]
+    public void TheProgressLineIsUnderStandByOnly(Says says, bool shown) => Assert.Equal(shown, StandByLine.LineShown(says));
+
+    [Theory]
+    [InlineData(1080, 2)]
+    [InlineData(1440, 2)]   // (3440x1440)
+    [InlineData(720, 1)]
+    [InlineData(480, 1)]    // a small window: never under a pixel
+    [InlineData(2160, 3)]
+    public void TheLinesThicknessFollowsTheWindow(float height, int px) => Assert.Equal(px, StandByLine.Thickness(height));
+
+    [Fact]
+    public void TheOneAndTwoPixelVariants()
+    {
+        Assert.Equal(1, StandByLine.Thickness(1080, 1));
+        Assert.Equal(1, StandByLine.Thickness(1440, 1));
+        Assert.Equal(2, StandByLine.Thickness(1080, 2));
+        Assert.Equal(3, StandByLine.Thickness(1440, 2));
+    }
+
+    [Theory]
+    [InlineData(0.0, 0)]
+    [InlineData(-0.5, 0)]
+    [InlineData(double.NaN, 0)]
+    [InlineData(0.004, 0)]
+    [InlineData(0.25, 25)]
+    [InlineData(0.5049, 50)]
+    [InlineData(0.9999, 99)]    // short of the end: a pixel short, never full while work remains
+    [InlineData(1.0, 100)]
+    [InlineData(1.5, 100)]
+    public void TheLineFillsWholePixelsFromTheLeft(double progress, int filled) => Assert.Equal(filled, StandByLine.Filled(progress, 100));
+
+    [Fact]
+    public void TheLineFollowsALoadUpAndIsFullOnlyAtItsEnd()
+    {
+        var m = new LoadProgressModel(LoadProgressModel.First);
+        int width = 137, last = 0;
+        foreach (var s in LoadProgressModel.First)
+        {
+            m.Mark(s.Stamp);
+            int f = StandByLine.Filled(m.Value, width);
+            Assert.True(f >= last, s.Stamp);
+            Assert.True(f < width || s.Stamp == LoadProgressModel.First[^1].Stamp, s.Stamp);
+            last = f;
+        }
+        Assert.Equal(width, last);
+        Assert.Equal(0, StandByLine.Filled(0.5, 0));
+    }
 }

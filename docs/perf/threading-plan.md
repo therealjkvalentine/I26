@@ -50,7 +50,7 @@ processor does).
 | 2 | The engine's render thread (`thread_model` = Separate) | threads (the engine's) | 104 -> up to 140-150 **if it holds** (unproven: as it stands, +4-7 % with worse pacing) | S to try, M to ship |
 | 3 | Fewer draws: the mirrors' and the shadow map's lists, terrain chunks merged by distance, plants batched | waste, one thread | 104 -> 120 alone; lifts step 2's ceiling | M |
 | 4 | Scripts on a diet: per-node scripts folded into managers, work skipped when nothing changed, the plants' tier split and the smoke's sort on workers | both | 120 -> 133 alone | M |
-| 5 | The bass shaker's synthesis on a worker thread | threads (ours) | no change in the average; removes a 1-1.6 ms burst on one frame in ten | S |
+| 5 | The bass shaker's synthesis on a worker thread (**done**, 2.4) | threads (ours) | no change in the average; removes a 1-1.6 ms burst on one frame in ten | S |
 | 6 | The cockpit's panels and radar composed off the main thread or on the card | threads (ours) | removes the 3.5-10 ms radar bursts that step 1 only shrinks | M |
 | 7 | The simulation on its own thread, with a snapshot handed to the presentation | threads (ours) | +1 to +3 fps; tick bursts no longer stall a frame; a network client's re-simulation leaves the main thread | L |
 
@@ -366,6 +366,46 @@ already buffers 50 ms; the ring's lead (5-10 ms) is taken out of that buffer's f
 underrun is silence in a shaker, and the old path stays behind a switch). Effort: S. Expected: the burst goes; the average gains
 0.1 ms. The CB voice chat's generator can use the same ring.
 
+**Done** (branch `perf/shaker-off-main-thread`). `TactileStream` (I76.Formats, no Godot) is the worker: the main thread writes
+a tick's inputs into one of 32 reused `TactileEvents` slots (a single-producer, single-consumer ring: nothing allocated) and
+says whether the game is held; the worker steps each slot, fills, and pushes blocks of 256 frames to keep 50 ms queued. The
+settings go over whole (the LFE Level's gain, tactile_eq, crossover, lfe_*), applied before the next sample; LFE Level 0 opens
+nothing. The synth's voices are pooled, so it allocates nothing once warm. The worker pushes into the generator itself rather
+than through a ring the main thread copies from: in Godot 4.7.2's source (`servers/audio/effects/audio_stream_generator.cpp`,
+`core/templates/ring_buffer.h`) `push_buffer` and `get_frames_available` take no lock and touch only the playback's ring
+buffer, whose one reader is the mixer; the main thread's push was already that unsynchronised hand-over, and the worker is the
+only writer while it runs (stopped and joined before the player is freed: a scene reload, a change of output). The engine's
+"Thread-safe APIs" page says nothing of audio; its rule is one thread modifying a resource at a time, which this keeps.
+`I76_SHAKER_THREAD=0` keeps the old main-thread path.
+
+Godot rounds a generator's length up to a power of two of frames: the 50 ms asked for is 4096 frames, 85 ms at 48 kHz (93 at
+44.1), and the old path kept it full, so a tick's step was felt 80-90 ms later plus the output's own latency. The worker keeps
+50 ms queued: about 35-40 ms sooner. The Dummy driver drains 4096 frames at a time and then sleeps 93 ms
+(`audio_driver_dummy.cpp`), more than the ring holds, so it reports an underrun on every drain whichever path fills it: its
+underrun counts and delays mean nothing; the real driver's are below.
+
+Measured (`I76_SHAKER_TIMES`, the shaker's own main-thread time a frame: its process step and the ticks' gathering; LFE 100 %,
+the owner's tactile_eq; 3440x1440, uncapped; the before and after runs interleaved; the machine shared with other lanes):
+
+| Scene, driver (runs before + after; others' share of the machine) | main thread ms a frame, mean / p99 / max: before -> after | tick to shaker, ms (mean, range) | underruns |
+|---|---|---|---|
+| T05 start, WASAPI 96 kHz (2 + 2; 22-59 %) | 0.218 / 1.33 / 2.53 -> 0.006 / 0.024 / 0.18 | 74 (37-85) -> 49 (40-51) | 0 -> 0 |
+| Melee, five cars firing, WASAPI 96 kHz (1 + 1; 14-58 %) | 0.155 / 0.39 / 3.72 -> 0.004 / 0.015 / 0.19 | 77 (64-85) -> 50 (40-51) | 0 -> 0 |
+| T05 start, Dummy 44.1 kHz (2 + 2; 17-55 %) | 0.090 / 0.71 / 2.77 -> 0.006 / 0.024 / 0.07 | (the driver drains in bursts) | |
+| Melee, five cars firing, Dummy 44.1 kHz (1 + 1; 26-40 %) | 0.066 / 0.80 / 2.68 -> 0.003 / 0.015 / 0.10 | | |
+
+With the real device (96 kHz here: the generator is 8192 frames, 85 ms) the old path filled on nearly every frame, 0.15-0.24 ms
+on average with frames to 2.5-3.7 ms; after, the shaker's main-thread time is under 0.025 ms at p99 and 0.19 ms at worst (the
+0.02 ms target is met at the median and close at p99, not on every frame). In fps, at T05's quiet 9.6 ms frame: 104 -> 106; at a
+5 ms frame: 200 -> 208; the slow frames lose up to 2.5-3.7 ms. The fps measured in these runs follow the machine's load, not the
+change. The worker's passes take 0.16-0.19 ms each on its own thread (one of 11.5 ms with the machine 58 % busy elsewhere, and
+still no underrun). A tick is felt 49-50 ms after its step instead of 74-77, and never later than 51 ms. Two Replay Missions and
+an Abort Mission (`I76_REPLAY_AT`, `I76_ABORT_AT`, the real driver) each stopped the worker: none left running.
+
+The signal: a 20 s scripted drive (every source, the owner's tactile_eq) rendered through main's synth in place and through the
+worker under a real-time mixer is byte-identical; the tests hold it to that for an 8 s drive, and check that a worker held for
+200 ms leaves exact silence and resumes on the next sample.
+
 Engine voices are not synthesised by us: each is an `AudioStreamPlayer3D` the engine mixes on its audio thread already; our part
 is each voice's volume and cull a frame (0.03-0.06 ms), which 2.3's manager covers.
 
@@ -472,6 +512,37 @@ The parts that are pure (the AI's steering target, each car's ground queries) ar
 revisiting only for a mode with fifty or more cars; the form would be "compute in parallel, apply in list order", with the random
 draws left in the apply phase.
 
+### 2.9b The two structural options, measured (tick-bench)
+
+[tick-bench.md](tick-bench.md) times the tick headless, section by section, after the perf/sim-tick-budget work (this
+desktop, the machine 20-100 % busy, pinned to one core). Per tick at 20 Hz, us (`--split`):
+
+| | AI | collision pass | cars' updates (substeps) | script | weapons, rounds | the rest | whole tick (median) |
+|---|---|---|---|---|---|---|---|
+| T05 start (17 cars) | 44 | 66 | 90 | 95 | 59 | 12 | ~0.31 ms |
+| melee, eight bots | 250 | 21 | 170 | 46 | 140 | 7 | ~0.53 ms |
+
+**(a) A deterministic parallel-for inside the tick.** What is independent as the code stands: the collision pass's detection
+(pure reads until each car's record is written, which would go in list order) and the ground queries inside the cars'
+updates: about 10-15 % of the tick. The cars' updates themselves draw the shared `rand()` stream as they go (rough ground,
+the steering's jitter), the AI draws it in its tactic choice and issues orders that later cars read, the rounds damage cars in
+list order: making those parallel means "compute in parallel, apply and draw in list order", a restructuring of each step
+whose every slip changes the game. Amdahl with 15 % parallel: at most 1.18x on any number of cores; with the whole of the
+cars' updates (30 %, after that restructuring) 1.36x on 16 cores, 1.35x on 8, less the fork and join (5-20 us a region on a
+busy machine, several regions a substep). On a machine twice this fast that is 0.25 -> about 0.19 ms on a melee tick frame:
+**0.06 ms of the 5 ms budget. No-go**: too little for the risk to determinism, as 2.9 said.
+
+**(b) The tick on its own thread.** It takes the tick off the main thread's path on the frames where one lands, if the main
+thread has other work to do meanwhile (it has: the draw is 5-7 ms). Measured, the typical tick is now 0.12 (T01) to 0.55 ms
+(the eight-car melee) here, so about 0.06-0.28 ms on the new machine: 1-6 % of a 5 ms frame, and at 200 fps a 20-24 Hz
+tick lands on one frame in eight to ten (60 Hz: one in three). A network client's re-simulation burst (8 predicted ticks of
+its car) is 0.17-0.26 ms here (p99 0.5-0.7 ms): it would move too, which is where the option pays most, and it is small. What
+it would not fix without the bounded-wait deviation of 2.8: the rare slow tick (a first-time compile, a collection that
+stops every thread anyway). Cost L, risk medium to high (every reader of live state moves to the tick's view). **No-go for
+now**: the budget it buys (at most 0.3 ms on a tick frame) is less than the main thread's own scripts' slack work (2.3)
+offers for far less risk. Revisit if the tick grows past about 1 ms on the new machine (more cars, 60 Hz with a full
+network melee) or once the main thread's other work is under budget and a tick frame is the slowest frame left.
+
 ### 2.10 What should not be threaded
 
 - **The sim's rules** (2.9): order is the specification.
@@ -507,7 +578,7 @@ written down.
 3. **Fewer draws** (M, three parts: the mirrors' and shadow map's lists; far terrain; plants). Success: 30 % fewer draws on T01
    and T05, the draw's time down 1 ms or more, zero differing pixels.
 4. **Scripts on a diet** (M). Success: the scripts' span on T05 from 2.4 to 1.7 ms or less, p99 under 4 ms.
-5. **The shaker on a worker** (S). Success: its main-thread time under 0.02 ms on every frame; the output's waveform equal to
+5. **The shaker on a worker** (S; **done**, 2.4). Success: its main-thread time under 0.02 ms on every frame; the output's waveform equal to
    the old path's for a recorded tick sequence; no underruns in a 10-minute run.
 6. **The radar and panels off the main thread or on the card** (M). Success: no frame's cockpit time over 1 ms; every panel
    texel-identical (`I76_DASH_STATS=verify`).
@@ -565,7 +636,9 @@ that pay (the engine's render thread, the shaker and radar workers); the sim thr
   for T01, T05 and the five-car melee. T05's mountain-pass fight was not re-profiled by section (round 5's and round 6's whole-route
   figures stand: scripts 3.0-3.4 ms, the renderer 2.0 ms).
 - What the render thread buys once the game's own faults against it are fixed: the largest unknown in the plan.
-- The bass shaker's cost was measured with the Dummy audio driver and the sound muted.
+- The bass shaker's cost was measured with the Dummy audio driver and the sound muted (the worker's numbers in 2.4 add the
+  real driver, muted).
 - The new machine's figures are scaled, not measured, and assume a card three times this one.
 - Whether the project's run-time settings (the collector's budget, ReadyToRun) are honoured from source and in an export.
-- Pushing audio from a worker thread directly, and C# scripts in Godot's thread groups: undocumented, not tried, not relied on.
+- Pushing audio from a worker thread directly: undocumented; the shaker relies on it, on the evidence of the engine's source
+  (2.4). C# scripts in Godot's thread groups: undocumented, not tried, not relied on.

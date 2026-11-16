@@ -81,6 +81,15 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public float CoopDamageFactor { get; set; } = 1f;
 
     /// <summary>
+    /// A co-op game's escorted cars under Co-op Scaling (the port's; docs/deviations.md, <see cref="Missions.CoopSetup.EscortHealth"/>):
+    /// what a car the mission fails on losing takes is scaled by this, 1 / 1.5 with Extra Enemies on. 1 everywhere else.
+    /// </summary>
+    public float EscortFactor { get; set; } = 1f;
+
+    /// <summary>The cars <see cref="EscortFactor"/> applies to (the script's escorts, Fsm.CoopEscorts); null, none.</summary>
+    public Func<Vehicle, bool>? Escorted { get; set; }
+
+    /// <summary>
     /// The port's: a packet a car does not take from another (Co-op Scaling's copies and their original, ScriptHost.Spares): no
     /// damage and no attacker recorded. Null, everyone takes everything, as the original.
     /// </summary>
@@ -91,8 +100,14 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// <summary>A network handicap on what <paramref name="v"/> takes from another car (the port's; <see cref="Missions.Handicaps.Taken"/>): 1 at level 0.</summary>
     private static float HandicapTaken(Vehicle v, DamagePacket p) => v.Handicap != 0 && p.Attacker is Vehicle a && a != v ? Missions.Handicaps.Taken(v.Handicap) : 1f;
 
-    /// <summary>The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car, else 1.</summary>
-    private float IncomingFactor(Vehicle v) => CoopDamageFactor != 1f && World.Coop && World.IsHuman(v) ? CoopDamageFactor : 1f;
+    /// <summary>
+    /// The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car,
+    /// <see cref="EscortFactor"/> on a co-op escorted car, else 1.
+    /// </summary>
+    private float IncomingFactor(Vehicle v) =>
+        !World.Coop ? 1f
+        : World.IsHuman(v) ? CoopDamageFactor
+        : EscortFactor != 1f && Escorted is { } esc && esc(v) ? EscortFactor : 1f;
 
     /// <summary>
     /// A copy of the packet with each channel scaled (a splash's packet may go on to other victims): the whole points, the
@@ -136,6 +151,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
 
     /// <param name="node">The structure node a round or ram touched (<see cref="StaticObject.Nodes"/>), −1 for the root, as a splash hits it.</param>
     public void Apply(object victim, DamagePacket p, Vector3 hitLocal, int node)
+    {
+        Session.TickProbe.Begin(Session.TickSection.Damage);
+        ApplyPacket(victim, p, hitLocal, node);
+        Session.TickProbe.End(Session.TickSection.Damage);
+    }
+
+    private void ApplyPacket(object victim, DamagePacket p, Vector3 hitLocal, int node)
     {
         switch (victim)
         {

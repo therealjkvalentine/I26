@@ -221,6 +221,7 @@ public sealed partial class MissionSetup
         MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null)
     {
         if (melee is not null) coop = null;
+        var carFiles = new CarFiles(vfs);   // the mission's car files, for the cars built again in play (VehicleFactory reads through it)
         if (coop is not null && (coop.Cars.Count is < 1 or > 8)) throw new ArgumentOutOfRangeException(nameof(coop), "a co-op game has 1 to 8 humans");
         if (coop?.Cars[0] is { Length: > 0 } seat0) requested = seat0;
         bool network = melee is not null && meleeRules?.Network == true;
@@ -380,6 +381,7 @@ public sealed partial class MissionSetup
                 // the load: the car with its damage state; the opponents have no specials (SPEC 0 three times)
                 Build = (vcf, player) =>
                 {
+                    using var cached = carFiles.Use();   // a respawn mid-tick reads the files the load read
                     var v = VehicleFactory.Create(vfs, vcf, meleeBrakes: true, bodySound: true, specials: player);
                     if (v.ObjectClass == 9) HeliStep.Setup(v, player, network);   // a hidden helicopter flown in a network melee
                     else if (v.Build is { } b) v.Health = I76.Sim.Damage.VehicleDamage.Create(v, b, player, rand, network);
@@ -405,6 +407,7 @@ public sealed partial class MissionSetup
                 host.Coop = new CoopGroup(seats, coop!.RespawnDelay, (vcf, seat) =>
                 {
                     // a respawn's car: as the seat's first (the damage state, a helicopter's block, the handguns, the night's lights)
+                    using var cached = carFiles.Use();
                     var v = VehicleFactory.Create(vfs, vcf, bodySound: seat > 0 || shellCar);
                     if (v.ObjectClass == 9) HeliStep.Setup(v, true);
                     else if (v.Build is { } b) v.Health = I76.Sim.Damage.VehicleDamage.Create(v, b, true, rand);
@@ -417,6 +420,7 @@ public sealed partial class MissionSetup
                     // Co-op Scaling's copy of an enemy car: as the mission's own cars are built (an AI car's damage state, the night's lights)
                     BuildEnemy = vcf =>
                     {
+                        using var cached = carFiles.Use();
                         var v = VehicleFactory.Create(vfs, vcf);
                         if (v.Build is { } b) v.Health = I76.Sim.Damage.VehicleDamage.Create(v, b, false, rand);
                         if (night) v.Flags |= VehicleFlags.Lights;
@@ -499,6 +503,12 @@ public sealed partial class MissionSetup
             damage.Killed += v => { if (host.Of(v) is { } e) host.Died(e); };
             // Co-op Scaling: a copy and its original never hurt each other (CoopExtras)
             if (host.Coop is { ExtraEnemies: > 0 }) damage.Spares = host.Spares;
+            // with Extra Enemies on, the cars the mission fails on losing take less (CoopSetup.EscortHealth): derived from the build alone
+            if (host.Coop is { ExtraEnemies: > 0 } && coop is not null && ms.Vm is { } vm && host.Escorts(vm) is { Count: > 0 } escorts)
+            {
+                damage.EscortFactor = coop.EscortDamageFactor;
+                damage.Escorted = v => host.Of(v) is { } e && escorts.Contains(e);
+            }
             if (game is not null) { damage.KilledBy += game.Credit; game.Explode = damage.Destroy; }
             damage.Recorded += (victim, attacker, kind, mask) =>
             {

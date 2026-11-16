@@ -80,7 +80,7 @@ public sealed class WheelCrossings
         if ((v.Flags & VehicleFlags.Airborne) != 0) { _straddled = 0; return; }
         float speed = v.Vel.Length();
         int i = 0;
-        foreach (var w in v.Wheels)
+        foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft])
         {
             var off = v.Rot.ToWorld(w.Mount);
             var kind = At(g, v.Pos.X + off.X, v.Pos.Y + off.Y, v.Pos.Z + off.Z);

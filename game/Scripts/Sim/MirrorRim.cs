@@ -19,6 +19,19 @@ public static class MirrorRim
     public const float Narrowing = 0.15f;
     /// <summary>The side mirrors' rim as a share of the glass's height: <see cref="Narrowing"/> of two thirds of the rear frame's (I76_MIRROR_RIM=wide: the two thirds, for a before | after).</summary>
     public static readonly float RimShare = RearFrameShare * 2f / 3f * (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM") == "wide" ? 1f : Narrowing);
+    /// <summary>
+    /// The rim's width before it was halved (0.3 of the two thirds; I76_MIRROR_RIM=wide: the two thirds): the unit the rounded outer
+    /// edge stands out by (side_mirror_rim_out), so the outer edge stays where it covered the housing's edges and the halving moves the
+    /// glass's edge out instead.
+    /// </summary>
+    public static readonly float OuterShare = RearFrameShare * 2f / 3f * (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM") == "wide" ? 1f : 0.3f);
+
+    /// <summary>
+    /// The ring's width (its outer edge to the glass's, in the glass's heights at its scale as seen) for an outer edge
+    /// <paramref name="rimOut"/> beyond the rounded glass: the ring before the halving (rimOut plus a rim of OuterShare inside the
+    /// outline) times RimShare / OuterShare, half of it.
+    /// </summary>
+    public static float RingWidth(float rimOut) => (rimOut + OuterShare) * RimShare / OuterShare;
 
     /// <summary>The outline of a set of faces: the edges used by one face only, chained into loops (each a list of corners in order).</summary>
     public static List<List<Vector3>> Outline(IReadOnlyList<Vector3[]> faces, float tolerance = 1e-4f)

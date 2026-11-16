@@ -22,7 +22,8 @@ namespace I76.Sim
                 .Structural("the session's options, set by the build", nameof(VehicleStep.NetSession))
                 .Structural("the session's cut-scene test, set by the session", nameof(VehicleStep.ScriptDrives))
                 .Transient("a per-tick output (sounds, the views), cleared at the next tick", nameof(VehicleStep.ObjectHits), nameof(VehicleStep.Impacts),
-                    nameof(VehicleStep.CarHits), nameof(VehicleStep.Landings), nameof(VehicleStep.DriveOns), nameof(VehicleStep.Honks));
+                    nameof(VehicleStep.CarHits), nameof(VehicleStep.Landings), nameof(VehicleStep.DriveOns), nameof(VehicleStep.Honks))
+                .Transient("the object pass's scratch list of the objects near the car, filled and read within the pass", "_near");
         }
 
         internal void Save(SaveWriter w)
@@ -62,6 +63,7 @@ namespace I76.Sim.Collision
                 // the bounds too: a Refresh that leaves no geometry keeps the last ones (they still place the root for a splash)
                 .Saved(nameof(Centre), nameof(Radius), nameof(BoundRadius))
                 .Derived(geometry, nameof(_intact), nameof(_uncollapsed), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres), nameof(MeshBounds))
+                .Transient("a cache of whether every node is a sign (from the node types), found again when asked", nameof(_sign), nameof(_signNodes))
                 .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
                     nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck));
             a.For<StructureNode>()
@@ -73,7 +75,8 @@ namespace I76.Sim.Collision
                 .Structural("the gate's record and placement", nameof(GateMotion.Offset), nameof(GateMotion.Delta), nameof(GateMotion.World), nameof(GateMotion.Rate));
             a.For<StaticWorld>()
                 .Saved(nameof(StaticWorld.Objects))
-                .Derived("the placements with a gate, found when first asked for", "_gated");
+                .Derived("the placements with a gate, found when first asked for", "_gated")
+                .Transient("the object pass's grid over the placements' bounds, a cache built again when they change", "_index");
         }
 
         /// <summary>As the mission build left it: nothing hit, destroyed, swapped or slid.</summary>
@@ -102,6 +105,7 @@ namespace I76.Sim.Collision
             }
             _intact = null; _uncollapsed = null; _gates = false;
             Collapsed = false; Revision = 0;
+            BoundsChanged();
         }
 
         internal void Save(SaveWriter w)
@@ -136,6 +140,7 @@ namespace I76.Sim.Collision
             Collapsed = collapsed;
             Revision = revision;
             (Centre, Radius, BoundRadius) = (centre, radius, bound);
+            BoundsChanged();
         }
     }
 }
@@ -150,8 +155,9 @@ namespace I76.Sim.Damage
                 .Saved(nameof(Events), nameof(UnlimitedArmour), nameof(UnlimitedChassis))
                 .Structural("the mission build's world and combat", nameof(World), nameof(Combat))
                 .Structural("the mission build's co-op damage factor (the snapshot's SessionBuild.Coop)", nameof(CoopDamageFactor))
+                .Structural("the mission build's escort factor (derived from the snapshot's SessionBuild.Coop: co-op with Co-op Scaling on)", nameof(EscortFactor))
                 .Transient("the hooks of the script host, the melee, the salvage and the views (set again by whoever builds the session)",
-                    nameof(Recorded), nameof(Killed), nameof(Salvageable), nameof(KilledBy), nameof(Damaging), nameof(Spares));
+                    nameof(Recorded), nameof(Killed), nameof(Salvageable), nameof(KilledBy), nameof(Damaging), nameof(Spares), nameof(Escorted));
             a.For<VehicleKilled>().Saved(nameof(VehicleKilled.Vehicle), nameof(VehicleKilled.DriverKilled));
             a.For<VehicleWrecked>().Saved(nameof(VehicleWrecked.Vehicle));
             a.For<TyreBlown>().Saved(nameof(TyreBlown.Vehicle), nameof(TyreBlown.Slot));

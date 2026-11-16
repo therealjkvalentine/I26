@@ -47,12 +47,15 @@ uniform vec3 rim_colour : source_color = vec3(0.12, 0.12, 0.13);
 // own outline (pane_hull, the pane's convex outline counter-clockwise, as pane_core)
 uniform bool rim_round = false;
 uniform float rim_out = 0.0;
+// the ring's width from its outer edge to the glass's, in the glass's heights (MirrorRim.RingWidth: half the ring before the halving, the
+// outer edge kept where it covered the housing's edges)
+uniform float ring_w = 0.03;
 uniform bool rim_dark = false;
 uniform vec2 pane_hull[12];
 uniform int pane_hull_n = 0;
 // the ring the same width on screen all round (perspective stretches a glass near the screen's edge across its sight line; the
 // sides of the Piranha's left glass drew half as wide again as its top): the outer edge is the rounded outline widened by rim_out,
-// the glass's edge that many screen pixels inside it, the ring's width (rim_out + rim_w) at the glass's scale as seen. The added
+// the glass's edge that many screen pixels inside it, the ring's width ring_w at the glass's scale as seen. The added
 // glasses' frame the same (frame_t of the art's pixels). pane_mid, pane_a, pane_b: the glass's plane in the mesh's
 // frame, its middle and the steps of one shape unit across and up (a picture unit of u times pane_aspect, v; or an art pixel), and
 // half its box in those units
@@ -192,7 +195,7 @@ void fragment() {
 			float sd = sd_core(p) - pane_r;
 			// screen pixels in from the ring's outer edge: the outline's distance over its gradient on screen
 			float px = (rim_out - sd) / max(length(vec2(dFdx(sd), dFdy(sd))), 1e-7);
-			float w = max((rim_out + rim_w) * px_per_unit, 1.0);
+			float w = max(ring_w * px_per_unit, 1.0);
 			// the moulding across the whole ring: 0 at its outer edge, 1 at the glass's
 			float t = clamp(px / w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);

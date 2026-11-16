@@ -193,6 +193,7 @@ if (coop is not null)
 else Log($"{o.Arena} ready in {sw.ElapsedMilliseconds} ms: {server.Host.Setup.World.Vehicles.Count - server.Host.Bots.Count} AI cars{(server.Host.Bots.Count > 0 ? $", {server.Host.Bots.Count} bots" : "")}, {server.Host.Game.Spawns.Count} spawn points; " +
     $"listening on UDP {server.Port}, up to {o.MaxPlayers} players{(o.TeamPlay ? ", teams" : "")}{(o.MaxScore > 0 ? $", to {o.MaxScore} points" : "")}{(o.TimeLimit > 0 ? $", {o.TimeLimit} s" : "")}{(o.Password.Length > 0 ? ", password-protected" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted weapons {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}");
 if (server.MapNote is { } mapNote) Log(mapNote);
+if (I76.Net.HostFirewall.Blocked(server.Port) == true) Log($"{I76.Net.HostFirewall.Hint} (UDP port {server.Port})");
 var anet = new List<(string, int)>();
 for (int i = 0; i < a.Count - 1; i++)
 {

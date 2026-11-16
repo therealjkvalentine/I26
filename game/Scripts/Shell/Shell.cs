@@ -1336,10 +1336,6 @@ public sealed class ShellSettings
 
     /// <summary>A hand-written flag's word: true, 1, on or yes (any case) turn it on; anything else, or nothing, leaves it off.</summary>
     public static bool DeveloperWord(string? word) => word?.Trim().ToLowerInvariant() is "true" or "1" or "on" or "yes";
-    /// <summary>[port] load_progress's word: off (or false, 0, no) hides the loading card's wheel; anything else, or none, shows it.</summary>
-    public static bool LoadProgressWord(string? word) => word?.Trim().Trim('"').ToLowerInvariant() is not ("off" or "false" or "0" or "no");
-    /// <summary>The word the file keeps for <paramref name="on"/>.</summary>
-    public static string LoadProgressName(bool on) => on ? "on" : "off";
     /// <summary>The port's own: the 1997 look draws as the original's software renderer did rather than its 3D card (Graphic Detail's 1997 Renderer; SoftwareLook). Off unless set: a file without the key is a 3D card.</summary>
     public bool SoftwareRenderer { get; set; }
     /// <summary>The port's own: the modern look's frame matched to the mission's 8-bit palette (Graphic Detail's Palette Grade; SoftwareLook). Off unless set.</summary>
@@ -1518,8 +1514,6 @@ public sealed class ShellSettings
     public double BriefingCardHold { get; set; } = I76.Game.Boot.BriefingOverlap.DefaultCardHold;
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
-    /// <summary>The port's own, without a row: the loading card's progress wheel (Ui/LoadProgressView.cs; [port] load_progress, off by default since the loading follows upstream's, written only when on).</summary>
-    public bool LoadProgress { get; set; }
     /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
     /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
@@ -1645,8 +1639,8 @@ public sealed class ShellSettings
     public int DeathOrbit { get; set; }
     /// <summary>The port's own, without a row: the clouds' drift in percent of the earlier rate, 0 to 200 ([port] sky_speed, written when not 50). Drawn only.</summary>
     public int SkySpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
-    /// <summary>The port's own, without a row: the death orbit's turn in percent of the earlier rate, 0 to 200 ([port] death_orbit_speed, written when not 50). Drawn only.</summary>
-    public int DeathOrbitSpeed { get; set; } = I76.Sim.Views.PresentationSpeed.Default;
+    /// <summary>The port's own, without a row: the death orbit's turn in percent of the earlier rate, 0 to 200 ([port] death_orbit_speed, written when not 25). Drawn only.</summary>
+    public int DeathOrbitSpeed { get; set; } = I76.Sim.Views.PresentationSpeed.DefaultOrbit;
     /// <summary>The port's own, without a row: in the 1997 look a change of the keys runs the next sim tick at once instead of waiting for it (TickPacer; [port] early_tick, written when off).</summary>
     public bool EarlyTick { get; set; } = true;
     /// <summary>The port's own, without a row: the player's car (and the cameras on it) drawn at the newest sim tick carried forward by the time since it, not between the last two ticks; both looks, offline (DrawAhead; [port] draw_ahead, written when on).</summary>
@@ -1976,7 +1970,7 @@ public sealed class ShellSettings
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.BriefingCardHold = I76.Game.Boot.BriefingOverlap.ParseHold(c.HasSectionKey("port", "briefing_card_hold") ? c.GetValue("port", "briefing_card_hold").ToString() : null);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
-        s.LoadProgress = LoadProgressWord(c.GetValue("port", "load_progress", "off").ToString());
+        // [port] load_progress (the loading card's progress wheel, withdrawn for the line under PLEASE STAND BY) is no longer read, as any key this version does not know; Save drops it
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
@@ -2045,18 +2039,18 @@ public sealed class ShellSettings
         return s;
     }
 
-    /// <summary>[port] sky_speed and death_orbit_speed: absent, 50 (docs/deviations.md "Sky scroll", "Death orbit"). <paramref name="value"/> gives a key's text, or null.</summary>
+    /// <summary>[port] sky_speed and death_orbit_speed: absent, 50 for the sky and 25 for the orbit (docs/deviations.md "Sky scroll", "Death orbit"). <paramref name="value"/> gives a key's text, or null.</summary>
     public void ReadSpeeds(Func<string, string?> value)
     {
         SkySpeed = I76.Sim.Views.PresentationSpeed.Parse(value("sky_speed"));
-        DeathOrbitSpeed = I76.Sim.Views.PresentationSpeed.Parse(value("death_orbit_speed"));
+        DeathOrbitSpeed = I76.Sim.Views.PresentationSpeed.Parse(value("death_orbit_speed"), I76.Sim.Views.PresentationSpeed.DefaultOrbit);
     }
 
-    /// <summary>The two keys, each only when not the default (50); <paramref name="set"/> writes a [port] key.</summary>
+    /// <summary>The two keys, each only when not its default (sky 50, orbit 25); <paramref name="set"/> writes a [port] key.</summary>
     public void WriteSpeeds(Action<string, int> set)
     {
         if (SkySpeed != I76.Sim.Views.PresentationSpeed.Default) set("sky_speed", I76.Sim.Views.PresentationSpeed.Clamp(SkySpeed));
-        if (DeathOrbitSpeed != I76.Sim.Views.PresentationSpeed.Default) set("death_orbit_speed", I76.Sim.Views.PresentationSpeed.Clamp(DeathOrbitSpeed));
+        if (DeathOrbitSpeed != I76.Sim.Views.PresentationSpeed.DefaultOrbit) set("death_orbit_speed", I76.Sim.Views.PresentationSpeed.Clamp(DeathOrbitSpeed));
     }
 
     public void Save()
@@ -2189,7 +2183,6 @@ public sealed class ShellSettings
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (BriefingCardHold != I76.Game.Boot.BriefingOverlap.DefaultCardHold) c.SetValue("port", "briefing_card_hold", BriefingCardHold);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
-        if (LoadProgress) c.SetValue("port", "load_progress", LoadProgressName(true));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CabinsBehindGlass) c.SetValue("port", "car_interiors", false);

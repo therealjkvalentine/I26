@@ -5,8 +5,8 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// The loading card's wheel ([port] load_progress): the progress model (its tables, only up, 1 at the end), the pie's geometry, and
-/// the key's words both ways.
+/// The load's progress (the line under PLEASE STAND BY: StandByLineTests has its drawing rule): the model (its tables, only up, 1 at
+/// the end), and the withdrawn wheel's key ([port] load_progress) read and dropped.
 /// </summary>
 public class LoadProgressTests
 {
@@ -122,88 +122,13 @@ public class LoadProgressTests
     }
 
     [Fact]
-    public void TheWordIsTheStageUnderWay()
+    public void AFileWithTheWithdrawnWheelsKeyStillReadsAndDropsIt()
     {
-        var m = new LoadProgressModel(LoadProgressModel.First);
-        Assert.Equal(LoadProgressModel.Terrain, m.Word);
-        m.Mark("done");
-        Assert.Equal(LoadProgressModel.Scenery, m.Word);
-        m.Mark("look set");
-        Assert.Equal(LoadProgressModel.Vehicles, m.Word);
-        m.Mark("spawn: combat view");
-        Assert.Equal(LoadProgressModel.Cockpit, m.Word);
-        m.Mark("vegetation prewarmed");
-        Assert.Equal(LoadProgressModel.Effects, m.Word);
-    }
-
-    [Theory]
-    [InlineData(0.0, 0)]
-    [InlineData(0.249, 24)]
-    [InlineData(0.25, 25)]
-    [InlineData(0.999, 99)]
-    [InlineData(1.0, 100)]
-    [InlineData(1.5, 100)]
-    [InlineData(-1.0, -1)]
-    public void ThePerCentIsTheFractionsFloor(double f, int percent) => Assert.Equal(percent, LoadWheel.Percent(f));
-
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(25, 90)]
-    [InlineData(50, 180)]
-    [InlineData(75, 270)]
-    [InlineData(100, 360)]
-    public void ThePieTurnsAQuarterForEveryQuarter(int percent, double degrees) => Assert.Equal(degrees, LoadWheel.FillDegrees(percent), 9);
-
-    [Theory]
-    [InlineData(0, -1, 0)]       // 12 o'clock
-    [InlineData(1, 0, 90)]       // 3 o'clock: clockwise, the screen's y down
-    [InlineData(0, 1, 180)]
-    [InlineData(-1, 0, 270)]
-    public void AnglesGoClockwiseFromTwelve(double x, double y, double degrees) => Assert.Equal(degrees, LoadWheel.Angle(x, y), 9);
-
-    [Fact]
-    public void ThePieFillsClockwiseFromTwelve()
-    {
-        // a quarter: the top right quadrant only
-        Assert.True(LoadWheel.Loaded(25, 0.5, -0.5));
-        Assert.False(LoadWheel.Loaded(25, 0.5, 0.5));
-        Assert.False(LoadWheel.Loaded(25, -0.5, -0.5));
-        // a half: the right side
-        Assert.True(LoadWheel.Loaded(50, 0.5, 0.5));
-        Assert.False(LoadWheel.Loaded(50, -0.5, 0.5));
-        // three quarters: all but the top left
-        Assert.True(LoadWheel.Loaded(75, -0.5, 0.5));
-        Assert.False(LoadWheel.Loaded(75, -0.5, -0.5));
-        // nothing and everything
-        Assert.False(LoadWheel.Loaded(0, 0.01, -1));
-        Assert.True(LoadWheel.Loaded(100, -0.01, -1));
-    }
-
-    [Theory]
-    [InlineData(null, true)]
-    [InlineData("on", true)]
-    [InlineData("\"on\"", true)]
-    [InlineData("off", false)]
-    [InlineData("OFF", false)]
-    [InlineData("false", false)]
-    [InlineData("nonsense", true)]
-    public void TheKeyReadsItsWords(string? word, bool on) => Assert.Equal(on, ShellSettings.LoadProgressWord(word));
-
-    [Fact]
-    public void TheKeyGoesRoundTrip()
-    {
-        foreach (bool on in new[] { true, false })
-            Assert.Equal(on, ShellSettings.LoadProgressWord(ShellSettings.LoadProgressName(on)));
-        Assert.False(new ShellSettings().LoadProgress);   // off by default since the loading follows upstream's (written only when on)
-        // the Developer panel's row: off, on (the port's), stepping the setting both ways
-        var row = DevSettings.All.Single(e => e.Key == "load_progress");
-        Assert.Equal(["off", "on" + ShellSettings.PortMark], row.Values);
-        var s = new ShellSettings();
-        Assert.Equal(0, row.Get(s));
-        row.Set(s, 1);
-        Assert.True(s.LoadProgress);
-        Assert.Equal(1, row.Get(s));
-        row.Set(s, 0);
-        Assert.False(s.LoadProgress);
+        // the wheel's [port] load_progress=on, as a build with it wrote it: the rest of the file reads, the key is not written again
+        var file = ShellFileCompatTests.Parse(ShellFileCompatTests.ForkMainFile + "\nload_progress=\"on\"\n");
+        var s = ShellSettings.Read(file);
+        Assert.Equal(2, s.WorldTextures);
+        Assert.False(s.Write(null).HasSectionKey("port", "load_progress"));
+        Assert.DoesNotContain(DevSettings.All, e => e.Key == "load_progress");
     }
 }

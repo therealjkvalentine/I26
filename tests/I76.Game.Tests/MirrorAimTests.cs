@@ -43,9 +43,12 @@ public class MirrorAimTests(ITestOutputHelper output)
         var (yl, al, _) = Solve(left: true);
         var (yr, ar, _) = Solve(left: false);
         output.WriteLine($"yaw out: left {yl:0.00}, right {yr:0.00}");
-        // the inner edge an eighth of the field inside the flank's line: 15 to 18 degrees out for a 40-degree picture
-        Assert.InRange(yl, 15f, 18f);
-        Assert.InRange(yr, 15f, 18f);
+        // the inner edge 0.105 of the field inside the flank's line (an eighth until a playtest asked for half as much of the car in
+        // the glass): 0.8 degrees further out than at an eighth, 16 to 17 degrees for a 40-degree picture, each glass turned 0.4 further
+        Assert.Equal(0.105f, MirrorAim.FlankShare);
+        Assert.InRange(yl, 16f, 17f);
+        Assert.InRange(yr, 16f, 17f);
+        Assert.Equal((0.125f - MirrorAim.FlankShare) * OwnCamera.FovDegrees, 0.8f, 0.001f);
         Assert.Equal(yl, yr, 0.5f);
         Assert.True(al.Z < -0.9f && ar.Z < -0.9f);   // back
         Assert.True(al.X < 0 && ar.X > 0);           // each to its own side
@@ -89,7 +92,7 @@ public class MirrorAimTests(ITestOutputHelper output)
         var centre = glass;
         var normal = Vector3.Transform(art, q);
         output.WriteLine($"CC left: yaw out {yaw:0.00}, turned {Deg(2 * MathF.Acos(q.W)):0.0}, seen {Incidence(centre, normal):0.0} off its face (art {Incidence(glass, art):0.0})");
-        Assert.InRange(yaw, 15f, 18f);
+        Assert.InRange(yaw, 16f, 17f);
         Assert.True(Vector3.Dot(MirrorAim.Reflect(Eye, centre, normal), axis) > 0.9995f);
     }
 

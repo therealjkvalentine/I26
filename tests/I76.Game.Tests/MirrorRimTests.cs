@@ -67,7 +67,8 @@ public class MirrorRimTests
         Assert.True(l.Z > 0.9f && r.Z > 0.9f);   // back along the car
         Assert.True(l.X < 0 && r.X > 0);         // turned to its own side
         Assert.Equal(-r.X, l.X, 0.0001f);
-        Assert.True(l.Y <= 0 && l.Y > -0.2f);    // level or a little down
+        Assert.Equal(0f, l.Y, 0.0001f);          // level (3 down until a playtest asked for the side mirrors higher)
+        Assert.Equal(0f, OwnCamera.PitchDegrees);
         Assert.Equal(1f, l.Length(), 0.0001f);
         // a real door mirror: 15 to 20 degrees out, 30 to 40 across, the inner edge inboard of straight back so the flank shows
         Assert.InRange(OwnCamera.YawDegrees, 15f, 20f);
