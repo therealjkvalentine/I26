@@ -223,6 +223,14 @@ public partial class Main : Node3D
         // every control without a font of its own inherits and which outlives the scene's reloads
         GetWindow().Theme ??= new Theme { DefaultFont = I76.Game.Net.HudStyle.Bold };
         LoadProfiler.SetMain();
+        // capture hook I76_AUDIO_SILENT=1: the Master bus turned down 80 dB at the end of its effects, once a run, so that a capture of the
+        // game's sound (I76_AUDIO_REC, a capture effect added after it: multiply its samples by 10000) plays nothing through the speakers
+        if (!_audioSilent && System.Environment.GetEnvironmentVariable("I76_AUDIO_SILENT") == "1")
+        {
+            _audioSilent = true;
+            AudioServer.AddBusEffect(0, new AudioEffectAmplify { VolumeDb = -80 });
+        }
+        PausedClock.StartAudioRec();   // (I76_AUDIO_REC from the run's start)
         LoadProfiler.Mark("scene ready");
         HeapTrim.Configure();
         GcStress.Install();
@@ -2505,6 +2513,8 @@ public partial class Main : Node3D
         if (builder.Materials is { } mats) { mats.HoldFlush = false; mats.FlushPropMaps(); }
     }
 
+    private static bool _audioSilent;
+
     /// <summary>I76_LOAD_PROFILE_QUIT=1: quits 3 s into the mission (the harness's run is its load).</summary>
     private async void QuitSoon()
     {
@@ -4527,19 +4537,29 @@ public partial class Main : Node3D
             ProcessMode = ProcessModeEnum.Always;
             // I76_AUDIO_REC=file.f32: the Master bus's left channel as little-endian float32 (44100 Hz), for checking a sound for clicks;
             // I76_AUDIO_REC_STEREO=1 writes left and right interleaved (for checking a sound's panning)
-            if (System.Environment.GetEnvironmentVariable("I76_AUDIO_REC") is { Length: > 0 } path)
-            {
-                var cap = new AudioEffectCapture { BufferLength = 1f };
-                AudioServer.AddBusEffect(0, cap);
-                _rec = (cap, Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Write));
-            }
+            _rec = _recRun ??= StartAudioRec();
+        }
+
+        /// <summary>The capture and its file, made once a run (Main._Ready makes it as the run starts; a scene reload takes it on), 4 s of buffer.</summary>
+        internal static (AudioEffectCapture Cap, Godot.FileAccess File)? StartAudioRec()
+        {
+            if (_recRun is not null || System.Environment.GetEnvironmentVariable("I76_AUDIO_REC") is not { Length: > 0 } path) return _recRun;
+            var cap = new AudioEffectCapture { BufferLength = 4f };
+            AudioServer.AddBusEffect(0, cap);
+            _recRun = (cap, Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Write));
+            RenderingServer.FramePostDraw += DrainAudioRec;
+            return _recRun;
         }
 
         private (AudioEffectCapture Cap, Godot.FileAccess File)? _rec;
+        internal static (AudioEffectCapture Cap, Godot.FileAccess File)? _recRun;
 
-        private void Record()
+        private void Record() => DrainAudioRec();
+
+        /// <summary>The capture's frames so far into its file (each drawn frame too, from the run's start: RenderingServer.FramePostDraw).</summary>
+        internal static void DrainAudioRec()
         {
-            if (_rec is not var (cap, file)) return;
+            if (_recRun is not var (cap, file)) return;
             bool stereo = System.Environment.GetEnvironmentVariable("I76_AUDIO_REC_STEREO") == "1";
             foreach (var f in cap.GetBuffer(cap.GetFramesAvailable())) { file.StoreFloat(f.X); if (stereo) file.StoreFloat(f.Y); }
             file.Flush();
