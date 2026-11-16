@@ -115,7 +115,7 @@ public partial class MoviePlayer : CanvasLayer
         Layer = Skippable ? 100 : 30;   // an unskippable movie is under the menu a player's Esc opens
         ProcessMode = ProcessModeEnum.Always;
         _gate.HeldAtStart(HeldSkipInputs());
-        if (!Faithful && Replacement(Path) is { } ogv && PlayReplacement(ogv)) { AddTag(new Vector2(4, 3)); return; }
+        if (!Faithful && Replacement(Path) is { } ogv && PlayReplacement(ogv)) { AddTag(ReplacementPicture()); return; }
         try { _movie = Smacker.Open(Path); }
         catch (System.Exception ex)
         {
@@ -659,6 +659,21 @@ public partial class MoviePlayer : CanvasLayer
             && double.TryParse(shot[(at + 1)..], System.Globalization.CultureInfo.InvariantCulture, out double t)) { _shotPath = shot[..at]; _shotAt = t; }
         GD.Print($"movie: {System.IO.Path.GetFileName(Path)} replaced by {System.IO.Path.GetFileName(ogv)} ({video.GetStreamLength():0.0} s, {size.X}x{size.Y})");
         return true;
+    }
+
+    /// <summary>
+    /// The picture the stand-by line is laid out on over a replacement: the SMK's own height (the line's size and margin are in its
+    /// pixels, as over the SMK itself) at the replacement's aspect. Its 4:3 alone, as before, put the line 14 picture pixels in from a
+    /// 4x3 picture's corner, that is far off the screen, so over a replacement nothing showed until the loading card came back.
+    /// </summary>
+    private Vector2 ReplacementPicture()
+    {
+        float h = I76.Game.Shell.ShellFrame.H;
+        try { using var smk = Smacker.Open(Path); if (smk.Height > 0) h = smk.Height; }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.UnauthorizedAccessException) { }
+        var size = _video?.GetVideoTexture()?.GetSize() ?? Vector2.Zero;
+        var (x, y) = StandByLine.ReplacementPicture(h, size.X, size.Y);
+        return new Vector2(x, y);
     }
 
     private static double Wall() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
