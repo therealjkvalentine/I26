@@ -761,6 +761,8 @@ public class VegetationTests(ITestOutputHelper output)
         Assert.True(map.Width > 0 && map.Height > 0);
         Assert.InRange(map.Mean, 0.25f, 0.9f);
         Assert.Equal(map.Width * map.Height, map.Data.Length);
+        // the size the game reserves the sward's texture at before the map is made (VegetationNode.ReserveSward)
+        Assert.Equal((map.Width, map.Height), SwardMap.Size(w.Terrain));
         // the texels are the placer's sward at their middles, and deterministic
         sw.Restart();
         Assert.Equal(map.Data, SwardMap.Build(p, w.Terrain).Data);

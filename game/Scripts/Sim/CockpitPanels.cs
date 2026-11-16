@@ -115,6 +115,39 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     /// </summary>
     public void Prefetch() => textures.Prefetch(layout.Blocks.Select(b => Member(b.Texture)).OfType<string>(), rgba: true);
 
+    /// <summary>The panels' pictures made ahead (<see cref="Prepare"/>), for their first draw to take: RGBA8 bytes and size, or null (none).</summary>
+    private readonly Dictionary<string, (byte[] Bytes, int W, int H)?> _prepared = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// What the first draws read made ahead, on a worker (a mission attaching under its briefing): each of <paramref name="panels"/>'
+    /// pictures (a labelled one doubled) and each sheet with its bytes. No engine resource is made; the panels' textures are made at their first draw, as before.
+    /// </summary>
+    public void Prepare(IReadOnlyCollection<string> panels)
+    {
+        foreach (var b in layout.Blocks)
+        {
+            if (b.IsSource) { SheetBytes(b.Texture); continue; }
+            if (!panels.Contains(b.Texture, StringComparer.OrdinalIgnoreCase) || _targets.ContainsKey(b.Texture) || _prepared.ContainsKey(b.Texture) || Member(b.Texture) is null) continue;
+            _prepared[b.Texture] = LoadTarget(b.Texture) is { } img ? (img.GetData(), img.GetWidth(), img.GetHeight()) : null;
+        }
+    }
+
+    /// <summary>
+    /// The panels' textures made from what <see cref="Prepare"/> made (the panels the first draws draw), one a step (a mission attaching under its briefing): each is a
+    /// texture sent to the card and the materials that show it pointed at it, which the first draws made all at once.
+    /// </summary>
+    public IEnumerable<object?> MakeTargetsSteps()
+    {
+        foreach (var dst in _prepared.Keys.ToList())
+        {
+            TargetOf(dst);
+            yield return null;
+        }
+    }
+
+    /// <summary>Whether a dst texture's live copy was made (or found not to be): a draw on it makes no engine resource.</summary>
+    public bool Made(string dst) => _targets.ContainsKey(dst);
+
     /// <summary>A loaded texture's texels per original pixel.</summary>
     private int ScaleOf(string tex) => _scales.GetValueOrDefault(tex, 1);
 
@@ -126,6 +159,7 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     public bool Reload()
     {
         bool all = true;
+        _prepared.Clear();
         // the panels shown until now kept for a change back (their dictionaries go with them), and this look's if it was shown before
         LookState? kept = _looks.Change(LookKey, () => new LookState(_sheets, _sheetBytes, _scales, _labels, _cells,
             _targets.Where(kv => kv.Value is not null && kv.Value.Uploaded && !kv.Value.Whole && kv.Value.Dirty.Count == 0)
@@ -166,14 +200,16 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
     private Target? TargetOf(string dst)
     {
         if (_targets.TryGetValue(dst, out var t)) return t;
+        // (a texture is made here: the main thread's, never a worker drawing the first frame's panels, Cockpit.FirstFrameSteps)
+        if (OS.GetThreadCallerId() != OS.GetMainThreadId()) throw new System.InvalidOperationException($"cockpit panel {dst}: its texture made off the main thread");
         t = null;
-        if (Member(dst) is { } member && LoadTarget(dst) is { } img)
+        if (Member(dst) is { } member && (_prepared.Remove(dst, out var ahead) ? ahead : LoadTarget(dst) is { } img ? (img.GetData(), img.GetWidth(), img.GetHeight()) : null) is { } pic)
         {
-            var bytes = img.GetData();
-            var live = new LiveTexture(bytes, img.GetWidth(), img.GetHeight());
+            var bytes = pic.Bytes;
+            var live = new LiveTexture(bytes, pic.W, pic.H);
             // the weapons panel's housings hang where the bare art is keyed: its texels key it (the specials' sit on the dash's opaque art)
             if (!Unbound.Contains(dst)) materials.OverrideTexture(member, live.Texture, ownKey: dst.Equals("zbk_.map", StringComparison.OrdinalIgnoreCase));
-            t = new Target { Live = live, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = img.GetWidth(), H = img.GetHeight(), S = ScaleOf(dst), Uploaded = true };
+            t = new Target { Live = live, BaseBytes = bytes, WorkBytes = (byte[])bytes.Clone(), W = pic.W, H = pic.H, S = ScaleOf(dst), Uploaded = true };
         }
         return _targets[dst] = t;
     }

@@ -48,14 +48,21 @@ public partial class ScenerySpawner : Node3D
     public bool Modern
     {
         get => _modern;
-        set
-        {
-            _modern = value;
-            foreach (var n in _classic) n.Visible = !value;
-            foreach (var n in _modernNodes) n.Visible = value;
-            foreach (var c in _cards) c.Node.Visible = (c.Looks & (value ? ModernLook : ClassicLook)) != 0;
-            Clutter.Visible = !value;
-        }
+        set { foreach (var _ in ModernSteps(value, double.PositiveInfinity)) { } }
+    }
+
+    /// <summary>
+    /// <see cref="Modern"/> set a few milliseconds at a time (a mission attaching under its briefing): each node shown or hidden is
+    /// the renderer's instances under it updated, which for a whole map was a frame of about 0.1 s.
+    /// </summary>
+    public IEnumerable<object?> ModernSteps(bool value, double sliceMs)
+    {
+        _modern = value;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var n in _classic.ToArray()) { n.Visible = !value; if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); } }
+        foreach (var n in _modernNodes.ToArray()) { n.Visible = value; if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); } }
+        foreach (var c in _cards.ToArray()) { c.Node.Visible = (c.Looks & (value ? ModernLook : ClassicLook)) != 0; if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); } }
+        Clutter.Visible = !value;
     }
 
     /// <summary>The flame planes' height and width (m) of the model whose smokers were last added (0 without flame planes): the fire the modern look matches.</summary>

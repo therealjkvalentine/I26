@@ -16,6 +16,12 @@ public static class Hitch
 
     public static readonly double LimitMs = double.TryParse(System.Environment.GetEnvironmentVariable("I76_HITCH_MS"), out var lim) ? lim : 200;   // I76_HITCH_MS lowers it, to hunt small hitches
     private static long _pipes;
+    /// <summary>
+    /// I76_HITCH_PIPES=1 (with I76_HITCH_MS under 200): a hitch line counts the pipelines its frame compiled. Off by default: reading the
+    /// renderer's counts waits for its thread to finish the frame it has (five calls a frame), which made every frame of a load wait
+    /// for the renderer, a long step's frame about twice as long (a playing briefing's picture held that much longer).
+    /// </summary>
+    private static readonly bool PipesOn = System.Environment.GetEnvironmentVariable("I76_HITCH_PIPES") == "1";
     private static long[] _kinds = new long[5];
 
     /// <summary>The render pipelines compiled so far, by kind: canvas, mesh (at load), surface (first draw), draw (a stall in the draw call), specialization (in the background).</summary>
@@ -80,10 +86,10 @@ public static class Hitch
                 ? $"hitch: frame {Godot.Engine.GetProcessFrames()} {ms:0} ms, slowest phase {Names[top]} {topMs:0} ms (longest single call {Worst[top] * 1000.0 / Stopwatch.Frequency:0} ms)"
                 : $"hitch: frame {Godot.Engine.GetProcessFrames()} {ms:0} ms, mostly outside the measured phases (render/loading/engine; slowest measured: {Names[top]} {topMs:0} ms)";
             _ = sum;
-            if (LimitMs < 200) { var now = Kinds(); line += $" pipelines {now.Sum() - _pipes} (total {now.Sum()}; canvas/mesh/surface/draw/specialization {string.Join('/', now.Select((n, k) => n - _kinds[k]))})"; }
+            if (LimitMs < 200 && PipesOn) { var now = Kinds(); line += $" pipelines {now.Sum() - _pipes} (total {now.Sum()}; canvas/mesh/surface/draw/specialization {string.Join('/', now.Select((n, k) => n - _kinds[k]))})"; }
             if (LimitMs < 200) line += $" [terrain update {I76.Game.Boot.FrameProfiler.TerrainUpdateMs:0.0} ms, gc0 {GC.CollectionCount(0)} gc2 {GC.CollectionCount(2)}]";
         }
-        { KindsInto(_kinds); long p = 0; foreach (long k in _kinds) p += k; _pipes = p; }
+        if (LimitMs < 200 && PipesOn) { KindsInto(_kinds); long p = 0; foreach (long k in _kinds) p += k; _pipes = p; }
         if (reset) { Array.Clear(Ticks); Array.Clear(Worst); }
         return line;
     }

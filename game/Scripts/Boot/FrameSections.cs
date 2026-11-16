@@ -16,7 +16,8 @@ namespace I76.Game.Boot;
 ///
 /// Off (the variable unset) a scope is a struct whose Dispose tests one static field: nothing is allocated, nothing timed. On, the rows
 /// go into an array made at the start and are written when the game quits, so the measuring allocates nothing a frame either.
-/// I76_FRAME_SECTIONS_SKIP_MS (default 8000) skips the frames until that long after the mission counted as loaded;
+/// I76_FRAME_SECTIONS_SKIP_MS (default 8000) skips the frames until that long after the mission counted as loaded (negative: none, the
+/// load's frames too; the last column names the load's last stamp in each frame);
 /// I76_FRAME_SECTIONS_RUN_MS (default 0: until the game quits) quits the game after that long; the player's car destroyed ends it too.
 /// I76_FRAME_SECTIONS_TYPES=1 also listens to the runtime's allocation samples (one about every 100 kB allocated, with the type) and
 /// prints the types that took the most, by thread, when the game quits: what the allocations are (the listener costs time: not for numbers).
@@ -94,6 +95,7 @@ public static partial class FrameSections
         private readonly int _runMs = int.TryParse(System.Environment.GetEnvironmentVariable("I76_FRAME_SECTIONS_RUN_MS"), out int r) ? r : 0;
         private readonly int _cols = Fixed.Length + 2 * (int)Sec.Count;
         private double[] _rows = [];
+        private string[] _stages = [];
         private int _n;
         private long _start, _nodesEnd, _preDraw, _postDraw, _first, _alloc, _allAlloc, _frame;
         private int _g0, _g1, _g2;
@@ -105,6 +107,7 @@ public static partial class FrameSections
         public override void _Ready()
         {
             _rows = new double[MaxRows * _cols];
+            _stages = new string[MaxRows];
             if (System.Environment.GetEnvironmentVariable("I76_FRAME_SECTIONS_TYPES") == "1") _types = new AllocTypes();
             RenderingServer.ViewportSetMeasureRenderTime(GetViewport().GetViewportRid(), true);
             AddChild(new EndProbe { Name = "FrameSectionsEnd", ProcessMode = ProcessModeEnum.Always, ProcessPriority = int.MaxValue, Owner2 = this });
@@ -141,7 +144,8 @@ public static partial class FrameSections
             if (!_measuring)
             {
                 double loaded = FrameProfiler.LoadedAt;
-                if (loaded > 0 && now * 1000.0 / Stopwatch.Frequency - loaded >= _skipMs) { _measuring = AllocTypes.Measuring = true; _first = now; }
+                // a negative skip measures from the first frame: the load's own frames (the stage column names the last load stamp)
+                if (_skipMs < 0 || loaded > 0 && now * 1000.0 / Stopwatch.Frequency - loaded >= _skipMs) { _measuring = AllocTypes.Measuring = true; _first = now; }
                 Reset(now);
                 return;
             }
@@ -176,6 +180,7 @@ public static partial class FrameSections
                 _rows[o + c++] = System.Runtime.JitInfo.GetCompiledMethodCount(true) - _jitN;
                 for (int i = 0; i < (int)Sec.Count; i++) _rows[o + c++] = Ms(Ticks[i]);
                 for (int i = 0; i < (int)Sec.Count; i++) _rows[o + c++] = Bytes[i] / 1024.0;
+                _stages[_n] = I76.Game.World.MissionBuilder.LastStage;
                 _n++;
             }
             Reset(now);
@@ -201,12 +206,13 @@ public static partial class FrameSections
             _done = true;
             AllocTypes.Measuring = false;
             using var w = new System.IO.StreamWriter(Path!);
-            w.WriteLine(string.Join(",", Fixed) + "," + string.Join(",", SecNames.Select(n => n + "_ms")) + "," + string.Join(",", SecNames.Select(n => n + "_kb")));
+            w.WriteLine(string.Join(",", Fixed) + "," + string.Join(",", SecNames.Select(n => n + "_ms")) + "," + string.Join(",", SecNames.Select(n => n + "_kb")) + ",stage");
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < _n; i++)
             {
                 sb.Clear();
                 for (int c = 0; c < _cols; c++) { if (c > 0) sb.Append(','); sb.Append(_rows[i * _cols + c].ToString("0.###", CultureInfo.InvariantCulture)); }
+                sb.Append(",\"").Append((_stages[i] ?? "").Replace("\"", "'")).Append('"');
                 w.WriteLine(sb.ToString());
             }
             GD.Print($"frame-sections: {_n} frames to {Path}");
