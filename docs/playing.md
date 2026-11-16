@@ -348,7 +348,10 @@ in the same cars (MISSION COMPLETE, "Next mission: ... in 15 s"); the host's Esc
 the host chooses on the end menu: Replay Mission (everyone again from the start), Back to Lobby, Leave Match (back to the menus) or
 Exit I76 (back to the desktop); the others see that the host is choosing. The host's Esc menu has Replay Mission and Back to Lobby
 during the mission as well. In the host form's co-op list, and on the lobby's mission line, the pointer on a mission shows what it is
-about (its first objective).
+about (its first objective). In the lobby the host's GAME SETUP button (or S) opens the host form again: pick another mission, change
+Extra Enemies, Damage Taken, No. Drivers, Invite Only, Hidden Cars, Car Reset, CB Radio, Turrets, the game's name or password, and APPLY;
+everyone stays in the lobby, sees the new mission and a line for each change in the chat, and the next START plays it. Sim Rate stays as
+the game was hosted. A player whose car the new rules refuse is put in the mission's own car and told why.
 
 **CB voice.** In network games the CB radio sends your voice while you hold the poetry key (C). Sending needs a
 microphone, and the game does not open the audio input (so no system asks for microphone access) until you pick one:
