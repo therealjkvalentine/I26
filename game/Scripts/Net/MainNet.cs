@@ -283,7 +283,7 @@ public partial class Main
             _lobbyScreen = screen;
             _lobbyShell = new I76.Game.Shell.Shell
             {
-                Install = new I76.Formats.Vfs.GameInstall(_opt.Install), OnLaunch = _ => { }, Faithful = _mode1997, Name = "Lobby",
+                Install = new I76.Formats.Vfs.GameInstall(_opt.Install), OnLaunch = _ => { }, Faithful = _opt.Mode1997, Name = "Lobby",   // the look the shell and the loading card have (no mission has set _mode1997 yet)
                 Hosted = screen, HostLayer = 101, HostDone = () => { _lobbyLeft = true; c.Leave(); },
             };
             AddChild(_lobbyShell);
