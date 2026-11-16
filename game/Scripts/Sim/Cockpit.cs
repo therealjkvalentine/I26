@@ -1475,6 +1475,7 @@ public partial class Cockpit : Node
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
         if (RimKeyHook) _mirrorMat.SetShaderParameter("rim_key", true);
+        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_GAP") == "1") _mirrorMat.SetShaderParameter("rim_gap", true);
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {
@@ -1991,8 +1992,8 @@ public partial class Cockpit : Node
         m.SetShaderParameter("pane_mid", po + pa * (g.Aspect / 2) + pb / 2); m.SetShaderParameter("pane_half", new Vector2(g.Aspect / 2, 0.5f)); m.SetShaderParameter("pane_a", pa); m.SetShaderParameter("pane_b", pb);
         if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
         {
-            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, rimOut.Dark || RimKeyHook ? [.. GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), .. g.Hull.Select(q => q + (q - g.Hull.Aggregate(Vector2.Zero, (a, b) => a + b) / g.Hull.Count).Normalized() * GrowMargin)]
-                : GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), g.Eye);
+            // the pane's outline in it too: the moulding's dark reaches the housing's corners (the shader's union with the outline)
+            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(g.Hull, shape.Core, shape.R + grow, GrowMargin), g.Eye);
             g.GrownFor = (grow, rimOut.Dark);
         }
         g.Mesh.Mesh = g.Grown;

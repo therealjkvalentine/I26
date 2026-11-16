@@ -1,11 +1,12 @@
 using Godot;
 using I76.Game.Sim;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace I76.Game.Tests;
 
 /// <summary>The rounder rear mirror's shape (MirrorRound): a tapered outline fitted from a mask, and its core shrunk by the radius. Synthetic masks.</summary>
-public class MirrorRoundTests
+public class MirrorRoundTests(ITestOutputHelper output)
 {
     /// <summary>A w × h mask of a trapezoid: rows top..bottom, its left side from x0 at the top to x1 at the bottom, mirrored on the right, the corners cut by <paramref name="cut"/> pixels.</summary>
     private static bool[] Trapezoid(int w, int h, int top, int bottom, float x0, float x1, int cut = 0)
@@ -226,6 +227,56 @@ public class MirrorRoundTests
         Assert.True(glassEdge > -before && glassEdge > 0);   // beyond the rounded outline, where the old ring's inner edge lay inside it
         // "in" (no outer growth): the ring the rim alone, inside the outline as before
         Assert.Equal(MirrorRim.RimShare, MirrorRim.RingWidth(0), 0.00001f);
+    }
+
+    /// <summary>
+    /// The ring's outer edge reaches the housing's corners: a pane sharper-cornered than the rounded ring (a parallelogram sheared as
+    /// the CC cars' glass is, seen at 400 px a glass height) had its corners outside the ring's outer edge; the outer edge now takes
+    /// in the pane's own outline and half a pixel past it, so every corner is covered, while along the straight runs (the outline lies
+    /// there already, the ring's outer edge two widths past it) the edge is exactly the ring's, the band as wide as before.
+    /// </summary>
+    [Fact]
+    public void TheOuterEdgeReachesTheHousingsCorners()
+    {
+        var pane = GlassRound.Hull([new(0, 0), new(1.4f, 0), new(1.8f, 1), new(0.4f, 1)]);
+        var (core, r) = GlassRound.Shape(pane, GlassRound.DefaultShare)!.Value;
+        float rimOut = GlassRound.DefaultRimOut * MirrorRim.OuterShare, k = 400;
+        float RingIn(Vector2 p) => (rimOut - (GlassRound.Distance(core, p) - r)) * k;
+        float OutlineIn(Vector2 p) => -SignedDistance(pane, p) * k;
+        int opened = 0;
+        foreach (var c in pane)
+        {
+            if (RingIn(c) < 0) opened++;
+            Assert.True(GlassRound.OuterIn(RingIn(c), OutlineIn(c)) >= GlassRound.HullOver - 0.01f, $"corner {c} uncovered");
+            // half the overlap past the corner along its bisector is still inside the outer edge
+            var mid = pane.Aggregate(Vector2.Zero, (a, b) => a + b) / pane.Count;
+            var past = c + (c - mid).Normalized() * (GlassRound.HullOver / 2 / k);
+            Assert.True(GlassRound.OuterIn(RingIn(past), OutlineIn(past)) > 0, $"just past {c} uncovered");
+        }
+        Assert.True(opened >= 2, $"the ring alone left {opened} corners open");
+        // the straight runs: each side's middle, the outer edge the ring's alone
+        for (int i = 0; i < pane.Count; i++)
+        {
+            var m = (pane[i] + pane[(i + 1) % pane.Count]) / 2;
+            Assert.Equal(RingIn(m), GlassRound.OuterIn(RingIn(m), OutlineIn(m)), 0.001f);
+        }
+        // how much thicker the band gets at the sharpest corner: the corner's distance in from the ring's outer edge, in ring widths
+        float widest = pane.Max(c => -RingIn(c)) / (MirrorRim.RingWidth(rimOut) * k);
+        output.WriteLine($"sharpest corner past the ring: {widest:0.00} ring widths");
+    }
+
+    private static float SignedDistance(List<Vector2> poly, Vector2 p)
+    {
+        float d = GlassRound.Distance(poly, p);
+        if (d > 0) return d;
+        float m = float.MaxValue;
+        for (int i = 0; i < poly.Count; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Count], e = b - a;
+            float t = Math.Clamp((p - a).Dot(e) / e.Dot(e), 0, 1);
+            m = Math.Min(m, (a + e * t).DistanceTo(p));
+        }
+        return -m;
     }
 
     /// <summary>The pane's plane from its corners' picture coordinates: recovered exactly for a flat pane, and a point past its outline lands in it.</summary>

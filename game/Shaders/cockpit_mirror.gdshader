@@ -80,8 +80,14 @@ uniform bool glass_from_shape = false;
 // I76_MIRROR_RIM_KEY: the side mirrors' rim (the door glasses' moulding, the added glasses' frame) flat magenta, for measuring its width
 uniform bool rim_key = false;
 const vec3 KEY = vec3(1.0, 0.0, 1.0);
-// and the pane's outline outside the ring (the housing's painted glass, hidden: what shows there is behind the housing) flat cyan
+// and, with rim_gap (I76_MIRROR_RIM_GAP=1: the ring alone, as before the corners were filled), the pane's outline outside the ring
+// (the housing's painted glass, hidden: what shows there is behind the housing) flat cyan
 const vec3 KEY_GAP = vec3(0.0, 1.0, 1.0);
+uniform bool rim_gap = false;
+// how far past the pane's outline the moulding's dark reaches (screen pixels: it overlaps the housing's edge), and the blend
+// (GlassRound.HullOver, HullSmooth, OuterIn: keep them the same)
+const float HULL_OVER = 0.5;
+const float HULL_SMOOTH = 1.5;
 
 // the signed distance to a convex quad (negative inside), corners in order
 float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
@@ -202,10 +208,17 @@ void fragment() {
 			float t = clamp(px / w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
 			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
+			// the outer edge takes in the pane's own outline and HULL_OVER screen pixels past it, so where the housing's corner is
+			// sharper than the rounded ring the moulding's dark reaches its edge (a smooth union, no crease where the two meet); the
+			// straight runs lie on the outline already, so only the corners fill out, and the glass's edge stays one width in
+			float sdh = sd_hull(p);
+			float px_h = -sdh / max(length(vec2(dFdx(sdh), dFdy(sdh))), 1e-7) + HULL_OVER;
+			float hk = max(HULL_SMOOTH - abs(px - px_h), 0.0) / HULL_SMOOTH;
+			float px_out = max(px, px_h) + hk * hk * HULL_SMOOTH * 0.25;
 			float ring = clamp(px + 0.5, 0.0, 1.0);
-			float hull_in = rounded(sd_hull(p));
-			if (rim_key && !rim_dark) ALBEDO = mix(KEY_GAP, ALBEDO, ring);
-			ALPHA = rim_dark || rim_key ? max(ring, hull_in) : ring;
+			float solid = clamp(px_out + 0.5, 0.0, 1.0);
+			if (rim_key && rim_gap) { ALBEDO = mix(KEY_GAP, ALBEDO, ring); solid = max(ring, rounded(sdh)); }
+			ALPHA = rim_dark ? max(solid, rounded(sdh)) : solid;
 			if (ALPHA <= 0.0) discard;
 		} else if (pane_round) {
 			float sd = sd_core(vec2(UV.x * pane_aspect, UV.y)) - pane_r;
