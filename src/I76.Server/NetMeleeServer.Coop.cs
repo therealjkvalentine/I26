@@ -57,7 +57,7 @@ public sealed partial class NetMeleeServer
             int id = PeerOf(s);
             var stage = _coopStage.GetValueOrDefault(id);
             if (stage == CoopStage.Briefing && !Both(id, PeerFeatures.CoopSkip)) stage = CoopStage.Unknown;
-            return new CoopStart.Seat(s.Name, s.Inputs.LastReceived > 0, stage, _coopSkipped.Contains(id));
+            return new CoopStart.Seat(s.Name, s.Inputs.LastReceived > 0, stage, _coopSkipped.Contains(id)) { Peer = id };
         })];
 
     /// <summary>
@@ -75,12 +75,13 @@ public sealed partial class NetMeleeServer
         string told = string.Join("\n", waiting.Select(w => $"{w.Name}\t{(byte)w.Stage}"));
         if (told == _waitTold) return;
         _waitTold = told;
-        var msg = new CoopWait((int)Math.Ceiling(cm.LoadLeft ?? 0), waiting);
+        int left = (int)Math.Ceiling(cm.LoadLeft ?? 0);
         foreach (var (id, s) in _byPeer)
         {
             if (!Both(id, PeerFeatures.CoopWait)) continue;
+            // each game hears whom it waits for: the others, never itself (a host alone, still in its briefing, waits for nobody)
             _msg.Clear();
-            msg.Write(_msg);
+            new CoopWait(left, cm.Started ? [] : CoopStart.Waiting(seats.Where(x => x.Peer != id))).Write(_msg);
             ((NetPeer)s.Connection!).Send(_msg.Span, DeliveryMethod.ReliableOrdered);
         }
         if (waiting.Count > 0) Log?.Invoke($"co-op: the start waits for {string.Join(", ", waiting.Select(w => $"{w.Name} ({CoopStages.Doing(w.Stage)})"))}");

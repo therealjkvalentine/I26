@@ -3821,6 +3821,13 @@ public partial class Main : Node3D
         if (_sim is not null && e is InputEventKey { Pressed: true } ck && GameKeys.CodeOf(ck) is var cc && (cc & 0xff00) == 0x300)
             TypedCheat(_typer.Push(cc));
         if (e is InputEventKey dk && DebugKey(dk)) return;
+        // a co-op listen host after a won mission: Enter takes everyone on to the next mission now (the notice says so; Esc stays the menu)
+        if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter } && NetCoopHost && I76.Net.CoopPlan.NowKeyGoes(_net!.Server!.CoopPlanNow, true) && !_ended)
+        {
+            NetCoopChoose(MenuOutcome.CoopNext);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // a listen host on the standings: Next Round now, without waiting out the pause
         if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter } && _net?.Server is { } hostServer && _netOverAt is not null && !_ended)
         {
