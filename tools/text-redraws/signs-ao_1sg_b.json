@@ -1,0 +1,230 @@
+{
+ "textures": [
+  "ao_1sg_b"
+ ],
+ "note": "the Gila Truck Stop billboard (aobilbdb): its small print; written by gen/billboards.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    10.23,
+    20.98,
+    26.88,
+    26.32
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    12.29,
+    27.08,
+    24.58,
+    32.73
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    7.43,
+    33.3,
+    29.72,
+    38.79
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    104.37,
+    20.68,
+    114.92,
+    26.59
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    103.32,
+    27.09,
+    115.82,
+    32.68
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    104.06,
+    33.29,
+    115.04,
+    38.76
+   ],
+   "where": {
+    "lum_below": 170
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 200
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "LOWEST",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.74,
+   "colour": [
+    199,
+    18,
+    32
+   ],
+   "box": [
+    11.23,
+    21.78,
+    25.88,
+    25.52
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "PRICE",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 4.05,
+   "colour": [
+    203,
+    26,
+    40
+   ],
+   "box": [
+    13.29,
+    27.88,
+    23.58,
+    31.93
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "#2 DIESEL",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.89,
+   "colour": [
+    200,
+    20,
+    34
+   ],
+   "box": [
+    8.43,
+    34.1,
+    28.72,
+    37.99
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "CIGS",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 4.31,
+   "colour": [
+    203,
+    26,
+    40
+   ],
+   "box": [
+    105.37,
+    21.48,
+    113.92,
+    25.79
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "CHEW",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.99,
+   "colour": [
+    200,
+    20,
+    34
+   ],
+   "box": [
+    104.32,
+    27.89,
+    114.82,
+    31.88
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "BEER",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.87,
+   "colour": [
+    202,
+    25,
+    41
+   ],
+   "box": [
+    105.06,
+    34.09,
+    114.04,
+    37.96
+   ],
+   "alpha": "set"
+  }
+ ]
+}

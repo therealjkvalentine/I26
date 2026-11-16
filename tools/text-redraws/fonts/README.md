@@ -12,7 +12,9 @@ https://github.com/google/fonts (the font's folder; D-DIN Condensed Bold from Da
 | Face | Folder | Copyright | Used for |
 | --- | --- | --- | --- |
 | Alfa Slab One | `AlfaSlabOne/` | The Alfa Slab One Project Authors (JM Sole), Reserved Font Name "Alfa Slab" | the Dover's blue and white scheme (T09's chased car): CRACK, NEMESIS, XYZZY |
-| Anton | `Anton/` | The Anton Project Authors (Vernon Adams) | the licence plates (the Piranha's CHAMP, dented too, and the AI cars' tails) |
+| Anton | `Anton/` | The Anton Project Authors (Vernon Adams) | the licence plates (the Piranha's CHAMP, dented too, and the AI cars' tails); the Giant Robot billboard's GIANT ROBOT (`ao_1sg_7`) |
+| Archivo Black | `ArchivoBlack/` | The Archivo Black Project Authors (Omnibus-Type) | the Giant Robot billboard's WORLD'S LARGEST (`ao_1sg_7`) |
+| Nunito (variable, set to Black) | `Nunito/` | The Nunito Project Authors | the Giant Robot billboard's rounded small print (`ao_1sg_7`: 54 mi. Ahead, FOOD SOUVENIERS, TRUCKERS WELCOME, see the) |
 | Bitter (variable, set to Bold or Black) | `Bitter/` | The Bitter Project Authors (Huerta Tipografica) | the Palomino's badge (PALOMINO: the Mustang's spaced serif capitals); the blue and white Dover's SPYCRAFT (Black) and STB badges |
 | Comfortaa (variable, set to Bold) | `Comfortaa/` | The Comfortaa Project Authors (Johan Aakerlund) | the Piranha's badge ('rahna: the 'Cuda's upright rounded lowercase) |
 | Cinzel (variable, set to Bold) | `Cinzel/` | The Cinzel Project Authors (Natanael Gama) | the Cavera's badge (CAVERA) |

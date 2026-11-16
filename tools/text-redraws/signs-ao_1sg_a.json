@@ -1,0 +1,119 @@
+{
+ "textures": [
+  "ao_1sg_a"
+ ],
+ "note": "the Foxy Cat billboard (aobilbda): its small print; written by gen/billboards.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    56.63,
+    36.61,
+    111.96,
+    41.89
+   ],
+   "where": {
+    "lum_below": 110
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    57.54,
+    42.92,
+    111.72,
+    48.2
+   ],
+   "where": {
+    "lum_below": 110
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    32.91,
+    50.8,
+    121.09,
+    56.89
+   ],
+   "where": {
+    "lum_below": 110
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 120
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "GOOD FOOD – CHEAP BEER",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.68,
+   "colour": [
+    58,
+    26,
+    176
+   ],
+   "box": [
+    57.63,
+    37.41,
+    110.96,
+    41.09
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "50 – BEAUTIFUL GIRLS – 50",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 3.68,
+   "colour": [
+    58,
+    26,
+    176
+   ],
+   "box": [
+    58.54,
+    43.72,
+    110.72,
+    47.4
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "DON'T MISS IT – TRUCKERS WELCOME",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 4.49,
+   "colour": [
+    51,
+    24,
+    179
+   ],
+   "box": [
+    33.91,
+    51.6,
+    120.09,
+    56.09
+   ],
+   "alpha": "set"
+  }
+ ]
+}

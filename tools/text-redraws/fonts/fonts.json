@@ -104,5 +104,19 @@
     "by": "JM Sole, The Alfa Slab One Project Authors",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/alfaslabone"
+  },
+  "Nunito": {
+    "name": "Nunito",
+    "file": "Nunito/Nunito[wght].ttf",
+    "by": "The Nunito Project Authors",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/nunito"
+  },
+  "ArchivoBlack": {
+    "name": "Archivo Black",
+    "file": "ArchivoBlack/ArchivoBlack-Regular.ttf",
+    "by": "The Archivo Black Project Authors (Omnibus-Type)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/archivoblack"
   }
 }

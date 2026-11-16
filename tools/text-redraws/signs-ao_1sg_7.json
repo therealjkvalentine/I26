@@ -1,0 +1,425 @@
+{
+ "textures": [
+  "ao_1sg_7"
+ ],
+ "note": "the Giant Robot billboard (aobilbd7): its lettering; written by gen/giant_robot.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    3.11,
+    2.45,
+    54.23,
+    8.58
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    2.62,
+    8.4,
+    56.13,
+    15.23
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    91.57,
+    2.02,
+    113.33,
+    7.99
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    77.73,
+    7.73,
+    125.6,
+    13.54
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    79.47,
+    15.39,
+    107.14,
+    19.97
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    100.47,
+    19.09,
+    125.6,
+    23.55
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    20.99,
+    22.34,
+    48.64,
+    28.35
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.64,
+    28.61,
+    56.28,
+    37.25
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.49,
+    37.04,
+    56.98,
+    45.35
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    21.74,
+    46.57,
+    63.64,
+    58.54
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    82.12,
+    46.61,
+    125.36,
+    58.39
+   ],
+   "where": {
+    "lum_below": 190
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 210
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "54 mi. Ahead",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 4.33,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    4.11,
+    3.35,
+    53.23,
+    7.68
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "Off 285 North",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 5.03,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    3.62,
+    9.3,
+    55.13,
+    14.33
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "FOOD",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 4.17,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    92.57,
+    2.92,
+    112.33,
+    7.09
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "SOUVENIERS",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 4.01,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    78.73,
+    8.63,
+    125.2,
+    12.64
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "TRUCKERS",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 2.78,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    80.47,
+    16.29,
+    106.14,
+    19.07
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "WELCOME",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 2.66,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    101.47,
+    19.99,
+    124.83,
+    22.65
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "see the",
+   "font": "Nunito",
+   "variation": {
+    "Weight": 900
+   },
+   "cap": 4.21,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    21.99,
+    23.24,
+    47.64,
+    27.45
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "WORLD'S",
+   "font": "ArchivoBlack",
+   "cap": 6.84,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    6.64,
+    29.51,
+    55.28,
+    36.35
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "LARGEST",
+   "font": "ArchivoBlack",
+   "cap": 6.51,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    6.49,
+    37.94,
+    55.98,
+    44.45
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "GIANT",
+   "font": "Anton",
+   "cap": 10.17,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    22.74,
+    47.47,
+    62.64,
+    57.64
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "ROBOT",
+   "font": "Anton",
+   "cap": 9.98,
+   "colour": [
+    14,
+    13,
+    13
+   ],
+   "box": [
+    83.12,
+    47.51,
+    124.36,
+    57.49
+   ],
+   "alpha": "set"
+  }
+ ]
+}

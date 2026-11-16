@@ -88,7 +88,9 @@ class SpecTests(unittest.TestCase):
             texts = [op for op in spec["ops"] if op["op"] == "text"]
             if not texts: continue                       # an erase-only spec (zmiri101: the mirror's frame) letters nothing
             for op in texts:
-                if "quad" in op: op.setdefault("center", [sum(p[0] for p in op["quad"]) / 4, sum(p[1] for p in op["quad"]) / 4])
+                if "quad" in op:
+                    op.setdefault("center", [sum(p[0] for p in op["quad"]) / 4, sum(p[1] for p in op["quad"]) / 4])
+                    op.setdefault("width", max(p[0] for p in op["quad"]) - min(p[0] for p in op["quad"]))   # the run's span
                 if "box" in op:
                     op.setdefault("center", [(op["box"][0] + op["box"][2]) / 2, (op["box"][1] + op["box"][3]) / 2])
                     op.setdefault("width", op["box"][2] - op["box"][0])

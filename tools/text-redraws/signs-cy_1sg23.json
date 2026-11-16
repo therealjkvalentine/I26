@@ -1,0 +1,44 @@
+{
+ "textures": [
+  "cy_1sg23"
+ ],
+ "note": "the Fletcher & Sons warehouse's small OFFICE sign (bcywhse1, T08): its small print; written by gen/shopfronts.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    2.82,
+    2.44,
+    28.24,
+    12.8
+   ],
+   "where": {
+    "lum_above": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 140
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "OFFICE",
+   "font": "Anton",
+   "cap": 8.76,
+   "colour": [
+    252,
+    246,
+    246
+   ],
+   "alpha": "set",
+   "box": [
+    3.82,
+    3.24,
+    27.24,
+    12.0
+   ]
+  }
+ ]
+}
