@@ -98,7 +98,9 @@ public partial class TerrainNode : Node3D
     // finer levels are built this far beyond their range, off the main thread, and dropped this far beyond it
     private static readonly float[] Prefetch = [150f, 250f, 300f, 500f], Evict = [300f, 600f, 600f, 800f];
     private const int MaxJobs = 6, MaxUploadsPerFrame = 3, MaxNowJobs = 24;
-    private const double UploadBudgetMs = 4;
+    /// <summary>The main thread's time a frame for uploads after the first (at most three, more for a wanted level): about a sixth of a
+    /// frame at the 180 Hz the game is aimed at. It was 4 ms for the wanted ones, three uploads always: one arrival could take a frame.</summary>
+    private const double UploadBudgetMs = 1;
     /// <summary>Vertices drawn by the modern terrain last frame (all chunks, before culling).</summary>
     public long ModernVertices { get; private set; }
 
@@ -732,7 +734,7 @@ public partial class TerrainNode : Node3D
         foreach (var c in _chunks)
             for (int l = 0; l < TerrainLodMesh.Levels - 1; l++)
                 if (c.Pending[l] is { IsCompleted: true } t
-                    && (force || uploads < MaxUploadsPerFrame || (c.Want == l && System.Diagnostics.Stopwatch.GetElapsedTime(tUp).TotalMilliseconds < UploadBudgetMs)))
+                    && (force || uploads == 0 || (System.Diagnostics.Stopwatch.GetElapsedTime(tUp).TotalMilliseconds < UploadBudgetMs && (uploads < MaxUploadsPerFrame || c.Want == l))))
                 {
                     c.Lod[l] = t.Result.ToMesh();
                     c.BuiltVer[l] = c.Ver;

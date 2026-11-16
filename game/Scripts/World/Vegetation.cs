@@ -77,6 +77,8 @@ public partial class VegetationNode : Node3D
     private int _jobs, _statFrame;
     private static readonly int MaxJobs = Math.Clamp(System.Environment.ProcessorCount / 2, 2, 8);
     private const int MaxAttachPerFrame = 8;
+    /// <summary>The main thread's time a frame for attaching finished chunks after the first.</summary>
+    private const double AttachBudgetMs = 1;
     /// <summary>A ground-layer plant shades the ground under it when it reaches this far (metres): the rosettes, tussocks and tumbleweeds, not the grass tufts.</summary>
     private const float GroundShadeMin = 0.28f;
     /// <summary>A chunk split per plant redoes the split when the eye has moved this far.</summary>
@@ -742,10 +744,11 @@ public partial class VegetationNode : Node3D
                 for (int t = 0; t < 3; t++) Show(c, g, t, t == tier ? g.Buffer : null, g.Count);
                 continue;
             }
-            // per plant: copy each instance's 16 floats into its tier's buffer
-            var bufs = new float[3][];
-            var n = new int[3];
-            for (int t = 0; t < 3; t++) bufs[t] = new float[g.Buffer.Length];
+            // per plant: copy each instance's 16 floats into its tier's buffer (kept from split to split: Show sends what it is given at once)
+            var bufs = _split;
+            var n = _splitCount;
+            System.Array.Clear(n);
+            for (int t = 0; t < 3; t++) if (bufs[t].Length < g.Buffer.Length) bufs[t] = new float[g.Buffer.Length];
             for (int i = 0; i < g.Count; i++)
             {
                 float dx = g.Buffer[i * 16 + 3] + ox - eye.X, dz = -g.Buffer[i * 16 + 11] + oz - eye.Z;
@@ -762,6 +765,9 @@ public partial class VegetationNode : Node3D
             for (int t = 0; t < 3; t++) Show(c, g, t, n[t] > 0 ? bufs[t] : null, n[t]);
         }
     }
+
+    private readonly float[][] _split = [[], [], []];
+    private readonly int[] _splitCount = new int[3];
 
     /// <summary>A group's node for a tier with these instances (the first <paramref name="count"/> of the buffer), made when first needed; none hides it.</summary>
     private void Show(Chunk c, Group g, int tier, float[]? buffer, int count)
@@ -785,7 +791,7 @@ public partial class VegetationNode : Node3D
         }
         var m = node.Multimesh;
         if (m.InstanceCount != count) m.InstanceCount = count;
-        m.Buffer = count * 16 == buffer.Length ? buffer : buffer[..(count * 16)];
+        RenderingServer.MultimeshSetBuffer(m.GetRid(), buffer.AsSpan(0, count * 16));   // a span: the slice was a new array every split
         // the bounds set outright: the chunk's square, from its lowest plant's foot to its highest plus a tall plant
         float y0 = float.MaxValue, y1 = float.MinValue;
         for (int i = 0; i < count; i++) { y0 = MathF.Min(y0, buffer[i * 16 + 7]); y1 = MathF.Max(y1, buffer[i * 16 + 7] + buffer[i * 16 + 14]); }
@@ -883,7 +889,10 @@ public partial class VegetationNode : Node3D
             });
         }
         int attached = 0;
-        while ((attachAll || attached < MaxAttachPerFrame) && _done.TryDequeue(out var d))
+        long attachFrom = System.Diagnostics.Stopwatch.GetTimestamp();
+        // up to eight a frame, the first always and the rest within the budget (eight at once were several milliseconds)
+        while ((attachAll || attached < MaxAttachPerFrame && (attached == 0 || System.Diagnostics.Stopwatch.GetElapsedTime(attachFrom).TotalMilliseconds < AttachBudgetMs))
+            && _done.TryDequeue(out var d))
         {
             if (!_chunks.TryGetValue((d.Cx, d.Cz, d.Layer), out var cur) || cur != d || d.Attached) continue;
             if (d.Job is { IsFaulted: true }) { GD.PrintErr($"vegetation chunk {d.Cx},{d.Cz}: {d.Job.Exception?.GetBaseException().Message}"); continue; }
