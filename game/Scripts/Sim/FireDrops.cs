@@ -109,12 +109,23 @@ public partial class FireDrops : Node3D
     }
 
     /// <summary>The run's textures, baked once (on any thread: a mission building under its briefing makes them ahead of the view).</summary>
-    public static void Prebake()
+    public static void Prebake() { foreach (var step in PrebakeSteps()) if (step is System.Threading.Tasks.Task t) t.Wait(); }
+
+    /// <summary><see cref="Prebake"/> as steps: the pictures painted on a worker (a Task to wait for), the textures made here.</summary>
+    public static IEnumerable<object?> PrebakeSteps()
     {
-        if (_glowPuddleS is not null) return;
-        var rnd = new Random(7611);
-        _ribbonS = Bake(false, rnd.Next(), false); _puddleS = Bake(true, rnd.Next(), false);
-        _glowRibbonS = Bake(false, rnd.Next(), true); _glowPuddleS = Bake(true, rnd.Next(), true);
+        if (_glowPuddleS is not null) yield break;
+        var imgs = new Image[4];
+        var job = I76.Game.Boot.Beside.Run(() =>
+        {
+            var rnd = new Random(7611);
+            imgs[0] = BakeImage(false, rnd.Next(), false); imgs[1] = BakeImage(true, rnd.Next(), false);
+            imgs[2] = BakeImage(false, rnd.Next(), true); imgs[3] = BakeImage(true, rnd.Next(), true);
+        });
+        yield return job;
+        job.GetAwaiter().GetResult();
+        _ribbonS = ImageTexture.CreateFromImage(imgs[0]); _puddleS = ImageTexture.CreateFromImage(imgs[1]);
+        _glowRibbonS = ImageTexture.CreateFromImage(imgs[2]); _glowPuddleS = ImageTexture.CreateFromImage(imgs[3]);
     }
 
     private static CurveTexture Curve1(params (float X, float Y)[] pts)
@@ -140,7 +151,7 @@ public partial class FireDrops : Node3D
     private static float Fbm(float x, float y, int s) => Noise(x, y, s) * 0.55f + Noise(x * 2.1f, y * 2.1f, s + 1) * 0.3f + Noise(x * 4.3f, y * 4.3f, s + 2) * 0.15f;
 
     /// <summary>The scorch mask (alpha, charred brown-black, ash toward the edge) or, glow: the hot mottle inside it.</summary>
-    private static Texture2D Bake(bool puddle, int seed, bool glow)
+    private static Image BakeImage(bool puddle, int seed, bool glow)
     {
         int w = 128, h = puddle ? 128 : 256, s = seed & 0xffff;
         var img = Image.CreateEmpty(w, h, true, Image.Format.Rgba8);
@@ -176,7 +187,7 @@ public partial class FireDrops : Node3D
                 }
             }
         img.GenerateMipmaps();
-        return ImageTexture.CreateFromImage(img);
+        return img;
     }
 
     private GroundMark NewDecal()

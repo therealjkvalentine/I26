@@ -564,6 +564,7 @@ public partial class VegetationNode : Node3D
         if (sliced && _swardJob is { } sj) yield return Task.WhenAny(sj, Task.Delay(1500));
         else _swardJob?.Wait(1500);
         UpdateSward(0, now: true);
+        if (sliced) MissionBuilder.Trace("veg: sward");
         yield return null;
         var want = Wanted(eye, 0f).Where(k => !_chunks.ContainsKey(k)).ToList();
         var made = new Chunk[want.Count];
@@ -581,6 +582,7 @@ public partial class VegetationNode : Node3D
             _chunks[(c.Cx, c.Cz, c.Layer)] = c; Attach(c, eye);
             if (sliced && slice.Elapsed.TotalMilliseconds > 15) { yield return null; slice.Restart(); }
         }
+        if (sliced) MissionBuilder.Trace("veg: chunks attached");
         yield return null;
         Update(eye, attachAll: true);
         GD.Print($"vegetation: {made.Length} chunks placed and attached in {sw.ElapsedMilliseconds} ms, {Instances} plants");

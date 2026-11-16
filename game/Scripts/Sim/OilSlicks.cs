@@ -37,17 +37,27 @@ public partial class OilSlicks : Node3D
     }
 
     /// <summary>The run's textures, baked once (on any thread: a mission building under its briefing makes them ahead of the view).</summary>
-    public static void Prebake()
+    public static void Prebake() { foreach (var step in PrebakeSteps()) if (step is System.Threading.Tasks.Task t) t.Wait(); }
+
+    /// <summary><see cref="Prebake"/> as steps: the pictures painted on a worker (a Task to wait for), the textures made here.</summary>
+    public static IEnumerable<object?> PrebakeSteps()
     {
-        if (_ribbonS is null || _puddleS is null || _ormS is null || _normalS is null)
+        if (_ribbonS is not null && _puddleS is not null && _ormS is not null && _normalS is not null) yield break;
+        var ribbons = new Image[Variants];
+        Image puddle = null!, orm = null!, normal = null!;
+        var job = I76.Game.Boot.Beside.Run(() =>
         {
             var rnd = new Random(7601);
-            var ribbons = new Texture2D[Variants];
-            for (int v = 0; v < Variants; v++) ribbons[v] = Bake(false, rnd.Next(), out _, out _);
-            _puddleS = Bake(true, rnd.Next(), out _, out _);
-            Bake(false, 1, out _ormS, out _normalS); // the ORM and the ripple are shared by every shape
-            _ribbonS = ribbons;
-        }
+            for (int v = 0; v < Variants; v++) ribbons[v] = BakeImages(false, rnd.Next(), out _, out _);
+            puddle = BakeImages(true, rnd.Next(), out _, out _);
+            BakeImages(false, 1, out orm, out normal); // the ORM and the ripple are shared by every shape
+        });
+        yield return job;
+        job.GetAwaiter().GetResult();
+        _ormS = ImageTexture.CreateFromImage(orm);
+        _normalS = ImageTexture.CreateFromImage(normal);
+        _puddleS = ImageTexture.CreateFromImage(puddle);
+        _ribbonS = [.. ribbons.Select(i => (Texture2D)ImageTexture.CreateFromImage(i))];
     }
 
     private static float Hash(int x, int y, int s)
@@ -69,7 +79,7 @@ public partial class OilSlicks : Node3D
     private static float Fbm(float x, float y, int s) => Noise(x, y, s) * 0.55f + Noise(x * 2.1f, y * 2.1f, s + 1) * 0.3f + Noise(x * 4.3f, y * 4.3f, s + 2) * 0.15f;
 
     /// <summary>The mask (alpha), the thin-film sheen near the edge (albedo), a ripple normal and the ORM.</summary>
-    private static Texture2D Bake(bool puddle, int seed, out Texture2D orm, out Texture2D normal)
+    private static Image BakeImages(bool puddle, int seed, out Image orm, out Image normal)
     {
         int w = 128, h = puddle ? 128 : 256;
         var alb = Image.CreateEmpty(w, h, true, Image.Format.Rgba8);
@@ -116,9 +126,9 @@ public partial class OilSlicks : Node3D
                 nrm.SetPixel(x, y, new Color(n.X * 0.5f + 0.5f, n.Y * 0.5f + 0.5f, n.Z * 0.5f + 0.5f));
             }
         alb.GenerateMipmaps(); nrm.GenerateMipmaps(); ormImg.GenerateMipmaps();
-        orm = ImageTexture.CreateFromImage(ormImg);
-        normal = ImageTexture.CreateFromImage(nrm);
-        return ImageTexture.CreateFromImage(alb);
+        orm = ormImg;
+        normal = nrm;
+        return alb;
     }
 
     private readonly Stack<GroundMark> _free = [];

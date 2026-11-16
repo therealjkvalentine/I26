@@ -177,11 +177,13 @@ public partial class CombatView : Node3D
         _shell = ShellMesh();
         _line = LineMesh();
         _lineShader = GD.Load<Shader>("res://Shaders/tracer_line_1997.gdshader");
+        I76.Game.World.MissionBuilder.Trace("combat view: materials");
         yield return null;
         _ball = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 12, Rings = 6 };
         _fx = new ModernFx { Name = "Fx", Staged = Staged };
         AddChild(_fx);
         if (Staged) foreach (var step in _fx.ReadySteps()) yield return step;
+        I76.Game.World.MissionBuilder.Trace("combat view: fx");
         yield return null;
         // the 1997 look's contrails behind rockets and mortar rounds, in the mission's own trail textures
         _contrails = new Contrails
@@ -190,29 +192,40 @@ public partial class CombatView : Node3D
             Texture = n => Builder?.Resolver?.FindByStem(n) is { } m && Builder.Textures?.Get(m) is { } t ? t.Texture : null,
         };
         AddChild(_contrails);
+        I76.Game.World.MissionBuilder.Trace("combat view: contrails");
         yield return null;
+        // their pictures painted on a worker first (what their _Ready would make in one go)
+        foreach (var step in OilSlicks.PrebakeSteps()) yield return step;
         _oil = new OilSlicks { Name = "OilSlicks", GroundAt = DrawnY };
         AddChild(_oil);
+        I76.Game.World.MissionBuilder.Trace("combat view: oil");
         yield return null;
+        foreach (var step in FireDrops.PrebakeSteps()) yield return step;
         _fire = new FireDrops { Name = "FireDrops", GroundAt = DrawnY };
         AddChild(_fire);
+        I76.Game.World.MissionBuilder.Trace("combat view: fire");
         yield return null;
         _caltrops = new CaltropPatches { Name = "Caltrops", GroundAt = DrawnY, Origin = Origin };
         AddChild(_caltrops);
+        I76.Game.World.MissionBuilder.Trace("combat view: caltrops");
         yield return null;
         _chem = new ChemClouds { Name = "ChemClouds", SceneLight = SceneLight, Texture = ImageByStem };
         AddChild(_chem);
+        I76.Game.World.MissionBuilder.Trace("combat view: chem");
         yield return null;
         // the flame throwers' streams: the original's frames in the 1997 look, NapalmModern in the modern
+        I76.Game.World.MissionBuilder.Trace("combat view: before flames");
         AddChild(new FlameStreams { Name = "Flames", Combat = Combat, Origin = Origin, CarOf = CarOf, Texture = TextureByStem, Modern = () => IsModern, SceneLight = SceneLight });
         yield return null;
         _fx.SceneLight = SceneLight;
         _smoke = new RocketSmoke { Name = "RocketSmoke", Origin = Origin, SceneLight = SceneLight };
         AddChild(_smoke);
+        I76.Game.World.MissionBuilder.Trace("combat view: smoke");
         yield return null;
         // the Ball O'Flame's tail of soot: its own, darker, thin smoke
         _sootSmoke = new RocketSmoke { Name = "BallSmoke", Origin = Origin, SceneLight = SceneLight, Tint = new System.Numerics.Vector3(0.38f, 0.36f, 0.34f) };
         AddChild(_sootSmoke);
+        I76.Game.World.MissionBuilder.Trace("combat view: sootSmoke");
         yield return null;
     }
 
