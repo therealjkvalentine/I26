@@ -1536,6 +1536,13 @@ public sealed class ShellSettings
     /// </summary>
     public bool BriefingWhileLoading { get; set; } = true;
     /// <summary>
+    /// The port's own, without a row: under a briefing played while the mission loads, the rest of the load (the world into the tree,
+    /// the look, the cars, the first tick) runs too, a few milliseconds of steps between the movie's frames, so the line under PLEASE
+    /// STAND BY goes on to the world's first frames; off, only once the picture stands still, as before ([port] load_under_briefing,
+    /// written only when off; Main.BuildBehindCard).
+    /// </summary>
+    public bool LoadUnderBriefing { get; set; } = true;
+    /// <summary>
     /// The port's own, without a row: how long the loading card stays up before a briefing played while the mission loads, the build
     /// going on behind it from the start (I76.Game.Boot.BriefingOverlap.ParseHold; [port] briefing_card_hold, seconds, written only when
     /// not the default; upstream's 0.7).
@@ -2005,6 +2012,7 @@ public sealed class ShellSettings
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
+        s.LoadUnderBriefing = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "load_under_briefing", true).ToString());
         s.BriefingCardHold = I76.Game.Boot.BriefingOverlap.ParseHold(c.HasSectionKey("port", "briefing_card_hold") ? c.GetValue("port", "briefing_card_hold").ToString() : null);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         // [port] load_progress (the loading card's progress wheel, withdrawn for the line under PLEASE STAND BY) is no longer read, as any key this version does not know; Save drops it
@@ -2219,6 +2227,7 @@ public sealed class ShellSettings
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
+        if (!LoadUnderBriefing) c.SetValue("port", "load_under_briefing", false);
         if (BriefingCardHold != I76.Game.Boot.BriefingOverlap.DefaultCardHold) c.SetValue("port", "briefing_card_hold", BriefingCardHold);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");

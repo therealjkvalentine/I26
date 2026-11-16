@@ -846,7 +846,8 @@ public partial class Main : Node3D
         UpdateDrops();
         _modernEnv.SsaoEnabled = _ambientOcclusion && !RenderBackend.Compatibility;   // Compatibility has no SSAO
         if (_builder?.Terrain is { } t) t.FinestLevel = _terrainDetail > 0 ? 0 : 1;
-        GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+        if (_msaaAhead is not null) _msaaAhead = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+        else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
         RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
         if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
         UpdateVegetation();
@@ -854,6 +855,8 @@ public partial class Main : Node3D
 
     private VegetationNode? _veg;
     private int _vegLevel = -1;
+    /// <summary>The plants made on a worker for the level they were made at (SetMode1997Steps, a mission attaching under its briefing), for UpdateVegetation to take.</summary>
+    private (VegetationNode? Node, int Level)? _vegAhead;
     /// <summary>The mission is built and its first tick done: from now on a vegetation (re)build places its near chunks at once.</summary>
     private bool _loaded;
 
@@ -876,7 +879,8 @@ public partial class Main : Node3D
         if (_veg is null)
         {
             if (_builder is not { ModernReady: true } b || b.Terrain?.Surface is null) return;
-            _veg = VegetationNode.Create(b, level);
+            _veg = _vegAhead is { } ahead && ahead.Level == level ? ahead.Node : VegetationNode.Create(b, level);
+            _vegAhead = null;
             if (_veg is null) return;
             _worldRoot.AddChild(_veg);
             _vegLevel = level;
@@ -1100,10 +1104,15 @@ public partial class Main : Node3D
             : _launch is { Kind: I76.Game.Shell.GameKind.AutoMelee } ml ? ml.Opponents.Select(o => o.Car).ToList()
             // I76_MELEE_OPPONENTS=a.vcf,b.vcf: --melee with those opponents, for captures of a fight
             : _opt.Melee ? [.. (System.Environment.GetEnvironmentVariable("I76_MELEE_OPPONENTS") ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries)] : null;
-        var setup = I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, _origin, script: _opt.Ai == "script",
+        // the simulation's world (no engine calls) on a worker: under a playing briefing the main thread goes on drawing it meanwhile
+        var origin = _origin;
+        bool scriptAi = _opt.Ai == "script";
+        var setupJob = System.Threading.Tasks.Task.Run(() => I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, origin, script: scriptAi,
             rand: new I76.Sim.Rng.CrtRand(randSeed), melee: roster,
             // one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
-            seed: unchecked((int)randSeed));
+            seed: unchecked((int)randSeed)));
+        yield return setupJob;
+        var setup = setupJob.GetAwaiter().GetResult();
         MissionBuilder.Trace("spawn: sim world set up");
         yield return null;
         var world = setup.World;
@@ -1201,7 +1210,8 @@ public partial class Main : Node3D
         yield return null;
         var carNodes = _carNodes = new System.Collections.Generic.Dictionary<I76.Sim.Vehicles.Vehicle, CarNode>();
         _audio = audio;
-        AddCombatView(setup.Combat);
+        // its effects' materials made a part at a time (a mission attaching under its briefing lets frames through between them)
+        foreach (var step in AddCombatView(setup.Combat, staged: true).ReadySteps()) yield return step;
         MissionBuilder.Trace("spawn: combat view");
         yield return null;
         System.Numerics.Vector3 pos = default;
@@ -1222,14 +1232,18 @@ public partial class Main : Node3D
         }
         MissionBuilder.Trace("spawn: cars made");
         if (_car is null) { _status += "\nno drivable car"; yield break; }
-        var damageView = new DamageView { Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Alpha = () => _sim?.Alpha ?? 1f, Name = "Damage" };
+        var damageView = new DamageView { Staged = true, Damage = setup.Damage, Origin = () => _origin, Builder = _builder, Cars = carNodes, PlacementOf = setup.PlacementOf, Audio = audio, Ground = setup.Ground, Alpha = () => _sim?.Alpha ?? 1f, Name = "Damage" };
         AddChild(damageView);
+        foreach (var step in damageView.ReadySteps()) yield return step;
         _damageView = damageView;
         MissionBuilder.Trace("spawn: damage view");
-        if (_car is { } warm) damageView.Prewarm(warm);
-        MissionBuilder.Trace("spawn: car prewarmed");
+        // the player's car's wreck and the other cars' (built once) on a worker, the fire's materials here
+        var wrecks = damageView.PrewarmWrecksBeside(_car, setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);
         yield return null;
-        damageView.PrewarmWrecks(setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);   // and the other cars' wrecks, built once
+        if (_car is not null) DamageView.PrewarmFire();
+        MissionBuilder.Trace("spawn: car prewarmed");
+        yield return wrecks;
+        wrecks.GetAwaiter().GetResult();
         MissionBuilder.Trace("spawn: wrecks prewarmed");
         yield return null;
         // the gates the script slides (type-7 nodes): their meshes follow the sim's colliders
@@ -1305,7 +1319,8 @@ public partial class Main : Node3D
             ApplyPlayOptions(playSettings);   // the options as they are now, over the checkpoint's copies
         }
         Rebase(pos);
-        AddPlayerViews(world, setup.Combat);
+        // the HUD made a part at a time (a mission attaching under its briefing lets frames through between them)
+        foreach (var step in AddPlayerViews(world, setup.Combat).ReadySteps()) yield return step;
         ResumeViews();
         // the optional modern physics for the player's car (--modern-physics, or the setting; F7 flips it in play)
         _modernSetup = () => new I76.Game.Sim.Modern.ModernPhysics
@@ -1351,12 +1366,14 @@ public partial class Main : Node3D
     /// <summary>Combat's looks and sounds for the session's rounds and events.</summary>
     private CombatView? _combatView;
 
-    private void AddCombatView(I76.Sim.Weapons.Combat combat, Func<float>? predictedAlpha = null)
+    /// <summary>The combat view; <paramref name="staged"/>: made by its ReadySteps, which the caller runs.</summary>
+    private CombatView AddCombatView(I76.Sim.Weapons.Combat combat, Func<float>? predictedAlpha = null, bool staged = false)
     {
-        AddChild(_combatView = new CombatView { Combat = combat, Origin = () => _origin, Audio = _audio, Sprites = new EffectSprites(_builder!), CarOf = v => _carNodes.GetValueOrDefault(v),
+        AddChild(_combatView = new CombatView { Staged = staged, Combat = combat, Origin = () => _origin, Audio = _audio, Sprites = new EffectSprites(_builder!), CarOf = v => _carNodes.GetValueOrDefault(v),
             Alpha = () => _sim?.Alpha ?? 1f, PredictedAlpha = predictedAlpha, Modern = () => !_mode1997, Builder = _builder, Name = "Combat",
             Inside = v => _car is { } c && c.Sim == v && c.CockpitCamera?.Current == true,
             SceneLight = Mathf.Clamp(_builder!.Light.Intensity * 1.5f, 0.25f, 1f) });
+        return _combatView;
     }
 
     /// <summary>
@@ -1378,15 +1395,24 @@ public partial class Main : Node3D
         // all of it at a spot far below the world, out of sight (the renderer makes a material's pipelines when its instance is made, seen
         // or not), and on stand-ins of its own: nothing of the game's is touched, nothing is left to take away but what was made
         var away = cam.GlobalPosition + Vector3.Down * 400f;
-        _combatView?.Warm(away);
-        MissionBuilder.Trace("rehearsal: combat");
-        yield return null;
-        _combatView?.WarmImpacts(away);
-        MissionBuilder.Trace("rehearsal: impacts");
-        yield return null;
-        _combatView?.WarmExplosions();
-        MissionBuilder.Trace("rehearsal: explosions");
-        yield return null;
+        if (_combatView is { } cv)
+        {
+            foreach (var step in cv.WarmSteps(away)) yield return step;
+            MissionBuilder.Trace("rehearsal: combat");
+            yield return null;
+            // the impacts' and explosions' looks decoded on a worker (the view is held still meanwhile), the impact's sprite here
+            I76.Game.Sim.EffectSprites.Look? look = null;
+            yield return System.Threading.Tasks.Task.Run(() => look = CombatView.PrepareImpacts(cv.Combat, cv.Sprites, cv.Audio));
+            cv.WarmImpacts(look, away);
+            MissionBuilder.Trace("rehearsal: impacts");
+            yield return null;
+            yield return System.Threading.Tasks.Task.Run(() => CombatView.PrepareExplosions(cv.Combat, cv.Sprites));
+            MissionBuilder.Trace("rehearsal: explosions");
+            yield return null;
+        }
+        // its frames draw the world: never under a playing briefing (the first is the world's first frame, most of a second), only
+        // behind a still picture (the card, the briefing's held frame, or after it); the 3D drawn again for them (BuildBehindCard)
+        yield return StillPicture;
         // the death is rehearsed on a stand-in for the player's car (never in the sim's list, freed after)
         // so the real car is never burnt and restored
         CarNode? stage = null;
@@ -1568,8 +1594,12 @@ public partial class Main : Node3D
         static bool? Head(I76.Formats.Assembly.ModelPart p) => I76.Formats.Assembly.MirrorGlass.Side(p.NodeName);
         // its painted glass a mesh of its own (the modern look's door mirrors with the moulding's outer edge rounded hide it where the
         // housing's corners are cut away)
+        // the cockpit's meshes (no node, nothing drawn) built on a worker; the player's car held still meanwhile
         var heads = new List<(Mesh Mesh, Mesh? Paint, bool Left)>();
-        if (interior is not null)
+        ArrayMesh? cabin = null, ring1 = null, ring6 = null;
+        var cabinJob = System.Threading.Tasks.Task.Run(() =>
+        {
+            if (interior is null) return;
             foreach (var n in interior.Parts.Where(p => Head(p) is not null && !LowResTwin(interior, p.NodeName) && !Hood(p)).Select(p => p.NodeName).Distinct())
             {
                 bool Part(I76.Formats.Assembly.ModelPart p) => p.NodeName == n && !LowResTwin(interior, p.NodeName) && !Hood(p);
@@ -1579,11 +1609,17 @@ public partial class Main : Node3D
                 if (housing is null || housing.GetSurfaceCount() == 0) { housing = paint; paint = null; }
                 if (housing is not null) heads.Add((housing, paint, I76.Formats.Assembly.MirrorGlass.Side(n) == true));
             }
-        heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
-        // a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
-        node.AddCockpit(interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p)), eye,
-            interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1')),
-            interior is null ? null : builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6')),
+            heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
+            // a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
+            cabin = builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p));
+            ring1 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1'));
+            ring6 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6'));
+        });
+        yield return cabinJob;
+        cabinJob.GetAwaiter().GetResult();
+        MissionBuilder.Trace("spawn: cockpit meshes built");
+        yield return null;
+        node.AddCockpit(cabin, eye, ring1, ring6,
             interior is null ? null : frameOf => builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && Hood(p), frameOf: frameOf),
             heads);
         if (interior is not null && vehicle.IsHeli && I76.Formats.Assembly.RotorBlades.Places(interior) is { Count: > 0 } rotorsInside)
@@ -1627,6 +1663,7 @@ public partial class Main : Node3D
             // the specials face's shape on the model (the modern look shows its art square: [port] specials_panel)
             var specials = interior is not null && res.FindByStem("zbks_") is { } zbks && res.Load(zbks) is { } zt
                 ? I76.Formats.Assembly.PanelAspect.Of(interior, "zbks_", zt.Width, zt.Height, p => !LowResTwin(interior, p.NodeName)) : null;
+            yield return null;
             var pit = new I76.Game.Sim.Cockpit
             {
                 Car = vehicle, Node3D = node, Panels = new I76.Game.Sim.CockpitPanels(layout, res, texf, mats),
@@ -1635,11 +1672,18 @@ public partial class Main : Node3D
                 SpecialsTexelAspect = specials?.Aspect ?? 1, SpecialsMinV = specials?.MinV ?? 0,
                 Glass = interior is null ? [] : I76.Formats.Assembly.MirrorGlass.Find(interior),
                 MirrorBackground = builder.ActPalette is { } ap ? Color.Color8(ap[0xea].R, ap[0xea].G, ap[0xea].B) : Colors.Black,
+                Staged = true,   // (made below a part at a time: a mission attaching under its briefing lets frames through between them)
             };
             pit.MirrorSetting = I76.Game.Shell.ShellSettings.Load().Graphics[0xd];
             pit.ApplySideMirrors(I76.Game.Shell.ShellSettings.Load());
             node.Dash3D = I76.Game.Shell.ShellSettings.Load().Dash3D;
+            yield return null;
             AddChild(pit);
+            MissionBuilder.Trace("spawn: cockpit in tree");
+            yield return null;
+            foreach (var step in pit.ReadySteps()) yield return step;
+            MissionBuilder.Trace("spawn: cockpit made");
+            yield return null;
             pit.Faithful = _mode1997;
             _pit = pit;
             _sim.InCockpit = () => node.CockpitCamera?.Current == true;
@@ -1659,13 +1703,15 @@ public partial class Main : Node3D
     /// <summary>The mission the views' wheel zoom was last reset for (static: a retry rebuilds the scene): with View Zoom Reset off, a retry keeps it.</summary>
     private static string? _zoomMission;
 
-    private void AddPlayerViews(I76.Sim.SimWorld world, I76.Sim.Weapons.Combat combat)
+    /// <summary>Returns the HUD, staged: its ReadySteps are the caller's to run.</summary>
+    private Hud AddPlayerViews(I76.Sim.SimWorld world, I76.Sim.Weapons.Combat combat)
     {
         AddChild(new CabClip { Name = "CabClip", Player = () => _car, Cars = () => _carNodes.Values });
         var wiggle = new Wiggle { Name = "Wiggle", InCockpit = () => _car?.CockpitCamera?.Current == true, Player = () => _car?.Sim };
         AddChild(wiggle);
         if (combat.Damage is I76.Sim.Damage.DamageModel wdm) wdm.Damaging += wiggle.Damaging;
-        AddChild(new Hud { Car = () => _car?.Sim, Debug = () => _overlay?.Visible == true, Combat = combat, Origin = () => _origin, CarOf = v => _carNodes.GetValueOrDefault(v), InCockpit = () => _car?.CockpitCamera?.Current == true, ExtInstruments = () => _extInstruments, Pit = () => _pit, Cutscene = () => _scriptCam?.Current == true, Transmitting = () => _netHud?.CbTransmitting == true, Network = () => _net is not null, HostAllowsCrosshair = () => _net?.Client.CrosshairAllowed == true, Script = _script, Objectives = _objectives, Name = "Hud", Visible = System.Environment.GetEnvironmentVariable("I76_NO_OVERLAY") != "1",
+        Hud hud;
+        AddChild(hud = new Hud { Staged = true, Car = () => _car?.Sim, Debug = () => _overlay?.Visible == true, Combat = combat, Origin = () => _origin, CarOf = v => _carNodes.GetValueOrDefault(v), InCockpit = () => _car?.CockpitCamera?.Current == true, ExtInstruments = () => _extInstruments, Pit = () => _pit, Cutscene = () => _scriptCam?.Current == true, Transmitting = () => _netHud?.CbTransmitting == true, Network = () => _net is not null, HostAllowsCrosshair = () => _net?.Client.CrosshairAllowed == true, Script = _script, Objectives = _objectives, Name = "Hud", Visible = System.Environment.GetEnvironmentVariable("I76_NO_OVERLAY") != "1",
             Texture = n => _builder?.Resolver?.FindByStem(n) is { } m ? _builder.Textures?.Get(m)?.Texture : null, Faithful = () => _mode1997, Palette = _builder?.ActPalette, Variant = DriverVariant(), ReadFile = n => _builder?.Vfs.TryRead(n) });
         AddMirrorTarget(combat);
         // a mission (or, with View Zoom Reset, a respawn) starts every view at the original's framing
@@ -1695,6 +1741,7 @@ public partial class Main : Node3D
         // The world camera rebuild starts every mission in view 0x1a, whose setup is the cockpit's;
         // the external-view choice is never kept (it is not saved), the 3D/2D dash is (I76PLYR.DEF, ShellSettings.Dash3D)
         if (!_opt.Chase && _car.HasInterior) { _car.SetCockpit(true); _cockpitFlag = true; }
+        return hud;
     }
 
     /// <summary>The same brackets and health bar inside the rear-view mirror (inMirror = 1), on the cockpit there is.</summary>
@@ -1842,13 +1889,25 @@ public partial class Main : Node3D
         // the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
         var load = Hitch.Time(Hitch.Phase.Load);
         System.Exception? failed = null;
+        IEnumerator<object?>? parts = null;
         try
         {
             if (built is not { } b) LoadMission();
             else if (b.Error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(b.Error).Throw();
-            else AttachWorld(b.Start, b.World!);
+            else { _sliceHorizon = true; parts = AttachWorldParts(b.Start, b.World!).GetEnumerator(); }
         }
         catch (System.Exception caught) { failed = caught; }
+        // the world into the tree, its sky and its look, a frame let through between them (a mission attaching under its briefing)
+        while (failed is null && parts is not null)
+        {
+            bool more;
+            try { more = parts.MoveNext(); }
+            catch (System.Exception caught) { failed = caught; break; }
+            if (!more) break;
+            yield return null;
+        }
+        parts?.Dispose();
+        _sliceHorizon = false;
         if (failed is { } ex)
         {
             _status = $"failed to load: {ex.Message}";
@@ -1866,13 +1925,15 @@ public partial class Main : Node3D
         }
         MissionBuilder.Trace("mission loaded");
         yield return null;
-        AddDropShadows();
+        // the 3D horizon's meshes, a couple a step (AddHorizonTerrain left them)
+        if (failed is null && _horizon is { } ring) while (ring.Finish(2) > 0) yield return null;
+        foreach (var step in AddDropShadowsSteps()) yield return step;
         MissionBuilder.Trace("drop shadows");
         yield return null;
         var loaded = I76.Game.Shell.ShellSettings.Load();
         _drawChoice = loaded.DrawDistanceChoice;
         _vegetation = loaded.Vegetation;   // SpawnCar applies all the settings; a mission without a car has only this
-        SetMode1997(_opt.Mode1997);
+        foreach (var step in SetMode1997Steps(_opt.Mode1997, sliced: true)) yield return step;
         MissionBuilder.Trace("look set");
         yield return null;
         if (_opt.Drive is not null && _builder?.World is not null)
@@ -1913,7 +1974,8 @@ public partial class Main : Node3D
         }
         MissionBuilder.Trace("first tick done");
         yield return null;
-        _veg?.Prewarm();
+        // the placing on workers, the chunks attached a few milliseconds at a time (a mission loading under its briefing)
+        if (_veg is not null) foreach (var step in _veg.PrewarmSteps()) yield return step;
         MissionBuilder.Trace("vegetation prewarmed");
         yield return null;
         _builder?.Scenery?.Trees.Prewarm();
@@ -1924,6 +1986,8 @@ public partial class Main : Node3D
         MissionBuilder.Trace("lighting calibration applied");
         if (MissionBuilder.TraceOn) TraceFrames(6);
         if (loading is not null) foreach (var step in WarmEffectsSteps()) yield return step;
+        // (no rehearsal drew the world: the antialiasing the look set, now)
+        if (_msaaAhead is { } msaa) { GetViewport().Msaa3D = msaa; _msaaAhead = null; }
     }
 
     /// <summary>The longest a step ran past its frame's budget under the briefing, and how many steps did (the movie's late frames' cause).</summary>
@@ -1934,7 +1998,7 @@ public partial class Main : Node3D
     /// <paramref name="budgetMs"/> over 0 a frame is let through whenever the steps since the last one took that long
     /// (<see cref="_stepBudget"/> may change it meanwhile). With no budget the steps run in the same frame, as plain code would.
     /// </summary>
-    private async System.Threading.Tasks.Task RunSteps(IEnumerable<object?> steps, double budgetMs, System.Func<bool>? gate = null)
+    private async System.Threading.Tasks.Task RunSteps(IEnumerable<object?> steps, double budgetMs, System.Func<bool>? gate = null, System.Func<bool>? still = null)
     {
         if (budgetMs > 0) _stepBudget = budgetMs;
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -1957,7 +2021,19 @@ public partial class Main : Node3D
             last = now;
             if (budgetMs > 0 && took > AttachWorstStepMs) AttachWorstStepMs = took;
             if (budgetMs > 0 && took > _stepBudget) AttachStepsOverBudget++;
-            if (step is System.Threading.Tasks.Task t)
+            if (step == StillPicture)
+            {
+                // what follows draws the world: it waits for a still picture (BuildBehindCard's), the 3D back on for it
+                _stillWanted = true;
+                if (still is not null && !still()) MissionBuilder.Trace("attach: the world's first frames wait for a still picture");
+                if (still is not null) while (!still()) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
+                _stillWanted = false;
+                _worldDrawn = true;
+                if (_msaaAhead is { } msaa) { GetViewport().Msaa3D = msaa; _msaaAhead = null; }
+                SetWorld3D(true);
+                sw.Restart(); last = 0;
+            }
+            else if (step is System.Threading.Tasks.Task t)
             {
                 while (!t.IsCompleted) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (!IsInsideTree()) return; }
                 sw.Restart(); last = 0;
@@ -1973,6 +2049,31 @@ public partial class Main : Node3D
     }
 
     private double _stepBudget;
+    /// <summary>The engine calls a sliced step makes before it lets a frame through (SetMode1997Steps and the like), milliseconds.</summary>
+    private const double SliceMs = 8;
+
+    /// <summary>A step of AttachSteps after which the steps draw the world (the effects rehearsal's frames): they wait for a still picture.</summary>
+    private static readonly object StillPicture = new();
+    /// <summary>The steps wait for a still picture (StillPicture): all that is left is the world's own frames.</summary>
+    private bool _stillWanted;
+    /// <summary>The steps have reached the world's own frames (the rehearsal): its 3D is drawn from here on.</summary>
+    private bool _worldDrawn;
+    private bool _world3DOff;
+    /// <summary>The 3D antialiasing the look set while the world was not drawn (SetMode1997Steps), applied when it is (StillPicture).</summary>
+    private Viewport.Msaa? _msaaAhead;
+
+    /// <summary>
+    /// The root viewport's 3D drawn or not. While the mission attaches behind a picture that covers the whole window (the playing
+    /// briefing, the loading card) the world under it is not drawn: each of those frames drew the whole world for nothing, a frame of
+    /// 0.1 to 1.8 s at 3440x1440 under a briefing (the movie's late frames) or behind the card.
+    /// </summary>
+    private void SetWorld3D(bool on)
+    {
+        if (_world3DOff != on) return;
+        _world3DOff = !on;
+        var vp = GetViewport();
+        RenderingServer.ViewportSetDisable3D(vp.GetViewportRid(), !on || vp.Disable3D);
+    }
     /// <summary>A step of AttachSteps is running (the card's hold is held past its time for it, never cut: BuildBehindCard).</summary>
     private bool _stepRunning;
 
@@ -2156,12 +2257,14 @@ public partial class Main : Node3D
             FrameLimiter.Apply(I76.Game.Shell.ShellSettings.Load());
             MissionBuilder.Trace($"build: done ({job.Start.Clock.ElapsedMilliseconds} ms)");
         }
-        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: behind the card or the briefing's
-        // held frame (a still picture: a long step shows nothing), never under the playing briefing unless I76_ATTACH_UNDER_MOVIE=1 (its
-        // steps are single calls of 50 ms to 1.2 s, and the movie must play clean: round 2, docs/perf/loadtime-plan.md).
-        // I76_ATTACH_EARLY=0: all of it after the briefing, as round 1.
+        // The rest of the load (AttachSteps) as soon as the build is done, with the world held still: under the playing briefing too,
+        // a few milliseconds of steps between its frames (the world under it not drawn meanwhile: SetWorld3D), so that the line goes on
+        // to full and READY comes up over the movie; the steps that draw the world (the effects rehearsal) wait for a still picture
+        // (StillPicture: the card, the briefing's held frame, or its end). I76_ATTACH_UNDER_MOVIE=0: none of it under the playing
+        // briefing, as before (behind the card or the held frame only), as does [port] load_under_briefing=false; =1 runs it whatever the
+        // setting. I76_ATTACH_EARLY=0: all of it after the briefing, as round 1.
         bool early = System.Environment.GetEnvironmentVariable("I76_ATTACH_EARLY") != "0";
-        bool underMovie = System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE") == "1";
+        bool underMovie = BriefingOverlap.LoadUnder(I76.Game.Shell.ShellSettings.Load().LoadUnderBriefing, System.Environment.GetEnvironmentVariable("I76_ATTACH_UNDER_MOVIE"));
         double budget = double.TryParse(System.Environment.GetEnvironmentVariable("I76_ATTACH_BUDGET_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bm) ? bm : AttachBudgetMs;
         bool fading = false;
         // the briefing's picture stands still under "PLEASE STAND BY" (skipped, or run out, before the mission is ready)
@@ -2170,6 +2273,8 @@ public partial class Main : Node3D
         bool Ready() => attach is { IsCompleted: true } || (job.Done && (job.Error is not null || !early));
         // a step may run: the card up and still (not fading), the briefing held or over; under the playing briefing only with the hook
         bool Gate() => !fading && (cardUp || held || over.Task.IsCompleted || (underMovie && movieStarted));
+        // a still picture over the world: the card up and not fading, the briefing held or over
+        bool Still() => (cardUp && !fading) || held || over.Task.IsCompleted;
         WarmModernFxUnderCard();
         WarmShadersUnderCard(() => cardUp && !fading);
         void StartAttach()
@@ -2182,12 +2287,14 @@ public partial class Main : Node3D
             GetTree().Paused = true;
             _attachedUnderMovie = true;
             MissionBuilder.Trace($"attach: begins ({(cardUp ? "behind the card" : held ? "behind the briefing's held frame" : "when the briefing stands still")})");
-            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || held || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate);
+            attach = RunSteps(AttachSteps((job.Start, job.World, job.Error), loading), cardUp || held || over.Task.IsCompleted ? AttachAfterMovieBudgetMs : budget, Gate, Still);
         }
         while (true)
         {
             Noted();
             if (AuditOn) Audit();
+            // the world under the card or the briefing is not drawn from the attach's start until the steps draw it (the rehearsal)
+            SetWorld3D(_worldDrawn || attach is null);
             if (cardRelease is { } up) { if (MoviePlayer.Scripted(up, false) is { } ue) Input.ParseInputEvent(ue); cardRelease = null; }
             if (_cardInput is not null && cardScript.Count > 0 && _cardClock.Elapsed.TotalMilliseconds >= cardScript[0].At)
             {
@@ -2200,9 +2307,18 @@ public partial class Main : Node3D
             // READY: a press then is not a promise that the mission starts at once)
             if (movieStarted && !held && job.Done && GetNodeOrNull<MoviePlayer>("Movie") is { SkipWanted: true, Held: false } skipped)
             {
-                MissionBuilder.Trace("briefing skipped before the mission is ready: the card again, with its progress");
-                LoadProfiler.Event("skip to the card");
-                skipped.End();
+                // all that is left is the world's first frames (StillPicture, about a second): behind the briefing's frame, held
+                if (_stillWanted)
+                {
+                    MissionBuilder.Trace("briefing skipped with the world's first frames to draw: its picture held for them");
+                    skipped.HoldPicture();
+                }
+                else
+                {
+                    MissionBuilder.Trace("briefing skipped before the mission is ready: the card again, with its progress");
+                    LoadProfiler.Event("skip to the card");
+                    skipped.End();
+                }
             }
             if (movieStarted && !held && Held())
             {
@@ -2272,6 +2388,7 @@ public partial class Main : Node3D
         _cardInput = null;
         cardListener.QueueFree();
         _cardDown = !cardUp;
+        SetWorld3D(true);
         if (attach is not null)
         {
             await attach;   // (done, or the briefing's end found it short of its end: it finishes behind the card, at the after-movie budget)
@@ -2332,20 +2449,26 @@ public partial class Main : Node3D
     }
 
     /// <summary>The rest of the load on the main thread: the built world into the tree, the sky, the music, the camera.</summary>
-    private void AttachWorld(Load start, Node3D world)
+    private void AttachWorld(Load start, Node3D world) { foreach (var _ in AttachWorldParts(start, world)) { } }
+
+    /// <summary><see cref="AttachWorld"/> in parts, a <c>null</c> between them (AttachSteps).</summary>
+    private IEnumerable<object?> AttachWorldParts(Load start, Node3D world)
     {
         var install = start.Install;
         var sw = start.Clock;
         var vfs = start.Vfs;
         _worldRoot.AddChild(world);
         MissionBuilder.Trace("world in tree");
+        yield return null;
         _builder.Scenery!.Modern = !_mode1997;
         var w = _builder.World!;
         _status = $"{w.Mission.Name}: {sw.ElapsedMilliseconds} ms, {_builder.Terrain!.ChunkCount} chunks, " +
                   $"{_builder.Roads!.Quads} road quads ({_builder.RoadChunks} chunks painted, {_builder.RoadBakeMs} ms), {_builder.Scenery!.Loaded}/{w.Placements.Count + w.LinePlacements.Count} placements incl. {w.LinePlacements.Count} fence links ({_builder.Scenery.Keywords} keywords, {_builder.Scenery.Failed} failed)";
         GD.Print(_status);
-        ApplySky();
+        foreach (var step in ApplySkySteps()) yield return step;
+        yield return null;
         AddSoftwareLook(install, vfs);   // MainSoftware.cs
+        yield return null;
         MissionBuilder.Trace("sky");
         if (!_opt.NoMusic) PlayMusic(install, _builder.Settings);   // started after the card and the briefing
 
@@ -2543,12 +2666,15 @@ public partial class Main : Node3D
     }
 
     /// <summary>The mission's sky texture on the engine's dome, in both modes; modern fogs toward its average colour.</summary>
-    private void ApplySky()
+    private void ApplySky() { foreach (var _ in ApplySkySteps()) { } }
+
+    /// <summary><see cref="ApplySky"/> as steps, a <c>null</c> between its parts (AttachWorldParts).</summary>
+    private IEnumerable<object?> ApplySkySteps()
     {
         var shellNow = I76.Game.Shell.ShellSettings.Load();
         I76.Game.Sim.OriginalBehavior.SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(shellNow.SkySpeed);   // [port] sky_speed, before the materials take it
         _lighting = LightingOf(shellNow);   // the calibration is solved here, before ApplyGraphics
-        if (_builder?.SkyTexture is not { } tex) return;
+        if (_builder?.SkyTexture is not { } tex) yield break;
         var mat = _sky1997 = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_dome.gdshader") };
         mat.SetShaderParameter("clouds", tex);
         mat.SetShaderParameter("far_clip", Far1997);
@@ -2580,16 +2706,20 @@ public partial class Main : Node3D
         var sky = new Sky { SkyMaterial = mat, ProcessMode = Sky.ProcessModeEnum.Realtime };
         var modernSky = ModernSky(mat, light);
         modernSky.SetShaderParameter("scroll_per_second", I76.Game.Sim.SimClock.SkyRate(I76.Game.Sim.SimClock.ModernSkyScrollPerSecond));   // [port] sky_speed
+        yield return null;
         AddHorizonTerrain(modernSky, light);
+        yield return null;
         // the modern sky's clouds move (TIME), so its radiance (ambient light and reflections) is redone all the
         // time: Incremental spreads each redo over a few frames (0.45 ms a frame less than Realtime's every frame);
         // the sky itself is drawn every frame either way. I76_SKY_REALTIME=1 for the old way.
         _calibratedSky = modernSky;
         _calibratedLight = light;
         MissionBuilder.Trace("sky materials");
+        yield return null;
         // at a load: its arithmetic beside the rest of the load (I76_CALIBRATION_BESIDE=0: here, as before)
         SolveLightingCalibration(background: System.Environment.GetEnvironmentVariable("I76_CALIBRATION_BESIDE") != "0");
         MissionBuilder.Trace("lighting calibration");
+        yield return null;
         _modernEnv.Sky = new Sky { SkyMaterial = modernSky,
             ProcessMode = System.Environment.GetEnvironmentVariable("I76_SKY_REALTIME") == "1" ? Sky.ProcessModeEnum.Realtime : Sky.ProcessModeEnum.Incremental };
         AddSkyFog(modernSky);
@@ -2928,6 +3058,8 @@ public partial class Main : Node3D
     }
 
     private HorizonTerrain? _horizon;
+    /// <summary>The attach makes the 3D horizon's meshes itself, a few a step (AttachSteps), rather than AddHorizonTerrain all at once.</summary>
+    private bool _sliceHorizon;
     /// <summary>Whether the modern look draws 3D distant terrain (HorizonTerrain) in place of the sky's horizon panels.</summary>
     private static readonly bool Horizon3D = System.Environment.GetEnvironmentVariable("I76_HORIZON_PANELS") != "1";
 
@@ -2946,7 +3078,8 @@ public partial class Main : Node3D
             _horizon?.QueueFree();
             _horizon = early.GetAwaiter().GetResult();
             _horizon.Visible = !_mode1997;
-            _horizon.Finish();
+            // its material now, its meshes a few at a time by the attach under a briefing (AttachSteps), else all of them here
+            _horizon.Finish(_sliceHorizon ? 0 : int.MaxValue);
             MissionBuilder.Trace("horizon built");
             PlaceHorizon(sky, light);
             return;
@@ -3360,9 +3493,12 @@ public partial class Main : Node3D
     /// once a second, so a destroyed building's remains take over) and the cars'
     /// parts, darkening the ground under them as the software renderer's shadow table did.
     /// </summary>
-    private void AddDropShadows()
+    private void AddDropShadows() { foreach (var _ in AddDropShadowsSteps()) { } }
+
+    /// <summary><see cref="AddDropShadows"/> as steps: its layers' materials made a part at a time (DropShadows.ReadySteps).</summary>
+    private IEnumerable<object?> AddDropShadowsSteps()
     {
-        if (_builder?.World is not { } w) return;
+        if (_builder?.World is not { } w) yield break;
         // the bare ground the cars stand on (the outside ground's past the map's tiles), else the map's own
         float Bare(double x, double z) => _sim?.Session?.World.Ground is { } sg ? sg.BareHeight(x, z) : (float)w.BilinearHeight(x, z);
         // a night preset: the cars' lights (NightLights), which also pick the shadows' light near them
@@ -3381,11 +3517,13 @@ public partial class Main : Node3D
         }
         _drops = new DropShadows
         {
+            Staged = true,   // (its layers made below, a part at a time)
             Name = "DropShadows", Ground = (x, z) => Bare(x, z), Origin = () => _origin,
             Casters = Casters, Light = () => _lightDir,
             Surface = (x, y, z) => _sim?.Session?.World.Ground is { } g ? g.Query(x, y, z).Height : (float)w.BilinearHeight(x, z), LightAt = night is null ? null : night.ShadowLight,
         };
         AddChild(_drops);
+        foreach (var step in _drops.ReadySteps()) yield return step;
         UpdateDrops();
     }
 
@@ -3501,7 +3639,13 @@ public partial class Main : Node3D
         return _cardCurves[level] = ImageTexture.CreateFromImage(img);
     }
 
-    private void SetMode1997(bool on)
+    private void SetMode1997(bool on) { foreach (var _ in SetMode1997Steps(on, sliced: false)) { } }
+
+    /// <summary>
+    /// <see cref="SetMode1997"/> as steps (a mission attaching under its briefing, AttachSteps): a <c>null</c> between its parts, the
+    /// terrain's chunks a slice at a time (a Task to wait for: its levels built on workers). Not sliced, it runs as one call.
+    /// </summary>
+    private IEnumerable<object?> SetMode1997Steps(bool on, bool sliced)
     {
         // the modern look not built yet (a 1997 start builds none of it): build it now, showing 1997 meanwhile
         _wantModern = false;
@@ -3511,14 +3655,20 @@ public partial class Main : Node3D
             _wantModern = true;
             GD.Print("modern look asked for while it builds: standing by");
             ShowStandBy();
-            return;
+            yield break;
         }
         _standBy?.QueueFree(); _standBy = null;
         // a pack's roads are the modern look's: the 1997 look's are baked from the originals the first time it is drawn (kept after)
         if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
         _mode1997 = on;
         I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
-        _builder?.Terrain?.UseModern(!on);
+        if (!sliced) _builder?.Terrain?.UseModern(!on);
+        else if (_builder?.Terrain is { } terrain)
+            foreach (var step in terrain.UseModernSteps(!on, SliceMs))
+            {
+                if (step is System.Threading.Tasks.Task job) while (!job.IsCompleted) yield return job;
+                else yield return step;
+            }
         _builder?.OutsideNode?.UseModern(!on);
         _builder?.Roads?.SetMode1997(on);
         _builder?.RoadsOffGround?.SetMode1997(on);
@@ -3526,6 +3676,7 @@ public partial class Main : Node3D
         if (_builder?.Scenery is { } scn) scn.RoadPieces.Visible = false;
         if (_builder?.Roads is { } r) r.Visible = false;
         MissionBuilder.Trace("look: roads, terrain");
+        if (sliced) yield return null;
         _env.Environment = on ? _env1997 : _modernEnv;
         // 1997: no shadow map (the original had none: its drop shadows are projected polygons, DropShadows)
         _sun.ShadowEnabled = !on;
@@ -3542,15 +3693,26 @@ public partial class Main : Node3D
         _sun.ShadowBlur = on ? 0f : 1f;
         _sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
         MissionBuilder.Trace("look: shadows, draw distance");
+        if (sliced) yield return null;
         _builder?.Materials?.SetMode1997(on);
+        if (sliced) yield return null;
         if (_builder?.Scenery is { } scenery) scenery.Modern = !on;
         MissionBuilder.Trace("look: materials, scenery");
         if (_pit is not null) _pit.Faithful = on;
         MissionBuilder.Trace("look: cockpit");
         if (_sim is not null) foreach (var c in _sim.Cars) { c.Modern = !on; if (c.Wrecked) _damageView?.Rebuild(c); }   // the wreck's shape: modern shell or the 1997 box
         MissionBuilder.Trace("look: cars");
-        GetViewport().Msaa3D = Msaa1997(on);
+        // (under a briefing the world is not drawn yet: its antialiasing's buffers are remade when the steps draw it, StillPicture)
+        if (sliced) _msaaAhead = Msaa1997(on); else GetViewport().Msaa3D = Msaa1997(on);
         MissionBuilder.Trace("look: msaa");
+        if (sliced) yield return null;
+        // the plants' node (their meshes made, nothing in the tree) on a worker, for UpdateVegetation to take
+        if (sliced && !on && _veg is null && VegetationNode.LevelFor(_vegetation) is var vl and > 0 && _builder is { ModernReady: true } vb && vb.Terrain?.Surface is not null)
+        {
+            var made = System.Threading.Tasks.Task.Run(() => VegetationNode.Create(vb, vl));
+            yield return made;
+            _vegAhead = (made.GetAwaiter().GetResult(), vl);
+        }
         ApplyModernQuality();
         MissionBuilder.Trace("look: modern quality");
         ApplySoftware();   // MainSoftware.cs

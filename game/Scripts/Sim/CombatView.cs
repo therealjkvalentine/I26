@@ -750,9 +750,12 @@ public partial class CombatView : Node3D
     /// (its geometry and textures) and its sound, and one sprite at <paramref name="at"/> so that its pipeline is made.
     /// The first bullet that hit a car cost 20 ms (the effect's look 10, its sound 4), a stall as the fight began.
     /// </summary>
-    public void WarmImpacts(Vector3 at)
+    public void WarmImpacts(Vector3 at) => WarmImpacts(PrepareImpacts(Combat, Sprites, Audio), at);
+
+    /// <summary><see cref="WarmImpacts"/> with the looks made already (<see cref="PrepareImpacts"/> on a worker): the sprite that makes the pipeline.</summary>
+    public void WarmImpacts(EffectSprites.Look? any, Vector3 at)
     {
-        if (PrepareImpacts(Combat, Sprites, Audio) is not { } any) return;
+        if (any is null) return;
         var sp = any.Sprite(at);
         AddChild(sp);
         _warmSprites.Add(sp);

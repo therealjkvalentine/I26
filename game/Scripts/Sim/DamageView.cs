@@ -45,12 +45,23 @@ public partial class DamageView : Node3D
     private BoxMesh _chunk = null!;
     private StandardMaterial3D _chunkMat = null!;
 
+    /// <summary>Made by <see cref="ReadySteps"/>, a step at a time, by whoever added it (a mission attaching under its briefing), not all in <see cref="_Ready"/>.</summary>
+    public bool Staged { get; init; }
+
     public override void _Ready()
+    {
+        if (!Staged) foreach (var _ in ReadySteps()) { }
+    }
+
+    /// <summary>What <see cref="_Ready"/> makes (the skid marks, the smoke's layer, the damage smoke), a null between them.</summary>
+    public IEnumerable<object?> ReadySteps()
     {
         _chunk = new BoxMesh { Size = new Vector3(0.35f, 0.2f, 0.5f) };
         _chunkMat = new StandardMaterial3D { AlbedoColor = new Color(0.18f, 0.16f, 0.15f) };
         AddChild(new SkidMarks { Cars = Cars, Origin = Origin, Ground = Ground, Builder = Builder, SceneLight = SceneLight, Name = "SkidMarks" });
+        yield return null;
         AddChild(new SmokeLayer { Name = "SmokeLayer" });   // the modern look's smoke is drawn and composited there, capped
+        yield return null;
         AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });
     }
 
@@ -217,6 +228,25 @@ public partial class DamageView : Node3D
     private ArrayMesh? TyreMesh(string def, int slot, bool blown, ref AssembledModel? model) => WreckCache.TyreMesh(def, slot, blown, ref model);
 
     public void PrewarmWrecks(IEnumerable<string> defs, bool modern) => WreckCache.Prewarm(defs, modern);
+
+    /// <summary>
+    /// <see cref="Prewarm"/> in two halves for a mission attaching under its briefing: the wrecks' meshes (no node, nothing drawn) on a
+    /// worker, the fire's shared materials here; the kinds of car (the player's first) are read here, before the worker starts.
+    /// </summary>
+    public System.Threading.Tasks.Task PrewarmWrecksBeside(CarNode? car, IEnumerable<string> others, bool modern)
+    {
+        var mine = car is not null && !IsHeli(car) ? (car.Definition, car.Modern) : ((string, bool)?)null;
+        var defs = others.ToList();
+        var cache = WreckCache;
+        return System.Threading.Tasks.Task.Run(() =>
+        {
+            if (mine is { } m) cache.Prewarm([m.Item1], m.Item2);
+            cache.Prewarm(defs, modern);
+        });
+    }
+
+    /// <summary>The fire's shared materials (the other half of <see cref="Prewarm"/>).</summary>
+    public static void PrewarmFire() { if (WreckFire.Enabled) WreckFire.Shared.Init(); }
 
     /// <summary>
     /// A rehearsal of a death behind the loading card, on a stand-in for a car: burnt out and its fire lit, kept alive while the tree is paused so the

@@ -88,6 +88,7 @@ public partial class Cockpit : Node
         _glassRoundSetting = shellSettings.SideMirrorRound;
         yield return null;
         SetupMirror();
+        yield return null;
         CompassOutline();
         _lookArt.Made((Textures.Hd, _faithful));
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
