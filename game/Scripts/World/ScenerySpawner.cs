@@ -301,13 +301,11 @@ public partial class ScenerySpawner : Node3D
     private static readonly bool SelfLitOn = SelfLitHook is "1" or "noshadow";
 
     /// <summary>
-    /// ODEF class 4, the road signs: their self-lit faces (the original draws them at full brightness to be read at night) do not
-    /// glow in the modern look; they are retroreflective, bright in the beam of the lamps beside the eye (RetroLamps).
+    /// ODEF class 4, the road signs: their full-bright faces (the original draws them so to be read at night) do not glow in the
+    /// modern look; they are lit as their neighbours and retroreflective, bright only in a lit headlamp's beam (RetroLamps;
+    /// I76_RETRO_SIGNS=0 leaves the sheeting out, Retroreflection.On).
     /// </summary>
     public const uint SignType = 4;
-
-    /// <summary>I76_RETRO_SIGNS (comparison only): <c>1</c> makes the modern look's sign faces retroreflective; off by default.</summary>
-    private static readonly bool RetroSigns = System.Environment.GetEnvironmentVariable("I76_RETRO_SIGNS") == "1";
 
     public void Spawn(MissionWorld world, ModelAssembler asm, MeshBuilder builder, bool skipVehicles = false)
     {
@@ -351,8 +349,8 @@ public partial class ScenerySpawner : Node3D
                 : part => !(spinners?.Any(s => s.Owns(part.NodeName)) ?? false) && !(gates?.Owns(part.NodeName) ?? false) && !(cardNames?.Contains(part.NodeName) ?? false);
             // a structure's self-lit faces shine at night in the modern look (MeshBuilder.SelfLit), its lamps light what is under them
             bool selfLit = SelfLitOn && !roadPiece && g.Any(p => p.Object.ObjectType != SignType);
-            // a road sign's face is retroreflective (RetroLamps)
-            bool retro = RetroSigns && !roadPiece && !g.Any(p => p.Object.ObjectType != SignType);
+            // a road sign's face is retroreflective (RetroLamps), not glowing of its own
+            bool retro = !roadPiece && !g.Any(p => p.Object.ObjectType != SignType);
             var mesh = model is null ? null : builder.Build(model, include: include, skipFace: skip, selfLit: selfLit, retro: retro);
             if (mesh is null && gates is not null && cardNames is null)
             {

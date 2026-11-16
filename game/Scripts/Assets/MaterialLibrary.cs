@@ -208,7 +208,8 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// engine draws every face of a scene object (a face whose plane faces away from the eye is left out
     /// before its mode is read); the modern look keeps it both-sided.
     /// <paramref name="selfLit"/>: the modern look's night shows it shining of its own (FaceLight.SelfLit, object.gdshaderinc: self_lit).
-    /// <paramref name="retro"/>: a road sign's face, which the modern look's night shows retroreflective (RetroLamps, object.gdshaderinc: retro).
+    /// <paramref name="retro"/>: a road sign's face, which the modern look's night shows retroreflective (RetroLamps, object.gdshaderinc: retro)
+    /// and never glowing of its own (no night_glow): bright only where a lit headlamp's beam reaches it.
     /// </summary>
     public Material ForTexture(string member, FaceMode mode = FaceMode.Cutout, I76.Formats.Imaging.CarMaterial.Paint? car = null,
         I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool oneSided = false, bool bothSides = false,
@@ -246,10 +247,10 @@ public sealed class MaterialLibrary(TextureFactory textures)
         else mat.SetShaderParameter("albedo_color", Colors.Magenta);
         if (unlit) mat.SetShaderParameter("unlit_1997", true);
         // scenery's full-bright face (a night station's lit parts): as painted at night in the modern look (StationLight); a car's lamps and
-        // windows keep the modern look's own lamps and glass
-        if (unlit && car is null && mode != FaceMode.Translucent) mat.SetShaderParameter("night_glow", true);
+        // windows keep the modern look's own lamps and glass, a road sign's face is lit as its neighbours and bright only in a beam (retro)
+        if (unlit && car is null && mode != FaceMode.Translucent && !retro) mat.SetShaderParameter("night_glow", true);
         if (selfLit) mat.SetShaderParameter("self_lit", true);
-        if (retro) mat.SetShaderParameter("retro", true);
+        if (retro && I76.Game.World.Retroreflection.On) mat.SetShaderParameter("retro", true);
         // the cockpit's own art (z*: panels, wheel, arms, dash) carries its lighting: the engine applies none
         string stem = member[(member.LastIndexOfAny(['/', '\\', ':']) + 1)..];
         if (stem.StartsWith('z') || stem.StartsWith('Z'))
@@ -787,9 +788,9 @@ public sealed class MaterialLibrary(TextureFactory textures)
         if (oneSided) _oneSided.Add(mat);
         mat.SetShaderParameter("albedo_color", Color.Color8(r, g, b));
         // a plain-coloured face the engine draws at full brightness (a night station's pump island): as the textured ones (FaceLight)
-        if (unlit) { mat.SetShaderParameter("unlit_1997", true); if (prop) mat.SetShaderParameter("night_glow", true); }
+        if (unlit) { mat.SetShaderParameter("unlit_1997", true); if (prop && !retro) mat.SetShaderParameter("night_glow", true); }
         if (selfLit) mat.SetShaderParameter("self_lit", true);
-        if (retro) mat.SetShaderParameter("retro", true);
+        if (retro && I76.Game.World.Retroreflection.On) mat.SetShaderParameter("retro", true);
         if (prop)
         {
             var (rough, metal, spec) = I76.Formats.Imaging.PropMaterial.ForColour(r, g, b, family);

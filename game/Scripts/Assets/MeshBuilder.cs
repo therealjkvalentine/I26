@@ -136,7 +136,7 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// <param name="oneSided1997">the cut-out and translucent faces drawn from the front only in the 1997 look (MaterialLibrary.ForTexture)</param>
     /// <param name="frameOf">a face texture's .TMT entry: a damaged car's zones (CarNode.TexFrame, DamageTextures); entry 0 without it</param>
     /// <param name="selfLit">a structure whose self-lit faces shine at night in the modern look (<see cref="SelfLit"/>)</param>
-    /// <param name="retro">a road sign, whose face (the faces the art marks self-lit) the modern look's night shows retroreflective (RetroLamps)</param>
+    /// <param name="retro">a road sign, whose face (the faces the original draws full-bright) the modern look's night shows retroreflective (RetroLamps), never glowing of its own</param>
     public ArrayMesh? Build(AssembledModel model, bool wheels = true, Func<ModelPart, bool>? include = null, System.Numerics.Vector3 origin = default,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null,
         bool selfLit = false, bool retro = false)
@@ -204,8 +204,9 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                 // a zero vertex normal (some GEOs have them) would light as NaN, which glow then spreads
                 var faceN = Coords.ToGodot(-part.ToModel.Rotate(new System.Numerics.Vector3(f.Plane.X, f.Plane.Y, f.Plane.Z))).Normalized();
                 bool shines = selfLit && SelfLit(f, faceN.Y);
-                // a sign's face: the faces the original draws full-bright to be read at night (the shield, the plate), not its post or back
-                bool sheeting = retro && I76.Formats.Geo.FaceLight.SelfLit(f);
+                // a sign's face: the faces the original draws full-bright to be read at night (the shield, the plate), not its post or back;
+                // every one the night would otherwise show as painted (night_glow: full-bright, not translucent)
+                bool sheeting = retro && I76.Formats.Geo.FaceLight.Unlit(f) && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) != MaterialLibrary.FaceMode.Translucent;
                 if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.AnimatedFace(f.Texture) is { } anim)
                     mat = materials.ForAnimated(anim.Frames, anim.Fps, MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21), partPaint, partFamily, bothSides,
                         unlit: I76.Formats.Geo.FaceLight.Unlit(f), selfLit: shines, retro: sheeting);
