@@ -149,7 +149,7 @@ public partial class HitchWatch : Node
         if (_last != 0) GodotRumble.FrameEnded((now - _last) * 1000.0 / Stopwatch.Frequency, _prev, Hitch.OwnWorkMs());
         _prev = _last;
         Interlocked.Exchange(ref _frameStart, now);
-        if (_last != 0 && Hitch.Report(now - _last) is { } line) GD.Print(line);
+        if (_last != 0 && Hitch.Report(now - _last) is { } line) I76.Game.Boot.RunLog.Print(line);
         else if (_last != 0) Hitch.Report(0);       // a quick frame: just clear
         _last = now;
     }

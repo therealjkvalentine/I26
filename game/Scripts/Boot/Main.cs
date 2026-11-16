@@ -523,6 +523,7 @@ public partial class Main : Node3D
             MissionBuilder.Trace("loading card gone");
         }
         LoadProfiler.Finish(_opt.Mission ?? "-");
+        RunLog.Flush();   // (I76_RUN_LOG: the load's lines written now, once)
         if (AuditOn && built is not null) AuditAfter();   // I76_BRIEFING_AUDIT: the first seconds after the briefing (MainBriefing.cs)
         if (LoadProfiler.QuitAfter) QuitSoon();
         _loading = false;
@@ -1618,7 +1619,7 @@ public partial class Main : Node3D
                 + $"{(I76.Sim.Vehicles.VehicleFactory.EngineRevable(builder.Vfs, vehicle.EngineNumber) ? "" : " (not revable)")}, horn and siren {I76.Sim.Vehicles.VehicleFactory.HornSound(builder.Vfs, vehicle.EngineNumber) ?? "none"}");
         _sim.Cars.Add(node);
         Lap("audio");
-        if (I76.Game.Hitch.LimitMs < 200) GD.Print($"spawn {carDef} frame {Engine.GetProcessFrames()}:{tl}");
+        if (I76.Game.Hitch.LimitMs < 200) RunLog.Print($"spawn {carDef} frame {Engine.GetProcessFrames()}:{tl}");
         return node;
     }
 
@@ -2109,7 +2110,7 @@ public partial class Main : Node3D
             double now = sw.Elapsed.TotalMilliseconds, took = now - last;
             // I76_SLOW_STEP_MS: a step that took longer printed with the stamps it ran between, its JIT and GC time
             if (SlowStepMs > 0 && took > SlowStepMs)
-                GD.Print($"slow step: {took:0} ms from '{before}' to '{MissionBuilder.LastStage}' (jit {(System.Runtime.JitInfo.GetCompilationTime(true) - jit0).TotalMilliseconds:0} ms, gc {(System.GC.GetTotalPauseDuration() - gc0).TotalMilliseconds:0} ms)");
+                RunLog.Print($"slow step: {took:0} ms from '{before}' to '{MissionBuilder.LastStage}' (jit {(System.Runtime.JitInfo.GetCompilationTime(true) - jit0).TotalMilliseconds:0} ms, gc {(System.GC.GetTotalPauseDuration() - gc0).TotalMilliseconds:0} ms)");
             if (!more) break;
             var step = e.Current;
             last = now;

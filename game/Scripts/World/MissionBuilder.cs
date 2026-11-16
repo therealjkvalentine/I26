@@ -915,7 +915,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         long last = 0;
-        void Mark(string what) { if (TraceOn) GD.Print($"modern build: {what} +{clock.ElapsedMilliseconds - last} ms (at {clock.ElapsedMilliseconds})"); last = clock.ElapsedMilliseconds; }
+        void Mark(string what) { if (TraceOn) I76.Game.Boot.RunLog.Print($"modern build: {what} +{clock.ElapsedMilliseconds - last} ms (at {clock.ElapsedMilliseconds})"); last = clock.ElapsedMilliseconds; }
         var terrain = Terrain!;
         // the heightfield's modern share: the reachable surface, every chunk's coarsest level
         var surface = Background(() => terrain.PrepareModern(world));
@@ -971,7 +971,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public static readonly bool HashOn = System.Environment.GetEnvironmentVariable("I76_BUILD_TRACE") == "hash";
     private static readonly System.Diagnostics.Stopwatch TraceClock = System.Diagnostics.Stopwatch.StartNew();
     /// <summary>I76_BUILD_TRACE=1: stamps each build stage on stdout, to see where a stuck load stopped.</summary>
-    public static void Trace(string stage) { LastStage = stage; if (TraceOn) GD.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
+    public static void Trace(string stage) { LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
     /// <summary>The last stage stamped (on any thread): what a slice of the load under a briefing was doing (Main.EndSlice).</summary>
     public static string LastStage { get; private set; } = "";
 }

@@ -73,7 +73,7 @@ public static class LoadProfiler
         long now = Now;
         long start = a.Last < 0 ? now : a.Last;
         long pipes = 0;
-        if (IsMain)
+        if (IsMain && PipesOn)
         {
             long p = Pipelines();
             pipes = _pipelines < 0 ? 0 : p - _pipelines;
@@ -95,6 +95,9 @@ public static class LoadProfiler
         if (hd) { a.TexHd++; a.BytesHd += bytes; } else { a.TexOrig++; a.BytesOrig += bytes; }
         a.TexMs += ms;
     }
+
+    /// <summary>I76_LOAD_PROFILE_PIPES=1: each main-thread stamp counts the pipelines compiled (each read waits for the renderer's thread: off by default).</summary>
+    private static readonly bool PipesOn = System.Environment.GetEnvironmentVariable("I76_LOAD_PROFILE_PIPES") == "1";
 
     private static long Pipelines()
     {
