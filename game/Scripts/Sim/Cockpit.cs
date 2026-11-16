@@ -565,7 +565,7 @@ public partial class Cockpit : Node
         {
             // game yaw is to the right and Godot's Z is mirrored: a right turn is a negative Y rotation here
             cam.Basis = Sway(dt) * Basis.FromEuler(new Vector3(-_viewPitch, -_viewYaw, _viewRoll), EulerOrder.Yxz);   // the Z mirror negates pitch and yaw, not roll
-            cam.Position = Node3D.Eye + new Vector3(track.Offset.X, track.Offset.Y, -track.Offset.Z);
+            cam.Position = Node3D.Eye + new Vector3(track.Offset.X + EyeHook.X, track.Offset.Y + EyeHook.Y, -(track.Offset.Z + EyeHook.Z));
             cam.Fov = I76.Sim.Views.ViewFov.Main;
         }
         // arms rise past ±58° / 53° to the side windows (the handguns): the sim moves them with the next tick
@@ -574,6 +574,11 @@ public partial class Cockpit : Node
     }
 
     private static readonly (float Yaw, float Pitch, long From, long To)? HeadHook = ParseHeadHook(System.Environment.GetEnvironmentVariable("I76_HEAD"));
+    /// <summary>I76_EYE_OFFSET=x,y,z: the eye moved that many metres (game axes: right, up, forward) on top of the head tracker's offset, for a capture from a moved head.</summary>
+    private static readonly System.Numerics.Vector3 EyeHook = System.Environment.GetEnvironmentVariable("I76_EYE_OFFSET")?.Split(',') is [var ex, var ey, var ez]
+        && float.TryParse(ex, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fx)
+        && float.TryParse(ey, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fy)
+        && float.TryParse(ez, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fz) ? new(fx, fy, fz) : default;
 
     private static (float, float, long, long)? ParseHeadHook(string? v)
     {
@@ -1546,7 +1551,8 @@ public partial class Cockpit : Node
         _mirrorFlat = new Godot.Environment { BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = MirrorBackground,
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
-        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1") _mirrorMat.SetShaderParameter("rim_key", true);
+        if (RimKeyHook) _mirrorMat.SetShaderParameter("rim_key", true);
+        if (System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_GAP") == "1") _mirrorMat.SetShaderParameter("rim_gap", true);
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {
@@ -1921,6 +1927,8 @@ public partial class Cockpit : Node
         public ArrayMesh? Grown;
     }
     private readonly List<GlassPane> _glass = [];
+    /// <summary>I76_MIRROR_RIM_KEY=1: the rim flat magenta and the pane's outline outside it cyan (the grown glass then takes in the pane's outline, as with dark corners).</summary>
+    private static readonly bool RimKeyHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1";
     private static readonly string? RimOutHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_RIM_OUT");
     private int _rimOutSetting = GlassRound.DefaultRimOut;
     private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
@@ -2061,8 +2069,8 @@ public partial class Cockpit : Node
         m.SetShaderParameter("pane_mid", po + pa * (g.Aspect / 2) + pb / 2); m.SetShaderParameter("pane_half", new Vector2(g.Aspect / 2, 0.5f)); m.SetShaderParameter("pane_a", pa); m.SetShaderParameter("pane_b", pb);
         if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
         {
-            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, rimOut.Dark ? [.. GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), .. g.Hull.Select(q => q + (q - g.Hull.Aggregate(Vector2.Zero, (a, b) => a + b) / g.Hull.Count).Normalized() * GrowMargin)]
-                : GlassRound.Around(shape.Core, shape.R + grow + GrowMargin), g.Eye);
+            // the pane's outline in it too: the moulding's dark reaches the housing's corners (the shader's union with the outline)
+            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(g.Hull, shape.Core, shape.R + grow, GrowMargin), g.Eye);
             g.GrownFor = (grow, rimOut.Dark);
         }
         g.Mesh.Mesh = g.Grown;

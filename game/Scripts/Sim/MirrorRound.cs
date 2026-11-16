@@ -222,6 +222,21 @@ public static class GlassRound
     public static (float In, float Width) RingOnScreen(float sd, float unitsPerPx, float rimOut, float ringW, float pxPerUnit) =>
         ((rimOut - sd) / Math.Max(unitsPerPx, 1e-7f), Math.Max(ringW * pxPerUnit, 1f));
 
+    /// <summary>Screen pixels the ring's outer edge reaches past the pane's own outline (cockpit_mirror.gdshader's HULL_OVER), and the blend where the two meet (HULL_SMOOTH).</summary>
+    public const float HullOver = 0.5f, HullSmooth = 1.5f;
+
+    /// <summary>
+    /// Screen pixels in from the ring's outer edge as cockpit_mirror.gdshader draws it: the rounded ring's (<paramref name="pxRing"/>,
+    /// RingOnScreen's In) and the pane's own outline's (<paramref name="pxOutline"/>, its distance in over its gradient on screen),
+    /// whichever is further in, blended over HullSmooth pixels where they meet: the outer edge takes in a housing corner sharper than
+    /// the ring's and HullOver pixels past it, and elsewhere is the ring's.
+    /// </summary>
+    public static float OuterIn(float pxRing, float pxOutline)
+    {
+        float h = MathF.Max(HullSmooth - MathF.Abs(pxRing - (pxOutline + HullOver)), 0) / HullSmooth;
+        return MathF.Max(pxRing, pxOutline + HullOver) + h * h * HullSmooth * 0.25f;
+    }
+
     /// <summary>The distance from a point to a convex counter-clockwise polygon, 0 inside it.</summary>
     public static float Distance(IReadOnlyList<Vector2> poly, Vector2 p)
     {
@@ -244,6 +259,17 @@ public static class GlassRound
     /// </summary>
     public static float Cover(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float r) =>
         hull.Count == 0 ? 0 : Math.Max(0, hull.Max(v => Distance(core, v)) - r);
+
+    /// <summary>
+    /// The points the grown glass's mesh is the hull of: the rounded ring's outer edge (the core widened by <paramref name="radius"/>) and
+    /// the pane's own outline, each <paramref name="margin"/> further out (room for the edge's one-pixel blend). The ring's outer edge
+    /// takes in the outline (cockpit_mirror.gdshader), so the moulding's dark reaches a housing corner sharper than the ring's.
+    /// </summary>
+    public static List<Vector2> GrownOutline(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float radius, float margin)
+    {
+        var mid = hull.Count == 0 ? Vector2.Zero : hull.Aggregate(Vector2.Zero, (a, b) => a + b) / hull.Count;
+        return Hull([.. Around(core, radius + margin), .. hull.Select(q => q + (q - mid).Normalized() * margin)]);
+    }
 
     /// <summary>
     /// A convex polygon holding the core widened by <paramref name="radius"/> (every point within it of the core): a circle of
