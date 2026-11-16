@@ -44,6 +44,12 @@ public static class BriefingOverlap
     /// </summary>
     public static bool Threaded(bool look1997, bool network, bool editor, bool retry) => !look1997 && !network && !editor && !retry;
 
+    /// <summary>
+    /// The rest of the load (the world into the tree, the look, the cars, the first tick) runs under the playing briefing too: the
+    /// setting ([port] load_under_briefing), unless the hook I76_ATTACH_UNDER_MOVIE says otherwise (0 off, 1 on).
+    /// </summary>
+    public static bool LoadUnder(bool setting, string? hook) => hook switch { "0" => false, "1" => true, _ => setting };
+
     /// <summary>The briefing plays during the build: the setting on, a threaded build, a briefing movie that is there and movies not skipped.</summary>
     public static bool Plan(bool setting, bool threaded, string? briefing, bool movieFound, bool skipMovies)
         => setting && threaded && briefing is { Length: > 0 } && movieFound && !skipMovies;

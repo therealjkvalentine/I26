@@ -393,6 +393,44 @@ public partial class TerrainNode : Node3D
         if (modern) UpdateLevels(force: true);
     }
 
+    /// <summary>
+    /// <see cref="UseModern"/> as steps (a mission attaching under its briefing): the chunks' look changed and, for the modern look,
+    /// the levels the camera wants built on workers (a Task to wait for) and made meshes, <paramref name="sliceMs"/> of engine calls
+    /// at a time with a <c>null</c> between; ends as the forced <see cref="UpdateLevels"/> does.
+    /// </summary>
+    public IEnumerable<object?> UseModernSteps(bool modern, double sliceMs)
+    {
+        _modern = modern;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var c in _chunks)
+        {
+            ApplyLook(c, modern);
+            if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); }
+        }
+        if (!modern || Surface is not { } surf || GetViewport()?.GetCamera3D() is not { } cam) yield break;
+        ComputeWants(cam);
+        var now = _chunks.Where(c => c.Lod[c.Want] is null).ToList();
+        var built = new TerrainLodMesh[now.Count];
+        if (now.Count > 0)
+            yield return Task.Run(() => Parallel.For(0, now.Count, i => built[i] = now[i].Pending[now[i].Want] is { } p ? p.Result : TerrainLodMesh.BuildCached(surf, now[i].X0, now[i].Z0, now[i].Want)));
+        sw.Restart();
+        for (int i = 0; i < now.Count; i++)
+        {
+            var c = now[i];
+            if (c.Lod[c.Want] is null) { c.Lod[c.Want] = built[i].ToMesh(); c.BuiltVer[c.Want] = c.Ver; c.Pending[c.Want] = null; }
+            if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); }
+        }
+        // the builds that finished meanwhile, a slice at a time; then the levels shown as the forced update shows them
+        foreach (var c in _chunks)
+            for (int l = 0; l < TerrainLodMesh.Levels - 1; l++)
+                if (c.Pending[l] is { IsCompleted: true } t)
+                {
+                    c.Lod[l] = t.Result.ToMesh(); c.BuiltVer[l] = c.Ver; c.Pending[l] = null;
+                    if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Restart(); }
+                }
+        UpdateLevels(force: true);
+    }
+
     private void ApplyLook(ChunkState c, bool modern)
     {
         c.Mi.MaterialOverride = modern ? c.Modern : c.Faithful ?? FaithfulMaterial;

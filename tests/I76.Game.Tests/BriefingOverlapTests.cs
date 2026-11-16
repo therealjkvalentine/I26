@@ -217,4 +217,25 @@ public class BriefingOverlapTests
         }
         return hashes;
     }
+
+    [Theory]
+    [InlineData(true, null, true)]     // the setting's default: the rest of the load under the playing briefing
+    [InlineData(false, null, false)]   // [port] load_under_briefing=false: only once the picture stands still
+    [InlineData(true, "0", false)]     // the hook over the setting, either way
+    [InlineData(false, "1", true)]
+    [InlineData(false, "", false)]
+    public void TheRestOfTheLoadRunsUnderTheBriefingAsTheSettingAndHookSay(bool setting, string? hook, bool under)
+        => Assert.Equal(under, BriefingOverlap.LoadUnder(setting, hook));
+
+    [Fact]
+    public void LoadUnderBriefingIsOnByDefaultAndWrittenOnlyWhenOff()
+    {
+        var s = new ShellSettings();
+        Assert.True(s.LoadUnderBriefing);
+        Assert.False(s.Write(null).HasSectionKey("port", "load_under_briefing"));
+        s.LoadUnderBriefing = false;
+        var back = ShellSettings.Read(s.Write(null));
+        Assert.False(back.LoadUnderBriefing);
+        Assert.True(ShellSettings.Read(ShellFileCompatTests.Parse(ShellFileCompatTests.ForkMainFile)).LoadUnderBriefing);
+    }
 }
