@@ -68,7 +68,44 @@ public partial class LoadingScreen : CanvasLayer
     public override void _ExitTree()
     {
         if (_shotPath is not null) RenderingServer.FramePostDraw -= Shot;
+        RenderingServer.FramePostDraw -= Drawn;
+        if (LoadProgress.Present == Present) LoadProgress.Present = null;
         LoadProgress.End();
+    }
+
+    private long _lastDraw;
+    private bool _presenting;
+    private void Drawn() => _lastDraw = System.Diagnostics.Stopwatch.GetTimestamp();
+    /// <summary>The forced draws' spacing while the main thread loads straight through, milliseconds.</summary>
+    public const double PresentEveryMs = 500;
+    /// <summary>Forced draws made in this run and their milliseconds (the load profile's line).</summary>
+    public static int Presented;
+    public static double PresentedMs;
+
+    /// <summary>
+    /// At a stamp of the load, while the main thread loads straight through (LoadProgress.Blocking: no frame between its steps): the
+    /// card with its line as it is now drawn at once, if the last frame is <see cref="PresentEveryMs"/> old and the line has moved,
+    /// the world's 3D off for the draw (the card covers it).
+    /// </summary>
+    private void Present()
+    {
+        if (!LoadProgress.Blocking || _presenting || !I76.Game.Boot.LoadProfiler.IsMain || !IsInsideTree()) return;
+        if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastDraw).TotalMilliseconds < PresentEveryMs) return;
+        if (_root.GetNodeOrNull<StandByTag>("StandBy") is not { LineBehind: true } tag) return;
+        _presenting = true;
+        try
+        {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            tag.UpdateLineNow();
+            var vp = GetViewport();
+            var rid = vp.GetViewportRid();
+            RenderingServer.ViewportSetDisable3D(rid, true);
+            RenderingServer.ForceDraw(true, 0);
+            RenderingServer.ViewportSetDisable3D(rid, vp.Disable3D);
+            Presented++;
+            PresentedMs += System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        }
+        finally { _presenting = false; }
     }
 
     /// <summary>The upscale of the card at <paramref name="pcxPath"/> (loadscr, p01load...), or null.</summary>
@@ -174,6 +211,13 @@ public partial class LoadingScreen : CanvasLayer
         _status.AddThemeColorOverride("font_outline_color", Colors.Black);
         _status.AddThemeConstantOverride("outline_size", 5);
         AddChild(_status);
+        // PLEASE STAND BY and its line in the card's corner for the whole load, in every start (the port's: the only loading
+        // indicator, the same as over a briefing played while the mission loads); while the main thread loads without frames the card
+        // is drawn again at the load's stamps (Present)
+        ShowStandBy();
+        _lastDraw = System.Diagnostics.Stopwatch.GetTimestamp();
+        RenderingServer.FramePostDraw += Drawn;
+        LoadProgress.Present = Present;
         // Nitro: a mission named p.. shows addon\pNNload.pcx, anything else loadscr.pcx
         var path = (Install.IsNitro && Mission is { Length: > 1 } m && char.ToLowerInvariant(m[0]) == 'p' ? Install.Resolve("addon", System.IO.Path.GetFileNameWithoutExtension(m) + "load.pcx") : null)
             ?? Install.Resolve("addon", "loadscr.pcx") ?? Install.FindFile("loadscr.pcx");

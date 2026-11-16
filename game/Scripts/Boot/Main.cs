@@ -489,8 +489,10 @@ public partial class Main : Node3D
         // the rest of the load: under the briefing it ran already, a few milliseconds a frame (BuildBehindCard, AttachSteps); else here
         if (built is null || !_attachedUnderMovie)
         {
-            // straight through, no frame between the steps (the still card, as the original's)
-            await RunSteps(AttachSteps(built, loading), 0);
+            // straight through, no frame between the steps (the card, PLEASE STAND BY and its line drawn at the load's stamps)
+            I76.Game.Ui.LoadProgress.Blocking = loading is not null;
+            try { await RunSteps(AttachSteps(built, loading), 0); }
+            finally { I76.Game.Ui.LoadProgress.Blocking = false; }
         }
         if (!IsInsideTree() || _attachFailed) return;
         MissionBuilder.Trace("effects rehearsal");

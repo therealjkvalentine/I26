@@ -131,4 +131,20 @@ public class LoadProgressTests
         Assert.False(s.Write(null).HasSectionKey("port", "load_progress"));
         Assert.DoesNotContain(DevSettings.All, e => e.Key == "load_progress");
     }
+
+    [Fact]
+    public void EveryStampGivesTheCardItsChanceToDrawTheLine()
+    {
+        int asked = 0;
+        var was = LoadProgress.Present;
+        LoadProgress.Present = () => asked++;
+        try
+        {
+            LoadProgress.Begin();
+            LoadProgress.Mark("build start");
+            LoadProgress.Part(LoadProgressModel.CarsMade, 1, 4);
+            Assert.Equal(2, asked);
+        }
+        finally { LoadProgress.Present = was; LoadProgress.End(); }
+    }
 }
