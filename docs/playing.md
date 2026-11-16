@@ -416,7 +416,8 @@ already loading behind it), then the briefing, and a briefing watched to its end
 "PLEASE STAND BY . . ." shows faint in the movie's corner the mission is still loading and the briefing cannot be skipped (a
 press then is not saved up either); once the world is built a press skips it, and the loading card comes back with PLEASE STAND
 BY in its corner until the mission is ready (a briefing that ends before the load gives way to the card the same way). A thin
-line under PLEASE STAND BY fills from left to right as the mission loads, full when it is loaded. The line says READY only when
+line under PLEASE STAND BY fills from left to right as the mission loads, full when it is loaded; every other start
+(melee, instant action, a bookmark, a network game, the 1997 look) shows the same line on its loading card. The line says READY only when
 the mission is ready: a press then starts it at once. Off, and always in the 1997 look (the row is grey on the
 Esc menu's pad and shows no check in the shell's list there), the mission loads behind the card first and the briefing
 plays after, as in the original.

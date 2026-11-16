@@ -146,13 +146,19 @@ public static class LoadProgress
     public static void Restarted() => _model.Use(LoadProgressModel.Restart);
 
     /// <summary>A stamp (MissionBuilder.Trace, any thread).</summary>
-    public static void Mark(string stamp) => _model.Mark(stamp);
+    public static void Mark(string stamp) { _model.Mark(stamp); Present?.Invoke(); }
 
     /// <summary><paramref name="done"/> of <paramref name="of"/> of the stage ending at <paramref name="stamp"/> (the cars made, the road layers' chunks baked; any thread).</summary>
-    public static void Part(string stamp, int done, int of) => _model.Part(stamp, done, of);
+    public static void Part(string stamp, int done, int of) { _model.Part(stamp, done, of); Present?.Invoke(); }
 
     /// <summary>The stage ending at <paramref name="stamp"/> is worth <paramref name="ms"/> this time (the bake cache had nothing for it).</summary>
     public static void Weigh(string stamp, double ms) => _model.Weigh(stamp, ms);
 
     public static void Finish() => _model.Finish();
+
+    /// <summary>The main thread loads without letting a frame through (Main's straight-through load: no briefing to build under).</summary>
+    public static volatile bool Blocking;
+
+    /// <summary>The loading card's chance to draw its line at a stamp while <see cref="Blocking"/> (LoadingScreen; it checks the thread and the time).</summary>
+    public static System.Action? Present;
 }

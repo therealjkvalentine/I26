@@ -223,6 +223,12 @@ public partial class StandByTag : Control
         UpdateLine();
     }
 
+    /// <summary>The line would show more of the load than it does (a forced draw of the card is worth making: LoadingScreen).</summary>
+    public bool LineBehind => _lineW > 0 && Visible && StandByLine.LineShown(_says) && StandByLine.Filled(LoadProgress.Model.Value, _lineW) > _lineFilled;
+
+    /// <summary>The line brought up to the load's progress now, outside the frame's process (a forced draw follows).</summary>
+    public void UpdateLineNow() => UpdateLine();
+
     /// <summary>The line filled to the load's progress now (only its width changes, and only when a pixel more is filled).</summary>
     private void UpdateLine()
     {
