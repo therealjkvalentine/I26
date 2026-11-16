@@ -1787,6 +1787,7 @@ public partial class Main : Node3D
     {
         var install = new GameInstall(_opt.Install!);
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        JitWarm.Start();
         var vfs = new AssetVfs(install);
         var msn = MissionPath(install);
         var builder = new MissionBuilder(vfs) { SkipVehicles = _opt.Drive is not null, DeferModern = _opt.Mode1997, Look1997 = _opt.Mode1997, EarlyHorizon = Horizon3D, WorldLoaded = I76.Game.Editor.EditorSession.Active ? w => I76.Game.Editor.EditorSession.Prepare(w, _builder!.Assembler!.ResolveDefinition) : null };
