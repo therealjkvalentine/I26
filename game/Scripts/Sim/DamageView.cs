@@ -238,7 +238,7 @@ public partial class DamageView : Node3D
         var mine = car is not null && !IsHeli(car) ? (car.Definition, car.Modern) : ((string, bool)?)null;
         var defs = others.ToList();
         var cache = WreckCache;
-        return System.Threading.Tasks.Task.Run(() =>
+        return I76.Game.Boot.Beside.Run(() =>
         {
             if (mine is { } m) cache.Prewarm([m.Item1], m.Item2);
             cache.Prewarm(defs, modern);

@@ -75,6 +75,20 @@ public partial class MoviePlayer : CanvasLayer
     private readonly Dictionary<int, int> _inputDue = [];
     public event Action? Finished;
 
+    /// <summary>The upscaled replacements' frame rate (the renders' own, 30 a second), for <see cref="NextFrameMs"/>.</summary>
+    private const double ReplacementFps = 30;
+    private static double _dueSeconds = double.NaN;
+    private static long _dueAt;
+
+    private static void Due(double seconds) { _dueSeconds = seconds; _dueAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
+
+    /// <summary>
+    /// The port's: how long until the playing movie's next frame is due to go up, milliseconds, or null with no movie playing (held or
+    /// over): a mission attaching under its briefing starts its steps right after a frame went up, not just before one (Main.RunSteps).
+    /// </summary>
+    public static double? NextFrameMs => double.IsNaN(_dueSeconds) ? null
+        : _dueSeconds * 1000 - System.Diagnostics.Stopwatch.GetElapsedTime(_dueAt).TotalMilliseconds;
+
     private Smacker _movie = null!;
     private Thread? _thread;
     private volatile bool _stop;
@@ -295,6 +309,7 @@ public partial class MoviePlayer : CanvasLayer
         if (_hold >= 0 && _clock.Seconds >= _hold * _movie.FrameDuration) _clock.Set(_hold * _movie.FrameDuration);
         PushSound();
         int want = _clock.Frame;
+        Due((want + 1) * _movie.FrameDuration - _clock.Seconds);
         (int Index, byte[] Rgba, byte[]? Pal)? show = null;
         int taken = 0;
         while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; taken++; }
@@ -484,6 +499,7 @@ public partial class MoviePlayer : CanvasLayer
     {
         if (_held) return;
         _held = true;
+        _dueSeconds = double.NaN;
         _tag?.ShowNow();   // (the rest of the load follows on the main thread: no frames for a fade)
         _stop = true;   // (the decoder is done with: only the frame shown stays)
         if (_movie is not null && _video is null) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
@@ -584,6 +600,7 @@ public partial class MoviePlayer : CanvasLayer
     {
         if (_done) return;
         _done = true;
+        _dueSeconds = double.NaN;
         _stop = true;
         if (_hifi is not null && !_hifiTold && _started)
             GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio: ended at clock {_clock.Seconds:0.000} s (frame {_clock.Frame} of {_movie.FrameCount}), the track heard at {(Heard() is { } h ? $"{h:0.000} s" : "its end")}");
@@ -613,6 +630,7 @@ public partial class MoviePlayer : CanvasLayer
 
     public override void _ExitTree()
     {
+        _dueSeconds = double.NaN;
         ClosePace();
         _stop = true;
         _thread?.Join(1000);
@@ -683,6 +701,7 @@ public partial class MoviePlayer : CanvasLayer
     {
         if (_done || _video is null) return;
         double pos = _video.StreamPosition, now = Wall();
+        Due((System.Math.Floor(pos * ReplacementFps) + 1) / ReplacementFps - pos);
         // the screen's pace under the video: frames that came later than two of its frames (1/15 s at 30 fps)
         if (_lastStep > 0 && now - _lastStep > 1 / 15.0) { _lateFrames++; _worstGap = Math.Max(_worstGap, now - _lastStep); if (_videoLog) GD.Print($"movie: late frame {(now - _lastStep) * 1000:0} ms at {pos:0.000} s"); }
         if (_videoLog && (int)(now - _videoStart) != (int)(_lastStep - _videoStart)) GD.Print($"movie: stream {pos:0.000} s at wall {now - _videoStart:0.000} s");

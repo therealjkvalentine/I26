@@ -79,6 +79,7 @@ public partial class Cockpit : Node
     public IEnumerable<object?> ReadySteps()
     {
         Panels.Prefetch();
+        I76.Game.World.MissionBuilder.Trace("cockpit: panels prefetched");
         foreach (var step in LoadArtSteps()) yield return step;
         _rng = new System.Random();
         var shellSettings = I76.Game.Shell.ShellSettings.Load();
@@ -87,9 +88,25 @@ public partial class Cockpit : Node
         _roundSetting = shellSettings.MirrorRound;
         _glassRoundSetting = shellSettings.SideMirrorRound;
         yield return null;
+        // the mirror's edge field and fill (arithmetic on its pictures) on a worker, its viewport and material here
+        if (Resolver.FindByStem("zmiri101") is { } mirrorMember)
+        {
+            var pre = I76.Game.Boot.Beside.Run(() =>
+            {
+                var o = Textures.GetOriginalRgba(mirrorMember);
+                var a = Textures.GetRgba(mirrorMember);
+                _mirrorPre = (o is null ? null : MirrorEdge.Field(o.Rgba, o.Width, o.Height),
+                    a is null ? null : MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(mirrorMember)));
+            });
+            yield return pre;
+            pre.GetAwaiter().GetResult();
+        }
         SetupMirror();
+        _mirrorPre = default;
+        I76.Game.World.MissionBuilder.Trace("cockpit: mirror");
         yield return null;
         CompassOutline();
+        I76.Game.World.MissionBuilder.Trace("cockpit: compass");
         _lookArt.Made((Textures.Hd, _faithful));
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
         Textures.Swapped += ArtSwapped;
@@ -115,16 +132,21 @@ public partial class Cockpit : Node
         // a pack's upscales of the frames below, read together on worker threads (done already when the build prefetched them); a .dds
         // goes to the GPU as stored, so none is decompressed
         Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>());
-        _wheelFrames = Frames("zswls{0}{1:00}", 36);
+        // their pictures read and their mipmaps made on a worker, then sent to the card a few at a time (a mission attaching under its briefing)
+        foreach (var step in FramesSteps("zswls{0}{1:00}", 36, f => _wheelFrames = f)) yield return step;
+        I76.Game.World.MissionBuilder.Trace("cockpit: wheel frames");
         yield return null;
-        _armR = Frames("zhr45{0}{1:00}", 6);
-        _armL = Frames("zhl45{0}{1:00}", 6);
-        _shotR = Frames("zsr45{0}{1:00}", 3);
-        _shotL = Frames("zsl45{0}{1:00}", 3);
+        foreach (var step in FramesSteps("zhr45{0}{1:00}", 6, f => _armR = f)) yield return step;
+        foreach (var step in FramesSteps("zhl45{0}{1:00}", 6, f => _armL = f)) yield return step;
+        foreach (var step in FramesSteps("zsr45{0}{1:00}", 3, f => _shotR = f)) yield return step;
+        foreach (var step in FramesSteps("zsl45{0}{1:00}", 3, f => _shotL = f)) yield return step;
+        I76.Game.World.MissionBuilder.Trace("cockpit: arms");
         yield return null;
         _radarFrames = RadarFrames.Take(Textures, Resolver);
+        I76.Game.World.MissionBuilder.Trace("cockpit: radar");
         yield return null;
         OriginalArt();
+        I76.Game.World.MissionBuilder.Trace("cockpit: original art");
     }
 
     /// <summary>What LoadArt reads of the originals, whatever is served (the radar's mask and its measure).</summary>
@@ -248,7 +270,36 @@ public partial class Cockpit : Node
     /// own mipmaps (TextureFactory.UpscaleImage): decompressed to RGBA8 with mipmaps made here, an 8x frame took four times the video
     /// memory. The originals stay point-sampled, as the rest of the art.
     /// </summary>
+    /// <summary>
+    /// <see cref="Frames"/> as steps: the pictures read and mipmapped on a worker (a Task to wait for: no texture made there), then
+    /// made textures here a few milliseconds at a time, a <c>null</c> between; <paramref name="done"/> takes the result.
+    /// </summary>
+    private IEnumerable<object?> FramesSteps(string pattern, int n, System.Action<(string? Member, ImageTexture?[] Tex, bool Filtered)> done)
+    {
+        (string? Member, Image?[] Imgs, bool Filtered) read = default;
+        var job = I76.Game.Boot.Beside.Run(() => read = FrameImages(pattern, n));
+        yield return job;
+        job.GetAwaiter().GetResult();
+        var tex = new ImageTexture?[n + 1];
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 1; i <= n; i++)
+        {
+            if (read.Imgs[i] is { } img) tex[i] = ImageTexture.CreateFromImage(img);
+            if (sw.Elapsed.TotalMilliseconds > 6 && i < n) { yield return null; sw.Restart(); }
+        }
+        done((read.Member, tex, read.Filtered));
+    }
+
     private (string? Member, ImageTexture?[] Tex, bool Filtered) Frames(string pattern, int n)
+    {
+        var (member, imgs, filtered) = FrameImages(pattern, n);
+        var tex = new ImageTexture?[n + 1];
+        for (int i = 1; i <= n; i++) if (imgs[i] is { } img) tex[i] = ImageTexture.CreateFromImage(img);
+        return (member, tex, filtered);
+    }
+
+    /// <summary>The frames' pictures (a pack's upscale as stored, else the original), mipmapped when a pack's are larger: no engine resource made.</summary>
+    private (string? Member, Image?[] Imgs, bool Filtered) FrameImages(string pattern, int n)
     {
         var member = Resolver.FindByStem(string.Format(pattern, 1, 1));
         int baseW = member is not null && Textures.GetOriginalRgba(member) is { } o ? o.Width : int.MaxValue;
@@ -263,9 +314,7 @@ public partial class Cockpit : Node
         // I76_FRAMES_POINT=1: a pack's frames point-sampled as before (a capture's before | after)
         bool filtered = System.Environment.GetEnvironmentVariable("I76_FRAMES_POINT") != "1" && imgs.Any(im => im is not null && im.GetWidth() > baseW);
         if (filtered) System.Threading.Tasks.Parallel.For(1, n + 1, i => { if (!stored[i]) imgs[i]?.GenerateMipmaps(); });
-        var tex = new ImageTexture?[n + 1];
-        for (int i = 1; i <= n; i++) if (imgs[i] is { } img) tex[i] = ImageTexture.CreateFromImage(img);
-        return (member, tex, filtered);
+        return (member, imgs, filtered);
     }
 
     private Image? Image(string stem) =>
@@ -274,6 +323,36 @@ public partial class Cockpit : Node
     private void Sound(string name)
     {
         if (Audio?.Get(name) is { } s) Node3D.OneShot(s);
+    }
+
+    /// <summary>
+    /// The cockpit's first frame a part at a time, a <c>null</c> between (the effects rehearsal under a playing briefing, Main): its
+    /// panels drawn and sent to the card, which in one frame was most of a second; the first <see cref="_Process"/> after it finds them made.
+    /// </summary>
+    public IEnumerable<object?> FirstFrameSteps()
+    {
+        bool pit = Active;
+        if (!pit && Instruments?.Invoke() != true) yield break;
+        ResetPanels();
+        _wasShown = true;
+        I76.Game.World.MissionBuilder.Trace("cockpit first frame: panels reset");
+        yield return null;
+        Gear();
+        Compass();
+        yield return null;
+        DamagePanel();
+        yield return null;
+        SpecialsPanel();
+        yield return null;
+        Radar();
+        yield return null;
+        if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
+        WeaponsPanel();
+        I76.Game.World.MissionBuilder.Trace("cockpit first frame: drawn");
+        yield return null;
+        Panels.Commit();
+        I76.Game.World.MissionBuilder.Trace("cockpit first frame: committed");
+        yield return null;
     }
 
     public override void _Process(double delta)
@@ -1538,6 +1617,9 @@ public partial class Cockpit : Node
     private int _mirrorMode = 2;
     private bool _mirrorTick;
 
+    /// <summary>The mirror's edge field and fill made ahead on a worker (ReadySteps), for SetupMirror to take; default otherwise.</summary>
+    private (byte[]? Field, byte[]? Fill) _mirrorPre;
+
     private void SetupMirror()
     {
         if (Resolver.FindByStem("zmiri101") is not { } member || Node3D.CockpitMesh is not { Mesh: { } mesh } mi) return;
@@ -1556,7 +1638,7 @@ public partial class Cockpit : Node
         if (Textures.Get(member)?.Texture is { } art) { _mirrorMat.SetShaderParameter("art", art); _mirrorArt = art; }
         if (Textures.GetOriginalRgba(member) is { } o)
         {
-            _mirrorEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.Rg8, MirrorEdge.Field(o.Rgba, o.Width, o.Height)));
+            _mirrorEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.Rg8, _mirrorPre.Field ?? MirrorEdge.Field(o.Rgba, o.Width, o.Height)));
             _mirrorMat.SetShaderParameter("edge", _mirrorEdge);
         }
         MirrorFill();
@@ -1635,7 +1717,7 @@ public partial class Cockpit : Node
         if (img is null)
         {
             if (Textures.GetRgba(member) is not { } a) return;
-            img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
+            img = Godot.Image.CreateFromData(a.Width, a.Height, false, Godot.Image.Format.Rgba8, _mirrorPre.Fill ?? MirrorEdge.Fill(a.Rgba, a.Width, a.Height, Textures.Scale(member)));
         }
         _mirrorFillImage = img;
         if (_mirrorFill is null) { _mirrorFill = ImageTexture.CreateFromImage(img); _mirrorMat.SetShaderParameter("fill", _mirrorFill); }
