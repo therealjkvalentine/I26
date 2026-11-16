@@ -192,6 +192,86 @@ public sealed class LiveTexture
         }
     }
 
+    /// <summary>The rows of the next picture sent ahead (<see cref="SendStrip"/>), in strips of this many rows the texture's width.</summary>
+    public const int StripRows = 64;
+    private Rid[] _strips = [];
+    private object?[] _stripOf = [];
+    private (int W, int H) _stripsFor;
+
+    /// <summary>The strips the texture's rows are sent ahead in; 0 without a RenderingDevice.</summary>
+    public int StripCount => _rd is null || !_rid.IsValid ? 0 : (Height + StripRows - 1) / StripRows;
+
+    /// <summary>What strip <paramref name="i"/> holds (the picture it was last sent from), or null.</summary>
+    public object? StripOf(int i) => _stripsFor == (Width, Height) && i < _stripOf.Length ? _stripOf[i] : null;
+
+    /// <summary>
+    /// Strip <paramref name="i"/>'s rows of a picture of this texture's size (<paramref name="of"/> names it) sent ahead into a texture of
+    /// their own, where <see cref="FromStrips"/> copies them into place on the GPU later: a picture that will be shown in a few frames
+    /// (the radar's next sweep step) goes up a strip a frame instead of all at once in the frame that shows it. The texture shown is
+    /// not touched.
+    /// </summary>
+    public void SendStrip(byte[] rgba, int i, object of)
+    {
+        if (_rd is null || !_rid.IsValid || i < 0 || i >= StripCount) return;
+        if (_stripsFor != (Width, Height))
+        {
+            FreeStrips();
+            _stripsFor = (Width, Height);
+            _strips = new Rid[StripCount];
+            _stripOf = new object?[StripCount];
+        }
+        int y0 = i * StripRows, rows = System.Math.Min(StripRows, Height - y0);
+        if (!_strips[i].IsValid)
+        {
+            var f = new RDTextureFormat
+            {
+                Format = RenderingDevice.DataFormat.R8G8B8A8Unorm, Width = (uint)Width, Height = (uint)rows,
+                UsageBits = RenderingDevice.TextureUsageBits.CanUpdateBit | RenderingDevice.TextureUsageBits.CanCopyFromBit,
+            };
+            _strips[i] = _rd.TextureCreate(f, new RDTextureView());
+        }
+        int bytes = Width * rows * 4;
+        using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.LiveSend))
+            _rd.TextureUpdate(_strips[i], 0, rgba.AsSpan(y0 * Width * 4, bytes));   // whole rows: no packing
+        _stripOf[i] = of;
+        { DashStats.Upload(bytes); I76.Game.Boot.FrameSections.Upload(bytes); }
+    }
+
+    /// <summary>
+    /// The rectangles <paramref name="rects"/> (raw rows) copied into place from the strips sent ahead, on the GPU, and the levels
+    /// under them made again once over the box that holds them all (a level's texel made again where nothing under it changed comes
+    /// out as it was). The strips they cross must hold the picture: the caller checks <see cref="StripOf"/>.
+    /// </summary>
+    public void FromStrips(IReadOnlyList<Rect2I> rects)
+    {
+        if (_rd is null || !_rid.IsValid || _stripsFor != (Width, Height)) return;
+        int ux0 = int.MaxValue, uy0 = int.MaxValue, ux1 = 0, uy1 = 0;
+        using (I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.LiveSend))
+            for (int k = 0; k < rects.Count; k++)
+            {
+                var r = rects[k];
+                int x0 = System.Math.Max(0, r.Position.X), y0 = System.Math.Max(0, r.Position.Y);
+                int x1 = System.Math.Min(Width, r.End.X), y1 = System.Math.Min(Height, r.End.Y);
+                if (x1 <= x0 || y1 <= y0) continue;
+                for (int y = y0; y < y1;)
+                {
+                    int s = y / StripRows, end = System.Math.Min(y1, (s + 1) * StripRows);
+                    _rd.TextureCopy(_strips[s], _rid, new Vector3(x0, y - s * StripRows, 0), new Vector3(x0, y, 0), new Vector3(x1 - x0, end - y, 1), 0, 0, 0, 0);
+                    y = end;
+                }
+                (ux0, uy0, ux1, uy1) = (System.Math.Min(ux0, x0), System.Math.Min(uy0, y0), System.Math.Max(ux1, x1), System.Math.Max(uy1, y1));
+            }
+        if (ux1 > ux0 && uy1 > uy0) Levels(ux0, uy0, ux1, uy1);
+    }
+
+    private void FreeStrips()
+    {
+        foreach (var s in _strips) if (s.IsValid) _rd!.FreeRid(s);
+        _strips = [];
+        _stripOf = [];
+        _stripsFor = default;
+    }
+
     /// <summary>The levels under the full-size rectangle [x0, x1) x [y0, y1) made again, each from the one above, by the kernel.</summary>
     private void Levels(int x0, int y0, int x1, int y1)
     {
@@ -387,6 +467,7 @@ public sealed class LiveTexture
     {
         if (_rd is null) return;
         FreeLevels();
+        FreeStrips();
         if (_whole.IsValid) { _rd.FreeRid(_whole); _whole = default; }
         if (_rid.IsValid) { _rdTex!.TextureRdRid = default; _rd.FreeRid(_rid); _rid = default; }
         foreach (var k in _sizes.Values) FreeKept(k);
