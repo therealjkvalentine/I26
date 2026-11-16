@@ -279,6 +279,14 @@ public partial class Main
                 Boot = who => _net.Server?.Kick(who),
                 Quit = () => { _lobbyLeft = true; c.Leave(); },
                 FallbackModel = _launch?.ModelIndex ?? -1,
+                // the listen host's GAME SETUP: the mission and settings changed in the server in this process, built off the frame
+                Setup = () => _net.Server is { } sv && c.Lobby?.IsHost == true ? sv.Setup : null,
+                ChangeSetup = s => System.Threading.Tasks.Task.Run(() =>
+                {
+                    string? no = _net.Server is { } sv ? sv.ChangeLobby(s) : "the server has gone";
+                    GD.Print($"network: lobby: the host's change ({s}){(no is null ? "" : $" not made: {no}")}");
+                    return no;
+                }),
             };
             GD.Print($"network: lobby: {c.Lobby?.Members.Count} players, the car is {start}");
             _lobbyScreen = screen;

@@ -121,7 +121,7 @@ public sealed partial class MeleeScreen
     /// <summary>The form's car is about a story mission's seat: the co-op host form, or the roster with a co-op game highlighted. Its car may be "the mission's own".</summary>
     private bool StoryContext => Coop || (Mode is 7 or 8 && _games.Count > 0 && _games[Math.Clamp(_game, 0, _games.Count - 1)].Info.Coop);
     /// <summary>The seat is in the mission's own car (the default; kept in the settings): the form's car panel says so.</summary>
-    private bool StoryCar => StoryContext && Shell.Settings.CoopOwnCar;
+    private bool StoryCar => LobbyMode ? LobbyCar is null or Protocol.MissionCar : StoryContext && Shell.Settings.CoopOwnCar;
     private int CoopIndex() => Math.Max(0, CoopList.FindIndex(m => m.Msn.Equals(_setup.CoopArena, StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>The base game's form to or from co-op (its AREA OF PLAY bar's right end): the list, the seats, the game's name follow.</summary>
@@ -189,6 +189,7 @@ public sealed partial class MeleeScreen
             _botSkillDifficulty = Shell.Settings.HostBotSkillDifficulty;
             _rate = _setup.HostRate > 0 ? _setup.HostRate : I76.Sim.Session.SimRate.FromLabel(Shell.Settings.SimRate).Label;
         }
+        if (LobbyMode) EnterFromLobby();
     }
 
     /// <summary>After the entry's first paint: the notice, then the address book for HOST → INTERNET (JOIN → INTERNET searches the whole book).</summary>
@@ -1047,7 +1048,8 @@ public sealed partial class MeleeScreen
                 new("CB RADIO", false, Shell.Settings.CbRadio, "", _ => ToggleCb()),
                 // the port's: the build whose turret slew the game plays, a host rule in co-op too (it changes the game)
                 TurretsRow,
-                new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)),
+                // (opened from a lobby: the rate stays the game's, set when it was hosted)
+                .. LobbyMode ? Array.Empty<OptionRow>() : [new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d))],
                 PhysicsRow,
             ];
         var limits = LimitsOf(Types[_kind].Kind);
@@ -1100,6 +1102,7 @@ public sealed partial class MeleeScreen
     {
         switch (id)
         {
+            case 6 when LobbyMode: ApplyLobby(); return true;
             case 6 when Hosting: Broadcast(); return true;
             case 6: JoinGame(); return true;
             case 8 when Hosting: _drivers = Math.Max(1, _drivers - 1); _bots = Math.Min(_bots, MaxBots); return true;

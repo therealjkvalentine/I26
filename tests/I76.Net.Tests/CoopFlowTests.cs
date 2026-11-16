@@ -11,7 +11,7 @@ namespace I76.Net.Tests;
 /// The I26 play fork's co-op flow (docs/multiplayer.md "Waiting for the others"): each part between fork builds, behind its
 /// <see cref="PeerFeatures"/> bit, and each checked against a peer that lacks it (an upstream build), which must play as before.
 /// </summary>
-public class CoopFlowTests(ITestOutputHelper output)
+public partial class CoopFlowTests(ITestOutputHelper output)
 {
     /// <summary>A hosted co-op game in its lobby, and its players' clients (two simulated games on this machine).</summary>
     internal sealed class Game : IDisposable
@@ -21,14 +21,14 @@ public class CoopFlowTests(ITestOutputHelper output)
         private readonly ITestOutputHelper _out;
         public readonly List<string> Log = [];
 
-        public Game(string install, ITestOutputHelper output, string mission = "t01", double loadSeconds = 30, PeerFeatures? hostFeatures = null, bool listenHost = true, double nextSeconds = 15, bool wrecksSolid = false)
+        public Game(string install, ITestOutputHelper output, string mission = "t01", double loadSeconds = 30, PeerFeatures? hostFeatures = null, bool listenHost = true, double nextSeconds = 15, bool wrecksSolid = false, Func<ServerOptions, ServerOptions>? tweak = null)
         {
             _out = output;
-            Server = new NetMeleeServer(new ServerOptions
+            Server = new NetMeleeServer((tweak ?? (o => o))(new ServerOptions
             {
                 Install = install, Arena = mission, Coop = mission, MaxPlayers = 4, Port = 0, Seed = 7, Name = "co-op", ListenHost = listenHost,
                 Lobby = true, LoadSeconds = loadSeconds, Features = hostFeatures ?? Protocol.Features, CoopNextSeconds = nextSeconds, WrecksStaySolid = wrecksSolid,
-            });
+            }));
             Server.Log += m => { lock (Log) Log.Add(m); output.WriteLine($"[server] {m}"); };
             Server.Start();
         }

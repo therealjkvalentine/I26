@@ -1083,7 +1083,8 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
   host's game is the server, and before the mission starts there is nothing to migrate (no savestate, no replay), so a new host cannot be handed
   the lobby the way a running game is (docs above, "Host migration"); a closed lobby sends the others back to the form. A guest leaving, or dropping, is just
   taken off the list. The host boots a lobby player with Delete (`NetMeleeServer.Kick`, the in-game boot's); they are told as a booted player is.
-  The mission cannot be changed from the lobby (the server has built it).
+  Upstream's lobby cannot change the mission (the server has built it); the play fork's host can, between missions (below, "Changing the game in
+  the lobby").
 - **Listing.** `SessionInfo.Lobby` (a byte at the end of the answer) and the anet tag's kind-3 goal nibble bit 3: the roster says "co-op lobby" in the row
   and the game popup, "co-op" for a game in progress, and counts the players in the lobby (its drivers are their names and cars).
 - **The screen** (`CoopLobbyScreen`, a hosted `Shell` over the loading screen): LOCAL DRIVER is the player; the list holds the players, each with
@@ -1221,6 +1222,50 @@ replay, and the clarification we did to differentiate going back to the game hos
 - **Tests** (`CoopFlowTests`): a failure waiting for the host and its replay seating everyone again; the host's replay and back to the lobby
   from a mission still played; an upstream player following a replay and the lobby; a dedicated server back in the lobby and starting again;
   an upstream host ending a failed game as before.
+
+### Changing the game in the lobby (the play fork's)
+
+Upstream's lobby plays the mission the game was hosted with: another mission, or another setting, meant leaving, hosting again and everyone
+joining and readying again (the owner: "should be able to change the level and settings in the lobby"). The fork's host changes them in the
+lobby, whether the game has just been hosted or has come back to it (Back to Lobby, a failure on a dedicated server, the trip's end):
+
+- **GAME SETUP** (the listen host's alone; S, a click, or the pad) is a button under the lobby's list where the internet roster has SERVERS
+  (the art's CANCEL drawn again, lettered as it is). It opens **the host form itself** (record 19, `MeleeScreen` with `FromLobby`) set to the game as
+  it stands: AREA OF PLAY's list of story missions (the same list, `MissionTitles.Coop`, with its tooltips and arena sketch), GAME NAME (it
+  follows the mission until renamed), NO. DRIVERS, and the co-op box's rows. BROADCAST GAME says **APPLY** (lettered as the lobby's START is);
+  CANCEL or Esc goes back with nothing changed (the rows act on shell.cfg as the form always does, and are put back). The car is the lobby's
+  (MAKE / MODEL, VARIANT and CONFIGURE CHASSIS do nothing here), and so is the game type.
+- **What changes** between missions (`LobbySetup`): the mission, the game's name, NO. DRIVERS (not below the players in the lobby), EXTRA ENEMIES,
+  DAMAGE TAKEN, INVITE ONLY, HIDDEN CARS, CAR RESET, CB RADIO, TURRETS and the password. **What does not:** SIM RATE (every game's clock, input
+  history and prediction were set from the accept's rate at the connection: its row is shown and says so in its tooltip), Rolling Start (no row:
+  `[port] coop_rolling_start`), the Nitro form's WEAPON RESTRICTIONS (its checklist; the game keeps its hosting's), the melee rules a co-op game
+  does not use (the turret limit, ignition lock, handicaps, crosshair: co-op hosts them off or allowed, as before), and wrecks staying solid (the
+  host's own `[port] wreck_solid`).
+- **The server** (`NetMeleeServer.ChangeLobby`) takes a change only while its lobby is open (not once a mission is loading or running: the next
+  lobby takes it), checks it (a story mission of its install, seats 1-8 and at least the players there, Extra Enemies 0-3, a damage factor of
+  the list, a name), builds the game again from the new options off the tick (the old one stands meanwhile; a lobby has nobody seated, so
+  nothing is lost), then swaps it in. Everyone in the lobby gets the lobby again (`LobbyState`: the new mission and seats) and a line in its chat
+  for each change ("Server: The host changed the mission: Scene 6: Out of Gas", "Server: Extra enemies: Up to +2 (was Off)", ...;
+  `LobbySetup.Lines`); the LAN answer and the internet list's entry are made from the new game, so the roster shows the new mission and count
+  at its next poll. Each lobby player's car is checked again by the join's car check under the new rules: one they refuse (HIDDEN CARS off under a
+  hidden car) is not dropped but put in the mission's own car, its ready mark off, and told why as a refused car is (`ReconfigureAnswer`: the
+  lobby's notice "The host refused that car: ..."), the others hearing it in the chat. START waits while a change is being built.
+- **The start** then plays the new mission with the new settings, the accepts and the build (`CoopSetup`) carrying them; the trip's next
+  missions and a replay are built from the game's options, so they keep them; a host migration's successor reads them with the options from
+  the savestate.
+- **Only the host:** there is no message for it on the wire. A listen host's game holds the server in its own process and calls it; a dedicated
+  server's console has `mission M`, `set KEY VALUE` (name, drivers, extra-enemies, damage, invite, hidden, car-reset, cb, turrets, password) and
+  `setup` (`NetMeleeServer.SetLobby`; a game named after its mission takes the new mission's name). A guest's lobby messages are its ready mark,
+  car and chat, as before.
+- **The wire:** nothing new, protocol 24. The change travels in protocol 20's own lobby messages (`LobbyState`, `LobbyChat`, `ReconfigureAnswer`),
+  which a stock upstream client reads as it always has: in a fork host's lobby it sees the new mission's title and seat count on its mission line,
+  the server's lines in its chat, a refused car's notice, and at the start an accept for the new mission, which it builds and plays its briefing
+  for as any start. With a stock upstream host nothing changes (no button: its server is not the fork's).
+- **Tests** (`CoopFlowTests.Lobby.cs`): the lines; the host's new mission and settings seen by a fork and an upstream player in the lobby, the
+  listing, and everyone's accept for it with the build carrying the settings; a setting change told, in the accepts and in the trip's next
+  mission; the refusals (not a story mission, too few seats, a bad factor, once started; a guest's messages change nothing) and the change after
+  Back to Lobby; a hidden car put back in the mission's own with its notice; a dedicated server's console; a host migration's successor
+  with the changed options.
 
 ### Hosting and joining from the shell
 

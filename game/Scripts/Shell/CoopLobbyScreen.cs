@@ -29,14 +29,26 @@ public sealed class CoopLobbyScreen : ShellScreen
     public required Action Quit { get; init; }
     /// <summary>The model and variant to show for a car the lists do not have (the launch's model).</summary>
     public int FallbackModel { get; init; } = -1;
+    /// <summary>
+    /// The game's setup when this player hosts it in this process (a listen host: the fork's GAME SETUP; docs/multiplayer.md "Changing the game in
+    /// the lobby"), null otherwise (a guest, a dedicated server's lobby): only the host has the button.
+    /// </summary>
+    public Func<I76.Server.LobbySetup?>? Setup { get; init; }
+    /// <summary>The host's new setup to the server; the task's answer is null when made, else why not.</summary>
+    public Func<I76.Server.LobbySetup, System.Threading.Tasks.Task<string?>>? ChangeSetup { get; init; }
     public override bool EscapeOpensOptions => false;
 
-    // the join form's hotspots (MeleeScreen's table): the list's arrows and rows, MAKE / MODEL, VARIANT, CONFIGURE CHASSIS, JOIN GAME and CANCEL
+    // the join form's hotspots (MeleeScreen's table): the list's arrows and rows, MAKE / MODEL, VARIANT, CONFIGURE CHASSIS, JOIN GAME and CANCEL;
+    // 39 the host's GAME SETUP under the list, where the internet roster has its SERVERS
     private static readonly Dictionary<int, (int X0, int X1, int Y0, int Y1)> Hot = new()
     {
         [1] = (9, 27, 128, 144), [2] = (9, 27, 250, 268), [0] = (31, 216, 150, 270),
         [3] = (610, 621, 400, 415), [4] = (437, 449, 419, 434), [5] = (456, 616, 422, 435), [6] = (229, 369, 453, 471), [15] = (489, 630, 453, 471),
+        [39] = (42, 183, 453, 471),
     };
+    /// <summary>The host's change being made (the server builds the new mission), or null.</summary>
+    private System.Threading.Tasks.Task<string?>? _change;
+    private bool CanSetUp => State() is { IsHost: true } && Setup?.Invoke() is not null;
     private const int Row = 17;
     private ShellFont _font = null!;
     private SpriteBank _cars = null!;
@@ -125,7 +137,8 @@ public sealed class CoopLobbyScreen : ShellScreen
         int rows = 8, top = 302;
         var shown = _chat.Skip(Math.Max(0, _chat.Count - rows)).ToList();
         for (int k = 0; k < shown.Count; k++) Frame.Text(_font, 14, top + 16 * k, AddressBookPopup.Fit(_font, shown[k], 200));
-        Frame.Text(_font, 14, 440, AddressBookPopup.Fit(_font, _typing ? "> " + _line + "_" : "Enter: chat", 200));
+        // (a line higher with the host's GAME SETUP under it)
+        Frame.Text(_font, 14, CanSetUp ? 432 : 440, AddressBookPopup.Fit(_font, _typing ? "> " + _line + "_" : "Enter: chat", 200));
         // the car panel: the highlighted player's
         if (sh is { } who)
         {
@@ -141,6 +154,55 @@ public sealed class CoopLobbyScreen : ShellScreen
             Frame.Text(_font, 288, 58, AddressBookPopup.Fit(_font, who.Name, 130));
         }
         DrawLeftButton(s);
+        if (CanSetUp) DrawSetupButton();
+    }
+
+    private (Pcx Art, Rect2I Border, ArtButtons.ArtLabel Word)? _cancelArt;
+
+    /// <summary>
+    /// GAME SETUP (the host's): the art's CANCEL button drawn again under the list without its word, and GAME SETUP lettered as the art letters
+    /// CANCEL, as the internet roster's SERVERS is drawn on the same art in the same place.
+    /// </summary>
+    private void DrawSetupButton()
+    {
+        if (_cancelArt is null)
+        {
+            var bg = Shell.Db.Background(18);
+            byte Px(int x, int y) => bg.Pixels[Math.Clamp(y, 0, bg.Height - 1) * bg.Width + Math.Clamp(x, 0, bg.Width - 1)];
+            var c = Hot[15];
+            if (ArtButtons.Label(Px, bg.Palette, new Rect2I(c.X0 - 4, c.Y0 - 4, c.X1 - c.X0 + 8, c.Y1 - c.Y0 + 8)) is not { } border
+                || ArtButtons.Label(Px, bg.Palette, border.Box.Grow(-3)) is not { } word) return;
+            _cancelArt = (bg, border.Box, word);
+        }
+        var (art, b, word0) = _cancelArt.Value;
+        byte P(int x, int y) => art.Pixels[Math.Clamp(y, 0, art.Height - 1) * art.Width + Math.Clamp(x, 0, art.Width - 1)];
+        var dest = new Rect2I(Hot[39].X0 + b.Position.X - Hot[15].X0, b.Position.Y, b.Size.X, b.Size.Y);
+        ArtButtons.Face(Frame, P, b, word0.Box.Position.X, dest, 4);
+        ArtButtons.Letter(Frame, Shell.Db.Font(0x47), "GAME SETUP", word0, "CANCEL", dest);
+    }
+
+    /// <summary>
+    /// GAME SETUP: the host form, as the game was hosted from it and set to the game as it stands, over the lobby (its own art); APPLY sends
+    /// the new setup to the server, which builds it and tells everyone; the lobby comes back meanwhile.
+    /// </summary>
+    private void OpenSetup()
+    {
+        if (Setup?.Invoke() is not { } now || ChangeSetup is null) return;
+        if (_change is { IsCompleted: false }) { _notice = "The last change is still being made."; return; }
+        string car = Me is { } me ? CarOf(me) : Protocol.MissionCar;
+        Shell.Overlay(null);
+        Shell.Go(new MeleeScreen
+        {
+            Mode = 3, FromLobby = now, LobbyCar = car, LobbyDriver = Me?.Name,
+            SetupDone = s =>
+            {
+                Back();
+                if (s is null) return;
+                _change = ChangeSetup(s);
+                _notice = "Changing the game for everyone...";
+                Draw();
+            },
+        });
     }
 
     /// <summary>
@@ -200,7 +262,7 @@ public sealed class CoopLobbyScreen : ShellScreen
                 l.Add(PadRegion.Of(Hot[0].X0, FirstRowY + Row * k, Hot[0].X1 - Hot[0].X0, Row, d => d == NavDir.Up && kk == 0 ? Scroll(-1) : d == NavDir.Down && kk == n - 1 ? Scroll(1) : false));
             }
             if (s?.Me is not null && Shown?.Id == s.You) foreach (int id in new[] { 3, 4, 5 }) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
-            foreach (int id in new[] { 6, 15 }) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
+            foreach (int id in CanSetUp ? new[] { 39, 6, 15 } : [6, 15]) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
             return l;
         }
     }
@@ -208,6 +270,9 @@ public sealed class CoopLobbyScreen : ShellScreen
     /// <summary>The mission's line over the list: its title and what it is about (the fork's; MissionTitles.CoopSummary), as the host form's list rows tell it.</summary>
     public override (string Text, Rect2I Zone)? TipAt(Vector2I p)
     {
+        var g = Hot[39];
+        if (CanSetUp && g.X0 < p.X && p.X < g.X1 && g.Y0 < p.Y && p.Y < g.Y1)
+            return ("GAME SETUP (S): pick another mission or change the game's settings for everyone here; the players stay in the lobby.", new Rect2I(g.X0, g.Y0, g.X1 - g.X0, g.Y1 - g.Y0));
         if (State() is not { } s || p.X < 28 || p.X > 214 || p.Y < BoxY - 2 || p.Y > BoxY + 16) return null;
         string title = I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
         string what = I76.Formats.Mission.MissionTitles.CoopSummary(Shell.Install, s.Mission, Shell.Vfs);
@@ -241,9 +306,17 @@ public sealed class CoopLobbyScreen : ShellScreen
             redraw = true;
         }
         while (TakeChat() is { } c) { AddChat($"{c.Name}: {c.Text}"); redraw = true; }
+        // the host's change made (the server's lines say what changed), or why not
+        if (_change is { IsCompleted: true } done)
+        {
+            _notice = done.IsCompletedSuccessfully && done.Result is { } why ? $"Not changed: {why}" : done.IsFaulted ? "Not changed: the server failed" : "";
+            _change = null;
+            redraw = true;
+        }
         if (s is null) { if (redraw) Draw(); return; }
         if (_typing) { redraw |= Typing(s); if (redraw) Draw(); return; }
         if (Shell.Keys.Contains(Key.Escape)) { Quit(); return; }
+        if (Shell.Keys.Contains(Key.S) && CanSetUp) { Shell.Sound(82); OpenSetup(); return; }
         if (Shell.Keys.Contains(Key.Enter) || Shell.Keys.Contains(Key.KpEnter)) { _typing = true; _line = ""; Draw(); return; }
         if (Shell.Keys.Contains(Key.Down)) { Select(s, 1); redraw = true; }
         if (Shell.Keys.Contains(Key.Up)) { Select(s, -1); redraw = true; }
@@ -307,6 +380,8 @@ public sealed class CoopLobbyScreen : ShellScreen
                 Send(s.Me?.Ready != true, null, null);
                 return false;
             case 15: Quit(); return false;
+            case 39 when CanSetUp: OpenSetup(); return false;
+            case 39: return false;
             case 3 or 4 or 5 when Shown?.Id != s.You: _notice = "Highlight yourself to pick a car."; return true;
             case 3: ModelPopup(); return false;
             case 4:

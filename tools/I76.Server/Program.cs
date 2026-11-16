@@ -269,11 +269,21 @@ bool Command(string t)
         case "start" when arg.Length == 0 && server.InLobby:
             Log(server.StartLobby(force: true) ?? "the mission starts");
             return true;
+        // a co-op lobby's mission and settings, between missions (docs/multiplayer.md "Changing the game in the lobby")
+        case "mission" when arg.Length > 0:
+            Log(server.SetLobby("mission", arg) ?? $"the mission is {server.Setup?.Mission}");
+            return true;
+        case "set" when arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries) is [var key, .. var rest]:
+            Log(server.SetLobby(key, rest.Length > 0 ? rest[0] : "") ?? $"{key}: done");
+            return true;
+        case "setup" when arg.Length == 0:
+            Log(server.Setup is { } su ? $"mission {su.Mission}, name \"{su.Name}\", drivers {su.MaxPlayers}, extra-enemies {su.CoopScale}, damage {I76.Server.LobbySetup.FactorWord(su.CoopDamage)}, invite {su.InviteOnly}, hidden {su.AllowHidden}, car-reset {su.AllowCarReset}, cb {su.AllowCb}, turrets {(su.Turrets1997 ? 1997 : 1998)}, password {(su.Password.Length > 0 ? "set" : "none")}" : "not a co-op game");
+            return true;
         case "say" when arg.Length > 0:
             server.Chat(arg);
             return true;
         case "help" when t.StartsWith('/') || arg.Length == 0 && parts.Length == 1:
-            Log("commands: kick NAME|SLOT, ban NAME|SLOT / unban NAME / bans (refused rejoins for the rest of the game), handicap SLOT LEVEL (-3..+3, with --handicaps; not auto), cbmute NAME / cbunmute NAME (a player's CB voice, for everyone), start (a co-op lobby), players, y / n / s (an invite-only join), say TEXT; any other line is chat");
+            Log("commands: kick NAME|SLOT, ban NAME|SLOT / unban NAME / bans (refused rejoins for the rest of the game), handicap SLOT LEVEL (-3..+3, with --handicaps; not auto), cbmute NAME / cbunmute NAME (a player's CB voice, for everyone), start (a co-op lobby), mission M / set KEY VALUE / setup (a co-op lobby's mission and settings: name, drivers, extra-enemies, damage, invite, hidden, car-reset, cb, turrets, password), players, y / n / s (an invite-only join), say TEXT; any other line is chat");
             return true;
     }
     if (t.StartsWith('/')) { Log($"unknown command {t}; /help lists them"); return true; }
