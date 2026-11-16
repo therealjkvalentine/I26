@@ -56,6 +56,8 @@ public sealed partial class NetMeleeServer
     {
         if (!_lobbyOpen) return "the mission has started";
         if (_lobby.Count == 0) return "nobody is here";
+        // the host's change of mission or settings is still being built (ChangeLobby)
+        if (_changing) return "the game is being changed: a moment";
         var waiting = _lobby.Where(m => m.Peer.Id != _hostPeer && !m.Ready).Select(m => m.Request.Name).ToList();
         if (waiting.Count > 0 && !force) return $"not ready: {string.Join(", ", waiting)}";
         StartNow(waiting);
