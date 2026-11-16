@@ -492,7 +492,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         k = System.Math.Clamp(k, 0.25f, 1f);
 
         Vector3 w;
-        if (v.Rec.Other is Vehicle)
+        if (v.Rec.Other is Vehicle car && !(WrecksAreScenery && car.Wreck))
         {
             // vehicle branch: split off the shared centre-of-mass velocity, bounce the rest
             float m = v.P.Mass, mo = v.Rec.OtherMass;
@@ -520,6 +520,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             }
             else if (v.Rec.Other is not null || ((v.Flags & VehicleFlags.Airborne) == 0 && v.Rot.Up.Y > 0))
                 vel = n * 4f;
+            // a wreck that stays solid (SimWorld.WrecksStaySolid) answers as scenery; the crash is still a car's to the ear
+            if (v.Rec.Other is Vehicle) Impacts.Add((v, v.Rec.Other, v.Rec.RelVel, n, v.Rec.C));
             if (vel.Y > 1f) vel.Y *= 0.2f;
             var nl = v.Rot.ToLocal(n);
             w = Vector3.Cross(nl, cxz) * (v.Speed * 0.1f);
@@ -957,6 +959,9 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             v.Flags &= ~VehicleFlags.JustLanded;
         }
     }
+
+    /// <summary>The session's rule <see cref="SimWorld.WrecksStaySolid"/>: a contact record whose other car is a wreck is answered as scenery's (the wreck stands).</summary>
+    public bool WrecksAreScenery { get; set; }
 
     /// <summary>A network session: an upside-down car is never righted, Arcade Phys. or not.</summary>
     public bool NetSession { get; set; }

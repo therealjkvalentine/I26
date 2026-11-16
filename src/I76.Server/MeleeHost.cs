@@ -185,6 +185,13 @@ public sealed record ServerOptions
     /// Listed in <see cref="SessionInfo.Turrets1997"/> and carried in <see cref="JoinAccept.Turrets1997"/> for the clients' prediction.
     /// </summary>
     public bool Turrets1997 { get; init; }
+    /// <summary>
+    /// Wrecks stay solid (the port's rule, off in the original; the host's own <c>[port] wreck_solid</c>, i26-server's --wrecks-solid;
+    /// docs/deviations.md "Wrecks stay solid"): in a co-op game a computer car's wreck goes on stopping the players' cars after its
+    /// wreck timer. It holds only while every player in the game has the rule (<see cref="PeerFeatures.WrecksSolid"/>): the server
+    /// turns it off while one without it plays, and tells the others. A melee has no such wreck (they leave the world, a player's is hidden).
+    /// </summary>
+    public bool WrecksStaySolid { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
@@ -358,6 +365,7 @@ public sealed partial class MeleeHost : IModeHost
         Mode = (mode ?? (o.Coop is not null ? c => new CoopMode(c) : c => new MeleeMode(c)))(new ModeContext(o, install, Vfs, asm, world, Arena, CarExists, Legal));
         Setup = Mode.Setup;
         Setup.Combat.TurretSlew1997 = o.Turrets1997;
+        Setup.World.WrecksStaySolid = WrecksSolidAsked;
         Mode.Start(this);
         Session = new SimSession(Setup, SessionOptions.Network, o.Rate)
         {
@@ -760,7 +768,11 @@ public sealed partial class MeleeHost : IModeHost
         {
             Coop = Mode.JoinState(s), Cb = Options.AllowCb, Crosshair = Options.AllowCrosshair, IgnitionStaysOn = Options.IgnitionStaysOn, Turrets1997 = Options.Turrets1997,
             Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Options.Features,
+            WrecksSolid = Setup.World.WrecksStaySolid,
         };
+
+    /// <summary>The host asks for wrecks to stay solid and the game is one where they can: a co-op mission, a host that says the feature.</summary>
+    public bool WrecksSolidAsked => Options.WrecksStaySolid && Options.Coop is not null && (Options.Features & PeerFeatures.WrecksSolid) != 0;
 
     private CarInfo Info(Vehicle v)
     {

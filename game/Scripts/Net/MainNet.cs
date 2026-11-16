@@ -76,6 +76,7 @@ public partial class Main
                 AllowCb = _opt.Cb ?? I76.Game.Shell.ShellSettings.Load().CbRadio,
                 AllowCrosshair = _opt.Crosshair ?? I76.Game.Shell.ShellSettings.Load().HostCrosshair,
                 Turrets1997 = _opt.Turrets1997 ?? I76.Game.Shell.ShellSettings.Load().HostTurrets1997,
+                WrecksStaySolid = I76.Game.Shell.ShellSettings.Load().WrecksStaySolid,   // the host's own [port] wreck_solid (a co-op game's; every player must have the rule)
                 IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
             };
             if (_opt.Restrict is { Length: > 0 } spec)

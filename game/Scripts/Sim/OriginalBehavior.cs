@@ -14,7 +14,7 @@ public static class OriginalBehavior
     public static int Resolve(int? choice, bool look1997) => I76.Formats.Shell.LookChoice.Resolve(choice, look1997);
 
     /// <summary>The player's choices (null: follow the look).</summary>
-    public static int? MirrorRange, BrakeLamps, MgTracers, SpecialsPanel, HelicopterHearing;
+    public static int? MirrorRange, BrakeLamps, MgTracers, SpecialsPanel, HelicopterHearing, WreckSolid;
     /// <summary>The sky steps once a tick whatever the mirror does (the default; [port] sky_drift=original gives the original's second step), and the orbit's smooth turn.</summary>
     public static bool SteadySky = true, SmoothOrbit;
     /// <summary>[port] sky_speed and death_orbit_speed as factors (PresentationSpeed; 0.5 and 0.25 by default): drawn only.</summary>
@@ -39,6 +39,7 @@ public static class OriginalBehavior
         MgTracers = s.MgTracerChoice;
         SpecialsPanel = s.SpecialsPanelChoice;
         HelicopterHearing = s.HelicopterHearingChoice;
+        WreckSolid = s.WreckSolidChoice;
         SteadySky = s.SkyDrift != Original;
         SmoothOrbit = s.DeathOrbit != Original;
         SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(s.SkySpeed);
@@ -79,6 +80,18 @@ public static class OriginalBehavior
     /// A helicopter's rotor loop in a look ([port] helicopter_hearing): the original's car-engine voice (null: full to 10 m, held at -32 dB
     /// from 400 m, parked at 600 m), or Far, the three bands heard out to 2 km (the modern look's default).
     /// </summary>
+    /// <summary>
+    /// [port] wreck_solid, the one rule of the simulation here: a computer car's wreck stays solid while it is drawn (the modern look
+    /// unless chosen otherwise), or leaves the collisions at its wreck timer's end as the original's. Offline only: a network game's is its host's.
+    /// </summary>
+    public static bool WrecksStaySolid(bool look1997) => Resolve(WreckSolid, look1997) == Updated;
+
+    /// <summary>The rule set on a session that is the player's own (not a network game's, whose host decides).</summary>
+    public static void ApplyWrecks(I76.Sim.Weapons.Combat c, bool look1997)
+    {
+        if (!c.NetSession && !c.RemoteSim) c.World.WrecksStaySolid = WrecksStaySolid(look1997);
+    }
+
     public static I76.Sim.Sound.HeliHearing? RotorHearing(bool look1997) => Resolve(HelicopterHearing, look1997) == Updated ? FarHearing : null;
 
     /// <summary>Whether the 3D dash's specials panel shows its art with square texels (PanelAspect.SquareFit): the modern look's, never the 1997 look's.</summary>

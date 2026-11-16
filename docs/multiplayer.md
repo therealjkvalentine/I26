@@ -1147,6 +1147,21 @@ the others' briefings (the owner: "cutscene skips for others once everyone is re
   last mission's ending); a skip ending the other's briefing only once she reached hers; an upstream player holding the skip until its
   inputs and never sent it; an upstream host ending nothing.
 
+### Wrecks stay solid (the play fork's, `PeerFeatures.WrecksSolid`)
+
+The port's rule (docs/deviations.md "Wrecks stay solid"; `SimWorld.WrecksStaySolid`): a computer car's wreck goes on stopping the
+players' cars after its 10 s wreck timer. In a network game it is the host's: the listen host's own `[port] wreck_solid` (by its look
+until chosen), `i26-server --wrecks-solid` (`ServerOptions.WrecksStaySolid`, which a host migration's options carry). It applies to a
+co-op mission only: in a melee no wreck stays (a computer car's leaves the world at its timer's end, a player's is hidden).
+
+The server decides the contacts and each client predicts its own car against them, so the rule is in force only while the host and
+**every player in the game** say the feature bit: with an upstream host it is never on, and a player on upstream's build or an earlier
+fork build turns it off for everyone while they play (`NetMeleeServer.WreckRuleTick`, each tick: the server's world follows the seats).
+A client learns it from the join accept's last byte (`JoinAccept.WrecksSolid`, appended after the fork's features: read only if the
+byte is there) and from the wreck rule message (64, one byte, reliable ordered, only to peers that say the bit) at each change;
+`ClientWorld.Advance` sets the mirror's world from `MeleeClient.WrecksSolid` for the prediction. No protocol version change: an
+upstream peer is sent neither the message nor anything it reads differently.
+
 ### On to the next mission (the play fork's, `PeerFeatures.CoopNext`)
 
 Upstream's co-op game is over with its mission: to play on, the host hosts again and everyone joins and readies again (upstream #197; the
@@ -1771,6 +1786,7 @@ compact:
 | join wait | server → client | reliable | protocol 13, before the seat: an invite-only game is asking its host (above, "The original's rules") |
 | co-op stage (60), co-op wait (61) | client → server, server → client | reliable ordered | the play fork's, only between peers that say `PeerFeatures.CoopWait`: where a game is in a co-op start (a byte), and whom the start waits for (the seconds left, then each name and stage; above, "Waiting for the others") |
 | co-op skip (62) | server → client | reliable ordered | the play fork's (`CoopSkip`): the briefing ends here, this player skipped theirs (above, "The briefing for everyone") |
+| wreck rule (64) | server → client | reliable ordered | the play fork's (`WrecksSolid`): one byte, whether wrecks stay solid in this game from now on (above, "Wrecks stay solid") |
 | co-op next (63) | server → client | reliable ordered | the play fork's (`CoopNext`): what follows the co-op mission (Next, Replay, Lobby or Host), on which mission and in how many seconds; the next round follows (above, "On to the next mission") |
 
 - **A car in a snapshot** (78 bytes in full; an entry of what changed since the baseline, about 15–30 bytes for a car

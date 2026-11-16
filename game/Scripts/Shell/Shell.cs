@@ -1631,6 +1631,14 @@ public sealed class ShellSettings
     /// </summary>
     public int? HelicopterHearingChoice { get; set; }
     /// <summary>
+    /// The port's own, without a row: a destroyed computer car's wreck, 0 Original (out of the collisions when its 10 s wreck timer ends,
+    /// though still drawn), 1 Drawn (it goes on stopping the players' cars and rounds for as long as it is drawn; I76.Sim.SimWorld.WrecksStaySolid);
+    /// null follows the look ([port] wreck_solid). A rule of the simulation: offline the player's, in a network game the host's.
+    /// </summary>
+    public int? WreckSolidChoice { get; set; }
+    /// <summary>Wrecks stay solid as these settings have it now: the choice, or the look's (Original in the 1997 look, Drawn in the modern one).</summary>
+    public bool WrecksStaySolid => I76.Formats.Shell.LookChoice.Resolve(WreckSolidChoice, Look1997) == I76.Formats.Shell.LookChoice.Updated;
+    /// <summary>
     /// The port's own, without a row: the 1997 sky's clouds, 0 Original (a second step a tick with the full mirror up, as the original's, which
     /// drifts them twice as fast then), 1 Steady, the default in both looks ([port] sky_drift, written when original; docs/deviations.md "Sky scroll").
     /// </summary>
@@ -2003,6 +2011,7 @@ public sealed class ShellSettings
         s.MgTracerChoice = OriginalRecipe.ReadChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames);
         s.SpecialsPanelChoice = OriginalRecipe.ReadChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames);
         s.HelicopterHearingChoice = OriginalRecipe.ReadChoice(c, "helicopter_hearing", OriginalRecipe.HelicopterHearingNames);
+        s.WreckSolidChoice = OriginalRecipe.ReadChoice(c, "wreck_solid", OriginalRecipe.WreckSolidNames);
         s.SkyDrift = OriginalRecipe.ReadChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames) ?? 1;
         s.DeathOrbit = OriginalRecipe.ReadChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames) ?? 0;
         s.EarlyTick = (bool)c.GetValue("port", "early_tick", true);
@@ -2210,6 +2219,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "mg_tracers", OriginalRecipe.MgTracerNames, MgTracerChoice);
         OriginalRecipe.WriteChoice(c, "specials_panel", OriginalRecipe.SpecialsPanelNames, SpecialsPanelChoice);
         OriginalRecipe.WriteChoice(c, "helicopter_hearing", OriginalRecipe.HelicopterHearingNames, HelicopterHearingChoice);
+        OriginalRecipe.WriteChoice(c, "wreck_solid", OriginalRecipe.WreckSolidNames, WreckSolidChoice);
         OriginalRecipe.WriteChoice(c, "sky_drift", OriginalRecipe.SkyDriftNames, SkyDrift == 1 ? null : SkyDrift);
         OriginalRecipe.WriteChoice(c, "death_orbit", OriginalRecipe.DeathOrbitNames, DeathOrbit == 0 ? null : DeathOrbit);
         if (!EarlyTick) c.SetValue("port", "early_tick", false);

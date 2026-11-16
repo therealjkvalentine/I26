@@ -43,6 +43,7 @@ public sealed partial class NetMeleeServer
         _carriedAt.Remove(peer);
         _coopSkipped.Remove(peer);
         _skipTold.Remove(peer);
+        _wreckTold.Remove(peer);
     }
 
     private static int PeerOf(Seat s) => ((NetPeer)s.Connection!).Id;

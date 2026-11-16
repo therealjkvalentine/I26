@@ -36,7 +36,7 @@ public class SettingsWithoutARowTests
     {
         foreach (var names in new[] { OriginalRecipe.MirrorRangeNames, OriginalRecipe.BrakeLampNames, OriginalRecipe.MgTracerNames,
             OriginalRecipe.SkyDriftNames, OriginalRecipe.DeathOrbitNames, OriginalRecipe.MusicTrackNames, OriginalRecipe.OrdnanceNames,
-            OriginalRecipe.SpecialsPanelNames, OriginalRecipe.HelicopterHearingNames })
+            OriginalRecipe.SpecialsPanelNames, OriginalRecipe.HelicopterHearingNames, OriginalRecipe.WreckSolidNames })
             Assert.Equal("original", OriginalRecipe.Word(names[0]));
     }
 
@@ -102,6 +102,55 @@ public class SettingsWithoutARowTests
             Assert.Equal(far, OriginalBehavior.RotorHearing(look1997) is not null);
             Assert.Equal(OriginalRecipe.Word(word), (string)read.Write(null).GetValue("port", "helicopter_hearing"));
         }
+        OriginalBehavior.Apply(new ShellSettings());
+    }
+
+    /// <summary>
+    /// [port] wreck_solid: follows the look (the original's wreck timer in the 1997 look, solid while drawn in the modern one) until the
+    /// file says original or drawn; written only when chosen. It is the session's rule offline and never touches a network game's.
+    /// </summary>
+    [Fact]
+    public void WrecksStaySolidFollowsTheLookUntilTheFileChooses()
+    {
+        Assert.Equal("original", OriginalRecipe.Word(OriginalRecipe.WreckSolidNames[0]));
+        Assert.Equal("drawn", OriginalRecipe.Word(OriginalRecipe.WreckSolidNames[1]));
+        var s = new ShellSettings();
+        Assert.Null(s.WreckSolidChoice);
+        Assert.False(s.Write(null).HasSectionKey("port", "wreck_solid"));
+        OriginalBehavior.Apply(s);
+        Assert.False(OriginalBehavior.WrecksStaySolid(true));
+        Assert.True(OriginalBehavior.WrecksStaySolid(false));
+        Assert.Equal(!s.Look1997, s.WrecksStaySolid);
+        foreach (var (word, look1997, solid) in new[] { ("original", false, false), ("drawn", true, true), ("Drawn", false, true), ("original", true, false) })
+        {
+            var f = new ShellSettings().Write(null);
+            f.SetValue("port", "wreck_solid", word);
+            var read = ShellSettings.Read(f);
+            OriginalBehavior.Apply(read);
+            Assert.Equal(solid, OriginalBehavior.WrecksStaySolid(look1997));
+            read.Look1997 = look1997;
+            Assert.Equal(solid, read.WrecksStaySolid);
+            Assert.Equal(OriginalRecipe.Word(word), (string)read.Write(null).GetValue("port", "wreck_solid"));
+        }
+        // a word that is not one of the two is no choice: the look's again
+        var odd = new ShellSettings().Write(null);
+        odd.SetValue("port", "wreck_solid", "always");
+        Assert.Null(ShellSettings.Read(odd).WreckSolidChoice);
+
+        // the session's rule: the player's own game takes it, a network game's world is left to its host
+        OriginalBehavior.Apply(new ShellSettings());
+        var world = new I76.Sim.SimWorld(new Flat(), new I76.Sim.Rng.CrtRand(1));
+        var combat = new I76.Sim.Weapons.Combat(world, _ => null);
+        OriginalBehavior.ApplyWrecks(combat, look1997: false);
+        Assert.True(world.WrecksStaySolid);
+        OriginalBehavior.ApplyWrecks(combat, look1997: true);
+        Assert.False(world.WrecksStaySolid);
+        combat.NetSession = true;
+        OriginalBehavior.ApplyWrecks(combat, look1997: false);
+        Assert.False(world.WrecksStaySolid);
+        combat.NetSession = false; combat.RemoteSim = true;
+        OriginalBehavior.ApplyWrecks(combat, look1997: false);
+        Assert.False(world.WrecksStaySolid);
         OriginalBehavior.Apply(new ShellSettings());
     }
 

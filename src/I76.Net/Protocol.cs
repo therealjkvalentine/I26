@@ -19,7 +19,7 @@ public static class Protocol
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
     /// peer, which never says any, gets the layout it reads.
     /// </summary>
-    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext;
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -106,6 +106,12 @@ public enum PeerFeatures : uint
     /// without it is not taken into a next mission (it leaves at a won mission's end, as before).
     /// </summary>
     CoopNext = 1 << 5,
+    /// <summary>
+    /// Wrecks stay solid (the port's rule, <see cref="I76.Sim.SimWorld.WrecksStaySolid"/>; docs/multiplayer.md "Wrecks stay solid"): the
+    /// host's choice in a co-op game, on only while the host and every player in the game say this bit, so the server's contacts and each
+    /// client's prediction agree; the accept's last byte and <see cref="MsgType.WreckRule"/> tell a client what holds.
+    /// </summary>
+    WrecksSolid = 1 << 6,
 }
 
 public enum MsgType : byte
@@ -197,6 +203,8 @@ public enum MsgType : byte
     CoopSkip = 62,
     /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.CoopNext"/>): what follows the co-op mission, and when (<see cref="I76.Net.CoopPlan"/>).</summary>
     CoopNext = 63,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.WrecksSolid"/>): one byte, whether wrecks stay solid in this game from now on.</summary>
+    WreckRule = 64,
 }
 
 /// <summary>A dead player's new car for the next respawn: a car file, and its .vcf when the server's install may lack it (as a join's configuration).</summary>
@@ -416,7 +424,15 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         w.U8((byte)Handicaps);
         w.Str(Build);
         w.VarU((uint)Features);
+        // (the fork's, after its features) wrecks stay solid in this game as the joiner arrives, for its prediction
+        w.Bool(WrecksSolid);
     }
+
+    /// <summary>
+    /// Wrecks stay solid in this game (the fork's, appended after <see cref="Features"/>; <see cref="PeerFeatures.WrecksSolid"/>): the
+    /// host's choice, as it holds when the joiner arrives; off from an upstream host or an earlier fork build's.
+    /// </summary>
+    public bool WrecksSolid { get; init; }
 
     /// <summary>The host's Turrets: the 1997 CD build's turret slew rather than the 1998 build's (protocol 23; the host form's Turrets, i26-server's --turrets-1997).</summary>
     public bool Turrets1997 { get; init; }
@@ -482,8 +498,9 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         if (handicaps > I76.Sim.Missions.HandicapMode.Auto) throw new WireException($"handicaps {handicaps}");
         string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
         var features = r.Remaining >= 1 ? (PeerFeatures)r.VarU() : PeerFeatures.None;
+        bool wrecksSolid = r.Remaining >= 1 && r.Bool();
         return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash)
-            { Coop = coop, Cb = cb, Crosshair = crosshair, IgnitionStaysOn = ignition, Turrets1997 = turrets1997, Handicaps = handicaps, Build = build, Features = features };
+            { Coop = coop, Cb = cb, Crosshair = crosshair, IgnitionStaysOn = ignition, Turrets1997 = turrets1997, Handicaps = handicaps, Build = build, Features = features, WrecksSolid = wrecksSolid };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>

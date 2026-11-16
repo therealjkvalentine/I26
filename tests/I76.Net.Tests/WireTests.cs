@@ -628,10 +628,10 @@ public class ForkWireTests
         (Accept() with { Handicaps = I76.Sim.Missions.HandicapMode.Auto, Build = "abc1234", Features = Protocol.Features }).Write(full);
         var plain = new NetWriter();
         Accept().Write(plain);
-        // the fork's tail: the handicaps byte, the build (length and text) and the features (one VarU byte)
-        int tail = 1 + 1 + 7 + 1;
-        // the same up to upstream's last byte (an accept with none of the fork's has its 3-byte tail: 0, an empty build, no features)
-        Assert.Equal(plain.Span[..^3].ToArray(), full.Span[..^tail].ToArray());
+        // the fork's tail: the handicaps byte, the build (length and text), the features (one VarU byte) and the wreck rule's byte
+        int tail = 1 + 1 + 7 + 1 + 1;
+        // the same up to upstream's last byte (an accept with none of the fork's has its 4-byte tail: 0, an empty build, no features, no wreck rule)
+        Assert.Equal(plain.Span[..^4].ToArray(), full.Span[..^tail].ToArray());
         var r = new NetReader(full.Span); r.U8();
         var back = JoinAccept.Read(ref r);
         Assert.Equal((true, true, true), (back.Crosshair, back.IgnitionStaysOn, back.Turrets1997));
@@ -641,6 +641,28 @@ public class ForkWireTests
         var upstream = JoinAccept.Read(ref up);
         Assert.Equal((true, true, true), (upstream.Crosshair, upstream.IgnitionStaysOn, upstream.Turrets1997));
         Assert.Equal((I76.Sim.Missions.HandicapMode.Off, "", PeerFeatures.None), (upstream.Handicaps, upstream.Build, upstream.Features));
+        Assert.False(back.WrecksSolid);
+        Assert.False(upstream.WrecksSolid);
+    }
+
+    /// <summary>The wreck rule's byte is the accept's last: read when it is there, off from an earlier fork build's accept, which ends at the features.</summary>
+    [Fact]
+    public void TheAcceptsLastByteIsTheWreckRule()
+    {
+        var w = new NetWriter();
+        (Accept() with { Build = "abc1234", Features = Protocol.Features, WrecksSolid = true }).Write(w);
+        var r = new NetReader(w.Span); r.U8();
+        var back = JoinAccept.Read(ref r);
+        Assert.True(back.WrecksSolid);
+        Assert.Equal(Protocol.Features, back.Features);
+        Assert.Equal(0, r.Remaining);
+        var earlier = new NetReader(w.Span[..^1]); earlier.U8();
+        var old = JoinAccept.Read(ref earlier);
+        Assert.False(old.WrecksSolid);
+        Assert.Equal(Protocol.Features, old.Features);
+        // the features still fit the one byte the tail gives them, and the protocol is upstream's
+        Assert.True((uint)Protocol.Features < 128);
+        Assert.Equal(24, Protocol.Version);
     }
 
     [Fact]
