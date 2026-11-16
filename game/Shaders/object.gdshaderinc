@@ -21,8 +21,8 @@ global uniform vec2 i76_fade;
 global uniform bool i76_night;
 global uniform int i76_night_light_count;
 global uniform sampler2D i76_night_lights : filter_nearest;
-// the modern look's night: the headlamps nearest the eye, for the road signs' retroreflection (RetroLamps.cs): column i of
-// i76_retro_at a lamp's position (global) and its strength, of i76_retro_aim its beam's axis and the cosine of the beam's edge
+// the modern look's night: the lit headlamps nearest the eye, for the road signs' retroreflection (RetroLamps.cs): column i of
+// i76_retro_at a lamp's position (global) and its beam's range, of i76_retro_aim its beam's axis and the cosine of the beam's edge
 global uniform int i76_retro_count;
 global uniform mat4 i76_retro_at;
 global uniform mat4 i76_retro_aim;
@@ -75,7 +75,7 @@ uniform bool night_glow = false;
 global uniform float i76_night_glow;
 uniform bool self_lit = false;     // the modern look: a structure's face the art marks to shine of its own (FaceLight.SelfLit), glowing at night
 const float SELF_LIT_GLOW = 1.0;   // the glow: the face's colour, times this
-uniform bool retro = false;        // the modern look: a road sign's face, retroreflective sheeting (RetroLamps), bright in the beam of the lamps beside the eye
+uniform bool retro = false;        // the modern look: a road sign's face, retroreflective sheeting (RetroLamps), bright only in a lit headlamp's beam, to an eye beside the lamp
 // material maps (modern look): roughness, metallic, clear coat, specular; a car's (CarMaterial) with a tangent-space
 // normal, scenery's and props' (PropMaterial) without
 uniform bool has_maps = false;
@@ -344,12 +344,14 @@ void vertex() {
 
 // ---- road signs: retroreflection ---------------------------------------------------------------------------------------------------------
 // Sign sheeting sends a lamp's light back toward the lamp, in a narrow cone: the face is bright to an eye beside the lamp (the car's
-// own driver) from far off, and next to nothing to anyone else. Retroreflection.Factor (RetroLamps.cs) is the same rule (and its tests); keep them together.
+// own driver), and next to nothing to anyone else; only where the lamp's beam reaches it (its cone, its range: i76_retro_at's w, the
+// throw's). Retroreflection.Factor (RetroLamps.cs) is the same rule (and its tests); keep them together.
 // w the face's point and n its outward normal, eye the camera, all global; the light a white face sends to the eye, a multiple of its colour.
-const float RETRO_HOT = 0.262;      // the beam's hot spot, which carries far: 15 degrees off its axis leave 1/e of it
+const float RETRO_STRENGTH = 0.9;   // a white face on the beam's axis, close, the eye beside the lamp
+const float RETRO_HOT = 0.262;      // the beam's hot spot: 15 degrees off its axis leave 1/e of it
 const float RETRO_LOBE = 0.0873;    // the return cone: 5 degrees between lamp and eye leave 1/e of it
-const float RETRO_REACH = 150.0;    // the falloff with the lamp's distance: half at 150 m, a third at 300 m
-const float RETRO_FAR = 600.0;      // gone by 600 m
+const float RETRO_REACH = 150.0;    // the falloff with the lamp's distance: half at 150 m
+const float RETRO_FADE = 0.8;       // fading out from this share of the beam's range, nothing at the range
 float retro_beam(float c, float edge) {
 	// the lamp's intensity toward the face: the hot spot about the beam's axis, nothing past the beam's edge
 	if (c <= edge) return 0.0;
@@ -364,6 +366,7 @@ float retro_light(vec3 w, vec3 n, vec3 eye) {
 		vec4 a = i76_retro_at[i], b = i76_retro_aim[i];
 		vec3 to = a.xyz - w;
 		float d = length(to);
+		if (d >= a.w) continue;
 		vec3 l = to / max(d, 1e-3);
 		float entrance = dot(n, l);
 		if (entrance <= 0.0) continue;
@@ -371,8 +374,8 @@ float retro_light(vec3 w, vec3 n, vec3 eye) {
 		if (beam <= 0.0) continue;
 		float alpha = acos(clamp(dot(l, v), -1.0, 1.0));   // the observation angle: lamp, face, eye
 		float lobe = exp(-(alpha * alpha) / (RETRO_LOBE * RETRO_LOBE));
-		float reach = 1.0 / (1.0 + d / RETRO_REACH) * (1.0 - smoothstep(RETRO_FAR * 0.75, RETRO_FAR, d));
-		sum += a.w * beam * sqrt(entrance) * lobe * reach;
+		float reach = 1.0 / (1.0 + d / RETRO_REACH) * (1.0 - smoothstep(a.w * RETRO_FADE, a.w, d));
+		sum += RETRO_STRENGTH * beam * sqrt(entrance) * lobe * reach;
 	}
 	return sum;
 }
@@ -831,7 +834,7 @@ void fragment() {
 	// a self-lit face at night: its colour shines as the 1997 look draws it, at full brightness (the lit canopy, a lit window, a
 	// lamp); by day the sun outshines it, as it does the original's
 	if (self_lit && i76_night) EMISSION += c.rgb * SELF_LIT_GLOW;
-	// a road sign at night: what the lamps beside the eye send back off its sheeting (by day the sun outshines it)
+	// a road sign at night: what the lit headlamps whose beam reaches it send back off its sheeting to the eye (by day the sun outshines it)
 	if (retro && i76_night && i76_retro_count > 0 && FRONT_FACING)
 		EMISSION += c.rgb * vec3(1.0, 0.95, 0.8) * retro_light((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz), CAMERA_POSITION_WORLD);
 	if (!prelit && wreck.x > 0.0) {

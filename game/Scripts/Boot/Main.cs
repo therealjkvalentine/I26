@@ -3374,6 +3374,8 @@ public partial class Main : Node3D
             }
             AddChild(night = new NightLights { Name = "NightLights", Cars = () => _sim?.Cars ?? [], Ground = GroundGodot, MoonIntensity = _builder.Light.Intensity,
                 Statics = _builder.Scenery?.Lights ?? [] });
+            // the modern look's road signs send the lit headlamps' light back toward them (RetroLamps; the 1997 look's shader reads none of it)
+            if (Retroreflection.On) AddChild(new RetroLamps { Name = "RetroLamps", Lamps = CarNode.LitHeadlamps });
         }
         _drops = new DropShadows
         {
