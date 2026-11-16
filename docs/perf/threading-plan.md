@@ -625,6 +625,37 @@ Mostly waste and circumstance, measured:
 So the honest order is: quiet machine or more cores; shed the bursts; fewer draws; thinner scripts; then the two thread moves
 that pay (the engine's render thread, the shaker and radar workers); the sim thread last.
 
+## Step 1 as done (perf/frame-bursts, 2026-11-15)
+
+Measured on a second machine (an i7-1165G7, 4 cores, a GTX 1650 Ti Max-Q) at 1280x536, where the processor and not the card sets the
+frame (the card's time for the main view 5.8 ms against a 9.4 ms frame), the owner's settings with the 4x world pack, uncapped, three
+runs a side interleaved, the machine's other load under 4 %. The development desktop was too busy that day for a timing to mean
+anything. Absolute figures are that machine's.
+
+| Scene | average fps | 1 % low | 0.1 % low | frames over 16.7 ms in 12 s | collections a minute |
+|---|---|---|---|---|---|
+| T05 start | 106 -> 107 | 70 -> 77 | 44 -> 76 | 1 -> 0 | 105 -> 50 |
+| M01 melee, five cars, target held | 129 -> 129 | 76 -> 78 | 40 -> 40 | 1.3 -> 1.3 | 48 -> 17 |
+| T01 start | 116 -> 119 | 48 -> 78 | 19 -> 45 | 1.3 -> 1 | 90 -> 32 |
+| T06 by night | 104 -> 104 | 71 -> 72 | 49 -> 55 | 1 -> 0.7 | 148 -> 80 |
+
+What was done: the main thread's garbage outside the sim (86 -> 33 kB a frame on T05, of which 27 is the sim's tick, another lane's);
+the radar's sweep step sent ahead in strips and copied on the GPU (the largest upload in a frame 2 MB -> 256 kB with the 4x pack);
+arrivals of terrain and plant chunks held to a millisecond after the first; the JIT warm-up called behind the first loading card.
+
+**The collector's settings.** Tried on the same machine and build: a young-generation budget of 16 MB (`DOTNET_GCgen0size=0x1000000`)
+gave T05 four collections in 12 s instead of ten and the same lows, but the melee one 11 ms pause; 64 MB gave one 20 ms pause on T05
+and a 1 % low of 45 instead of 77. The desktop's earlier runs agree (one 25 ms pause instead of nine of 2-7 ms). A collection's pause
+grows with the budget, so a larger one trades many short pauses for a rare long one. Nothing is set. How a setting would reach the
+game: on .NET 8 the young budget is read only from the environment (`DOTNET_GCgen0size`, checked: a test program's collections for
+240 MB fell from 61 to 3 with it, and stayed at 61 with `GCgen0size` or `System.GC.Gen0Size` in its runtimeconfig.json), so neither a
+run from source nor an export can carry it in the project; a launcher would have to set it. Concurrent collection is already on;
+sustained low latency only holds back full collections, of which a mission has none.
+
+**Bursts left.** The locked radar frames (a target held: each new bearing's frame is uploaded whole, as before: the melee's radar is
+unchanged), the first use of an effect or a knocked bush making the engine's pipelines in the draw (up to 0.8 s once on T01's first
+bush knock, 65 ms on the melee's first impacts: the effects warm-up does not rehearse them), the sim's tick (another lane), and the
+young collections that remain (the sim's garbage and the workers').
 ## What is uncertain
 
 - The split of the draw row between processor work and waiting for the card: settled for the eight-car melee (processor work:
