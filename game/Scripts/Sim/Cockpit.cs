@@ -2058,17 +2058,23 @@ public partial class Cockpit : Node
 
     // ---- the door mirrors' own glass (MirrorGlass: the Piranha's two, the CC cars' left one) ----
 
-    /// <summary>A door mirror's glass: its mesh (Faces, the pane's own; or the plane's grown one while the moulding's outer edge reaches past it), its material, side, picture aspect, middle, convex outline in the shader's units, the plane its picture coordinates map onto, and the driver's eye in its frame.</summary>
-    private sealed record GlassPane(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull, ArrayMesh Faces, (Vector3 O, Vector3 A, Vector3 B)? Plane, Vector3 Eye)
+    /// <summary>A door mirror's glass: its mesh (Faces, the pane's own; or the plane's grown one while the moulding's outer edge reaches past it), its material, side, picture aspect, middle, convex outline in the shader's units, the plane its picture coordinates map onto, the driver's eye in its frame, and the outline the ring covers (GlassRound.Housing: the glass's and the housing's rim seen past it).</summary>
+    private sealed record GlassPane(MeshInstance3D Mesh, ShaderMaterial Mat, bool Left, float Aspect, Vector3 Centre, List<Vector2> Hull, ArrayMesh Faces, (Vector3 O, Vector3 A, Vector3 B)? Plane, Vector3 Eye, List<Vector2> Cover)
     {
-        public (float Grow, bool Dark) GrownFor = (float.NaN, false);
+        public (float Grow, bool Dark, float R) GrownFor = (float.NaN, false, float.NaN);
         public ArrayMesh? Grown;
     }
     private readonly List<GlassPane> _glass = [];
     /// <summary>I76_MIRROR_RIM_KEY=1: the rim flat magenta and the pane's outline outside it cyan (the grown glass then takes in the pane's outline, as with dark corners).</summary>
     private static readonly bool RimKeyHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_KEY") == "1";
     /// <summary>I76_MIRROR_POINTS=1: the door mirror head's vertices drawn as yellow dots and its glass's as green ones over everything, and both logged in the glass's picture units (mirror-points:), to find which points show past the ring.</summary>
-    /// <summary>I76_MIRROR_RIM_POINTS: "uniform" grows the whole ring evenly until the glass outline's corners fit inside it; "off" the ring's outer edge as round as the glass's, the corners left to stick out (the look before); otherwise tighter outer corners where needed.</summary>
+    /// <summary>
+    /// I76_MIRROR_RIM_POINTS: unset or "even", the ring one width all round, its outer edge a smooth outline the rim's reach past the
+    /// housing's (GlassRound.EvenShape), "even:N" N rim widths (MirrorRim.OuterShare) past it instead; "corners" the outer edge's
+    /// corners tighter than the glass's where the outline's are sharper, the band thicker there (the look before); "uniform" the whole
+    /// ring grown evenly round the glass's rounded shape until the outline's corners fit inside it; "off" the outer edge as round as
+    /// the glass's, the corners left to stick out.
+    /// </summary>
     private static readonly string? PointsVariant = System.Environment.GetEnvironmentVariable("I76_MIRROR_RIM_POINTS");
     /// <summary>How far inside the ring's outer edge the glass outline's corners lie, in the glass's heights (about a pixel at 3440x1440).</summary>
     private const float PointMargin = 0.004f;
@@ -2077,19 +2083,10 @@ public partial class Cockpit : Node
     private void MarkPoints(Node3D host, List<Vector3> glass, (Vector3 O, Vector3 A, Vector3 B) pl, Vector3 eye, bool left, float aspect, System.Numerics.Vector2[][] uvs)
     {
         var head = Node3D.MirrorHeads.FirstOrDefault(h => h.Left == left).Mesh;
-        var verts = new List<Vector3>();
-        if (head?.Mesh is { } hm)
-            for (int si = 0; si < hm.GetSurfaceCount(); si++) verts.AddRange(hm.SurfaceGetArrays(si)[(int)Mesh.ArrayType.Vertex].AsVector3Array());
-        var n = pl.A.Cross(pl.B).Normalized();
+        var verts = HeadPoints(left);
         // a point's picture units as seen from the eye: where the eye's ray through it meets the glass's plane
-        Vector2? Seen(Vector3 q)
-        {
-            var d = q - eye; float den = d.Dot(n); if (MathF.Abs(den) < 1e-6f) return null;
-            var hit = eye + d * ((pl.O - eye).Dot(n) / den) - pl.O;
-            // solve hit = U A + V B (least squares)
-            float aa = pl.A.Dot(pl.A), ab = pl.A.Dot(pl.B), bb = pl.B.Dot(pl.B), ha = hit.Dot(pl.A), hb = hit.Dot(pl.B), det = aa * bb - ab * ab;
-            return new Vector2((ha * bb - hb * ab) / det, (hb * aa - ha * ab) / det);
-        }
+        Vector2? Seen(Vector3 q) => GlassRound.Seen(eye, pl, q)?.Uv;
+        var n = pl.A.Cross(pl.B).Normalized(); if ((eye - pl.O).Dot(n) < 0) n = -n;
         var seen = new HashSet<(int, int)>();
         foreach (var q in verts.Distinct())
             if (Seen(q) is { } uv && seen.Add(((int)MathF.Round(uv.X * 1000), (int)MathF.Round(uv.Y * 1000))))
@@ -2106,6 +2103,15 @@ public partial class Cockpit : Node
             if (colour.R > 0.5f && head is not null) head.AddChild(mi); else host.AddChild(mi);
         }
     }
+    /// <summary>The door mirror head's vertices (its own frame, as the glass under it), none where the car has no head.</summary>
+    private List<Vector3> HeadPoints(bool left)
+    {
+        var verts = new List<Vector3>();
+        if (Node3D.MirrorHeads.FirstOrDefault(h => h.Left == left).Mesh?.Mesh is { } hm)
+            for (int si = 0; si < hm.GetSurfaceCount(); si++) verts.AddRange(hm.SurfaceGetArrays(si)[(int)Mesh.ArrayType.Vertex].AsVector3Array());
+        return verts;
+    }
+
     private static readonly string? RimOutHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_RIM_OUT");
     private int _rimOutSetting = GlassRound.DefaultRimOut;
     private readonly List<(MeshInstance3D Mesh, bool Left)> _rims = [];
@@ -2180,7 +2186,9 @@ public partial class Cockpit : Node
             host.AddChild(mi);
             var centre = Vector3.Zero; foreach (var q in v) centre += q; centre /= Math.Max(1, v.Count);
             var plane = GlassRound.Plane([.. v.Zip(t, (p, uv) => (new Vector2(uv.X * aspect, uv.Y), p))]);
-            _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y))), mesh, plane, near));
+            var hull = GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)));
+            var cover = plane is { } hp ? GlassRound.Housing(hull, HeadPoints(pane.Left).Distinct().Select(q => GlassRound.Seen(near, hp, q)).OfType<(Vector2, float)>()) : hull;
+            _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, hull, mesh, plane, near, cover));
             if (PointsHook && plane is { } pl) MarkPoints(host, v, pl, near, pane.Left, aspect, uvs);
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
@@ -2230,23 +2238,35 @@ public partial class Cockpit : Node
         m.SetShaderParameter("rim_w", MirrorRim.RimShare);
         _rimMat ??= RimMaterial();
         m.SetShaderParameter("rim_colour", _rimMat.GetShaderParameter("colour"));
-        bool round = rimOut.On && g.Plane is not null && g.Hull.Count <= GlassRound.MaxCorners;
+        bool round = rimOut.On && g.Plane is not null && g.Hull.Count <= GlassRound.MaxCorners && g.Cover.Count <= GlassRound.MaxCorners;
         m.SetShaderParameter("rim_round", round);
         if (!round) { g.Mesh.Mesh = g.Faces; return false; }
         // the outer edge in the rim's widths before the halving (MirrorRim.OuterShare): where it covered the housing's edges
         float grow = rimOut.Cover ? GlassRound.Cover(g.Hull, shape.Core, shape.R) : rimOut.Widths * MirrorRim.OuterShare;
-        var hull = new Vector2[GlassRound.MaxCorners];
-        for (int i = 0; i < g.Hull.Count; i++) hull[i] = g.Hull[i];
         float ringW = MirrorRim.RingWidth(grow);
         // the outer edge holds every corner of the glass's outline (the housing's edge) inside it, so none shows past the ring as a
-        // point: its corners tighter where the outline's are sharper (the band thicker there), or (I76_MIRROR_RIM_POINTS=uniform)
-        // the whole ring grown evenly until they fit, the band as wide all round
+        // point: by default one smooth outline the rim's reach past the housing's all round, the glass's edge one band's width inside it
+        // (the band one width everywhere, the glass grown to it); or (I76_MIRROR_RIM_POINTS) its corners tighter where the outline's are
+        // sharper (the band thicker there), the whole ring grown evenly round the glass's rounded shape, or as round as the glass's
         var outer = (Core: shape.Core, R: shape.R);
-        if (PointsVariant == "uniform") grow = GlassRound.UniformGrow(g.Hull, shape.Core, shape.R, grow, PointMargin);
+        bool even = PointsVariant is null or "even" || PointsVariant.StartsWith("even:");
+        // the outline the key marks and the grown mesh holds: the glass's and the housing's rim seen past it, whichever shape
+        var outline = g.Cover;
+        var box = (Min: Vector2.Zero, Max: Vector2.One);
+        if (even)
+        {
+            float over = PointsVariant is { } pv && pv.StartsWith("even:") && float.TryParse(pv[5..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ow) ? ow * MirrorRim.OuterShare : grow;
+            var es = GlassRound.EvenShape(g.Cover, shape.R, over, PointMargin, ringW);
+            outer = (es.Core, es.E); grow = es.Over;
+            box = GlassRound.PictureBox(es.Core, es.E + es.Over - ringW, g.Aspect);
+        }
+        else if (PointsVariant == "uniform") grow = GlassRound.UniformGrow(g.Hull, shape.Core, shape.R, grow, PointMargin);
         else if (PointsVariant != "off") outer = GlassRound.OuterShape(g.Hull, shape.Core, shape.R, grow, PointMargin);
         if (PointsHook)
-            foreach (var v in g.Hull)
-                GD.Print($"mirror-points: {(g.Left ? "L" : "R")} corner {v.X:0.0000} {v.Y:0.0000} past-round {GlassRound.Distance(shape.Core, v) - shape.R - grow:0.0000} past-outer {GlassRound.Distance(outer.Core, v) - outer.R - grow:0.0000} outer-r {outer.R:0.0000} glass-r {shape.R:0.0000}");
+            foreach (var v in outline)
+                GD.Print($"mirror-points: {(g.Left ? "L" : "R")} corner {v.X:0.0000} {v.Y:0.0000} past-round {GlassRound.Distance(shape.Core, v) - shape.R - grow:0.0000} past-outer {GlassRound.Distance(outer.Core, v) - outer.R - grow:0.0000} outer-r {outer.R + grow:0.0000} glass-r {shape.R:0.0000} reach {grow:0.0000} ring {ringW:0.0000}");
+        var hull = new Vector2[GlassRound.MaxCorners];
+        for (int i = 0; i < outline.Count; i++) hull[i] = outline[i];
         var ocore = new Vector2[GlassRound.MaxCorners];
         for (int i = 0; i < outer.Core.Count; i++) ocore[i] = outer.Core[i];
         m.SetShaderParameter("pane_ocore", ocore);
@@ -2254,16 +2274,18 @@ public partial class Cockpit : Node
         m.SetShaderParameter("pane_or", outer.R);
         m.SetShaderParameter("rim_out", grow);
         m.SetShaderParameter("ring_w", ringW);   // the band as wide as before whichever way the outer edge reaches
+        m.SetShaderParameter("ring_from_outer", even);
+        m.SetShaderParameter("view_box", new Vector4(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y));
         m.SetShaderParameter("rim_dark", rimOut.Dark);
         m.SetShaderParameter("pane_hull", hull);
-        m.SetShaderParameter("pane_hull_n", g.Hull.Count);
+        m.SetShaderParameter("pane_hull_n", outline.Count);
         var (po, pa, pb) = g.Plane!.Value;
         // the ring as many screen pixels wide all round as it is across the glass as seen (the shader's px_per_unit)
         m.SetShaderParameter("pane_mid", po + pa * (g.Aspect / 2) + pb / 2); m.SetShaderParameter("pane_half", new Vector2(g.Aspect / 2, 0.5f)); m.SetShaderParameter("pane_a", pa); m.SetShaderParameter("pane_b", pb);
-        if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark))
+        if (g.Grown is null || g.GrownFor != (grow, rimOut.Dark, outer.R))
         {
-            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(g.Hull, outer.Core, outer.R + grow, GrowMargin), g.Eye);
-            g.GrownFor = (grow, rimOut.Dark);
+            g.Grown = GrownGlass(g.Plane!.Value, g.Aspect, GlassRound.GrownOutline(outline, outer.Core, outer.R + grow, GrowMargin), g.Eye);
+            g.GrownFor = (grow, rimOut.Dark, outer.R);
         }
         g.Mesh.Mesh = g.Grown;
         return true;
