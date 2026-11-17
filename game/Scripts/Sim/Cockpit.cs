@@ -373,6 +373,7 @@ public partial class Cockpit : Node
         // (the panels the draws below draw: the gauges' only where Gauges runs)
         string[] first = !pit || !Node3D.Dash3D && !Binoculars ? [.. FirstPanels, "zspeedo6.map", "ztach6.map"] : FirstPanels;
         var prepared = I76.Game.Boot.Beside.Run(() => Panels.Prepare(first));
+        I76.Game.World.MissionBuilder.Trace("cockpit first frame: preparing");
         yield return prepared;
         prepared.GetAwaiter().GetResult();
         foreach (var step in Panels.MakeTargetsSteps()) yield return step;

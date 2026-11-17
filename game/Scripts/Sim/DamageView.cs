@@ -253,12 +253,17 @@ public partial class DamageView : Node3D
     /// renderer makes the wreck's and the fire's pipelines and the code that builds them has run once (the first death of a
     /// game cost half a second); <see cref="EndWarm"/> takes the fire and the debris away (the caller frees the stand-in).
     /// </summary>
-    public void Warm(CarNode car)
+    public void Warm(CarNode car) { foreach (var _ in WarmSteps(car)) { } }
+
+    /// <summary><see cref="Warm"/> in parts, a <c>null</c> between them (the rehearsal under a playing briefing).</summary>
+    public IEnumerable<object?> WarmSteps(CarNode car)
     {
-        if (IsHeli(car)) return;
+        if (IsHeli(car)) yield break;
         car.SetWrecked(true);
         Rebuild(car);
+        yield return null;
         Burn(car);
+        yield return null;
         if (_fires.TryGetValue(car, out var f)) f.ProcessMode = ProcessModeEnum.Always;
         // the smoke is drawn by a layer of its own (SmokeLayer), whose compositor compiles on the first puff it gets
         foreach (var n in new[] { "SmokeLayer", "DamageSmoke" }) if (GetNodeOrNull(n) is { } sn) sn.ProcessMode = ProcessModeEnum.Always;

@@ -124,8 +124,14 @@ public partial class FireDrops : Node3D
         });
         yield return job;
         job.GetAwaiter().GetResult();
-        _ribbonS = ImageTexture.CreateFromImage(imgs[0]); _puddleS = ImageTexture.CreateFromImage(imgs[1]);
-        _glowRibbonS = ImageTexture.CreateFromImage(imgs[2]); _glowPuddleS = ImageTexture.CreateFromImage(imgs[3]);
+        _ribbonS = ImageTexture.CreateFromImage(imgs[0]);
+        yield return null;
+        _puddleS = ImageTexture.CreateFromImage(imgs[1]);
+        yield return null;
+        _glowRibbonS = ImageTexture.CreateFromImage(imgs[2]);
+        yield return null;
+        _glowPuddleS = ImageTexture.CreateFromImage(imgs[3]);
+        I76.Game.World.MissionBuilder.Trace("combat view: fire textures");
     }
 
     private static CurveTexture Curve1(params (float X, float Y)[] pts)
