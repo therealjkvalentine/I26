@@ -1,0 +1,177 @@
+{
+ "textures": [
+  "ao_1sg_e"
+ ],
+ "note": "the Quick-E Freeze billboard (aobilbde): its small print; written by gen/billboards.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    81.18,
+    33.52,
+    109.56,
+    39.53
+   ],
+   "where": {
+    "lum_below": 215
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    78.43,
+    39.01,
+    112.08,
+    43.64
+   ],
+   "where": {
+    "lum_below": 215
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10.79,
+    47.78,
+    40.76,
+    57.55
+   ],
+   "where": {
+    "lum_below": 215
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    52.87,
+    47.21,
+    118.22,
+    56.15
+   ],
+   "where": {
+    "lum_below": 215
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 225
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "UP AHEAD",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 4.41,
+   "colour": [
+    70,
+    128,
+    214
+   ],
+   "box": [
+    82.18,
+    34.32,
+    108.56,
+    38.73
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "TRUCK PARKING",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 3.03,
+   "colour": [
+    70,
+    128,
+    214
+   ],
+   "box": [
+    79.43,
+    39.81,
+    111.08,
+    42.84
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "Burgers",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 8.17,
+   "colour": [
+    70,
+    128,
+    214
+   ],
+   "box": [
+    11.79,
+    48.58,
+    39.76,
+    56.75
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "Famous Sundaes",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 7.34,
+   "colour": [
+    70,
+    128,
+    214
+   ],
+   "quad": [
+    [
+     55.338,
+     48.01
+    ],
+    [
+     117.22,
+     48.01
+    ],
+    [
+     115.752,
+     55.35
+    ],
+    [
+     53.87,
+     55.35
+    ]
+   ],
+   "fit": "ink",
+   "alpha": "set"
+  }
+ ]
+}

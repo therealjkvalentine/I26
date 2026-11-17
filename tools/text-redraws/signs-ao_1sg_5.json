@@ -1,0 +1,268 @@
+{
+ "textures": [
+  "ao_1sg_5"
+ ],
+ "note": "the Aces & Eights Motor Lodge billboard (M07, M10, T10, T14): its lettering; written by gen/aces_eights.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    55.28,
+    6.63,
+    91.96,
+    14.96
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    84.14,
+    14.59,
+    122.1,
+    22.75
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    61.99,
+    23.26,
+    117.6,
+    32.37
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.84,
+    36.98,
+    81.94,
+    44.29
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    13.45,
+    43.73,
+    123.62,
+    51.88
+   ],
+   "where": {
+    "lum_below": 200
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 215
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    7.4,
+    53.98,
+    123.68,
+    61.32
+   ],
+   "where": {
+    "lum_below": 55
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 68
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "ACES &",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 6.33,
+   "colour": [
+    232,
+    14,
+    14
+   ],
+   "alpha": "set",
+   "box": [
+    56.28,
+    7.63,
+    90.96,
+    13.96
+   ]
+  },
+  {
+   "op": "text",
+   "text": "EIGHTS",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 6.16,
+   "colour": [
+    18,
+    18,
+    16
+   ],
+   "alpha": "set",
+   "box": [
+    85.14,
+    15.59,
+    121.1,
+    21.75
+   ]
+  },
+  {
+   "op": "text",
+   "text": "Motor Lodge",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 7.11,
+   "colour": [
+    24,
+    24,
+    22
+   ],
+   "alpha": "set",
+   "box": [
+    62.99,
+    24.26,
+    116.6,
+    31.37
+   ]
+  },
+  {
+   "op": "text",
+   "text": "TV - Phones - Pets OK",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 5.31,
+   "colour": [
+    30,
+    28,
+    28
+   ],
+   "alpha": "set",
+   "quad": [
+    [
+     8.0082,
+     37.98
+    ],
+    [
+     80.94,
+     37.98
+    ],
+    [
+     79.7718,
+     43.29
+    ],
+    [
+     6.84,
+     43.29
+    ]
+   ],
+   "fit": "ink"
+  },
+  {
+   "op": "text",
+   "text": "RV Parking - Truckers Welcome",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 6.15,
+   "colour": [
+    30,
+    28,
+    28
+   ],
+   "alpha": "set",
+   "quad": [
+    [
+     15.803,
+     44.73
+    ],
+    [
+     122.62,
+     44.73
+    ],
+    [
+     121.26700000000001,
+     50.88
+    ],
+    [
+     14.45,
+     50.88
+    ]
+   ],
+   "fit": "ink"
+  },
+  {
+   "op": "text",
+   "text": "U.S. 380 to Plains - 14 miles",
+   "font": "LibreCaslonText",
+   "variation": {
+    "Weight": 700
+   },
+   "cap": 6.14,
+   "colour": [
+    24,
+    2,
+    2
+   ],
+   "alpha": "set",
+   "box": [
+    8.4,
+    54.58,
+    122.68,
+    60.72
+   ]
+  }
+ ]
+}
