@@ -37,6 +37,15 @@ public sealed class SwardMap
         return i < 0 || j < 0 || i >= Width || j >= Height ? 0 : Data[j * Width + i] / 255f;
     }
 
+    /// <summary>The size in texels <see cref="Build"/> makes for these tiles with a biome that has a sward (0 x 0: no tiles).</summary>
+    public static (int W, int H) Size(TerrainTiles tiles)
+    {
+        var (r0, r1, c0, c1) = tiles.Bounds();
+        if (r1 < r0) return (0, 0);
+        int per = (int)(TerrainTiles.Tile * 5 / (tiles.Huge ? HugeTexel : Texel));
+        return ((c1 - c0 + 1) * per, (r1 - r0 + 1) * per);
+    }
+
     /// <summary>The sward under the map's tiles; empty for a biome without one.</summary>
     public static SwardMap Build(VegetationPlacer placer, TerrainTiles tiles)
     {
@@ -46,6 +55,7 @@ public sealed class SwardMap
         float Texel = tiles.Huge ? HugeTexel : SwardMap.Texel;
         int per = (int)(tile / Texel);
         int w = (c1 - c0 + 1) * per, h = (r1 - r0 + 1) * per;
+        System.Diagnostics.Debug.Assert((w, h) == Size(tiles));
         float x0 = c0 * tile, z0 = r0 * tile;
         var data = new byte[w * h];
         var sums = new double[h];

@@ -389,6 +389,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
         return new SkyPalette(sky.C, cloud.C, shade.C, sky.L, MathF.Max(cloud.L, sky.L + 0.05f));
     }
     public I76.Formats.Mission.WorldSettings? Settings { get; private set; }
+    /// <summary>Graphic Detail's Vegetation as the build started (set by the main thread for a build on its own thread): the sward's texture is reserved for it.</summary>
+    public int? VegetationSetting { get; set; }
     public I76.Formats.Mission.LightPreset Light { get; private set; } = I76.Formats.Mission.Lighting.ForHour(12);
     public Texture2DArray? Horizon { get; private set; }
     /// <summary>The horizon panels the 1997 look's sky dome draws: the originals' where a pack serves the modern look's, else <see cref="Horizon"/>.</summary>
@@ -818,6 +820,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
             // ModernSteps' own work, on the pieces this method made
             _modernSteps = () => ModernStepsFor(world, ground, MakeSharedModernSteps, () => cavities, cavityImages);
         }
+        // the plants' sward texture on the ground's global before the chunks' materials are made (VegetationNode.UpdateSward fills it)
+        if (VegetationSetting is { } vegSetting) VegetationNode.ReserveSward(world, Settings?.Ground, vegSetting);
         Stage("terrain build");
         Terrain.Build(world);
         if (I76.Game.Editor.SwitchTimer.On) GD.Print($"switch: terrain content {world.Terrain.ContentHash():x16}");
@@ -911,7 +915,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         long last = 0;
-        void Mark(string what) { if (TraceOn) GD.Print($"modern build: {what} +{clock.ElapsedMilliseconds - last} ms (at {clock.ElapsedMilliseconds})"); last = clock.ElapsedMilliseconds; }
+        void Mark(string what) { if (TraceOn) I76.Game.Boot.RunLog.Print($"modern build: {what} +{clock.ElapsedMilliseconds - last} ms (at {clock.ElapsedMilliseconds})"); last = clock.ElapsedMilliseconds; }
         var terrain = Terrain!;
         // the heightfield's modern share: the reachable surface, every chunk's coarsest level
         var surface = Background(() => terrain.PrepareModern(world));
@@ -967,7 +971,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public static readonly bool HashOn = System.Environment.GetEnvironmentVariable("I76_BUILD_TRACE") == "hash";
     private static readonly System.Diagnostics.Stopwatch TraceClock = System.Diagnostics.Stopwatch.StartNew();
     /// <summary>I76_BUILD_TRACE=1: stamps each build stage on stdout, to see where a stuck load stopped.</summary>
-    public static void Trace(string stage) { LastStage = stage; if (TraceOn) GD.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
+    public static void Trace(string stage) { LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
     /// <summary>The last stage stamped (on any thread): what a slice of the load under a briefing was doing (Main.EndSlice).</summary>
     public static string LastStage { get; private set; } = "";
 }

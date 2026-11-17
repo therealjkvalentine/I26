@@ -189,6 +189,26 @@ public partial class VegetationNode : Node3D
     /// The sward into the ground shader's globals (terrain_modern.gdshader) once it is made: its texture and where it
     /// lies at once, its strength eased in over half a second if the mission is already showing (none when hidden or Off).
     /// </summary>
+    /// <summary>
+    /// The sward's texture set on the ground's materials before they were made (<see cref="ReserveSward"/>), blank, at the size the
+    /// sward will have: its picture goes into it as an update. A new texture set on the global later had every terrain chunk's
+    /// material (one each, for its cavities) made again: a frame of 0.2-0.3 s under a playing briefing.
+    /// </summary>
+    private static ImageTexture? _swardSlot;
+
+    /// <summary>
+    /// On the build's thread, before the terrain's materials are made: a blank texture of the sward's size set on the ground's
+    /// global (the mission's biome has a sward, the plants are on), for <see cref="UpdateSward"/> to fill.
+    /// </summary>
+    public static void ReserveSward(MissionWorld world, string? ground, int vegetationSetting)
+    {
+        if (!SwardOn || LevelFor(vegetationSetting) == 0 || Biomes.For(world.Mission.Name, ground) is not { Biome.Sward: > 0 }) return;
+        var (w, h) = SwardMap.Size(world.Terrain);
+        if (w == 0) return;
+        _swardSlot = ImageTexture.CreateFromImage(Image.CreateEmpty(w, h, false, Image.Format.R8));
+        RenderingServer.GlobalShaderParameterSet("i76_sward", _swardSlot);
+    }
+
     private void UpdateSward(double delta, bool now = false)
     {
         if (_sward is null && _swardJob is { IsCompleted: true } job)
@@ -198,7 +218,8 @@ public partial class VegetationNode : Node3D
             {
                 var map = _sward = job.Result;
                 var img = Image.CreateFromData(map.Width, map.Height, false, Image.Format.R8, map.Data);
-                RenderingServer.GlobalShaderParameterSet("i76_sward", ImageTexture.CreateFromImage(img));
+                if (_swardSlot is { } slot && slot.GetWidth() == map.Width && slot.GetHeight() == map.Height) slot.Update(img);
+                else RenderingServer.GlobalShaderParameterSet("i76_sward", _swardSlot = ImageTexture.CreateFromImage(img));
                 RenderingServer.GlobalShaderParameterSet("i76_sward_rect", new Vector4(map.X0, map.Z0, 1f / (map.Width * map.TexelSize), 1f / (map.Height * map.TexelSize)));
                 GD.Print($"vegetation: sward {map.Width} x {map.Height} texels, mean {map.Mean:0.00}");
             }
@@ -584,6 +605,19 @@ public partial class VegetationNode : Node3D
         }
         if (sliced) MissionBuilder.Trace("veg: chunks attached");
         yield return null;
+        // the attached chunks' tiers set a few milliseconds at a time (all at once in Update below, a frame of 0.2 s under a briefing)
+        if (sliced)
+        {
+            slice.Restart();
+            foreach (var c in _chunks.Values.ToList())
+            {
+                if (!c.Attached) continue;
+                Refresh(c, ChunkDistance(c.Cx, c.Cz, c.Layer, eye), eye);
+                if (slice.Elapsed.TotalMilliseconds > 8) { yield return null; slice.Restart(); }
+            }
+            MissionBuilder.Trace("veg: tiers");
+            yield return null;
+        }
         Update(eye, attachAll: true);
         GD.Print($"vegetation: {made.Length} chunks placed and attached in {sw.ElapsedMilliseconds} ms, {Instances} plants");
         if (System.Environment.GetEnvironmentVariable("I76_VEG_STATS") == "1")
@@ -701,6 +735,19 @@ public partial class VegetationNode : Node3D
 
     /// <summary>The tier each of a chunk's plants is drawn at: all one when the chunk lies within one tier's band, else split plant by plant.</summary>
     private const int Hidden = 4;
+
+    /// <summary>An attached chunk at <paramref name="d"/> from the eye: its shade, its shadow casting, its grass and whether it is drawn, then its tier.</summary>
+    private void Refresh(Chunk c, float d, System.Numerics.Vector3 eye)
+    {
+        if (c.ShadeNode is { } sn && sn.Visible != (PlantsOn && d < _level.ShadeEnd)) sn.Visible = !sn.Visible;
+        bool cast = c.Layer == VegLayer.Shrub && d < _level.ShadowRange;
+        if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
+        if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
+        // a chunk wholly beyond its plants' fade draws nothing (every plant would be dithered away)
+        bool drawn = d <= Reach(c.Layer);
+        if (drawn != c.Drawn) { c.Drawn = drawn; c.Tier = -1; }
+        Retier(c, eye);
+    }
 
     private void Retier(Chunk c, System.Numerics.Vector3 eye)
     {
@@ -911,14 +958,7 @@ public partial class VegetationNode : Node3D
             float d = ChunkDistance(c.Cx, c.Cz, c.Layer, eye);
             if (d > Reach(c.Layer) + 80f && c.Job is { IsCompleted: true }) { (drop ??= []).Add(key); continue; }
             if (!c.Attached) continue;
-            if (c.ShadeNode is { } sn && sn.Visible != (PlantsOn && d < _level.ShadeEnd)) sn.Visible = !sn.Visible;
-            bool cast = c.Layer == VegLayer.Shrub && d < _level.ShadowRange;
-            if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
-            if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
-            // a chunk wholly beyond its plants' fade draws nothing (every plant would be dithered away)
-            bool drawn = d <= Reach(c.Layer);
-            if (drawn != c.Drawn) { c.Drawn = drawn; c.Tier = -1; }
-            Retier(c, eye);
+            Refresh(c, d, eye);
             if (count)
             {
                 foreach (var g in c.Groups) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;

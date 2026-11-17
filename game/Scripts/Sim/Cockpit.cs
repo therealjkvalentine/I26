@@ -78,9 +78,13 @@ public partial class Cockpit : Node
     /// <summary>What <see cref="_Ready"/> makes (the panels, the wheel's, arms' and radar's frames, the mirror), a null between the costly parts.</summary>
     public IEnumerable<object?> ReadySteps()
     {
-        Panels.Prefetch();
+        // the panels' and the frames' upscales read and decoded on a worker (no engine resource made there): on the main thread the
+        // decoding's wait was a frame of a third of a second under a playing briefing
+        var fetched = I76.Game.Boot.Beside.Run(() => { Panels.Prefetch(); PrefetchArt(); });
+        yield return fetched;
+        fetched.GetAwaiter().GetResult();
         I76.Game.World.MissionBuilder.Trace("cockpit: panels prefetched");
-        foreach (var step in LoadArtSteps()) yield return step;
+        foreach (var step in LoadArtSteps(prefetched: true)) yield return step;
         _rng = new System.Random();
         var shellSettings = I76.Game.Shell.ShellSettings.Load();
         HeadTracker.Apply(shellSettings);
@@ -101,7 +105,7 @@ public partial class Cockpit : Node
             yield return pre;
             pre.GetAwaiter().GetResult();
         }
-        SetupMirror();
+        foreach (var step in SetupMirrorSteps()) yield return step;
         _mirrorPre = default;
         I76.Game.World.MissionBuilder.Trace("cockpit: mirror");
         yield return null;
@@ -127,11 +131,9 @@ public partial class Cockpit : Node
     }
 
     /// <summary><see cref="LoadArt"/> as steps, a null between the costly parts.</summary>
-    private IEnumerable<object?> LoadArtSteps()
+    private IEnumerable<object?> LoadArtSteps(bool prefetched = false)
     {
-        // a pack's upscales of the frames below, read together on worker threads (done already when the build prefetched them); a .dds
-        // goes to the GPU as stored, so none is decompressed
-        Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>());
+        if (!prefetched) PrefetchArt();
         // their pictures read and their mipmaps made on a worker, then sent to the card a few at a time (a mission attaching under its briefing)
         foreach (var step in FramesSteps("zswls{0}{1:00}", 36, f => _wheelFrames = f)) yield return step;
         I76.Game.World.MissionBuilder.Trace("cockpit: wheel frames");
@@ -148,6 +150,12 @@ public partial class Cockpit : Node
         OriginalArt();
         I76.Game.World.MissionBuilder.Trace("cockpit: original art");
     }
+
+    /// <summary>
+    /// A pack's upscales of the frames LoadArt makes, read together on worker threads (done already when the build prefetched them); a
+    /// .dds goes to the GPU as stored, so none is decompressed.
+    /// </summary>
+    private void PrefetchArt() => Textures.Prefetch(ArtStems(LightVariant).Select(Resolver.FindByStem).OfType<string>());
 
     /// <summary>What LoadArt reads of the originals, whatever is served (the radar's mask and its measure).</summary>
     private void OriginalArt()
@@ -326,6 +334,34 @@ public partial class Cockpit : Node
     }
 
     /// <summary>
+    /// I76_PANELS_CHECK=1 (or quit: the game quits after it): the first frame's panels as the workers drew them compared byte for
+    /// byte with the same panels drawn again here on the main thread, the way play draws them; one line says which differ.
+    /// </summary>
+    private static readonly string? PanelsCheck = System.Environment.GetEnvironmentVariable("I76_PANELS_CHECK") is { Length: > 0 } pc && pc != "0" ? pc : null;
+
+    private void CheckPanels(bool pit)
+    {
+        var names = new[] { "zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map", "zspeedo6.map", "ztach6.map" };
+        var worker = names.ToDictionary(n => n, n => Panels.WorkBytes(n));
+        var specRows = _specRows;   // (the housings chosen at random on the first draw kept, as the weapons' are)
+        ResetPanels();
+        _specRows = specRows;
+        _repaintWeapons = _repaintSpecials = true;
+        Gear(); Compass(); DamagePanel(); SpecialsPanel();
+        if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
+        WeaponsPanel();
+        var drawn = names.Where(n => worker[n] is not null).ToList();
+        var differ = drawn.Where(n => Panels.WorkBytes(n) is not { } m || !m.AsSpan().SequenceEqual(worker[n])).ToList();
+        I76.Game.Boot.RunLog.Print($"panels check: {Car.Definition} {(_faithful ? "1997" : "modern")} look: {drawn.Count} panels drawn on workers, "
+            + (differ.Count == 0 ? "all identical to the main thread's draw" : $"DIFFERENT: {string.Join(", ", differ)}") + $" ({string.Join(", ", drawn)})");
+        I76.Game.Boot.RunLog.Flush();
+        if (PanelsCheck == "quit") GetTree().Quit();
+    }
+
+    /// <summary>The panels the cockpit's first frame draws whatever the view (FirstFrameSteps).</summary>
+    private static readonly string[] FirstPanels = ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map"];
+
+    /// <summary>
     /// The cockpit's first frame a part at a time, a <c>null</c> between (the effects rehearsal under a playing briefing, Main): its
     /// panels drawn and sent to the card, which in one frame was most of a second; the first <see cref="_Process"/> after it finds them made.
     /// </summary>
@@ -333,21 +369,34 @@ public partial class Cockpit : Node
     {
         bool pit = Active;
         if (!pit && Instruments?.Invoke() != true) yield break;
+        // the panels' pictures and sheets made ahead on a worker (their first draws read them)
+        // (the panels the draws below draw: the gauges' only where Gauges runs)
+        string[] first = !pit || !Node3D.Dash3D && !Binoculars ? [.. FirstPanels, "zspeedo6.map", "ztach6.map"] : FirstPanels;
+        var prepared = I76.Game.Boot.Beside.Run(() => Panels.Prepare(first));
+        yield return prepared;
+        prepared.GetAwaiter().GetResult();
+        foreach (var step in Panels.MakeTargetsSteps()) yield return step;
         ResetPanels();
         _wasShown = true;
         I76.Game.World.MissionBuilder.Trace("cockpit first frame: panels reset");
         yield return null;
-        Gear();
-        Compass();
-        yield return null;
-        DamagePanel();
-        yield return null;
-        SpecialsPanel();
-        yield return null;
+        // the panels' draws (the pictures' bytes stamped, their labels lettered: no engine call once their textures are made) on a
+        // worker while the main thread waits; one whose texture is not made yet is drawn here, as in play
+        IEnumerable<object?> Draw(System.Action draw, params string[] panels)
+        {
+            if (!panels.All(Panels.Made)) { draw(); yield break; }
+            var job = I76.Game.Boot.Beside.Run(draw);
+            yield return job;
+            job.GetAwaiter().GetResult();
+        }
         Radar();
         yield return null;
-        if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
-        WeaponsPanel();
+        // the rest in one go on a worker (one wait for all of them, not one a panel); a panel whose texture is not made is drawn here
+        bool gauges = !pit || !Node3D.Dash3D && !Binoculars;
+        foreach (var step in Draw(() => { Gear(); Compass(); DamagePanel(); SpecialsPanel(); if (gauges) Gauges(); WeaponsPanel(); },
+            gauges ? ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map", "zspeedo6.map", "ztach6.map"] : ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map"]))
+            yield return step;
+        if (PanelsCheck is not null) CheckPanels(pit);
         I76.Game.World.MissionBuilder.Trace("cockpit first frame: drawn");
         yield return null;
         Panels.Commit();
@@ -1620,17 +1669,21 @@ public partial class Cockpit : Node
     /// <summary>The mirror's edge field and fill made ahead on a worker (ReadySteps), for SetupMirror to take; default otherwise.</summary>
     private (byte[]? Field, byte[]? Fill) _mirrorPre;
 
-    private void SetupMirror()
+    private void SetupMirror() { foreach (var _ in SetupMirrorSteps()) { } }
+
+    /// <summary><see cref="SetupMirror"/> in parts, a <c>null</c> between them (a mission attaching under its briefing).</summary>
+    private IEnumerable<object?> SetupMirrorSteps()
     {
-        if (Resolver.FindByStem("zmiri101") is not { } member || Node3D.CockpitMesh is not { Mesh: { } mesh } mi) return;
+        if (Resolver.FindByStem("zmiri101") is not { } member || Node3D.CockpitMesh is not { Mesh: { } mesh } mi) yield break;
         var made = Materials.MadeFor(member).ToHashSet();
         var surfaces = Enumerable.Range(0, mesh.GetSurfaceCount()).Where(i => mesh.SurfaceGetMaterial(i) is { } m && made.Contains(m)).ToList();
-        if (surfaces.Count == 0) return;
+        if (surfaces.Count == 0) yield break;
         _mirrorView = new SubViewport { Size = new Vector2I(1024, 256), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled, Name = "Mirror" };
         _mirrorCam = new Camera3D { Fov = MirrorCameraSettings.FovDegrees, KeepAspect = Camera3D.KeepAspectEnum.Width, Near = 0.1f, Far = MirrorCameraSettings.FarMetres, Current = true };
         _mirrorView.AddChild(_mirrorCam);
         SmokeLayer.MirrorCamera = _mirrorCam;
         AddChild(_mirrorView);
+        yield return null;
         _mirrorFlat = new Godot.Environment { BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = MirrorBackground,
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color(0.35f, 0.35f, 0.35f) };
         _mirrorMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cockpit_mirror.gdshader") };
@@ -1641,9 +1694,11 @@ public partial class Cockpit : Node
             _mirrorEdge = ImageTexture.CreateFromImage(Godot.Image.CreateFromData(o.Width * MirrorEdge.FieldScale, o.Height * MirrorEdge.FieldScale, false, Godot.Image.Format.Rg8, _mirrorPre.Field ?? MirrorEdge.Field(o.Rgba, o.Width, o.Height)));
             _mirrorMat.SetShaderParameter("edge", _mirrorEdge);
         }
+        yield return null;
         MirrorFill();
         _mirrorMat.SetShaderParameter("smooth_edge", _mirrorEdge is not null && _mirrorFill is not null);
-        if (Textures.GetOriginalRgba(member) is { } ro) { _mirrorOriginal = (ro.Rgba, ro.Width, ro.Height); RoundCorners(); }
+        if (Textures.GetOriginalRgba(member) is { } ro) { _mirrorOriginal = (ro.Rgba, ro.Width, ro.Height); yield return null; RoundCorners(); }
+        yield return null;
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir) foreach (var n in new[] { "zmiri101", "zdash101", "zdash102" }) Image(n)?.SavePng(System.IO.Path.Combine(dir, n + ".png"));
         var vt = _mirrorView.GetTexture();
         _mirrorMat.SetShaderParameter("view", vt);
@@ -1654,6 +1709,7 @@ public partial class Cockpit : Node
         foreach (int i in surfaces)
             foreach (var p in mesh.SurfaceGetArrays(i)[(int)Mesh.ArrayType.Vertex].AsVector3Array())
                 _rearBox = _rearBox is { } b ? b.Expand(p) : new Aabb(p, Vector3.Zero);
+        yield return null;
         _mirrorMode = _mirrorSetting;
         ApplyMirrorMode();
     }

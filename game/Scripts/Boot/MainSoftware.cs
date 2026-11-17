@@ -32,6 +32,16 @@ public partial class Main
     }
 
     /// <summary>Apply the two settings for the current look (on a settings change, a look change, the start).</summary>
+    /// <summary>
+    /// The main viewport's 3D antialiasing; while a mission attaches under its briefing with the world not drawn, kept for when it is
+    /// (_msaaAhead): a change remakes the viewport's 3D buffers, a frame of about 0.1 s at 3440x1440.
+    /// </summary>
+    private void SetMsaa(Viewport.Msaa msaa)
+    {
+        if (_msaaAhead is not null) _msaaAhead = msaa;
+        else GetViewport().Msaa3D = msaa;
+    }
+
     private void ApplySoftware(I76.Game.Shell.ShellSettings? s = null)
     {
         s ??= I76.Game.Shell.ShellSettings.Load();
@@ -39,11 +49,11 @@ public partial class Main
         bool softRenderer = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, soft1997 = _mode1997 && softRenderer;
         Wiggle.CrashBlur = EnvSwitch("I76_CRASH_BLUR") ?? I76.Sim.Views.CrashBlurMode.Resolve(s.CrashBlur);
         Wiggle.Exact = _mode1997;   // the original's whole-pixel blit in the 1997 look (either renderer), smooth in the modern look
-        if (_software is null || _cardRamp is null) { GetViewport().Msaa3D = Msaa1997(_mode1997); return; }
+        if (_software is null || _cardRamp is null) { SetMsaa(Msaa1997(_mode1997)); return; }
         bool sw = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, grade = EnvSwitch("I76_PALETTE_GRADE") ?? s.PaletteGrade;
         int level = s.Graphics[0xc];
         _software.Apply(_mode1997, sw, grade, _cardRamp, _sky1997, _builder?.SkyTexture, _env1997, CardCurve(level), level);
-        GetViewport().Msaa3D = Msaa1997(_mode1997);   // after Apply: the Software renderer draws none
+        SetMsaa(Msaa1997(_mode1997));   // after Apply: the Software renderer draws none
         ApplyFade1997();   // the Software renderer has no fade
     }
 

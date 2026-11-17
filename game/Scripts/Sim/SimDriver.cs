@@ -507,12 +507,13 @@ public partial class SimDriver : Node
             _logTicks0 = Ticks;
             // what the presentation and the sound run with (docs/1997-parity.md, round 3)
             var rd = RenderingServer.GetRenderingDevice();
-            GD.Print(System.FormattableString.Invariant($"fps-log: present frame delay {rd?.GetFrameDelay() ?? 0}, swapchain {ProjectSettings.GetSetting("rendering/rendering_device/vsync/swapchain_image_count")}, frame queue {ProjectSettings.GetSetting("rendering/rendering_device/vsync/frame_queue_size")}, vsync {DisplayServer.WindowGetVsyncMode()}, max fps {Engine.MaxFps}; audio output latency {AudioServer.GetOutputLatency() * 1000:0.0} ms (asked {ProjectSettings.GetSetting("audio/driver/output_latency")}), mix rate {AudioServer.GetMixRate()}; physics {Engine.PhysicsTicksPerSecond}/s"));
+            I76.Game.Boot.RunLog.Print(System.FormattableString.Invariant($"fps-log: present frame delay {rd?.GetFrameDelay() ?? 0}, swapchain {ProjectSettings.GetSetting("rendering/rendering_device/vsync/swapchain_image_count")}, frame queue {ProjectSettings.GetSetting("rendering/rendering_device/vsync/frame_queue_size")}, vsync {DisplayServer.WindowGetVsyncMode()}, max fps {Engine.MaxFps}; audio output latency {AudioServer.GetOutputLatency() * 1000:0.0} ms (asked {ProjectSettings.GetSetting("audio/driver/output_latency")}), mix rate {AudioServer.GetMixRate()}; physics {Engine.PhysicsTicksPerSecond}/s"));
         }
         _logT += delta; _logFrames++; _logSum += delta; _logSq += delta * delta; _logMax = System.Math.Max(_logMax, delta);
         if (_logT < 2) return;
         double mean = _logSum / _logFrames, sd = System.Math.Sqrt(System.Math.Max(0, _logSq / _logFrames - mean * mean));
-        GD.Print($"fps-log: {_logFrames / _logT:0.0} fps, {(Ticks - _logTicks0) / _logT:0.0} ticks/s (tick {Tick * 1000:0.0} ms, {1 / Tick:0.0} Hz), frame ms mean {mean * 1000:0.0} sd {sd * 1000:0.0} max {_logMax * 1000:0.0}, alpha {Alpha:0.00}");
+        I76.Game.Boot.RunLog.Print($"fps-log: {_logFrames / _logT:0.0} fps, {(Ticks - _logTicks0) / _logT:0.0} ticks/s (tick {Tick * 1000:0.0} ms, {1 / Tick:0.0} Hz), frame ms mean {mean * 1000:0.0} sd {sd * 1000:0.0} max {_logMax * 1000:0.0}, alpha {Alpha:0.00}");
+        I76.Game.Boot.RunLog.Flush();   // (in play, every two seconds: the run log's lines written as they come)
         _logT = _logSum = _logSq = _logMax = 0; _logFrames = 0; _logTicks0 = Ticks;
     }
 

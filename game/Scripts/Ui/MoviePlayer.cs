@@ -176,7 +176,7 @@ public partial class MoviePlayer : CanvasLayer
                 _hifi = new AudioStreamPlayer { Stream = stream, Name = "HiFiSound", Bus = I76.Game.Boot.Main.MovieBus() };
                 AddChild(_hifi);
                 _hifiInfo = (entry, ogg.Seconds, ownSeconds);
-                GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio {entry} ({ogg.Channels} ch, {ogg.Rate} Hz, {ogg.Samples} samples, {ogg.Seconds:0.000} s) "
+                I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio {entry} ({ogg.Channels} ch, {ogg.Rate} Hz, {ogg.Samples} samples, {ogg.Seconds:0.000} s) "
                     + $"in place of its own track ({_movie.SampleRate(0)} Hz, {(_movie.Is16Bit(0) ? 16 : 8)}-bit {(_movie.Stereo(0) ? "stereo" : "mono")}, {own} samples, {ownSeconds:0.000} s; "
                     + $"the picture {_movie.FrameCount} frames, {_movie.FrameCount * _movie.FrameDuration:0.000} s)");
             }
@@ -300,10 +300,10 @@ public partial class MoviePlayer : CanvasLayer
         if (_skipAfter >= 0 && _skipAfter-- == 0)
         {
             // as a key: not while the mission loads under the picture (dropped, not kept)
-            if (IsLoading) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP while the mission loads, not a skip");
-            else { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
+            if (IsLoading) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP while the mission loads, not a skip");
+            else { I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_SKIP skips it{(IsWaiting ? " (kept until the mission is ready)" : "")}"); if (Skip() || _held) return; }
         }
-        if (_endAfter >= 0 && _endAfter-- == 0) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_END runs it out"); RunOut(); return; }
+        if (_endAfter >= 0 && _endAfter-- == 0) { I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_END runs it out"); RunOut(); return; }
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare
         if (_hold >= 0 && _frames.IsEmpty && !_decoded) _clock.Set(_clock.Seconds - delta);   // (a capture runs faster than real time: wait for the decoder)
         if (_hold >= 0 && _clock.Seconds >= _hold * _movie.FrameDuration) _clock.Set(_hold * _movie.FrameDuration);
@@ -371,7 +371,7 @@ public partial class MoviePlayer : CanvasLayer
         double frame = (_movie.FrameCount - 1) * _movie.FrameDuration, end = _movie.FrameCount * _movie.FrameDuration;
         double wall = System.Diagnostics.Stopwatch.GetElapsedTime(_hifiStart).TotalSeconds;
         string heard = Heard() is { } h ? $"{h:0.000} s ({Signed((h - frame) * 1000, "0.0")} ms)" : "over";
-        GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio sync: last frame {_movie.FrameCount - 1} (due {frame:0.000} s) up at clock {_clock.Seconds:0.000} s, "
+        I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio sync: last frame {_movie.FrameCount - 1} (due {frame:0.000} s) up at clock {_clock.Seconds:0.000} s, "
             + $"the track heard at {heard}, wall {wall:0.000} s; the track ends at {_hifiInfo.Seconds:0.000} s, the picture at {end:0.000} s "
             + $"({Signed((_hifiInfo.Seconds - end) * 1000, "0.0")} ms, {Signed((_hifiInfo.Seconds - end) / _movie.FrameDuration, "0.00")} frames), its own track at {_hifiInfo.Own:0.000} s");
     }
@@ -422,7 +422,7 @@ public partial class MoviePlayer : CanvasLayer
         // only a new press made while the movie plays: one already down as it started (the key, click or button that started
         // the mission) must be let go first; and none while the mission still loads under it (dropped, not kept for later)
         bool loading = IsLoading;
-        if (!_gate.Press(input, loading)) { GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {input} {(loading ? "pressed while the mission loads" : "was down as it started")}, not a skip"); return; }
+        if (!_gate.Press(input, loading)) { I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: {input} {(loading ? "pressed while the mission loads" : "was down as it started")}, not a skip"); return; }
         Skip();
     }
 
@@ -440,7 +440,7 @@ public partial class MoviePlayer : CanvasLayer
             }
             bool down = frame == at;
             if (!down && frame != at + 1) continue;
-            if (down) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_INPUT sends {what}");
+            if (down) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_INPUT sends {what}");
             if (Scripted(what, down) is { } e) Input.ParseInputEvent(e);
         }
     }
@@ -476,7 +476,7 @@ public partial class MoviePlayer : CanvasLayer
         Skipped = true;
         if (!_skipWanted) I76.Game.World.MissionBuilder.Trace($"movie: skip pressed ({(IsWaiting ? "the mission not ready" : "the mission ready")})");
         if (!IsWaiting) { Finish(); return true; }
-        if (!_skipWanted) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: skip asked for, kept until the mission is ready");
+        if (!_skipWanted) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: skip asked for, kept until the mission is ready");
         _skipWanted = true;
         _tag?.FadeIn();
         return false;
@@ -490,7 +490,7 @@ public partial class MoviePlayer : CanvasLayer
     /// </summary>
     private void RunOut()
     {
-        if (IsWaiting) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: over before the mission is ready, the loading card follows");
+        if (IsWaiting) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: over before the mission is ready, the loading card follows");
         Finish();
     }
 
@@ -502,12 +502,12 @@ public partial class MoviePlayer : CanvasLayer
         _dueSeconds = double.NaN;
         _tag?.ShowNow();   // (the rest of the load follows on the main thread: no frames for a fade)
         _stop = true;   // (the decoder is done with: only the frame shown stays)
-        if (_movie is not null && _video is null) GD.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
+        if (_movie is not null && _video is null) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
         _out = null;
         GetNodeOrNull<AudioStreamPlayer>("Sound")?.Stop();
         _hifi?.Stop();
         if (_video is not null) _video.Paused = true;
-        GD.Print($"movie {System.IO.Path.GetFileName(Path)}: {why}, its frame held until the mission can start");
+        I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: {why}, its frame held until the mission can start");
     }
 
     /// <summary>
@@ -518,7 +518,7 @@ public partial class MoviePlayer : CanvasLayer
     {
         if (_tag is null || Loading is null || _skipWanted || _held) return;
         var (says, faint) = StandByLine.For(_video is not null || _started, !IsWaiting, false);
-        if (says == StandByLine.Says.Ready && !_toldReady) { _toldReady = true; GD.Print($"movie {System.IO.Path.GetFileName(Path)}: the mission ready, READY: a press starts it"); }
+        if (says == StandByLine.Says.Ready && !_toldReady) { _toldReady = true; I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: the mission ready, READY: a press starts it"); I76.Game.Boot.RunLog.Flush(); }
         _tag.Show(says, faint);
     }
 
@@ -544,6 +544,8 @@ public partial class MoviePlayer : CanvasLayer
     private System.IO.StreamWriter? _paceOut;
     private double _paceStart, _paceLast;
 
+    private static readonly bool PacePipes = System.Environment.GetEnvironmentVariable("I76_MOVIE_PACE_PIPES") == "1";
+
     private void PaceRow(double wall, int shown)
     {
         if (PaceLog is null) return;
@@ -555,7 +557,8 @@ public partial class MoviePlayer : CanvasLayer
                 string path = PaceLog;
                 for (int n = 2; System.IO.File.Exists(path) && _paceFiles.Contains(path); n++) path = PaceLog.Replace(".csv", $".{n}.csv");
                 _paceFiles.Add(path);
-                _paceOut = new System.IO.StreamWriter(path, false);
+                // (rows kept in a big buffer: written when it fills or the movie ends, not every frame)
+                _paceOut = new System.IO.StreamWriter(path, false, System.Text.Encoding.UTF8, 1 << 22);
                 _paceOut.WriteLine("t_ms,frame_ms,shown,clock_ms,heard_ms,offset_ms,gc0,gc1,gc2,gc_pause_ms,pipelines,tex_mb,buf_mb,draw_ms,loading,stage");
                 // the renderer's part of each frame: from its pre-draw to its post-draw signal (the queued calls of other threads run in it)
                 RenderingServer.Singleton.FramePreDraw += PacePreDraw;
@@ -565,14 +568,20 @@ public partial class MoviePlayer : CanvasLayer
             _paceStart = _paceLast = wall;
         }
         double heard = _out is not null && _audioClock is { } ac ? ac.Heard(_out.GetFramesAvailable()) : double.NaN;
-        long pipes = 0;
-        foreach (var k in new[] { RenderingServer.RenderingInfo.PipelineCompilationsCanvas, RenderingServer.RenderingInfo.PipelineCompilationsMesh,
+        long pipes = -1;   // I76_MOVIE_PACE_PIPES=1: the renderer's pipeline count and video memory (each read waits for its thread: off by default)
+        if (PacePipes)
+        {
+            pipes = 0;
+            foreach (var k in new[] { RenderingServer.RenderingInfo.PipelineCompilationsCanvas, RenderingServer.RenderingInfo.PipelineCompilationsMesh,
                      RenderingServer.RenderingInfo.PipelineCompilationsSurface, RenderingServer.RenderingInfo.PipelineCompilationsDraw, RenderingServer.RenderingInfo.PipelineCompilationsSpecialization })
-            pipes += (long)RenderingServer.GetRenderingInfo(k);
+                pipes += (long)RenderingServer.GetRenderingInfo(k);
+        }
         var inv = System.Globalization.CultureInfo.InvariantCulture;
+        double texMb = PacePipes ? Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576.0 : -1;
+        double bufMb = PacePipes ? Performance.GetMonitor(Performance.Monitor.RenderBufferMemUsed) / 1048576.0 : -1;
         _paceOut.WriteLine(string.Create(inv, $"{(wall - _paceStart) * 1000:0.00},{(wall - _paceLast) * 1000:0.00},{shown},{_clock.Seconds * 1000:0.0},{heard * 1000:0.0},{(_clock.Seconds - heard) * 1000:0.0},"
             + $"{System.GC.CollectionCount(0)},{System.GC.CollectionCount(1)},{System.GC.CollectionCount(2)},{System.GC.GetTotalPauseDuration().TotalMilliseconds:0.00},{pipes},"
-            + $"{Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576.0:0.00},{Performance.GetMonitor(Performance.Monitor.RenderBufferMemUsed) / 1048576.0:0.00},"
+            + $"{texMb:0.00},{bufMb:0.00},"
             + $"{_paceDraw * 1000:0.00},{(IsLoading ? 1 : 0)},\"{I76.Game.World.MissionBuilder.LastStage.Replace("\"", "'")}\""));
         _paceLast = wall;
         _paceDraw = 0;
@@ -603,22 +612,22 @@ public partial class MoviePlayer : CanvasLayer
         _dueSeconds = double.NaN;
         _stop = true;
         if (_hifi is not null && !_hifiTold && _started)
-            GD.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio: ended at clock {_clock.Seconds:0.000} s (frame {_clock.Frame} of {_movie.FrameCount}), the track heard at {(Heard() is { } h ? $"{h:0.000} s" : "its end")}");
+            I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio: ended at clock {_clock.Seconds:0.000} s (frame {_clock.Frame} of {_movie.FrameCount}), the track heard at {(Heard() is { } h ? $"{h:0.000} s" : "its end")}");
         if (_movie is not null && _video is null)
         {
             long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;
             Last = (_shown, _dropped, _late, _worstShowGap * 1000, skips);
-            GD.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} mixes{Sync()}");
+            I76.Game.Boot.RunLog.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} mixes{Sync()}");
             if (_pace is not null)
             {
                 var (late, lateBy) = _pace.Late();
                 LastPace = (_pace.Frames, late, lateBy * 1000, _pace.WorstFrame * 1000);
-                GD.Print($"movie pace: {System.IO.Path.GetFileName(Path)}: {_pace.Frames} frames, {late} came up over {MoviePace.LateFrames} frame times late (the latest {lateBy * 1000:0} ms), the game's longest frame {_pace.WorstFrame * 1000:0} ms");
+                I76.Game.Boot.RunLog.Print($"movie pace: {System.IO.Path.GetFileName(Path)}: {_pace.Frames} frames, {late} came up over {MoviePace.LateFrames} frame times late (the latest {lateBy * 1000:0} ms), the game's longest frame {_pace.WorstFrame * 1000:0} ms");
             }
         }
         ClosePace();
         if (_video is not null)
-            GD.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
+            I76.Game.Boot.RunLog.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
         _video?.Stop();
         // a decoder stuck inside a frame is left to itself (a background thread) rather than holding the game
         if (_thread is null || _thread.Join(1000)) _movie?.Dispose();
@@ -675,7 +684,7 @@ public partial class MoviePlayer : CanvasLayer
         // capture hook: I76_MOVIE_SHOT=out.png@seconds saves the window at that point of the movie
         if (System.Environment.GetEnvironmentVariable("I76_MOVIE_SHOT") is { } shot && shot.LastIndexOf('@') is > 0 and var at
             && double.TryParse(shot[(at + 1)..], System.Globalization.CultureInfo.InvariantCulture, out double t)) { _shotPath = shot[..at]; _shotAt = t; }
-        GD.Print($"movie: {System.IO.Path.GetFileName(Path)} replaced by {System.IO.Path.GetFileName(ogv)} ({video.GetStreamLength():0.0} s, {size.X}x{size.Y})");
+        I76.Game.Boot.RunLog.Print($"movie: {System.IO.Path.GetFileName(Path)} replaced by {System.IO.Path.GetFileName(ogv)} ({video.GetStreamLength():0.0} s, {size.X}x{size.Y})");
         return true;
     }
 
@@ -703,13 +712,13 @@ public partial class MoviePlayer : CanvasLayer
         double pos = _video.StreamPosition, now = Wall();
         Due((System.Math.Floor(pos * ReplacementFps) + 1) / ReplacementFps - pos);
         // the screen's pace under the video: frames that came later than two of its frames (1/15 s at 30 fps)
-        if (_lastStep > 0 && now - _lastStep > 1 / 15.0) { _lateFrames++; _worstGap = Math.Max(_worstGap, now - _lastStep); if (_videoLog) GD.Print($"movie: late frame {(now - _lastStep) * 1000:0} ms at {pos:0.000} s"); }
-        if (_videoLog && (int)(now - _videoStart) != (int)(_lastStep - _videoStart)) GD.Print($"movie: stream {pos:0.000} s at wall {now - _videoStart:0.000} s");
+        if (_lastStep > 0 && now - _lastStep > 1 / 15.0) { _lateFrames++; _worstGap = Math.Max(_worstGap, now - _lastStep); if (_videoLog) I76.Game.Boot.RunLog.Print($"movie: late frame {(now - _lastStep) * 1000:0} ms at {pos:0.000} s"); }
+        if (_videoLog && (int)(now - _videoStart) != (int)(_lastStep - _videoStart)) I76.Game.Boot.RunLog.Print($"movie: stream {pos:0.000} s at wall {now - _videoStart:0.000} s");
         _lastStep = now;
         if (_shotAt >= 0 && pos >= _shotAt)
         {
             GetViewport().GetTexture().GetImage().SavePng(_shotPath);
-            GD.Print($"movie: shot at {pos:0.000} s of the stream, {Wall() - _videoStart:0.000} s of wall clock");
+            I76.Game.Boot.RunLog.Print($"movie: shot at {pos:0.000} s of the stream, {Wall() - _videoStart:0.000} s of wall clock");
             _shotAt = -1;
         }
         int ms = (int)(pos * 1000);
