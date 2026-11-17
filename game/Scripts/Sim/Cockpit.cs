@@ -333,6 +333,31 @@ public partial class Cockpit : Node
         if (Audio?.Get(name) is { } s) Node3D.OneShot(s);
     }
 
+    /// <summary>
+    /// I76_PANELS_CHECK=1 (or quit: the game quits after it): the first frame's panels as the workers drew them compared byte for
+    /// byte with the same panels drawn again here on the main thread, the way play draws them; one line says which differ.
+    /// </summary>
+    private static readonly string? PanelsCheck = System.Environment.GetEnvironmentVariable("I76_PANELS_CHECK") is { Length: > 0 } pc && pc != "0" ? pc : null;
+
+    private void CheckPanels(bool pit)
+    {
+        var names = new[] { "zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map", "zspeedo6.map", "ztach6.map" };
+        var worker = names.ToDictionary(n => n, n => Panels.WorkBytes(n));
+        var specRows = _specRows;   // (the housings chosen at random on the first draw kept, as the weapons' are)
+        ResetPanels();
+        _specRows = specRows;
+        _repaintWeapons = _repaintSpecials = true;
+        Gear(); Compass(); DamagePanel(); SpecialsPanel();
+        if (!pit || !Node3D.Dash3D && !Binoculars) Gauges();
+        WeaponsPanel();
+        var drawn = names.Where(n => worker[n] is not null).ToList();
+        var differ = drawn.Where(n => Panels.WorkBytes(n) is not { } m || !m.AsSpan().SequenceEqual(worker[n])).ToList();
+        I76.Game.Boot.RunLog.Print($"panels check: {Car.Definition} {(_faithful ? "1997" : "modern")} look: {drawn.Count} panels drawn on workers, "
+            + (differ.Count == 0 ? "all identical to the main thread's draw" : $"DIFFERENT: {string.Join(", ", differ)}") + $" ({string.Join(", ", drawn)})");
+        I76.Game.Boot.RunLog.Flush();
+        if (PanelsCheck == "quit") GetTree().Quit();
+    }
+
     /// <summary>The panels the cockpit's first frame draws whatever the view (FirstFrameSteps).</summary>
     private static readonly string[] FirstPanels = ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map"];
 
@@ -364,17 +389,14 @@ public partial class Cockpit : Node
             yield return job;
             job.GetAwaiter().GetResult();
         }
-        foreach (var step in Draw(() => { Gear(); Compass(); }, "zgear101.map", "zcm_.map")) yield return step;
-        yield return null;
-        foreach (var step in Draw(DamagePanel, "zsy_.map")) yield return step;
-        yield return null;
-        foreach (var step in Draw(SpecialsPanel, "zbks_.map")) yield return step;
-        yield return null;
         Radar();
         yield return null;
-        if (!pit || !Node3D.Dash3D && !Binoculars) foreach (var step in Draw(Gauges, "zspeedo6.map", "ztach6.map")) yield return step;
-        yield return null;
-        foreach (var step in Draw(WeaponsPanel, "zbk_.map")) yield return step;
+        // the rest in one go on a worker (one wait for all of them, not one a panel); a panel whose texture is not made is drawn here
+        bool gauges = !pit || !Node3D.Dash3D && !Binoculars;
+        foreach (var step in Draw(() => { Gear(); Compass(); DamagePanel(); SpecialsPanel(); if (gauges) Gauges(); WeaponsPanel(); },
+            gauges ? ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map", "zspeedo6.map", "ztach6.map"] : ["zgear101.map", "zcm_.map", "zsy_.map", "zbks_.map", "zbk_.map"]))
+            yield return step;
+        if (PanelsCheck is not null) CheckPanels(pit);
         I76.Game.World.MissionBuilder.Trace("cockpit first frame: drawn");
         yield return null;
         Panels.Commit();

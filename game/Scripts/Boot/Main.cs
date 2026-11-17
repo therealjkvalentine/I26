@@ -1261,9 +1261,12 @@ public partial class Main : Node3D
         int others = setup.Cars.Count(c => c.Item3 != world.Player), otherMade = 0;
         foreach (var (p, carDef, vehicle) in setup.Cars)
         {
+            long c0 = System.Diagnostics.Stopwatch.GetTimestamp();
             var node = MakeNode(vehicle, carDef);
+            long c1 = System.Diagnostics.Stopwatch.GetTimestamp();
             MissionBuilder.Trace($"spawn: car {carDef}");
             if (vehicle != world.Player) I76.Game.Ui.LoadProgress.Part(I76.Game.Ui.LoadProgressModel.CarsMade, ++otherMade, others);   // the progress a car at a time
+            if (SlowStepMs > 0) RunLog.Print($"car step {carDef}: made {(c1 - c0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms, stamped {(System.Diagnostics.Stopwatch.GetTimestamp() - c1) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms");
             yield return null;   // a car a step
             if (vehicle != world.Player) continue;
             pos = vehicle.Pos.ToVector3(); def = carDef;
@@ -1281,7 +1284,7 @@ public partial class Main : Node3D
         // the player's car's wreck and the other cars' (built once) on a worker, the fire's materials here
         var wrecks = damageView.PrewarmWrecksBeside(_car, setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);
         yield return null;
-        if (_car is not null) DamageView.PrewarmFire();
+        if (_car is not null && I76.Game.Sim.WreckFire.Enabled) foreach (var step in I76.Game.Sim.WreckFire.Shared.InitSteps()) yield return step;
         MissionBuilder.Trace("spawn: fire prewarmed");
         MissionBuilder.Trace("spawn: car prewarmed");
         yield return wrecks;
@@ -2135,7 +2138,7 @@ public partial class Main : Node3D
             }
             else if (step == DrawnFrame || (budgetMs > 0 && sw.Elapsed.TotalMilliseconds >= _stepBudget
                 // under a playing movie, steps go on in the same frame while its next picture is far enough off (I76_STEP_FILL=0: one budget a frame)
-                && !(StepFill && gate is not null && _stepBudget < AttachAfterMovieBudgetMs && MoviePlayer.NextFrameMs is { } left && left >= StepRoomMs)))
+                && !(StepFill && gate is not null && _stepBudget < AttachAfterMovieBudgetMs && sw.Elapsed.TotalMilliseconds < StepFillMs && MoviePlayer.NextFrameMs is { } left && left >= StepRoomMs)))
             {
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!IsInsideTree()) return;
@@ -2152,6 +2155,8 @@ public partial class Main : Node3D
     /// (I76_STEP_FILL=0: a frame ends at the budget, as before).
     /// </summary>
     private static readonly bool StepFill = System.Environment.GetEnvironmentVariable("I76_STEP_FILL") != "0";
+    /// <summary>I76_STEP_FILL_MS: the most milliseconds of steps a filled frame runs (default: no limit but the movie's room).</summary>
+    private static readonly double StepFillMs = double.TryParse(System.Environment.GetEnvironmentVariable("I76_STEP_FILL_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double sf) ? sf : double.PositiveInfinity;
     /// <summary>I76_SLOW_STEP_MS (0: off): a load step longer than this printed with where it ran (RunSteps).</summary>
     private static readonly double SlowStepMs = double.TryParse(System.Environment.GetEnvironmentVariable("I76_SLOW_STEP_MS"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double ss) ? ss : 0;
     /// <summary>The room a step needs before the playing movie's next frame to start (MoviePlayer.NextFrameMs), milliseconds.</summary>
@@ -2312,9 +2317,6 @@ public partial class Main : Node3D
             foreach (var _ in fx.WarmSteps(stage.GlobalPosition)) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             for (int i = 0; i < 3; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             MissionBuilder.Trace("card: modern effects made");
-            // the wrecks' fire (its particle materials and their shaders): a frame of 0.2 s when the player's car was set up under the briefing
-            I76.Game.Sim.DamageView.PrewarmFire();
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         }
         catch (System.Exception ex) { GD.PushWarning($"effects under the card: {ex.Message}"); }
         finally { if (IsInstanceValid(stage)) stage.QueueFree(); }
@@ -3980,6 +3982,7 @@ public partial class Main : Node3D
     /// </summary>
     public override void _ExitTree()
     {
+        RunLog.Flush();
         if (Controls.Held == _held) Controls.Held = null;   // (a reloaded scene may have set its own already)
         // the other look's pictures kept for F12 go with the mission (the restart cache keeps the look shown)
         if (_builder?.Textures?.ReleaseOtherLook() is > 0 and var freed) GD.Print($"look change: the other look's pictures let go, {freed >> 20} MB");

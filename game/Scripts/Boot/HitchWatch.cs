@@ -22,6 +22,8 @@ public static class Hitch
     /// for the renderer, a long step's frame about twice as long (a playing briefing's picture held that much longer).
     /// </summary>
     private static readonly bool PipesOn = System.Environment.GetEnvironmentVariable("I76_HITCH_PIPES") == "1";
+    /// <summary>I76_HITCH_READS=1: the counts read every frame as before (for measuring what leaving them out gives).</summary>
+    private static readonly bool ReadsEveryFrame = System.Environment.GetEnvironmentVariable("I76_HITCH_READS") == "1";
     private static long[] _kinds = new long[5];
 
     /// <summary>The render pipelines compiled so far, by kind: canvas, mesh (at load), surface (first draw), draw (a stall in the draw call), specialization (in the background).</summary>
@@ -89,7 +91,7 @@ public static class Hitch
             if (LimitMs < 200 && PipesOn) { var now = Kinds(); line += $" pipelines {now.Sum() - _pipes} (total {now.Sum()}; canvas/mesh/surface/draw/specialization {string.Join('/', now.Select((n, k) => n - _kinds[k]))})"; }
             if (LimitMs < 200) line += $" [terrain update {I76.Game.Boot.FrameProfiler.TerrainUpdateMs:0.0} ms, gc0 {GC.CollectionCount(0)} gc2 {GC.CollectionCount(2)}]";
         }
-        if (LimitMs < 200 && PipesOn) { KindsInto(_kinds); long p = 0; foreach (long k in _kinds) p += k; _pipes = p; }
+        if (LimitMs < 200 && PipesOn || ReadsEveryFrame) { KindsInto(_kinds); long p = 0; foreach (long k in _kinds) p += k; _pipes = p; }
         if (reset) { Array.Clear(Ticks); Array.Clear(Worst); }
         return line;
     }

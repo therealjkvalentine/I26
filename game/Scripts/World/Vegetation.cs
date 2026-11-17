@@ -605,6 +605,19 @@ public partial class VegetationNode : Node3D
         }
         if (sliced) MissionBuilder.Trace("veg: chunks attached");
         yield return null;
+        // the attached chunks' tiers set a few milliseconds at a time (all at once in Update below, a frame of 0.2 s under a briefing)
+        if (sliced)
+        {
+            slice.Restart();
+            foreach (var c in _chunks.Values.ToList())
+            {
+                if (!c.Attached) continue;
+                Refresh(c, ChunkDistance(c.Cx, c.Cz, c.Layer, eye), eye);
+                if (slice.Elapsed.TotalMilliseconds > 8) { yield return null; slice.Restart(); }
+            }
+            MissionBuilder.Trace("veg: tiers");
+            yield return null;
+        }
         Update(eye, attachAll: true);
         GD.Print($"vegetation: {made.Length} chunks placed and attached in {sw.ElapsedMilliseconds} ms, {Instances} plants");
         if (System.Environment.GetEnvironmentVariable("I76_VEG_STATS") == "1")
@@ -722,6 +735,19 @@ public partial class VegetationNode : Node3D
 
     /// <summary>The tier each of a chunk's plants is drawn at: all one when the chunk lies within one tier's band, else split plant by plant.</summary>
     private const int Hidden = 4;
+
+    /// <summary>An attached chunk at <paramref name="d"/> from the eye: its shade, its shadow casting, its grass and whether it is drawn, then its tier.</summary>
+    private void Refresh(Chunk c, float d, System.Numerics.Vector3 eye)
+    {
+        if (c.ShadeNode is { } sn && sn.Visible != (PlantsOn && d < _level.ShadeEnd)) sn.Visible = !sn.Visible;
+        bool cast = c.Layer == VegLayer.Shrub && d < _level.ShadowRange;
+        if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
+        if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
+        // a chunk wholly beyond its plants' fade draws nothing (every plant would be dithered away)
+        bool drawn = d <= Reach(c.Layer);
+        if (drawn != c.Drawn) { c.Drawn = drawn; c.Tier = -1; }
+        Retier(c, eye);
+    }
 
     private void Retier(Chunk c, System.Numerics.Vector3 eye)
     {
@@ -932,14 +958,7 @@ public partial class VegetationNode : Node3D
             float d = ChunkDistance(c.Cx, c.Cz, c.Layer, eye);
             if (d > Reach(c.Layer) + 80f && c.Job is { IsCompleted: true }) { (drop ??= []).Add(key); continue; }
             if (!c.Attached) continue;
-            if (c.ShadeNode is { } sn && sn.Visible != (PlantsOn && d < _level.ShadeEnd)) sn.Visible = !sn.Visible;
-            bool cast = c.Layer == VegLayer.Shrub && d < _level.ShadowRange;
-            if (cast != c.Casting) { c.Casting = cast; c.Tier = -1; }
-            if (c.Layer == VegLayer.Ground && GrassReach(c, d) != c.GrassOn) c.Tier = -1;
-            // a chunk wholly beyond its plants' fade draws nothing (every plant would be dithered away)
-            bool drawn = d <= Reach(c.Layer);
-            if (drawn != c.Drawn) { c.Drawn = drawn; c.Tier = -1; }
-            Retier(c, eye);
+            Refresh(c, d, eye);
             if (count)
             {
                 foreach (var g in c.Groups) foreach (var n in g.Nodes) if (n is { Visible: true }) nodes++;

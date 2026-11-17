@@ -145,6 +145,9 @@ public sealed class CockpitPanels(EltLayout layout, I76.Formats.Assembly.Texture
         }
     }
 
+    /// <summary>A copy of a dst texture's texels as drawn so far (null: not made), for a check of two ways of drawing (Cockpit's I76_PANELS_CHECK).</summary>
+    public byte[]? WorkBytes(string dst) => _targets.GetValueOrDefault(dst) is { } t ? (byte[])t.WorkBytes.Clone() : null;
+
     /// <summary>Whether a dst texture's live copy was made (or found not to be): a draw on it makes no engine resource.</summary>
     public bool Made(string dst) => _targets.ContainsKey(dst);
 

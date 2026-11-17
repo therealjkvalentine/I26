@@ -165,9 +165,12 @@ public partial class WreckFire : Node3D
         public static Mesh FlameMesh = null!, SmokeMesh = null!, EmberMesh = null!;
         private static bool _done;
 
-        public static void Init()
+        public static void Init() { foreach (var _ in InitSteps()) { } }
+
+        /// <summary><see cref="Init"/> a material at a time, a <c>null</c> between (a mission attaching under its briefing: all at once was a 0.2 s frame).</summary>
+        public static System.Collections.Generic.IEnumerable<object?> InitSteps()
         {
-            if (_done) return;
+            if (_done) yield break;
             _done = true;
             // flames: tongues licking up off the hull, buoyant, quick
             FlameProc = new ParticleProcessMaterial
@@ -189,6 +192,7 @@ public partial class WreckFire : Node3D
                 AngleMin = -180, AngleMax = 180, AngularVelocityMin = -14, AngularVelocityMax = 14,
                 ScaleMin = 1.2f, ScaleMax = 1.9f, ScaleCurve = Curve1((0, 0.55f), (0.4f, 2.1f), (1, 4.2f)), LifetimeRandomness = 0.25f,
             };
+            yield return null;
             var smoke = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/wreck_smoke.gdshader") };
             if (ModernFx.LoadVfx("WispySmoke01_8x8.tga") is { } wisp)
             {
@@ -198,6 +202,7 @@ public partial class WreckFire : Node3D
             SmokeMesh = new QuadMesh { Size = new Vector2(1.4f, 1.4f), Material = smoke };
 
             // embers: sparks drifting up out of the fire, swirling, burning out
+            yield return null;
             EmberProc = new ParticleProcessMaterial
             {
                 EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box, EmissionBoxExtents = Vector3.One,
