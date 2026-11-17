@@ -1153,31 +1153,28 @@ public partial class Main : Node3D
         yield return setupJob;
         var setup = setupJob.GetAwaiter().GetResult();
         MissionBuilder.Trace("spawn: sim world set up");
-        // the install's identity for the snapshots (its files read and hashed) on a worker
-        ulong installId = 0;
-        if (_opt.Install is { } installDir)
-        {
-            string mission = _opt.Mission ?? "";
-            var hashing = I76.Game.Boot.Beside.Run(() => installId = I76.Sim.Save.SessionBuild.InstallIdentity(new GameInstall(installDir), mission));
-            yield return hashing;
-            hashing.GetAwaiter().GetResult();
-        }
-        yield return null;
         var world = setup.World;
         _devStart = world.Player is { } startCar ? (startCar.Pos.X, startCar.Pos.Z, I76.Sim.Session.DevTools.HeadingOf(startCar.Rot.Forward)) : null;
-        var session = new I76.Sim.Session.SimSession(setup, I76.Sim.Session.SessionOptions.SinglePlayer,
-            // the setting applies from this mission start; a checkpoint's retry runs at the checkpoint's rate
-            _retry is { } retryOf ? I76.Sim.Save.SnapshotHeader.Read(retryOf.Snapshot).Rate
-            : I76.Sim.Session.SimRate.FromLabel(replay?.Rate ?? I76.Game.Shell.ShellSettings.Load().SimRate))
+        // the session (the simulation's own objects: no engine resource) and the install's identity for its snapshots (the install's
+        // files read and hashed) made on a worker, the main thread's settings read here first
+        var rate = _retry is { } retryOf ? I76.Sim.Save.SnapshotHeader.Read(retryOf.Snapshot).Rate
+            : I76.Sim.Session.SimRate.FromLabel(replay?.Rate ?? I76.Game.Shell.ShellSettings.Load().SimRate);   // a checkpoint's retry runs at the checkpoint's rate
+        var build = new I76.Sim.Save.SessionBuild
         {
             // what the mission was built from, which its snapshots carry and a restore checks (docs/savestate.md)
-            Build = new I76.Sim.Save.SessionBuild
-            {
-                Mission = (_opt.Mission ?? "").ToLowerInvariant(),
-                Install = installId,
-                Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster,
-            },
+            Mission = (_opt.Mission ?? "").ToLowerInvariant(),
+            Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster,
         };
+        string? installDir = _opt.Install, missionName = _opt.Mission ?? "";
+        I76.Sim.Session.SimSession session = null!;
+        var making = I76.Game.Boot.Beside.Run(() =>
+        {
+            if (installDir is not null) build = build with { Install = I76.Sim.Save.SessionBuild.InstallIdentity(new GameInstall(installDir), missionName) };
+            session = new I76.Sim.Session.SimSession(setup, I76.Sim.Session.SessionOptions.SinglePlayer, rate) { Build = build };
+        });
+        yield return making;
+        making.GetAwaiter().GetResult();
+        yield return null;
         I76.Game.Sim.SimClock.Rate = session.Rate;
         GD.Print($"sim rate: {session.Rate.Label} Hz, tick {session.TickSeconds.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)} s");
         // a trip mission: the car's carried damage (the vsf, applied at load in trip games), and its salvage pool
@@ -1292,6 +1289,7 @@ public partial class Main : Node3D
         MissionBuilder.Trace("spawn: damage view");
         // the player's car's wreck and the other cars' (built once) on a worker, the fire's materials here
         var wrecks = damageView.PrewarmWrecksBeside(_car, setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);
+        MissionBuilder.Trace("spawn: wrecks started");
         yield return null;
         if (_car is not null && I76.Game.Sim.WreckFire.Enabled) foreach (var step in I76.Game.Sim.WreckFire.Shared.InitSteps()) yield return step;
         MissionBuilder.Trace("spawn: fire prewarmed");
@@ -1472,7 +1470,7 @@ public partial class Main : Node3D
         // costs little (a press on READY to driving 0.25 s). Else, as before, only behind a still picture, the main 3D drawn for it.
         // I76_REHEARSE_UNDER=0: the still picture always.
         bool under = _rehearseUnder && System.Environment.GetEnvironmentVariable("I76_REHEARSE_UNDER") != "0";
-        if (under) SmallWorldView(cam);
+        if (under) { SmallWorldView(cam); yield return null; }
         else yield return StillPicture;
         // the death is rehearsed on a stand-in for the player's car (never in the sim's list, freed after)
         // so the real car is never burnt and restored
@@ -1483,7 +1481,11 @@ public partial class Main : Node3D
             AddChild(stage);
             stage.Init(sv, sp.Body);
             stage.GlobalPosition = away;
-            _damageView?.Warm(stage);
+            MissionBuilder.Trace("rehearsal: stand-in");
+            yield return null;
+            if (_damageView is { } dv) foreach (var step in dv.WarmSteps(stage)) yield return step;
+            MissionBuilder.Trace("rehearsal: stand-in burnt");
+            yield return null;
         }
         // the views' own per-frame code (the cockpit's panels, the HUD, the shadows, the weeds, the combat and damage views) runs for these
         // frames too: its first run is the first frame of play, a 150 ms stall (the code compiled, the panels' textures made)
@@ -1512,7 +1514,8 @@ public partial class Main : Node3D
         MissionBuilder.Trace("rehearsal: made");
         for (int i = 0; i < 4; i++) { yield return DrawnFrame; MissionBuilder.Trace($"rehearsal: frame {i}"); }
         for (int i = 0; i < views.Count; i++) if (IsInstanceValid(views[i])) views[i].ProcessMode = was[i];
-        if (stage is not null) { _damageView?.EndWarm(stage); stage.QueueFree(); }
+        yield return null;
+        if (stage is not null) { _damageView?.EndWarm(stage); yield return null; stage.QueueFree(); yield return null; }
         // the small view stopped, not freed: its freeing was a frame of 0.18 s under the briefing; it goes with the next one made or with Main
         if (_rehearsalView is { } rv)
         {
@@ -1521,6 +1524,7 @@ public partial class Main : Node3D
             _spentView = rv; _rehearsalView = null;
             MissionBuilder.Trace("rehearsal: under the briefing, its view freed");
         }
+        yield return null;
         _combatView?.EndWarm();
         GetTree().Paused = _holdPaused;
         GD.Print($"effects warmed up in {(System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms");
@@ -2345,6 +2349,7 @@ public partial class Main : Node3D
         // and those the rest of the load makes under the briefing (the views, the cockpit, the effects): loaded here, on the still card
         "horizon_ring_depth", "cockpit_mirror", "mirror_rim", "binocular_mask", "drop_shadow_1997", "tracer", "tracer_line_1997", "muzzle_flash",
         "fire_patch", "fireball_tail", "flipbook", "damage_smoke", "damage_smoke_modern", "smoke_layer", "skid_mark", "headlight_glare", "rotor_disc",
+        "wreck_flame", "wreck_smoke", "cluster_fire", "napalm_stream", "static_flame", "cab_clip", "mirror_2d", "panel_edge_2d",
     ];
     private static readonly List<Shader> _builtShaders = [];
 
@@ -3254,7 +3259,7 @@ public partial class Main : Node3D
             _horizon.Finish(_sliceHorizon ? 0 : int.MaxValue);
             MissionBuilder.Trace("horizon built");
             yield return null;
-            PlaceHorizon(sky, light);
+            foreach (var step in PlaceHorizonSteps(sky, light)) yield return step;
             MissionBuilder.Trace("horizon placed");
             yield break;
         }
@@ -3290,11 +3295,15 @@ public partial class Main : Node3D
     }
 
     /// <summary>The finished ring into the scene, and the sky told it is there.</summary>
-    private void PlaceHorizon(ShaderMaterial sky, I76.Formats.Mission.LightPreset light)
+    private void PlaceHorizon(ShaderMaterial sky, I76.Formats.Mission.LightPreset light) { foreach (var _ in PlaceHorizonSteps(sky, light)) { } }
+
+    /// <summary><see cref="PlaceHorizon"/> in parts, a <c>null</c> between them (a mission attaching under its briefing: one step was up to 0.2 s).</summary>
+    private IEnumerable<object?> PlaceHorizonSteps(ShaderMaterial sky, I76.Formats.Mission.LightPreset light)
     {
         var _horizon = this._horizon!;
         _horizon.Position = Coords.ToGodot(_horizon.Centre.X, 0, _horizon.Centre.Y);
         _worldRoot.AddChild(_horizon);
+        yield return null;
         _horizonEyeSet = false;
         SetHorizonEye();
         foreach (var p in new[] { "horizon_color", "sprite_dir", "light_strength" })
@@ -3307,7 +3316,9 @@ public partial class Main : Node3D
         sky.SetShaderParameter("horizon_light", sky.GetShaderParameter("has_horizon"));
         sky.SetShaderParameter("has_horizon", false);
         sky.SetShaderParameter("ground_haze", true);
+        yield return null;
         ApplyDrawDistance();
+        yield return null;
         ApplyLightingCalibration();   // (the haze's gain)
         var msg = $"horizon: 3D, {_horizon.Vertices} vertices, {_horizon.InnerRadius:0}-{_horizon.OuterRadius:0} m, built in {_horizon.BuildMs} ms ({_horizon.Timing})";
         _status += "\n" + msg;
