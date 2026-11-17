@@ -258,6 +258,8 @@ public sealed class MeleeSetup
     public bool HostTurrets { get; set; }
     /// <summary>The Nitro instant melee's driver count in full, beside nituser.mel's clamped one (<see cref="SaveNitroDrivers"/>).</summary>
     public int NitroDrivers { get; set; }
+    /// <summary>The host forms' NO. DRIVERS (LAN and internet, melee and co-op), apart from the instant melee's <see cref="Drivers"/>; 0 until a game has been hosted (the form's 4).</summary>
+    public int HostDrivers { get; set; }
 
     /// <summary>The Nitro form's driver count in full (nituser.mel keeps the original's eight at most), a key of its own so melee.cfg's base-game values stay.</summary>
     public static void SaveNitroDrivers(int drivers)
@@ -270,9 +272,14 @@ public sealed class MeleeSetup
 
     public static MeleeSetup Load()
     {
-        var s = new MeleeSetup();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return s;
+        return c.Load(Path) != Error.Ok ? new MeleeSetup() : Read(SettingsFile.From(c));
+    }
+
+    /// <summary>The setup a file holds (engine-free, for the tests): <see cref="Load"/>'s reading.</summary>
+    public static MeleeSetup Read(SettingsFile c)
+    {
+        var s = new MeleeSetup();
         s.Area = (int)c.GetValue("melee", "area", 0);
         s.Model = (int)c.GetValue("melee", "model", 0);
         s.Variant = (int)c.GetValue("melee", "variant", 1);
@@ -290,12 +297,16 @@ public sealed class MeleeSetup
         s.NitroDrivers = Math.Max(0, (int)c.GetValue("melee", "nitro_drivers", 0));
         s.HostRate = I76.Sim.Session.SimRate.IsOffered((int)c.GetValue("melee", "host_rate", 0)) ? (int)c.GetValue("melee", "host_rate", 0) : 0;
         s.HostTurrets = (bool)c.GetValue("melee", "host_turrets", false);
+        s.HostDrivers = Math.Max(0, (int)c.GetValue("melee", "host_drivers", 0));
         return s;
     }
 
-    public void Save()
+    public void Save() => Write().ToConfig().Save(Path);
+
+    /// <summary>The file's keys (engine-free, for the tests): what <see cref="Save"/> writes.</summary>
+    public SettingsFile Write()
     {
-        var c = new ConfigFile();
+        var c = new SettingsFile();
         c.SetValue("melee", "area", Area);
         c.SetValue("melee", "model", Model);
         c.SetValue("melee", "variant", Variant);
@@ -312,6 +323,7 @@ public sealed class MeleeSetup
         if (HostRate > 0) c.SetValue("melee", "host_rate", HostRate);
         if (HostTurrets) c.SetValue("melee", "host_turrets", true);
         if (NitroDrivers > 0) c.SetValue("melee", "nitro_drivers", NitroDrivers);
-        c.Save(Path);
+        if (HostDrivers > 0) c.SetValue("melee", "host_drivers", HostDrivers);
+        return c;
     }
 }

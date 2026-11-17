@@ -36,7 +36,11 @@ public sealed partial class MeleeScreen
     public static IReadOnlyList<string> Teams => I76.Sim.Missions.MeleeGame.TeamNames;
 
     // the host form (defaults: max score 20000, the flags clear; NO. DRIVERS 4 on the LAN and the internet)
-    private int _drivers = 4, _maxScore = 20000, _port = Protocol.DefaultPort;
+    private int _drivers = DefaultHostDrivers, _maxScore = 20000, _port = Protocol.DefaultPort;
+    public const int DefaultHostDrivers = 4;
+
+    /// <summary>NO. DRIVERS as the host form opens: the count last hosted with (melee.cfg's host_drivers), else 4.</summary>
+    public static int HostDriversOf(MeleeSetup s) => s.HostDrivers > 0 ? Math.Clamp(s.HostDrivers, 1, MaxDrivers) : DefaultHostDrivers;
     /// <summary>
     /// NO. DRIVERS' top (up to <see cref="Protocol.MaxSeats"/>), where the original's was 8: 32, about 4.5 Mbit/s of
     /// upload at the default 20 Hz and 11 at 60, within a home connection with room to spare, and a tick of a millisecond
@@ -167,6 +171,8 @@ public sealed partial class MeleeScreen
     {
         _turrets = Hosting && _setup.HostTurrets;
         Shell.HostTurrets = _turrets;
+        // NO. DRIVERS as last hosted (a co-op form then holds it to its seats below)
+        if (Hosting) _drivers = HostDriversOf(_setup);
         // the Nitro host form opens on the game type and arena it was left on (the index alone named another list's arena)
         if (Nitro && Hosting)
         {

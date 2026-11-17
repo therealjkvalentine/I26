@@ -1557,7 +1557,7 @@ its art.
   melee lists them; four rows shown, where the original shows six, to give the options box its room, the art under the list laid
   higher and GAME NAME and NO. DRIVERS closed up under it; the port's scroll bar down the list's right edge, Graphic Detail's look), GAME NAME (the area's name until RENAME gives it one; left
   empty it is the area's again); the MELEE / CO-OP button at the AREA OF PLAY bar's right end (RENAME's look) switches the game type;
-- NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
+- NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start, then the count last hosted with, kept in melee.cfg as `host_drivers`; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
   what the wire, the screens and i26-server take): the server's seats (below, "Bandwidth"). The form has no room for a note on the upload a
   big game needs, so `MeleeScreen.UploadMbit(players)` (a small table, placeholders until measured) goes to the log line a listen server writes;
 - the options box (the port's layout of the original's: the box runs from NO. DRIVERS' foot rule to the sheet's foot, its paper a
