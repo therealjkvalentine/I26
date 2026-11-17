@@ -65,7 +65,7 @@ public sealed partial class MeleeScreen
         _scroll = Math.Clamp(Area - Rows + 1, 0, Math.Max(0, ListCount - Rows));
     }
 
-    /// <summary>APPLY: the form's setup to the lobby; the mission is remembered as the host form's next co-op mission.</summary>
+    /// <summary>APPLY: the form's setup to the lobby; the mission and NO. DRIVERS are remembered as the host form's next co-op game's.</summary>
     private void ApplyLobby()
     {
         if (Arenas.Count == 0) { Say("There are no story missions."); return; }
@@ -81,6 +81,7 @@ public sealed partial class MeleeScreen
         st.Save();
         _setup.CoopArena = s.Mission;
         _setup.CoopHost = true;
+        _setup.HostDrivers = s.MaxPlayers;
         _setup.Save();
         SetupDone?.Invoke(s);
     }
