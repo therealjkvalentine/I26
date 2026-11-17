@@ -74,6 +74,9 @@ public static class DevSettings
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
     private static readonly string[] MirrorDropNames = [.. MirrorDropSteps.Select(p => p == 125 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorOverlapNames = [.. MirrorOverlapSteps.Select(d => d == 6 ? $"{d}" : $"{d}{M}")];
+    /// <summary>[port] bush_knock's values: off (no knock, as the original, which has no plants a car goes through), then the review's variants A to G.</summary>
+    public static readonly string[] BushKnockNames = ["off", .. I76.Formats.Vegetation.BrushKnock.Variants.Select(v => v.Letter + M)];
+    private static string BushKnockName(string value) => value == "off" ? value : value + M;
     public static int Nearest(int[] steps, int value) => Array.IndexOf(steps, steps.MinBy(p => Math.Abs(p - value)));
 
     /// <summary>target_fps's frame rates offered (0: off, the default); a value set by hand shows as the nearest.</summary>
@@ -150,6 +153,8 @@ public static class DevSettings
         new("effects_opacity", EffectNames, s => NearestStep(s.EffectsOpacity), (s, v) => s.EffectsOpacity = EffectSteps[v], DevWhen.Live),
         new("vegetation_density", VegetationNames, s => NearestVegetationStep(s.VegetationDensity), (s, v) => s.VegetationDensity = VegetationSteps[v], DevWhen.Live),
         new("brush_impacts", ["off", "on" + M], s => s.BrushImpacts ? 1 : 0, (s, v) => s.BrushImpacts = v != 0, DevWhen.Live),
+        new("bush_knock", BushKnockNames, s => Array.IndexOf(BushKnockNames, BushKnockName(ShellSettings.ParseBushKnock(s.BushKnock))),
+            (s, v) => s.BushKnock = BushKnockNames[v].Replace(M, ""), DevWhen.Live),
         new("ordnance_limit", Words(OriginalRecipe.OrdnanceNames), s => s.OrdnanceLimit, (s, v) => s.OrdnanceLimit = v, DevWhen.Live),
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
         // a co-op game hosted from the shell (false, a melee respawn's standing start, is the unmarked one: the original has no co-op)

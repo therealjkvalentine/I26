@@ -1551,6 +1551,15 @@ public sealed class ShellSettings
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
     /// <summary>
+    /// The port's own, without a row: the knock a car going through a bush makes ([port] bush_knock, written when not c): "off" (none,
+    /// as the original, which has no such plants) or a letter of I76.Formats.Vegetation.BrushKnock.Variants, the review's A to G.
+    /// </summary>
+    public string BushKnock { get; set; } = DefaultBushKnock;
+    public const string DefaultBushKnock = "c";
+    /// <summary>[port] bush_knock's value as read: "off" or a variant's letter, lower case; anything else the default.</summary>
+    public static string ParseBushKnock(string? text) =>
+        text?.Trim().ToLowerInvariant() is { } t && (t == "off" || I76.Formats.Vegetation.BrushKnock.VariantOf(t) is not null) ? t : DefaultBushKnock;
+    /// <summary>
     /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
     /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
     /// ground and object tints solved so its ground and cars show the 1997 look's light (I76.Formats.Imaging.LightingCalibration),
@@ -2015,6 +2024,7 @@ public sealed class ShellSettings
         s.LoadUnderBriefing = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "load_under_briefing", true).ToString());
         s.BriefingCardHold = I76.Game.Boot.BriefingOverlap.ParseHold(c.HasSectionKey("port", "briefing_card_hold") ? c.GetValue("port", "briefing_card_hold").ToString() : null);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
+        s.BushKnock = ParseBushKnock(c.HasSectionKey("port", "bush_knock") ? c.GetValue("port", "bush_knock").ToString() : null);
         // [port] load_progress (the loading card's progress wheel, withdrawn for the line under PLEASE STAND BY) is no longer read, as any key this version does not know; Save drops it
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
@@ -2230,6 +2240,7 @@ public sealed class ShellSettings
         if (!LoadUnderBriefing) c.SetValue("port", "load_under_briefing", false);
         if (BriefingCardHold != I76.Game.Boot.BriefingOverlap.DefaultCardHold) c.SetValue("port", "briefing_card_hold", BriefingCardHold);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
+        if (ParseBushKnock(BushKnock) != DefaultBushKnock) c.SetValue("port", "bush_knock", ParseBushKnock(BushKnock));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
         if (!CabinsBehindGlass) c.SetValue("port", "car_interiors", false);

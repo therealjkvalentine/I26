@@ -56,11 +56,13 @@ public static class BrushKnock
 
     /// <summary>
     /// The install's sound a car going through a bush plays: the original's knock for a car running a sign down (vnvco3), which the bush
-    /// shares with the signs, so it is pitched <see cref="DefaultSemitones"/> up and <see cref="DefaultDb"/> quieter to read as a
-    /// brush's crackle and not a sign's knock (the owner's review, section ES). I76_BUSH_KNOCK=name,semitones,dB tries others.
+    /// shares with the signs, so it is pitched <see cref="DefaultSemitones"/> up, <see cref="DefaultDb"/> quieter and started
+    /// <see cref="DefaultStartPercent"/> % in, past its attack, to read as a brush's crackle and not a sign's knock (the owner's
+    /// reviews, sections ES, FL and the variants' review: <see cref="Variants"/> C). shell.cfg [port] bush_knock picks another of
+    /// <see cref="Variants"/>; I76_BUSH_KNOCK=name,semitones,dB,start,length tries any sound on top of it.
     /// </summary>
     public const string DefaultSample = "vnvco3.wav";
-    public const float DefaultSemitones = 9f, DefaultDb = -8f;
+    public const float DefaultSemitones = 12f, DefaultDb = -11f, DefaultStartPercent = 30f, DefaultLengthMs = 0f;
 
     /// <summary>The sound in use (<see cref="DefaultSample"/>).</summary>
     public static string Sample { get; set; } = DefaultSample;
@@ -68,29 +70,152 @@ public static class BrushKnock
     public static float Semitones { get; set; } = DefaultSemitones;
     /// <summary>The level offset in dB on the speed curve (<see cref="DefaultDb"/>).</summary>
     public static float OffsetDb { get; set; } = DefaultDb;
+    /// <summary>Where in the sound it starts, in percent of its length (0 to <see cref="MaxStartPercent"/>; <see cref="DefaultStartPercent"/>): past the attack, so the knock lands with less impact.</summary>
+    public static float StartPercent { get; set; } = DefaultStartPercent;
+    /// <summary>How much of the sound plays from the start, in ms of the sound itself (before the pitch); 0 plays it to its end (<see cref="DefaultLengthMs"/>).</summary>
+    public static float LengthMs { get; set; } = DefaultLengthMs;
+    /// <summary>No knock at all: shell.cfg [port] bush_knock=off (the original has no plants a car goes through, so no sound for one).</summary>
+    public static bool Silent { get; set; }
+
+    /// <summary>A sound started past its beginning fades in over this long, so the cut does not click; one cut short fades out over <see cref="FadeOutMs"/>.</summary>
+    public const float FadeInMs = 8f, FadeOutMs = 20f, MaxStartPercent = 90f;
+
+    /// <summary>One of the knocks offered by [port] bush_knock (the review video's letters): the sound, its shift, level, start and length.</summary>
+    public sealed record Variant(char Letter, string Sample, float Semitones, float Db, float StartPercent, float LengthMs);
+
+    /// <summary>
+    /// The knocks the owner can pick from, as in the review (i26-scratch/r24-bush/out/bush-variants.mp4): A the knock before it (+9 st,
+    /// -8 dB), B three semitones higher and 3 dB quieter, C as B past the attack (the default), D as C at A's pitch, and three of the
+    /// original's other sounds with a brushing, rustling noise rather than a knock: E the shell's page turn (its swish), F the shell's
+    /// pencil scratch, G a 300 ms slice of the map's paper rustle; their levels match C's loudness.
+    /// </summary>
+    public static readonly Variant[] Variants =
+    [
+        new('a', "vnvco3.wav", 9, -8, 0, 0),
+        new('b', "vnvco3.wav", 12, -11, 0, 0),
+        new('c', "vnvco3.wav", 12, -11, 30, 0),
+        new('d', "vnvco3.wav", 9, -11, 30, 0),
+        new('e', "gpage.wav", 0, -13, 55, 0),
+        new('f', "gpencil.wav", 0, -10, 0, 0),
+        new('g', "cmap2.wav", 0, -6, 21, 300),
+    ];
+
+    /// <summary>The variant used when shell.cfg names none (<see cref="Variants"/> C).</summary>
+    public const char DefaultVariant = 'c';
+
+    /// <summary>The variant a [port] bush_knock value names ("a" to "g", any case), or null for "off", an empty or unknown value.</summary>
+    public static Variant? VariantOf(string? text) =>
+        text?.Trim() is { Length: 1 } t ? Array.Find(Variants, v => v.Letter == char.ToLowerInvariant(t[0])) : null;
+
+    /// <summary>Puts <paramref name="v"/> in use; null silences the knock.</summary>
+    public static void Use(Variant? v)
+    {
+        Silent = v is null;
+        if (v is null) return;
+        (Sample, Semitones, OffsetDb, StartPercent, LengthMs) = (v.Sample, v.Semitones, v.Db, v.StartPercent, v.LengthMs);
+    }
 
     /// <summary>The pitch scale for a shift of <paramref name="semitones"/>.</summary>
     public static float Ratio(float semitones) => MathF.Pow(2f, semitones / 12f);
 
     /// <summary>
-    /// Reads I76_BUSH_KNOCK's value, "name[,semitones[,dB]]" (a name with no ".wav" gets one); false for an empty or unreadable value,
-    /// leaving the settings as they were.
+    /// Reads I76_BUSH_KNOCK's value, "name[,semitones[,dB[,start %[,length ms]]]]" (a name with no ".wav" gets one; a value left out
+    /// keeps the one in use); false for an empty or unreadable value, leaving the settings as they were.
     /// </summary>
     public static bool Apply(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
         var parts = text.Split(',');
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        float semi = Semitones, db = OffsetDb;
-        if (parts.Length > 1 && !float.TryParse(parts[1], System.Globalization.NumberStyles.Float, inv, out semi)) return false;
-        if (parts.Length > 2 && !float.TryParse(parts[2], System.Globalization.NumberStyles.Float, inv, out db)) return false;
+        var f = System.Globalization.NumberStyles.Float;
+        float semi = Semitones, db = OffsetDb, start = StartPercent, length = LengthMs;
+        if (parts.Length > 1 && !float.TryParse(parts[1], f, inv, out semi)) return false;
+        if (parts.Length > 2 && !float.TryParse(parts[2], f, inv, out db)) return false;
+        if (parts.Length > 3 && !float.TryParse(parts[3], f, inv, out start)) return false;
+        if (parts.Length > 4 && !float.TryParse(parts[4], f, inv, out length)) return false;
         var name = parts[0].Trim();
         if (name.Length == 0) return false;
         Sample = name.Contains('.') ? name : name + ".wav";
         Semitones = Math.Clamp(semi, -24f, 24f);
         OffsetDb = Math.Clamp(db, -40f, 12f);
+        StartPercent = Math.Clamp(start, 0f, MaxStartPercent);
+        LengthMs = Math.Max(length, 0f);
+        Silent = false;
         return true;
     }
+
+    /// <summary>Whether the sound in use is played from other than its beginning or cut short.</summary>
+    public static bool Trims => Span(1000, 1000, StartPercent, LengthMs) != (0, 1000);
+
+    /// <summary>
+    /// The frames of a sound of <paramref name="frames"/> frames at <paramref name="rate"/> Hz that play: from <paramref name="startPercent"/>
+    /// % of it (0 to <see cref="MaxStartPercent"/>, rounded to a frame) for <paramref name="lengthMs"/> ms of it (0: to its end), at
+    /// least one frame. End is exclusive.
+    /// </summary>
+    public static (int Start, int End) Span(int frames, int rate, float startPercent, float lengthMs)
+    {
+        if (frames <= 0) return (0, 0);
+        int start = Math.Clamp((int)MathF.Round(frames * Math.Clamp(startPercent, 0f, MaxStartPercent) / 100f), 0, frames - 1);
+        int end = lengthMs > 0 ? Math.Clamp(start + (int)MathF.Round(lengthMs * rate / 1000f), start + 1, frames) : frames;
+        return (start, end);
+    }
+
+    /// <summary>
+    /// The gain of frame <paramref name="i"/> (0 = the span's first) of a span <see cref="Span"/> gave for a sound of
+    /// <paramref name="frames"/> frames at <paramref name="rate"/> Hz: rising linearly from 0 over <see cref="FadeInMs"/> where the
+    /// span starts late, falling to 0 over <see cref="FadeOutMs"/> where it ends early, 1 otherwise (a whole sound is untouched).
+    /// </summary>
+    public static float Gain(int i, (int Start, int End) span, int frames, int rate)
+    {
+        int n = span.End - span.Start;
+        float g = 1f;
+        if (span.Start > 0)
+        {
+            int fin = Math.Min(n, Math.Max(1, (int)MathF.Round(FadeInMs * rate / 1000f)));
+            if (i < fin) g = Math.Min(g, i / (float)fin);
+        }
+        if (span.End < frames)
+        {
+            int fout = Math.Min(n, Math.Max(1, (int)MathF.Round(FadeOutMs * rate / 1000f)));
+            int left = n - i;
+            if (left <= fout) g = Math.Min(g, (left - 1) / (float)fout);
+        }
+        return g;
+    }
+
+    /// <summary>
+    /// The part of <paramref name="pcm"/> that plays (<see cref="Span"/> of <see cref="StartPercent"/> and <see cref="LengthMs"/>
+    /// unless given), faded by <see cref="Gain"/>: 8-bit (unsigned, centred on 128) or 16-bit, any channels; another format, or a
+    /// sound played whole, comes back as it is.
+    /// </summary>
+    public static I76.Formats.Audio.Pcm Trim(I76.Formats.Audio.Pcm pcm, float? startPercent = null, float? lengthMs = null)
+    {
+        int bytes = pcm.Bits / 8, frame = bytes * pcm.Channels;
+        if ((pcm.Bits != 8 && pcm.Bits != 16) || frame <= 0) return pcm;
+        int frames = pcm.Data.Length / frame;
+        var span = Span(frames, pcm.Rate, startPercent ?? StartPercent, lengthMs ?? LengthMs);
+        if (span == (0, frames)) return pcm;
+        var data = new byte[(span.End - span.Start) * frame];
+        for (int i = 0; i < span.End - span.Start; i++)
+        {
+            float g = Gain(i, span, frames, pcm.Rate);
+            for (int c = 0; c < pcm.Channels; c++)
+            {
+                int src = (span.Start + i) * frame + c * bytes, dst = i * frame + c * bytes;
+                if (bytes == 1) data[dst] = (byte)Math.Clamp((int)MathF.Round(128 + (pcm.Data[src] - 128) * g), 0, 255);
+                else
+                {
+                    short v = (short)(pcm.Data[src] | pcm.Data[src + 1] << 8);
+                    short o = (short)Math.Clamp((int)MathF.Round(v * g), short.MinValue, short.MaxValue);
+                    data[dst] = (byte)o; data[dst + 1] = (byte)(o >> 8);
+                }
+            }
+        }
+        return pcm with { Data = data };
+    }
+
+    /// <summary>For a sound that cannot be trimmed (a pack's compressed one): where to start it, seconds into its <paramref name="seconds"/>.</summary>
+    public static float StartSeconds(double seconds) => (float)(seconds * Math.Clamp(StartPercent, 0f, MaxStartPercent) / 100.0);
 
     /// <summary>
     /// The knock's sound for a plant at (<paramref name="x"/>, <paramref name="z"/>) of <paramref name="height"/> metres struck at

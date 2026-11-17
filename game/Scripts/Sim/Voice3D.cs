@@ -145,12 +145,12 @@ public partial class Voice3D : AudioStreamPlayer3D
         Attenuate();
     }
 
-    /// <summary>Plays the voice unless the admission refused it (<see cref="_EnterTree"/>): callers start one-shots with this.</summary>
-    public void Start()
+    /// <summary>Plays the voice (from <paramref name="from"/> seconds in) unless the admission refused it (<see cref="_EnterTree"/>): callers start one-shots with this.</summary>
+    public void Start(float from = 0)
     {
         if (_refused) { Trace($"not started: {Who}, out of range"); return; }
         if (!Admit()) { Trace($"not started: {_limitName}, {_max} already playing"); _refused = true; QueueFree(); return; }
-        Play();
+        Play(from);
     }
 
     /// <summary>A one-shot the admission refused: it is freed without a sound.</summary>

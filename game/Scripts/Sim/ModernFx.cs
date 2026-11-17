@@ -36,6 +36,7 @@ public partial class ModernFx : Node3D
         FxBright = I76.Sim.Views.EffectsLook.Factor(s.EffectsBrightness);
         FxAlpha = I76.Sim.Views.EffectsLook.Factor(s.EffectsOpacity);
         I76.Game.World.BrushImpacts.Enabled = s.BrushImpacts;
+        I76.Game.World.BrushImpacts.ApplyKnock(s.BushKnock);
         RenderingServer.GlobalShaderParameterSet("i76_fx_size", FxSize);
         RenderingServer.GlobalShaderParameterSet("i76_fx_bright", FxBright);
         RenderingServer.GlobalShaderParameterSet("i76_fx_alpha", FxAlpha);

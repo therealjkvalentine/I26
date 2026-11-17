@@ -20,6 +20,21 @@ public partial class BrushImpacts : Node3D
     public static bool Enabled { get; set; } = true;
     private static BrushImpacts? _current;
 
+    /// <summary>I76_BUSH_KNOCK=name,semitones,dB,start,length: any sound, pitch, level, start % and length ms, on top of [port] bush_knock, for trying others without a rebuild.</summary>
+    private static readonly string? KnockHook = System.Environment.GetEnvironmentVariable("I76_BUSH_KNOCK");
+    private static bool _hookSaid;
+
+    /// <summary>shell.cfg [port] bush_knock (ShellSettings.BushKnock: "off" or a variant's letter), live; I76_BUSH_KNOCK on top of it.</summary>
+    public static void ApplyKnock(string? choice)
+    {
+        BrushKnock.Use(BrushKnock.VariantOf(choice));
+        if (BrushKnock.Apply(KnockHook) && !_hookSaid)
+        {
+            _hookSaid = true;
+            GD.Print(System.FormattableString.Invariant($"bush knock: {BrushKnock.Sample} {BrushKnock.Semitones:0.#} semitones {BrushKnock.OffsetDb:0.#} dB start {BrushKnock.StartPercent:0.#} % length {BrushKnock.LengthMs:0} ms"));
+        }
+    }
+
     public required VegetationNode Veg { get; init; }
     /// <summary>The mission's tint on the plants (the vegetation material's), for the leaves.</summary>
     public Color Tint { get; set; } = Colors.White;
@@ -69,8 +84,6 @@ public partial class BrushImpacts : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", Vector4.Zero);
         _current = this;
         MakeLook();
-        // I76_BUSH_KNOCK=name,semitones,dB: the knock's sound, pitch shift and level offset, for trying others without a rebuild
-        if (BrushKnock.Apply(System.Environment.GetEnvironmentVariable("I76_BUSH_KNOCK"))) GD.Print(System.FormattableString.Invariant($"bush knock: {BrushKnock.Sample} {BrushKnock.Semitones:0.#} semitones {BrushKnock.OffsetDb:0.#} dB"));
         // I76_BRUSH_FALL=shape[,base,per-speed]: the knock's curve (smooth, snap, topple) and time, for comparing them in captures
         if (System.Environment.GetEnvironmentVariable("I76_BRUSH_FALL") is { Length: > 0 } fall)
         {
@@ -268,7 +281,8 @@ public partial class BrushImpacts : Node3D
     public static Assets.AudioBank? Audio { get; set; }
     /// <summary>
     /// The original's sound for a car knocking a sign or post off (class-4 objects: the short knock vnvco3, once per object):
-    /// its nearest to a car going through a bush, pitched up and quieter so it does not sound as the signs (BrushKnock.DefaultSample).
+    /// its nearest to a car going through a bush, pitched up, quieter and started past its attack so it does not sound as the signs
+    /// (BrushKnock.DefaultSample; [port] bush_knock picks another of BrushKnock.Variants).
     /// Its own voice name, so it never takes the signs' voice.
     /// </summary>
     private const string KnockVoice = "brush-knock";
@@ -281,15 +295,40 @@ public partial class BrushImpacts : Node3D
     private void Knock(ulong car, Vector3 root, PlantSpot s, float speed)
     {
         if (Trace) GD.Print(System.FormattableString.Invariant($"brush-trace: t {_t:0.000} frame {Engine.GetFramesDrawn()} knock at {root.X:0.00},{root.Z:0.00} height {s.Height:0.00} radius {s.Radius:0.00} speed {speed:0.0} fall {BrushKnock.Seconds(speed):0.000} s depth {BrushKnock.Depth(speed):0.00}"));
-        if (Audio is null || !_knocks.Try(car, _t) || Audio.Get(BrushKnock.Sample) is not { } stream) return;
+        if (Audio is null || BrushKnock.Silent || !_knocks.Try(car, _t) || KnockStream(Audio, out float from) is not { } stream) return;
         var (pitch, db) = BrushKnock.Voice(speed, s.Height, root.X - _o.X, root.Z - _o.Z);
         var v = Voice3D.OneShot(stream, KnockVoice, (50, KnockVoices), I76.Sim.Sound.Ds3d.MinDistance, db);
         v.PitchScale = pitch;
         // placed before it enters the tree: the voice's range check runs as it does
         v.Position = ToLocal(root + Vector3.Up * MathF.Min(s.Height * 0.5f, 0.8f));
         AddChild(v);
-        v.Start();
-        if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {BrushKnock.Sample} pitch {pitch:0.00} {db:0.0} dB at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
+        v.Start(from);
+        if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {BrushKnock.Sample} pitch {pitch:0.00} {db:0.0} dB from {BrushKnock.StartPercent:0} % at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
+    }
+
+    /// <summary>The knock's sounds as played, by sound, start and length: the bank's stream cut to <see cref="BrushKnock.Span"/> and faded.</summary>
+    private static readonly Dictionary<string, AudioStream?> Trimmed = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The knock's stream (<see cref="BrushKnock.Sample"/> from the bank, HiFi Audio's when it has one), started
+    /// <see cref="BrushKnock.StartPercent"/> in and cut at <see cref="BrushKnock.LengthMs"/>: the original's PCM is trimmed and faded
+    /// in (<see cref="BrushKnock.Trim"/>); a pack's compressed sound is played from the same share of its length (<paramref name="from"/>), uncut.
+    /// </summary>
+    private static AudioStream? KnockStream(Assets.AudioBank bank, out float from)
+    {
+        from = 0;
+        var whole = bank.Get(BrushKnock.Sample);
+        if (whole is null || !BrushKnock.Trims) return whole;
+        if (whole is not AudioStreamWav)
+        {
+            from = BrushKnock.StartSeconds(whole.GetLength());
+            return whole;
+        }
+        var key = System.FormattableString.Invariant($"{BrushKnock.Sample}#{BrushKnock.StartPercent}#{BrushKnock.LengthMs}#{whole.GetInstanceId()}");
+        if (Trimmed.TryGetValue(key, out var s)) return s;
+        if (Trimmed.Count > 32) Trimmed.Clear();
+        var pcm = I76.Formats.Audio.SoundFiles.Read(bank.Vfs, BrushKnock.Sample);
+        return Trimmed[key] = pcm is null ? whole : Assets.AudioBank.ToStream(BrushKnock.Trim(pcm)) ?? whole;
     }
 
     // ---- fire ----
