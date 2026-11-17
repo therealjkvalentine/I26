@@ -763,14 +763,7 @@ public sealed class GarageScreen : GarageBase, IChassisForm
     private List<PartNode> Candidates(int type)
     {
         if (Melee is not null) return Catalogue(type);
-        var l = Inv.Nodes.Where(n => n.State != PartState.Field && n.Part.Type switch
-        {
-            7 or 6 or 9 or 10 or 11 => type == 7,
-            8 => type == 8,
-            12 or 13 => type == 0xc,
-            1 or 4 => type == 4,
-            var t => t == type,
-        }).ToList();
+        var l = Inv.PickerParts(type).ToList();
         if (type is 7 or 8) return [.. l.OrderBy(n => WeaponClass(n.Part)).ThenBy(n => CodeNumber(n.Part)).ThenBy(n => n.Health)];
         return [.. l.OrderBy(n => n.State == PartState.Car ? 0 : 1)];
     }

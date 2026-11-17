@@ -305,6 +305,17 @@ Play Options); in a network game it shows only if the host allows it. In the mod
 the chase crosshair are drawn as smooth vector shapes at your window's resolution; `[port] crosshair_drawn=false` in shell.cfg brings back
 the game's sprite ring and the snapped bars.
 
+**Keyboard Steering Assist** (Play Options, the last row; the in-mission Esc menu's Play Options too; on unless you turn
+it off): a held steer key eases the wheels in quickly instead of the original's slow ramp (√(t/3) of full lock by the time
+held, full lock after 3 s, which runs wide in sharp turns), keeps a short press inside the tyres' grip and to a sane
+cornering force (so corrections do not squeal or twitch; a key held past 0.6 s gets the whole lock), and steers into a
+slide by itself, so a car that has stepped out comes back in line with no key held. Off is the original's ramp. The
+throttle keys are the original's either way, and a pad is unaffected.
+
+**Auto Reverse.** On by default (Play Options' Auto Reverse row, in the shell and the in-mission Esc menu): hold the
+brake on a stopped car and it shifts into reverse and backs up; hold accelerate while backing up and it brakes, then
+shifts to drive. A pad's triggers work the same. Off, reverse is the original's own key (X) and the brake only brakes.
+
 | Action | Default |
 |---|---|
 | Drive | W/A/S/D or keypad 8/4/2/6 |

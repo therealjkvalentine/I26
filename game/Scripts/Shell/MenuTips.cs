@@ -67,7 +67,8 @@ public static class MenuTips
         // the one text of the row wherever it is (Play Options, the Esc pad, the host forms: HostFormHelp, docs/playing.md); the
         // numbers are TurretSlewTests' (half a turn at 1.7 / 1.5 rad/s, the health factors)
         ["Turrets"] = "Turrets: how fast every turret turns to aim, yours and the enemy's. 1998 (GOG, Nitro Pack): half a turn in 1.8 s, and damage slows it by a quarter at most. 1997 CD: half a turn in 2.1 s, slower with every hit: at half health it cannot follow a car circling close by, and a wrecked one stands still. Online: the host's choice, and damage never slows a turret.",
-        ["Unlim. Ordnance"] = "Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
+        ["Keyboard Steering Assist"] = "Keyboard steering assist: the steer keys ease in, hold short of a skid at first and steer into a slide. Off is the original's slow ramp.",
+        ["Unlim. Ordnance"] ="Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
         ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",
         ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",
         ["Opentrack"] = "Opentrack, the free head tracker: click to start it when Stopped. Tracking: your head turns the view; Missing: not installed.",

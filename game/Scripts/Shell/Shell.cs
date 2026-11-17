@@ -1295,8 +1295,18 @@ public sealed class ShellSettings
     /// card or a 16 GB Mac, where the dash's half gigabyte fits), set by <see cref="Load"/>; 4x and 4x before it runs.
     /// </summary>
     public static (int World, int Car) HdDefault { get; set; } = (I76.Formats.Shell.HdPackFolders.DefaultSize, I76.Formats.Shell.HdPackFolders.DefaultSize);
-    /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
-    public bool AutoReverse { get; set; }
+    /// <summary>The port's own: Play Options' Keyboard Steering Assist (I76.Sim.Session.KeyStick), on unless the player turned it off ([port] assisted_steering, written when off; the older keyboard_steering key's "original" reads as off).</summary>
+    public bool AssistedSteering { get; set; } = true;
+    /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; on unless the player turned it off).</summary>
+    public bool AutoReverse { get; set; } = true;
+    /// <summary>The settings version that made Auto Reverse on by default and writes it either way.</summary>
+    public const int AutoReverseOnVersion = 12;
+    /// <summary>
+    /// Auto Reverse from a shell.cfg of <paramref name="version"/> with [port] auto_reverse as <paramref name="stored"/> (null when absent):
+    /// before version 12 the key was written only when on, so an old file cannot tell off from untouched and every one is on;
+    /// from 12 the key is written either way, and a missing one is the default, on.
+    /// </summary>
+    public static bool AutoReverseFrom(int version, bool? stored) => version < AutoReverseOnVersion || stored != false;
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
     public bool ForceFeedback { get; set; } = true;
     /// <summary>The port's own: Force Feedback on a DirectInput wheel or stick instead of the pad (Play Options' Wheel; Windows only, without a device the pad).</summary>
@@ -1798,22 +1808,26 @@ public sealed class ShellSettings
     }
 
     /// <summary>
-    /// The [shell] version <see cref="Save"/> writes: upstream's (its steps 1 to 11 are the same in both builds). The fork's own steps
-    /// (12: the Far 0.11.0 wrote on every save is no choice; 13: the sky's drift Steady, Rumble folded into Force Feedback; 14: Terrain
-    /// Detail High) are counted under [port] fork_version (<see cref="ForkVersion"/>), so a step upstream numbers 12 later cannot clash.
+    /// The [shell] version of upstream's steps: 1 to 11 are the same in both builds, and upstream's 12 made Auto Reverse on by
+    /// default and writes it either way (<see cref="AutoReverseFrom"/>, read by the [shell] version). The fork's own steps (12: the
+    /// Far 0.11.0 wrote on every save is no choice; 13: the sky's drift Steady, Rumble folded into Force Feedback; 14: Terrain Detail
+    /// High) are counted under [port] fork_version (<see cref="ForkVersion"/>), so they do not clash with upstream's 12.
     /// </summary>
-    public const int Version = 11;
+    public const int Version = 12;
+    /// <summary>Upstream's last step the fork's own steps (numbered on from it) were counted after: a file of upstream's has had these and none of the fork's.</summary>
+    public const int ForkStepsAfter = 11;
     /// <summary>The [port] fork_version <see cref="Save"/> writes: the fork's steps, numbered on from upstream's.</summary>
     public const int ForkVersion = 14;
 
     /// <summary>
     /// The steps a file has had, for <see cref="Load"/>: [port] fork_version when present; else a [shell] version above upstream's
     /// (the fork wrote 12 to 14 there before the key); else the file's [shell] version (upstream's own, or an older one of ours),
-    /// whose steps after it are still due. Engine-free, for the tests.
+    /// whose steps after it are still due: upstream's 12 is not the fork's, so a file of upstream's 12 has had the fork's steps
+    /// up to <see cref="ForkStepsAfter"/>. Engine-free, for the tests.
     /// </summary>
-    public static int StepsDone(int shellVersion, int? forkVersion) => forkVersion ?? shellVersion;
+    public static int StepsDone(int shellVersion, int? forkVersion) => forkVersion ?? (shellVersion > Version ? shellVersion : Math.Min(shellVersion, ForkStepsAfter));
 
-    /// <summary>Whether the file's [port] fov is the fork's (degrees across the window): a file of the fork's from before fov_window, which wrote [shell] version 12 to 14 and no fork_version.</summary>
+    /// <summary>Whether the file's [port] fov is the fork's (degrees across the window): a file of the fork's from before fov_window, which wrote [shell] version 12 to 14 and no fork_version (12 is now upstream's: read as upstream's).</summary>
     public static bool ForkFovKey(int shellVersion, int? forkVersion) => forkVersion is null && shellVersion > Version;
 
     /// <summary>
@@ -1849,6 +1863,7 @@ public sealed class ShellSettings
         var s = Read(SettingsFile.From(cfg), BuildRules.ReadText(), I76.Game.Assets.HdTextures.PacksFound);
         HdAssets.Enabled = s.HdMenuArt;
         I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
+        I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
         I76.Game.Assets.HdTextures.CarSize = s.CarTextures;
         return s;
@@ -1891,8 +1906,9 @@ public sealed class ShellSettings
             sizesNow, sizesNow.Length > 0 || plainNow, HdDefault);
         if (packs is not null && (s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
             GD.Print($"HD textures: the settings were saved with {Word("texture_packs") ?? "no texture pack (or before the packs were noted)"}; now world {I76.Game.Assets.HdTextures.Word(s.WorldTextures)}, cars and dash {I76.Game.Assets.HdTextures.Word(s.CarTextures)} (was {I76.Game.Assets.HdTextures.Word(stored.Item1)}, {I76.Game.Assets.HdTextures.Word(stored.Item2)})");
-        // version 5 added Auto Reverse: older files have none, so it is off
-        s.AutoReverse = version >= 5 && (bool)c.GetValue("port", "auto_reverse", false);
+        // version 5 added Auto Reverse (written only when on); version 12 made it on by default: AutoReverseFrom, by the [shell] version
+        // (upstream's steps: a fork file's is WrittenVersion, past 12)
+        s.AutoReverse = AutoReverseFrom(shellVersion, c.HasSectionKey("port", "auto_reverse") ? (bool)c.GetValue("port", "auto_reverse") : null);
         // version 6 added the look: older files have none, so it is off
         s.Look1997 = version >= 6 && (bool)c.GetValue("port", "look_1997", false);
         // version 7 added Force Feedback: older files have none, so it is on
@@ -1950,6 +1966,10 @@ public sealed class ShellSettings
         s.ChaseCrosshair = (bool)c.GetValue("port", "chase_crosshair", false);
         s.CrosshairDrawn = (bool)c.GetValue("port", "crosshair_drawn", true);
         s.WheelCycleWeapon = (bool)c.GetValue("port", "wheel_cycle_weapon", false);
+        // no version step: absent (a new player, or a file from before the key), on; the branch-era keyboard_steering key's "original" is off
+        s.AssistedSteering = c.HasSectionKey("port", "assisted_steering")
+            ? (bool)c.GetValue("port", "assisted_steering", true)
+            : I76.Sim.Session.KeyStick.AssistedFromKeyboardSteering(c.GetValue("port", "keyboard_steering", "").ToString());
         // no version step: absent, no cap and vsync on, as before the keys
         // no version step: absent, the desktop
         s.Resolution = I76.Game.Boot.WindowSizes.Parse((string)c.GetValue("port", "resolution", "")) is { } rs ? I76.Game.Boot.WindowSizes.Format(rs.W, rs.H) : "";
@@ -2151,7 +2171,7 @@ public sealed class ShellSettings
         if (RumbleStrength != I76.Formats.Input.RumbleStrength.Default) c.SetValue("port", "rumble_strength", RumbleStrength);
         c.SetValue("port", "sim_rate", SimRate);
         if (SimRateWarned) c.SetValue("port", "sim_rate_warned", true);
-        if (AutoReverse) c.SetValue("port", "auto_reverse", true);
+        c.SetValue("port", "auto_reverse", AutoReverse);
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
@@ -2170,6 +2190,7 @@ public sealed class ShellSettings
         if (ChaseCrosshair) c.SetValue("port", "chase_crosshair", true);
         if (!CrosshairDrawn) c.SetValue("port", "crosshair_drawn", false);
         if (WheelCycleWeapon) c.SetValue("port", "wheel_cycle_weapon", true);
+        if (!AssistedSteering) c.SetValue("port", "assisted_steering", false);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);
         if (KeepMouseInWindow) c.SetValue("port", "keep_mouse_in_window", true);

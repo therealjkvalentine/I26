@@ -17,7 +17,7 @@ public partial class Cockpit
     private void RadarPing()
     {
         if (Audio?.Get("cradar.wav") is not { } s) return;
-        bool started = Node3D.OneShotSingle("cradar.wav", s);
+        bool started = Node3D.OneShotSingle("cradar.wav", s, bus: I76.Game.Boot.AudioMix.Cues);   // a driver's cue (upstream's AudioMix)
         if (Voice3D.LogEnabled) Voice3D.Trace($"radar ping {(started ? "started" : "dropped (its one voice sounds)")}{(Combat?.RadarTarget.GetValueOrDefault(Car) is { } t ? $", target held: {t.Definition}" : "")}");
     }
 }

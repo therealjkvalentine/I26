@@ -260,6 +260,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997;
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
+    private bool _savedSteering;
     private int _savedRate, _savedDownloads;
     private I76.Game.HeadTrackMode _savedHead;
     private float _savedHeadSens;
@@ -296,7 +297,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
-        "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets",
+        "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
         "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
     ];
 
@@ -330,6 +331,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedEquipTips = s.EquipmentTips;
         _savedBriefing = s.BriefingWhileLoading;
         _savedTurrets1997 = s.Turrets1997;
+        _savedSteering = s.AssistedSteering;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
 
@@ -382,13 +384,15 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         // Turrets (docs/deviations.md): the turret slew of the 1998 build (GOG's and the Nitro Pack's, the default) or the 1997 CD
         // build's; a network game plays the host's
         Step(PortRows[11], () => s.Turrets1997 = !s.Turrets1997, () => HostFormLayout.TurretsShort(s.Turrets1997));
+        // Keyboard Steering Assist (docs/deviations.md): the steer keys eased, held inside the grip and steering into a slide; off, the original's ramp; in play at once
+        Toggle(PortRows[12], () => s.AssistedSteering, () => I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = !s.AssistedSteering);
         // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
-        Toggle(PortRows[12], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
+        Toggle(PortRows[13], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
         // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
         // (the socket follows the row at once, so the Opentrack row can see poses arriving; Cancel puts it back)
-        Step(PortRows[13], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
+        Step(PortRows[14], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
             () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
-        Step(PortRows[14], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
+        Step(PortRows[15], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
             () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         // Opentrack (docs/playing.md): its state (Missing / Stopped / Running / Tracking); a click when Stopped starts it.
         // Opentrack Auto: a mission with Head Tracking on starts it, and the game closes the one it started when it exits.
@@ -396,15 +400,15 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         I76.Game.HeadTracker.Apply(s);
         _otState = I76.Game.OpenTrackLauncher.State(s);
         _otProfile = I76.Game.OpenTrackLauncher.ProfileDir(s) is { } pd && File.Exists(Path.Combine(pd, I76.Game.OpenTrack.ProfileName)) ? "Present" : "Write";
-        Step(PortRows[15], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
+        Step(PortRows[16], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
             () => I76.Game.OpenTrack.Label(_otState));
-        Toggle(PortRows[16], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
-        Step(PortRows[17], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
+        Toggle(PortRows[17], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
+        Step(PortRows[18], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Step(PortRows[18], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+        Step(PortRows[19], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
-        Toggle(PortRows[19], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        Toggle(PortRows[20], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -469,6 +473,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens; s.OpenTrackAuto = _savedOtAuto;
         I76.Game.HeadTracker.Apply(s);
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips;
+        I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = _savedSteering;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
         Shell.Overlay(new OptionsScreen());

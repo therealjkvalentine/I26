@@ -59,9 +59,10 @@ public sealed partial class MissionSetup
         /// <summary>A fresh copy of the nodes for one placement, and the part-name lookup its colliders are tagged by (an 'A' part is its '_' twin's).</summary>
         public (List<StructureNode> Nodes, Func<string, int> Index) Instance()
         {
-            var nodes = Nodes.Select(n => new StructureNode
+            var walk = StructureNode.Order([.. Nodes.Select(n => n.Parent)]);
+            var nodes = Nodes.Select((n, i) => new StructureNode
             {
-                Name = n.Name, Parent = n.Parent, Type = n.Type, Flags = n.Flags, Hp = n.Hp, MaxHp = n.MaxHp,
+                Name = n.Name, Parent = n.Parent, Type = n.Type, Flags = n.Flags, Hp = n.Hp, MaxHp = n.MaxHp, Walk = walk[i],
                 Gate = n.Gate is { } g ? new GateMotion { Offset = g.Offset, Delta = g.Delta, Rate = g.Rate } : null,
             }).ToList();
             var at = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -145,18 +146,24 @@ public sealed partial class MissionSetup
         return n.Length == 0 || n.Equals("null", StringComparison.OrdinalIgnoreCase) ? null : n + ".xdf";
     }
 
-    /// <summary>Each SGEO node's own collision class, by name; 0 where it leaves the type's default.</summary>
+    /// <summary>
+    /// Each SGEO record's collision class, by name; 0 where it leaves the type's default. A destroyed twin's or another
+    /// detail's is its node's (Bwd2File.SgeoRecords): the node swaps geometry and keeps its flags and type, so the Catch-E-Na
+    /// Inn's fallen roof, a type-0x37 node, stays without a collider though its own record says box.
+    /// </summary>
     private static Func<string, uint> NodeClasses(AssetVfs vfs, string? sdf)
     {
         var map = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
-        if (sdf is not null && sdf.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(sdf) is { } d
-            && new Formats.Bwd2.Bwd2File(d) is var f && f.First("SGEO") is { } g)
-            for (int r = g.PayloadOffset + 4; r + 0x78 <= g.PayloadOffset + g.PayloadSize; r += 0x78)
+        if (sdf is not null && sdf.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(sdf) is { } d)
+        {
+            var f = new Formats.Bwd2.Bwd2File(d);
+            foreach (var (name, _, node) in f.SgeoRecords())
             {
                 // A type-0x37 node (an effect marker) or flag bit 1 never collides
-                uint flags = Formats.Bin.U32(f.Data, r + 0x60), type = Formats.Bin.U32(f.Data, r + 0x5c);
-                map.TryAdd(Formats.Bin.CStr(f.Data, r, 8), type == 0x37 || (flags & 1) != 0 ? 0x1000 : flags & 0xf000);
+                uint flags = Formats.Bin.U32(f.Data, node + 0x60), type = Formats.Bin.U32(f.Data, node + 0x5c);
+                map.TryAdd(name, type == 0x37 || (flags & 1) != 0 ? 0x1000 : flags & 0xf000);
             }
+        }
         return n => map.GetValueOrDefault(n);
     }
 
@@ -176,24 +183,24 @@ public sealed partial class MissionSetup
     }
 
     /// <summary>
-    /// Each SGEO node's own type, by name; 0 for a root, whose type
-    /// holds the placement's type instead (the original reads a bridge's root as 0xc).
+    /// Each SGEO record's node type, by name; 0 for the root, whose type holds the placement's type instead (the original
+    /// reads a bridge's root as 0xc). A destroyed twin's or another detail's is its node's (Bwd2File.SgeoRecords): the
+    /// Wagon Wheel's fallen lot is a lot like the standing one, though its own record says 2.
     /// </summary>
     private static Func<string, uint> NodeTypes(AssetVfs vfs, string? sdf)
     {
         var map = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
-        if (sdf is not null && sdf.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(sdf) is { } d
-            && new Formats.Bwd2.Bwd2File(d) is var f && f.First("SGEO") is { } g)
+        if (sdf is not null && sdf.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) && vfs.TryRead(sdf) is { } d)
         {
+            var f = new Formats.Bwd2.Bwd2File(d);
             // only the placement's own root (the first record) takes the placement's type; a file whose nodes are
             // all scene roots (bebridg2: T05's bridge, deck EB1_ZRD2 among them) still has them as children of it
             var roots = f.SceneNodes().Where(t => t.Tag == "SGEO").SelectMany(t => t.Nodes).Where(n => n.IsRoot).Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            bool first = true;
-            for (int r = g.PayloadOffset + 4; r + 0x78 <= g.PayloadOffset + g.PayloadSize; r += 0x78)
+            int root = -1;
+            foreach (var (name, record, node) in f.SgeoRecords())
             {
-                var name = Formats.Bin.CStr(f.Data, r, 8);
-                map.TryAdd(name, first && roots.Contains(name) ? 0 : Formats.Bin.U32(f.Data, r + 0x5c));
-                if (name.Length > 0) first = false;
+                if (root < 0) root = roots.Contains(name) && record == node ? node : 0;
+                map.TryAdd(name, node == root ? 0 : Formats.Bin.U32(f.Data, node + 0x5c));
             }
         }
         return n => map.GetValueOrDefault(n);
@@ -252,6 +259,7 @@ public sealed partial class MissionSetup
             {
                 staticOf[p] = so;
                 so.Nodes.AddRange(nodes);
+                so.OrderSurfaces();
                 // a gate's slide in the world: the record's offset through its node's transform to the model and the placement
                 var place = Affine.FromEngine(p.Object.Rotation, w.GroundedPosition(p));
                 foreach (var part in m.Parts)

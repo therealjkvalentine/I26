@@ -44,20 +44,48 @@ public static class GroundDecals
         return (part, f) => grounded.Contains(Twin(part.NodeName)) && IsGroundFace(part, f, lowest);
     }
 
+    /// <summary>
+    /// Of a destroyed placement: whether a part's ground faces, painted into the terrain at load, go. The original drew them
+    /// with their node, so they go with it when it dies into nothing or into a twin that lays nothing on the ground: a
+    /// tunnel's road strips, a roof's or a marker's footprint. A dead part whose twin lies on the ground (a lot) keeps them,
+    /// as <see cref="Painted"/> leaves that twin's out of the wreck. <paramref name="wreck"/> is what is drawn now (each dead
+    /// node's twin, the live ones whole), null for nothing.
+    /// </summary>
+    public static Func<string, bool> PaintedOut(AssembledModel intact, AssembledModel? wreck, Func<string, bool> dead)
+    {
+        float lowest = LowestY(intact);
+        bool Lies(string name) => wreck?.Parts.FirstOrDefault(x => x.NodeName.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } w
+            && w.Mesh.Faces.Any(f => IsGroundFace(w, f, lowest));
+        static string Twin(string n) => n.Length > 4 ? n[..3] + "A" + n[4..] : n;
+        return part => dead(part) && !Lies(Twin(part)) && !Lies(part);
+    }
+
     /// <summary>Whether a placement's ground faces are painted rather than drawn: scenery (not vehicles, road pieces or drive-on structures). The loader stands every placement on the terrain (MissionWorld.GroundedPosition).</summary>
     public static bool Applies(Placement p) =>
         p.Definition is { } d && !d.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) && !RoadPieceObjects.IsRoadPiece(p.Object.ObjectType) && p.Object.ObjectType is not (0xb or 0xc or 0xd);   // drive-on structures keep their decks
+
+    /// <summary>
+    /// Whether only a placement's lots are painted: a drive-on structure's (the Ramp and Bridge class ids, which keep their
+    /// decks). The original takes a building's lot (its SGEO nodes of type 0x51) out of the model whatever the placement's
+    /// class and draws it with the ground, so a gas station or a garage placed as a ramp shows its paved lot as ground,
+    /// not as a face fighting the terrain for depth.
+    /// </summary>
+    public static bool LotsOnly(Placement p) =>
+        p.Definition is { } d && !d.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) && p.Object.ObjectType is 0xb or 0xc or 0xd;
+
+    /// <summary>A lot's ground face (<see cref="LotsOnly"/>): a face of a type-0x51 node (its 'A' twin's too) that <see cref="IsGroundFace"/>.</summary>
+    public static bool IsLotFace(AssembledModel m, ModelPart part, GeoFace f, float lowest) => m.Lots.Contains(part.NodeName) && IsGroundFace(part, f, lowest);
 }
 
 /// <summary>
 /// How the scenery's placements share meshes (<see cref="ScenerySpawner"/>): by definition, the road pieces apart (each
 /// placement by its own type: a model can be a piece in one placement and a ramp in another), then the grounded scenery apart
-/// (its mesh without the ground faces, <see cref="GroundDecals"/>).
+/// (its mesh without the ground faces, <see cref="GroundDecals"/>), then the drive-on structures (their mesh without their lots).
 /// </summary>
 public static class SceneryGroup
 {
-    public const string Piece = "|piece", Ground = "|ground";
+    public const string Piece = "|piece", Ground = "|ground", Lots = "|lots";
 
     public static string Key(Placement p) =>
-        (p.Definition ?? "") + (RoadPieceObjects.IsRoadPiece(p.Object.ObjectType) ? Piece : GroundDecals.Applies(p) ? Ground : "");
+        (p.Definition ?? "") + (RoadPieceObjects.IsRoadPiece(p.Object.ObjectType) ? Piece : GroundDecals.Applies(p) ? Ground : GroundDecals.LotsOnly(p) ? Lots : "");
 }

@@ -12,10 +12,11 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs24()
+    public void TheProtocolIs25()
     {
         // upstream's number and layout (an upstream peer reads every message); the fork's additions are appended or negotiated (PeerFeatures)
-        Assert.Equal(24, Protocol.Version);
+        Assert.Equal(25, Protocol.Version);
+        // the I26 play fork's own snapshot version (its saved state differs from upstream's 17: wreck_solid, handbrake flags and the rest)
         Assert.Equal(26, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
@@ -234,7 +235,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(24, Protocol.Version);
+        Assert.Equal(25, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -600,6 +601,36 @@ public class RestrictionWireTests
         Assert.False(back.Coop);
     }
 
+    /// <summary>The restricted specials (protocol 25): the answer's last bytes, a count and the types; an older host's answer, which ends before them, reads as none.</summary>
+    [Fact]
+    public void TheRestrictedSpecialsRoundTripAndAnOlderAnswerHasNone()
+    {
+        var weapons = I76.Sim.Trip.WeaponRestrictions.Normalize(false, [(2, 6)]);
+        foreach (var r in new[]
+                 {
+                     I76.Sim.Trip.WeaponRestrictions.None.WithSpecials([1]), weapons.WithSpecials([2, 3, 11]),
+                     I76.Sim.Trip.WeaponRestrictions.Everything.WithSpecials(Enumerable.Range(1, 11)),
+                 })
+        {
+            var w = new NetWriter();
+            Info(r, false).Write(w);
+            var back = SessionInfo.TryRead(w.Span)!;
+            Assert.Equal(r, back.Restricted);
+            Assert.Equal(Info(r, false) with { Drivers = [] }, back with { Drivers = [] });
+            // without the specials' bytes (a protocol 24 host): the weapons as they were, no specials
+            // (the I26 play fork: its build's length byte, empty here, follows the specials and goes with them: docs/multiplayer.md "Wire (the I26 play fork)")
+            var older = SessionInfo.TryRead(w.Span[..^(1 + r.Specials.Count + 1)])!;
+            Assert.Empty(older.Restricted.Specials);
+            Assert.Equal(r with { Specials = [] }, older.Restricted);
+        }
+        // more types than there are specials is no answer
+        var x = new NetWriter();
+        Info(I76.Sim.Trip.WeaponRestrictions.None.WithSpecials([1]), false).Write(x);
+        var bytes = x.Span.ToArray();
+        bytes[^3] = 12;   // the count (the I26 play fork: before the one type and the fork's empty build's length byte)
+        Assert.Null(SessionInfo.TryRead(bytes));
+    }
+
     [Fact]
     public void TooManyPairsAreNotAnAnswer()
     {
@@ -662,7 +693,7 @@ public class ForkWireTests
         Assert.Equal(Protocol.Features, old.Features);
         // the features still fit the one byte the tail gives them, and the protocol is upstream's
         Assert.True((uint)Protocol.Features < 128);
-        Assert.Equal(24, Protocol.Version);
+        Assert.Equal(25, Protocol.Version);
     }
 
     [Fact]

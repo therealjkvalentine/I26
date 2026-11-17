@@ -86,10 +86,10 @@ public partial class CarNode : Node3D
         _horn = null;
     }
 
-    public void OneShot(AudioStream? s, float db = 0)
+    public void OneShot(AudioStream? s, float db = 0, string bus = I76.Game.Boot.AudioMix.Sfx)
     {
         if (s is null) return;
-        var p = new AudioStreamPlayer3D { Bus = "SFX", Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
+        var p = new AudioStreamPlayer3D { Bus = bus, Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
         AddChild(p);
         p.Finished += p.QueueFree;
         p.Play();
@@ -102,11 +102,11 @@ public partial class CarNode : Node3D
     /// asked again while it still plays, the new one is dropped, so a held trigger on a broken weapon (wmiss.wav, asked every frame)
     /// sounds the file's own series of buzzes through, and starts it again when it ends. True when it started.
     /// </summary>
-    public bool OneShotSingle(string key, AudioStream? s, float db = 0)
+    public bool OneShotSingle(string key, AudioStream? s, float db = 0, string bus = I76.Game.Boot.AudioMix.Sfx)
     {
         if (s is null) return false;
         if (_single.TryGetValue(key, out var old) && IsInstanceValid(old) && old.Playing) return false;
-        var p = new AudioStreamPlayer3D { Bus = "SFX", Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
+        var p = new AudioStreamPlayer3D { Bus = bus, Stream = s, UnitSize = 10, MaxDistance = 300, VolumeDb = db };
         AddChild(p);
         p.Finished += p.QueueFree;
         p.Play();
@@ -114,10 +114,29 @@ public partial class CarNode : Node3D
         return true;
     }
 
-    /// <summary>Stops a <see cref="OneShotSingle"/> voice that still plays (the radar jammer's activation stops clockon.wav).</summary>
+    private readonly Dictionary<string, AudioStreamPlayer> _cues = new();
+
+    /// <summary>
+    /// One of the driver's own cues (clockon.wav, cammo.wav), which the original plays for the local player alone as a 2D voice
+    /// (no object): unpositioned, centred, at the effects level, the same in every view. Played so on the Cues bus (<see cref="I76.Game.Boot.AudioMix"/>).
+    /// With a <paramref name="single"/> key only one plays at a time, as <see cref="OneShotSingle"/>.
+    /// </summary>
+    public void Cue(AudioStream? s, string? single = null)
+    {
+        if (s is null) return;
+        if (single is not null && _cues.TryGetValue(single, out var old) && IsInstanceValid(old) && old.Playing) return;
+        var p = new AudioStreamPlayer { Bus = I76.Game.Boot.AudioMix.Cues, Stream = s };
+        AddChild(p);
+        p.Finished += p.QueueFree;
+        p.Play();
+        if (single is not null) _cues[single] = p;
+    }
+
+    /// <summary>Stops a <see cref="OneShotSingle"/> or single <see cref="Cue"/> voice that still plays (the radar jammer's activation stops clockon.wav).</summary>
     public void StopSingle(string key)
     {
         if (_single.Remove(key, out var p) && IsInstanceValid(p)) { p.Stop(); p.QueueFree(); }
+        if (_cues.Remove(key, out var c) && IsInstanceValid(c)) { c.Stop(); c.QueueFree(); }
     }
 
     /// <summary>A one-shot riding on this car, heard as DirectSound3D heard it from wherever the listener is (<see cref="Voice3D"/>).</summary>

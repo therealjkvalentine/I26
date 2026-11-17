@@ -95,7 +95,10 @@ public sealed class TripInventory
 
     public PartNode? InSlot(int slot) => Nodes.FirstOrDefault(n => n.State == PartState.Car && n.Slot == slot);
 
-    /// <summary>A car node that fills one of the car's slots (a stripped dropper in an old save is marked in the car with none).</summary>
+    /// <summary>
+    /// A car node that fills one of the car's slots. A trip saved before <see cref="Strip"/> sent a stripped dropper to the
+    /// van has it marked in the car with none; loading moves it to the van, and this keeps such a node out of the damage and the turret checks.
+    /// </summary>
     private bool Fitted(PartNode n) => n.State == PartState.Car && n.Slot >= 0 && n.Slot < Slots.Count;
 
     /// <summary>
@@ -109,6 +112,20 @@ public sealed class TripInventory
         n.State = PartState.Van;
         n.Slot = -1;
     }
+
+    /// <summary>
+    /// What a slot's picker offers from the trip (2D garage, BUILD AND REPAIR): the parts of that row's kind in the car, the
+    /// van and the repair order, not the ones left in the field. <paramref name="type"/> is the row's: 7 any weapon (6, 7,
+    /// 9, 10, 11), 8 a dropper, 0xc a special (12, 13), 4 brakes (1, 4), else the part type itself.
+    /// </summary>
+    public IEnumerable<PartNode> PickerParts(int type) => Nodes.Where(n => n.State != PartState.Field && n.Part.Type switch
+    {
+        7 or 6 or 9 or 10 or 11 => type == 7,
+        8 => type == 8,
+        12 or 13 => type == 0xc,
+        1 or 4 => type == 4,
+        var t => t == type,
+    });
 
     /// <summary>The van's parts by list (the six inventory lists): engines, suspensions, brakes, tyres, weapons, specials.</summary>
     public static int ListOf(int type) => type switch { 2 => 0, 3 => 1, 1 or 4 => 2, 5 => 3, >= 6 and <= 11 => 4, 12 or 13 => 5, _ => -1 };

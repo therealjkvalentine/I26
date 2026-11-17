@@ -330,7 +330,7 @@ public partial class Cockpit : Node
 
     private void Sound(string name)
     {
-        if (Audio?.Get(name) is { } s) Node3D.OneShot(s);
+        if (Audio?.Get(name) is { } s) Node3D.OneShot(s, bus: I76.Game.Boot.AudioMix.BusFor(name));
     }
 
     /// <summary>
