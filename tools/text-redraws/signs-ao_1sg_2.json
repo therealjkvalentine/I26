@@ -1,0 +1,135 @@
+{
+ "textures": [
+  "ao_1sg_2"
+ ],
+ "note": "the Mod wheels billboard (aobilbd2: M07, M10, S01, S06, T08, T10): its small print; written by gen/billboards.py",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    86.03,
+    42.03,
+    121.32,
+    48.8
+   ],
+   "where": {
+    "lum_above": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 130
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    84.83,
+    48.43,
+    123.12,
+    55.8
+   ],
+   "where": {
+    "lum_above": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 130
+   },
+   "opaque": true
+  },
+  {
+   "op": "erase",
+   "rect": [
+    2.77,
+    54.88,
+    80.03,
+    61.74
+   ],
+   "where": {
+    "lum_above": 150
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_above": 130
+   },
+   "opaque": true
+  },
+  {
+   "op": "text",
+   "text": "V. SHISHKIN",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 5.17,
+   "colour": [
+    252,
+    250,
+    250
+   ],
+   "box": [
+    87.03,
+    42.83,
+    120.32,
+    48.0
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "COURCHEVAL",
+   "font": "Anton",
+   "embolden": 0.12,
+   "cap": 5.77,
+   "colour": [
+    252,
+    250,
+    250
+   ],
+   "box": [
+    85.83,
+    49.23,
+    122.12,
+    55.0
+   ],
+   "alpha": "set"
+  },
+  {
+   "op": "text",
+   "text": "See it all in your Courcheval!",
+   "font": "Arimo",
+   "variation": {
+    "Weight": 700
+   },
+   "embolden": 0.2,
+   "cap": 5.26,
+   "colour": [
+    247,
+    238,
+    238
+   ],
+   "quad": [
+    [
+     5.084999999999999,
+     55.68
+    ],
+    [
+     79.03,
+     55.68
+    ],
+    [
+     77.715,
+     60.94
+    ],
+    [
+     3.77,
+     60.94
+    ]
+   ],
+   "fit": "ink",
+   "alpha": "set"
+  }
+ ]
+}
