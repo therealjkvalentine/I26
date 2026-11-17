@@ -13,7 +13,7 @@ namespace I76.Net;
 public static class Protocol
 {
     /// <summary>Bumped whenever a message's layout changes; a client of another version is turned away.</summary>
-    public const ushort Version = 24;
+    public const ushort Version = 25;
     /// <summary>
     /// What this build understands beyond upstream's protocol <see cref="Version"/> (the I26 play fork's additions, each behind
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream

@@ -139,6 +139,27 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public string[]? RoadNames { get; private set; }
     public Dictionary<int, RoadRaster.Tex?>? RoadTextures { get; private set; }
     public List<RoadRaster.FlatTri>? RoadPieceTris { get; private set; }
+    /// <summary>Whose ground face each of <see cref="RoadPieceTris"/> is (GroundDecals): its placement and part; null for a road piece's top.</summary>
+    public List<(I76.Formats.Assembly.Placement P, string Part)?>? RoadPieceOwners { get; private set; }
+
+    /// <summary>
+    /// A destroyed placement's painted ground faces of the parts <paramref name="gone"/> names (GroundDecals.PaintedOut): left
+    /// out of the road layer from now on (their texture none, so the chunk index stays). The world rectangle (x0, z0, x1, z1)
+    /// to paint again, or null when none of its faces was painted.
+    /// </summary>
+    public System.Numerics.Vector4? Unpaint(I76.Formats.Assembly.Placement p, Func<string, bool> gone)
+    {
+        if (RoadPieceTris is not { } tris || RoadPieceOwners is not { } owners) return null;
+        var area = new System.Numerics.Vector4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
+        for (int i = 0; i < tris.Count && i < owners.Count; i++)
+            if (owners[i] is { } o && ReferenceEquals(o.P, p) && tris[i].Texture >= 0 && gone(o.Part))
+            {
+                var t = tris[i];
+                tris[i] = t with { Texture = -1 };
+                area = new(Math.Min(area.X, t.Min.X), Math.Min(area.Y, t.Min.Y), Math.Max(area.Z, t.Max.X), Math.Max(area.W, t.Max.Y));
+            }
+        return area.X <= area.Z ? area : null;
+    }
     /// <summary>The quads closing short gaps in the road data (RoadGaps), modern look only.</summary>
     public int RoadFills { get; private set; }
     public long RoadBakeMs { get; private set; }
@@ -159,12 +180,14 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// texture), for RoadRaster to paint into the terrain layer. The original
     /// drew these over the terrain; painted in, nothing has to win a depth
     /// fight. Their textures as served (a pack's upscales in the modern look; the originals with <paramref name="originals"/>), and the
-    /// originals' in the same order (the 1997 look's, BakeFaithfulRoads).
+    /// originals' in the same order (the 1997 look's, BakeFaithfulRoads); and whose ground face each triangle is (GroundDecals: its
+    /// placement and part; null for a road piece's top).
     /// </summary>
-    private static (List<RoadRaster.FlatTri>, List<RoadRaster.Tex?>, List<RoadRaster.Tex?>) RoadPieceTops(I76.Formats.Assembly.MissionWorld world,
+    private static (List<RoadRaster.FlatTri>, List<RoadRaster.Tex?>, List<RoadRaster.Tex?>, List<(I76.Formats.Assembly.Placement, string)?>) RoadPieceTops(I76.Formats.Assembly.MissionWorld world,
         I76.Formats.Assembly.ModelAssembler asm, I76.Formats.Assembly.TextureResolver resolver, Assets.TextureFactory textures, bool originals)
     {
         var tris = new List<RoadRaster.FlatTri>();
+        var owners = new List<(I76.Formats.Assembly.Placement, string)?>();
         var texList = new List<RoadRaster.Tex?>();
         var origList = new List<RoadRaster.Tex?>();
         var texIndex = new Dictionary<string, int>();
@@ -176,8 +199,11 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var lowestOf = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in world.Placements.Concat(world.LinePlacements))
         {
-            bool decals = GroundDecals.Applies(p);
+            // a drive-on structure paints its lots alone (GroundDecals.LotsOnly)
+            bool lots = GroundDecals.LotsOnly(p);
+            bool decals = GroundDecals.Applies(p) || lots;
             if (!decals && !ScenerySpawner.IsRoadPiece(p.Object.ObjectType) || p.Definition is null || asm.Assemble(p.Definition) is not { } model) continue;
+            if (lots && model.Lots.Count == 0) continue;
             // a road piece is painted only where the paint is its whole look (RoadPieceObjects): a ramp given the type is drawn
             if (!decals && !RoadPieceObjects.IsFlat(model = RoadPieceObjects.Drawn(model))) continue;
             float lowest = 0;
@@ -187,7 +213,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
                 foreach (var f in part.Mesh.Faces)
                 {
                     if (f.Vertices.Length < 3 || f.Vertices.Any(v => (uint)v.Index >= part.Mesh.Vertices.Length)) continue;
-                    if (decals && !GroundDecals.IsGroundFace(part, f, lowest)) continue;
+                    if (decals && !(lots ? GroundDecals.IsLotFace(model, part, f, lowest) : GroundDecals.IsGroundFace(part, f, lowest))) continue;
                     var n = place.Rotate(part.ToModel.Rotate(new System.Numerics.Vector3(f.Plane.X, f.Plane.Y, f.Plane.Z)));
                     if (n.LengthSquared() < 0.5f || -n.Y / n.Length() < 0.6f) continue;   // outward is -plane: only tops
                     int ti;
@@ -205,10 +231,11 @@ public sealed class MissionBuilder(AssetVfs vfs)
                         var min = System.Numerics.Vector2.Min(System.Numerics.Vector2.Min(w[0], w[k]), w[k + 1]);
                         var max = System.Numerics.Vector2.Max(System.Numerics.Vector2.Max(w[0], w[k]), w[k + 1]);
                         tris.Add(new RoadRaster.FlatTri(w[0], w[k], w[k + 1], uv[0], uv[k], uv[k + 1], ti, min, max));
+                        owners.Add(decals ? (p, part.NodeName) : null);
                     }
                 }
         }
-        return (tris, texList, origList);
+        return (tris, texList, origList, owners);
     }
 
     /// <summary>
@@ -219,12 +246,12 @@ public sealed class MissionBuilder(AssetVfs vfs)
     {
         if (World is null || Assembler is null || Resolver is null || Textures is null || RoadNames is null || RoadTextures is null) return;
         // (the map editor's roads are the originals' whatever is served: RoadsFromOriginals)
-        var (tris, tex, _) = RoadPieceTops(World, Assembler, Resolver, Textures, RoadsFromOriginals);
+        var (tris, tex, _, owners) = RoadPieceTops(World, Assembler, Resolver, Textures, RoadsFromOriginals);
         int n = RoadNames.Length;
         var textures = RoadTextures.Where(kv => kv.Key < n).ToDictionary(kv => kv.Key, kv => kv.Value);
         for (int i = 0; i < tex.Count; i++) textures[n + i] = tex[i];
         for (int i = 0; i < tris.Count; i++) tris[i] = tris[i] with { Texture = tris[i].Texture + n };
-        RoadTextures = textures; RoadPieceTris = tris;
+        RoadTextures = textures; RoadPieceTris = tris; RoadPieceOwners = owners;
     }
 
     /// <summary>
@@ -686,14 +713,14 @@ public sealed class MissionBuilder(AssetVfs vfs)
         Stage("road pieces");
         // road-piece objects (ODEF types 0x50–0x5f, the intersections): their tops painted over the roads,
         // their textures numbered after the road set's
-        var (pieceTris, pieceTex, pieceOriginal) = RoadPieceTops(world, asm, resolver, textures, originalsOnly);
+        var (pieceTris, pieceTex, pieceOriginal, pieceOwners) = RoadPieceTops(world, asm, resolver, textures, originalsOnly);
         for (int i = 0; i < pieceTex.Count; i++) { roadTex[roadNames.Length + i] = pieceTex[i]; roadTexOriginal[roadNames.Length + i] = pieceOriginal[i]; }
         // a pack serves the roads, the pieces' tops or the decals (the modern look with one): the 1997 look's layers are the originals'
         // apart, as a 1997 start bakes them, at the originals' resolution; without one, one set serves both looks as before
         bool packRoads = FaithfulRoads.PackServes(roadTex, roadTexOriginal);
         int resOriginal = packRoads ? RoadLayerResolutionFor(Enumerable.Range(0, roadNames.Length).Select(i => roadTexOriginal.GetValueOrDefault(i)?.Width ?? 0).DefaultIfEmpty(0).Max()) : RoadLayerResolution;
         for (int i = 0; i < pieceTris.Count; i++) pieceTris[i] = pieceTris[i] with { Texture = pieceTris[i].Texture + roadNames.Length };
-        RoadNames = roadNames; RoadTextures = roadTex; RoadPieceTris = pieceTris;
+        RoadNames = roadNames; RoadTextures = roadTex; RoadPieceTris = pieceTris; RoadPieceOwners = pieceOwners;
         // not in the cache: the ground materials are made while the roads bake
         if (staging && !matsHit!.Result)
         {

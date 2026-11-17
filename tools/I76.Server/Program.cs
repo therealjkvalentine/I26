@@ -14,6 +14,8 @@ using I76.Server;
 //       [--restrict a,b,c]        WEAPON RESTRICTIONS (docs/hidden-content.md): weapons no car may bring, by all, a group (slugs,
 //                                 mortars, missiles, flames, droppers), a .gdf (gchades, tdumb) or class:tier; a join whose car
 //                                 carries one is refused, naming them. Hidden weapons are named the same way (gchades, gscherub...).
+//                                 Specials too (the port's): specials (every one), jammer, nitro, blower, exhaust, bumper, curb,
+//                                 mudflaps, seats, cupholders, mary, covers (or the garage's name without spaces: radarjammer, spc01).
 //       [--turrets]               Unlim. Turrets: cars may carry several turrets, each on a roof mount (off: a joining car with a second one is refused, a bot loses the extras).
 //       [--handicaps [auto]]      Handicaps: the console's handicap SLOT LEVEL gives a player a level, -3..+3, that scales their rounds' damage (off by default);
 //                                 auto: the game sets the levels from the standings instead (docs/multiplayer.md "Auto handicap").
@@ -45,7 +47,7 @@ using I76.Server;
 //                         it each client gets one datagram a tick (docs/multiplayer.md, "How many players")
 //       [--bot-car N=MODEL[:VARIANT]]...  the car of bot seat N (1 is the first; repeatable): MODEL a car's file stem (vppirna, vcgcour; the
 //                         Nitro Pack's are the same stems), VARIANT its number (1 by default; a saved variant of the host's counts), or a car
-//                         file (vppirna2.vcf), or random. Seats without one roll a stock car. The game's rules still apply: restricted weapons are
+//                         file (vppirna2.vcf), or random. Seats without one roll a stock car. The game's rules still apply: restricted weapons and specials are
 //                         taken off the car, a hidden model needs --hidden. [--bot-cars-file PATH] the same, a line "N=MODEL[:VARIANT]" each (# comments).
 //       [--bots-ai N] [--bot-skill easy|normal|hard]  bots: N players the server drives by the game's mode (combat: attack the nearest
 //                         enemy, race: drive the checkpoints, CTF: raid, defend, escort), each with a name, a car, a team, a score
@@ -193,7 +195,7 @@ if (coop is not null)
         $"{(o.Password.Length > 0 ? ", password-protected" : "")}; " +
         (o.Lobby ? $"the lobby starts the mission when {(o.LobbyMinPlayers > 1 ? $"{o.LobbyMinPlayers} or more players are" : "the players here are")} all ready (the console's start forces it)" : "the mission starts with the first player"));
 else Log($"{o.Arena} ready in {sw.ElapsedMilliseconds} ms: {server.Host.Setup.World.Vehicles.Count - server.Host.Bots.Count} AI cars{(server.Host.Bots.Count > 0 ? $", {server.Host.Bots.Count} bots" : "")}, {server.Host.Game.Spawns.Count} spawn points; " +
-    $"listening on UDP {server.Port}, up to {o.MaxPlayers} players{(o.TeamPlay ? ", teams" : "")}{(o.MaxScore > 0 ? $", to {o.MaxScore} points" : "")}{(o.TimeLimit > 0 ? $", {o.TimeLimit} s" : "")}{(o.Password.Length > 0 ? ", password-protected" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted weapons {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}");
+    $"listening on UDP {server.Port}, up to {o.MaxPlayers} players{(o.TeamPlay ? ", teams" : "")}{(o.MaxScore > 0 ? $", to {o.MaxScore} points" : "")}{(o.TimeLimit > 0 ? $", {o.TimeLimit} s" : "")}{(o.Password.Length > 0 ? ", password-protected" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}");
 if (server.MapNote is { } mapNote) Log(mapNote);
 if (I76.Net.HostFirewall.Blocked(server.Port) == true) Log($"{I76.Net.HostFirewall.Hint} (UDP port {server.Port})");
 var anet = new List<(string, int)>();

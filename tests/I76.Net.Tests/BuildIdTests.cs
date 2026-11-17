@@ -60,7 +60,38 @@ public class BuildIdTests
         new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, []).Write(s);
         var bytes = s.ToArray();
         Assert.Equal("", SessionInfo.TryRead(bytes[..^1])!.Build);     // the empty string's length byte gone: an upstream host's answer, which ends with its host rules
-        Assert.Equal(24, Protocol.Version);
+        Assert.Equal(25, Protocol.Version);
+    }
+
+    /// <summary>
+    /// Protocol 25's restricted specials end upstream's answer; the fork's build follows them. A stock upstream reader stops after the
+    /// specials (the build is past its last field), an upstream host's answer (no build) reads as no build here, and the answer of a
+    /// fork host of protocol 24, whose build stood where the specials now are, still gives its build and no specials.
+    /// </summary>
+    [Fact] public void TheBuildFollowsTheRestrictedSpecials()
+    {
+        var specials = I76.Sim.Trip.WeaponRestrictions.None.WithSpecials([1, 3]);
+        var info = new SessionInfo(1, Protocol.Version, "g", "m05", 1, 4, false, false, 0, 0, false, [], Restrictions: specials) { Build = "abc1234" };
+        var s = new NetWriter();
+        info.Write(s);
+        var bytes = s.ToArray();
+        var back = SessionInfo.TryRead(bytes)!;
+        Assert.Equal("abc1234", back.Build);
+        Assert.Equal([1, 3], back.Restricted.Specials);
+        // an upstream host of protocol 25: the same answer without the build ("abc1234" and its length byte)
+        var upstream = SessionInfo.TryRead(bytes[..^8])!;
+        Assert.Equal("", upstream.Build);
+        Assert.Equal([1, 3], upstream.Restricted.Specials);
+        // a fork host of protocol 24: no specials, the build right after the host rules
+        var old = new NetWriter();
+        (info with { Version = 24, Restrictions = null }).Write(old);
+        var oldBytes = old.ToArray();
+        var fork24 = new byte[oldBytes.Length - 1];
+        int at = oldBytes.Length - 8 - 1;   // the specials' count (0) before the build
+        Array.Copy(oldBytes, fork24, at);
+        Array.Copy(oldBytes, at + 1, fork24, at, 8);
+        var read24 = SessionInfo.TryRead(fork24)!;
+        Assert.Equal(("abc1234", 0), (read24.Build, read24.Restricted.Specials.Count));
     }
 
     /// <summary>A joiner on another build is let in, and every player hears it once.</summary>

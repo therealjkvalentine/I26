@@ -10,9 +10,10 @@ public class DiscoveryTests
 {
     /// <summary>
     /// The host's rules a listing ends with after the makes and models (protocol 23): Co-op Damage, Co-op Scaling, Rolling Start, the
-    /// ignition lock, the 1997 turrets; then the I26 play fork's build (here empty: its length byte).
+    /// ignition lock, the 1997 turrets; then the restricted specials' count (protocol 25; none here); then the I26 play fork's
+    /// build (here empty: its length byte).
     /// </summary>
-    internal const int Rules = 5 + 1;
+    internal const int Rules = 6 + 1;
 
     /// <summary>What a listing with no drivers and no arena name ends with after the crosshair byte: the arena name's length and the drivers' names' count (protocol 22), then <see cref="Rules"/>.</summary>
     internal const int Names = 2 + Rules;

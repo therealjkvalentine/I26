@@ -2,6 +2,9 @@ using Godot;
 using I76.Formats.Input;
 using I76.Formats.Shell;
 
+// the game's internals for its tests (upstream's line here; the join form's restriction names are checked without the engine)
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("I76.Game.Tests")]
+
 namespace I76.Game.Shell;
 
 /// <summary>
