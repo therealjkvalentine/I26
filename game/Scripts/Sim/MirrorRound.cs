@@ -245,6 +245,83 @@ public static class GlassRound
         return ([.. hull], 0f);
     }
 
+    /// <summary>
+    /// The ring's outer edge as one smooth outline the same distance past the housing's outline all round (the default since a
+    /// playtest asked for the border one thickness everywhere): the outline <paramref name="hull"/> eroded by a corner radius e and
+    /// widened by e and <paramref name="over"/> again, so along every straight run the outer edge lies <paramref name="over"/> past
+    /// the outline, and e the largest (at most <paramref name="r"/>, the glass's own) that keeps every corner of the outline
+    /// <paramref name="margin"/> inside the edge. The glass's edge is this outer edge inset by the band's width (the shader's), so the
+    /// band is one width all round and the glass grows to it; its corners' radius is e + over less the band's width
+    /// <paramref name="ringW"/>, kept at least half the band (a smaller one would draw the glass's corner as a point), by reaching
+    /// further past the outline where a corner is too sharp for that. Core and E as the shader's pane_ocore and pane_or, Over its rim_out.
+    /// </summary>
+    public static (List<Vector2> Core, float E, float Over) EvenShape(IReadOnlyList<Vector2> hull, float r, float over, float margin, float ringW)
+    {
+        bool Holds(float e, float o)
+        {
+            if (e <= 0) return o >= margin;
+            var c = Erode(hull, e);
+            return c.Count is >= 3 and <= MaxCorners && hull.All(v => Distance(c, v) - e <= o - margin + 1e-6f);
+        }
+        float lo = 0, hi = r;
+        if (Holds(hi, over)) lo = hi;
+        else
+            for (int i = 0; i < 30; i++) { float m = (lo + hi) / 2; if (Holds(m, over)) lo = m; else hi = m; }
+        // the glass's corners no tighter than half the band: the radius rho = e + over held there, over grown until the corners fit
+        float rho = 1.5f * ringW;
+        if (lo + over < rho && rho > 0)
+        {
+            float olo = over, ohi = rho;
+            for (int i = 0; i < 30; i++) { float m = (olo + ohi) / 2; if (Holds(rho - m, m)) ohi = m; else olo = m; }
+            over = ohi; lo = rho - ohi;
+        }
+        var core = lo > 0 ? Erode(hull, lo) : [.. hull];
+        return (core, lo, over);
+    }
+
+    /// <summary>
+    /// The outline the ring's outer edge covers: the glass's own outline and, of the housing's points (the door mirror head's
+    /// vertices, picture units as seen from the eye, and their distance in front of the glass's plane, negative behind it), those
+    /// within <see cref="HousingDepth"/> behind the glass: the housing's rim, which the eye sees past the glass's edge where the head
+    /// is turned (the CC cars' right side, about 5 % of the glass's height); the arm it stands on, further back, is not covered.
+    /// Their convex hull, counter-clockwise.
+    /// </summary>
+    public static List<Vector2> Housing(IReadOnlyList<Vector2> glass, IEnumerable<(Vector2 Uv, float Depth)> head)
+    {
+        var h = Hull([.. glass, .. head.Where(q => q.Depth >= -HousingDepth && q.Depth <= 0.01f).Select(q => q.Uv)]);
+        return h.Count <= MaxCorners ? h : [.. glass];
+    }
+
+    /// <summary>How far behind the glass's plane a housing point is still the housing's rim (metres): the CC cars' housing is 1.6 cm deep, its arm 8 cm and more behind.</summary>
+    public const float HousingDepth = 0.03f;
+
+    /// <summary>
+    /// A point as the eye sees it on a plane P = O + U·A + V·B: where the eye's ray through it meets the plane, as (U, V), and the
+    /// point's distance in front of the plane along its normal (A × B, toward the eye when the eye is on that side); null when the ray
+    /// runs along the plane.
+    /// </summary>
+    public static (Vector2 Uv, float Depth)? Seen(Vector3 eye, (Vector3 O, Vector3 A, Vector3 B) pl, Vector3 q)
+    {
+        var n = pl.A.Cross(pl.B).Normalized();
+        if ((eye - pl.O).Dot(n) < 0) n = -n;
+        var d = q - eye; float den = d.Dot(n); if (MathF.Abs(den) < 1e-6f) return null;
+        var hit = eye + d * ((pl.O - eye).Dot(n) / den) - pl.O;
+        float aa = pl.A.Dot(pl.A), ab = pl.A.Dot(pl.B), bb = pl.B.Dot(pl.B), ha = hit.Dot(pl.A), hb = hit.Dot(pl.B), det = aa * bb - ab * ab;
+        if (MathF.Abs(det) < 1e-12f) return null;
+        return (new Vector2((ha * bb - hb * ab) / det, (hb * aa - ha * ab) / det), (q - pl.O).Dot(n));
+    }
+
+    /// <summary>
+    /// The box the glass's picture is spread over (UV: u 0..1 across, v 0..1 up): the glass's inside (<paramref name="core"/> widened
+    /// by <paramref name="inner"/>, picture units of u times <paramref name="aspect"/>, v) where it reaches past the picture's own
+    /// 0..1, so a glass grown past its pane shows the whole view squeezed a little rather than the picture's edge rows smeared.
+    /// </summary>
+    public static (Vector2 Min, Vector2 Max) PictureBox(IReadOnlyList<Vector2> core, float inner, float aspect)
+    {
+        var a = Around(core, Math.Max(inner, 0));
+        return (new(Math.Min(0, a.Min(q => q.X) / aspect), Math.Min(0, a.Min(q => q.Y))), new(Math.Max(1, a.Max(q => q.X) / aspect), Math.Max(1, a.Max(q => q.Y))));
+    }
+
     /// <summary>The ring's outer edge grown evenly instead (I76_MIRROR_RIM_POINTS=uniform): the glass's rounded shape widened just enough that every corner of the outline lies <paramref name="margin"/> inside it, or <paramref name="grow"/> where that is further.</summary>
     public static float UniformGrow(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> core, float r, float grow, float margin) =>
         Math.Max(grow, Cover(hull, core, r) + margin);

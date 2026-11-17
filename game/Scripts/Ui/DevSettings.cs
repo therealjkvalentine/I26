@@ -67,7 +67,7 @@ public static class DevSettings
     /// <summary>[port] side_mirror_round's values offered: the door mirrors' glass corners, percent of its shorter side (0 the glass's own, the original's; 50 round ends).</summary>
     public static readonly int[] GlassRoundSteps = [0, 15, 30, 50];
     private static readonly string[] GlassRoundNames = [.. GlassRoundSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
-    /// <summary>[port] side_mirror_rim_out's values offered: the door mirrors' moulding's outer edge, in its own widths beyond the rounded glass (0 the housing's straight outline).</summary>
+    /// <summary>[port] side_mirror_rim_out's values offered: the door mirrors' moulding's outer edge, in its own widths past the housing's outline (0 the housing's straight outline).</summary>
     public static readonly int[] RimOutSteps = [0, 1, 2, 3, 4];
     private static readonly string[] RimOutNames = [.. RimOutSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];

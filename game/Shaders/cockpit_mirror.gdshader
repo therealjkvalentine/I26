@@ -55,6 +55,11 @@ uniform float rim_out = 0.0;
 // outer edge kept where it covered the housing's edges)
 uniform float ring_w = 0.03;
 uniform bool rim_dark = false;
+// the band measured in from the outer edge's own outline (GlassRound.EvenShape: one width all round, the glass's edge the outer
+// edge inset by it) rather than from the glass's rounded shape (the outer edge's corners tighter, the band thicker there)
+uniform bool ring_from_outer = false;
+// the glass's UV box the view is spread over (u0, v0, u1, v1): 0..1, or wider where the glass grows past its pane (GlassRound.PictureBox)
+uniform vec4 view_box = vec4(0.0, 0.0, 1.0, 1.0);
 uniform vec2 pane_hull[12];
 uniform int pane_hull_n = 0;
 // the ring the same width on screen all round (perspective stretches a glass near the screen's edge across its sight line; the
@@ -83,9 +88,15 @@ uniform float inner_r = 0.0;
 uniform bool glass_from_shape = false;
 // I76_MIRROR_RIM_KEY: the side mirrors' rim (the door glasses' moulding, the added glasses' frame) flat magenta, for measuring its width
 uniform bool rim_key = false;
-const vec3 KEY = vec3(1.0, 0.0, 1.0);
+const vec3 KEY = vec3(0.5, 0.0, 0.5);
 // and the pane's outline outside the ring (the housing's painted glass, hidden: what shows there is behind the housing) flat cyan
-const vec3 KEY_GAP = vec3(0.0, 1.0, 1.0);
+const vec3 KEY_GAP = vec3(0.0, 0.5, 0.5);
+// and the ring where it reaches past that outline flat blue, for measuring how far past the housing it stands
+const vec3 KEY_OVER = vec3(0.0, 0.0, 0.5);
+// and the glass's view inside the ring flat dark green, so the glass's edge is a blend of two known colours
+const vec3 KEY_GLASS = vec3(0.0, 0.35, 0.0);
+// and dark yellow where the glass reaches past the outline, so the outline shows under the glass too
+const vec3 KEY_GLASS_OUT = vec3(0.35, 0.35, 0.0);
 
 // the signed distance to a convex quad (negative inside), corners in order
 float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
@@ -209,25 +220,29 @@ void fragment() {
 	vec2 auv = art_uv(UV);
 	vec2 vuv = vec2(view_x(UV.x), 1.0 - UV.y);
 	if (pane) {
+		vec2 pv = (UV - view_box.xy) / (view_box.zw - view_box.xy);
+		vuv = vec2(view_x(pv.x), 1.0 - pv.y);
 		ALBEDO = texture(view, vuv).rgb;
 		ALPHA = 1.0;
 		if (pane_round && rim_round) {
 			vec2 p = vec2(UV.x * pane_aspect, UV.y);
-			float sd = sd_core(p) - pane_r;
+			float sdo = sd_ocore(p) - pane_or;
+			float sd = ring_from_outer ? sdo : sd_core(p) - pane_r;
 			// screen pixels in from the ring's outer edge: the outline's distance over its gradient on screen
 			float px = (rim_out - sd) / max(length(vec2(dFdx(sd), dFdy(sd))), 1e-7);
 			float w = max(ring_w * px_per_unit, 1.0);
 			// the moulding across the whole ring: 0 at its outer edge, 1 at the glass's
 			float t = clamp(px / w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
+			float hull_in = rounded(sd_hull(p));
+			if (rim_key) ALBEDO = mix(KEY_GLASS_OUT, KEY_GLASS, hull_in);
+			ALBEDO = mix(rim_key ? mix(KEY_OVER, KEY, hull_in) : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
 			// the outer edge: the outline eroded by pane_or and widened by it and rim_out (GlassRound.OuterShape), its corners tighter
 			// than the glass's where the outline's corners (the housing's edge) would otherwise stick out past it as points; along
-			// the straight runs it is the glass's rounded shape's, so the band is as wide there and thicker in such a corner
-			float sdo = sd_ocore(p) - pane_or;
+			// the straight runs it is the glass's rounded shape's, so the band is as wide there and thicker in such a corner; with
+			// ring_from_outer (the default, GlassRound.EvenShape) the glass's edge above is measured from this edge, the band one width
 			float px_out = (rim_out - sdo) / max(length(vec2(dFdx(sdo), dFdy(sdo))), 1e-7);
 			float solid = clamp(px_out + 0.5, 0.0, 1.0);
-			float hull_in = rounded(sd_hull(p));
 			// keyed: the outline outside the ring cyan (none should be left)
 			if (rim_key) { ALBEDO = mix(KEY_GAP, ALBEDO, solid); solid = max(solid, hull_in); }
 			ALPHA = rim_dark ? max(solid, hull_in) : solid;

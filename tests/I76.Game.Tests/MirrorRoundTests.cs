@@ -265,6 +265,97 @@ public class MirrorRoundTests(ITestOutputHelper output)
         Assert.True(rg >= grow);
     }
 
+    // the door glasses' outlines as the driver sees them (picture units, the glass's height 1), logged by I76_MIRROR_POINTS at
+    // 3440x1440: the Piranha's left (six-sided), its right, and the CC cars' left with its housing's rim 1.6 cm behind the glass
+    private static readonly Vector2[] PiranhaLeft = [new(0, 0.6332f), new(0.1365f, 0.2098f), new(0.3680f, 1), new(0.5962f, 0), new(0.8278f, 0.7902f), new(0.8520f, 0.2444f)];
+    private static readonly Vector2[] PiranhaRight = [new(0, 0.2749f), new(0.0395f, 0.8305f), new(0.2137f, 0), new(0.4455f, 1), new(0.6196f, 0.1695f), new(0.7524f, 0.5890f)];
+    private static readonly Vector2[] CcLeft = [new(0, 0.1555f), new(0.0757f, 1), new(0.9255f, 0), new(1.0012f, 0.8445f)];
+    private static readonly (Vector2, float)[] CcHead = [(new(0.0756f, 0.1716f), -0.0155f), (new(0.1494f, 0.9950f), -0.0155f), (new(0.9778f, 0.0202f), -0.0157f), (new(1.0515f, 0.8432f), -0.0158f),
+        (new(0.6862f, 0.5195f), -0.0448f), (new(0.9259f, -0.3360f), -0.0777f), (new(1.2262f, -0.1226f), -0.1961f), (new(0, 0.1555f), -0.0024f)];
+
+    /// <summary>
+    /// The border one thickness all round (a playtest: "we don't want any part of them to be thicker than another part"): on every door
+    /// glass's outline the ring's outer edge (GlassRound.EvenShape) and the glass's edge (that outline inset by the band) are measured
+    /// along the whole perimeter, the band within 2 % of its width everywhere, the corners included; every corner of the outline lies
+    /// inside the outer edge; along the straight runs the edge lies the rim's reach past the outline (even), the glass's corners stay
+    /// round (no point) and no rounder than the glass's own.
+    /// </summary>
+    [Theory]
+    [InlineData("piranha-left")]
+    [InlineData("piranha-right")]
+    [InlineData("cc-left")]
+    [InlineData("cc-left-housing")]
+    public void TheBandIsOneThicknessAllRound(string which)
+    {
+        var pane = GlassRound.Hull(which switch { "piranha-left" => PiranhaLeft, "piranha-right" => PiranhaRight, _ => CcLeft });
+        var outline = which == "cc-left-housing" ? GlassRound.Housing(pane, CcHead) : pane;
+        var (_, r) = GlassRound.Shape(pane, GlassRound.DefaultShare)!.Value;
+        float reach = GlassRound.DefaultRimOut * MirrorRim.OuterShare, ringW = MirrorRim.RingWidth(reach), margin = 0.004f;
+        var (core, e, over) = GlassRound.EvenShape(outline, r, reach, margin, ringW);
+        Assert.Equal(reach, over, 1e-5f);   // these outlines take the rim's reach as it is
+        Assert.True(e <= r + 1e-5f && e > 0);
+        float F(Vector2 p) => SignedDistance(core, p) - e;   // the shader's sdo
+        Assert.All(outline, v => Assert.True(F(v) <= over - margin + 1e-4f, $"{v} past the outer edge"));
+        // each side's middle: the outer edge the reach past it
+        for (int i = 0; i < outline.Count; i++)
+        {
+            var a = outline[i]; var b = outline[(i + 1) % outline.Count];
+            if (a.DistanceTo(b) > 2 * (e + over)) Assert.Equal(0f, F((a + b) / 2), 0.0005f);
+        }
+        // the two edges round the whole perimeter: 720 rays from the middle, each edge found by halving
+        var mid = outline.Aggregate(Vector2.Zero, (x, y) => x + y) / outline.Count;
+        Vector2 Edge(Vector2 dir, float level)
+        {
+            float lo = 0, hi = 3;
+            for (int k = 0; k < 40; k++) { float m = (lo + hi) / 2; if (F(mid + dir * m) <= level) lo = m; else hi = m; }
+            return mid + dir * lo;
+        }
+        var outer = new List<Vector2>(); var inner = new List<Vector2>();
+        for (int k = 0; k < 720; k++)
+        {
+            var dir = new Vector2(MathF.Cos(k * MathF.PI / 360), MathF.Sin(k * MathF.PI / 360));
+            outer.Add(Edge(dir, over)); inner.Add(Edge(dir, over - ringW));
+        }
+        // the band at each point of the outer edge: its distance to the glass's edge
+        var widths = outer.Select(p => inner.Min(q => q.DistanceTo(p))).ToList();
+        float lo_ = widths.Min(), hi_ = widths.Max();
+        output.WriteLine($"{which}: corner radius outer {e + over:0.000} glass {e + over - ringW:0.000} (the glass's own {r:0.000}); reach {over:0.0000}; band {lo_ / ringW:0.000}-{hi_ / ringW:0.000} widths");
+        Assert.True(hi_ - lo_ <= 0.02f * ringW, $"band {lo_:0.0000}-{hi_:0.0000}");
+        Assert.True(e + over - ringW >= 0.5f * ringW);
+        // the glass's picture spread over its inside where it reaches past the pane
+        var (bmin, bmax) = GlassRound.PictureBox(core, e + over - ringW, 1);
+        Assert.All(inner, q => Assert.True(q.X >= bmin.X - 1e-4f && q.X <= bmax.X + 1e-4f && q.Y >= bmin.Y - 1e-4f && q.Y <= bmax.Y + 1e-4f));
+        Assert.True(bmin.X <= 0 && bmin.Y <= 0 && bmax.X >= 1 && bmax.Y >= 1);
+    }
+
+    /// <summary>A corner too sharp for the rim's reach: the reach grows until the glass's corner keeps half a band's radius, the band still even.</summary>
+    [Fact]
+    public void ASharpCornerReachesFurtherRatherThanAPoint()
+    {
+        var pane = GlassRound.Hull([new(0, 0), new(1.6f, 0), new(0.2f, 1)]);
+        float ringW = MirrorRim.RingWidth(GlassRound.DefaultRimOut * MirrorRim.OuterShare);
+        var (core, e, over) = GlassRound.EvenShape(pane, 0.3f, 0.005f, 0.004f, ringW);
+        Assert.True(over > 0.005f);
+        Assert.Equal(1.5f * ringW, e + over, 1e-4f);
+        Assert.All(pane, v => Assert.True(GlassRound.Distance(core, v) - e <= over - 0.004f + 1e-4f));
+    }
+
+    /// <summary>The housing's rim seen past the glass is covered, its arm is not; a point is seen where the eye's ray meets the glass's plane.</summary>
+    [Fact]
+    public void TheHousingsRimIsCoveredNotItsArm()
+    {
+        var cover = GlassRound.Housing(GlassRound.Hull(CcLeft), CcHead);
+        Assert.Contains(new Vector2(1.0515f, 0.8432f), cover);
+        Assert.Contains(new Vector2(0.9778f, 0.0202f), cover);
+        Assert.DoesNotContain(cover, v => v.Y < -0.01f || v.X > 1.06f);
+        var pl = (O: new Vector3(0, 0, 0), A: new Vector3(1, 0, 0), B: new Vector3(0, 1, 0));
+        var eye = new Vector3(0.5f, 0.5f, 2);
+        var on = GlassRound.Seen(eye, pl, new Vector3(0.3f, 0.7f, 0))!.Value;
+        Assert.Equal(0.3f, on.Uv.X, 1e-5f); Assert.Equal(0.7f, on.Uv.Y, 1e-5f); Assert.Equal(0f, on.Depth, 1e-5f);
+        var behind = GlassRound.Seen(eye, pl, new Vector3(1.5f, 0.5f, -0.02f))!.Value;
+        Assert.Equal(-0.02f, behind.Depth, 1e-5f); Assert.Equal(0.5f + 2f / 2.02f, behind.Uv.X, 1e-4f);   // nearer the middle: seen through the plane
+    }
+
     private static float SignedDistance(List<Vector2> poly, Vector2 p)
     {
         float d = GlassRound.Distance(poly, p);
