@@ -38,7 +38,8 @@ public partial class CoopNetTests
 
     private static void AssertSame(Game g, Player p, string what)
     {
-        g.Wait(() => false, 600);
+        // until the snapshots carrying the change are in (a fixed pause is too short on a loaded machine)
+        g.Wait(() => FirstDifference(g, p) is null, 10000);
         Assert.True(FirstDifference(g, p) is null, $"{what}: {FirstDifference(g, p)}");
     }
 
@@ -100,9 +101,9 @@ public partial class CoopNetTests
         if (HostTests.InstallDir is null) return;
         var (g, hal) = Joined("t11");
         using var _ = g;
-        var o = g.Server.Invoke(h => h.Setup.Statics.Objects.First(x => x.Type == 4 && !x.Destroyed));
+        var o = g.Server.Invoke(h => h.Setup.Statics.Objects.First(x => x.Type == 4 && !x.Knocked));
         g.Server.Invoke(h => { h.Setup.Damage.KnockSign(o); return 0; });
-        Assert.True(g.Server.Invoke(h => o.Destroyed));
+        Assert.True(g.Server.Invoke(h => o.Knocked));
         AssertSame(g, hal, $"{o.Name} knocked");
     }
 

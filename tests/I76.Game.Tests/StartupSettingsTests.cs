@@ -47,4 +47,22 @@ public class StartupSettingsTests
         Assert.Equal("[audio]\n\ndriver/enable_input=true\n", StartupSettings.Text(false, RendererChoice.Auto, true, micInput: true));
         Assert.Contains("[audio]", StartupSettings.Text(true, RendererChoice.OpenGL, false, micInput: true));
     }
+
+    // #133: AMD's Windows Vulkan driver draws the 1997 look's ground black; D3D12 draws it right
+    [Theory]
+    [InlineData("Windows", "AMD", RendererChoice.D3D12)]                       // Vulkan and D3D12 report the vendor so
+    [InlineData("Windows", "ATI Technologies Inc.", RendererChoice.D3D12)]     // OpenGL
+    [InlineData("Windows", "Advanced Micro Devices, Inc.", RendererChoice.D3D12)]
+    [InlineData("Windows", "NVIDIA", RendererChoice.Auto)]
+    [InlineData("Windows", "Intel", RendererChoice.Auto)]
+    [InlineData("Windows", "", RendererChoice.Auto)]
+    [InlineData("Linux", "AMD", RendererChoice.Auto)]                          // RADV draws it right
+    [InlineData("macOS", "AMD", RendererChoice.Auto)]
+    public void AutoPicksD3D12OnlyOnWindowsWithAnAmdCard(string os, string vendor, RendererChoice want) =>
+        Assert.Equal(want, StartupSettings.AutoPick(os, vendor));
+
+    [Fact]
+    public void AutosPickWritesTheD3D12File() =>
+        Assert.Equal(StartupSettings.Text(false, RendererChoice.D3D12, true),
+            StartupSettings.Text(false, StartupSettings.AutoPick("Windows", "AMD"), true));
 }

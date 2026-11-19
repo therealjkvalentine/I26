@@ -19,7 +19,8 @@ public sealed record Debris(Vector3 At, Vector3 Velocity) : DamageEvent;
 /// <summary>
 /// A structure lost nodes, or its root (<see cref="StaticObject.Nodes"/>, <see cref="StaticObject.Destroyed"/>):
 /// its look follows them. <paramref name="Booms"/> are the explosions that went off with it, each with its
-/// sound: −1 the root's at its marker, n node n's at its base.
+/// sound (<see cref="StaticObject.BoomSound"/>): −1 the root's at its marker, n node n's at its base, −2 a Gate-class
+/// root's own at the placement.
 /// </summary>
 public sealed record StructureDestroyed(StaticObject Object, IReadOnlyList<int> Booms) : DamageEvent
 {
@@ -173,14 +174,8 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
                 EmplacementSlot(gun, p);
                 if (p.Attacker is Vehicle ga && ga != gun && p.Kind != DamageKind.Explosion) Record(gun, ga, p.Kind, p.Mask);
                 break;
-            case StaticObject sign when sign.Type == 4 && node < 0 || sign.SignNode(node):
-                // Sends a type-4 root or node to the sign's own slot, which knocks off the
-                // node's root for an explosive or impact packet (mask & 0xa) and ignores ballistic and fire (measured in the original game:
-                // a 50-point round on swend_1's sign node left it standing)
-                if ((p.Mask & 0xa) != 0) KnockSign(sign);
-                break;
             case StaticObject o:
-                StructureSlot(o, node, p);
+                StaticSlot(o, node, p);
                 break;
         }
     }
@@ -623,7 +618,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         if (o.TypeAt(node) != 3) VehicleSlot(v, Impact(null, v.P.Mass, KOther, rec.N, impact), rec.C);
         if (o.Vehicle is not null) return;   // an emplacement has no collide callback: rams do it no harm
         var sp = Impact(v, v.P.Mass, KVehicle, -rec.N, v.Vel);
-        StructureSlot(o, node, sp);
+        StaticSlot(o, node, sp);
     }
 
     /// <summary>A contact that does not say which node it touched (the modern physics' hull): the live node whose base is nearest.</summary>
@@ -631,7 +626,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     {
         int best = -1; float bd = float.MaxValue;
         for (int i = 0; i < o.Nodes.Count; i++)
-            if (o.Nodes[i] is { Destroyed: false, Base: { } b, Damageable: true } && Vector3.DistanceSquared(b, at) is var d && d < bd) { bd = d; best = i; }
+            if (o.Nodes[i] is { Destroyed: false, Base: { } b } n && (n.Damageable || n.GateSlot) && Vector3.DistanceSquared(b, at) is var d && d < bd) { bd = d; best = i; }
         return best;
     }
 
@@ -677,6 +672,65 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     }
 
     // ---- structures ----
+
+    /// <summary>
+    /// A hit on a structure goes to the slot of what it struck, by that one's own type (−1 the root, by the placement's
+    /// class id): a type-4 root or node to the sign's slot, which knocks off the node's root for an explosive or impact
+    /// packet (mask &amp; 0xa) and ignores ballistic and fire (measured in the original game: a 50-point round on swend_1's
+    /// sign node left it standing); a gate or spinner to its own (<see cref="GateSlot"/>); the rest to the structure slot.
+    /// </summary>
+    public void StaticSlot(StaticObject o, int node, DamagePacket p)
+    {
+        if (node >= o.Nodes.Count) node = -1;
+        if (node < 0 ? o.Type == 4 : o.SignNode(node))
+        {
+            if ((p.Mask & 0xa) != 0) KnockSign(o);
+        }
+        else if (node < 0 ? o.Type is 7 or 10 : o.Nodes[node].GateSlot) GateSlot(o, node, p);
+        else StructureSlot(o, node, p);
+    }
+
+    /// <summary>
+    /// The gate's and the spinner's slot: every set channel against the HP (the node's own, or a Gate-class root's), no
+    /// quartering, no name test. Its death swaps it and everything under it to the destroyed look and marks it dead; a
+    /// direct child of the root flags the root, with no explosion; the colliders are rebuilt; no chunks. The original
+    /// then sets off x1_bldx1 at the object's own translation, which for a node is relative to its parent and lands near
+    /// the map's origin (not placed here), and for a Gate-class root is the placement: there it goes off, once.
+    /// The original has no dead test here, so every later hit kills the object again, and a Gate-class root's own
+    /// explosion splashes it and recurses until the game crashes; here it dies once.
+    /// </summary>
+    public void GateSlot(StaticObject o, int node, DamagePacket p)
+    {
+        var n = node >= 0 ? o.Nodes[node] : null;
+        if (n?.Destroyed ?? o.Destroyed) return;
+        ref int hp = ref n is null ? ref o.Hp : ref n.Hp;
+        for (int i = 0; i < 4; i++)
+        {
+            if ((p.Mask & (1 << i)) == 0) continue;
+            if (hp < p.Ch[i])
+            {
+                hp = 0;
+                var booms = new List<int>();
+                if (n is null)
+                {
+                    o.Destroyed = true;
+                    foreach (var x in o.Nodes) { x.Destroyed = true; x.Hp = 0; }
+                    o.Refresh();
+                    Combat.Explode("x1_bldx1", o.GateRootAt, null);
+                    booms.Add(-2);
+                }
+                else
+                {
+                    Mark(o, node);
+                    if (n.Parent == -1) o.Destroyed = true;
+                    o.Refresh();
+                }
+                Events.Add(new StructureDestroyed(o, booms));
+                return;
+            }
+            hp -= p.Ch[i];
+        }
+    }
 
     /// <summary>
     /// The sign's damage slot (the caller tests the mask): it zeroes
@@ -728,15 +782,15 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public void StructureSlot(StaticObject o, DamagePacket p) => StructureSlot(o, -1, p);
 
     /// <summary>
-    /// The script's destroy-object action forces this: an impact of HP + 1 on the root
-    /// (which type 2's quartering can survive), then the root's explosion at
-    /// its marker whatever that did. The script host never calls it twice.
+    /// The script's destroy-object action forces this: an impact of HP + 1 on the root, through the slot of the root's
+    /// type (type 2's quartering can survive it; a Sign-class placement is thrown, a Gate-class one dies as a gate), then
+    /// the root's explosion at its marker whatever that did. The script host never calls it for a dead object.
     /// </summary>
     public void DestroyStructure(StaticObject o)
     {
         var p = new DamagePacket { Mask = 8 };
         p.Ch[3] = o.Hp + 1;
-        StructureSlot(o, -1, p);
+        StaticSlot(o, -1, p);
         var booms = new List<int>();
         RootExplosion(o, booms);
         if (booms.Count > 0) Events.Add(new StructureDestroyed(o, booms));
@@ -775,7 +829,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         {
             // a collider made without its nodes: the whole placement as one
             o.Collapse();
-            if (o.Type != 3 && o.Explosion is { } fx) { Combat.Explode(fx, o.Centre, null); booms.Add(-1); }
+            if (o.RootExplodes && o.Explosion is { } fx) { Combat.Explode(fx, o.Centre, null); booms.Add(-1); }
             for (int i = 0; i < 8; i++) { Rand.Next(); Events.Add(new Debris(o.Centre, new Vector3(0, 15, 0))); }
         }
         o.Refresh();
@@ -811,10 +865,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         RootExplosion(o, booms);
     }
 
-    /// <summary>The root's explosion block: the first 0x1000000 node's, unless the root is type 3.</summary>
+    /// <summary>
+    /// The root's explosion block: the first 0x1000000 node's, for a structure root (class 2, 0xb, 0xc: type 3 never
+    /// explodes, and a Sign- or Gate-class root has no explosion of its own).
+    /// </summary>
     private void RootExplosion(StaticObject o, List<int> booms)
     {
-        if (o.Marker is not { } at || o.Explosion is not { } fx || o.Type == 3) return;
+        if (o.Marker is not { } at || o.Explosion is not { } fx || !o.RootExplodes) return;
         Combat.Explode(fx, at, null);
         booms.Add(-1);
     }

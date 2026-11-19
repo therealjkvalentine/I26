@@ -60,17 +60,17 @@ namespace I76.Sim.Collision
         {
             const string geometry = "its geometry after node deaths and gate slides, recomputed on restore (Refresh, Collapse)";
             a.For<StaticObject>()
-                .Saved(nameof(Destroyed), nameof(Hp), nameof(MaxHp), nameof(Nodes), nameof(NetId), nameof(Collapsed), nameof(Revision), nameof(_gates))
+                .Saved(nameof(Destroyed), nameof(Thrown), nameof(Hp), nameof(MaxHp), nameof(Nodes), nameof(NetId), nameof(Collapsed), nameof(Revision), nameof(_gates))
                 // the bounds too: a Refresh that leaves no geometry keeps the last ones (they still place the root for a splash)
                 .Saved(nameof(Centre), nameof(Radius), nameof(BoundRadius))
                 .Derived(geometry, nameof(_intact), nameof(_uncollapsed), nameof(Polys), nameof(Surfaces), nameof(Boxes), nameof(Spheres), nameof(MeshBounds))
                 .Transient("a cache of whether every node is a sign (from the node types), found again when asked", nameof(_sign), nameof(_signNodes))
-                .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
-                    nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck));
+                .Structural("the placement's, from the install", nameof(Name), nameof(Type), nameof(Origin), nameof(Owner), nameof(Vehicle), nameof(Marker), nameof(SphereRadius),
+                    nameof(Explosion), nameof(Sound), nameof(Remains), nameof(Deck), nameof(GateRoot));
             a.For<StructureNode>()
                 .Saved(nameof(StructureNode.Hp), nameof(StructureNode.MaxHp), nameof(StructureNode.Destroyed), nameof(StructureNode.Gate))
                 .Structural("the structure's .sdf", nameof(StructureNode.Name), nameof(StructureNode.Parent), nameof(StructureNode.Type), nameof(StructureNode.Flags),
-                    nameof(StructureNode.Base), nameof(StructureNode.Walk));
+                    nameof(StructureNode.Base), nameof(StructureNode.Walk), nameof(StructureNode.Stripped), nameof(StructureNode.Wreck));
             a.For<GateMotion>()
                 .Saved(nameof(GateMotion.X), nameof(GateMotion.Target), nameof(GateMotion.Moving))
                 .Structural("the gate's record and placement", nameof(GateMotion.Offset), nameof(GateMotion.Delta), nameof(GateMotion.World), nameof(GateMotion.Rate));
@@ -82,7 +82,7 @@ namespace I76.Sim.Collision
 
         /// <summary>As the mission build left it: nothing hit, destroyed, swapped or slid.</summary>
         internal bool Pristine =>
-            Hp == MaxHp && !Destroyed && !Collapsed && Revision == 0 && !_gates && _intact is null
+            Hp == MaxHp && !Destroyed && !Thrown && !Collapsed && Revision == 0 && !_gates && _intact is null
             && Nodes.All(n => n.Hp == n.MaxHp && !n.Destroyed && (n.Gate is not { } g || (g.X == 0 && g.Target == 1 && !g.Moving)));
 
         /// <summary>
@@ -91,7 +91,7 @@ namespace I76.Sim.Collision
         /// </summary>
         internal void ResetToPristine()
         {
-            Hp = MaxHp; Destroyed = false;
+            Hp = MaxHp; Destroyed = false; Thrown = false;
             foreach (var n in Nodes)
             {
                 n.Hp = n.MaxHp; n.Destroyed = false;
@@ -111,7 +111,7 @@ namespace I76.Sim.Collision
 
         internal void Save(SaveWriter w)
         {
-            w.Int(Hp); w.Int(MaxHp); w.Bool(Destroyed); w.Bool(Collapsed); w.Int(Revision); w.Bool(_gates); w.Bool(_intact is not null);
+            w.Int(Hp); w.Int(MaxHp); w.Bool(Destroyed); w.Bool(Thrown); w.Bool(Collapsed); w.Int(Revision); w.Bool(_gates); w.Bool(_intact is not null);
             w.V3(Centre); w.F32(Radius); w.F32(BoundRadius);
             w.VarU((ulong)Nodes.Count);
             foreach (var n in Nodes)
@@ -127,7 +127,7 @@ namespace I76.Sim.Collision
         /// </summary>
         internal void Load(SaveReader r)
         {
-            Hp = r.Int(); MaxHp = r.Int(); Destroyed = r.Bool();
+            Hp = r.Int(); MaxHp = r.Int(); Destroyed = r.Bool(); Thrown = r.Bool();
             bool collapsed = r.Bool(); int revision = r.Int(); _gates = r.Bool(); bool refreshed = r.Bool();
             var (centre, radius, bound) = (r.V3(), r.F32(), r.F32());
             if (r.Count() != Nodes.Count) throw r.Mismatch($"structure {Name} has {Nodes.Count} nodes");

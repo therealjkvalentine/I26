@@ -34,20 +34,44 @@ public class ViewZoomResetTests
         MouseCamera.WheelView = null;
     }
 
-    /// <summary>#190: the Escape menu (and its Options pages) over the F2 view is not a switch of view; leaving the view for another, or a cut-scene, is.</summary>
-    [Fact] public void AMenuOverTheViewDoesNotStartTheZoomOver()
+    [Fact] public void OpeningAndClosingTheMenuIsNoViewSwitch()
     {
-        var t = new ZoomViewTracker();
-        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // into F2: the original's framing
-        Assert.False(t.Switched(ViewZoom.Kind.Chase, false));
-        Assert.False(t.Switched(null, true));                   // the Escape menu, the Options pages
-        Assert.False(t.Switched(null, true));
-        Assert.False(t.Switched(ViewZoom.Kind.Chase, false));   // closed: the same view, its zoom kept
-        Assert.False(t.Switched(null, false));                  // a cut-scene takes the camera
-        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // and hands it back: a new start, as before
-        Assert.True(t.Switched(ViewZoom.Kind.Overhead, false)); // another view
-        Assert.False(t.Switched(null, true));
-        Assert.True(t.Switched(ViewZoom.Kind.Chase, false));    // a view switched while the menu was up (none can be): still a switch
+        // F2 in a mission, then the Esc menu over it, then back: the remembered view stands and nothing resets (#190)
+        var (v, reset) = MouseCamera.TrackView(ViewZoom.Kind.Chase, null, overlaid: true, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Chase, v);
+        Assert.False(reset);
+        (v, reset) = MouseCamera.TrackView(v, ViewZoom.Kind.Chase, overlaid: false, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Chase, v);
+        Assert.False(reset);
+    }
+
+    [Fact] public void AViewSwitchStillResetsTheZoom()
+    {
+        var (v, reset) = MouseCamera.TrackView(ViewZoom.Kind.Chase, ViewZoom.Kind.Overhead, overlaid: false, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Overhead, v);
+        Assert.True(reset);
+        // View Zoom Reset off: the switch is remembered but nothing resets
+        (v, reset) = MouseCamera.TrackView(ViewZoom.Kind.Overhead, ViewZoom.Kind.Chase, overlaid: false, keepZoom: true);
+        Assert.Equal(ViewZoom.Kind.Chase, v);
+        Assert.False(reset);
+        // a switch made under a pause counts once the pause ends
+        (v, reset) = MouseCamera.TrackView(ViewZoom.Kind.Chase, ViewZoom.Kind.Side, overlaid: true, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Chase, v);
+        Assert.False(reset);
+        (v, reset) = MouseCamera.TrackView(v, ViewZoom.Kind.Side, overlaid: false, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Side, v);
+        Assert.True(reset);
+    }
+
+    [Fact] public void TheHandBackFromACutSceneStillResets()
+    {
+        // the cut-scene holds the camera: no view; the hand-back is a switch into the chase view
+        var (v, reset) = MouseCamera.TrackView(ViewZoom.Kind.Chase, null, overlaid: false, keepZoom: false);
+        Assert.Null(v);
+        Assert.False(reset);
+        (v, reset) = MouseCamera.TrackView(v, ViewZoom.Kind.Chase, overlaid: false, keepZoom: false);
+        Assert.Equal(ViewZoom.Kind.Chase, v);
+        Assert.True(reset);
     }
 
     [Fact] public void SideMouseButtonsResolveToMouseDeviceAndNotJoystick()

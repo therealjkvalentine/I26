@@ -23,6 +23,9 @@ public partial class ScenerySpawner : Node3D
     /// <summary>A placement's other instances, placed and hidden with it: the modern look's twin, its cards' anchor, its tree's tiers.</summary>
     private readonly Dictionary<Placement, List<(Node3D Node, int Index)>> _twin = [];
     private readonly HashSet<Node3D> _classic = [], _modernNodes = [];
+    /// <summary>The Intersection pieces' meshes as the 3D card draws them (keyed) and as the Software renderer does (unkeyed): one of each shows.</summary>
+    private readonly HashSet<Node3D> _keyed = [], _unkeyed = [];
+    private bool _unkeyedShown;
     private bool _modern = true;
     private MissionWorld? _world;
 
@@ -110,11 +113,14 @@ public partial class ScenerySpawner : Node3D
     /// A destroyed structure: its instance goes, replaced by the destroyed model if there is one: <paramref name="destroyed"/>, the mesh
     /// of its parts but the cards, and the cards of <paramref name="model"/> (the pine's stump), drawn the same in both looks.
     /// </summary>
-    public void Destroy(Placement p, Mesh? destroyed, AssembledModel? model = null, Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null)
+    /// <param name="deadNode">Whether a node is dead: a spinner goes when its node does (null: every one goes).</param>
+    public void Destroy(Placement p, Mesh? destroyed, AssembledModel? model = null, Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null,
+        Func<string, bool>? deadNode = null)
     {
-        // its spinners go with it: their damaged slots are NULL, so the original draws nothing there
+        // a dead spinner goes: its damaged slot is NULL, so the original draws nothing there
         if (_spinOf.TryGetValue(p, out var sr))
-            for (int i = sr.Start; i < sr.Start + sr.Count; i++) _spins[i].Node.Visible = false;
+            for (int i = sr.Start; i < sr.Start + sr.Count; i++)
+                if (deadNode?.Invoke(_spins[i].Name) ?? true) _spins[i].Node.Visible = false;
         if (!_where.TryGetValue(p, out var w)) return;
         var full = Full(p);
         Put(w.Node, w.Index, full, on: false);
@@ -308,11 +314,19 @@ public partial class ScenerySpawner : Node3D
     private static readonly bool SelfLitOn = SelfLitHook is "1" or "noshadow";
 
     /// <summary>
-    /// ODEF class 4, the road signs: their full-bright faces (the original draws them so to be read at night) do not glow in the
+    /// Type 4, the road signs' parts: their full-bright faces (the original draws them so to be read at night) do not glow in the
     /// modern look; they are lit as their neighbours and retroreflective, bright only in a lit headlamp's beam (RetroLamps;
-    /// I76_RETRO_SIGNS=0 leaves the sheeting out, Retroreflection.On).
+    /// I76_RETRO_SIGNS=0 leaves the sheeting out, Retroreflection.On). By the part's own node type, as the original's damage and
+    /// collisions go, whatever class id the placement has (a road sign placed as Struct1 is as reflective as one placed as a Sign).
     /// </summary>
     public const uint SignType = 4;
+
+    /// <summary>A definition's sign parts: the nodes of type 4 (every road sign's post and board), by name; nothing for a model without.</summary>
+    public static Func<string, bool> SignParts(byte[]? sdf)
+    {
+        var names = sdf is null ? null : Bwd2Def(sdf)?.NodesOfType(SignType);
+        return names is { Count: > 0 } ? names.Contains : _ => false;
+    }
 
     public void Spawn(MissionWorld world, ModelAssembler asm, MeshBuilder builder, bool skipVehicles = false)
     {
@@ -321,7 +335,7 @@ public partial class ScenerySpawner : Node3D
         AddChild(Clutter);
         Clutter.Visible = !_modern;
         Clutter.Load(world, asm, builder);
-        var placements = world.Placements.Concat(world.LinePlacements);
+        var placements = world.Placements.Concat(world.LinePlacements).Where(p => !p.Refused);
         if (skipVehicles) placements = placements.Where(p => p.Definition?.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) != true);
         // a definition's grounded placements share a mesh without its ground faces (painted into the terrain, GroundDecals);
         // its road pieces go apart from its other placements, by each placement's own type (SceneryGroup)
@@ -353,15 +367,19 @@ public partial class ScenerySpawner : Node3D
                 : lots && model is not null ? (part, f) => GroundDecals.IsLotFace(model, part, f, lowest) : null;
             var spinners = model is null || roadPiece ? null : SpinnersOf(asm.Vfs, def, model);
             var gates = model is null || roadPiece ? null : GatesOf(asm.Vfs, def);
+            // a CTF flag's pole and pennant leave its base while the flag is away (ShowFlag)
+            var flagParts = model is null || roadPiece ? null : FlagPartsOf(asm.Vfs, def);
             // the camera-facing cards are drawn on their own
             var cardNames = model is null ? null : CardNamesOf(def);
-            Func<ModelPart, bool>? include = spinners is null && gates is null && cardNames is null ? null
-                : part => !(spinners?.Any(s => s.Owns(part.NodeName)) ?? false) && !(gates?.Owns(part.NodeName) ?? false) && !(cardNames?.Contains(part.NodeName) ?? false);
-            // a structure's self-lit faces shine at night in the modern look (MeshBuilder.SelfLit), its lamps light what is under them
-            bool selfLit = SelfLitOn && !roadPiece && g.Any(p => p.Object.ObjectType != SignType);
-            // a road sign's face is retroreflective (RetroLamps), not glowing of its own
-            bool retro = !roadPiece && !g.Any(p => p.Object.ObjectType != SignType);
-            var mesh = model is null ? null : builder.Build(model, include: include, skipFace: skip, selfLit: selfLit, retro: retro);
+            Func<ModelPart, bool>? include = spinners is null && gates is null && cardNames is null && flagParts is null ? null
+                : part => !(spinners?.Any(s => s.Owns(part.NodeName)) ?? false) && !(gates?.Owns(part.NodeName) ?? false) && !(cardNames?.Contains(part.NodeName) ?? false)
+                    && !(flagParts?.Invoke(part.NodeName) ?? false);
+            // a structure's self-lit faces shine at night in the modern look (MeshBuilder.SelfLit; I76_SELF_LIT only), its lamps light
+            // what is under them; a road sign's parts (type-4 nodes) are retroreflective instead (RetroLamps), whatever the placements' class ids
+            bool selfLit = SelfLitOn && !roadPiece;
+            bool retro = !roadPiece;
+            var signPart = SignParts(def.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) ? asm.Vfs.TryRead(def) : null);
+            var mesh = model is null ? null : builder.Build(model, include: include, skipFace: skip, selfLit: selfLit, retro: retro, signPart: signPart);
             if (mesh is null && gates is not null && cardNames is null)
             {
                 // a model that is nothing but its gate (T12's bcaikgat): no static mesh, only the sliding one
@@ -370,6 +388,16 @@ public partial class ScenerySpawner : Node3D
                 AddGates(gates, model!, builder, skip, only, xfo, this);
                 Loaded += only.Count;
                 continue;
+            }
+            if (mesh is null && cardNames is null && flagParts is not null)
+            {
+                // a CTF flag whose base is all painted into the ground: its pole and pennant are all there is to draw
+                var only = g.ToList();
+                if (AddFlags(flagParts, model!, builder, (skip, selfLit, retro, signPart), only, only.Select(p => Coords.ToGodot(p.Object.Rotation, world.GroundedPosition(p))).ToList(), this, alone: true))
+                {
+                    Loaded += only.Count;
+                    continue;
+                }
             }
             if (mesh is null && cardNames is null && roadPiece && model is not null)
             {
@@ -388,7 +416,7 @@ public partial class ScenerySpawner : Node3D
             if (model is not null && SmokeBase(model) is { } smokeAt)
             {
                 modernDrops = WreckSmoke.IsSpriteFace;
-                modernMesh = builder.Build(model, include: include, skipFace: (part, f) => WreckSmoke.IsSpriteFace(f) || (skip?.Invoke(part, f) ?? false), selfLit: selfLit, retro: retro);
+                modernMesh = builder.Build(model, include: include, skipFace: (part, f) => WreckSmoke.IsSpriteFace(f) || (skip?.Invoke(part, f) ?? false), selfLit: selfLit, retro: retro, signPart: signPart);
                 foreach (var pl in list)
                 {
                     Smokers.Add(Coords.ToGame(Coords.ToGodot(pl.Object.Rotation, world.GroundedPosition(pl)) * Coords.ToGodot(smokeAt)));
@@ -418,6 +446,16 @@ public partial class ScenerySpawner : Node3D
                 return mmi;
             }
             var node = mesh is null ? null : Place(mesh);
+            // the Software renderer draws the ground list (an Intersection piece's node) with the key off: its keyed texels
+            // show as their colour (the water tower's legs as dark, solid frames); the 3D card's path keys them
+            if (roadPiece && !painted && node is not null && HasCutouts(model!)
+                && builder.Build(model, include: include, skipFace: skip, unkeyed: true) is { } bare)
+            {
+                var soft = Place(bare);
+                _keyed.Add(node); _unkeyed.Add(soft);
+                soft.Visible = false;
+                for (int i = 0; i < xf.Count; i++) Twin(list[i], soft, i);
+            }
             for (int i = 0; i < xf.Count; i++)
             {
                 var cardAnchor = cards is null ? null : AddCards(xf[i], cards);
@@ -443,7 +481,7 @@ public partial class ScenerySpawner : Node3D
                 if (I76.Formats.Assembly.NightWindows.For(def) is { } windows) AddWindowLights(model, windows, list, xf);
             }
             // upstream's structure lamps, for a comparison only (SelfLitOn)
-            if (Night && selfLit && model is { Kind: "sdf" } && node is not null && StructureLamps.Build(model, builder, include, shadows: SelfLitHook != "noshadow") is { } lamps)
+            if (Night && selfLit && model is { Kind: "sdf" } && node is not null && StructureLamps.Build(model, builder, part => (include?.Invoke(part) ?? true) && !signPart(part.NodeName), shadows: SelfLitHook != "noshadow") is { } lamps)
             {
                 for (int i = 0; i < xf.Count; i++)
                 {
@@ -455,6 +493,7 @@ public partial class ScenerySpawner : Node3D
             }
             if (spinners is not null) AddSpinners(spinners, model!, builder, skip, list, xf, parent);
             if (gates is not null) AddGates(gates, model!, builder, skip, list, xf, parent);
+            if (flagParts is not null) AddFlags(flagParts, model!, builder, (skip, selfLit, retro, signPart), list, xf, parent, alone: false);
             Loaded += xf.Count;
         }
         SetProcess(true);
@@ -588,7 +627,71 @@ public partial class ScenerySpawner : Node3D
     /// A definition's gates: its type-7 nodes, which slide when the script
     /// says, and the nodes under them. <see cref="Names"/> are the type-7 nodes themselves.
     /// </summary>
-    private sealed record Gates(string[] Names, Func<string, bool> Owns);
+    private sealed record Gates(string[] Names, Func<string, bool> Owns)
+    {
+        /// <summary>The gate node a node hangs under (or is), a twin's as its '_' node's; null for none.</summary>
+        public Func<string, string?> Owner { get; init; } = _ => null;
+    }
+
+    // ---- CTF flags ----
+
+    /// <summary>A CTF flag's node type: the pole and pennant (a1flagN's A1x_FLGn), which stand on the base (type 0x5b) while the flag is at home.</summary>
+    public const uint FlagType = 0x5a;
+
+    /// <summary>Each placement's flag (its type-0x5a nodes and what hangs under them), drawn apart from its base.</summary>
+    private readonly Dictionary<Placement, MeshInstance3D> _flags = [];
+
+    /// <summary>
+    /// Shows or hides a CTF flag's pole and pennant on its base: the original's flag leaves its base with the car that takes it
+    /// (FlagView draws it there), and stands on it again when it goes home. A placement with no flag is left as it is.
+    /// </summary>
+    public void ShowFlag(Placement p, bool shown)
+    {
+        if (_flags.TryGetValue(p, out var n) && !_editHidden.Contains(p)) n.Visible = shown;
+    }
+
+    /// <summary>
+    /// Each placement's flag as its own node (built as its other meshes are: <paramref name="look"/>), placed, hidden and moved
+    /// with the placement in the editor: the placement's instance when it is <paramref name="alone"/> (the base all painted into
+    /// the ground, as the stock a1flagN's is), else another instance of it. False if the flag has nothing to draw.
+    /// </summary>
+    private bool AddFlags(Func<string, bool> parts, AssembledModel model, MeshBuilder builder,
+        (Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? Skip, bool SelfLit, bool Retro, Func<string, bool> SignPart) look,
+        List<Placement> list, List<Transform3D> xf, Node parent, bool alone)
+    {
+        if (builder.Build(model, include: part => parts(part.NodeName), skipFace: look.Skip, selfLit: look.SelfLit, retro: look.Retro, signPart: look.SignPart) is not { } pole)
+            return false;
+        for (int i = 0; i < xf.Count; i++)
+        {
+            var mi = new MeshInstance3D { Mesh = pole, Transform = xf[i], Name = list[i].Object.Name + "_flag" };
+            parent.AddChild(mi);
+            if (alone) _where[list[i]] = (mi, 0, xf[i]);
+            else Twin(list[i], mi, 0);
+            _flags[list[i]] = mi;
+        }
+        return true;
+    }
+
+    /// <summary>A definition's flag parts (the nodes of <see cref="FlagType"/> and the nodes under them), or null for none.</summary>
+    private static Func<string, bool>? FlagPartsOf(I76.Formats.Vfs.AssetVfs vfs, string def)
+    {
+        if (!def.EndsWith(".sdf", StringComparison.OrdinalIgnoreCase) || vfs.TryRead(def) is not { } d) return null;
+        var f = new I76.Formats.Bwd2.Bwd2File(d);
+        var names = f.NodesOfType(FlagType);
+        if (names.Count == 0) return null;
+        var parent = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var n in f.SceneNodes().Where(t => t.Tag == "SGEO").SelectMany(t => t.Nodes)) parent.TryAdd(n.Name, n.Parent);
+        return node =>
+        {
+            for (int k = 0; k < 64; k++)
+            {
+                if (names.Contains(node)) return true;
+                if (!parent.TryGetValue(node, out var up) || up.Equals(node, StringComparison.OrdinalIgnoreCase)) return false;
+                node = up;
+            }
+            return false;
+        };
+    }
 
     /// <summary>One placed gate: its mesh, its rest transform, its placement and its node's name.</summary>
     private readonly record struct GateInstance(MeshInstance3D Node, Transform3D Rest, Placement Placement, string Name);
@@ -601,8 +704,27 @@ public partial class ScenerySpawner : Node3D
     /// </summary>
     public Func<Placement, string, System.Numerics.Vector3>? GateShift { get; set; }
 
+    /// <summary>
+    /// A placement's gate node died (its own slot, or with its structure): its sliding mesh becomes its destroyed look, or goes
+    /// when it has none (every stock door and turning sign). The original swaps the node's geometry and leaves its transform,
+    /// so the wreck stands where the gate had slid to, and goes on sliding with it (measured: T07's roadblock gate, slid
+    /// open and shot, lies beside the road with its fence, not across it).
+    /// </summary>
+    public void GateDied(Placement p, string name, Mesh? wreck)
+    {
+        foreach (var g in _gates)
+            if (g.Placement == p && g.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                if (wreck is null) g.Node.Visible = false;
+                else g.Node.Mesh = wreck;
+            }
+    }
+
     /// <summary>Whether a part of the placement's definition is drawn as a gate (left out of its other meshes).</summary>
     public bool IsGatePart(Placement p, string node) => _gateDefs.TryGetValue(p.Definition ?? "", out var g) && g.Owns(node);
+
+    /// <summary>The gate node a part of the placement's definition slides with (an 'A' twin's: its node's), or null.</summary>
+    public string? GateOf(Placement p, string node) => _gateDefs.TryGetValue(p.Definition ?? "", out var g) ? g.Owner(node) : null;
 
     private readonly Dictionary<string, Gates> _gateDefs = new(StringComparer.OrdinalIgnoreCase);
 
@@ -626,8 +748,29 @@ public partial class ScenerySpawner : Node3D
             }
             return false;
         }
-        return _gateDefs[def] = new Gates([.. names], Owns);
+        return _gateDefs[def] = new Gates([.. names], Owns) { Owner = GateOwner(names, parent) };
     }
+
+    /// <summary>A definition's gate owners (<see cref="GateOf"/>): the gate node a node hangs under or is, an 'A' twin's as its node's.</summary>
+    public static Func<string, string?> GateOwners(byte[] sdf)
+    {
+        var f = new I76.Formats.Bwd2.Bwd2File(sdf);
+        var parent = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var n in f.SceneNodes().Where(t => t.Tag == "SGEO").SelectMany(t => t.Nodes)) parent.TryAdd(n.Name, n.Parent);
+        return GateOwner(f.NodesOfType(7), parent);
+    }
+
+    private static Func<string, string?> GateOwner(HashSet<string> names, Dictionary<string, string> parent) => node =>
+    {
+        for (int k = 0; k < 64; k++)
+        {
+            if (names.Contains(node))
+                return node.Length > 4 && node[3] is 'A' or 'a' && names.Contains(node[..3] + "_" + node[4..]) ? node[..3] + "_" + node[4..] : node;
+            if (!parent.TryGetValue(node, out var up) || up.Equals(node, StringComparison.OrdinalIgnoreCase)) return null;
+            node = up;
+        }
+        return null;
+    };
 
     /// <summary>Each placement's gates as their own nodes, for <see cref="_Process"/> to slide.</summary>
     private void AddGates(Gates gates, AssembledModel model, MeshBuilder builder, Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skip,
@@ -652,10 +795,10 @@ public partial class ScenerySpawner : Node3D
     /// original turns every frame about the node's own axes. <see cref="Pivot"/> is the
     /// node's frame in the model, <see cref="Revs"/> its rate in revolutions per second about its x, y, z.
     /// </summary>
-    private sealed record Spinner(Affine Pivot, System.Numerics.Vector3 Revs, Func<string, bool> Owns);
+    private sealed record Spinner(Affine Pivot, System.Numerics.Vector3 Revs, Func<string, bool> Owns, string Name);
 
     /// <summary>One placed spinner: its node, its rest transform, the axis it turns about there (Godot, unit) and its rate (rad/s).</summary>
-    private readonly record struct SpinInstance(MeshInstance3D Node, Transform3D Rest, Vector3 Axis, float Rate);
+    private readonly record struct SpinInstance(MeshInstance3D Node, Transform3D Rest, Vector3 Axis, float Rate, string Name);
 
     private readonly List<SpinInstance> _spins = [];
     private readonly Dictionary<Placement, (int Start, int Count)> _spinOf = [];
@@ -684,7 +827,7 @@ public partial class ScenerySpawner : Node3D
                 }
                 return false;
             }
-            o.Add(new Spinner(top.ToModel, revs, Owns));
+            o.Add(new Spinner(top.ToModel, revs, Owns, name));
         }
         return o.Count == 0 ? null : o;
     }
@@ -693,24 +836,24 @@ public partial class ScenerySpawner : Node3D
     private void AddSpinners(List<Spinner> spinners, AssembledModel model, MeshBuilder builder, Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skip,
         List<Placement> list, List<Transform3D> xf, Node parent)
     {
-        var built = new List<(Mesh Mesh, Vector3 Pivot, Vector3 Axis, float Rate)>();
+        var built = new List<(Mesh Mesh, Vector3 Pivot, Vector3 Axis, float Rate, string Name)>();
         foreach (var s in spinners)
         {
             if (builder.Build(model, include: part => s.Owns(part.NodeName), origin: s.Pivot.T, skipFace: skip) is not { } m) continue;
             // the node's own axes in the model; the engine turns it by -(ω·dt) in its left-handed frame, which is +ω·dt about the mirrored axis here
             var w = s.Pivot.Rotate(s.Revs);
-            built.Add((m, Coords.ToGodot(s.Pivot.T), Coords.ToGodot(w).Normalized(), w.Length() * Mathf.Tau));
+            built.Add((m, Coords.ToGodot(s.Pivot.T), Coords.ToGodot(w).Normalized(), w.Length() * Mathf.Tau, s.Name));
         }
         if (built.Count == 0) return;
         for (int i = 0; i < list.Count; i++)
         {
             int start = _spins.Count;
-            foreach (var (mesh, pivot, axis, rate) in built)
+            foreach (var (mesh, pivot, axis, rate, name) in built)
             {
                 var rest = new Transform3D(xf[i].Basis, xf[i] * pivot);
                 var mi = new MeshInstance3D { Mesh = mesh, Transform = rest, Name = list[i].Object.Name + "_spin" };
                 parent.AddChild(mi);
-                _spins.Add(new SpinInstance(mi, rest, axis, rate));
+                _spins.Add(new SpinInstance(mi, rest, axis, rate, name));
             }
             _spinOf[list[i]] = (start, _spins.Count - start);
         }
@@ -724,6 +867,13 @@ public partial class ScenerySpawner : Node3D
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Scenery);
         TurnCards();
+        bool soft = SoftwareLook.Active && !_modern;
+        if (soft != _unkeyedShown && _keyed.Count > 0)
+        {
+            _unkeyedShown = soft;
+            foreach (var n in _keyed) n.Visible = !soft;
+            foreach (var n in _unkeyed) n.Visible = soft;
+        }
         if (GateShift is { } shift)
             foreach (var g in _gates)
                 g.Node.Transform = new Transform3D(g.Rest.Basis, g.Rest.Origin + Coords.ToGodot(shift(g.Placement, g.Name)));
@@ -736,6 +886,10 @@ public partial class ScenerySpawner : Node3D
             s.Node.Transform = new Transform3D(s.Rest.Basis * new Basis(s.Axis, a), s.Rest.Origin);
         }
     }
+
+    /// <summary>Whether a model has keyed (cut-out) textured faces, which a draw with the key off shows otherwise.</summary>
+    public static bool HasCutouts(AssembledModel m) =>
+        m.Parts.Any(pt => pt.Mesh.Faces.Any(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) == MaterialLibrary.FaceMode.Cutout));
 
     /// <summary>Road pieces: intersections, junctions, runway ends (ODEF types 0x50-0x5f, <see cref="RoadPieceObjects"/>).</summary>
     public static bool IsRoadPiece(uint type) => RoadPieceObjects.IsRoadPiece(type);

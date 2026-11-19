@@ -8,8 +8,8 @@ namespace I76.Game.Net;
 
 /// <summary>
 /// The network melee's own readouts, over the game's HUD: the ping, the goal line, a feed of the console's lines (kills,
-/// players coming and going, chat, in the original's words), the score window while its key is held (show_player_scores
-/// ', show_team_scores ;), the host's prompts (an invite-only join, a boot), the dead
+/// players coming and going, chat, in the original's words), the score window while its key is held (show_player_scores:
+/// Tab, or the Control Configuration's Scores row; the original's ' and ; do nothing), the host's prompts (an invite-only join, a boot), the dead
 /// player's way back (RAISE_DEAD, Reconfigure), each machine's own end line and the final standings. This class keeps
 /// the keys and the state; each frame it gathers a <see cref="NetHudFrame"/> for the look in use to draw: the 1997
 /// look's <see cref="NetHudClassic"/> (the original's windows at their places, on the whole wide frame) or the modern
@@ -58,8 +58,11 @@ public partial class NetHud : CanvasLayer
     private bool _boardUp;
     /// <summary>The locked window's cursor: the slot of the player row it is on, or -1.</summary>
     private int _cursor = -1;
-    /// <summary>The score window is locked up: the pointer is shown and picks its rows.</summary>
-    public bool Pointer => _boardUp && _lock.Locked;
+    /// <summary>
+    /// The score window is locked up over the game, with nothing over it (a menu, a picture, Reconfigure, a co-op cut-scene): the
+    /// pointer is shown and picks its rows. With something over it the lock stays, and the pointer and its clicks are that screen's.
+    /// </summary>
+    public bool Pointer => _boardUp && _lock.Locked && CanChat?.Invoke() != false && Cutscene?.Invoke() != true;
     private double? _deadAt;
     /// <summary>The own car's regen pad hold, replayed here for the readout (from the join: the server spawned the car then).</summary>
     private readonly RegenPadClock _regen = new(0);
@@ -70,8 +73,6 @@ public partial class NetHud : CanvasLayer
     public bool Decided { get; private set; }
     /// <summary>The boot asked about (BOOT_n, "Boot %s from the game?"), until Ctrl+Y or Ctrl+N.</summary>
     private (byte Slot, string Name)? _boot;
-    /// <summary>When a board pick asked about <see cref="_boot"/> (the HUD's clock, seconds).</summary>
-    private double _bootAskedAt;
     private string? _reconfigured;
     /// <summary>The player a migration named the new host (the clients know no other way); -1 when unknown.</summary>
     private int _hostSlot = -1;
@@ -151,7 +152,28 @@ public partial class NetHud : CanvasLayer
         if (!_chat.Active) Controls.Suspended = false;
     }
 
-    public override void _ExitTree() => Controls.Suspended = false;
+    public override void _ExitTree() => Controls.Suspended = Controls.PointerClicks = false;
+
+    /// <summary>
+    /// The listen host's /ban NAME (boots the player and refuses their rejoins for the rest of the game, by name and address),
+    /// /ban alone (the list) and /unban NAME. Returns whether the line was one (it is then not sent).
+    /// </summary>
+    private bool BanCommand(string text)
+    {
+        var w = text.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (w.Length == 0 || !(w[0].Equals("/ban", StringComparison.OrdinalIgnoreCase) || w[0].Equals("/unban", StringComparison.OrdinalIgnoreCase))) return false;
+        string arg = w.Length > 1 ? w[1].Trim() : "";
+        if (Server is null) { Say("Only the host can ban a player", FeedKind.Own); return true; }
+        if (w[0].Equals("/unban", StringComparison.OrdinalIgnoreCase)) { Say(Server.Unban(arg) ?? $"{arg}: the ban is lifted", FeedKind.Own); return true; }
+        if (arg.Length == 0)
+        {
+            var list = Server.Banned;
+            Say(list.Count == 0 ? "Nobody is banned (/ban NAME, /unban NAME)" : "Banned: " + string.Join(", ", list), FeedKind.Own);
+            return true;
+        }
+        if (Server.Ban(arg) is { } why) Say(why, FeedKind.Own);     // the server tells everyone when it is done
+        return true;
+    }
 
     /// <summary>The player rows as the look in use last drew them, for the pointer.</summary>
     private IReadOnlyList<(HudRect Rect, int Slot)> BoardRows => IsModern ? _modern.BoardRows : _classic.BoardRows;
@@ -174,10 +196,10 @@ public partial class NetHud : CanvasLayer
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } w:
                 _boardPage = Math.Max(0, _boardPage + (w.ButtonIndex == MouseButton.WheelDown ? 1 : -1));
                 return true;
-            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }:
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } c:
             {
                 var m = GetViewport().GetMousePosition();
-                Pick(BoardCursor.RowAt(BoardRows, m.X, m.Y));
+                Pick(BoardCursor.RowAt(BoardRows, m.X, m.Y), c.DoubleClick);
                 return true;
             }
             case InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }:
@@ -207,44 +229,20 @@ public partial class NetHud : CanvasLayer
         if (PlayersPage() is { } next && next.Page != was) _cursor = BoardCursor.End(next.Lines, last: page < 0);
     }
 
-    /// <summary>
-    /// A row picked: the cursor goes to it; on the listen host's machine another player's row asks to boot them, and the same row again
-    /// boots, once the question has been up <see cref="BoardCursor.ConfirmAfter"/> (a double-click is one pick, not a boot).
-    /// </summary>
-    private void Pick(int slot)
+    /// <summary>A row picked: the cursor goes to it; on the listen host's machine another player's row asks to boot them, and the same row again boots (<see cref="BoardCursor.Boot"/>).</summary>
+    private void Pick(int slot, bool doubleClick = false)
     {
         if (slot < 0) return;
         _cursor = slot;
-        if (Server is null || PlayersPage()?.Lines.FirstOrDefault(l => l.Kind == ScoreLineKind.Player && l.Slot == slot) is not { } l
-            || !BoardCursor.CanBoot(true, l)) return;
-        if (_boot?.Slot == slot)
+        if (Server is null || PlayersPage()?.Lines.FirstOrDefault(l => l.Kind == ScoreLineKind.Player && l.Slot == slot) is not { } l) return;
+        switch (BoardCursor.Boot(true, l, _boot?.Slot ?? -1, doubleClick))
         {
-            if (!BoardCursor.Confirms(_bootAskedAt, _t)) return;
-            _boot = null;
-            if (Server.Kick(slot) is { } why) Say(why);
+            case BootPick.Ask: _boot = ((byte)slot, l.Name); break;
+            case BootPick.Boot:
+                _boot = null;
+                if (Server.Kick(slot) is { } why) Say(why);
+                break;
         }
-        else { _boot = ((byte)slot, l.Name); _bootAskedAt = _t; }
-    }
-
-    /// <summary>
-    /// The listen host's /ban NAME (boots the player and refuses their rejoins for the rest of the game, by name and address),
-    /// /ban alone (the list) and /unban NAME. Returns whether the line was one (it is then not sent).
-    /// </summary>
-    private bool BanCommand(string text)
-    {
-        var w = text.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (w.Length == 0 || !(w[0].Equals("/ban", StringComparison.OrdinalIgnoreCase) || w[0].Equals("/unban", StringComparison.OrdinalIgnoreCase))) return false;
-        string arg = w.Length > 1 ? w[1].Trim() : "";
-        if (Server is null) { Say("Only the host can ban a player", FeedKind.Own); return true; }
-        if (w[0].Equals("/unban", StringComparison.OrdinalIgnoreCase)) { Say(Server.Unban(arg) ?? $"{arg}: the ban is lifted", FeedKind.Own); return true; }
-        if (arg.Length == 0)
-        {
-            var list = Server.Banned;
-            Say(list.Count == 0 ? "Nobody is banned (/ban NAME, /unban NAME)" : "Banned: " + string.Join(", ", list), FeedKind.Own);
-            return true;
-        }
-        if (Server.Ban(arg) is { } why) Say(why, FeedKind.Own);     // the server tells everyone when it is done
-        return true;
     }
 
     /// <summary>The CTF teams' colours (Red Dawn, Gang Green, Purple Reign, Black Plague; the last drawn light so it shows).</summary>
@@ -333,6 +331,7 @@ public partial class NetHud : CanvasLayer
                 if (_gone.Add(l.Slot))
                     Line(new FeedEntry(FeedKind.Leave, NetLines.Leave(Nitro, SlotName(l.Slot)), _t) { Who = SlotName(l.Slot), WhoTeam = teams ? SlotTeam(l.Slot) : 0 });
                 if (_boot?.Slot == l.Slot) _boot = null;
+                if (_cursor == l.Slot) _cursor = -1;     // the locked window's cursor does not pass to a newcomer in that seat
                 break;
             case KillEvent k:
             {
@@ -368,6 +367,7 @@ public partial class NetHud : CanvasLayer
             case EndEvent end:
             {
                 Decided = true;
+                _lock.Close();     // the verdict and the results are not under a locked window
                 int myTeam = Client.Scores?.Players.FirstOrDefault(p => p.Slot == mySlot)?.Team ?? 0;
                 string winner = end.Winner >= 0 ? SlotName(end.Winner) : "?";
                 var line = NetLines.End(end, Nitro, Goal, teams, mySlot, myTeam, winner, TeamName(end.Team), out bool won);
@@ -378,13 +378,13 @@ public partial class NetHud : CanvasLayer
                 break;
             }
             // a co-op mission's end is the game's own (the outro, the end menu): no standings over it
-            case GameOverEvent when Coop: Decided = true; break;
+            case GameOverEvent when Coop: Decided = true; _lock.Close(); break;
             case MissionEndEvent me: Decided = true; _coopWon = me.Won; GD.Print($"[co-op] the mission is {(me.Won ? "won" : "failed")}{(me.Text.Length > 0 ? ": " + me.Text : "")}"); break;
             // the script's presentation is the game's HUD's (the radio, the notepad); the log says what came
             case RadioEvent r: GD.Print($"[co-op] radio: {r.Sound}"); break;
             case ObjectiveEvent o: GD.Print($"[co-op] objective {o.Number}: {Objectives.Describe(o.Flags)}"); break;
             case MovieEvent mv: GD.Print($"[co-op] movie: {mv.Name}"); break;
-            case GameOverEvent g: _final = g.Standings; if (g.NextRoundSeconds > 0) _nextRound = _t + g.NextRoundSeconds; break;
+            case GameOverEvent g: _lock.Close(); _final = g.Standings; if (g.NextRoundSeconds > 0) _nextRound = _t + g.NextRoundSeconds; break;
         }
     }
 
@@ -424,7 +424,6 @@ public partial class NetHud : CanvasLayer
         var numbered = PlayersPage()?.Numbered ?? [];
         // A number past the list takes the prompt away
         _boot = bootRow <= ScoreTable.HostRows && bootRow <= numbered.Count ? numbered[bootRow - 1] : null;
-        _bootAskedAt = _t;
         return true;
     }
 
@@ -463,8 +462,13 @@ public partial class NetHud : CanvasLayer
         return name switch { "Quote" => "'", "SemiColon" => ";", "BackQuote" => "`", "Grave" => "`", "Comma" => ",", "Period" => ".", _ => name };
     }
 
-    private static bool Held(string command, Key fallback) =>
-        Controls.Down(command) || (Controls.Binding(command) is "" or Controls.None && !Controls.Suspended && Godot.Input.IsPhysicalKeyPressed(fallback));
+    /// <summary>The standings' key held: their binding (Control Configuration's Scores row), or Tab while they have none and Tab is no other command's.</summary>
+    private static bool ScoresHeld() =>
+        Controls.Down(BindingTable.Scores) || (Controls.ScoresOnFallback && !Controls.Suspended && Godot.Input.IsPhysicalKeyPressed(Key.Tab));
+
+    /// <summary>The standings' keycap: their key's, Tab on the fallback, or none (unbound, Tab another command's: only a pad's Back shows them).</summary>
+    private static string ScoresKeyLabel() =>
+        Controls.Binding(BindingTable.Scores) is var b && b != Controls.None ? KeyLabel(b) : Controls.ScoresOnFallback ? BindingTable.ScoresKey : "";
 
     public override void _Process(double delta)
     {
@@ -475,6 +479,8 @@ public partial class NetHud : CanvasLayer
         var f = _demo?.Frame(_t, Server is not null || Host) ?? Gather();
         f.Notice ??= CoopNotice(delta);
         bool cut = Cutscene?.Invoke() == true && !_chat.Active;
+        // the left button is the locked standings' pointer's: it holds no command (fire on it does not fire at the rows)
+        Controls.PointerClicks = Pointer;
         _classic.Visible = !modern && !cut;
         _modern.Visible = modern && !cut;
         if (modern) _modern.Show(f); else _classic.Show(f);
@@ -525,9 +531,9 @@ public partial class NetHud : CanvasLayer
             foreach (var fl in World.Flags)
                 f.Flags.Add((fl.Team, fl.State, fl.State == 4 && fl.Carrier != 0 ? CarName(fl.Carrier) : null,
                     sc?.Players.Where(p => p.Team == fl.Team).Select(p => p.Kills).DefaultIfEmpty(0).Max() ?? 0));
-        // the window while its key is held: Tab, or a pad's Back; one view, the teams' totals heading
+        // the window while its key is held (show_player_scores, else Tab), or a pad's Back; one view, the teams' totals heading
         // their players in team play (docs/deviations.md, Standings); a tap locks it up, with a pointer (#107)
-        bool players = _lock.Update(Held("show_player_scores", Key.Tab) || PadBackHeld(), _t);
+        bool players = _lock.Update(ScoresHeld() || PadBackHeld(), _t);
         _boardUp = players;
         if (!_lock.Locked) _cursor = -1;
         if (players)
@@ -537,7 +543,7 @@ public partial class NetHud : CanvasLayer
             f.BoardLocked = _lock.Locked;
             f.BoardCursor = _cursor;
         }
-        f.ScoresKey = KeyLabel(Controls.Binding("show_player_scores"));
+        f.ScoresKey = ScoresKeyLabel();
         f.ScoresHint = !_boardSeen && _t < 90;
         HandicapBoard(f.Board is not null);
         // the other keys are listed in the standings, not over the game (players found the HUD too busy)

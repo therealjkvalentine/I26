@@ -411,6 +411,9 @@ public sealed partial class SimSession
                 if (arm.Handguns[ch - 1] is { } hg && arms.Ready(ch)) hg.Trigger = hg.Ammo >= 1 && (fire || d.Input.Has(CarButtons.Pistol));
     }
 
+    /// <summary>The weapon cycle's and link's click (<see cref="Select"/>).</summary>
+    public const string CycleSound = "cammo.wav";
+
     /// <summary>
     /// After the triggers: the cycle and link keys and the auto-cycle off a selected weapon shot to nothing
     /// (<see cref="Armory.Select"/>), for each driver's car. A changed selection turns the radar camera off;
@@ -424,7 +427,7 @@ public sealed partial class SimSession
         var c = d.Input.Commands;
         int sounds = arm.Select((c & CarCommands.WeaponCycle) != 0, (c & CarCommands.WeaponLink) != 0, out bool changed, (c & CarCommands.WeaponCyclePrev) != 0);
         if (changed) Combat?.RadarCamera.Remove(d.Car);
-        if (sounds > 0 && (!predict || fresh)) Combat?.Events.Add(new WeaponClick(d.Car, "cammo.wav"));
+        if (sounds > 0 && (!predict || fresh)) Combat?.Events.Add(new WeaponClick(d.Car, CycleSound));
     }
 
     /// <summary>The arms follow the glance in the cockpit (a tenth of a second a frame); out of it they rest down.</summary>
@@ -503,7 +506,7 @@ public sealed partial class SimSession
                         {
                             var pk = new Weapons.DamagePacket { Mask = 1 };
                             pk.Ch[0] = near.Nodes[i].Hp + 1;
-                            ndm.StructureSlot(near, i, pk);
+                            ndm.StaticSlot(near, i, pk);
                             Console.WriteLine($"[boom] destroyed node {near.Nodes[i].Name} of {near.Name}: type {near.Nodes[i].Type} hp {near.Nodes[i].Hp} dead {near.Nodes[i].Destroyed} root {near.Destroyed}");
                         }
                 continue;
@@ -575,7 +578,7 @@ public sealed partial class SimSession
         Arms(d);
     }
 
-    /// <summary>The selection step alone (<see cref="Select"/>), for a prediction that does not run <see cref="PredictFire"/>.</summary>
+    /// <summary>The selection step alone (<see cref="Select"/>), for a prediction that does not run <see cref="PredictFire"/>; a <paramref name="fresh"/> run's click goes into the combat events.</summary>
     public void PredictSelect(Driver d, bool fresh = false) => Select(d, predict: true, fresh);
 
     /// <summary>A driver's car and key state, to restore exactly (client prediction replays from it).</summary>

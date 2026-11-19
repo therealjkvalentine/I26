@@ -447,7 +447,7 @@ public sealed partial class MeleeGame
     /// <summary>One frame, after the vehicles moved (where the FSM would tick).</summary>
     public void Frame(float dt)
     {
-        if (Rules.Network) { NetworkFrame(); return; }
+        if (Rules.Network) { NetworkFrame(dt); return; }
         var player = Host.Player;
         if (player?.Vehicle is { } pv)
         {
@@ -496,7 +496,7 @@ public sealed partial class MeleeGame
     /// and its wrecks replaced one by one, every live player's regen pad,
     /// and the end.
     /// </summary>
-    private void NetworkFrame()
+    private void NetworkFrame(float dt)
     {
         foreach (var p in Players)
         {
@@ -549,7 +549,7 @@ public sealed partial class MeleeGame
         }
         foreach (var p in Players) if (!p.Destroyed) Regen(p);
         if (Rules.Kind == MeleeKind.Race) RaceFrame();
-        Ctf?.Update(Players, p => !p.Destroyed && !Damage.DamageModel.IsDead(p.Car), p => Radius(p.Car));
+        Ctf?.Update(Players, p => !p.Destroyed && !Damage.DamageModel.IsDead(p.Car), dt);
         if (Rules.AutoHandicaps && Rules.Kind == MeleeKind.Combat && !Ended) AutoHandicapFrame();
         if (_overAt is null) CheckEnd();
         else if (Host.Now >= _overAt) _over = true;

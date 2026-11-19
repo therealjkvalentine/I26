@@ -9,8 +9,9 @@ made by the tools here from your own install and are separate downloads, not in 
 Each line is one change in a player's words, the option that controls it where there is one (a Graphic Detail or Play
 Options row, a `[port]` key in shell.cfg, or an `I76_*` hook from docs/dev-hooks.md), and the manifest section(s) in
 brackets, where the branch names are. A fidelity fix (I26 made to match the original) has no option: it is the default.
-Every deliberate difference has a row in docs/deviations.md. Network games use protocol 28 and save snapshot 25: this
-build does not play with upstream's builds or 0.11.0.
+Every deliberate difference has a row in docs/deviations.md. Network games use upstream's protocol 26 with the fork's
+additions appended or negotiated, so this build plays with upstream's builds of the same protocol; savestates are the fork's
+own snapshot format 27, so host migration is between fork builds alone.
 
 Each section's before/after pictures are on the changes page, built by `tools/changes-page/build.py` and published from
 the `gh-pages` branch (see tools/changes-page/README.md).

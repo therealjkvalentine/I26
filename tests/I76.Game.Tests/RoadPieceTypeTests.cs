@@ -178,4 +178,52 @@ public class RoadPieceTypeTests(ITestOutputHelper log)
             Assert.Equal(total, pieces);
         }
     }
+
+    /// <summary>
+    /// The ground list (an Intersection piece's drawn node, the lots) is drawn with the colour key off by the original's
+    /// Software renderer (render state 0xf4, Nitro 0xf6) and keyed through the 3D card: the water tower given the Intersection
+    /// class id shows its legs' frames as dark, solid boards in the 8-bit original (a community mission maker's shot). Its
+    /// legs are cut-out faces, which the unkeyed draw makes opaque.
+    /// </summary>
+    [InstallFact]
+    public void TheSoftwareRenderersGroundListDrawsTheKeyedLegsOpaque()
+    {
+        var m = RoadPieceObjects.Drawn(new ModelAssembler(TestInstall.Vfs).Assemble("awatert1.sdf")!);
+        Assert.True(ScenerySpawner.HasCutouts(m));
+        var cut = m.Parts.SelectMany(p => p.Mesh.Faces).First(f => f.Texture.Length > 0 && Assets.MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) == Assets.MaterialLibrary.FaceMode.Cutout);
+        Assert.Equal(Assets.MaterialLibrary.FaceMode.Opaque, Assets.MaterialLibrary.ModeOf(cut.Unk_0x20, cut.Unk_0x21, unkeyed: true));
+        Assert.Equal(Assets.MaterialLibrary.FaceMode.Cutout, Assets.MaterialLibrary.ModeOf(cut.Unk_0x20, cut.Unk_0x21, unkeyed: false));
+    }
+
+    /// <summary>
+    /// The modern look's retroreflective sign faces go by the part's own node type, as the original's damage and collisions do,
+    /// not by the placement's class id: a road sign's post and board (type 4) are sign parts whether it is placed as a Sign or
+    /// as Struct1 (a community mission maker's sheets placed them so); a building's parts, even placed as a Sign, are not.
+    /// </summary>
+    [InstallFact]
+    public void ASignsPartsAreReflectiveByTheirOwnType()
+    {
+        var sign = ScenerySpawner.SignParts(TestInstall.Vfs.Read("sdxin_1.sdf"));
+        Assert.True(sign("SD1XINP1"));
+        Assert.True(sign("SD1XINS1"));
+        var bank = ScenerySpawner.SignParts(TestInstall.Vfs.Read("bcbank1.sdf"));
+        Assert.False(bank("CB1_BLD1"));
+        var board = ScenerySpawner.SignParts(TestInstall.Vfs.Read("aobilbd2.sdf"));
+        Assert.False(board("AO1_SGN2"));
+        Assert.False(ScenerySpawner.SignParts(null)("anything"));
+    }
+
+    /// <summary>
+    /// A dead gate's wreck slides with the gate's own mesh (the original leaves the node's transform where the gate slid to and
+    /// swaps its geometry): the wreck's 'A' part belongs to its gate node, the fence sections to none.
+    /// </summary>
+    [InstallFact]
+    public void AGatesWreckBelongsToItsGate()
+    {
+        var fence = ScenerySpawner.GateOwners(TestInstall.Vfs.Read("afence5.sdf"));
+        Assert.Equal("AF1_GAT5", fence("AF1_GAT5"));
+        Assert.Equal("AF1_GAT5", fence("AF1AGAT5"));
+        Assert.Null(fence("AF1_FN15"));
+        Assert.Equal("CA1_GAT1", ScenerySpawner.GateOwners(TestInstall.Vfs.Read("bcaikgat.sdf"))("CA1AGAT1"));
+    }
 }

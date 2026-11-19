@@ -199,6 +199,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var lowestOf = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in world.Placements.Concat(world.LinePlacements))
         {
+            if (p.Refused) continue;
             // a drive-on structure paints its lots alone (GroundDecals.LotsOnly)
             bool lots = GroundDecals.LotsOnly(p);
             bool decals = GroundDecals.Applies(p) || lots;
@@ -209,7 +210,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             float lowest = 0;
             if (decals && !lowestOf.TryGetValue(p.Definition, out lowest)) lowestOf[p.Definition] = lowest = GroundDecals.LowestY(model);
             var place = I76.Formats.Assembly.Affine.FromEngine(p.Object.Rotation, world.GroundedPosition(p));
-            foreach (var part in model.Parts)
+            foreach (var part in model.Parts.Where(model.Drawn))   // no marker's footprint: it is never drawn
                 foreach (var f in part.Mesh.Faces)
                 {
                     if (f.Vertices.Length < 3 || f.Vertices.Any(v => (uint)v.Index >= part.Mesh.Vertices.Length)) continue;

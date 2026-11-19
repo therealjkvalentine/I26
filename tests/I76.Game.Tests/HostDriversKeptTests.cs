@@ -14,10 +14,8 @@ public class HostDriversKeptTests
     [Fact]
     public void ANewFileOpensTheFormOnFour()
     {
-        Assert.Equal(4, MeleeScreen.HostDriversOf(new MeleeSetup()));
-        Assert.Equal(4, MeleeScreen.HostDriversOf(MeleeSetup.Read(new SettingsFile())));
-        // nothing written until a game has been hosted: a file an older build reads stays as it was
-        Assert.False(new MeleeSetup().Write().HasSectionKey("melee", "host_drivers"));
+        Assert.Equal(4, new MeleeSetup().HostDrivers);
+        Assert.Equal(4, MeleeSetup.Read(new SettingsFile()).HostDrivers);
     }
 
     [Theory]
@@ -29,7 +27,6 @@ public class HostDriversKeptTests
     {
         var s = Again(new MeleeSetup { HostDrivers = drivers });
         Assert.Equal(drivers, s.HostDrivers);
-        Assert.Equal(drivers, MeleeScreen.HostDriversOf(s));
     }
 
     [Fact]
@@ -39,7 +36,7 @@ public class HostDriversKeptTests
         var s = Again(new MeleeSetup { Drivers = 3, HostDrivers = 6 });
         Assert.Equal((3, 6), (s.Drivers, s.HostDrivers));
         Assert.Equal(2, Again(new MeleeSetup { HostDrivers = 6 }).Drivers);
-        Assert.Equal(6, MeleeScreen.HostDriversOf(Again(new MeleeSetup { Drivers = 5, HostDrivers = 6 })));
+        Assert.Equal(6, Again(new MeleeSetup { Drivers = 5, HostDrivers = 6 }).HostDrivers);
     }
 
     [Fact]
@@ -47,9 +44,9 @@ public class HostDriversKeptTests
     {
         var f = new SettingsFile();
         f.SetValue("melee", "host_drivers", 500);
-        Assert.Equal(MeleeScreen.MaxDrivers, MeleeScreen.HostDriversOf(MeleeSetup.Read(f)));
+        Assert.Equal(MeleeScreen.MaxDrivers, MeleeSetup.Read(f).HostDrivers);
         f.SetValue("melee", "host_drivers", -3);
-        Assert.Equal(4, MeleeScreen.HostDriversOf(MeleeSetup.Read(f)));
+        Assert.Equal(1, MeleeSetup.Read(f).HostDrivers);
     }
 
     [Fact]

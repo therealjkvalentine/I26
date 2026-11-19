@@ -35,12 +35,8 @@ public sealed partial class MeleeScreen
     /// <summary>The team names, CHOOSE A TEAM's rows.</summary>
     public static IReadOnlyList<string> Teams => I76.Sim.Missions.MeleeGame.TeamNames;
 
-    // the host form (defaults: max score 20000, the flags clear; NO. DRIVERS 4 on the LAN and the internet)
-    private int _drivers = DefaultHostDrivers, _maxScore = 20000, _port = Protocol.DefaultPort;
-    public const int DefaultHostDrivers = 4;
-
-    /// <summary>NO. DRIVERS as the host form opens: the count last hosted with (melee.cfg's host_drivers), else 4.</summary>
-    public static int HostDriversOf(MeleeSetup s) => s.HostDrivers > 0 ? Math.Clamp(s.HostDrivers, 1, MaxDrivers) : DefaultHostDrivers;
+    // the host form (defaults: max score 20000, the flags clear; NO. DRIVERS 4 on the LAN and the internet, then as it was left: melee.cfg)
+    private int _drivers = MeleeSetup.DefaultHostDrivers, _maxScore = 20000, _port = Protocol.DefaultPort;
     /// <summary>
     /// NO. DRIVERS' top (up to <see cref="Protocol.MaxSeats"/>), where the original's was 8: 32, about 4.5 Mbit/s of
     /// upload at the default 20 Hz and 11 at 60, within a home connection with room to spare, and a tick of a millisecond
@@ -172,7 +168,7 @@ public sealed partial class MeleeScreen
         _turrets = Hosting && _setup.HostTurrets;
         Shell.HostTurrets = _turrets;
         // NO. DRIVERS as last hosted (a co-op form then holds it to its seats below)
-        if (Hosting) _drivers = HostDriversOf(_setup);
+        if (Hosting) _drivers = _setup.HostDrivers;
         // the Nitro host form opens on the game type and arena it was left on (the index alone named another list's arena)
         if (Nitro && Hosting)
         {
@@ -1188,11 +1184,11 @@ public sealed partial class MeleeScreen
         Draw();
     }
 
-    /// <summary>CHOOSE A TEAM, then <paramref name="then"/> with the team (1-based); <paramref name="ctfTeams"/> 2-4 for a capture the flag game's own popup.</summary>
-    private void ChooseTeam(Action<int> then, int ctfTeams = 0) =>
-        Shell.Modal(new TeamPopup { Font = _font, CtfTeams = ctfTeams, Picked = t => { Draw(); if (t >= 0) then(t + 1); } });
+    /// <summary>CHOOSE A TEAM (<paramref name="ctfTeams"/> 2–4: the Nitro Pack's CTF popup of that many teams), then the team (1..) picked.</summary>
+    private void ChooseTeam(int ctfTeams, Action<int> then) =>
+        Shell.Modal(new TeamPopup { Font = _font, CtfTeams = Nitro ? ctfTeams : 0, Picked = t => { Draw(); if (t >= 0) then(t + 1); } });
 
-    /// <summary>BROADCAST GAME: CHOOSE A TEAM with team play, then a listen server with the form's rules, joined at once.</summary>
+    /// <summary>BROADCAST GAME: CHOOSE A TEAM with team play or CTF, then a listen server with the form's rules, joined at once.</summary>
     private void Broadcast()
     {
         if (Arenas.Count == 0) { Say(Coop ? "There are no story missions." : "There are no arenas of that kind."); return; }
@@ -1222,9 +1218,7 @@ public sealed partial class MeleeScreen
                 },
             });
         }
-        // the Nitro Pack's BROADCAST: a capture the flag game asks with its own popup, its 2 to 4 teams
-        if (Nitro && !Coop && CtfKind) ChooseTeam(Go, Types[_kind].Teams);
-        else if (_teamPlay && !Coop) ChooseTeam(Go); else Go(0);
+        if (TeamPopup.ChoiceFor(Nitro ? Types[_kind].Kind : null, _teamPlay, Types[_kind].Teams, Coop) is { } teams) ChooseTeam(teams, Go); else Go(0);
     }
 
     /// <summary>A game's WEAPON RESTRICTIONS and Hidden Weapons &amp; Cars as the session popup shows them, or null for neither.</summary>
@@ -1325,11 +1319,10 @@ public sealed partial class MeleeScreen
                 },
             });
         }
-        // a capture the flag game asks with its own popup, its 2 to 4 teams (the Nitro Pack's join)
         void Team(string password)
         {
-            if (g.Info.Kind == I76.Sim.Missions.MeleeKind.Ctf && !g.Info.Coop) ChooseTeam(t => Go(t, password), Math.Clamp((int)g.Info.Teams, 2, 4));
-            else if (g.Info.TeamPlay) ChooseTeam(t => Go(t, password)); else Go(0, password);
+            if (TeamPopup.ChoiceFor(g.Info.Kind, g.Info.TeamPlay, g.Info.Teams, g.Info.Coop) is { } teams) ChooseTeam(teams, t => Go(t, password));
+            else Go(0, password);
         }
         // a locked game (its listing says so, or it refused us before) asks for its password first
         bool locked = g.Info.Locked || KnownLocked.Contains(g.Anet is { } al ? $"anet:{al.Session.Id}" : $"{g.EndPoint.Address}:{g.EndPoint.Port}");
@@ -1365,76 +1358,81 @@ internal static class Typing
 /// shadow, an X at x 228 by the team picked, eight rows, DONE
 /// and CANCEL. All eight rows pick (team 1–8; the eighth, MEN IN BLACK, is
 /// Entity.Team8, since 0 is nobody's in the port).
-/// The Nitro Pack's front end asks a capture the flag game's team with a popup of the game's own colours instead
-/// (<see cref="CtfTeams"/>): its bank 30 sprite 46, 45 or 44 (231x208: RED DAWN, GANG GREEN, and PURPLE REIGN and
-/// BLACK PLAGUE as the game has them) centred on the screen at (205,136), the rows' hotspots the eight-team popup's first
-/// ones, the X at x 36 in it, DONE and CANCEL lower; the pick is the CTF team (1 Red Dawn ... 4 Black Plague).
+/// A CTF game opens the Nitro Pack's own popup instead, for host and joiner alike and whether or not TEAM PLAY is set:
+/// its bank 30's sprite 46, 45 or 44 for an arena of 2, 3 or 4 teams (231x208, centred at (205,136)), the CTF teams by
+/// name (RED DAWN, GANG GREEN, PURPLE REIGN, BLACK PLAGUE; the art greys out those the arena has not), only the arena's
+/// rows picking, on the eight-team popup's first rows, the X at x 36, DONE and CANCEL under them.
 /// </summary>
 public sealed class TeamPopup : ShellScreen
 {
     public required ShellFont Font { get; init; }
-    /// <summary>The row picked (0..7), or −1 for CANCEL.</summary>
-    public required Action<int> Picked { get; init; }
-    /// <summary>A capture the flag game's team count (2–4): the Nitro Pack's popup of its teams. 0, the eight teams of team play.</summary>
+    /// <summary>The arena's CTF teams (2–4) for the Nitro Pack's CTF popup, or 0 for the eight teams of team play.</summary>
     public int CtfTeams { get; init; }
+    /// <summary>The row picked (0..), or −1 for CANCEL.</summary>
+    public required Action<int> Picked { get; init; }
     public override bool EscapeOpensOptions => false;
-    private static readonly (int X0, int X1, int Y0, int Y1)[] Row =
-        [(37, 190, 56, 70), (37, 162, 82, 95), (37, 175, 108, 121), (37, 222, 134, 147), (37, 178, 160, 173), (37, 173, 186, 199), (37, 163, 212, 225), (37, 170, 238, 251)];
-    private int _team;
 
     /// <summary>
-    /// The popup the front end shows: for a capture the flag game of 2–4 teams on the Nitro Pack its own (the native bank 30
-    /// sprite), else the eight teams' (no native sprite: the base game's bank 36 sprite 19, the Nitro Pack's copy of it). Centred
-    /// on 640x480; the X's column, the rows that pick, DONE and CANCEL in the popup's own coordinates.
+    /// Which CHOOSE A TEAM a game opens before it starts: null for none (no team play, or co-op), 0 for the eight teams,
+    /// 2–4 for a CTF arena's teams. The original opens the CTF one for every CTF game, before it looks at team play.
     /// </summary>
-    public sealed record Layout(int? NativeSprite, int X, int Y, int W, int H, int MarkX, int Picks, (int X0, int X1, int Y0, int Y1) Done, (int X0, int X1, int Y0, int Y1) Cancel)
+    public static int? ChoiceFor(I76.Sim.Missions.MeleeKind? kind, bool teamPlay, int ctfTeams, bool coop) =>
+        coop ? null : kind == I76.Sim.Missions.MeleeKind.Ctf ? Math.Clamp(ctfTeams, 2, 4) : teamPlay ? 0 : null;
+
+    /// <summary>
+    /// The popup as drawn: its place and size, the Nitro bank 30 sprite (null: base bank 36 sprite 19), its rows' teams by
+    /// name (row n picks team n + 1), the X's x, and DONE and CANCEL; rectangles relative to the popup.
+    /// </summary>
+    public sealed record Layout(int X, int Y, int W, int H, int? NativeSprite, IReadOnlyList<string> Names, int MarkX,
+        (int X0, int X1, int Y0, int Y1) Done, (int X0, int X1, int Y0, int Y1) Cancel);
+
+    // the rows, relative; the CTF popup uses the first two to four
+    internal static readonly (int X0, int X1, int Y0, int Y1)[] Row =
+        [(37, 190, 56, 70), (37, 162, 82, 95), (37, 175, 108, 121), (37, 222, 134, 147), (37, 178, 160, 173), (37, 173, 186, 199), (37, 163, 212, 225), (37, 170, 238, 251)];
+
+    public static Layout LayoutOf(int ctfTeams)
     {
-        public static Layout For(int ctfTeams, bool nitro) => ctfTeams is >= 2 and <= 4 && nitro
-            ? new(48 - ctfTeams, 320 - 231 / 2, 240 - 208 / 2, 231, 208, 36, ctfTeams, (58, 129, 180, 196), (137, 208, 180, 196))
-            : new(null, 320 - 259 / 2, 240 - 314 / 2, 259, 314, 37, 8, (90, 162, 286, 303), (169, 241, 286, 303));
+        if (ctfTeams <= 0) return new(191, 83, 259, 314, null, I76.Sim.Missions.MeleeGame.TeamNames, 37, (90, 162, 286, 303), (169, 241, 286, 303));
+        int n = Math.Clamp(ctfTeams, 2, 4);
+        return new(320 - 231 / 2, 240 - 208 / 2, 231, 208, 48 - n, I76.Sim.Missions.CtfGame.TeamNames[..n], 36, (58, 129, 180, 196), (137, 208, 180, 196));
     }
 
-    private Layout L => _layout ??= Layout.For(CtfTeams, Shell.Install.IsNitro);
+    private Layout L => _layout ??= LayoutOf(CtfTeams);
     private Layout? _layout;
-    private int X => L.X;
-    private int Y => L.Y;
-    private int W => L.W;
-    private int H => L.H;
-    private int Picks => L.Picks;
-    private (int X0, int X1, int Y0, int Y1) Done => L.Done;
-    private (int X0, int X1, int Y0, int Y1) Cancel => L.Cancel;
+    private int _team;
 
     public override void Enter() => Draw();
 
     private void Draw()
     {
-        Frame.Restore(X, Y, W + 6, H + 6);
-        Frame.Blit(L.NativeSprite is { } n ? Shell.Db.BankNative(30)[n] : Shell.Db.Bank(0x24)[19], X, Y);
-        Frame.Fill(X + 6, Y + H, W, 6, 0x0f);
-        Frame.Fill(X + W, Y + 6, 6, H, 0x0f);
-        Frame.Text(Font, X + L.MarkX, Y + Row[_team].Y0, "X");
+        var l = L;
+        Frame.Restore(l.X, l.Y, l.W + 6, l.H + 6);
+        Frame.Blit(l.NativeSprite is { } n ? Shell.Db.BankNative(30)[n] : Shell.Db.Bank(0x24)[19], l.X, l.Y);
+        Frame.Fill(l.X + 6, l.Y + l.H, l.W, 6, 0x0f);
+        Frame.Fill(l.X + l.W, l.Y + 6, 6, l.H, 0x0f);
+        Frame.Text(Font, l.X + l.MarkX, l.Y + Row[_team].Y0, "X");
     }
 
-    private bool In((int X0, int X1, int Y0, int Y1) r, Vector2I p) => r.X0 < p.X - X && p.X - X < r.X1 && r.Y0 < p.Y - Y && p.Y - Y < r.Y1;
+    private bool In((int X0, int X1, int Y0, int Y1) r, Vector2I p) => r.X0 < p.X - L.X && p.X - L.X < r.X1 && r.Y0 < p.Y - L.Y && p.Y - L.Y < r.Y1;
 
-    private PadRegion Reg((int X0, int X1, int Y0, int Y1) r) => PadRegion.Of((r.X0 + X, r.X1 + X, r.Y0 + Y, r.Y1 + Y));
-    public override IReadOnlyList<PadRegion> PadRegions => [.. Row.Take(Picks).Select(Reg), Reg(Done), Reg(Cancel)];
+    private PadRegion Reg((int X0, int X1, int Y0, int Y1) r) => PadRegion.Of((r.X0 + L.X, r.X1 + L.X, r.Y0 + L.Y, r.Y1 + L.Y));
+    public override IReadOnlyList<PadRegion> PadRegions => [.. Row.Take(L.Names.Count).Select(Reg), Reg(L.Done), Reg(L.Cancel)];
 
     public override void Tick()
     {
         if (Shell.Keys.Contains(Key.Escape)) { Close(-1); return; }
         if (!Shell.Clicked) return;
         var p = Shell.Mouse;
-        for (int i = 0; i < Picks; i++)
+        for (int i = 0; i < L.Names.Count; i++)
             if (In(Row[i], p)) { Shell.Sound(82); _team = i; Draw(); return; }
-        if (In(Done, p)) Close(_team);
-        else if (In(Cancel, p)) Close(-1);
+        if (In(L.Done, p)) Close(_team);
+        else if (In(L.Cancel, p)) Close(-1);
     }
 
     private void Close(int team)
     {
         Shell.Sound(82);
-        Frame.Restore(X, Y, W + 6, H + 6);
+        Frame.Restore(L.X, L.Y, L.W + 6, L.H + 6);
         Shell.Modal(null);
         Picked(team);
     }

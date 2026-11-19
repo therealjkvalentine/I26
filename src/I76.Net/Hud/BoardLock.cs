@@ -71,12 +71,21 @@ public static class BoardCursor
         return players.Count == 0 ? -1 : (last ? players[^1] : players[0]).Slot;
     }
 
-    /// <summary>How long a boot's question is up before the same row picked again boots, in seconds: a double-click is quicker.</summary>
-    public const double ConfirmAfter = 0.5;
-
-    /// <summary>Whether a second pick at <paramref name="t"/> of the row asked about at <paramref name="askedAt"/> boots.</summary>
-    public static bool Confirms(double askedAt, double t) => t - askedAt >= ConfirmAfter;
-
     /// <summary>Whether the host may boot the player on this row: another player's row, on the listen host's own machine.</summary>
     public static bool CanBoot(bool host, ScoreLine l) => host && l.Kind == ScoreLineKind.Player && !l.Me && l.Slot >= 0;
+
+    /// <summary>
+    /// What a pick of a row does on the listen host's machine (<paramref name="host"/>), with the boot prompt asking about
+    /// <paramref name="asked"/> (a slot, or -1): another player's row asks to boot them, the row asked about boots. The second
+    /// half of a double click does not boot: the boot takes a pick made after the prompt was up to be read.
+    /// </summary>
+    public static BootPick Boot(bool host, ScoreLine l, int asked, bool doubleClick)
+    {
+        if (!CanBoot(host, l)) return BootPick.None;
+        if (l.Slot != asked) return BootPick.Ask;
+        return doubleClick ? BootPick.None : BootPick.Boot;
+    }
 }
+
+/// <summary>A row's pick on the locked score window: nothing, the boot prompt, or the boot.</summary>
+public enum BootPick { None, Ask, Boot }

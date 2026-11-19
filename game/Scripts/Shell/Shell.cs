@@ -1297,16 +1297,13 @@ public sealed class ShellSettings
     public static (int World, int Car) HdDefault { get; set; } = (I76.Formats.Shell.HdPackFolders.DefaultSize, I76.Formats.Shell.HdPackFolders.DefaultSize);
     /// <summary>The port's own: Play Options' Keyboard Steering Assist (I76.Sim.Session.KeyStick), on unless the player turned it off ([port] assisted_steering, written when off; the older keyboard_steering key's "original" reads as off).</summary>
     public bool AssistedSteering { get; set; } = true;
-    /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; on unless the player turned it off).</summary>
-    public bool AutoReverse { get; set; } = true;
-    /// <summary>The settings version that made Auto Reverse on by default and writes it either way.</summary>
-    public const int AutoReverseOnVersion = 12;
+    /// <summary>The port's own: the brake key on a stopped car shifts into reverse, accelerate on a reversing one into drive (Play Options; off, as the original).</summary>
+    public bool AutoReverse { get; set; }
     /// <summary>
-    /// Auto Reverse from a shell.cfg of <paramref name="version"/> with [port] auto_reverse as <paramref name="stored"/> (null when absent):
-    /// before version 12 the key was written only when on, so an old file cannot tell off from untouched and every one is on;
-    /// from 12 the key is written either way, and a missing one is the default, on.
+    /// Auto Reverse from shell.cfg's [port] auto_reverse (null when absent): the choice when the key is there, off when it is not.
+    /// Up to settings version 11 the key was written only when on; from 12 it is written either way.
     /// </summary>
-    public static bool AutoReverseFrom(int version, bool? stored) => version < AutoReverseOnVersion || stored != false;
+    public static bool AutoReverseFrom(bool? stored) => stored == true;
     /// <summary>The port's own: the pad's rumble for the original's force-feedback events (Play Options; on, and without a pad it does nothing; both looks).</summary>
     public bool ForceFeedback { get; set; } = true;
     /// <summary>The port's own: Force Feedback on a DirectInput wheel or stick instead of the pad (Play Options' Wheel; Windows only, without a device the pad).</summary>
@@ -1400,6 +1397,13 @@ public sealed class ShellSettings
     /// Offline only: a network game's is the host's (<see cref="HostTurrets1997"/>).
     /// </summary>
     public bool Turrets1997 { get; set; }
+    /// <summary>
+    /// The port's own: Play Options' Skip Intro Movies leaves out the start-up's movies (introf01, credf01), and only those (shell.cfg
+    /// [port] skip_intro, written only when on; upstream's settings version 13). Off: they play at every start, as the original's.
+    /// </summary>
+    public bool SkipIntro { get; set; }
+    /// <summary>Skip Intro Movies from a file of settings version <paramref name="version"/> and its [port] skip_intro (null when absent): a file from before version 13 has none, so off.</summary>
+    public static bool SkipIntroFrom(int version, bool? stored) => version >= 13 && stored == true;
     /// <summary>The port's own: the mouse wheel cycles weapons instead of zooming the external views (shell.cfg [port] wheel_cycle_weapon; off).</summary>
     public bool WheelCycleWeapon { get; set; }
     /// <summary>The port's own: Graphic Detail's Max FPS, a choice of <see cref="I76.Sim.Views.FrameLimit"/> (shell.cfg [port] max_fps in frames a second, 0 none). Unlimited unless the player chose.</summary>
@@ -1808,12 +1812,15 @@ public sealed class ShellSettings
     }
 
     /// <summary>
-    /// The [shell] version of upstream's steps: 1 to 11 are the same in both builds, and upstream's 12 made Auto Reverse on by
-    /// default and writes it either way (<see cref="AutoReverseFrom"/>, read by the [shell] version). The fork's own steps (12: the
+    /// The [shell] version of upstream's steps: 1 to 11 are the same in both builds, and upstream's 12 writes Auto Reverse either
+    /// way (<see cref="AutoReverseFrom"/>: off when the key is missing). The fork's own steps (12: the
     /// Far 0.11.0 wrote on every save is no choice; 13: the sky's drift Steady, Rumble folded into Force Feedback; 14: Terrain Detail
-    /// High) are counted under [port] fork_version (<see cref="ForkVersion"/>), so they do not clash with upstream's 12.
+    /// High) are counted under [port] fork_version (<see cref="ForkVersion"/>), so they do not clash with upstream's 12 and 13 (13: Skip
+    /// Intro Movies, <see cref="SkipIntroFrom"/>).
     /// </summary>
-    public const int Version = 12;
+    public const int Version = 13;
+    /// <summary>Upstream's [shell] version when the fork's steps moved to fork_version: a file without fork_version and a [shell] version above it is the fork's (12 to 14 written there).</summary>
+    public const int VersionAtForkKey = 12;
     /// <summary>Upstream's last step the fork's own steps (numbered on from it) were counted after: a file of upstream's has had these and none of the fork's.</summary>
     public const int ForkStepsAfter = 11;
     /// <summary>The [port] fork_version <see cref="Save"/> writes: the fork's steps, numbered on from upstream's.</summary>
@@ -1825,10 +1832,10 @@ public sealed class ShellSettings
     /// whose steps after it are still due: upstream's 12 is not the fork's, so a file of upstream's 12 has had the fork's steps
     /// up to <see cref="ForkStepsAfter"/>. Engine-free, for the tests.
     /// </summary>
-    public static int StepsDone(int shellVersion, int? forkVersion) => forkVersion ?? (shellVersion > Version ? shellVersion : Math.Min(shellVersion, ForkStepsAfter));
+    public static int StepsDone(int shellVersion, int? forkVersion) => forkVersion ?? (shellVersion > VersionAtForkKey ? shellVersion : Math.Min(shellVersion, ForkStepsAfter));
 
     /// <summary>Whether the file's [port] fov is the fork's (degrees across the window): a file of the fork's from before fov_window, which wrote [shell] version 12 to 14 and no fork_version (12 is now upstream's: read as upstream's).</summary>
-    public static bool ForkFovKey(int shellVersion, int? forkVersion) => forkVersion is null && shellVersion > Version;
+    public static bool ForkFovKey(int shellVersion, int? forkVersion) => forkVersion is null && shellVersion > VersionAtForkKey;
 
     /// <summary>
     /// A file's graphics block onto <paramref name="into"/> (a fresh block's defaults), with the steps for its version; a block that is not
@@ -1906,9 +1913,11 @@ public sealed class ShellSettings
             sizesNow, sizesNow.Length > 0 || plainNow, HdDefault);
         if (packs is not null && (s.WorldTextures, s.CarTextures) != stored && !_newPacksSaid && (_newPacksSaid = true))
             GD.Print($"HD textures: the settings were saved with {Word("texture_packs") ?? "no texture pack (or before the packs were noted)"}; now world {I76.Game.Assets.HdTextures.Word(s.WorldTextures)}, cars and dash {I76.Game.Assets.HdTextures.Word(s.CarTextures)} (was {I76.Game.Assets.HdTextures.Word(stored.Item1)}, {I76.Game.Assets.HdTextures.Word(stored.Item2)})");
-        // version 5 added Auto Reverse (written only when on); version 12 made it on by default: AutoReverseFrom, by the [shell] version
-        // (upstream's steps: a fork file's is WrittenVersion, past 12)
-        s.AutoReverse = AutoReverseFrom(shellVersion, c.HasSectionKey("port", "auto_reverse") ? (bool)c.GetValue("port", "auto_reverse") : null);
+        // version 5 added Auto Reverse (written only when on; from version 12 either way): AutoReverseFrom, off when the key is missing
+        s.AutoReverse = AutoReverseFrom(c.HasSectionKey("port", "auto_reverse") ? (bool)c.GetValue("port", "auto_reverse") : null);
+        // upstream's version 13 added Skip Intro Movies: older files have none, so it is off and the intro plays, as before (by the
+        // [shell] version, upstream's steps: a fork file's is WrittenVersion, past 13)
+        s.SkipIntro = SkipIntroFrom(shellVersion, c.HasSectionKey("port", "skip_intro") ? (bool)c.GetValue("port", "skip_intro") : null);
         // version 6 added the look: older files have none, so it is off
         s.Look1997 = version >= 6 && (bool)c.GetValue("port", "look_1997", false);
         // version 7 added Force Feedback: older files have none, so it is on
@@ -2190,6 +2199,7 @@ public sealed class ShellSettings
         if (ChaseCrosshair) c.SetValue("port", "chase_crosshair", true);
         if (!CrosshairDrawn) c.SetValue("port", "crosshair_drawn", false);
         if (WheelCycleWeapon) c.SetValue("port", "wheel_cycle_weapon", true);
+        if (SkipIntro) c.SetValue("port", "skip_intro", true);
         if (!AssistedSteering) c.SetValue("port", "assisted_steering", false);
         c.SetValue("port", "max_fps", I76.Sim.Views.FrameLimit.Fps(MaxFps));
         c.SetValue("port", "vsync", VSync);

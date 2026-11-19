@@ -124,9 +124,12 @@ public class RetroreflectionTests
         Assert.Contains("if (unlit && car is null && mode != FaceMode.Translucent && !retro) mat.SetShaderParameter(\"night_glow\", true);", lib);
         Assert.Contains("if (prop && !retro) mat.SetShaderParameter(\"night_glow\", true);", lib);
         Assert.Equal(2, Regex.Matches(lib, @"SetShaderParameter\(""night_glow"", true\)").Count);
-        // every sign (ODEF class 4) is marked, whatever the hook says; the hook only leaves the sheeting out
+        // every sign's parts (type-4 nodes, whatever the placement's class id) are marked, whatever the hook says; the hook only leaves
+        // the sheeting out, and a sign part's faces never take the structures' own glow
         var spawner = Source("game", "Scripts", "World", "ScenerySpawner.cs");
-        Assert.Contains("bool retro = !roadPiece && !g.Any(p => p.Object.ObjectType != SignType);", spawner);
+        Assert.Contains("bool retro = !roadPiece;", spawner);
+        Assert.Contains("signPart: signPart", spawner);
+        Assert.Contains("bool shines = selfLit && !sign && SelfLit(f, faceN.Y);", Source("game", "Scripts", "Assets", "MeshBuilder.cs"));
     }
 
     [Fact]

@@ -130,7 +130,8 @@ public class ScrollRowsTests
             ["Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
              "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
              // the play fork's own rows after upstream's (Force Feedback, Rumble and Rumble Strength are the Controls sheet's)
-             "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips"],
+             "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
+             "Skip Intro Movies"],
             PlayOptionsScreen.PortRows);
     }
 }

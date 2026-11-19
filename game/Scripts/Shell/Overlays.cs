@@ -257,7 +257,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997, _savedSkipIntro;
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private bool _savedSteering;
@@ -299,7 +299,10 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
         "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
+        SkipIntroRow,
     ];
+    /// <summary>The port's Skip Intro Movies row (<see cref="ShellSettings.SkipIntro"/>), in the front end's and the mission menu's Play Options.</summary>
+    public const string SkipIntroRow = "Skip Intro Movies";
 
     /// <summary>Every row of the list, in order: the original's check rows (Nitro's two), Difficulty, then the port's rows.</summary>
     public static string[] ListRows(bool nitro) =>
@@ -332,6 +335,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedBriefing = s.BriefingWhileLoading;
         _savedTurrets1997 = s.Turrets1997;
         _savedSteering = s.AssistedSteering;
+        _savedSkipIntro = s.SkipIntro;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
 
@@ -409,6 +413,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
         Toggle(PortRows[20], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        // Skip Intro Movies: the next start goes straight to the menu (briefings, outros and cut-scenes still play)
+        Toggle(PortRows[21], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -472,7 +478,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair; s.BriefingWhileLoading = _savedBriefing; s.Turrets1997 = _savedTurrets1997;
         s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens; s.OpenTrackAuto = _savedOtAuto;
         I76.Game.HeadTracker.Apply(s);
-        s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips;
+        s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips; s.SkipIntro = _savedSkipIntro;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = _savedSteering;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
