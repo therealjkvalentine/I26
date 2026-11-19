@@ -476,6 +476,8 @@ public sealed partial class MeleeScreen : ShellScreen
         if (Coop) _setup.CoopArena = Arenas.Count > 0 ? Arenas[Math.Clamp(Area, 0, Arenas.Count - 1)].Msn : _setup.CoopArena;
         if (Hosting) { if (!Coop) _setup.Game = _gameName; _setup.Bots = _bots; _setup.BotSkill = (int)_botSkill; _setup.BotCars = [.. _botCars]; _setup.HostRate = _rate; _setup.HostTurrets = _turrets; _setup.HostDrivers = _drivers; }
         if (Hosting && Shell.Settings.HostBotSkillDifficulty != _botSkillDifficulty) { Shell.Settings.HostBotSkillDifficulty = _botSkillDifficulty; Shell.Settings.Save(); }
+        // the type's rows as hosted (the older keys above stay the last game's, for a build that reads only those)
+        if (Hosting) _setup.Host(HostTypeNow).Merge(FormRows(HostTypeNow));
         if (Nitro && Hosting)
         {
             _setup.NitroKind = _kind;

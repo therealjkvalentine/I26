@@ -35,8 +35,9 @@ public sealed partial class MeleeScreen
     /// <summary>The team names, CHOOSE A TEAM's rows.</summary>
     public static IReadOnlyList<string> Teams => I76.Sim.Missions.MeleeGame.TeamNames;
 
-    // the host form (defaults: max score 20000, the flags clear; NO. DRIVERS 4 on the LAN and the internet, then as it was left: melee.cfg)
-    private int _drivers = MeleeSetup.DefaultHostDrivers, _maxScore = 20000, _port = Protocol.DefaultPort;
+    // the host form (defaults: max score 20000, the flags clear; NO. DRIVERS 4 on the LAN and the internet; then each game type's rows
+    // as it was last hosted: melee.cfg, HostRows)
+    private int _drivers = MeleeSetup.DefaultHostDrivers, _maxScore = HostRows.DefaultMaxScore, _port = Protocol.DefaultPort;
     /// <summary>
     /// NO. DRIVERS' top (up to <see cref="Protocol.MaxSeats"/>), where the original's was 8: 32, about 4.5 Mbit/s of
     /// upload at the default 20 Hz and 11 at 60, within a home connection with room to spare, and a tick of a millisecond
@@ -128,7 +129,9 @@ public sealed partial class MeleeScreen
     private void SetCoopBase(bool on)
     {
         if (_coopBase == on) return;
+        var was = HostTypeNow;
         _coopBase = on;
+        SwitchRows(was);
         if (on) { _coopArea = CoopIndex(); _drivers = Math.Min(_drivers, Protocol.MaxCoopSeats); _teamPlay = false; }
         _scroll = Math.Clamp(Area - Rows + 1, 0, Math.Max(0, ListCount - Rows));
         if (!_gameRenamed && Arenas.Count > 0) _gameName = Arenas[Area].Name;
@@ -191,7 +194,82 @@ public sealed partial class MeleeScreen
             _botSkillDifficulty = Shell.Settings.HostBotSkillDifficulty;
             _rate = _setup.HostRate > 0 ? _setup.HostRate : I76.Sim.Session.SimRate.FromLabel(Shell.Settings.SimRate).Label;
         }
+        if (Hosting)
+        {
+            // the game type's own rows as it was last hosted (HostRows); a base form left on co-op holds the melee's for its switch back
+            if (_coopBase)
+            {
+                TakeRows(_setup.Host(HostType.Melee), HostType.Melee);
+                _typeRows[HostType.Melee] = FormRows(HostType.Melee);
+            }
+            TakeRows(_setup.Host(HostTypeNow), HostTypeNow);
+            if (Coop) _drivers = Math.Min(_drivers, Protocol.MaxCoopSeats);
+            _rowsReady = true;
+        }
         if (LobbyMode) EnterFromLobby();
+    }
+
+    // ---- each game type's rows (the play fork's; HostRows): kept in melee.cfg when the game is hosted, and while the form is up apart
+    // for each type it is switched to and from
+
+    /// <summary>The game type the form hosts now.</summary>
+    private HostType HostTypeNow => HostRows.Of(Coop, Nitro ? Types[_kind].Kind : I76.Sim.Missions.MeleeKind.Combat);
+    /// <summary>The rows of the types the form was switched away from, as they were left (not saved until a game is hosted).</summary>
+    private readonly Dictionary<HostType, HostRows> _typeRows = [];
+    private bool _rowsReady;
+
+    /// <summary>The form's rows a game of type <paramref name="t"/> has (a co-op game no team play, limit, bots or turret rule; MAX SCORE the base game's, LIMIT the Nitro form's).</summary>
+    private HostRows FormRows(HostType t)
+    {
+        var r = new HostRows { Drivers = _drivers, InviteOnly = _inviteOnly, Rate = _rate, Restrictions = Nitro ? (_restrictions.IsEmpty ? "" : _restrictions.ToSpec()) : null };
+        if (t == HostType.Coop) return r;
+        r.TeamPlay = _teamPlay;
+        r.Bots = _bots;
+        r.BotSkill = (int)_botSkill;
+        r.BotCars = [.. _botCars];
+        r.Turrets = _turrets;
+        if (Nitro)
+        {
+            var l = LimitsOf(Types[_kind].Kind)[Math.Clamp(_limit, 0, LimitsOf(Types[_kind].Kind).Count - 1)];
+            r.Limit = l.Name;
+            r.LimitValue = l.Values[Math.Clamp(_limitAt, 0, l.Values.Length - 1)];
+        }
+        else
+        {
+            r.ScoreOn = _scoreOn;
+            r.MaxScore = _maxScore;
+        }
+        return r;
+    }
+
+    /// <summary>A type's kept rows onto the form; a row not kept stays as the form has it.</summary>
+    private void TakeRows(HostRows r, HostType t)
+    {
+        _drivers = Math.Clamp(r.Drivers ?? _drivers, 1, MaxDrivers);
+        _inviteOnly = r.InviteOnly ?? _inviteOnly;
+        if (r.Rate is { } hz) _rate = hz;
+        if (Nitro && r.Restrictions is { } spec) _restrictions = WeaponRestrictions.Parse(spec, null, out _) ?? WeaponRestrictions.None;
+        if (t == HostType.Coop) return;
+        _teamPlay = r.TeamPlay ?? _teamPlay;
+        _bots = r.Bots ?? _bots;
+        if (r.BotSkill is { } bs) _botSkill = (I76.Sim.Missions.BotSkill)bs;
+        if (r.BotCars is { } cars) _botCars = [.. cars];
+        if (r.Turrets is { } tu) SetTurrets(tu);
+        _scoreOn = r.ScoreOn ?? _scoreOn;
+        _maxScore = r.MaxScore ?? _maxScore;
+        if (Nitro && r.Limit is not null && HostRows.Of(false, Types[_kind].Kind) == t)
+        {
+            var limits = LimitsOf(Types[_kind].Kind);
+            (_limit, _limitAt) = HostRows.LimitFrom([.. limits.Select(l => l.Name)], i => limits[i].Values, r.Limit, r.LimitValue);
+        }
+    }
+
+    /// <summary>The form switched from type <paramref name="was"/> to another: the old type's rows held, the new one's as it was left on this form, else as last hosted.</summary>
+    private void SwitchRows(HostType was)
+    {
+        if (!_rowsReady || was == HostTypeNow) return;
+        _typeRows[was] = FormRows(was);
+        TakeRows(_typeRows.TryGetValue(HostTypeNow, out var held) ? held : _setup.Host(HostTypeNow), HostTypeNow);
     }
 
     /// <summary>After the entry's first paint: the notice, then the address book for HOST → INTERNET (JOIN → INTERNET searches the whole book).</summary>
@@ -833,8 +911,8 @@ public sealed partial class MeleeScreen
         [24] = (31, 193, 310, 326),
     };
 
-    /// <summary>The host form's WEAPON RESTRICTIONS and its SPECIALS page, kept for the shell's run as the original keeps its table (not saved).</summary>
-    private static WeaponRestrictions _restrictions = WeaponRestrictions.None;
+    /// <summary>The host form's WEAPON RESTRICTIONS and its SPECIALS page: the original keeps its table for the shell's run; here each game type's is kept in melee.cfg (<see cref="HostRows"/>).</summary>
+    private WeaponRestrictions _restrictions = WeaponRestrictions.None;
     private static (List<I76.Formats.Shell.RestrictionRow> Rows, int Original, int[] X, int[] Y)? _checklist;
 
     /// <summary>The checklist's rows: the original's from the install's Nitro shell DLL, then the port's for the hidden weapons; null without the DLL's table.</summary>
@@ -946,7 +1024,9 @@ public sealed partial class MeleeScreen
         {
             if (i >= 0 && i != _kind)
             {
+                var was = HostTypeNow;
                 _kind = i; _limit = 0; _limitAt = 0;
+                SwitchRows(was);
                 Area = 0; _scroll = 0;
                 if (CtfKind) _teamPlay = true;
                 if (Coop) { _teamPlay = false; _drivers = Math.Min(_drivers, Protocol.MaxCoopSeats); Area = CoopIndex(); }

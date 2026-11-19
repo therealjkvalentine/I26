@@ -159,7 +159,7 @@ It also folds every `.gdf`, the `.vdf`, `.vtf`, wheels and `compnent.cdf` it rea
   missiles and flamethrowers, HADES (STD, TRT), the Tank Cannon (both tank guns share its class and tier), the
   Car-E-Racer and the Howitzer (TRT, under arc launchers' group) at the foot of the right half. That fills the art's empty
   lines: the gunner MGs have no box of their own (All Slug Throwers and All Weapons cover them). A group's box ticks them with its own. The list is the original's: All
-  Weapons, `(class, −1)`, or `(class, tier)` pairs (`WeaponRestrictions`), kept for the shell's run.
+  Weapons, `(class, −1)`, or `(class, tier)` pairs (`WeaponRestrictions`), kept for the shell's run as the original's; the play fork keeps each game type's in melee.cfg (docs/multiplayer.md "What the form keeps").
 - **Enforced by the server**, the only authority: every joiner's car (an install car asked by name, the car standing in
   for one the server lacks, or a player's own variant after the garage check) is checked against the restrictions
   before the seat is given, by the GDF (class, tier) of the server's own files. A restricted weapon **refuses the join**

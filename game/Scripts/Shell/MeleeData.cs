@@ -266,6 +266,13 @@ public sealed class MeleeSetup
     public static int HostDriversFrom(int? stored) => stored is { } n ? Math.Clamp(n, 1, MeleeScreen.MaxDrivers) : DefaultHostDrivers;
     /// <summary>The Nitro instant melee's driver count in full, beside nituser.mel's clamped one (<see cref="SaveNitroDrivers"/>).</summary>
     public int NitroDrivers { get; set; }
+    /// <summary>
+    /// The host forms' rows each game type was last hosted with (the play fork's; <see cref="HostRows"/>), beside the older keys above, which
+    /// go on holding the last game's values for a build that reads only those.
+    /// </summary>
+    public Dictionary<HostType, HostRows> Hosts { get; } = [];
+    /// <summary>A type's kept rows (empty when it has none).</summary>
+    public HostRows Host(HostType t) => Hosts.TryGetValue(t, out var r) ? r : Hosts[t] = new HostRows();
 
     /// <summary>The Nitro form's driver count in full (nituser.mel keeps the original's eight at most), a key of its own so melee.cfg's base-game values stay.</summary>
     public static void SaveNitroDrivers(int drivers)
@@ -304,6 +311,7 @@ public sealed class MeleeSetup
         s.HostRate = I76.Sim.Session.SimRate.IsOffered((int)c.GetValue("melee", "host_rate", 0)) ? (int)c.GetValue("melee", "host_rate", 0) : 0;
         s.HostTurrets = (bool)c.GetValue("melee", "host_turrets", false);
         s.HostDrivers = HostDriversFrom(c.HasSectionKey("melee", "host_drivers") ? (int)c.GetValue("melee", "host_drivers") : null);
+        foreach (var t in Enum.GetValues<HostType>()) if (HostRows.Read(c, t) is { IsEmpty: false } r) s.Hosts[t] = r;
         return s;
     }
 
@@ -330,6 +338,7 @@ public sealed class MeleeSetup
         if (HostTurrets) c.SetValue("melee", "host_turrets", true);
         c.SetValue("melee", "host_drivers", HostDrivers);
         if (NitroDrivers > 0) c.SetValue("melee", "nitro_drivers", NitroDrivers);
+        foreach (var (t, r) in Hosts) r.Write(c, t);
         return c;
     }
 }
