@@ -312,6 +312,23 @@ public partial class Main
         }
     }
 
+    // ---- the host's in-game GAME SETUP (docs/multiplayer.md "Changing the game for the next round") ----
+
+    /// <summary>The listen host (or a migration's successor) of a melee that carries on into rounds: its Esc pad has Game Setup.</summary>
+    private bool NetMeleeHost => _net?.Server is { CarriesOn: true };
+
+    /// <summary>The game as it is and its next round's setup, for the host form Game Setup opens; null once it is no such game.</summary>
+    private (ServerOptions Now, RoundSetup Next)? NetGameSetup() =>
+        _net?.Server is { } sv && sv.NextRoundSetup is { } next ? (sv.Options, next) : null;
+
+    /// <summary>Game Setup's APPLY: the next round's setup to the server in this process (it tells everyone); why not, in the log.</summary>
+    private void NetChangeGame(RoundSetup s)
+    {
+        string? no = _net?.Server is { } sv ? sv.SetNextRound(s) : "the server has gone";
+        GD.Print($"network: the host's change for the next round ({s}){(no is null ? "" : $" not made: {no}")}");
+        if (no is not null) _netHud?.Say($"Game Setup: {no}");
+    }
+
     private void CloseLobby()
     {
         _lobbyShell?.QueueFree();

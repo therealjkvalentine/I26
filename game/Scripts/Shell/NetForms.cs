@@ -207,6 +207,7 @@ public sealed partial class MeleeScreen
             _rowsReady = true;
         }
         if (LobbyMode) EnterFromLobby();
+        else if (GameMode) EnterFromGame();
     }
 
     // ---- each game type's rows (the play fork's; HostRows): kept in melee.cfg when the game is hosted, and while the form is up apart
@@ -538,6 +539,8 @@ public sealed partial class MeleeScreen
     private static readonly Rect2I SketchSpace = new(219, 183, 237, 122);
     /// <summary>The labels in about the ink of the form's rules (they are thinner); the box's handwriting a little darker than those, lighter than the hand elsewhere.</summary>
     private static readonly Color LabelInk = Color.Color8(76, 64, 42), ButtonInk = Color.Color8(88, 72, 44), HandInk = Color.Color8(60, 50, 32);
+    /// <summary>A row that cannot change now (the form opened from the game): the labels' ink faded most of the way to the paper.</summary>
+    private static readonly Color FadedInk = Color.Color8(160, 148, 120);
     private const int LabelCap = 8, ButtonCap = 5;
 
     private int _boxBaked;
@@ -642,21 +645,28 @@ public sealed partial class MeleeScreen
         byte handInk = Frame.Nearest(HandInk);
         for (int i = 0; i < 256; i++) ink[i] = i == hand.Key ? (byte)0xff : handInk;
         int[] row = HostFormLayout.BoxRow;
-        void Label(int x, int baseline, string t) => PrintedType.Draw(Frame, Shell.Db, x, baseline, t, LabelCap, LabelInk);
-        void Value(int x, int baseline, string t, int w) => Frame.Text(hand, x, baseline - 11, AddressBookPopup.Fit(hand, t, w), ink);
+        // opened from the game (NetForms.Game.cs): what cannot change now in a faded ink, the labels' and the hand's
+        var faded = new byte[256];
+        byte fadedInk = Frame.Nearest(FadedInk);
+        for (int i = 0; i < 256; i++) faded[i] = i == hand.Key ? (byte)0xff : fadedInk;
+        void Label(int x, int baseline, string t, bool off = false) => PrintedType.Draw(Frame, Shell.Db, x, baseline, t, LabelCap, off ? FadedInk : LabelInk);
+        void Value(int x, int baseline, string t, int w, bool off = false) => Frame.Text(hand, x, baseline - 11, AddressBookPopup.Fit(hand, t, w), off ? faded : ink);
         foreach (var f in HostFormLayout.Fields(HostState()))
+        {
+            bool off = GameMode && GameFixed.Contains(f.Id);
             switch (f.Where)
             {
                 case HostFormLayout.Place.BoxRow:
-                    Label(HostFormLayout.LabelA, row[f.Row], f.Label + ":");
-                    Value(HostFormLayout.BoxBlank0 + 3, row[f.Row], f.Value, HostFormLayout.BoxBlank1 - HostFormLayout.BoxBlank0 - 4);
+                    Label(HostFormLayout.LabelA, row[f.Row], f.Label + ":", off);
+                    Value(HostFormLayout.BoxBlank0 + 3, row[f.Row], f.Value, HostFormLayout.BoxBlank1 - HostFormLayout.BoxBlank0 - 4, off);
                     break;
                 default:
                     bool colB = f.Where == HostFormLayout.Place.CheckB;
-                    Label(colB ? HostFormLayout.LabelB : HostFormLayout.LabelA, row[f.Row], f.Label);
-                    if (f.Value.Length > 0) Frame.Text(hand, colB ? HostFormLayout.CheckB : HostFormLayout.CheckA, row[f.Row] - 10, f.Value, ink);
+                    Label(colB ? HostFormLayout.LabelB : HostFormLayout.LabelA, row[f.Row], f.Label, off);
+                    if (f.Value.Length > 0) Frame.Text(hand, colB ? HostFormLayout.CheckB : HostFormLayout.CheckA, row[f.Row] - 10, f.Value, off ? faded : ink);
                     break;
             }
+        }
         if (!_coopBase)
         {
             int b = row[HostFormLayout.BotsRow], s = row[HostFormLayout.ScoreRow];
@@ -785,7 +795,7 @@ public sealed partial class MeleeScreen
             BakeButton(x0, y0, w);
         }
         // RENAME's capitals: 5 px, their foot 8 below the button's top
-        PrintedType.Draw(Frame, Shell.Db, x0 + w / 2f, y0 + 8, _coopBase ? "CO-OP" : "MELEE", ButtonCap, ButtonInk, bold: true, centre: true);
+        PrintedType.Draw(Frame, Shell.Db, x0 + w / 2f, y0 + 8, _coopBase ? "CO-OP" : "MELEE", ButtonCap, GameMode ? FadedInk : ButtonInk, bold: true, centre: true);
     }
 
     /// <summary>The host form's CB Radio (the port's): whether the game's players may talk to each other on the CB (push-to-talk voice chat).</summary>
@@ -1147,7 +1157,7 @@ public sealed partial class MeleeScreen
         var l = limits[_limit];
         var rows = new List<OptionRow>
         {
-            new("TEAM PLAY", false, _teamPlay || CtfKind, "", _ => { if (!CtfKind) _teamPlay = !_teamPlay; }, Locked: CtfKind),
+            new("TEAM PLAY", false, _teamPlay || CtfKind, "", _ => { if (!CtfKind && !GameMode) _teamPlay = !_teamPlay; }, Locked: CtfKind || GameMode),
             new("LIMIT:", true, false, l.Name, d => { _limit = (_limit + d + limits.Count) % limits.Count; _limitAt = 0; }),
         };
         if (l.Values.Length > 1)
@@ -1161,9 +1171,10 @@ public sealed partial class MeleeScreen
         // the port's: a custom arena goes to players who lack it (docs/multiplayer.md "Custom maps")
         rows.Add(new("SHARE MAPS", false, Shell.Settings.ShareMaps, "", _ => { Shell.Settings.ShareMaps = !Shell.Settings.ShareMaps; Shell.Settings.Save(); }));
         // the port's: the game's Hidden Weapons & Cars, the host's decision (joiners with the setting on may then bring them)
-        rows.Add(new("HIDDEN WPNS & CARS", false, Shell.Settings.HiddenContent, "", _ => ToggleHidden()));
+        // (opened from the game: the car rules stay as the game was hosted, NetForms.Game.cs)
+        rows.Add(new("HIDDEN WPNS & CARS", false, Shell.Settings.HiddenContent, "", _ => { if (!GameMode) ToggleHidden(); }, Locked: GameMode));
         // the port's: several turrets on a roof, the host's decision (a joining car with a second turret is refused where it is off)
-        rows.Add(new("UNLIM. TURRETS", false, _turrets, "", _ => SetTurrets(!_turrets)));
+        rows.Add(new("UNLIM. TURRETS", false, _turrets, "", _ => { if (!GameMode) SetTurrets(!_turrets); }, Locked: GameMode));
         // the port's: the reset-upright key (X) works in the game, the host's decision (on: the original's F12 trick worked online)
         rows.Add(new("CAR RESET", false, Shell.Settings.CarReset, "", _ => ToggleCarReset()));
         // the port's: nobody switches their engine off (no hiding from turrets with it off), the host's decision (off by default)
@@ -1183,7 +1194,7 @@ public sealed partial class MeleeScreen
         rows.Add(new("BOT SKILL:", true, false, BotSkillWord, StepBotSkill));
         rows.Add(new("A.I. CARS:", false, false, BotCarsText(), _ => { }, Link: true, Locked: MaxBots == 0 || _bots == 0));
         // the port's: the game's simulation rate, which everyone in it plays at, and the physics, which is the original's for everyone
-        rows.Add(new("SIM RATE:", true, false, $"{_rate} Hz", d => _rate = StepRate(_rate, d)));
+        rows.Add(new("SIM RATE:", true, false, $"{_rate} Hz", d => { if (!GameMode) _rate = StepRate(_rate, d); }, Locked: GameMode));
         rows.Add(PhysicsRow);
         return rows;
     }
@@ -1194,6 +1205,7 @@ public sealed partial class MeleeScreen
         switch (id)
         {
             case 6 when LobbyMode: ApplyLobby(); return true;
+            case 6 when GameMode: ApplyGame(); return true;
             case 6 when Hosting: Broadcast(); return true;
             case 6: JoinGame(); return true;
             case 8 when Hosting: _drivers = Math.Max(1, _drivers - 1); _bots = Math.Min(_bots, MaxBots); return true;

@@ -1467,7 +1467,43 @@ server unless `--once`, and the listen server always) goes on like this:
 - **An empty server holds its round**: with nobody seated or arriving, a carrying-on server does not step the game (no clock, no AI), so an idle server neither plays rounds to nobody nor rebuilds arenas, and the first joiner gets a whole round.
 - **Joins during the pause** are refused ("between rounds: try again in a few seconds"); the next round is joinable
   from its start, by the usual mid-game join.
-- Not done: a vote on the next arena, per-round settings.
+- Not done: a vote on the next arena. The host's own per-round settings: below.
+
+### Changing the game for the next round (the play fork's)
+
+A melee's host changes the game while it runs, for the next round (the owner: "make it easy to adjust the game parameters for the host
+even inside the game"):
+
+- **Game Setup** on the network Esc pad (row 7, the listen host's, or a migration's successor's, of a melee that carries on into rounds)
+  opens **the host form itself** over the running game, hosted as the pad's Controls sheet is (`MeleeScreen` with `FromGame`, a whole screen
+  of a hosted shell, `Shell.HostedFull`), set to the game as its next round stands: AREA OF PLAY's list of the game type's arenas (the
+  downloaded ones too, above), GAME NAME, NO. DRIVERS, the box's rows (the Nitro form's GAME OPTIONS). BROADCAST GAME says **APPLY**; CANCEL
+  or Esc goes back to the pad with nothing changed (the rows act on shell.cfg as the form always does, and are put back). The game is not
+  paused; the host's car is held while the pad is up, as for any of its sheets. A co-op host's pad shows "Game Setup (in the lobby)" greyed
+  on row 10: a story mission's game is changed in its lobby (above, "Changing the game in the lobby").
+- **What changes, at the next round** (`RoundSetup`): the arena (of the game's kind; a capture the flag arena of its team count), the
+  name, NO. DRIVERS (not below the players in the game), INVITE ONLY, the password, MAX SCORE or the Nitro form's LIMIT and its value,
+  BOTS, their skill and A.I. CARS, SHARE MAPS, CAR RESET, CB RADIO, IGNITION LOCK, CHASE CROSSHAIR, TURRETS and HANDICAPS. The next round
+  is a new game built from the server's options and every player gets a new accept for it, which carries the limits and the host's rules;
+  the bots, seats, password and invite rule are the server's own. **What does not:** the game type and TEAM PLAY (the kind, the CTF teams
+  and each player's team are taken at the join and carried round to round), SIM RATE (every game's clock and input timing were set from it
+  at the connection), HIDDEN CARS, UNLIMITED TURRETS and WEAPON RESTRICTIONS (each car was checked at its join, and a carried player is not
+  checked again), and the car (Reconfigure, while dead). Those rows are drawn in a faded ink, do nothing, and their tooltip says why.
+- **The server** (`NetMeleeServer.SetNextRound`) checks the change (a melee that carries on; the arena on this install or in its downloaded
+  folder, of the game's kind; the seats; the bots within them; a name; a password's length), keeps it, and says each change at once in the
+  chat ("Server: Next round: the limit is 30 kills (was 20000 points)", `RoundSetup.Lines`); the round in play goes on as it is. When it
+  ends, `StartNextRound` builds the next round from the change (`RoundPlan.Next` on it: a rotation goes on from its arena); an arena that
+  cannot be built falls back to the one just played, with the rest of the change. The change is then the game's: the round after starts from
+  it. The listing follows from the next round (`Describe` reads the game in play). What the host set is also kept as the type's last values
+  (melee.cfg, "What the form keeps").
+- **The wire:** nothing new (protocol 26). The host's game holds the server in its own process and calls it, as the lobby's GAME SETUP does;
+  the players hear of it in chat lines and play it through the round's `NextRound` and accept, which a stock upstream build and an older fork
+  build read as for any round. With a stock upstream host there is no Game Setup (its server is not the fork's).
+- **Not kept:** a change waiting for the next round when the host leaves (host migration): the successor's game is built from the
+  savestate's options, the round in play's.
+- **Tests** (`RoundSetupTests`): the setup into the options and back, the lines, a fork and an upstream player told at once and given the next
+  round on the new arena with the new limit and CB rule in their accepts, the round in play untouched, the refusals (another kind of arena,
+  one the install lacks, fewer seats than players, a game without rounds).
 
 ### Host migration
 

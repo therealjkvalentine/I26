@@ -604,8 +604,10 @@ public sealed partial class NetMeleeServer : IDisposable
     {
         var old = Host;
         MeleeHost? next = null;
-        var o = RoundPlan.Next(old.Options);
-        foreach (var attempt in new[] { o, old.Options with { Seed = o.Seed } })
+        // the host's change for this round, if any (NetMeleeServer.RoundSetup.cs); an arena that cannot be built falls back to the one just played
+        var chosen = NextRoundBase(old.Options);
+        var o = RoundPlan.Next(chosen);
+        foreach (var attempt in new[] { o, chosen with { Arena = old.Options.Arena, MapDir = old.Options.MapDir, Seed = o.Seed } })
         {
             try { next = new MeleeHost(attempt); break; }
             catch (Exception ex)

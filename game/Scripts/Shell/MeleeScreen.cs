@@ -47,7 +47,8 @@ public sealed partial class MeleeScreen : ShellScreen
     };
     // The ids each mode keeps (the host forms' NO. DRIVERS ⊟ ⊞ moved down to y 338..353)
     // (opened from a co-op lobby, the form leaves the car, the game type and SIM RATE alone: NetForms.Lobby.cs)
-    private int[] Live => LobbyMode ? [.. LiveIds.Where(id => !LobbyFixed.Contains(id))] : LiveIds;
+    // (opened from the game, it leaves the car, the game type, team play, the rate and the car rules alone: NetForms.Game.cs)
+    private int[] Live => LobbyMode ? [.. LiveIds.Where(id => !LobbyFixed.Contains(id))] : GameMode ? [.. LiveIds.Where(id => !GameFixed.Contains(id))] : LiveIds;
     private int[] LiveIds => Mode switch
     {
         0 => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -228,7 +229,7 @@ public sealed partial class MeleeScreen : ShellScreen
         if (Nitro && Hosting) DrawNitroHost();
         else if (Hosting) DrawHost();
         if (Hosting) DrawBuild();
-        if (LobbyMode) DrawApplyButton();
+        if (LobbyMode || GameMode) DrawApplyButton();
         if (Mode == 1 && Victory.Lightest(MeleeData.Scenarios[Area].Msn) is { } best && best.Model >= 0 && best.Model < _data.Models.Count)
             Frame.Text(_font, 16, 308, _data.Models[best.Model].MakeModel);     // after the art's "Lightest car to win:"
         if (Mode == 0)
@@ -275,6 +276,7 @@ public sealed partial class MeleeScreen : ShellScreen
         _carTipShown = false;
         if (CoopRowTip(p) is { } coop) return coop;
         if (LobbyTipAt(p) is { } fixedTip) return fixedTip;
+        if (GameTipAt(p) is { } gameTip) return gameTip;
         if (HostTipAt(p) is { } host) return host;
         if (StoryCar || _slots.Count == 0) return null;
         var (_, model, variant) = _slots[_shown];
@@ -348,6 +350,8 @@ public sealed partial class MeleeScreen : ShellScreen
         if (_naming) { RenameGame(); return; }
         // opened from a co-op lobby: Esc is CANCEL (back to the lobby, nothing changed)
         if (LobbyMode && Shell.Keys.Contains(Key.Escape)) { Shell.Sound(82); CancelLobby(); return; }
+        // opened from the game: Esc is CANCEL too (back to the game, nothing changed)
+        if (GameMode && Shell.Keys.Contains(Key.Escape)) { Shell.Sound(82); CancelGame(); return; }
         if (Shell.Wheel != 0 && Mode == 0 && OverDrivers(Shell.Mouse)) { _dscroll = Math.Clamp(_dscroll + Shell.WheelRows, 0, DriverScrollMax); Draw(); }
         else if (Shell.Wheel != 0) { _scroll = Math.Clamp(_scroll + Shell.WheelRows, 0, Math.Max(0, ListCount - (Mode is 7 or 8 ? ListRows : Rows))); Draw(); }
         // ⊞ / ⊟ and the list arrows repeat every 100 ms while the button is held
@@ -392,6 +396,7 @@ public sealed partial class MeleeScreen : ShellScreen
                 break;
             case 14: _renaming = true; break;
             case 15 when LobbyMode: CancelLobby(); break;
+            case 15 when GameMode: CancelGame(); break;
             case 15: Leave(save: false); StopGames(); Shell.Go(new MainMenuScreen()); break;
         }
     }
