@@ -191,9 +191,10 @@ public sealed class MissionBuilder(AssetVfs vfs)
         var texList = new List<RoadRaster.Tex?>();
         var origList = new List<RoadRaster.Tex?>();
         var texIndex = new Dictionary<string, int>();
-        int Tex(string key, Func<RoadRaster.Tex?> make, Func<RoadRaster.Tex?> original)
+        // the map editor's layer (originals) takes a stock texture's repaired copy (TextureRepairs), the 1997 look's (origList) the file's own
+        int Tex(string key, Func<RoadRaster.Tex?> make, Func<RoadRaster.Tex?> original, Func<RoadRaster.Tex?>? editor = null)
         {
-            if (!texIndex.TryGetValue(key, out int i)) { texIndex[key] = i = texList.Count; var o = original(); texList.Add(originals ? o : make()); origList.Add(o); }
+            if (!texIndex.TryGetValue(key, out int i)) { texIndex[key] = i = texList.Count; var o = original(); texList.Add(originals ? editor?.Invoke() ?? o : make()); origList.Add(o); }
             return i;
         }
         var lowestOf = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
@@ -218,7 +219,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
                     if (n.LengthSquared() < 0.5f || -n.Y / n.Length() < 0.6f) continue;   // outward is -plane: only tops
                     int ti;
                     if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps) is { } member)
-                        ti = Tex(member, () => textures.GetRgba(member), () => textures.GetOriginalRgba(member));
+                        ti = Tex(member, () => textures.GetRgba(member), () => textures.GetOriginalRgba(member), () => textures.GetRepairedRgba(member));
                     else
                     {
                         var flatColour = new RoadRaster.Tex(1, 1, [f.R, f.G, f.B, 255]);
