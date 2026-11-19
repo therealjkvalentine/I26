@@ -9,7 +9,8 @@ namespace I76.Game.Assets;
 /// data. Index 255 always becomes alpha 0; whether a material honours the
 /// key is the material's decision (the key is per draw type).
 /// In the modern look a member with an upscale in the player's pack (HdTextures) is served at the upscale's size
-/// with the original's key under it, unless the HD Textures row is off; the 1997 look is served the originals, and a
+/// with the original's key under it, and a stock texture with a slip in its 16-bit data repaired (TextureRepairs), unless the HD
+/// Textures row is off; the 1997 look is served the originals, and a
 /// flip of the look or of the row swaps the pictures of the textures already made (SetMode1997, SetHd). A pack's .dds
 /// (block-compressed with its mipmaps, in the texture's stored order, keyed and bled by the tool) goes to the GPU as it is;
 /// its texels are decompressed only for the few that are painted on the CPU (GetRgba).
@@ -100,6 +101,12 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <summary>The original's RGBA whatever is served (index 255 keyed to alpha 0): what analyses keyed to its texel grid read.</summary>
     public RoadRaster.Tex? GetOriginalRgba(string member) => Original(member);
 
+    /// <summary>
+    /// A stock texture with a slip in its 16-bit data repaired (TextureRepairs) at the original's size, whatever is served; null for any
+    /// other member. The map editor's road layer, which paints the originals in both looks (MissionBuilder.RoadsFromOriginals).
+    /// </summary>
+    public RoadRaster.Tex? GetRepairedRgba(string member) => TextureRepairs.Has(member) && Repaired(member) is { } h ? h.Rgba : null;
+
     /// <summary>How many texels of the served texture cover one of the original's, each way: 1 for the original.</summary>
     public int Scale(string member) => Hd && HdOf(member) is { } h && Original(member) is { } o ? h.Width / o.Width : 1;
 
@@ -111,7 +118,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// it, whose texture is this factory's own as a look change repaints it (SetHd). Before, any pack installed kept none of them. The
     /// originals' RGBA are always kept.
     /// </summary>
-    private static bool Stored(string member) => !HdTextures.Has(member);
+    private static bool Stored(string member) => !HdTextures.Has(member) && !TextureRepairs.Has(member);
 
     private RoadRaster.Tex? Original(string member)
     {
@@ -141,8 +148,22 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private HdPic? HdOf(string member)
     {
         if (_hd.TryGetValue(member, out var h)) return h;
-        h = Bled(member) is { } b && HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b, GreyedOf(member)) : null;
+        h = Bled(member) is { } b ? HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b, GreyedOf(member)) : Repaired(member) : null;
         return _hd[member] = h;
+    }
+
+    /// <summary>
+    /// A stock texture with a slip in its 16-bit data (TextureRepairs) that the pack has no upscale of: the repaired texture, served as an
+    /// upscale at its own size, so the modern look draws it as the art means and the 1997 look keeps the file as the original draws it (a
+    /// change of look swaps the two). Null for any other member, and while its kind's textures row is at the install's own (0).
+    /// </summary>
+    private HdPic? Repaired(string member)
+    {
+        if (!TextureRepairs.Has(member) || (HdTextures.KindOf(member) == I76.Formats.Shell.TextureKind.World ? HdTextures.WorldSize : HdTextures.CarSize) == 0
+            || resolver.Load(member) is not { } t || TextureRepairs.Repaired(member, t) is not { } r) return null;
+        var rgba = TextureReader.ToRgba(r, palette);
+        if (TextureReader.HasKey(rgba)) TextureReader.BleedUnderKey(rgba, r.Width, r.Height);
+        return new HdPic(r.Width, r.Height, new RoadRaster.Tex(r.Width, r.Height, rgba), null);
     }
 
     /// <summary>
@@ -170,7 +191,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
             if (_hd.TryGetValue(m, out var had)) { if (rgba && had is { NotHeld: true }) again.Add(had); continue; }
             if (Bled(m) is not { } b) { _hd[m] = null; continue; }
             var f = anywhere ? null : HdTextures.Read(m);
-            if (!anywhere && f is null) { _hd[m] = null; continue; }
+            if (!anywhere && f is null) { _hd[m] = Repaired(m); continue; }
             todo.Add((m, f, b, GreyedOf(m)));
         }
         if (todo.Count + again.Count == 0) return;
@@ -178,7 +199,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         System.Threading.Tasks.Parallel.For(0, todo.Count + again.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
         {
             if (i >= todo.Count) { again[i - todo.Count].DecodeAhead(); return; }
-            if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) return;
+            if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) { made[i] = Repaired(todo[i].Member); return; }
             made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
             if (rgba) made[i]?.DecodeAhead();
         });
