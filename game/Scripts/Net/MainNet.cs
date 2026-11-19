@@ -59,7 +59,7 @@ public partial class Main
             var (arenaKind, arenaTeams) = ServerOptions.KindOf(_opt.Arena);
             var o = new ServerOptions
             {
-                Install = _opt.Install!, Arena = _opt.Arena, Port = _opt.Port, Ai = _opt.Fill, TeamPlay = _opt.Teams, Bots = System.Math.Max(0, System.Math.Min(_opt.Bots, _opt.MaxPlayers - 1)), BotSkill = _opt.BotSkill, BotChoices = _opt.BotCars, PaintOfCar = I76.Game.Shell.CarPaints.Of,
+                Install = _opt.Install!, Arena = _opt.Arena, MapDir = _opt.MapDir, Port = _opt.Port, Ai = _opt.Fill, TeamPlay = _opt.Teams, Bots = System.Math.Max(0, System.Math.Min(_opt.Bots, _opt.MaxPlayers - 1)), BotSkill = _opt.BotSkill, BotChoices = _opt.BotCars, PaintOfCar = I76.Game.Shell.CarPaints.Of,
                 MaxScore = _opt.MaxScore, TimeLimit = _opt.TimeLimit,
                 Kind = _opt.MeleeKindGiven ? _opt.MeleeKind : arenaKind, Goal = _opt.MeleeGoal, GoalValue = _opt.GoalValue,
                 CtfTeams = _opt.CtfTeams > 2 ? _opt.CtfTeams : arenaTeams, Seed = unchecked((int)I76.Sim.Rng.RandSeed.Pick(_opt.FixedSeed)),
@@ -426,6 +426,7 @@ public partial class Main
         _opt.AnetGame = n.AnetGame;
         _opt.AnetServers = n.ListOn is { } lo ? [lo] : [];
         _opt.Arena = l.Mission;
+        _opt.MapDir = n.Connect is null && n.AnetGame is null ? n.MapDir : null;
         // a co-op host form's game: the mission plays in co-op (the arena is its story mission)
         _opt.Coop = n.Connect is null && n.AnetGame is null && n.Coop ? l.Mission : null;
         _opt.CoopLobby = _opt.Coop is not null;

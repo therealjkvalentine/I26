@@ -165,10 +165,10 @@ public static class ArenaSketches
     private static readonly Dictionary<string, ArenaSketch?> Sketches = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, byte[]> Aliased = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The mission's sketch for a box of w x h shell pixels, or null (no file, no terrain, nothing placed).</summary>
-    public static ArenaSketch? Of(GameInstall install, string stem, int w, int h)
+    /// <summary>The mission's sketch for a box of w x h shell pixels, or null (no file, no terrain, nothing placed); kept under <paramref name="key"/> (else the name).</summary>
+    public static ArenaSketch? Of(GameInstall install, string stem, int w, int h, string? key = null)
     {
-        string key = $"{stem}:{w}x{h}";
+        key = $"{key ?? stem}:{w}x{h}";
         if (Sketches.TryGetValue(key, out var s)) return s;
         try
         {

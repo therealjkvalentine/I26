@@ -679,7 +679,8 @@ public sealed partial class MeleeScreen
     {
         if (ListCount == 0) return;
         string stem = Arenas[Math.Clamp(Area, 0, ListCount - 1)].Msn;
-        if (ArenaSketches.Of(Shell.Install, stem, SketchSize.X, SketchSize.Y) is not { } s) return;
+        // (a downloaded map's from its folder, under its own key: another map may have its name)
+        if (ArenaSketches.Of(DownloadedArenas.InstallOf(Shell.Install, stem), DownloadedArenas.FileOf(stem), SketchSize.X, SketchSize.Y, key: stem) is not { } s) return;
         var (x0, y0, x1, y1) = s.InkBounds() ?? (0, 0, SketchSize.X - 1, SketchSize.Y - 1);
         PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
         int w = (int)MathF.Ceiling(PrintedType.Measure(Shell.Db, s.SizeText, SizeCap, PrintedType.Face.Hand));
@@ -957,7 +958,9 @@ public sealed partial class MeleeScreen
     }
     private int _kind, _limit, _limitAt;
     private readonly Dictionary<int, List<(string Name, string Msn)>> _hostArenas = [];
-    private List<(string Name, string Msn)> HostArenas => Types[_kind].Coop ? CoopList : _hostArenas.TryGetValue(_kind, out var l) ? l : _hostArenas[_kind] = NitroLists.Arenas(Shell.Install, Types[_kind].Ext);
+    /// <summary>The Nitro host form's arenas of its GAME TYPE: the install's, then the maps downloaded from network games (#207; a combat list's base levels too).</summary>
+    private List<(string Name, string Msn)> HostArenas => Types[_kind].Coop ? CoopList : _hostArenas.TryGetValue(_kind, out var l) ? l
+        : _hostArenas[_kind] = [.. NitroLists.Arenas(Shell.Install, Types[_kind].Ext), .. DownloadedArenas.For(Shell.Install, Types[_kind].Ext == ".cbt" ? [".cbt", ".lvl"] : [Types[_kind].Ext])];
     private bool CtfKind => Types[_kind].Kind == I76.Sim.Missions.MeleeKind.Ctf;
     private (I76.Sim.Missions.MeleeGoal Goal, int Value, int Minutes) NitroGoal
     {
@@ -1277,11 +1280,13 @@ public sealed partial class MeleeScreen
             Leave(save: true);
             StopGames();
             var (driver, model, variant) = _slots[0];
-            Shell.Launch(new ShellLaunch(Arenas[Area].Msn, GameKind.Multiplayer, _data.Vcf(model, variant))
+            Shell.Launch(new ShellLaunch(DownloadedArenas.FileOf(Arenas[Area].Msn), GameKind.Multiplayer, _data.Vcf(model, variant))
             {
                 Driver = driver, Model = _data.Models[model].MakeModel, ModelIndex = model,
                 Net = new NetLaunch(Mode)
                 {
+                    // a map downloaded from another game is played from its folder (#207)
+                    MapDir = DownloadedArenas.DirOf(Arenas[Area].Msn),
                     ListOn = Mode == 4 ? _listOn : null,
                     Port = _port, GameName = _gameName, MaxPlayers = Coop ? Math.Clamp(_drivers, 1, Protocol.MaxCoopSeats) : _drivers,
                     TeamPlay = !Coop && (_teamPlay || (Nitro && Types[_kind].Kind == I76.Sim.Missions.MeleeKind.Ctf)), InviteOnly = _inviteOnly,

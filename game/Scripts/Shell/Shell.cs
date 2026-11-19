@@ -74,6 +74,8 @@ public sealed record NetLaunch(int Mode)
     public string? ListOn { get; init; }
     /// <summary>Hosting: a custom arena is sent to players who lack it (the form's Share Maps).</summary>
     public bool ShareMaps { get; init; } = true;
+    /// <summary>Hosting a map downloaded from another game (#207): its folder in user://downloaded_maps, which the server plays it from; null for the install's own.</summary>
+    public string? MapDir { get; init; }
     /// <summary>Hosting: players may reset their car upright (the form's Car Reset; on, as the original's F12 trick worked online).</summary>
     public bool CarReset { get; init; } = true;
     /// <summary>Hosting: nobody switches their engine off in the game (the form's IGN. LOCK; off).</summary>

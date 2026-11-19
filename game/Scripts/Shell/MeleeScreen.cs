@@ -21,8 +21,13 @@ public sealed partial class MeleeScreen : ShellScreen
     public string? Notice { get; init; }
     private bool Nitro => Shell.Install.IsNitro;
     private NitUserMel? _user;
-    /// <summary>The instant melee's arenas: Nitro's .cbt files by their names, else the base game's fifteen and its addon\*.lvl levels.</summary>
-    private IReadOnlyList<(string Name, string Msn)> Arenas => Coop ? CoopList : Nitro ? (Hosting ? HostArenas : Shell.NitroArenas) : Shell.BaseArenas;
+    /// <summary>
+    /// The instant melee's arenas: Nitro's .cbt files by their names, else the base game's fifteen and its addon\*.lvl levels; a host form's
+    /// have the maps downloaded from network games after them (#207, <see cref="DownloadedArenas"/>).
+    /// </summary>
+    private IReadOnlyList<(string Name, string Msn)> Arenas => Coop ? CoopList : Nitro ? (Hosting ? HostArenas : Shell.NitroArenas) : Hosting ? HostBaseArenas : Shell.BaseArenas;
+    private List<(string Name, string Msn)>? _hostBaseArenas;
+    private List<(string Name, string Msn)> HostBaseArenas => _hostBaseArenas ??= [.. Shell.BaseArenas, .. DownloadedArenas.For(Shell.Install, ".lvl")];
     private bool Net => Mode >= 2;
     private bool Hosting => Mode is >= 2 and <= 5;
 
@@ -142,7 +147,7 @@ public sealed partial class MeleeScreen : ShellScreen
     private int ListRowY(int k) => Nitro && Hosting && k > 0 ? 154 + Row * k : 149 + Row * k;
     private int ListRowAt(int y) => Nitro && Hosting ? (y < 169 ? 0 : 1 + (y - 169) / Row) : (y - 151) / Row;
 
-    private string ListName(int i) => Mode == 1 ? MeleeData.Scenarios[i].Name : Arenas[i].Name;
+    private string ListName(int i) => Mode == 1 ? MeleeData.Scenarios[i].Name : Arenas[i].Name + (DownloadedArenas.Is(Arenas[i].Msn) ? DownloadedArenas.Mark : "");
 
     /// <summary>
     /// A co-op list row's tooltip (the fork's; upstream #197): the mission's title and what it is about, its first objective in the mission's

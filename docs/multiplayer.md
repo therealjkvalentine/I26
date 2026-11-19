@@ -1662,6 +1662,15 @@ IGNITION LOCK, HANDICAPS, CHASE CROSSHAIR, TURRETS, EXTRA ENEMIES, DAMAGE TAKEN)
 Options, the co-op lobby's GAME SETUP and the game's start read and change the same keys. Not kept per arena: a host's preferences do not travel
 in map files, which are shared and downloaded.
 
+**Downloaded maps** (#207). A map downloaded from a network game's host (user://downloaded_maps, below, "Custom maps") is on the host form's
+AREA OF PLAY list after the install's own arenas of its kind, its name followed by "(downloaded)": the base game's form lists the downloaded
+levels (.lvl), the Nitro form's the downloads of its GAME TYPE's kind (Combat its .cbt and the base levels). Only whole downloads are listed:
+a folder whose files are map files and hash to its name (`MapCache.Maps`); a download not finished, or one whose files were changed, lost or
+added to, is left out. A download that is the very map the install has (by hash, `MapCache.ForHost`) is not listed again; one the install has
+under the same name but different stays, as the map its game played. Hosting one plays it from its folder (`NetLaunch.MapDir`,
+`ServerOptions.MapDir`, as a host migration's successor does), so a joining player who lacks it is offered it and downloads it as from any
+host, and the host's own player finds it in its cache. Nothing is copied into the install.
+
 **The roster** (modes 7 and 8):
 - each game found as its name, `(players/seats)` at x 160 and the arrow
   (bank 36 sprite 14) at x 204; "No games found" in the box above when there

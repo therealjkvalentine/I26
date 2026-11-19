@@ -117,6 +117,9 @@ public static class MapTransferLimits
     public const double AnswerSeconds = 120;
 }
 
+/// <summary>A whole download in the cache (<see cref="MapCache.Maps"/>): its mission file's name, its folder, its hash (the folder's name) and its bytes.</summary>
+public sealed record CachedMap(string Mission, string Dir, string HashHex, long Size);
+
 /// <summary>What a client does about an offer, given its install and its downloaded maps.</summary>
 public enum MapChoice
 {
@@ -175,6 +178,65 @@ public sealed class MapCache(string root)
         catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException) { }
         if (Find(offer) is { } d) { dir = d; return MapChoice.Cached; }
         return offer.Shared && offer.Files.Count > 0 && offer.TotalSize <= maxBytes ? MapChoice.Download : MapChoice.Unavailable;
+    }
+
+    /// <summary>
+    /// The maps downloaded and whole (#207): each hash folder whose files are map files (<see cref="MapFileSet.IsSafeName"/>, at most
+    /// <see cref="MapFileSet.MaxFiles"/>) and hash, with one of them as the mission, to the folder's name (<see cref="MapFileSet.HashOf"/>).
+    /// A download not finished (its .part folder), a folder whose files were changed, lost or added to, and anything else in the folder
+    /// are left out. In the folders' name order.
+    /// </summary>
+    public IReadOnlyList<CachedMap> Maps()
+    {
+        var o = new List<CachedMap>();
+        if (!Directory.Exists(Root)) return o;
+        foreach (var dir in Directory.EnumerateDirectories(Root).OrderBy(d => d, StringComparer.Ordinal))
+        {
+            string name = Path.GetFileName(dir);
+            // (a download's folder is its hash in lower-case hex, Dir; a .part folder or anything else is not one)
+            if (name.Length != 64 || !name.All(char.IsAsciiHexDigitLower)) continue;
+            try
+            {
+                var files = Directory.GetFiles(dir);
+                if (files.Length == 0 || files.Length > MapFileSet.MaxFiles || !files.All(f => MapFileSet.IsSafeName(Path.GetFileName(f)))) continue;
+                var set = files.Select(f =>
+                {
+                    using var s = File.OpenRead(f);
+                    return (Name: Path.GetFileName(f), Size: s.Length, Sha256: SHA256.HashData(s));
+                }).ToList();
+                foreach (var m in set.Where(f => GameInstall.IsMissionFile(f.Name)).OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+                    if (Convert.ToHexString(MapFileSet.HashOf(m.Name, set)).Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        o.Add(new CachedMap(m.Name, dir, name, set.Sum(f => f.Size)));
+                        break;
+                    }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return o;
+    }
+
+    /// <summary>
+    /// The downloaded maps a host can offer beside its install's own (#207): <see cref="Maps"/> of the given mission file kinds, less those
+    /// the install has as the very same map (by hash: its own copy is listed already). One the install has under the same name but
+    /// different (an older version in addon\) stays: it is the map as the game it came from had it.
+    /// </summary>
+    public IReadOnlyList<CachedMap> ForHost(GameInstall install, IEnumerable<string> extensions)
+    {
+        var kinds = new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase);
+        var plain = new GameInstall(install.Root) { MapDir = null };
+        var o = new List<CachedMap>();
+        foreach (var m in Maps())
+        {
+            if (!kinds.Contains(Path.GetExtension(m.Mission))) continue;
+            try
+            {
+                if (plain.FindMission(m.Mission) is not null && MapFileSet.Resolve(plain, m.Mission) is { } mine && mine.HashHex == m.HashHex) continue;
+            }
+            catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException) { }
+            o.Add(m);
+        }
+        return o;
     }
 
     /// <summary>Why the client cannot play the offered map (for <see cref="MapChoice.Unavailable"/>), as the player reads it.</summary>
