@@ -12,6 +12,7 @@ how a car flies off a ramp and lands (T05's canyon worked through).
   OpenGL (Godot's Compatibility renderer): the game runs, with no SSAO and some small differences; it says so once in the
   shell and in the log (see [docs/compatibility-renderer.md](compatibility-renderer.md)). If the picture is wrong on your
   machine, Graphic Detail's **Renderer** row switches between Vulkan, Direct3D 12 (Windows) and OpenGL at the next start.
+  Auto says which one it runs on ("Auto (Vulkan)"); on Windows with an AMD card it is Direct3D 12 from the second start.
 
 ## Installing and starting
 
@@ -312,7 +313,7 @@ cornering force (so corrections do not squeal or twitch; a key held past 0.6 s g
 slide by itself, so a car that has stepped out comes back in line with no key held. Off is the original's ramp. The
 throttle keys are the original's either way, and a pad is unaffected.
 
-**Auto Reverse.** On by default (Play Options' Auto Reverse row, in the shell and the in-mission Esc menu): hold the
+**Auto Reverse.** Off by default (Play Options' Auto Reverse row, in the shell and the in-mission Esc menu): hold the
 brake on a stopped car and it shifts into reverse and backs up; hold accelerate while backing up and it brakes, then
 shifts to drive. A pad's triggers work the same. Off, reverse is the original's own key (X) and the brake only brakes.
 
@@ -338,7 +339,7 @@ shifts to drive. A pad's triggers work the same. Off, reverse is the original's 
 | Bug report (a zip in the user folder, "Reporting a bug" above) | Ctrl+F11 |
 | Self-destruct | Ctrl+Del or Ctrl+Alt+X |
 | Put the car back on its wheels | U (can be turned off by a network host) |
-| Standings (network games) | hold Tab |
+| Standings (network games) | hold Tab (input.map's show_player_scores) |
 | CB radio (network games) | hold C |
 | Game menu | Esc |
 | 1997 look on or off | F12 |
@@ -442,7 +443,8 @@ it does; any axis can be the throttle, the steering or the camera, Invert turns 
 (a throttle lever or twist is just another axis). See [docs/joystick.md](joystick.md).
 
 Without `--mission` the game plays the intro and opening credits (Esc, Space, Enter or a click skips), then opens
-the original front end; `--skip-movies` leaves them out. Useful options (after `--` when run through Godot):
+the original front end; Play Options' Skip Intro Movies (off by default) leaves those two out at every start, and only those
+(briefings, outros and cut-scenes still play), while `--skip-movies` leaves out every movie. Useful options (after `--` when run through Godot):
 `--install DIR`, `--mission a01`, `--drive [car.vcf]`, `--melee`, `--1997`, `--cockpit`, `--windowed` (Godot's, before the `--`).
 For unattended runs `--skip-cutscenes` skips a mission's skippable camera scenes as Esc would, and `--mute` turns the sound off.
 

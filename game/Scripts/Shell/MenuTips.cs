@@ -76,6 +76,7 @@ public static class MenuTips
         ["Opentrack Profile"] = "Opentrack Profile: click to add an I26 profile to opentrack (webcam face tracker, sent to this game).",
         ["Melee A.I."] = "Melee A.I.: how well an Instant Melee's computer cars drive at first: Normal (the original's), your Difficulty Level's, Easy or Hard.",
         ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
+        ["Skip Intro Movies"] = "Skip intro movies: the game starts at the main menu, without the intro and the opening credits. Briefings, outros and cut-scenes still play.",
 
         // ---- Controls (the port's sheet: force feedback, then the mouse and the key map)
         ["Force Feedback"] = "Force feedback: Pad rumbles with the original's effects, Pad Enhanced adds pulses for gears, shots and the engine, Wheel drives a force-feedback wheel (Windows).",

@@ -227,7 +227,8 @@ public static class Controls
             t = MoveReverseOffTab(t, user);
         }
         else if (Pads.Count > 0) t = Defaults();    // the shell copies JOYSTICK.MAP over a missing input.map when a stick is present
-        else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd().WithPistolKeys();
+        // the install's map has reverse on Tab, the standings' key (as KEYBOARD.MAP has it): on X, in memory, as the port's keymap
+        else if (Install("input.map") is { } inst) t = BindingTable.Parse(inst).WithWasd().WithReverseOffTab(out _).WithPistolKeys();
         else t = Defaults().Migrate(Install("input.def"));
         // the port's bindings beside the file (PadRules), before a pad side is chosen: a map with rules has a pad binding
         if (Godot.FileAccess.FileExists(RulesPath)) t.Rules = PadRules.Parse(Godot.FileAccess.GetFileAsString(RulesPath));
@@ -308,7 +309,8 @@ public static class Controls
     {
         if (_keyBase is null || _keyBaseDir != InstallDir)
         {
-            _keyBase = (Install("KEYBOARD.MAP") is { } kb ? BindingTable.Parse(kb) : new BindingTable()).WithWasd().WithReverseOffTab(out _).WithPistolKeys();
+            // the standings' Tab too (they are input.def's, which KEYBOARD.MAP has not), so that Restore gives them their key
+            _keyBase = (Install("KEYBOARD.MAP") is { } kb ? BindingTable.Parse(kb) : new BindingTable()).WithWasd().WithReverseOffTab(out _).WithScoreboardOnTab().WithPistolKeys();
             _keyBaseDir = InstallDir;
         }
         return _keyBase.Clone();
@@ -368,6 +370,9 @@ public static class Controls
 
     /// <summary>A copy of the bindings, for the screen to edit.</summary>
     public static BindingTable Edit() => Table.Clone();
+
+    /// <summary>Whether the standings fall back to Tab: they have no key of their own and Tab is no other command's (<see cref="BindingTable.ScoresOnFallback"/>).</summary>
+    public static bool ScoresOnFallback => Table.ScoresOnFallback;
 
     /// <summary>The binding a command shows: its key's name, or "-----".</summary>
     public static string Binding(string command) => Table.Text(command);
@@ -434,8 +439,13 @@ public static class Controls
     /// fires while the letters go into the line; a pad or joystick still drives (its buttons and sticks type nothing).</summary>
     public static bool Suspended { get; set; }
 
-    // a term counts while a chat line is typed only if it is a pad's
-    private static bool TermLive(InputTerm t) => (!Suspended || JoystickBank.DeviceOf(t.Device) >= 0) && TermDown(t);
+    /// <summary>Set while the network game's standings are locked up with the pointer on them: the left mouse button picks their rows
+    /// and holds no command (the other buttons, the keys and the pad still drive).</summary>
+    public static bool PointerClicks { get; set; }
+
+    // a term counts while a chat line is typed only if it is a pad's; the left button not while it is the pointer's
+    private static bool TermLive(InputTerm t) => (!Suspended || JoystickBank.DeviceOf(t.Device) >= 0)
+        && !(PointerClicks && JoystickBank.DeviceOf(t.Device) < 0 && KeyOf(t.Channel) is null && ButtonOf(t.Channel) == MouseButton.Left) && TermDown(t);
     // made once: a method group passed as a delegate is a new delegate every call (Down is asked many times a frame)
     private static readonly Func<InputTerm, bool> s_termLive = TermLive;
 

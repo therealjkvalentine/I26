@@ -240,7 +240,7 @@ public class SignClassTests
         var (hit, reached, _) = ClassIdTests.Ram(setup, s, new Vector2(o.Centre.X + 30, o.Centre.Z), new Vector2(-1, 0));
         Assert.Equal("sstop_1", hit);
         Assert.True(reached > 35, $"the car got {reached:0.0} m: stopped by a sign");
-        Assert.True(o.Destroyed);
+        Assert.True(o.Knocked);
         Assert.False(o.Solid);
     }
 }
@@ -336,7 +336,7 @@ public class SignObjectClassTests
         var (hit, reached, _) = ClassIdTests.Ram(setup, s, new Vector2(o.Centre.X, o.Centre.Z + 30), new Vector2(0, -1));
         Assert.True(reached > 35, $"the car got {reached:0.0} m: stopped by the sign");
         Assert.Equal(thrown ? "sdxin_1" : null, hit);
-        Assert.Equal(thrown, o.Destroyed);
+        Assert.Equal(thrown, o.Knocked);
         Assert.Equal(!thrown, o.Solid);
         Assert.Equal(thrown, setup.Damage.Events.Any(e => e is I76.Sim.Damage.SignKnocked k && k.Object == o));
     }
@@ -355,11 +355,54 @@ public class SignObjectClassTests
         var bullet = new DamagePacket { Mask = 1 };
         bullet.Ch[0] = 50;
         setup.Damage.Apply(o, bullet, Vector3.Zero, 0);
-        Assert.False(o.Destroyed);
+        Assert.False(o.Knocked);
         var rocket = new DamagePacket { Mask = 2 };
         rocket.Ch[1] = 120;
         setup.Damage.Apply(o, rocket, Vector3.Zero, 0);
-        Assert.True(o.Destroyed);
+        Assert.True(o.Knocked);
         Assert.Contains(setup.Damage.Events, e => e is I76.Sim.Damage.SignKnocked k && k.Object == o);
+    }
+}
+
+/// <summary>
+/// Class ids the original's placement loader has no case for (anything but 1-4, 7-10, 0xb, 0xc, 0x50, 0x52, 0x53): nothing
+/// is made, so a custom map's object given one is neither drawn nor solid, and its script handle is null. Stock maps use
+/// none of them.
+/// </summary>
+public class RefusedClassIdTests
+{
+    private static string? InstallDir =>
+        Environment.GetEnvironmentVariable("I76_INSTALL") is { Length: > 0 } d && Directory.Exists(d) ? d : null;
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(5u)]
+    [InlineData(0xdu)]
+    [InlineData(0x51u)]
+    [InlineData(0x5au)]
+    public void AnObjectGivenAClassIdTheOriginalRefusesIsNotMade(uint type)
+    {
+        if (InstallDir is null) return;
+        var (setup, _) = ClassIdTests.Build("t01.msn", ("bcbank1", type, 4100, 36700, 0), ("bcbank1", 2u, 4200, 36700, 0));
+        bool Near(StaticObject o, float x) => o.Name == "bcbank1" && new Vector2(o.Centre.X - x, o.Centre.Z - 36700).Length() < 30;
+        Assert.DoesNotContain(setup.Statics.Objects, o => Near(o, 4100));
+        Assert.Single(setup.Statics.Objects, o => Near(o, 4200));
+        Assert.DoesNotContain(setup.Entities, e => e.Name == "bcbank1" && e.Type == type);
+    }
+
+    [Fact]
+    public void EveryStockPlacementIsAccepted()
+    {
+        foreach (var dir in new[] { InstallDir, Environment.GetEnvironmentVariable("I76_NITRO_INSTALL") })
+        {
+            if (dir is null || !Directory.Exists(dir)) continue;
+            var install = new GameInstall(dir);
+            foreach (var msn in Directory.EnumerateFiles(Path.Combine(dir, "miss16")).Where(f => Path.GetExtension(f).ToLowerInvariant() is ".msn" or ".cbt" or ".cf2" or ".cf3" or ".cf4"))
+            {
+                var m = new MissionFile(msn);
+                foreach (var o in m.PlacedObjects().Where(o => !o.IsKeyword && o.Name.Length > 0))
+                    Assert.True(Placement.Accepted(o.ObjectType), $"{Path.GetFileName(msn)}: {o.Name} has class id {o.ObjectType:x}");
+            }
+        }
     }
 }

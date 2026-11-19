@@ -34,10 +34,23 @@ public sealed class StructureNode
     /// <summary>The slot it goes to: the structure slot takes 2, 3, 0xb, 0xc and 0x5c, 4 is the sign's.</summary>
     public bool Damageable => Type is 2 or 3 or 0xb or 0xc or 0x5c;
     /// <summary>
+    /// A gate (7) or a spinner (10): its own slot, with its record's HP, any packet. Its death swaps it and its subtree
+    /// to their destroyed look (every stock door and spinner: nothing), flags the root if it is a direct child (no marker
+    /// explosion), and throws no chunks.
+    /// </summary>
+    public bool GateSlot => Type is 7 or 10 && !Stripped;
+    /// <summary>
+    /// The type-7 node whose block a Gate-class root took (<see cref="StaticObject.InitGateRoot"/>): it has no slot of its
+    /// own any more, so rounds and rams do it nothing. It still slides with triggerGate.
+    /// </summary>
+    public bool Stripped { get; set; }
+    /// <summary>
     /// A type-4 node, whatever its placement's type (Nitro p12's and S01's swend_1 barriers, N28's sdtrn_1): a car
     /// passes through it (the original skips it) and its hit goes to the sign slot, which throws the whole placement.
     /// </summary>
     public bool Sign => Type == 4;
+    /// <summary>Its destroyed slot has geometry (an 'A' twin): a dead node keeps a collider, else its class drops to none.</summary>
+    public bool Wreck { get; init; }
     /// <summary>A type-7 node's slide (<see cref="GateMotion"/>), null for every other node.</summary>
     public GateMotion? Gate { get; set; }
     /// <summary>
@@ -129,6 +142,8 @@ public sealed partial class StaticObject
 {
     public required string Name { get; init; }
     public required uint Type { get; init; }
+    /// <summary>Where it was placed (the root's translation in the world).</summary>
+    public Vector3 Origin { get; set; }
     public Vector3 Centre;
     public float Radius;
     /// <summary>Class 0x3000 nodes: the render mesh's polygons, world space.</summary>
@@ -163,8 +178,21 @@ public sealed partial class StaticObject
     public float BoundRadius;
     /// <summary>The explosion it dies in: the node flags' x1_bldx1 / x1_cars1, or the SDFC explosion name; none for plain nodes.</summary>
     public string? Explosion { get; set; }
-    /// <summary>The sound its explosion goes with (the SDFC sound, else vexplode.wav); none without an explosion.</summary>
+    /// <summary>The sound its marker's explosion goes with (the SDFC sound, else vexplode.wav); none without an explosion.</summary>
     public string Sound { get; set; } = "vexplode.wav";
+
+    /// <summary>
+    /// Whether the root has the structure block's explosion (class 2, 0xb and 0xc; 3 never explodes): only those read the
+    /// SDFC explosion and sound. A Sign- or Gate-class root's are never set, so its marker never goes off.
+    /// </summary>
+    public bool RootExplodes => Type is 2 or 0xb or 0xc;
+
+    /// <summary>
+    /// The sound of an explosion that went with a death (<see cref="Damage.StructureDestroyed.Booms"/>): the marker's (−1)
+    /// is the SDFC sound, a node's own explosion (n ≥ 0) vexplode.wav whatever the SDFC says (the per-node sound is the
+    /// table's "null" for every stock node), as is a gate's (−2).
+    /// </summary>
+    public string BoomSound(int boom) => boom == -1 ? Sound : "vexplode.wav";
     /// <summary>
     /// What a destroyed structure leaves to collide with: its 'A' geometry
     /// (the grain hopper's fallen bin, a ramp, a barn's wreck). Null when it leaves nothing.
@@ -202,11 +230,19 @@ public sealed partial class StaticObject
     internal static int BoundsEpoch;
     internal static void BoundsChanged() => Interlocked.Increment(ref BoundsEpoch);
 
-    /// <summary>Thrown by the sign's slot: the root's HP zeroed by it (a root that only lost a child keeps its 400). Its collider is gone.</summary>
-    public bool Knocked => Type == 4 && Destroyed && Hp == 0;
+    /// <summary>
+    /// Thrown by the sign's slot (<see cref="Knock"/>): the whole placement gone from the collider lists as one tumbling
+    /// piece, so nothing reaches it any more (no contact, round or splash, nor the scripts' building tests). Not the
+    /// destroyed flag: the original's throw leaves the root's flags as they were, so a thrown sign is not dead to a script's
+    /// isDead, and a root already flagged (a direct child died first) is still thrown (measured).
+    /// </summary>
+    public bool Thrown { get; set; }
+
+    /// <summary>The same as <see cref="Thrown"/>.</summary>
+    public bool Knocked => Thrown;
 
     /// <summary>Whether it still collides and carries cars.</summary>
-    public bool Solid => Nodes.Count == 0 || SignPlacement ? !Destroyed || Collapsed : !Knocked && Polys.Count + Boxes.Count + Spheres.Count + Surfaces.Count > 0;
+    public bool Solid => !Thrown && (Nodes.Count == 0 || SignPlacement ? !Destroyed || Collapsed : Polys.Count + Boxes.Count + Spheres.Count + Surfaces.Count > 0);
 
     /// <summary>The whole placement's destruction geometry swap (then the rebuild): an emplacement's wreck, or a collider without nodes.</summary>
     public void Collapse()
@@ -304,6 +340,8 @@ public sealed partial class StaticObject
     /// </summary>
     public bool TriggerGate()
     {
+        // a Gate-class root slides itself: its block is its first type-7 node's
+        if (GateRoot >= 0 && Nodes[GateRoot].Gate is { } rg) { rg.Trigger(); return true; }
         foreach (var n in Nodes)
             if (n.Type == 7 && n.Gate is { } g) { g.Trigger(); return true; }
         return false;
@@ -320,6 +358,49 @@ public sealed partial class StaticObject
 
     /// <summary>Its gates were set from outside (a network mirror): the colliders follow.</summary>
     public void GatesMoved() { _gates = true; Refresh(); }
+
+    /// <summary>
+    /// A Gate-class root (class id 7) takes its first type-7 descendant's block, in the walk's order: its hit points (T12's
+    /// Autowerks gate: 40000, not the root's 400) and its slide; that node is stripped of its slot. Without one the root
+    /// keeps 400.
+    /// </summary>
+    public void InitGateRoot()
+    {
+        if (Type != 7) return;
+        int g = -1;
+        for (int i = 0; i < Nodes.Count; i++)
+            if (Nodes[i].Type == 7 && (g < 0 || Nodes[i].Walk < Nodes[g].Walk)) g = i;
+        if (g < 0) return;
+        Hp = MaxHp = Nodes[g].MaxHp;
+        Nodes[g].Stripped = true;
+        GateRoot = g;
+    }
+
+    /// <summary>
+    /// What a script's hpLesser reads of a structure (the original's object health percentage): for a structure root
+    /// (class 2, 3, 0xb, 0xc) the least HP / max, in percent, of the root's direct children that are structures (types
+    /// 2, 3, 4, 0xb, 0xc, 0x5c) with a collider (class above 0x1000): a dead one counts 0 while its wreck stands and no
+    /// longer counts once its collider is gone (no wreck); with no such child, a huge value that nothing is less than.
+    /// The root's own HP (splash) is not part of it. Any other class id: 100. One made without nodes: its root's share.
+    /// </summary>
+    public float HealthPercent()
+    {
+        if (Nodes.Count == 0) return Destroyed ? 0 : 100f * Hp / System.Math.Max(1, MaxHp);
+        if (Type is not (2 or 3 or 0xb or 0xc)) return 100f;
+        float min = float.MaxValue;
+        foreach (var n in Nodes)
+        {
+            if (n.Parent != -1 || n.Type is not (2 or 3 or 4 or 0xb or 0xc or 0x5c) || (n.Flags & 0xf000) == 0x1000 || n.Destroyed && !n.Wreck) continue;
+            min = System.Math.Min(min, n.Destroyed ? 0f : 100f * n.Hp / System.Math.Max(1, n.MaxHp));
+        }
+        return min;
+    }
+
+    /// <summary>The node a Gate-class root took its block from (<see cref="InitGateRoot"/>), −1 for none.</summary>
+    public int GateRoot { get; private set; } = -1;
+
+    /// <summary>Where a Gate-class root stands now: where it was placed, moved by its slide.</summary>
+    public Vector3 GateRootAt => Origin + ShiftOf(GateRoot);
 
     /// <summary>Whether the node is a <see cref="StructureNode.Sign"/> (−1, the root, is not).</summary>
     public bool SignNode(int node) => node >= 0 && node < Nodes.Count && Nodes[node].Sign;
@@ -359,27 +440,25 @@ public sealed partial class StaticObject
     /// </summary>
     public bool Unfelt(int node) => TypeAt(node) == 3 && (node >= 0 && node < Nodes.Count ? Nodes[node].Destroyed : Destroyed);
 
-    /// <summary>The destroyed state on the wire: bit 0 the root, bit n + 1 node n.</summary>
-
     /// <summary>
-    /// The sign slot's throw on the node's root: the root's HP to 0 and the whole placement
-    /// out of the collision world as one piece, so it no longer collides or takes hits. True if it was standing.
+    /// The sign slot's throw on the node's root: the root's HP to 0 and the whole placement out of the collision world as
+    /// one piece (<see cref="Thrown"/>), whatever its destroyed flag, which it leaves alone. True if it was still there.
     /// </summary>
     public bool Knock()
     {
-        if (Destroyed) return false;
+        if (Thrown) return false;
         Hp = 0;
-        Destroyed = true;
-        foreach (var n in Nodes) { n.Destroyed = true; n.Hp = 0; }
-        Refresh();
+        Thrown = true;
         return true;
     }
 
+    /// <summary>The destroyed state on the wire: bit 0 the root, bit n + 1 node n, bit count + 1 <see cref="Thrown"/>.</summary>
     public byte[] DestroyedMask()
     {
-        var m = new byte[(Nodes.Count + 8) / 8];
+        var m = new byte[(Nodes.Count + 9) / 8];
         if (Destroyed) m[0] |= 1;
         for (int i = 0; i < Nodes.Count; i++) if (Nodes[i].Destroyed) m[(i + 1) >> 3] |= (byte)(1 << ((i + 1) & 7));
+        if (Thrown) m[(Nodes.Count + 1) >> 3] |= (byte)(1 << ((Nodes.Count + 1) & 7));
         return m;
     }
 
@@ -392,6 +471,7 @@ public sealed partial class StaticObject
         if (Bit(0) && !Destroyed) { Destroyed = true; Hp = 0; changed = true; }
         for (int i = 0; i < Nodes.Count; i++)
             if (Bit(i + 1) && !Nodes[i].Destroyed) { Nodes[i].Destroyed = true; Nodes[i].Hp = 0; changed = true; }
+        if (Bit(Nodes.Count + 1) && !Thrown) { Thrown = true; Hp = 0; changed = true; }
         if (changed) Refresh();
         return changed;
     }
@@ -458,7 +538,7 @@ public sealed class StaticWorld
         foreach (var o in Gated) o.TickGates(dt);
     }
 
-    public static bool Collides(uint type) => type is 2 or 3 or 4 or 7 or 8 or 10 or 0xb or 0xc or 0xd;
+    public static bool Collides(uint type) => type is 2 or 3 or 4 or 7 or 8 or 10 or 0xb or 0xc;
 
     /// <summary>Node class default by object type: 0x2000 box, 0x3000 mesh, 0x5000 sphere.</summary>
     public static uint DefaultClass(uint type) => type switch { 2 or 7 or 8 or 10 => 0x2000, 4 => 0x5000, _ => 0x3000 };
@@ -498,7 +578,7 @@ public sealed class StaticWorld
     {
         if (!Collides(type)) return null;
         var place = Affine.FromEngine(engineRotation, position);
-        var o = new StaticObject { Name = name, Type = type };
+        var o = new StaticObject { Name = name, Type = type, Origin = position };
         var all = new List<Vector3>();
         var surfaces = new List<List<Poly>>();
         foreach (var part in model.Parts)
@@ -528,10 +608,11 @@ public sealed class StaticWorld
             bool sign = type == 4 && (signPart?.Invoke(part.NodeName) ?? true);
             if (cls == 0) cls = DefaultClass(type);
             if (cls == 0x1000) continue;
+            // a CTF flag's parts (the pole and pennant, type 0x5a, and the base, 0x5b): the car's collide slot ignores them
+            // whatever their collider class, so a car drives through the flag; the CTF game's base contact takes it (CtfGame.MeetsBase)
+            if (type != 4 && nodeType?.Invoke(part.NodeName) is 0x5a or 0x5b) continue;
             if (cls is 0x4000 or 0x5000)
             {
-                // a flag base (part type 0x5a / 0x5b): the car's collide slot ignores it, the CTF game takes the flag
-                if (type != 4 && nodeType?.Invoke(part.NodeName) is 0x5a or 0x5b) continue;
                 // a sphere: the part's SGEO centre and radius, x 1.0 (0x4000) or 0.75 (0x5000); a breakable (type 4) has
                 // one per part
                 var (sc, sr) = nodeSphere?.Invoke(part.NodeName) ?? BoundSphere(g.Vertices);
@@ -621,7 +702,7 @@ public sealed class StaticWorld
     /// <summary>An axis-aligned box collider (tests, and objects without a model).</summary>
     public StaticObject AddBox(string name, uint type, Vector3 min, Vector3 max)
     {
-        var o = new StaticObject { Name = name, Type = type, Centre = (min + max) / 2, Radius = new Vector2(max.X - min.X, max.Z - min.Z).Length() / 2, BoundRadius = (max - min).Length() / 2 };
+        var o = new StaticObject { Name = name, Type = type, Origin = (min + max) / 2, Centre = (min + max) / 2, Radius = new Vector2(max.X - min.X, max.Z - min.Z).Length() / 2, BoundRadius = (max - min).Length() / 2 };
         Vector3 P(int i) => new((i & 1) != 0 ? max.X : min.X, (i & 2) != 0 ? max.Y : min.Y, (i & 4) != 0 ? max.Z : min.Z);
         void Face(Vector3 n, params int[] idx)
         {

@@ -12,12 +12,12 @@ public class WireTests
     private static readonly I76.Formats.Imaging.CarPaint Red = new(new I76.Formats.Imaging.PaintColour(200, 10, 20), new I76.Formats.Imaging.PaintColour(1, 2, 3), I76.Formats.Imaging.PaintFinish.Metallic);
 
     [Fact]
-    public void TheProtocolIs25()
+    public void TheProtocolIs26()
     {
         // upstream's number and layout (an upstream peer reads every message); the fork's additions are appended or negotiated (PeerFeatures)
-        Assert.Equal(25, Protocol.Version);
-        // the I26 play fork's own snapshot version (its saved state differs from upstream's 17: wreck_solid, handbrake flags and the rest)
-        Assert.Equal(26, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        Assert.Equal(26, Protocol.Version);
+        // the I26 play fork's own snapshot version (its saved state differs from upstream's 18: wreck_solid, handbrake flags and the rest)
+        Assert.Equal(27, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
     /// <summary>The host's ignition lock (protocol 23): the join accept's last byte and one of the listing's host rules; an older listing without them reads as off.</summary>
@@ -235,7 +235,7 @@ public class WireTests
         Assert.Equal((11138u, 0xdeadbeefu, 32768u, 0x12345678u), (fp.MapSize, fp.MapCrc, fp.TerrainSize, fp.TerrainCrc));
 
         // the server's rate rides in the accept; one that is not offered is refused, and so is a client of the old protocol
-        Assert.Equal(25, Protocol.Version);
+        Assert.Equal(26, Protocol.Version);
         Assert.Equal(20, acc2.RateHz);
         w.Clear();
         (acc with { RateHz = 60 }).Write(w);
@@ -693,7 +693,7 @@ public class ForkWireTests
         Assert.Equal(Protocol.Features, old.Features);
         // the features still fit the one byte the tail gives them, and the protocol is upstream's
         Assert.True((uint)Protocol.Features < 128);
-        Assert.Equal(25, Protocol.Version);
+        Assert.Equal(26, Protocol.Version);
     }
 
     [Fact]

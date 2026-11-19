@@ -182,14 +182,16 @@ public sealed class CoopMirrorCars(I76.Formats.Vfs.AssetVfs vfs) : IMirrorCars
     public Vehicle Build(int serial, string def, bool human)
     {
         if (_built.TryGetValue(serial, out var v) && string.Equals(v.Definition, def, StringComparison.OrdinalIgnoreCase)) return v;
-        // a car the server made during the mission (Co-op Scaling's copies) or a stand-in: built as the mission's own cars
-        // are, with a damage state (a helicopter's block), so the server's snapshots have somewhere to write its health
-        // (without one the snapshot's damage is dropped and the car reads whole until it dies)
+        // one the mission did not build here (a Co-op Scaling copy the server spawned, a stand-in): its damage state as the
+        // server's (a player's car, or an AI car's), so the snapshots' damage lands on it and its health bar reads true (#194)
         var fresh = VehicleFactory.Create(vfs, def, bodySound: human);
         if (fresh.ObjectClass == 9) HeliStep.Setup(fresh, human);
-        else if (fresh.ObjectClass != 8 && fresh.Build is { } b) fresh.Health = I76.Sim.Damage.VehicleDamage.Create(fresh, b, human, new I76.Sim.Rng.CrtRand(1));
+        // a class-8 vehicle has no damage state, as the mission builds it (MissionSetup)
+        else if (fresh.ObjectClass != 8 && fresh.Build is { } b) fresh.Health = I76.Sim.Damage.VehicleDamage.Create(fresh, b, human, _rand);
         return fresh;
     }
+
+    private readonly I76.Sim.Rng.CrtRand _rand = new(1);
 
     public void Rebuild(Vehicle v, Vehicle fresh, bool human) => MeleeGame.Rebuild(v, fresh, new I76.Sim.Rng.CrtRand(1), human);
 }

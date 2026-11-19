@@ -361,6 +361,17 @@ public sealed partial class EscapeMenu : Control
         });
         // Turrets: the 1998 build's slew or the 1997 CD's, from the resume on (ShellSettings.ApplyTo; Play Options is not on a network game's pad)
         _play.Items.Add(Setting(Cycle, "Turrets", 35, 2, ["1998", "1997 CD"], s => s.Turrets1997 ? 1 : 0, (s, v) => s.Turrets1997 = v == 1));
+        // Skip Intro Movies: from the next start
+        _play.Items.Add(new Item
+        {
+            Flags = Check, Label = PlayOptionsScreen.SkipIntroRow, Pair = 36, N = 2,
+            Cb = (it, m) =>
+            {
+                if (m == 6) it.Value = Settings.SkipIntro ? 1 : 0;
+                else if (m == 8) { Settings.SkipIntro = it.Value != 0; _snap.SkipIntro = Settings.SkipIntro; }
+                else if (m == 9) { Settings.SkipIntro = _snap.SkipIntro; it.Value = Settings.SkipIntro ? 1 : 0; }
+            },
+        });
         // every row in the list, its place from 1 in the order added
         int place = 1;
         foreach (var it in _play.Items) { it.Pair = place++; it.Scrolls = true; }

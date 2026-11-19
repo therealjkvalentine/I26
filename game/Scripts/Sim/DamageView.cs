@@ -20,6 +20,8 @@ public partial class DamageView : Node3D
     public required World.MissionBuilder Builder { get; init; }
     public required Dictionary<I76.Sim.Vehicles.Vehicle, CarNode> Cars { get; init; }
     public required Dictionary<I76.Sim.Collision.StaticObject, Placement> PlacementOf { get; init; }
+    /// <summary>A line object's root: its links' placements, node k the k-th (MissionSetup.LinksOf).</summary>
+    public IReadOnlyDictionary<I76.Sim.Collision.StaticObject, IReadOnlyList<Placement>> LinksOf { get; init; } = new Dictionary<I76.Sim.Collision.StaticObject, IReadOnlyList<Placement>>();
     public Assets.AudioBank? Audio { get; init; }
     public I76.Sim.Terrain.IGround? Ground { get; init; }
     /// <summary>How far the frame is between sim ticks (SimDriver.Alpha), for the 1997 damage smoke; unset: at the last tick.</summary>
@@ -107,7 +109,7 @@ public partial class DamageView : Node3D
     {
         foreach (var (v, car) in Cars) Resync(v, car);
         foreach (var o in PlacementOf.Keys)
-            if (o.Destroyed || o.Nodes.Any(n => n.Destroyed)) Destroy(o, quiet: true);
+            if (o.Destroyed || o.Thrown || o.Nodes.Any(n => n.Destroyed)) Destroy(o, quiet: true);
     }
 
     /// <summary>One car's look from its state: a network car first drawn dead (it died before this client joined), whose death's event never came here.</summary>
@@ -489,7 +491,11 @@ public partial class DamageView : Node3D
                 case SignKnocked k when PlacementOf.TryGetValue(k.Object, out var sp):
                 {
                     Builder.Scenery!.Destroy(sp, null);
-                    var model = sp.Definition is { } d ? Builder.Assembler!.Assemble(d) : null;
+                    // the thrown copy is the placement as it stood: a part shot down before is its wreck
+                    var thrown = k.Object;
+                    var model = sp.Definition is not { } d ? null : thrown.Nodes.Any(n => n.Destroyed)
+                        ? new ModelAssembler(Builder.Vfs) { DestroyedNode = name => thrown.Nodes.FindIndex(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is var ni and >= 0 && thrown.Nodes[ni].Destroyed }.Assemble(d)
+                        : Builder.Assembler!.Assemble(d);
                     var mesh = model is null ? null : Builder.Meshes!.Build(model);
                     var body = new RigidBody3D
                     {
@@ -547,19 +553,27 @@ public partial class DamageView : Node3D
 
     public void Destroy(I76.Sim.Collision.StaticObject o, bool quiet, IReadOnlyList<int>? booms = null)
     {
+        if (LinksOf.TryGetValue(o, out var links)) { DestroyLinks(o, links); return; }
         if (!PlacementOf.TryGetValue(o, out var p)) return;
+        // thrown (a restore, a join): gone from where it stood
+        if (o.Thrown) { Builder.Scenery!.Destroy(p, null); return; }
         Mesh? alt = null;
         I76.Formats.Assembly.AssembledModel? altModel = null;
         bool Dead(string name) => o.Nodes.FindIndex(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is var i and >= 0 ? o.Nodes[i].Destroyed : o.Destroyed;
         if (p.Definition is { } def && o.Nodes.Count > 0)
         {
-            // a gate is drawn on its own, sliding (ScenerySpawner), whatever else of the structure is down
             if (new ModelAssembler(Builder.Vfs) { DestroyedNode = Dead }.Assemble(def) is { Parts.Count: > 0 } m)
             {
+                // a gate is drawn on its own, sliding (ScenerySpawner), whatever else of the structure is down; a dead one keeps
+                // sliding as its wreck, or goes if it has none
+                foreach (var n in o.Nodes)
+                    if (n.Destroyed && n.Type == 7)
+                        Builder.Scenery!.GateDied(p, n.Name, Builder.Meshes!.Build(m, include: part => n.Name.Equals(Builder.Scenery.GateOf(p, part.NodeName), StringComparison.OrdinalIgnoreCase), skipFace: GroundFaces(p, m)));
                 // the camera-facing cards (the pine's stump) are the spawner's to draw
                 alt = Builder.Meshes!.Build(m, include: part => !Builder.Scenery!.IsGatePart(p, part.NodeName) && !Builder.Scenery.IsCardPart(p, part.NodeName), skipFace: GroundFaces(p, m));
                 altModel = m;
             }
+            else foreach (var n in o.Nodes) if (n.Destroyed && n.Type == 7) Builder.Scenery!.GateDied(p, n.Name, null);
         }
         else if (p.Definition is { } d0 && new ModelAssembler(Builder.Vfs) { Destroyed = true }.Assemble(d0) is { } m
             && Builder.Assembler!.Assemble(d0) is { } intact && m.Parts.Select(x => x.NodeName).SequenceEqual(intact.Parts.Select(x => x.NodeName)) == false)
@@ -567,17 +581,38 @@ public partial class DamageView : Node3D
             alt = Builder.Meshes!.Build(m, include: part => !Builder.Scenery!.IsCardPart(p, part.NodeName), skipFace: GroundFaces(p, m));
             altModel = m;
         }
-        Builder.Scenery!.Destroy(p, alt, altModel, altModel is null ? null : GroundFaces(p, altModel));
+        Builder.Scenery!.Destroy(p, alt, altModel, altModel is null ? null : GroundFaces(p, altModel), o.Nodes.Count > 0 ? Dead : null);
         // the ground faces painted into the terrain at load of what is now gone (a tunnel's road strips) are painted out
         if (World.GroundDecals.Applies(p) && p.Definition is { } pd && Builder.Assembler!.Assemble(pd) is { } whole
             && Builder.Unpaint(p, World.GroundDecals.PaintedOut(whole, altModel, Dead)) is { } area)
             (_roads ??= new Editor.RoadTools.RoadPainter(Builder)).Request(area);
-        // A "null" SDFC sound is event 7's vexplode.wav (min distance 100), a named one (10)
+        // event 7's vexplode.wav (min distance 100) for a node's own explosion and a "null" SDFC sound, a named one (10)
         if (quiet || booms is null) return;
         foreach (int b in booms)
         {
-            var at = b < 0 ? o.Marker ?? o.Centre : o.Nodes[b].Base ?? o.Centre;
-            Sound(o.Sound, at, o.Sound.Equals("vexplode.wav", StringComparison.OrdinalIgnoreCase) ? Ds3d.LoudMinDistance : Ds3d.MinDistance);
+            var at = b == -1 ? o.Marker ?? o.Centre : b >= 0 ? o.Nodes[b].Base ?? o.Centre : o.Origin;
+            var sound = o.BoomSound(b);
+            Sound(sound, at, sound.Equals("vexplode.wav", StringComparison.OrdinalIgnoreCase) ? Ds3d.LoudMinDistance : Ds3d.MinDistance);
+        }
+    }
+
+    /// <summary>A line object's wreck mesh by definition: every link of a line swaps to the same 'A' geometry.</summary>
+    private readonly Dictionary<string, (Mesh? Mesh, AssembledModel? Model, Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? Skip)> _linkWrecks = [];
+
+    /// <summary>A line object (a guard rail, a tyre wall): each dead link's own wreck in its place, the live ones as they are.</summary>
+    private void DestroyLinks(I76.Sim.Collision.StaticObject o, IReadOnlyList<Placement> links)
+    {
+        for (int k = 0; k < links.Count && k < o.Nodes.Count; k++)
+        {
+            var p = links[k];
+            if (!o.Nodes[k].Destroyed || p.Definition is not { } def) continue;
+            if (!_linkWrecks.TryGetValue(def, out var w))
+            {
+                var m = new ModelAssembler(Builder.Vfs) { Destroyed = true }.Assemble(def);
+                var skip = m is null ? null : GroundFaces(p, m);
+                _linkWrecks[def] = w = (m is null ? null : Builder.Meshes!.Build(m, skipFace: skip), m, skip);
+            }
+            Builder.Scenery!.Destroy(p, w.Mesh, w.Model, w.Skip);
         }
     }
 

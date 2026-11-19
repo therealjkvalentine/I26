@@ -137,9 +137,11 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// <param name="frameOf">a face texture's .TMT entry: a damaged car's zones (CarNode.TexFrame, DamageTextures); entry 0 without it</param>
     /// <param name="selfLit">a structure whose self-lit faces shine at night in the modern look (<see cref="SelfLit"/>)</param>
     /// <param name="retro">a road sign, whose face (the faces the original draws full-bright) the modern look's night shows retroreflective (RetroLamps), never glowing of its own</param>
+    /// <param name="unkeyed">the cut-out faces drawn opaque, their key colour shown (the Software renderer's ground list)</param>
+    /// <param name="signPart">with <paramref name="retro"/>: which parts are a sign's (by node name); null takes every part as one</param>
     public ArrayMesh? Build(AssembledModel model, bool wheels = true, Func<ModelPart, bool>? include = null, System.Numerics.Vector3 origin = default,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null,
-        bool selfLit = false, bool retro = false)
+        bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
     {
         var members = model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>().ToList();
@@ -149,9 +151,9 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         materials.Prefetch(members);
         // and the smooth outlines of its cut-out faces' textures (the modern look's keyed edges), likewise
         materials.PrefetchKeyEdges(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces)
-            .Where(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) == MaterialLibrary.FaceMode.Cutout)
+            .Where(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21, unkeyed) == MaterialLibrary.FaceMode.Cutout)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
-        return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf, selfLit, retro);
+        return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart);
     }
 
     /// <summary>
@@ -163,16 +165,18 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
 
     private ArrayMesh? Build(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
-        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false)
-        => ToMesh(Surfaces(model, wheels, include, origin, skipFace, paint, bothSides, oneSided1997, frameOf, selfLit, retro));
+        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
+        => ToMesh(Surfaces(model, wheels, include, origin, skipFace, paint, bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart));
 
     /// <summary>The surfaces <see cref="Build"/> makes its mesh of, by material.</summary>
     private Dictionary<Material, Surface> Surfaces(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
-        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false)
+        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
     {
         selfLit &= model.Kind == "sdf";
         retro &= model.Kind == "sdf";
+        // a marker's triangle is never drawn (AssembledModel.Drawn)
+        if (model.Markers.Count > 0) { var asked = include; include = part => model.Drawn(part) && (asked?.Invoke(part) ?? true); }
         var surfaces = new Dictionary<Material, Surface>();
         var cabin = new CabinFit();
         var seams = model.Kind == "vcf" ? new List<(Surface S, int I, Vector3 At, Vector3 FaceN, float W)>() : null;
@@ -203,30 +207,31 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                 string? faceMember = null;
                 // a zero vertex normal (some GEOs have them) would light as NaN, which glow then spreads
                 var faceN = Coords.ToGodot(-part.ToModel.Rotate(new System.Numerics.Vector3(f.Plane.X, f.Plane.Y, f.Plane.Z))).Normalized();
-                bool shines = selfLit && SelfLit(f, faceN.Y);
-                // a sign's face: the faces the original draws full-bright to be read at night (the shield, the plate), not its post or back;
-                // every one the night would otherwise show as painted (night_glow: full-bright, not translucent)
-                bool sheeting = retro && I76.Formats.Geo.FaceLight.Unlit(f) && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) != MaterialLibrary.FaceMode.Translucent;
-                if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.AnimatedFace(f.Texture) is { } anim)
-                    mat = materials.ForAnimated(anim.Frames, anim.Fps, MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21), partPaint, partFamily, bothSides,
+                // a sign's face: the faces the original draws full-bright to be read at night (the shield, the plate), not its post or back,
+                // on a sign's parts only (type-4 nodes, whatever the placement's class id); every one the night would otherwise show as
+                // painted (night_glow: full-bright, not translucent)
+                bool sign = retro && (signPart?.Invoke(part.NodeName) ?? true);
+                bool shines = selfLit && !sign && SelfLit(f, faceN.Y);
+                // a face with texture coordinates beyond ±32 is drawn in its own colour, untextured, as the original does
+                bool untextured = f.UvsUnset;
+                var mode = MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21, unkeyed);
+                bool sheeting = sign && I76.Formats.Geo.FaceLight.Unlit(f) && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21) != MaterialLibrary.FaceMode.Translucent;
+                if (!untextured && f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.AnimatedFace(f.Texture) is { } anim)
+                    mat = materials.ForAnimated(anim.Frames, anim.Fps, mode, partPaint, partFamily, bothSides,
                         unlit: I76.Formats.Geo.FaceLight.Unlit(f), selfLit: shines, retro: sheeting);
-                else if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0) is { } member)
-                    mat = (faceMember = member) is null ? null! : materials.ForTexture(member, MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21), partPaint, partFamily, oneSided: plates.Contains((partIndex, f)), bothSides: bothSides,
+                else if (!untextured && f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0) is { } member)
+                    mat = (faceMember = member) is null ? null! : materials.ForTexture(member, mode, partPaint, partFamily, oneSided: plates.Contains((partIndex, f)), bothSides: bothSides,
                         unlit: I76.Formats.Geo.FaceLight.Unlit(f), oneSided1997: oneSided1997,
                         scheme: scheme is { } sc && sc.Members.Contains(member) ? sc.Key : null, selfLit: shines, retro: sheeting);
                 else
                 {
-                    if (f.Texture.Length > 0) Unresolved.Add(f.Texture);
+                    if (f.Texture.Length > 0 && !untextured) Unresolved.Add(f.Texture);
                     mat = materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
                         unlit: partPaint is null && I76.Formats.Geo.FaceLight.Unlit(f), selfLit: shines, retro: sheeting);
                 }
                 if (!surfaces.TryGetValue(mat, out var s)) surfaces[mat] = s = new Surface();
                 var fv = f.Vertices;
-                // a face whose texture coordinates were left unset is one texel, its texture's first, as the original draws it
-                Vector2? oneTexel = null;
-                if (f.UvsUnset)
-                    oneTexel = (faceMember ?? (f.Texture.Length > 0 ? resolver.AnimatedFace(f.Texture)?.Frames[0] : null)) is { } tm && materials.TextureOf(tm) is { } tt
-                        ? new Vector2(0.5f / tt.GetWidth(), 0.5f / tt.GetHeight()) : Vector2.Zero;
+                Vector2? oneTexel = untextured ? Vector2.Zero : null;
                 // an overlay (a window, a lamp) lying in an earlier part's face: lifted off it, as drawing it later did
                 var lift = decals.Contains((partIndex, f)) ? faceN * 0.012f : Vector3.Zero;
                 if (faceMember is not null && model.Kind == "vcf") estimate |= EstimatesNormals(I76.Formats.Imaging.CarMaterialTable.StemOf(faceMember));

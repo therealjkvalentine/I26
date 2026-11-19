@@ -32,6 +32,16 @@ public static class MouseCamera
     public static void ResetZoom(ViewZoom.Kind k) => Zooms[(int)k] = ViewZoom.Default;
     /// <summary>Every view back at the original's framing, now (a mission start, a switch into a view, the hand-back from a cut-scene).</summary>
     public static void ResetAllZooms() { System.Array.Fill(Zooms, ViewZoom.Default); ZoomEpoch++; }
+    /// <summary>
+    /// The view the wheel's zoom belongs to after this frame, and whether every view starts over at the original's framing: a switch into a
+    /// view (or the hand-back from a cut-scene) resets them with View Zoom Reset on. While a menu, pause or picture is over the mission
+    /// (<paramref name="overlaid"/>) the remembered view stands, so closing it is no switch; a view changed meanwhile still counts once it closes.
+    /// </summary>
+    public static (ViewZoom.Kind? View, bool Reset) TrackView(ViewZoom.Kind? remembered, ViewZoom.Kind? now, bool overlaid, bool keepZoom)
+    {
+        if (overlaid || now == remembered) return (remembered, false);
+        return (now, now is not null && !keepZoom);
+    }
     /// <summary>The view the wheel zooms now: an external view in a mission with no menu, pause or cut-scene up (null: the cockpit and the rest keep the wheel).</summary>
     public static ViewZoom.Kind? WheelView { get; set; }
     public static bool WheelActive => !WheelCycleWeapon && WheelView is not null;
@@ -80,23 +90,4 @@ public static class MouseCamera
         bool enabled = CockpitActive ? CockpitLook : Level != MouseLook.Off;
         return MouseLook.Orbit(dx, dy, enabled, Sensitivity, InvertY);
     }
-}
-
-/// <summary>When the views' wheel zoom starts over (with View Zoom Reset): a switch into an external view, or the hand-back from a cut-scene.</summary>
-public sealed class ZoomViewTracker
-{
-    private ViewZoom.Kind? _view;
-
-    /// <param name="now">The external view on screen; null in the cockpit, in a cut-scene and out of a mission.</param>
-    /// <param name="over">A menu or picture is up over the mission: the view under it is still the one it was (#190: the Escape menu reset the F2 zoom).</param>
-    /// <returns>True when this is a switch into a view.</returns>
-    public bool Switched(ViewZoom.Kind? now, bool over)
-    {
-        if (over || now == _view) return false;
-        _view = now;
-        return now is not null;
-    }
-
-    /// <summary>A mission built: no view yet.</summary>
-    public void Forget() => _view = null;
 }
