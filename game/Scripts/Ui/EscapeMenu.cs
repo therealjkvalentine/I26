@@ -104,6 +104,15 @@ public sealed partial class EscapeMenu : Control
     public bool CoopReplay { get; init; }
     /// <summary>A co-op player whose host chooses what follows a failure (the fork's): the end menu says so, over Leave Match and Exit I76.</summary>
     public bool CoopWaitHost { get; init; }
+    /// <summary>
+    /// The fork's in-game GAME SETUP (docs/multiplayer.md "Changing the game for the next round"), the melee host's alone: the game as it is
+    /// and its next round's setup, for the host form opened over the game (Game Setup, row 7 of the network pad); <see cref="ChangeGame"/>
+    /// takes its APPLY. Null: not offered (a guest, or not a melee).
+    /// </summary>
+    public Func<(I76.Server.ServerOptions Now, I76.Server.RoundSetup Next)?>? GameSetup { get; init; }
+    public Action<I76.Server.RoundSetup>? ChangeGame { get; init; }
+    /// <summary>The co-op host: Game Setup is shown greyed (row 10), the lobby's GAME SETUP being where a story mission's game is changed.</summary>
+    public bool GameSetupInLobby { get; init; }
     /// <summary>A network game: Self Destruct is refused now (the car dead, or the game decided).</summary>
     public Func<bool>? SelfDestructRefused { get; init; }
     /// <summary>Once a frame while the tree is paused under the menu: what play would draw that a paused node does not (the rear mirror), so the measured frame rate is play's.</summary>
@@ -639,9 +648,31 @@ public sealed partial class EscapeMenu : Control
         if (CoopNextTitle is not null) rows.Add(Action(I76.Net.Hud.NetMenu.Next, 7, () => Close(MenuOutcome.CoopNext)));
         if (CoopReplay) rows.Add(Action(I76.Net.Hud.NetMenu.Replay, 8, () => AskExit(_main, MenuOutcome.CoopReplay, I76.Net.Hud.NetMenu.ReplayQuestion)));
         if (CoopLobby) rows.Add(Action(I76.Net.Hud.NetMenu.Lobby, 9, () => AskExit(_main, MenuOutcome.CoopLobby, I76.Net.Hud.NetMenu.LobbyQuestion)));
+        // the fork's in-game GAME SETUP: the melee host's form for the next round (row 7, free in a melee); a co-op host's is the lobby's
+        if (GameSetup is not null) rows.Add(Action(GameSetupLabel, 7, OpenGameSetup, "$0.00"));
+        else if (GameSetupInLobby) rows.Add(new Item { Flags = Act, Label = GameSetupLobbyLabel, Pair = 10, N = 1, Refused = () => true, Cb = (_, _) => { } });
         int at = _main.Items.FindIndex(i => i.Pair == BugRow);
         _main.Items.InsertRange(at < 0 ? _main.Items.Count - 1 : at, rows);
     }
+
+    public const string GameSetupLabel = "Game Setup", GameSetupLobbyLabel = "Game Setup (in the lobby)";
+
+    /// <summary>
+    /// Game Setup: the host form (MeleeScreen with <c>FromGame</c>) as a whole screen of a hosted shell over the running game, as Controls is
+    /// hosted; APPLY hands the next round's setup to <see cref="ChangeGame"/>, CANCEL or Esc nothing; either comes back to the pad.
+    /// </summary>
+    private void OpenGameSetup()
+    {
+        if (GameSetup?.Invoke() is not { } now) return;
+        _gameSetupOpen = true;
+        OpenHosted(new MeleeScreen
+        {
+            Mode = 3, FromGame = now,
+            RoundDone = s => { if (s is not null) ChangeGame?.Invoke(s); Callable.From(CloseControls).CallDeferred(); },
+        }, full: true);
+    }
+
+    private bool _gameSetupOpen;
 
     private const string SweetheartLine = "Are you gonna leave me, Sweetheart?";
     /// <summary>The network game's own questions (the port's): leaving the game is not quitting the program.</summary>
@@ -749,15 +780,15 @@ public sealed partial class EscapeMenu : Control
     /// </summary>
     private void OpenControls() => OpenHosted(new ControlsMenuScreen());
 
-    private void OpenHosted(ShellScreen screen)
+    private void OpenHosted(ShellScreen screen, bool full = false)
     {
         if (_host is not null || GetParent() is not { } parent) return;
         Visible = false;
         _pressed = null;
         _host = new I76.Game.Shell.Shell
         {
-            Install = new GameInstall(InstallDir), OnLaunch = _ => { }, Faithful = Faithful, Name = "ControlsHost",
-            Hosted = screen,
+            Install = new GameInstall(InstallDir), OnLaunch = _ => { }, Faithful = Faithful, Name = full ? "GameSetupHost" : "ControlsHost",
+            Hosted = screen, HostedFull = full,
             HostDone = () => Callable.From(CloseControls).CallDeferred(),
         };
         parent.AddChild(_host);
@@ -772,7 +803,13 @@ public sealed partial class EscapeMenu : Control
             ControlsMenuScreen.CopyControls(hosted, Settings);
             ControlsMenuScreen.CopyControls(hosted, _snap);
             ApplyForce();
+            // the host form's rules as Game Setup left them (its APPLY saved them, its CANCEL put them back): the menu's own save keeps them
+            if (_gameSetupOpen)
+                foreach (var s in new[] { Settings, _snap })
+                    (s.CarReset, s.CbRadio, s.IgnitionStaysOn, s.HostCrosshair, s.HostTurrets1997, s.Handicaps, s.ShareMaps, s.HiddenContent, s.HostBotSkillDifficulty)
+                        = (hosted.CarReset, hosted.CbRadio, hosted.IgnitionStaysOn, hosted.HostCrosshair, hosted.HostTurrets1997, hosted.Handicaps, hosted.ShareMaps, hosted.HiddenContent, hosted.HostBotSkillDifficulty);
         }
+        _gameSetupOpen = false;
         _host?.QueueFree();
         _host = null;
         _padNav.Settle();

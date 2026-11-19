@@ -583,7 +583,7 @@ The form's WEAPON RESTRICTIONS (the original's hotspot 5, 31..193 × 310..326) o
 sprite 43 at 34, 25; rows and grid read from the install's the Nitro front end, `RestrictionTable`) with the port's rows for
 the hidden weapons (`HiddenContent.ChecklistRows`); the clicks and the list it makes are `RestrictionChecklist`
 (docs/hidden-content.md §4). The list is the original's: everything, or GDF (class, tier) pairs with tier −1 for a whole
-class (`WeaponRestrictions`). It is kept for the shell's run, not saved, as the original's table.
+class (`WeaponRestrictions`). The original keeps it for the shell's run, not saved; the play fork keeps each game type's in melee.cfg ("What the form keeps").
 
 **Specials** (the port's; the original restricts none). The checklist has a second page: SPECIALS, a button left of DONE
 lettered as the art letters DONE (`ArtButtons`), turns to it and WEAPONS turns back. The page is the same art with its
@@ -1467,7 +1467,43 @@ server unless `--once`, and the listen server always) goes on like this:
 - **An empty server holds its round**: with nobody seated or arriving, a carrying-on server does not step the game (no clock, no AI), so an idle server neither plays rounds to nobody nor rebuilds arenas, and the first joiner gets a whole round.
 - **Joins during the pause** are refused ("between rounds: try again in a few seconds"); the next round is joinable
   from its start, by the usual mid-game join.
-- Not done: a vote on the next arena, per-round settings.
+- Not done: a vote on the next arena. The host's own per-round settings: below.
+
+### Changing the game for the next round (the play fork's)
+
+A melee's host changes the game while it runs, for the next round (the owner: "make it easy to adjust the game parameters for the host
+even inside the game"):
+
+- **Game Setup** on the network Esc pad (row 7, the listen host's, or a migration's successor's, of a melee that carries on into rounds)
+  opens **the host form itself** over the running game, hosted as the pad's Controls sheet is (`MeleeScreen` with `FromGame`, a whole screen
+  of a hosted shell, `Shell.HostedFull`), set to the game as its next round stands: AREA OF PLAY's list of the game type's arenas (the
+  downloaded ones too, above), GAME NAME, NO. DRIVERS, the box's rows (the Nitro form's GAME OPTIONS). BROADCAST GAME says **APPLY**; CANCEL
+  or Esc goes back to the pad with nothing changed (the rows act on shell.cfg as the form always does, and are put back). The game is not
+  paused; the host's car is held while the pad is up, as for any of its sheets. A co-op host's pad shows "Game Setup (in the lobby)" greyed
+  on row 10: a story mission's game is changed in its lobby (above, "Changing the game in the lobby").
+- **What changes, at the next round** (`RoundSetup`): the arena (of the game's kind; a capture the flag arena of its team count), the
+  name, NO. DRIVERS (not below the players in the game), INVITE ONLY, the password, MAX SCORE or the Nitro form's LIMIT and its value,
+  BOTS, their skill and A.I. CARS, SHARE MAPS, CAR RESET, CB RADIO, IGNITION LOCK, CHASE CROSSHAIR, TURRETS and HANDICAPS. The next round
+  is a new game built from the server's options and every player gets a new accept for it, which carries the limits and the host's rules;
+  the bots, seats, password and invite rule are the server's own. **What does not:** the game type and TEAM PLAY (the kind, the CTF teams
+  and each player's team are taken at the join and carried round to round), SIM RATE (every game's clock and input timing were set from it
+  at the connection), HIDDEN CARS, UNLIMITED TURRETS and WEAPON RESTRICTIONS (each car was checked at its join, and a carried player is not
+  checked again), and the car (Reconfigure, while dead). Those rows are drawn in a faded ink, do nothing, and their tooltip says why.
+- **The server** (`NetMeleeServer.SetNextRound`) checks the change (a melee that carries on; the arena on this install or in its downloaded
+  folder, of the game's kind; the seats; the bots within them; a name; a password's length), keeps it, and says each change at once in the
+  chat ("Server: Next round: the limit is 30 kills (was 20000 points)", `RoundSetup.Lines`); the round in play goes on as it is. When it
+  ends, `StartNextRound` builds the next round from the change (`RoundPlan.Next` on it: a rotation goes on from its arena); an arena that
+  cannot be built falls back to the one just played, with the rest of the change. The change is then the game's: the round after starts from
+  it. The listing follows from the next round (`Describe` reads the game in play). What the host set is also kept as the type's last values
+  (melee.cfg, "What the form keeps").
+- **The wire:** nothing new (protocol 26). The host's game holds the server in its own process and calls it, as the lobby's GAME SETUP does;
+  the players hear of it in chat lines and play it through the round's `NextRound` and accept, which a stock upstream build and an older fork
+  build read as for any round. With a stock upstream host there is no Game Setup (its server is not the fork's).
+- **Not kept:** a change waiting for the next round when the host leaves (host migration): the successor's game is built from the
+  savestate's options, the round in play's.
+- **Tests** (`RoundSetupTests`): the setup into the options and back, the lines, a fork and an upstream player told at once and given the next
+  round on the new arena with the new limit and CB rule in their accepts, the round in play untouched, the refusals (another kind of arena,
+  one the install lacks, fewer seats than players, a game without rounds).
 
 ### Host migration
 
@@ -1612,7 +1648,7 @@ its art.
   melee lists them; four rows shown, where the original shows six, to give the options box its room, the art under the list laid
   higher and GAME NAME and NO. DRIVERS closed up under it; the port's scroll bar down the list's right edge, Graphic Detail's look), GAME NAME (the area's name until RENAME gives it one; left
   empty it is the area's again); the MELEE / CO-OP button at the AREA OF PLAY bar's right end (RENAME's look) switches the game type;
-- NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start, then the count last hosted with, kept in melee.cfg as `host_drivers`; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
+- NO. DRIVERS 1–`MeleeScreen.MaxDrivers` (4 to start, then the count last hosted with, kept in melee.cfg per game type, below, "What the form keeps"; the original's went to 8; the form's top is 32 for now, `Protocol.MaxSeats` = 64 is
   what the wire, the screens and i26-server take): the server's seats (below, "Bandwidth"). The form has no room for a note on the upload a
   big game needs, so `MeleeScreen.UploadMbit(players)` (a small table, placeholders until measured) goes to the log line a listen server writes;
 - the options box (the port's layout of the original's: the box runs from NO. DRIVERS' foot rule to the sheet's foot, its paper a
@@ -1643,6 +1679,33 @@ its art.
 - BROADCAST GAME: CHOOSE A TEAM first with team play or CTF, then the launch: a
   listen server in the game's process with these rules (no AI fill, no time
   limit; the form's bots), joined at once.
+
+**What the form keeps** (the play fork's, `HostRows`). Each game type keeps the rows it was last hosted with, apart from the others:
+melee (the base game's melee and the Nitro Pack's Combat), race, capture the flag (CTF 2, 3 and 4) and co-op, LAN and internet alike, in
+melee.cfg's `[host_melee]`, `[host_race]`, `[host_ctf]` and `[host_coop]`: NO. DRIVERS (`drivers`), TEAM PLAY (`team_play`), INVITE ONLY
+(`invite_only`), MAX SCORE's box and value (`score_on`, `max_score`; the base game's form), LIMIT and its value (`limit` by name, `limit_value`
+by value, not by place in the list; the Nitro form's), BOTS, their skill and A.I. CARS (`bots`, `bot_skill`, `bot_cars`), SIM RATE (`rate`),
+UNLIM. TURRETS (`turrets`) and WEAPON RESTRICTIONS (`restrictions`, as `--restrict` takes them; the Nitro form's). They are written when the game
+is broadcast (a co-op lobby's APPLY writes its NO. DRIVERS and INVITE ONLY), never on CANCEL; while the form is up, switching the type and back
+keeps what was set on each. A type not hosted yet opens on what the form showed before this was kept: the older `[melee]` keys
+(`host_drivers`, `bots`, `bot_skill`, `bot_cars`, `host_rate`, `host_turrets`, which still hold the last game's values for a build that reads
+only those, upstream's among them) on opening, the form's own on a switch of type, the original's defaults on a fresh install (four drivers,
+no team play, invite only or score limit, 20000 when the score box is ticked, the type's first limit). A value the form does not offer is held
+to its range (a count to 1-32, a score to 1000-100000 in thousands, an unknown limit or rate to the default, a restriction this build cannot
+read to none). INVITE ONLY is kept like the rest: it locks nobody out (each join asks the host, who answers in the game), and the form shows it
+ticked. PASSWORD is never kept. The settings in shell.cfg (HIDDEN CARS and SHARE MAPS, which are Play Options' too; CAR RESET, CB RADIO,
+IGNITION LOCK, HANDICAPS, CHASE CROSSHAIR, TURRETS, EXTRA ENEMIES, DAMAGE TAKEN) were kept already and are one value for every type: Play
+Options, the co-op lobby's GAME SETUP and the game's start read and change the same keys. Not kept per arena: a host's preferences do not travel
+in map files, which are shared and downloaded.
+
+**Downloaded maps** (#207). A map downloaded from a network game's host (user://downloaded_maps, below, "Custom maps") is on the host form's
+AREA OF PLAY list after the install's own arenas of its kind, its name followed by "(downloaded)": the base game's form lists the downloaded
+levels (.lvl), the Nitro form's the downloads of its GAME TYPE's kind (Combat its .cbt and the base levels). Only whole downloads are listed:
+a folder whose files are map files and hash to its name (`MapCache.Maps`); a download not finished, or one whose files were changed, lost or
+added to, is left out. A download that is the very map the install has (by hash, `MapCache.ForHost`) is not listed again; one the install has
+under the same name but different stays, as the map its game played. Hosting one plays it from its folder (`NetLaunch.MapDir`,
+`ServerOptions.MapDir`, as a host migration's successor does), so a joining player who lacks it is offered it and downloads it as from any
+host, and the host's own player finds it in its cache. Nothing is copied into the install.
 
 **The roster** (modes 7 and 8):
 - each game found as its name, `(players/seats)` at x 160 and the arrow

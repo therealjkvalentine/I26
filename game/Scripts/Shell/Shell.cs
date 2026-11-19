@@ -74,6 +74,8 @@ public sealed record NetLaunch(int Mode)
     public string? ListOn { get; init; }
     /// <summary>Hosting: a custom arena is sent to players who lack it (the form's Share Maps).</summary>
     public bool ShareMaps { get; init; } = true;
+    /// <summary>Hosting a map downloaded from another game (#207): its folder in user://downloaded_maps, which the server plays it from; null for the install's own.</summary>
+    public string? MapDir { get; init; }
     /// <summary>Hosting: players may reset their car upright (the form's Car Reset; on, as the original's F12 trick worked online).</summary>
     public bool CarReset { get; init; } = true;
     /// <summary>Hosting: nobody switches their engine off in the game (the form's IGN. LOCK; off).</summary>
@@ -150,6 +152,8 @@ public partial class Shell : CanvasLayer
     /// screen, on top of the paused game; <see cref="Options"/> (the overlay's way back to the Options Menu) ends it through <see cref="HostDone"/>.
     /// </summary>
     public ShellScreen? Hosted { get; init; }
+    /// <summary><see cref="Hosted"/> is a whole screen of its own (the escape menu's Game Setup, the host form), not an overlay.</summary>
+    public bool HostedFull { get; init; }
     /// <summary>The network host form being open with its UNLIM. TURRETS on: the garages it opens lift the one-turret rule for the game it hosts.</summary>
     public bool HostTurrets { get; set; }
     /// <summary>Whether the garages let a car carry several roof turrets: the Play Option, or the host form's option for its game.</summary>
@@ -368,6 +372,8 @@ public partial class Shell : CanvasLayer
         AddChild(_music = new AudioStreamPlayer { Name = "Music", VolumeDb = -8 });
         if (Hosted is not null)
         {
+            // a whole screen (the in-game GAME SETUP's host form) is gone to; an overlay (Controls) goes over a blank screen
+            if (HostedFull) { Go(Hosted); return; }
             Go(new HostScreen());
             Overlay(Hosted);
             return;

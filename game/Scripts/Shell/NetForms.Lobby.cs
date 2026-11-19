@@ -26,7 +26,7 @@ public sealed partial class MeleeScreen
     public Action<LobbySetup?>? SetupDone { get; init; }
 
     private bool LobbyMode => FromLobby is not null;
-    public override bool EscapeOpensOptions => !LobbyMode;
+    public override bool EscapeOpensOptions => !LobbyMode && !GameMode;
 
     /// <summary>
     /// The form's hotspots a lobby's setup leaves alone: the car (3 MAKE / MODEL, 4 VARIANT, 5 CONFIGURE CHASSIS), LOCAL DRIVER's RENAME 14, the
@@ -65,7 +65,7 @@ public sealed partial class MeleeScreen
         _scroll = Math.Clamp(Area - Rows + 1, 0, Math.Max(0, ListCount - Rows));
     }
 
-    /// <summary>APPLY: the form's setup to the lobby; the mission and NO. DRIVERS are remembered as the host form's next co-op game's.</summary>
+    /// <summary>APPLY: the form's setup to the lobby; the mission, NO. DRIVERS and INVITE ONLY are remembered as the host form's next co-op game's.</summary>
     private void ApplyLobby()
     {
         if (Arenas.Count == 0) { Say("There are no story missions."); return; }
@@ -82,6 +82,8 @@ public sealed partial class MeleeScreen
         _setup.CoopArena = s.Mission;
         _setup.CoopHost = true;
         _setup.HostDrivers = s.MaxPlayers;
+        // the co-op type's rows (HostRows) as the lobby applied them: what the next co-op game hosted opens on
+        _setup.Host(HostType.Coop).Merge(new HostRows { Drivers = s.MaxPlayers, InviteOnly = s.InviteOnly });
         _setup.Save();
         SetupDone?.Invoke(s);
     }

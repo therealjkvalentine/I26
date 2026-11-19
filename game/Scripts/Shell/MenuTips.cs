@@ -18,6 +18,8 @@ public static class MenuTips
         ["Graphic Detail"] = "Graphic Detail: resolution, detail, the look and the texture packs.",
         ["Audio Control"] = "Audio Control: the music, effects and voice levels, the output and the bass shaker.",
         ["Controls"] = "Controls: force feedback, the mouse, and the key map.",
+        ["Game Setup"] = "Game Setup: the host form for this game's next round: the arena, the limit, the bots, the seats and the host's rules. Everyone is told; the round in play goes on as it is.",
+        ["Game Setup (in the lobby)"] = "A co-op game is changed in its lobby: Back to Lobby, then GAME SETUP there.",
         ["Load Bookmark"] = "Load Bookmark: go back to a saved point of the trip.",
         ["Save Bookmark"] = "Save Bookmark: save the trip as it is now.",
         ["Credits"] = "Credits: the original game's credits.",

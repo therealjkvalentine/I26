@@ -59,7 +59,7 @@ public partial class Main
             var (arenaKind, arenaTeams) = ServerOptions.KindOf(_opt.Arena);
             var o = new ServerOptions
             {
-                Install = _opt.Install!, Arena = _opt.Arena, Port = _opt.Port, Ai = _opt.Fill, TeamPlay = _opt.Teams, Bots = System.Math.Max(0, System.Math.Min(_opt.Bots, _opt.MaxPlayers - 1)), BotSkill = _opt.BotSkill, BotChoices = _opt.BotCars, PaintOfCar = I76.Game.Shell.CarPaints.Of,
+                Install = _opt.Install!, Arena = _opt.Arena, MapDir = _opt.MapDir, Port = _opt.Port, Ai = _opt.Fill, TeamPlay = _opt.Teams, Bots = System.Math.Max(0, System.Math.Min(_opt.Bots, _opt.MaxPlayers - 1)), BotSkill = _opt.BotSkill, BotChoices = _opt.BotCars, PaintOfCar = I76.Game.Shell.CarPaints.Of,
                 MaxScore = _opt.MaxScore, TimeLimit = _opt.TimeLimit,
                 Kind = _opt.MeleeKindGiven ? _opt.MeleeKind : arenaKind, Goal = _opt.MeleeGoal, GoalValue = _opt.GoalValue,
                 CtfTeams = _opt.CtfTeams > 2 ? _opt.CtfTeams : arenaTeams, Seed = unchecked((int)I76.Sim.Rng.RandSeed.Pick(_opt.FixedSeed)),
@@ -312,6 +312,23 @@ public partial class Main
         }
     }
 
+    // ---- the host's in-game GAME SETUP (docs/multiplayer.md "Changing the game for the next round") ----
+
+    /// <summary>The listen host (or a migration's successor) of a melee that carries on into rounds: its Esc pad has Game Setup.</summary>
+    private bool NetMeleeHost => _net?.Server is { CarriesOn: true };
+
+    /// <summary>The game as it is and its next round's setup, for the host form Game Setup opens; null once it is no such game.</summary>
+    private (ServerOptions Now, RoundSetup Next)? NetGameSetup() =>
+        _net?.Server is { } sv && sv.NextRoundSetup is { } next ? (sv.Options, next) : null;
+
+    /// <summary>Game Setup's APPLY: the next round's setup to the server in this process (it tells everyone); why not, in the log.</summary>
+    private void NetChangeGame(RoundSetup s)
+    {
+        string? no = _net?.Server is { } sv ? sv.SetNextRound(s) : "the server has gone";
+        GD.Print($"network: the host's change for the next round ({s}){(no is null ? "" : $" not made: {no}")}");
+        if (no is not null) _netHud?.Say($"Game Setup: {no}");
+    }
+
     private void CloseLobby()
     {
         _lobbyShell?.QueueFree();
@@ -426,6 +443,7 @@ public partial class Main
         _opt.AnetGame = n.AnetGame;
         _opt.AnetServers = n.ListOn is { } lo ? [lo] : [];
         _opt.Arena = l.Mission;
+        _opt.MapDir = n.Connect is null && n.AnetGame is null ? n.MapDir : null;
         // a co-op host form's game: the mission plays in co-op (the arena is its story mission)
         _opt.Coop = n.Connect is null && n.AnetGame is null && n.Coop ? l.Mission : null;
         _opt.CoopLobby = _opt.Coop is not null;

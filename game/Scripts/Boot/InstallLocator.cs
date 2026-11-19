@@ -130,6 +130,8 @@ public sealed class LaunchOptions
     public int Team { get; set; }
     /// <summary>The listen server's arena, port, AI fill, team play, score and time limits.</summary>
     public string Arena { get; set; } = "m05";
+    /// <summary>The listen server's arena is a map downloaded from another game, played from this folder (the host form's, #207); null: the install's own.</summary>
+    public string? MapDir { get; set; }
     public int Port { get; set; } = 7676;
     public int Fill { get; set; }
     /// <summary>--bots-ai N [--bot-skill easy|normal|hard]: the listen server's bots (players the server drives by the game's mode; docs/multiplayer.md "Bots") and their skill.</summary>

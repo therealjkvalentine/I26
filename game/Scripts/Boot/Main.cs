@@ -580,6 +580,7 @@ public partial class Main : Node3D
 			SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
 			CoopNextTitle = NetCoopNextTitle(), CoopLobby = NetCoopHost, CoopReplay = NetCoopHost, CoopWaitHost = end is not null && NetCoopFlow && !NetCoopHost,
 			SaveBookmark = CanSaveBookmark ? SaveCheckpointBookmark : null,
+			GameSetup = NetMeleeHost ? NetGameSetup : null, ChangeGame = NetChangeGame, GameSetupInLobby = NetCoopHost,
 			Closed = o => { layer.QueueFree(); _menu = null; MenuClosed(o); },
 		};
 		layer.AddChild(_menu);
