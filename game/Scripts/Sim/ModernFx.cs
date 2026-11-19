@@ -97,6 +97,7 @@ public partial class ModernFx : Node3D
     /// <summary>What <see cref="_Ready"/> makes (the flipbooks, the sparks', puffs' and smoke's materials), a null between the costly parts.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         _tracer = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/tracer.gdshader") };
         _quad = new QuadMesh { Size = Vector2.One };
         var shader = GD.Load<Shader>("res://Shaders/flipbook.gdshader");
@@ -185,6 +186,7 @@ public partial class ModernFx : Node3D
             ColorRamp = Ramp((0, new Color(0.9f, 0.85f, 0.78f, 0.55f)), (0.3f, new Color(0.62f, 0.6f, 0.57f, 0.4f)), (1, new Color(0.55f, 0.53f, 0.5f, 0))),
             ScaleCurve = Curve1((0, 0.5f), (1, 3f)),
         };
+        SetProcess(true);
     }
 
     private static GradientTexture1D Ramp(params (float At, Color C)[] stops) =>

@@ -62,6 +62,7 @@ public partial class Hud : CanvasLayer
     /// <summary>What <see cref="_Ready"/> makes (the crosshair, the 2D instruments, the target brackets, the binoculars), a null between them.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         // the crosshair under the 2D instrument panels, the target brackets over them, the handset over all
         if (Combat is not null && Origin is not null)
             AddChild(new ChaseCrosshair { Player = () => Car?.Invoke(), Combat = Combat, Origin = Origin, CarOf = CarOf, Pit = Pit, InCockpit = () => InCockpit?.Invoke() == true, Faithful = () => Faithful?.Invoke() == true, Name = "Crosshair" });
@@ -91,6 +92,7 @@ public partial class Hud : CanvasLayer
         _banner.AnchorLeft = 0; _banner.AnchorRight = 1; _banner.AnchorTop = _banner.AnchorBottom = 0.3f;
         _banner.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         AddChild(_banner);
+        SetProcess(true);
     }
 
     public override void _UnhandledInput(InputEvent e)

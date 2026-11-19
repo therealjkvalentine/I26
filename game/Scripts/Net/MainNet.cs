@@ -832,7 +832,8 @@ public partial class Main
         mirror.News += e => { if (e is GameOverEvent g) { _netOverAt ??= Time.GetTicksMsec() / 1000.0; _netNextRound = g.NextRoundSeconds; } };
         if (_car is null) { _status += "\nthe server's car for us is not in this install"; return; }
         Rebase(_car.GamePosition);
-        AddPlayerViews(world, setup.Combat);
+        // the HUD is made by its steps (staged): all of them now, as the network game's build is one go
+        foreach (var _ in AddPlayerViews(world, setup.Combat).ReadySteps()) { }
         // CTF's flags on the radar in their team's colours (class 0x5b blips)
         if (_pit is { } radarPit && accept.Kind == I76.Sim.Missions.MeleeKind.Ctf)
             radarPit.Blips = () => mirror.Flags.Where(f => f.State != 0).Select(f => (f.Pos, NetHud.TeamColour(f.Team)));
