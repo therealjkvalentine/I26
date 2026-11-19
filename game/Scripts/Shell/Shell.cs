@@ -982,6 +982,8 @@ public partial class Shell : CanvasLayer
         catch (Exception ex) when (_modal is not null && (_modal == ticked || _modal != modal)) { DropModal(ex); }
         catch (Exception ex) { Recover(ex, $"{ticked?.GetType().Name}"); }
         _keys.Clear();
+        // a launch in the tick reloaded the scene, which took the shell out of the tree at once: nothing left to show this frame
+        if (!IsInsideTree()) return;
         // the labels only over the screen that owns them: a pop-up or an overlay shows the sprites beneath
         if (Impact is not null) Impact.Visible = _modal is null && _overlay is null;
         if (_build is not null) _build.Visible = _screen is MainMenuScreen && _modal is null && _overlay is null;

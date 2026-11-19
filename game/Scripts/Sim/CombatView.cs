@@ -170,6 +170,7 @@ public partial class CombatView : Node3D
     /// <summary>What <see cref="_Ready"/> makes (the effects' materials and their layers), a null between the costly parts; all of it before the view is used.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         _tracer = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(1f, 0.85f, 0.4f), EmissionEnabled = true, Emission = new Color(1f, 0.7f, 0.2f) };
         _missile = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(1f, 0.55f, 0.2f) };
         _flash = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color(1f, 0.6f, 0.15f, 0.8f) };
@@ -226,6 +227,7 @@ public partial class CombatView : Node3D
         _sootSmoke = new RocketSmoke { Name = "BallSmoke", Origin = Origin, SceneLight = SceneLight, Tint = new System.Numerics.Vector3(0.38f, 0.36f, 0.34f) };
         AddChild(_sootSmoke);
         I76.Game.World.MissionBuilder.Trace("combat view: sootSmoke");
+        SetProcess(true);
         yield return null;
     }
 

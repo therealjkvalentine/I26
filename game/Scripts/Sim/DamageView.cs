@@ -56,6 +56,7 @@ public partial class DamageView : Node3D
     /// <summary>What <see cref="_Ready"/> makes (the skid marks, the smoke's layer, the damage smoke), a null between them.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         _chunk = new BoxMesh { Size = new Vector3(0.35f, 0.2f, 0.5f) };
         _chunkMat = new StandardMaterial3D { AlbedoColor = new Color(0.18f, 0.16f, 0.15f) };
         AddChild(new SkidMarks { Cars = Cars, Origin = Origin, Ground = Ground, Builder = Builder, SceneLight = SceneLight, Name = "SkidMarks" });
@@ -63,6 +64,7 @@ public partial class DamageView : Node3D
         AddChild(new SmokeLayer { Name = "SmokeLayer" });   // the modern look's smoke is drawn and composited there, capped
         yield return null;
         AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });
+        SetProcess(true);
     }
 
     private Vector3 G(System.Numerics.Vector3 p) => Coords.ToGodot(p - Origin());

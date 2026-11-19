@@ -78,6 +78,7 @@ public partial class Cockpit : Node
     /// <summary>What <see cref="_Ready"/> makes (the panels, the wheel's, arms' and radar's frames, the mirror), a null between the costly parts.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         // the panels' and the frames' upscales read and decoded on a worker (no engine resource made there): on the main thread the
         // decoding's wait was a frame of a third of a second under a playing briefing
         var fetched = I76.Game.Boot.Beside.Run(() => { Panels.Prefetch(); PrefetchArt(); });
@@ -114,6 +115,7 @@ public partial class Cockpit : Node
         _lookArt.Made((Textures.Hd, _faithful));
         Controls.LookingBack = () => IsInstanceValid(this) && LookingBack;
         Textures.Swapped += ArtSwapped;
+        SetProcess(true);
     }
 
     /// <summary>

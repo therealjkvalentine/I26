@@ -111,6 +111,7 @@ public partial class DropShadows : Node3D
     /// <summary>What <see cref="_Ready"/> makes (the layers' materials), a null after each; all of it before the node is processed.</summary>
     public IEnumerable<object?> ReadySteps()
     {
+        SetProcess(false);   // in the tree while its steps run, frames drawn between them: not processed until all of it is made
         _mat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/drop_shadow_1997.gdshader") };
         PrepareShaders();
         yield return null;
@@ -135,6 +136,7 @@ public partial class DropShadows : Node3D
         _far.RenderPriority = -100;
         _soft0 = _softMats[0];
         SetStrength(Strength);
+        SetProcess(true);
     }
 
     private float GroundY(Vector3 godot)
