@@ -29,6 +29,9 @@ namespace I76.Game.Shell;
 ///
 /// The port's own changes to a background (ShellFrame.Edits: the host form's rules box, Play Options' copied check boxes)
 /// are made to the upscale too, the same patches at its scale, since the frame is see-through over them.
+///
+/// The forms' printed scroll triangles and ⊟ ⊞ boxes (FormGlyphs) are laid over with paper in the upscale and drawn again
+/// over it at the window's resolution, where the art has them (the base game's records shown with their own upscale).
 /// </summary>
 public partial class ShellBackdrop : Control
 {
@@ -113,17 +116,48 @@ public partial class ShellBackdrop : Control
     /// Shows the record's upscale (or the one it borrows) with the frame's edits to its background made to it (<paramref name="version"/>
     /// changes with them), or nothing (0, or none there).
     /// </summary>
-    public void Show(int record, int native = 0, IReadOnlyList<ShellFrame.BackgroundEdit>? edits = null, int version = 0)
+    public void Show(int record, int native = 0, IReadOnlyList<ShellFrame.BackgroundEdit>? edits = null, int version = 0, ShellFrame? frame = null)
     {
+        int shown = record;
         record = Source(record, native);
         var e = _entries.GetValueOrDefault(record);
-        if (version != _editsVersion) { _editsVersion = version; _editsKey = Key(edits); }
+        if (version != _editsVersion || shown != _glyphsFor)
+        {
+            _editsVersion = version;
+            _glyphsFor = shown;
+            // the forms' glyphs, only over the record's own upscale (not a borrowed one, nor the Nitro Pack's own art)
+            _glyphs = frame is not null && record == shown && record > 0 ? Glyphs(frame, record, edits ?? []) : [];
+            edits = _glyphs.Count == 0 ? edits : [.. edits ?? [], .. _glyphs.Where(g => g.Patch is not null).Select(g => g.Patch!)];
+            _edits = edits;
+            _editsKey = Key(edits);
+            _drawn.Clear();
+            QueueRedraw();
+        }
+        else edits = _edits;
         long key = e is null ? 0 : _editsKey;
         if (e == _entry && key == _shownKey) return;
         _entry = e;
         _shownKey = key;
         _texture = e is null ? null : Load(record, e, key, edits);
         QueueRedraw();
+    }
+
+    private int _glyphsFor = -1;
+    private IReadOnlyList<ShellFrame.BackgroundEdit>? _edits;
+    private List<(FormGlyphs.Glyph Glyph, Color Ink, Color Fill, ShellFrame.BackgroundEdit? Patch)> _glyphs = [];
+    private readonly Dictionary<FormGlyphs.Glyph, (ImageTexture Texture, Rect2I At)> _drawn = [];
+    private Vector2 _drawnFor;
+
+    /// <summary>
+    /// The record's glyphs as the port's edits leave them, each with the art's ink and fill and its patch of paper (those the art
+    /// has there; one with no plain paper near enough is drawn over its old self without).
+    /// </summary>
+    private static List<(FormGlyphs.Glyph, Color, Color, ShellFrame.BackgroundEdit?)> Glyphs(ShellFrame frame, int record, IReadOnlyList<ShellFrame.BackgroundEdit> edits)
+    {
+        var all = FormGlyphs.Follow(FormGlyphs.ForRecord(record), edits);
+        var pal = frame.Palette;
+        var (there, ink, fill) = FormGlyphs.Inks(frame.CleanAt, pal, all);
+        return [.. there.Select(g => (g, FormGlyphs.Colour(pal, ink), FormGlyphs.Colour(pal, fill), FormGlyphs.Patch(frame.CleanAt, pal, ShellFrame.W, ShellFrame.H, g, all)))];
     }
 
     /// <summary>A key for the edits (0 for none), to keep an edited upscale apart from the plain one.</summary>
@@ -229,5 +263,16 @@ public partial class ShellBackdrop : Control
         var t0 = Tex(dest.Position);
         var t1 = Tex(dest.End);
         DrawTextureRectRegion(_texture, dest, new Rect2(t0, t1 - t0));
+        // the forms' glyphs over their patches of paper
+        if (size != _drawnFor) { _drawn.Clear(); _drawnFor = size; }
+        foreach (var (g, ink, fill, _) in _glyphs)
+        {
+            if (!_drawn.TryGetValue(g, out var d))
+            {
+                var (at, rgba) = FormGlyphs.Raster(g, s, off, ink, fill);
+                _drawn[g] = d = (ImageTexture.CreateFromImage(Image.CreateFromData(at.Size.X, at.Size.Y, false, Image.Format.Rgba8, rgba)), at);
+            }
+            DrawTextureRect(d.Texture, new Rect2(d.At.Position, d.At.Size), false);
+        }
     }
 }

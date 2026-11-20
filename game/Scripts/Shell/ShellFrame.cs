@@ -162,6 +162,9 @@ public sealed class ShellFrame
         Restore(dx, dy, w, h);
     }
 
+    /// <summary>The background's palette index at a pixel, the port's edits made (−1 outside the frame).</summary>
+    public int CleanAt(int x, int y) => x is >= 0 and < W && y is >= 0 and < H ? _clean[y * W + x] : -1;
+
     /// <summary>The palette index shown at a pixel now.</summary>
     public byte At(int x, int y) => x is >= 0 and < W && y is >= 0 and < H ? _work[y * W + x] : (byte)0;
 
@@ -181,8 +184,20 @@ public sealed class ShellFrame
     /// <summary>The sprite with its own header offset added (the garage's parts sit by it).</summary>
     public void BlitAt(Sprite? s, int x, int y) { if (s is not null) Blit(s, x + s.X0, y + s.Y0); }
 
+    /// <summary>
+    /// A damaged part's sprite as <see cref="BlitAt(Sprite?, int, int)"/>, with the same part undamaged (<paramref name="undamaged"/>, placed
+    /// the same way) noted for the modern look, which draws that one's upscale and the stamp over it (DamageStamp). The pixels are the damaged sprite's.
+    /// </summary>
+    public void BlitAt(Sprite? s, int x, int y, Sprite? undamaged)
+    {
+        if (s is null) return;
+        Blit(s, x + s.X0, y + s.Y0);
+        if (undamaged is not null && !ReferenceEquals(undamaged, s) && _placed.Count > 0 && _placed[^1].Sprite == s)
+            _placed[^1].Undamaged = (undamaged, x + undamaged.X0, y + undamaged.Y0);
+    }
+
     /// <summary>A draw with scale (−1, −1), the rear weapons: source pixel (sx, sy), header offset included, lands at (ax − sx, ay − sy).</summary>
-    public void BlitRotated(Sprite? s, int ax, int ay)
+    public void BlitRotated(Sprite? s, int ax, int ay, Sprite? undamaged = null)
     {
         if (s is null) return;
         // the box the turned sprite covers: its last pixel lands at its top-left
@@ -197,6 +212,8 @@ public sealed class ShellFrame
                 if (hd is not null) Hide(yy * W + xx, hd);
             }
         if (hd is { Live: 0 }) Drop(hd);
+        else if (hd is not null && undamaged is not null && !ReferenceEquals(undamaged, s))
+            hd.Undamaged = (undamaged, ax - undamaged.X0 - (undamaged.Width - 1), ay - undamaged.Y0 - (undamaged.Height - 1));
         _dirty = true;
     }
 
@@ -206,6 +223,8 @@ public sealed class ShellFrame
     public sealed record PlacedSprite(Sprite Sprite, int X, int Y, bool Turned)
     {
         internal int Id;
+        /// <summary>A damaged part's: the same part undamaged and the box it would cover (BlitAt with it), else null.</summary>
+        public (Sprite Sprite, int X, int Y)? Undamaged { get; internal set; }
         /// <summary>How many of the frame's pixels are still the sprite's own, hidden under its upscale.</summary>
         internal int Live;
     }

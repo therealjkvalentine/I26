@@ -505,23 +505,25 @@ public sealed class GarageScreen : GarageBase, IChassisForm
     private void Blueprint(int type, int counter, PartNode? n)
     {
         int ord = n is null ? -1 : CodeNumber(n.Part) - 1, dmg = n is null ? 0 : Damage(n);
+        // the sprite for the damage, with the same part undamaged noted (the modern look stamps that one: DamageStamp)
+        void Part(int bank, int index, int x, int y) => Frame.BlitAt(Shell.Db.Bank(bank)[index], x, y, dmg > 0 ? Shell.Db.Bank(bank)[index - dmg] : null);
         switch (type)
         {
-            case 2: Frame.Restore(325, 112, 64, 92); if (ord is >= 0 and <= 3) Frame.BlitAt(Shell.Db.Bank(0x25 + ord)[dmg], 325, 112); break;
-            case 3: Frame.Restore(307, 298, 100, 80); if (ord is >= 0 and <= 3) Frame.BlitAt(Shell.Db.Bank(0x29 + ord)[dmg], 307, 298); break;
-            case 4: Frame.Restore(283, 174, 40, 24); if (ord is >= 0 and <= 3) Frame.BlitAt(Shell.Db.Bank(0x2d + ord)[dmg], 283, 174); break;
+            case 2: Frame.Restore(325, 112, 64, 92); if (ord is >= 0 and <= 3) Part(0x25 + ord, dmg, 325, 112); break;
+            case 3: Frame.Restore(307, 298, 100, 80); if (ord is >= 0 and <= 3) Part(0x29 + ord, dmg, 307, 298); break;
+            case 4: Frame.Restore(283, 174, 40, 24); if (ord is >= 0 and <= 3) Part(0x2d + ord, dmg, 283, 174); break;
             case 5 when counter < 4:
                 var (tx, ty) = TyreAt[counter];
                 Frame.Restore(tx, ty, 36, 52);
-                if (ord is >= 0 and <= 3) Frame.BlitAt(Shell.Db.Bank(0x31 + ord)[4 * counter + dmg], tx, ty);
+                if (ord is >= 0 and <= 3) Part(0x31 + ord, 4 * counter + dmg, tx, ty);
                 break;
             case 8 when counter < 2:
                 Frame.Restore(DropperAt[counter].X, DropperAt[counter].Y, 52, 22);
-                if (ord is >= 0 and <= 6) Frame.BlitAt(Shell.Db.Bank(0x39)[4 * ord + dmg], DropperAt[counter].X, DropperAt[counter].Y);
+                if (ord is >= 0 and <= 6) Part(0x39, 4 * ord + dmg, DropperAt[counter].X, DropperAt[counter].Y);
                 break;
             case 0xc when counter < 3:
                 Frame.Restore(SpecialAt[counter].X, SpecialAt[counter].Y, 40, 24);
-                if (ord is >= 0 and <= 8) Frame.BlitAt(Shell.Db.Bank(0x3b)[4 * ord + dmg], SpecialAt[counter].X, SpecialAt[counter].Y);
+                if (ord is >= 0 and <= 8) Part(0x3b, 4 * ord + dmg, SpecialAt[counter].X, SpecialAt[counter].Y);
                 break;
         }
     }
@@ -536,8 +538,10 @@ public sealed class GarageScreen : GarageBase, IChassisForm
         int bank = n.Part.Code[..3] switch { "slg" => 0x35, "spp" => 0x36, "flm" => 0x37, "mor" => 0x38, _ => 0 };
         int num = CodeNumber(n.Part);
         if (bank == 0 || num < 1) return;
-        var s = Shell.Db.Bank(bank)[4 * (num - 1) + Damage(n)];
-        if (group == 2) Frame.BlitRotated(s, x + 16, y + 51); else Frame.BlitAt(s, x, y);
+        int dmg = Damage(n);
+        var s = Shell.Db.Bank(bank)[4 * (num - 1) + dmg];
+        var undamaged = dmg > 0 ? Shell.Db.Bank(bank)[4 * (num - 1)] : null;
+        if (group == 2) Frame.BlitRotated(s, x + 16, y + 51, undamaged); else Frame.BlitAt(s, x, y, undamaged);
     }
 
     /// <summary>Up to ten entries from the scroll, at (451, 67+i·17); the gauge from the visible rows (bank 0x3f at (618, 48)).</summary>
