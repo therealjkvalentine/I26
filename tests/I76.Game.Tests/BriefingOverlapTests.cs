@@ -120,9 +120,9 @@ public class BriefingOverlapTests
     [InlineData("0", 0.0)]
     [InlineData("-1", 0.0)]
     [InlineData("60", 10.0)]
-    [InlineData("long", 3.0)]
-    [InlineData("nan", 3.0)]
-    [InlineData(null, 3.0)]
+    [InlineData("long", 1.5)]
+    [InlineData("nan", 1.5)]
+    [InlineData(null, 1.5)]
     public void TheHoldReadsSeconds(string? value, double expected) => Assert.Equal(expected, BriefingOverlap.ParseHold(value));
 
     /// <summary>
