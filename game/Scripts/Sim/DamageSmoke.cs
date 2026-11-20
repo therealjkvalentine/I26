@@ -55,7 +55,9 @@ public partial class DamageSmoke : Node3D
     // modern look: procedural billowing smoke, the wreck's family (damage_smoke_modern.gdshader); its own pool and MultiMesh
     private static readonly float RateMul = 0.2f * (float.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_RATE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float rs) ? rs : 1f);   // of the original rate; I76_SMOKE_RATE=k scales it (captures of a thick plume)
     private const float SizeBoost = 1.45f;
-    private const int CapM = 3072;
+    /// <summary>The modern pool's base size, used up to SmokeLinger's share of it (the puffs live longer, so more are in the air); made for the longest linger.</summary>
+    private const int CapBase = 3072;
+    private static readonly int CapM = SmokeLinger.PoolMax(CapBase);
     private const float StreamSpacing = 0.32f;   // metres driven between puffs (0.18 at black); widens as the pool fills
     private readonly Dictionary<CarNode, System.Numerics.Vector3> _lastAt = [];
     private int _liveM;
@@ -299,7 +301,7 @@ public partial class DamageSmoke : Node3D
             var was0 = _lastAt.TryGetValue(car, out var w0) ? w0 : here;
             float driven = (here - was0).Length();
             _lastAt[car] = here;
-            float spacing = Mathf.Lerp(StreamSpacing, StreamSpacing * 0.55f, Mathf.Clamp(L / 2f, 0f, 1f)) * (1f + 3f * Math.Max(0f, _liveM / (float)CapM - 0.4f));
+            float spacing = Mathf.Lerp(StreamSpacing, StreamSpacing * 0.55f, Mathf.Clamp(L / 2f, 0f, 1f)) * (1f + 3f * Math.Max(0f, _liveM / (float)SmokeLinger.Pool(CapBase) - 0.4f));
             st.Carry += Math.Max(dt * rate * Math.Max(clump, 0.05f), Math.Min(driven, 60f) / spacing * Math.Max(clump, 0.7f));
             int n = Math.Min((int)st.Carry, 12); st.Carry -= (int)st.Carry;
             _lvl[car] = st;
@@ -426,7 +428,7 @@ public partial class DamageSmoke : Node3D
         float sizeMul = level < 1 ? Mathf.Lerp(0.7f, 1f, level) : Mathf.Lerp(1f, 1.3f, level - 1);
         sizeMul *= SizeBoost * (1f + 0.5f * (lift - 1f) / 1.6f);
         ref var p = ref _mp[_mnext];
-        _mnext = (_mnext + 1) % CapM;
+        _mnext = (_mnext + 1) % SmokeLinger.Pool(CapBase);   // the oldest recycled once the linger's share of the pool is full
         // only a little of the car's velocity: the rest it leaves behind. Spawned along the frame's travel
         p = new MPuff
         {
@@ -435,7 +437,8 @@ public partial class DamageSmoke : Node3D
             Life = 2f + 2f * r1 * r4 + 1.2f * r2 * (level / 2f), End = (1.6f + 2.6f * r2 * r2 + 0.6f * r4) * sizeMul, Dens = dens, Lift = lift,
             Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3,
         };
-        p.Life = Math.Min(p.Life, 4f);
+        // [port] smoke_linger: the whole life longer, so it swells and erodes away over the longer time
+        p.Life = Math.Min(p.Life, 4f) * SmokeLinger.Factor;
     }
 
     private void HideBillows() { foreach (var m in _slabMm) m.VisibleInstanceCount = 0; }

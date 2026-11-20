@@ -30,7 +30,8 @@ public partial class SmokeLayer : Node3D
     /// <summary>The rear-view mirror's camera, which the layer's compositor does not run on (set by Cockpit).</summary>
     public static Camera3D? MirrorCamera { get; set; }
 
-    private const int Capacity = 12000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12;
+    // room for every smoke's pool at the longest [port] smoke_linger (SmokeLinger: the pools grow with it)
+    private const int Capacity = 30000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12;
     private static readonly int Scale = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_SCALE"), out int sc) && sc >= 1 ? sc : 2;
     private static bool _ready, _failed, _enabled;
     private static readonly object Lock = new();
@@ -397,6 +398,7 @@ public partial class SmokeLayer : Node3D
         bool reversed = SmokeDepth.NearerIsLarger(proj);
         if (reversed != _reversed) { _reversed = reversed; GD.Print($"smoke layer: scene depth {(reversed ? "reversed" : "forward")}, {buffers.GetMsaa3D()}, {full.X}x{full.Y}"); }
         Ubo[88] = 1f / size.X; Ubo[89] = 1f / size.Y; Ubo[90] = samples; Ubo[91] = reversed ? 1f : -1f;
+        if (Stats) Measure(count, camT, proj, full);
         System.Buffer.BlockCopy(Ubo, 0, _uboBytes, 0, UboFloats * 4);
         rd.BufferUpdate(_ubo, 0, UboFloats * 4, _uboBytes);
         if (count > 0)
@@ -431,6 +433,37 @@ public partial class SmokeLayer : Node3D
         }
         rd.DrawListEnd();
         _cleared = count == 0;
+    }
+
+    /// <summary>
+    /// I76_SMOKE_STATS=1: every 2 s the log's "smoke stats" line, the puffs the layer drew a frame (mean, most) and their overdraw (each
+    /// puff's quad on the screen, unclipped and before the depth test, summed over the screen's area), for the cost of [port] smoke_linger.
+    /// </summary>
+    private static readonly bool Stats = System.Environment.GetEnvironmentVariable("I76_SMOKE_STATS") == "1";
+    private static long _statFrames, _statPuffs;
+    private static int _statMost;
+    private static double _statCover;
+    private static ulong _statFrom;
+
+    private static void Measure(int count, Transform3D camT, Projection proj, Vector2I full)
+    {
+        var fwd = -camT.Basis.Z;
+        float k = MathF.Abs(proj.Y.Y) * 0.5f * full.Y, screen = (float)full.X * full.Y;
+        double cover = 0;
+        for (int j = 0; j < count; j++)
+        {
+            int q = j * Floats;
+            float d = fwd.Dot(new Vector3(_flat[q], _flat[q + 1], _flat[q + 2]) - camT.Origin);
+            if (d < 0.05f) continue;
+            float side = _flat[q + 3] * k / d;
+            cover += Math.Min(side * side, screen);
+        }
+        _statFrames++; _statPuffs += count; _statMost = Math.Max(_statMost, count); _statCover += cover / screen;
+        ulong now = Time.GetTicksMsec();
+        if (_statFrom == 0) _statFrom = now;
+        if (now - _statFrom < 2000) return;
+        GD.Print($"smoke stats: {_statFrames} frames, puffs mean {_statPuffs / (double)_statFrames:0} most {_statMost}, overdraw mean {_statCover / _statFrames:0.00}");
+        (_statFrames, _statPuffs, _statMost, _statCover, _statFrom) = (0, 0, 0, 0, now);
     }
 
     private static readonly byte[] _uboBytes = new byte[UboFloats * 4];
