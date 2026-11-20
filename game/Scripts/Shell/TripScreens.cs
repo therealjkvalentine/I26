@@ -87,7 +87,8 @@ public sealed class NoRepairScreen : TripScreen
 /// 0xc00d CHOOSE YOUR VEHICLE, before T17: record 27, a
 /// rendered garage; hovering a car draws its highlight from bank 0x40 and
 /// leaving puts the picture back. A click launches with that car as its file has it,
-/// weapons and all.
+/// weapons and all. Each highlight is a rectangle of record 27 with a glow painted round its vehicle; over an upscaled
+/// background the modern look draws the glow alone (HaloSprite), never an upscale of the rectangle.
 /// </summary>
 public sealed class ChooseVehicleScreen : TripScreen
 {

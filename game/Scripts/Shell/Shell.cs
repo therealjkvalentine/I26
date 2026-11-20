@@ -427,7 +427,7 @@ public partial class Shell : CanvasLayer
         ShellGlyphs.Load(Install.FindFile("Lee_____.ttf"));
         Frame.HdFonts = f => ShellGlyphs.Face(f.Record) is not null;
         // the popups' sprites at the window's resolution, over the backgrounds (the frame hides their pixels)
-        AddChild(_sprites = new ShellSprites { Frame = Frame, Nitro = Install.IsNitro, Name = "Sprites" });
+        AddChild(_sprites = new ShellSprites { Frame = Frame, Nitro = Install.IsNitro, Upscaled = () => Upscaled, Name = "Sprites" });
         MoveChild(_backdrop, 1);
         MoveChild(_sprites, 2);
         // the main menu's Impact labels at the window's resolution (the modern look; 1997 keeps the sprites)
