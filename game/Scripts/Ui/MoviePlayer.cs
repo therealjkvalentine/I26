@@ -90,16 +90,29 @@ public partial class MoviePlayer : CanvasLayer
         : _dueSeconds * 1000 - System.Diagnostics.Stopwatch.GetElapsedTime(_dueAt).TotalMilliseconds;
 
     private Smacker _movie = null!;
+    /// <summary>
+    /// An upscaled replacement decoded on this player's own thread ([port] movie_decode=thread, the native library loaded): the
+    /// second source of frames for the same picture, clock, sound and watch as the Smacker's, in place of the engine's player.
+    /// </summary>
+    private OgvDecoder? _ogv;
+    /// <summary>A movie of either source is open: the picture's size, a frame's time and the frame count (an .ogv's from its last page; set at its end when that was unknown).</summary>
+    private bool _source;
+    private int _w, _h;
+    private double _fd;
+    private volatile int _fc;
     private Thread? _thread;
     private volatile bool _stop;
     private volatile bool _decoded;
-    private readonly ConcurrentQueue<(int Index, byte[] Rgba, byte[]? Pal)> _frames = new();
+    /// <summary>Frames decoded ahead: the picture's RGBA (or the Smacker's indices and palette for the deband pass; an .ogv's packed 4:2:0 planes).</summary>
+    private readonly MovieRing<(byte[] Rgba, byte[]? Pal)> _frames = new();
     private readonly ConcurrentQueue<Vector2[]> _sound = new();
     /// <summary>
     /// Frames decoded ahead of the picture, their sound with them: 20, or 60 (4 s at 15 a second) for a briefing over a
     /// mission's load (<see cref="Loading"/>), whose main-thread steps can hold the game for a second or more (#157).
+    /// An .ogv's by time and memory (MovieAhead: 2 s over a load, 31 frames, 123 MB at 1920x1440; 0.75 s otherwise, 12 frames, 47 MB).
     /// </summary>
-    private int Ahead => Loading is null ? 20 : 60;
+    private int Ahead => _ogvAhead > 0 ? _ogvAhead : Loading is null ? 20 : 60;
+    private int _ogvAhead;
     /// <summary>The sound's buffer (seconds): over a load it carries the sound through a hitch of the main thread that feeds it.</summary>
     private float SoundBuffer => Loading is null ? 0.5f : 4.5f;
     private MovieAudioClock? _audioClock;
@@ -129,7 +142,11 @@ public partial class MoviePlayer : CanvasLayer
         Layer = Skippable ? 100 : 30;   // an unskippable movie is under the menu a player's Esc opens
         ProcessMode = ProcessModeEnum.Always;
         _gate.HeldAtStart(HeldSkipInputs());
-        if (!Faithful && Replacement(Path) is { } ogv && PlayReplacement(ogv)) { AddTag(ReplacementPicture()); return; }
+        if (!Faithful && Replacement(Path) is { } ogv)
+        {
+            if (DecodeOgvHere(ogv)) { AddTag(ReplacementPicture(new Vector2(_w, _h))); return; }
+            if (PlayReplacement(ogv)) { AddTag(ReplacementPicture(_video?.GetVideoTexture()?.GetSize() ?? Vector2.Zero)); return; }
+        }
         try { _movie = Smacker.Open(Path); }
         catch (System.Exception ex)
         {
@@ -137,6 +154,7 @@ public partial class MoviePlayer : CanvasLayer
             CallDeferred(MethodName.Finish);
             return;
         }
+        (_source, _w, _h, _fd, _fc) = (true, _movie.Width, _movie.Height, _movie.FrameDuration, _movie.FrameCount);
         _clock = new MovieClock(_movie.FrameDuration);
         AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
         _deband = !Faithful && System.Environment.GetEnvironmentVariable("I76_MOVIE_DEBAND") == "1";   // off by default (the user's call); =1 tries it
@@ -223,7 +241,7 @@ public partial class MoviePlayer : CanvasLayer
                     var rgbaPal = new byte[1024 + _movie.BlockTypes.Length];   // the palette, then the block types
                     for (int i = 0; i < 256; i++) { rgbaPal[i * 4] = pal[i * 3]; rgbaPal[i * 4 + 1] = pal[i * 3 + 1]; rgbaPal[i * 4 + 2] = pal[i * 3 + 2]; rgbaPal[i * 4 + 3] = 255; }
                     _movie.BlockTypes.CopyTo(rgbaPal, 1024);
-                    _frames.Enqueue((index, (byte[])px.Clone(), rgbaPal));
+                    _frames.Add(index, ((byte[])px.Clone(), rgbaPal));
                     _produced++;
                     continue;
                 }
@@ -233,7 +251,7 @@ public partial class MoviePlayer : CanvasLayer
                     int c = px[i] * 3;
                     rgba[o] = pal[c]; rgba[o + 1] = pal[c + 1]; rgba[o + 2] = pal[c + 2]; rgba[o + 3] = 255;
                 }
-                _frames.Enqueue((index, rgba, null));
+                _frames.Add(index, (rgba, null));
                 _produced++;
             }
         }
@@ -268,7 +286,7 @@ public partial class MoviePlayer : CanvasLayer
         if (_held) return;
         if (SkipAfterMs >= 0 && Skippable && !_done && !_skipWanted && !IsLoading && Time.GetTicksMsec() - _upAt >= (ulong)SkipAfterMs) { if (Skip() || _held) return; }
         if (_video is not null) { ReplacementStep(); return; }
-        if (_done || _movie is null) return;
+        if (_done || !_source) return;
         // the clock starts with the first frame, so a slow first decode does not eat into the picture
         // (a decoder that died or never delivers ends the movie instead: nothing else would ever start the clock, and the
         // black under the picture would stay over the paused game, MovieWatch)
@@ -306,28 +324,37 @@ public partial class MoviePlayer : CanvasLayer
         if (_endAfter >= 0 && _endAfter-- == 0) { I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: I76_MOVIE_END runs it out"); RunOut(); return; }
         // capture hook: I76_MOVIE_HOLD=N freezes the picture on frame N, so shots of different runs compare
         if (_hold >= 0 && _frames.IsEmpty && !_decoded) _clock.Set(_clock.Seconds - delta);   // (a capture runs faster than real time: wait for the decoder)
-        if (_hold >= 0 && _clock.Seconds >= _hold * _movie.FrameDuration) _clock.Set(_hold * _movie.FrameDuration);
+        if (_hold >= 0 && _clock.Seconds >= _hold * _fd) _clock.Set(_hold * _fd);
         PushSound();
         int want = _clock.Frame;
-        Due((want + 1) * _movie.FrameDuration - _clock.Seconds);
+        Due((want + 1) * _fd - _clock.Seconds);
+        if (_ogv is not null) Publish(_clock.Seconds);
         (int Index, byte[] Rgba, byte[]? Pal)? show = null;
-        int taken = 0;
-        while (_frames.TryPeek(out var f) && f.Index <= want) { _frames.TryDequeue(out f); show = f; taken++; }
-        if (taken > 1) _dropped += taken - 1;   // frames whose turn passed between two of the game's frames: never shown
-        double wallS = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
-        if (show is not null)
+        if (_frames.TakeDue(want, out int shownIndex, out var taken, out int passed, _ogv is null ? null : Release))
         {
-            // the picture's pace: a frame shown more than two of the movie's frames after the one before it is late
-            if (_lastShown > 0 && wallS - _lastShown > 2 * _movie.FrameDuration) { _late++; _worstShowGap = Math.Max(_worstShowGap, wallS - _lastShown); }
-            _lastShown = wallS;
-            _shown++;
+            show = (shownIndex, taken.Rgba, taken.Pal);
+            _dropped += passed;   // frames whose turn passed between two of the game's frames: never shown
         }
-        _pace ??= new MoviePace(_movie.FrameDuration);
+        double wallS = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+        if (show is not null) PictureUp(wallS, show.Value.Index);
+        _pace ??= new MoviePace(_fd);
         _pace.Frame(wallS, show?.Index ?? -1);
         PaceRow(wallS, show?.Index ?? -1);
-        if (show is { } s)
+        if (show is { } so && _ogv is not null)
         {
-            if (s.Index == _movie.FrameCount - 1) TellSync();
+            // the packed 4:2:0 planes in one R8 image: the shader makes the colour; the buffer back to the decoder once copied
+            var (pw, ph) = _ogv.Packed;
+            var img = Image.CreateFromData(pw, ph, false, Image.Format.R8, so.Rgba);
+            Release((so.Rgba, null));
+            if (_tex is null) { _tex = ImageTexture.CreateFromImage(img); _view.Texture = _tex; }
+            else _tex.Update(img);
+            img.Dispose();
+            ShotAt(_clock.Seconds);
+        }
+        else if (show is { } s1)
+        {
+            var s = s1;
+            if (s.Index == _fc - 1) TellSync();
             if (s.Pal is not null)
             {
                 var idx = Image.CreateFromData(_movie.Width, _movie.Height, false, Image.Format.R8, s.Rgba);
@@ -379,7 +406,32 @@ public partial class MoviePlayer : CanvasLayer
     private static string Signed(double v, string format) => (v < 0 ? "-" : "+") + Math.Abs(v).ToString(format, System.Globalization.CultureInfo.InvariantCulture);
 
     private MovieStep Watch(int want) =>
-        _watch.Step(System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency, _produced, _decoded, !_frames.IsEmpty, _started, want, _movie.FrameCount);
+        _watch.Step(System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency, _produced, _decoded, !_frames.IsEmpty, _started, want, _fc);
+
+    /// <summary>
+    /// A new movie frame went up at <paramref name="wall"/> seconds: the picture's pace (a frame shown more than two of the movie's
+    /// frames after the one before it is late) and how far it is behind the wall clock since the first frame (the same on the
+    /// engine's player, ReplacementStep).
+    /// </summary>
+    private void PictureUp(double wall, int index)
+    {
+        if (_lastShown > 0 && wall - _lastShown > 2 * _fd) _late++;
+        if (_lastShown > 0) _worstShowGap = Math.Max(_worstShowGap, wall - _lastShown);
+        if (_shown == 0)
+        {
+            _firstShownWall = wall - index * _fd;
+            if (I76.Game.Boot.Main.AudioRecSeconds() is { } rec) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: first picture up ({Source()}), the recording at {rec:0.000} s");
+        }
+        _lastShown = wall;
+        _lastShownIndex = index;
+        _shown++;
+    }
+
+    private double _firstShownWall;
+    private int _lastShownIndex = -1;
+
+    /// <summary>How far the picture up is behind the wall clock from the first frame (ms): what a stall cost it and never made up.</summary>
+    private double BehindMs() => _shown == 0 ? 0 : (Wall() - _firstShownWall - _lastShownIndex * _fd) * 1000;
 
     private void PushSound()
     {
@@ -502,7 +554,7 @@ public partial class MoviePlayer : CanvasLayer
         _dueSeconds = double.NaN;
         _tag?.ShowNow();   // (the rest of the load follows on the main thread: no frames for a fade)
         _stop = true;   // (the decoder is done with: only the frame shown stays)
-        if (_movie is not null && _video is null) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
+        if (_source) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: held at frame {_clock.Frame}{Sync()}");
         _out = null;
         GetNodeOrNull<AudioStreamPlayer>("Sound")?.Stop();
         _hifi?.Stop();
@@ -613,11 +665,14 @@ public partial class MoviePlayer : CanvasLayer
         _stop = true;
         if (_hifi is not null && !_hifiTold && _started)
             I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: HiFi Audio: ended at clock {_clock.Seconds:0.000} s (frame {_clock.Frame} of {_movie.FrameCount}), the track heard at {(Heard() is { } h ? $"{h:0.000} s" : "its end")}");
-        if (_movie is not null && _video is null)
+        if (_source || _video is not null)
         {
             long skips = _out is null ? 0 : _out.GetSkips() - _skipsAtStart;
             Last = (_shown, _dropped, _late, _worstShowGap * 1000, skips);
-            I76.Game.Boot.RunLog.Print($"movie: {System.IO.Path.GetFileName(Path)} over: {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), audio underruns {skips} mixes{Sync()}");
+            if (I76.Game.Boot.Main.AudioRecSeconds() is { } rec) I76.Game.Boot.RunLog.Print($"movie {System.IO.Path.GetFileName(Path)}: over, the recording at {rec:0.000} s");
+            // (the engine's player: frames shown are its picture's changes of frame, dropped those it went past; its sound is its own)
+            I76.Game.Boot.RunLog.Print($"movie: {System.IO.Path.GetFileName(Path)} over ({Source()}): {_shown} frames shown, {_dropped} dropped, {_late} late (worst gap {_worstShowGap * 1000:0} ms), "
+                + $"behind the wall clock {BehindMs():0} ms at frame {_lastShownIndex}, audio underruns {skips} mixes{Sync()}{(_ogv is not null ? $", {_uncopied} decoded past uncopied" : "")}");
             if (_pace is not null)
             {
                 var (late, lateBy) = _pace.Late();
@@ -630,7 +685,7 @@ public partial class MoviePlayer : CanvasLayer
             I76.Game.Boot.RunLog.Print($"movie: replacement over: {_video.GetStreamLength():0.000} s of stream in {Wall() - _videoStart:0.000} s of wall clock, {_lateFrames} late frames (worst {_worstGap * 1000:0} ms)");
         _video?.Stop();
         // a decoder stuck inside a frame is left to itself (a background thread) rather than holding the game
-        if (_thread is null || _thread.Join(1000)) _movie?.Dispose();
+        if (_thread is null || _thread.Join(1000)) { _movie?.Dispose(); _ogv?.Dispose(); _frames.Clear(); }
         // gone first, whatever follows: a failure in what comes next must not leave the movie's black over the game
         QueueFree();
         try { Finished?.Invoke(); }
@@ -642,8 +697,193 @@ public partial class MoviePlayer : CanvasLayer
         _dueSeconds = double.NaN;
         ClosePace();
         _stop = true;
-        _thread?.Join(1000);
+        if ((_thread is null || _thread.Join(1000)) && !_done) { _ogv?.Dispose(); _frames.Clear(); }
     }
+
+    /// <summary>What decodes the picture, for the log: the Smacker's thread, the .ogv's own thread or the engine's player.</summary>
+    private string Source() => _video is not null ? "the engine's player" : _ogv is not null ? "the .ogv on its own thread" : "the Smacker on its own thread";
+
+    // ---- an upscaled replacement decoded here ([port] movie_decode=thread, the default): the native library (native/ogv, i26ogv)
+    // decodes it on this player's thread as the Smacker is, the picture ahead by time (MovieAhead) as packed 4:2:0 planes the
+    // shader colours, its sound ahead of the picture into the same generator and audio clock; without the library, or a file it
+    // cannot open, the engine's player below as before
+
+    /// <summary>Where the native decoder is looked for: I76_OGV_LIB, the project's native/&lt;platform&gt;/, beside the executable (an export), beside the assemblies.</summary>
+    public static IEnumerable<string?> OgvLibraryPaths()
+    {
+        string file = OgvLibrary.FileName, plat = OgvLibrary.Platform;
+        yield return System.Environment.GetEnvironmentVariable("I76_OGV_LIB");
+        string res = ProjectSettings.GlobalizePath($"res://native/{plat}/{file}");
+        if (System.IO.Path.IsPathRooted(res)) yield return res;
+        string exe = System.IO.Path.GetDirectoryName(OS.GetExecutablePath()) ?? "";
+        yield return System.IO.Path.Combine(exe, file);
+        yield return System.IO.Path.Combine(exe, "native", plat, file);
+        yield return System.IO.Path.Combine(System.AppContext.BaseDirectory, file);
+    }
+
+    /// <summary>What plays an upscaled movie now: the setting and its hook, thread only with the library loaded (logged once).</summary>
+    public static MovieDecodeMode OgvDecodeMode()
+    {
+        var mode = MovieDecode.Choose(I76.Game.Shell.ShellSettings.Load().MovieDecode, System.Environment.GetEnvironmentVariable("I76_MOVIE_DECODE"), () =>
+        {
+            bool first = !_libraryTold;
+            bool ok = OgvLibrary.Load(OgvLibraryPaths());
+            if (first)
+            {
+                _libraryTold = true;
+                I76.Game.Boot.RunLog.Print(ok ? $"movie decode: {OgvLibrary.LoadedFrom} ({OgvLibrary.Versions})" : $"movie decode: the native decoder not loaded ({OgvLibrary.Missing}), the engine's player plays the upscaled movies");
+            }
+            return ok;
+        });
+        return mode;
+    }
+
+    private static bool _libraryTold;
+
+    /// <summary>The replacement opened in the native decoder and its thread started (true); false: the engine's player instead.</summary>
+    private bool DecodeOgvHere(string ogv)
+    {
+        if (OgvDecodeMode() != MovieDecodeMode.Thread) return false;
+        OgvDecoder? d;
+        try { d = OgvDecoder.Open(ogv); }
+        catch (System.Exception ex) { GD.PrintErr($"movie {ogv}: {ex.Message}"); d = null; }
+        if (d is null || !d.Info.Is420)
+        {
+            GD.PrintErr($"movie {ogv}: {(d is null ? "the native decoder cannot open it" : $"pixel format {d.Info.PixelFormat}, not 4:2:0")}, the engine's player instead");
+            d?.Dispose();
+            return false;
+        }
+        _ogv = d;
+        var info = d.Info;
+        (_source, _w, _h, _fd) = (true, info.Width, info.Height, info.FrameDuration);
+        _fc = info.FrameCount > 0 ? (int)info.FrameCount : int.MaxValue;
+        _ogvAhead = MovieAhead.Frames(Loading is null ? MovieAhead.PlainSeconds : MovieAhead.LoadingSeconds, _fd, d.PackedBytes);
+        _clock = new MovieClock(_fd);
+        AddChild(new ColorRect { Color = Colors.Black, AnchorRight = 1, AnchorBottom = 1, MouseFilter = Control.MouseFilterEnum.Ignore });
+        var box = new AspectRatioContainer { AnchorRight = 1, AnchorBottom = 1, Ratio = (float)_w / _h, MouseFilter = Control.MouseFilterEnum.Ignore };
+        var (pw, ph) = d.Packed;
+        var mat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/movie_yuv.gdshader") };
+        mat.SetShaderParameter("luma_size", new Vector2(_w, _h));
+        mat.SetShaderParameter("packed_size", new Vector2(pw, ph));
+        _view = new TextureRect
+        {
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
+            MouseFilter = Control.MouseFilterEnum.Ignore, TextureFilter = CanvasItem.TextureFilterEnum.Linear, Material = mat, Name = "Video",
+        };
+        box.AddChild(_view);
+        AddChild(box);
+        if (info.AudioChannels > 0 && _hold < 0)
+        {
+            var gen = new AudioStreamGenerator { MixRate = info.AudioRate, BufferLength = SoundBuffer };
+            var player = new AudioStreamPlayer { Stream = gen, Name = "Sound", Bus = I76.Game.Boot.Main.MovieBus() };
+            AddChild(player);
+            player.Play();
+            _out = (AudioStreamGeneratorPlayback)player.GetStreamPlayback();
+            _audioClock = new MovieAudioClock(info.AudioRate, _out.GetFramesAvailable());
+        }
+        if (System.Environment.GetEnvironmentVariable("I76_MOVIE_SHOT") is { } shot && shot.LastIndexOf('@') is > 0 and var at
+            && double.TryParse(shot[(at + 1)..], System.Globalization.CultureInfo.InvariantCulture, out double t)) { _shotPath = shot[..at]; _shotAt = t; }
+        I76.Game.Boot.RunLog.Print($"movie: {System.IO.Path.GetFileName(Path)} replaced by {System.IO.Path.GetFileName(ogv)} on its own thread ({_w}x{_h}, {1 / _fd:0.###} fps, "
+            + $"{(info.FrameCount > 0 ? $"{info.FrameCount} frames, {info.FrameCount * _fd:0.0} s" : "length unknown")}, sound {info.AudioRate} Hz x{info.AudioChannels}; "
+            + $"{_ogvAhead} frames ahead, {MovieAhead.Bytes(_ogvAhead, d.PackedBytes) / 1048576.0:0} MB)");
+        _thread = new Thread(DecodeOgv) { IsBackground = true, Name = "ogv" };
+        _thread.Start();
+        return true;
+    }
+
+    /// <summary>Packed frames' buffers, back from the main thread once uploaded (pinned: the native decoder writes into them).</summary>
+    private readonly ConcurrentBag<byte[]> _pool = [];
+    private byte[] Rent() => _pool.TryTake(out var b) ? b : System.GC.AllocateUninitializedArray<byte>(_ogv!.PackedBytes, pinned: true);
+    private void Release((byte[] Rgba, byte[]? Pal) f) { if (_pool.Count < Ahead + 2) _pool.Add(f.Rgba); }
+
+    /// <summary>The main thread's clock as it last set it, and when: the decoder's due frame runs on from it through a long step (MovieAhead.Due).</summary>
+    private readonly object _publishLock = new();
+    private double _pubClock;
+    private long _pubAt;
+    private bool _pubStarted;
+    private void Publish(double clock) { lock (_publishLock) { _pubClock = clock; _pubAt = System.Diagnostics.Stopwatch.GetTimestamp(); _pubStarted = _started; } }
+    private int DueNow()
+    {
+        lock (_publishLock)
+            return MovieAhead.Due(_pubStarted, _pubClock, System.Diagnostics.Stopwatch.GetElapsedTime(_pubAt).TotalSeconds, _fd);
+    }
+
+    /// <summary>Frames the decoder went past without copying out (their turn gone: after a long main-thread step).</summary>
+    private volatile int _uncopied;
+
+    private void DecodeOgv()
+    {
+        var d = _ogv!;
+        int ch = d.Info.AudioChannels, rate = d.Info.AudioRate;
+        bool feed = ch > 0 && _out is not null;
+        var pcm = new float[1024 * Math.Max(1, ch)];
+        double videoAt = 0, soundAt = 0;
+        bool videoDone = false, soundDone = !feed;
+        long next = 0, last = -1;
+        int run = 0;
+        try
+        {
+            while (!_stop)
+            {
+                // the sound first, SoundLeadSeconds past the picture decoded: with the ring it reaches past the generator's buffer, so a
+                // long step of the main thread (which pushes it) finds enough waiting for the whole buffer
+                if (!soundDone && (videoDone || soundAt < videoAt + MovieAhead.SoundLeadSeconds))
+                {
+                    int n = d.ReadAudio(pcm);
+                    if (n == 0) { soundDone = true; continue; }
+                    var frames = new Vector2[n];
+                    for (int i = 0; i < n; i++) frames[i] = ch == 1 ? new Vector2(pcm[i], pcm[i]) : new Vector2(pcm[i * ch], pcm[i * ch + 1]);
+                    _sound.Enqueue(frames);
+                    soundAt += n / (double)rate;
+                    continue;
+                }
+                if (videoDone) { if (soundDone) break; Thread.Sleep(5); continue; }
+                int due = DueNow();
+                if (_frames.Count >= Ahead)
+                {
+                    // full: what a long step has passed by goes, so the ring holds frames from the due one on when it ends
+                    if (_frames.DropPassed(due, Release) == 0) Thread.Sleep(2);
+                    continue;
+                }
+                bool copy = MovieAhead.ShouldCopy(next, due, run);
+                byte[]? buf = copy ? Rent() : null;
+                if (!d.NextPacked(buf, out long index, out double seconds))
+                {
+                    if (buf is not null) _pool.Add(buf);
+                    videoDone = true;
+                    _fc = (int)(last + 1);
+                    continue;
+                }
+                last = index;
+                next = index + 1;
+                videoAt = seconds + _fd;
+                if (buf is null) { run++; _uncopied++; continue; }
+                run = 0;
+                _frames.Add((int)index, (buf, null));
+                _produced++;
+            }
+        }
+        catch (System.Exception ex) { GD.PrintErr($"movie {Path}: {ex.Message}"); }
+        _decoded = true;
+    }
+
+    /// <summary>I76_MOVIE_SHOT=out.png@seconds on the threaded path: the window saved as the clock passes that point (the picture's check against a reference decode).</summary>
+    private void ShotAt(double clock)
+    {
+        if (_shotFrame >= 0 && _shotPath is not null)
+        {
+            // the frame uploaded last time has been drawn since: the window holds it now
+            GetViewport().GetTexture().GetImage().SavePng(_shotPath);
+            I76.Game.Boot.RunLog.Print($"movie: shot of frame {_shotFrame} to {_shotPath}");
+            _shotFrame = -1; _shotPath = null;
+            return;
+        }
+        if (_shotAt < 0 || clock < _shotAt || _shotPath is null) return;
+        _shotAt = -1;
+        _shotFrame = _lastShownIndex;
+    }
+
+    private int _shotFrame = -1;
 
     // ---- an upscaled replacement (docs/playing.md "HD movies"): user://movies/<the SMK's stem>.ogv, Ogg Theora with Vorbis sound,
     // played by Godot's video player in the modern look; the 1997 look, or a file the player cannot open, plays the SMK
@@ -681,6 +921,8 @@ public partial class MoviePlayer : CanvasLayer
         video.Finished += RunOut;
         _video = video;
         _videoStart = Wall();
+        // (its frame rate for the pace measure only, as the threaded path's: the engine's player does not tell it)
+        _fd = TheoraHeader.Read(ogv)?.FrameDuration is > 0 and var fd ? fd : 1 / ReplacementFps;
         // capture hook: I76_MOVIE_SHOT=out.png@seconds saves the window at that point of the movie
         if (System.Environment.GetEnvironmentVariable("I76_MOVIE_SHOT") is { } shot && shot.LastIndexOf('@') is > 0 and var at
             && double.TryParse(shot[(at + 1)..], System.Globalization.CultureInfo.InvariantCulture, out double t)) { _shotPath = shot[..at]; _shotAt = t; }
@@ -693,12 +935,11 @@ public partial class MoviePlayer : CanvasLayer
     /// pixels, as over the SMK itself) at the replacement's aspect. Its 4:3 alone, as before, put the line 14 picture pixels in from a
     /// 4x3 picture's corner, that is far off the screen, so over a replacement nothing showed until the loading card came back.
     /// </summary>
-    private Vector2 ReplacementPicture()
+    private Vector2 ReplacementPicture(Vector2 size)
     {
         float h = I76.Game.Shell.ShellFrame.H;
         try { using var smk = Smacker.Open(Path); if (smk.Height > 0) h = smk.Height; }
         catch (System.Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException or System.UnauthorizedAccessException) { }
-        var size = _video?.GetVideoTexture()?.GetSize() ?? Vector2.Zero;
         var (x, y) = StandByLine.ReplacementPicture(h, size.X, size.Y);
         return new Vector2(x, y);
     }
@@ -715,6 +956,15 @@ public partial class MoviePlayer : CanvasLayer
         if (_lastStep > 0 && now - _lastStep > 1 / 15.0) { _lateFrames++; _worstGap = Math.Max(_worstGap, now - _lastStep); if (_videoLog) I76.Game.Boot.RunLog.Print($"movie: late frame {(now - _lastStep) * 1000:0} ms at {pos:0.000} s"); }
         if (_videoLog && (int)(now - _videoStart) != (int)(_lastStep - _videoStart)) I76.Game.Boot.RunLog.Print($"movie: stream {pos:0.000} s at wall {now - _videoStart:0.000} s");
         _lastStep = now;
+        // the same pace measure as the threaded paths': its picture's frame from the stream's position, a change of it a frame up
+        int index = pos > 0 ? (int)Math.Floor(pos / _fd + 1e-6) : -1;
+        if (index > _lastShownIndex)
+        {
+            if (_lastShownIndex >= 0) _dropped += index - _lastShownIndex - 1;
+            PictureUp(now, index);
+        }
+        _pace ??= new MoviePace(_fd);
+        _pace.Frame(now, index);   // (a frame still up counts once: MoviePace takes only a later one)
         if (_shotAt >= 0 && pos >= _shotAt)
         {
             GetViewport().GetTexture().GetImage().SavePng(_shotPath);

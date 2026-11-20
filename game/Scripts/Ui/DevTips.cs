@@ -38,6 +38,7 @@ public static class DevTips
         "movie_ignition" => "Modern look ignition: the engine start-up from the INT03 briefing movie, cut from your own install, plays instead of the kit's sound.",
         "briefing_while_loading" => "Mission start: on, the loading card, then the briefing while the mission loads (PLEASE STAND BY, then READY in its corner); off, the whole load behind the card, then the briefing (the original's order).",
         "load_under_briefing" => "Under a briefing played while the mission loads: on, the rest of the load runs under the movie too (the line under PLEASE STAND BY goes on to its end; the movie hitches while it does); off, only once the picture stands still.",
+        "movie_decode" => "The upscaled .ogv movies: thread, decoded on the movie player's own thread ahead of the picture (the native i26ogv library), as the original briefings are, so a mission loading under one stalls its picture less; engine, Godot's own video player. Thread without the library plays as engine. From the next movie.",
         "briefing_card_hold" => "Seconds the loading card stays up before a briefing played while the mission loads (the load starts with the card). Upstream's 0.7.",
         "melee_ai" => "Instant Melee's computer cars open at Normal (the original's), the Difficulty Level's skill, Easy or Hard. From the next mission.",
         "effects_size" => "The modern look's weapon effects (streaks, sparks, flashes, smoke, fireballs) in percent of their drawn size.",

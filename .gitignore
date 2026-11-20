@@ -70,3 +70,7 @@ dist/
 # label-tape face candidates: personal-use fonts, kept outside the repository (only the README is tracked)
 /tools/text-redraws/fonts/candidates/*
 !/tools/text-redraws/fonts/candidates/README.md
+
+# The movie decoder (native/ogv/build.ps1): the downloaded Xiph.Org sources, their build, and the built library (not committed)
+native/ogv/third_party/
+game/native/

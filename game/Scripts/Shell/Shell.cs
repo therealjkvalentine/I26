@@ -1565,6 +1565,13 @@ public sealed class ShellSettings
     /// </summary>
     public bool LoadUnderBriefing { get; set; } = true;
     /// <summary>
+    /// The port's own: what plays an upscaled .ogv movie ([port] movie_decode, written only when engine): thread, the movie player's
+    /// own decoder thread through the native library (native/ogv), ahead of the picture with its sound buffered, as the original
+    /// Smacker movies are; engine, the engine's video player (decoding on the main thread), as before. Thread falls back to the
+    /// engine's player without the library (I76.Formats.Video.MovieDecode).
+    /// </summary>
+    public I76.Formats.Video.MovieDecodeMode MovieDecode { get; set; } = I76.Formats.Video.MovieDecode.Default;
+    /// <summary>
     /// The port's own, without a row: how long the loading card stays up before a briefing played while the mission loads, the build
     /// going on behind it from the start (I76.Game.Boot.BriefingOverlap.ParseHold; [port] briefing_card_hold, seconds, written only when
     /// not the default; upstream's 0.7).
@@ -2059,6 +2066,7 @@ public sealed class ShellSettings
         s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.LoadUnderBriefing = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "load_under_briefing", true).ToString());
+        s.MovieDecode = I76.Formats.Video.MovieDecode.Parse(c.HasSectionKey("port", I76.Formats.Video.MovieDecode.Key) ? c.GetValue("port", I76.Formats.Video.MovieDecode.Key).ToString() : null);
         s.BriefingCardHold = I76.Game.Boot.BriefingOverlap.ParseHold(c.HasSectionKey("port", "briefing_card_hold") ? c.GetValue("port", "briefing_card_hold").ToString() : null);
         s.BrushImpacts = !string.Equals(c.GetValue("port", "brush_impacts", "on").ToString(), "off", StringComparison.OrdinalIgnoreCase);
         s.BushKnock = ParseBushKnock(c.HasSectionKey("port", "bush_knock") ? c.GetValue("port", "bush_knock").ToString() : null);
@@ -2277,6 +2285,7 @@ public sealed class ShellSettings
         if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (!LoadUnderBriefing) c.SetValue("port", "load_under_briefing", false);
+        if (MovieDecode != I76.Formats.Video.MovieDecode.Default) c.SetValue("port", I76.Formats.Video.MovieDecode.Key, I76.Formats.Video.MovieDecode.Name(MovieDecode));
         if (BriefingCardHold != I76.Game.Boot.BriefingOverlap.DefaultCardHold) c.SetValue("port", "briefing_card_hold", BriefingCardHold);
         if (!BrushImpacts) c.SetValue("port", "brush_impacts", "off");
         if (ParseBushKnock(BushKnock) != DefaultBushKnock) c.SetValue("port", "bush_knock", ParseBushKnock(BushKnock));
