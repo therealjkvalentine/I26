@@ -1041,7 +1041,26 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public static readonly bool HashOn = System.Environment.GetEnvironmentVariable("I76_BUILD_TRACE") == "hash";
     private static readonly System.Diagnostics.Stopwatch TraceClock = System.Diagnostics.Stopwatch.StartNew();
     /// <summary>I76_BUILD_TRACE=1: stamps each build stage on stdout, to see where a stuck load stopped.</summary>
-    public static void Trace(string stage) { LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
+    public static void Trace(string stage) { StallGuard(stage); LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
+    /// <summary>A stamp of the main thread's load this long after the one before it is logged as a stall, with both stages' names (milliseconds).</summary>
+    public const long StallMs = 10_000;
+    private static long _mainStampAt;
+    private static string _mainStamp = "";
+
+    /// <summary>
+    /// The guard against a load that stands still: two stamps of the main thread's load more than <see cref="StallMs"/> apart (on the main
+    /// thread nothing of a load may take that long: a minute's freeze of the second mission's card went unseen for weeks) logs a warning
+    /// naming the two stages, whatever trace is on. A stamp an hour on (the next mission) starts again.
+    /// </summary>
+    private static void StallGuard(string stage)
+    {
+        if (!I76.Game.Boot.LoadProfiler.IsMain) return;
+        long now = TraceClock.ElapsedMilliseconds, gap = now - _mainStampAt;
+        if (_mainStampAt > 0 && gap > StallMs && gap < 3_600_000 && I76.Game.Ui.LoadProgress.Active)
+            GD.PushWarning($"load stall: {gap / 1000.0:0.0} s on the main thread between '{_mainStamp}' and '{stage}'");
+        (_mainStampAt, _mainStamp) = (now, stage);
+    }
+
     /// <summary>The last stage stamped (on any thread): what a slice of the load under a briefing was doing (Main.EndSlice).</summary>
     public static string LastStage { get; private set; } = "";
 }
