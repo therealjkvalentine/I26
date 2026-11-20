@@ -18,7 +18,9 @@ public partial class RocketSmoke : Node3D
     /// <summary>The smoke's colour (a multiplier on the grey): white for rockets, darker for the Ball O'Flame's sooty tail.</summary>
     public System.Numerics.Vector3 Tint { get; init; } = System.Numerics.Vector3.One;
 
-    private const int Cap = 2400;
+    /// <summary>The pool's base size, used up to SmokeLinger's share of it (longer lives keep more puffs in the air); made for the longest linger.</summary>
+    private const int CapBase = 2400;
+    private static readonly int Cap = SmokeLinger.PoolMax(CapBase);
     private const float Spacing = 0.4f, Life = 1.9f, Start = 0.5f, End = 2.2f;
     private const int MaxPerFrame = 160;   // a stalled frame does not flood the pool
 
@@ -57,7 +59,7 @@ public partial class RocketSmoke : Node3D
         if (!e.Has) { e.Has = true; e.Last = at; _emitters[key] = e; return; }
         var d = at - e.Last;
         float len = d.Length();
-        float load = _live / (float)Cap;
+        float load = _live / (float)SmokeLinger.Pool(CapBase);
         float spacing = Spacing * scale * (1f + 3f * MathF.Max(0f, load - 0.45f));
         e.Carry += len;
         int n = Math.Min((int)(e.Carry / spacing), MaxPerFrame);
@@ -90,13 +92,15 @@ public partial class RocketSmoke : Node3D
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble(), r4 = (float)_rng.NextDouble();
         ref var p = ref _pool[_next];
-        _next = (_next + 1) % Cap;
+        _next = (_next + 1) % SmokeLinger.Pool(CapBase);
+        // [port] smoke_linger stretches the whole life: the puff swells and thins over the longer time
+        float linger = SmokeLinger.Factor;
         p = new Puff
         {
             Live = true, X = g.X + (r1 - 0.5f) * 0.12f, Y = g.Y + (r2 - 0.5f) * 0.12f, Z = g.Z + (r3 - 0.5f) * 0.12f,
             // a little of the rocket's wake, then the breeze; it rises as it cools
             Vx = vel.X * 0.02f + (r4 - 0.5f) * 0.5f + Wind.X * 0.6f, Vy = 0.35f + 0.5f * r2, Vz = vel.Z * 0.02f + (r1 - 0.5f) * 0.5f + Wind.Z * 0.6f,
-            Age = age, Life = Life * (0.85f + 0.3f * r3), End = End * scale * (0.8f + 0.4f * r4), Dens = dens, Seed = r1,
+            Age = age, Life = Life * (0.85f + 0.3f * r3) * linger, End = End * scale * (0.8f + 0.4f * r4), Dens = dens, Seed = r1,
         };
     }
 

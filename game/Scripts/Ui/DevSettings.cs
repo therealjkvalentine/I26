@@ -57,6 +57,8 @@ public static class DevSettings
     /// <summary>The muzzle light's reaches offered (I76.Game.Sim.MuzzleReach): 0 the light before the key, on the firing car alone.</summary>
     public static readonly int[] MuzzleReachSteps = [0, 25, 50, 75, 100, 125, 150, 200];
     private static readonly string[] MuzzleReachNames = [.. MuzzleReachSteps.Select(p => p == I76.Game.Sim.MuzzleReach.Default ? $"{p}" : $"{p}{M}")];
+    /// <summary>The smoke's lingers offered (I76.Game.Sim.SmokeLinger.Steps): 100 the lives as they were, the one unmarked.</summary>
+    private static readonly string[] SmokeLingerNames = [.. I76.Game.Sim.SmokeLinger.Steps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
 
     /// <summary>The side-view mirrors' keys' values offered (I76.Game.Sim.MirrorBands): the one render's field across (45 is the rear mirror alone, the original's), each side mirror's share of the band outside the rear's, and where it sits; a value set by hand shows as the nearest.</summary>
     public static readonly int[] MirrorFovSteps = [45, 60, 75, 90, 105, 120], MirrorShareSteps = [25, 50, 75, 100], MirrorYawSteps = [30, 35, 40, 45, 50, 55, 60], MirrorDropSteps = [0, 50, 100, 125, 150, 200, 300], MirrorOverlapSteps = [0, 3, 6, 9, 12, 15, 20];
@@ -185,6 +187,8 @@ public static class DevSettings
             s => I76.Game.Sim.HeadlampThrow.Percent = s.HeadlampThrow),
         new("muzzle_reach", MuzzleReachNames, s => Nearest(MuzzleReachSteps, s.MuzzleReach), (s, v) => s.MuzzleReach = MuzzleReachSteps[v], DevWhen.Live,
             s => I76.Game.Sim.MuzzleReach.Percent = s.MuzzleReach),
+        new("smoke_linger", SmokeLingerNames, s => Nearest(I76.Game.Sim.SmokeLinger.Steps, s.SmokeLinger), (s, v) => s.SmokeLinger = I76.Game.Sim.SmokeLinger.Steps[v], DevWhen.Live,
+            s => I76.Game.Sim.SmokeLinger.Percent = s.SmokeLinger),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),
