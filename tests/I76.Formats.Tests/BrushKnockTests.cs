@@ -155,14 +155,18 @@ public class BrushKnockTests
         Assert.Equal("vnvco3.wav", BrushKnock.DefaultSample);
         Assert.InRange(BrushKnock.DefaultSemitones, 4f, 12f);
         Assert.InRange(BrushKnock.DefaultDb, -12f, -4f);
-        // the review's C: three semitones higher and 3 dB quieter than FL's 9 and -8, started 30 % in
+        // the second review's H: C's pitch (+12), 2 dB louder than C's -11, started 15 % in with a 2 ms fade-in ("a little more loud and abrupt")
+        Assert.Equal('h', BrushKnock.DefaultVariant);
         Assert.Equal(12f, BrushKnock.DefaultSemitones);
-        Assert.Equal(-11f, BrushKnock.DefaultDb);
-        Assert.Equal(30f, BrushKnock.DefaultStartPercent);
+        Assert.Equal(-9f, BrushKnock.DefaultDb);
+        Assert.Equal(15f, BrushKnock.DefaultStartPercent);
         Assert.Equal(0f, BrushKnock.DefaultLengthMs);
-        var c = BrushKnock.VariantOf(BrushKnock.DefaultVariant.ToString())!;
-        Assert.Equal((BrushKnock.DefaultSample, BrushKnock.DefaultSemitones, BrushKnock.DefaultDb, BrushKnock.DefaultStartPercent, BrushKnock.DefaultLengthMs),
-            (c.Sample, c.Semitones, c.Db, c.StartPercent, c.LengthMs));
+        Assert.Equal(2f, BrushKnock.DefaultFadeInMs);
+        var h = BrushKnock.VariantOf(BrushKnock.DefaultVariant.ToString())!;
+        Assert.Equal((BrushKnock.DefaultSample, BrushKnock.DefaultSemitones, BrushKnock.DefaultDb, BrushKnock.DefaultStartPercent, BrushKnock.DefaultLengthMs, BrushKnock.DefaultFadeInMs),
+            (h.Sample, h.Semitones, h.Db, h.StartPercent, h.LengthMs, h.FadeInMs));
+        var c = BrushKnock.VariantOf("c")!;
+        Assert.Equal((c.Semitones, c.Db + 2, c.StartPercent / 2, c.FadeInMs / 4), (h.Semitones, h.Db, h.StartPercent, h.FadeInMs));
         Assert.Equal(1.4983f, BrushKnock.Ratio(7), 3);
         Assert.Equal(2f, BrushKnock.Ratio(12), 4);
         // the sign plays at its own level (0 dB); the bush's loudest is quieter, and 10 / 30 / 60 mph rise
@@ -175,9 +179,9 @@ public class BrushKnockTests
 
     private static void Restore(Action body)
     {
-        var (s, st, db, sp, ln, si) = (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb, BrushKnock.StartPercent, BrushKnock.LengthMs, BrushKnock.Silent);
+        var (s, st, db, sp, ln, si, fi) = (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb, BrushKnock.StartPercent, BrushKnock.LengthMs, BrushKnock.Silent, BrushKnock.FadeInMs);
         try { body(); }
-        finally { (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb, BrushKnock.StartPercent, BrushKnock.LengthMs, BrushKnock.Silent) = (s, st, db, sp, ln, si); }
+        finally { (BrushKnock.Sample, BrushKnock.Semitones, BrushKnock.OffsetDb, BrushKnock.StartPercent, BrushKnock.LengthMs, BrushKnock.Silent, BrushKnock.FadeInMs) = (s, st, db, sp, ln, si, fi); }
     }
 
     [Fact]
@@ -201,17 +205,21 @@ public class BrushKnockTests
     public void ALateStartFadesInOverEightMsAndACutFadesOutOverTwenty()
     {
         const int rate = 11025, frames = 4256;
-        int fin = (int)MathF.Round(BrushKnock.FadeInMs * rate / 1000), fout = (int)MathF.Round(BrushKnock.FadeOutMs * rate / 1000);
+        int fin = (int)MathF.Round(8f * rate / 1000), fout = (int)MathF.Round(BrushKnock.FadeOutMs * rate / 1000);
         Assert.Equal((88, 220), (fin, fout));
         // whole: untouched
         var whole = BrushKnock.Span(frames, rate, 0, 0);
         Assert.All(new[] { 0, 1, 100, frames - 1 }, i => Assert.Equal(1f, BrushKnock.Gain(i, whole, frames, rate)));
         // from 30 %: 0 at the cut, rising linearly, whole from 8 ms on; the natural end is not faded
         var late = BrushKnock.Span(frames, rate, 30, 0);
-        Assert.Equal(0f, BrushKnock.Gain(0, late, frames, rate));
-        Assert.Equal(0.5f, BrushKnock.Gain(44, late, frames, rate), 3);
-        Assert.Equal(1f, BrushKnock.Gain(fin, late, frames, rate));
-        Assert.Equal(1f, BrushKnock.Gain(late.End - late.Start - 1, late, frames, rate));
+        Assert.Equal(0f, BrushKnock.Gain(0, late, frames, rate, 8));
+        Assert.Equal(0.5f, BrushKnock.Gain(44, late, frames, rate, 8), 3);
+        Assert.Equal(1f, BrushKnock.Gain(fin, late, frames, rate, 8));
+        Assert.Equal(1f, BrushKnock.Gain(late.End - late.Start - 1, late, frames, rate, 8));
+        // H's 2 ms: 22 frames at 11025 Hz; 0 ms: no fade at all
+        Assert.Equal(0.5f, BrushKnock.Gain(11, late, frames, rate, 2), 3);
+        Assert.Equal(1f, BrushKnock.Gain(22, late, frames, rate, 2));
+        Assert.Equal(1f, BrushKnock.Gain(0, late, frames, rate, 0));
         // cut short: the last frame silent, the fade 20 ms long
         var cut = BrushKnock.Span(frames, rate, 0, 200);
         int n = cut.End - cut.Start;
@@ -228,7 +236,7 @@ public class BrushKnockTests
         // 8-bit unsigned mono: a full-scale square, 1000 frames at 1000 Hz (fades of 8 and 20 frames)
         var data8 = Enumerable.Range(0, 1000).Select(i => (byte)(i % 2 == 0 ? 228 : 28)).ToArray();
         var pcm8 = new I76.Formats.Audio.Pcm(1, 1000, 8, data8);
-        var t8 = BrushKnock.Trim(pcm8, 30, 0);
+        var t8 = BrushKnock.Trim(pcm8, 30, 0, 8);
         Assert.Equal(700, t8.Data.Length);
         Assert.Equal((1, 1000, 8), (t8.Channels, t8.Rate, t8.Bits));
         Assert.Equal(128, t8.Data[0]);                       // silent at the cut (centre of 8-bit)
@@ -238,7 +246,7 @@ public class BrushKnockTests
         // 16-bit stereo, cut to 100 ms from 50 %: the last frame silent on both channels
         var data16 = new byte[1000 * 4];
         for (int i = 0; i < 1000; i++) for (int c = 0; c < 2; c++) { short v = (short)(c == 0 ? 20000 : -20000); data16[i * 4 + c * 2] = (byte)v; data16[i * 4 + c * 2 + 1] = (byte)(v >> 8); }
-        var t16 = BrushKnock.Trim(new I76.Formats.Audio.Pcm(2, 1000, 16, data16), 50, 100);
+        var t16 = BrushKnock.Trim(new I76.Formats.Audio.Pcm(2, 1000, 16, data16), 50, 100, 8);
         Assert.Equal(100 * 4, t16.Data.Length);
         short S(int frame, int ch) => (short)(t16.Data[frame * 4 + ch * 2] | t16.Data[frame * 4 + ch * 2 + 1] << 8);
         Assert.Equal((0, 0), ((int)S(0, 0), (int)S(0, 1)));
@@ -251,16 +259,16 @@ public class BrushKnockTests
     [Fact]
     public void TheVariantsAreTheReviewsLettersAndOffSilencesTheKnock() => Restore(() =>
     {
-        Assert.Equal("abcdefg", new string(BrushKnock.Variants.Select(v => v.Letter).ToArray()));
+        Assert.Equal("abcdefgh", new string(BrushKnock.Variants.Select(v => v.Letter).ToArray()));
         var a = BrushKnock.VariantOf("A")!;
         Assert.Equal(("vnvco3.wav", 9f, -8f, 0f, 0f), (a.Sample, a.Semitones, a.Db, a.StartPercent, a.LengthMs));   // section FL's knock
         var b = BrushKnock.VariantOf("b")!;
         Assert.Equal((a.Semitones + 3, a.Db - 3, 0f), (b.Semitones, b.Db, b.StartPercent));
         var d = BrushKnock.VariantOf("d")!;
         Assert.Equal((a.Semitones, b.Db, 30f), (d.Semitones, d.Db, d.StartPercent));
-        Assert.All(BrushKnock.Variants.Skip(4), v => Assert.NotEqual("vnvco3.wav", v.Sample));
+        Assert.All(BrushKnock.Variants.Skip(4).Take(3), v => Assert.NotEqual("vnvco3.wav", v.Sample));
         Assert.Null(BrushKnock.VariantOf("off"));
-        Assert.Null(BrushKnock.VariantOf("h"));
+        Assert.Null(BrushKnock.VariantOf("i"));
         Assert.Null(BrushKnock.VariantOf(""));
         Assert.Null(BrushKnock.VariantOf(null));
 
@@ -294,6 +302,76 @@ public class BrushKnockTests
         BrushKnock.Use(null);
         Assert.True(BrushKnock.Apply("vnvco3"));
         Assert.False(BrushKnock.Silent);
+    });
+
+    /// <summary>16-bit mono PCM at 11025 Hz from values in -1..1.</summary>
+    private static I76.Formats.Audio.Pcm Mono16(float[] v)
+    {
+        var d = new byte[v.Length * 2];
+        for (int i = 0; i < v.Length; i++) { short s = (short)MathF.Round(v[i] * 32767); d[i * 2] = (byte)s; d[i * 2 + 1] = (byte)(s >> 8); }
+        return new I76.Formats.Audio.Pcm(1, 11025, 16, d);
+    }
+
+    [Fact]
+    public void ALateStartMovesToTheNearestZeroCrossingWithinFourMs()
+    {
+        // -0.5 up to frame 600 (-0.02), +0.5 after it but for a dip to -0.01 at 900: crossings at 600/601 and round 900
+        var v = Enumerable.Range(0, 1000).Select(i => i < 600 ? -0.5f : 0.5f).ToArray();
+        v[600] = -0.02f; v[900] = -0.01f;
+        var pcm = Mono16(v);
+        Assert.Equal(44, (int)MathF.Round(BrushKnock.SnapMs * 11025 / 1000));
+        Assert.Equal(600, BrushKnock.NearestZero(pcm, 638));       // 38 frames back, the frame nearer 0 of the pair
+        Assert.Equal(600, BrushKnock.NearestZero(pcm, 560));       // 40 on
+        Assert.Equal(500, BrushKnock.NearestZero(pcm, 500));       // none within 44 frames: the start stays
+        Assert.Equal(900, BrushKnock.NearestZero(pcm, 870));       // the dip, 30 frames on
+        Assert.Equal(-0.5f, BrushKnock.Value(pcm, 10), 3);
+    }
+
+    [Fact]
+    public void TrimStartsAtTheCrossingAndKeepsItsLength()
+    {
+        var v = Enumerable.Range(0, 2000).Select(i => i <= 290 ? -0.5f : 0.4f).ToArray();
+        v[290] = -0.01f;
+        // 15 % of 2000 = frame 300; the crossing is 10 frames back; 50 ms at 11025 Hz = 551 frames (round to even)
+        var t = BrushKnock.Trim(Mono16(v), 15, 50, 2);
+        Assert.Equal(551 * 2, t.Data.Length);
+        short S(int f) => (short)(t.Data[f * 2] | t.Data[f * 2 + 1] << 8);
+        Assert.Equal(0, S(0));                                     // the fade's first frame is silent
+        Assert.Equal(MathF.Round(0.4f * 32767 / 22f), S(1), 0);    // frame 291 at 1/22 of the 2 ms fade
+        Assert.Equal((short)MathF.Round(0.4f * 32767), S(100));
+    }
+
+    [InstallFact]
+    public void TheDefaultKnockStartsAtVnvco3sZeroCrossingJustBefore15Percent()
+    {
+        // the second review: 15 % of vnvco3's 4256 frames is frame 638, mid-swing at -0.53; the nearest crossing is 40 frames (3.6 ms) earlier
+        var pcm = I76.Formats.Audio.SoundFiles.Read(TestInstall.Vfs, "vnvco3.wav")!;
+        Assert.Equal((1, 11025, 8), (pcm.Channels, pcm.Rate, pcm.Bits));
+        int frames = pcm.Data.Length;
+        var span = BrushKnock.Span(frames, pcm.Rate, BrushKnock.DefaultStartPercent, 0);
+        Assert.Equal(638, span.Start);
+        int z = BrushKnock.NearestZero(pcm, span.Start);
+        Assert.Equal(598, z);
+        Assert.True(MathF.Abs(BrushKnock.Value(pcm, z)) < 0.05f);
+        var t = BrushKnock.Trim(pcm, BrushKnock.DefaultStartPercent, 0, BrushKnock.DefaultFadeInMs);
+        Assert.Equal(frames - 598, t.Data.Length);
+        Assert.Equal(128, t.Data[0]);
+        Assert.Equal(pcm.Data[598 + 22], t.Data[22]);              // whole after the 2 ms fade
+    }
+
+    [Fact]
+    public void TheEnvHookTakesAFadeIn() => Restore(() =>
+    {
+        BrushKnock.Use(BrushKnock.VariantOf("h"));
+        Assert.Equal(2f, BrushKnock.FadeInMs);
+        Assert.True(BrushKnock.Apply("vnvco3,12,-9,10"));
+        Assert.Equal((10f, 2f), (BrushKnock.StartPercent, BrushKnock.FadeInMs));   // left out: H's
+        Assert.True(BrushKnock.Apply("vnvco3,12,-8,10,0,1"));
+        Assert.Equal(1f, BrushKnock.FadeInMs);
+        Assert.False(BrushKnock.Apply("vnvco3,12,-8,10,0,x"));
+        Assert.Equal(1f, BrushKnock.FadeInMs);
+        BrushKnock.Use(BrushKnock.VariantOf("c"));
+        Assert.Equal(8f, BrushKnock.FadeInMs);
     });
 
     [Fact]

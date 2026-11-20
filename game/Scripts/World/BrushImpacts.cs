@@ -20,7 +20,7 @@ public partial class BrushImpacts : Node3D
     public static bool Enabled { get; set; } = true;
     private static BrushImpacts? _current;
 
-    /// <summary>I76_BUSH_KNOCK=name,semitones,dB,start,length: any sound, pitch, level, start % and length ms, on top of [port] bush_knock, for trying others without a rebuild.</summary>
+    /// <summary>I76_BUSH_KNOCK=name,semitones,dB,start,length,fade: any sound, pitch, level, start %, length ms and fade-in ms, on top of [port] bush_knock, for trying others without a rebuild.</summary>
     private static readonly string? KnockHook = System.Environment.GetEnvironmentVariable("I76_BUSH_KNOCK");
     private static bool _hookSaid;
 
@@ -31,7 +31,7 @@ public partial class BrushImpacts : Node3D
         if (BrushKnock.Apply(KnockHook) && !_hookSaid)
         {
             _hookSaid = true;
-            GD.Print(System.FormattableString.Invariant($"bush knock: {BrushKnock.Sample} {BrushKnock.Semitones:0.#} semitones {BrushKnock.OffsetDb:0.#} dB start {BrushKnock.StartPercent:0.#} % length {BrushKnock.LengthMs:0} ms"));
+            GD.Print(System.FormattableString.Invariant($"bush knock: {BrushKnock.Sample} {BrushKnock.Semitones:0.#} semitones {BrushKnock.OffsetDb:0.#} dB start {BrushKnock.StartPercent:0.#} % length {BrushKnock.LengthMs:0} ms fade-in {BrushKnock.FadeInMs:0.#} ms"));
         }
     }
 
@@ -281,7 +281,7 @@ public partial class BrushImpacts : Node3D
     public static Assets.AudioBank? Audio { get; set; }
     /// <summary>
     /// The original's sound for a car knocking a sign or post off (class-4 objects: the short knock vnvco3, once per object):
-    /// its nearest to a car going through a bush, pitched up, quieter and started past its attack so it does not sound as the signs
+    /// its nearest to a car going through a bush, pitched up, quieter and started past its first hit so it does not sound as the signs
     /// (BrushKnock.DefaultSample; [port] bush_knock picks another of BrushKnock.Variants).
     /// Its own voice name, so it never takes the signs' voice.
     /// </summary>
@@ -306,29 +306,61 @@ public partial class BrushImpacts : Node3D
         if (v.Playing) Voice3D.Trace(System.FormattableString.Invariant($"start: brush knock {BrushKnock.Sample} pitch {pitch:0.00} {db:0.0} dB from {BrushKnock.StartPercent:0} % at {root.X:0.0},{root.Y:0.0},{root.Z:0.0}, speed {speed:0.0} m/s"));
     }
 
-    /// <summary>The knock's sounds as played, by sound, start and length: the bank's stream cut to <see cref="BrushKnock.Span"/> and faded.</summary>
+    /// <summary>The knock's sounds as played, by sound, start, length and fade-in: the bank's stream cut to <see cref="BrushKnock.Span"/> and faded.</summary>
     private static readonly Dictionary<string, AudioStream?> Trimmed = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// The knock's stream (<see cref="BrushKnock.Sample"/> from the bank, HiFi Audio's when it has one), started
-    /// <see cref="BrushKnock.StartPercent"/> in and cut at <see cref="BrushKnock.LengthMs"/>: the original's PCM is trimmed and faded
-    /// in (<see cref="BrushKnock.Trim"/>); a pack's compressed sound is played from the same share of its length (<paramref name="from"/>), uncut.
+    /// <see cref="BrushKnock.StartPercent"/> in (at the nearest zero crossing), faded in over <see cref="BrushKnock.FadeInMs"/> and cut
+    /// at <see cref="BrushKnock.LengthMs"/> (<see cref="BrushKnock.Trim"/>): the original's PCM, or a pack's compressed sound decoded
+    /// once (<see cref="Decode"/>). Only a pack's sound that cannot be decoded is played from the same share of its length
+    /// (<paramref name="from"/>), uncut and without the fade.
     /// </summary>
     private static AudioStream? KnockStream(Assets.AudioBank bank, out float from)
     {
         from = 0;
         var whole = bank.Get(BrushKnock.Sample);
         if (whole is null || !BrushKnock.Trims) return whole;
-        if (whole is not AudioStreamWav)
+        var key = System.FormattableString.Invariant($"{BrushKnock.Sample}#{BrushKnock.StartPercent}#{BrushKnock.LengthMs}#{BrushKnock.FadeInMs}#{whole.GetInstanceId()}");
+        if (!Trimmed.TryGetValue(key, out var s))
         {
-            from = BrushKnock.StartSeconds(whole.GetLength());
-            return whole;
+            if (Trimmed.Count > 32) Trimmed.Clear();
+            var pcm = whole is AudioStreamWav ? I76.Formats.Audio.SoundFiles.Read(bank.Vfs, BrushKnock.Sample) : Decode(whole);
+            s = Trimmed[key] = pcm is null ? null : Assets.AudioBank.ToStream(BrushKnock.Trim(pcm));
         }
-        var key = System.FormattableString.Invariant($"{BrushKnock.Sample}#{BrushKnock.StartPercent}#{BrushKnock.LengthMs}#{whole.GetInstanceId()}");
-        if (Trimmed.TryGetValue(key, out var s)) return s;
-        if (Trimmed.Count > 32) Trimmed.Clear();
-        var pcm = I76.Formats.Audio.SoundFiles.Read(bank.Vfs, BrushKnock.Sample);
-        return Trimmed[key] = pcm is null ? whole : Assets.AudioBank.ToStream(BrushKnock.Trim(pcm)) ?? whole;
+        if (s is not null) return s;
+        from = BrushKnock.StartSeconds(whole.GetLength());
+        return whole;
+    }
+
+    /// <summary>
+    /// A short compressed stream (a pack's Ogg, at most 10 s) decoded to 16-bit stereo PCM at the mix rate, through its own playback
+    /// (AudioStreamPlayback.MixAudio, nothing heard), so the knock's trim and fades apply to it as to the original's; null if it gives nothing.
+    /// </summary>
+    internal static I76.Formats.Audio.Pcm? Decode(AudioStream stream)
+    {
+        int rate = (int)AudioServer.GetMixRate();
+        double seconds = stream.GetLength();
+        if (rate <= 0 || seconds <= 0 || seconds > 10 || stream.InstantiatePlayback() is not { } playback) return null;
+        int want = (int)Math.Ceiling(seconds * rate);
+        var data = new byte[want * 4];
+        int got = 0;
+        playback.Start(0);
+        while (got < want)
+        {
+            var mixed = playback.MixAudio(1f, Math.Min(4096, want - got));
+            if (mixed.Length == 0) break;
+            foreach (var f in mixed)
+            {
+                if (got >= want) break;
+                short l = (short)Math.Clamp((int)MathF.Round(f.X * 32767f), short.MinValue, short.MaxValue);
+                short r = (short)Math.Clamp((int)MathF.Round(f.Y * 32767f), short.MinValue, short.MaxValue);
+                data[got * 4] = (byte)l; data[got * 4 + 1] = (byte)(l >> 8); data[got * 4 + 2] = (byte)r; data[got * 4 + 3] = (byte)(r >> 8);
+                got++;
+            }
+        }
+        playback.Stop();
+        return got == 0 ? null : new I76.Formats.Audio.Pcm(2, rate, 16, got == want ? data : data[..(got * 4)]);
     }
 
     // ---- fire ----

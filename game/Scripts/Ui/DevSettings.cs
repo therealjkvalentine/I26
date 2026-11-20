@@ -74,7 +74,7 @@ public static class DevSettings
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
     private static readonly string[] MirrorDropNames = [.. MirrorDropSteps.Select(p => p == 125 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorOverlapNames = [.. MirrorOverlapSteps.Select(d => d == 6 ? $"{d}" : $"{d}{M}")];
-    /// <summary>[port] bush_knock's values: off (no knock, as the original, which has no plants a car goes through), then the review's variants A to G.</summary>
+    /// <summary>[port] bush_knock's values: off (no knock, as the original, which has no plants a car goes through), then the reviews' variants A to H.</summary>
     public static readonly string[] BushKnockNames = ["off", .. I76.Formats.Vegetation.BrushKnock.Variants.Select(v => v.Letter + M)];
     private static string BushKnockName(string value) => value == "off" ? value : value + M;
     public static int Nearest(int[] steps, int value) => Array.IndexOf(steps, steps.MinBy(p => Math.Abs(p - value)));
