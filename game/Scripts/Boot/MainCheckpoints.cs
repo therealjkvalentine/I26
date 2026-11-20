@@ -52,7 +52,7 @@ public partial class Main
             var marks = I76.Game.Shell.Bookmarks.Load();
             var e = I76.Game.Shell.CheckpointBookmarks.Add(marks, start, _launch.NoSalvage, cp.ToBytes(), I76.Game.Shell.Bookmarks.WriteCar, I76.Game.Shell.Bookmarks.WriteCheckpoint);
             marks.Save();
-            GD.Print($"checkpoint bookmark: {e.Stem}, \"Scene {e.Scene}. {e.Name}\" ({cp.Why}, tick {cp.Tick})");
+            GD.Print($"checkpoint bookmark: {e.Stem}, \"Scene {e.Scene}. {e.Shown}\" ({cp.Why}, tick {cp.Tick})");
             return true;
         }
         catch (System.Exception ex)
