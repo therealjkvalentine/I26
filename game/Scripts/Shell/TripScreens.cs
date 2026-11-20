@@ -30,6 +30,8 @@ public sealed class TripRouterScreen : TripScreen
     public override void Tick()
     {
         int next = Shell.Trip.Mission;
+        // the next mission is known from here on (whatever car the screens after pick): its world built beside them (MissionPreload)
+        Shell.OnPreload?.Invoke(Shell.Trip.Stem);
         if (next == 17) Shell.Go(new ChooseVehicleScreen());
         else if ((Shell.Settings.PlayOptions & 2) != 0) Shell.Go(new NoRepairScreen { Record = 29 });
         else if (next == 13) Shell.Go(new NoRepairScreen { Record = 31 });

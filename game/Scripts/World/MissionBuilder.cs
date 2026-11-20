@@ -29,6 +29,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// mission's build, past its ceiling, or when the machine's memory is short (the runtime's high memory load).
     /// </summary>
     public static readonly RestartCache<Kit> Kept = new(CeilingMb << 20, k => k.Textures.Bytes, MemoryShort);
+    /// <summary>The key this build's kit was kept under (Kept), or null: a preload dropped takes its kit out again (Boot.MissionPreload).</summary>
+    public string? BuiltKitKey { get; private set; }
 
     private static bool MemoryShort()
     {
@@ -483,7 +485,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
 
         // the textures, materials, meshes and cars' parts the same mission's last build made, taken as they are (RestartCache), else made
         var packPalette = vfs.TryRead(I76.Formats.Imaging.HdTexture.PackPalette) is { Length: I76.Formats.Imaging.Palette.Size } pp ? new Palette(pp) : null;
-        string? kitKey = KitKey(msnPath, pal, packPalette);
+        string? kitKey = BuiltKitKey = KitKey(msnPath, pal, packPalette);
         if (kitKey is not null && Kept.Take(kitKey) is { } kit)
         {
             (Resolver, Textures, Materials, Meshes, _carParts, _kit) = (kit.Resolver, kit.Textures, kit.Materials, kit.Meshes, kit.CarParts, kit);

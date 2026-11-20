@@ -144,6 +144,12 @@ public partial class Shell : CanvasLayer
     public ShellLaunch? LastLaunch { get; init; }
     /// <summary>Starts the game: the controller reloads the scene into the mission.</summary>
     public required Action<ShellLaunch> OnLaunch { get; init; }
+
+    /// <summary>
+    /// A trip screen knows the next mission (its stem: the world is built beside the shell from now, Boot.MissionPreload); null, the
+    /// screens left another way than its launch (the main menu, a quit): the build is dropped.
+    /// </summary>
+    public Action<string?>? OnPreload { get; init; }
     /// <summary>The 1997 look: the frame sampled nearest.</summary>
     public bool Faithful { get => _faithful; init => _faithful = value; }
     private bool _faithful;
@@ -592,6 +598,8 @@ public partial class Shell : CanvasLayer
     /// <summary>Leaves the current screen for another (the next screen's message, posted).</summary>
     public void Go(ShellScreen next)
     {
+        // out of the trip's screens to the main menu: the next mission's preload is not wanted
+        if (next is MainMenuScreen) OnPreload?.Invoke(null);
         Impact?.Clear();
         try { _screen?.Leave(); }
         catch (Exception ex) { GD.PrintErr($"shell: leaving {_screen?.GetType().Name} failed: {ex}"); }
@@ -708,7 +716,7 @@ public partial class Shell : CanvasLayer
     }
 
     /// <summary>Quit to the desktop (0xc002, the original front end's main loop returns 0xff).</summary>
-    public void Quit() { Trip.Save(); I76.Game.Boot.EngineThreads.QuitWhenDone(GetTree()); }
+    public void Quit() { Trip.Save(); OnPreload?.Invoke(null); I76.Game.Boot.EngineThreads.QuitWhenDone(GetTree()); }
 
     /// <summary>A database wave record as a stream: its samples, or HiFi Audio's in their place (<see cref="I76.Formats.Audio.AudioPack.ShellName"/>).</summary>
     private AudioStream? WaveStream(int record) =>
@@ -717,7 +725,7 @@ public partial class Shell : CanvasLayer
             : null;
 
     /// <summary>Options' "Switch Game" (offered when the start showed the game chooser): back to the chooser in this window, then the other game (<see cref="I76.Game.Boot.GameSwitch"/>).</summary>
-    public void SwitchGame() { Trip.Save(); I76.Game.Boot.GameSwitch.ToChooser(GetTree()); }
+    public void SwitchGame() { Trip.Save(); OnPreload?.Invoke(null); I76.Game.Boot.GameSwitch.ToChooser(GetTree()); }
 
     /// <summary>A sound record (72–82), fire and forget (the original blocks until a click has played).</summary>
     public void Sound(int record)

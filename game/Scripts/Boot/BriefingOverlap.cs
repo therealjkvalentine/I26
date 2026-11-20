@@ -18,10 +18,10 @@ public static class BriefingOverlap
 
     /// <summary>
     /// The port's: the loading card's hold before the briefing (after its fade-in, before its fade-out), seconds: long enough to read
-    /// "SOMEWHERE IN THE SOUTHWEST..." as the original's card is up for its load (5.0 s in T01 on a P166), short of the original's whole
-    /// load; the build runs behind it from the start, so it costs nothing a build longer than it does not already take.
+    /// "SOMEWHERE IN THE SOUTHWEST...", half the port's earlier 3 s (the owner's ask, 2026-11-19), short of the original's whole load (its
+    /// card is up for all of it: 5.0 s in T01 on a P166; the 1997 look keeps that order); the build runs behind it from the start.
     /// </summary>
-    public const double DefaultCardHold = 3.0;
+    public const double DefaultCardHold = 1.5;
 
     /// <summary>The longest hold [port] briefing_card_hold takes, seconds.</summary>
     public const double MaxCardHold = 10;

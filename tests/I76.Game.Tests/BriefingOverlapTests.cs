@@ -108,7 +108,7 @@ public class BriefingOverlapTests
     public void TheHoldIsThePortsLongerOne()
     {
         Assert.Equal(0.7, BriefingOverlap.UpstreamCardHold);
-        Assert.Equal(3.0, BriefingOverlap.DefaultCardHold);
+        Assert.Equal(1.5, BriefingOverlap.DefaultCardHold);
         Assert.Equal(BriefingOverlap.DefaultCardHold, new ShellSettings().BriefingCardHold);
     }
 
