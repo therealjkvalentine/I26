@@ -5,25 +5,26 @@ using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>[port] bush_knock: the knock a car going through a bush makes, the review's A to G (C by default) or off, with its Developer row.</summary>
+/// <summary>[port] bush_knock: the knock a car going through a bush makes, the reviews' A to H (H by default) or off, with its Developer row.</summary>
 public class BushKnockKeyTests
 {
     [Theory]
-    [InlineData(null, "c")]
-    [InlineData("", "c")]
+    [InlineData(null, "h")]
+    [InlineData("", "h")]
     [InlineData("c", "c")]
     [InlineData("A", "a")]
     [InlineData(" g ", "g")]
     [InlineData("OFF", "off")]
-    [InlineData("h", "c")]
-    [InlineData("loud", "c")]
+    [InlineData("h", "h")]
+    [InlineData("i", "h")]
+    [InlineData("loud", "h")]
     public void TheKeyReadsALetterOrOffAndAnythingElseAsTheDefault(string? text, string read) =>
         Assert.Equal(read, ShellSettings.ParseBushKnock(text));
 
     [Fact]
-    public void TheDefaultIsTheReviewsC()
+    public void TheDefaultIsTheSecondReviewsH()
     {
-        Assert.Equal("c", new ShellSettings().BushKnock);
+        Assert.Equal("h", new ShellSettings().BushKnock);
         Assert.Equal(ShellSettings.DefaultBushKnock, BrushKnock.DefaultVariant.ToString());
     }
 
@@ -32,9 +33,9 @@ public class BushKnockKeyTests
     {
         var e = Assert.Single(DevSettings.All, d => d.Key == "bush_knock");
         Assert.Equal(DevWhen.Live, e.When);
-        Assert.Equal(new[] { "off", "a*", "b*", "c*", "d*", "e*", "f*", "g*" }, e.Values);
+        Assert.Equal(new[] { "off", "a*", "b*", "c*", "d*", "e*", "f*", "g*", "h*" }, e.Values);
         var s = new ShellSettings();
-        Assert.Equal("c*", e.Values[e.Get(s)]);
+        Assert.Equal("h*", e.Values[e.Get(s)]);
         e.Set(s, 0);
         Assert.Equal("off", s.BushKnock);
         e.Set(s, 5);

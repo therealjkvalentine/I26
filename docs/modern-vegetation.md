@@ -473,12 +473,15 @@ reads; hidden with the plants in the 1997 look; shell.cfg `[port] brush_impacts=
   car running a sign or post down (`vnvco3`, a 0.39 s knock; the original has no plants a car goes through, and its saguaro's
   `vnvcs5` is a 2.6 s crash) at the plant, positional (DirectSound's rule, min distance 10 m), on the Effects bus, HiFi
   Audio's replacement when a pack has one: pitched 0.85-1.15 by the plant's place (lower for a big one) and then twelve
-  semitones up, -14 dB creeping to 0 dB at 100 mph and then 11 dB down, started 30 % into the sound, past its attack, with an
-  8 ms fade-in (`BrushKnock.Span`, `Gain`, `Trim`: the original's PCM cut and cached; a pack's compressed sound is played from the
-  same share of its length) so it lands with less impact (the first knock sounded as the signs', the owner then asked for a bit higher and a little quieter: 7 semitones and 6 dB became 9 and 8, then 12 and 11 with the late start;
-  `[port] bush_knock` picks another of the review's variants A to G, `BrushKnock.Variants`, among them the shell's page turn,
-  pencil scratch and a slice of the map's paper rustle, or `off`; `I76_BUSH_KNOCK` tries any sound, pitch, level, start and
-  length on top),  ±1.5 dB per plant, at most one every 0.08 s a car, 12 a second in all and 4 at once (its own voice
+  semitones up, -14 dB creeping to 0 dB at 100 mph and then 9 dB down, started 15 % into the sound, past its first hit, at the
+  nearest zero crossing within 4 ms (`BrushKnock.NearestZero`: vnvco3 swings slowly there, so it starts 40 frames early, at
+  14.1 %), with a 2 ms fade-in (`BrushKnock.Span`, `Gain`, `Trim`: the PCM cut and cached; a pack's compressed sound is first
+  decoded through its own playback, `BrushImpacts.Decode`, and cut the same way) (the first knock sounded as the signs', the
+  owner then asked for a bit higher and a little quieter: 7 semitones and 6 dB became 9 and 8, then 12 and 11 from 30 % with an
+  8 ms fade-in, then "a little more loud and abrupt": 12 and 9 from 15 % with 2 ms;
+  `[port] bush_knock` picks another of the reviews' variants A to H, `BrushKnock.Variants`, among them the shell's page turn,
+  pencil scratch and a slice of the map's paper rustle, or `off`; `I76_BUSH_KNOCK` tries any sound, pitch, level, start,
+  length and fade-in on top),  ±1.5 dB per plant, at most one every 0.08 s a car, 12 a second in all and 4 at once (its own voice
   name: the signs' knock is never taken). A car at more than 4 m/s knocking a shrub of 0.5 m or more throws its leaves.
   The shader's existing parting (Cars and plants) still bends the plants round the car while it is there; the field keeps
   them down after it has gone.

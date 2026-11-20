@@ -45,7 +45,7 @@ public static class DevTips
         "effects_opacity" => "The modern look's weapon effects' opacity, in percent: lower lets more of the scene through dust, smoke and fire.",
         "vegetation_density" => "The modern look's scattered plants, in percent of what the Vegetation level places. Lower thins them; costs frame time above 60.",
         "brush_impacts" => "The modern look's plants answer the fighting: hits shake them, cars lay them down, blasts flatten them, fire can burn dry brush.",
-        "bush_knock" => "The sound a car makes going through a bush: the review's A to G (C, the sign knock higher, quieter and past its attack, by default; E to G other rustles), or off.",
+        "bush_knock" => "The sound a car makes going through a bush: the reviews' A to H (H, the sign knock higher and started 15 % in with a quick fade-in, by default; C the softer one from 30 %; E to G other rustles), or off.",
         "ordnance_limit" => "Play Options' Unlim. Ordnance: the original caps live rounds of a kind at 160; unlimited keeps a long oil or fire trail whole.",
         "modern_physics" => "Play Options' Modern Physics: your car as a rigid body with suspension and tyres instead of the original's model. Not online.",
         "coop_rolling_start" => "A co-op game you host: a player who respawns beside a moving teammate comes in at that teammate's speed and heading.",

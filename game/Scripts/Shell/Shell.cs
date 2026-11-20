@@ -1573,11 +1573,11 @@ public sealed class ShellSettings
     /// <summary>The port's own, without a row: the modern look's scattered plants answer the fighting (World/BrushImpacts.cs; [port] brush_impacts, written only when off).</summary>
     public bool BrushImpacts { get; set; } = true;
     /// <summary>
-    /// The port's own, without a row: the knock a car going through a bush makes ([port] bush_knock, written when not c): "off" (none,
-    /// as the original, which has no such plants) or a letter of I76.Formats.Vegetation.BrushKnock.Variants, the review's A to G.
+    /// The port's own, without a row: the knock a car going through a bush makes ([port] bush_knock, written when not h): "off" (none,
+    /// as the original, which has no such plants) or a letter of I76.Formats.Vegetation.BrushKnock.Variants, the reviews' A to H.
     /// </summary>
     public string BushKnock { get; set; } = DefaultBushKnock;
-    public const string DefaultBushKnock = "c";
+    public const string DefaultBushKnock = "h";
     /// <summary>[port] bush_knock's value as read: "off" or a variant's letter, lower case; anything else the default.</summary>
     public static string ParseBushKnock(string? text) =>
         text?.Trim().ToLowerInvariant() is { } t && (t == "off" || I76.Formats.Vegetation.BrushKnock.VariantOf(t) is not null) ? t : DefaultBushKnock;
