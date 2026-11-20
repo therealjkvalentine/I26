@@ -43,6 +43,44 @@ public class KeyEdgeTests(ITestOutputHelper output)
         Assert.True(worst < 0.2f, $"off the line by {worst} px");
     }
 
+    /// <summary>
+    /// The sky's horizon panels (MissionBuilder.HorizonEdge): a mesa's steep flank, the art's steps four rows tall, comes out straight
+    /// in each panel's field, made side by side from the pictures' alpha (the key, alpha 0 under it) as one Field each, in order.
+    /// </summary>
+    [Fact]
+    public void AHorizonPanelsSteepFlankComesOutStraight()
+    {
+        const int w = 64, h = 48, s = 4;
+        byte[] Panel(float x0)
+        {
+            var rgba = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    // rock left of a flank leaning a quarter pixel a row (steps of four rows), sky to the right
+                    bool rock = x + 0.5f < x0 + 0.25f * (y + 0.5f);
+                    int i = (y * w + x) * 4;
+                    rgba[i] = 180; rgba[i + 1] = 90; rgba[i + 2] = 40; rgba[i + 3] = (byte)(rock ? 255 : 0);
+                }
+            return rgba;
+        }
+        var pics = new List<(byte[], int, int)> { (Panel(20), w, h), (Panel(30), w, h) };
+        var fields = KeyEdge.Fields(pics, s);
+        Assert.Equal(2, fields.Length);
+        for (int p = 0; p < 2; p++)
+        {
+            Assert.Equal(KeyEdge.Field(KeyEdge.Opaque(pics[p].Item1, w, h), w, h, s), fields[p]);
+            float x0 = p == 0 ? 20 : 30, worst = 0;
+            for (int Y = 8 * s; Y < 40 * s; Y++)
+            {
+                float y = (Y + 0.5f) / s;
+                worst = MathF.Max(worst, MathF.Abs(Crossing(fields[p], w * s, s, Y) - (x0 + 0.25f * y)));
+            }
+            // the art's own staircase strays up to 0.375 px from the line, in steps four rows tall
+            Assert.True(worst < 0.2f, $"panel {p}: off the line by {worst} px");
+        }
+    }
+
     [Fact]
     public void ACircleComesOutRound()
     {

@@ -426,6 +426,44 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public Texture2DArray? Horizon1997 { get; private set; }
     /// <summary>The panels' foot colour (HorizonFade, the originals'): what the 1997 look's ground fades into at the Faded draw distance; null without panels.</summary>
     public Color? HorizonFadeColour { get; private set; }
+    /// <summary>
+    /// The modern sky's smooth outline of the horizon panels (sky_modern.gdshaderinc's horizon_edge): each panel's key, the original's
+    /// whatever a pack serves, as KeyEdge's signed distance field at <see cref="HorizonEdgeScale"/> texels a pixel, in the panels' own
+    /// order and rows, at the served panels' size. The sky cuts the panels there over a screen pixel instead of filtering their texels'
+    /// alpha, which drew the original's pixel staircase (a pack's upscale carries the original's key, scaled up: hard steps a few
+    /// screen pixels tall). Null without panels or with I76_SMOOTH_HORIZON=0. The 1997 look's dome keeps the texels' key.
+    /// </summary>
+    public Texture2DArray? HorizonEdge { get; private set; }
+    /// <summary>The panels' outline field's texels per original pixel: the panels are always magnified (a texel spans several screen pixels at 3440 wide).</summary>
+    public const int HorizonEdgeScale = 4;
+    /// <summary>I76_SMOOTH_HORIZON=0: the modern sky cuts the panels by their texels' alpha, as before (for before | after captures).</summary>
+    private static readonly bool SmoothHorizonOff = System.Environment.GetEnvironmentVariable("I76_SMOOTH_HORIZON") == "0";
+
+    private Texture2DArray? HorizonEdges(IReadOnlyList<string> names)
+    {
+        if (SmoothHorizonOff || Resolver is not { } resolver || Textures is not { } textures) return null;
+        var pics = new List<(byte[], int, int)>();
+        foreach (var n in names)
+        {
+            if (resolver.FindByStem(n) is not { } m || textures.GetOriginalRgba(m) is not { } t) return null;
+            pics.Add((t.Rgba, t.Width, t.Height));
+        }
+        var fields = I76.Formats.Imaging.KeyEdge.Fields(pics, HorizonEdgeScale);
+        var layers = new Godot.Collections.Array<Image>();
+        for (int i = 0; i < fields.Length; i++)
+        {
+            var (_, w, h) = pics[i];
+            var im = Image.CreateFromData(w * HorizonEdgeScale, h * HorizonEdgeScale, false, Image.Format.R8, fields[i]);
+            // the layers of an array are one size: a panel of another size is fitted to the first's, as the panels are (sampled by UV)
+            if (i > 0 && (w != pics[0].Item2 || h != pics[0].Item3))
+                im.Resize(pics[0].Item2 * HorizonEdgeScale, pics[0].Item3 * HorizonEdgeScale, Image.Interpolation.Bilinear);
+            layers.Add(im);   // no mipmaps: the sky reads level 0 (the panels are always magnified)
+        }
+        var arr = new Texture2DArray();
+        arr.CreateFromImages(layers);
+        return arr;
+    }
+
     /// <summary>The horizon panels' images (kept for the modern look's distant terrain, which measures them off the main thread).</summary>
     public Image[]? HorizonImages { get; private set; }
     public Texture2D? Sprite { get; private set; }
@@ -562,6 +600,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
                 Horizon.CreateFromImages(imgs);
                 if (imgs97 is { Count: I76.Formats.Mission.HorizonList.Panels }) { Horizon1997 = new Texture2DArray(); Horizon1997.CreateFromImages(imgs97); }
                 if (I76.Formats.Imaging.HorizonFade.Colour(feet97) is { } hc) HorizonFadeColour = new Color(hc.R, hc.G, hc.B);
+                HorizonEdge = HorizonEdges(hz);
                 GC.KeepAlive(imgs);   // held past the call (see MeshArrays)
                 GC.KeepAlive(imgs97);
                 if (defer) HorizonImages = [.. imgs];

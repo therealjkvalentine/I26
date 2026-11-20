@@ -25,6 +25,11 @@ vec4 i76_sky_tex(vec4 c) { return c; }
 uniform sampler2D clouds : source_color, filter_linear, repeat_enable;
 uniform sampler2DArray horizon : source_color, filter_linear_mipmap, repeat_disable;
 uniform bool has_horizon = false;
+// the panels' smooth outline (MissionBuilder.HorizonEdge: KeyEdge's signed distance field of the original's key, 0.5 on the edge):
+// the panels are cut there over a screen pixel instead of by their texels' filtered alpha, whose staircase (the original's key,
+// scaled up nearest under a pack) showed steps several pixels tall against the sky
+uniform sampler2DArray horizon_edge : hint_default_white, filter_linear, repeat_disable;
+uniform bool smooth_horizon = false;
 uniform bool ground_haze = false;   // the 3D horizon (HorizonTerrain): below the horizon the haze it fades into
 // with the 3D horizon, the panels still light the scene: drawn into the radiance cubemap only (ambient and
 // reflections), so the lower half of the sky light stays their sunlit desert foot and not the pale haze
@@ -239,9 +244,15 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 			float phi = atan(g.z, g.x);
 			float k = mod((1.5707963 - phi) / 0.39269908, 16.0);
 			float u = 1.0 / 128.0 + fract(k) * (1.0 - 2.0 / 128.0);
+			// the outline's field, read before the branches so its screen derivative is defined (it is continuous across the
+			// panels' seams, where u and the layer jump); the cube map's passes keep the alpha, they light the scene only
+			bool edge = smooth_horizon && !cubemap;
+			float ef = edge ? textureLod(horizon_edge, vec3(u, clamp(v, 0.0, 1.0), floor(k)), 0.0).r : 1.0;
+			float ew = max(fwidth(ef), 1e-4);
 			if (v >= 0.0 && v <= 1.0) {
 				vec4 hz = i76_array_tex(textureLod(horizon, vec3(u, v, floor(k)), 0.0));
-				col = mix(col, hz.rgb, hz.a);
+				float a = edge ? clamp((ef - 128.0 / 255.0) / ew + 0.5, 0.0, 1.0) : hz.a;
+				col = mix(col, hz.rgb, a);
 			} else if (v < 0.0) {
 				// below the panels' foot their bottom row carries on down, blurred sideways more the further it
 				// goes (seen through the distance fog over far ground, sky_fog.gdshader, a sharp row would streak;
