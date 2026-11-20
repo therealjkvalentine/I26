@@ -22,6 +22,51 @@ public sealed class Bookmarks
     {
         /// <summary>"Scene %d. " — one on when the entry was saved after a win.</summary>
         public int Scene => Mission + (State == 1 ? 1 : 0);
+
+        /// <summary>What the list shows after "Scene N. " (<see cref="Title"/>).</summary>
+        public string Shown => Title(Scene, Name, Checkpoint);
+
+        /// <summary>
+        /// <see cref="Shown"/> after <paramref name="lead"/>, cut with ".." to <paramref name="room"/> pixels as the garage's lists cut
+        /// theirs; a checkpoint bookmark's " - Checkpoint" is kept whole and its title cut, so the row still says what it is.
+        /// </summary>
+        public string Fitted(string lead, Func<string, int> measure, int room)
+        {
+            const string tail = " - " + CheckpointBookmarks.Name;
+            string shown = Shown;
+            if (!Checkpoint || !shown.EndsWith(tail, StringComparison.Ordinal) || measure(lead + shown) <= room) return Fit(lead + shown, measure, room);
+            string title = shown[..^tail.Length];
+            return Fit(lead + title, measure, room - measure(tail)) + tail;
+        }
+    }
+
+    /// <summary>
+    /// A bookmark's words after "Scene N. " (the port's, docs/deviations.md "Bookmark names"): a name the player typed, as typed; one
+    /// saved with no name (the original writes an empty name too, and its board shows only "Scene 5. ") by the title of the scene it
+    /// plays, "Save Taurus", as is one All Scenes made under a scene's former name ("The Bar-D" reads "Bar-D"); a checkpoint bookmark (saved as "Checkpoint") "Save Taurus - Checkpoint". Worked out when the list is
+    /// drawn, so a bookmark saved by any build (or imported from the original) reads so with nothing rewritten. A scene past the
+    /// trip's keeps its name as it is.
+    /// </summary>
+    public static string Title(int scene, string name, bool checkpoint = false)
+    {
+        bool known = scene >= 1 && scene <= I76.Formats.Mission.MissionTitles.SceneNames.Length;
+        if (!known) return name;
+        string title = I76.Formats.Mission.MissionTitles.SceneName(scene);
+        // no name, or the name All Scenes gave the scene in an earlier build ("The Bar-D")
+        if (string.IsNullOrWhiteSpace(name) || name == I76.Formats.Mission.MissionTitles.FormerSceneName(scene)) return title;
+        if (checkpoint && name == CheckpointBookmarks.Name) return $"{title} - {CheckpointBookmarks.Name}";
+        return name;
+    }
+
+    /// <summary>The list row, "Scene 5. Save Taurus", cut to <paramref name="room"/> pixels (<see cref="Entry.Fitted"/>).</summary>
+    public static string Row(Entry e, Func<string, int> measure, int room) => e.Fitted($"Scene {e.Scene}. ", measure, room);
+
+    /// <summary>The text, or its longest start with ".." that fits <paramref name="room"/>.</summary>
+    public static string Fit(string text, Func<string, int> measure, int room)
+    {
+        if (measure(text) <= room) return text;
+        while (text.Length > 1 && measure(text + "..") > room) text = text[..^1];
+        return text.TrimEnd() + "..";
     }
 
     public List<Entry> Entries { get; } = [];
@@ -249,13 +294,22 @@ public abstract class BookmarkScreen : OverlayScreen
         if (Marks.Entries.Count == 0 && EmptyText is { } empty) Frame.Text(Label, 228, 252, empty, ShellFrame.OverlayInk);
         var (scene, name) = Header();
         Frame.Text(Label, 186, 132, $"Scene {scene}. ", ShellFrame.OverlayInk);
-        Frame.Text(Label, 275, 132, name, ShellFrame.OverlayInk);
+        Frame.Text(Label, 275, 132, Bookmarks.Fit(name, Label.Measure, HeaderRoom), ShellFrame.OverlayInk);
         for (int i = 0; i < 10 && Top + i < Marks.Entries.Count; i++)
-        {
-            var e = Marks.Entries[Top + i];
-            Frame.Text(Rows, 190, 184 + i * RowH, $"Scene {e.Scene}. {e.Name}", ShellFrame.OverlayInk);
-        }
+            Frame.Text(Rows, 190, 184 + i * RowH, Bookmarks.Row(Marks.Entries[Top + i], Rows.Measure, RowRoom), ShellFrame.OverlayInk);
     }
+
+    /// <summary>The header name's room: the name field's 190 px (a typed name stays under it with its cursor).</summary>
+    public const int HeaderRoom = 190;
+    /// <summary>A row's room: from its x 190 to the list's right edge at 452, less the 4 px the garage's lists keep.</summary>
+    public const int RowRoom = 452 - 190 - 4;
+
+    /// <summary>A picked row's header: its scene and the words after it, as the row gives them.</summary>
+    protected (int, string) PickedHeader() =>
+        Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Fitted("", Label.Measure, PickedRoom)) : (Shell.Trip.Mission, "");
+
+    /// <summary>A picked row's header room: from the name's x 275 to the field's right edge at 452, less 4 px.</summary>
+    public const int PickedRoom = 452 - 275 - 4;
 }
 
 /// <summary>Save Bookmark, overlay 1 (record 11): name the bookmark, pick a row to overwrite, Save.</summary>
@@ -349,8 +403,7 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
         AddDelete();
     }
 
-    protected override (int, string) Header() =>
-        Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
+    protected override (int, string) Header() => PickedHeader();
 
     protected override void DoAction()
     {
@@ -410,8 +463,7 @@ public sealed class ImportSavesScreen : BookmarkScreen
         return b;
     }
 
-    protected override (int, string) Header() =>
-        Picked >= 0 && Picked < Marks.Entries.Count ? (Marks.Entries[Picked].Scene, Marks.Entries[Picked].Name) : (Shell.Trip.Mission, "");
+    protected override (int, string) Header() => PickedHeader();
 
     /// <summary>Cancel and Esc go back to Load Bookmark.</summary>
     private void Back() => Shell.Overlay(new LoadBookmarkScreen { Direct = Direct });

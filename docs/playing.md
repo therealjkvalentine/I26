@@ -77,6 +77,10 @@ shell.cfg or `--dev`; Interstate '76 only, the Nitro Pack has no trip):
 
 Both end on Load Bookmark with the new bookmarks listed.
 
+**Bookmark names.** A bookmark is listed under the name you type when you save it. Save it without one (Enter on the
+empty field, as the original allows) and Load Bookmark lists it by its mission, "Scene 5. Save Taurus", where the original
+shows "Scene 5. " alone; bookmarks you saved before read the same way.
+
 **Update check.** At every start I26 asks GitHub (one request, nothing about you or your machine is sent) whether a newer release exists and, if so, shows "version X available" under the version in the corner of the chooser and the main menu; click it to open the release page. Options > Play Options > Check for Updates (near the end of the sheet's scrolling list) turns it off, and then nothing is requested. A build run from source never asks.
 
 **Bringing in saves.** Load Bookmark is the original's sheet plus a Delete button. Two tools for bringing bookmarks in are
@@ -98,7 +102,7 @@ Both end on Load Bookmark with the new bookmarks listed.
 
 **Checkpoints.** With Play Options' Checkpoints on, a trip mission keeps a checkpoint once its intro is over and at each
 objective done, and Retry from Checkpoint (the Esc menu's Abort Mission pad, and the menu after a failure) starts again
-from the latest. Beside it, **Save Bookmark** adds a new "Scene N. Checkpoint" row to Load Bookmark: your trip as the
+from the latest. Beside it, **Save Bookmark** adds a new "Scene N. <the mission's title> - Checkpoint" row to Load Bookmark: your trip as the
 mission started, with that checkpoint. Loading it starts the mission and puts you back at the checkpoint, with the car,
 its weapons and damage and the mission as they were; your current trip is not changed by saving one. A checkpoint
 bookmark is for this version of I26: after an update the bookmark still loads, and the mission starts from its beginning

@@ -11,7 +11,7 @@ namespace I76.Game.Shell;
 /// </summary>
 public static partial class CheckpointBookmarks
 {
-    /// <summary>The name the entry is listed under ("Scene 5. Checkpoint").</summary>
+    /// <summary>The name the entry is saved under; the list shows it with the scene's title, "Scene 5. Save Taurus - Checkpoint" (<see cref="Bookmarks.Title"/>).</summary>
     public const string Name = "Checkpoint";
 
     [GeneratedRegex(@"^t(\d\d)$", RegexOptions.IgnoreCase)]
