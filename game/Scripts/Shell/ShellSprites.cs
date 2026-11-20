@@ -31,7 +31,29 @@ public partial class ShellSprites : Control
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         Scan("sprites/", _base);
         if (Nitro) Scan(ShellBackdrop.NitroSub + "/sprites/", _nitro);
-        Frame.HasHdSprite = s => Find(s) is not null;
+        Frame.HasHdSprite = s => Find(s) is not null || Halo(s);
+    }
+
+    /// <summary>Whether the background shown is an upscale (set by the shell): a highlight cut from it is drawn as its glow alone.</summary>
+    public Func<bool>? Upscaled { get; init; }
+
+    /// <summary>A highlight cut from the background (HaloSprite), over an upscaled one: its glow at the window's resolution.</summary>
+    private bool Halo(Sprite s) => HaloSprite.Applies(s) && HdAssets.Enabled && Upscaled?.Invoke() == true;
+
+    private readonly Dictionary<(int Bank, int Index, int X, int Y, int Record, int Edits), ImageTexture> _halos = [];
+
+    /// <summary>The glow is drawn at four texels a frame pixel, the menu packs' scale.</summary>
+    private const int HaloScale = 4;
+
+    private ImageTexture HaloTexture(Sprite s, int x, int y)
+    {
+        var key = (s.Bank, s.Index, x, y, Frame.Record, Frame.EditsVersion);
+        if (_halos.TryGetValue(key, out var t)) return t;
+        if (_halos.Count > 16) _halos.Clear();
+        var px = HaloSprite.Rgba(s, Frame.Background, x, y, Frame.Palette, HaloScale);
+        var img = Image.CreateFromData(s.Width * HaloScale, s.Height * HaloScale, false, Image.Format.Rgba8, px);
+        img.GenerateMipmaps();
+        return _halos[key] = ImageTexture.CreateFromImage(img);
     }
 
     private static void Scan(string dir, Dictionary<string, Entry> into)
@@ -61,7 +83,8 @@ public partial class ShellSprites : Control
     /// <summary>The picture for a sprite, or null.</summary>
     private Entry? Find(Sprite s)
     {
-        if (s.Bank == 0 || !HdAssets.Enabled) return null;
+        // a highlight cut from the background: never the pack's picture of the whole rectangle (HaloSprite)
+        if (s.Bank == 0 || !HdAssets.Enabled || HaloSprite.Applies(s)) return null;
         if (!Nitro) return _base.GetValueOrDefault($"{s.Bank}_{s.Index}") is { } b && Fits(b, s) ? b : null;
         if (_nitro.GetValueOrDefault($"{s.Bank}_{s.Index}") is { } n && Fits(n, s)) return n;
         // the base game's picture of the same sprite
@@ -96,6 +119,11 @@ public partial class ShellSprites : Control
         var off = (size - new Vector2(ShellFrame.W, ShellFrame.H) * s) / 2;
         foreach (var (sprite, x, y, turned) in Frame.Placed)
         {
+            if (!turned && Halo(sprite))
+            {
+                DrawTextureRect(HaloTexture(sprite, x, y), new Rect2(off + new Vector2(x, y) * s, new Vector2(sprite.Width, sprite.Height) * s), false);
+                continue;
+            }
             if (Find(sprite) is not { } e || Load(e) is not { } tex) continue;
             // the sprite's rectangle on screen and in texels
             var dest = new Rect2(off + new Vector2(x, y) * s, new Vector2(sprite.Width, sprite.Height) * s);

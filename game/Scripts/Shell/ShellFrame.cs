@@ -174,6 +174,8 @@ public sealed class ShellFrame
     }
     /// <summary>The frame's pixels as they stand (a screen's own layer over the frame compares them with what the screen drew, to keep off a pop-up).</summary>
     public ReadOnlySpan<byte> Pixels => _work;
+    /// <summary>The background as it is now, edits included (a highlight cut from it compared with it: HaloSprite).</summary>
+    public ReadOnlySpan<byte> Background => _clean;
 
     /// <summary>The whole work buffer back to the background.</summary>
     public void RestoreAll() { Array.Copy(_clean, _work, _clean.Length); UnplaceAll(); ForgetText(); _dirty = true; }
