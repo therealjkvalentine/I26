@@ -3169,6 +3169,8 @@ public partial class Main : Node3D
 			m.SetShaderParameter(p, dome.GetShaderParameter(p));
 		// the panels a pack serves (the dome's are the originals' then, MissionBuilder.Horizon1997)
 		if (_builder?.Horizon is { } hz) m.SetShaderParameter("horizon", hz);
+		// and their smooth outline, the original's key as curves (the 1997 look's dome keeps the texels' key)
+		if (_builder?.HorizonEdge is { } he) { m.SetShaderParameter("horizon_edge", he); m.SetShaderParameter("smooth_horizon", true); }
 		bool day = light.IsDay;
 		if (_builder?.Palette is { } pal)
 		{

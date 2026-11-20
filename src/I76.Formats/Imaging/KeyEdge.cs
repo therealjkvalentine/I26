@@ -328,6 +328,21 @@ public static class KeyEdge
         return o;
     }
 
+    /// <summary>
+    /// The smooth outlines of a set of keyed pictures (the sky's horizon panels) as fields at <paramref name="scale"/> texels a pixel, made
+    /// side by side on worker threads: one <see cref="Field(bool[], int, int, int)"/> each, from the picture's own key (alpha under 128).
+    /// </summary>
+    public static byte[][] Fields(IReadOnlyList<(byte[] Rgba, int W, int H)> pictures, int scale)
+    {
+        var made = new byte[pictures.Count][];
+        System.Threading.Tasks.Parallel.For(0, pictures.Count, i =>
+        {
+            var (rgba, w, h) = pictures[i];
+            made[i] = Field(Opaque(rgba, w, h), w, h, scale);
+        });
+        return made;
+    }
+
     /// <summary>The opaque mask of an RGBA picture (alpha 128 and over).</summary>
     public static bool[] Opaque(byte[] rgba, int w, int h)
     {
