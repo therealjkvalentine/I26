@@ -42,9 +42,11 @@ public class SirenTests(ITestOutputHelper output)
             for (int horn = 1; horn <= 6; horn++) Assert.False(SoundFiles.Loops(vfs, $"vhorn{horn}.wav"), $"{env} vhorn{horn}");
             Assert.False(SoundFiles.Loops(vfs, "nosuchsound.wav"));
             // the stock police cars (T07's Sheriffs among them) are engsnd.dat row 10, whose horn is the siren; the trip's and the
-            // scenarios' own police variants (T07, T10, T14, S06) carry a plain engine row: their honk is an ordinary horn, once
-            foreach (var (vcf, siren) in new[] { ("vcpolic1.vcf", true), ("vcpolic3.vcf", true), ("t07cp01.vcf", false), ("t10cp01.vcf", false),
-                         ("t14cp01.vcf", false), ("s06vc01.vcf", false), ("vppirna1.vcf", false), ("vxbus1.vcf", false) })
+            // scenarios' own police variants (T07, T10, T14, S06, the Nitro Pack's P13 and P16) carry a plain engine row: their honk
+            // is an ordinary horn, once. P13's script never calls setSiren, so its police cars never sound a siren, in the original too
+            foreach (var (vcf, siren) in new[] { ("vcpolic1.vcf", true), ("vcpolic2.vcf", true), ("vcpolic3.vcf", true), ("t07cp01.vcf", false),
+                         ("t10cp01.vcf", false), ("t14cp01.vcf", false), ("s06vc01.vcf", false), ("p13cp01.vcf", false), ("p16cp01.vcf", false),
+                         ("vppirna1.vcf", false), ("vxbus1.vcf", false) })
             {
                 if (vfs.TryRead(vcf) is null) continue;
                 var v = VehicleFactory.Create(vfs, vcf);
