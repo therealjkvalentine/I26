@@ -297,7 +297,29 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         var e = new Entry(ImageTexture.CreateFromImage(img), TextureReader.HasKey(b.Rgba), img.GetWidth(), img.GetHeight(), KeyColour(o), b);
         _madeBytes += img.GetDataSize();
         if (t0 != 0) { double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds; I76.Game.Boot.LoadProfiler.Texture(hd, img.GetDataSize(), ms); }
+        if (Paced) Pace(img.GetDataSize());
         return e;
+    }
+
+    /// <summary>
+    /// This thread's textures go to the card at most <see cref="PacedBytesPerSecond"/> (a mission preloaded beside a shell screen,
+    /// Boot.MissionPreload: each texture is uploaded with the screen's next frame, and a whole mission's at once held the screen to a
+    /// few frames a second). The pace ends when the preload is taken (the rate set to 0).
+    /// </summary>
+    [System.ThreadStatic] public static bool Paced;
+    public static volatile int PacedBytesPerSecond;
+    [System.ThreadStatic] private static System.Diagnostics.Stopwatch? _paceClock;
+    [System.ThreadStatic] private static long _pacedBytes;
+
+    private static void Pace(long bytes)
+    {
+        int rate = PacedBytesPerSecond;
+        if (rate <= 0) return;
+        _paceClock ??= System.Diagnostics.Stopwatch.StartNew();
+        _pacedBytes += bytes;
+        double due = _pacedBytes * 1000.0 / rate, now = _paceClock.Elapsed.TotalMilliseconds;
+        if (due > now) System.Threading.Thread.Sleep((int)System.Math.Min(due - now, 2000));
+        else if (now - due > 1000) { _pacedBytes = 0; _paceClock.Restart(); }   // (no credit banked from a pause)
     }
 
     private readonly Dictionary<string, byte[]?> _edgeField = new(StringComparer.OrdinalIgnoreCase);

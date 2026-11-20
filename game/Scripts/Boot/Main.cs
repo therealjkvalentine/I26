@@ -138,6 +138,8 @@ public partial class Main : Node3D
 	private static bool HandgunMuzzle(string node) => node.Length >= 8 && node[4..8].ToUpperInvariant() is "GRPF" or "GLPF";
 	private bool _lightOnly;
 	private int _frames, _ptFrames;
+	/// <summary>I76_END_MISSION at "Ns" ended the mission once.</summary>
+	private bool _endedByHook;
 	/// <summary>The missions loaded in this run (I76_ABORT_AT's count): kept across the scene's reloads.</summary>
 	private static int _missionLoads;
 	/// <summary>Game-space position of the Godot origin (floating origin).</summary>
@@ -379,6 +381,7 @@ public partial class Main : Node3D
 			var startup = IntroMovies.Startup(_opt.Movie, _menuShown, _opt.SkipMovies, !_menuShown && I76.Game.Shell.ShellSettings.Load().SkipIntro);
 			_menuShown = true; _backToMenu = false;
 			_inMenu = true;
+			MissionPreload.Cancel("back to the shell");
 			var lastNet = _lastNet;
 			_lastNet = null;
 			var loadError = _lastLoadError;
@@ -395,9 +398,12 @@ public partial class Main : Node3D
 				Install = install, Name = "Shell", Faithful = _opt.Mode1997,
 				Developer = _opt.Dev || System.Environment.GetEnvironmentVariable("I76_DEV") == "1",
 				LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError,
+				// the next mission known on a trip screen (salvage, garage, CHOOSE YOUR VEHICLE): its world built beside it (MissionPreload)
+				OnPreload = mission => { if (mission is null) MissionPreload.Cancel("the screen left"); else PreloadMission(mission); },
 				OnLaunch = l =>
 				{
 					LoadProfiler.Click();
+					MissionBuilder.Trace($"shell: launch {l.Mission}");
 					GD.Print($"shell: launch {l.Mission} ({l.Kind})");
 					// a checkpoint bookmark's: taken once, for this start (a Replay of it starts the mission over)
 					if (l.Resume is { } resume) { l = l with { Resume = null }; ResumeFromBookmark(l, resume); }
@@ -442,9 +448,18 @@ public partial class Main : Node3D
 		// with no briefing to build under, the main thread builds behind the card as the original loads: the thread would only add its
 		// queued renderer calls (t01 and t05 1-2 s slower threaded, docs/perf/loadtime.md)
 		threaded &= briefing is not null;
+		// a world preloaded on a shell screen for this start (MissionPreload): taken, on the threaded path, with or without a briefing;
+		// one for another start is cancelled
+		MissionPreload.Job? preloaded = null;
+		if (loading is null && _opt.Install is not null && _opt.Mission is not null)
+		{
+			preloaded = BriefingOverlap.Threaded(_opt.Mode1997, _net is not null || _opt.Network, I76.Game.Editor.EditorSession.Active, _retry is not null) ? MissionPreload.Take(PreloadKey()) : null;
+			if (preloaded is null) MissionPreload.Cancel("not taken by this start");
+			threaded |= preloaded is not null;
+		}
 		// the load's progress (LoadProgress, the line under PLEASE STAND BY: StandByTag) from 0: the load's stamps move it from here, the build's thread's among them
 		if (_opt.Install is not null && _opt.Mission is not null) I76.Game.Ui.LoadProgress.Begin();
-		BuildJob? job = threaded ? StartBuildJob() : null;
+		BuildJob? job = threaded ? StartBuildJob(preloaded) : null;
 		// up, and drawn once, before the build (a threaded build: already going)
 		if (_opt.Install is not null && _opt.Mission is not null)
 		{
@@ -1932,6 +1947,31 @@ public partial class Main : Node3D
 		return new Load(install, vfs, msn, sw, builder);
 	}
 
+	/// <summary>What this start's build is made from (the mission, the install, the look, the car's being the player's, the settings it reads): a preload of the same is taken.</summary>
+	private MissionPreload.Key PreloadKey() =>
+		new(_opt.Install!, _opt.Mission!.ToLowerInvariant(), _opt.Mode1997, _opt.Drive is not null, MissionPreload.Key.SettingsOf(I76.Game.Shell.ShellSettings.Load()));
+
+	/// <summary>
+	/// A trip screen knows the next mission: its world built beside the shell (MissionPreload), as that start's StartLoad would make it
+	/// (a trip start drives the trip's car: SkipVehicles); the modern look only (the 1997 look's start builds behind its card, the original's order).
+	/// </summary>
+	private void PreloadMission(string mission)
+	{
+		if (_opt.Install is not { } dir) return;
+		var settings = I76.Game.Shell.ShellSettings.Load();
+		bool look1997 = _opt.Mode1997 || settings.Look1997;
+		if (look1997 || I76.Game.Editor.EditorSession.Active) return;
+		var key = new MissionPreload.Key(dir, mission.ToLowerInvariant(), look1997, true, MissionPreload.Key.SettingsOf(settings));
+		MissionPreload.Start(key, () =>
+		{
+			var install = new GameInstall(dir);
+			var vfs = new AssetVfs(install);
+			var msn = install.FindMission(mission) ?? throw new System.IO.FileNotFoundException($"miss16/{mission}");
+			var builder = new MissionBuilder(vfs) { SkipVehicles = true, DeferModern = false, Look1997 = false, EarlyHorizon = Horizon3D, VegetationSetting = settings.Vegetation };
+			return new MissionPreload.Job { Key = key, Install = install, Vfs = vfs, Msn = msn, Builder = builder, Clock = System.Diagnostics.Stopwatch.StartNew() };
+		});
+	}
+
 	private void LoadMission()
 	{
 		var start = StartLoad();
@@ -2257,13 +2297,14 @@ public partial class Main : Node3D
 	/// and touches none in it; the props' material maps are held and put on after, on the main thread). The builder is the game's
 	/// (_builder, which the overlay and the views read each frame) only once the thread is done with it.
 	/// </summary>
-	private BuildJob StartBuildJob()
+	private BuildJob StartBuildJob(MissionPreload.Job? pre = null)
 	{
-		var start = StartLoad();
+		var start = pre is { } p ? new Load(p.Install, p.Vfs, p.Msn, p.Clock, p.Builder) : StartLoad();
+		if (pre is not null) JitWarm.Start();
 		var builder = start.Builder;
 		builder.OffMainThread = true;
 		builder.VegetationSetting = I76.Game.Shell.ShellSettings.Load().Vegetation;   // (the sward's texture reserved on the thread, VegetationNode.ReserveSward)
-		MissionBuilder.Trace("build: on its own thread");
+		MissionBuilder.Trace(pre is null ? "build: on its own thread" : "build: preloaded on the shell, taken");
 		BuildJob? job = null;
 		string? requested = _opt.Drive is { Length: > 0 } d ? (d.EndsWith(".vcf", System.StringComparison.OrdinalIgnoreCase) ? d : d + ".vcf") : null;
 		int variant = DriverVariant();
@@ -2272,7 +2313,19 @@ public partial class Main : Node3D
 			LoadProfiler.Open();
 			MainThread.Allowed = true;   // (the debug builds' check of the map editor's workers: this thread's engine work is the renderer's queued calls)
 			I76.Game.Assets.TextureFactory.PrefetchThreads = System.Math.Max(1, System.Environment.ProcessorCount / 2);   // the briefing's frames first
-			try { job!.World = builder.Build(start.Msn); PrefetchCars(builder, requested); PrefetchCockpitArt(builder, variant); }
+			try
+			{
+				// a preload's world: its build waited for (still going, or done on the shell), then the parts the player's pick on the
+				// screen decided (the car's, the cockpit's frames), which the preload left out
+				if (pre is not null)
+				{
+					pre.Thread.Join();
+					if (pre.Error is { } preError) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(preError).Throw();
+					job!.World = pre.World ?? throw new System.InvalidOperationException("the preload made no world");
+				}
+				else job!.World = builder.Build(start.Msn);
+				PrefetchCars(builder, requested); PrefetchCockpitArt(builder, variant);
+			}
 			catch (System.Exception ex) { job!.Error = ex; }
 			start.Clock.Stop();   // the status line's time is the build's, not the card's or the movie's
 			LoadProfiler.Event("build done");
@@ -2374,7 +2427,7 @@ public partial class Main : Node3D
 
 	/// <summary>
 	/// The card and the briefing while the world builds (CardSequence), as upstream's 0.12 shows them: the card held
-	/// ([port] briefing_card_hold, the port's 3 s to upstream's 0.7, the build going behind it from the start; a new press once the
+	/// ([port] briefing_card_hold, the port's 1.5 s to upstream's 0.7, the build going behind it from the start; a new press once the
 	/// build is done skips the briefing there, none counts before), then black and the briefing while the build goes on; a skip before the mission is
 	/// ready is kept with "PLEASE STAND BY" faded in (StandByTag), a movie that runs out holds its last frame under it, and the
 	/// mission starts by itself the moment it is ready. The port's (the movie must play clean, docs/perf/loadtime-plan.md round 2):
@@ -4921,8 +4974,11 @@ public partial class Main : Node3D
 			&& int.TryParse(smAt, out int smFrame) && _frames == smFrame)
 			_script.Host.PlayMovie(smName);
 		// test hook: I76_END_MISSION=win@frame (or fail@frame) ends the mission as the script would
+		// (at "Ns": once the mission has run N seconds of its own time, whatever the frames its load took)
 		if ((_launch is not null || _script is not null) && System.Environment.GetEnvironmentVariable("I76_END_MISSION") is { } end && end.Split('@') is [var how, var at]
-			&& int.TryParse(at, out int endFrame) && _frames == endFrame)
+			&& (int.TryParse(at, out int endFrame) && _frames == endFrame
+				|| at.EndsWith('s') && double.TryParse(at[..^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double endS)
+					&& !_endedByHook && _sim?.Session.World is { } endWorld && endWorld.Time >= endS && (_endedByHook = true)))
 		{
 			// through the script's own end where there is one (a failure with its first message), so the end menu comes up as it would;
 			// a network co-op mission's is the listen server's script (a client's comes as the server's end)

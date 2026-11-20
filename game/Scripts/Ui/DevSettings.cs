@@ -26,7 +26,7 @@ public static class DevSettings
     public const string PortMark = ShellSettings.PortMark;
     private const string M = PortMark;
     /// <summary>briefing_card_hold's steps on the panel, seconds (the file takes any from 0 to 10; 0, no hold of its own, is the one unmarked).</summary>
-    private static readonly double[] CardHolds = [0, 0.7, 1, 2, 3, 4, 5, 6, 8, 10];
+    private static readonly double[] CardHolds = [0, 0.7, 1, 1.5, 2, 3, 4, 5, 6, 8, 10];
     private static int NearestCardHold(double v) => System.Array.IndexOf(CardHolds, CardHolds.MinBy(h => System.Math.Abs(h - v)));
     private static readonly string[] FalseTrue = ["false", "true" + M];
     /// <summary>A key that follows the look while the file has none: "look", then the table's words.</summary>
