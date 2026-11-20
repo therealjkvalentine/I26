@@ -145,6 +145,8 @@ public static class DevSettings
         new("movie_ignition", ["off", "on" + M], s => s.MovieIgnition ? 1 : 0, (s, v) => s.MovieIgnition = v != 0, DevWhen.Live),
         new("briefing_while_loading", ["off", "on" + M], s => s.BriefingWhileLoading ? 1 : 0, (s, v) => s.BriefingWhileLoading = v != 0, DevWhen.NextMission),
         new("load_under_briefing", ["off", "on" + M], s => s.LoadUnderBriefing ? 1 : 0, (s, v) => s.LoadUnderBriefing = v != 0, DevWhen.NextMission),
+        new("movie_decode", ["thread" + M, "engine"], s => s.MovieDecode == I76.Formats.Video.MovieDecodeMode.Engine ? 1 : 0,
+            (s, v) => s.MovieDecode = v != 0 ? I76.Formats.Video.MovieDecodeMode.Engine : I76.Formats.Video.MovieDecodeMode.Thread, DevWhen.NextScreen),
         new("briefing_card_hold", [.. CardHolds.Select(h => h.ToString(System.Globalization.CultureInfo.InvariantCulture) + (h == 0 ? "" : M))],
             s => NearestCardHold(s.BriefingCardHold), (s, v) => s.BriefingCardHold = CardHolds[v], DevWhen.NextMission),
         new("melee_ai", ["0", "1" + M, "2" + M, "3" + M], s => (int)s.MeleeAi, (s, v) => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)v, DevWhen.NextMission),

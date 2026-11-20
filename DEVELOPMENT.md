@@ -38,6 +38,18 @@ The executable may be called `godot`, `godot-mono`, `Godot_v4.7-stable_mono_linu
 
 **Pointing the game at an install.** Any of: `--install DIR` after the `--`; the `I76_INSTALL` environment variable; or build/export the game into the game folder and run it from there. To run from the editor (F5), set `I76_INSTALL` in the environment you start the editor from; to pass other game options use the shell form.
 
+### The movie decoder (optional, Windows x64)
+
+The upscaled `.ogv` movies (docs/playing.md, `[port] movie_decode`) are decoded on the movie player's own thread by a small native library, `i26ogv` (`native/ogv/i26ogv.c`, its C API in `i26ogv.h`), which has the reference Xiph.Org libraries compiled in: libogg 1.3.6, libvorbis 1.3.7 and libtheora 1.2.0, each under its BSD-style licence (`native/ogv/LICENSES/`). Without it the game plays them with Godot's own video player, as before; nothing else needs it.
+
+```
+powershell -ExecutionPolicy Bypass -File native\ogv\build.ps1     # needs Visual Studio or its Build Tools with the C++ workload
+```
+
+The script downloads the three source releases from downloads.xiph.org, checks each against the SHA-256 pinned in it (the publishers' `SHA256SUMS`), compiles them with the wrapper into `i26ogv.dll` (MSVC, `/O2 /MT`: no runtime DLL beside it, KERNEL32 only) and puts it in `game/native/win-x64/`. The sources, the build and the DLL are git-ignored (`-Work DIR` puts the sources and the build elsewhere, `-Out DIR` the DLL). The game looks for it in `I76_OGV_LIB`, then `game/native/<platform>/` (a run from the editor or a checkout), then beside the executable and in `native/<platform>/` beside it (an export), then beside the assemblies; it logs where it found it, or that it did not. An exported Windows build carries it as `i26ogv.dll` next to the `.exe`.
+
+macOS and Linux are not built: the same C file and the three libraries' C sources build there with clang or gcc as a shared library (`-O2 -fPIC -shared -fvisibility=hidden`, the include paths as in `build.ps1`; libogg wants its `include/ogg/config_types.h`, made by its `configure` or written by hand from `config_types.h.in` with `stdint.h` types), named `libi26ogv.dylib` (a universal `arm64`+`x86_64` one for the macOS export, ad-hoc signed with the app) or `libi26ogv.so`, into `game/native/osx-arm64/`, `linux-x64/` (or beside the executable). Nothing in the game changes for them.
+
 ### With Nix (optional, Linux x86_64)
 
 The flake's devShell has everything: .NET 8 SDK, Godot 4.7 mono and the tools the scripts use (Weston, ImageMagick, jq, ...).
@@ -87,6 +99,7 @@ src/I76.Sim/        the deterministic simulation (no Godot)
 src/I76.Net/        the wire protocol and netcode
 src/I76.Server/     the dedicated/listen server host
 game/               the Godot 4 .NET project
+native/ogv/         the optional movie decoder library (C; built by its build.ps1, not committed)
 tests/              xUnit
 tools/              the `i76` CLI, scripts for captures, assets and releases
 docs/               the specifications the implementation follows (the behaviour of the original game) and the list of deliberate deviations

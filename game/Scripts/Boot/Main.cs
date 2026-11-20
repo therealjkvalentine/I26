@@ -4600,6 +4600,14 @@ public partial class Main : Node3D
 	private Camera3D ActiveCamera => _scriptCam is { Current: true } s ? s : _car?.CockpitCamera is { Current: true } k ? k : _preset is { Current: true } pc ? pc : _tv is { Current: true } tc ? tc : _chase is { } c && c.Current ? c : _cam;
 
 	/// <summary>
+	/// How far I76_AUDIO_REC's recording has got (seconds), or null with none: the movie player logs it at its first frame and its
+	/// end, so the recording's silent gaps can be put on the movie's own time.
+	/// </summary>
+	public static double? AudioRecSeconds() => PausedClock._recRun is var (cap, file)
+		? (file.GetPosition() / 4 / (System.Environment.GetEnvironmentVariable("I76_AUDIO_REC_STEREO") == "1" ? 2UL : 1UL) + (ulong)cap.GetFramesAvailable()) / (double)AudioServer.GetMixRate()
+		: null;
+
+	/// <summary>
 	/// Runs while the tree is paused (the escape menu): the capture hooks keep
 	/// counting frames, and I76_GAME_KEYS="escape@40;down@44;enter@48" presses
 	/// keys at this node's own frame numbers, for captures of the menus.
