@@ -4064,6 +4064,7 @@ public partial class Main : Node3D
 	/// </summary>
 	public override void _ExitTree()
 	{
+		ErrorFlood.Restore();   // (the engine's error messages never left off past Main)
 		RunLog.Flush();
 		if (Controls.Held == _held) Controls.Held = null;   // (a reloaded scene may have set its own already)
 		// the other look's pictures kept for F12 go with the mission (the restart cache keeps the look shown)

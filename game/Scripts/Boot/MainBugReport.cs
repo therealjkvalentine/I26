@@ -30,8 +30,12 @@ public partial class Main
 
         public override void _LogMessage(string message, bool error) => Ring.Add(message.TrimEnd('\n'));
 
-        public override void _LogError(string function, string file, int line, string code, string rationale, bool editorNotify, int errorType, Godot.Collections.Array<ScriptBacktrace> scriptBacktraces) =>
-            Ring.Add($"{(errorType == 1 ? "WARNING" : "ERROR")}: {(rationale.Length > 0 ? rationale : code)} at {function} ({file}:{line})");
+        public override void _LogError(string function, string file, int line, string code, string rationale, bool editorNotify, int errorType, Godot.Collections.Array<ScriptBacktrace> scriptBacktraces)
+        {
+            string what = rationale.Length > 0 ? rationale : code;
+            Ring.Add($"{(errorType == 1 ? "WARNING" : "ERROR")}: {what} at {function} ({file}:{line})");
+            ErrorFlood.Seen(function, what);
+        }
     }
 
     /// <summary>The frame as the Esc menu opened, for the report's screenshot; dropped when the menu closes.</summary>
