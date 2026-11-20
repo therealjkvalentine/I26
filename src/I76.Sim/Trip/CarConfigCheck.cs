@@ -50,15 +50,19 @@ public static class CarConfigCheck
         // armour and chassis: the garage conserves their total (Defense: +-10 between a zone and the pool), so no more than the
         // heaviest stock variant carries, or than the secret body is given; none negative. Stock: the archive's variants (and the first);
         // a variant the install's player saved (CONFIGURE CHASSIS writes addon\vppirna4.vcf and the like) does not raise the limit
-        int Total(TripCar c) => c.Armour.Sum() + c.Chassis.Sum() + c.Ninth;
-        int allowed = 0;
+        // (added as 64-bit numbers: each zone is a 32-bit field of the file, and a total past an int threw here, in the server's
+        // network poll, which stopped the game for everyone)
+        long Total(TripCar c) => c.Armour.Sum(a => (long)a) + c.Chassis.Sum(a => (long)a) + c.Ninth;
+        long allowed = 0;
         for (int n = 1; n < 10 && vfs.TryRead($"{stem}{n}.vcf") is { } sd; n++)
             if (n == 1 || vfs.InArchive($"{stem}{n}.vcf")) allowed = System.Math.Max(allowed, Total(TripCar.FromVcf(sd)));
         if (secret is { } body) allowed += body.Total;      // the secret replaces the zones it names, keeping the rest of the Rattler's
         // The stock total is a guideline, not a limit (a playtest's ruling: a car carrying more than any stock variant joined a
         // game the day before and must go on joining): only a negative zone is refused. ArmourOverStock says by how much.
         if (car.Armour.Any(a => a < 0) || car.Chassis.Any(c => c < 0) || car.Ninth < 0) { error = "negative armour"; return null; }
-        ArmourOverStock = System.Math.Max(0, Total(car) - allowed);
+        // nor a total the game cannot count (its car weight and health add the zones as ints): no garage makes one
+        if (Total(car) > int.MaxValue) { error = "armour beyond what a car can carry"; return null; }
+        ArmourOverStock = (int)System.Math.Max(0, Total(car) - allowed);
 
         // parts: components by ordinal, tyres and guns by file, each one the install has
         var engOrdinal = I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs, car.Engine);
