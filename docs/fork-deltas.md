@@ -133,7 +133,7 @@ the `gh-pages` branch (see tools/changes-page/README.md).
 
 - The fork's car deaths and explosions (DeathVariety: deaths by cause in two stages, a cause-specific sign, `[port] death_variety`) are withdrawn: the modern look's deaths, explosions, fire and smoke are upstream's again. The work stays on its branches. [L, Q, AF, AY]
 - Hide Map Edge Cliffs (a week of hiding the boundary walls) was removed: the walls and the slopes up to them are the maps' intended shape. [D, I, K, N, O]
-- Dropped because upstream did the same: the siren loop, macOS entitlements and microphone, the load-card audio hiccup, the editor's tool column, Difficulty's damage, Heated Seats' ammunition, the update check, the horizon depth pre-pass, the first host-form redesign (comments in the manifest say which upstream commit). [A, B, C, C2, D, I]
+- Dropped because upstream did the same: the siren loop, macOS entitlements and microphone, the load-card audio hiccup, the editor's tool column, Difficulty's damage, Heated Seats' ammunition, the update check, the horizon depth pre-pass, the first host-form redesign, the join check's guard against a car that throws it (upstream's 0.13.0; the fork's 64-bit armour total and the server's goodbye on a fault stay), a carried CTF flag going home as its carrier blows up (upstream's 0.13.0, with the fork's return when a driver-killed carrier's wreck is hidden) (comments in the manifest say which upstream commit). [A, B, C, C2, D, I, GI, GT]
 
 ## How to try it
 

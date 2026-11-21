@@ -153,8 +153,12 @@ public readonly record struct CtfBase(System.Numerics.Vector3 Origin, System.Num
 /// Capture the flag, the server side (the flag's collision handling).
 /// Pickup only at the home stand and by an enemy carrying nothing; capture by
 /// touching any stand of one's own colour while carrying an enemy flag; one's
-/// own flag is never returned by touch; a carried flag goes home when its carrier dies (as the original's wreck routine does at the death), regens or is removed.
-/// A stand is touched as its base is met (<see cref="CtfBase"/>).
+/// own flag is never returned by touch; a carried flag goes home when its car
+/// blows up (as the original's wreck routine does at the death), regens, is
+/// removed or respawns (a car whose driver was killed does not blow up, so the
+/// flag stays on it until then, or until its wreck is hidden from the other
+/// machines at the wreck timer's end). A stand is touched as its base is met
+/// (<see cref="CtfBase"/>).
 /// </summary>
 public sealed class CtfGame
 {
@@ -293,7 +297,7 @@ public sealed class CtfGame
         if (announce) Message?.Invoke($"*** {TeamName(f.Team)}'s flag has been returned to its base!");
     }
 
-    /// <summary>The carrier died, regenerated or left (the original's return home): the flag goes home.</summary>
+    /// <summary>The carrier's car blew up, regenerated, was removed or respawned (the flag's return home): the flag goes home.</summary>
     public void CarrierGone(MeleePlayer p)
     {
         if (Carried(p) is { } f) Home(f, announce: true);
