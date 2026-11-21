@@ -505,9 +505,10 @@ public sealed partial class MeleeGame
                 p.Destroyed = true;
                 p.RespawnAt = Host.Now + Rules.RespawnDelay;
                 p.RespawnWanted = false;
-                // CTF: the original's wreck routine sends a carried flag home on the death itself (its host only, then the
-                // flags' packet): back at its stand, "returned to its base", never left on the wreck
-                Ctf?.CarrierGone(p);
+                // A carried flag goes home as the car blows up (the original's wreck routine, on the death itself: back at its
+                // stand, "returned to its base"), not when its player respawns. A driver killed (the .45, the Chemical Mortar)
+                // blows nothing up: the flag stays on the car until the respawn, the leave or its wreck is hidden (below)
+                if (((uint)p.Car.Flags & 0x4000) == 0) Ctf?.CarrierGone(p);
                 // The score for a death: a death, and with no killer 500 points to a floor of 0 (network
                 // combat only); one's own weapon or a teammate's books nothing. The losers blown up at the end have no
                 // killer: they pay too (the original wrote NSCR.DAT after it)
@@ -532,6 +533,9 @@ public sealed partial class MeleeGame
                 p.OffPad = false;
                 PlayerRenewed?.Invoke(p.Car);
             }
+            // a player's wreck is hidden on every other machine at its wreck timer's end (DamageModel.Timer, the fork's): a
+            // carrier whose driver was killed keeps the flag until then, never on a car the others no longer see
+            else if (p.Destroyed && p.Car.Wreck) Ctf?.CarrierGone(p);
         }
         SweepDeparted();
         BotsFrame();
@@ -718,8 +722,12 @@ public sealed partial class MeleeGame
         Ctf?.CarrierGone(pl);
         Renew(pl, full: Rules.Network);
         Place(p, PickSpawn(pl.Team, p), pl.Team, fresh: Rules.Network);
+        BotPlaced(pl);
         PlayerRenewed?.Invoke(p);
     }
+
+    /// <summary>How near a regen point a car comes for it to count (3-D).</summary>
+    internal const float RegenReach = RegenRadius;
 
     /// <summary>
     /// A fresh car, as the same vehicle (its node and hooks stay): the wheels'

@@ -168,9 +168,10 @@ public sealed partial class NetMeleeServer : IDisposable
         }
         catch (Exception ex)
         {
-            // a join the checks fail on (nothing of it is seated yet) is turned away, not the end of everyone's game in the poll
-            Log?.Invoke($"{j.Name}'s join could not be checked: {ex}");
-            why = "the server could not check this join";
+            // whatever a request holds (its car is anyone's file), checking it must not end the game for everyone:
+            // an exception here would escape the poll and stop the server (a car whose armour overflowed the check did)
+            Log?.Invoke($"checking {req.RemoteEndPoint}'s join failed: {ex}");
+            why = "the server could not check your car";
         }
         if (why is not null)
         {

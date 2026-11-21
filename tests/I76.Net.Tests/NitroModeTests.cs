@@ -147,17 +147,22 @@ public class NitroModeTests(Xunit.Abstractions.ITestOutputHelper output)
         var f2 = game.Ctf.Flags.First(f => f.Team == 2);
         Assert.Equal(CtfFlag.Home, f1.State);
         Assert.Equal(CtfFlag.Home, f2.State);
-        // red takes green's flag, and dies with it: the flag goes home at the death, as the original's wreck routine sends it
+        // red takes green's flag, and dies with it: the flag goes home as the car blows up (the original's wreck routine), before red respawns
         DriveThrough(host, red, f2.HomePos);
         Assert.Equal(CtfFlag.Carried, f2.State);
         Assert.Same(red.Player, f2.Carrier);
         var snap = ReadSnapshot(host, red);
         Assert.Contains(snap.Flags, f => f.Team == 2 && f.State == 4 && f.Carrier == red.CarSerial);
+        host.TakeEvents();
         host.Setup.Damage.Destroy(red.Player.Car);
-        Steps(host, 5);
+        Steps(host, 2);
         Assert.Equal(CtfFlag.Home, f2.State);
         Assert.Null(f2.Carrier);
-        // red comes back (RAISE_DEAD once the 5 s are up)
+        Assert.Contains(host.TakeEvents(), e => e is ChatEvent { From: -1 } c && c.Text.Contains("returned to its base"));
+        snap = ReadSnapshot(host, red);
+        Assert.Contains(snap.Flags, f => f.Team == 2 && f.State == 1 && f.Carrier == 0);
+        Steps(host, 3);
+        // red respawns (RAISE_DEAD once the 5 s are up): nothing more to return
         Steps(host, (int)(host.Options.RespawnDelay / SimRate.Default.TickSeconds) + 30);
         Assert.Null(game.RequestRespawn(red.Player));
         Steps(host, 2);
@@ -277,6 +282,42 @@ public class NitroModeTests(Xunit.Abstractions.ITestOutputHelper output)
         Drive(red2, f2.HomePos);
         Assert.Same(red2.Player, f2.Carrier);
         Assert.All(clients, c => Assert.Equal(CtfFlag.Carried, Seen(c).State));
+    }
+
+    /// <summary>
+    /// A carrier whose driver is killed (the .45, the Chemical Mortar) does not blow up: the flag stays on the car (upstream's
+    /// rule) until its player respawns, or, in the fork, until the car's wreck is hidden from the other machines at the wreck
+    /// timer's end (a flag never rides a car nobody else sees).
+    /// </summary>
+    [Fact]
+    public void ACarrierWhoseDriverIsKilledKeepsTheFlagUntilItsWreckIsHidden()
+    {
+        if (Nitro is null) return;
+        var host = new MeleeHost(new ServerOptions { Install = Nitro, Arena = "N40.CF2", Kind = MeleeKind.Ctf, CtfTeams = 2, GoalValue = 3 });
+        var game = host.Game;
+        var red = host.Join("red", "vppirna1.vcf", 1);
+        host.Join("green", "vppirna1.vcf", 2);
+        Steps(host, 3);
+        var f2 = game.Ctf!.Flags.First(f => f.Team == 2);
+        DriveThrough(host, red, f2.HomePos);
+        Assert.Same(red.Player, f2.Carrier);
+        var car = red.Player.Car;
+        car.Flags |= (I76.Sim.Vehicles.VehicleFlags)0x4000;
+        host.Setup.Damage.Destroy(car);
+        Assert.Equal(0x4020u, (uint)car.Flags & 0x4020u);
+        // the dead car, not yet a wreck, keeps the flag (2 s on)
+        Steps(host, (int)(2 / SimRate.Default.TickSeconds));
+        Assert.False(car.Wreck);
+        Assert.Equal(CtfFlag.Carried, f2.State);
+        Assert.Same(red.Player, f2.Carrier);
+        // past the wreck timer: the wreck is hidden from the others and the flag is home, before any respawn
+        Steps(host, (int)(10 / SimRate.Default.TickSeconds));
+        Assert.True(car.Wreck);
+        Assert.Equal(CtfFlag.Home, f2.State);
+        Assert.Null(f2.Carrier);
+        Assert.Null(game.RequestRespawn(red.Player));
+        Steps(host, 2);
+        Assert.Equal(CtfFlag.Home, f2.State);
     }
 
     /// <summary>
