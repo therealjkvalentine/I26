@@ -138,6 +138,9 @@ public partial class Main : Node3D
 	private static bool HandgunMuzzle(string node) => node.Length >= 8 && node[4..8].ToUpperInvariant() is "GRPF" or "GLPF";
 	private bool _lightOnly;
 	private int _frames, _ptFrames;
+	private double? _errorTestAt;
+	private int _errorTestFrame = -1;
+	private long _errorTestLast;
 	/// <summary>I76_END_MISSION at "Ns" ended the mission once.</summary>
 	private bool _endedByHook;
 	/// <summary>The missions loaded in this run (I76_ABORT_AT's count): kept across the scene's reloads.</summary>
@@ -458,7 +461,7 @@ public partial class Main : Node3D
 			threaded |= preloaded is not null;
 		}
 		// the load's progress (LoadProgress, the line under PLEASE STAND BY: StandByTag) from 0: the load's stamps move it from here, the build's thread's among them
-		if (_opt.Install is not null && _opt.Mission is not null) I76.Game.Ui.LoadProgress.Begin();
+		if (_opt.Install is not null && _opt.Mission is not null) { I76.Game.Ui.LoadProgress.Begin(); StartErrors.Begin(); }
 		BuildJob? job = threaded ? StartBuildJob(preloaded) : null;
 		// up, and drawn once, before the build (a threaded build: already going)
 		if (_opt.Install is not null && _opt.Mission is not null)
@@ -2103,6 +2106,7 @@ public partial class Main : Node3D
 		}
 		// the plants about the first view, behind the loading card
 		_loaded = true;
+		StartErrors.Loaded();
 		FrameProfiler.MarkLoaded();
 		RenderScale.Refresh();   // Render Scale's video memory cap with the mission's textures in
 		MissionBuilder.Trace("first tick: render scale");
@@ -4831,6 +4835,7 @@ public partial class Main : Node3D
 		using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Main);
 		if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
 		FrameLimiter.Pace();
+		StartErrors.Frame(GetTree());   // the start's engine errors, counted to a few seconds into the mission
 		UpdateMouseCapture();
 		// [port] wreck_solid follows the look in use and the key as they are now (F12, the Developer panel), between ticks
 		if (_sim?.Combat is { } wc) I76.Game.Sim.OriginalBehavior.ApplyWrecks(wc, _mode1997);
@@ -4928,6 +4933,25 @@ public partial class Main : Node3D
 			GD.Print($"abort: load {_missionLoads}, frame {_frames}");
 			MenuClosed(MenuOutcome.Abort);
 			return;
+		}
+		// test hook: I76_ERROR_TEST=Ns: at N s of mission time one harmless engine error (a node asked for by a name that is not there),
+		// its frame's time logged with the frames before and after it: what one engine error costs a frame in play (docs/dev-hooks.md)
+		if (_errorTestAt is null && System.Environment.GetEnvironmentVariable("I76_ERROR_TEST") is { Length: > 1 } et && et.EndsWith('s')
+			&& double.TryParse(et[..^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double etS))
+			_errorTestAt = etS;
+		if (_errorTestAt is { } etAt && _sim?.Session.World is { } etWorld)
+		{
+			long nowT = System.Diagnostics.Stopwatch.GetTimestamp();
+			if (_errorTestFrame >= 0 && _errorTestFrame < 8) RunLog.Print($"error test: frame {_errorTestFrame} after the error {(nowT - _errorTestLast) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms");
+			if (_errorTestFrame >= 0) _errorTestFrame++;
+			if (_errorTestFrame < 0 && etWorld.Time >= etAt)
+			{
+				long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+				_ = GetNode("__i76_error_test__");   // (an engine error: "Node not found", the node's call returns null)
+				RunLog.Print($"error test: one engine error raised at {etWorld.Time:0.0} s, {(System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.00} ms in the call");
+				_errorTestFrame = 0;
+			}
+			_errorTestLast = nowT;
 		}
 		// test hook: I76_REPLAY_AT=frame chooses Replay Mission from the menu at that frame (every load: a run of restarts)
 		if (int.TryParse(System.Environment.GetEnvironmentVariable("I76_REPLAY_AT"), out int replayAt) && _frames == replayAt && !_ended && _menu is null)
