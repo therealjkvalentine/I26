@@ -456,11 +456,19 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         return false;
     }
 
+    /// <summary>The metadata by which an entry's texture holds the kept texture whose picture it shows (<see cref="Point"/>).</summary>
+    private static readonly StringName ShownMeta = "i76_shown_picture";
+
     /// <summary>The entry's texture shows the kept picture of <paramref name="hd"/>'s look (no upload: a swap of what it points at).</summary>
     private static void Point(Entry e, KeptLook k, bool hd)
     {
-        RenderingServer.TextureReplace(e.Texture.GetRid(), RenderingServer.TextureRdCreate(hd ? k.ModernRd : k.FaithfulRd));
         var t = k.Of(hd)!;
+        RenderingServer.TextureReplace(e.Texture.GetRid(), RenderingServer.TextureRdCreate(hd ? k.ModernRd : k.FaithfulRd));
+        // the entry's texture now draws the kept texture's picture without owning it: it holds that texture itself (a reference the
+        // engine counts), so the picture is freed only after the last material drawing it. Held by the factory alone, the kept textures
+        // went with the factory's collection, in no set order with the last mission's materials (still alive until their own): those
+        // were left pointing at a freed picture, "Texture (binding: 2, index 0) is not a valid texture" in the next mission.
+        e.Texture.SetMeta(ShownMeta, t);
         e.Texture.SetSizeOverride(new Vector2I(t.GetWidth(), t.GetHeight()));
     }
 
@@ -501,7 +509,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
             // an oversight: re-reading the pack would make every change as slow as the first; the log line below says what is held)
             if (!_looks.TryGetValue(member, out var pair)) _looks[member] = pair = (Picture(h), Prepare(Bled(member)!).Img);
             e.Texture.SetImage(on ? pair.Modern : pair.Faithful);
-            if (was is not null) { was.Drop(true); was.Drop(false); }
+            if (was is not null) { e.Texture.RemoveMeta(ShownMeta); was.Drop(true); was.Drop(false); }
             swapped++;
         }
         double texMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;

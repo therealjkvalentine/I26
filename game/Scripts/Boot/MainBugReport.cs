@@ -35,6 +35,7 @@ public partial class Main
             string what = rationale.Length > 0 ? rationale : code;
             Ring.Add($"{(errorType == 1 ? "WARNING" : "ERROR")}: {what} at {function} ({file}:{line})");
             ErrorFlood.Seen(function, what);
+            if (errorType != 1) StartErrors.Seen(function, what);   // (1: a warning)
         }
     }
 
