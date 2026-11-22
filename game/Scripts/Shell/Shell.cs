@@ -1647,7 +1647,7 @@ public sealed class ShellSettings
     public bool CabinsBehindGlass { get; set; } = true;
     /// <summary>The port's own: the chase view eases back behind the car a few seconds after the mouse or stick last moved (Mouse Options' Camera Return); off, it stays where it was left.</summary>
     public bool CameraReturn { get; set; } = true;
-    /// <summary>The port's own: a switch of view, a cut-scene's hand-back and a respawn put the external views' wheel zoom back to the original's framing (Mouse Options' View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
+    /// <summary>The port's own: a switch of view and a respawn put the external views' wheel zoom back to the original's framing (Mouse Options' View Zoom Reset; shell.cfg [port] zoom_reset, written only when off). Off: each view keeps its zoom until the mission ends.</summary>
     public bool ZoomReset { get; set; } = true;
     /// <summary>
     /// The port's own: Graphic Detail's Field of View for the main 3D views (index into <see cref="I76.Sim.Views.ViewFov.Across"/>, Monitor
