@@ -14,6 +14,20 @@ public class TickPacerTests
     private const double Frame = 1.0 / 179; // the desktop's display
 
     [Fact]
+    public void AFrameTheGameWasHeldForIsNotCaughtUpAfterwards()
+    {
+        // the mission's first picture drawn with the game held (a slow first frame): its time owes the sim nothing
+        var p = new TickPacer(T);
+        Assert.Equal(1, p.Advance(T));   // tick 0
+        p.SkipNext();
+        Assert.Equal(0, p.Advance(0.25));   // the held frame's time, up to the frame cap: six ticks at 24 Hz otherwise
+        Assert.Equal(0f, p.Alpha, 4);
+        // only the next frame on counts, as ever
+        Assert.Equal(0, p.Advance(T * 0.5));
+        Assert.Equal(1, p.Advance(T * 0.5));
+    }
+
+    [Fact]
     public void PlainItRunsAWholeTickAtATimeAndDrawsTheRemainder()
     {
         var p = new TickPacer(T);

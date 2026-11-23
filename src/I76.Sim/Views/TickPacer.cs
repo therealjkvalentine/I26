@@ -30,6 +30,7 @@ public sealed class TickPacer
     /// <summary>The frame's wall time in; the regular ticks it owes out (the caller runs them, in order).</summary>
     public int Advance(double dt)
     {
+        if (_skip) { _skip = false; dt = 0; }
         Acc += dt;
         int n = 0;
         while (Acc >= Tick) { Acc -= Tick; n++; }
@@ -43,6 +44,13 @@ public sealed class TickPacer
     /// runs the tick, then calls <see cref="Borrow"/>.
     /// </summary>
     public bool WantsEarly(bool inputChanged) => EarlyOnInput && inputChanged && Acc >= 0;
+
+    /// <summary>
+    /// The next <see cref="Advance"/>'s time is not owed to the sim: a frame the game was held for (the mission's first picture,
+    /// drawn before its sounds and ticks go) is not caught up afterwards in a burst of ticks.
+    /// </summary>
+    public void SkipNext() => _skip = true;
+    private bool _skip;
 
     /// <summary>The early tick has run: take it from the accumulator and draw the blend from here.</summary>
     public void Borrow()
