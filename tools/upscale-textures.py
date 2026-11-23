@@ -9,13 +9,13 @@
            python3 tools/upscale-textures.py SRC_DIR --from OLD_PACK_DIR --out NEW_DIR
 
 Needs Python 3.10+ with numpy and Pillow, torch and spandrel to run the model, and etcpak for the .dds the game loads fastest
-(pip install torch spandrel numpy pillow etcpak). The model is 4xTextures_GTAV_rgt-s_dither by Philip Hofmann (Phhofm),
+(pip install torch spandrel numpy pillow etcpak; on Windows pip's torch is CPU only: for an NVIDIA card first
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126). docs/hd-textures.md walks through it. The model is 4xTextures_GTAV_rgt-s_dither by Philip Hofmann (Phhofm),
 CC-BY-4.0, downloaded once into ~/.cache/i26/models/. Nothing of the game is in this script: it reads what you exported and
 writes textures beside a pack.json.
 
-What it writes: world and car textures at twice the original's size (the model's 4x brought down: 4x is not visible at the
-distances they are drawn from, and costs four times the memory and load time), the cockpit's own art (z*) at the model's 4x,
-which is drawn near full screen; the cockpit's lettering and frames that are pixel art (--pixel: the weapon and special
+What it writes: world and car textures at --scale times the original's size (4, the model's own, by default), the
+cockpit's own art (z*) at the model's 4x, which is drawn near full screen; the cockpit's lettering and frames that are pixel art (--pixel: the weapon and special
 labels, the ammunition digits, the mirror's frame) not through the model but smoothed in their own colours (pixel_scale), as
 the model recolours thin strokes and leaves stair steps. The model's output (or the --from pack's) is colour matched back to
 the original before it is written: the model shifts broad colour and brightness (darker reds, lighter dashboards), so its
@@ -103,6 +103,7 @@ take the model's place, with the same band outside it. The files replaced are ke
            python3 tools/upscale-textures.py SRC_DIR --paint-cut FIELDS --out PACK --scale 8 [--only ...]
 """
 import argparse, fnmatch, json, os, sys, time, struct, urllib.request
+from shutil import which as shutil_which
 import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1105,8 +1106,12 @@ def main():
     needs_model = bool(args.masters_out) or not args.frm or any(f and (f[0] or f[1]) and not kept(n) for n, (f, _) in fams.items()) or bool(NEIGHBOURS)
     runner = None
     if needs_model:
-        import torch
+        try: import torch, spandrel
+        except ImportError as e: sys.exit(f"{e.name} is not installed: pip install torch spandrel numpy pillow etcpak (docs/hd-textures.md)")
         device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if device == "cpu" and not args.device and shutil_which("nvidia-smi"):
+            print(f"torch {torch.__version__} cannot use the NVIDIA card here, so the model runs on the CPU (hours, not minutes); for the card:\n"
+                  "    pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu126   (--device cpu hides this note)")
         runner = Runner(device, args.model, args.models_dir, args.alpha_model, args.then_model)
         print(f"models on {device}, {TILE} px tiles" + (f", families: {', '.join(r[0] for r in table)}" if table else "") + (", alpha step on every keyed texture" if args.alpha else ""))
     os.makedirs(args.out, exist_ok=True)
