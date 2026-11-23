@@ -1375,7 +1375,7 @@ public partial class CarNode : Node3D
         _siren?.Update(shown, !Wrecked, Modern);
         if (_engine is not null)
         {
-            _engine.PitchScale = _engineRevable ? EngineSoundPitch.Scale(Sim.Engine.Rpm, _engineRate) : 1f;
+            _engine.BasePitch = _engineRevable ? EngineSoundPitch.Scale(Sim.Engine.Rpm, _engineRate) : 1f;
             if (_engineRotor) _engine.Hearing = OriginalBehavior.RotorHearing(!Modern);   // live: the look or the key may change
         }
         double gx = Lerp(_prevPos.X, _pos.X), gz = Lerp(_prevPos.Z, _pos.Z);
