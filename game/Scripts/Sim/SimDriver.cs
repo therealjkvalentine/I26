@@ -584,6 +584,12 @@ public partial class SimDriver : Node
         }
     }
 
+    /// <summary>
+    /// The next frame's time is not play: the mission's first picture was drawn with the game held (Main.GoAfterFirstPicture), and the
+    /// ticks that frame's time would owe are not run at once after it (a network game's clock is the server's).
+    /// </summary>
+    public void SkipFrameTime() { if (Remote is null) Pacer.SkipNext(); }
+
     /// <summary>A capture hook (I76_CHECKPOINT_HOLD): no ticks while set, so a restored scene holds still to be seen.</summary>
     public bool Hold { get; set; }
 

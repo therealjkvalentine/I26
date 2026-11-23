@@ -20,9 +20,11 @@ public sealed class AudioBank(AssetVfs vfs)
         bool hifi = HiFiAudio.Enabled && HiFiAudio.Installed;
         var key = name + (loop ? "#loop" : "") + (hifi ? "#hifi" : "");
         if (_cache.TryGetValue(key, out var s)) return s;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         var pcm = SoundFiles.Read(vfs, name);
         // a pack replaces only sounds the game has: one the install lacks stays silent
         s = pcm is null ? null : (hifi ? HiFiAudio.Load(name, vfs.Install.IsNitro, loop, pcm.Seconds) : null) ?? ToStream(pcm, loop);
+        if (I76.Game.Boot.AudioWatch.On) { I76.Game.Boot.AudioWatch.FirstUse(key, System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds); if (s is not null) s.ResourceName = key; }
         return _cache[key] = s;
     }
 
