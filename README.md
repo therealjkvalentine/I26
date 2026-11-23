@@ -35,76 +35,31 @@ On Linux, ensure Microsoft core fonts are installed for Impact and Arial.
 
 # HD textures (optional)
 
-The modern look draws an upscaled texture in place of the install's when one is found in the user folder's `tex-world-4x/`
+The modern look draws an upscaled texture in place of the install's when a pack is in the user folder's `tex-world-4x/`
 (`%APPDATA%\I26\tex-world-4x` on Windows, `~/.local/share/I26/tex-world-4x` on Linux, `~/Library/Application Support/I26/tex-world-4x`
-on macOS; an older plain `tex-world/` is still read; a `tex-world-3x/` or `-2x/` made with `--scale 3` or `2` loads only when the Developer panel's `hd_dash_size` or `hd_car_size` names it), named after the texture (`pp11ftf1.png`). Graphic Detail's HD Textures row is Off or On, with an 8x Dash and an 8x Cars row under it when an 8x pack is there. None ships with I26, and no game art is in this
-repository: `tools/upscale-textures.py` makes them on your own machine from your own install. Export the textures
-(`i26 -- --install DIR --export-textures SRC_DIR`, which quits when done), install Python 3.10+ with
-`pip install torch spandrel numpy pillow etcpak`, and run `python3 tools/upscale-textures.py SRC_DIR`. It downloads the model
-4xTextures_GTAV_rgt-s_dither (Philip Hofmann, CC-BY-4.0) once, takes about half a second a texture on a graphics card
-and several seconds on a CPU, resumes if stopped, and writes an `ATTRIBUTION.txt` beside the pictures. World, car
-and cockpit textures come out at four times the original's size, as compressed `.dds` files the game
-loads about as fast as its own; the cockpit's pixel lettering (the weapon labels, the ammunition digits) and the mirror's
-frame are scaled in their own colours rather than by the model. The model darkens or lightens broad areas and shifts
-their tint, so its output is matched back to the original's colour: the upscale's blurred picture is brought to the
-original's in Oklab and the model's fine detail kept (`--no-colour-match` writes the model's colours as they come;
-`--self-check` tests the match on a made-up picture). `--from OLD_PACK` repacks a pack made by an earlier version without running the model again,
-colour matching it to your export on the way. `--families` gives the cockpit's art model by family (the dash panels, gear
-strip, compass and mirror through 4x-UltraSharpV2; the damage panel, weapon panels and hands through 4xHDcube3; the notepads
-through 4xHDcube4Compact; the radar through 4xHDcube3), and the dials, needles, reticle and binocular mask, which are shapes
-cut out of the key, get the alpha step: their transparency goes through 4xHDcube-Alpha before it is cut, so needles come
-out straight and dial numerals round instead of stair-stepped (`--alpha` does it for every keyed texture). Those models
-are not downloaded: put them in `--models-dir`; the tool's `--help` names their sources and licences (UltraSharpV2 and
-HDcube3 are non-commercial, so such a pack is for your own use), and the pack's `pack.json` and `ATTRIBUTION.txt` list
-every model used. Lettering painted a few texels high (the 3D dash's speedometer and tachometer figures, the damage
-panel's MR.DAMAGE plate and its labels, the Piranha's licence plate and badge) still comes out soft and blobby from any
-model, so `python3 tools/text-redraws.py SRC_DIR` sets those words again from free fonts (SIL OFL, in
-`tools/text-redraws/fonts/` with their licences) at the pack's resolution: one spec a texture in `tools/text-redraws/`
-(where the painted letters are, which words, which font, how large), CPU only and a few seconds, the model's files kept
-in the pack's `.text-base/` (`--restore` puts them back), the fonts named in `pack.json` and `ATTRIBUTION.txt`. On another
-machine with its own pack (a fresh `tex-world-4x` from `upscale-textures.py`, or one copied over), export that machine's
-textures once (`i26 -- --install DIR --export-textures SRC_DIR`) and run `python3 tools/text-redraws.py SRC_DIR` with the
-same checkout: the specs are committed, so every machine gets the same lettering; `--pack DIR` points it at a pack that is
-not in the user folder, and running it again after the pack is rebuilt redraws the new model files (delete the pack's
-`.text-base/` first, so the new upscales become the base). The specs are written by the scripts in
-`tools/text-redraws/gen/` (the dials, the damage labels, the police doors, the cars' tails, the dented Piranha, the maps),
-which hold each label's place as read off the original. The mission map screen (M) draws its map from the HD menu art, not
-from this pack: `python3 tools/menu-maps.py SRC_DIR` (the same export) runs every map through the same model (GPU, a few
-seconds a map) into `tex-menu/maps/`, its pen writing cleaned (the model's halo off, the strokes' edges softened and a little
-of the paper through the ink; `--writing plain` or `ink` for the alternatives); the plain upscales are kept, so a re-run
-needs no GPU. The forms' ruled lines (the tables, frames, check boxes and underlines of the notepad pages) come out of the
-model with a pale, greyish band along them: `python3 tools/menu-rules.py SRC_DIR` (the records as `bg SRC_DIR` writes them)
-finds every rule in the original and makes the band round it the paper again and the rule the original's ink, the
-lettering untouched, in seconds on the CPU; the model's pages are kept in `tex-menu/.rules-prev/` (`--restore`). The title logo (the main menu's, and its small copy on the mission-select card) is flat art of four colours, which a
-model upscales with wobbling outlines and a ringing band: `python3 tools/flat-art.py SRC_DIR` draws it again as vector art
-from the original (each colour's edge read from the anti-aliasing to a fraction of a texel, traced with potrace, the TM mark
-set from Arial), no model, lossless; the model's pages are kept in `tex-menu/.flat-prev/` (`--restore`), and `--image FILE
---colours ...` traces any other flat stamp.
+on macOS), one file a texture named after it (`pp11ftf1.dds`). None ships with I26 and no game art is in this repository: you
+make the pack on your own machine from your own install. **[docs/hd-textures.md](docs/hd-textures.md) says how, step by step.**
+The quick route needs this fork's build (a `play-NN` zip from the [releases page](https://github.com/therealjkvalentine/I26/releases):
+upstream's builds cannot export textures yet), Python 3.10+, this repository, and under two hours with an NVIDIA graphics card
+(most of a day on a CPU). On Windows, in PowerShell in the repository's folder:
 
-An **8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then offers
-8x) holds only those textures at eight times the original's size and leaves the rest to the 4x, which
-the game reads for every texture the 8x does not have; it needs the 4x pack and adds 2.9 GB on disk (2,556 textures), ~0.55-0.6 GB of video memory and ~2 s to a
-mission's load, and in our A/B shows no difference at play (docs/perf/costs.md). Graphic Detail's Car & Dash Textures row
-(1997, 4x or 8x) takes it for the cars and the dash together, World Textures (1997 or 4x) the rest: a first start (and the rows' Reset)
-draws the world at 4x and the cars and the dash at 8x (~510 MB of video memory over the 4x, ~482 MB of it the dash: the cockpit's
-art is drawn near full screen, so its textures are large) when the graphics card has 6 GB of video memory or more (an
-Apple-silicon Mac, 16 GB of memory or more), else at the 4x (docs/playing.md, HD textures); a shell.cfg from before keeps its
-choice (`hd_dash_size` and `hd_car_size`, or the older single `hd_texture_size`, give the cars and the dash one size). It is made from the 8x masters a 4x build leaves (`masters-8x`, route 8b's 4xTextures_GTAV then
-2xHDCube_Compact), the cockpit's families taken from their own 4x models to 8x by 2xHDCube_Compact (`--x2-model`, in
-`--models-dir`), in three steps: the models on the graphics card (about 15 minutes on a GTX 1080 Ti), then the packing on the
-CPU (about half an hour on 8 cores), then the lettering:
+    py -m venv .venv
+    .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+    .venv\Scripts\python -m pip install spandrel numpy pillow etcpak
+    .venv\Scripts\python tools\make-hd-pack.py --game PATH\TO\i26-play-NN --install "PATH\TO\Interstate 76"
 
-    python3 tools/upscale-textures.py SRC_DIR --families --models-dir DIR --from MASTERS_8X --x2-model 2xHDCube_Compact.pth         --masters-out FAMILY_MASTERS --only "z*" --skip "zmap*" --max-size 640 --scale 8
-    python3 tools/upscale-textures.py SRC_DIR --from MASTERS_8X --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth         --scale 8 --only @tools/hd-8x-cars.txt,zdue --covers "cockpit & cars"
-    python3 tools/upscale-textures.py SRC_DIR --families --family-masters FAMILY_MASTERS --from MASTERS_8X         --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --max-size 640 --only "z*" --skip "zmap*"         --covers "cockpit & cars"
-    python3 tools/text-redraws.py SRC_DIR --pack PATH/TO/tex-world-8x
+(On Linux and macOS: `python3 -m venv .venv`, `.venv/bin/pip install torch spandrel numpy pillow etcpak`, then
+`.venv/bin/python tools/make-hd-pack.py --game ... --install ...`.) It exports the textures through the game
+(`--export-textures`), runs `tools/upscale-textures.py` over them (the model 4xTextures_GTAV_rgt-s_dither by Philip Hofmann,
+CC-BY-4.0, downloaded once; colour matched back to the original; BC7 `.dds` with mipmaps; resumes if stopped) and then
+`tools/text-redraws.py` (the smallest painted lettering set again from free SIL OFL fonts), printing each command as it goes.
+The doc also gives the full recipe of the packs shared in testing: the cockpit by family, the alpha step, seams, the 8x pack of
+the cockpit and the cars (`tex-world-8x/`, 2.9 GB, no frame-time cost) and the menu art's tools, with every model's source and
+licence (two are non-commercial: a pack made with them is for your own use).
 
-(`--out` defaults to the user folder's `tex-world-8x/`; the mission maps, `zmap*`, stay at 4x: 1.4 GB more for a picture
-already finer than the screen.) A pack made before November 2026 has smaller levels in which every keyed texel is black (the
-tools filtered colour weighted by alpha, not the colour the full-size level carries under the key): `python3
-tools/dds-mips.py PATH/TO/tex-world-4x PATH/TO/tex-world-8x --fix` finds each such file and makes its smaller levels again
-from its full-size one (CPU, about half an hour for both packs; the full-size level kept as it is). The 1997 look
-keeps the originals; World Textures and Car & Dash Textures at 1997 (shell.cfg's `[port] world_textures=1997` and `car_textures=1997`) switch the upscales off.
+Graphic Detail's Advanced page then has **World Textures** (1997 or 4x) and **Car & Dash Textures** (1997, 4x, or 8x with an 8x
+pack) rows ([docs/playing.md](docs/playing.md), HD textures); 1997 on both (shell.cfg's `[port] world_textures=1997` and
+`car_textures=1997`), or the 1997 look (F12), draws the originals.
 
 # Source code
 I26 is free software under the [GNU GPL v3](LICENSE). To build it, run the tests or contribute, see [DEVELOPMENT.md](DEVELOPMENT.md); [docs/playing.md](docs/playing.md) has the details for players (how the game finds your install, settings and saves, controls, custom maps, system requirements and status).
