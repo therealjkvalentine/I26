@@ -1041,7 +1041,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public static readonly bool HashOn = System.Environment.GetEnvironmentVariable("I76_BUILD_TRACE") == "hash";
     private static readonly System.Diagnostics.Stopwatch TraceClock = System.Diagnostics.Stopwatch.StartNew();
     /// <summary>I76_BUILD_TRACE=1: stamps each build stage on stdout, to see where a stuck load stopped.</summary>
-    public static void Trace(string stage) { StallGuard(stage); LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); }
+    public static void Trace(string stage) { StallGuard(stage); LastStage = stage; if (TraceOn) I76.Game.Boot.RunLog.Print($"build trace: {stage} @{TraceClock.ElapsedMilliseconds} ms"); I76.Game.Editor.SwitchTimer.Mark(stage); I76.Game.Boot.LoadProfiler.Mark(stage); I76.Game.Ui.LoadProgress.Mark(stage); I76.Game.Boot.AudioWatch.Mark(stage); }
     /// <summary>A stamp of the main thread's load this long after the one before it is logged as a stall, with both stages' names (milliseconds).</summary>
     public const long StallMs = 10_000;
     private static long _mainStampAt;

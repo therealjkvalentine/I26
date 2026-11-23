@@ -988,6 +988,7 @@ public partial class Main : Node3D
 		ApplyEq(AudioMix.Cues, s.GameEq, I76.Formats.Audio.SoundEq.GameDefault);   // the driver's cues were effects on SFX: game_eq stays on them
 		ApplyEq(MovieBus(), s.MovieEq, I76.Formats.Audio.SoundEq.MovieDefault);
 		ApplyOutput(s);
+		AudioWatch.Attach();   // (I76_AUDIO_WATCH: its captures on the buses, once)
 	}
 
 	/// <summary>The movies' bus (into Master at 0 dB: the levels do not reach the movies, as in the original), made with its EQ the first time.</summary>
