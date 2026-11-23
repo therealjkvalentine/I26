@@ -251,8 +251,9 @@ public partial class TerrainNode : Node3D
     /// <summary>
     /// The map editor changed the roads under a chunk: its road layer (<see cref="RoadRaster"/>) painted anew, for the modern
     /// look and the 1997 look. A chunk shared its materials with the others until a road crossed it; here it gets its own.
+    /// <paramref name="software"/>: the 1997 look's Software renderer's where a repaired texture reaches (TextureRepairs), else null (the 1997 look's).
     /// </summary>
-    public void SetRoadLayer(int x0, int z0, Texture2D? modern, Texture2D? faithful, float roadLightY)
+    public void SetRoadLayer(int x0, int z0, Texture2D? modern, Texture2D? faithful, float roadLightY, Texture2D? software = null)
     {
         var c = _chunks.FirstOrDefault(k => k.X0 == x0 && k.Z0 == z0);
         if (c is null) return;
@@ -264,21 +265,33 @@ public partial class TerrainNode : Node3D
         }
         ApplyRoadLayer(c.Modern as ShaderMaterial, modern, null);
         ApplyRoadLayer(c.Faithful as ShaderMaterial, faithful, roadLightY);
+        if (c.Faithful is ShaderMaterial fs)
+        {
+            fs.SetShaderParameter("has_road_software", software is not null);
+            if (software is not null) fs.SetShaderParameter("road_layer_software", software);
+        }
         c.Mi.MaterialOverride = _modern ? c.Modern : c.Faithful ?? FaithfulMaterial;
     }
 
     /// <summary>
     /// The 1997 look's road layers made after the build (MissionBuilder.BakeFaithfulRoads: the originals' where a pack serves the modern
     /// look's): each chunk with one takes a 1997 material of its own, kept for every later change of the look; the modern look's is untouched.
+    /// <paramref name="software"/>: the Software renderer's where a repaired texture reaches (TextureRepairs). A chunk painted anew since
+    /// the build (<see cref="SetRoadLayer"/>: a destroyed structure's ground) keeps the layers that gave it.
     /// </summary>
-    public void SetFaithfulRoadLayers(IReadOnlyDictionary<(int, int), Texture2D> layers, float roadLightY)
+    public void SetFaithfulRoadLayers(IReadOnlyDictionary<(int, int), Texture2D> layers, IReadOnlyDictionary<(int, int), Texture2D> software, float roadLightY)
     {
         foreach (var c in _chunks)
         {
-            if (!layers.TryGetValue((c.X0, c.Z0), out var layer)) continue;
+            if (!layers.TryGetValue((c.X0, c.Z0), out var layer) || _ownRoad.Contains(c)) continue;
             if ((c.Faithful ?? FaithfulMaterial) is not ShaderMaterial f) continue;
             if (c.Faithful is null || ReferenceEquals(c.Faithful, FaithfulMaterial)) c.Faithful = f = (ShaderMaterial)f.Duplicate();
             ApplyRoadLayer(f, layer, roadLightY);
+            if (software.TryGetValue((c.X0, c.Z0), out var sw))
+            {
+                f.SetShaderParameter("road_layer_software", sw);
+                f.SetShaderParameter("has_road_software", true);
+            }
             if (!_modern) c.Mi.MaterialOverride = c.Faithful;
         }
     }

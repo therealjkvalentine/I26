@@ -298,7 +298,7 @@ public partial class BrushImpacts : Node3D
         if (Audio is null || BrushKnock.Silent || !_knocks.Try(car, _t) || KnockStream(Audio, out float from) is not { } stream) return;
         var (pitch, db) = BrushKnock.Voice(speed, s.Height, root.X - _o.X, root.Z - _o.Z);
         var v = Voice3D.OneShot(stream, KnockVoice, (50, KnockVoices), I76.Sim.Sound.Ds3d.MinDistance, db);
-        v.PitchScale = pitch;
+        v.BasePitch = v.PitchScale = pitch;   // its tuning, under the Doppler shift (Voice3D)
         // placed before it enters the tree: the voice's range check runs as it does
         v.Position = ToLocal(root + Vector3.Up * MathF.Min(s.Height * 0.5f, 0.8f));
         AddChild(v);
