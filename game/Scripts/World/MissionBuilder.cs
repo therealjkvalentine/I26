@@ -263,7 +263,10 @@ public sealed class MissionBuilder(AssetVfs vfs)
         {
             int ti;
             if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps) is { } member)
-                ti = Tex(member, () => textures.GetRgba(member), () => textures.GetOriginalRgba(member), () => textures.GetRepairedRgba(member));
+                // the modern look's: as served, or where the build serves the originals (a 1997 start) the repaired copy the modern look
+                // will serve, so a change of look draws the forecourt repaired (TextureRepairs)
+                ti = Tex(member, () => textures.Hd ? textures.GetRgba(member) : textures.GetRepairedRgba(member) ?? textures.GetRgba(member),
+                    () => textures.GetOriginalRgba(member), () => textures.GetRepairedRgba(member));
             else
             {
                 var flatColour = new RoadRaster.Tex(1, 1, [f.R, f.G, f.B, 255]);
@@ -873,6 +876,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
             var plain = origins97.Count == 0 ? [] : BakeRoadLayers(flat, pieceTris, roadTexOriginal, origins97, resOriginal);
             return (FaithfulRoads.Choose(all, plain, origins97), SoftwareLayers());
         };
+        // a start in the 1997 look whose modern layers differ (a repaired texture's): its own layers are baked now, as it draws them first
+        Dictionary<(int, int), Image>? eager97 = null, eagerSw = null;
+        if (_faithfulRoads is { } bakeNow && !textures.Hd) { (eager97, eagerSw) = bakeNow(); _faithfulRoads = null; }
         List<RoadRaster.FlatQuad> flatFilled = huge ? [.. flat, .. fills] : [];
         RoadRaster.Index? indexFilled = huge ? new RoadRaster.Index(flatFilled, pieceTris, TerrainNode.Chunk * 5f) : null;
         RoadRaster.Index? indexPlain = huge && (fills.Count > 0 || packRoads || repairs.Count > 0) ? new RoadRaster.Index(flat, pieceTris, TerrainNode.Chunk * 5f) : null;
@@ -906,6 +912,14 @@ public sealed class MissionBuilder(AssetVfs vfs)
         (ImageTexture? Layer, ImageTexture? Software) Layer97(int x0, int z0)
         {
             if (_faithfulRoads is not null) return (null, null);   // with a pack's roads: BakeFaithfulRoads
+            if (eager97 is not null)
+            {
+                if (!layer97Tex.TryGetValue((x0, z0), out var et))
+                    layer97Tex[(x0, z0)] = et = eager97.TryGetValue((x0, z0), out var ei) ? ImageTexture.CreateFromImage(ei) : null;
+                if (!layerSwTex.TryGetValue((x0, z0), out var es))
+                    layerSwTex[(x0, z0)] = es = eagerSw!.TryGetValue((x0, z0), out var esi) ? ImageTexture.CreateFromImage(esi) : null;
+                return (et, es);
+            }
             if (huge)
             {
                 // a streamed chunk's layers are used once (it is baked again if the chunk comes back): the textures are not kept
