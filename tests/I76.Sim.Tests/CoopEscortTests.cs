@@ -8,6 +8,7 @@ using I76.Sim.Session;
 using I76.Sim.Vehicles;
 using I76.Sim.Weapons;
 using Xunit;
+using CoopEscorts = I76.Sim.Fsm.CoopEscorts;
 using Xunit.Abstractions;
 
 namespace I76.Sim.Tests;

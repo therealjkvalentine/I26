@@ -719,9 +719,10 @@ public class ForkWireTests
         new Scoreboard(20, 1, rows).Write(w, sent);
         var withLevels = w.ToArray();
         w.Clear();
-        new Scoreboard(20, 1, [.. rows.Select(p => p with { Handicap = 0 })]).Write(w);
+        new Scoreboard(20, 1, [.. rows.Select(p => p with { Handicap = 0 })]).Write(w, handicaps: false);
         var plain = w.ToArray();
-        // upstream's board, then the block: a count, then the slot and the level
+        // upstream's board, then the block: a count, then the slot and the level (to a fork peer always, a count of 0 when none
+        // changed, so upstream's co-op wait trailer after it is never read as one)
         Assert.Equal(plain, withLevels[..plain.Length]);
         Assert.Equal(new byte[] { 1, 1, unchecked((byte)-2) }, withLevels[plain.Length..]);
         var board = new Dictionary<byte, PlayerRow>();
@@ -736,6 +737,37 @@ public class ForkWireTests
         Assert.Equal((-2, 3), (second.Players[0].Handicap, second.Players[1].Handicap));
         Assert.Equal(3, sent[2].Handicap);
         Assert.Equal(30, sent[1].Ping);
+    }
+
+    [Fact]
+    public void TheCoopWaitTrailerAndTheHandicapsAreToldApartEitherWay()
+    {
+        // one handicap changed (a count of 1, the trailer's tag too) and a held start (upstream's #196 trailer after the block)
+        var rows = new List<PlayerRow> { new(1, "a", 0, 0, 0, 0, 30, 5, true) { Handicap = 2 }, new(2, "b", 0, 0, 0, 0, 40, 6, true) };
+        var wait = new CoopStartWait([2], 87);
+        Scoreboard Through(Scoreboard s, bool write, bool read)
+        {
+            var w = new NetWriter();
+            s.Write(w, null, write);
+            var r = new NetReader(w.Span); r.U8();
+            return Scoreboard.Read(ref r, [], read);
+        }
+        // a fork host to a fork peer: the block, then the trailer
+        var both = Through(new Scoreboard(20, 1, rows) { StartWait = wait }, true, true);
+        Assert.Equal(2, both.Players[0].Handicap);
+        Assert.Equal([(byte)2], both.StartWait!.Slots);
+        Assert.Equal(87, both.StartWait.SecondsLeft);
+        // the block alone, its count 1: never read as a held start
+        var levels = Through(new Scoreboard(20, 1, rows), true, true);
+        Assert.Equal(2, levels.Players[0].Handicap);
+        Assert.Null(levels.StartWait);
+        // nothing changed and nothing held: a count of 0 and no trailer
+        var none = Through(new Scoreboard(20, 1, [.. rows.Select(p => p with { Handicap = 0 })]), true, true);
+        Assert.Null(none.StartWait);
+        // an upstream host to a fork peer, and a fork host to an upstream peer: the trailer alone, read as upstream reads it
+        var up = Through(new Scoreboard(20, 1, rows) { StartWait = wait }, false, false);
+        Assert.Equal(87, up.StartWait!.SecondsLeft);
+        Assert.Equal(0, up.Players[0].Handicap);
     }
 
     [Fact]

@@ -915,23 +915,90 @@ the makes and models (`SessionInfo.RollingStart`; protocol 23) and the session p
 ### Co-op Scaling
 
 The port's (`CoopSetup.ExtraEnemies`, `ScriptHost.ExtrasOf`, `CoopExtras.cs`; the co-op host form's EXTRA ENEMIES row, `[port] coop_scale`,
-`--coop-scale N`; off by default). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone) gets min(N − 1, cap)
+`--coop-scale N`; off by default). With N humans present, each enemy car (team 2; a helicopter or gun emplacement is left alone,
+and so is a car the mission is about, below) gets min(N − 1, cap)
 copies, the cap 1–3 (`CoopSetup.MaxExtraEnemies`), decided once, the first time the script orders it (most stock enemies are given
 their sit or hide order on the first tick, so in a game that started from its lobby the copies are there from the start; a game
 whose players came later has the copies of the humans present when each car was first ordered). A copy is the same car file
 (an AI car's damage state, the night's lights) placed beside the original by the formation's rule (`SpawnSpace.Beside`), facing and
-moving as it does, with its skill and aggression, in a respray of its own (`ExtraPaint`: the k-th of the garage's classic paints that
-stands clear of the original's colour, its respray's or its paint scheme's primary paint as the respray reads it from the body
-textures; the original keeps the mission's paint), and named after the original with its number (`ScriptHost.ExtraName`, "t09dl01+2"),
-the server's own tell: the players see a copy as the car it copies (`ScriptHost.OriginalName`; `NetNames.Tag`: a mission's own car
-has no name tag, so neither has its copy; the kill feed names both alike). Every
-order the script gives the original reaches its living copies in the same tick as a plan of their own: an attack, guard, sit or
-hide as the original's, a human target taken as the human nearest the copy (`NearestHuman`); a goto, evade, race or follow is not
-driven a second time: the copy follows its original (the follow order, its station `ScriptHost.Station`: 6 m to the side, 8 m
-behind, then 16), firing at the human the original's order is against (none for a goto; a follow's fire reference when it fires).
-The original's settings (skill, aggression, avoidance, attacker cap, start, lights, siren) and a teleport (beside it again) reach the
-copies too. Once the original is dead or gone, each living copy attacks the human nearest it every tick until destroyed
-(`ScriptHost.ExtrasFrame`).
+moving as it does, with its skill and aggression. Every order the script gives the original goes to its living copies in the same
+tick, a human target or follow reference taken as the human nearest the copy (`NearestHuman`); its settings (skill, aggression,
+avoidance, attacker cap, start, lights, siren) and a teleport (beside it again) too. Once the original is dead or gone, each living
+copy attacks the human nearest it every tick until destroyed (`ScriptHost.ExtrasFrame`). The script never holds a copy: whoShot,
+whoRammed and whoAttacked name its original (`ScriptHost.ScriptHandle`), so no copy enters the actor table.
+
+**The play fork's earlier rule** (`[port] coop_copy_key_cars = true`, the host's own setting with no row; `CoopSetup.CopyKeyCars`).
+A car the mission is about is copied as any other and gets no escort cars, and every copy is told apart: it wears a respray of its
+own (`ExtraPaint`: the k-th of the garage's classic paints that stands clear of the original's colour, its respray's or its paint
+scheme's primary paint as the respray reads it from the body textures; the original keeps the mission's paint), is named after the
+original with its number (`ScriptHost.ExtraName`, "t09dl01+2"), the server's own tell (the players see it as the car it copies:
+`ScriptHost.OriginalName`, `NetNames.Tag`), and it and its original do each other no damage (`ScriptHost.Spares`), so a copy can
+neither win nor lose a mission about its original. An attack, guard, sit or hide reaches a copy as the original's; a goto, evade,
+race or follow is not driven a second time: the copy follows its original (its station `ScriptHost.Station`: 6 m to the side, 8 m
+behind, then 16), firing at the human the original's order is against. The rule is decided on the host alone, as the copies are:
+nothing on the wire differs, a client of either rule plays in a game of either, and a host that restores a game (a successor, a
+bookmark) plays by its own setting.
+
+A car the mission is about is never copied (#195: T09's Callisto came in threes, and nobody could tell which one not to kill).
+`CoopKeyCars` reads the script once at load, in its source form (the decompiler's: each thread's fields bound to the actors and
+cells its globals name, called scripts followed with their arguments), and calls a car a key car when the script decides an
+objective or the mission on it alone (a rule whose actions, or its branch's steps, include success, fail, successAll, failAll or
+failAllObj has a condition naming it and no other actor, the humans aside, directly or through a flag that only rules on it set),
+or when a camera operation names it (a cut-scene about that car, which copies beside it would spoil). A car whose death only
+counts towards a group (a counter, or a rule on several cars at once, as T13's ten or T02's three) is plain opposition and is
+copied. In the stock missions the key enemy cars are S01's enemy6 and hate, S02's enemy1, S07's milk truck, T04's Patriot, Bandit
+and Knight, T07's cop1 and cop2, T09's Callisto, T12's tanker, DISCO and speedy, T17's cloaker and
+Malocchio; the Nitro Pack's P02's clown, P06's enemy1, P09's sleep1, P10's bob, P12's army1, P13's two Mondo trucks, P14's enemy2,
+P15's three hearses, P17's enemy1, P18's enemy3 and P19's target (`CoopKeyCarsTests`).
+
+**Escorts.** Where a small table names a key car (`CoopEscorts.Table`: mission, the key car's placement, and a pool of escort
+cars, each a car file with its setSkill and setAgg; only T09 so far), the copies it would have had come as escort cars instead, as
+many as Co-op Scaling would copy (min(N − 1, cap)), made beside it when the script first orders it. The k-th escort takes the
+pool's (k − 1) mod its size: the same on every machine, and a restore makes each escort again from its own car file. T09's
+Callisto (he flees along the canyon road and back: evade on fleepath, sit and success once below 32% health; his death, or the
+humans more than 450 from him, fails the mission) is escorted by two of the base game's stock enemy cars, each a different
+chassis with turrets, each a villain's car where it comes from (no police, army or allies), and carrying only weapons the trip
+has shown by T09, at setSkill 1, 3 and setAgg 4 (only base-game files: a client builds them from its own install, from the car
+file alone, so an escort's loadout is its file's):
+
+| Escort | Car | Where from | Weapons | Keeping station (sim, 120 s) |
+|---|---|---|---|---|
+| 1st, 3rd | Courcheval Manta, t05cm03.vcf (1818 kg) | T05's enemy12 | FireRite turret, .30 cal turret | 85% of samples within 30 m, median 5 m; after an opening fight 59%, median 16 m |
+| 2nd | Phaedra Coupe, t05fc01.vcf (980 kg, light and fast) | T05's enemy8 | FireRite turret, Aim-Nein missile | 84%, median 4 m; after a fight 73%, median 5 m |
+
+So three humans meet the Manta and the Coupe, four a second Manta too. **The trip's weapons by T09** (`CoopEscorts.TripWeapons`):
+every weapon (by its .gdf file) on a car placed in T01 to T09 (enemies, allies and Groove's own car; the wrecks' weapons are what
+field salvage hands out) and in the field salvage lists won after T01 to T08 (each mission's .fsi): the 30cal, 50cal and 7.62 mm
+MGs, the 20, 25 and 30 mm cannons, FireRite rockets, the Aim-Nein missile, the gas launcher, flamethrower and napalm hose, the HE
+and WP mortars, landmines, oil and blox, and the 20 mm, 25 mm, FireRite, .30 cal, .50 cal and DrRadar turrets. Not the HADES,
+30 mm or Pyro turrets, the Cherub missile or the fire dropper, which come later (`CoopEscortsTests` checks every escort weapon).
+
+The measure: T09 with every escort of one car, the humans held far off (no fight), or brought up beside the convoy when the intro
+is skipped (the escorts fight them, then catch up); one sample a second per escort. No heavier car qualifies: the trip-legal
+heavier turreted enemies fall far back after a fight (S05's Piranha s05vpp01 19%, S03's Caver s03vc01 0%, T08's Manta X2
+t08cm01 22% and wrecked), T05's ABX Leprechaun (t05al03) wrecked itself following him, and the heavy generic cars with legal
+loadouts (Dover Stag, Jefferson Sovereign, Phaedra Clydesdale variants) are no mission's enemies. Earlier pools (S02's Manta,
+T15's Strider, S01's Courier) carried later weapons; S06's Police Car is police. An escort takes no
+orders and no settings from the script; every tick after the script (`ScriptHost.EscortFrame`) it is given one of the AI's own
+orders:
+- **attack** the human nearest it once that human is within 70 m (let go past 110 m), while the escort is within 120 m of its car
+  (let go past 170 m);
+- otherwise **follow** its car at its station (7 m to either side and 9 m behind, then 17 m behind), firing at the nearest human
+  within 200 m (the follow order's fire flag), with collision avoidance off as Callisto drives (on, the escort brakes and swerves
+  away from the car it keeps station on);
+- lost (more than 120 m from its station, back within 70 m), a **goto** at its station by a one-point path of its own
+  (`Entity.OwnPath`, moved with the car, planned again when the station is 100 m on from where the planned way ends), so the AI's
+  planner finds the way round the canyon's walls, at the speed the car was told to go plus 10, firing as above.
+
+While the script holds the camera (or the human is in a personal cut-scene) it only keeps station and holds its fire: in T09 the
+escorts drive in the intro's shots beside Callisto. Whether it is attacking or catching up is its standing order, so nothing new
+is saved. It never targets its car (the fire decision's friendly scan, the original's, also keeps it from firing with its car in
+the line), and nothing it fires, drops or rams hurts its car or tells the script it was attacked (`DamageModel.Spared`), so the
+escorts can neither disable nor kill Callisto. The humans' own rounds still can: a rocket at an escort beside him splashes him,
+and a stray shot that kills him fails the mission. Like a copy, the script never sees an escort, so its death counts for and
+against nothing; once its car is dead it attacks the nearest human as a copy does. On the server the escorts are spawn events with
+their car file, as copies are; a restore makes them again. In the AI's hands an escort can still lose the formation for a while:
+a fight takes it away, the planner's way back is long, and it can stick in a wash as any AI car can (`CoopEscortsTests`).
 
 The script never sees a copy: no instance id (the registry's lookups miss it), no actor slot, and left out of the host's vehicle
 lists, so `allEnemyDead`, `nearestEnemy` and `isWithinEnemy` and every objective and counter follow the originals alone
@@ -1142,6 +1209,13 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
   or `ServerOptions.LoadSeconds` (120) after the start: the briefing (WRLD +0x04) plays in every game after the accept, the loading card up, then the
   mission is built, so the cars appear together. A game still loading at the timeout is left behind: the mission starts, its seat stays, and its
   inputs are taken from the moment it arrives, as a late joiner's would be (its car stands at the start until then).
+- **Waiting for the others** (#196). While the start is held the server names whom it waits for on the scoreboard (`Scoreboard.StartWait`,
+  `CoopStartWait`: the slots of the seats that have sent no input, and the seconds to the timeout), as a tagged trailer after its slots that
+  left (and after the play fork's handicap block, which a fork host then always writes to a fork peer, so the two are never mixed up), written
+  only while the start is held, so every other board is byte for byte as before and a build that does not know it reads the board and stops
+  before it; the protocol version is unchanged. The server logs each change ("co-op: the start waits for Hal"). Upstream's game shows it as the
+  console's top line or a toast; the play fork's shows its own notice (below, "Waiting for the others"), naming them from this trailer when
+  the host is upstream's.
 - **Late joiners** after the start are seated as always (the accept, then their own briefing before it, if the roster showed the game in progress).
   A joiner that the roster showed in the lobby plays its briefing at the start.
 - **The host leaving the lobby** closes it: "The host closed the lobby." goes to everyone in it and the game takes no more joins. The listen
@@ -1184,8 +1258,10 @@ While a lobby's start is held for a game still loading, the players already in t
 - **The notice** (`NetHud.Coop.cs`, both looks): PLEASE STAND BY, "Waiting for 1 player", a line a player ("Ann: watching the briefing",
   "Bob: loading"), and "starting without them in 87 s", counted down on the client. The 1997 look letters it in the console's Lee, red, high
   in the middle; the modern look in a panel at the top centre, its head in Impact. It goes when the server's tick moves on (the start).
-- **An upstream host** says nothing: the game cannot name anyone, so once the start has stood still for 2 s it shows PLEASE STAND BY,
-  "Waiting for the other players", "loading or watching the briefing" until the tick moves.
+- **An upstream host** sends no `CoopWait`, but names whom it waits for and the seconds left on its scoreboard (#196, above): the notice
+  then names them as Unknown ("Hal: loading or watching the briefing") with the countdown; an earlier upstream host says nothing, and
+  once the start has stood still for 2 s the notice is PLEASE STAND BY, "Waiting for the other players", "loading or watching the
+  briefing" until the tick moves. A fork host also writes the scoreboard's trailer, so an upstream player's own game shows upstream's notice.
 - **Tests** (`CoopFlowTests`): the message's round trip and an unknown stage read as Unknown; the notice's lines; a two-player start
   where the loaded player hears whom it waits for, sees the stage change and the list empty when the start goes; an upstream player listed
   without a stage and told nothing; an upstream host (no `CoopWait` in its accept) saying nothing and hearing nothing.

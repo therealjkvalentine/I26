@@ -74,12 +74,14 @@ public sealed partial class ScriptHost
             .Structural("the AI tactics table, read from the install's executable by the mission build", nameof(Tactics))
             .Structural("a rule of the session, set from the settings at each mission start and when the Esc menu closes (offline only)", nameof(TacticStub1997))
             .Structural("a network melee's bot rules, set by its game at its start", nameof(HoldFire), nameof(HoldWeapon))
+            .Structural("Co-op Scaling's key cars and those with escorts, read from the mission's script by the mission build", nameof(_keyCars), nameof(_escorted))
             .Derived("each car's entity, from the entities and their removal", nameof(_byVehicle))
             .Transient("the host's hooks", nameof(Logged), nameof(Movie), nameof(CarStarted), nameof(Salvaged));
         a.For<CoopGroup>()
             .Saved(nameof(CoopGroup.Seats), nameof(CoopGroup.LeadMoved), nameof(CoopGroup.WasCutscene))
             .Structural("the build's seats and car builder, and the mission's paths the formation keeps off", nameof(CoopGroup.RespawnDelay), nameof(CoopGroup.Build), nameof(CoopGroup.Paths),
                 nameof(CoopGroup.ExtraEnemies), nameof(CoopGroup.BuildEnemy), nameof(CoopGroup.SchemePaint), nameof(CoopGroup.RollingStart))
+            .Structural("the host's own coop_copy_key_cars: a host that restores a game plays by its own setting", nameof(CoopGroup.CopyKeyCars))
             .Transient("the host's hooks", nameof(CoopGroup.Happened), nameof(CoopGroup.Spawned));
         a.For<CoopSeat>()
             .Saved(nameof(CoopSeat.RespawnAt), nameof(CoopSeat.Deaths), nameof(CoopSeat.Present))

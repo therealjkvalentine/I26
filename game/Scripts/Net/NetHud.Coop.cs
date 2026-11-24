@@ -42,8 +42,14 @@ public partial class NetHud
             var lines = w.Lines(w.SecondsLeft - (Client.Now - Client.StartWaitAt));
             return new NetHudFrame.NoticeInfo(StandBy, lines);
         }
-        // a host that does not say whom it waits for: the start has stood still a moment, so say it is held
-        if (!Client.Has(PeerFeatures.CoopWait) && _stillFor > 2) return new NetHudFrame.NoticeInfo(StandBy, CoopWait.Unnamed);
+        if (!Client.Has(PeerFeatures.CoopWait))
+        {
+            // an upstream host names whom it waits for on its scoreboard (#196), without what each is doing
+            if (Client.Accept is { } acc && CoopStartNotice.Of(Client.Scores, Client.NewestTick, acc.Slot) is { } n)
+                return new NetHudFrame.NoticeInfo(StandBy, new CoopWait(n.SecondsLeft, [.. n.Names.Select(x => (x, CoopStage.Unknown))]).Lines(n.SecondsLeft));
+            // a host that does not say whom it waits for: the start has stood still a moment, so say it is held
+            if (_stillFor > 2) return new NetHudFrame.NoticeInfo(StandBy, CoopWait.Unnamed);
+        }
         return null;
     }
 }

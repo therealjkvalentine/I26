@@ -11,7 +11,8 @@ namespace I76.Game.Editor.RoadTools;
 /// code, with the gap fills and the textures the modern look has; the 1997 look's apart where a fill reaches a chunk, or everywhere
 /// from the originals where a pack serves the modern look's or it has a stock texture's slip repaired, as the loader bakes them, and
 /// its Software renderer's where a repaired texture reaches), and the finished layers swap into the chunks' materials a few at a time
-/// on the main thread (TerrainNode.SetRoadLayer).
+/// on the main thread (TerrainNode.SetRoadLayer). The ground past the map's tiles in the edit's reach too (OutsideTerrain.SetRoadLayer):
+/// the original draws roads, lots and road pieces there as well.
 /// </summary>
 public sealed class RoadPainter(MissionBuilder builder)
 {
@@ -61,6 +62,16 @@ public sealed class RoadPainter(MissionBuilder builder)
         float chunk = TerrainNode.Chunk * TerrainNode.SampleSize, margin = 12f;
         var origins = TerrainNode.ChunkOrigins(world.Terrain)
             .Where(o => o.X0 * 5f < w.Z + margin && o.X0 * 5f + chunk > w.X - margin && o.Z0 * 5f < w.W + margin && o.Z0 * 5f + chunk > w.Y - margin).ToList();
+        // the outside ground's chunks in reach (an empty ZMAP cell, or past the grid): painted where a road reaches them, else their layer taken away
+        if (builder.OutsideNode is { Roads: true })
+        {
+            int cx0 = (int)MathF.Floor((w.X - margin) / chunk), cx1 = (int)MathF.Floor((w.Z + margin) / chunk);
+            int cz0 = (int)MathF.Floor((w.Y - margin) / chunk), cz1 = (int)MathF.Floor((w.W + margin) / chunk);
+            if ((long)(cx1 - cx0 + 1) * (cz1 - cz0 + 1) <= 1 << 16)
+                for (int cz = cz0; cz <= cz1; cz++)
+                    for (int cx = cx0; cx <= cx1; cx++)
+                        if (world.Terrain.Sample(cx * TerrainNode.Chunk, cz * TerrainNode.Chunk) is null) origins.Add((cx * TerrainNode.Chunk, cz * TerrainNode.Chunk));
+        }
         if (origins.Count == 0) return;
         _clock = System.Diagnostics.Stopwatch.StartNew();
         var tri = tris.ToList();
@@ -103,13 +114,15 @@ public sealed class RoadPainter(MissionBuilder builder)
     private void Apply(Dictionary<(int, int), (Image? Modern, Image? Faithful, Image? Software)> layers)
     {
         var terrain = builder.Terrain!;
+        var world = builder.World!;
         float lightY = builder.Light.Direction.Y * builder.Light.Intensity;
         foreach (var (o, (m, f, s)) in layers)
         {
             var mt = m is null ? null : ImageTexture.CreateFromImage(m);
             var ft = f is null ? null : ReferenceEquals(f, m) ? mt : ImageTexture.CreateFromImage(f);
             var st = s is null ? null : ReferenceEquals(s, m) ? mt : ImageTexture.CreateFromImage(s);
-            terrain.SetRoadLayer(o.Item1, o.Item2, mt, ft, lightY, st);
+            if (world.Terrain.Sample(o.Item1, o.Item2) is null) builder.OutsideNode?.SetRoadLayer(o.Item1, o.Item2, mt, ft, lightY, st);
+            else terrain.SetRoadLayer(o.Item1, o.Item2, mt, ft, lightY, st);
             GC.KeepAlive(f);   // held past the call that copies it (see MeshArrays)
             GC.KeepAlive(s);
         }

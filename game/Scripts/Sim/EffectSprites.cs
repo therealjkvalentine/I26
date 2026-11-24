@@ -51,7 +51,7 @@ public sealed class EffectSprites(World.MissionBuilder builder)
             var list = new List<Texture2D>();
             builder.Materials?.Prefetch(names.Take(frames > 0 ? frames : names.Length).Select(n => builder.Resolver?.FindByStem(n)).OfType<string>());
             foreach (var n in names.Take(frames > 0 ? frames : names.Length))
-                if (builder.Resolver?.FindByStem(n) is { } m && builder.Textures?.Get(m) is { } t) list.Add(t.Texture);
+                if (builder.Resolver?.FindByStem(n) is { } m && builder.Textures?.Get(m) is { } t) list.Add(t.Drawn);
             var (flip, lift) = I76.Formats.Geo.EffectQuad.Of(geo);
             if (list.Count > 0) { l = new Look(size, [.. list], flip, lift); break; }
         }

@@ -49,6 +49,15 @@ public sealed record CoopSetup(IReadOnlyList<string?> Cars)
     /// </summary>
     public bool RollingStart { get; init; }
 
+    /// <summary>
+    /// The host's [port] coop_copy_key_cars (the fork's; docs/multiplayer.md "Co-op Scaling", off by default): Co-op Scaling copies
+    /// the cars the mission is about too (CoopKeyCars: T09's Callisto, the bosses), each copy resprayed and named apart, escorting
+    /// its original and never hurting it, with no escort cars (CoopEscorts). Off, upstream's rule: a key car stays one of a kind and
+    /// the copies of the rest take their original's orders. The host's own choice, not sent and not in a snapshot: a host that
+    /// restores a game plays by its own setting, as a fork host and an upstream host may differ.
+    /// </summary>
+    public bool CopyKeyCars { get; init; }
+
     /// <summary>A co-op game of <paramref name="humans"/> players, each in the mission's own car.</summary>
     public static CoopSetup Of(int humans) => new(Enumerable.Repeat<string?>(null, humans).ToList());
 }
@@ -89,6 +98,8 @@ public sealed class CoopGroup
     public float RespawnDelay { get; }
     /// <summary>Co-op Scaling's cap (<see cref="CoopSetup.ExtraEnemies"/>); 0 off.</summary>
     public int ExtraEnemies { get; init; }
+    /// <summary>Co-op Scaling copies the cars the mission is about too, the fork's way (<see cref="CoopSetup.CopyKeyCars"/>).</summary>
+    public bool CopyKeyCars { get; init; }
     /// <summary>Builds an enemy car's copy from its .vcf (an AI car's damage state, the night's lights), not placed.</summary>
     internal Func<string, Vehicle>? BuildEnemy { get; init; }
     /// <summary>The primary paint of a car file's paint scheme (cached by the build), which a copy's respray stands clear of (<see cref="ExtraPaint"/>).</summary>

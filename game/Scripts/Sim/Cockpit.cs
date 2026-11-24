@@ -198,15 +198,19 @@ public partial class Cockpit : Node
         _artPending = false;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         Panels.KeepLooks = _lookArt.Keep = KeepLooks;
-        // the art shown until now kept for a change back, and this look's if it was shown before
-        bool had = _lookArt.Change((Textures.Hd, _faithful), () => new LookArt(_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames, _mirrorFillImage, _compassFillImage), out var a);
+        // without a texture pack the frames, the radar's and the fills are the originals in either look: kept as they are (only the
+        // panels follow the look); else the art shown until now kept for a change back, and this look's if it was shown before
+        bool same = !Assets.HdTextures.Installed;
+        LookArt? a = null;
+        bool had = same || _lookArt.Change((Textures.Hd, _faithful), () => new LookArt(_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames, _mirrorFillImage, _compassFillImage), out a);
         bool panelsKept = Panels.Holds;
         if (!panelsKept) Panels.Prefetch();
         bool restored = Panels.Reload();
         double panelsMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
-        if (had)
+        if (same) { }
+        else if (had)
         {
-            (_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames) = (a.Wheel, a.ArmR, a.ArmL, a.ShotR, a.ShotL, a.Radar);
+            (_wheelFrames, _armR, _armL, _shotR, _shotL, _radarFrames) = (a!.Wheel, a.ArmR, a.ArmL, a.ShotR, a.ShotL, a.Radar);
             OriginalArt();
             MirrorFill(a.MirrorFill);
             CompassOutline(a.CompassFill);

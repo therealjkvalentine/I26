@@ -603,8 +603,16 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
     public const int PingStep = 10;
 
     /// <summary>
+    /// A lobby's co-op start held for games still loading: whom it waits for (<see cref="CoopStartWait"/>). Written after the
+    /// slots that left (and the fork's handicap block), as a tagged trailer, and only while the start is held, so every other board
+    /// is as before; a reader that does not know it stops before it, and a board without it reads as no hold.
+    /// </summary>
+    public CoopStartWait? StartWait { get; init; }
+
+    /// <summary>
     /// Writes the board against <paramref name="sent"/> (the client's board; null or empty: in full) and brings <paramref name="sent"/> up to what the client will have.
-    /// <paramref name="handicaps"/>: the trailing handicap block, only to a client that says <see cref="PeerFeatures.HandicapBoard"/>.
+    /// <paramref name="handicaps"/>: the trailing handicap block, only to a client that says <see cref="PeerFeatures.HandicapBoard"/>; it
+    /// is then always written (a count of 0 when none changed), so <see cref="StartWait"/>'s trailer after it is never read as one.
     /// </summary>
     public void Write(NetWriter w, Dictionary<byte, PlayerRow>? sent = null, bool handicaps = true)
     {
@@ -641,11 +649,12 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         var gone = full ? [] : sent!.Keys.Where(k => !Players.Any(p => p.Slot == k)).ToList();
         w.VarU((uint)gone.Count);
         foreach (var g in gone) w.U8(g);
-        if (changed.Count > 0)
+        if (handicaps)
         {
             w.VarU((uint)changed.Count);
             foreach (var p in changed) { w.U8(p.Slot); w.I8(p.Handicap); }
         }
+        if (StartWait is { Slots.Count: > 0 } sw) sw.Write(w);
         if (sent is null) return;
         if (full) sent.Clear();
         foreach (var (p, m) in rows)
@@ -656,7 +665,8 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
     }
 
     /// <summary>Reads a board onto <paramref name="board"/> (the client's, by slot) and returns it whole.</summary>
-    public static Scoreboard Read(ref NetReader r, Dictionary<byte, PlayerRow>? board = null)
+    /// <param name="handicaps">The host sends the fork's handicap block (<see cref="PeerFeatures.HandicapBoard"/> at both ends).</param>
+    public static Scoreboard Read(ref NetReader r, Dictionary<byte, PlayerRow>? board = null, bool handicaps = true)
     {
         board ??= [];
         uint tick = r.U32();
@@ -680,8 +690,9 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
         }
         n = JoinAccept.Count(ref r, 256);
         for (int i = 0; i < n; i++) board.Remove(r.U8());
-        // the fork's handicaps that changed; an upstream host's board ends before them
-        if (r.Remaining > 0)
+        // the fork's handicaps that changed, from a host that sends them (handicaps: both ends say PeerFeatures.HandicapBoard); an
+        // upstream host's board ends before them, and an earlier fork host's has them only when one changed
+        if (handicaps && r.Remaining > 0)
         {
             n = JoinAccept.Count(ref r, 256);
             for (int i = 0; i < n; i++)
@@ -691,7 +702,8 @@ public sealed record Scoreboard(uint Tick, float Clock, IReadOnlyList<PlayerRow>
                 if (board.TryGetValue(slot, out var p)) board[slot] = p with { Handicap = (sbyte)level };
             }
         }
-        return new Scoreboard(tick, clock, [.. board.Values.OrderBy(p => p.Slot)]);
+        CoopStartWait? wait = r.Remaining > 0 && r.U8() == CoopStartWait.Tag ? CoopStartWait.Read(ref r) : null;
+        return new Scoreboard(tick, clock, [.. board.Values.OrderBy(p => p.Slot)]) { StartWait = wait };
     }
 }
 

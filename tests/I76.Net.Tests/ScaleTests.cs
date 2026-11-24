@@ -95,9 +95,9 @@ public class ScaleTests
         Assert.Equal(50, second.Players.First(p => p.Slot == 5).Ping);
         Assert.Equal(120, second.Players.First(p => p.Slot == 6).Ping);
         Assert.DoesNotContain(second.Players, p => p.Slot == 10);
-        // nothing changed: a few bytes
+        // nothing changed: a few bytes (the fork's handicap count among them)
         Through(new Scoreboard(60, 3, rows), out int none);
-        Assert.True(none <= 12, $"{none} B");
+        Assert.True(none <= 13, $"{none} B");
     }
 }
 

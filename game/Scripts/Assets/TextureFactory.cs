@@ -20,7 +20,11 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     /// <param name="KeyColour">What index 255 decodes to (its palette colour): a face that does not honour the key draws that, not the bled colour under it.</param>
     /// <param name="Base">The original's texels (bled under the key), what the port's material analyses read (car material table, windows,
     /// prop and car maps): they are keyed to the original's texel grid, and their maps are sampled by UV over any upscale.</param>
-    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, Color KeyColour, RoadRaster.Tex Base);
+    public sealed record Entry(ImageTexture Texture, bool HasKey, int Width, int Height, Color KeyColour, RoadRaster.Tex Base)
+    {
+        /// <summary>What a face draws: the entry's texture, whose picture a change of look swaps (upstream's name for the same).</summary>
+        public ImageTexture Drawn => Texture;
+    }
 
     /// <summary>
     /// An upscale: its texels fitted from a picture (RGBA8, stored order: they are the picture, kept), or a .dds as stored (Gpu). A .dds's
@@ -148,7 +152,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private HdPic? HdOf(string member)
     {
         if (_hd.TryGetValue(member, out var h)) return h;
-        h = Bled(member) is { } b ? HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b, GreyedOf(member)) : Repaired(member) : null;
+        h = Bled(member) is { } b ? HdTextures.Read(member) is { } f ? Fitted(member, f.Name, f.Bytes, b, GreyedOf(member), SlipOf(member)) : Repaired(member) : null;
         return _hd[member] = h;
     }
 
@@ -183,7 +187,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         if (!Hd || HdTextures.Source is null) return;
         // a folder's files are read on the workers too; a zip's here
         bool anywhere = HdTextures.ReadAnywhere;
-        var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed)>();
+        var todo = new List<(string Member, (string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed, Slip? Slip)>();
         // made before (a model's face, a restart's kit, the look changed back): a .dds's texels are not kept, so they are decoded again here
         var again = new List<HdPic>();
         foreach (var m in members.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -192,7 +196,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
             if (Bled(m) is not { } b) { _hd[m] = null; continue; }
             var f = anywhere ? null : HdTextures.Read(m);
             if (!anywhere && f is null) { _hd[m] = Repaired(m); continue; }
-            todo.Add((m, f, b, GreyedOf(m)));
+            todo.Add((m, f, b, GreyedOf(m), SlipOf(m)));
         }
         if (todo.Count + again.Count == 0) return;
         var made = new HdPic?[todo.Count];
@@ -200,7 +204,7 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         {
             if (i >= todo.Count) { again[i - todo.Count].DecodeAhead(); return; }
             if ((todo[i].File ?? HdTextures.Read(todo[i].Member)) is not { } f) { made[i] = Repaired(todo[i].Member); return; }
-            made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed);
+            made[i] = Fitted(todo[i].Member, f.Name, f.Bytes, todo[i].Base, todo[i].Greyed, todo[i].Slip);
             if (rgba) made[i]?.DecodeAhead();
         });
         for (int i = 0; i < todo.Count; i++) _hd[todo[i].Member] = made[i];
@@ -216,13 +220,13 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         var made = new Image?[members.Count];
         if (!Hd || HdTextures.Source is null) return made;
         bool anywhere = HdTextures.ReadAnywhere;
-        var todo = new ((string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed)?[members.Count];
+        var todo = new ((string Name, byte[] Bytes)? File, RoadRaster.Tex Base, byte[]? Greyed, Slip? Slip)?[members.Count];
         for (int i = 0; i < members.Count; i++)
-            if (members[i] is { } m && Bled(m) is { } b && (anywhere || HdTextures.Read(m) is not null)) todo[i] = (anywhere ? null : HdTextures.Read(m), b, GreyedOf(m));
+            if (members[i] is { } m && Bled(m) is { } b && (anywhere || HdTextures.Read(m) is not null)) todo[i] = (anywhere ? null : HdTextures.Read(m), b, GreyedOf(m), SlipOf(m));
         System.Threading.Tasks.Parallel.For(0, members.Count, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = PrefetchThreads > 0 ? PrefetchThreads : -1 }, i =>
         {
             if (todo[i] is not { } t || (t.File ?? HdTextures.Read(members[i]!)) is not { } f) return;
-            if (Fitted(members[i]!, f.Name, f.Bytes, t.Base, t.Greyed) is { } h)
+            if (Fitted(members[i]!, f.Name, f.Bytes, t.Base, t.Greyed, t.Slip) is { } h)
                 made[i] = h.Gpu ?? Image.CreateFromData(h.Width, h.Height, false, Image.Format.Rgba8, h.Rgba.Rgba);
         });
         return made;
@@ -232,7 +236,21 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
     private byte[]? GreyedOf(string member) =>
         _greyed is { } g && resolver.Load(member) is { Palette: null } t && HdTexture.Uses(t.Indices, g) ? t.Indices : null;
 
-    private HdPic? Fitted(string member, string name, byte[] bytes, RoadRaster.Tex b, byte[]? greyedIndices)
+    /// <summary>A stock texture's texels before and after its repair (TextureRepairs), at the original's size: what a pack's upscale of it is repaired by.</summary>
+    private sealed record Slip(RoadRaster.Tex Original, RoadRaster.Tex Repaired);
+    private readonly Dictionary<string, Slip?> _slips = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The member's <see cref="Slip"/> where it has a repair, else null (the calling thread: the factory's caches are not shared).</summary>
+    private Slip? SlipOf(string member)
+    {
+        if (!TextureRepairs.Has(member)) return null;
+        if (_slips.TryGetValue(member, out var sl)) return sl;
+        sl = Original(member) is { } o && resolver.Load(member) is { } t && TextureRepairs.Repaired(member, t) is { } r
+            ? new Slip(o, new RoadRaster.Tex(r.Width, r.Height, TextureReader.ToRgba(r, palette))) : null;
+        return _slips[member] = sl;
+    }
+
+    private HdPic? Fitted(string member, string name, byte[] bytes, RoadRaster.Tex b, byte[]? greyedIndices, Slip? slip = null)
     {
         if (HdTextures.Decode(name, bytes) is not { } img) return null;
         int w = img.GetWidth(), hh = img.GetHeight(), s = HdTexture.ScaleOf(w, hh, b.Width, b.Height);
@@ -241,13 +259,18 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
         byte[] rgba;
         if (img.IsCompressed())
         {
-            if (greyedIndices is null) return new HdPic(w, hh, null, img);
-            // a .dds over the greyed entries is decompressed, turned grey and sent as RGBA8 with new mipmaps
+            if (greyedIndices is null && slip is null) return new HdPic(w, hh, null, img);
+            // a .dds over the greyed entries (or with a slip to repair) is decompressed, changed and sent as RGBA8 with new mipmaps
             img.ClearMipmaps(); img.Decompress(); img.Convert(Image.Format.Rgba8);
             rgba = img.GetData();
         }
         else rgba = HdTexture.Fit(img.GetData(), w, hh, s, b.Rgba, b.Width, b.Height, !member.EndsWith(".vqm", StringComparison.OrdinalIgnoreCase));
         if (greyedIndices is not null) HdTexture.Recolour(rgba, w, hh, s, greyedIndices, b.Width, b.Height, _greyed!, palette!, _packPalette!);
+        // a texture with a slip the modern look repairs (TextureRepairs: the factory forecourt's green and blue border): a pack's upscale
+        // made from the file carries it, spread by the upscaler, and is repaired the same way (a pack's own copy made without the slip
+        // comes out the same but for its tint there)
+        if (slip is not null && slip.Original.Width * s == w && slip.Original.Height * s == hh)
+            HdTexture.RepairSlip(rgba, w, hh, s, slip.Original.Rgba, slip.Repaired.Rgba, slip.Original.Width, slip.Original.Height);
         return new HdPic(w, hh, new RoadRaster.Tex(w, hh, rgba), null);
     }
 
@@ -513,7 +536,9 @@ public sealed class TextureFactory(TextureResolver resolver, Palette? palette)
             swapped++;
         }
         double texMs = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
-        Swapped?.Invoke();
+        // without a pack nothing painted from GetRgba changes (a repaired stock texture is swapped above, but no art is painted from it):
+        // the cockpit's frames and panels are not made again for nothing
+        if (HdTextures.Installed) Swapped?.Invoke();
         GD.Print($"look change: {(on ? "upscales" : "originals")} on {swapped} textures in {texMs:0} ms, art redrawn by {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms; "
             + (keep ? $"both looks kept on the GPU: this look's {KeptBytes.Shown >> 20} MB, the other's {KeptBytes.Other >> 20} MB"
                 : $"both pictures held: the pack's {_looks.Values.Sum(p => (long)p.Modern.GetDataSize()) >> 20} MB, the originals' {_looks.Values.Sum(p => (long)p.Faithful.GetDataSize()) >> 20} MB"));

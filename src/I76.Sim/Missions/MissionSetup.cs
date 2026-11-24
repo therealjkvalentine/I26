@@ -540,7 +540,7 @@ public sealed partial class MissionSetup
                     return v;
                 })
                 {
-                    Paths = coopPaths, ExtraEnemies = System.Math.Clamp(coop.ExtraEnemies, 0, CoopSetup.MaxExtraEnemies), RollingStart = coop.RollingStart,
+                    Paths = coopPaths, ExtraEnemies = System.Math.Clamp(coop.ExtraEnemies, 0, CoopSetup.MaxExtraEnemies), RollingStart = coop.RollingStart, CopyKeyCars = coop.CopyKeyCars,
                     // Co-op Scaling's copy of an enemy car: as the mission's own cars are built (an AI car's damage state, the night's lights)
                     BuildEnemy = vcf =>
                     {
@@ -556,6 +556,7 @@ public sealed partial class MissionSetup
             }
             ms = new MissionScript(program, host, rand, seed, nitroDriver, i76Lines);
             MarkTaurus(ms.Vm!.Actors);
+            host.FindKeyCars(w.Mission.FsmPayload(), ms.Vm, w.Mission.Name);
         }
         // the explosion templates in the original's load order (the first file with a key keeps it): the startup three, then
         // each scenery object's SDFC file in ODEF order, then the LDEF links'. Weapon effects register as first used; no
@@ -625,8 +626,10 @@ public sealed partial class MissionSetup
             var host = ms.Host;
             host.Damage = damage;
             damage.Killed += v => { if (host.Of(v) is { } e) host.Died(e); };
-            // Co-op Scaling: a copy and its original never hurt each other (CoopExtras)
-            if (host.Coop is { ExtraEnemies: > 0 }) damage.Spares = host.Spares;
+            // Co-op Scaling: a key car is spared what its escort cars do (CoopEscorts); with coop_copy_key_cars a copy and its original
+            // never hurt each other (CoopExtras)
+            if (host.Escorted.Count > 0 || host.Coop is { ExtraEnemies: > 0, CopyKeyCars: true })
+                damage.Spared = (v, a) => host.SparedByEscort(v, a) || host.Coop is { CopyKeyCars: true } && host.Spares(v, a);
             // with Extra Enemies on, the cars the mission fails on losing take less (CoopSetup.EscortHealth): derived from the build alone
             if (host.Coop is { ExtraEnemies: > 0 } && coop is not null && ms.Vm is { } vm && host.Escorts(vm) is { Count: > 0 } escorts)
             {
