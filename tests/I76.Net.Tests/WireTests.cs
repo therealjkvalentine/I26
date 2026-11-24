@@ -652,6 +652,9 @@ public class ForkWireTests
     private static JoinAccept Accept() => new(2, 17, "m05", 1234, "vppirna1.vcf", false, 0, 0, 5, [], [])
         { Crosshair = true, IgnitionStaysOn = true, Turrets1997 = true };
 
+    /// <summary>The bytes the features take: a VarU, one byte up to bit 6, two from LobbyRename (bit 7) on.</summary>
+    private static int FeatureBytes => (uint)Protocol.Features < 128 ? 1 : 2;
+
     [Fact]
     public void TheAcceptEndsWithUpstreamsFieldsThenTheForks()
     {
@@ -659,8 +662,8 @@ public class ForkWireTests
         (Accept() with { Handicaps = I76.Sim.Missions.HandicapMode.Auto, Build = "abc1234", Features = Protocol.Features }).Write(full);
         var plain = new NetWriter();
         Accept().Write(plain);
-        // the fork's tail: the handicaps byte, the build (length and text), the features (one VarU byte) and the wreck rule's byte
-        int tail = 1 + 1 + 7 + 1 + 1;
+        // the fork's tail: the handicaps byte, the build (length and text), the features (a VarU) and the wreck rule's byte
+        int tail = 1 + 1 + 7 + FeatureBytes + 1;
         // the same up to upstream's last byte (an accept with none of the fork's has its 4-byte tail: 0, an empty build, no features, no wreck rule)
         Assert.Equal(plain.Span[..^4].ToArray(), full.Span[..^tail].ToArray());
         var r = new NetReader(full.Span); r.U8();
@@ -691,8 +694,8 @@ public class ForkWireTests
         var old = JoinAccept.Read(ref earlier);
         Assert.False(old.WrecksSolid);
         Assert.Equal(Protocol.Features, old.Features);
-        // the features still fit the one byte the tail gives them, and the protocol is upstream's
-        Assert.True((uint)Protocol.Features < 128);
+        // the features are a VarU (two bytes since LobbyRename, bit 7; every fork build reads them so), and the protocol is upstream's
+        Assert.Equal(2, FeatureBytes);
         Assert.Equal(26, Protocol.Version);
     }
 
@@ -705,7 +708,7 @@ public class ForkWireTests
         var back = JoinRequest.Read(ref r);
         Assert.Equal(("abc1234", Protocol.Features), (back.Build, back.Features));
         // upstream's request ends after the paint
-        var up = new NetReader(w.Span[..^(1 + 7 + 1)]);
+        var up = new NetReader(w.Span[..^(1 + 7 + FeatureBytes)]);
         var upstream = JoinRequest.Read(ref up);
         Assert.Equal(("", PeerFeatures.None), (upstream.Build, upstream.Features));
     }

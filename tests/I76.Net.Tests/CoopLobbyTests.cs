@@ -19,21 +19,21 @@ public class CoopLobbyTests(ITestOutputHelper output)
         public readonly List<(string Name, MeleeClient Client)> Players = [];
         private readonly ITestOutputHelper _out;
 
-        public Lobby(string install, ITestOutputHelper output, bool listenHost = true, int minPlayers = 1, double loadSeconds = 30, int max = 4)
+        public Lobby(string install, ITestOutputHelper output, bool listenHost = true, int minPlayers = 1, double loadSeconds = 30, int max = 4, PeerFeatures? hostFeatures = null)
         {
             _out = output;
             Server = new NetMeleeServer(new ServerOptions
             {
                 Install = install, Arena = "t01", Coop = "t01", MaxPlayers = max, Port = 0, Seed = 7, Name = "co-op", ListenHost = listenHost,
-                Lobby = true, LobbyMinPlayers = minPlayers, LoadSeconds = loadSeconds,
+                Lobby = true, LobbyMinPlayers = minPlayers, LoadSeconds = loadSeconds, Features = hostFeatures ?? Protocol.Features,
             });
             Server.Log += m => output.WriteLine($"[server] {m}");
             Server.Start();
         }
 
-        public MeleeClient Join(string name, string car = Protocol.MissionCar, bool toLobby = true)
+        public MeleeClient Join(string name, string car = Protocol.MissionCar, bool toLobby = true, bool upstream = false)
         {
-            var c = new MeleeClient();
+            var c = new MeleeClient { Features = upstream ? PeerFeatures.None : Protocol.Features };
             c.Log += m => _out.WriteLine($"[{name}] {m}");
             c.Connect("127.0.0.1", Server.Port, name, car);
             Players.Add((name, c));
@@ -414,6 +414,96 @@ public class CoopLobbyTests(ITestOutputHelper output)
                 Thread.Sleep(10);
             }
             return null;
+        }
+    }
+
+    /// <summary>
+    /// RENAME in the lobby (upstream #228: it did nothing there): the fork's <see cref="MsgType.LobbyName"/>, behind <see cref="PeerFeatures.LobbyRename"/>;
+    /// the lobby's state says the bit only to a player whose join said it, and an upstream game reads the state's old layout.
+    /// </summary>
+    [Fact]
+    public void ARenameTravelsOnTheWireAndTheStateSaysItOnlyToThoseWhoAsk()
+    {
+        var w = new NetWriter();
+        new LobbyName("Annie").Write(w);
+        var r = new NetReader(w.ToArray());
+        Assert.Equal(MsgType.LobbyName, (MsgType)r.U8());
+        Assert.Equal("Annie", LobbyName.Read(ref r).Name);
+
+        var s = new LobbyState("t01", 4, 1, 0, 0, [new LobbyMember(0, "Hal", Protocol.MissionCar, false), new LobbyMember(1, "Ann", "vcgcour1.vcf", true)], "vppirna1.vcf");
+        var plain = new NetWriter();
+        s.Write(plain);
+        var told = new NetWriter();
+        (s with { Features = PeerFeatures.LobbyRename }).Write(told);
+        // to an upstream player the state is upstream's, byte for byte; the fork's bit follows the mission's own car
+        Assert.True(told.ToArray().Length > plain.ToArray().Length);
+        Assert.Equal(plain.ToArray(), told.ToArray()[..plain.ToArray().Length]);
+        r = new NetReader(told.ToArray());
+        r.U8();
+        var back = LobbyState.Read(ref r);
+        Assert.Equal(PeerFeatures.LobbyRename, back.Features);
+        Assert.Equal("vppirna1.vcf", back.OwnCar);
+        r = new NetReader(plain.ToArray());
+        r.U8();
+        Assert.Equal(PeerFeatures.None, LobbyState.Read(ref r).Features);
+    }
+
+    /// <summary>A player renames themself in the lobby: everyone's list and the listing show the new name, the chat says it, and the start seats them under it.</summary>
+    [Fact]
+    public void ARenameInTheLobbyIsEveryonesToSeeAndTheSeatGoesUnderIt()
+    {
+        if (Install is not { } install) return;
+        using var g = new Lobby(install, output);
+        var hal = g.Join("Hal");
+        var ann = g.Join("Ann");
+        Assert.True(g.Wait(() => ann.CanRenameInLobby && hal.CanRenameInLobby));
+        // cleaned as a join's name: no control characters, trimmed
+        Assert.True(ann.SendLobbyName("  Annie	 "));
+        Assert.True(g.Wait(() => hal.Lobby!.Members.Select(m => m.Name).SequenceEqual(["Hal", "Annie"])));
+        Assert.True(g.Wait(() => ann.Lobby!.Me!.Name == "Annie"));
+        Assert.True(g.Wait(() => hal.LobbyLines.Any(l => l == new LobbyChat("Server", "Ann is now Annie."))));
+        Assert.Equal(["Hal", "Annie"], g.Server.LobbyPlayers.Select(p => p.Name));
+        Assert.Equal(["Hal", "Annie"], new SessionInfoProbe(g.Server.Port).Ask()!.Drivers.Select(d => d.Name));
+        // the host renames too; an empty name changes nothing and is not sent
+        Assert.True(hal.SendLobbyName("Hal 9000"));
+        Assert.False(hal.SendLobbyName("   "));
+        Assert.True(g.Wait(() => ann.Lobby!.Members[0].Name == "Hal 9000"));
+        ann.SendLobbySet(true);
+        Assert.True(g.Wait(() => hal.Lobby!.Members.Any(m => m is { Name: "Annie", Ready: true })));
+        hal.SendLobbyStart(false);
+        Assert.True(g.Wait(() => g.Players.All(p => p.Client.State == ClientState.Joined)));
+        Assert.Equal(["Hal 9000", "Annie"], g.Server.Invoke(h => h.Seats.OrderBy(x => x.Slot).Select(x => x.Name).ToList()));
+        // once seated it is too late: the lobby is gone
+        Assert.False(ann.SendLobbyName("Anna"));
+    }
+
+    /// <summary>
+    /// An upstream peer: its lobby state says nothing of renaming, RENAME is not sent, and a name sent anyway is not taken; a fork player in an
+    /// upstream host's lobby is not told it either (the screen says to rename before joining).
+    /// </summary>
+    [Fact]
+    public void AnUpstreamPeerNeitherRenamesNorIsAskedTo()
+    {
+        if (Install is not { } install) return;
+        using (var g = new Lobby(install, output))
+        {
+            var hal = g.Join("Hal");
+            var old = g.Join("Old", upstream: true);
+            Assert.True(g.Wait(() => hal.CanRenameInLobby && hal.Lobby!.Members.Count == 2));
+            Assert.Equal(PeerFeatures.None, old.Lobby!.Features);
+            Assert.False(old.CanRenameInLobby);
+            Assert.False(old.SendLobbyName("New"));
+            g.Pump(300);
+            Assert.Equal(["Hal", "Old"], g.Server.LobbyPlayers.Select(p => p.Name));
+        }
+        using (var g = new Lobby(install, output, hostFeatures: PeerFeatures.None))
+        {
+            var ann = g.Join("Ann");
+            g.Pump(300);
+            Assert.Equal(PeerFeatures.None, ann.Lobby!.Features);
+            Assert.False(ann.CanRenameInLobby);
+            Assert.False(ann.SendLobbyName("Annie"));
+            Assert.Equal(["Ann"], g.Server.LobbyPlayers.Select(p => p.Name));
         }
     }
 }

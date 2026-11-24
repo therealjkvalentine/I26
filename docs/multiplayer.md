@@ -1199,6 +1199,12 @@ original, whose NET MELEE·ENTRY ROSTER is the list of games to join), so the lo
 - **The player's side**: `LobbySet` (the ready mark, and a car file with its .vcf and paint to change it: checked as a join's car, answered with
   `ReconfigureAnswer`; a new car takes the ready mark off), chat (`Chat` as in a game; the server relays `LobbyChat`), `Leave`. The client is in
   `ClientState.InLobby` with `MeleeClient.Lobby`, and `JoinAccept` arrives at the start.
+- **Renaming in the lobby** (the play fork's, `PeerFeatures.LobbyRename`): LOCAL DRIVER's RENAME edits the name in place; Enter or a click takes it,
+  Esc keeps the old one. The new name is kept as the form keeps it (melee.cfg's driver) and sent as `LobbyName` (65, client → server, one string);
+  the server cleans it as a join's name, says "OLD is now NEW." in the lobby's chat and sends everyone a new `LobbyState`, and the seat dealt at the
+  start (and a migration's rejoin) goes under it. The server says the bit in the `LobbyState` it sends a player whose join said it (a `VarU` after
+  the mission's own car; an upstream player is sent none); a lobby without it (an upstream host's) answers RENAME with a notice and a tooltip:
+  the name goes only with the join, so leave, RENAME on the form and join again. Upstream's lobby has RENAME on its art and no hotspot for it.
 - **The start.** A listen host presses START (`LobbyStart`, from the host's client alone; the host's in-process `NetMeleeServer.StartLobby` is the same):
   when every other player is ready the mission starts, else the screen asks "Start anyway?" and sends the forced start. A dedicated server has no
   host: it starts by itself when **every player there is ready and at least `--start-when N` (1) are**; the console's `start` forces it, and
