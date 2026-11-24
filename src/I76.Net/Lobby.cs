@@ -26,7 +26,15 @@ public sealed record LobbyState(string Mission, byte Max, byte You, byte Host, b
         w.U8((byte)Members.Count);
         foreach (var m in Members) { w.U8(m.Id); w.Str(m.Name); w.Str(m.Car); w.Bool(m.Ready); }
         w.Str(OwnCar);
+        // the fork's: only to a player whose join said a bit of it (an upstream game reads no further than OwnCar)
+        if (Features != PeerFeatures.None) w.VarU((uint)Features);
     }
+
+    /// <summary>
+    /// What both this lobby's server and its receiver understand beyond upstream's protocol (<see cref="Protocol.Features"/>; the play fork's,
+    /// appended after <see cref="OwnCar"/>): none from an upstream server, and none is written to an upstream player.
+    /// </summary>
+    public PeerFeatures Features { get; init; }
 
     /// <summary>Reads the body (after the type byte).</summary>
     public static LobbyState Read(ref NetReader r)
@@ -37,7 +45,8 @@ public sealed record LobbyState(string Mission, byte Max, byte You, byte Host, b
         if (n > Protocol.MaxCoopSeats) throw new WireException($"lobby of {n}");
         var l = new List<LobbyMember>(n);
         for (int i = 0; i < n; i++) l.Add(new LobbyMember(r.U8(), r.Str(), r.Str(), r.Bool()));
-        return new LobbyState(mission, max, you, host, auto, l, r.Str());
+        var state = new LobbyState(mission, max, you, host, auto, l, r.Str());
+        return r.Remaining >= 1 ? state with { Features = (PeerFeatures)r.VarU() } : state;
     }
 }
 
@@ -59,6 +68,13 @@ public sealed record LobbySet(bool Ready, string Car, byte[] Config, byte[]? Pai
 
     /// <summary>Reads the body (after the type byte).</summary>
     public static LobbySet Read(ref NetReader r) => new(r.Bool(), r.Str(), r.BlobU16(), r.BlobU16());
+}
+
+/// <summary>A lobby player's new name (the play fork's, <see cref="PeerFeatures.LobbyRename"/>): the server cleans it as a join's and tells everyone.</summary>
+public sealed record LobbyName(string Name)
+{
+    public void Write(NetWriter w) { w.U8((byte)MsgType.LobbyName); w.Str(Name); }
+    public static LobbyName Read(ref NetReader r) => new(r.Str());
 }
 
 /// <summary>The lobby host starts the mission (protocol 20); <paramref name="Force"/> starts it though some are not ready.</summary>

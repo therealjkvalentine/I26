@@ -19,7 +19,7 @@ public static class Protocol
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
     /// peer, which never says any, gets the layout it reads.
     /// </summary>
-    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid;
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid | PeerFeatures.LobbyRename;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -112,6 +112,11 @@ public enum PeerFeatures : uint
     /// client's prediction agree; the accept's last byte and <see cref="MsgType.WreckRule"/> tell a client what holds.
     /// </summary>
     WrecksSolid = 1 << 6,
+    /// <summary>
+    /// A co-op lobby's player renames themself (docs/multiplayer.md "The co-op lobby"): <see cref="MsgType.LobbyName"/>, taken only by a server
+    /// whose lobby says this bit (<see cref="LobbyState.Features"/>). Without it the name is the join's, changed on the form before joining.
+    /// </summary>
+    LobbyRename = 1 << 7,
 }
 
 public enum MsgType : byte
@@ -205,6 +210,8 @@ public enum MsgType : byte
     CoopNext = 63,
     /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.WrecksSolid"/>): one byte, whether wrecks stay solid in this game from now on.</summary>
     WreckRule = 64,
+    /// <summary>Client → server, reliable (<see cref="PeerFeatures.LobbyRename"/>): in a co-op lobby, the player's new name (one string).</summary>
+    LobbyName = 65,
 }
 
 /// <summary>A dead player's new car for the next respawn: a car file, and its .vcf when the server's install may lack it (as a join's configuration).</summary>

@@ -278,6 +278,15 @@ public partial class Main
                 Chat = c.SendChat,
                 Boot = who => _net.Server?.Kick(who),
                 Quit = () => { _lobbyLeft = true; c.Leave(); },
+                // RENAME: the server's lobby takes it (the fork's), and the rest of this session's joins go under it
+                Rename = name =>
+                {
+                    if (!c.SendLobbyName(name)) return false;
+                    GD.Print($"network: lobby: renamed {name}");
+                    _opt.PlayerName = name;
+                    return true;
+                },
+                CanRename = () => c.CanRenameInLobby,
                 FallbackModel = _launch?.ModelIndex ?? -1,
                 // the listen host's GAME SETUP: the mission and settings changed in the server in this process, built off the frame
                 Setup = () => _net.Server is { } sv && c.Lobby?.IsHost == true ? sv.Setup : null,

@@ -603,6 +603,23 @@ public sealed partial class MeleeClient : IDisposable
         _peer.Send(_w.Span, DeliveryMethod.ReliableOrdered);
     }
 
+    /// <summary>The lobby's server takes a new name from this player (<see cref="PeerFeatures.LobbyRename"/>, said by both ends).</summary>
+    public bool CanRenameInLobby => (Features & PeerFeatures.LobbyRename) != 0 && State == ClientState.InLobby && Lobby is { } l && (l.Features & PeerFeatures.LobbyRename) != 0;
+
+    /// <summary>
+    /// In the lobby, this player's new name: to a server that takes it (<see cref="CanRenameInLobby"/>), which tells everyone in a new
+    /// <see cref="LobbyState"/>; a later join to the game (a host migration's) goes under it too. False when not sent.
+    /// </summary>
+    public bool SendLobbyName(string name)
+    {
+        if (_peer is null || !CanRenameInLobby || name.Trim().Length == 0) return false;
+        _w.Clear();
+        new LobbyName(name).Write(_w);
+        _peer.Send(_w.Span, DeliveryMethod.ReliableOrdered);
+        if (_request is { } q) _request = q with { Name = name };
+        return true;
+    }
+
     /// <summary>The lobby's host starts the mission (<paramref name="force"/>: though some are not ready).</summary>
     public void SendLobbyStart(bool force)
     {
