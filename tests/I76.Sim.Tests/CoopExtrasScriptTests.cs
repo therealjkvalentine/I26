@@ -13,12 +13,14 @@ namespace I76.Sim.Tests;
 /// Co-op Scaling's copies of a car the mission is about (upstream #195; the owner's call: the copies stay, the script is linked
 /// to the original alone, and the copies are the same build in paints of their own). The script's tests, references and thread
 /// follow the original; a copy cannot complete or fail an objective, nor hurt the original or be named by whoShot; a copy does
-/// not drive the script's path again but escorts its original; each copy wears its own respray.
+/// not drive the script's path again but escorts its original; each copy wears its own respray. That is the play fork's earlier
+/// rule, now the host's coop_copy_key_cars (CoopSetup.CopyKeyCars); upstream's, the default, leaves such a car one of a kind
+/// (CoopKeyCarsTests, CoopEscortsTests).
 /// </summary>
 public class CoopExtrasScriptTests(ITestOutputHelper output)
 {
     private static (SimSession S, MissionSetup Setup) Make(SnapshotRig.Loaded l, string mission, int humans, int extra) =>
-        SnapshotRig.Make(l, SnapshotRig.BuildOf(l.Dir, mission, coop: CoopSetup.Of(humans) with { ExtraEnemies = extra }), SimRate.R20, 1);
+        SnapshotRig.Make(l, SnapshotRig.BuildOf(l.Dir, mission, coop: CoopSetup.Of(humans) with { ExtraEnemies = extra, CopyKeyCars = true }), SimRate.R20, 1);
 
     /// <summary>A tick with the humans' keys at rest, the first seat pressing the skip key every 40 ticks (the intros end); then <paramref name="after"/>.</summary>
     private static void Tick(SimSession s, Action? after = null)

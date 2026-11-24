@@ -98,8 +98,10 @@ public partial class Main
                     CoopDamage = _opt.CoopDamage ?? I76.Game.Shell.ShellSettings.Load().CoopDamage,
                     CoopScale = _opt.CoopScale ?? I76.Game.Shell.ShellSettings.Load().CoopScale,
                     CoopRollingStart = _opt.CoopRollingStart ?? I76.Game.Shell.ShellSettings.Load().CoopRollingStart,
+                    // the host's own choice of Co-op Scaling's rule, from its shell.cfg alone (no row, not sent)
+                    CoopCopyKeyCars = I76.Game.Shell.ShellSettings.Load().CoopCopyKeyCars,
                 };
-            GD.Print($"listen server: {o.Arena}, {o.MaxPlayers} seats (about {I76.Game.Shell.MeleeScreen.UploadMbit(o.MaxPlayers):0.#} Mbit/s up when full), rand seed {(uint)o.Seed}{(_opt.FixedSeed is null ? " (clock)" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}{(o.AllowTurrets ? ", several turrets allowed" : "")}{(o.Coop is null ? "" : $", co-op: damage x{o.CoopDamage:0.##}, extra enemies {o.CoopScale}, rolling start {(o.CoopRollingStart ? "on" : "off")}")}");
+            GD.Print($"listen server: {o.Arena}, {o.MaxPlayers} seats (about {I76.Game.Shell.MeleeScreen.UploadMbit(o.MaxPlayers):0.#} Mbit/s up when full), rand seed {(uint)o.Seed}{(_opt.FixedSeed is null ? " (clock)" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}{(o.AllowTurrets ? ", several turrets allowed" : "")}{(o.Coop is null ? "" : $", co-op: damage x{o.CoopDamage:0.##}, extra enemies {o.CoopScale}, rolling start {(o.CoopRollingStart ? "on" : "off")}{(o.CoopCopyKeyCars ? ", key cars copied (coop_copy_key_cars)" : "")}")}");
             try { await _net.Host(o); }
             catch (System.Exception ex)
             {

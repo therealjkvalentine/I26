@@ -174,6 +174,11 @@ public sealed record ServerOptions
     /// </summary>
     public bool CoopRollingStart { get; init; }
     /// <summary>
+    /// A co-op game's Co-op Scaling copies the cars the mission is about too, the play fork's earlier rule (<see cref="CoopSetup.CopyKeyCars"/>;
+    /// a listen host's [port] coop_copy_key_cars). Off by default: upstream's rule.
+    /// </summary>
+    public bool CoopCopyKeyCars { get; init; }
+    /// <summary>
     /// The engine stays on: nobody switches theirs off in this game (the port's, #108; the host form's Ignition Lock, i26-server's
     /// --no-ignition-off), so no car hides from turrets with its engine off. Off by default; a melee's rules carry it
     /// (<see cref="MeleeRules.IgnitionStaysOn"/>), and it is listed in <see cref="SessionInfo.IgnitionStaysOn"/> and carried in <see cref="JoinAccept.IgnitionStaysOn"/>.
@@ -1187,7 +1192,7 @@ public sealed partial class MeleeHost : IModeHost
         return (Car, Round);
     }
 
-    public Scoreboard Scoreboard() => new(Tick, Setup.Script!.Host.Now, [.. Mode.Board().OrderBy(r => r.Slot)]);
+    public Scoreboard Scoreboard() => new(Tick, Setup.Script!.Host.Now, [.. Mode.Board().OrderBy(r => r.Slot)]) { StartWait = Over ? null : Mode.StartWait(_seats) };
 
     /// <summary>Everyone at the table, humans and bots, by slot: slot, name, player (the melee's).</summary>
     public IEnumerable<(int Slot, string Name, MeleePlayer Player)> Everyone() => ((MeleeMode)Mode).Everyone();

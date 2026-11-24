@@ -1536,6 +1536,13 @@ public sealed class ShellSettings
     /// </summary>
     public bool CoopRollingStart { get; set; } = true;
     /// <summary>
+    /// The play fork's: a co-op game you host copies the cars the mission is about too, the fork's earlier Co-op Scaling rule
+    /// (<see cref="I76.Sim.Missions.CoopSetup.CopyKeyCars"/>; docs/multiplayer.md "Co-op Scaling"). Off by default (upstream's rule: a
+    /// key car stays one of a kind, T09's Callisto gets escort cars); no row (docs/playing.md "Settings without a row"): shell.cfg
+    /// [port] coop_copy_key_cars, written only when on.
+    /// </summary>
+    public bool CoopCopyKeyCars { get; set; }
+    /// <summary>
     /// The port's own: Play Options' Melee A.I. (shell.cfg [port] melee_ai, written only when not Original): the skill an
     /// Instant Melee's computer cars open at (<see cref="I76.Sim.Missions.MeleeAiSkill"/>: the original's, the Difficulty Level's, easy or hard).
     /// </summary>
@@ -2070,6 +2077,8 @@ public sealed class ShellSettings
         s.CoopDamage = (float)(double)c.GetValue("port", "coop_damage", 1.0) is var cd && System.Array.IndexOf(I76.Sim.Missions.CoopSetup.DamageFactors, cd) >= 0 ? cd : 1f;
         // no version step: absent, on (a fresh car beside a moving teammate goes at its speed)
         s.CoopRollingStart = (bool)c.GetValue("port", "coop_rolling_start", true);
+        // no version step: absent, upstream's rule
+        s.CoopCopyKeyCars = (bool)c.GetValue("port", "coop_copy_key_cars", false);
         // no version step: absent, the original's opening skill
         s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)Math.Clamp((int)c.GetValue("port", "melee_ai", 0), 0, MeleeAiNames.Length - 1);
         // no version step: absent, the effects as drawn (100)
@@ -2295,6 +2304,7 @@ public sealed class ShellSettings
         if (CoopDamage != 1f) c.SetValue("port", "coop_damage", (double)CoopDamage);
         // always: upstream reads an absent key as off, the fork as on
         c.SetValue("port", "coop_rolling_start", CoopRollingStart);
+        if (CoopCopyKeyCars) c.SetValue("port", "coop_copy_key_cars", true);
         if (MeleeAi != I76.Sim.Missions.MeleeAiSkill.Original) c.SetValue("port", "melee_ai", (int)MeleeAi);
         if (EffectsSize != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_size", EffectsSize);
         if (EffectsBrightness != I76.Sim.Views.EffectsLook.Default) c.SetValue("port", "effects_brightness", EffectsBrightness);

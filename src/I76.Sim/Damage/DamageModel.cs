@@ -91,12 +91,11 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public Func<Vehicle, bool>? Escorted { get; set; }
 
     /// <summary>
-    /// The port's: a packet a car does not take from another (Co-op Scaling's copies and their original, ScriptHost.Spares): no
-    /// damage and no attacker recorded. Null, everyone takes everything, as the original.
+    /// The port's co-op escorts (<see cref="Missions.CoopEscorts"/>), and with coop_copy_key_cars Co-op Scaling's copies and their
+    /// original (ScriptHost.Spares): whether a hit on a vehicle (the victim, the attacker) is dropped whole, before its damage and
+    /// its record. Null everywhere else: everyone takes everything, as the original.
     /// </summary>
-    public Func<Vehicle, Vehicle, bool>? Spares { get; set; }
-
-    private bool Spared(Vehicle v, DamagePacket? p) => Spares is { } s && p?.Attacker is Vehicle a && a != v && s(v, a);
+    public Func<Vehicle, Vehicle, bool>? Spared { get; set; }
 
     /// <summary>A network handicap on what <paramref name="v"/> takes from another car (the port's; <see cref="Missions.Handicaps.Taken"/>): 1 at level 0.</summary>
     private static float HandicapTaken(Vehicle v, DamagePacket p) => v.Handicap != 0 && p.Attacker is Vehicle a && a != v ? Missions.Handicaps.Taken(v.Handicap) : 1f;
@@ -164,7 +163,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         switch (victim)
         {
             case Vehicle v:
-                if (Spared(v, p)) break;
+                if (p.Attacker is Vehicle sa && sa != v && Spared?.Invoke(v, sa) == true) return;
                 VehicleSlot(v, p, hitLocal);
                 // a blast goes straight to the class slot in the original: it records no attacker (kill credit is the packet's)
                 if (p.Attacker is Vehicle a && a != v && p.Kind != DamageKind.Explosion) Record(v, a, p.Kind, p.Mask);
@@ -185,7 +184,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// <summary>The vehicle damage slot (class slot [10]). pkt null: straight to the death check (the vehicle death routine's call).</summary>
     public void VehicleSlot(Vehicle v, DamagePacket? p, Vector3 hitLocal)
     {
-        if (Spared(v, p)) return;
+        if (p?.Attacker is Vehicle sa && sa != v && Spared?.Invoke(v, sa) == true) return;
         if (p is not null && IncomingFactor(v) * HandicapTaken(v, p) is var f && f != 1f) p = Scaled(p, f, v.Health?.CoopCarry);
         if (p is not null) Damaging?.Invoke(v, p);
         if (v.Heli is { } heli) { HeliSlot(v, heli, p); return; }
@@ -637,7 +636,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// </summary>
     public void CarContact(Vehicle self, Vehicle other, Contact rec)
     {
-        if (self.Wreck || other.Wreck || Spares?.Invoke(self, other) == true) return;
+        if (self.Wreck || other.Wreck || Spared?.Invoke(self, other) == true) return;
         var p = Impact(other, other.P.Mass, KVehicle, rec.N, other.Vel - self.Vel);
         // a network handicap scales a ram as it does the rammer's rounds (what self takes is scaled in VehicleSlot)
         if (other.Handicap != 0) p = Scaled(p, Missions.Handicaps.Factor(other.Handicap), null);

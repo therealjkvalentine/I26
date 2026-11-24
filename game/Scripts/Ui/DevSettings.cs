@@ -163,6 +163,7 @@ public static class DevSettings
         new("modern_physics", FalseTrue, s => s.ModernPhysics ? 1 : 0, (s, v) => s.ModernPhysics = v != 0, DevWhen.Live),
         // a co-op game hosted from the shell (false, a melee respawn's standing start, is the unmarked one: the original has no co-op)
         new("coop_rolling_start", FalseTrue, s => s.CoopRollingStart ? 1 : 0, (s, v) => s.CoopRollingStart = v != 0, DevWhen.NextMission),
+        new("coop_copy_key_cars", FalseTrue, s => s.CoopCopyKeyCars ? 1 : 0, (s, v) => s.CoopCopyKeyCars = v != 0, DevWhen.NextMission),
         new("early_tick", FalseTrue, s => s.EarlyTick ? 1 : 0, (s, v) => s.EarlyTick = v != 0, DevWhen.Live),
         new("draw_ahead", FalseTrue, s => s.DrawAhead ? 1 : 0, (s, v) => s.DrawAhead = v != 0, DevWhen.Live),
         new("road_grain", FalseTrue, s => s.RoadGrain ? 1 : 0, (s, v) => s.RoadGrain = v != 0, DevWhen.NextMission),

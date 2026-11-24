@@ -11,8 +11,9 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// #191, the Nitro Pack's Never Get Out: the intro hides the player's car (engine off, lever P); skipped, it starts the car and
-/// orders a goto on it after the camera is let go. The original runs that goto, whose start puts the lever in D; here the
-/// player's orders outside a cut-scene are dropped, and the car was handed over in P.
+/// orders a goto on it after the camera is let go. The original runs that goto, whose start puts the lever in D; so does single
+/// player here (NeverGetOutGearTests). In co-op a human's orders outside a cut-scene are dropped, and the car was handed over in P:
+/// there the dropped drive order still takes it out of P.
 /// </summary>
 public class HandOffLeverTests
 {
@@ -23,7 +24,7 @@ public class HandOffLeverTests
         public I76.Sim.Terrain.Surface Surface(int id) => new(2f, 0.03f, 0, 0, 0);
     }
 
-    private static (ScriptHost Host, Entity Player) World()
+    private static (ScriptHost Host, Entity Player) World(bool coop = true)
     {
         var world = new SimWorld(new Flat(), new I76.Sim.Rng.CrtRand(1));
         var v = new Vehicle { Pos = new Double3(0, 0, 0) };
@@ -32,6 +33,7 @@ public class HandOffLeverTests
         var player = new Entity("skeeter", [], 1, 0) { Vehicle = v };
         PtEntry[] blank = [.. Enumerable.Range(0, 34).Select(i => new PtEntry(i, $"state{i}", 0, 0, 0, [], [], []))];
         var host = new ScriptHost(world, [player], (Objectives)RuntimeHelpers.GetUninitializedObject(typeof(Objectives)), _ => null) { Tactics = blank };
+        if (coop) host.Coop = new CoopGroup([new CoopSeat { Index = 0, Entity = player, CarFile = "skeeter.vcf" }], 5f, (_, _) => throw new InvalidOperationException());
         return (host, player);
     }
 
@@ -51,6 +53,15 @@ public class HandOffLeverTests
         Assert.Equal(3, player.Vehicle.DriveState);
         Assert.Equal(1f, player.Vehicle.Gear);
         Assert.Null(player.Order);       // the order itself is still the keys'
+    }
+
+    [Fact]
+    public void InSinglePlayerTheOrderRunsAsTheOriginalsDoes()
+    {
+        var (host, player) = World(coop: false);
+        player.Vehicle!.DriveState = 0;
+        host.Order(player, null, AiOrder.Goto, Path, 25);
+        Assert.Equal(AiOrder.Goto, player.Order);   // the AI drives the player's car; its start puts the lever in D (NeverGetOutGearTests)
     }
 
     [Fact]

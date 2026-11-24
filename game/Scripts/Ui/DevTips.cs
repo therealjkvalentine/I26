@@ -50,6 +50,7 @@ public static class DevTips
         "ordnance_limit" => "Play Options' Unlim. Ordnance: the original caps live rounds of a kind at 160; unlimited keeps a long oil or fire trail whole.",
         "modern_physics" => "Play Options' Modern Physics: your car as a rigid body with suspension and tyres instead of the original's model. Not online.",
         "coop_rolling_start" => "A co-op game you host: a player who respawns beside a moving teammate comes in at that teammate's speed and heading.",
+        "coop_copy_key_cars" => "A co-op game you host with Extra Enemies: true copies the cars the mission is about too (the fork's earlier rule: resprayed copies escorting the original), false is upstream's (one of a kind; T09's Callisto gets escort cars).",
         "early_tick" => "The 1997 look: a driving or weapon key runs the next tick at once instead of waiting for it, about 20 ms sooner.",
         "draw_ahead" => "Your car and the camera drawn at the newest tick carried forward, not between the last two: steering shows up to a tick sooner.",
         "road_grain" => "The modern look: the paved roads carry an asphalt grain near the camera (the fetched Asphalt015 scan, fine noise without it). False draws them as upstream does, the road layer's colour alone. From the next mission.",

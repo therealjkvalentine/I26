@@ -444,7 +444,7 @@ public sealed partial class MeleeClient : IDisposable
                 break;
             }
             case MsgType.Scoreboard:
-                Scores = Scoreboard.Read(ref r, _board);
+                Scores = Scoreboard.Read(ref r, _board, Has(PeerFeatures.HandicapBoard));
                 break;
             case MsgType.VoiceFrom:
                 // unreliable and unordered: a bounded queue, the oldest dropped (the player's voice buffer is shorter than this); outside the game it is just dropped

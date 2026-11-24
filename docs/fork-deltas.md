@@ -84,6 +84,7 @@ the `gh-pages` branch (see tools/changes-page/README.md).
 - Tab locks the standings open with a pointer and the host's boot by double-click; `/ban NAME` by name and address; Connect to Server under the game list (#122). [D, H]
 - Host rules: Ignition Lock, Handicaps -3 to +3, Auto handicaps from the standings (dealt x0.2 to x5, taken the inverse), bots' skill from Difficulty. [D, I]
 - Co-op: EXTRA ENEMIES (+1 per player by default), DAMAGE TAKEN x0.5 to x1.5 (the fraction carried, so a flame still burns), Rolling Start (a joiner comes in at a teammate's speed; `[port] coop_rolling_start`); the co-op form shows only what a story mission uses, with a help line per row. [D, H, AI]
+- Co-op Scaling plays by upstream's rule (a car the mission is about stays one of a kind; T09's Callisto gets escort cars); the fork's earlier copies of such a car, resprayed and escorting it, with the host's `[port] coop_copy_key_cars`. The wait notice at a lobby's start names the players and what each is doing, and an upstream host's names too. [EO, EQ]
 - The host form keeps the fork's look (the options box, the arena scrap, rule tips) with upstream's labelled rules table. [X, AF]
 - The network forms show each game's build; a joiner on another build is let in with a notice. [I]
 - The network Esc menu has Self Destruct (new car) and says Leave Match / Exit I76; an arena asking for the menu's track starts on the next mission track. [I]
