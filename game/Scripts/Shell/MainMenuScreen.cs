@@ -95,7 +95,8 @@ public sealed class MainMenuScreen : ShellScreen
                 _w[id] = new SpriteWidget(id, x, y, _bank, sprite, nb) { Hot = hot, NitroBank = true, Text = id == 0xe ? "LAN" : null };   // IPX is the LAN here
                 continue;
             }
-            if (NetBanner.TryGetValue(id, out var words))
+            // TRIP's banner on a Trip+ lap (the play fork's): the lap, in place of the original's words
+            if ((NetBanner.GetValueOrDefault(id) ?? (id == 13 && Shell.Trip.Plus.Lap > 1 ? $"TRIP+ LAP {Shell.Trip.Plus.Lap}" : null)) is { } words)
             {
                 // a banner the size of the others (sprite 41's), its words drawn in place of a sprite
                 var nb = new SpriteWidget(-1, BannerX(Nitro ? 42 : 41), 460, _bank, Nitro ? 42 : 41);
@@ -354,12 +355,43 @@ public sealed class MainMenuScreen : ShellScreen
             case 4: Shell.Go(new MeleeScreen { Mode = 0 }); break;                    // INSTANT MELEE, 0xc021
             case 9: Shell.Go(new MeleeScreen { Mode = 1 }); break;                    // SCENARIO, 0xc024
             case 11:                                                                  // NEW TRIP, 0xc022: straight into T01
-                Shell.Trip.New();
-                Shell.LaunchTrip(Shell.Trip.StockCar(Shell, "vppt01.vcf"));     // the stock car, no garage before T01
+                // a finished trip (or the developer switch) asks first: START OVER, the original's, or TRIP+ (the play fork's)
+                if (Shell.Trip.Plus.Finished || Shell.Settings.TripPlusUnlocked) AskTripPlus();
+                else StartOver();
                 break;
             case 12: Shell.Launch(new ShellLaunch("a01", GameKind.Trip, "vppa01.vcf")); break;     // TRAINING
             case 10: Shell.Overlay(new LoadBookmarkScreen { Direct = true }); break;
         }
+    }
+
+    /// <summary>NEW TRIP as the original: T01 on lap 1 in the stock car, no garage before T01.</summary>
+    private void StartOver()
+    {
+        Shell.Trip.StartOver();
+        Shell.LaunchTrip(Shell.Trip.StockCar(Shell, "vppt01.vcf"));
+    }
+
+    /// <summary>
+    /// Trip+ (the play fork's; docs/deviations.md "Trip+"): NEW TRIP after a finished trip asks on the confirm receipt. YES is TRIP+:
+    /// T01 again on the next lap, in the trip car as it stands (the car, the van, the repair order); NO starts over as the original
+    /// does. Esc asks nothing and leaves the trip as it is.
+    /// </summary>
+    private void AskTripPlus()
+    {
+        int lap = Shell.Trip.Plus.NextLap;
+        Shell.Modal(new ConfirmPopup
+        {
+            // the receipt holds about 24 letters a line
+            Lines = ["DRIVE THE TRIP AGAIN?", $"YES: TRIP+ LAP {lap}, YOUR", "   CAR, TOUGHER ROAD.", "NO: START OVER."],
+            Answer = plus =>
+            {
+                if (!plus) { StartOver(); return; }
+                Shell.Trip.StartTripPlus();
+                // the trip car whole; a trip that never had one (the developer switch on a fresh install) starts in the stock car
+                Shell.LaunchTrip(Shell.Trip.Inventory(Shell) ?? Shell.Trip.StockCar(Shell, "vppt01.vcf"));
+            },
+            Cancelled = Repaint,
+        });
     }
 
     /// <summary>The main menu's click handler on Nitro.</summary>

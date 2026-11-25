@@ -1230,10 +1230,13 @@ public sealed class TripState
     {
         var t = new TripState();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return t;
-        t.Mission = (int)c.GetValue("trip", "mission", 1);
-        t.Highest = (int)c.GetValue("trip", "highest", 1);
-        t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
+        if (c.Load(Path) == Error.Ok)
+        {
+            t.Mission = (int)c.GetValue("trip", "mission", 1);
+            t.Highest = (int)c.GetValue("trip", "highest", 1);
+            t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
+        }
+        if (t.Plus.Hooked(System.Environment.GetEnvironmentVariable("I76_TRIP_PLUS")) is { } hooked) t.Plus = hooked;   // docs/dev-hooks.md
         return t;
     }
 
@@ -1255,6 +1258,12 @@ public sealed class TripState
 
     /// <summary>A won trip mission: the number advances at the next launch (the original front end's 0xc001 exit).</summary>
     public void Won() { Mission = Math.Min(17, Mission + 1); Highest = Math.Max(Highest, Mission); Save(); }
+
+    /// <summary>NEW TRIP's START OVER (and NEW TRIP before the trip is finished): T01 on lap 1, the original's trip; the car is the caller's (the stock car).</summary>
+    public void StartOver() { Plus = Plus.OnLap(1); New(); }
+
+    /// <summary>NEW TRIP's TRIP+ (the play fork's): T01 on the next lap, its rules the table's; the trip car (trip_car.json) is kept whole.</summary>
+    public void StartTripPlus() { Plus = Plus.OnLap(Plus.NextLap); New(); }
 
     /// <summary>A T17 win (before the credits): the trip is finished, and this lap with it (the play fork's record, for Trip+).</summary>
     public void Finish() { Plus = Plus.Won17(); Save(); }
@@ -1532,6 +1541,8 @@ public sealed class ShellSettings
     public bool LogFile { get; set; }
     /// <summary>The port's own: a bug report's inputs.csv, the last seconds of the player's inputs kept in memory while a mission runs ([port] bug_report_inputs; on, written when off; Boot/BugReport.cs).</summary>
     public bool BugReportInputs { get; set; } = true;
+    /// <summary>The play fork's developer switch [port] trip_plus_unlocked (written only when on): NEW TRIP offers TRIP+ before the trip is finished (docs/deviations.md "Trip+").</summary>
+    public bool TripPlusUnlocked { get; set; }
     /// <summary>The port's own: Graphic Detail's Renderer (Auto, Vulkan, D3D12, OpenGL; shell.cfg [port] renderer, written only when not Auto). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.StartupSettings"/>).</summary>
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
@@ -2177,6 +2188,7 @@ public sealed class ShellSettings
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
         s.BugReportInputs = (bool)c.GetValue("port", "bug_report_inputs", true);
+        s.TripPlusUnlocked = (bool)c.GetValue("port", "trip_plus_unlocked", false);   // no version step: absent, it is off
         // no version step: absent, it is off (players never see the panel); developer_tools is the key's older name, still read
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
@@ -2391,6 +2403,7 @@ public sealed class ShellSettings
 
         if (LogFile) c.SetValue("port", "log_file", true);
         if (!BugReportInputs) c.SetValue("port", "bug_report_inputs", false);
+        if (TripPlusUnlocked) c.SetValue("port", "trip_plus_unlocked", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         return c;
     }

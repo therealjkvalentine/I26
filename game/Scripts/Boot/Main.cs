@@ -1360,7 +1360,13 @@ public partial class Main : Node3D
 			if (gateOf.Count > 0) gateScenery.GateShift = (gp, name) => gateOf.TryGetValue((gp, name), out var g) ? g.Shift : default;
 		}
 		// Trip+'s Posse makes copies of enemy cars as the script sets them going (the play fork's): each gets its node then
-		if (setup.Script?.Host.Solo is { } posse) posse.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
+		if (setup.Script?.Host.Solo is { } posse)
+		{
+			posse.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
+			// the copies the script's first frame already made (an enemy ordered at once: T01's, T03's)
+			foreach (var v in world.Vehicles.ToList())
+				if (!carNodes.ContainsKey(v) && setup.Script.Host.Of(v) is { ExtraOf: not null } && v.Definition is { Length: > 0 } cd) carNodes[v] = MakeNode(v, cd);
+		}
 		// a melee builds its cars as it goes: the roster now and every wave, a fresh car on a regen pad
 		if (setup.Melee is { } melee)
 		{

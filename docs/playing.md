@@ -115,6 +115,16 @@ its weapons and damage and the mission as they were; your current trip is not ch
 bookmark is for this version of I26: after an update the bookmark still loads, and the mission starts from its beginning
 (a note says so).
 
+**Trip+ (a second lap).** Once you have won Scene 17, NEW TRIP asks before it starts: NO starts over as the original does,
+in the stock car; YES is TRIP+, Scene 1 again in the car you finished in, with its van and repair order, against a
+harder road. On the second lap every enemy car the mission is not about comes with a copy of itself, every enemy drives
+and shoots one skill step better, and the field salvage lets through parts four scenes ahead of where you are. The cars a
+scene fails on losing (the van in Scene 16) take less damage, as in co-op with Extra Enemies, and a boss stays one of a
+kind. Win Scene 17 again for lap 3 (two copies, two steps), and once more for lap 4, the last. The main menu's TRIP banner
+says which lap you are on; bookmarks remember theirs, and a checkpoint made on one lap only resumes on the same lap. The
+story plays as before (Scene 4's dream, Scene 17's borrowed cars). It is single player only, and cheats still void the
+salvage and the next scene. Esc on the question leaves your trip as it was.
+
 **Log file.** Off by default, so it cannot grow. For a bug report, start the game once with `--log` (or the environment
 variable `I76_LOG=1`) and attach `logs/godot.log` from the user folder (the last three runs' logs are kept as
 `logs/godot<date>.log`); `log_file = true` under `[port]` in shell.cfg (or the Developer panel's Settings) keeps it on for every start (it had a Graphic Detail row until round 5). Logs from older versions

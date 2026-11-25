@@ -230,11 +230,15 @@ public partial class Main
     /// The Trip+ rules a mission is built by (the play fork's; docs/deviations.md "Trip+"): a reopened report's, else a trip launch's
     /// (single player: never a melee, a network or a co-op game). Null, the original's.
     /// </summary>
-    private static I76.Sim.Trip.TripPlusRules? TripPlusRules(bool melee)
+    private I76.Sim.Trip.TripPlusRules? TripPlusRules(bool melee)
     {
         if (melee) return null;
         if (_reportTripPlus is { } reported) return reported;
-        return _launch is { Kind: I76.Game.Shell.GameKind.Trip, TripPlus: { IsOff: false } rules } ? rules : null;
+        if (_launch is { Kind: I76.Game.Shell.GameKind.Trip, TripPlus: { IsOff: false } rules }) return rules;
+        // I76_TRIP_PLUS=LAP (docs/dev-hooks.md): a trip mission started without the shell's rules (--mission t03, a capture's launch) plays by that lap's
+        string m = (_opt.Mission ?? "").ToLowerInvariant();
+        bool trip = m.Length == 3 && m[0] == 't' && char.IsDigit(m[1]) && char.IsDigit(m[2]) && _launch is null or { Kind: I76.Game.Shell.GameKind.Trip };
+        return trip && int.TryParse(System.Environment.GetEnvironmentVariable("I76_TRIP_PLUS"), out int lap) ? I76.Sim.Trip.TripPlusRules.ForLap(lap) : null;
     }
 
     /// <summary>

@@ -63,3 +63,57 @@ public class TripPlusSaveTests
         Assert.Equal(new TripPlusRules(3, -4, 0), s.Rules);
     }
 }
+
+/// <summary>Trip+'s laps (the play fork's "Second Lap"): the fixed table, the lap TRIP+ starts, START OVER, and the developer hook.</summary>
+public class TripPlusLapTests
+{
+    [Fact]
+    public void TheLapTableAddsOneOfEachRuleALapUpToLapFour()
+    {
+        Assert.Null(TripPlusRules.ForLap(1));
+        Assert.Null(TripPlusRules.ForLap(0));
+        Assert.Equal(new TripPlusRules(1, -1, 4), TripPlusRules.ForLap(2));   // Second Lap: Posse, Sharp, Loot up
+        Assert.Equal(new TripPlusRules(2, -2, 8), TripPlusRules.ForLap(3));
+        Assert.Equal(new TripPlusRules(3, -3, 12), TripPlusRules.ForLap(4));
+        Assert.Equal(TripPlusRules.ForLap(4), TripPlusRules.ForLap(9));       // capped
+        Assert.Equal(4, TripPlusRules.MaxLap);
+    }
+
+    [Fact]
+    public void TripPlusStartsTheLapAfterTheHighestDoneAndStartOverGoesBackToLapOne()
+    {
+        var finished = new TripPlusSave().Won17();
+        Assert.Equal(2, finished.NextLap);
+        var lap2 = finished.OnLap(finished.NextLap);
+        Assert.Equal(2, lap2.Lap);
+        Assert.Equal(new TripPlusRules(1, -1, 4), lap2.Active);
+        var done2 = lap2.Won17();
+        Assert.Equal(3, done2.NextLap);
+        Assert.Equal(4, new TripPlusSave(true, 4, 4).NextLap);   // lap 4 again after lap 4
+        var over = done2.OnLap(1);
+        Assert.Equal(1, over.Lap);
+        Assert.Null(over.Active);
+        Assert.True(over.Finished);                                 // the question stays for the next NEW TRIP
+        Assert.Equal(3, over.NextLap);
+        // the developer switch with no trip finished: lap 2
+        Assert.Equal(2, new TripPlusSave().NextLap);
+    }
+
+    [Theory]
+    [InlineData(null, false, 1)]
+    [InlineData("", false, 1)]
+    [InlineData("1", false, 1)]
+    [InlineData("x", false, 1)]
+    [InlineData("2", true, 2)]
+    [InlineData("3", true, 3)]
+    public void TheHookPutsTheTripOnThatLap(string? value, bool hooked, int lap)
+    {
+        var s = new TripPlusSave().Hooked(value);
+        Assert.Equal(hooked, s is not null);
+        if (s is null) return;
+        Assert.Equal(lap, s.Lap);
+        Assert.True(s.Finished);
+        Assert.Equal(lap - 1, s.LapsDone);
+        Assert.Equal(TripPlusRules.ForLap(lap), s.Active);
+    }
+}

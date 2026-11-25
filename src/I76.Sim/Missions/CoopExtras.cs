@@ -171,6 +171,9 @@ public sealed partial class ScriptHost
         var x = new Entity(c.CopyKeyCars ? ExtraName(e.Name, k) : e.Name, [], e.Type, e.ObjectFlags) { Vehicle = v, ExtraOf = e, Scaled = true };
         Add(x);
         SetSkill(x, e.SkillA, e.SkillB);
+        // Trip+ (single player): the copy drives and shoots as its original does, also when the script never gave the original a
+        // setSkill (its tables at the AI's default, not the entity's 3, which a co-op copy takes as upstream does)
+        if (Coop is null) { x.Ai.Skill = e.Ai.Skill; x.Ai.AccelFactor = e.Ai.AccelFactor; x.Ai.FireAccuracy = e.Ai.FireAccuracy; x.Ai.FireSkill = e.Ai.FireSkill; }
         x.Aggression = e.Aggression; x.Avoid = e.Avoid; x.MaxAttackers = e.MaxAttackers; x.Lights = e.Lights; x.Siren = e.Siren;
         Log($"{c.Tag}: {e.Name} has extra {k} beside it ({v.Paint?.Primary?.Hex ?? "factory"})");
         c.Spawned(v, def);

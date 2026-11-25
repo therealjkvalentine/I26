@@ -900,6 +900,8 @@ public sealed class ConfirmPopup : ShellScreen
 {
     public required string[] Lines { get; init; }
     public required Action<bool> Answer { get; init; }
+    /// <summary>Esc (the pad's B and Start) when it is not an answer: closes the dialog and calls this instead of answering No (the port's, for a NO that does something).</summary>
+    public Action? Cancelled { get; init; }
     /// <summary>Where each line goes, when the caller places them itself (the garage's "Groove…" at (225, 180), (215, 200), (265, 220)).</summary>
     public Vector2I[]? At { get; init; }
     public override bool EscapeOpensOptions => false;
@@ -928,7 +930,8 @@ public sealed class ConfirmPopup : ShellScreen
         if (!yes && !no) return;
         Frame.Restore(115, 130, 428, 238);
         Shell.Modal(null);
-        Answer(yes);
+        if (esc && Cancelled is { } cancelled) cancelled();
+        else Answer(yes);
     }
 }
 

@@ -56,4 +56,17 @@ public sealed record TripPlusSave(bool Finished = false, int Lap = 1, int LapsDo
 
     /// <summary>A T17 win: the trip is finished, and this lap is done.</summary>
     public TripPlusSave Won17() => this with { Finished = true, LapsDone = System.Math.Max(LapsDone, Lap) };
+
+    /// <summary>The lap TRIP+ starts: the one after the highest done (lap 2 after the original's trip), to <see cref="TripPlusRules.MaxLap"/>.</summary>
+    public int NextLap => System.Math.Min(TripPlusRules.MaxLap, System.Math.Max(1, LapsDone) + 1);
+
+    /// <summary>Playing lap <paramref name="lap"/> by the table's rules (<see cref="TripPlusRules.ForLap"/>); lap 1 is the original's trip.</summary>
+    public TripPlusSave OnLap(int lap) => this with { Lap = System.Math.Max(1, lap), Rules = TripPlusRules.ForLap(lap) };
+
+    /// <summary>
+    /// The developer hook I76_TRIP_PLUS=LAP (docs/dev-hooks.md): that lap's rules, as if the laps before it were finished; null for
+    /// no hook or a value that is not a lap past the first.
+    /// </summary>
+    public TripPlusSave? Hooked(string? value) =>
+        int.TryParse(value, out int lap) && lap >= 2 ? OnLap(lap) with { Finished = true, LapsDone = System.Math.Max(LapsDone, lap - 1) } : null;
 }

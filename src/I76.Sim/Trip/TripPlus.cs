@@ -13,6 +13,20 @@ public sealed record TripPlusRules(int Copies, int SkillOffset, int SalvageOffse
     /// <summary>No rule changes anything: the original's trip.</summary>
     public bool IsOff => Copies == 0 && SkillOffset == 0 && SalvageOffset == 0;
 
+    /// <summary>The last lap the table has; laps finished past it start this one again.</summary>
+    public const int MaxLap = 4;
+
+    /// <summary>
+    /// The laps' fixed rules ("Second Lap" and on): lap 2 one copy, one tier better, salvage read four missions on; each later
+    /// lap one more of each (lap 3: two copies, two tiers, +8), to lap <see cref="MaxLap"/>. Null for lap 1, the original's trip.
+    /// </summary>
+    public static TripPlusRules? ForLap(int lap)
+    {
+        if (lap <= 1) return null;
+        int k = System.Math.Min(lap, MaxLap) - 1;
+        return new TripPlusRules(k, -k, 4 * k);
+    }
+
     /// <summary>A setSkill tier under <paramref name="offset"/>: held to 1 (best) .. 5 (worst); a tier outside 1..5 is left as it is.</summary>
     public static int Tier(int tier, int offset) => tier is < 1 or > 5 || offset == 0 ? tier : System.Math.Clamp(tier + offset, 1, 5);
 }

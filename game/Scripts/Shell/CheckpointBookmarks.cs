@@ -35,7 +35,7 @@ public static partial class CheckpointBookmarks
         string stem = marks.NextStem();
         writeCar(stem, start.Car);
         writeCheckpoint(stem, checkpoint);
-        var e = new Bookmarks.Entry(start.Mission, Name, stem, 0, noSalvage, Checkpoint: true);
+        var e = new Bookmarks.Entry(start.Mission, Name, stem, 0, noSalvage, Checkpoint: true, Lap: start.Lap);
         marks.Entries.Add(e);
         marks.Entries.Sort((x, y) => string.CompareOrdinal(x.Stem, y.Stem));
         return e;

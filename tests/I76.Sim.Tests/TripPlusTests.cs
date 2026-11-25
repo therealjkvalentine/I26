@@ -47,6 +47,8 @@ public class TripPlusTests(ITestOutputHelper output)
             Assert.Equal(e.Team, x.Team);
             Assert.Empty(x.Id);
             Assert.InRange(Vector3.Distance(e.Position, x.Position), 3f, 60f);
+            Assert.Equal(e.Ai.Skill, x.Ai.Skill);                 // it drives and shoots as its original
+            Assert.Equal(e.Ai.FireAccuracy, x.Ai.FireAccuracy);
             Assert.DoesNotContain(x, h.AiVehicles);
             Assert.DoesNotContain(x, h.Vehicles);
         }
