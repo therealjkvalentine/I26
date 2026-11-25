@@ -1,0 +1,120 @@
+{
+ "textures": [
+  "sl1zon_1"
+ ],
+ "note": "sl1zon_1: drafted by tools/draft-text-redraws.py (batch 01), the words read off the original, approved on the contact sheet",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    5.2,
+    10.95,
+    59.8,
+    22.05
+   ],
+   "where": {
+    "lum_below": 134.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 194.9
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10.2,
+    25.45,
+    54.8,
+    36.55
+   ],
+   "where": {
+    "lum_below": 134.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 194.9
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    5.95,
+    40.2,
+    61.05,
+    50.8
+   ],
+   "where": {
+    "lum_below": 130.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 192.9
+   }
+  },
+  {
+   "op": "text",
+   "text": "SPEED",
+   "font": "ArchivoNarrow",
+   "colour": [
+    2,
+    1,
+    2
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    6,
+    11.75,
+    59,
+    21.25
+   ],
+   "cap": 9.5
+  },
+  {
+   "op": "text",
+   "text": "ZONE",
+   "font": "ArchivoNarrow",
+   "colour": [
+    2,
+    1,
+    2
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    11,
+    26.25,
+    54,
+    35.75
+   ],
+   "cap": 9.5
+  },
+  {
+   "op": "text",
+   "text": "AHEAD",
+   "font": "ArchivoNarrow",
+   "colour": [
+    2,
+    2,
+    2
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    6.75,
+    41,
+    60.25,
+    50
+   ],
+   "cap": 9,
+   "embolden": 0.12
+  }
+ ]
+}
