@@ -118,5 +118,12 @@
     "by": "The Archivo Black Project Authors (Omnibus-Type)",
     "license": "SIL OFL 1.1",
     "source": "https://github.com/google/fonts/tree/main/ofl/archivoblack"
+  },
+  "Overpass": {
+    "name": "Overpass",
+    "file": "Overpass/Overpass[wght].ttf",
+    "by": "The Overpass Project Authors (Red Hat)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/overpass"
   }
 }

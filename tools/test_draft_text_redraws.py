@@ -1,6 +1,6 @@
 """Tests of tools/draft-text-redraws.py (python -m pytest tools/test_draft_text_redraws.py). No game art: made-up
 textures, lettered from the text redraws' own fonts."""
-import csv, importlib.util, json, os, shutil, tempfile, unittest
+import csv, importlib.util, json, math, os, shutil, tempfile, unittest
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -157,7 +157,7 @@ class PipelineTests(unittest.TestCase):
             dr.cmd_fit(a)
             with open(os.path.join(batch, "results.json"), encoding="utf-8") as f: res = json.load(f)
             self.assertEqual(res[0]["verdict"], "PASS", res[0]["why"])
-            a = A(); a.batch = batch; dr.cmd_sheet(a)
+            a = A(); a.batch, a.prev = batch, None; dr.cmd_sheet(a)
             self.assertTrue(os.path.exists(os.path.join(batch, "index.html")))
             dec = os.path.join(tmp, "decisions.json")
             with open(dec, "w", encoding="utf-8") as f: json.dump({"zz1mot_1": {"decision": "approve"}}, f)
@@ -167,6 +167,52 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual([op["text"] for op in spec["ops"] if op["op"] == "text"], ["MOTEL"])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+ARIMO = os.path.join(FONTS, "Arimo", "Arimo[wght].ttf")
+
+
+class RoundTwoTests(unittest.TestCase):
+    """The owner's first review: solid ink, the painted weight, one face per sign family, the ink on the right side."""
+
+    def test_the_ink_is_solid_where_the_pack_paints_it_darker(self):
+        o = painted("ROAD", size=(64, 32), px=14, at=(10, 6), ink=(70, 64, 40), ground=(238, 178, 8))
+        r = max(dr.rows_of_texture(o), key=lambda r: r["mask"].sum()); r["colours"] = dr.row_colours(o, r)
+        pk = soft(o); dark = pk[..., :3].astype(int).sum(axis=2) < 400
+        pk[dark] = (4, 2, 0, 255)                                      # the model paints the dark ink near black
+        ink = dr.solid_ink(o, [("pack", pk)], r)
+        self.assertLess(sum(ink), sum(r["colours"]["ink"]) - 60)
+        self.assertEqual(dr.solid_ink(o, [], r), r["colours"]["ink"])   # without a pack: the original's paint
+
+    def test_the_ink_is_the_paint_not_the_part_covered_edge(self):
+        o = painted("ROAD", size=(64, 32), px=14, at=(10, 6), ink=(30, 30, 30))
+        o[..., :3][(o[..., 0] < 128) & (np.arange(64)[None, :] % 3 == 0)] = (130, 130, 130)   # some ink texels half covered
+        r = max(dr.rows_of_texture(o), key=lambda r: r["mask"].sum())
+        self.assertLess(max(dr.row_colours(o, r)["ink"]), 45)
+
+    def test_a_thin_painting_is_fitted_with_a_light_weight(self):
+        table = dr.tr.font_table()
+        im = Image.new("RGB", (96, 32), (240, 236, 230)); d = ImageDraw.Draw(im)
+        f = ImageFont.truetype(ARIMO, 22); f.set_variation_by_axes([300])
+        d.text((4, 2), "HOTEL", font=f, fill=(20, 20, 20))
+        o = np.dstack([np.asarray(im), np.full((32, 96), 255, np.uint8)])
+        r = max(dr.rows_of_texture(o), key=lambda r: r["mask"].sum()); r["colours"] = dr.row_colours(o, r)
+        ft = dr.fit_row(o, r, "HOTEL", table, dr.faces(table), {"font": "Arimo"})
+        self.assertLessEqual(ft["op"]["variation"]["Weight"], 500)
+        self.assertLess(abs(math.log(ft["weight"])), 0.3)
+
+    def test_an_added_row_of_dark_letters_on_a_light_board_is_dark_ink(self):
+        o = painted("Imports", size=(64, 24), px=10, at=(6, 6), ink=(20, 40, 120), font=ARIMO)
+        ys, xs = np.where(o[..., 0] < 128)
+        (_, r, _, _), = dr.added_rows({"add": [{"text": "Imports", "box": [int(xs.min()) - 1, int(ys.min()) - 1, int(xs.max()) + 2, int(ys.max()) + 2]}]}, o)
+        self.assertEqual(r["polarity"], -1)
+        self.assertGreater(r["colours"]["ink"][2], r["colours"]["ink"][0])     # blue, not the board's white
+        self.assertLess(sum(r["colours"]["ink"]), 300)
+
+    def test_a_sign_family_shares_its_face(self):
+        self.assertEqual(dr.entry_face({}, "sh128s_1")["font"], "ArchivoNarrow")
+        self.assertEqual(dr.entry_face({"font": "Anton"}, "sh128s_1"), {"font": "Anton"})
+        self.assertEqual(dr.entry_face({}, "cw_1dr11"), {})
 
 
 if __name__ == "__main__":

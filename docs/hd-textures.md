@@ -196,20 +196,28 @@ batches, and you read the words and approve each one from a contact sheet. Every
    the texture or for one row: Anton for every licence plate, for example. A row may also fix `"box"`, `"colour"`,
    `"turn"` and `"embolden"`.
 4. **Fit**: `python tools/draft-text-redraws.py fit BATCH` chooses each row's face, weight and box, and uses one face for
-   the texture where that costs each row little. It renders the spec with `text-redraws.py` over a copy of each pack's
+   the texture where that costs each row little. The weight is fitted to the painted letters' (their ink, area for
+   area), not thickened toward the upscale's. A sign family's approved face is a rule in the tool (`FACE_RULES`: the US
+   shields in Archivo Narrow, the diamond warning signs in Arimo), so its later signs match. The ink is solid: the
+   original's paint, or the pack's where the pack paints it darker. It is checked to be on the ground's side the
+   original's is. It renders the spec with `text-redraws.py` over a copy of each pack's
    file and measures the result on the original's grid. PASS means no gross fault was found: the letters fall on the
    painted ones (blurred correlation 0.75 or more), the ink's box and colour are close, and nothing changed outside the
    rows. Anything else is FLAG, with the reasons. No measure taken against the original can tell a good redraw from the
    upscale: a model's output, filtered back down, is the original near enough. The measures therefore catch mistakes
    and the sheet decides.
-5. **Review**: `python tools/draft-text-redraws.py sheet BATCH` writes `BATCH/index.html` and `BATCH/sheet-NN.png`. Each
+5. **Review**: `python tools/draft-text-redraws.py sheet BATCH [--prev EARLIER_BATCH]` writes `BATCH/index.html` and `BATCH/sheet-NN.png`. Each
    card shows the original, the released pack and the redraw, with the words and the measures. Approve, reject or keep
-   each one, then save `decisions.json`.
+   each one, then save `decisions.json`. For a second round, copy the families to rework into a new batch folder with
+   the owner's note and what changed on each (`"owner"` and `"change"` in its `batch.json`); `--prev` then adds the
+   earlier round's redraw beside the new one, with that note.
 6. **Accept**: `python tools/draft-text-redraws.py accept BATCH decisions.json` copies the approved specs into
    `tools/text-redraws/` (`signs-`, `plates-` or `dash-<texture>.json`). Run `text-redraws.py SRC --pack PACK` to letter
    a pack with them, and `python -m unittest tools/test_text_redraws.py` to check them.
 
-A batch of 30 takes about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
+Small print nobody can read (a plate's state line, a garage's list of services) can be guessed with
+`tools/guess-small-text.py`, which scores word options against the texels. A guessed line's spec says so in its note,
+with the confidence. A batch of 30 takes about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
 type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
 `tools/text-redraws/fonts/README.md`.
 

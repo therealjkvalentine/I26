@@ -63,7 +63,13 @@ CAR = re.compile(r"^([a-z]{2})([0-9c])([0-9x])([a-z]{3})([0-9x])$")
 SIGN = [r"^s[a-z]1", r"^ao_1sg", r"^[a-z]{2}_[12]"]
 KINDS = ("sign", "car", "dash", "other")
 # weights tried for a variable face (clipped to its axis); a fixed face is tried as it is
-WEIGHTS = (400, 600, 800, 900)
+WEIGHTS = (300, 400, 500, 600, 700, 800, 900)
+# the face a sign family is lettered in, once the owner has approved it on the family's first textures (a glob of the
+# stem: the face, its weight left to the fit unless given); a row or texture in words.json may still say otherwise
+FACE_RULES = {
+    "sh1*": {"font": "ArchivoNarrow", "variation": {"Weight": 700}},   # the US shields' EAST, NORTH (sh128n, sh138e, sh138n, sh162e)
+    "sd1*": {"font": "Arimo"},                                         # the diamond warning signs (sd1ded_1's DEAD END)
+}
 # faces kept out of the classifier: hand lettering and scripts, which only a person picks for a row ("font" in words.json)
 HAND = {"PermanentMarker", "MrDafoe", "Lobster"}
 
@@ -270,8 +276,10 @@ def rows_of_texture(orig):
     return rows
 
 def row_colours(orig, row):
-    """The row's ink and ground (RGB, the original's): the ink the half of its texels farthest from the ground, the ground
-    the texels round the letters (a texel off them), medians; and the erase's cuts on text-redraws' brightness (mean RGB)."""
+    """The row's ink and ground (RGB, the original's): the ink the texels farthest from the ground (the most contrasting
+    sixth, at least three: the paint itself, not the texels a letter's edge only partly covers, which would set the
+    lettering faded), the ground the texels round the letters (a texel off them), medians; and the erase's cuts on
+    text-redraws' brightness (mean RGB)."""
     x0, y0, x1, y1 = row["box"]; H, W = orig.shape[:2]
     X0, Y0, X1, Y1 = max(0, x0 - 2), max(0, y0 - 2), min(W, x1 + 2), min(H, y1 + 2)
     rgb = orig[Y0:Y1, X0:X1, :3].astype(np.float32); a = orig[Y0:Y1, X0:X1, 3]
@@ -284,12 +292,37 @@ def row_colours(orig, row):
     if len(iv) == 0: iv = rgb[ink]
     if len(iv) == 0: return None
     c = row["polarity"] * (lum_w(iv) - lum_w(ground))
-    core = iv[c >= np.median(c)]
+    core = iv[c >= np.sort(c)[::-1][min(len(c) - 1, max(2, len(c) // 6))]]
     inkc = np.median(core, axis=0)
     gm_l, ik_l = float(ground.mean()), float(inkc.mean())
     return {"ink": [int(round(v)) for v in inkc], "ground": [int(round(v)) for v in ground],
             "cut": round((gm_l + ik_l) / 2, 1), "halo": round(gm_l + (ik_l - gm_l) * 0.25, 1), "contrast": round(abs(gm_l - ik_l), 1),
             "keyed": bool((a[ink] < 128).any() if ink.any() else False)}
+
+def pack_ink(orig, px, row):
+    """The ink as the pack paints the row: its texels over the row's box beyond the original's cut toward the ink, the most
+    contrasting sixth, median (RGB); None when the pack has none there."""
+    s = px.shape[1] // orig.shape[1]; x0, y0, x1, y1 = (int(round(v)) for v in row["box"])
+    sub = px[y0 * s:y1 * s, x0 * s:x1 * s, :3].astype(np.float32).reshape(-1, 3)
+    if not len(sub): return None
+    gl = float(lum_w(np.array(row["colours"]["ground"], np.float32)))
+    c = row["polarity"] * (lum_w(sub) - gl)
+    c_cut = row["polarity"] * (row["colours"]["cut"] - float(np.mean(row["colours"]["ground"])))
+    on = c > max(c_cut, 0)
+    if on.sum() < 6: return None
+    v, cv = sub[on], c[on]
+    return np.median(v[cv >= np.sort(cv)[::-1][max(2, len(cv) // 6)]], axis=0)
+
+def solid_ink(orig, packs, row):
+    """The colour a row is lettered in: the original's paint (row_colours' ink) or, where the pack paints the same ink
+    further from the ground (a model sets a dark paint near black), the pack's: a redraw never lighter than the upscale
+    it replaces, so it does not read faded beside it."""
+    ink = np.array(row["colours"]["ink"], np.float32); gl = float(lum_w(np.array(row["colours"]["ground"], np.float32)))
+    best = ink
+    for _, px in packs[:1]:
+        pk = pack_ink(orig, px, row)
+        if pk is not None and row["polarity"] * (float(lum_w(pk)) - gl) > row["polarity"] * (float(lum_w(best)) - gl): best = pk
+    return [int(round(v)) for v in best]
 
 def target_cov(orig, row, crop):
     """The painted letters' coverage (0..1) over crop (x0, y0, x1, y1): the texel's brightness between the ground's and
@@ -462,6 +495,18 @@ def render_cov(op, crop, table, k=4):
     if st is not None: cov = np.maximum(cov, st)
     return cov.reshape(H // k, k, W // k, k).mean(axis=(1, 3))
 
+def ink_weight(c, t):
+    """The lettering's weight against the painted letters': its ink (coverage summed) over theirs on the same box, at the
+    original's size; 1 the same weight, above it bolder, below it thinner."""
+    st = float(t.sum())
+    return float(c.sum()) / st if st > 0 else 0.0
+
+def weighed(c, t):
+    """The fit's score: the overlap, less a penalty for a weight off the painted letters' (a bold face overlaps a thin
+    painting well but reads too heavy)."""
+    w = ink_weight(c, t)
+    return soft_iou(c, t) - 0.5 * abs(math.log(max(w, 1e-3)))
+
 def soft_iou(a, b):
     den = np.maximum(a, b).sum()
     return float(np.minimum(a, b).sum() / den) if den > 0 else 0.0
@@ -476,18 +521,20 @@ def fit_row(orig, row, text, table, cands, fixed=None):
     t = target_cov(orig, row, crop)
     colour = fixed.get("colour", row["colours"]["ink"])
     turns = [fixed["turn"]] if fixed.get("turn") else (["ccw", "cw"] if row["turned"] else [None])
-    pool = [(fixed["font"], fixed.get("variation"))] if fixed.get("font") else cands
+    if fixed.get("font") and fixed.get("variation"): pool = [(fixed["font"], fixed["variation"])]
+    elif fixed.get("font"): pool = [c for c in cands if c[0] == fixed["font"]] or [(fixed["font"], None)]
+    else: pool = cands
     scored = []
     for turn in turns:
         for font, var in pool:
             op = text_op(row, text, font, var, (x0, y0, x1, y1), colour, 0, turn)
             try: c = render_cov(op, crop, table)
             except Exception: continue
-            scored.append((soft_iou(c, t), font, var, turn))
+            scored.append((weighed(c, t), font, var, turn))
     if not scored: return None
     scored.sort(key=lambda s: -s[0])
     best = None
-    ebs = [fixed["embolden"]] if "embolden" in fixed else (0.0, 0.12, 0.25, 0.4)
+    ebs = [fixed["embolden"]] if "embolden" in fixed else (0.0, 0.12)
     # the row's box as grown over thin letters and punctuation, and the detector's own (the growth may have taken in a border)
     boxes = [(x0, y0, x1, y1)]
     if "box" not in fixed:
@@ -509,10 +556,10 @@ def fit_row(orig, row, text, table, cands, fixed=None):
                 if "box" in fixed and d != (0, 0, 0, 0): continue
                 b = (bx0 + d[0], by0 + d[1], bx1 + d[2], by1 + d[3])
                 op = text_op(row, text, font, var, b, colour, eb, turn)
-                try: sc = soft_iou(render_cov(op, crop, table), target_in((bx0, by0, bx1, by1)))
+                try: c = render_cov(op, crop, table); tb = target_in((bx0, by0, bx1, by1)); sc = weighed(c, tb)
                 except Exception: continue
-                if best is None or sc > best[0]: best = (sc, op)
-    return {"fit": round(best[0], 3), "op": best[1], "ranked": [(round(s, 3), f, v) for s, f, v, _ in scored[:5]],
+                if best is None or sc > best[0]: best = (sc, op, ink_weight(c, tb))
+    return {"fit": round(best[0], 3), "op": best[1], "weight": round(best[2], 2), "ranked": [(round(s, 3), f, v) for s, f, v, _ in scored[:5]],
             "faces": {json.dumps([f, v]): sc for sc, f, v, _ in scored}}
 
 def op_box(op):
@@ -526,42 +573,54 @@ def erase_op(row, box=None):
     return {"op": "erase", "rect": [round(x0 - 0.8, 2), round(y0 - 0.8, 2), round(x1 + 0.8, 2), round(y1 + 0.8, 2)],
             "where": {key: c["cut"]}, "grow": 0.6, "halo": {"within": 0.8, key: c["halo"]}}
 
-def entry_face(entry):
-    """The face words.json sets for the whole texture ("font", "variation"): every row's unless a row says otherwise."""
-    return {k: entry[k] for k in ("font", "variation") if k in (entry or {})}
+def entry_face(entry, stem=""):
+    """The face words.json sets for the whole texture ("font", "variation"), else the family's (FACE_RULES): every row's
+    unless a row says otherwise."""
+    import fnmatch
+    own = {k: entry[k] for k in ("font", "variation") if k in (entry or {})}
+    if own: return own
+    for g, face in FACE_RULES.items():
+        if stem and fnmatch.fnmatch(stem, g): return dict(face)
+    return {}
 
-def words_for(entry, rows):
+def words_for(entry, rows, stem=""):
     """[(row index, row, text, fixed)] the person set (kept rows left out), with rows they added."""
     out = []
     spec = (entry or {}).get("rows", {})
     for i, r in enumerate(rows):
         w = spec.get(str(i))
         if w is None or w == "keep" or (isinstance(w, dict) and w.get("text", "keep") == "keep"): continue
-        fixed = dict(entry_face(entry), **(w if isinstance(w, dict) else {}))
+        fixed = dict(entry_face(entry, stem), **(w if isinstance(w, dict) else {}))
         text = fixed.pop("text", w if isinstance(w, str) else "")
         if text: out.append((i, r, text, fixed))
     return out
 
-def added_rows(entry, orig):
+def added_rows(entry, orig, stem=""):
     """Rows the person added (a box the detector missed), measured as the detector's are."""
     out = []
     for j, ad in enumerate((entry or {}).get("add", [])):
         x0, y0, x1, y1 = (int(round(v)) for v in ad["box"])
-        # a box drawn on the letters is mostly ink: the ground is the ring of texels round it
-        lum = lum_w(orig[..., :3].astype(np.float32)); H, W = lum.shape
-        ring = np.zeros((H, W), bool); ring[max(0, y0 - 1):y1 + 1, max(0, x0 - 1):x1 + 1] = True; ring[y0:y1, x0:x1] = False
-        pol = int(ad.get("polarity", -1 if np.median(lum[ring]) > lum[y0:y1, x0:x1].mean() else 1))
+        # the polarity given, else the one whose ink stands further from its ground (dark letters on a light board read
+        # as dark ink; the light gaps between them, read the other way, contrast less)
         L = fl.luminance(orig.astype(np.float32)); con = int(ad.get("contrast", 24))
-        ink = pol * (L - ndi.uniform_filter(L, 5, mode="nearest")) > con
-        m = np.zeros(L.shape, bool); m[y0:y1, x0:x1] = ink[y0:y1, x0:x1]
-        if not ad.get("exact") and m.any():
-            # the rough box drawn by eye tightened to the ink in it (the box's edge a texel either way of the letters)
-            ys, xs = np.where(m); x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
-        r = {"box": [x0, y0, x1, y1], "turned": bool(ad.get("turn")), "polarity": pol, "window": 5, "contrast": con,
-             "height": float(y1 - y0), "marks": 0, "regular": False, "mask": m, "added": True}
-        r["colours"] = row_colours(orig, r)
-        if r["colours"] is None: continue
-        fixed = dict(entry_face(entry), **{k: v for k, v in ad.items() if k not in ("text", "box", "polarity", "contrast", "exact")})
+        best = None
+        for pol in ([int(ad["polarity"])] if "polarity" in ad else (-1, 1)):
+            ink = pol * (L - ndi.uniform_filter(L, 5, mode="nearest")) > con
+            m = np.zeros(L.shape, bool); m[y0:y1, x0:x1] = ink[y0:y1, x0:x1]
+            bx = (x0, y0, x1, y1)
+            if not ad.get("exact") and m.any():
+                # the rough box drawn by eye tightened to the ink in it
+                ys, xs = np.where(m); bx = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+            r = {"box": list(bx), "turned": bool(ad.get("turn")), "polarity": pol, "window": 5, "contrast": con,
+                 "height": float(bx[3] - bx[1]), "marks": 0, "regular": False, "mask": m, "added": True}
+            r["colours"] = row_colours(orig, r) if m.any() else None
+            if r["colours"] is None: continue
+            side = (lum_w(np.array(r["colours"]["ink"], np.float32)) - lum_w(np.array(r["colours"]["ground"], np.float32))) * pol
+            if side <= 0: continue
+            if best is None or r["colours"]["contrast"] > best["colours"]["contrast"]: best = r
+        if best is None: continue
+        r = best; x0, y0, x1, y1 = r["box"]
+        fixed = dict(entry_face(entry, stem), **{k: v for k, v in ad.items() if k not in ("text", "box", "polarity", "contrast", "exact")})
         fixed["box"] = [x0, y0, x1, y1]
         out.append((f"a{j}", r, ad["text"], fixed))
     return out
@@ -645,9 +704,9 @@ def outside_change(base, out, ops, s):
     diff = (np.abs(out.astype(int) - base.astype(int)).max(axis=2) > 1) & ~allow
     return int(diff.sum())
 
-def verdict(scales, fits, min_corr, min_fit):
+def verdict(scales, fits, min_corr, min_fit, drift_allow=40.0):
     """PASS when at every scale the redraw's letters fall on the painted ones (blur_corr `min_corr` or more), its ink's box
-    is within a texel and a half of theirs, its ink colour within 40 of theirs, nothing changed outside the rows, and every
+    is within a texel and a half of theirs, its ink colour within 40 of theirs (and of the solid ink chosen), nothing changed outside the rows, and every
     row's face fits at `min_fit`; else FLAG with the reasons. PASS is a pre-tick on the sheet, not an acceptance: no
     measure against the original's texels can tell a good redraw from the pack's upscale (an upscale box filtered down is
     the original, near enough; the redraws approved by eye score from 0.65 to 0.97 in blur_corr, the pack 0.99), so the
@@ -659,7 +718,7 @@ def verdict(scales, fits, min_corr, min_fit):
         if n["corr"] is None: why.append(f"{tag}: no ink measured"); continue
         if n["corr"] < min_corr: why.append(f"{tag}: letters off the painted ones (corr {n['corr']})")
         if n["extent"] > 1.5: why.append(f"{tag}: ink box off by {n['extent']} texels")
-        if n["drift"] > 40: why.append(f"{tag}: ink colour drift {n['drift']}")
+        if n["drift"] > drift_allow: why.append(f"{tag}: ink colour drift {n['drift']}")
         if s["outside"]: why.append(f"{tag}: {s['outside']} texels changed outside the rows")
     for i, f in fits:
         if f < min_fit: why.append(f"row {i}: face fit {f}")
@@ -685,7 +744,7 @@ def cmd_fit(a):
         rows = [r for r in rows if r["colours"] is not None]
         if len(rows) != len(fam["rows"]):
             print(f"{name}: {len(rows)} rows now, {len(fam['rows'])} when gathered: gather again and check words.json's row numbers")
-        to_set = words_for(entry, rows) + added_rows(entry, orig)
+        to_set = words_for(entry, rows, fam["lead"]) + added_rows(entry, orig, fam["lead"])
         res = {"family": name, "members": fam["members"], "kind": fam["kind"], "cls": fam["cls"], "missions": fam["missions"],
                "review_text": fam["review_text"], "gather_s": fam.get("gather_s", 0), "note": (entry or {}).get("note", ""),
                "words": [], "rows_total": len(rows), "rows_set": len(to_set), "scales": [], "why": []}
@@ -698,12 +757,15 @@ def cmd_fit(a):
                 Image.fromarray(px).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s_}x-pack.png"))
             res["fit_s"] = round(time.time() - t0, 1); continue
         fits, texts = [], []
+        packs = load_pack(batch["packs"], fam["lead"], bu)
+        for i, r, text, fixed in to_set:
+            if "colour" not in fixed: fixed["colour"] = solid_ink(orig, packs, r)
         set_fixed = {i: fixed for i, _, _, fixed in to_set}
         for i, r, text, fixed in to_set:
             ft = fit_row(orig, r, text, table, cands, fixed)
             if ft is None: res["why"].append(f"row {i}: no face renders {text!r}"); continue
             fits.append((i, ft["fit"])); texts.append((i, r, ft))
-            res["words"].append({"row": i, "text": text, "font": ft["op"]["font"], "variation": ft["op"].get("variation"),
+            res["words"].append({"row": i, "text": text, "font": ft["op"]["font"], "variation": ft["op"].get("variation"), "weight": ft["weight"],
                                  "embolden": ft["op"].get("embolden", 0), "fit": ft["fit"], "ranked": ft["ranked"]})
         # one face for the texture's lettering where it costs each row little: the face with the best summed overlap over
         # the rows the classifier chose (a row whose face the person fixed keeps it), refitted if it loses no row more than 0.08
@@ -727,30 +789,26 @@ def cmd_fit(a):
         ops = [erase_op(r, op_box(ft["op"])) for _, r, ft in texts] + [ft["op"] for _, _, ft in texts]
         for (_, r, ft) in texts: r["box"] = [int(math.floor(v + 0.25)) if k < 2 else int(math.ceil(v - 0.25)) for k, v in enumerate(op_box(ft["op"]))]
         packs = load_pack(batch["packs"], fam["lead"], bu)
-        # the stroke answered by another weight: up to three rounds
-        for it in range(3):
-            res["scales"] = []
-            for path, px in packs:
-                s = px.shape[1] // orig.shape[1]
-                out = tr.apply_ops(px, orig, ops, table=table)
-                sc = {"scale": s, "pack": path, "old": measures(orig, px, set_rows), "new": measures(orig, out, set_rows),
-                      "grid_old": grid_measures(orig, px, set_rows), "grid_new": grid_measures(orig, out, set_rows), "outside": outside_change(px, out, ops, s)}
-                res["scales"].append(sc)
-                Image.fromarray(out).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s}x.png"))
-                Image.fromarray(px).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s}x-pack.png"))
-            strokes = [sc["new"]["stroke"] for sc in res["scales"] if sc["new"]["stroke"] is not None]
-            if not strokes: break
-            st = min(strokes) if min(strokes) < 0.65 else max(strokes)
-            if 0.65 <= st <= 1.5: break
-            step = 0.12 if st < 0.65 else -0.12
-            changed = False
-            for _, _, ft in texts:
-                e = round(max(0.0, ft["op"].get("embolden", 0) + step), 2)
-                if e != ft["op"].get("embolden", 0): ft["op"]["embolden"] = e; changed = True
-            if not changed: break
-            res.setdefault("iterations", 0); res["iterations"] += 1
-        v, why = verdict(res["scales"], fits, a.min_corr, a.min_fit)
-        res["verdict"] = v; res["why"] += why
+        res["scales"] = []
+        for path, px in packs:
+            s = px.shape[1] // orig.shape[1]
+            out = tr.apply_ops(px, orig, ops, table=table)
+            sc = {"scale": s, "pack": path, "old": measures(orig, px, set_rows), "new": measures(orig, out, set_rows),
+                  "grid_old": grid_measures(orig, px, set_rows), "grid_new": grid_measures(orig, out, set_rows), "outside": outside_change(px, out, ops, s)}
+            res["scales"].append(sc)
+            Image.fromarray(out).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s}x.png"))
+            Image.fromarray(px).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s}x-pack.png"))
+        # each row's ink on the side of the ground the original's is (dark on light stays dark), and at the painted weight
+        for i, r, ft in texts:
+            gl = float(lum_w(np.array(r["colours"]["ground"], np.float32)))
+            il = float(lum_w(np.array(ft["op"].get("colour", r["colours"]["ink"]), np.float32)))
+            if (il - gl) * r["polarity"] <= 0: res["why"].append(f"row {i}: ink on the wrong side of the ground")
+            if not 0.75 <= ft.get("weight", 1) <= 1.3: res["why"].append(f"row {i}: weight {ft.get('weight')} of the painted letters'")
+        # the drift allowed: 40, and the shift from the original's paint to the solid ink chosen (solid_ink)
+        shift = max([float(np.linalg.norm(np.array(ft["op"].get("colour", r["colours"]["ink"]), np.float32) - np.array(r["colours"]["ink"], np.float32)))
+                     for _, r, ft in texts] or [0.0])
+        v, why = verdict(res["scales"], fits, a.min_corr, a.min_fit, 40.0 + shift)
+        res["why"] += why; res["verdict"] = "FLAG" if res["why"] else v
         spec = {"textures": fam["members"],
                 "note": f"{fam['review_text'] or name}: drafted by tools/draft-text-redraws.py, the words read off the original"
                         + (f"; {entry['note']}" if entry.get("note") else ""),
@@ -759,7 +817,7 @@ def cmd_fit(a):
         with open(os.path.join(a.batch, "specs", res["spec"]), "w", encoding="utf-8") as fo: json.dump(spec, fo, indent=1, ensure_ascii=False); fo.write("\n")
         res["fit_s"] = round(time.time() - t0, 1)
         results.append(res)
-        print(f"{name}: {v} {'; '.join(res['why'])} ({res['fit_s']} s)")
+        print(f"{name}: {res['verdict']} {'; '.join(res['why'])} ({res['fit_s']} s)")
     old = {}
     rp = os.path.join(a.batch, "results.json")
     if a.only and os.path.exists(rp):
@@ -782,8 +840,10 @@ def cmd_fit(a):
 
 # ---- the sheet ----
 
-def card(batch_dir, res, src):
-    """original enlarged (nearest) | released pack | redraw, each at the first pack's size (at most 512 wide), with the scores."""
+def card(batch_dir, res, src, prev=None, fam=None):
+    """original enlarged (nearest) | released pack | redraw, each at the first pack's size (at most 512 wide), with the scores;
+    with `prev` (an earlier round's batch folder) its redraw too, before this one, and the owner's note on it and what changed
+    (batch.json's "owner" and "change" for the family)."""
     lead = res["members"][0]
     orig = Image.open(os.path.join(src, lead + ".png")).convert("RGB")
     s0 = res["scales"][0] if res.get("scales") else None
@@ -793,9 +853,17 @@ def card(batch_dir, res, src):
     rd = Image.open(os.path.join(batch_dir, "renders", f"{lead}-{s0['scale']}x.png")).convert("RGB") if s0 else None
     W = min(512, (pk.width if pk else orig.width * 4)); H = int(round(W * orig.height / orig.width))
     if H > 384: H = 384; W = int(round(H * orig.width / orig.height))
-    panels = [orig.resize((W, H), Image.NEAREST)] + [im.resize((W, H), Image.LANCZOS) if im else Image.new("RGB", (W, H), (60, 60, 60)) for im in (pk, rd)]
+    shown = [pk]; labels = ["original (nearest)", "released pack"]
+    if prev is not None:
+        pp = os.path.join(prev, "renders", f"{lead}-{ks}x.png")
+        shown.append(Image.open(pp).convert("RGB") if ks and os.path.exists(pp) else None); labels.append("earlier round's redraw")
+    shown.append(rd); labels.append("redraw" if prev is None else "this round's redraw")
+    panels = [orig.resize((W, H), Image.NEAREST)] + [im.resize((W, H), Image.LANCZOS) if im else Image.new("RGB", (W, H), (60, 60, 60)) for im in shown]
     f = _font(13); fb = _font(15)
     lines = [f"{res['family']}  ({', '.join(res['members'])})  {res['cls']} -> {res['verdict']}   missions: {res['missions'] or '-'}"]
+    if fam and fam.get("owner"):
+        o = fam["owner"]; lines.append(f"owner: {o.get('decision') or '-'}" + (f": \"{o['note']}\"" if o.get("note") else ""))
+    if fam and fam.get("change"): lines.append(f"changed: {fam['change']}")
     for sc in res.get("scales", []):
         go, gn = sc["grid_old"], sc["grid_new"]
         lines.append(f"{sc['scale']}x on the original's grid: ink IoU {go['grid_iou']} -> {gn['grid_iou']}   off the original {go['fid']} -> {gn['fid']}"
@@ -805,8 +873,8 @@ def card(batch_dir, res, src):
         lines.append(f"  row {wd['row']}: \"{wd['text']}\"  {wd['font']} {v}{'  +' + str(wd['embolden']) if wd.get('embolden') else ''}  fit {wd['fit']}")
     if res.get("why"): lines.append("why: " + "; ".join(res["why"]))
     th = 22 + 17 * len(lines)
-    im = Image.new("RGB", (W * 3 + 20, H + th + 20), (28, 28, 32)); d = ImageDraw.Draw(im)
-    for i, (p, lab) in enumerate(zip(panels, ("original (nearest)", "released pack", "redraw"))):
+    im = Image.new("RGB", (W * len(panels) + 10 * (len(panels) - 1), H + th + 20), (28, 28, 32)); d = ImageDraw.Draw(im)
+    for i, (p, lab) in enumerate(zip(panels, labels)):
         im.paste(p, (i * (W + 10), 20)); d.text((i * (W + 10) + 2, 2), lab, fill=(200, 200, 200), font=f)
     col = {"PASS": (120, 230, 120), "FLAG": (255, 200, 60), "KEEP": (170, 170, 255)}.get(res["verdict"], (230, 230, 230))
     y = H + 26
@@ -818,9 +886,9 @@ def cmd_sheet(a):
     with open(os.path.join(a.batch, "batch.json"), encoding="utf-8") as f: batch = json.load(f)
     with open(os.path.join(a.batch, "results.json"), encoding="utf-8") as f: results = json.load(f)
     os.makedirs(os.path.join(a.batch, "cards"), exist_ok=True)
-    cards = []
+    cards = []; fams = {f["family"]: f for f in batch["families"]}
     for r in results:
-        im = card(a.batch, r, batch["src"]); p = os.path.join("cards", f"{r['family']}.png"); im.save(os.path.join(a.batch, p)); cards.append((r, p, im))
+        im = card(a.batch, r, batch["src"], a.prev, fams.get(r["family"])); p = os.path.join("cards", f"{r['family']}.png"); im.save(os.path.join(a.batch, p)); cards.append((r, p, im))
     sheets = []
     for i in range(0, len(cards), 8):
         grp = cards[i:i + 8]; W = max(c[2].width for c in grp); H = sum(c[2].height + 8 for c in grp)
@@ -928,6 +996,7 @@ def main():
     f = sub.add_parser("fit"); f.add_argument("batch"); f.add_argument("--min-corr", type=float, default=0.75, help="blur_corr a row needs (default 0.75: a quarter of the redraws approved by eye score under it)")
     f.add_argument("--min-fit", type=float, default=0.45); f.add_argument("--only", help="families (comma separated)")
     s = sub.add_parser("sheet"); s.add_argument("batch")
+    s.add_argument("--prev", help="an earlier round's batch folder: its redraw shown beside this one's, with the owner's notes")
     l = sub.add_parser("look"); l.add_argument("src"); l.add_argument("stem"); l.add_argument("--box", help="x0,y0,x1,y1 (texels)")
     l.add_argument("--pack", action="append", default=[]); l.add_argument("--out", required=True)
     c = sub.add_parser("accept"); c.add_argument("batch"); c.add_argument("decisions"); c.add_argument("--specs", default=tr.SPECS)
