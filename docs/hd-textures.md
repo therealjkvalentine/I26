@@ -170,6 +170,49 @@ pack, these refine it (each needs the menu records as `i76 --install DIR bg BG_D
 
 Each keeps the files it replaces (`.rules-prev/`, `.flat-prev/`, `.text-base/`) and puts them back with `--restore`.
 
+## Fixing a lettered texture
+
+Each redrawn texture is a spec in `tools/text-redraws/` (coordinates in the original's texels, the words, a free font),
+never art, so every pack made from the source letters the same way. `tools/find-lettered-textures.py` finds the
+lettered textures and says which the upscale left soft or wrong; `tools/draft-text-redraws.py` drafts their specs in
+batches, and you read the words and approve each one from a contact sheet. Everything it writes goes to a scratch folder
+(`BATCH` below): it never touches a pack.
+
+1. **Queue**: `python tools/draft-text-redraws.py queue --survey SURVEY.tsv --classes CLASSES.tsv --out QUEUE.tsv`.
+   SURVEY.tsv is `find-lettered-textures.py SRC --out SURVEY.tsv --pack PACK --usage USAGE.tsv`'s table. CLASSES.tsv
+   (stem, cls, text) is the review's verdict on each hit: SOFT or WRONG, with the words as the reviewer read them. The
+   queue leaves out what a spec already letters (and any `--skip GLOB`). It is ordered by how often a texture is seen
+   (missions using it, trip missions first), then by the pack's ink IoU. A car's dent stages and paints are one family.
+2. **Gather**: `python tools/draft-text-redraws.py gather QUEUE.tsv SRC --pack PACK_8X --pack PACK_4X --batch BATCH`
+   takes the next 30 or so textures: signs first, then some cars and the dash. For each it writes `BATCH/read/<texture>.png`:
+   the original enlarged with its letter rows boxed and numbered, the pack beside it, and each row's crop.
+   `look SRC STEM --box x0,y0,x1,y1 --pack PACK --out PNG` shows a region on a texel grid, to read small lettering or to
+   draw a box the detector missed.
+3. **Read the words** into `BATCH/words.json`, one entry per texture:
+   `{"sl155x_1": {"rows": {"0": "SPEED", "1": "LIMIT"}}}`.
+   A row you cannot read with confidence from the original is `"keep"` (the upscale stays), and so is any row not named.
+   Never guess a word. `"add": [{"text": ..., "box": [x0, y0, x1, y1]}]` sets a row the detector missed; the box is
+   tightened to the ink in it, or taken as given with `"exact": true`. `"font"` (and `"variation"`) fixes the face for
+   the texture or for one row: Anton for every licence plate, for example. A row may also fix `"box"`, `"colour"`,
+   `"turn"` and `"embolden"`.
+4. **Fit**: `python tools/draft-text-redraws.py fit BATCH` chooses each row's face, weight and box, and uses one face for
+   the texture where that costs each row little. It renders the spec with `text-redraws.py` over a copy of each pack's
+   file and measures the result on the original's grid. PASS means no gross fault was found: the letters fall on the
+   painted ones (blurred correlation 0.75 or more), the ink's box and colour are close, and nothing changed outside the
+   rows. Anything else is FLAG, with the reasons. No measure taken against the original can tell a good redraw from the
+   upscale: a model's output, filtered back down, is the original near enough. The measures therefore catch mistakes
+   and the sheet decides.
+5. **Review**: `python tools/draft-text-redraws.py sheet BATCH` writes `BATCH/index.html` and `BATCH/sheet-NN.png`. Each
+   card shows the original, the released pack and the redraw, with the words and the measures. Approve, reject or keep
+   each one, then save `decisions.json`.
+6. **Accept**: `python tools/draft-text-redraws.py accept BATCH decisions.json` copies the approved specs into
+   `tools/text-redraws/` (`signs-`, `plates-` or `dash-<texture>.json`). Run `text-redraws.py SRC --pack PACK` to letter
+   a pack with them, and `python -m unittest tools/test_text_redraws.py` to check them.
+
+A batch of 30 takes about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
+type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
+`tools/text-redraws/fonts/README.md`.
+
 ## Notes
 
 - `upscale-textures.py --from OLD_PACK --out NEW_DIR` repacks a pack of 4x PNGs made earlier into the game's `.dds` without
