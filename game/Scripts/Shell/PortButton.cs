@@ -4,7 +4,7 @@ using Godot;
 namespace I76.Game.Shell;
 
 /// <summary>
-/// A main-menu button of the port's own, with no sprite in the original's bank (TRIP's SCENARIOS and NITRO PACK, the Nitro visit's
+/// A main-menu button of the port's own, with no sprite in the original's bank (TRIP's NITRO, the Nitro visit's
 /// BACK): its label set in Impact as the menu's sprites are (white lit, grey dim, slanted, on a black box), at the window's
 /// resolution on the Impact layer in the modern look (HD menu pack or not), cut into the frame's pixels in the 1997 look (as the
 /// MAP EDITOR entry is), and in the shell's own face where there is no Impact at all. Its banner, while lit, is lettered the same way.

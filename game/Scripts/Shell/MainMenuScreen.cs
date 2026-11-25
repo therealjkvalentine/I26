@@ -52,13 +52,12 @@ public sealed class MainMenuScreen : ShellScreen
         // MULTI MELEE's HOST / JOIN, and the connections under them: the port keeps IPX (the LAN) and INTERNET
         (10, 365, 368, 4, -1), (11, 415, 368, 8, -1), (0xe, 345, 395, 12, -1), (0xf, 396, 395, 16, -1),
     ];
-    // The port's own entries (docs/deviations.md "Nitro Pack under TRIP"): under TRIP, on a second line below its row, SCENARIOS (the
-    // base game's S01-S07, as MELEE's SCENARIO) and, with a Nitro Pack install beside the base one, NITRO PACK (its campaign, handed over
-    // in this window: Boot/NitroVisit.cs). On the Nitro side of such a visit, the main menu is the character choice: SCENARIOS' row
-    // open, no MELEE, and BACK where EXIT stands.
-    public const int ScenariosEntry = 100, NitroEntry = 101, BackEntry = 102;
-    /// <summary>The second line under the TRIP row (the MELEE side's sub-rows are at the same height, right of x 340).</summary>
-    public const int PortRowY = 368, PortRowX = 74, PortGap = 6;
+    // The port's own entries (docs/deviations.md "Nitro Pack under TRIP"): with a Nitro Pack install beside the base one, NITRO at the end
+    // of TRIP's row (the Nitro Pack's campaign, handed over in this window: Boot/NitroVisit.cs). On the Nitro side of such a visit, the
+    // main menu is the character choice: SCENARIOS' row open, no MELEE, and BACK where EXIT stands.
+    public const int NitroEntry = 101, BackEntry = 102;
+    /// <summary>TRIP's row: its sprites' top, and LOAD BOOKMARK's left (the last of the row; NITRO follows it).</summary>
+    public const int TripRowY = 340, LoadBookmarkX = 216;
     private readonly Dictionary<int, PortButton> _p = [];
     private readonly List<PortButton> _pShown = [];
     private PortButton? _pHot;
@@ -128,18 +127,15 @@ public sealed class MainMenuScreen : ShellScreen
         var grey = Color.Color8(109, 109, 109);
         if (!Nitro)
         {
-            int h = _bank[21]?.Height ?? 22;
-            var bannerBox = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
-            var scen = RowLabel("SCENARIOS");
-            int x = PortRowX, w = PortButton.WidthFor(scen);
-            _p[ScenariosEntry] = new PortButton(ScenariosEntry, new Rect2I(x, PortRowY, w, h), scen, bannerBox, "THE SEVEN SCENARIOS, AS UNDER MELEE", grey);
-            x += w + PortGap;
             _nitroDir = I76.Game.Boot.NitroVisit.FindNitro(Shell.Install.Root);
-            if (_nitroDir is not null)
-            {
-                var nitro = RowLabel("NITRO PACK");
-                _p[NitroEntry] = new PortButton(NitroEntry, new Rect2I(x, PortRowY, PortButton.WidthFor(nitro), h), nitro, bannerBox, "THE NITRO PACK'S CAMPAIGN, FROM ITS OWN INSTALL", grey);
-            }
+            if (_nitroDir is null) return;
+            // the row's fourth button, after LOAD BOOKMARK with the gap the row keeps between NEW TRIP and LOAD BOOKMARK
+            int h = _bank[21]?.Height ?? 22;
+            int gap = Math.Max(4, LoadBookmarkX - (150 + (_bank[23]?.Width ?? 60)));
+            int x = LoadBookmarkX + (_bank[21]?.Width ?? 112) + gap - 4;   // (less the label box's margin: the lettering keeps the gap)
+            var bannerBox = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
+            var nitro = RowLabel("NITRO");
+            _p[NitroEntry] = new PortButton(NitroEntry, new Rect2I(x, TripRowY, PortButton.WidthFor(nitro), h), nitro, bannerBox, "THE NITRO PACK'S CAMPAIGN, FROM ITS OWN INSTALL", grey);
             return;
         }
         if (!Visit) return;
@@ -174,7 +170,7 @@ public sealed class MainMenuScreen : ShellScreen
     {
         Hide([.. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]); Deselect(2);
         Select(13); foreach (int r in TripRow) Show(r);
-        ShowPort(ScenariosEntry); ShowPort(NitroEntry);
+        ShowPort(NitroEntry);
     }
 
     /// <summary>The background and the four top buttons, every row closed.</summary>
@@ -318,7 +314,6 @@ public sealed class MainMenuScreen : ShellScreen
     {
         switch (id)
         {
-            case ScenariosEntry: Shell.Go(new MeleeScreen { Mode = 1 }); break;          // as MELEE's SCENARIO, 0xc024
             case NitroEntry when _nitroDir is { } dir:
                 // the trip kept as Switch Game keeps it, the next mission's preload dropped, then the Nitro install in this window
                 Shell.Trip.Save();

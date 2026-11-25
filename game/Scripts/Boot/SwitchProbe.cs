@@ -14,9 +14,9 @@ namespace I76.Game.Boot;
 /// with I26/i76 and I26/nitro symlinks).
 ///
 /// Then the Nitro visit (Boot/NitroVisit.cs), or only it when the game starts on the base install without the chooser (I76_INSTALL
-/// the base game, I76_NITRO_INSTALL the Nitro Pack): base menu, TRIP (its new entries) -> NITRO PACK -> the Nitro character choice ->
+/// the base game, I76_NITRO_INSTALL the Nitro Pack): base menu, TRIP (its new entry) -> NITRO -> the Nitro character choice ->
 /// TAURUS -> the scenario form -> ENTER AREA -> the mission, ended as won -> the base menu with TRIP open (the mission marked done in
-/// Nitro's progress) -> NITRO PACK -> BACK -> the base menu -> SCENARIOS' form; at each hand-over the install in use, the input
+/// Nitro's progress) -> NITRO -> BACK -> the base menu; at each hand-over the install in use, the input
 /// tables' install, the settings' game, the addon overlay, the carried music and the visit's own state are checked.
 /// </summary>
 public partial class SwitchProbe : Node
@@ -164,16 +164,15 @@ public partial class SwitchProbe : Node
                 Next(); break;
             case VisitStart + 1:
                 if (!Wait(10)) return;
-                Check(Menu is { TripOpen: true } m21 && m21.PortShown.Contains(MainMenuScreen.ScenariosEntry), "TRIP shows SCENARIOS");
+                Check(Menu is { TripOpen: true }, "TRIP opens");
                 _nitroDir = NitroVisit.FindNitro(_baseDir!);
                 if (_nitroDir is null && Ch is null && GameSwitch.Count == 0)
                 {
-                    // the base game alone: TRIP as today but for SCENARIOS, no NITRO PACK
-                    Check(!Menu!.PortShown.Contains(MainMenuScreen.NitroEntry) && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: no NITRO PACK");
-                    if (EntryAt(MainMenuScreen.ScenariosEntry) is { } s21) Point(s21, false);
+                    // the base game alone: TRIP as today, no NITRO
+                    Check(Menu!.PortShown.Count == 0 && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: TRIP as today, no NITRO");
                     _step = VisitBaseOnly; _wait = 0; return;
                 }
-                Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "TRIP shows NITRO PACK (a Nitro install found)");
+                Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "TRIP shows NITRO (a Nitro install found)");
                 if (EntryAt(MainMenuScreen.NitroEntry) is { } n21) Point(n21, false);   // lit, with its banner
                 Next(); break;
             case VisitStart + 2:
@@ -230,11 +229,6 @@ public partial class SwitchProbe : Node
                 CheckHandOver(_baseDir, false, "after BACK");
                 Check(!NitroVisit.Active && Menu!.TripOpen, "BACK: the base menu with TRIP open");
                 Shot("v7_base_after_back");
-                if (EntryAt(MainMenuScreen.ScenariosEntry) is { } s29) Point(s29, true);
-                Next(); break;
-            case VisitStart + 10:
-                if (Sh?.Current is not MeleeScreen || !Wait(30)) return;
-                Shot("v8_scenarios_form");
                 Finish();
                 _step = 200; break;
             case VisitBaseOnly:

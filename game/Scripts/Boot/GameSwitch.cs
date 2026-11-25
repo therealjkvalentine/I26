@@ -21,7 +21,7 @@ namespace I76.Game.Boot;
 /// pack, the terrain bake cache (keyed by content), the pads, ForceFeedback (a node of the scene), shell.cfg / input.map
 /// (shared by both games, as before).
 ///
-/// The base menu's TRIP > NITRO PACK (<see cref="NitroVisit"/>) hands over with the same reset, into the Nitro install directly
+/// The base menu's TRIP > NITRO (<see cref="NitroVisit"/>) hands over with the same reset, into the Nitro install directly
 /// (<see cref="ToNitro"/>), and back (<see cref="BackFromNitro"/>); the start-up's movies and boot picture are not shown again.
 /// </summary>
 public static class GameSwitch
@@ -50,7 +50,7 @@ public static class GameSwitch
     }
 
     /// <summary>
-    /// The base menu's TRIP > NITRO PACK (<see cref="NitroVisit"/>): the same reset as a switch, then this window straight into the
+    /// The base menu's TRIP > NITRO (<see cref="NitroVisit"/>): the same reset as a switch, then this window straight into the
     /// Nitro install at its character choice: no chooser, no intro movies, no boot picture, and "Switch Game" offered only if it was.
     /// </summary>
     public static void ToNitro(SceneTree tree, string home, string nitro)

@@ -61,15 +61,14 @@ public class NitroVisitTests
     }
 
     [Fact]
-    public void TheNewEntriesSitUnderTheTripRowClearOfTheRest()
+    public void NitroSitsOnTheTripRowAfterLoadBookmark()
     {
-        // the trip row's sprites are at y 340, about 22 high; the MELEE side's sub-rows (AUTO MELEE's, MULTI MELEE's) start at x 343
-        Assert.True(MainMenuScreen.PortRowY >= 340 + 24, $"row {MainMenuScreen.PortRowY}");
-        Assert.True(MainMenuScreen.PortRowX >= 74 && MainMenuScreen.PortRowX < 343);
-        // above the MAP EDITOR entry and the banners
+        // TRIP's row: TRAINING at x 74, NEW TRIP at 150, LOAD BOOKMARK at 216, all at y 340 (MainMenuScreen.Table); NITRO is the fourth
+        Assert.Equal(340, MainMenuScreen.TripRowY);
+        Assert.Equal(216, MainMenuScreen.LoadBookmarkX);
+        // the row stays above the MAP EDITOR entry and the banners
         var (_, ey, _, _) = MainMenuScreen.EditorEntry;
-        Assert.True(MainMenuScreen.PortRowY + 24 <= ey, $"row bottom against the editor entry at {ey}");
-        Assert.True(MainMenuScreen.PortRowY + 24 <= MainMenuScreen.BannerTop);
-        Assert.Equal(3, new[] { MainMenuScreen.ScenariosEntry, MainMenuScreen.NitroEntry, MainMenuScreen.BackEntry }.Distinct().Count());
+        Assert.True(MainMenuScreen.TripRowY + 24 <= ey && MainMenuScreen.TripRowY + 24 <= MainMenuScreen.BannerTop);
+        Assert.NotEqual(MainMenuScreen.NitroEntry, MainMenuScreen.BackEntry);
     }
 }

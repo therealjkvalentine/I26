@@ -3,7 +3,7 @@ using I76.Game.Shell;
 namespace I76.Game.Boot;
 
 /// <summary>
-/// The Nitro Pack's campaign played from Interstate '76's main menu (TRIP, then NITRO PACK; docs/deviations.md "Nitro Pack under
+/// The Nitro Pack's campaign played from Interstate '76's main menu (TRIP, then NITRO; docs/deviations.md "Nitro Pack under
 /// TRIP"): the process is handed to the Nitro install at its character choice (<see cref="GameSwitch.ToNitro"/>), the campaign
 /// plays as from the Nitro front end, and leaving it (BACK, or a mission's end) hands it back to the base install at its main menu
 /// with the TRIP row open (<see cref="GameSwitch.BackFromNitro"/>). One install is open at a time, as with "Switch Game".

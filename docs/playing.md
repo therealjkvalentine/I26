@@ -51,13 +51,12 @@ that is still an installer is unpacked when you pick it (Cancel returns to the c
 **Switch Game** to come back to it (`--choose-game` on the command line). `--install`, `I76_INSTALL`, `--mission` and
 network options skip the chooser.
 
-**The Nitro Pack from Interstate '76's menu.** With both games found, the main menu's **TRIP** has a second line:
-**SCENARIOS** (the seven scenarios, the same form as MELEE's SCENARIO) and **NITRO PACK**. NITRO PACK goes straight to the
-Nitro Pack's character choice (Taurus, Jade, Skeeter, the fourth once the first three are done, Training), in its own art;
+**The Nitro Pack from Interstate '76's menu.** With both games found, the main menu's **TRIP** row has a fourth button,
+**NITRO**, after LOAD BOOKMARK. It goes straight to the Nitro Pack's character choice (Taurus, Jade, Skeeter, the fourth once the first three are done, Training), in its own art;
 a character opens its scenario form, and ENTER AREA plays the mission as the Nitro Pack's own menu does (its rules, music,
 voices, cars and progress; Play Options there are the Nitro Pack's own). BACK on the character choice, or the end of a
 mission, brings you back to Interstate '76's main menu with TRIP open. No restart: the window changes game as Switch Game
-does. With only Interstate '76, TRIP shows SCENARIOS but no NITRO PACK; the Nitro Pack started on its own is unchanged.
+does. With only one of the games, the menus are as before.
 
 The install is looked for in this order: `--install DIR`, the `I76_INSTALL` environment variable, the executable's
 folder and its parent, `i76` and `nitro` inside the executable's folder, `i76` and `nitro` in the local user folder, then
