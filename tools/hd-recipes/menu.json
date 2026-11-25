@@ -1,0 +1,193 @@
+{
+ "name": "menu",
+ "note": "The HD menu art (tex-menu) as released in 2026.11.23 (pack 'I26 4:3' 0.0.3): run by tools/menu-pack.py build. Steps in the order the release's files were made; each note names what it reproduces.",
+ "models": {
+  "4xTextures_GTAV_rgt-s_dither": {
+   "file": "4xTextures_GTAV_rgt-s_dither.pth",
+   "url": "https://github.com/Phhofm/models/releases/download/4xTextures_GTAV_rgt-s_dither/4xTextures_GTAV_rgt-s_dither.pth",
+   "page": "https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither",
+   "size": 135994918,
+   "sha256": "49e4b4aaac843839219d509242298c9e9b1a5d5294e9bad1154f05aa732a6a09",
+   "by": "Philip Hofmann (Phhofm)",
+   "licence": "CC-BY-4.0",
+   "commercial": true
+  }
+ },
+ "base": {
+  "model": "4xTextures_GTAV_rgt-s_dither",
+  "tile": 128,
+  "pad": 16,
+  "precision": "float32"
+ },
+ "encodings": {
+  "lossy": {
+   "quality": 95,
+   "method": 6
+  },
+  "sprite": {
+   "quality": 95,
+   "method": 6,
+   "exact": true
+  },
+  "lossless": {
+   "lossless": true,
+   "quality": 100,
+   "method": 6
+  },
+  "lossless-m4": {
+   "lossless": true,
+   "quality": 80,
+   "method": 4
+  }
+ },
+ "steps": [
+  {
+   "id": "base",
+   "kind": "base",
+   "encoding": "lossy",
+   "note": "every picture through the model, colour matched; pages, pads and loading cards lossy WebP q95 m6, sprites with their alpha (exact): gpu-art sr.py, pack_bg.py, pack_rest.py (2026-11-03) and r5-menu-art up_sprites.py (2026-11-06)"
+  },
+  {
+   "id": "small-text",
+   "kind": "tool",
+   "op": "small_text",
+   "files": [
+    "shellbg1.webp",
+    "shellbg2.webp",
+    "shellbg3.webp",
+    "shellbg4.webp",
+    "shellbg5.webp",
+    "shellbg15.webp",
+    "shellbg16.webp",
+    "shellbg18.webp",
+    "shellbg19.webp",
+    "shellbg20.webp",
+    "shellbg21.webp",
+    "shellbg22.webp",
+    "shellbg23.webp",
+    "shellbg24.webp",
+    "shellbg25.webp",
+    "shellbg28.webp",
+    "shellbg29.webp",
+    "shellbg30.webp"
+   ],
+   "encoding": "lossy",
+   "note": "the small print through bicubic 4x and an unsharp mask inside a mask of the original's small ink: r3-dash-upscale menutext.py apply c_bicubic_sharp (2026-11-04)"
+  },
+  {
+   "id": "lineart",
+   "kind": "tool",
+   "op": "lineart",
+   "files": [
+    "sprites/3[789]_*",
+    "sprites/4?_*",
+    "sprites/5[0-7]_*",
+    "sprites/59_*"
+   ],
+   "args": {
+    "width": 1.0,
+    "iters": 4,
+    "ss": 4
+   },
+   "encoding": "sprite",
+   "note": "the blueprint sprites' dark lines traced smooth, banks 37-57 and 59 (252 sprites): r5-menu-art lineart.py trace(width=1.0, iters=4, ss=4) on the model's sprite (2026-11-06). The driver was not saved: the banks and the arguments were found by comparison with the release (each of the 287 sprites changed that day matches this or the plain model clearly, by 10 dB or more)"
+  },
+  {
+   "id": "lettering",
+   "kind": "specs",
+   "specs": [
+    "text-redraws/menu/retype",
+    "text-redraws/menu"
+   ],
+   "encoding": "lossy",
+   "note": "the pages' and pads' printed words set again in Arial: r5-menu-art retype.py with its 21 specs (2026-11-06; the pads again from the model's pads with Arial titles, r7-fonts-arial 2026-11-08; page 4 with r9-modpack's fixed spec), page 16 by text-redraws.py's own spec (r6-fonts). Page 4 takes r9-modpack's spec in r5's place (the release ran r5's, then r9's retype2.py over it on 2026-11-10; the order was not recorded and the single pass matches the released page as closely as the other pages, about 48 dB)"
+  },
+  {
+   "id": "rules",
+   "kind": "run",
+   "tool": "menu-rules.py",
+   "args": [
+    "--mode",
+    "chroma",
+    "--only",
+    "{pages}"
+   ],
+   "files": [
+    "shellbg1.webp",
+    "shellbg2.webp",
+    "shellbg3.webp",
+    "shellbg4.webp",
+    "shellbg5.webp",
+    "shellbg16.webp",
+    "shellbg17.webp",
+    "shellbg18.webp",
+    "shellbg19.webp",
+    "shellbg20.webp",
+    "shellbg21.webp",
+    "shellbg22.webp",
+    "shellbg23.webp",
+    "shellbg24.webp",
+    "shellbg25.webp",
+    "shellbg28.webp",
+    "shellbg29.webp",
+    "shellbg30.webp"
+   ],
+   "note": "the forms' ruled lines made again from the originals, lossless: tools/menu-rules.py --mode chroma (r7-form-lines, 2026-11-08)"
+  },
+  {
+   "id": "flat-art",
+   "kind": "run",
+   "tool": "flat-art.py",
+   "args": [
+    "--only",
+    "{pages}",
+    "--smooth",
+    "0.5",
+    "--alphamax",
+    "0.75"
+   ],
+   "files": [
+    "shellbg14.webp",
+    "shellbg26.webp"
+   ],
+   "note": "the title logo drawn again as vector art, lossless: tools/flat-art.py (r7-logo, 2026-11-09). Page 14 keeps the pack's picture round the stamp: the release's showed, inside the logo's openings, a 2026-11-04 pass (r3-dash-upscale apply_logo.py, RealESRGAN anime 6B inside the logo's mask) that is not part of this recipe, so the fire photo there is the GTAV model's (about 38 dB against the release; the logo itself is the same)"
+  },
+  {
+   "id": "fixes",
+   "kind": "specs",
+   "specs": [
+    "text-redraws/menu/fixes"
+   ],
+   "encoding": "lossless-m4",
+   "note": "in file order: the circled key marks and the inventory title (r8-form-key relabel.py, relabel2.py, title.py, 2026-11-09), the field salvage lines and the repair pop-up's legend re-set (r14-retouch reset.py, 2026-11-14)"
+  },
+  {
+   "id": "maps",
+   "kind": "maps",
+   "args": [
+    "--writing",
+    "clean",
+    "--tile",
+    "256"
+   ],
+   "note": "the mission maps at 4x, their pen writing cleaned (halo off, edges feathered, ink 88 %): tools/menu-maps.py, from the world texture export (r3-drums-maps, 2026-11-05)"
+  },
+  {
+   "id": "finish",
+   "kind": "finish",
+   "note": "shellbg.json, pads.json, sprites/sprites.json (affine [4, 0, 4, 0]), pack.json, ATTRIBUTION.txt"
+  }
+ ],
+ "pack": {
+  "name": "I26 4:3",
+  "version": "0.0.3",
+  "min_engine": "1.1",
+  "licence": "non-commercial; derived from Interstate '76 art, requires an owned copy of the game",
+  "aspect": "4:3 (the original's menu pictures, upscaled; no widescreen)"
+ },
+ "attribution": [
+  "4xTextures_GTAV_rgt-s_dither by Phhofm, CC BY 4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither (used for: every upscaled picture: backgrounds, pads, sprites, loading screens, maps)",
+  "Arial (Regular, Bold and Italic) as supplied with Windows: The Monotype Corporation; the lettering set in it is rendered into the pictures, no font file is included",
+  "the circled key marks: drawn from the install's own Lee_____.ttf, as the game draws them"
+ ]
+}

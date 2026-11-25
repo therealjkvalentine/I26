@@ -1,0 +1,13 @@
+{
+ "textures": ["sprites/36_6"],
+ "note": "the repair inventory pop-up's legend and hint re-set in Arial Bold fitted to its print, ink 155,79,0 (r14-retouch reset.py)",
+ "encoding": "lossless",
+ "ops": [
+  {"op": "reset", "threshold": 30, "runs": [
+   {"text": "indicates part is in repair", "rect": [470, 237, 606, 255], "colour": [155, 79, 0]},
+   {"text": "indicates part is in the car", "rect": [470, 201, 608, 219], "same_as": 0, "colour": [155, 79, 0]},
+   {"text": "indicates part is in the van", "rect": [470, 219, 608, 237], "same_as": 0, "colour": [155, 79, 0]},
+   {"text": "Click to move parts to/from repair", "rect": [159, 237, 341, 255], "colour": [155, 79, 0]}
+  ]}
+ ]
+}

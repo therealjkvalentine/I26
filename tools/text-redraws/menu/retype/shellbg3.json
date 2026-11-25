@@ -1,0 +1,30 @@
+{
+ "textures": ["shellbg3"],
+ "note": "CAR / VAN INVENTORY + FIELD SALVAGE: the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [78, 62, 37], "runs": [
+   {"text": "CAR / VAN INVENTORY", "rect": [209, 6, 443, 28]},
+   {"text": "ENGINES", "rect": [65, 16, 128, 32]},
+   {"text": "BRAKES", "rect": [509, 16, 569, 32]},
+   {"text": "WEAPONS", "rect": [208, 33, 281, 49]},
+   {"text": "WHEELS", "rect": [361, 33, 422, 49]},
+   {"text": "SPECIALS", "rect": [64, 84, 135, 100]},
+   {"text": "SUSPENSIONS", "rect": [490, 118, 590, 134]},
+   {"text": "FIELD SALVAGE", "rect": [230, 252, 407, 274]},
+   {"text": "ENGINES", "rect": [62, 276, 125, 292]},
+   {"text": "WEAPONS", "rect": [212, 276, 285, 292]},
+   {"text": "WHEELS", "rect": [378, 276, 439, 292]},
+   {"text": "BRAKES", "rect": [538, 276, 598, 292]},
+   {"text": "SPECIALS", "rect": [57, 344, 128, 360]},
+   {"text": "SUSPENSIONS", "rect": [519, 378, 619, 394]},
+   {"text": "ACCEPT SALVAGE", "rect": [339, 452, 463, 468]},
+   {"text": "SAVE BOOKMARK", "rect": [496, 452, 625, 468]},
+   {"text": "(C) indicates part is in the car", "rect": [467, 206, 626, 222], "colour": [155, 79, 0]},
+   {"text": "(V) indicates part is in the van", "rect": [467, 224, 627, 240], "colour": [155, 79, 0]},
+   {"text": "(R) indicates part is in repair", "rect": [467, 242, 621, 258], "colour": [155, 79, 0]},
+   {"text": "Click to move parts to/from inventory", "rect": [175, 239, 375, 255], "colour": [155, 79, 0]},
+   {"text": "Click to move parts to/from salvage", "rect": [27, 459, 216, 475], "colour": [155, 79, 0]}
+  ]}
+ ]
+}

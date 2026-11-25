@@ -1,0 +1,12 @@
+{
+ "textures": ["shellbg1"],
+ "note": "the printed (C), (V), (R) key marks replaced by the circled marks the game draws for them (r8-form-key relabel.py)",
+ "encoding": "lossless-m4",
+ "ops": [
+  {"op": "key-marks", "erase": "red", "marks": [
+   [463, 277, 477, 287, "C"],
+   [462, 295, 476, 305, "V"],
+   [462, 313, 476, 323, "R"]
+  ]}
+ ]
+}

@@ -158,17 +158,64 @@ The first is the graphics card part (about 15 minutes on a GTX 1080 Ti), the sec
 4x. The masters themselves: the tool has no single switch that writes them; `upscale-textures.py SRC --then
 2xHDCube_Compact.pth --scale 8 --format png --out MASTERS_8X` is the nearest (not checked against the shared pack's).
 
-**The HD menu art** (`tex-menu/`: the menu pages, forms and pop-ups) is a separate pack, and **these tools do not make
-its base**: the upscaled pages (`shellbg<N>.webp` with `shellbg.json`) were made outside this repository. Given such a
-pack, these refine it (each needs the menu records as `i76 --install DIR bg BG_DIR` writes them):
+## The HD menu art (`tex-menu`)
 
-- `python tools/menu-maps.py SRC` (the export): the mission maps (M) at 4x into `tex-menu/maps/` (GPU, a few seconds a
-  map), their pen writing cleaned (`--writing plain` or `ink` for the alternatives).
-- `python tools/menu-rules.py BG_DIR`: the forms' ruled lines without the model's pale band (CPU, seconds).
-- `python tools/flat-art.py BG_DIR`: the title logo drawn again as vector art (CPU).
-- `python tools/text-redraws.py BG_DIR --menu`: the pages' printed lettering set again (Arial Bold, the system's own copy).
+The menus' own pictures at 4x (the pages and forms, the Esc pads, the pop-ups and blueprint sprites, the loading cards and
+the mission maps) are a separate pack, `tex-menu/`, which stock I26 0.12.1 and later already read. It is made from your
+install by one tool and a recipe, `tools/hd-recipes/menu.json`, which lists every step in the order the shared pack
+(release 2026.11.23, "I26 4:3" 0.0.3) was made.
 
-Each keeps the files it replaces (`.rules-prev/`, `.flat-prev/`, `.text-base/`) and puts them back with `--restore`.
+**What it needs, on top of the quick route's:** the .NET 8 SDK (for the export, `tools/I76.Cli`), `pip install scipy
+opencv-python-headless scikit-image potracer resvg-py`, the model `4xTextures_GTAV_rgt-s_dither.pth` (the quick route's;
+the tool downloads it into `--models-dir` and checks its SHA-256), and **Windows' Arial** (`arial.ttf`, `arialbd.ttf`,
+`ariali.ttf` in the system's Fonts folder): the pages' printed words are set again in it, as in the shared pack. Arial is
+not free to share, so it is not in this repository; on Linux or macOS set `I26_ARIAL_DIR` to a folder with those three files
+from a Windows copy you own, or the lettering step stops and says so. The mission maps also need the world export the quick
+route makes (`i26-hd-work/export`).
+
+```powershell
+.venv\Scripts\python tools\menu-pack.py export --install "C:\GOG Games\Interstate 76" i26-hd-work\menu-export
+.venv\Scripts\python tools\menu-pack.py build i26-hd-work\menu-export --out i26-hd-work\menu --world-export i26-hd-work\export
+```
+
+The first runs `i76 --install DIR menu-export OUT` (the shell's background records, the sprite banks 33-64 in the main
+menu's palette, the seven Esc pads in t01's palette, the 22 loading cards, and font record 69's glyph boxes with the
+install's Lee face for the circled key marks). The second writes `i26-hd-work\menu\tex-menu`; copy that folder into the
+I26 user folder (`%APPDATA%\I26\tex-menu`), or zip its contents as `i76-hd-menus-NAME.zip` there. A folder in the user
+folder is used before any menu zip. About 15 minutes with a graphics card (the model over 521 pictures, then the lettering
+and clean-up passes on the CPU), and the maps a few minutes more.
+
+The steps (`menu-pack.py list-steps`): **base** (the model over every picture, colour matched to the original as the
+world pack is), **small-text** (the forms' small print from the original by bicubic 4x and an unsharp mask instead of the
+model's), **lineart** (the blueprint sprites' 1-texel lines traced into smooth strokes), **lettering** (the pages' and
+pads' printed words set again in Arial: the specs in `tools/text-redraws/menu/retype/`, and page 16's in
+`tools/text-redraws/menu/`), **rules** (`menu-rules.py`: the forms' ruled lines), **flat-art** (`flat-art.py`: the title
+logo as vector art), **fixes** (`tools/text-redraws/menu/fixes/`, in file order: the circled (C) (V) (R) key marks, the
+inventory pages' title, the field salvage lines re-set), **maps** (`menu-maps.py`) and **finish** (`shellbg.json`,
+`pads.json`, `sprites/sprites.json`, `pack.json`, `ATTRIBUTION.txt`).
+
+**Fixing something:** the lettering is data. A misspelt or misplaced word on a page is a run in that page's spec (its
+words and the rectangle round them in the original's 640x480 texels); edit it and rebuild just that page:
+`menu-pack.py build EXPORT --out DIR --only shellbg4.webp`. The model's output is kept in `DIR\work`, so a rebuild runs
+no model for a picture whose input is unchanged, and every step that names the page runs again from the model's picture.
+`--only` takes globs of pack files (`sprites/36_*`, `6*.webp`, `nitro/load/*`). The spec ops are text-redraws.py's
+(`erase`, `text`, ... above) plus the menu's: `retype`, `reset` (a line fitted to the original's print), `key-marks` and
+`title`, described at the top of `tools/menu_lettering.py`.
+
+**Checking a build against a release:** `menu-pack.py verify i26-hd-work\menu --against i76-hd-menus-i26-4x3-2026.11.23.zip
+--report verify.txt` lists every file as identical, same (45 dB or more against the release's picture), look (35-45 dB),
+different, missing or extra, with the worst twenty. The pack is not identical to the byte: the model's output differs in
+the last bit between graphics cards and library versions, and lossy WebP re-encodes that; the recipe keeps the release's
+lossy quality 95 so the comparison is like for like (`"encodings"` in the recipe; lossless is the option if you would
+rather have a larger pack that does not depend on the encoder's version).
+
+What is not covered: the Nitro Pack's menus (no Nitro menu pack has been made; the export runs on a Nitro install with
+`I76_NATIVE=1`, but the lettering specs would be new work, page by page), and widescreen pages.
+
+The older single tools still work on a pack you already have, in place, each keeping the files it replaces
+(`.rules-prev/`, `.flat-prev/`, `.text-base/`) and putting them back with `--restore`: `menu-maps.py SRC`, `menu-rules.py
+BG_DIR`, `flat-art.py BG_DIR` and `text-redraws.py BG_DIR --menu` (BG_DIR as `i76 --install DIR bg BG_DIR` writes the
+records).
 
 ## Notes
 

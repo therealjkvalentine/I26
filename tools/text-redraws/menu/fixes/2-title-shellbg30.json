@@ -1,0 +1,8 @@
+{
+ "textures": ["shellbg30"],
+ "note": "the title the model misread as CCAR / VAN INVENTORY replaced by the repair inventory pop-up's own (sprite 36_6, before its key marks; r8-form-key title.py)",
+ "encoding": "lossless-m4",
+ "ops": [
+  {"op": "title", "from": "sprites/36_6.webp", "from_rect": [175, 3.75, 435, 28], "rect": [195, 3.75, 447.5, 28]}
+ ]
+}

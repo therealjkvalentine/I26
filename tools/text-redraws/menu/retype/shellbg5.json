@@ -1,0 +1,27 @@
+{
+ "textures": ["shellbg5"],
+ "note": "AUTO MELEE SINGLE PLAYER: the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [8, 6, 3], "runs": [
+   {"text": "AUTO MELEE•SINGLE PLAYER", "rect": [256, 14, 588, 37]},
+   {"text": "PLAYERS", "rect": [80, 38, 150, 55]},
+   {"text": "AREA OF PLAY", "rect": [61, 206, 169, 223]},
+   {"text": "WEAPONS", "rect": [497, 54, 565, 70]},
+   {"text": "PARTS", "rect": [507, 179, 553, 195]},
+   {"text": "0-60 mph", "rect": [236, 181, 284, 197], "weight": "regular"},
+   {"text": "top speed", "rect": [236, 195, 285, 211], "weight": "regular"},
+   {"text": "1/4 mile", "rect": [237, 208, 277, 222], "weight": "regular"},
+   {"text": "braking 70-0 mph", "rect": [236, 221, 319, 237], "weight": "regular"},
+   {"text": "lateral accel.", "rect": [236, 235, 295, 249], "weight": "regular"},
+   {"text": "total defense lbs.", "rect": [236, 248, 316, 262], "weight": "regular"},
+   {"text": "MAKE:", "rect": [273, 275, 318, 290]},
+   {"text": "MODEL:", "rect": [442, 275, 495, 291]},
+   {"text": "MAKE", "rect": [283, 393, 323, 408]},
+   {"text": "MAKE", "rect": [533, 393, 574, 408]},
+   {"text": "CONFIGURE CHASSIS", "rect": [363, 413, 496, 434]},
+   {"text": "ENTER AREA", "rect": [468, 452, 545, 467]},
+   {"text": "CANCEL", "rect": [571, 451, 623, 467]}
+  ]}
+ ]
+}
