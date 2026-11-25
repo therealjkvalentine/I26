@@ -3,7 +3,7 @@ namespace I76.Game.Shell;
 /// <summary>
 /// Controls (the port's sheet, in the Options Menu's place of the original's Control Configuration): the Options Menu's notepad
 /// (record 6) with "Controls" on its first line, then force feedback (Force Feedback, Rumble Strength, Wheel Strength, Play Options'
-/// until round 5) and, under a blank line, Mouse Options and the key map (the original's Control Configuration screen, record 16),
+/// until round 5), head tracking (Head Tracking, Head Track Sens. and the three opentrack rows, Play Options' before) and, under a blank line, Mouse Options and the key map (the original's Control Configuration screen, record 16),
 /// each a screen of its own that comes back here. Done saves, Cancel puts back the sheet's own rows (also across a visit to Mouse
 /// Options or the key map, whose own Done and Cancel decide theirs). The Esc menu opens the same sheet over the paused game.
 /// </summary>
@@ -14,7 +14,12 @@ public sealed class ControlsMenuScreen : OverlayScreen
     private static int LineY(int line) => ListY + LineH * line;
 
     /// <summary>The sheet's rows as the menus label them, in order (null: a blank line).</summary>
-    public static readonly string?[] Rows = ["Force Feedback", "Rumble Strength", "Wheel Strength", null, "Mouse Options...", "Key Map..."];
+    public static readonly string?[] Rows =
+    [
+        "Force Feedback", "Rumble Strength", "Wheel Strength",
+        "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile",
+        null, "Mouse Options...", "Key Map...",
+    ];
 
     /// <summary>The settings as the sheet was first opened, kept across a visit to Mouse Options or the key map, for Cancel.</summary>
     private static ShellSettings? _carried;
@@ -27,13 +32,21 @@ public sealed class ControlsMenuScreen : OverlayScreen
         MouseOptionsScreen.CopyMouse(from, to);
     }
 
-    /// <summary>The sheet's own rows: force feedback and its two strengths.</summary>
+    /// <summary>The sheet's own rows: force feedback and its two strengths, Head Tracking, its sensitivity and Opentrack Auto.</summary>
     public static void CopyForce(ShellSettings from, ShellSettings to)
     {
         to.ForceFeedbackMode = from.ForceFeedbackMode;
         to.RumbleStrength = from.RumbleStrength;
         to.FfbStrength = from.FfbStrength;
+        to.HeadTrack = from.HeadTrack;
+        to.HeadTrackSensitivity = from.HeadTrackSensitivity;
+        to.OpenTrackAuto = from.OpenTrackAuto;
     }
+
+    /// <summary>The Opentrack row's state as last drawn, polled twice a second (<see cref="Tick"/>).</summary>
+    private I76.Game.OpenTrackState _otState;
+    private double _otPoll;
+    private string _otProfile = "Write";
 
     protected override void Build()
     {
@@ -41,6 +54,11 @@ public sealed class ControlsMenuScreen : OverlayScreen
         _saved = _carried ?? CopyTo(s);
         _carried = null;
         Add(200, LineY(0), "Controls", null);
+        // head tracking follows the sheet at once (the socket and the FreeTrack map with it, in a mission the head too), so the
+        // Opentrack row can see poses arriving; Cancel puts it back
+        I76.Game.HeadTracker.Apply(s);
+        _otState = I76.Game.OpenTrackLauncher.State(s);
+        _otProfile = I76.Game.OpenTrackLauncher.ProfileDir(s) is { } pd && File.Exists(Path.Combine(pd, I76.Game.OpenTrack.ProfileName)) ? "Present" : "Write";
         for (int k = 0; k < Rows.Length; k++)
         {
             if (Rows[k] is not { } label) continue;
@@ -67,6 +85,34 @@ public sealed class ControlsMenuScreen : OverlayScreen
                     Add(200, y, label, null);
                     value = Add(397, y, () => I76.Game.DirectInputForce.Supported ? $"{s.FfbStrength}%" : "Windows only",
                         () => { s.FfbStrength = s.FfbStrength >= 100 ? 0 : Math.Min(100, s.FfbStrength / 10 * 10 + 10); ApplyForce(s); });
+                    value.Right = 461;
+                    break;
+                // Head Tracking (opentrack, docs/playing.md): a click steps Off / Analog / Digital, live
+                case "Head Tracking":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark,
+                        () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); });
+                    break;
+                case "Head Track Sens.":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+                        () => { s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity); I76.Game.HeadTracker.Apply(s); });
+                    break;
+                // Opentrack: its state (Missing / Stopped / Running / Tracking: poses arriving over UDP or FreeTrack); a click when Stopped starts it
+                case "Opentrack":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => I76.Game.OpenTrack.Label(_otState),
+                        () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) { _otState = I76.Game.OpenTrackState.Running; Redraw(); } });
+                    break;
+                // Opentrack Auto: a mission with Head Tracking on starts it, and the game closes the one it started when it exits
+                case "Opentrack Auto":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => s.OpenTrackAuto ? "On" : "Off", () => s.OpenTrackAuto = !s.OpenTrackAuto);
+                    break;
+                // Opentrack Profile: a click writes I26.ini (the webcam tracker, UDP to this machine) into opentrack's profiles, never over one
+                case "Opentrack Profile":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => _otProfile, () => { _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)); Redraw(); });
                     value.Right = 461;
                     break;
                 case "Mouse Options...":
@@ -101,11 +147,32 @@ public sealed class ControlsMenuScreen : OverlayScreen
         // the sheet's rows back, saved: Mouse Options' Done may have saved the file with them changed since
         CopyForce(_saved, Shell.Settings);
         ApplyForce(Shell.Settings);
+        I76.Game.HeadTracker.Apply(Shell.Settings);
         Shell.Settings.Save();
         Shell.Options();
     }
 
     protected override void Escape() => Cancel();
+
+    /// <summary>The Opentrack row follows opentrack: its state looked at twice a second, the sheet drawn again when it changes.</summary>
+    public override void Tick()
+    {
+        base.Tick();
+        if (Shell.Current != this || (_otPoll += Shell.Delta) < 0.5) return;
+        _otPoll = 0;
+        var now = I76.Game.OpenTrackLauncher.State(Shell.Settings);
+        if (now == _otState) return;
+        _otState = now;
+        Redraw();
+    }
+
+    /// <summary>Head Track Sens.'s next step (<see cref="I76.Game.HeadLook.Sensitivities"/>, past the last back to the first).</summary>
+    internal static float NextSensitivity(float now)
+    {
+        var o = I76.Game.HeadLook.Sensitivities;
+        int i = Array.FindIndex(o, v => v > now + 0.01f);
+        return o[i < 0 ? 0 : i];
+    }
 
     /// <summary>Force feedback as the sheet left it, at once (a pad's rumble, the wheel or nothing; the strengths).</summary>
     private static void ApplyForce(ShellSettings s)

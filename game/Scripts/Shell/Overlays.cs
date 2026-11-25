@@ -262,9 +262,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private bool _savedSteering;
     private int _savedRate, _savedDownloads;
-    private I76.Game.HeadTrackMode _savedHead;
-    private float _savedHeadSens;
-    private bool _savedOtAuto;
     /// <summary>The original's six check rows and their bits (Nitro's sheet has only Arcade Phys. and Unlim. Wiper Fluid).</summary>
     private static readonly (string Label, int Bit)[] Checks =
     [
@@ -291,14 +288,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order after the original's (a check row, or a value row stepped by a click): upstream's, then
-    /// the play fork's own (Unlim. Ordnance, Head Tracking and its sensitivity, the opentrack rows, Melee A.I., Equip. Tooltips).
-    /// Force Feedback, Rumble and Rumble Strength are the Controls sheet's (<see cref="ControlsMenuScreen"/>), with Wheel Strength.
+    /// the play fork's own (Unlim. Ordnance, Melee A.I., Equip. Tooltips). Force Feedback, Rumble and Rumble Strength are the Controls
+    /// sheet's (<see cref="ControlsMenuScreen"/>), with Wheel Strength, and so are Head Tracking, its sensitivity and the opentrack rows.
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
-        "Unlim. Ordnance", "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile", "Melee A.I.", "Equip. Tooltips",
+        "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips",
         SkipIntroRow,
     ];
     /// <summary>The port's Skip Intro Movies row (<see cref="ShellSettings.SkipIntro"/>), in the front end's and the mission menu's Play Options.</summary>
@@ -307,10 +304,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     /// <summary>Every row of the list, in order: the original's check rows (Nitro's two), Difficulty, then the port's rows.</summary>
     public static string[] ListRows(bool nitro) =>
         [.. Checks.Where(c => !nitro || (c.Bit & PlayProfile.NitroMask) != 0).Select(c => c.Label), Difficulty, .. PortRows];
-    /// <summary>The Opentrack row's state as last drawn, polled twice a second (<see cref="Tick"/>).</summary>
-    private I76.Game.OpenTrackState _otState;
-    private double _otPoll;
-    private string _otProfile = "Write";
 
     protected override void Build()
     {
@@ -326,9 +319,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedCb = s.CbVoice;
         _savedUpdate = s.UpdateCheck;
         _savedCrosshair = s.ChaseCrosshair;
-        _savedHead = s.HeadTrack;
-        _savedHeadSens = s.HeadTrackSensitivity;
-        _savedOtAuto = s.OpenTrackAuto;
         _savedOrdnance = s.OrdnanceLimit;
         _savedMeleeAi = s.MeleeAi;
         _savedEquipTips = s.EquipmentTips;
@@ -392,29 +382,13 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         Toggle(PortRows[12], () => s.AssistedSteering, () => I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = !s.AssistedSteering);
         // Unlim. Ordnance: no cap on the live rounds of a kind (the original's 160; single player only, docs/deviations.md "Live ordnance")
         Toggle(PortRows[13], () => s.OrdnanceLimit != 0, () => s.OrdnanceLimit = s.OrdnanceLimit != 0 ? 0 : 1);
-        // Head Tracking (opentrack's UDP output, docs/playing.md): a click steps Off / Analog / Digital, and the sensitivity
-        // (the socket follows the row at once, so the Opentrack row can see poses arriving; Cancel puts it back)
-        Step(PortRows[14], () => { s.HeadTrack = (I76.Game.HeadTrackMode)(((int)s.HeadTrack + 1) % 3); I76.Game.HeadTracker.Apply(s); },
-            () => s.HeadTrack == I76.Game.HeadTrackMode.Off ? "Off" : s.HeadTrack + ShellSettings.PortMark);
-        Step(PortRows[15], () => s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity),
-            () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
-        // Opentrack (docs/playing.md): its state (Missing / Stopped / Running / Tracking); a click when Stopped starts it.
-        // Opentrack Auto: a mission with Head Tracking on starts it, and the game closes the one it started when it exits.
-        // Opentrack Profile: a click writes I26.ini (the webcam tracker, UDP to this machine) into opentrack's profiles, never over one
-        I76.Game.HeadTracker.Apply(s);
-        _otState = I76.Game.OpenTrackLauncher.State(s);
-        _otProfile = I76.Game.OpenTrackLauncher.ProfileDir(s) is { } pd && File.Exists(Path.Combine(pd, I76.Game.OpenTrack.ProfileName)) ? "Present" : "Write";
-        Step(PortRows[16], () => { if (_otState == I76.Game.OpenTrackState.Stopped && I76.Game.OpenTrackLauncher.Start(s)) _otState = I76.Game.OpenTrackState.Running; },
-            () => I76.Game.OpenTrack.Label(_otState));
-        Toggle(PortRows[17], () => s.OpenTrackAuto, () => s.OpenTrackAuto = !s.OpenTrackAuto);
-        Step(PortRows[18], () => _otProfile = I76.Game.OpenTrack.Label(I76.Game.OpenTrackLauncher.WriteProfile(s)), () => _otProfile);
         // Melee A.I.: the skill an Instant Melee's computer cars open at (the original's, the Difficulty Level's, easy, hard); a click steps
-        Step(PortRows[19], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
+        Step(PortRows[14], () => s.MeleeAi = (I76.Sim.Missions.MeleeAiSkill)(((int)s.MeleeAi + 1) % ShellSettings.MeleeAiNames.Length),
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
-        Toggle(PortRows[20], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        Toggle(PortRows[15], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
         // Skip Intro Movies: the next start goes straight to the menu (briefings, outros and cut-scenes still play)
-        Toggle(PortRows[21], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
+        Toggle(PortRows[16], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -431,25 +405,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             Frame.CopyBackground(300, y, 22, 18, 200, y);
             if (_checks.Contains(List.SlotOn(line))) Frame.CopyOriginal(200, 139, 22, 18, 200, y);   // the line it comes from may be wiped by now
         }
-    }
-
-    /// <summary>The Opentrack row follows opentrack: its state looked at twice a second, the sheet drawn again when it changes.</summary>
-    public override void Tick()
-    {
-        base.Tick();
-        if (Shell.Current != this || (_otPoll += Shell.Delta) < 0.5) return;
-        _otPoll = 0;
-        var now = I76.Game.OpenTrackLauncher.State(Shell.Settings);
-        if (now == _otState) return;
-        _otState = now;
-        Redraw();
-    }
-
-    private static float NextSensitivity(float now)
-    {
-        var o = I76.Game.HeadLook.Sensitivities;
-        int i = Array.FindIndex(o, v => v > now + 0.01f);
-        return o[i < 0 ? 0 : i];
     }
 
     /// <summary>The CB Microphone choices: none (the empty string), the system's default, then each input device.</summary>
@@ -476,8 +431,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     {
         var s = Shell.Settings;
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair; s.BriefingWhileLoading = _savedBriefing; s.Turrets1997 = _savedTurrets1997;
-        s.HeadTrack = _savedHead; s.HeadTrackSensitivity = _savedHeadSens; s.OpenTrackAuto = _savedOtAuto;
-        I76.Game.HeadTracker.Apply(s);
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips; s.SkipIntro = _savedSkipIntro;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = _savedSteering;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
@@ -500,7 +453,6 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     private void Done()
     {
-        I76.Game.HeadTracker.Apply(Shell.Settings);
         if ((Shell.Settings.PlayOptions & 0x1c) == 0) { Shell.Settings.Save(); Shell.Overlay(new OptionsScreen()); return; }
         Shell.Modal(new ConfirmPopup
         {

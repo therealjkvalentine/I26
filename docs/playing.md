@@ -175,7 +175,7 @@ The Esc menu's pad has the same sheet and page, as pads of their own with their 
 
 **Modern Physics.** Play Options' **Modern Physics** drives your car as a rigid body with suspension and tyres (Godot's Jolt engine) instead of the original's vehicle model; AI cars, weapons and damage are unchanged; not offered online. Off is the original's handling. See [docs/modern-physics.md](modern-physics.md).
 
-**Play Options.** One list over the sheet's lines, which scrolls (the mouse wheel, Up and Down, Page Up and Page Down, or the pad past the first or last row): the original's check rows, Difficulty Level, then Hidden Wpns & Cars, Modern Physics, Simulation Rate, Checkpoints, Auto Reverse, Map Downloads, Unlim. Turrets, CB Voice, Check for Updates, Chase Crosshair, Load During Briefing, Turrets, and the fork's own: Unlim. Ordnance, Head Tracking, Head Track Sens., Opentrack, Opentrack Auto, Opentrack Profile, Melee A.I., Equip. Tooltips. Force Feedback, Rumble and Rumble Strength are on Controls (below). The Esc menu's pad has the rows that apply in a mission: the check rows, Difficulty, Modern Physics, Simulation Rate, Checkpoints, Auto Reverse, Chase Crosshair, Load During Briefing and Turrets.
+**Play Options.** One list over the sheet's lines, which scrolls (the mouse wheel, Up and Down, Page Up and Page Down, or the pad past the first or last row): the original's check rows, Difficulty Level, then Hidden Wpns & Cars, Modern Physics, Simulation Rate, Checkpoints, Auto Reverse, Map Downloads, Unlim. Turrets, CB Voice, Check for Updates, Chase Crosshair, Load During Briefing, Turrets, and the fork's own: Unlim. Ordnance, Melee A.I., Equip. Tooltips. Force Feedback, Rumble Strength and the head-tracking rows are on Controls (below). The Esc menu's pad has the rows that apply in a mission: the check rows, Difficulty, Modern Physics, Simulation Rate, Checkpoints, Auto Reverse, Chase Crosshair, Load During Briefing and Turrets.
 
 **Turrets.** Play Options' **Turrets** row: how fast turrets turn toward their target (car turrets, gun emplacements, helicopters; yours and the AI's), as the 1998 build's (**1998**, the default: GOG's and the Nitro Pack's) or the 1997 CD's (**1997 CD**); the numbers are under `turret_slew` below. Nothing else differs: the arc (all the way round, the gun raised only for a target in front, to about 72 degrees), the aim ahead of a moving target, which weapons go on a turret mount and how many are the same in both. A network game plays its host's (the host form's Turrets). Until the merge with upstream this was `turret_slew` in `build-rules.cfg`; a line left there is no longer read. The row's help, the same on the host form:
 
@@ -199,7 +199,7 @@ has its default, and a key the game writes itself is left as you set it. A value
 |---|---|---|---|
 | `mirror_range` | `original`, `full`\* | follows the look: `original` in the 1997 look, `full` in the modern one | The rear-view mirror draws nothing past 100 m (the original's; the modern look fades it into the sky over the last 45 m), or the whole view (in the modern look 0.2 ms more a frame than the 100 m on a 1080 Ti). |
 | `side_mirrors` | `off`, `left`\*, `auto`\*, `on`\* | `auto` | Graphic Detail's Mirrors row (Rear, Rear + Left, All) sets `off`, `left` and `auto`; `on` only here (it shows as All). `left` is `auto` for the driver's (left) door mirror alone. The modern look's side-view mirrors. The Piranha's door mirrors (both) and the CC cars' (the left one) have painted glass, a blue patch you see through the side windows (on a 21:9 window the Piranha's left one is in view looking ahead): `auto` shows the view behind-left and behind-right in that glass, in its own shape, and adds nothing to other cars; `on` does the same and gives a car without door-mirror glass two more glasses beside the rear mirror (the same frame, half as wide), 45 degrees to the left and right of straight ahead, a row and a quarter below the rear mirror, showing what is behind-left and behind-right. One mirror render serves all three (`mirror_fov` wide, 2472x256 at 90, the rear mirror's own pixels per degree): the rear mirror shows its 45 degrees, the middle tan(22.5°)/tan(45°) = 41 % of the width, each side mirror the band from 6 degrees inside the rear's edge outward (`side_mirror_overlap`); nothing is drawn twice. Costs about as much again as the rear mirror alone (docs/deviations.md). The 1997 look keeps the original's mirror alone. |
-| `opentrack_path` | a path | empty: the usual install folders, then PATH | Where Play Options' Opentrack row finds opentrack: the program, its folder or (macOS) its .app (Head tracking, below). |
+| `opentrack_path` | a path | empty: the usual install folders, then PATH | Where the Controls sheet's Opentrack row finds opentrack: the program, its folder or (macOS) its .app (Head tracking, below). |
 | `mirror_round` | `0` to `24`\* | `0` | The modern look's rear mirror with rounder corners: its frame's and its glass's corners that many of the mirror art's pixels round (the art is 256 wide and its corners about 3; the glass's radius is this less the frame's 6), cut in the mirror's shader on the same flat quad. `0`, the default, is the art's own corners. The 2D dash's mirror and the 1997 look keep the art's own. |
 | `side_mirror_round` | `0` to `50`\* | `30` | The modern look's door mirrors with rounded glass: the glass's corners rounded by that percent of its shorter side as you see it (`50` round ends; at most just inside the largest circle the glass holds), the moulding drawn round the rounded glass and its dark in the corners, inside the housing's own straight outline; also the corners of the glasses `side_mirrors=on` adds. `0` is the glass's own straight corners, as the original's. |
 | `side_mirror_rim_out` | `0` to `6`\* | `2` | The modern look's door mirrors' moulding (the dark rim round the rounded glass) rounded on the outside too: its outer edge that many widths of about 1.9 % of the glass's height beyond the rounded glass's outline (where it covers the housing's edges) and the ring the same number of pixels wide all round as you see it (at `2`, about 3 % of the glass's height), reaching a little past the housing's straight edge where it must; the housing's angular corners outside the ring are not drawn. It is drawn on the side facing the driver only, so it shows from the seat and nowhere else (not in the chase views, not in the mirrors). `0` is the housing's straight outline with the moulding's dark in its corners (the look before). Needs `side_mirror_round` above 0. |
@@ -303,7 +303,8 @@ keys are each player's own, online too. The hooks for a run (`I76_*`, [docs/dev-
 
 Options > **Controls** (the original's Control Configuration's place on the Options Menu, and the in-mission Esc menu's
 Controls) is a sheet of the port's: **Force Feedback**, **Rumble Strength** and **Wheel Strength** (Play Options' until round 5),
-then **Mouse Options...** and **Key Map...**, each a screen that comes back to it. The key map is the original's Control
+**Head Tracking**, **Head Track Sens.**, **Opentrack**, **Opentrack Auto** and **Opentrack Profile** (Head tracking, below; in a
+mission a change takes effect at once), then **Mouse Options...** and **Key Map...**, each a screen that comes back to it. The key map is the original's Control
 Configuration screen (its keys, the mouse's buttons, and Calibrate for a pad); it also opens Mouse Options. Mouse Options holds the
 mouse's settings: Mouse Camera (the F2 chase view), Mouse Sensitivity, Invert Y Axis, Cockpit Mouse Look, Camera
 Return, View Zoom Reset, Mouse In Window, the bindings of the five mouse buttons (the two side buttons
@@ -395,18 +396,22 @@ skippable cut-scene, as Esc does. Everything is rebindable on the Controller
 screen (Controls > Key Map > Calibrate).
 
 **Head tracking.** [opentrack](https://github.com/opentrack/opentrack) (a webcam, a phone, a TrackIR-style clip) can turn
-your head in the car. In opentrack set Output to **UDP over network**, its settings to **127.0.0.1** port **4242**, and press
-Start; then set Play Options > Head Tracking (in the list's scrolling rows) to **Analog** (the view follows your head) or **Digital** (turning past a
+your head in the car. The game reads either of two opentrack outputs, whichever is sending: **freetrack 2.0 Enhanced** (opentrack's
+default profile, the one TrackIR-style games read; Windows only) or **UDP over network** (settings **127.0.0.1** port **4242**;
+any system). Press Start in opentrack; then set Options > Controls > Head Tracking (also on the Esc menu's Controls) to **Analog** (the view follows your head) or **Digital** (turning past a
 threshold glances left, right or down at the dash, as the glance keys do). Head Track Sens. multiplies the angle (3: a 25° head
 turn looks 75° round; the reach is the pad's free look, 80° each side). The glance keys and the pad's right stick win while held;
 when opentrack stops the view eases back ahead. If the view turns the wrong way, invert that axis in opentrack's Options > Output.
-Analog needs the 3D dash (F1). shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
+Analog needs the 3D dash (F1). Both outputs give the same angles: FreeTrack's shared memory (FT_SharedMem) holds radians with yaw
+and pitch the other way round and millimetres, which the game turns back into the UDP output's degrees and centimetres, so a
+profile that turns the view right over UDP does so over FreeTrack too. shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
 `head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
-`head_track_position` (true moves the eye with your head, up to 10 cm; off).
+`head_track_position` (true moves the eye with your head, up to 10 cm; off) and `head_track_source` (`auto`, the default: the
+output that is sending, and while both are, the one already in use; `udp` or `freetrack`: that one only).
 
-**Starting opentrack from the game.** Under Head Track Sens., Play Options has three rows for opentrack. **Opentrack** shows
-its state: Missing (the game cannot find it), Stopped, Running, or Tracking (poses are arriving; a tracker on another
-machine counts too); a click when Stopped starts it. **Opentrack Auto** (`[port] opentrack_auto`, off): a mission with Head
+**Starting opentrack from the game.** Under Head Track Sens., the Controls sheet has three rows for opentrack. **Opentrack** shows
+its state: Missing (the game cannot find it), Stopped, Running, or Tracking (poses are arriving over UDP or FreeTrack; a tracker
+on another machine counts too); a click when Stopped starts it. **Opentrack Auto** (`[port] opentrack_auto`, off): a mission with Head
 Tracking on starts opentrack when none is running and nothing is arriving, and when the game exits it closes the opentrack it
 started; an opentrack you started yourself is never closed. **Opentrack Profile**: a click writes `I26.ini` into opentrack's
 profiles (the neuralnet webcam face tracker, no markers needed, sending UDP to 127.0.0.1 on `head_track_port`); it never writes
@@ -416,7 +421,8 @@ Program Files (x86) and the per-user Programs folder on Windows, /Applications a
 Linux in /usr/local/bin, /usr/bin, /opt/opentrack/bin and ~/.local/bin; `[port] opentrack_path` names it anywhere else (the
 program, its folder or its .app).
 
-opentrack has no command-line switch or setting that starts tracking when it opens, so once, by hand: choose the I26 profile
+On Windows the profile is not needed: opentrack's default profile, with its FreeTrack output, works as it is (the same profile
+the original game's head-look tools read). opentrack has no command-line switch or setting that starts tracking when it opens, so once, by hand: choose the I26 profile (or your own)
 in opentrack's profile list, open the tracker's settings (the hammer) and pick your camera, and then either press Start each
 time, bind a key to Start Tracking in Options > Shortcuts, or (the hands-free way) add the game's program in Options > Game
 detection with the I26 profile and tick its box: opentrack then starts tracking by itself while that program runs and stops when
