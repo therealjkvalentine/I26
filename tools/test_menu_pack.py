@@ -129,6 +129,36 @@ class PackTests(unittest.TestCase):
             self.assertIn("mainmn1", json.load(open(os.path.join(b.pack, "pads.json"))))
         finally: shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_nitro_build_makes_its_own_and_reuses_the_shared(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            base, nitro, bp = (os.path.join(tmp, d) for d in ("base", "nitro", "basepack"))
+            rng = np.random.default_rng(2)
+            same, pop, new = (rng.integers(0, 255, (6, 5, 3), np.uint8) for _ in range(3))
+            ppm(os.path.join(base, "bank", "40", "00.ppm"), same); ppm(os.path.join(base, "bank", "36", "03.ppm"), pop)
+            ppm(os.path.join(nitro, "bank", "34", "01.ppm"), same)     # the base game's picture at Nitro's numbers
+            ppm(os.path.join(nitro, "bank", "34", "02.ppm"), new)      # Nitro's own
+            ppm(os.path.join(nitro, "bank", "30", "04.ppm"), pop)      # a pop-up the game takes from the base pack itself
+            for n in (1, 2): ppm(os.path.join(nitro, "bg", f"bg{n:02d}.ppm"), np.zeros((48, 64, 3), np.uint8))
+            os.makedirs(os.path.join(bp, "sprites")); open(os.path.join(bp, "sprites", "40_0.webp"), "wb").write(b"base pack file")
+            section = {"pages": [2], "leave_to_base": ["nitro/sprites/30_*"]}
+            own, shared = mp.nitro_pictures(nitro, base, section)
+            self.assertEqual(set(own), {"nitro/shellbg2.webp", "nitro/sprites/34_2.webp"})
+            self.assertEqual(shared, {"nitro/sprites/34_1.webp": "sprites/40_0.webp"})
+            recipe = json.load(open(mp.RECIPE, encoding="utf-8")); recipe["nitro"]["pages"] = [2]
+            args = type("A", (), {"export": nitro, "base_export": base, "base_pack": bp, "nitro": True, "out": os.path.join(tmp, "out"),
+                                  "work": None, "only": None, "recipe": mp.RECIPE})()
+            b = mp.Build(args, recipe)
+            self.assertEqual(b.step_reuse({}), 1)
+            self.assertEqual(open(os.path.join(b.pack, "nitro", "sprites", "34_1.webp"), "rb").read(), b"base pack file")
+            mp.save_webp(np.zeros((192, 256, 3), np.uint8), os.path.join(b.pack, "nitro", "shellbg2.webp"), {"lossless": True})
+            b.step_finish({})
+            sj = json.load(open(os.path.join(b.pack, "nitro", "sprites", "sprites.json")))
+            self.assertEqual(sj, {"34_1": {"file": "34_1.webp", "affine": [4.0, 0.0, 4.0, 0.0], "size": [5, 6]}})
+            self.assertEqual(json.load(open(os.path.join(b.pack, "nitro", "shellbg.json"))), {"2": {"file": "shellbg2.webp", "affine": [4.0, 0.0, 4.0, 0.0]}})
+            self.assertFalse(os.path.exists(os.path.join(b.pack, "pack.json")))   # the base pack's own is left alone
+        finally: shutil.rmtree(tmp, ignore_errors=True)
+
     def test_audio_pad_takes_the_options_pads_lower_rows(self):
         tmp = tempfile.mkdtemp()
         try:
@@ -176,6 +206,13 @@ class PackTests(unittest.TestCase):
         for s in r["steps"]:
             if s["kind"] == "inset": self.assertIn(s["model"]["name"], r["models"])
         for m in r["models"].values(): self.assertEqual(len(m["sha256"]), 64); self.assertTrue(m["url"].startswith("https://"))
+        n = r["nitro"]
+        self.assertEqual([s["id"] for s in n["steps"]][0], "base")
+        self.assertTrue(all(s["kind"] in kinds | {"reuse"} for s in n["steps"]))
+        for s in n["steps"]:
+            for d in s.get("specs", []): self.assertTrue(os.path.isdir(os.path.join(HERE, d)), d)
+            self.assertTrue(all(f.startswith("nitro/") for f in s.get("files", [])), s["id"])
+        self.assertEqual(n["export"]["env"], {"I76_NATIVE": "1"})
 
     def test_colour_mask_finds_the_stamp_and_its_openings(self):
         o = np.zeros((60, 80, 3), np.uint8); o[...] = (120, 60, 30)            # a photo

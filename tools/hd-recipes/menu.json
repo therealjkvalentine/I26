@@ -233,5 +233,137 @@
   "RealESRGAN_x4plus_anime_6B by Xintao Wang et al., BSD-3-Clause, https://github.com/xinntao/Real-ESRGAN (used for: the fire photo inside the mission select page's logo)",
   "Arial (Regular, Bold and Italic) as supplied with Windows: The Monotype Corporation; the lettering set in it is rendered into the pictures, no font file is included",
   "the circled key marks: drawn from the install's own Lee_____.ttf, as the game draws them"
- ]
+ ],
+ "nitro": {
+  "note": "The Nitro Pack's own menu art, under the pack's nitro/ folder (menu-pack.py build --nitro). The game shows Nitro's database.tvf by its own numbers: a page Nitro left as the base game's is the base pack's page (no file here), a redrawn one is nitro/shellbg<record>.webp, and every sprite on a Nitro screen comes from nitro/sprites/ (bank 30's shared ones excepted: the game takes the base game's bank 36 picture, pop-up arrows and all). Same model, tiles, colour match and WebP settings as the base pack.",
+  "export": {
+   "env": {
+    "I76_NATIVE": "1"
+   },
+   "args": [
+    "--banks",
+    "27-57",
+    "--only",
+    "bg,bank"
+   ]
+  },
+  "pages": [
+   2,
+   7,
+   12,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   21,
+   22,
+   23,
+   24,
+   25
+  ],
+  "pages_note": "the records database.tvf redrew (NitroShellMap.Redrawn): parts catalog 2, a Joe's pad 7 (three check boxes fewer), control configuration 12, the network and modem forms 14-19, the scenario form 21, the main menu's logo 22, the standings 23-25",
+  "leave_to_base": [
+   "nitro/sprites/30_*"
+  ],
+  "steps": [
+   {
+    "id": "base",
+    "kind": "base",
+    "encoding": "lossy",
+    "note": "Nitro's own pages and sprites through the base pack's model, tiles and colour match; pages lossy WebP q95 m6, sprites with their alpha (exact), as the base pack's"
+   },
+   {
+    "id": "reuse",
+    "kind": "reuse",
+    "note": "the sprites Nitro shares with the base game (the same picture in the base export): the base pack's finished file under the Nitro bank and number"
+   },
+   {
+    "id": "small-text",
+    "kind": "tool",
+    "op": "small_text",
+    "files": [
+     "nitro/shellbg2.webp",
+     "nitro/shellbg12.webp",
+     "nitro/shellbg14.webp",
+     "nitro/shellbg15.webp",
+     "nitro/shellbg16.webp",
+     "nitro/shellbg17.webp",
+     "nitro/shellbg18.webp",
+     "nitro/shellbg19.webp",
+     "nitro/shellbg21.webp",
+     "nitro/shellbg23.webp",
+     "nitro/shellbg24.webp",
+     "nitro/shellbg25.webp"
+    ],
+    "encoding": "lossy",
+    "note": "the forms' small print through bicubic 4x and an unsharp mask, as the base pack's forms"
+   },
+   {
+    "id": "lineart",
+    "kind": "tool",
+    "op": "lineart",
+    "files": [
+     "nitro/sprites/3[1-9]_*",
+     "nitro/sprites/4?_*",
+     "nitro/sprites/5[01]_*",
+     "nitro/sprites/53_*"
+    ],
+    "args": {
+     "width": 1.0,
+     "iters": 4,
+     "ss": 4
+    },
+    "encoding": "sprite",
+    "note": "the blueprint banks' new sprites (base banks 37-57 and 59 are Nitro's 31-51 and 53) traced smooth, as the base pack's"
+   },
+   {
+    "id": "lettering",
+    "kind": "specs",
+    "specs": [
+     "text-redraws/menu/nitro"
+    ],
+    "encoding": "lossy",
+    "note": "the pages' and sprites' printed words set again in Arial (Arial Bold for the forms' headings), the base pack's specs where Nitro's form has the same words in the same place"
+   },
+   {
+    "id": "rules",
+    "kind": "run",
+    "tool": "menu-rules.py",
+    "args": [
+     "--mode",
+     "chroma",
+     "--only",
+     "{pages}"
+    ],
+    "files": [
+     "nitro/shellbg2.webp",
+     "nitro/shellbg12.webp",
+     "nitro/shellbg14.webp",
+     "nitro/shellbg15.webp",
+     "nitro/shellbg16.webp",
+     "nitro/shellbg17.webp",
+     "nitro/shellbg18.webp",
+     "nitro/shellbg19.webp",
+     "nitro/shellbg21.webp",
+     "nitro/shellbg23.webp",
+     "nitro/shellbg24.webp",
+     "nitro/shellbg25.webp"
+    ],
+    "note": "the forms' ruled lines made again from the originals, lossless: tools/menu-rules.py --mode chroma"
+   },
+   {
+    "id": "finish",
+    "kind": "finish",
+    "note": "nitro/shellbg.json, nitro/sprites/sprites.json (affine [4, 0, 4, 0], keyed by database.tvf's numbers), nitro/nitro-pack.json"
+   }
+  ],
+  "pack": {
+   "name": "I26 4:3 Nitro Pack pages",
+   "version": "0.0.1",
+   "for": "the nitro/ folder of the I26 4:3 menu pack (0.0.3 or later)",
+   "licence": "non-commercial; derived from Interstate '76 Nitro Pack art, requires an owned copy of the game"
+  }
+ }
 }

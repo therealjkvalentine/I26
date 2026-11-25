@@ -211,8 +211,33 @@ the last bit between graphics cards and library versions, and lossy WebP re-enco
 lossy quality 95 so the comparison is like for like (`"encodings"` in the recipe; lossless is the option if you would
 rather have a larger pack that does not depend on the encoder's version).
 
-What is not covered: the Nitro Pack's menus (no Nitro menu pack has been made; the export runs on a Nitro install with
-`I76_NATIVE=1`, but the lettering specs would be new work, page by page), and widescreen pages.
+### The Nitro Pack's pages (`nitro/`)
+
+The Nitro Pack renumbered the shell database (`database.tvf`, 76 records against 83) and redrew some of it. The game reads
+Nitro's own art from the menu pack's `nitro/` folder by Nitro's own numbers: `nitro/shellbg<record>.webp` with
+`nitro/shellbg.json`, and `nitro/sprites/<bank>_<sprite>.webp` with `nitro/sprites/sprites.json`. A page Nitro left as the
+base game's is shown from the base pack (no file is needed); every sprite on a Nitro screen comes from `nitro/sprites/`,
+except the pop-ups of bank 30 that are the base game's bank 36, which the game takes from the base pack itself. The
+recipe's `"nitro"` section makes that folder, with the same model, tiles, colour match and WebP settings as the base pack:
+
+```powershell
+.venv\Scripts\python tools\menu-pack.py export --nitro --install "C:\GOG Games\Interstate 76 Nitro Pack" i26-hd-work\nitro-export
+.venv\Scripts\python tools\menu-pack.py build --nitro i26-hd-work\nitro-export --base-export i26-hd-work\menu-export --base-pack i26-hd-work\menu\tex-menu --out i26-hd-work\nitro
+```
+
+`--base-export` is the base game's export (above): a Nitro sprite whose picture (size and texels) is one of the base game's is
+the base pack's finished file (`--base-pack`: a built `tex-menu` folder or a release zip such as
+`i76-hd-menus-i26-4x3-2026.11.23.zip`), copied under its Nitro name, so the blueprints keep their traced lines. The rest goes
+through the steps `menu-pack.py list-steps` shows under `nitro`: **base** (the model over the 14 pages Nitro redrew and the
+sprites it added), **reuse**, **small-text**, **lineart**, **lettering** (`tools/text-redraws/menu/nitro/`: each spec keeps the
+base page's runs where Nitro prints the same words in the same place, and adds Nitro's own), **rules** and **finish**. The
+result is `i26-hd-work\nitro\tex-menu\nitro`: copy that `nitro` folder into the menu pack's folder
+(`%APPDATA%\I26\tex-menu\nitro`, beside the `load` folder already there). Only one menu pack is read, so the folder has to
+go inside it; a pack read from its zip needs the zip extracted to `tex-menu` first. The loading cards stay the base pack's
+(`nitro/load/` is one folder for both games).
+
+What is not covered: Nitro's main-menu logo (record 22) is the model's picture (its letters are textured, not flat art), the
+pop-ups' printed words are the model's as in the base pack, and widescreen pages.
 
 The older single tools still work on a pack you already have, in place, each keeping the files it replaces
 (`.rules-prev/`, `.flat-prev/`, `.text-base/`) and putting them back with `--restore`: `menu-maps.py SRC`, `menu-rules.py

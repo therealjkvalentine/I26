@@ -9,7 +9,7 @@ texels, as every text-redraws spec's. They reproduce the scripts the released pa
               box at 4x, in the ink's colour (the original's commonest strong ink texel, or "colour"). Options per run or op:
               threshold (38), grow (15), colour, weight (bold, regular, italic), embolden (0.012 of the size for the regular
               and italic), rotate (90, -90), darken, fill "flat" (a small button's face colour), edge (a word joining a leader
-              line at the rect's left).
+              line at the rect's left), box (the word's ink box given, [x0, y0, x1, y1]: a letter joined to a leader line).
   reset       per run the line is fitted to the original's print (Arial regular, regular emboldened, bold; size, tracking and
               place searched against the 1x ink by correlation; or "fix": [face, px, tracking] placed at "left"), the pack's
               letters inpainted out and the fit set at 4x in "colour" (or the least-squares ink of the original).
@@ -106,6 +106,9 @@ def retype(pack, orig, op, ctx=None):
             if w > 20 and h > 8 and ar < 0.3 * w * h: continue  # a button's or a box's outline
             if edge and ar < 3: continue                         # a leader's last texel left in the rect
             if (x >= x0 if edge else x > x0) and y > y0 and x + w < x1 and y + h < y1: keep |= lab == i
+        if "box" in run:
+            # the word's ink box given: every ink texel inside it, a letter joined to a leader line too (the line outside the box stays)
+            bx = run["box"]; keep = np.zeros_like(ink); keep[bx[1]:bx[3], bx[0]:bx[2]] = src[bx[1]:bx[3], bx[0]:bx[2]]
         ys, xs = np.nonzero(keep)
         if len(ys) == 0: print("  no ink:", run["text"]); continue
         bx0, by0, bx1, by1 = xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
