@@ -383,6 +383,30 @@ class Masters(unittest.TestCase):
             self.assertEqual(r.truncated, [True], "the bled colour cut down before the second model, as the release's masters")
             self.assertEqual(sorted(os.listdir(out)), ["aa_1test.png"])
 
+class MaskRules(unittest.TestCase):
+    """--mask-rules: which masks are kept, the largest piece, lamps by colour."""
+    def door(self):
+        orig = np.zeros((32, 64, 4), np.uint8); orig[..., :3] = 24; orig[..., 3] = 255
+        orig[8:28, 20:60, :3] = 200; orig[2:6, 30:40, :3] = 200        # a white panel and a small white piece apart
+        orig[14:17, 4:8, :3] = (200, 30, 30); orig[17:20, 4:8, 3] = 0    # a red dome lamp, its lower half keyed
+        return orig
+    def test_the_rules_keep_the_largest_piece_and_add_the_lamp(self):
+        import tempfile
+        from PIL import Image
+        rules = [{"only": "aa11*", "two_tone": "largest"}, {"only": "aa11ftl1", "lamps": {"red_over": 120, "green_under": 70,
+                 "blue_under": 70, "min_texels": 7, "dark_under": 40, "rows_down": 6}}]
+        self.assertEqual(ut.mask_wants("aa11ftl1", rules)[0], "largest")
+        self.assertEqual(ut.mask_wants("bb11ftl1", rules), (False, False, []))
+        with tempfile.TemporaryDirectory() as d:
+            src, out = os.path.join(d, "src"), os.path.join(d, "m"); os.makedirs(src)
+            for n in ("aa11ftl1", "bb11ftl1"): Image.fromarray(self.door(), "RGBA").save(os.path.join(src, n + ".png"))
+            ut.paint_masks_out(src, out, ["*"], {"aa11ftl1"}, 40, rules)
+            self.assertEqual(sorted(os.listdir(out)), ["aa11ftl1.detail.pgm", "aa11ftl1.pgm"], "no rule for bb11: no masks")
+            two = np.array(Image.open(os.path.join(out, "aa11ftl1.pgm")))[::-1] > 0      # stored bottom up
+            lamp = np.array(Image.open(os.path.join(out, "aa11ftl1.detail.pgm")))[::-1] > 0
+        self.assertTrue(two[10:26, 22:58].all() and not two[2:6, 30:40].any(), "the panel, not the piece apart")
+        self.assertTrue(lamp[14:20, 4:8].all() and not lamp[25:, :].any(), "the lamp and its keyed lower half")
+
 class ModelPins(unittest.TestCase):
     def test_a_model_of_a_pinned_name_with_another_hash_is_refused(self):
         import tempfile, json, hashlib

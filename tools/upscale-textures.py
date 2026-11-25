@@ -909,15 +909,60 @@ def paint_masks(orig, detail_size=40):
         if keep.any(): det = ndimage.binary_dilation(keep) & op
     return two, det
 
-def paint_masks_out(src, out, only, bottom_up, detail_size):
-    """--paint-masks: each texture's masks as out/STEM.pgm (two-tone) and out/STEM.detail.pgm, in the stored row order."""
+def largest_piece(m):
+    """A mask's largest connected piece only."""
+    from scipy import ndimage
+    lab, k = ndimage.label(m)
+    if k < 2: return m
+    return lab == np.argmax(ndimage.sum(m, lab, range(1, k + 1))) + 1
+
+def lamp_mask(orig, lr):
+    """Lamps found by colour (upright RGBA): the pieces of texels redder than lr's "red_over" with green and blue under
+    "green_under" / "blue_under" (opaque, at least "min_texels", starting above row "top_row_under" when given), each grown
+    into what round it is keyed or dark (mean under "dark_under") within a texel round it and "rows_down" rows below (a dome
+    lamp's lower half), one texel larger all round; None without one."""
+    from scipy import ndimage
+    a = orig.astype(int)
+    red = (a[..., 0] > lr["red_over"]) & (a[..., 1] < lr["green_under"]) & (a[..., 2] < lr["blue_under"]) & (a[..., 3] > 0)
+    lab, k = ndimage.label(red); keep = np.zeros_like(red)
+    for i, (sl, z) in enumerate(zip(ndimage.find_objects(lab), ndimage.sum(red, lab, range(1, k + 1)))):
+        if z < lr.get("min_texels", 1) or sl[0].start >= lr.get("top_row_under", 1 << 30): continue
+        y0, y1, x0, x1 = sl[0].start, sl[0].stop, sl[1].start, sl[1].stop
+        box = np.zeros_like(red); box[max(0, y0 - 1):y1 + lr.get("rows_down", 0), max(0, x0 - 1):x1 + 1] = True
+        cand = (red | (a[..., 3] == 0) | (a[..., :3].mean(2) < lr.get("dark_under", 0))) & box
+        l2, _ = ndimage.label(cand); ids = np.unique(l2[lab == i + 1]); keep |= np.isin(l2, ids[ids > 0])
+    return ndimage.binary_dilation(keep) if keep.any() else None
+
+def mask_wants(stem, rules):
+    """What --mask-rules keeps of a texture's masks: (two-tone: False, True or "largest", detail kept, [lamp rules])."""
+    two, det, lamps = False, False, []
+    for r in rules:
+        if not matches(stem, r["only"]): continue
+        if r.get("two_tone"): two = r["two_tone"] if two in (False, True) else two
+        det |= bool(r.get("detail")); lamps += [r["lamps"]] if r.get("lamps") else []
+    return two, det, lamps
+
+def paint_masks_out(src, out, only, bottom_up, detail_size, rules=None):
+    """--paint-masks: each texture's masks as out/STEM.pgm (two-tone) and out/STEM.detail.pgm, in the stored row order. With
+    --mask-rules only the masks its rules keep (mask_wants), the two-tone mask cut to its largest piece and lamps added where
+    they say."""
     os.makedirs(out, exist_ok=True); n2 = nd = 0
     for fn in sorted(os.listdir(src)):
         stem = fn[:-4].lower()
         if not fn.endswith(".png") or not any(fnmatch.fnmatch(stem, g) for g in only): continue
-        orig = np.array(Image.open(os.path.join(src, fn)).convert("RGBA"))
-        if stem in bottom_up: orig = orig[::-1]
+        want = mask_wants(stem, rules) if rules is not None else (True, True, [])
+        if not (want[0] or want[1] or want[2]): continue
+        up = np.array(Image.open(os.path.join(src, fn)).convert("RGBA"))
+        orig = up[::-1] if stem in bottom_up else up
         two, det = paint_masks(orig, detail_size)
+        if not want[0]: two = None
+        elif want[0] == "largest" and two is not None: two = largest_piece(two)
+        if not want[1]: det = None
+        for lr in want[2]:
+            lamp = lamp_mask(up, lr)
+            if lamp is None: continue
+            if stem in bottom_up: lamp = lamp[::-1]
+            det = lamp if det is None else det | lamp
         for m, name in ((two, stem), (det, stem + ".detail")):
             if m is None: continue
             with open(os.path.join(out, name + ".pgm"), "wb") as f:
@@ -1106,6 +1151,8 @@ def main():
                     " smooth outline as their alpha, their edge the original's colours; nothing is upscaled")
     ap.add_argument("--paint-masks", default=None, help="write each texture's painted two-tone mask (STEM.pgm) and small saturated details' mask"
                     " (STEM.detail.pgm) there, for `i76 key-edge FIELDS N --masks` and --paint-cut")
+    ap.add_argument("--mask-rules", default=None, help="--paint-masks: a JSON file of rules saying which masks to keep (tools/hd-recipes/masks-cars.json:"
+                    " the two-tone mask, its largest piece, the details, lamps found by colour); a texture no rule names gets none")
     ap.add_argument("--detail-size", type=int, default=40, help="--paint-masks: a saturated detail (a lamp, a badge) is at most this many texels (default 40)")
     ap.add_argument("--paint-cut", default=None, help="a folder of `i76 key-edge --masks` fields: the pack's painted two-tone edges (in --out) follow the"
                     " smooth outline, and its small details are the original's texels smoothly enlarged; each file replaced kept in .recut-prev/")
@@ -1132,7 +1179,10 @@ def main():
         with open(os.path.join(args.src, "bottom-up.txt")) as f: bottom_up = {l.strip().lower() for l in f if l.strip()}
     elif etcpak: print("no bottom-up.txt in the export (an export from before it): writing PNGs"); etcpak = None
     if args.paint_masks:
-        paint_masks_out(args.src, args.paint_masks, globs_of(args.only), bottom_up, args.detail_size); return
+        rules = None
+        if args.mask_rules:
+            with open(args.mask_rules, encoding="utf-8") as f: rules = json.load(f)["rules"]
+        paint_masks_out(args.src, args.paint_masks, globs_of(args.only), bottom_up, args.detail_size, rules); return
     if args.paint_cut:
         if not etcpak: sys.exit("--paint-cut writes .dds: etcpak and bottom-up.txt are needed")
         paint_cut_pack(args.src, args.paint_cut, args.out, globs_of(args.only), args.recut_edge, bottom_up, etcpak); return
