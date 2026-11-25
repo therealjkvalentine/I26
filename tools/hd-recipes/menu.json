@@ -11,6 +11,16 @@
    "by": "Philip Hofmann (Phhofm)",
    "licence": "CC-BY-4.0",
    "commercial": true
+  },
+  "RealESRGAN_x4plus_anime_6B": {
+   "file": "RealESRGAN_x4plus_anime_6B.pth",
+   "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+   "page": "https://github.com/xinntao/Real-ESRGAN",
+   "size": 17938799,
+   "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
+   "by": "Xintao Wang et al. (Real-ESRGAN)",
+   "licence": "BSD-3-Clause",
+   "commercial": true
   }
  },
  "base": {
@@ -46,6 +56,39 @@
    "kind": "base",
    "encoding": "lossy",
    "note": "every picture through the model, colour matched; pages, pads and loading cards lossy WebP q95 m6, sprites with their alpha (exact): gpu-art sr.py, pack_bg.py, pack_rest.py (2026-11-03) and r5-menu-art up_sprites.py (2026-11-06)"
+  },
+  {
+   "id": "logo-photo",
+   "kind": "inset",
+   "files": [
+    "shellbg14.webp"
+   ],
+   "model": {
+    "name": "RealESRGAN_x4plus_anime_6B",
+    "tile": 128,
+    "pad": 16,
+    "precision": "float16"
+   },
+   "mask": {
+    "box": [
+     140,
+     0,
+     490,
+     150
+    ],
+    "dark": 60,
+    "yellow": [
+     240,
+     195,
+     60
+    ],
+    "blue": true,
+    "white": 200,
+    "grow": 1
+   },
+   "feather": 2.0,
+   "encoding": "lossy",
+   "note": "page 14's logo and the fire photo inside its openings through RealESRGAN x4plus anime 6B (float16, 128 px tiles, colour matched), laid in inside the logo's colour mask feathered by 2 px: r3-dash-upscale apply_logo.py (2026-11-04). Its vector hybrid inside the mask is left out: flat-art draws the logo again over it, so only the photo in the openings stays"
   },
   {
    "id": "small-text",
@@ -150,7 +193,7 @@
     "shellbg14.webp",
     "shellbg26.webp"
    ],
-   "note": "the title logo drawn again as vector art, lossless: tools/flat-art.py (r7-logo, 2026-11-09). Page 14 keeps the pack's picture round the stamp: the release's showed, inside the logo's openings, a 2026-11-04 pass (r3-dash-upscale apply_logo.py, RealESRGAN anime 6B inside the logo's mask) that is not part of this recipe, so the fire photo there is the GTAV model's (about 38 dB against the release; the logo itself is the same)"
+   "note": "the title logo drawn again as vector art, lossless: tools/flat-art.py (r7-logo, 2026-11-09). Page 14 keeps the pack's picture round and inside the stamp (the logo-photo step's)"
   },
   {
    "id": "fixes",
@@ -187,6 +230,7 @@
  },
  "attribution": [
   "4xTextures_GTAV_rgt-s_dither by Phhofm, CC BY 4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither (used for: every upscaled picture: backgrounds, pads, sprites, loading screens, maps)",
+  "RealESRGAN_x4plus_anime_6B by Xintao Wang et al., BSD-3-Clause, https://github.com/xinntao/Real-ESRGAN (used for: the fire photo inside the mission select page's logo)",
   "Arial (Regular, Bold and Italic) as supplied with Windows: The Monotype Corporation; the lettering set in it is rendered into the pictures, no font file is included",
   "the circled key marks: drawn from the install's own Lee_____.ttf, as the game draws them"
  ]

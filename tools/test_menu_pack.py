@@ -145,6 +145,8 @@ class PackTests(unittest.TestCase):
             def enc(a):
                 b = io.BytesIO(); Image.fromarray(a).save(b, "WEBP", lossless=True); return b.getvalue()
             near = img.copy(); near[0, 0] = near[0, 0] ^ 1
+            self.assertAlmostEqual(mp.psnr(np.dstack([img, np.full((32, 32), 255)]).astype(float), np.dstack([near, np.full((32, 32), 255)]).astype(float))[0],
+                                   10 * np.log10(255 * 255 / (3 / (32 * 32 * 3))), places=6)   # an opaque pair: colour only
             far = 255 - img
             files = {"same.webp": enc(img), "near.webp": enc(img), "far.webp": enc(img), "gone.webp": enc(img), "shellbg.json": b'{"1": 2}'}
             z = os.path.join(tmp, "r.zip")
@@ -164,15 +166,26 @@ class PackTests(unittest.TestCase):
 
     def test_recipe_is_complete(self):
         r = json.load(open(mp.RECIPE, encoding="utf-8"))
-        kinds = {"base", "tool", "specs", "run", "maps", "finish"}
+        kinds = {"base", "inset", "tool", "specs", "run", "maps", "finish"}
         self.assertTrue(all(s["kind"] in kinds for s in r["steps"]))
         self.assertEqual([s["id"] for s in r["steps"]][0], "base")
         for s in r["steps"]:
             for d in s.get("specs", []): self.assertTrue(os.path.isdir(os.path.join(HERE, d)), d)
             if s["kind"] == "run": self.assertTrue(os.path.exists(os.path.join(HERE, s["tool"])))
             self.assertIn(s.get("encoding", "lossy"), r["encodings"])
-        m = r["models"][r["base"]["model"]]
-        self.assertEqual(len(m["sha256"]), 64)
+        for s in r["steps"]:
+            if s["kind"] == "inset": self.assertIn(s["model"]["name"], r["models"])
+        for m in r["models"].values(): self.assertEqual(len(m["sha256"]), 64); self.assertTrue(m["url"].startswith("https://"))
+
+    def test_colour_mask_finds_the_stamp_and_its_openings(self):
+        o = np.zeros((60, 80, 3), np.uint8); o[...] = (120, 60, 30)            # a photo
+        o[10:40, 20:60] = (250, 200, 20)                                       # a yellow stamp
+        o[20:30, 30:40] = (200, 80, 40)                                        # an opening showing the photo
+        o[45:55, 5:15] = (250, 200, 20)                                        # a smaller yellow piece apart
+        m = mp.colour_mask(o, {"box": [0, 0, 80, 60], "dark": 60, "yellow": [240, 195, 60], "blue": False, "white": 200, "grow": 1})
+        self.assertTrue(m[25, 35])                                             # the opening is inside (holes filled)
+        self.assertTrue(m[9, 30] and not m[5, 30])                             # grown by a texel, no further
+        self.assertFalse(m[50, 10])                                            # only the largest region
 
 
 if __name__ == "__main__":

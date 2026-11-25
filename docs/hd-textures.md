@@ -166,8 +166,9 @@ install by one tool and a recipe, `tools/hd-recipes/menu.json`, which lists ever
 (release 2026.11.23, "I26 4:3" 0.0.3) was made.
 
 **What it needs, on top of the quick route's:** the .NET 8 SDK (for the export, `tools/I76.Cli`), `pip install scipy
-opencv-python-headless scikit-image potracer resvg-py`, the model `4xTextures_GTAV_rgt-s_dither.pth` (the quick route's;
-the tool downloads it into `--models-dir` and checks its SHA-256), and **Windows' Arial** (`arial.ttf`, `arialbd.ttf`,
+opencv-python-headless scikit-image potracer resvg-py`, the models `4xTextures_GTAV_rgt-s_dither.pth` (the quick route's) and
+`RealESRGAN_x4plus_anime_6B.pth` (by Xintao Wang et al., BSD-3-Clause, 18 MB: the fire photo inside the mission select
+page's logo); the tool downloads each into `--models-dir` and checks its SHA-256, and **Windows' Arial** (`arial.ttf`, `arialbd.ttf`,
 `ariali.ttf` in the system's Fonts folder): the pages' printed words are set again in it, as in the shared pack. Arial is
 not free to share, so it is not in this repository; on Linux or macOS set `I26_ARIAL_DIR` to a folder with those three files
 from a Windows copy you own, or the lettering step stops and says so. The mission maps also need the world export the quick
@@ -186,7 +187,8 @@ folder is used before any menu zip. About 15 minutes with a graphics card (the m
 and clean-up passes on the CPU), and the maps a few minutes more.
 
 The steps (`menu-pack.py list-steps`): **base** (the model over every picture, colour matched to the original as the
-world pack is), **small-text** (the forms' small print from the original by bicubic 4x and an unsharp mask instead of the
+world pack is), **logo-photo** (page 14's logo through the second model, laid in inside the logo's colour mask; flat-art
+later draws the logo again over it, so what stays is the fire photo seen through the logo's openings), **small-text** (the forms' small print from the original by bicubic 4x and an unsharp mask instead of the
 model's), **lineart** (the blueprint sprites' 1-texel lines traced into smooth strokes), **lettering** (the pages' and
 pads' printed words set again in Arial: the specs in `tools/text-redraws/menu/retype/`, and page 16's in
 `tools/text-redraws/menu/`), **rules** (`menu-rules.py`: the forms' ruled lines), **flat-art** (`flat-art.py`: the title

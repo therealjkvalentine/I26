@@ -82,11 +82,14 @@ def key_alpha(rgb):
 class Model:
     """4x through one model, as the 2026-11-03 base was made: the whole picture padded by PAD texels of reflection, then cut
     in TILE x TILE tiles each read with its PAD of context, float32, clamped, rounded half up."""
-    def __init__(self, path, device, tile, pad):
+    def __init__(self, path, device, tile, pad, precision="float32"):
         import torch, spandrel
         self.torch = torch; self.tile, self.pad = tile, pad
         self.device = device if device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
         self.m = spandrel.ModelLoader().load_from_file(path).to(self.device).eval()
+        # float16 only where the release ran it so (and the model and device allow it)
+        self.half = precision == "float16" and self.device == "cuda" and self.m.supports_half
+        if self.half: self.m = self.m.half()
         self.scale = self.m.scale
 
     def rgb(self, rgb):
@@ -98,7 +101,8 @@ class Model:
                 th, tw = min(T, h - y), min(T, w - x)
                 t = X[y:y + th + 2 * P, x:x + tw + 2 * P]
                 inp = torch.from_numpy(np.ascontiguousarray(t)).permute(2, 0, 1)[None].to(self.device)
-                with torch.no_grad(): Y = self.m(inp)[0].permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+                if self.half: inp = inp.half()
+                with torch.no_grad(): Y = self.m(inp)[0].float().permute(1, 2, 0).clamp(0, 1).cpu().numpy()
                 out[y * s:(y + th) * s, x * s:(x + tw) * s] = Y[P * s:(P + th) * s, P * s:(P + tw) * s]
         return (out * 255 + 0.5).astype(np.uint8)
 
@@ -167,6 +171,20 @@ def original(export, kind, src):
     elif kind == "load": rgb = read_rgb(os.path.join(export, "load", f"{src}.ppm")); a = np.full(rgb.shape[:2], 255, np.uint8)
     else: rgb = read_rgb(os.path.join(export, "bank", str(src[0]), f"{src[1]:02d}.ppm")); a = key_alpha(rgb)
     return np.dstack([rgb, a])
+
+def colour_mask(o, spec):
+    """A flat stamp found by its colours inside "box" (original texels): "dark" (every channel under it), "yellow"
+    ([r_min, g_min, b_max]), "blue" (blue over red), "white" (every channel over it); closed twice by 3x3, holes filled,
+    the largest region kept and grown by "grow" texels (its anti-aliased rim)."""
+    from scipy import ndimage
+    R, G, B = [o[..., i].astype(int) for i in range(3)]
+    y = spec["yellow"]
+    m = (o.max(-1) < spec["dark"]) | ((R > y[0]) & (G > y[1]) & (B < y[2])) | (B > R if spec.get("blue") else False) | (o.min(-1) > spec["white"])
+    x0, y0, x1, y1 = spec["box"]; box = np.zeros(m.shape, bool); box[y0:y1, x0:x1] = True; m &= box
+    m = ndimage.binary_fill_holes(ndimage.binary_closing(m, np.ones((3, 3), bool), iterations=2))
+    lab, n = ndimage.label(m)
+    if n: m = lab == np.bincount(lab[lab > 0]).argmax()
+    return ndimage.binary_dilation(m, iterations=spec.get("grow", 1))
 
 def matches(rel, globs):
     return any(fnmatch.fnmatch(rel, g) for g in globs)
@@ -239,6 +257,40 @@ class Build:
             if kind == "bank": save_webp(big, os.path.join(self.pack, rel), self.r["encodings"]["sprite"])
             else: save_webp(big[..., :3].copy(), os.path.join(self.pack, rel), self.enc(step))
         return len(jobs)
+
+    def step_inset(self, step):
+        """A second model's picture laid into the pack inside a mask of the original (feathered by a Gaussian of
+        "feather" pack pixels): the release's 2026-11-04 logo pass on page 14, of which the fire photo inside the logo's
+        openings is what the later steps keep. The model's output is kept in WORK/model like the base's."""
+        files = self.files(step)
+        if not files: return 0
+        m = step["model"]; info = self.r["models"][m["name"]]
+        key = {"model": info["sha256"], "tile": m["tile"], "pad": m["pad"], "precision": m["precision"]}
+        model = None; lock = None
+        try:
+            for rel in files:
+                o = self.orig(rel)
+                k = hashlib.sha256(json.dumps(key, sort_keys=True).encode() + o.tobytes()).hexdigest()[:16]
+                c = os.path.join(self.work, "model", rel[:-5] + f".{step['id']}.{k}.png")
+                if not os.path.exists(c):
+                    if model is None:
+                        lock = self.gpu_lock()
+                        model = Model(model_path(self.r, m["name"], self.a.models_dir), self.a.device, m["tile"], m["pad"], m["precision"])
+                        print(f"  model {m['name']} on {model.device}{' (float16)' if model.half else ''}", flush=True)
+                    big = model.up(o)
+                    os.makedirs(os.path.dirname(c), exist_ok=True)
+                    Image.fromarray(big, "RGBA").save(c + ".part.png"); os.replace(c + ".part.png", c)
+                big = read_rgb(c).astype(np.float32)
+                mask = colour_mask(o[..., :3], step["mask"])
+                H, W = big.shape[:2]
+                M4 = np.array(Image.fromarray((mask * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR)) >= 128
+                mf = ut().gauss(M4[..., None].astype(np.float32), step.get("feather", 2.0))[..., 0][..., None]
+                dst = os.path.join(self.pack, rel)
+                cur = read_rgb(dst).astype(np.float32)
+                save_webp(np.clip(big * mf + cur * (1 - mf) + 0.5, 0, 255).astype(np.uint8), dst, self.enc(step))
+        finally:
+            if lock and os.path.exists(lock): os.remove(lock)
+        return len(files)
 
     def step_tool(self, step):
         """A page-level step done by the lettering engine (menu_lettering.py) on the files the step names."""
@@ -382,7 +434,9 @@ def psnr(a, b):
     if a.shape != b.shape: return None, None
     # transparent texels compared by their alpha only (their colour is not drawn)
     if a.shape[2] == 4:
-        hid = (a[..., 3] == 0) & (b[..., 3] == 0); a = a.copy(); b = b.copy(); a[hid, :3] = 0; b[hid, :3] = 0
+        if (a[..., 3] == 255).all() and (b[..., 3] == 255).all(): a, b = a[..., :3], b[..., :3]   # opaque: colour only
+        else:
+            hid = (a[..., 3] == 0) & (b[..., 3] == 0); a = a.copy(); b = b.copy(); a[hid, :3] = 0; b[hid, :3] = 0
     d = a - b; mse = (d * d).mean()
     return (float("inf") if mse == 0 else 10 * math.log10(255 * 255 / mse)), float(np.abs(d).max())
 
