@@ -1,0 +1,12 @@
+{
+ "textures": ["shellbg30"],
+ "note": "the printed (C), (V), (R) key marks replaced by the circled marks the game draws for them (r8-form-key relabel2.py, \"the same way\" as page 3; its coordinates were not saved and are measured off the released page)",
+ "encoding": "lossless-m4",
+ "ops": [
+  {"op": "key-marks", "erase": "dark", "threshold": 30, "marks": [
+   [470.5, 209.25, 487.5, 219.75, "C"],
+   [470.5, 226.75, 487.5, 237.25, "V"],
+   [396.5, 242.75, 413.5, 253.25, "R"]
+  ]}
+ ]
+}

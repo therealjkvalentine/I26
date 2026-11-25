@@ -1,0 +1,32 @@
+{
+ "textures": ["shellbg28"],
+ "note": "STANDINGS: the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [80, 64, 40], "runs": [
+   {"text": "STANDINGS", "rect": [252, 10, 385, 33]},
+   {"text": "DONE", "rect": [298, 455, 340, 471]},
+   {"text": "DRIVERS", "rect": [66, 44, 133, 61]},
+   {"text": "MODEL", "rect": [276, 44, 332, 61]},
+   {"text": "DEATHS", "rect": [429, 44, 490, 61]},
+   {"text": "KILLS", "rect": [497, 44, 542, 61]},
+   {"text": "SCORE", "rect": [560, 44, 615, 61]},
+   {"text": "1", "rect": [11, 70, 29, 85], "weight": "regular"},
+   {"text": "2", "rect": [11, 93, 29, 108], "weight": "regular"},
+   {"text": "3", "rect": [11, 117, 29, 132], "weight": "regular"},
+   {"text": "4", "rect": [11, 141, 29, 156], "weight": "regular"},
+   {"text": "5", "rect": [11, 165, 29, 180], "weight": "regular"},
+   {"text": "6", "rect": [11, 189, 29, 204], "weight": "regular"},
+   {"text": "7", "rect": [11, 213, 29, 228], "weight": "regular"},
+   {"text": "8", "rect": [11, 237, 29, 252], "weight": "regular"},
+   {"text": "9", "rect": [11, 261, 29, 276], "weight": "regular"},
+   {"text": "10", "rect": [11, 285, 29, 300], "weight": "regular"},
+   {"text": "11", "rect": [11, 309, 29, 324], "weight": "regular"},
+   {"text": "12", "rect": [11, 333, 29, 348], "weight": "regular"},
+   {"text": "13", "rect": [11, 357, 29, 372], "weight": "regular"},
+   {"text": "14", "rect": [11, 381, 29, 396], "weight": "regular"},
+   {"text": "15", "rect": [11, 405, 29, 420], "weight": "regular"},
+   {"text": "16", "rect": [11, 429, 29, 444], "weight": "regular"}
+  ]}
+ ]
+}

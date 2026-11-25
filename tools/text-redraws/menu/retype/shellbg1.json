@@ -1,0 +1,39 @@
+{
+ "textures": ["shellbg1"],
+ "note": "BUILD AND REPAIR FORM: the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [82, 66, 37], "runs": [
+   {"text": "VEHICLE:", "rect": [6, 10, 77, 27]},
+   {"text": "BUILD AND REPAIR FORM", "rect": [368, 11, 634, 35]},
+   {"text": "REPAIR ORDER", "rect": [489, 48, 595, 64]},
+   {"text": "PARTS", "rect": [11, 70, 26, 120], "rotate": 90},
+   {"text": "WEAPONS", "rect": [11, 177, 26, 252], "rotate": 90},
+   {"text": "SPCL.", "rect": [11, 278, 26, 320], "rotate": 90},
+   {"text": "DEFENSE", "rect": [11, 361, 26, 429], "rotate": 90},
+   {"text": "REPAIR TIME", "rect": [617, 114, 631, 204], "rotate": 90},
+   {"text": "SELECT REPAIRS", "rect": [488, 243, 598, 258]},
+   {"text": "(C) indicates part is in the car", "rect": [459, 274, 619, 290], "colour": [170, 62, 38]},
+   {"text": "(V) indicates part is in the van", "rect": [459, 292, 619, 308], "colour": [170, 62, 38]},
+   {"text": "(R) indicates part is in repair", "rect": [459, 310, 614, 326], "colour": [170, 62, 38]},
+   {"text": "FRONT", "rect": [28, 353, 73, 369], "weight": "regular"},
+   {"text": "RIGHT", "rect": [28, 370, 73, 386], "weight": "regular"},
+   {"text": "LEFT", "rect": [28, 387, 73, 403], "weight": "regular"},
+   {"text": "REAR", "rect": [28, 404, 73, 420], "weight": "regular"},
+   {"text": "armor", "rect": [73, 353, 106, 369], "weight": "regular"},
+   {"text": "armor", "rect": [73, 370, 106, 386], "weight": "regular"},
+   {"text": "armor", "rect": [73, 387, 106, 403], "weight": "regular"},
+   {"text": "armor", "rect": [73, 404, 106, 420], "weight": "regular"},
+   {"text": "chassis", "rect": [165, 353, 206, 369], "weight": "regular"},
+   {"text": "chassis", "rect": [165, 370, 206, 386], "weight": "regular"},
+   {"text": "chassis", "rect": [165, 387, 206, 403], "weight": "regular"},
+   {"text": "chassis", "rect": [165, 404, 206, 420], "weight": "regular"},
+   {"text": "LBS. AVAILABLE:", "rect": [28, 422, 129, 437], "weight": "regular"},
+   {"text": "BALANCE", "rect": [188, 424, 245, 436], "fill": "flat"},
+   {"text": "total weight:", "rect": [454, 420, 517, 436]},
+   {"text": "FIELD SALVAGE", "rect": [183, 452, 299, 468]},
+   {"text": "DONE", "rect": [378, 452, 422, 468]},
+   {"text": "SAVE BOOKMARK", "rect": [495, 452, 626, 468]}
+  ]}
+ ]
+}

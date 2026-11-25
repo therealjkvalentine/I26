@@ -1,0 +1,14 @@
+{
+ "textures": ["shellbg30"],
+ "note": "the field salvage page's legend and hint lines re-set in Arial Bold, ink 155,79,0, as the normal salvage page prints them (r14-retouch reset.py, the \"match\" spec)",
+ "encoding": "lossless",
+ "ops": [
+  {"op": "reset", "threshold": 12, "runs": [
+   {"text": "indicates part is in the car", "rect": [487, 205, 640, 223], "fix": ["bold", 10.84, 0.0125], "left": 488, "colour": [155, 79, 0]},
+   {"text": "indicates part is in the van", "rect": [487, 223, 640, 242], "left": 488, "fix": ["bold", 10.84, 0.0125], "colour": [155, 79, 0]},
+   {"text": "indicates part is being repaired in the van", "rect": [414, 241, 640, 258], "fix": ["bold", 10.84, 0.0125], "left": 415, "colour": [155, 79, 0]},
+   {"text": "Click to move parts to/from inventory.", "rect": [176, 240, 395, 255], "fix": ["bold", 10.84, 0.0125], "left": 178.5, "colour": [155, 79, 0]},
+   {"text": "Click to move parts to/from salvage.", "rect": [27, 459, 232, 476], "fix": ["bold", 10.84, 0.0125], "left": 30, "colour": [155, 79, 0]}
+  ]}
+ ]
+}

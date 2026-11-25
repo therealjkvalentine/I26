@@ -94,6 +94,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import dds_mips
+from menu_lettering import PAGE_OPS
 SPECS = os.path.join(HERE, "text-redraws")
 FONTS = os.path.join(SPECS, "fonts")
 SS = 4          # supersampling of the lettering (each pack texel is SS x SS samples)
@@ -488,9 +489,11 @@ def from_original(rgb, orig, op, s):
     rgb[...] = full * m + rgb * (1 - m)
     return m[..., 0] > 0
 
-def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None, touched=None):
+def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None, touched=None, ctx=None):
     """px: the pack's texture (H x W x 4 uint8, upright); orig: the original (h x w x 4). Returns the redrawn RGBA. touched:
-    a boolean H x W array the fixes mark the texels they changed in (for "keep_blocks")."""
+    a boolean H x W array the fixes mark the texels they changed in (for "keep_blocks"). ctx: the HD menu art's build
+    (tools/menu-pack.py: the export and the pack folders), for the page ops of tools/menu_lettering.py (retype, reset,
+    key-marks, title), which work on a whole page's colour and keep its alpha."""
     H, W = px.shape[:2]; s = W / orig.shape[1]
     rgb = px[..., :3].astype(np.float32); alpha = px[..., 3].copy()
     grain = []          # (hole, [dx, dy]) of the run's erasures that take a surface's grain
@@ -616,8 +619,12 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None, touched=None):
             t = (bands(rgb, orig, op, s) if kind == "bands" else border_recolour(rgb, op, s) if kind == "border-recolour"
                  else from_original(rgb, orig, op, s))
             if touched is not None: touched |= t
+        elif kind in PAGE_OPS:
+            if pending is not None: rgb = inpaint(rgb, pending, relax_passes(s)); pending = None
+            page = np.clip(rgb + 0.5, 0, 255).astype(np.uint8)
+            rgb = PAGE_OPS[kind](page, np.ascontiguousarray(orig[..., :3]), op, ctx or {}).astype(np.float32)
         else:
-            raise ValueError(f"op {kind!r}: erase, text, smooth, marks, lines, bands, border-recolour or from-original")
+            raise ValueError(f"op {kind!r}: erase, text, smooth, marks, lines, bands, border-recolour, from-original, " + ", ".join(PAGE_OPS))
     # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
     # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
     if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))

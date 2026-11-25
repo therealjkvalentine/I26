@@ -21,6 +21,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] car-tex DEF OUT [ACT] [--maps]  a model's textures as PPMs (and the modern look's material maps)
 //   i76 [--install DIR] tex NAME OUT [ACT]        a texture, or each one a .tmt names, as PPMs
 //   i76 [--install DIR] export-textures OUT [--palette t01.act]   every texture as an upright PNG (the key transparent) and OUT/bottom-up.txt: the HD packs' input (tools/upscale-textures.py)
+//   i76 [--install DIR] menu-export OUT [--pad-palette ACT]   everything the HD menu art is made from: shell records, sprite banks, Esc pads, loading cards, record 69's glyphs (tools/menu-pack.py; original data: never commit)
 //   i76 geomap --bbox LAT1,LON1,LAT2,LON2 --name NAME --out DIR [--roads major|all] [--game i76|nitro|both]   a map from real terrain (AWS) and roads (OpenStreetMap)
 //   i76 gallery OUT_DIR [--install DIR] [--nitro-install DIR]   a flat map with every breakable or drive-on structure in a cell of its own (gallery.lvl, gallery.cbt)
 //   i76 installer info|list|extract SETUP.exe [DIR]   a GOG offline installer: what it holds, extract the game data
@@ -88,6 +89,7 @@ string MissionPath(string name)
 switch (argv[0])
 {
     case "isect": return I76.Cli.IsectSurvey.Run(install, argv);
+    case "menu-export": return I76.Cli.MenuExportCommand.Run(install, argv);
     case "verify":
     {
         var dirs = new[] { "miss16", "miss8" }.Select(d => install.FindDir(d)).OfType<string>();
@@ -236,7 +238,7 @@ switch (argv[0])
         var db = I76.Formats.Shell.ShellDatabase.Open((install.FindFile("DATABASE.MW2") ?? install.FindFile("database.tvf")) ?? throw new FileNotFoundException("DATABASE.MW2"), translate: !native);
         int id = Arg(1).StartsWith("0x") ? Convert.ToInt32(Arg(1)[2..], 16) : int.Parse(Arg(1));
         var outDir = Arg(2);
-        var pal = (native ? db.BackgroundNative(argv.Count > 3 ? int.Parse(Arg(3)) : 22) : db.Background(args.Length > 3 ? int.Parse(args[3]) : 26)).Palette;
+        var pal = (native ? db.BackgroundNative(argv.Count > 3 ? int.Parse(Arg(3)) : 22) : db.Background(argv.Count > 3 ? int.Parse(Arg(3)) : 26)).Palette;
         var bank = native ? db.BankNative(id) : db.Bank(id);
         Directory.CreateDirectory(outDir);
         for (int i = 0; i < bank.Count; i++)

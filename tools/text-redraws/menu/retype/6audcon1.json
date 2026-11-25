@@ -1,0 +1,32 @@
+{
+ "textures": ["6audcon1"],
+ "note": "the Esc pad audcon1's printed words set again in Arial (r5-menu-art retype.py's spec, the title's Verdana dropped as r7-fonts-arial did; run on the model's pad)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "grow": 11, "colour": [64, 64, 64], "runs": [
+   {"text": "SPANNER'S CAFE", "rect": [95, 4, 262, 25]},
+   {"text": "Audio Control", "rect": [72, 24, 292, 56]},
+   {"text": "Server", "rect": [30, 56, 64, 67], "weight": "regular", "threshold": 12, "colour": [165, 165, 165]},
+   {"text": "Table No.", "rect": [90, 56, 130, 67], "weight": "regular", "threshold": 12, "colour": [165, 165, 165]},
+   {"text": "No. Guests", "rect": [133, 56, 184, 67], "weight": "regular", "threshold": 12, "colour": [165, 165, 165]},
+   {"text": "Date", "rect": [190, 56, 215, 67], "weight": "regular", "threshold": 12, "colour": [165, 165, 165]},
+   {"text": "1", "rect": [9, 89, 17, 104], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "2", "rect": [8, 112, 20, 127], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "3", "rect": [8, 135, 20, 151], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "4", "rect": [8, 158, 20, 173], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "5", "rect": [8, 181, 20, 197], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "6", "rect": [8, 204, 20, 220], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "7", "rect": [8, 227, 20, 242], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "8", "rect": [8, 250, 19, 266], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "9", "rect": [8, 273, 19, 289], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "10", "rect": [1, 296, 20, 312], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "11", "rect": [2, 319, 17, 334], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "12", "rect": [1, 342, 20, 357], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "13", "rect": [1, 365, 20, 381], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "14", "rect": [1, 388, 20, 403], "weight": "regular", "threshold": 12, "colour": [170, 170, 170]},
+   {"text": "Coffee", "rect": [34, 409, 70, 423], "weight": "regular", "threshold": 12, "colour": [175, 175, 175]},
+   {"text": "Tea", "rect": [84, 410, 105, 423], "weight": "regular", "threshold": 12, "colour": [175, 175, 175]},
+   {"text": "Milk", "rect": [120, 410, 143, 422], "weight": "regular", "threshold": 12, "colour": [175, 175, 175]}
+  ]}
+ ]
+}
