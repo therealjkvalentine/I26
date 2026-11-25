@@ -69,7 +69,7 @@ It prints each command before it runs it (`--dry-run` prints them and stops), so
 
 1. Export the install's textures as PNGs into `i26-hd-work/export` (the game starts in a small window, writes 6,563 PNGs
    and `bottom-up.txt`, and quits; it prints nothing):
-   `i26 --windowed --resolution 640x480 -- --install DIR --export-textures i26-hd-work/export`
+   `i26 --windowed --resolution 640x480 --audio-driver Dummy -- --install DIR --export-textures i26-hd-work/export`
 2. Upscale them: `python tools/upscale-textures.py i26-hd-work/export`. The first run downloads the model
    **4xTextures_GTAV_rgt-s_dither** by Philip Hofmann (CC-BY-4.0, 136 MB, from
    `https://github.com/Phhofm/models/releases/download/4xTextures_GTAV_rgt-s_dither/4xTextures_GTAV_rgt-s_dither.pth`)

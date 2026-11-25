@@ -228,7 +228,7 @@ class Build:
         os.makedirs(self.export, exist_ok=True)
         if self.a.game:
             env = dict(os.environ, I76_QUIET_WINDOW="1")
-            self.run_cmd([self.a.game, "--windowed", "--resolution", "640x480", "--", "--install", self.a.install, "--export-textures", self.export], env=env)
+            self.run_cmd([self.a.game, "--windowed", "--resolution", "640x480", "--audio-driver", "Dummy", "--", "--install", self.a.install, "--export-textures", self.export], env=env)
         else:
             self.run_cmd(self.i76(["export-textures", self.export]))
         if not self.a.dry_run and not os.path.exists(os.path.join(self.export, "bottom-up.txt")): sys.exit(f"the export wrote nothing into {self.export}")
