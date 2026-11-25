@@ -357,5 +357,76 @@ class PaintCut(unittest.TestCase):
         self.assertTrue((out[57:63, 18:30, :3] == (240, 160, 0)).all(), "inside the outline the original's lamp colour")
         self.assertTrue((out[100:, 100:, :3] == 24).all(), "the rest is kept")
 
+class Masters(unittest.TestCase):
+    """--masters-out without --families: the run's model, then --then's, kept as an upright RGBA PNG, not colour matched."""
+    class Two(Runner):
+        def __init__(self): super().__init__(k=4, then=True); self.truncated = []
+        def then(self, big, truncate=False): self.truncated.append(truncate); return super().then(big)
+    def test_a_master_is_the_two_models_output_at_8x(self):
+        import tempfile
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            src, out = os.path.join(d, "src"), os.path.join(d, "m"); os.makedirs(src); os.makedirs(out)
+            im = picture(12, 8, 5); im[:2, :3, 3] = 0
+            Image.fromarray(im, "RGBA").save(os.path.join(src, "aa_1test.png"))
+            Image.fromarray(picture(40, 8, 6), "RGBA").save(os.path.join(src, "bb_1wide.png"))
+            ut.OPTS["masters_out"] = out
+            try:
+                r = self.Two()
+                self.assertEqual(ut.master(("aa_1test.png", src, None, None, 32), r), ("aa_1test.png", True))
+                self.assertEqual(ut.master(("bb_1wide.png", src, None, None, 32), r), ("bb_1wide.png", False), "over --max-size: none")
+                self.assertEqual(ut.master(("aa_1test.png", src, None, None, 32), r), ("aa_1test.png", False), "kept: not again")
+            finally: ut.OPTS["masters_out"] = None
+            m = np.array(Image.open(os.path.join(out, "aa_1test.png")))
+            self.assertEqual(m.shape, (64, 96, 4))
+            self.assertTrue(np.array_equal(m, np.repeat(np.repeat(im, 8, 0), 8, 1)), "the models' colours as they come, the alpha nearest")
+            self.assertEqual(r.truncated, [True], "the bled colour cut down before the second model, as the release's masters")
+            self.assertEqual(sorted(os.listdir(out)), ["aa_1test.png"])
+
+class MaskRules(unittest.TestCase):
+    """--mask-rules: which masks are kept, the largest piece, lamps by colour."""
+    def door(self):
+        orig = np.zeros((32, 64, 4), np.uint8); orig[..., :3] = 24; orig[..., 3] = 255
+        orig[8:28, 20:60, :3] = 200; orig[2:6, 30:40, :3] = 200        # a white panel and a small white piece apart
+        orig[14:17, 4:8, :3] = (200, 30, 30); orig[17:20, 4:8, 3] = 0    # a red dome lamp, its lower half keyed
+        return orig
+    def test_the_rules_keep_the_largest_piece_and_add_the_lamp(self):
+        import tempfile
+        from PIL import Image
+        rules = [{"only": "aa11*", "two_tone": "largest"}, {"only": "aa11ftl1", "lamps": {"red_over": 120, "green_under": 70,
+                 "blue_under": 70, "min_texels": 7, "dark_under": 40, "rows_down": 6}}]
+        self.assertEqual(ut.mask_wants("aa11ftl1", rules)[0], "largest")
+        self.assertEqual(ut.mask_wants("bb11ftl1", rules), (False, False, []))
+        with tempfile.TemporaryDirectory() as d:
+            src, out = os.path.join(d, "src"), os.path.join(d, "m"); os.makedirs(src)
+            for n in ("aa11ftl1", "bb11ftl1"): Image.fromarray(self.door(), "RGBA").save(os.path.join(src, n + ".png"))
+            ut.paint_masks_out(src, out, ["*"], {"aa11ftl1"}, 40, rules)
+            self.assertEqual(sorted(os.listdir(out)), ["aa11ftl1.detail.pgm", "aa11ftl1.pgm"], "no rule for bb11: no masks")
+            two = np.array(Image.open(os.path.join(out, "aa11ftl1.pgm")))[::-1] > 0      # stored bottom up
+            lamp = np.array(Image.open(os.path.join(out, "aa11ftl1.detail.pgm")))[::-1] > 0
+        self.assertTrue(two[10:26, 22:58].all() and not two[2:6, 30:40].any(), "the panel, not the piece apart")
+        self.assertTrue(lamp[14:20, 4:8].all() and not lamp[25:, :].any(), "the lamp and its keyed lower half")
+
+class ModelPins(unittest.TestCase):
+    def test_a_model_of_a_pinned_name_with_another_hash_is_refused(self):
+        import tempfile, json, hashlib
+        with tempfile.TemporaryDirectory() as d:
+            good, bad, other = (os.path.join(d, n) for n in ("a.pth", "b", "c.pth"))
+            for p, b in ((good, b"weights"), (bad, b"other weights"), (other, b"x")):
+                with open(p, "wb") as f: f.write(b)
+            os.makedirs(os.path.join(d, "bad")); os.replace(bad, os.path.join(d, "bad", "a.pth")); bad = os.path.join(d, "bad", "a.pth")
+            pins = os.path.join(d, "models.json")
+            with open(pins, "w") as f: json.dump({"models": {"a.pth": {"sha256": hashlib.sha256(b"weights").hexdigest(), "url": "u"}}}, f)
+            old, ut.PINS = ut.PINS, pins
+            try:
+                ut.check_model(good); ut.check_model(other)                    # pinned and right; not pinned
+                with self.assertRaises(SystemExit): ut.check_model(bad)
+            finally: ut.PINS = old; ut._checked.clear()
+    def test_the_repositorys_pins_name_the_six_models(self):
+        import json
+        with open(ut.PINS) as f: m = json.load(f)["models"]
+        self.assertEqual(set(ut.MODELS), set(m), "every model the tool credits is pinned")
+        self.assertTrue(all(len(v["sha256"]) == 64 and v["size"] > 0 for v in m.values()))
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,3 @@
+{"kind": "fix", "textures": ["ca_1lt_6"], "keep_blocks": true,
+ "note": "the factory forecourt's asphalt: the green and blue border the upscale kept from a colour slip in the original texture recoloured from the asphalt's own grain beside it (no model); the blocks off the border kept as they were",
+ "ops": [{"op": "border-recolour", "band": 3, "percentile": 99.5, "over": 3, "min": 12}]}

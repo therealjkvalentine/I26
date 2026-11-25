@@ -113,3 +113,21 @@ class ChainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+@unittest.skipIf(etcpak is None, "etcpak not installed")
+class KeepBlocks(unittest.TestCase):
+    def test_only_the_blocks_holding_a_changed_texel_are_encoded_again(self):
+        px = banded()
+        with tempfile.TemporaryDirectory() as d:
+            base, out = os.path.join(d, "a.dds"), os.path.join(d, "b.dds")
+            dds_mips.write_dds(base, px, etcpak)
+            new = px.copy(); new[0:2, 0:6, :3] = (20, 200, 20)
+            changed = np.zeros(px.shape[:2], bool); changed[0:2, 0:6] = True
+            dds_mips.write_dds_keeping(out, raw(base), new, changed, etcpak)
+            a, b = raw(base), raw(out); hd = dds_mips.read_header(a); o = hd["offset"]; bw = 128 // 4
+            for i in range(bw * (64 // 4)):
+                same = a[o + 16 * i:o + 16 * i + 16] == b[o + 16 * i:o + 16 * i + 16]
+                self.assertEqual(same, i not in (0, 1), f"block {i}")
+            levels, _ = dds_mips.read_levels(out)
+            self.assertEqual(len(levels), 8)
+            self.assertTrue(np.array_equal(levels[1], dds_mips.mip_chain(levels[0])[1]) or dds_mips.check(out)[0] is False)

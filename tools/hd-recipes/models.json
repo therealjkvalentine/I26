@@ -1,0 +1,49 @@
+{
+  "note": "Every model the HD packs use: the file the tools load, where it comes from, its size and SHA-256 (tools/upscale-textures.py and tools/hd-pack.py refuse a file whose hash differs), its author and licence. Commercial false: a pack made with it is for your own use, not for sale. A file with \"zip\" is taken out of that archive, which has its own size and hash.",
+  "models": {
+    "4xTextures_GTAV_rgt-s_dither.pth": {
+      "model": "4xTextures_GTAV_rgt-s_dither", "by": "Philip Hofmann (Phhofm)", "license": "CC-BY-4.0", "commercial": true,
+      "url": "https://github.com/Phhofm/models/releases/download/4xTextures_GTAV_rgt-s_dither/4xTextures_GTAV_rgt-s_dither.pth",
+      "page": "https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither",
+      "size": 135994918, "sha256": "49e4b4aaac843839219d509242298c9e9b1a5d5294e9bad1154f05aa732a6a09"
+    },
+    "2xHDCube_Compact.pth": {
+      "model": "2xHDCube_Compact", "by": "Venomalia", "license": "CC-BY-4.0", "commercial": true,
+      "url": "https://github.com/Venomalia/HDcube/releases/download/Compact/2xHDCube_Compact.pth",
+      "page": "https://github.com/Venomalia/HDcube/releases/tag/Compact",
+      "size": 4837293, "sha256": "67f296d868de757b4f3daca3e35f16b61ab1ae88703776727dab212004203e57"
+    },
+    "4xHDcube3_500k.pth": {
+      "model": "4xHDcube3_500k", "by": "Venomalia", "license": "CC-BY-NC-SA-4.0 (non-commercial)", "commercial": false,
+      "url": "https://github.com/Venomalia/HDcube/releases/download/3.0/4xHDcube3_500k.pth",
+      "page": "https://github.com/Venomalia/HDcube/releases/tag/3.0",
+      "size": 67020101, "sha256": "fdffd8999df0f99d581888f78acb29e1c32f72f791691a29fcaa421319acc131"
+    },
+    "4x-UltraSharpV2.safetensors": {
+      "model": "4x-UltraSharpV2", "by": "Kim2091", "license": "CC-BY-NC-SA-4.0 (non-commercial)", "commercial": false,
+      "url": "https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2.safetensors",
+      "page": "https://huggingface.co/Kim2091/UltraSharpV2",
+      "size": 139792588, "sha256": "2b5db674aa8f3864a696dccd1d07d7cc0500fbf220f35044cd30eee9a7f971a7"
+    },
+    "4xHDCube4Compact.pth": {
+      "model": "4xHDcube4Compact", "by": "Venomalia", "license": "HDcube licence (the author claims no rights in outputs)", "commercial": true,
+      "url": "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip",
+      "page": "https://github.com/Venomalia/HDcube/releases/tag/4.0",
+      "zip": "4xHDcube4Compact.zip", "member": "Models/HDcube/4xHDCube4Compact.pth",
+      "size": 5003565, "sha256": "f841188a346581b0e851f6306b69d50da0f5ac668498bb46a32c7c1c03589e58"
+    },
+    "4xHDcube-Alpha.pth": {
+      "model": "4xHDcube-Alpha", "by": "Venomalia", "license": "HDcube licence (the author claims no rights in outputs)", "commercial": true,
+      "url": "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip",
+      "page": "https://github.com/Venomalia/HDcube/releases/tag/4.0",
+      "zip": "4xHDcube4Compact.zip", "member": "Models/HDcube/4xHDcube-Alpha.pth",
+      "size": 2500870, "sha256": "1781430c1613a037aed1f4eb7493118bff030e0fd5a2bbff641d9bf23f990d88"
+    }
+  },
+  "archives": {
+    "4xHDcube4Compact.zip": {
+      "url": "https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip",
+      "size": 6991234, "sha256": "7893007bd7b92ec3185223369ca0d340c4bfde56c958047abfd25d21d04681ed"
+    }
+  }
+}

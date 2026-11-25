@@ -1,0 +1,7 @@
+{"kind": "fix", "textures": ["hb_1bdf1"], "rows": "stored",
+ "note": "the barn's door cross braces (a plain X on each upper panel, one arm on the hatch) drawn again as straight anti-aliased bands fitted to the original (coordinates in the stored row order); the fit moves the arms to about [44.467, 3.786, 62.15, 40.704, 2.531], [61.891, 3.153, 44.684, 39.189, 2.593]; [66.707, 3.603, 84.274, 39.801, 2.458], [83.912, 3.282, 66.864, 39.842, 2.47]; [57.706, 96.764, 70.961, 79.345, 2.366], but those rounded values do not give the release's bytes: the fit is run",
+ "ops": [
+  {"op": "bands", "sigma": 0, "inpaint": "telea", "fit": true, "panels": [
+   {"rect": [45, 3, 61, 40], "brace": "light", "arms": [[45.5, 3.5, 60.5, 39.5, 2.2], [60.5, 3.5, 45.5, 39.5, 2.2]]},
+   {"rect": [67, 3, 84, 40], "brace": "light", "arms": [[67.5, 3.5, 83.5, 39.5, 2.2], [83.5, 3.5, 67.5, 39.5, 2.2]]},
+   {"rect": [58, 79, 69, 97], "brace": "light", "arms": [[57.5, 97, 69.5, 78.5, 2.4]]}]}]}
