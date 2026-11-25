@@ -3,10 +3,10 @@ using I76.Game.Shell;
 namespace I76.Game.Boot;
 
 /// <summary>
-/// The Nitro Pack's campaign played from Interstate '76's main menu (TRIP, then NITRO; docs/deviations.md "Nitro Pack under
-/// TRIP"): the process is handed to the Nitro install at its character choice (<see cref="GameSwitch.ToNitro"/>), the campaign
+/// The Nitro Pack's campaign played from Interstate '76's main menu (MELEE > AUTO MELEE, then NITRO; docs/deviations.md "Nitro Pack
+/// under AUTO MELEE"): the process is handed to the Nitro install at its character choice (<see cref="GameSwitch.ToNitro"/>), the campaign
 /// plays as from the Nitro front end, and leaving it (BACK, or a mission's end) hands it back to the base install at its main menu
-/// with the TRIP row open (<see cref="GameSwitch.BackFromNitro"/>). One install is open at a time, as with "Switch Game".
+/// with MELEE > AUTO MELEE open (<see cref="GameSwitch.BackFromNitro"/>). One install is open at a time, as with "Switch Game".
 /// </summary>
 public static class NitroVisit
 {
@@ -17,14 +17,14 @@ public static class NitroVisit
     public static State? Current { get; internal set; }
     public static bool Active => Current is not null;
 
-    /// <summary>Set by the hand-back: the base main menu comes up with its TRIP row open (taken once).</summary>
-    public static bool ReturnToTrip { get; internal set; }
+    /// <summary>Set by the hand-back: the base main menu comes up with the row that holds NITRO open, MELEE > AUTO MELEE (taken once).</summary>
+    public static bool ReturnToRow { get; internal set; }
 
-    /// <summary>Takes <see cref="ReturnToTrip"/>: true once after a hand-back.</summary>
-    public static bool TakeReturnToTrip()
+    /// <summary>Takes <see cref="ReturnToRow"/>: true once after a hand-back.</summary>
+    public static bool TakeReturnToRow()
     {
-        bool r = ReturnToTrip;
-        ReturnToTrip = false;
+        bool r = ReturnToRow;
+        ReturnToRow = false;
         return r;
     }
 

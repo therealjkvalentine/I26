@@ -60,15 +60,24 @@ public class NitroVisitTests
         finally { Directory.Delete(root, true); }
     }
 
-    [Fact]
-    public void NitroSitsOnTheTripRowAfterLoadBookmark()
+    [Theory]
+    [InlineData(70, 50, 100)]    // about the sprites' widths: the row passes the frame's edge, all three move left
+    [InlineData(70, 50, 30)]     // narrow enough: SCENARIO stays at its own x
+    [InlineData(60, 90, 120)]
+    public void NitroSitsBetweenScenarioAndInstantMelee(int scenario, int nitroBox, int instant)
     {
-        // TRIP's row: TRAINING at x 74, NEW TRIP at 150, LOAD BOOKMARK at 216, all at y 340 (MainMenuScreen.Table); NITRO is the fourth
-        Assert.Equal(340, MainMenuScreen.TripRowY);
-        Assert.Equal(216, MainMenuScreen.LoadBookmarkX);
+        var (sx, nx, ix) = MainMenuScreen.AutoRowPlace(scenario, nitroBox, instant);
+        int gap = System.Math.Max(4, MainMenuScreen.InstantX - (MainMenuScreen.ScenarioX + scenario));
+        // in order, at the row's own gap between the lettering (NITRO's box has a 4 margin each side), none overlapping
+        Assert.Equal(sx + scenario + gap, nx + 4);
+        Assert.Equal(nx + nitroBox - 4 + gap, ix);
+        Assert.True(sx + scenario <= nx + 4 && nx + nitroBox - 4 <= ix);
+        // inside the frame, and SCENARIO never right of its original place
+        Assert.True(ix + instant <= MainMenuScreen.RowRightEdge, $"INSTANT MELEE ends at {ix + instant}");
+        Assert.True(sx <= MainMenuScreen.ScenarioX && sx > 0);
+        if (scenario + gap + nitroBox - 8 + gap + instant <= MainMenuScreen.RowRightEdge - MainMenuScreen.ScenarioX) Assert.Equal(MainMenuScreen.ScenarioX, sx);
         // the row stays above the MAP EDITOR entry and the banners
         var (_, ey, _, _) = MainMenuScreen.EditorEntry;
-        Assert.True(MainMenuScreen.TripRowY + 24 <= ey && MainMenuScreen.TripRowY + 24 <= MainMenuScreen.BannerTop);
-        Assert.NotEqual(MainMenuScreen.NitroEntry, MainMenuScreen.BackEntry);
+        Assert.True(MainMenuScreen.AutoRowY + 24 <= ey && MainMenuScreen.AutoRowY + 24 <= MainMenuScreen.BannerTop);
     }
 }

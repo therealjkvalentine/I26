@@ -2177,6 +2177,7 @@ public partial class Main : Node3D
 		StartErrors.Loaded();
 		FrameProfiler.MarkLoaded();
 		RenderScale.Refresh();   // Render Scale's video memory cap with the mission's textures in
+		GD.Print($"view at play: {RenderScale.Describe(GetViewport(), _msaaAhead)}");   // (the multisampling as it applies at the briefing's end)
 		MissionBuilder.Trace("first tick: render scale");
 		yield return null;
 		// the mission's frame rate for the main menu's estimate (Graphic Detail's last line)
