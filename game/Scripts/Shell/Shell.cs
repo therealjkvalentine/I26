@@ -259,6 +259,8 @@ public partial class Shell : CanvasLayer
     public int WheelRows => -Math.Sign(Wheel) * 3;
     private int _wheelPending;
     private bool _clickPending, _rightPending, _scriptHeld;
+    /// <summary>The switch guard's pointer (Boot/SwitchProbe.cs): the mouse to that shell point, and a click there if asked.</summary>
+    internal void ProbePointer(Vector2I at, bool click) { Mouse = at; _clickPending |= click; }
     /// <summary>The left button is down (for the arrows that repeat while held; a capture's "hold:" counts).</summary>
     public bool MouseHeld => _scriptHeld || Input.IsMouseButtonPressed(MouseButton.Left);
     /// <summary>A right click this tick (Control Configuration's capture).</summary>

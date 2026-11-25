@@ -49,6 +49,9 @@ public static class BootSplash
     /// <summary>A game switch: the overlay goes at once and the next game's picture is shown as at a first start.</summary>
     internal static void ResetForGameSwitch() { Dismiss(now: true); _shown = false; }
 
+    /// <summary>A hand-over between the two games' front ends (<see cref="NitroVisit"/>): not a start, so no boot picture.</summary>
+    internal static void Suppress() => _shown = true;
+
     /// <summary>
     /// Puts up a full-screen layer (4:3, on black) that starts as the engine's own splash and becomes the
     /// install's picture (its line in Impact) in a frame or two; Dismiss fades it out. Nothing when the

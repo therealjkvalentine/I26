@@ -20,6 +20,9 @@ namespace I76.Game.Boot;
 /// Kept: HitchWatch, ExitWatchdog, MusicProbe, fonts and the HD pack (HdAssets, ShellText), shaders and VFX textures, the ground
 /// pack, the terrain bake cache (keyed by content), the pads, ForceFeedback (a node of the scene), shell.cfg / input.map
 /// (shared by both games, as before).
+///
+/// The base menu's TRIP > NITRO (<see cref="NitroVisit"/>) hands over with the same reset, into the Nitro install directly
+/// (<see cref="ToNitro"/>), and back (<see cref="BackFromNitro"/>); the start-up's movies and boot picture are not shown again.
 /// </summary>
 public static class GameSwitch
 {
@@ -41,7 +44,43 @@ public static class GameSwitch
         LaunchOptions.Extracted = null;
         LaunchOptions.Switched = true;
         GameChooser.SwitchAvailable = true;
+        NitroVisit.Current = null;
+        NitroVisit.ReturnToTrip = false;
         Count++;
+    }
+
+    /// <summary>
+    /// The base menu's TRIP > NITRO (<see cref="NitroVisit"/>): the same reset as a switch, then this window straight into the
+    /// Nitro install at its character choice: no chooser, no intro movies, no boot picture, and "Switch Game" offered only if it was.
+    /// </summary>
+    public static void ToNitro(SceneTree tree, string home, string nitro)
+    {
+        GD.Print($"nitro visit: to the Nitro Pack's campaign (same process)");
+        Hand(tree, nitro, new NitroVisit.State(home, nitro), backToTrip: false);
+    }
+
+    /// <summary>Leaving the visit (BACK, or a mission's end): this window back into the base install, its main menu with the TRIP row open.</summary>
+    public static void BackFromNitro(SceneTree tree)
+    {
+        if (NitroVisit.Current is not { } v) return;
+        GD.Print("nitro visit: back to Interstate '76 (same process)");
+        Hand(tree, v.Home, null, backToTrip: true);
+    }
+
+    private static void Hand(SceneTree tree, string dir, NitroVisit.State? visit, bool backToTrip)
+    {
+        bool offered = GameChooser.SwitchAvailable;
+        ResetStatics();
+        GameChooser.SwitchAvailable = offered;
+        NitroVisit.Current = visit;
+        NitroVisit.ReturnToTrip = backToTrip;
+        // one game's front end handing over to the other's: not a start
+        Main.SkipStartup();
+        BootSplash.Suppress();
+        LaunchOptions.Extracted = dir;
+        if (tree.Root.GetNodeOrNull(Shell.Shell.CarriedMusicName) is { } m) { tree.Root.RemoveChild(m); m.Free(); }
+        tree.Paused = false;
+        tree.ReloadCurrentScene();
     }
 
     /// <summary>Resets, stops the music and goes to the chooser in this window.</summary>

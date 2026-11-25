@@ -12,6 +12,12 @@ namespace I76.Game.Boot;
 /// (the addon overlay, the input tables' install, the music), and saving a capture of the chooser and the menus into DIR.
 /// Prints "switch-test: PASS" or "FAIL: ..." and quits with 0 or 1. Needs both games (I76_INSTALL none, scratch I76_SHOT_DATA
 /// with I26/i76 and I26/nitro symlinks).
+///
+/// Then the Nitro visit (Boot/NitroVisit.cs), or only it when the game starts on the base install without the chooser (I76_INSTALL
+/// the base game, I76_NITRO_INSTALL the Nitro Pack): base menu, TRIP (its new entry) -> NITRO -> the Nitro character choice ->
+/// TAURUS -> the scenario form -> ENTER AREA -> the mission, ended as won -> the base menu with TRIP open (the mission marked done in
+/// Nitro's progress) -> NITRO -> BACK -> the base menu; at each hand-over the install in use, the input
+/// tables' install, the settings' game, the addon overlay, the carried music and the visit's own state are checked.
 /// </summary>
 public partial class SwitchProbe : Node
 {
@@ -29,7 +35,9 @@ public partial class SwitchProbe : Node
     private string _dir = "";
     private int _step, _wait;
     private readonly List<string> _fails = [];
-    private string? _baseDir, _nitroDir;
+    private string? _baseDir, _nitroDir, _visitMission;
+    private int _switches;
+    private const int VisitStart = 20, VisitBaseOnly = 40;
 
     private void Check(bool ok, string what)
     {
@@ -55,6 +63,24 @@ public partial class SwitchProbe : Node
     private Main? M => GetTree().CurrentScene as Main;
     private I76.Game.Shell.Shell? Sh => M?.GetNodeOrNull<I76.Game.Shell.Shell>("Shell");
     private GameChooser? Ch => M?.GetNodeOrNull<GameChooser>("Chooser");
+    private MainMenuScreen? Menu => Sh?.Current as MainMenuScreen;
+
+    /// <summary>The middle of a main-menu port entry (Shell coordinates), if it is built.</summary>
+    private Vector2I? EntryAt(int id) => Menu?.PortBox(id) is { } b ? b.Position + b.Size / 2 : null;
+    private void Point(Vector2I at, bool click) => Sh?.ProbePointer(at, click);
+
+    /// <summary>Nothing of a hand-over left over: one game's install everywhere, no carried music, the tree running.</summary>
+    private void CheckHandOver(string? dir, bool nitro, string where)
+    {
+        Check(Sh is { } s && s.Install.IsNitro == nitro && Same(M!.InstallPath, dir), $"{where}: the shell runs on the {(nitro ? "Nitro" : "base")} install");
+        Check(Same(Controls.InstallDir, dir) && Same(GameKeys.InstallDir, dir), $"{where}: Controls and GameKeys read the same install");
+        Check(I76.Game.Shell.ShellSettings.Nitro == nitro, $"{where}: settings are the {(nitro ? "[nitro]" : "[shell]")} game's");
+        Check(!AssetVfs.Addon.ContainsKey("vehscn.vcf"), $"{where}: no trip car in the addon overlay");
+        Check(GetTree().Root.GetNodeOrNull(I76.Game.Shell.Shell.CarriedMusicName) is null || nitro == false, $"{where}: no carried music from the other game");
+        Check(!GetTree().Paused, $"{where}: tree not paused");
+        Check(GetTree().Root.GetNodeOrNull("BootSplash") is null, $"{where}: no boot picture");
+        Check(M!.GetNodeOrNull("Chooser") is null, $"{where}: no chooser");
+    }
 
     /// <summary>Waits n frames, then true.</summary>
     private bool Wait(int n) { if (++_wait < n) return false; _wait = 0; return true; }
@@ -67,6 +93,7 @@ public partial class SwitchProbe : Node
         {
             // 0: the chooser at start (--choose-game); pick the base game
             case 0:
+                if (Ch is null && Sh is { Install.IsNitro: false } && Menu is not null) { _baseDir = M!.InstallPath; _step = VisitStart; _wait = 0; return; }
                 if (Ch is not { } c0 || GameChooser.Loading || !Wait(10)) return;
                 _baseDir = c0.Games.First(g => g.Game == GogGame.I76).InstallDir;
                 _nitroDir = c0.Games.First(g => g.Game == GogGame.Nitro).InstallDir;
@@ -129,6 +156,84 @@ public partial class SwitchProbe : Node
                 if (Sh is not { } s7 || !Wait(60)) return;
                 Check(!s7.Install.IsNitro && Same(M!.InstallPath, _baseDir) && Same(Controls.InstallDir, _baseDir), "base menu again on the base install");
                 Shot("7_base_menu_again");
+                _step = VisitStart; _wait = 0; break;
+            // the Nitro visit: the base menu's TRIP row with its new entries
+            case VisitStart:
+                if (Menu is null || !Wait(240)) return;   // (the start's boot picture faded out)
+                Point(new Vector2I(200, 300), true);   // TRIP
+                Next(); break;
+            case VisitStart + 1:
+                if (!Wait(10)) return;
+                Check(Menu is { TripOpen: true }, "TRIP opens");
+                _nitroDir = NitroVisit.FindNitro(_baseDir!);
+                if (_nitroDir is null && Ch is null && GameSwitch.Count == 0)
+                {
+                    // the base game alone: TRIP as today, no NITRO
+                    Check(Menu!.PortShown.Count == 0 && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: TRIP as today, no NITRO");
+                    _step = VisitBaseOnly; _wait = 0; return;
+                }
+                Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "TRIP shows NITRO (a Nitro install found)");
+                if (EntryAt(MainMenuScreen.NitroEntry) is { } n21) Point(n21, false);   // lit, with its banner
+                Next(); break;
+            case VisitStart + 2:
+                if (!Wait(10)) return;
+                Shot("v1_base_trip_row");
+                _switches = GameSwitch.Count;
+                if (EntryAt(MainMenuScreen.NitroEntry) is { } n22) Point(n22, true);
+                Next(); break;
+            // the hand-over: Nitro's character choice
+            case VisitStart + 3:
+                if (Sh is not { Install.IsNitro: true } || Menu is null || !Wait(60)) return;
+                CheckHandOver(_nitroDir, true, "visit");
+                Check(NitroVisit.Current is { } v && Same(v.Home, _baseDir) && Same(v.Guest, _nitroDir), "the visit knows both installs");
+                Check(GameSwitch.Count == _switches + 1, "one hand-over");
+                Check(Menu!.TripOpen && Menu.PortShown.SequenceEqual([MainMenuScreen.BackEntry]), "the character choice: SCENARIOS open, BACK");
+                Shot("v2_nitro_characters");
+                Point(new Vector2I(80, 350), true);   // TAURUS
+                Next(); break;
+            case VisitStart + 4:
+                if (Sh?.Current is not ScenarioScreen || !Wait(30)) return;
+                Shot("v3_scenario_form");
+                Point(new Vector2I(300, 462), true);   // ENTER AREA
+                Next(); break;
+            case VisitStart + 5:
+                if (M is not { MissionRunning: true } m25 || !Wait(300)) return;
+                _visitMission = m25.MissionName;
+                Check(Same(m25.InstallPath, _nitroDir) && new GameInstall(_nitroDir!).FindMission(m25.MissionName ?? "") is not null, $"Nitro mission {m25.MissionName} built from the Nitro install");
+                Check(NitroVisit.Active, "the visit lasts through the mission");
+                Shot("v4_nitro_mission");
+                m25.EndForProbe(won: true);
+                Next(); break;
+            // the mission's end: back to the base menu, TRIP open, the mission marked done in Nitro's own progress
+            case VisitStart + 6:
+                if (Sh is not { Install.IsNitro: false } || Menu is null || !Wait(60)) return;
+                CheckHandOver(_baseDir, false, "after the mission");
+                Check(!NitroVisit.Active, "the visit is over");
+                Check(Menu!.TripOpen && Menu.PortShown.Contains(MainMenuScreen.NitroEntry), "the base menu with TRIP open");
+                var done = NitroProgress.Load(new GameInstall(_nitroDir!)).Data.Characters.SelectMany(c => c.Missions).FirstOrDefault(x => x.Stem.Equals(_visitMission, StringComparison.OrdinalIgnoreCase));
+                Check(done is { Done: true }, $"{_visitMission} marked done in user://saves/nitro/scenario.dat");
+                Shot("v5_base_after_mission");
+                if (EntryAt(MainMenuScreen.NitroEntry) is { } n26) Point(n26, true);
+                Next(); break;
+            case VisitStart + 7:
+                if (Sh is not { Install.IsNitro: true } || Menu?.PortBox(MainMenuScreen.BackEntry) is null || !Wait(30)) return;
+                Point(EntryAt(MainMenuScreen.BackEntry)!.Value, false);
+                Next(); break;
+            case VisitStart + 8:
+                if (!Wait(10)) return;
+                Shot("v6_nitro_back_lit");
+                Point(EntryAt(MainMenuScreen.BackEntry)!.Value, true);   // BACK
+                Next(); break;
+            case VisitStart + 9:
+                if (Sh is not { Install.IsNitro: false } || Menu is null || !Wait(60)) return;
+                CheckHandOver(_baseDir, false, "after BACK");
+                Check(!NitroVisit.Active && Menu!.TripOpen, "BACK: the base menu with TRIP open");
+                Shot("v7_base_after_back");
+                Finish();
+                _step = 200; break;
+            case VisitBaseOnly:
+                if (!Wait(10)) return;
+                Shot("v0_base_only_trip_row");
                 Finish();
                 _step = 200; break;
             case 100: Finish(); _step = 200; break;
