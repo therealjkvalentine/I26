@@ -223,6 +223,20 @@ public partial class Main
     /// <summary>A report's roster of an auto melee, for the session the reopened state is restored into (SpawnCarSteps).</summary>
     private static System.Collections.Generic.List<string>? _reportRoster;
 
+    /// <summary>A report's Trip+ rules (the play fork's), for the session the reopened state is restored into (SpawnCarSteps).</summary>
+    private static I76.Sim.Trip.TripPlusRules? _reportTripPlus;
+
+    /// <summary>
+    /// The Trip+ rules a mission is built by (the play fork's; docs/deviations.md "Trip+"): a reopened report's, else a trip launch's
+    /// (single player: never a melee, a network or a co-op game). Null, the original's.
+    /// </summary>
+    private static I76.Sim.Trip.TripPlusRules? TripPlusRules(bool melee)
+    {
+        if (melee) return null;
+        if (_reportTripPlus is { } reported) return reported;
+        return _launch is { Kind: I76.Game.Shell.GameKind.Trip, TripPlus: { IsOff: false } rules } ? rules : null;
+    }
+
     /// <summary>
     /// --bug-report-open ZIP: the report's mission and car as its snapshot names them, its state restored once the mission is
     /// built (a checkpoint's retry's path, at the snapshot's tick rate). A network or co-op state cannot be rebuilt here: the
@@ -252,6 +266,7 @@ public partial class Main
         _opt.Ai = b.Script ? "script" : "off";
         _opt.Melee = b.Melee is not null;
         _reportRoster = b.Melee?.ToList();
+        _reportTripPlus = b.TripPlus;
         if (b.Rules?.Network == true || b.Coop is not null)
         {
             GD.PrintErr($"--bug-report-open: the state is a {(b.Coop is not null ? "co-op" : "network")} game's, which cannot be rebuilt here; {b.Mission} starts without it");

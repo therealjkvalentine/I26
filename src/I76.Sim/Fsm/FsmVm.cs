@@ -112,6 +112,9 @@ public sealed partial class FsmVm
     public IReadOnlyDictionary<int, CoopGates.Site> GateSites { get; private set; } = new Dictionary<int, CoopGates.Site>();
     /// <summary>The actor slots whose death fails the mission (<see cref="CoopEscorts"/>), the human group's left out: co-op's escorts.</summary>
     public IReadOnlyList<int> EscortSlots { get; private set; } = new List<int>();   // its own empty list: the state dump tells a shared empty array by its sharing
+
+    /// <summary>The actors whose death fails the mission: <see cref="EscortSlots"/> in a co-op game, else found from the program now (Trip+'s Posse, the play fork's).</summary>
+    public IReadOnlyList<int> FailOnDeathSlots() => _coop ? EscortSlots : CoopEscorts.Analyze(_p).ToList();
     /// <summary>How long a gate the script shuts behind the player waits for the humans still behind it before they are brought through (mission seconds).</summary>
     public const float GateHoldSeconds = 30;
     /// <summary>How far past a gate's line a human must be to count as through it (metres).</summary>

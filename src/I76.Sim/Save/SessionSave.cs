@@ -196,7 +196,8 @@ public sealed partial class SimSession
             if (!byId.TryGetValue(id, out var v))
             {
                 // a melee's cars, and a co-op game's copies of its enemy cars (Co-op Scaling), are made as the mission runs
-                var make = Melee is { } mg ? (Func<string, Vehicle>)(d => mg.Build(d, player)) : Script?.Host.Coop?.BuildEnemy;
+                // (and in single player Trip+'s Posse's, the play fork's)
+                var make = Melee is { } mg ? (Func<string, Vehicle>)(d => mg.Build(d, player)) : Script?.Host.Coop?.BuildEnemy ?? Script?.Host.Solo?.BuildEnemy;
                 if (make is null || def is null) throw r.Mismatch($"car {id:x} ({def}) is not in the rebuilt mission, which makes no cars as it runs");
                 v = make(def);
                 v.NetId = id;

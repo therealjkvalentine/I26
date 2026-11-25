@@ -27,10 +27,13 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     public TripStart? TripStart { get; init; }
     /// <summary>A checkpoint bookmark's checkpoint (its file's bytes): the mission resumes there (docs/savestate.md). The game reads it, and drops it if it cannot be used.</summary>
     public byte[]? Resume { get; init; }
+    /// <summary>Trip+'s rules for a trip launch (the play fork's; docs/deviations.md "Trip+"); null, the original's trip.</summary>
+    public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
 }
 
 /// <summary>The trip at a mission's launch: the mission number (trip.cfg's) and the car with its parts (the bookmark .cmp body, <see cref="I76.Sim.Trip.TripInventory.Save"/>).</summary>
-public sealed record TripStart(int Mission, string Car);
+/// <param name="Lap">The Trip+ lap (the play fork's): 1 the original's trip.</param>
+public sealed record TripStart(int Mission, string Car, int Lap = 1);
 
 /// <summary>
 /// A network melee from the MULTI MELEE forms (melee modes 3/4 host, 7/8
@@ -536,7 +539,7 @@ public partial class Shell : CanvasLayer
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "router")
         {
             // with the finished mission's .fsi salvage, as a win with nothing killed hands back
-            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0);
+            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0, Trip.Plus.Active?.SalvageOffset ?? 0);
             var items = pool.Finish(Vfs.TryRead, Rand);
             Trip.Won();
             if (Trip.Inventory(this) is { } inv) { inv.MissionWon(null, items, Parts, Rand); Trip.Save(); }
@@ -572,6 +575,7 @@ public partial class Shell : CanvasLayer
             switch (LastResult)
             {
                 case MissionResult.Won when Trip.Mission >= 17:
+                    Trip.Finish();   // the trip is finished (the play fork's record, for Trip+)
                     return new CreditsScreen { Then = () => new MainMenuScreen() };
                 case MissionResult.Won:
                     // T04 is a dream: with salvage management on, the original front end's main loop reloads trip4.spc (the car as it left the garage
@@ -713,7 +717,8 @@ public partial class Shell : CanvasLayer
         I76.Formats.Vfs.AssetVfs.Addon["vehscn.vcf"] = inv.ToCar().ToVcf();
         Launch(new ShellLaunch(Trip.Stem, GameKind.Trip, "vehscn.vcf")
         {
-            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save()), Resume = resume,
+            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save(), Trip.Plus.Lap), Resume = resume,
+            TripPlus = Trip.Plus.Active,
         });
     }
 
@@ -1188,6 +1193,8 @@ public sealed class TripState
     private const string Path = "user://saves/trip.cfg", InventoryPath = "user://saves/trip_car.json";
     public int Mission { get; set; } = 1;
     public int Highest { get; set; } = 1;
+    /// <summary>trip.cfg's Trip+ part (the play fork's): finished, the lap and its rules.</summary>
+    public TripPlusSave Plus { get; set; } = new();
     private I76.Sim.Trip.TripInventory? _inventory;
     private bool _inventoryRead;
     /// <summary>The trip came from a bookmark this session: no tutorial voices or questions.</summary>
@@ -1226,6 +1233,7 @@ public sealed class TripState
         if (c.Load(Path) != Error.Ok) return t;
         t.Mission = (int)c.GetValue("trip", "mission", 1);
         t.Highest = (int)c.GetValue("trip", "highest", 1);
+        t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
         return t;
     }
 
@@ -1235,6 +1243,7 @@ public sealed class TripState
         var c = new ConfigFile();
         c.SetValue("trip", "mission", Mission);
         c.SetValue("trip", "highest", Highest);
+        foreach (var (s, k, v) in Plus.Entries()) c.SetValue(s, k, v switch { bool b => b, int i => i, _ => v.ToString() ?? "" });
         c.Save(Path);
         if (_inventory is null) return;
         using var f = Godot.FileAccess.Open(InventoryPath, Godot.FileAccess.ModeFlags.Write);
@@ -1246,6 +1255,9 @@ public sealed class TripState
 
     /// <summary>A won trip mission: the number advances at the next launch (the original front end's 0xc001 exit).</summary>
     public void Won() { Mission = Math.Min(17, Mission + 1); Highest = Math.Max(Highest, Mission); Save(); }
+
+    /// <summary>A T17 win (before the credits): the trip is finished, and this lap with it (the play fork's record, for Trip+).</summary>
+    public void Finish() { Plus = Plus.Won17(); Save(); }
 
     /// <summary>Quit out of a mission (state 2): the trip stays where it was.</summary>
     public void Quit() => Save();
