@@ -99,6 +99,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_CAR_CONDITION` | capture | `N`: every car shows damage level N. |
 | `I76_CAR_DAMAGE` | capture | `L` (0..3): every car's zones shown at damage level L, shape and textures, as a hit leaves them (DamageView). |
 | `I76_SMOKE` | capture | `h` (0..1) holds every living car's health at h; `0` leaves the damage smoke out. |
+| `I76_SMOKE_LOG` | debug | `1`: a log line each time a car's damage smoke changes colour (its health and the band); off by default, as a print in play costs its frame. |
 | `I76_SMOKE_LINGER` | tuning | `N`: the modern look's smoke lives N percent of its own life for the run (100 to 300), whatever `[port] smoke_linger` says (150); for a before \| after. |
 | `I76_SMOKE_STATS` | debug | `1`: every 2 s a "smoke stats" log line: the puffs the smoke layer drew a frame (mean, most) and their overdraw (each puff's quad on the screen, unclipped and before the depth test, over the screen's area; frames with no smoke are not counted), for the cost of `smoke_linger`. |
 | `I76_SMOKE_RATE` | capture | `k` scales the modern damage smoke's emission (3 for a thick plume to see through). |
