@@ -217,6 +217,12 @@ public partial class Main : Node3D
 		_checkpoint = null; _retry = null;
 	}
 
+	/// <summary>A hand-over between the two games' front ends (<see cref="NitroVisit"/>), after the reset: no start-up movies, as the menu was shown.</summary>
+	internal static void SkipStartup() => _menuShown = true;
+
+	/// <summary>The switch guard's end of a mission (Boot/SwitchProbe.cs), as the mission's own end or the escape menu's Abort.</summary>
+	internal void EndForProbe(bool won) => EndMission(won);
+
 	/// <summary>A scene has built a world before in this run (so there is a finished one to let go of).</summary>
 	private static bool _sceneBuilt;
 
@@ -381,6 +387,16 @@ public partial class Main : Node3D
 		else if (!_opt.MissionGiven && _opt.Install is not null)
 		{
 			var install = new GameInstall(_opt.Install);
+			// the Nitro Pack's campaign played from the base menu (NitroVisit): a mission's end hands the window back to the base game, a
+			// won campaign mission marked done first as the Nitro front end marks it
+			if (NitroVisit.Current is not null && install.IsNitro
+				&& NitroVisit.HandBackAfter(_lastResult, _lastLaunch is not null, _lastLoadError is not null))
+			{
+				if (_lastLaunch is { } vl && NitroVisit.MarksDone(_lastResult, vl.Kind)) I76.Game.Shell.NitroProgress.Load(install).MarkDone(vl.Mission);
+				_inMenu = true;
+				Callable.From(() => GameSwitch.BackFromNitro(GetTree())).CallDeferred();
+				return;
+			}
 			// The original's start-up plays introf01 then credf01 before the shell, at every start (--movie names one instead; Play Options'
 			// Skip Intro Movies leaves them out)
 			var startup = IntroMovies.Startup(_opt.Movie, _menuShown, _opt.SkipMovies, !_menuShown && I76.Game.Shell.ShellSettings.Load().SkipIntro);
@@ -415,7 +431,8 @@ public partial class Main : Node3D
 					else (_retry, _resumeNotice) = (null, null);
 					_launch = l; DebugCar = null; DevCar = null; NextMission = l.Mission; GetTree().ReloadCurrentScene();
 				},
-				OnEditor = () =>
+				// (none on a visit's Nitro menu: the base game's own menu has it)
+				OnEditor = NitroVisit.Active ? null : () =>
 				{
 					GetNodeOrNull("Shell")?.QueueFree();
 					var layer = new CanvasLayer { Name = "EditorPicker", Layer = 40 };

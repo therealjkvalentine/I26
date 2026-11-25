@@ -52,6 +52,26 @@ public sealed class MainMenuScreen : ShellScreen
         // MULTI MELEE's HOST / JOIN, and the connections under them: the port keeps IPX (the LAN) and INTERNET
         (10, 365, 368, 4, -1), (11, 415, 368, 8, -1), (0xe, 345, 395, 12, -1), (0xf, 396, 395, 16, -1),
     ];
+    // The port's own entries (docs/deviations.md "Nitro Pack under TRIP"): under TRIP, on a second line below its row, SCENARIOS (the
+    // base game's S01-S07, as MELEE's SCENARIO) and, with a Nitro Pack install beside the base one, NITRO PACK (its campaign, handed over
+    // in this window: Boot/NitroVisit.cs). On the Nitro side of such a visit, the main menu is the character choice: SCENARIOS' row
+    // open, no MELEE, and BACK where EXIT stands.
+    public const int ScenariosEntry = 100, NitroEntry = 101, BackEntry = 102;
+    /// <summary>The second line under the TRIP row (the MELEE side's sub-rows are at the same height, right of x 340).</summary>
+    public const int PortRowY = 368, PortRowX = 74, PortGap = 6;
+    private readonly Dictionary<int, PortButton> _p = [];
+    private readonly List<PortButton> _pShown = [];
+    private PortButton? _pHot;
+    private string? _nitroDir;
+    /// <summary>The Nitro side of a visit from the base menu (Boot/NitroVisit.cs).</summary>
+    private bool Visit => Nitro && I76.Game.Boot.NitroVisit.Active;
+    /// <summary>The TRIP row is open (the switch guard checks that the hand-back opens it).</summary>
+    public bool TripOpen => _w.TryGetValue(Nitro ? 2 : 13, out var t) && t.Selected;
+    /// <summary>The port's entries shown now, by id (for the switch guard).</summary>
+    public IReadOnlyList<int> PortShown => [.. _pShown.Select(b => b.Id)];
+    /// <summary>A port entry's box, if built (for the switch guard's clicks).</summary>
+    public Rect2I? PortBox(int id) => _p.TryGetValue(id, out var b) ? b.Box : null;
+
     /// <summary>The Impact labels: the base bank's by its sprite numbers, Nitro's by bank 56's (ImpactLabels.NitroMain).</summary>
     private ImpactLayer? Imp => Shell.Impact;
     /// <summary>The connection row's banners (the original's have none): what each of the port's transports is.</summary>
@@ -86,7 +106,9 @@ public sealed class MainMenuScreen : ShellScreen
             var b = banner >= 0 ? new SpriteWidget(-1, BannerX(banner), 460, _bank, banner) : null;
             _w[id] = new SpriteWidget(id, x, y, _bank, sprite, b) { Hot = hot };
         }
+        BuildPortEntries();
         Repaint();
+        if (!Nitro && I76.Game.Boot.NitroVisit.TakeReturnToTrip()) OpenTrip();
         // I76_LOAD_PROFILE: the shell's start-up, the engine's start to the main menu's first frame (docs/perf/loadtime.md)
         if (I76.Game.Boot.LoadProfiler.On)
             RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(() => GD.Print($"load-profile: main menu's first frame at {Time.GetTicksMsec()} ms from the engine's start")), (uint)GodotObject.ConnectFlags.OneShot);
@@ -94,6 +116,65 @@ public sealed class MainMenuScreen : ShellScreen
         Garage3D.GarageWarmup.Start(Shell, this);
         // what every mission start shares, made while the menu stands idle (after the garage's)
         MenuWarmup.Start(Shell, this);
+    }
+
+    /// <summary>
+    /// The port's entries: the trip row's grey and height (sprite 21's, LOAD BOOKMARK), the banner line's place and size (sprite 41's);
+    /// on a visit's Nitro menu, BACK in EXIT's box with EXIT's fit and grey, its banner on Nitro's banner line.
+    /// </summary>
+    private void BuildPortEntries()
+    {
+        if (_p.Count > 0) return;
+        var grey = Color.Color8(109, 109, 109);
+        if (!Nitro)
+        {
+            int h = _bank[21]?.Height ?? 22;
+            var bannerBox = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
+            var scen = RowLabel("SCENARIOS");
+            int x = PortRowX, w = PortButton.WidthFor(scen);
+            _p[ScenariosEntry] = new PortButton(ScenariosEntry, new Rect2I(x, PortRowY, w, h), scen, bannerBox, "THE SEVEN SCENARIOS, AS UNDER MELEE", grey);
+            x += w + PortGap;
+            _nitroDir = I76.Game.Boot.NitroVisit.FindNitro(Shell.Install.Root);
+            if (_nitroDir is not null)
+            {
+                var nitro = RowLabel("NITRO PACK");
+                _p[NitroEntry] = new PortButton(NitroEntry, new Rect2I(x, PortRowY, PortButton.WidthFor(nitro), h), nitro, bannerBox, "THE NITRO PACK'S CAMPAIGN, FROM ITS OWN INSTALL", grey);
+            }
+            return;
+        }
+        if (!Visit) return;
+        var exit = _bank[20];
+        var back = new ImpactLabels.Spec("BACK", 24f, 1f, 0f, 32.953f, 0f, Centre: true);
+        // as wide as the word needs (it is wider than EXIT), ending where EXIT's box ends
+        int ew = exit?.Width ?? 72, bw = Math.Max(ew, PortButton.WidthFor(back, 2));
+        var box = new Rect2I(Math.Min(566, 566 + ew - bw), 16, bw, exit?.Height ?? 40);
+        var nb = new Rect2I(123, BannerTop, _bank[43]?.Width ?? 400, _bank[43]?.Height ?? 18);
+        _p[BackEntry] = new PortButton(BackEntry, box, back, nb, "BACK TO INTERSTATE '76", Color.Color8(0x77, 0x73, 0x70));
+    }
+
+    /// <summary>A trip-row label: the size, baseline and word spacing of the row's sprites (NEW TRIP's fit), centred in its box.</summary>
+    private static ImpactLabels.Spec RowLabel(string text) => new(text, 15f, 0f, 0f, 17.122f, 0.125f, Centre: true);
+
+    private void ShowPort(int id)
+    {
+        if (!_p.TryGetValue(id, out var b)) return;
+        if (!_pShown.Contains(b)) _pShown.Add(b);
+        b.Draw(Frame, Imp, Shell.Db.Font(0x45));
+    }
+
+    private void HidePort()
+    {
+        foreach (var b in _pShown) { b.Lit = false; b.Selected = false; b.Erase(Frame, Imp); }
+        _pShown.Clear();
+        _pHot = null;
+    }
+
+    /// <summary>TRIP's row and the port's entries under it (also the hand-back's way in: the menu comes up with them open).</summary>
+    private void OpenTrip()
+    {
+        Hide([.. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]); Deselect(2);
+        Select(13); foreach (int r in TripRow) Show(r);
+        ShowPort(ScenariosEntry); ShowPort(NitroEntry);
     }
 
     /// <summary>The background and the four top buttons, every row closed.</summary>
@@ -107,6 +188,19 @@ public sealed class MainMenuScreen : ShellScreen
         Frame.LoadBackground(Shell.Db, 26);   // on Nitro its logo card, record 22
         Imp?.Clear();
         _shown.Clear();
+        _pShown.Clear(); _pHot = null;
+        foreach (var p in _p.Values) { p.Lit = false; p.Selected = false; }
+        if (Visit)
+        {
+            // the character choice: OPTIONS, SCENARIOS held open with its characters and TRAINING, and BACK
+            foreach (var w in _w.Values) { w.Lit = false; w.Selected = false; }
+            _hot = null;
+            Show(0);
+            _w[2].Selected = true; Show(2);
+            foreach (int id in TripRow) Show(id);
+            ShowPort(BackEntry);
+            return;
+        }
         foreach (var w in _w.Values) { w.Lit = false; w.Selected = false; }
         _hot = null;
         foreach (int id in keepTop) _w[id].Selected = true;
@@ -180,7 +274,8 @@ public sealed class MainMenuScreen : ShellScreen
     private bool _editorMaskTried;
 
     public override bool HoverShows => true;
-    public override IReadOnlyList<I76.Game.Shell.PadRegion> PadRegions => [.. _shown.Select(w => PadRegion.Of(w.X, w.Y, Math.Max(3, w.Width - 2), Math.Max(3, w.Height - 2)))];
+    public override IReadOnlyList<I76.Game.Shell.PadRegion> PadRegions =>
+        [.. _shown.Select(w => PadRegion.Of(w.X, w.Y, Math.Max(3, w.Width - 2), Math.Max(3, w.Height - 2))), .. _pShown.Select(b => PadRegion.Of(b.Box.Position.X, b.Box.Position.Y, b.Box.Size.X - 2, b.Box.Size.Y - 2))];
 
     public override void Tick()
     {
@@ -193,12 +288,20 @@ public sealed class MainMenuScreen : ShellScreen
             _hot = over;
             if (_hot is not null) { _hot.Lit = true; _hot.Draw(Frame, Imp); }
         }
+        var pOver = _pShown.LastOrDefault(b => !b.Selected && b.Hit(m));
+        if (pOver != _pHot)
+        {
+            if (_pHot is not null) { _pHot.Lit = false; _pHot.Draw(Frame, Imp, Shell.Db.Font(0x45)); }
+            _pHot = pOver;
+            if (_pHot is not null) { _pHot.Lit = true; _pHot.Draw(Frame, Imp, Shell.Db.Font(0x45)); }
+        }
         bool onEditor = Shell.OnEditor is not null && EditorBox.Has(m);
         if (onEditor != _editorHot) { _editorHot = onEditor; DrawEditorEntry(); }
         if (!Shell.Clicked) return;
         if (onEditor) { Shell.Sound(81); Shell.OpenEditor(); return; }
+        if (_pShown.LastOrDefault(b => b.Hit(m)) is { } ph) { Shell.Sound(81); ClickPort(ph.Id); return; }
         var hit = _shown.LastOrDefault(w => w.Hit(m));
-        if (hit is null) { CloseAll(); return; }
+        if (hit is null) { if (!Visit) CloseAll(); return; }
         Shell.Sound(81);
         Click(hit.Id);
     }
@@ -207,7 +310,23 @@ public sealed class MainMenuScreen : ShellScreen
     {
         if (Nitro) { Hide(3, 4, 5, 6, 7, 8, 9, 0xc, 10, 11, 0xe, 0xf); Deselect(2); Deselect(1); Deselect(9); Deselect(10); Deselect(11); return; }
         Hide([.. TripRow, .. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]);
+        HidePort();
         Deselect(13); Deselect(2);
+    }
+
+    private void ClickPort(int id)
+    {
+        switch (id)
+        {
+            case ScenariosEntry: Shell.Go(new MeleeScreen { Mode = 1 }); break;          // as MELEE's SCENARIO, 0xc024
+            case NitroEntry when _nitroDir is { } dir:
+                // the trip kept as Switch Game keeps it, the next mission's preload dropped, then the Nitro install in this window
+                Shell.Trip.Save();
+                Shell.OnPreload?.Invoke(null);
+                I76.Game.Boot.GameSwitch.ToNitro(Shell.GetTree(), Shell.Install.Root, dir);
+                break;
+            case BackEntry: I76.Game.Boot.GameSwitch.BackFromNitro(Shell.GetTree()); break;
+        }
     }
 
     private void Click(int id)
@@ -217,12 +336,9 @@ public sealed class MainMenuScreen : ShellScreen
         {
             case 0: Shell.Overlay(new OptionsScreen()); break;
             case 17: Shell.Quit(); break;                                           // overlay 8: no confirmation
-            case 13:
-                Hide([.. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]); Deselect(2);
-                Select(13); foreach (int r in TripRow) Show(r);
-                break;
+            case 13: OpenTrip(); break;
             case 2:
-                Hide([.. TripRow]); Deselect(13);
+                Hide([.. TripRow]); HidePort(); Deselect(13);
                 Select(2); foreach (int r in MeleeRow) Show(r);
                 break;
             case 1:
@@ -254,6 +370,7 @@ public sealed class MainMenuScreen : ShellScreen
     /// <summary>The main menu's click handler on Nitro.</summary>
     private void ClickNitro(int id)
     {
+        if (Visit && id is 2 or 1 or 0x12) return;   // the visit's character choice: SCENARIOS stays open; no MELEE or EXIT
         switch (id)
         {
             case 0: Shell.Overlay(new OptionsScreen()); break;
