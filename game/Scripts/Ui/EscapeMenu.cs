@@ -775,8 +775,8 @@ public sealed partial class EscapeMenu : Control
     /// Controls (and from it Mouse Options, the key map and the controller screen) as the shell's own screens: a shell with nothing but
     /// that overlay on the pad's place over the paused game. The pad hides while it is up and takes no input; each screen's Done saves
     /// its own (the key map's Done puts the bindings in use, Controls.Save), Cancel and Esc come back unchanged. The menu commits nothing
-    /// of its own on the way there and takes only those settings back (<see cref="ControlsMenuScreen.CopyControls"/>: force feedback,
-    /// applied at once, and the mouse's), so its own Done and Cancel still decide the rest.
+    /// of its own on the way there and takes only those settings back (<see cref="ControlsMenuScreen.CopyControls"/>: force feedback
+    /// and head tracking, applied at once, and the mouse's), so its own Done and Cancel still decide the rest.
     /// </summary>
     private void OpenControls() => OpenHosted(new ControlsMenuScreen());
 
@@ -803,6 +803,7 @@ public sealed partial class EscapeMenu : Control
             ControlsMenuScreen.CopyControls(hosted, Settings);
             ControlsMenuScreen.CopyControls(hosted, _snap);
             ApplyForce();
+            I76.Game.HeadTracker.Apply(Settings);   // head tracking as the sheet left it (it applied each click already)
             // the host form's rules as Game Setup left them (its APPLY saved them, its CANCEL put them back): the menu's own save keeps them
             if (_gameSetupOpen)
                 foreach (var s in new[] { Settings, _snap })

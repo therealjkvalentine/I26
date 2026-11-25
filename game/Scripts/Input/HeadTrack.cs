@@ -4,8 +4,14 @@ using System.Net.Sockets;
 
 namespace I76.Game;
 
-/// <summary>The port's head tracking (Play Options' Head Tracking): off, the head in proportion, or the glance poses past a threshold.</summary>
+/// <summary>The port's head tracking (the Controls sheet's Head Tracking): off, the head in proportion, or the glance poses past a threshold.</summary>
 public enum HeadTrackMode { Off, Analog, Digital }
+
+/// <summary>
+/// Where the poses come from ([port] head_track_source): whichever is live (Auto), opentrack's "UDP over network" output only, or
+/// its "freetrack 2.0 Enhanced" output (the FT_SharedMem memory, Windows only) only.
+/// </summary>
+public enum HeadTrackSource { Auto, Udp, FreeTrack }
 
 /// <summary>One opentrack sample: positions in cm, angles in degrees (yaw right-positive, pitch up-positive), as its "UDP over network" output sends them.</summary>
 public readonly record struct HeadPose(double X, double Y, double Z, double Yaw, double Pitch, double Roll)
@@ -25,6 +31,57 @@ public readonly record struct HeadPose(double X, double Y, double Z, double Yaw,
         }
         return new HeadPose(v[0], v[1], v[2], v[3], v[4], v[5]);
     }
+}
+
+/// <summary>
+/// opentrack's FreeTrack output, the FT_SharedMem memory map, as opentrack's freetrackclient/fttypes.h lays it out (struct FTData, the
+/// head of FTHeap; all fields 4 bytes, little-endian): uint32 DataID, int32 CamWidth, int32 CamHeight, then float Yaw, Pitch, Roll,
+/// X, Y, Z (then the raw pose and the points, not read). opentrack's proto-ft (freetrack::pose) writes Yaw = -yaw, Pitch = -pitch and
+/// Roll = roll in radians and X, Y, Z = the position times 10 (mm), then adds 1 to DataID (it sets it to 0 when a game's id changes):
+/// so DataID changing means a new pose, and the decode undoes the signs and units to the UDP output's (degrees, cm).
+/// </summary>
+public static class FreeTrack
+{
+    /// <summary>The memory map's name (FREETRACK_HEAP).</summary>
+    public const string MapName = "FT_SharedMem";
+    /// <summary>The bytes read: DataID, the camera's size and the six pose floats.</summary>
+    public const int Size = 36;
+
+    /// <summary>The DataID and the pose (in the UDP output's units and signs); null when short or a value is not a finite number.</summary>
+    public static (uint DataId, HeadPose Pose)? Decode(ReadOnlySpan<byte> d)
+    {
+        if (d.Length < Size) return null;
+        uint id = BinaryPrimitives.ReadUInt32LittleEndian(d);
+        Span<float> v = stackalloc float[6];   // yaw, pitch, roll, x, y, z
+        for (int i = 0; i < 6; i++)
+        {
+            v[i] = BinaryPrimitives.ReadSingleLittleEndian(d.Slice(12 + i * 4, 4));
+            if (!float.IsFinite(v[i])) return null;
+        }
+        const double deg = 180 / Math.PI;
+        return (id, new HeadPose(v[3] / 10.0, v[4] / 10.0, v[5] / 10.0, -v[0] * deg, -v[1] * deg, v[2] * deg));
+    }
+}
+
+/// <summary>
+/// Which source feeds the head (apart from the engine so it can be tested). Auto: the one in use while it stays live, else whichever is
+/// live, UDP first; Udp or FreeTrack: that one only. Null: none is live.
+/// </summary>
+public static class HeadTrackSources
+{
+    public static HeadTrackSource? Choose(HeadTrackSource setting, bool udpLive, bool freeTrackLive, HeadTrackSource? current) => setting switch
+    {
+        HeadTrackSource.Udp => udpLive ? HeadTrackSource.Udp : null,
+        HeadTrackSource.FreeTrack => freeTrackLive ? HeadTrackSource.FreeTrack : null,
+        _ when current == HeadTrackSource.FreeTrack && freeTrackLive => HeadTrackSource.FreeTrack,
+        _ => udpLive ? HeadTrackSource.Udp : freeTrackLive ? HeadTrackSource.FreeTrack : null,
+    };
+
+    /// <summary>The settings key's text (auto, udp, freetrack) read; anything else is Auto.</summary>
+    public static HeadTrackSource Parse(string? text) =>
+        Enum.TryParse<HeadTrackSource>(text?.Trim(), true, out var v) && Enum.IsDefined(v) ? v : HeadTrackSource.Auto;
+
+    public static string Key(HeadTrackSource s) => s.ToString().ToLowerInvariant();
 }
 
 /// <summary>
@@ -156,27 +213,110 @@ public sealed class HeadTrackReceiver : IDisposable
     public void Dispose() => _socket.Dispose();
 }
 
-/// <summary>The one head tracker of the process: the settings applied (the socket opened, moved or closed with them) and polled once a frame.</summary>
+/// <summary>
+/// opentrack's FreeTrack output read without blocking (Windows only): the FT_SharedMem map opened read-only when it exists (opentrack
+/// makes it when tracking starts with that output; never made here), looked for again once a second while it is missing; a pose is
+/// new when DataID changes. Elsewhere it never opens and polls nothing.
+/// </summary>
+public sealed class FreeTrackReader : IDisposable
+{
+    private System.IO.MemoryMappedFiles.MemoryMappedFile? _map;
+    private System.IO.MemoryMappedFiles.MemoryMappedViewAccessor? _view;
+    private readonly byte[] _buf = new byte[FreeTrack.Size];
+    private uint? _lastId;
+    private double _retry;
+
+    public static bool Supported => OperatingSystem.IsWindows();
+
+    /// <summary>The newest pose when DataID moved since the last poll (dt: seconds since then, for the retry), or null.</summary>
+    public HeadPose? Poll(double dt)
+    {
+        if (!Supported) return null;
+        if (_view is null)
+        {
+            if ((_retry -= dt) > 0) return null;
+            _retry = 1;
+            if (!Open()) return null;
+        }
+        try
+        {
+            // opentrack stores each field on its own (no lock a reader can take): read twice, keep a read DataID did not move under
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                _view!.ReadArray(0, _buf, 0, _buf.Length);
+                if (_view.ReadUInt32(0) != System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(_buf)) continue;
+                if (FreeTrack.Decode(_buf) is not { } f) return null;
+                bool fresh = _lastId is { } last && last != f.DataId;
+                _lastId = f.DataId;   // the first read only sets the mark: the map outlives a stopped opentrack's last pose
+                return fresh ? f.Pose : null;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException) { Close(); }
+        return null;
+    }
+
+    private bool Open()
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        try
+        {
+            _map = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(FreeTrack.MapName, System.IO.MemoryMappedFiles.MemoryMappedFileRights.Read);
+            _view = _map.CreateViewAccessor(0, FreeTrack.Size, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read);
+            _lastId = null;
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Close();   // FileNotFoundException (an IOException): no opentrack with that output running
+            return false;
+        }
+    }
+
+    private void Close()
+    {
+        _view?.Dispose(); _view = null;
+        _map?.Dispose(); _map = null;
+        _lastId = null;
+    }
+
+    public void Dispose() => Close();
+}
+
+/// <summary>
+/// The one head tracker of the process: the settings applied (the UDP socket and the FreeTrack map opened, moved or closed with
+/// them) and polled once a frame; the source the poses come from chosen by <see cref="HeadTrackSources.Choose"/>.
+/// </summary>
 public static class HeadTracker
 {
     public static HeadLook Look { get; } = new();
     private static HeadTrackReceiver? _rx;
+    private static FreeTrackReader? _ft;
     private static (int Port, string Bind) _bound;
+    private static HeadTrackSource _source;
 
-    /// <summary>Play Options' Head Tracking and the shell.cfg keys under it: off closes the socket.</summary>
+    /// <summary>The source the head follows now, or null (none live).</summary>
+    public static HeadTrackSource? Active { get; private set; }
+
+    /// <summary>The Controls sheet's Head Tracking and the shell.cfg keys under it: off closes the socket and the map.</summary>
     public static void Apply(Shell.ShellSettings s)
     {
         Look.Mode = s.HeadTrack;
         Look.Sensitivity = s.HeadTrackSensitivity;
         Look.Position = s.HeadTrackPosition;
+        _source = s.HeadTrackSource;
+        bool on = s.HeadTrack != HeadTrackMode.Off;
+        bool udp = on && _source != HeadTrackSource.FreeTrack;
+        bool ft = on && _source != HeadTrackSource.Udp && FreeTrackReader.Supported;
+        if (!ft) { _ft?.Dispose(); _ft = null; }
+        else _ft ??= new FreeTrackReader();
         var want = (s.HeadTrackPort, s.HeadTrackBind);
-        if (s.HeadTrack == HeadTrackMode.Off || _bound != want) { _rx?.Dispose(); _rx = null; _bound = default; }
-        if (s.HeadTrack == HeadTrackMode.Off || _rx is not null) return;
+        if (!udp || _bound != want) { _rx?.Dispose(); _rx = null; _bound = default; }
+        if (!udp || _rx is not null) return;
         try { _rx = new HeadTrackReceiver(want.HeadTrackPort, want.HeadTrackBind); _bound = want; }
         catch (System.Net.Sockets.SocketException e) { Godot.GD.PrintErr($"head tracking: cannot listen on {want.HeadTrackBind}:{want.HeadTrackPort}: {e.Message}"); }
     }
 
-    /// <summary>The socket drained (the newest pose fed), then one frame of the head: see <see cref="HeadLook.Step"/>.</summary>
+    /// <summary>The sources drained (the chosen one's newest pose fed), then one frame of the head: see <see cref="HeadLook.Step"/>.</summary>
     public static (float Weight, float Yaw, float Pitch, float Roll, (float X, float Y, float Z) Offset) Step(double dt, bool overridden)
     {
         Drain();
@@ -184,22 +324,28 @@ public static class HeadTracker
     }
 
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
-    private static double _lastPacket = double.NegativeInfinity;
+    private static double _lastUdp = double.NegativeInfinity, _lastFt = double.NegativeInfinity, _lastDrain;
 
     private static void Drain()
     {
-        if (_rx?.Poll() is not { } p) return;
-        Look.Feed(p);
-        _lastPacket = Clock.Elapsed.TotalSeconds;
+        double now = Clock.Elapsed.TotalSeconds, dt = now - _lastDrain;
+        _lastDrain = now;
+        var u = _rx?.Poll();
+        var f = _ft?.Poll(dt);
+        if (u is not null) _lastUdp = now;
+        if (f is not null) _lastFt = now;
+        Active = HeadTrackSources.Choose(_source, _rx is not null && now - _lastUdp < HeadLook.Timeout,
+            _ft is not null && now - _lastFt < HeadLook.Timeout, Active);
+        if ((Active == HeadTrackSource.Udp ? u : Active == HeadTrackSource.FreeTrack ? f : null) is { } p) Look.Feed(p);
     }
 
-    /// <summary>The socket is open and a pose came within <see cref="HeadLook.Timeout"/> (the menus' Opentrack row; drains the socket, out of a mission too).</summary>
+    /// <summary>A source is open and a pose came from it within <see cref="HeadLook.Timeout"/> (the menus' Opentrack row; drains, out of a mission too).</summary>
     public static bool Receiving
     {
         get
         {
             Drain();
-            return _rx is not null && Clock.Elapsed.TotalSeconds - _lastPacket < HeadLook.Timeout;
+            return Active is not null;
         }
     }
 }

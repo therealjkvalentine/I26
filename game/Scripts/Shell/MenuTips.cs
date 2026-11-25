@@ -71,19 +71,19 @@ public static class MenuTips
         ["Turrets"] = "Turrets: how fast every turret turns to aim, yours and the enemy's. 1998 (GOG, Nitro Pack): half a turn in 1.8 s, and damage slows it by a quarter at most. 1997 CD: half a turn in 2.1 s, slower with every hit: at half health it cannot follow a car circling close by, and a wrecked one stands still. Online: the host's choice, and damage never slows a turret.",
         ["Keyboard Steering Assist"] = "Keyboard steering assist: the steer keys ease in, hold short of a skid at first and steer into a slide. Off is the original's slow ramp.",
         ["Unlim. Ordnance"] ="Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
-        ["Head Tracking"] = "Head tracking: an opentrack head tracker turns your view (Analog) or glances at past a threshold (Digital).",
-        ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",
-        ["Opentrack"] = "Opentrack, the free head tracker: click to start it when Stopped. Tracking: your head turns the view; Missing: not installed.",
-        ["Opentrack Auto"] = "Opentrack Auto: a mission with Head Tracking on starts opentrack; the game closes the one it started on exit.",
-        ["Opentrack Profile"] = "Opentrack Profile: click to add an I26 profile to opentrack (webcam face tracker, sent to this game).",
         ["Melee A.I."] = "Melee A.I.: how well an Instant Melee's computer cars drive at first: Normal (the original's), your Difficulty Level's, Easy or Hard.",
         ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
         ["Skip Intro Movies"] = "Skip intro movies: the game starts at the main menu, without the intro and the opening credits. Briefings, outros and cut-scenes still play.",
 
-        // ---- Controls (the port's sheet: force feedback, then the mouse and the key map)
+        // ---- Controls (the port's sheet: force feedback, head tracking, then the mouse and the key map)
         ["Force Feedback"] = "Force feedback: Pad rumbles with the original's effects, Pad Enhanced adds pulses for gears, shots and the engine, Wheel drives a force-feedback wheel (Windows).",
         ["Rumble Strength"] = "Rumble strength: how strong every rumble sent to the pad is, 25 to 150 %.",
         ["Wheel Strength"] = "Wheel strength: the force-feedback wheel's overall strength (Windows).",
+        ["Head Tracking"] = "Head tracking: opentrack turns your view with your head (Analog) or glances past a threshold (Digital). Its UDP or FreeTrack output, whichever is running.",
+        ["Head Track Sens."] = "Head tracking sensitivity: how far the view turns for a turn of your head.",
+        ["Opentrack"] = "Opentrack, the free head tracker: click to start it when Stopped. Tracking: your head turns the view; Missing: not installed.",
+        ["Opentrack Auto"] = "Opentrack Auto: a mission with Head Tracking on starts opentrack; the game closes the one it started on exit.",
+        ["Opentrack Profile"] = "Opentrack Profile: click to add an I26 profile to opentrack (webcam face tracker, sent to this game over UDP). Not needed: opentrack's default profile, with its FreeTrack output, works too (Windows).",
         ["Mouse Options..."] = "Mouse Options: the mouse camera, its sensitivity, cockpit mouse look and the mouse buttons.",
         ["Key Map..."] = "Key Map: which key, mouse button or pad input does each command; Calibrate sets up a pad or a joystick.",
 
