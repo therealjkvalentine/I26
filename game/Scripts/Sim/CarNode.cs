@@ -880,14 +880,14 @@ public partial class CarNode : Node3D
         {
             _rearMat = new ShaderMaterial { Shader = _glareShader };
             _rearMat.SetShaderParameter("tint", new Color(1f, 0.1f, 0.06f));
-            _rearMat.SetShaderParameter("strength", 0.45f);
+            _rearMat.SetShaderParameter("strength", LampStrength.RearGlare);
             _rearMat.SetShaderParameter("sharpness", 2.5f);
             _rearMat.SetShaderParameter("wide", 0f);
             _rearMat.SetShaderParameter("size_near", 0.12f);
             _rearMat.SetShaderParameter("size_far", 0.26f);
             _rearMat.SetShaderParameter("streak_amount", 0.25f);
             _rearMat.SetShaderParameter("halo_amount", 0.1f);
-            _rearMat.SetShaderParameter("day_floor", 0.2f);
+            _rearMat.SetShaderParameter("day_floor", LampStrength.RearGlareDayFloor);
         }
         // the lamp's -Z looks backwards: half a turn about up. The glare shows only looking into the lamp from behind (no floor for
         // the side: seen from there it hung off the car's corner as an orb), and small, on the lens
@@ -1285,7 +1285,7 @@ public partial class CarNode : Node3D
         float halo = LampHalo.Factor;
         if (halo != _haloApplied) (_haloApplied, _headApplied, _rearLevel, _brakeGlowApplied, _tailGlowApplied) = (halo, -1, -1, -1, -1);
         float headTarget = lampsOn ? 1f : 0f, brakeTarget = Modern && shown && braking ? 1f : 0f, tailTarget = Modern && shown && lit ? 1f : 0f;
-        float rearTarget = !Modern || !shown ? 0f : braking ? 1f : lightsOn ? 0.3f : 0f;
+        float rearTarget = !Modern || !shown ? 0f : braking ? 1f : lightsOn ? LampStrength.TailGlareShare : 0f;
         float brakeLampTarget = Modern && !Wrecked && braking ? 1f : 0f, tailLampTarget = Modern && lampsOn ? 1f : 0f;
         if (ramp && !_rampFresh)
         {
