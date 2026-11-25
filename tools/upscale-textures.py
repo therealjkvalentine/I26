@@ -137,6 +137,7 @@ COCKPIT = [
     ("notepad", "znpd*,zhpd*,zcbh*", "4xHDCube4Compact.pth", False),
     ("hands", "zswls*,zhl45*,zhr45*,zsl45*,zsr45*", "4xHDcube3_500k.pth", False),
     ("misc", "zretc*,ztarg*,zteam,zbinc", None, True),
+    ("pumps", "fg_1pmf1,fg_1pml1,fg_1pmr1,fg_1pmt1,fs_1pmf1,fp_1pmf1,fn_1pmf1", "4xHDcube3_500k.pth", False),   # the gas pumps (not the cockpit's)
 ]
 
 def user_dir(scale=2):

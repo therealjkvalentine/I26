@@ -69,6 +69,23 @@ each other in order, so a line's ticks go in an op after it.
 "where": {"ring": {"center", "radii", "inner", "outer", "from", "to"}} limits an erase (or a smooth) to the texels whose
 centres lie between "inner" and "outer" texels of an ellipse along the ray from its centre, within the sweep: a dial's
 graduation ring without the figures or the bezel beside it.
+
+Fixes that are not lettering (specs with "kind": "fix", in tools/text-redraws/fixes/, recorded in pack.json's "fixes"):
+bands: straight anti-aliased bands (a barn door's cross braces, which a model leaves wavy) over a panel: "panels": [{"rect":
+[x0, y0, x1, y1], "brace": "light" or "dark", "arms": [[x0, y0, x1, y1, width], ...], "rects": [[x0, y0, x1, y1], ...]}],
+"sigma" (a Gaussian softening, pack texels; 0 none). Per panel the pack's old bands are filled from the panel round them
+("inpaint": "telea" OpenCV's, the release's, needs opencv-python-headless; "own" this tool's), the bands' shape drawn with
+exact area coverage, in the original's band colour (its band texels, nearest-filled and enlarged, levelled to the pack's).
+"fit": true fits the arms and rects to the original first (scipy's Powell, as they were found; the specs hold the result).
+border-recolour: a colour slip along the texture's edge (a 16-bit original's green or blue border): each texel of the "band"
+(original texels round the edge) whose chroma (max - min of R, G, B) is over max("min", the interior's "percentile" + "over")
+takes the texel mirrored inward across the band's inner edge.
+from-original: the original's texels of "rect" enlarged without a model in place of the pack's (a pump's counter window,
+which a model fills with made-up glyphs): Lanczos along "smooth" ("y" or "x"), nearest across, blurred "blur" original
+texels, feathered in over "feather" texels from "inset" texels inside the rect.
+"rows": "stored" gives a spec's coordinates in the texture's stored row order (bottom up where bottom-up.txt says), as the
+.dds holds it. "keep_blocks": true re-encodes only the BC7 blocks the ops touched (the rest of the top level kept byte for
+byte) and makes the chain from the top level as it then decodes.
 """
 import argparse, fnmatch, glob, json, math, os, shutil, struct, sys, time
 import numpy as np
@@ -354,8 +371,126 @@ def where_mask(orig, rect, where):
     m[y0:y1, x0:x1] = sub
     return m
 
-def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
-    """px: the pack's texture (H x W x 4 uint8, upright); orig: the original (h x w x 4). Returns the redrawn RGBA."""
+# ---- fixes: bands, border-recolour, from-original ----
+
+def band_cover(params, nar, nrect, W, H, scale, ss=8):
+    """Area coverage (H*scale x W*scale) of the union of nar thick segments (x0, y0, x1, y1, width) and nrect rects (x0, y0,
+    x1, y1), in a W x H panel's texels, ss x ss samples a pack texel."""
+    k = scale * ss; im = Image.new("L", (W * k, H * k), 0); d = ImageDraw.Draw(im)
+    p = list(params)
+    for i in range(nar):
+        x0, y0, x1, y1, w = p[i * 5:i * 5 + 5]
+        dx, dy = x1 - x0, y1 - y0; L = max(np.hypot(dx, dy), 1e-6); nx, ny = -dy / L * w / 2, dx / L * w / 2
+        d.polygon([((x0 + nx) * k, (y0 + ny) * k), ((x1 + nx) * k, (y1 + ny) * k), ((x1 - nx) * k, (y1 - ny) * k), ((x0 - nx) * k, (y0 - ny) * k)], fill=255)
+    for j in range(nrect):
+        x0, y0, x1, y1 = p[nar * 5 + j * 4:nar * 5 + j * 4 + 4]
+        d.rectangle([x0 * k, y0 * k, x1 * k - 1, y1 * k - 1], fill=255)
+    a = np.asarray(im, np.float32) / 255
+    return a.reshape(H * scale, ss, W * scale, ss).mean((1, 3))
+
+def band_axis(rgb, light):
+    """Each texel's place between the panel's colour (0) and the band's (1): the panel the darker or lighter colour by luma."""
+    lum = rgb.mean(-1); lo, hi = np.percentile(lum, 35), np.percentile(lum, 75)
+    dark_c = np.median(rgb[lum <= lo], 0); light_c = np.median(rgb[lum >= hi], 0)
+    P, B = (dark_c, light_c) if light else (light_c, dark_c)
+    v = B - P; f = np.clip(((rgb - P) * v).sum(-1) / (v * v).sum(), 0, 1)
+    return f, P, B
+
+def resize_linear(a, w, h):
+    """An (h0, w0, c) float32 picture to w x h, bilinear with pixel centres at half-texels and edges repeated (OpenCV's INTER_LINEAR)."""
+    h0, w0 = a.shape[:2]
+    def coords(n, n0):
+        x = np.maximum((np.arange(n, dtype=np.float32) + np.float32(0.5)) * np.float32(n0 / n) - np.float32(0.5), np.float32(0))
+        i = np.minimum(np.floor(x).astype(int), n0 - 1); f = x - i; j = np.minimum(i + 1, n0 - 1)
+        return i, j, f.astype(np.float32)
+    yi, yj, fy = coords(h, h0); xi, xj, fx = coords(w, w0)
+    top = a[yi][:, xi] * (1 - fx)[None, :, None] + a[yi][:, xj] * fx[None, :, None]
+    bot = a[yj][:, xi] * (1 - fx)[None, :, None] + a[yj][:, xj] * fx[None, :, None]
+    return (top * (1 - fy)[:, None, None] + bot * fy[:, None, None]).astype(np.float32)
+
+def bands(rgb, orig, op, s):
+    """The bands op over rgb (float32, the pack's) in place; orig the original's RGBA. Returns the texels it drew over."""
+    from scipy import ndimage
+    telea = op.get("inpaint", "own") == "telea"
+    if telea:
+        try: import cv2
+        except ImportError: raise SystemExit('a "bands" fix with "inpaint": "telea" needs OpenCV: pip install opencv-python-headless')
+    K = int(round(s)); sigma = float(op.get("sigma", 0)); o = orig[..., :3].astype(np.float32)
+    pack = np.clip(rgb + 0.5, 0, 255).astype(np.uint8); touched = np.zeros(rgb.shape[:2], bool)
+    for pn in op["panels"]:
+        x0, y0, x1, y1 = pn["rect"]; W, H = x1 - x0, y1 - y0; light = pn.get("brace", "light") == "light"
+        f, _, _ = band_axis(o[y0:y1, x0:x1], light)
+        arms = [[ax0 - x0, ay0 - y0, ax1 - x0, ay1 - y0, w] for ax0, ay0, ax1, ay1, w in pn.get("arms", [])]
+        rects = [[rx0 - x0, ry0 - y0, rx1 - x0, ry1 - y0] for rx0, ry0, rx1, ry1 in pn.get("rects", [])]
+        p = np.array(sum(arms, []) + sum(rects, []), np.float64); nar, nre = len(arms), len(rects)
+        if op.get("fit"):
+            from scipy import optimize
+            cost = lambda q: float(((band_cover(q, nar, nre, W, H, 1) - f) ** 2).sum())
+            p = optimize.minimize(cost, p, method="Powell", options={"xtol": 0.01, "ftol": 1e-4, "maxfev": 6000}).x
+        cov = band_cover(p, nar, nre, W, H, K, ss=4)
+        rgb4 = pack[y0 * K:y1 * K, x0 * K:x1 * K, :3].astype(np.float32)
+        f4, _, _ = band_axis(rgb4, light)
+        # the pack's panel with its old bands out: those texels (and a margin) filled from the panel's own; the texels round
+        # the panel unknown too, so the frame cannot bleed in
+        M = 12; Y0, X0 = y0 * K - M, x0 * K - M; Y1, X1 = y1 * K + M, x1 * K + M
+        big = pack[max(Y0, 0):Y1, max(X0, 0):X1, :3].copy(); oy, ox = y0 * K - max(Y0, 0), x0 * K - max(X0, 0)
+        mask = np.ones(big.shape[:2], np.uint8)
+        inner = ndimage.binary_dilation((f4 > 0.15) | (cov > 0.02), structure=np.ones((7, 7), bool)).astype(np.uint8)
+        mask[oy:oy + H * K, ox:ox + W * K] = inner
+        if telea: under = cv2.inpaint(np.ascontiguousarray(big[..., ::-1]), mask, 5, cv2.INPAINT_TELEA)[..., ::-1]
+        else: under = inpaint(big, mask > 0, relax_passes(s))
+        under = under[oy:oy + H * K, ox:ox + W * K].astype(np.float32)
+        # the band's colour: the original's band texels, nearest-filled, enlarged, levelled to the pack's band colour
+        src = o[y0:y1, x0:x1]; core = f > 0.8
+        if core.sum() == 0: core = f > 0.5
+        idx = ndimage.distance_transform_edt(~core, return_indices=True)[1]
+        fill = src[idx[0], idx[1]]
+        col4 = cv2.resize(fill, (W * K, H * K), interpolation=cv2.INTER_LINEAR) if telea else resize_linear(fill, W * K, H * K)
+        sel4 = f4 > 0.85
+        if sel4.sum() > 20: col4 += np.median(rgb4[sel4], 0) - np.median(col4[sel4], 0)
+        c = cov if sigma == 0 else (cv2.GaussianBlur(cov, (0, 0), sigma) if telea else gauss2(cov[..., None], sigma)[..., 0])
+        c = c[..., None]
+        rgb[y0 * K:y1 * K, x0 * K:x1 * K] = under * (1 - c) + col4 * c
+        touched[y0 * K:y1 * K, x0 * K:x1 * K] = True
+    return touched
+
+def border_recolour(rgb, op, s):
+    """The border-recolour op over rgb (float32) in place; returns the texels it recoloured."""
+    top = np.clip(rgb + 0.5, 0, 255).astype(int)
+    h, w = top.shape[:2]; band = int(op.get("band", 3)) * int(round(s))
+    chroma = top.max(axis=2) - top.min(axis=2)
+    inner = chroma[band:h - band, band:w - band]
+    thr = max(int(op.get("min", 12)), int(np.percentile(inner, float(op.get("percentile", 99.5)))) + int(op.get("over", 3)))
+    ys, xs = np.mgrid[0:h, 0:w]
+    dist = np.minimum(np.minimum(xs, w - 1 - xs), np.minimum(ys, h - 1 - ys))
+    bad = (dist < band) & (chroma > thr)
+    y, x = np.nonzero(bad)
+    # mirrored across the band's inner edge, each way the texel is in the band (a corner both ways)
+    tx = np.where(x < band, 2 * band - 1 - x, np.where(w - 1 - x < band, w - 1 - (2 * band - 1 - (w - 1 - x)), x))
+    ty = np.where(y < band, 2 * band - 1 - y, np.where(h - 1 - y < band, h - 1 - (2 * band - 1 - (h - 1 - y)), y))
+    rgb[y, x] = top[ty, tx].astype(np.float32)
+    return bad
+
+def from_original(rgb, orig, op, s):
+    """The from-original op over rgb (float32) in place; returns the texels it changed."""
+    K = int(round(s)); x0, y0, x1, y1 = (int(v) for v in op["rect"])
+    H, W = rgb.shape[:2]
+    reg = Image.fromarray(np.ascontiguousarray(orig[y0:y1, x0:x1, :3]))
+    if op.get("smooth", "y") == "y": reg = reg.resize((x1 - x0, (y1 - y0) * K), Image.LANCZOS)
+    else: reg = reg.resize(((x1 - x0) * K, y1 - y0), Image.LANCZOS)
+    reg = reg.resize(((x1 - x0) * K, (y1 - y0) * K), Image.NEAREST)
+    if op.get("blur", 0): reg = reg.filter(ImageFilter.GaussianBlur(float(op["blur"]) * s))
+    reg = np.array(reg).astype(np.float32)
+    inset = int(round(float(op.get("inset", 0.5)) * s))
+    m = np.zeros((H, W), np.float32); m[y0 * K + inset:y1 * K - inset, x0 * K + inset:x1 * K - inset] = 1
+    m = np.array(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(float(op.get("feather", 0.375)) * s)))[..., None] / 255.0
+    full = rgb.copy(); full[y0 * K:y1 * K, x0 * K:x1 * K] = reg
+    rgb[...] = full * m + rgb * (1 - m)
+    return m[..., 0] > 0
+
+def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None, touched=None):
+    """px: the pack's texture (H x W x 4 uint8, upright); orig: the original (h x w x 4). Returns the redrawn RGBA. touched:
+    a boolean H x W array the fixes mark the texels they changed in (for "keep_blocks")."""
     H, W = px.shape[:2]; s = W / orig.shape[1]
     rgb = px[..., :3].astype(np.float32); alpha = px[..., 3].copy()
     grain = []          # (hole, [dx, dy]) of the run's erasures that take a surface's grain
@@ -477,8 +612,12 @@ def apply_ops(px, orig, ops, fonts_dir=FONTS, table=None):
             a = cov[..., None]; rgb = rgb * (1 - a) + col * a
             if mode == "set": alpha[cov >= 0.5] = 255
             elif mode not in ("keep", "cover"): raise ValueError(f"alpha {mode!r}: keep, set or cover")
+        elif kind in ("bands", "border-recolour", "from-original"):
+            t = (bands(rgb, orig, op, s) if kind == "bands" else border_recolour(rgb, op, s) if kind == "border-recolour"
+                 else from_original(rgb, orig, op, s))
+            if touched is not None: touched |= t
         else:
-            raise ValueError(f"op {kind!r}: erase, text, smooth, marks or lines")
+            raise ValueError(f"op {kind!r}: erase, text, smooth, marks, lines, bands, border-recolour or from-original")
     # the key's colour stays as the pack has it (a car's panel, which does not honour the key, shows it); only texels newly
     # cut into the key without a colour take their neighbours' (the mipmaps and filtering see no seam)
     if rebleed.any(): rgb = bleed(rgb, (~rebleed).astype(np.uint8))
@@ -545,7 +684,7 @@ def load_specs(specs_dir=SPECS, only="*"):
         with open(p, encoding="utf-8") as f: spec = json.load(f)
         panels = spec.get("panels")
         for t in (list(panels) if panels else spec["textures"]):
-            if not fnmatch.fnmatch(t.lower(), only.lower()): continue
+            if not any(fnmatch.fnmatch(t.lower(), g.strip().lower()) for g in only.split(",") if g.strip()): continue
             one = dict(spec, ops=panel_ops(spec["ops"], panels[t], spec["size"])) if panels else spec
             out.append((os.path.basename(p), t.lower(), one))
     return out
@@ -560,7 +699,15 @@ def redraw(src, pack, name, stem, spec, etcpak, table, fonts_dir=FONTS, bottom_u
     flip = stem in bottom_up and base.endswith(".dds")
     if flip: px = px[::-1]
     orig = np.array(Image.open(original_file(src, stem)).convert("RGBA"))
-    out = apply_ops(px, orig, spec["ops"], fonts_dir, table)
+    stored = spec.get("rows") == "stored" and stem in bottom_up      # the spec's rows as the .dds stores them
+    if stored: px, orig = px[::-1], orig[::-1]
+    touched = np.zeros(px.shape[:2], bool)
+    out = apply_ops(px, orig, spec["ops"], fonts_dir, table, touched)
+    if stored: out, touched = out[::-1], touched[::-1]
+    if spec.get("keep_blocks") and base.endswith(".dds") and etcpak is not None:
+        with open(base, "rb") as f: data = f.read()
+        dds_mips.write_dds_keeping(cur + ".part", data, out[::-1] if flip else out, touched[::-1] if flip else touched, etcpak)
+        os.replace(cur + ".part", cur); return f"{stem}: {name}"
     if base.endswith(".webp"):
         # the HD menu art's format: lossy WebP at quality 95, opaque
         Image.fromarray(out[..., :3], "RGB").save(cur + ".part", "WEBP", quality=95, method=6); os.replace(cur + ".part", cur)
@@ -587,8 +734,12 @@ def note_pack(pack, done, table):
     if os.path.exists(pj):
         with open(pj, encoding="utf-8") as f: info = json.load(f)
     prev = {r["texture"]: r for r in info.get("text_redraws", [])}
-    for stem, name, spec in done: prev[stem] = {"texture": stem, "spec": "tools/text-redraws/" + name, "fonts": fonts_of(spec)}
+    fixes = {r["texture"]: r for r in info.get("fixes", [])}
+    for stem, name, spec in done:
+        if spec.get("kind") == "fix": fixes[stem] = {"texture": stem, "spec": "tools/text-redraws/fixes/" + name, "note": spec.get("note", "")}
+        else: prev[stem] = {"texture": stem, "spec": "tools/text-redraws/" + name, "fonts": fonts_of(spec)}
     info["text_redraws"] = [prev[k] for k in sorted(prev)]
+    if fixes: info["fixes"] = [fixes[k] for k in sorted(fixes)]
     used = sorted({f for r in info["text_redraws"] for f in r["fonts"]})
     info["text_fonts"] = [{"font": table[f].get("name", f), "by": table[f]["by"], "license": table[f]["license"], "source": table[f]["source"]} for f in used]
     lines = [f"lettering redrawn in {table[f].get('name', f)} by {table[f]['by']}, {table[f]['license']}, {table[f]['source']}" for f in used]
@@ -604,12 +755,13 @@ def restore(pack, only):
     base_dir = os.path.join(pack, BASE); n = 0
     if not os.path.isdir(base_dir): return 0
     for fn in os.listdir(base_dir):
-        if fnmatch.fnmatch(os.path.splitext(fn)[0], only.lower()):
+        if any(fnmatch.fnmatch(os.path.splitext(fn)[0], g.strip().lower()) for g in only.split(",") if g.strip()):
             shutil.copy2(os.path.join(base_dir, fn), os.path.join(pack, fn)); os.remove(os.path.join(base_dir, fn)); n += 1
     pj = os.path.join(pack, "pack.json")
     if os.path.exists(pj):
         with open(pj, encoding="utf-8") as f: info = json.load(f)
-        info["text_redraws"] = [r for r in info.get("text_redraws", []) if not fnmatch.fnmatch(r["texture"], only.lower())]
+        for key in ("text_redraws", "fixes"):
+            if key in info: info[key] = [r for r in info[key] if not any(fnmatch.fnmatch(r["texture"], g.strip().lower()) for g in only.split(",") if g.strip())]
         with open(pj, "w", encoding="utf-8") as f: json.dump(info, f, indent=2)
     return n
 
@@ -675,12 +827,43 @@ def self_check(fonts_dir=FONTS):
     print("self-check:", "PASS" if ok else "FAIL")
     return ok
 
+def fixes_check():
+    """The three fixes on made-up pictures: a wavy brace drawn straight, a green border recoloured, a counter window taken
+    from the original."""
+    ok = True; s = 4
+    # a red panel crossed by a light band four texels wide, the pack's band wavy
+    orig = np.zeros((24, 14, 4), np.uint8); orig[..., :3] = (130, 36, 32); orig[..., 3] = 255
+    yy, xx = np.mgrid[0:24, 0:14]; on = np.abs((xx + 0.5) - (1 + (yy + 0.5) * 12 / 24)) < 2
+    orig[on, :3] = (213, 160, 156)
+    px = np.repeat(np.repeat(orig, s, 0), s, 1).copy()
+    for y in range(px.shape[0]): px[y] = np.roll(px[y], int(round(3 * np.sin(y / 6))), axis=0)
+    rgb = px[..., :3].astype(np.float32)
+    bands(rgb, orig, {"panels": [{"rect": [0, 0, 14, 24], "brace": "light", "arms": [[1, 0, 13, 24, 4]]}]}, s)
+    ys = np.arange(8, 88); xs = np.round((1 + (ys + 0.5) / s * 12 / 24) * s).astype(int)
+    line = rgb[ys, xs].mean(axis=1); off = rgb[ys, np.where(xs >= 28, xs - 4 * s, xs + 4 * s)].mean(axis=1)
+    c1 = line.min() > 150 and off.max() < 110
+    print(f"  bands: the band straight and light {c1} (its line's darkest {line.min():.0f}, beside it at most {off.max():.0f})")
+    # a grey picture with a green rim two pack texels wide
+    g = np.full((32, 32, 3), 100, np.float32); g += np.random.default_rng(1).normal(0, 2, g.shape).astype(np.float32); g[:2] = (60, 160, 60)
+    bad = border_recolour(g, {"band": 1}, s)
+    c2 = bad[:2].all() and not bad[8:24, 8:24].any() and (g.max(axis=2) - g.min(axis=2))[:2].max() < 20
+    print(f"  border-recolour: the rim grey again {c2}")
+    # a counter window: the original's dark digits taken in place of the pack's made-up glyphs, feathered
+    o = np.full((16, 16, 4), 200, np.uint8); o[6:10, 6:10, :3] = 20
+    r = np.full((64, 64, 3), 200, np.float32)
+    from_original(r, o, {"rect": [4, 4, 12, 12], "blur": 0, "feather": 0.25, "inset": 0.25}, s)
+    c3 = r[28:36, 28:36].mean() < 40 and r[0:8, 0:8].mean() == 200
+    print(f"  from-original: the window the original's {c3}")
+    ok &= c1 and c2 and c3
+    print("fixes self-check:", "PASS" if ok else "FAIL")
+    return ok
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src", nargs="?", help="the folder --export-textures wrote (the originals and bottom-up.txt)")
     ap.add_argument("--pack", default=None, help="the pack folder (default: the game's tex-world-4x)")
-    ap.add_argument("--specs", default=SPECS, help="the folder of spec .json files (default tools/text-redraws)")
-    ap.add_argument("--only", default="*", help="a glob of texture names to redraw")
+    ap.add_argument("--specs", default=SPECS, help="the folder of spec .json files (default tools/text-redraws; the fixes: tools/text-redraws/fixes)")
+    ap.add_argument("--only", default="*", help="globs of texture names to redraw (comma-separated)")
     ap.add_argument("--list", action="store_true", help="list the specs' textures and quit")
     ap.add_argument("--restore", action="store_true", help="put the model's files back (from PACK/.text-base) and quit")
     ap.add_argument("--self-check", action="store_true", help="redraw made-up textures and check the result")
@@ -690,7 +873,7 @@ def main():
     ap.add_argument("--menu", action="store_true", help="the HD menu art's pages instead (specs in tools/text-redraws/menu/, SRC_DIR the folder"
                     " `i76 --install DIR bg SRC_DIR` writes the shell's records to, --pack default the game's tex-menu)")
     args = ap.parse_args()
-    if args.self_check: sys.exit(0 if self_check() else 1)
+    if args.self_check: sys.exit(0 if self_check() and fixes_check() else 1)
     if args.menu:
         if args.specs == SPECS: args.specs = os.path.join(SPECS, "menu")
         if not args.pack: args.pack = os.path.join(os.path.dirname(user_pack()), "tex-menu")
