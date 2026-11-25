@@ -104,6 +104,27 @@ small spec in this repository, and the models are pinned by their SHA-256 in `to
 refuse a model file of the same name with another hash). What was manual is which textures each step covers: those choices
 are the name lists in `tools/hd-recipes/lists/`.
 
+**In one command.** `tools/hd-pack.py` runs the steps below from their recipes, `tools/hd-recipes/world-4x.json` and
+`world-8x.json` (the menu pack's `menu.json` has its own runner, which `hd-pack.py menu` calls):
+
+    python tools/hd-pack.py world-4x --install "C:\GOG Games\Interstate 76" --work i26-hd-work --out i26-hd-packs
+    python tools/hd-pack.py all --install DIR --work i26-hd-work --out i26-hd-packs      the 4x, the 8x and the menu pack
+
+It exports the textures with `i76 export-textures` (or `--game PATH` for an I26 build's `--export-textures`, or `--export
+DIR` for an export made earlier), downloads any model it lacks into `--models-dir` and refuses one whose hash differs,
+makes the 8x masters on the graphics card (about 30 minutes on an RTX 5090; `--masters-from DIR` takes masters made
+earlier instead), and writes the pack into `--out` (never the game's own folder: copy it there yourself), with `pack.json`
+naming the recipe, its commit, the tools', models' and libraries' versions and the graphics card, `ATTRIBUTION.txt` and
+`FILES.sha256`. A second run skips every step whose inputs (the tool, the step, the models, the lists and specs it names,
+the export) have not changed. `--list-steps` and `--dry-run` show what it would do.
+
+To change one texture, edit its spec or list and rebuild it alone: `python tools/hd-pack.py world-4x --install DIR --only
+hb_1bdf1` runs every step that names it, for it only, in the pack already built. `python tools/hd-pack.py verify
+i26-hd-packs/tex-world-4x --against I26-HD-Textures-4x-2026.11.23.zip` compares a pack with a release, file by file
+(identical, the same top level, or the decoded pictures' PSNR), by the step that last wrote each, and writes the list;
+`python tools/hd-pack.py release OUT --version 2026.12.01 i26-hd-packs/tex-world-4x i26-hd-packs/tex-world-8x` zips the
+packs as the releases are (`--notes FILE` for the README's "what changed").
+
 **Extra things the full recipe needs**
 
 - `pip install scipy` (`--cells`, `--paint-masks`, `--paint-cut`, `menu-rules.py`), and `potracer resvg-py` for `flat-art.py`.
