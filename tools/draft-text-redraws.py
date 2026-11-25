@@ -685,21 +685,21 @@ def cmd_fit(a):
         rows = [r for r in rows if r["colours"] is not None]
         if len(rows) != len(fam["rows"]):
             print(f"{name}: {len(rows)} rows now, {len(fam['rows'])} when gathered: gather again and check words.json's row numbers")
-        todo = words_for(entry, rows) + added_rows(entry, orig)
+        to_set = words_for(entry, rows) + added_rows(entry, orig)
         res = {"family": name, "members": fam["members"], "kind": fam["kind"], "cls": fam["cls"], "missions": fam["missions"],
                "review_text": fam["review_text"], "gather_s": fam.get("gather_s", 0), "note": (entry or {}).get("note", ""),
-               "words": [], "rows_total": len(rows), "rows_set": len(todo), "scales": [], "why": []}
+               "words": [], "rows_total": len(rows), "rows_set": len(to_set), "scales": [], "why": []}
         if entry is None:
             res.update(verdict="UNREAD", why=["no words.json entry"]); results.append(res); continue
-        if not todo:
+        if not to_set:
             res.update(verdict="KEEP", why=[(entry or {}).get("note") or "every row kept as the upscale"]); results.append(res)
             for path, px in load_pack(batch["packs"], fam["lead"], bu)[:1]:
                 s_ = px.shape[1] // orig.shape[1]; res["scales"] = []; res["keep_scale"] = s_
                 Image.fromarray(px).save(os.path.join(a.batch, "renders", f"{fam['lead']}-{s_}x-pack.png"))
             res["fit_s"] = round(time.time() - t0, 1); continue
         fits, texts = [], []
-        todo_fixed = {i: fixed for i, _, _, fixed in todo}
-        for i, r, text, fixed in todo:
+        set_fixed = {i: fixed for i, _, _, fixed in to_set}
+        for i, r, text, fixed in to_set:
             ft = fit_row(orig, r, text, table, cands, fixed)
             if ft is None: res["why"].append(f"row {i}: no face renders {text!r}"); continue
             fits.append((i, ft["fit"])); texts.append((i, r, ft))
@@ -707,7 +707,7 @@ def cmd_fit(a):
                                  "embolden": ft["op"].get("embolden", 0), "fit": ft["fit"], "ranked": ft["ranked"]})
         # one face for the texture's lettering where it costs each row little: the face with the best summed overlap over
         # the rows the classifier chose (a row whose face the person fixed keeps it), refitted if it loses no row more than 0.08
-        free = [(i, r, ft) for i, r, ft in texts if "font" not in dict(todo_fixed.get(i, {}))]
+        free = [(i, r, ft) for i, r, ft in texts if "font" not in dict(set_fixed.get(i, {}))]
         if len(free) > 1:
             keys = set.intersection(*(set(ft["faces"]) for _, _, ft in free))
             if keys:
@@ -716,7 +716,7 @@ def cmd_fit(a):
                     font, var = json.loads(best_key)
                     for n, (i, r, ft) in enumerate(texts):
                         if any(i == j for j, _, _ in free):
-                            text = ft["op"]["text"]; fx = dict(todo_fixed.get(i, {}), font=font)
+                            text = ft["op"]["text"]; fx = dict(set_fixed.get(i, {}), font=font)
                             if var: fx["variation"] = var
                             nf = fit_row(orig, r, text, table, cands, fx)
                             if nf: texts[n] = (i, r, nf); fits = [(k, nf["fit"] if k == i else f) for k, f in fits]
