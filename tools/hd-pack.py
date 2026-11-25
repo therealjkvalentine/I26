@@ -202,6 +202,7 @@ class Build:
         else:
             args = self.subst(st, names, only)
             if st.get("device") == "gpu" and "--device" not in args: args += ["--device", self.device]
+            if self.a.jobs and tool == "upscale-textures.py": args += ["--jobs", str(self.a.jobs)]   # not in the key: the same output
             self.run_cmd([sys.executable, "-u", os.path.join(HERE, tool)] + args)
         self.log.append({"id": sid, "date": time.strftime("%Y-%m-%d"), "seconds": round(time.time() - t0, 1), "note": st.get("note", "")})
         if not in_place and not self.a.dry_run:
@@ -412,6 +413,7 @@ def main(argv=None):
     ap.add_argument("--device", default=None, help="cuda or cpu for the model steps (default cuda when torch has it)")
     ap.add_argument("--masters-from", help="a folder of 8x masters made earlier (the release's): the masters steps are skipped")
     ap.add_argument("--only", help="globs (comma-separated) of textures to rebuild in place through every step that names them")
+    ap.add_argument("--jobs", type=int, default=0, help="processes for upscale-textures.py's steps without a model (default one a core)")
     ap.add_argument("--version", help="the packs' version (default today's date, YYYY.MM.DD)")
     ap.add_argument("--list-steps", action="store_true", help="print the recipe's steps and stop")
     ap.add_argument("--dry-run", action="store_true", help="print the commands and stop")

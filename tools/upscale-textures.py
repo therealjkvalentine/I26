@@ -1157,6 +1157,7 @@ def main():
     ap.add_argument("--paint-cut", default=None, help="a folder of `i76 key-edge --masks` fields: the pack's painted two-tone edges (in --out) follow the"
                     " smooth outline, and its small details are the original's texels smoothly enlarged; each file replaced kept in .recut-prev/")
     ap.add_argument("--recut-edge", type=float, default=0.9, help="--recut's band, in original texels inside the cut, faded to the original's colours (default 0.9; 0 none)")
+    ap.add_argument("--jobs", type=int, default=0, help="processes for the steps without a model (default one a core; fewer when memory is short: an 8x picture takes about 1 GB)")
     ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
     global TILE, THEN_TILE, GPU_SHARE, CONTEXT, PRECISION
@@ -1231,7 +1232,7 @@ def main():
     if not needs_model:
         # no model: the pictures are independent, one process a core
         import multiprocessing
-        with multiprocessing.Pool(initializer=set_opts, initargs=(dict(OPTS),)) as pool:   # the workers start without main's OPTS (spawn)
+        with multiprocessing.Pool(args.jobs or None, initializer=set_opts, initargs=(dict(OPTS),)) as pool:   # the workers start without main's OPTS (spawn)
             for i, (n, ok) in enumerate(pool.imap_unordered(one, jobs, chunksize=8), 1): tick(i, n, ok)
     elif args.masters_out and not table:
         for i, j in enumerate(jobs, 1): tick(i, j[0], master(j, runner)[1])

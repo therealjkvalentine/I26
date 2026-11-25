@@ -16,7 +16,7 @@ except ImportError:
 
 def args(**kw):
     a = dict(work="w", export=None, masters_from=None, out="o", models_dir="m", device="cpu", only=None, dry_run=True, install="i",
-             game=None, version=None)
+             game=None, version=None, jobs=0)
     a.update(kw); return argparse.Namespace(**a)
 
 class Recipes(unittest.TestCase):
