@@ -357,5 +357,31 @@ class PaintCut(unittest.TestCase):
         self.assertTrue((out[57:63, 18:30, :3] == (240, 160, 0)).all(), "inside the outline the original's lamp colour")
         self.assertTrue((out[100:, 100:, :3] == 24).all(), "the rest is kept")
 
+class Masters(unittest.TestCase):
+    """--masters-out without --families: the run's model, then --then's, kept as an upright RGBA PNG, not colour matched."""
+    class Two(Runner):
+        def __init__(self): super().__init__(k=4, then=True); self.truncated = []
+        def then(self, big, truncate=False): self.truncated.append(truncate); return super().then(big)
+    def test_a_master_is_the_two_models_output_at_8x(self):
+        import tempfile
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            src, out = os.path.join(d, "src"), os.path.join(d, "m"); os.makedirs(src); os.makedirs(out)
+            im = picture(12, 8, 5); im[:2, :3, 3] = 0
+            Image.fromarray(im, "RGBA").save(os.path.join(src, "aa_1test.png"))
+            Image.fromarray(picture(40, 8, 6), "RGBA").save(os.path.join(src, "bb_1wide.png"))
+            ut.OPTS["masters_out"] = out
+            try:
+                r = self.Two()
+                self.assertEqual(ut.master(("aa_1test.png", src, None, None, 32), r), ("aa_1test.png", True))
+                self.assertEqual(ut.master(("bb_1wide.png", src, None, None, 32), r), ("bb_1wide.png", False), "over --max-size: none")
+                self.assertEqual(ut.master(("aa_1test.png", src, None, None, 32), r), ("aa_1test.png", False), "kept: not again")
+            finally: ut.OPTS["masters_out"] = None
+            m = np.array(Image.open(os.path.join(out, "aa_1test.png")))
+            self.assertEqual(m.shape, (64, 96, 4))
+            self.assertTrue(np.array_equal(m, np.repeat(np.repeat(im, 8, 0), 8, 1)), "the models' colours as they come, the alpha nearest")
+            self.assertEqual(r.truncated, [True], "the bled colour cut down before the second model, as the release's masters")
+            self.assertEqual(sorted(os.listdir(out)), ["aa_1test.png"])
+
 if __name__ == "__main__":
     unittest.main()

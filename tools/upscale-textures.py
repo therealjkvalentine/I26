@@ -484,19 +484,24 @@ def trim(a, k):
     """a with k texels cut off every side."""
     return a[k:a.shape[0] - k, k:a.shape[1] - k] if k > 0 else a
 
-TILE = 128      # --tile: model input tiles (each with PAD of context), so no pass is larger than TILE + 2 PAD
+TILE = 128      # --tile: model input tiles (each with PAD of context), so no pass is larger than TILE + 2 PAD; 0 the whole picture
+THEN_TILE = None  # --then-tile: the second model's tiles (None: TILE)
 GPU_SHARE = 0.0  # --gpu-share: idle this many times each tile's time after it
+PRECISION = "auto"  # --precision: auto (half on a GPU where the model allows it) or fp32 (no half, no TF32)
 
-def run_tiled(model, device, torch, x):
+def run_tiled(model, device, torch, x, tile=None):
     """float HxWx3 in 0..1 -> float at the model's scale, through the model tile by tile (reflect-padded, each tile with
-    PAD texels of context on every side), in the precision the model was loaded in (load_model)."""
+    PAD texels of context on every side), in the precision the model was loaded in (load_model). tile: the tiles' size
+    (default TILE; 0 the whole picture in one pass)."""
     s = model.scale; h, w = x.shape[:2]
+    T = TILE if tile is None else tile
+    if T <= 0: T = max(h, w)
     dtype = next(model.model.parameters()).dtype
     P = np.pad(x.astype(np.float32), ((PAD, PAD), (PAD, PAD), (0, 0)), mode="reflect")
     out = np.zeros((h * s, w * s, 3), np.float32)
-    for y in range(0, h, TILE):
-        for x0 in range(0, w, TILE):
-            th, tw = min(TILE, h - y), min(TILE, w - x0)
+    for y in range(0, h, T):
+        for x0 in range(0, w, T):
+            th, tw = min(T, h - y), min(T, w - x0)
             t = torch.from_numpy(np.ascontiguousarray(P[y:y + th + 2 * PAD, x0:x0 + tw + 2 * PAD])).permute(2, 0, 1)[None].to(device)
             t = t.to(dtype)
             t0 = time.time()
@@ -507,16 +512,22 @@ def run_tiled(model, device, torch, x):
     return out
 
 def upscale(model, device, torch, im):
-    """RGBA in, RGBA at the model's scale out: colour through the model, alpha scaled on its own and cut at one half."""
+    """RGBA in, RGBA at the model's scale out: colour through the model, alpha scaled on its own and cut at one half. With
+    --tile 0 the whole picture goes through in one pass and the colour bled under the key goes in unrounded, as the first
+    version of this tool ran it (the release's masters up to 512 texels)."""
     a = im[..., 3]; s = model.scale
-    y = run_tiled(model, device, torch, np.clip(bleed(im[..., :3], a) + 0.5, 0, 255).astype(np.uint8) / 255.0)
+    rgb = bleed(im[..., :3], a)
+    y = run_tiled(model, device, torch, rgb / np.float32(255) if TILE <= 0 else np.clip(rgb + 0.5, 0, 255).astype(np.uint8) / 255.0)
     A = np.array(Image.fromarray(a).resize((a.shape[1] * s, a.shape[0] * s), Image.BILINEAR))
     return np.dstack([(y * 255 + 0.5).astype(np.uint8), np.where(A >= 128, 255, 0).astype(np.uint8)])
 
 def load_model(spandrel, torch, path, device):
-    """A spandrel model on the device, in half precision on a GPU where the model allows it."""
+    """A spandrel model on the device, in half precision on a GPU where the model allows it; with --precision fp32 in full
+    precision, TF32 off (a newer card's cuDNN uses it for float convolutions unless told not to)."""
     m = spandrel.ModelLoader().load_from_file(path).to(device).eval()
-    if device != "cpu" and m.supports_half: m = m.half()
+    if PRECISION == "fp32":
+        torch.backends.cudnn.allow_tf32 = False; torch.backends.cuda.matmul.allow_tf32 = False
+    elif device != "cpu" and m.supports_half: m = m.half()
     return m
 
 def alpha_up(model, device, torch, a):
@@ -671,10 +682,13 @@ class Runner:
         return self.loaded[path]
     def run(self, im, f=None):
         return upscale(self.model(f), self.device, self.torch, im)
-    def then(self, big):
-        """The second model (--then) over the first's RGBA: the colour bled under the key, through the model; the alpha nearest."""
+    def then(self, big, truncate=False):
+        """The second model (--then) over the first's RGBA: the colour bled under the key, through the model (in --then-tile
+        tiles); the alpha nearest. truncate: the bled colour cut to whole levels down, not rounded (as the release's masters)."""
         m = self.model(self.then_file); k = m.scale
-        y = run_tiled(m, self.device, self.torch, np.clip(bleed(big[..., :3], big[..., 3]) + 0.5, 0, 255).astype(np.uint8) / 255.0)
+        rgb = bleed(big[..., :3], big[..., 3])
+        rgb = rgb.clip(0, 255) if truncate else np.clip(rgb + 0.5, 0, 255)
+        y = run_tiled(m, self.device, self.torch, rgb.astype(np.uint8) / 255.0, THEN_TILE)
         return np.dstack([(y * 255 + 0.5).astype(np.uint8), np.repeat(np.repeat(big[..., 3], k, 0), k, 1)])
     def alpha(self, a):
         return alpha_up(self.model(self.alpha_file), self.device, self.torch, a)
@@ -745,6 +759,20 @@ def one(job, run_model=None):
     px = finish(big, ow, oh, scale, alpha)
     if stem in CELLS: px = cells_in_panel(px, im, CELLS[stem], scale, lambda c: cell_surroundings(stem, c, src), lambda c: cell_panel_upscale(stem, c, src, out_dir, scale))
     write_out(px, os.path.join(out_dir, stem), flip, dds)
+    return n, True
+
+def master(job, runner):
+    """--masters-out without --families: one texture's model output kept as an upright RGBA PNG, not colour matched, for a
+    later --from: the run's model (--model), then --then's over it, the bled colour cut to whole levels down before the second
+    model as the release's masters were made. (name, whether it was written)."""
+    n, src, max_size = job[0], job[1], job[4]
+    dst = os.path.join(OPTS["masters_out"], n[:-4].lower() + ".png")
+    if os.path.exists(dst): return n, False
+    im = np.array(Image.open(os.path.join(src, n)).convert("RGBA"))
+    if max(im.shape[:2]) > max_size: return n, False
+    big = runner.run(im)
+    if runner.then_file: big = runner.then(big, truncate=True)
+    Image.fromarray(big, "RGBA").save(dst + ".part.png"); os.replace(dst + ".part.png", dst)
     return n, True
 
 def recut(px, field, orig, edge=0.9):
@@ -1039,7 +1067,11 @@ def main():
                     help="where the family models and the alpha model are (default ~/.cache/i26/models; not downloaded)")
     ap.add_argument("--alpha", action="store_true", help="the alpha step for every keyed texture (default: only the families whose row says so)")
     ap.add_argument("--alpha-model", default=ALPHA_MODEL, help="the alpha model's file (default " + ALPHA_MODEL + " in --models-dir)")
-    ap.add_argument("--tile", type=int, default=128, help="model input tile size in texels (default 128; each tile also gets 16 texels of context)")
+    ap.add_argument("--tile", type=int, default=128, help="model input tile size in texels (default 128; each tile also gets 16 texels of context;"
+                    " 0 the whole picture in one pass, its bled colour unrounded: the release's first pass, more video memory)")
+    ap.add_argument("--then-tile", type=int, default=None, help="the second model's (--then) tile size (default --tile; the release's masters 256)")
+    ap.add_argument("--precision", default="auto", choices=("auto", "fp32"), help="auto: half precision on a GPU where a model allows it;"
+                    " fp32: full precision and no TF32 (the release's masters)")
     ap.add_argument("--neighbours", help="an `i76 tex-seams` file: each texture that meets another along a border, or repeats, is upscaled"
                     " inside a canvas of its neighbours' facing texels (or its own, wrapped), --context texels a side, cropped after")
     ap.add_argument("--cells", help="a cockpit layout (the install's vpit_1.elt): each sprite sheet it names is also upscaled a cell at a time, so"
@@ -1058,8 +1090,9 @@ def main():
     ap.add_argument("--recut-edge", type=float, default=0.9, help="--recut's band, in original texels inside the cut, faded to the original's colours (default 0.9; 0 none)")
     ap.add_argument("--gpu-share", type=float, default=0.0, help="after each tile idle this many times its time (for a GPU shared with other work)")
     args = ap.parse_args()
-    global TILE, GPU_SHARE, CONTEXT
-    TILE, GPU_SHARE, CONTEXT = max(16, args.tile), max(0.0, args.gpu_share), max(0, args.context)
+    global TILE, THEN_TILE, GPU_SHARE, CONTEXT, PRECISION
+    TILE, GPU_SHARE, CONTEXT = (0 if args.tile <= 0 else max(16, args.tile)), max(0.0, args.gpu_share), max(0, args.context)
+    THEN_TILE, PRECISION = (None if args.then_tile is None else 0 if args.then_tile <= 0 else max(16, args.then_tile)), args.precision
     if args.out is None: args.out = user_dir(args.scale)
     if args.x2_model and not os.path.isabs(args.x2_model): args.x2_model = os.path.join(args.models_dir, args.x2_model)
     if args.self_check: sys.exit(0 if self_check() else 1)
@@ -1113,7 +1146,7 @@ def main():
             print(f"torch {torch.__version__} cannot use the NVIDIA card here, so the model runs on the CPU (hours, not minutes); for the card:\n"
                   "    pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu126   (--device cpu hides this note)")
         runner = Runner(device, args.model, args.models_dir, args.alpha_model, args.then_model)
-        print(f"models on {device}, {TILE} px tiles" + (f", families: {', '.join(r[0] for r in table)}" if table else "") + (", alpha step on every keyed texture" if args.alpha else ""))
+        print(f"models on {device}, " + (f"{TILE} px tiles" if TILE else "whole pictures") + (", fp32" if PRECISION == "fp32" else "") + (f", families: {', '.join(r[0] for r in table)}" if table else "") + (", alpha step on every keyed texture" if args.alpha else ""))
     os.makedirs(args.out, exist_ok=True)
     jobs = [(n, args.src, args.out, args.frm, args.max_size, args.scale, args.full, args.pixel, n[:-4].lower() in bottom_up, etcpak is not None, args.cm)
             + ((fams[n][0],) if fams[n][0] else ()) for n in names]
@@ -1128,6 +1161,8 @@ def main():
         import multiprocessing
         with multiprocessing.Pool(initializer=set_opts, initargs=(dict(OPTS),)) as pool:   # the workers start without main's OPTS (spawn)
             for i, (n, ok) in enumerate(pool.imap_unordered(one, jobs, chunksize=8), 1): tick(i, n, ok)
+    elif args.masters_out and not table:
+        for i, j in enumerate(jobs, 1): tick(i, j[0], master(j, runner)[1])
     else:
         for i, j in enumerate(jobs, 1): tick(i, j[0], one(j, runner)[1])
     used = [MODEL + ".pth"] if not args.frm else [f for f in args.from_models.split(",") if f]
