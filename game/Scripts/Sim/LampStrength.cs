@@ -12,9 +12,11 @@ public static class LampStrength
     /// <summary>The headlamp spotlights' energy at night.</summary>
     public const float HeadEnergy = 9f;
     /// <summary>The lens glow over the lit brake and tail lamp faces, at night.</summary>
-    public const float BrakeGlow = 0.9f, TailGlow = 0.4f;
+    public const float BrakeGlow = 0.45f, TailGlow = 0.2f;
+    /// <summary>The glare over a lit rear lamp seen from behind (the brake's full, the tail's <see cref="TailGlareShare"/> of it), at night, and what is left of it in full sun.</summary>
+    public const float RearGlare = 0.225f, RearGlareDayFloor = 0.125f, TailGlareShare = 0.3f;
     /// <summary>What is left of each in full sun.</summary>
-    public const float HeadDayFloor = 0.2f, GlowDayFloor = 0.4f;
+    public const float HeadDayFloor = 0.2f, GlowDayFloor = 0.25f;
 
     /// <summary>
     /// How far the headlamps' light reaches (metres from the lamp, where it ends) at a [port] headlamp_throw percentage, or at the

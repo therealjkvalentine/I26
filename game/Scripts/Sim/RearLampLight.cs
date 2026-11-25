@@ -9,7 +9,7 @@ namespace I76.Game.Sim;
 public static class RearLampLight
 {
     /// <summary>The light's energy from the tail filament and from the brake's, at night.</summary>
-    public const float TailEnergy = 0.06f, BrakeEnergy = 0.8f;
+    public const float TailEnergy = 0.03f, BrakeEnergy = 0.4f;
     /// <summary>What is left in full sun: nothing.</summary>
     public const float DayFloor = 0f;
 

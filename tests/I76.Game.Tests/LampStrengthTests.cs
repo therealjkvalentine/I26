@@ -34,6 +34,15 @@ public class LampStrengthTests
         Assert.True(LampStrength.HeadEnergy < 14f);
         Assert.True(LampStrength.BrakeGlow < 1.3f);
         Assert.True(LampStrength.HeadEnergy * LampStrength.HeadDayFloor < 14f * 0.25f);
+        // the rear lamps at 0.9 / 0.4 (brake and tail glow), 0.45 (the glare), 0.8 / 0.06 (their light on the ground) and
+        // 0.4 / 0.2 (the glow's and the glare's share left in full sun) were found too strong: all halved, the day shares cut further
+        Assert.True(LampStrength.BrakeGlow <= 0.45f && LampStrength.TailGlow <= 0.2f && LampStrength.RearGlare <= 0.225f);
+        Assert.True(RearLampLight.BrakeEnergy <= 0.4f && RearLampLight.TailEnergy <= 0.03f);
+        Assert.True(LampStrength.BrakeGlow * LampStrength.GlowDayFloor <= 0.9f * 0.4f / 3f);
+        Assert.True(LampStrength.RearGlare * LampStrength.RearGlareDayFloor <= 0.45f * 0.2f / 3f);
+        // braking still stands out from the tail lamps alone, as much as before
+        Assert.True(LampStrength.BrakeGlow >= 2f * LampStrength.TailGlow);
+        Assert.True(LampStrength.TailGlareShare <= 0.3f);
     }
 
     [Fact]
