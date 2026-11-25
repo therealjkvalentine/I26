@@ -1,0 +1,155 @@
+{
+ "textures": [
+  "sl1acf_1"
+ ],
+ "note": "sl1acf_1: drafted by tools/draft-text-redraws.py (batch 01), the words read off the original, approved on the contact sheet",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    13.95,
+    5.2,
+    52.05,
+    16.8
+   ],
+   "where": {
+    "lum_below": 131.5
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 193.2
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    3.95,
+    20.2,
+    59.05,
+    31.8
+   ],
+   "where": {
+    "lum_below": 131.5
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 193.2
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    24.2,
+    33.45,
+    40.8,
+    42.55
+   ],
+   "where": {
+    "lum_below": 131.5
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 193.2
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    3.95,
+    46.2,
+    60.05,
+    57.8
+   ],
+   "where": {
+    "lum_below": 130.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 192.9
+   }
+  },
+  {
+   "op": "text",
+   "text": "SPEED",
+   "font": "ArchivoNarrow",
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    14.75,
+    6,
+    51.25,
+    16
+   ],
+   "cap": 10,
+   "embolden": 0.12
+  },
+  {
+   "op": "text",
+   "text": "CHECKED",
+   "font": "Arimo",
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    4.75,
+    21,
+    58.25,
+    31
+   ],
+   "cap": 10,
+   "embolden": 0.12
+  },
+  {
+   "op": "text",
+   "text": "BY",
+   "font": "Nunito",
+   "colour": [
+    0,
+    0,
+    0
+   ],
+   "variation": {
+    "Weight": 900
+   },
+   "box": [
+    25,
+    34.25,
+    40,
+    41.75
+   ],
+   "cap": 7.5
+  },
+  {
+   "op": "text",
+   "text": "AIRCRAFT",
+   "font": "DDINCondensed",
+   "colour": [
+    2,
+    2,
+    2
+   ],
+   "box": [
+    4.75,
+    47,
+    59.25,
+    57
+   ],
+   "cap": 10
+  }
+ ]
+}
