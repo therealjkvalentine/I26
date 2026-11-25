@@ -383,5 +383,26 @@ class Masters(unittest.TestCase):
             self.assertEqual(r.truncated, [True], "the bled colour cut down before the second model, as the release's masters")
             self.assertEqual(sorted(os.listdir(out)), ["aa_1test.png"])
 
+class ModelPins(unittest.TestCase):
+    def test_a_model_of_a_pinned_name_with_another_hash_is_refused(self):
+        import tempfile, json, hashlib
+        with tempfile.TemporaryDirectory() as d:
+            good, bad, other = (os.path.join(d, n) for n in ("a.pth", "b", "c.pth"))
+            for p, b in ((good, b"weights"), (bad, b"other weights"), (other, b"x")):
+                with open(p, "wb") as f: f.write(b)
+            os.makedirs(os.path.join(d, "bad")); os.replace(bad, os.path.join(d, "bad", "a.pth")); bad = os.path.join(d, "bad", "a.pth")
+            pins = os.path.join(d, "models.json")
+            with open(pins, "w") as f: json.dump({"models": {"a.pth": {"sha256": hashlib.sha256(b"weights").hexdigest(), "url": "u"}}}, f)
+            old, ut.PINS = ut.PINS, pins
+            try:
+                ut.check_model(good); ut.check_model(other)                    # pinned and right; not pinned
+                with self.assertRaises(SystemExit): ut.check_model(bad)
+            finally: ut.PINS = old; ut._checked.clear()
+    def test_the_repositorys_pins_name_the_six_models(self):
+        import json
+        with open(ut.PINS) as f: m = json.load(f)["models"]
+        self.assertEqual(set(ut.MODELS), set(m), "every model the tool credits is pinned")
+        self.assertTrue(all(len(v["sha256"]) == 64 and v["size"] > 0 for v in m.values()))
+
 if __name__ == "__main__":
     unittest.main()

@@ -373,3 +373,28 @@ xb1?mdl?
 xb1?mdr?
 xb1?mdu?
 xb1?tp_?
+# The lit brake lamps (BLGT: each car's *11bkx1, and the cruiser's cp11bko1), which the survey above does not reach: the
+# release's 8x has them from the same masters.
+al11bkx1
+as11bkx1
+az11bkx1
+cc11bkx1
+cg11bkx1
+cm11bkx1
+cp11bko1
+cp11bkx1
+cr11bkx1
+cv11bkx1
+dl11bkx1
+ds11bkx1
+fc11bkx1
+fd11bkx1
+fp11bkx1
+fr11bkx1
+fy11bkx1
+go11bkx1
+js11bkx1
+pj11bkx1
+pp11bkx1
+va11bkx1
+xb11bkx1

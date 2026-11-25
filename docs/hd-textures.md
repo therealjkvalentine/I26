@@ -98,12 +98,16 @@ Set both rows to **1997**, or press F12 for the 1997 look (which always draws th
 
 ## The full recipe the shared packs use
 
-The quick route runs one model over everything. The packs shared in our testing add the steps below. Each step is optional
-and works on the pack the quick route made; several need things the quick route does not.
+The quick route runs one model over everything. The packs shared in our testing (release 2026.11.23) took more steps, each
+written down below in the order they were really run. Nothing in them was painted by hand: every step is a command or a
+small spec in this repository, and the models are pinned by their SHA-256 in `tools/hd-recipes/models.json` (the tools
+refuse a model file of the same name with another hash). What was manual is which textures each step covers: those choices
+are the name lists in `tools/hd-recipes/lists/`.
 
 **Extra things the full recipe needs**
 
 - `pip install scipy` (`--cells`, `--paint-masks`, `--paint-cut`, `menu-rules.py`), and `potracer resvg-py` for `flat-art.py`.
+- `pip install opencv-python-headless` for the barn doors' braces only (the release's inpaint; see step 12).
 - The developer tools' command line, `i76` below (`tex-seams`, `key-edge`, `cat`, `bg`): it is not in the release zips. Install
   the .NET 8 SDK and run it from the repository as `dotnet run --project tools/I76.Cli -- --install DIR COMMAND ...`.
 - The models below, downloaded by hand into `--models-dir` (default `~/.cache/i26/models`; a missing one stops the run and
@@ -112,51 +116,74 @@ and works on the pack the quick route made; several need things the quick route 
 
 | Model file | By | Licence | Where from | Used for |
 | --- | --- | --- | --- | --- |
-| `4xTextures_GTAV_rgt-s_dither.pth` | Philip Hofmann | CC-BY-4.0 | downloaded by the tool | everything (the quick route) |
-| `2xHDCube_Compact.pth` | Venomalia | CC-BY-4.0 | [HDcube releases, Compact](https://github.com/Venomalia/HDcube/releases/download/Compact/2xHDCube_Compact.pth) | `--then` (the world and cars) and `--x2-model` (8x) |
+| `4xTextures_GTAV_rgt-s_dither.pth` | Philip Hofmann | CC-BY-4.0 | downloaded by the tool | everything (the quick route), the masters' first pass |
+| `2xHDCube_Compact.pth` | Venomalia | CC-BY-4.0 | [HDcube releases, Compact](https://github.com/Venomalia/HDcube/releases/download/Compact/2xHDCube_Compact.pth) | the masters' second pass, `--then` (seams) and `--x2-model` (8x) |
 | `4x-UltraSharpV2.safetensors` | Kim2091 | CC-BY-NC-SA-4.0, **non-commercial** | [Hugging Face](https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2.safetensors) | the dash panels, gear strip, compass, mirror |
-| `4xHDcube3_500k.pth` | Venomalia | CC-BY-NC-SA-4.0, **non-commercial** | [HDcube 3.0](https://github.com/Venomalia/HDcube/releases/download/3.0/4xHDcube3_500k.pth) | the radar, damage panel, weapon panels, hands |
+| `4xHDcube3_500k.pth` | Venomalia | CC-BY-NC-SA-4.0, **non-commercial** | [HDcube 3.0](https://github.com/Venomalia/HDcube/releases/download/3.0/4xHDcube3_500k.pth) | the radar, damage panel, weapon panels, hands, gas pumps |
 | `4xHDCube4Compact.pth` | Venomalia | HDcube licence (no rights claimed in outputs) | [HDcube 4.0 zip](https://github.com/Venomalia/HDcube/releases/download/4.0/4xHDcube4Compact.zip) | the notepads |
-| `4xHDcube-Alpha.pth` | Venomalia | HDcube licence | the same 4.0 zip, its Alpha folder | the alpha step (dials, needles, reticle) |
+| `4xHDcube-Alpha.pth` | Venomalia | HDcube licence | the same 4.0 zip, `Models/HDcube/` | the alpha step (dials, needles, reticle) |
 
-**The steps**, in the order the shared 4x pack was made (`SRC` is the export, `PACK` the pack folder). The tool skips a
-texture already in `--out`, so a step that redoes textures a pack already has (2 to 4) writes to an empty `--out` whose files
-then replace the pack's; the shared pack's exact folders were not recorded, only each step's command and date in its
-`pack.json`.
+**The steps of the 4x pack**, in the order they were run (`SRC` is the export, `M` the models folder, `PACK` the pack
+folder; a step that redoes textures the pack already has writes to an empty `--out` whose files then replace the pack's,
+because the tool skips a texture already in `--out`):
 
-1. **World and cars through two models**: `upscale-textures.py SRC --then 2xHDCube_Compact.pth` (the model's 4x taken to
-   8x by the second model, then brought down to 4x; sharper than the quick route's single model).
-2. **Seams**: `i76 --install DIR tex-seams adjacency.json`, then `upscale-textures.py SRC --neighbours adjacency.json
-   --then 2xHDCube_Compact.pth`: where two textures meet in the game (a hood against its fender, road pieces, the
-   horizon), each is upscaled with its neighbour's texels round it, so the two agree at the edge.
-3. **The cockpit by family**: `upscale-textures.py SRC --families --only "z*" --max-size 640`: each family of the
-   cockpit's art through the model in the table above, and the dials, needles, reticle and binocular mask through the
-   alpha step (their cut-out outline upscaled by 4xHDcube-Alpha: straight needles, round numerals).
-4. **The damage panel's sprite sheets a cell at a time**: `i76 --install DIR cat vpit_1.elt > vpit_1.elt`, then
-   `upscale-textures.py SRC --families --cells vpit_1.elt --only "zsye,zsye320"`.
-5. **Cut-out edges** (road signs, the steering wheel and arms): `i76 --install DIR key-edge FIELDS 4 NAME...`, then
-   `upscale-textures.py SRC --recut FIELDS --out PACK --only NAME...`.
-6. **Painted two-tone edges and small lamps** (the police cruisers): `upscale-textures.py SRC --paint-masks MASKS --only
-   "cp11*"`, `i76 --install DIR key-edge FIELDS 4 --masks MASKS STEM STEM.detail ...`, `upscale-textures.py SRC --paint-cut
-   FIELDS --out PACK --only "cp11*"`.
-7. **Lettering**: `text-redraws.py SRC` (as in the quick route; run it after any step that rewrote a lettered texture,
-   after deleting the pack's `.text-base/` so the new files become the base).
-8. **Mip chains of an old pack**: `python tools/dds-mips.py PACK --fix` repairs a pack made before November 2026 (its smaller
-   levels had black under the key). A new pack does not need it.
+1. **Export** as in the quick route (palette `t01.act`): 6,563 PNGs and `bottom-up.txt`.
+2. **The 8x masters**: every texture up to 640 texels through 4xTextures_GTAV, then 2xHDCube_Compact, kept at 8x as PNGs, not
+   colour matched (about 5 GB; a work folder, never shipped). The release ran the first model over the whole picture for the
+   textures up to 512 texels and in 128-texel tiles for the 53 larger ones, the second in 256-texel tiles, all in full
+   precision:
+   `upscale-textures.py SRC --masters-out MASTERS --model M/4xTextures_GTAV_rgt-s_dither.pth --then 2xHDCube_Compact.pth --models-dir M --tile 0 --then-tile 256 --precision fp32 --max-size 512`,
+   then the same with `--tile 128 --max-size 640`.
+3. **The base**: `upscale-textures.py SRC --from MASTERS --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 4 --max-size 640 --out PACK`
+   (each master colour matched to the original, brought down to 4x, BC7).
+4. **The cockpit by family**: `upscale-textures.py SRC --families --models-dir M --from MASTERS --only "z*" --max-size 1100 --scale 4`
+   (1100, not 640: the weapons' side strip `zdue` is 186x1035 and the notepads 640x480). Each family of the cockpit's art
+   through the model in the table above, and the dials, needles, reticle and binocular mask through the alpha step (their
+   cut-out outline upscaled by 4xHDcube-Alpha: straight needles, round numerals).
+5. **Seams**: `i76 --install DIR tex-seams adjacency.json`, then `upscale-textures.py SRC --neighbours adjacency.json --model
+   M/4xTextures_GTAV_rgt-s_dither.pth --then 2xHDCube_Compact.pth --models-dir M --only @tools/hd-recipes/lists/seams.txt`:
+   where two textures meet in the game (a hood against its fender, road pieces, the horizon), each is upscaled with its
+   neighbour's texels round it, so the two agree at the edge. 135 of the worst seams were tried and the 115 whose seam
+   scores got better kept (the list); these go through `--then` inside the tool, not through the masters.
+6. **Cut-out edges** of the road signs and other cut-out scenery: `i76 --install DIR key-edge FIELDS 4 NAME...` for the names in
+   `lists/cutouts.txt`, then `upscale-textures.py SRC --recut FIELDS --out PACK --only @tools/hd-recipes/lists/cutouts.txt`.
+7. **The gas pumps**: the seven pump textures through 4xHDcube3_500k (the `pumps` family), colour matched; on the four fronts
+   the counter window is then the original's texels enlarged without a model (a `from-original` fix, step 10's tool). This
+   replaced three of the seam list's textures (`fg_1pmt1`, `fn_1pmf1`, `fs_1pmf1`).
+8. **The damage panel's sprite sheets a cell at a time**: `i76 --install DIR cat vpit_1.elt > vpit_1.elt`, then
+   `upscale-textures.py SRC --families --cells vpit_1.elt --panels PACK --only "zsye,zsye320" --max-size 640` (the release ran
+   `zsye` on the CPU).
+9. **The steering wheel's and the arms' frames**: `key-edge` as in step 6 for `zswls*,zhl45*,zhr45*,zsl45*,zsr45*` (270),
+   then `--recut FIELDS --recut-edge 0.9`.
+10. **Lettering and the other fixes**: `text-redraws.py SRC --pack PACK`: the 113 lettered textures set again from free fonts
+   (the specs in `tools/text-redraws/`), and the three fixes that are specs of the same tool: the pumps' counters
+   (`from-original`), the barn doors' braces (`bands`: `hb_1bdf1`, `hj_1bdf1`, drawn as straight bands fitted to the
+   original) and the factory forecourt's border (`border-recolour`: `ca_1lt_6`, a colour slip in the original's outer texels).
+   Run it after every step that rewrote a lettered texture, after deleting the pack's `.text-base/` copies of those.
+11. **Painted two-tone edges and small lamps** (the police cruiser, the Clydesdale, the school bus, T09's Dover), after the
+   lettering: `upscale-textures.py SRC --paint-masks MASKS --mask-rules tools/hd-recipes/masks-cars.json` (the masks kept:
+   the two-tone rule found glass against paint on the Clydesdale's and the bus's windows, so only the cruiser keeps its
+   two-tone masks; the Dover's keep their largest piece and its red lamps are found by colour), `i76 --install DIR key-edge
+   FIELDS 4 --masks MASKS STEM STEM.detail ...`, `upscale-textures.py SRC --paint-cut FIELDS --out PACK --only
+   "cp11*,fd11*,xb11*,dl1?*"`.
+12. **Mip chains**: the tools write each file's full chain from its top level. The release's files were made before that
+   (their chains rewritten later by `dds-mips.py --fix`, the top levels kept), so a rebuild matches the release's top levels,
+   not every smaller level. `python tools/dds-mips.py PACK --fix` repairs a pack made before November 2026.
 
 **The 8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then
-offers 8x; 2.9 GB, 2,556 textures, about 0.5 GB more video memory, no difference in frame time). It needs the 4x pack and
-the 8x masters, every texture through 4xTextures_GTAV then 2xHDCube_Compact kept at 8x as PNGs (`MASTERS_8X` below). Then:
+offers 8x; 2.9 GB, 2,579 textures, about 0.5 GB more video memory, no difference in frame time). It needs the 8x masters of
+step 2 (`MASTERS` below). Then:
 
-    python tools/upscale-textures.py SRC --families --models-dir DIR --from MASTERS_8X --x2-model 2xHDCube_Compact.pth --masters-out FAMILY_MASTERS --only "z*" --skip "zmap*" --max-size 640 --scale 8
-    python tools/upscale-textures.py SRC --from MASTERS_8X --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --only @tools/hd-8x-cars.txt,zdue --covers "cockpit & cars"
-    python tools/upscale-textures.py SRC --families --family-masters FAMILY_MASTERS --from MASTERS_8X --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --max-size 640 --only "z*" --skip "zmap*" --covers "cockpit & cars"
-    python tools/text-redraws.py SRC --pack PATH/TO/tex-world-8x
+    python tools/upscale-textures.py SRC --families --models-dir M --from MASTERS --x2-model 2xHDCube_Compact.pth --masters-out FAMILY_MASTERS --only "z*" --skip "zmap*" --max-size 640 --scale 8
+    python tools/upscale-textures.py SRC --from MASTERS --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --only @tools/hd-8x-cars.txt,zdue --covers "cockpit & cars"
+    python tools/upscale-textures.py SRC --families --family-masters FAMILY_MASTERS --from MASTERS --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --max-size 640 --only "z*" --skip "zmap*" --covers "cockpit & cars"
 
+then the 4x pack's steps 8 to 11 with `--scale 8` (and `key-edge FIELDS 8`): the damage panel's cells (with `--x2-model
+2xHDCube_Compact.pth`), the frames, the lettering (61 of the specs have a texture in the 8x) and the cars' painted edges.
 The first is the graphics card part (about 15 minutes on a GTX 1080 Ti), the second and third the packing on the CPU
 (about half an hour on 8 cores). `--out` defaults to the user folder's `tex-world-8x/`; the mission maps (`zmap*`) stay at
-4x. The masters themselves: the tool has no single switch that writes them; `upscale-textures.py SRC --then
-2xHDCube_Compact.pth --scale 8 --format png --out MASTERS_8X` is the nearest (not checked against the shared pack's).
+4x. The car list `tools/hd-8x-cars.txt` comes from `i76 car-table survey`, with the 23 lit brake lamp textures
+(`*bkx1`, `cp11bko1`) the survey does not reach added by name.
 
 **The HD menu art** (`tex-menu/`: the menu pages, forms and pop-ups) is a separate pack, and **these tools do not make
 its base**: the upscaled pages (`shellbg<N>.webp` with `shellbg.json`) were made outside this repository. Given such a

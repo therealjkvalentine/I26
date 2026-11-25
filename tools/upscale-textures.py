@@ -144,6 +144,26 @@ def user_dir(scale=2):
     if sys.platform == "darwin": return os.path.expanduser(f"~/Library/Application Support/I26/tex-world-{scale}x")
     return os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "I26", f"tex-world-{scale}x")
 
+PINS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hd-recipes", "models.json")
+_checked = {}
+
+def check_model(path, name=None):
+    """A model file named in tools/hd-recipes/models.json must have the SHA-256 written there (a pack.json names the model by
+    its file, so another file of the same name would be credited wrongly): exits naming both hashes otherwise. Each file is
+    hashed once a run; a file not listed is not checked."""
+    import hashlib
+    name = name or os.path.basename(path)
+    if path in _checked or not os.path.exists(PINS): return
+    with open(PINS, encoding="utf-8") as f: pin = json.load(f)["models"].get(name)
+    if pin:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for b in iter(lambda: f.read(1 << 22), b""): h.update(b)
+        if h.hexdigest() != pin["sha256"]:
+            sys.exit(f"\nmodel {path}: SHA-256 {h.hexdigest()}, but tools/hd-recipes/models.json pins {pin['sha256']} for {name}"
+                     f" ({pin['url']}): download it again")
+    _checked[path] = True
+
 def model_file(path):
     if path: return path
     cache = os.path.join(os.path.expanduser("~/.cache"), "i26", "models")
@@ -151,7 +171,7 @@ def model_file(path):
     p = os.path.join(cache, MODEL + ".pth")
     if not os.path.exists(p):
         print(f"downloading {MODEL_URL}")
-        urllib.request.urlretrieve(MODEL_URL, p + ".part"); os.replace(p + ".part", p)
+        urllib.request.urlretrieve(MODEL_URL, p + ".part"); check_model(p + ".part", MODEL + ".pth"); os.replace(p + ".part", p)
     return p
 
 def bleed(rgb, alpha, passes=8):
@@ -675,6 +695,7 @@ class Runner:
             if not os.path.exists(path):
                 src = MODELS.get(os.path.basename(path), (None, None, None, "its author's release"))[3]
                 sys.exit(f"\nmodel {path} not found: download it from {src} into --models-dir")
+            check_model(path)
             while len(self.loaded) >= 2: self.loaded.pop(next(iter(self.loaded)))
             if self.device != "cpu": self.torch.cuda.empty_cache()
             self.loaded[path] = load_model(self.spandrel, self.torch, path, self.device)
