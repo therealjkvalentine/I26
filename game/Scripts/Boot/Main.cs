@@ -923,6 +923,7 @@ public partial class Main : Node3D
 		if (_builder?.Terrain is { } t) t.FinestLevel = _terrainDetail > 0 ? 0 : 1;
 		if (_msaaAhead is not null) _msaaAhead = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
 		else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+		World.VegShaders.SetCoverage(World.VegShaders.CoverageFor(_antialias));   // the plants' alpha-to-coverage at 4x and 8x
 		RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
@@ -2532,7 +2533,7 @@ public partial class Main : Node3D
 	[
 		"terrain_faithful", "sky_dome", "sky_fog", "sky_modern", "horizon_terrain", "horizon_rim", "horizon_near", "road",
 		"terrain_modern", "terrain_modern_night", "outside_1997", "object_translucent", "object_back", "object_back_key",
-		"object_disabled", "object_open", "drop_shadow_soft", "vegetation", "vegetation_shade",
+		"object_disabled", "object_open", "drop_shadow_soft", "vegetation", "vegetation_a2c", "vegetation_shade",
 		// and those the rest of the load makes under the briefing (the views, the cockpit, the effects): loaded here, on the still card
 		"horizon_ring_depth", "cockpit_mirror", "mirror_rim", "binocular_mask", "drop_shadow_1997", "tracer", "tracer_line_1997", "muzzle_flash",
 		"fire_patch", "fireball_tail", "flipbook", "damage_smoke", "damage_smoke_modern", "smoke_layer", "skid_mark", "headlight_glare", "rotor_disc",
