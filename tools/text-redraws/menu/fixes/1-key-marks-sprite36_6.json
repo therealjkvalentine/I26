@@ -1,0 +1,12 @@
+{
+ "textures": ["sprites/36_6"],
+ "note": "the printed (C), (V), (R) key marks replaced by the circled marks the game draws for them (r8-form-key relabel.py): the repair inventory pop-up",
+ "encoding": "lossless-m4",
+ "ops": [
+  {"op": "key-marks", "erase": "red", "marks": [
+   [454.75, 205, 468.5, 215, "C"],
+   [454.75, 223, 468.5, 233, "V"],
+   [454.75, 241, 468.5, 251, "R"]
+  ]}
+ ]
+}

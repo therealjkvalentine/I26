@@ -1,0 +1,25 @@
+{
+ "textures": ["shellbg30"],
+ "note": "as 3, the salvage stamped NO FIELD SALVAGE AVAILABLE (the stamp left as the pack has it); its legend faded; the faded legend and hints left as the pack has them (retyped, they fight the stain): the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [78, 62, 37], "runs": [
+   {"text": "CAR / VAN INVENTORY", "rect": [209, 6, 443, 28]},
+   {"text": "ENGINES", "rect": [65, 16, 128, 32]},
+   {"text": "BRAKES", "rect": [509, 16, 569, 32]},
+   {"text": "WEAPONS", "rect": [208, 33, 281, 49]},
+   {"text": "WHEELS", "rect": [361, 33, 422, 49]},
+   {"text": "SPECIALS", "rect": [64, 84, 135, 100]},
+   {"text": "SUSPENSIONS", "rect": [490, 118, 590, 134]},
+   {"text": "FIELD SALVAGE", "rect": [230, 252, 407, 274]},
+   {"text": "ENGINES", "rect": [62, 276, 125, 292]},
+   {"text": "WEAPONS", "rect": [212, 276, 285, 292]},
+   {"text": "WHEELS", "rect": [378, 276, 439, 292]},
+   {"text": "BRAKES", "rect": [538, 276, 598, 292]},
+   {"text": "SPECIALS", "rect": [57, 344, 128, 360]},
+   {"text": "SUSPENSIONS", "rect": [519, 378, 619, 394]},
+   {"text": "ACCEPT SALVAGE", "rect": [339, 452, 463, 468]},
+   {"text": "SAVE BOOKMARK", "rect": [496, 452, 625, 468]}
+  ]}
+ ]
+}

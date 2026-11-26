@@ -1,0 +1,45 @@
+{
+ "textures": [
+  "sh128n_1"
+ ],
+ "note": "sh128n_1: drafted by tools/draft-text-redraws.py (batch 01), the words read off the original, approved on the contact sheet",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    10.2,
+    2.2,
+    52.8,
+    14.8
+   ],
+   "where": {
+    "lum_below": 135.5
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 195.2
+   }
+  },
+  {
+   "op": "text",
+   "text": "NORTH",
+   "font": "ArchivoNarrow",
+   "colour": [
+    2,
+    0,
+    0
+   ],
+   "variation": {
+    "Weight": 700
+   },
+   "box": [
+    11,
+    3,
+    52,
+    14
+   ],
+   "cap": 11
+  }
+ ]
+}

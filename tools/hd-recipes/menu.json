@@ -1,0 +1,348 @@
+{
+ "name": "menu",
+ "note": "The HD menu art (tex-menu) as released in 2026.11.23 (pack 'I26 4:3' 0.0.3): run by tools/menu-pack.py build. 'models' names the model files it uses, pinned (url, size, SHA-256, licence) in models.json; the steps name a model by its 'model' there. Steps in the order the release's files were made; each note names what it reproduces.",
+ "models": ["4xTextures_GTAV_rgt-s_dither.pth", "RealESRGAN_x4plus_anime_6B.pth"],
+ "base": {
+  "model": "4xTextures_GTAV_rgt-s_dither",
+  "tile": 128,
+  "pad": 16,
+  "precision": "float32"
+ },
+ "encodings": {
+  "lossy": {
+   "quality": 95,
+   "method": 6
+  },
+  "sprite": {
+   "quality": 95,
+   "method": 6,
+   "exact": true
+  },
+  "lossless": {
+   "lossless": true,
+   "quality": 100,
+   "method": 6
+  },
+  "lossless-m4": {
+   "lossless": true,
+   "quality": 80,
+   "method": 4
+  }
+ },
+ "steps": [
+  {
+   "id": "base",
+   "kind": "base",
+   "encoding": "lossy",
+   "note": "every picture through the model, colour matched; pages, pads and loading cards lossy WebP q95 m6, sprites with their alpha (exact): gpu-art sr.py, pack_bg.py, pack_rest.py (2026-11-03) and r5-menu-art up_sprites.py (2026-11-06)"
+  },
+  {
+   "id": "logo-photo",
+   "kind": "inset",
+   "files": [
+    "shellbg14.webp"
+   ],
+   "model": {
+    "name": "RealESRGAN_x4plus_anime_6B",
+    "tile": 128,
+    "pad": 16,
+    "precision": "float16"
+   },
+   "mask": {
+    "box": [
+     140,
+     0,
+     490,
+     150
+    ],
+    "dark": 60,
+    "yellow": [
+     240,
+     195,
+     60
+    ],
+    "blue": true,
+    "white": 200,
+    "grow": 1
+   },
+   "feather": 2.0,
+   "encoding": "lossy",
+   "note": "page 14's logo and the fire photo inside its openings through RealESRGAN x4plus anime 6B (float16, 128 px tiles, colour matched), laid in inside the logo's colour mask feathered by 2 px: r3-dash-upscale apply_logo.py (2026-11-04). Its vector hybrid inside the mask is left out: flat-art draws the logo again over it, so only the photo in the openings stays"
+  },
+  {
+   "id": "small-text",
+   "kind": "tool",
+   "op": "small_text",
+   "files": [
+    "shellbg1.webp",
+    "shellbg2.webp",
+    "shellbg3.webp",
+    "shellbg4.webp",
+    "shellbg5.webp",
+    "shellbg15.webp",
+    "shellbg16.webp",
+    "shellbg18.webp",
+    "shellbg19.webp",
+    "shellbg20.webp",
+    "shellbg21.webp",
+    "shellbg22.webp",
+    "shellbg23.webp",
+    "shellbg24.webp",
+    "shellbg25.webp",
+    "shellbg28.webp",
+    "shellbg29.webp",
+    "shellbg30.webp"
+   ],
+   "encoding": "lossy",
+   "note": "the small print through bicubic 4x and an unsharp mask inside a mask of the original's small ink: r3-dash-upscale menutext.py apply c_bicubic_sharp (2026-11-04)"
+  },
+  {
+   "id": "lineart",
+   "kind": "tool",
+   "op": "lineart",
+   "files": [
+    "sprites/3[789]_*",
+    "sprites/4?_*",
+    "sprites/5[0-7]_*",
+    "sprites/59_*"
+   ],
+   "args": {
+    "width": 1.0,
+    "iters": 4,
+    "ss": 4
+   },
+   "encoding": "sprite",
+   "note": "the blueprint sprites' dark lines traced smooth, banks 37-57 and 59 (252 sprites): r5-menu-art lineart.py trace(width=1.0, iters=4, ss=4) on the model's sprite (2026-11-06). The driver was not saved: the banks and the arguments were found by comparison with the release (each of the 287 sprites changed that day matches this or the plain model clearly, by 10 dB or more)"
+  },
+  {
+   "id": "lettering",
+   "kind": "specs",
+   "specs": [
+    "text-redraws/menu/retype",
+    "text-redraws/menu"
+   ],
+   "encoding": "lossy",
+   "note": "the pages' and pads' printed words set again in Arial: r5-menu-art retype.py with its 21 specs (2026-11-06; the pads again from the model's pads with Arial titles, r7-fonts-arial 2026-11-08; page 4 with r9-modpack's fixed spec), page 16 by text-redraws.py's own spec (r6-fonts). Page 4 takes r9-modpack's spec in r5's place (the release ran r5's, then r9's retype2.py over it on 2026-11-10; the order was not recorded and the single pass matches the released page as closely as the other pages, about 48 dB)"
+  },
+  {
+   "id": "rules",
+   "kind": "run",
+   "tool": "menu-rules.py",
+   "args": [
+    "--mode",
+    "chroma",
+    "--only",
+    "{pages}"
+   ],
+   "files": [
+    "shellbg1.webp",
+    "shellbg2.webp",
+    "shellbg3.webp",
+    "shellbg4.webp",
+    "shellbg5.webp",
+    "shellbg16.webp",
+    "shellbg17.webp",
+    "shellbg18.webp",
+    "shellbg19.webp",
+    "shellbg20.webp",
+    "shellbg21.webp",
+    "shellbg22.webp",
+    "shellbg23.webp",
+    "shellbg24.webp",
+    "shellbg25.webp",
+    "shellbg28.webp",
+    "shellbg29.webp",
+    "shellbg30.webp"
+   ],
+   "note": "the forms' ruled lines made again from the originals, lossless: tools/menu-rules.py --mode chroma (r7-form-lines, 2026-11-08)"
+  },
+  {
+   "id": "flat-art",
+   "kind": "run",
+   "tool": "flat-art.py",
+   "args": [
+    "--only",
+    "{pages}",
+    "--smooth",
+    "0.5",
+    "--alphamax",
+    "0.75"
+   ],
+   "files": [
+    "shellbg14.webp",
+    "shellbg26.webp"
+   ],
+   "note": "the title logo drawn again as vector art, lossless: tools/flat-art.py (r7-logo, 2026-11-09). Page 14 keeps the pack's picture round and inside the stamp (the logo-photo step's)"
+  },
+  {
+   "id": "fixes",
+   "kind": "specs",
+   "specs": [
+    "text-redraws/menu/fixes"
+   ],
+   "encoding": "lossless-m4",
+   "note": "in file order: the circled key marks and the inventory title (r8-form-key relabel.py, relabel2.py, title.py, 2026-11-09), the field salvage lines and the repair pop-up's legend re-set (r14-retouch reset.py, 2026-11-14)"
+  },
+  {
+   "id": "maps",
+   "kind": "maps",
+   "args": [
+    "--writing",
+    "clean",
+    "--tile",
+    "256"
+   ],
+   "note": "the mission maps at 4x, their pen writing cleaned (halo off, edges feathered, ink 88 %): tools/menu-maps.py, from the world texture export (r3-drums-maps, 2026-11-05)"
+  },
+  {
+   "id": "finish",
+   "kind": "finish",
+   "note": "shellbg.json, pads.json, sprites/sprites.json (affine [4, 0, 4, 0]), pack.json, ATTRIBUTION.txt"
+  }
+ ],
+ "pack": {
+  "name": "I26 4:3",
+  "version": "0.0.3",
+  "min_engine": "1.1",
+  "licence": "non-commercial; derived from Interstate '76 art, requires an owned copy of the game",
+  "aspect": "4:3 (the original's menu pictures, upscaled; no widescreen)"
+ },
+ "attribution": [
+  "4xTextures_GTAV_rgt-s_dither by Phhofm, CC BY 4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither (used for: every upscaled picture: backgrounds, pads, sprites, loading screens, maps)",
+  "RealESRGAN_x4plus_anime_6B by Xintao Wang et al., BSD-3-Clause, https://github.com/xinntao/Real-ESRGAN (used for: the fire photo inside the mission select page's logo)",
+  "Arial (Regular, Bold and Italic) as supplied with Windows: The Monotype Corporation; the lettering set in it is rendered into the pictures, no font file is included",
+  "the circled key marks: drawn from the install's own Lee_____.ttf, as the game draws them"
+ ],
+ "nitro": {
+  "note": "The Nitro Pack's own menu art, under the pack's nitro/ folder (menu-pack.py build --nitro). The game shows Nitro's database.tvf by its own numbers: a page Nitro left as the base game's is the base pack's page (no file here), a redrawn one is nitro/shellbg<record>.webp, and every sprite on a Nitro screen comes from nitro/sprites/ (bank 30's shared ones excepted: the game takes the base game's bank 36 picture, pop-up arrows and all). Same model, tiles, colour match and WebP settings as the base pack.",
+  "export": {
+   "env": {
+    "I76_NATIVE": "1"
+   },
+   "args": [
+    "--banks",
+    "27-57",
+    "--only",
+    "bg,bank"
+   ]
+  },
+  "pages": [
+   2,
+   7,
+   12,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   21,
+   22,
+   23,
+   24,
+   25
+  ],
+  "pages_note": "the records database.tvf redrew (NitroShellMap.Redrawn): parts catalog 2, a Joe's pad 7 (three check boxes fewer), control configuration 12, the network and modem forms 14-19, the scenario form 21, the main menu's logo 22, the standings 23-25",
+  "leave_to_base": [
+   "nitro/sprites/30_*"
+  ],
+  "steps": [
+   {
+    "id": "base",
+    "kind": "base",
+    "encoding": "lossy",
+    "note": "Nitro's own pages and sprites through the base pack's model, tiles and colour match; pages lossy WebP q95 m6, sprites with their alpha (exact), as the base pack's"
+   },
+   {
+    "id": "reuse",
+    "kind": "reuse",
+    "note": "the sprites Nitro shares with the base game (the same picture in the base export): the base pack's finished file under the Nitro bank and number"
+   },
+   {
+    "id": "small-text",
+    "kind": "tool",
+    "op": "small_text",
+    "files": [
+     "nitro/shellbg2.webp",
+     "nitro/shellbg12.webp",
+     "nitro/shellbg14.webp",
+     "nitro/shellbg15.webp",
+     "nitro/shellbg16.webp",
+     "nitro/shellbg17.webp",
+     "nitro/shellbg18.webp",
+     "nitro/shellbg19.webp",
+     "nitro/shellbg21.webp",
+     "nitro/shellbg23.webp",
+     "nitro/shellbg24.webp",
+     "nitro/shellbg25.webp"
+    ],
+    "encoding": "lossy",
+    "note": "the forms' small print through bicubic 4x and an unsharp mask, as the base pack's forms"
+   },
+   {
+    "id": "lineart",
+    "kind": "tool",
+    "op": "lineart",
+    "files": [
+     "nitro/sprites/3[1-9]_*",
+     "nitro/sprites/4?_*",
+     "nitro/sprites/5[01]_*",
+     "nitro/sprites/53_*"
+    ],
+    "args": {
+     "width": 1.0,
+     "iters": 4,
+     "ss": 4
+    },
+    "encoding": "sprite",
+    "note": "the blueprint banks' new sprites (base banks 37-57 and 59 are Nitro's 31-51 and 53) traced smooth, as the base pack's"
+   },
+   {
+    "id": "lettering",
+    "kind": "specs",
+    "specs": [
+     "text-redraws/menu/nitro"
+    ],
+    "encoding": "lossy",
+    "note": "the pages' and sprites' printed words set again in Arial (Arial Bold for the forms' headings), the base pack's specs where Nitro's form has the same words in the same place"
+   },
+   {
+    "id": "rules",
+    "kind": "run",
+    "tool": "menu-rules.py",
+    "args": [
+     "--mode",
+     "chroma",
+     "--only",
+     "{pages}"
+    ],
+    "files": [
+     "nitro/shellbg2.webp",
+     "nitro/shellbg12.webp",
+     "nitro/shellbg14.webp",
+     "nitro/shellbg15.webp",
+     "nitro/shellbg16.webp",
+     "nitro/shellbg17.webp",
+     "nitro/shellbg18.webp",
+     "nitro/shellbg19.webp",
+     "nitro/shellbg21.webp",
+     "nitro/shellbg23.webp",
+     "nitro/shellbg24.webp",
+     "nitro/shellbg25.webp"
+    ],
+    "note": "the forms' ruled lines made again from the originals, lossless: tools/menu-rules.py --mode chroma"
+   },
+   {
+    "id": "finish",
+    "kind": "finish",
+    "note": "nitro/shellbg.json, nitro/sprites/sprites.json (affine [4, 0, 4, 0], keyed by database.tvf's numbers), nitro/nitro-pack.json"
+   }
+  ],
+  "pack": {
+   "name": "I26 4:3 Nitro Pack pages",
+   "version": "0.0.1",
+   "for": "the nitro/ folder of the I26 4:3 menu pack (0.0.3 or later)",
+   "licence": "non-commercial; derived from Interstate '76 Nitro Pack art, requires an owned copy of the game"
+  }
+ }
+}

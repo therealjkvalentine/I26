@@ -1,0 +1,7 @@
+{"kind": "fix", "textures": ["hj_1bdf1"], "rows": "stored",
+ "note": "the house's garage door braces (four arms and the centre block, as the original draws them) drawn again as straight anti-aliased bands fitted to the original (coordinates in the stored row order); the fit moves them to about [4.569, 6.225, 13.523, 35.018, 3.244], [28.715, 6.011, 19.24, 33.061, 3.479], [13.604, 49.776, 4.325, 78.261, 3.29], [19.206, 51.764, 28.865, 80.122, 3.41] and the block to [13.243, 30.838, 19.738, 54.157]; the fit is run",
+ "ops": [
+  {"op": "bands", "sigma": 0, "inpaint": "telea", "fit": true, "panels": [
+   {"rect": [5, 6, 28, 79], "brace": "dark",
+    "arms": [[6, 7, 13, 31, 3.5], [27, 9, 20, 31, 3.5], [13, 54, 6, 78, 3.5], [20, 54, 27, 76, 3.5]],
+    "rects": [[13, 31, 20, 54]]}]}]}

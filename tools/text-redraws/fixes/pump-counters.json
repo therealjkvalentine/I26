@@ -1,0 +1,3 @@
+{"kind": "fix", "textures": ["fg_1pmf1", "fs_1pmf1", "fp_1pmf1", "fn_1pmf1"],
+ "note": "the gas pumps' counter windows: the original's texels enlarged without a model (smooth down the rows, crisp across), where a model draws made-up glyphs; run on the pumps family's output before it is encoded",
+ "ops": [{"op": "from-original", "rect": [11, 10, 20, 21], "smooth": "y", "blur": 0.15, "feather": 0.375, "inset": 0.5}]}

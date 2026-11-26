@@ -1,0 +1,48 @@
+{
+  "note": "Which of upscale-textures.py --paint-masks' masks the shared packs keep (--mask-rules). A rule's \"only\" is globs of texture names; \"two_tone\": true keeps the two-tone mask, \"largest\" only its largest connected piece; \"detail\": true keeps the small saturated details' mask; \"lamps\" adds lamps found by colour as details. A texture no rule names gets no mask. The two-tone rule found glass against paint on the Clydesdale's and the school bus's windows and the cut did harm there, so only the police cruiser keeps its two-tone masks. On T09's Dover only the grey lower panel's piece is kept (the roundel's half and the badge's letters are the lettering's), the amber markers' and the dome's details, and its red wing and dome lamps are added by colour (red over 120, green and blue under 70, at least 7 texels; the dome's keyed or dark lower half taken in, a texel round and 6 rows down; on the top, not the flag's red stripe below row 40).",
+  "rules": [
+    {
+      "only": "cp11bkl1,cp11ftl1,cp11lbf0,cp11lbf1,cp11lbf2,cp11mdl1,cp11mdl2,cp11mdl3,cp11mdr1,cp11mdr2,cp11mdr3,cp11tp_1,cp11tp_2,cp11tp_3",
+      "two_tone": true
+    },
+    {
+      "only": "fd11ftf1,fd11ftf2,fd11ftf3,fd11ftl3,fd11mdu1",
+      "detail": true
+    },
+    {
+      "only": "xb11bkb2,xb11bkl2,xb11bkr2,xb11ftf2,xb11ftl2,xb11ftr2,xb11mdl2",
+      "detail": true
+    },
+    {
+      "only": "dl11bkl2,dl11bkr2,dl11bkt2,dl11ftf2,dl11ftl2,dl11ftr2,dl11ftt2,dl11mdl2,dl11mdr2,dl11tp_2,dl12bkl2,dl12bkr2,dl12bkt2,dl12ftf2,dl12ftl2,dl12ftr2,dl12ftt2,dl12mdl2,dl12mdr2,dl12tp_2,dl13bkl2,dl13bkr2,dl13bkt2,dl13ftl2,dl13ftr2,dl13ftt2,dl13mdl2,dl13mdr2,dl13tp_2",
+      "two_tone": "largest"
+    },
+    {
+      "only": "dl11ftf2,dl11ftt2,dl12ftf2,dl12ftt2,dl13ftt2",
+      "detail": true
+    },
+    {
+      "only": "dl11ftl2,dl11ftr2,dl11mdl2,dl11mdr2,dl12ftl2,dl12ftr2,dl12mdl2,dl12mdr2,dl13ftl2,dl13ftr2,dl13mdl2,dl13mdr2",
+      "lamps": {
+        "red_over": 120,
+        "green_under": 70,
+        "blue_under": 70,
+        "min_texels": 7,
+        "dark_under": 40,
+        "rows_down": 6
+      }
+    },
+    {
+      "only": "dl11ftt2,dl12ftt2,dl13ftt2",
+      "lamps": {
+        "red_over": 120,
+        "green_under": 70,
+        "blue_under": 70,
+        "min_texels": 7,
+        "dark_under": 40,
+        "rows_down": 6,
+        "top_row_under": 41
+      }
+    }
+  ]
+}

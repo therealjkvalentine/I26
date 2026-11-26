@@ -1,0 +1,76 @@
+{
+ "textures": [
+  "sl150x_1"
+ ],
+ "note": "sl150x_1: drafted by tools/draft-text-redraws.py (batch 01), the words read off the original, approved on the contact sheet",
+ "ops": [
+  {
+   "op": "erase",
+   "rect": [
+    5.2,
+    5.95,
+    58.8,
+    16.05
+   ],
+   "where": {
+    "lum_below": 130.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 192.9
+   }
+  },
+  {
+   "op": "erase",
+   "rect": [
+    10.2,
+    19.95,
+    55.8,
+    30.05
+   ],
+   "where": {
+    "lum_below": 130.8
+   },
+   "grow": 0.6,
+   "halo": {
+    "within": 0.8,
+    "lum_below": 192.9
+   }
+  },
+  {
+   "op": "text",
+   "text": "SPEED",
+   "font": "ArchivoBlack",
+   "colour": [
+    2,
+    2,
+    3
+   ],
+   "box": [
+    6,
+    6.75,
+    58,
+    15.25
+   ],
+   "cap": 8.5
+  },
+  {
+   "op": "text",
+   "text": "LIMIT",
+   "font": "ArchivoBlack",
+   "colour": [
+    2,
+    1,
+    2
+   ],
+   "box": [
+    11,
+    20.75,
+    55,
+    29.25
+   ],
+   "cap": 8.5
+  }
+ ]
+}

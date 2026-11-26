@@ -84,6 +84,9 @@ public class ControlsScreen : OverlayScreen
         ("Quick View Toggle", 333, 337, 113, 10), ("Toggle Reverse", 336, 355, 94, 8),
     ];
 
+    /// <summary>Nitro's art (database.tvf record 12) prints RANDOM where the base game's prints POEM: that row's caption and ink box there.</summary>
+    internal static readonly (string Text, int X, int Y, int W, int H) NitroPoem = ("Random", 334, 320, 51, 10);
+
     protected override void Build()
     {
         _f = Shell.Db.Font(0x44);
@@ -154,7 +157,11 @@ public class ControlsScreen : OverlayScreen
         Frame.Text(_f, 40, mouseY, Fit("Mouse Options", NameW), ShellFrame.OverlayInk);
         Frame.Text(_f, 190, mouseY, Fit("Configure", LeftBindW), ShellFrame.OverlayInk);
         if (Shell.Upscaled)
-            foreach (var (text, x, y, w, h) in Names) Frame.Caption(new Rect2I(x, y, w, h), text, 213);
+            foreach (var name in Names)
+            {
+                var (text, x, y, w, h) = Shell.Db.IsNitro && name.Text == "Poem" ? NitroPoem : name;
+                Frame.Caption(new Rect2I(x, y, w, h), text, 213);
+            }
         for (int k = 0; k < LeftRows.Length; k++) Frame.Text(_f, 190, 47 + k * RowH, Fit(Binding(LeftRows[k]), LeftBindW), ShellFrame.OverlayInk);
         for (int k = 0; k < RightRows.Length; k++) Frame.Text(_f, 486, 47 + k * RowH, Fit(Binding(RightRows[k]), RightBindW), ShellFrame.OverlayInk);
     }

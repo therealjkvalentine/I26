@@ -1,0 +1,20 @@
+{
+ "textures": ["shellbg21"],
+ "note": "MODEM MELEE•DRIVER ENTRY FORM: the printed words set again in Arial (r5-menu-art retype.py)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [99, 83, 55], "runs": [
+   {"text": "MODEM MELEE•DRIVER ENTRY FORM", "rect": [227, 8, 627, 31]},
+   {"text": "ENTER GAME", "rect": [257, 453, 349, 469]},
+   {"text": "LOCAL DRIVER", "rect": [57, 26, 166, 43]},
+   {"text": "RENAME", "rect": [170, 43, 217, 61], "fill": "flat"},
+   {"text": "WEAPONS", "rect": [506, 42, 574, 57]},
+   {"text": "DRIVER:", "rect": [224, 61, 278, 76]},
+   {"text": "PARTS", "rect": [519, 160, 563, 176]},
+   {"text": "MAKE / MODEL:", "rect": [226, 402, 324, 418]},
+   {"text": "VARIANT:", "rect": [227, 422, 287, 437]},
+   {"text": "CONFIGURE CHASSIS", "rect": [454, 418, 621, 440]},
+   {"text": "CANCEL", "rect": [533, 453, 593, 469]}
+  ]}
+ ]
+}

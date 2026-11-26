@@ -132,3 +132,19 @@ def regenerate(path, etcpak, out=None):
     dst = out or path
     with open(dst + ".part", "wb") as f: f.write(dds_header(hd["w"], hd["h"], len(chain), n0) + body)
     os.replace(dst + ".part", dst)
+
+def write_dds_keeping(path, base, rgba, changed, etcpak):
+    """A .dds of `rgba` (stored row order) that keeps `base`'s (a BC7 .dds's bytes, the same size) top-level blocks where
+    `changed` (a boolean of rgba's size) marks no texel: only the blocks holding a changed texel are encoded again, so a fix of a
+    few texels leaves the rest of the file's top level as it was. The chain is made from the top level as it then decodes."""
+    hd = read_header(base); w, h = hd["w"], hd["h"]
+    if hd["dxgi"] != DXGI_BC7_SRGB or rgba.shape[:2] != (h, w): raise ValueError("not a BC7 sRGB .dds of the picture's size")
+    bw, bh = (w + 3) // 4, (h + 3) // 4; n0 = bw * bh * 16
+    blocks = bytearray(base[hd["offset"]:hd["offset"] + n0]); new0 = _bc7(rgba, etcpak)
+    for by in range(bh):
+        for bx in range(bw):
+            if changed[by * 4:by * 4 + 4, bx * 4:bx * 4 + 4].any():
+                i = (by * bw + bx) * 16; blocks[i:i + 16] = new0[i:i + 16]
+    im = Image.open(io.BytesIO(dds_header(w, h, 1, n0) + bytes(blocks))); im.load()
+    chain = mip_chain(np.array(im.convert("RGBA"))[:h, :w])
+    with open(path, "wb") as f: f.write(dds_header(w, h, len(chain), n0) + bytes(blocks) + b"".join(_bc7(l, etcpak) for l in chain[1:]))
