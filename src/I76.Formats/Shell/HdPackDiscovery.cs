@@ -47,9 +47,11 @@ public sealed record HdPackFound(string Name, string Path, string? ZipRoot, HdPa
 public sealed class HdPackDiscovery
 {
     public const string Menu = "tex-menu";
+    /// <summary>The optional widescreen menu pack (WideMenuPack): the sides of the menu pack's pages, read beside it.</summary>
+    public const string MenuWide = "tex-menu-wide";
 
-    /// <summary>Every layout name looked for: the menu pack, the plain tex-world, and the sized world folders largest first.</summary>
-    public static readonly string[] Names = [Menu, HdPackFolders.Plain, .. HdPackFolders.Sizes.Select(HdPackFolders.Folder)];
+    /// <summary>Every layout name looked for: the menu pack, the widescreen menu pack, the plain tex-world, and the sized world folders largest first.</summary>
+    public static readonly string[] Names = [Menu, MenuWide, HdPackFolders.Plain, .. HdPackFolders.Sizes.Select(HdPackFolders.Folder)];
 
     /// <summary>The release archives' names (the zips and the folders Extract All names after them), any case.</summary>
     public static bool IsArchiveName(string name) =>
@@ -150,7 +152,7 @@ public sealed class HdPackDiscovery
             _notUsed.Add((zip, $"not a readable zip ({e.Message})"));
             return;
         }
-        if (roots.Count == 0) { _notUsed.Add((zip, "holds no tex-menu, tex-world or tex-world-Nx folder")); return; }
+        if (roots.Count == 0) { _notUsed.Add((zip, "holds no tex-menu, tex-menu-wide, tex-world or tex-world-Nx folder")); return; }
         foreach (var (name, root) in roots)
         {
             var info = infos[name];
@@ -207,6 +209,7 @@ public sealed class HdPackDiscovery
             if (doc.RootElement.TryGetProperty("scale", out var s) && s.TryGetInt32(out int n)) return HdPackFolders.Folder(n);
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidOperationException) { }
+        if (File.Exists(Path.Combine(dir, "wide.json"))) return MenuWide;
         return File.Exists(Path.Combine(dir, "shellbg.json")) || File.Exists(Path.Combine(dir, "pads.json")) ? Menu : "tex-menu or tex-world-4x (as its archive has it)";
     }
 

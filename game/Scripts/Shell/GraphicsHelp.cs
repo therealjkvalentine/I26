@@ -71,6 +71,7 @@ public static class GraphicsHelp
         GraphicsRow.ShowFps => "Show FPS: the frame rate and frame time in the window's top right corner, over the menus and the game.",
         GraphicsRow.Renderer => "Renderer: Vulkan, Direct3D 12 (Windows) or OpenGL; Auto picks. Try another if the game will not start or draws wrongly. From the next start.",
         GraphicsRow.Garage3D => "3D garage: Configure Chassis drawn as a 3D garage with your car in it; Off is the original's flat 2D form.",
+        GraphicsRow.MenuWidth => "Menu width: Wide fills a widescreen window with the widescreen menu pack's art beside each menu page; 4:3 shows the pages alone between black bars. The page itself is the same either way.",
         _ => throw new ArgumentOutOfRangeException(nameof(row)),
     };
 

@@ -40,7 +40,7 @@ public static class HdPacks
         // only a scan made already (the settings' load makes it): never the engine's calls from here (the tests have no engine)
         if (_found is not { } f) return "";
         var parts = new List<string>();
-        foreach (var n in HdPackDiscovery.Names.Where(n => n != HdPackDiscovery.Menu && f.Has(n)))
+        foreach (var n in HdPackDiscovery.Names.Where(n => n != HdPackDiscovery.Menu && n != HdPackDiscovery.MenuWide && f.Has(n)))
         {
             var p = f.Get(n)!;
             string where = p.Place switch

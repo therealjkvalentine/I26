@@ -32,15 +32,24 @@ namespace I76.Game.Shell;
 ///
 /// The forms' printed scroll triangles and ⊟ ⊞ boxes (FormGlyphs) are laid over with paper in the upscale and drawn again
 /// over it at the window's resolution, where the art has them (the base game's records shown with their own upscale).
+///
+/// With the widescreen menu pack (WideMenus) and a window wider than 4:3, the picture is the 4:3 page with that pack's sides beside
+/// it (the layer that fills the window), its affine moved by the added width: the page itself, and so everything drawn over it,
+/// lands where it did. A resize that wants another layer loads the page again.
 /// </summary>
 public partial class ShellBackdrop : Control
 {
     private sealed record Entry(string Path, float Ax, float Bx, float Ay, float By);
 
     private readonly Dictionary<int, Entry> _entries = [];
-    private readonly List<(int Record, long Edits, ImageTexture Texture)> _loaded = [];
+    private readonly List<(int Record, long Edits, string? Layer, ImageTexture Texture, Entry Drawn)> _loaded = [];
     private const int Keep = 4;
     private Entry? _entry;
+    /// <summary>The shown picture's entry as drawn: the record's, its affine moved by a wide page's added side.</summary>
+    private Entry? _drawn43;
+    /// <summary>The wide layer the window wanted when the shown picture was loaded (null: 4:3), whether or not the pack widened it.</summary>
+    private string? _layer;
+    private int _shownRecord;
     private ImageTexture? _texture;
     private int _editsVersion = -1;
     private long _editsKey, _shownKey;
@@ -51,6 +60,16 @@ public partial class ShellBackdrop : Control
         MouseFilter = MouseFilterEnum.Ignore;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         Scan("");
+        GetViewport().SizeChanged += Resized;
+    }
+
+    /// <summary>A window resize that wants another wide layer (or none) loads the shown page again.</summary>
+    private void Resized()
+    {
+        if (_entry is not { } e || !WideMenus.Installed) return;
+        if (WideMenus.LayerFor(GetViewportRect().Size)?.Name == _layer) return;
+        (_texture, _drawn43, _layer) = Load(_shownRecord, e, _shownKey, _edits);
+        QueueRedraw();
     }
 
     /// <summary>Folder of the Nitro Pack's own pictures, in the HD assets (<see cref="HdAssets"/>).</summary>
@@ -135,10 +154,12 @@ public partial class ShellBackdrop : Control
         }
         else edits = _edits;
         long key = e is null ? 0 : _editsKey;
-        if (e == _entry && key == _shownKey) return;
+        string? layer = e is null ? null : WideMenus.LayerFor(GetViewportRect().Size)?.Name;
+        if (e == _entry && key == _shownKey && record == _shownRecord && layer == _layer) return;
         _entry = e;
         _shownKey = key;
-        _texture = e is null ? null : Load(record, e, key, edits);
+        _shownRecord = record;
+        (_texture, _drawn43, _layer) = e is null ? (null, null, null) : Load(record, e, key, edits);
         QueueRedraw();
     }
 
@@ -173,24 +194,34 @@ public partial class ShellBackdrop : Control
         return (long)edits.Count << 32 | (uint)h.ToHashCode();
     }
 
-    private ImageTexture? Load(int record, Entry e, long key, IReadOnlyList<ShellFrame.BackgroundEdit>? edits)
+    /// <summary>The record's picture with the edits made to it (the 4:3 page, or with a window wider than 4:3 and the widescreen pack the wide page), the entry it is drawn by, and the layer the window wanted.</summary>
+    private (ImageTexture?, Entry?, string?) Load(int record, Entry e, long key, IReadOnlyList<ShellFrame.BackgroundEdit>? edits)
     {
-        int i = _loaded.FindIndex(l => l.Record == record && l.Edits == key);
+        var want = WideMenus.LayerFor(GetViewportRect().Size);
+        int i = _loaded.FindIndex(l => l.Record == record && l.Edits == key && l.Layer == want?.Name);
         if (i >= 0)
         {
             var hit = _loaded[i];
             _loaded.RemoveAt(i);
             _loaded.Add(hit);
-            return hit.Texture;
+            return (hit.Texture, hit.Drawn, want?.Name);
         }
         var img = HdAssets.LoadImage(e.Path);
-        if (img is null || img.IsEmpty()) { GD.PushWarning($"shell backgrounds: {e.Path} unreadable"); _entries.Remove(record); return null; }
-        if (key != 0 && edits is not null) Edit(img, Fit(e, new Vector2(img.GetWidth(), img.GetHeight())), edits);
+        if (img is null || img.IsEmpty()) { GD.PushWarning($"shell backgrounds: {e.Path} unreadable"); _entries.Remove(record); return (null, null, null); }
+        var drawn = e;
+        // the widescreen pack's sides beside the 4:3 page: the page's own affine moved by the added side (a picture with no affine
+        // of its own is centred, which a wide page with equal sides also is)
+        if (want is not null && WideMenus.Compose(record, img, want) is { } wide)
+        {
+            img = wide.Image;
+            if (!float.IsNaN(e.Ax)) drawn = e with { Bx = e.Bx + wide.Side };
+        }
+        if (key != 0 && edits is not null) Edit(img, Fit(drawn, new Vector2(img.GetWidth(), img.GetHeight())), edits);
         img.GenerateMipmaps();
         var tex = ImageTexture.CreateFromImage(img);
-        _loaded.Add((record, key, tex));
+        _loaded.Add((record, key, want?.Name, tex, drawn));
         if (_loaded.Count > Keep) _loaded.RemoveAt(0);
-        return tex;
+        return (tex, drawn, want?.Name);
     }
 
     /// <summary>The entry's affine for a picture of this size: its own, or the picture's height the frame's, centred.</summary>
@@ -243,7 +274,7 @@ public partial class ShellBackdrop : Control
 
     public override void _Draw()
     {
-        if (_entry is not { } e || _texture is null) return;
+        if (_drawn43 is not { } e || _texture is null) return;
         var size = GetViewportRect().Size;
         float s = Mathf.Min(size.X / ShellFrame.W, size.Y / ShellFrame.H);
         var off = (size - new Vector2(ShellFrame.W, ShellFrame.H) * s) / 2;

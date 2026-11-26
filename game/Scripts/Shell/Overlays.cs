@@ -719,6 +719,11 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                     I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
                 });
                 break;
+            // [port] menu_width (MenuWidthRow): the widescreen menu pack's sides beside the pages, shown only with that pack; from the next page shown
+            case GraphicsRow.MenuWidth:
+                if (!MenuWidthRow.Offered(WideMenus.Installed)) return false;
+                Row(r, line, MenuWidthRow.Label, () => MenuWidthRow.Names[MenuWidthRow.Index(st)], () => { MenuWidthRow.Step(st); WideMenus.Enabled = st.MenuWide; });
+                break;
             // the frame rate limiter and vsync: drawing only, the simulation keeps the Play Options rate; both live (the engine's, so the shell shows it too)
             case GraphicsRow.VSync:
                 Row(r, line, "VSync", () => st.VSync ? "On" : "Off", () => { st.VSync = !st.VSync; I76.Game.FrameLimiter.Apply(st); });
@@ -808,6 +813,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsPages.Advanced:
                 I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
                 I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
+                WideMenus.Enabled = st.MenuWide;
                 I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
                 I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
                 I76.Game.Boot.RenderScale.Apply(st);

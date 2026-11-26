@@ -299,8 +299,71 @@ result is `i26-hd-work\nitro\tex-menu\nitro`: copy that `nitro` folder into the 
 go inside it; a pack read from its zip needs the zip extracted to `tex-menu` first. The loading cards stay the base pack's
 (`nitro/load/` is one folder for both games).
 
-What is not covered: Nitro's main-menu logo (record 22) is the model's picture (its letters are textured, not flat art), the
-pop-ups' printed words are the model's as in the base pack, and widescreen pages.
+What is not covered: Nitro's main-menu logo (record 22) is the model's picture (its letters are textured, not flat art), and
+the pop-ups' printed words are the model's as in the base pack. Widescreen pages are a pack of their own (next section).
+
+### The widescreen menu pack (`tex-menu-wide`)
+
+An optional pack for windows wider than 4:3: the **sides** of the menu pack's pages, so a page fills a 16:9 window (and, with
+its ultrawide layer, a 21:9 one) instead of sitting between black bars. It holds no page: the game puts the 4:3 pack's own page
+in the middle, untouched, and the strips beside it when it loads the page, so the hotspots, the words and everything the game
+draws on a page stay exactly where they were (the sides are decoration only). Graphic Detail > Advanced has a **Menu Width** row
+(Wide\*, the default, or 4:3) when the pack is installed; the 1997 look never uses it.
+
+**Its layout.** `tex-menu-wide/wide.json` lists the layers (`16x9`: 3414x1920, 427 texels added on each side of the 2560x1920
+page; `21x9`: 4588x1920, 587 more on each side of the 16:9 page) and, per record (`pages`, and the Nitro Pack's own under
+`nitro`, by its numbers), each layer's strip file, `16x9/shellbg<N>.webp` (the left side and the right side side by side, 1920
+tall), or `"pad": true` for a page whose edges are one colour (the main menu's logo on black, the credits, YOU ARE UNCONSCIOUS,
+Tad's card on its brown: each row's outer four columns repeated out, no file), and the 4:3 page's edges as a fingerprint (the
+mean colour of the outer four columns in sixteen bands). A window takes the narrowest layer that fills it (16:10 and 16:9 the
+16:9 layer, 21:9 and wider the 21:9), and the pack's sides are used only over the page they were made for: a page of another
+4:3 menu pack whose edges differ by more than 8 levels is shown at 4:3 (a rebuilt "I26 4:3" pack, a level or two off the
+release, is widened). Strips rather than whole wide pages: the 16:9 layer is 7 MB where its pages whole would be about 70, and
+the middle of a wide page can never be anything but the 4:3 pack's.
+
+**How it is made.** Per page the recipe `tools/hd-recipes/menu-wide.json` says which of four ways (`class`):
+
+- `model`: an image model drew the sides. The 4:3 page is put on a canvas of the model's own output ratio (Gemini 3 Pro Image's
+  2K "16:9" is 2752x1536, 1.7917:1, not 16:9), the new parts a placeholder (`mirror`: the edge mirrored and blurred; `telea`: the
+  edge's colours carried outward with no structure), and sent with a prompt that says plainly what the finished picture is and
+  what is cut at each edge (for the forms: the same sheet of paper, wider, no lines, no boxes, no text; for the illustrated
+  pages the objects cut by the edge named: on Joe's pads the toast and its plate, the saucer, the spoon). Two or three variants
+  were made per page and one picked by eye. The model's picture (the **master**) is then aligned back onto the page (a template
+  match, then an ECC affine: sub-pixel), warped once into the layer's frame, and joined by the seam treatment S4: a local optical
+  flow between the model's drawing of the page and the page at each join, faded out across the side; the side taken to the
+  art's own size and up again through the 4:3 pack's upscaler (4xTextures_GTAV_rgt-s_dither, the same tiles), so it has the
+  pack's grain; then a Poisson membrane that makes the side meet the page's edge exactly, its low frequencies spreading far,
+  its fine detail a few texels. The join is the page's own edge: not one texel of the page is redrawn.
+- `borrow`: the page is printed on the same art as another at its edges (the forms are one paper scan; Joe's pads one counter),
+  checked by pixels; it takes that page's sides, the membrane fitted again to its own edge (or the very same file when the two
+  edges agree within 1.5 levels). Every form shares the sides of the form it matches best, so the sides do not change as you
+  go from form to form.
+- `pad`: as above. `skip`: no wide version (record 17, a 408x406 picture at the frame's top left, which no screen shows).
+
+**What is not regenerable.** The model calls cannot be repeated byte for byte: the models take no seed and change under the
+same name, so asking again gives another picture. The pack's release therefore keeps the masters (the model's own outputs,
+with their SHA-256 in the recipe) as its source, and the recipe keeps everything else: per page the class, the model id as
+called, the date, the canvas and the prompt exactly as sent, the variant picked and why, the affine that aligns the master
+(found once, then pinned), and the seam, upscaler, membrane and fingerprint settings. From the masters and the 4:3 pack the
+pack is rebuilt exactly:
+
+```powershell
+.venv\Scripts\python tools\menu-wide.py build --pack43 i76-hd-menus-i26-4x3-2026.11.23.zip --pack43 i26-hd-work\nitro\tex-menu --masters MASTERS --out i26-hd-work\wide
+.venv\Scripts\python tools\menu-wide.py verify i26-hd-work\wide --pack43 i76-hd-menus-i26-4x3-2026.11.23.zip --pack43 i26-hd-work\nitro\tex-menu
+```
+
+(the second `--pack43` is the Nitro pages' folder when they are not inside the first). `verify` composes every wide page as the
+game does and checks the 4:3 page pixel-identical in its middle. `menu-wide.py list` prints each page's class and pick.
+`menu-wide.py regenerate shellbg5 --pack43 ... --masters MASTERS --variants 3` asks the model again with the recorded prompt
+and canvas (your own `GEMINI_API_KEY` in the environment; about $0.14 an image at the time of writing) and writes the new
+variants beside the masters; it changes nothing else. Point the page's `master` at the one you like, drop its `affine` and
+`master_sha256`, and build. Needs `opencv-python-headless scipy` and, for the upscale, the menu pack's `torch spandrel` and
+model. The pack's `pack.json` names the 4:3 pack it was made over, and `ATTRIBUTION.txt` the models (the sides carry Google's
+SynthID watermark).
+
+**Install.** Copy `i76-hd-menus-i26-wide-DATE.zip` as it is into the I26 user folder, beside the menu pack (do not extract it):
+I26 reads its `tex-menu-wide/` folder in place, or the same folder extracted there. It needs the 4:3 menu pack (the "I26 4:3"
+release, with its Nitro pages for the Nitro Pack's own forms); on its own it does nothing. Uninstall: delete the zip.
 
 The older single tools still work on a pack you already have, in place, each keeping the files it replaces
 (`.rules-prev/`, `.flat-prev/`, `.text-base/`) and putting them back with `--restore`: `menu-maps.py SRC`, `menu-rules.py

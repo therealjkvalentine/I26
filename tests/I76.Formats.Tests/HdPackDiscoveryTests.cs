@@ -44,6 +44,24 @@ public sealed class HdPackDiscoveryTests : IDisposable
         return path;
     }
 
+    /// <summary>The widescreen menu pack is a layout of its own beside tex-menu: as a zip with only tex-menu-wide/ in it (which takes nothing from the 4:3 pack); a renamed folder of it is named back by its wide.json.</summary>
+    [Fact]
+    public void TheWideMenuPackIsFoundBesideTheMenuPack()
+    {
+        Pack(Path.Combine(User, "tex-menu"), "tex-menu", "shellbg1.webp");
+        Zip(Path.Combine(User, "i76-hd-menus-i26-wide-2026.11.25.zip"), "tex-menu-wide", file: "wide.json", text: "{}");
+        var d = HdPackDiscovery.Scan(User, Program);
+        Assert.Equal(Path.Combine(User, "tex-menu"), d.Get(HdPackDiscovery.Menu)!.Path);
+        var wide = d.Get(HdPackDiscovery.MenuWide)!;
+        Assert.Equal(HdPackPlace.Zip, wide.Place);
+        using (var src = wide.Open()) Assert.True(src.Exists("wide.json"));
+        Assert.Empty(d.NotUsed);
+        Directory.CreateDirectory(Path.Combine(User, "wide-backup"));
+        File.WriteAllText(Path.Combine(User, "wide-backup", "pack.json"), Json("I26 Wide", null));
+        File.WriteAllText(Path.Combine(User, "wide-backup", "wide.json"), "{}");
+        Assert.Contains(HdPackDiscovery.Scan(User, Program).NotUsed, n => n.Why.Contains("tex-menu-wide"));
+    }
+
     [Fact]
     public void TheReadmesLayoutIsFoundInTheUserFolder()
     {
