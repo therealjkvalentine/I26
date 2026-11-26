@@ -318,23 +318,31 @@ public sealed class MissionBuilder(AssetVfs vfs)
         return img;
     }
 
-    /// <summary>
-    /// Road Detail's road frame for each chunk a road quad crosses (RoadRaster.BakeFrame at 256 texels a chunk, 0.625 m; mipmapped,
-    /// uncompressed): the wear-lane prototype's across-road position and axis (terrain_modern.gdshaderinc, road_detail()).
-    /// </summary>
-    private static Dictionary<(int, int), ImageTexture> BakeRoadFrames(List<RoadRaster.FlatQuad> flat, List<(int X0, int Z0)> origins)
+    /// <summary>The road frame's texels across a chunk (0.625 m each): the across-road position is linear in a quad, so filtering keeps it exact.</summary>
+    private const int FrameRes = 256;
+
+    private static Image? FrameImage(byte[]? px)
     {
-        const int res = 256;
+        if (px is null) return null;
+        var img = Image.CreateFromData(FrameRes, FrameRes, false, Image.Format.Rgba8, px);
+        img.GenerateMipmaps();
+        return img;
+    }
+
+    /// <summary>
+    /// Road Detail's road frame for each chunk a road quad crosses (RoadRaster.BakeFrame, mipmapped, uncompressed: about 0.35 MB a chunk):
+    /// the lanes' across-road position, the road's axis and the junctions' weight (terrain_modern.gdshaderinc, road_detail()).
+    /// </summary>
+    private static Dictionary<(int, int), Image> BakeRoadFrames(List<RoadRaster.FlatQuad> flat, List<RoadRaster.FlatTri> tris, List<(int X0, int Z0)> origins)
+    {
         var index = new RoadRaster.Index(flat, [], TerrainNode.Chunk * 5f);
         var made = new System.Collections.Concurrent.ConcurrentDictionary<(int, int), Image>();
         System.Threading.Tasks.Parallel.ForEach(origins, o =>
         {
-            if (RoadRaster.BakeFrame(flat, new System.Numerics.Vector2(o.X0 * 5f, o.Z0 * 5f), TerrainNode.Chunk * 5f, res, index) is not { } px) return;
-            var img = Image.CreateFromData(res, res, false, Image.Format.Rgba8, px);
-            img.GenerateMipmaps();
-            made[o] = img;
+            if (FrameImage(RoadRaster.BakeFrame(flat, new System.Numerics.Vector2(o.X0 * 5f, o.Z0 * 5f), TerrainNode.Chunk * 5f, FrameRes, index, tris)) is { } img)
+                made[o] = img;
         });
-        return made.ToDictionary(kv => kv.Key, kv => ImageTexture.CreateFromImage(kv.Value));
+        return new Dictionary<(int, int), Image>(made);
     }
 
     /// <summary>The bake cache in user data (user://cache/terrain); null with I76_BAKE_CACHE=0.</summary>
@@ -885,9 +893,20 @@ public sealed class MissionBuilder(AssetVfs vfs)
         }
         Stage("road bake");
         var layers = huge ? [] : BakeRoadLayers([.. flat, .. fills], pieceTris, roadTex, bakeOrigins);
-        // Road Detail's road frame (across-road position and axis, RoadRaster.BakeFrame) for the wear-lane prototype only (RoadDetail.WantsFrame);
-        // not for a map that streams its chunks
-        var frames = huge || !RoadDetail.WantsFrame ? null : BakeRoadFrames([.. flat, .. fills], bakeOrigins);
+        // Road Detail's road frame (across-road position, axis and the junctions' weight, RoadRaster.BakeFrame) when Road Detail draws its
+        // lanes (RoadDetail.WantsFrame): every chunk's now, or a streamed map's as each chunk comes in (PrepareChunk, below)
+        bool wantFrames = RoadDetail.WantsFrame;
+        var frames = huge || !wantFrames ? null : BakeRoadFrames([.. flat, .. fills], pieceTris, bakeOrigins);
+        var lazyFrame = new System.Collections.Concurrent.ConcurrentDictionary<(int, int), Image>();
+        var frameTex = new Dictionary<(int, int), ImageTexture>();
+        ImageTexture? Frame(int x0, int z0)
+        {
+            if (frameTex.TryGetValue((x0, z0), out var ft)) return ft;
+            Image? fi;
+            if (huge) { if (!lazyFrame.TryRemove((x0, z0), out fi)) return null; return ImageTexture.CreateFromImage(fi); }   // (used once, as the layer)
+            if (frames is null || !frames.TryGetValue((x0, z0), out fi)) return null;
+            return frameTex[(x0, z0)] = ImageTexture.CreateFromImage(fi);
+        }
         var layers97 = huge || packRoads || origins97.Count == 0 ? [] : BakeRoadLayers(flat, pieceTris, roadTex, origins97);
         var layersSw = huge || packRoads ? [] : SoftwareLayers();
         // with a pack's roads the 1997 look's layers are baked from the originals the first time that look is drawn: exactly the layers a
@@ -970,7 +989,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 m.SetShaderParameter("road_layer", t);
                 m.SetShaderParameter("has_road", true);
-                if (frames is not null && frames.TryGetValue((x0, z0), out var fr))
+                if (Frame(x0, z0) is { } fr)
                 {
                     m.SetShaderParameter("road_frame", fr);
                     m.SetShaderParameter("has_road_frame", true);
@@ -1021,7 +1040,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
                 var software = !Repairs(x0, z0) ? null
                     : fillsHere ? BakeChunkLayer(flat, pieceTris, indexPlain!, roadTexSoftware, x0, z0, resOriginal) : BakeChunkLayer(flatFilled, pieceTris, indexFilled!, roadTexSoftware, x0, z0, resOriginal);
                 if (modern is not null || own || software is not null) lazyRoad[(x0, z0)] = (modern, faithful, own, software);
-                if (modern is not null && System.Environment.GetEnvironmentVariable("I76_STREAM_DEBUG") == "1") System.Console.Error.WriteLine($"stream: road layer at chunk {x0},{z0} (game {x0 * 5},{z0 * 5})");
+                if (wantFrames && modern is not null && FrameImage(RoadRaster.BakeFrame(flatFilled, new System.Numerics.Vector2(x0 * 5f, z0 * 5f), TerrainNode.Chunk * 5f, FrameRes, indexFilled, pieceTris)) is { } fimg)
+                    lazyFrame[(x0, z0)] = fimg;
+                if (modern is not null && System.Environment.GetEnvironmentVariable("I76_STREAM_DEBUG") == "1") System.Console.Error.WriteLine($"stream: road layer at chunk {x0},{z0} (game {x0 * 5},{z0 * 5}){(lazyFrame.ContainsKey((x0, z0)) ? ", with its road frame" : "")}");
             };
         if (defer)
         {

@@ -186,7 +186,7 @@ public static class GraphicsPages
             case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             case GraphicsRow.HeatStrength: t.HeatStrength = f.HeatStrength; break;
             case GraphicsRow.TerrainShadows: t.TerrainShadows = f.TerrainShadows; break;
-            case GraphicsRow.RoadDetail: t.RoadDetail = f.RoadDetail; break;
+            case GraphicsRow.RoadDetail: t.RoadDetail = f.RoadDetail; t.RoadDetailStrong = f.RoadDetailStrong; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
             case GraphicsRow.PaletteGrade: t.PaletteGrade = f.PaletteGrade; break;

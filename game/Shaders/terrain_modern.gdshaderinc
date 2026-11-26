@@ -389,10 +389,11 @@ uniform float road_detail_shoulder = 0.8;            // how much of the dirt str
 uniform float road_detail_rough = 0.93;              // paved road's roughness
 // The prototypes over On for the owner to choose from (RoadDetail.Style, I76_ROAD_STYLE): bits of i76_road_style. 1 night: the markings'
 // glass beads send the lamps' light back toward them (retroreflection, light()) and the exposed stones glint under the lamps; 2 strong:
-// larger aggregate, more relief and contrast up close; 4 lanes: wheel-track wear, an oil streak down each lane's middle and wandering
-// sealant lines along the lanes, from the road frame (MissionBuilder.BakeRoadFrames); 8 damp: a glossier, darker road at night.
+// larger aggregate, more relief and contrast up close; 4 lanes: soft wheel-path and drip bands along the lanes and wandering sealant
+// lines, from the road frame (MissionBuilder.BakeRoadFrames); 8 damp: a glossier, darker road at night (a prototype). On is 1 + 4,
+// Strong 1 + 2 + 4 (RoadDetail.Style).
 global uniform int i76_road_style;
-uniform sampler2D road_frame : filter_linear_mipmap, repeat_disable;  // R across the road (0 right, 1 left), GB its axis as a doubled angle, A cover
+uniform sampler2D road_frame : filter_linear_mipmap, repeat_disable;  // R across the road (0 right, 1 left), GB its axis as a doubled angle, A cover (0.5 road, to 1 at a junction)
 uniform bool has_road_frame = false;
 
 void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float tier_mid, inout float dirt, inout vec3 rc,
@@ -477,32 +478,42 @@ void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float ti
 		spec = mix(spec, 0.6, paved * keep);
 	}
 #endif
-	// ---- along the lanes (the road frame): wheel-track wear, an oil streak, sealant lines ----
-	if (s_lanes && fr.a > 0.5 && dist < 300.0) {
+	// ---- along the lanes (the road frame): where the traffic runs, as an average, and the sealant lines ----
+	// A two-lane highway of the era: lanes 12 ft (3.7 m), cars' tracks about 1.5 m, so each lane carries two wheel paths about 0.75 m
+	// either side of its middle, each about half a metre wide where most tyres run (worn smooth, a little lighter), and between them the
+	// drip stripe where engines and axles leak (darker), widest in the middle of the lane. These are statistics, not marks: smooth
+	// profiles across the road with nothing sharp, wandering a little and growing and fading over tens of metres, heavier within 30 m of
+	// an intersection where traffic slows and stops. On the original's road textures a lane runs u 0.19-0.39 (and 0.61-0.81, its middles
+	// 0.29 and 0.71) across 10 m, so the paths sit 0.075 either side of a middle. The sealant lines stay crisp.
+	if (s_lanes && fr.a > 0.25 && dist < 400.0) {
 		float u = fr.r;
 		vec2 c2 = fr.gb * 2.0 - 1.0;
 		float ang = 0.5 * atan(c2.y, c2.x);
 		vec2 ax = vec2(cos(ang), sin(ang)), pp = vec2(-ax.y, ax.x);
-		// noise stretched along the road: 8 m along to 1 m across
-		vec2 q = vec2(dot(p, ax) * 0.125, dot(p, pp));
-		float along = octave(q, 1.0, vec2(1.0, 0.0), vec2(2.7, 6.1), footprint).x / 0.4;
-		float along2 = octave(q, 0.37, vec2(0.6, 0.8), vec2(8.3, 1.4), footprint).x / 0.4;
-		// the texture's lanes sit at u 0.19-0.39 and 0.61-0.81: the wheels run 0.085 either side of each lane's middle (0.29, 0.71)
-		float dl = min(abs(u - 0.29), abs(u - 0.71));
-		float track = 1.0 - smoothstep(0.03, 0.065, abs(dl - 0.085));
-		float centre = 1.0 - smoothstep(0.012, 0.045, dl);
-		float k = paved * keep;
-		rc *= 1.0 - 0.13 * track * (0.7 + 0.3 * along) * k;
-		rough = mix(rough, rough - 0.08, track * k);
-		float oil = centre * smoothstep(-0.5, 0.6, along + 0.5 * along2) * k;
-		rc *= 1.0 - 0.3 * oil;
-		rough = mix(rough, 0.7, oil);
-		spec = mix(spec, 0.35, oil);
-		// sealant: a dark wandering line along each lane's inner edge, in stretches
+		float junction = clamp((fr.a - 0.5) * 2.0, 0.0, 1.0);
+		// slow noise along the road only (40 m along to 4 m across): the bands' wander and strength, no blobs
+		vec2 q = vec2(dot(p, ax) * 0.025, dot(p, pp) * 0.25);
+		float slow = octave(q, 1.0, vec2(1.0, 0.0), vec2(2.7, 6.1), footprint).x / 0.4;
+		float slow2 = octave(q, 0.6, vec2(0.8, 0.6), vec2(5.3, 0.9), footprint).x / 0.4;
+		float lane = u < 0.5 ? 0.29 : 0.71;
+		float d = u - lane - 0.008 * slow2;          // across the lane from its middle, wandering about 8 cm
+		float strength = clamp(0.75 + 0.25 * slow, 0.4, 1.0) * mix(1.0, 1.6, junction) * paved * keep;
+		float t = (abs(d) - 0.075) / 0.032;          // each wheel path: a Gaussian 0.32 m to 1/e
+		float paths = exp(-t * t);
+		float o = d / 0.042;                         // the drip stripe: a Gaussian 0.42 m to 1/e, in the lane's middle
+		float drip = exp(-o * o);
+		rc *= 1.0 + 0.08 * paths * strength;         // the tyres polish the paths a little lighter
+		rough = mix(rough, rough - 0.08, paths * strength);
+		rc *= 1.0 - 0.3 * drip * strength;           // and drip oil between them
+		rough = mix(rough, 0.8, 0.5 * drip * strength);
+		spec = mix(spec, 0.3, 0.5 * drip * strength);
+		// sealant: a dark wandering line along each lane's inner edge, in stretches (crisp: a few centimetres, anti-aliased over the pixel)
+		float along = octave(vec2(dot(p, ax) * 0.125, dot(p, pp)), 1.0, vec2(1.0, 0.0), vec2(2.7, 6.1), footprint).x / 0.4;
+		float along2 = octave(vec2(dot(p, ax) * 0.125, dot(p, pp)), 0.37, vec2(0.6, 0.8), vec2(8.3, 1.4), footprint).x / 0.4;
 		float wander = 0.018 * along2;
 		float dseal = min(abs(u - 0.405 - wander), abs(u - 0.595 + wander));
 		float sw = 0.006;
-		float sl = (1.0 - smoothstep(sw, sw + max(fw_u, 1e-4), dseal)) * clamp(sw / max(fw_u, 1e-4), 0.0, 1.0) * smoothstep(0.0, 0.6, along) * k;
+		float sl = (1.0 - smoothstep(sw, sw + max(fw_u, 1e-4), dseal)) * clamp(sw / max(fw_u, 1e-4), 0.0, 1.0) * smoothstep(0.0, 0.6, along) * paved * keep;
 		rc *= 1.0 - 0.55 * sl;
 		rough = mix(rough, 0.6, sl);
 	}

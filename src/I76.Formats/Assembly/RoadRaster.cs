@@ -176,11 +176,23 @@ public static class RoadRaster
     /// The road's frame over a square of the world (Road Detail's wear lanes, the modern look): for every road quad that crosses it, R the
     /// position across the road (the quad's u: 0 its right edge, 1 its left; the textures' lanes and lines sit at fixed u), G and B the
     /// road's axis as a doubled angle (0.5 + cos 2a / 2, 0.5 + sin 2a / 2, a the angle of the quad's run in the game's XZ plane), so a
-    /// segment drawn either way gives the same texel and filtering across segments stays smooth, and A 255 where a quad covers. Later
-    /// quads win. The intersections' tops are left out (no one direction). Null when no quad crosses the square.
+    /// segment drawn either way gives the same texel and filtering across segments stays smooth, and A where a quad covers: 128, rising
+    /// smoothly to 255 at a road piece (an intersection's top, <paramref name="tris"/>: where traffic slows and stops) over
+    /// <see cref="JunctionReach"/> metres, 0 where none covers. Later quads win. The intersections' tops themselves are left out (no one
+    /// direction). Null when no quad crosses the square.
     /// </summary>
-    public static byte[]? BakeFrame(IReadOnlyList<FlatQuad> quads, Vector2 origin, float size, int res, Index? index = null)
+    public static byte[]? BakeFrame(IReadOnlyList<FlatQuad> quads, Vector2 origin, float size, int res, Index? index = null,
+        IReadOnlyList<FlatTri>? tris = null)
     {
+        // the junctions near the square: their centres
+        var junctions = new List<Vector2>();
+        if (tris is not null)
+            foreach (var t in tris)
+            {
+                var c = (t.A + t.B + t.C) / 3f;
+                if (c.X > origin.X - JunctionReach && c.Y > origin.Y - JunctionReach && c.X < origin.X + size + JunctionReach && c.Y < origin.Y + size + JunctionReach)
+                    junctions.Add(c);
+            }
         byte[]? img = null;
         float px = size / res;
         var max = origin + new Vector2(size, size);
@@ -196,13 +208,17 @@ public static class RoadRaster
             byte g = (byte)Math.Clamp(MathF.Round((0.5f + 0.5f * (run.X * run.X - run.Y * run.Y)) * 255f), 0, 255);
             byte b = (byte)Math.Clamp(MathF.Round((0.5f + run.X * run.Y) * 255f), 0, 255);
             img ??= new byte[res * res * 4];
-            FrameTri(img, origin, px, res, q.A, q.B, q.C, 0f, 1f, 1f, g, b);
-            FrameTri(img, origin, px, res, q.A, q.C, q.D, 0f, 1f, 0f, g, b);
+            FrameTri(img, origin, px, res, q.A, q.B, q.C, 0f, 1f, 1f, g, b, junctions);
+            FrameTri(img, origin, px, res, q.A, q.C, q.D, 0f, 1f, 0f, g, b, junctions);
         }
         return img;
     }
 
-    private static void FrameTri(byte[] dst, Vector2 origin, float px, int res, Vector2 p0, Vector2 p1, Vector2 p2, float u0, float u1, float u2, byte g, byte b)
+    /// <summary>Metres over which the frame's junction weight falls from a road piece's centre to plain road.</summary>
+    public const float JunctionReach = 30f;
+
+    private static void FrameTri(byte[] dst, Vector2 origin, float px, int res, Vector2 p0, Vector2 p1, Vector2 p2, float u0, float u1, float u2, byte g, byte b,
+        List<Vector2> junctions)
     {
         float det = (p1.X - p0.X) * (p2.Y - p0.Y) - (p2.X - p0.X) * (p1.Y - p0.Y);
         if (MathF.Abs(det) < 1e-6f) return;
@@ -224,7 +240,17 @@ public static class RoadRaster
                 if (w0 < eps || w1 < eps || w2 < eps) continue;
                 int d = (j * res + i) * 4;
                 dst[d] = (byte)Math.Clamp(MathF.Round((u0 * w0 + u1 * w1 + u2 * w2) * 255f), 0, 255);
-                dst[d + 1] = g; dst[d + 2] = b; dst[d + 3] = 255;
+                dst[d + 1] = g; dst[d + 2] = b;
+                float near = 0;
+                if (junctions.Count > 0)
+                {
+                    var at = new Vector2(origin.X + (i + 0.5f) * px, origin.Y + (j + 0.5f) * px);
+                    float dmin = float.MaxValue;
+                    foreach (var c in junctions) dmin = MathF.Min(dmin, Vector2.Distance(at, c));
+                    float t = Math.Clamp(1f - dmin / JunctionReach, 0f, 1f);
+                    near = t * t * (3f - 2f * t);
+                }
+                dst[d + 3] = (byte)(128 + MathF.Round(127f * near));
             }
         }
     }

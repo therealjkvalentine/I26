@@ -30,7 +30,7 @@ public class RoadFrameTests
         var right = At(img, res, size, 54.6f, 30);
         var left = At(img, res, size, 45.4f, 30);
         var mid = At(img, res, size, 50.2f, 30);
-        Assert.Equal(255, mid.A);
+        Assert.Equal(128, mid.A);
         Assert.InRange(right.U, 0.0f, 0.08f);
         Assert.InRange(left.U, 0.92f, 1.0f);
         Assert.InRange(mid.U, 0.45f, 0.55f);
@@ -52,9 +52,25 @@ public class RoadFrameTests
         // run along (1, 1)/sqrt 2: 45 degrees, cos 2a = 0, sin 2a = 1
         var q = Quad(new(22, 18), new(18, 22), new(38, 42), new(42, 38));
         var c = At(RoadRaster.BakeFrame([q], Vector2.Zero, size, res)!, res, size, 30.2f, 30.2f);
-        Assert.Equal(255, c.A);
+        Assert.Equal(128, c.A);
         Assert.InRange((int)c.G, 126, 129);
         Assert.InRange((int)c.B, 254, 255);
+    }
+
+    [Fact]
+    public void TheCoverRisesSmoothlyTowardAJunction()
+    {
+        const int res = 160; const float size = 80f;
+        var road = Quad(new(55, 0), new(45, 0), new(45, 80), new(55, 80));
+        // a road piece's top centred on (50, 70)
+        var tri = new RoadRaster.FlatTri(new(45, 65), new(55, 65), new(50, 80), Vector2.Zero, Vector2.Zero, Vector2.Zero, 0, new(45, 65), new(55, 80));
+        var img = RoadRaster.BakeFrame([road], Vector2.Zero, size, res, tris: [tri])!;
+        var far = At(img, res, size, 50.2f, 10);
+        var mid = At(img, res, size, 50.2f, 55);
+        var close = At(img, res, size, 50.2f, 69);
+        Assert.Equal(128, far.A);
+        Assert.InRange((int)mid.A, 140, 230);
+        Assert.InRange((int)close.A, 245, 255);
     }
 
     [Fact]
