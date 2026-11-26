@@ -16,8 +16,8 @@ public class WireTests
     {
         // upstream's number and layout (an upstream peer reads every message); the fork's additions are appended or negotiated (PeerFeatures)
         Assert.Equal(26, Protocol.Version);
-        // the I26 play fork's own snapshot version (its saved state differs from upstream's 18: wreck_solid, handbrake flags, Trip+'s rules, the solid-cliff rule and the smarter opponents' rule in the build and the rest)
-        Assert.Equal(30, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        // the I26 play fork's own snapshot version (its saved state differs from upstream's 18: wreck_solid, handbrake flags, Trip+'s rules, the solid-cliff rule and the smarter opponents' rule in the build, the terrain group's chase progress and the rest)
+        Assert.Equal(31, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
     /// <summary>The host's ignition lock (protocol 23): the join accept's last byte and one of the listing's host rules; an older listing without them reads as off.</summary>

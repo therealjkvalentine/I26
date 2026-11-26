@@ -26,7 +26,8 @@ public sealed partial class Entity
                 nameof(WaypointBridge), nameof(Search), nameof(Controls), nameof(ControlDone), nameof(ScriptDriven), nameof(Lights), nameof(Siren),
                 nameof(CoopAim), nameof(KillerSeat), nameof(ExtraOf), nameof(Scaled),
                 nameof(SmartAi), nameof(LayActive), nameof(LayAlignedAt), nameof(ProgressAt), nameof(ProgressTime), nameof(Unsticking), nameof(UnstickHeading),
-                nameof(BlockedX), nameof(BlockedZ), nameof(BlockedUntil), nameof(LastDropAt), nameof(HoldLineUntil), nameof(HoldLineHeading));
+                nameof(BlockedX), nameof(BlockedZ), nameof(BlockedUntil), nameof(LastDropAt), nameof(HoldLineUntil), nameof(HoldLineHeading),
+                nameof(ChaseGap), nameof(ChaseGapTime), nameof(TerrainFreeUntil));
         a.For<AiBlock>().Saved(nameof(AiBlock.Skill), nameof(AiBlock.AccelFactor), nameof(AiBlock.CommandSpeed), nameof(AiBlock.FireAccuracy), nameof(AiBlock.FireSkill));
         a.For<RoadPos>().Saved(nameof(RoadPos.Idx), nameof(RoadPos.Dir), nameof(RoadPos.Band), nameof(RoadPos.Cls), nameof(RoadPos.A960), nameof(RoadPos.Off),
             nameof(RoadPos.Heading), nameof(RoadPos.Seg));
@@ -65,6 +66,7 @@ public sealed partial class Entity
         // the smarter opponents (format 29, the fork's)
         w.U32((uint)SmartAi); w.Bool(LayActive); w.F32(LayAlignedAt); w.V3(ProgressAt); w.F32(ProgressTime); w.Bool(Unsticking); w.F32(UnstickHeading);
         w.Int(BlockedX); w.Int(BlockedZ); w.F32(BlockedUntil); w.F32(LastDropAt); w.F32(HoldLineUntil); w.F32(HoldLineHeading);
+        w.F32(ChaseGap); w.F32(ChaseGapTime); w.F32(TerrainFreeUntil);   // format 31
     }
 
     private static int IndexOf(IReadOnlyList<RoadPiece> pieces, RoadPiece p)
@@ -102,5 +104,6 @@ public sealed partial class Entity
         ControlDone = r.Bool(); ScriptDriven = r.Bool(); Lights = r.Bool(); Siren = r.Bool(); CoopAim = r.Ent(); KillerSeat = r.Int(); ExtraOf = r.Ent(); Scaled = r.Bool();
         SmartAi = (SmartAi)r.U32(); LayActive = r.Bool(); LayAlignedAt = r.F32(); ProgressAt = r.V3(); ProgressTime = r.F32(); Unsticking = r.Bool(); UnstickHeading = r.F32();
         BlockedX = r.Int(); BlockedZ = r.Int(); BlockedUntil = r.F32(); LastDropAt = r.F32(); HoldLineUntil = r.F32(); HoldLineHeading = r.F32();
+        ChaseGap = r.F32(); ChaseGapTime = r.F32(); TerrainFreeUntil = r.F32();
     }
 }
