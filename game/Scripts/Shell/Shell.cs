@@ -1554,6 +1554,29 @@ public sealed class ShellSettings
     public string SmartAiText { get; set; } = "";
     /// <summary>The bits of <see cref="SmartAiText"/> (unknown words add none).</summary>
     public I76.Sim.Missions.SmartAi SmartAi => I76.Sim.Missions.SmartAiNames.Parse(SmartAiText, out _);
+
+    /// <summary>
+    /// Sets the rule as Play Options' Smart A.I. row and the Developer panel's check boxes write it: none leaves the key out, every
+    /// behaviour is "all", some are their names (<see cref="I76.Sim.Missions.SmartAiNames.Describe"/>).
+    /// </summary>
+    public void SetSmartAi(I76.Sim.Missions.SmartAi bits)
+    {
+        bits &= I76.Sim.Missions.SmartAi.All;
+        SmartAiText = bits == I76.Sim.Missions.SmartAi.None ? "" : bits == I76.Sim.Missions.SmartAi.All ? "all" : I76.Sim.Missions.SmartAiNames.Describe(bits);
+    }
+
+    /// <summary>Play Options' Smart A.I. values: Off (the original's AI), On (every behaviour), Custom (some, set on the Developer panel; a click does not step to it).</summary>
+    public static readonly string[] SmartAiRowNames = ["Off", "On" + PortMark, "Custom" + PortMark];
+
+    /// <summary>The Smart A.I. row's value for a rule: 0 Off, 1 On, 2 Custom.</summary>
+    public static int SmartAiRowIndex(I76.Sim.Missions.SmartAi bits) =>
+        (bits & I76.Sim.Missions.SmartAi.All) switch { I76.Sim.Missions.SmartAi.None => 0, I76.Sim.Missions.SmartAi.All => 1, _ => 2 };
+
+    /// <summary>The Smart A.I. row's next value from <paramref name="index"/> (Off to On; On and Custom to Off).</summary>
+    public static I76.Sim.Missions.SmartAi SmartAiRowNext(int index) => index == 0 ? I76.Sim.Missions.SmartAi.All : I76.Sim.Missions.SmartAi.None;
+
+    /// <summary>Play Options' Solid Cliffs values: Off (the original's) and On.</summary>
+    public static readonly string[] SolidCliffsRowNames = ["Off", "On" + PortMark];
     /// <summary>The Controls sheet's Opentrack Auto ([port] opentrack_auto, written only when on): a mission with Head Tracking on starts opentrack when none runs, and the game closes the one it started when it exits.</summary>
     public bool OpenTrackAuto { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>

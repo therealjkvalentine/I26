@@ -370,6 +370,11 @@ public sealed partial class EscapeMenu : Control
         });
         // Turrets: the 1998 build's slew or the 1997 CD's, from the resume on (ShellSettings.ApplyTo; Play Options is not on a network game's pad)
         _play.Items.Add(Setting(Cycle, "Turrets", 35, 2, ["1998", "1997 CD"], s => s.Turrets1997 ? 1 : 0, (s, v) => s.Turrets1997 = v == 1));
+        // Solid Cliffs and Smart A.I. (the shell's rows): rules of the session's build, from the next mission start, so committed by Done
+        // only. Smart A.I. steps Off and On; Custom (some behaviours, set on the Developer panel) shows but a step leaves it, and Done keeps it
+        _play.Items.Add(Setting(Cycle, "Solid Cliffs", 37, 2, ShellSettings.SolidCliffsRowNames, s => s.SolidCliffs ? 1 : 0, (s, v) => s.SolidCliffs = v == 1, live: false));
+        _play.Items.Add(Setting(Cycle, "Smart A.I.", 38, 2, ShellSettings.SmartAiRowNames, s => ShellSettings.SmartAiRowIndex(s.SmartAi),
+            (s, v) => { if (v < 2) s.SetSmartAi(v == 1 ? I76.Sim.Missions.SmartAi.All : I76.Sim.Missions.SmartAi.None); }, live: false));
         // Skip Intro Movies: from the next start
         _play.Items.Add(new Item
         {

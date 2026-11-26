@@ -257,7 +257,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997, _savedSkipIntro;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997, _savedSkipIntro, _savedSolidCliffs;
+    private string _savedSmartAi = "";
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private bool _savedSteering;
@@ -288,16 +289,20 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order after the original's (a check row, or a value row stepped by a click): upstream's, then
-    /// the play fork's own (Unlim. Ordnance, Melee A.I., Equip. Tooltips). Force Feedback, Rumble and Rumble Strength are the Controls
+    /// the play fork's own (Unlim. Ordnance, Melee A.I., Equip. Tooltips, Solid Cliffs, Smart A.I.). Force Feedback, Rumble and Rumble Strength are the Controls
     /// sheet's (<see cref="ControlsMenuScreen"/>), with Wheel Strength, and so are Head Tracking, its sensitivity and the opentrack rows.
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
-        "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips",
+        "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips", SolidCliffsRow, SmartAiRow,
         SkipIntroRow,
     ];
+    /// <summary>The fork's Solid Cliffs row (<see cref="ShellSettings.SolidCliffs"/>): Off or On, from the next mission start.</summary>
+    public const string SolidCliffsRow = "Solid Cliffs";
+    /// <summary>The fork's Smart A.I. row (<see cref="ShellSettings.SmartAiText"/>): Off, On (every behaviour) or Custom (some, the Developer panel's), from the next mission start.</summary>
+    public const string SmartAiRow = "Smart A.I.";
     /// <summary>The port's Skip Intro Movies row (<see cref="ShellSettings.SkipIntro"/>), in the front end's and the mission menu's Play Options.</summary>
     public const string SkipIntroRow = "Skip Intro Movies";
 
@@ -326,6 +331,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedTurrets1997 = s.Turrets1997;
         _savedSteering = s.AssistedSteering;
         _savedSkipIntro = s.SkipIntro;
+        _savedSolidCliffs = s.SolidCliffs;
+        _savedSmartAi = s.SmartAiText;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
 
@@ -344,7 +351,10 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         {
             Listed(Add(222, 0, label, null), slot);
             Listed(TipLine(Add(205, 0, () => "", click, Small, w: 300, h: 12), label, -3), slot, 1);
-            Listed(Add(398, 0, value, null), slot, 2);
+            // a long value ("Custom*") ends short of the scroll mark rather than running under it
+            var shown = Add(398, 0, value, null);
+            shown.Right = 455;
+            Listed(shown, slot, 2);
             slot++;
         }
         // the original's six check rows (Nitro's sheet: Arcade Phys. and Unlim. Wiper Fluid; the salvage-management and cheat rows
@@ -387,8 +397,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
         Toggle(PortRows[15], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        // Solid Cliffs (docs/deviations.md): a face steeper than 60 degrees is a wall; from the next mission start, online the host's
+        Step(PortRows[16], () => s.SolidCliffs = !s.SolidCliffs, () => ShellSettings.SolidCliffsRowNames[s.SolidCliffs ? 1 : 0]);
+        // Smart A.I. (docs/deviations.md "Smarter opponents"): Off or On, every behaviour; Custom when the Developer panel's check boxes
+        // set some but not all (a click goes to Off). From the next mission start; online the host's
+        Step(PortRows[17], () => s.SetSmartAi(ShellSettings.SmartAiRowNext(ShellSettings.SmartAiRowIndex(s.SmartAi))),
+            () => ShellSettings.SmartAiRowNames[ShellSettings.SmartAiRowIndex(s.SmartAi)]);
         // Skip Intro Movies: the next start goes straight to the menu (briefings, outros and cut-scenes still play)
-        Toggle(PortRows[16], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
+        Toggle(PortRows[18], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -432,6 +448,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         var s = Shell.Settings;
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair; s.BriefingWhileLoading = _savedBriefing; s.Turrets1997 = _savedTurrets1997;
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips; s.SkipIntro = _savedSkipIntro;
+        s.SolidCliffs = _savedSolidCliffs; s.SmartAiText = _savedSmartAi;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = _savedSteering;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
