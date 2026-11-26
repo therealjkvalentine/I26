@@ -101,12 +101,47 @@ public sealed partial class PathSearch
         return 15f + (avoid && g.Impassable(x, z) ? 1e6f : 0f);
     }
 
+    /// <summary>
+    /// The smarter opponents' terrain costs (the play fork's, <see cref="Missions.SmartAi"/>; the original's search has none):
+    /// <see cref="SlopeCost"/> charges a steep step (Hill pursuit), <see cref="FaceMargin"/> a cell at the foot or rim of a face of
+    /// 60° or more (Ledge caution), and <see cref="Blocked"/> one cell (a car's stuck recovery) heavily. All off for the original's.
+    /// </summary>
+    public bool SlopeCost, FaceMargin;
+    /// <summary>A cell (grid x, z, multiples of 10) the search keeps off (<see cref="SlopeCost"/>'s summary), or null.</summary>
+    public (int X, int Z)? Blocked;
+
     /// <summary>The step onto <paramref name="to"/> from <paramref name="from"/>, ×√2 when both x and z differ (a bridge's far end too).</summary>
-    private static double Cost(IGround g, Node to, Node from, bool avoid)
+    private double Cost(IGround g, Node to, Node from, bool avoid)
     {
         double c = StepCost(g, to.X, to.Z, avoid, out to.Road);
-        return to.X != from.X && to.Z != from.Z ? c * Sqrt2 : c;
+        bool diag = to.X != from.X && to.Z != from.Z;
+        if (SlopeCost || FaceMargin || Blocked is not null) c += TerrainCost(g, to.X, to.Z, from.X, from.Z, diag);
+        return diag ? c * Sqrt2 : c;
     }
+
+    /// <summary>
+    /// The smarter opponents' extra on a step (before the diagonal factor): a grade over 0.35 (19°) up to +120 at 0.7, +300
+    /// beyond (Hill pursuit, measured in the play fork's probe as ending too far's crawl on Jorczak's Peak); +300 on a cell with a
+    /// 10 m neighbour 17.3 m above or below it (60°: the foot or rim of a face); +100000 on the blocked cell.
+    /// </summary>
+    public double TerrainCost(IGround g, int x, int z, int fx, int fz, bool diag)
+    {
+        double c = 0;
+        if (Blocked is { } b && b.X == x && b.Z == z) c += 1e5;
+        if (!SlopeCost && !FaceMargin) return c;
+        float h = g.BareHeight(x, z);
+        if (SlopeCost)
+        {
+            float grade = MathF.Abs(h - g.BareHeight(fx, fz)) / (diag ? 14.142f : 10f);
+            if (grade > 0.35f) c += grade > 0.7f ? 300f : 120f * (grade - 0.35f) / 0.35f;
+        }
+        if (FaceMargin)
+            foreach (var (dx, dz) in Axial)
+                if (MathF.Abs(g.BareHeight(x + dx, z + dz) - h) > 17.3f) { c += 300f; break; }
+        return c;
+    }
+
+    private static readonly (int, int)[] Axial = [(-10, 0), (10, 0), (0, -10), (0, 10)];
 
     /// <summary>From the pool, or null when it is spent.</summary>
     private Node? Alloc(int x, int z, Node? parent)

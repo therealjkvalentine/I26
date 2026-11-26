@@ -204,9 +204,9 @@ public static class CoopMission
     /// single player's game fits at the cockpit and a network game's car must have built in (the other seats' have them).
     /// </summary>
     public static MissionSetup Build(I76.Formats.Vfs.AssetVfs vfs, I76.Formats.Assembly.MissionWorld world, I76.Formats.Assembly.ModelAssembler asm,
-        CoopSetup coop, I76.Sim.Rng.CrtRand rand, int seed, bool script = true)
+        CoopSetup coop, I76.Sim.Rng.CrtRand rand, int seed, bool script = true, SmartAi smartAi = SmartAi.None)
     {
-        var setup = MissionSetup.Build(vfs, world, asm, rand: rand, seed: seed, coop: coop, script: script);
+        var setup = MissionSetup.Build(vfs, world, asm, rand: rand, seed: seed, coop: coop, script: script, smartAi: smartAi);
         if (setup.Script?.Host.Coop is { } g) VehicleFactory.AddDriverHandguns(vfs, g.Seats[0].CarFile, g.Seats[0].Car);
         return setup;
     }

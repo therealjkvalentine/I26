@@ -148,6 +148,34 @@ public class SnapshotFormatTests
         Assert.Contains("Trip+", Assert.Throws<SnapshotMismatchException>(() => World(5, build).Restore(psnap)).Message);
     }
 
+    /// <summary>
+    /// The smarter opponents' rule (the play fork's, format 30) travels in the header; a session built by another rule takes the
+    /// snapshot and goes on under the snapshot's rule (as the solid-cliff rule).
+    /// </summary>
+    [Fact]
+    public void TheSmartAiRuleTravelsInTheHeaderAndAnotherRuleIsRefused()
+    {
+        Assert.True(SnapshotHeader.CurrentVersion >= 30, "the smarter opponents' rule is in format 30 and later");
+        var build = new SessionBuild { Mission = "m01", Install = 0x1234, Car = "vppirna1.vcf", SmartAi = Missions.SmartAi.GunLay | Missions.SmartAi.Settle };
+        var s = World(1, build);
+        Run(s, 10);
+        var snap = s.Snapshot();
+        Assert.Equal(build.SmartAi, SnapshotHeader.Read(snap).Build.SmartAi);
+        var other = World(2, build with { SmartAi = Missions.SmartAi.None });
+        other.Restore(snap);
+        Assert.Equal(build.SmartAi, other.Build!.SmartAi);
+        Assert.Equal(build.SmartAi, SnapshotHeader.Read(other.Snapshot()).Build.SmartAi);
+        World(3, build).Restore(snap);
+        // the original's AI: no rule, and Trip+'s rules beside it untouched
+        var plain = build with { SmartAi = Missions.SmartAi.None, TripPlus = new(1, -1, 4) };
+        var ps = World(1, plain);
+        Run(ps, 10);
+        var psnap = ps.Snapshot();
+        var read = SnapshotHeader.Read(psnap).Build;
+        Assert.Equal(Missions.SmartAi.None, read.SmartAi);
+        Assert.Equal(plain.TripPlus, read.TripPlus);
+    }
+
     [Fact]
     public void TheHeaderSaysWhatToBuildAndCarriesTheHostsData()
     {

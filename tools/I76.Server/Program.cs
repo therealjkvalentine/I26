@@ -28,6 +28,8 @@ using I76.Server;
 //       [--no-ignition-off]       the engine stays on: the ignition key (S) starts an engine but never switches one off in this game (off by default).
 //       [--wrecks-solid]          co-op: a computer car's wreck goes on stopping the players' cars after its 10 s (the port's rule; while every player has it).
 //       [--solid-cliffs]          terrain steeper than 60 degrees is a wall for the players' cars and free-driving computer cars (the port's rule; off by default).
+//       [--smart-ai LIST]         the smarter opponents (the port's, off by default): the computer cars' behaviours by name, group or number,
+//                                 as shell.cfg's [port] smart_ai takes them (docs/playing.md), for example --smart-ai all.
 //       [--turrets-1997]          the turrets turn as the 1997 CD build's (1.5 rad/s, a helicopter's 6.0) rather than the 1998 build's 1.7 (6.8), the default.
 //       [--hidden]                Hidden Weapons & Cars: the complete hidden models and weapons may play (off: a car with any is refused).
 //       [--invite-only]           INVITE ONLY: each join waits for an answer on this console ("Let NAME join the game?": y, n, or
@@ -177,6 +179,7 @@ var o = new ServerOptions
     Turrets1997 = a.Contains("--turrets-1997"),
     WrecksStaySolid = a.Contains("--wrecks-solid"),
     SolidCliffs = a.Contains("--solid-cliffs"),
+    SmartAi = Arg("--smart-ai") is { } sa ? I76.Sim.Missions.SmartAiNames.Parse(sa, out var badAi) is var bits && badAi.Count == 0 ? bits : throw new ArgumentException($"--smart-ai {sa}: unknown {string.Join(", ", badAi)}") : I76.Sim.Missions.SmartAi.None,
     InviteOnly = a.Contains("--invite-only"),
     Rate = I76.Sim.Session.SimRate.FromLabel(IntArg("--rate", I76.Sim.Session.SimRate.Default.Label)),
     ShareMaps = !a.Contains("--no-share-maps"),

@@ -47,7 +47,7 @@ public static class SnapshotRig
     {
         if (!l.Worlds.TryGetValue(b.Mission, out var world))
             l.Worlds[b.Mission] = world = new MissionWorld(l.Vfs, l.Asm, l.Install.FindMission(b.Mission) ?? throw new FileNotFoundException(b.Mission));
-        var setup = MissionSetup.Build(l.Vfs, world, l.Asm, b.Car, script: b.Script, rand: new CrtRand(seed), melee: b.Melee, meleeRules: b.Rules, seed: unchecked((int)seed), coop: b.Coop, tripPlus: b.TripPlus);
+        var setup = MissionSetup.Build(l.Vfs, world, l.Asm, b.Car, script: b.Script, rand: new CrtRand(seed), melee: b.Melee, meleeRules: b.Rules, seed: unchecked((int)seed), coop: b.Coop, tripPlus: b.TripPlus, smartAi: b.SmartAi);
         bool network = b.Rules?.Network == true;
         setup.Melee?.Start();
         var s = new SimSession(setup, network ? SessionOptions.Network : SessionOptions.SinglePlayer, rate) { Build = b };

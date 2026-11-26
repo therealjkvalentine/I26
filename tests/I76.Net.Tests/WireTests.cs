@@ -16,8 +16,8 @@ public class WireTests
     {
         // upstream's number and layout (an upstream peer reads every message); the fork's additions are appended or negotiated (PeerFeatures)
         Assert.Equal(26, Protocol.Version);
-        // the I26 play fork's own snapshot version (its saved state differs from upstream's 18: wreck_solid, handbrake flags, Trip+'s rules and the solid-cliff rule in the build and the rest)
-        Assert.Equal(29, I76.Sim.Save.SnapshotHeader.CurrentVersion);
+        // the I26 play fork's own snapshot version (its saved state differs from upstream's 18: wreck_solid, handbrake flags, Trip+'s rules, the solid-cliff rule and the smarter opponents' rule in the build and the rest)
+        Assert.Equal(30, I76.Sim.Save.SnapshotHeader.CurrentVersion);
     }
 
     /// <summary>The host's ignition lock (protocol 23): the join accept's last byte and one of the listing's host rules; an older listing without them reads as off.</summary>
@@ -662,11 +662,12 @@ public class ForkWireTests
         (Accept() with { Handicaps = I76.Sim.Missions.HandicapMode.Auto, Build = "abc1234", Features = Protocol.Features }).Write(full);
         var plain = new NetWriter();
         Accept().Write(plain);
-        // the fork's tail: the handicaps byte, the build (length and text), the features (a VarU), the wreck rule's byte and the cliff rule's
-        int tail = 1 + 1 + 7 + FeatureBytes + 1 + 1;
-        // the same up to upstream's last byte (an accept with none of the fork's has its 5-byte tail: 0, an empty build, no features, no wreck
-        // rule, no cliff rule)
-        Assert.Equal(plain.Span[..^5].ToArray(), full.Span[..^tail].ToArray());
+        // the fork's tail: the handicaps byte, the build (length and text), the features (a VarU), the wreck rule's byte, the cliff rule's
+        // and the smarter opponents' (a VarU, none here: one byte)
+        int tail = 1 + 1 + 7 + FeatureBytes + 1 + 1 + 1;
+        // the same up to upstream's last byte (an accept with none of the fork's has its 6-byte tail: 0, an empty build, no features, no wreck
+        // rule, no cliff rule, no smarter opponents)
+        Assert.Equal(plain.Span[..^6].ToArray(), full.Span[..^tail].ToArray());
         var r = new NetReader(full.Span); r.U8();
         var back = JoinAccept.Read(ref r);
         Assert.Equal((true, true, true), (back.Crosshair, back.IgnitionStaysOn, back.Turrets1997));
@@ -698,11 +699,11 @@ public class ForkWireTests
         Assert.Equal(Protocol.Features, back.Features);
         Assert.True((Protocol.Features & PeerFeatures.SolidCliffs) != 0);
         Assert.Equal(0, r.Remaining);
-        var beforeCliffs = new NetReader(w.Span[..^1]); beforeCliffs.U8();
+        var beforeCliffs = new NetReader(w.Span[..^2]); beforeCliffs.U8();   // (the smarter opponents' byte and the cliff rule's off)
         var wreckOnly = JoinAccept.Read(ref beforeCliffs);
         Assert.True(wreckOnly.WrecksSolid);
         Assert.False(wreckOnly.SolidCliffs);
-        var earlier = new NetReader(w.Span[..^2]); earlier.U8();
+        var earlier = new NetReader(w.Span[..^3]); earlier.U8();
         var old = JoinAccept.Read(ref earlier);
         Assert.False(old.WrecksSolid);
         Assert.False(old.SolidCliffs);
@@ -710,6 +711,25 @@ public class ForkWireTests
         // the features are a VarU (two bytes since LobbyRename, bit 7; every fork build reads them so), and the protocol is upstream's
         Assert.Equal(2, FeatureBytes);
         Assert.Equal(26, Protocol.Version);
+    }
+
+    /// <summary>The smarter opponents' bits end the accept (a VarU after the cliff rule): read when there, none from an earlier build's accept.</summary>
+    [Fact]
+    public void TheAcceptEndsWithTheSmarterOpponents()
+    {
+        var w = new NetWriter();
+        (Accept() with { Build = "abc1234", Features = Protocol.Features, SolidCliffs = true, SmartAi = (uint)I76.Sim.Missions.SmartAi.All }).Write(w);
+        var r = new NetReader(w.Span); r.U8();
+        var back = JoinAccept.Read(ref r);
+        Assert.Equal((uint)I76.Sim.Missions.SmartAi.All, back.SmartAi);
+        Assert.True(back.SolidCliffs);
+        Assert.Equal(0, r.Remaining);
+        Assert.True((Protocol.Features & PeerFeatures.SmartAi) != 0);
+        // an accept from a build before the rule ends at the cliff rule (All is two bytes of VarU)
+        var earlier = new NetReader(w.Span[..^2]); earlier.U8();
+        var old = JoinAccept.Read(ref earlier);
+        Assert.Equal(0u, old.SmartAi);
+        Assert.True(old.SolidCliffs);
     }
 
     [Fact]

@@ -40,9 +40,9 @@ public sealed class MeleeMode : IHostMode
             Kind = _o.Kind, Goal = _o.Goal, GoalValue = _o.GoalValue, CtfTeams = Math.Clamp(_o.CtfTeams, 2, 4), IgnitionStaysOn = _o.IgnitionStaysOn,
             AutoHandicaps = _o.Handicaps == HandicapMode.Auto,
         };
-        Setup = MissionSetup.Build(c.Vfs, c.World, c.Asm, rand: new CrtRand(unchecked((uint)_o.Seed)), melee: roster, meleeRules: rules, seed: _o.Seed);
+        Setup = MissionSetup.Build(c.Vfs, c.World, c.Asm, rand: new CrtRand(unchecked((uint)_o.Seed)), melee: roster, meleeRules: rules, seed: _o.Seed, smartAi: _o.SmartAi);
         Game = Setup.Melee!;
-        Build = new SessionBuild { Mission = c.Arena.ToLowerInvariant(), Install = SessionBuild.InstallIdentity(c.Install, c.Arena), Melee = roster, Rules = rules };
+        Build = new SessionBuild { Mission = c.Arena.ToLowerInvariant(), Install = SessionBuild.InstallIdentity(c.Install, c.Arena), Melee = roster, Rules = rules, SmartAi = Setup.Melee!.Host.SmartAi };
     }
 
     public bool Over => Game.Over;

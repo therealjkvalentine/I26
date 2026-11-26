@@ -325,9 +325,12 @@ public sealed partial class MissionSetup
     /// (<see cref="ScriptHost.SkillOffset"/>) in a scripted single-player mission. Null (or off) for the original's; ignored for a
     /// co-op game and a melee. Loot up's salvage offset is the game's (<see cref="Trip.SalvagePool"/>).
     /// </param>
+    /// <param name="smartAi">
+    /// The smarter opponents' rule (the play fork's; docs/deviations.md "Smarter opponents"): <see cref="SmartAi.None"/>, the original's AI.
+    /// </param>
     public static MissionSetup Build(AssetVfs vfs, MissionWorld w, ModelAssembler asm, string? requested = null,
         System.Numerics.Vector3 origin = default, bool script = true, CrtRand? rand = null, IReadOnlyList<string>? melee = null,
-        MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null, Trip.TripPlusRules? tripPlus = null)
+        MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null, Trip.TripPlusRules? tripPlus = null, SmartAi smartAi = SmartAi.None)
     {
         if (melee is not null) coop = null;
         var carFiles = new CarFiles(vfs);   // the mission's car files, for the cars built again in play (VehicleFactory reads through it)
@@ -584,6 +587,7 @@ public sealed partial class MissionSetup
             MarkTaurus(ms.Vm!.Actors);
             host.FindKeyCars(w.Mission.FsmPayload(), ms.Vm, w.Mission.Name);
         }
+        if (ms is not null) ms.Host.SmartAi = smartAi & SmartAi.All;
         // the explosion templates in the original's load order (the first file with a key keeps it): the startup three, then
         // each scenery object's SDFC file in ODEF order, then the LDEF links'. Weapon effects register as first used; no
         // stock weapon effect shares a key with another file.

@@ -77,7 +77,10 @@ public sealed partial class SimSession
     {
         if (World.Rand.IsOracle) throw new NotSupportedException("a session on a rand oracle cannot be snapshotted");
         // the solid-cliff rule as it holds in the world (the mission start's, the host's, a restore's), whoever built the session
-        return SnapshotHeader.Compose((Build ?? Unbuilt) with { SolidCliffs = World.SolidCliffs }, Rate, World.Far, Ticks, host, SnapshotBody());
+        // and the smarter opponents' rule as the AI holds it (the build's, the host's, a restore's)
+        var built = (Build ?? Unbuilt) with { SolidCliffs = World.SolidCliffs };
+        if (Script?.Host is { } sh) built = built with { SmartAi = sh.SmartAi };
+        return SnapshotHeader.Compose(built, Rate, World.Far, Ticks, host, SnapshotBody());
     }
 
     /// <summary>
@@ -171,6 +174,9 @@ public sealed partial class SimSession
         // the solid-cliff rule is the game's, not the build's: a restore goes on under the rule the snapshot was made in (a retry, a
         // bookmark, a migrated host), whatever the setting is now
         World.SolidCliffs = h.Build.SolidCliffs;
+        // the smarter opponents' rule likewise (the AI's, the session's rule as the snapshot was made)
+        if (Script?.Host is { } sh) sh.SmartAi = h.Build.SmartAi & Missions.SmartAi.All;
+        if (Build is { } b) Build = b with { SmartAi = h.Build.SmartAi };
         return RestoreBody(h.Body(snapshot));
     }
 
