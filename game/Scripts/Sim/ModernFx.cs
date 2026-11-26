@@ -49,9 +49,19 @@ public partial class ModernFx : Node3D
         ((BoxMesh)_groundSparkMesh).Size = new Vector3(0.022f, 0.3f, 0.022f) * FxSize;
         ((QuadMesh)_puffMesh).Size = Vector2.One * FxSize;
         _puffMat.AlbedoColor = new Color(1, 1, 1, Mathf.Min(FxAlpha, 1f));
+        TintPuffs();
     }
 
-    public override void _ExitTree() => LookChanged -= ApplyShared;
+    public override void _ExitTree() { LookChanged -= ApplyShared; SmokeLight.LightChanged -= TintPuffs; }
+
+    /// <summary>Smoke Lighting (SmokeLight): the dust and gun smoke puffs take the sun's and the sky's light, as a tint (white when off).</summary>
+    private void TintPuffs()
+    {
+        if (_puffMat is null) return;
+        var l = SmokeLight.Sun * 0.5f + SmokeLight.Ambient * 0.5f;
+        var tint = new Color(Math.Min(l.X, 1f), Math.Min(l.Y, 1f), Math.Min(l.Z, 1f)).LinearToSrgb();
+        _puffMat.AlbedoColor = SmokeLight.On ? tint with { A = Mathf.Min(FxAlpha, 1f) } : new Color(1, 1, 1, Mathf.Min(FxAlpha, 1f));
+    }
     private Flipbook? _explosionHd, _explosion, _fireball, _smoke;
     private readonly List<Sprite> _sprites = [];
 
@@ -179,6 +189,7 @@ public partial class ModernFx : Node3D
         _groundDustProc.ScaleMax = 0.8f;
         ApplyShared();
         LookChanged += ApplyShared;
+        SmokeLight.LightChanged += TintPuffs;
         _smokeProc = new ParticleProcessMaterial
         {
             Direction = Vector3.Up, Spread = 180, InitialVelocityMin = 0.2f, InitialVelocityMax = 0.8f,

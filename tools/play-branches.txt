@@ -938,3 +938,6 @@ feat/gfx-aa-shadows                   # section HW: the owner: "run the rest of 
 
 # HX. Modern look: Haze, Glow and Reflections rows on Advanced, Off by default (2026-11-26; lane on Opus 5.5)
 feat/gfx-env                          # section HX: fidelity research steps 7, 8 and 10. Haze Off / Light / Southwest from 600 m with the horizon ring's own haze function; Glow Off / Lamps (threshold above sunlit ground); Reflections only with Ambient Occlusion On (little to see at the default Hood Gloss: the owner's call whether to keep the row). Advanced scrolls.
+
+# HY. Modern look: Smoke Lighting and Heat Shimmer rows on Advanced, Off by default (2026-11-26; lane on Opus 5.5)
+feat/gfx-heat                         # section HY: fidelity research step 6 and item 46; the owner asked about heat shimmer and a road mirage for the Southwest. Smoke Lighting Off / On; Heat Shimmer Off / Fires / Fires + Road (hot days only: sun at least 30 degrees up and a warm palette; nothing within 150 m; the mirage at its own strength, I76_HEAT_MIRAGE=0 turns it off). Merged with section HX by hand: Advanced has nineteen rows. Found, not changed: the damage smoke's old lighting comes from below.

@@ -122,6 +122,14 @@ i76_smoke_cap={
 "type": "float",
 "value": 0.0
 }
+i76_smoke_sun={
+"type": "vec4",
+"value": Vector4(1, 1, 1, 0)
+}
+i76_smoke_amb={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
 i76_ambient={
 "type": "float",
 "value": 0.0

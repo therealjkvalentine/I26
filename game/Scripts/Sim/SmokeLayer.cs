@@ -31,7 +31,7 @@ public partial class SmokeLayer : Node3D
     public static Camera3D? MirrorCamera { get; set; }
 
     // room for every smoke's pool at the longest [port] smoke_linger (SmokeLinger: the pools grow with it)
-    private const int Capacity = 30000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12;
+    private const int Capacity = 30000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12 + 8;
     private static readonly int Scale = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_SCALE"), out int sc) && sc >= 1 ? sc : 2;
     private static bool _ready, _failed, _enabled;
     private static readonly object Lock = new();
@@ -170,6 +170,7 @@ public partial class SmokeLayer : Node3D
             mat4 view; mat4 proj; mat4 invproj; mat4 invview; mat4 cab_inv;
             vec4 cab_half; vec4 sun_light; vec4 screen;
             vec4 lcount; vec4 lights[48];
+            vec4 smoke_sun; vec4 smoke_amb;
         } u;
         layout(set = 0, binding = 1, std430) readonly buffer P { vec4 d[]; } p;
         layout(location = 0) out vec2 v_uv;
@@ -220,6 +221,7 @@ public partial class SmokeLayer : Node3D
             mat4 view; mat4 proj; mat4 invproj; mat4 invview; mat4 cab_inv;
             vec4 cab_half; vec4 sun_light; vec4 screen;
             vec4 lcount; vec4 lights[48];
+            vec4 smoke_sun; vec4 smoke_amb;
         } u;
         layout(set = 0, binding = 2) uniform sampler2D noise_tex;
         #ifdef MSAA
@@ -304,7 +306,13 @@ public partial class SmokeLayer : Node3D
             vec3 base = mix(vec3(0.62, 0.64, 0.66), vec3(0.028, 0.028, 0.03), pow(v_c.z, 0.7));
             base = mix(base, base * vec3(1.35, 1.0, 0.75) + vec3(0.004, 0.002, 0.0), v_c.z * fract(seed * 7.13));
             base *= (0.8 + 0.4 * n) * v_t.rgb;
+            // Smoke Lighting (SmokeLight): the sun's colour and the sky's in place of the one white level
             vec3 col = base * lit * u.sun_light.w;
+            if (u.smoke_sun.w > 0.0) {
+                // the sphere's normal with the quad's up as the view's up (v_uv's y runs down), so the side toward the sun is the lit one
+                float hs = dot(normalize(vec3(d.x, -d.y, sqrt(max(1.0 - rad * rad, 0.05))) + vec3((n - 0.5) * 0.5)), normalize(u.sun_light.xyz)) * 0.5 + 0.5;
+                col = base * (u.smoke_amb.rgb * mix(0.25, 0.04, v_c.z) + u.smoke_sun.rgb * mix(hs * hs, 2.6 * pow(hs, 3.0), v_c.z));
+            }
             // lit by the lamps: soot scatters little, steam and ash more
             col += mix(vec3(0.7), vec3(0.14), pow(v_c.z, 0.7)) * v_t.rgb * v_lit * (0.8 + 0.4 * n);
             float dist = -v_vpos.z;
@@ -394,6 +402,12 @@ public partial class SmokeLayer : Node3D
         }
         lock (Lock) { Ubo[92] = _lightCount; Array.Copy(_lights, 0, Ubo, 96, _lightCount * 12); }
         Ubo[87] = SceneLight;
+        {
+            var ss = SmokeLight.Sun; var sa = SmokeLight.Ambient;
+            int o = 96 + MaxLights * 12;
+            Ubo[o] = ss.X; Ubo[o + 1] = ss.Y; Ubo[o + 2] = ss.Z; Ubo[o + 3] = SmokeLight.On ? 1f : 0f;
+            Ubo[o + 4] = sa.X; Ubo[o + 5] = sa.Y; Ubo[o + 6] = sa.Z;
+        }
         Ubo[83] = DepthView ? 1f : 0f;
         bool reversed = SmokeDepth.NearerIsLarger(proj);
         if (reversed != _reversed) { _reversed = reversed; GD.Print($"smoke layer: scene depth {(reversed ? "reversed" : "forward")}, {buffers.GetMsaa3D()}, {full.X}x{full.Y}"); }

@@ -1492,6 +1492,10 @@ public sealed class ShellSettings
     public int Glow { get; set; }
     /// <summary>The port's own: the modern look's screen-space reflections, drawn only with Ambient Occlusion On (Graphic Detail's Reflections, AirRows; [port] reflections, written when on).</summary>
     public bool Reflections { get; set; }
+    /// <summary>The port's own: Graphic Detail's Smoke Lighting (SmokeLightingRow), the modern look's smoke and dust lit by the sun's colour and direction and the sky's; [port] smoke_lighting, written only when on. Off unless the player chose.</summary>
+    public bool SmokeLighting { get; set; }
+    /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
+    public int HeatShimmer { get; set; }
     /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
@@ -2098,6 +2102,9 @@ public sealed class ShellSettings
         s.Haze = AirRows.ClampHaze((int)c.GetValue("port", "haze", 0));
         s.Glow = AirRows.ClampGlow((int)c.GetValue("port", "glow", 0));
         s.Reflections = (bool)c.GetValue("port", "reflections", false);
+        // no version step: a file without these keys has them off, as they were before they existed
+        s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
+        s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2336,6 +2343,8 @@ public sealed class ShellSettings
         if (Haze != 0) c.SetValue("port", "haze", Haze);
         if (Glow != 0) c.SetValue("port", "glow", Glow);
         if (Reflections) c.SetValue("port", "reflections", true);
+        if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
+        if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));

@@ -17,9 +17,14 @@ uniform float soft_distance = 1.2;
 instance uniform float scene_light = 1.0;
 instance uniform float fire = 1.0;    // how strongly the fire under it lights the smoke
 instance uniform float thick = 1.0;   // 1 thick black smoke, 0 a smouldering grey wisp
+// Smoke Lighting (SmokeLight): the sun's light (rgb; w 1 when on) and the sky's; the sun's direction is the objects' light's
+global uniform vec4 i76_smoke_sun;
+global uniform vec3 i76_smoke_amb;
+global uniform vec3 i76_light_dir;
 
 varying float v_life;
 varying float v_seed;
+varying float v_ang;
 
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float n2(vec2 p) {
@@ -33,6 +38,7 @@ vec2 cell(float i) { return vec2(mod(i, grid.x), floor(i / grid.x)) / grid; }
 void vertex() {
 	v_life = INSTANCE_CUSTOM.y;
 	v_seed = fract(float(INSTANCE_ID) * 0.7548777 + INSTANCE_CUSTOM.w * 3.17);
+	v_ang = INSTANCE_CUSTOM.x;
 	float c = cos(INSTANCE_CUSTOM.x), s = sin(INSTANCE_CUSTOM.x);
 	VERTEX.xy = mat2(vec2(c, s), vec2(-s, c)) * VERTEX.xy;
 	float sc = length(MODEL_MATRIX[0].xyz);
@@ -61,7 +67,15 @@ void fragment() {
 	// near-black over the flames, lifting to a dark grey as it spreads; a smoulder is a paler grey throughout
 	// (linear: 0.03 is about sRGB 0.19)
 	vec3 col = vec3(mix(mix(0.006, 0.035, smoothstep(0.0, 0.9, v_life)), mix(0.09, 0.16, v_life), 1.0 - thick)) * (0.75 + 0.5 * shade);
-	col *= scene_light;
+	if (i76_smoke_sun.w > 0.0) {
+		// a fake sphere normal as the damage smoke's: the side toward the sun lit, the far side the sky's alone
+		vec2 d = UV * 2.0 - 1.0;
+		vec2 q = mat2(vec2(cos(v_ang), sin(v_ang)), vec2(-sin(v_ang), cos(v_ang))) * vec2(d.x, -d.y);   // the quad's turn, as vertex()
+		vec3 nrm = normalize(vec3(q, sqrt(max(1.0 - dot(d, d), 0.05))));
+		vec3 sun_view = normalize((VIEW_MATRIX * vec4(i76_light_dir, 0.0)).xyz);
+		float hl = dot(nrm, sun_view) * 0.5 + 0.5;
+		col *= i76_smoke_amb * 0.55 + i76_smoke_sun.rgb * 1.1 * hl * hl;
+	} else col *= scene_light;
 	// lit from below by the fire while young
 	col += vec3(1.0, 0.3, 0.06) * fire * (1.0 - smoothstep(0.0, 0.2, v_life)) * (0.5 + 0.5 * shade) * 0.5;
 

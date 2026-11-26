@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
-    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections,
+    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer,
 }
 
 /// <summary>
@@ -29,12 +29,13 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
             GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D,
+            GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
     /// <summary>
     /// Rows a page shows only with a pack installed (the texture rows with a world pack, Menu Width with the widescreen menu pack).
-    /// Advanced holds more rows than its lines (Haze, Glow and Reflections came after it was full) and scrolls the rest.
+    /// Advanced holds more rows than its lines (Haze, Glow, Reflections, Smoke Lighting and Heat Shimmer came after it was full) and scrolls the rest.
     /// </summary>
     public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
 
@@ -143,6 +144,8 @@ public static class GraphicsPages
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             case GraphicsRow.MenuWidth: t.MenuWide = f.MenuWide; break;
+            case GraphicsRow.SmokeLighting: t.SmokeLighting = f.SmokeLighting; break;
+            case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
             case GraphicsRow.PaletteGrade: t.PaletteGrade = f.PaletteGrade; break;

@@ -863,6 +863,8 @@ public partial class Main : Node3D
 		_shadowUltra = I76.Game.Shell.ShadowDetailRow.UltraOn(s);   // ShadowUltra.cs
 		_ambientOcclusion = s.AmbientOcclusion;
 		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
+		I76.Game.Sim.SmokeLight.Apply(s.SmokeLighting, _mode1997);
+		I76.Game.World.HeatShimmer.Apply(s.HeatShimmer, _mode1997);
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
@@ -4069,6 +4071,8 @@ public partial class Main : Node3D
 		if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
 		_mode1997 = on;
 		I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
+		I76.Game.Sim.SmokeLight.SetLook1997(on);
+		I76.Game.World.HeatShimmer.Look1997 = on;
 		if (!sliced) _builder?.Terrain?.UseModern(!on);
 		else if (_builder?.Terrain is { } terrain)
 			foreach (var step in terrain.UseModernSteps(!on, SliceMs))
