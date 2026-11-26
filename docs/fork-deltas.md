@@ -32,7 +32,7 @@ the `gh-pages` branch (see tools/changes-page/README.md).
 
 ## Menus and shell
 
-- Graphic Detail's sheet is four page entries, Display, World, Car & Cockpit and Effects, with every row (the original's leading their pages in its order) on a page (World Textures 1997/4x on World, Car & Dash Textures 1997/4x/8x on Car & Cockpit); every row on the shell, the Esc pads, the host forms and the Developer panel has a tooltip after half a second and the costly rows a help line. [H, I, K, P, S, AK]
+- Graphic Detail's sheet is 1997 Mode over four page entries, Display, World, Car & Cockpit and Effects, with every row (the original's leading their pages in its order) on a page (World Textures 1997/4x on World, Car & Dash Textures 1997/4x/8x on Car & Cockpit); every row on the shell, the Esc pads, the host forms and the Developer panel has a tooltip after half a second and the costly rows a help line. [H, I, K, P, S, AK]
 - New rows: Resolution (#81), Render Scale 50 to 200 %, Field of View (Monitor the default, 90 the original's), Hood Gloss 0 to 100, Ambient Occlusion (off), Cabins Behind Glass, Show FPS; Options > Controls holds force feedback, rumble, wheel strength, mouse and the key map. [D, I, N, O, S, AK]
 - Graphic Detail's last line shows the frame rate: measured in a mission, estimated on the main menu for the rows as set (`[port] menu_fps`). [AX]
 - On every row that offers the original's value, each value the original does not have is marked `*`; choices a player would rarely change are `[port]` keys with the right default, listed in docs/playing.md "Settings without a row". [I]

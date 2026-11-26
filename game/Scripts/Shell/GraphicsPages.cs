@@ -12,9 +12,10 @@ public enum GraphicsRow
 /// <summary>
 /// Graphic Detail's pages (the port's). The original has one sheet (grxdet1.map: Screen Resolution, Monitor Brightness, Visibility
 /// Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the 1997 renderer's own detail rows are gone;
-/// Rear Mirror is Mirrors, the rear mirror and the port's door mirrors in one row, MirrorsRow). In the fork the sheet holds only an
-/// entry for each page, by what a row changes, and every row, the original's too, is on the page it belongs to: Display (the window
-/// and the frame: Screen Resolution, Monitor Brightness, 1997 Mode, anti-aliasing, render scale, the frame rate, the renderer, the
+/// Rear Mirror is Mirrors, the rear mirror and the port's door mirrors in one row, MirrorsRow). In the fork the sheet holds 1997 Mode
+/// (the switch between the two looks, which decides which pages' rows apply) and under a blank line an entry for each page, by what a
+/// row changes; every other row, the original's too, is on the page it belongs to: Display (the window and the frame: Screen
+/// Resolution, Monitor Brightness, anti-aliasing, render scale, the frame rate, the renderer, the
 /// menus' width), World (what is drawn of the world: Visibility Range, Terrain Detail, Shadow Detail beside the terrain's shadows,
 /// textures, plants, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view and the car: field of view, Ext. Instrum.
 /// Disp., Mirrors beside the mirrors' rate and haze, the car's and the dash's textures, the paint, the 3D garage) and Effects (the
@@ -31,11 +32,11 @@ public static class GraphicsPages
     /// <summary>The first of the port's pages (the sheet's first entry).</summary>
     public const int FirstPage = Display;
     public static readonly string[] Names = ["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"];
-    /// <summary>Each page's rows in order, the most used first and related rows together; the sheet has none, only the pages' entries.</summary>
+    /// <summary>Each page's rows in order, the most used first and related rows together; the sheet's, 1997 Mode alone, over the pages' entries.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
-        [],
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+        [GraphicsRow.Look1997],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
         [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
@@ -61,7 +62,7 @@ public static class GraphicsPages
 
     /// <summary>The sheet's lines: fourteen, 23 px apart from y 118 on the shell's sheet, the pad's rows 1 to 14.</summary>
     public const int Lines = 14;
-    /// <summary>The sheet's first page entry: its line (0-based), the sheet's first (the sheet has no rows of its own).</summary>
+    /// <summary>The sheet's first page entry: its line (0-based), under a blank line under the sheet's rows (1997 Mode), the first had it none.</summary>
     public static int FirstEntryLine => Rows[Sheet].Length == 0 ? 0 : Math.Min(Rows[Sheet].Length + 1, Lines - Rows.Length);
     /// <summary>A page on the shell's sheet: its name on the first line, its rows from the next; the pad prints the name over the art's title and starts its rows on row 1.</summary>
     public const int HeadingLine = 0, FirstRowLine = 1;

@@ -88,9 +88,9 @@ public class GraphicsPagesTests
     /// it in the original's order, but for Field of View, Car &amp; Cockpit's most used, first there.
     /// </summary>
     [Fact]
-    public void TheSheetHasOnlyTheEntriesAndTheOriginalsRowsLeadTheirPages()
+    public void TheSheetHas1997ModeAndTheOriginalsRowsLeadTheirPages()
     {
-        Assert.Empty(GraphicsPages.Rows[GraphicsPages.Sheet]);
+        Assert.Equal([GraphicsRow.Look1997], GraphicsPages.Rows[GraphicsPages.Sheet]);
         Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
             GraphicsPages.Original);
         Assert.Equal([GraphicsPages.Display, GraphicsPages.Display, GraphicsPages.World, GraphicsPages.World, GraphicsPages.World, GraphicsPages.CarCockpit, GraphicsPages.CarCockpit],
@@ -126,7 +126,7 @@ public class GraphicsPagesTests
     public void ThePagesAreDisplayWorldCarAndEffects()
     {
         Assert.Equal(["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+        Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
             GraphicsPages.Rows[GraphicsPages.Display]);
         Assert.Equal([GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
             GraphicsPages.Rows[GraphicsPages.World]);
@@ -141,23 +141,43 @@ public class GraphicsPagesTests
         Assert.Equal(-1, GraphicsPages.PageNamed("look"));
     }
 
-    /// <summary>The sheet: the four entries on its first lines (where the original's first rows were), the frame rate on the last; the pad's from row 1, the frame rate on row 14.</summary>
+    /// <summary>
+    /// The sheet: 1997 Mode on its first line (the switch between the looks), a blank line, the four entries, the frame rate on the
+    /// last; the pad's the same from row 1 (1997 Mode, a blank row, the entries on rows 3 to 6), the frame rate on row 14.
+    /// </summary>
     [Fact]
-    public void TheSheetsEntriesTakeItsFirstLines()
+    public void TheSheetIs1997ModeOverTheEntries()
     {
-        Assert.Equal(0, GraphicsPages.FirstEntryLine);
+        Assert.Equal(2, GraphicsPages.FirstEntryLine);
         foreach (bool fps in new[] { true, false })
         {
-            var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 0, fps);
-            Assert.Equal((0, false), (shell.Shown, shell.Scrolls));
-            Assert.Equal([0, 1, 2, 3], shell.Entries);
+            var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 1, fps);
+            Assert.Equal((0, 1, false), (shell.LineOf(0), shell.Shown, shell.Scrolls));
+            Assert.Equal([2, 3, 4, 5], shell.Entries);
             Assert.Equal(fps ? 13 : -1, shell.Fps);
-            var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 0, fps);
-            Assert.Equal((0, false), (pad.Shown, pad.Scrolls));
-            Assert.Equal([1, 2, 3, 4], pad.Entries);
+            var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 1, fps);
+            Assert.Equal((1, 1, false), (pad.LineOf(0), pad.Shown, pad.Scrolls));
+            Assert.Equal([3, 4, 5, 6], pad.Entries);
             Assert.Equal(fps ? 14 : -1, pad.Fps);
             foreach (int r in pad.Entries) Assert.DoesNotContain(r, GraphicsLayout.PadButtons);
         }
+    }
+
+    /// <summary>1997 Mode is the sheet's: Display's Reset leaves it, the sheet's (every page's) puts it back, the snapshot carries it.</summary>
+    [Fact]
+    public void Look1997IsTheSheetsRow()
+    {
+        Assert.Equal(GraphicsPages.Sheet, GraphicsPages.PageOf(GraphicsRow.Look1997));
+        var s = new ShellSettings { Look1997 = true, SoftwareRenderer = true };
+        GraphicsPages.Reset(s, GraphicsPages.Display);
+        Assert.True(s.Look1997 && s.SoftwareRenderer);
+        var snap = GraphicsPages.CopyAll(s, new ShellSettings());
+        Assert.True(snap.Look1997 && snap.SoftwareRenderer);
+        GraphicsPages.Reset(s, GraphicsPages.Sheet);
+        Assert.False(s.Look1997 || s.SoftwareRenderer);
+        var pad = new ShellSettings { Look1997 = true };
+        GraphicsPages.Reset(pad, GraphicsPages.Sheet, [GraphicsRow.Look1997]);
+        Assert.False(pad.Look1997);
     }
 
     // ---- the layout: every page at every row count it can have, on both menus ----

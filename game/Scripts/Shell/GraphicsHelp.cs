@@ -109,7 +109,7 @@ public static class GraphicsHelp
     public static readonly string[] Entries =
     [
         "",
-        "Display: the screen resolution and monitor brightness, 1997 Mode, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
+        "Display: the screen resolution and monitor brightness, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
         "World: how far you see, the terrain's detail, the shadows (the cars' and the terrain's), the world's textures, plants, ambient occlusion, reflections and haze.",
         "Car & Cockpit: the field of view, the external instruments, the mirrors (which, how often drawn, their haze), the car and dash textures, the paint's gloss and the 3D garage.",
         "Effects: the modern look's palette grade, crash blur, glow, smoke lighting and heat shimmer.",
