@@ -30,9 +30,10 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(SmartAi.None, SmartAiNames.Parse("off", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("t", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("gun_lay, settle", out _));
+        Assert.Equal(SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution, SmartAiNames.Parse("N", out _));
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("all", out _));
         Assert.Equal((SmartAi)3, SmartAiNames.Parse("3", out _));
-        Assert.Equal((SmartAi)1, SmartAiNames.Parse("5", out _));
+        Assert.Equal((SmartAi)5, SmartAiNames.Parse("5", out _));
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("0xffffffff", out _));
         Assert.Equal(SmartAi.Settle, SmartAiNames.Parse("settle,bogus", out var bad));
         Assert.Equal(["bogus"], bad);
@@ -244,8 +245,77 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.False(p.SettleHolds(a));
     }
 
+    // ---- N1 hill pursuit, N2 climb-aware probe, N6 ledge caution ----
 
+    /// <summary>Hill pursuit keeps too far on for a car 40 m below its target and within 180 m; the original's close again ends it.</summary>
+    [Fact]
+    public void HillPursuitHoldsTooFarForATargetHighAbove()
+    {
+        // a 40 m mesa on the tile's north half
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"], height: (x, z) => z > (60 * 128 + 70) * 5f ? 45f : 5f) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        Place(r, a.Vehicle!, r.Centre, 0, 0);
+        Place(r, b.Vehicle!, r.Centre + new Vector2(0, 100), 0, 0);
+        Step(r, (a, b));
+        var p = r.Host.Ptable;
+        Assert.False(p.HillHeld(a, b));
+        a.SmartAi = SmartAi.HillPursuit;
+        Assert.True(p.HillHeld(a, b));
+        Place(r, b.Vehicle!, r.Centre + new Vector2(0, 20), 0, 0);
+        Assert.False(p.HillHeld(a, b));
+    }
 
+    /// <summary>The climb-aware probe's limits: the original's 1.5 m everywhere off; on, a climb of tan 28° to 35° a 2.5 m step and 24° of tilt.</summary>
+    [Fact]
+    public void TheClimbAwareProbeReadsTheGradeTheCarCanClimb()
+    {
+        if (Make(["vppirna1.vcf"]) is not { } r) return;
+        var a = r.Ais[0];
+        Place(r, a.Vehicle!, r.Centre, 0, 0);
+        r.Host.Order(a, r.Host.Player!, AiOrder.Attack, null, 0);
+        var p = r.Host.Ptable;
+        Assert.Equal((1.5f, 1.5f, 1.5f), p.ProbeLimits(a));
+        a.SmartAi = SmartAi.ClimbProbe;
+        var (rise, cross, together) = p.ProbeLimits(a);
+        output.WriteLine($"rise {rise} m a 2.5 m step, cross {cross} m, together {together} m");
+        Assert.InRange(rise, 2.5f * 0.532f - 1e-4f, 2.5f * 0.7f + 1e-4f);
+        Assert.Equal(5f * 0.445f, cross, 3);
+        Assert.Equal(rise * 2f, together, 3);
+    }
+
+    /// <summary>
+    /// Ledge caution brakes a car driving at a 20 m cliff 10 m ahead, and sends a car backing toward one 4 m behind to just do it;
+    /// without it neither is touched.
+    /// </summary>
+    [Fact]
+    public void LedgeCautionBrakesForACliffAndWillNotBackOverOne()
+    {
+        // a 20 m cliff across the tile: the north part 25 m up, the south 5 m
+        float edge = (60 * 128 + 64) * 5f;
+        if (Make(["vppirna1.vcf"], height: (x, z) => z < edge ? 25f : 5f) is not { } r) return;
+        var a = r.Ais[0]; var v = a.Vehicle!;
+        Place(r, v, new Vector2(r.Centre.X, edge - 12f), 0, 12);
+        v.Gear = 1;
+        r.Host.Order(a, r.Host.Player!, AiOrder.Attack, null, 0);
+        var p = r.Host.Ptable;
+        v.Throttle = 0.9f;
+        Assert.False(p.LedgeCaution(a, false));
+        Assert.Equal(0.9f, v.Throttle);
+        a.SmartAi = SmartAi.LedgeCaution;
+        p.LedgeCaution(a, false);
+        Assert.True(v.Throttle < 0, $"throttle {v.Throttle} toward the rim");
+        // backing toward it
+        Place(r, v, new Vector2(r.Centre.X, edge - 4f), MathF.PI, 0);
+        v.Gear = -1;
+        Assert.True(p.RimInGear(a));
+        a.SmartAi = SmartAi.None;
+        Assert.False(p.RimInGear(a));
+        // and away from it, nothing
+        a.SmartAi = SmartAi.LedgeCaution;
+        v.Gear = 1;
+        Place(r, v, new Vector2(r.Centre.X, edge - 4f), MathF.PI, 0);
+        Assert.False(p.RimInGear(a));
+    }
 
 
 

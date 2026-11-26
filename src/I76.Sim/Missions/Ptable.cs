@@ -396,6 +396,7 @@ public sealed partial class Ptable
                 return 0;
             }
             e.Search = search = PathSearch.Begin(new Vector2(p.X, p.Z), goal, Bridges);
+            SearchCosts(e, search);
         }
         if (!search.Step(World.Ground, e.Avoid)) return 1;
         SetWaypoints(e, RoadRoute.BuildWaypoints(host.Roads, World.Ground, search.Chain(), Bridges, e.DetourLimit));

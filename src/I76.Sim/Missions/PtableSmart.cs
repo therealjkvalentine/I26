@@ -44,7 +44,7 @@ public sealed partial class Ptable
         bool escape = EscapeStates.Contains(name);
         if (LayStates.Contains(name)) GunLay(e, t);
             bool rear = false;
-        return false;
+        return LedgeCaution(e, escape);
     }
 
     /// <summary>After the transitions: an escape taken ends the lay; a car held at a cliff's rim backs away; the stuck test.</summary>
@@ -52,12 +52,23 @@ public sealed partial class Ptable
     {
         bool same = e.Depth >= 0 && e.Depth < e.Stack.Count && e.Stack[e.Depth] == s;
         if (!same) e.LayActive = false;
+        if (back && same && t is not null) { PushBackAway(e, t); return; }
     }
 
     /// <summary>
     /// Back_away pushed onto the stack (entered and ticked as a transition pushes it), unless the stack is full; with
     /// <paramref name="unstick"/>, as Stuck recovery's reverse arc (<see cref="UnstickEnter"/>).
     /// </summary>
+    private void PushBackAway(Entity e, Entity t, bool unstick = false)
+    {
+        int back = host.Tactics is { } table ? Array.FindIndex(table, d => d.Name == "back_away") : -1;
+        if (back < 0 || e.Depth >= MaxDepth) return;
+        e.ProgressAt = Pos(e); e.ProgressTime = Now;
+        e.Depth++;
+        e.Stack.Add(back);
+        S[back].Enter?.Invoke(e, t);
+        S[back].Tick(e, t);
+    }
 
     /// <summary>The tail of the AI order with the smarter opponents: Settle's hold on the laid guns, then Drop when chased.</summary>
     private void SmartFire(Entity e, Entity at)
@@ -67,6 +78,12 @@ public sealed partial class Ptable
     }
 
     /// <summary>The smarter opponents' costs on a search too far starts (its own one-point path), and a stuck car's cell.</summary>
+    private void SearchCosts(Entity e, PathSearch search)
+    {
+        if (!SmartOn(e) || !ReferenceEquals(e.NavPath, e.SnapshotPath)) return;
+        search.SlopeCost = Smart(e, SmartAi.HillPursuit);
+        search.FaceMargin = Smart(e, SmartAi.LedgeCaution);
+    }
 
     /// <summary>
     /// The time a round at <paramref name="speed"/> from <paramref name="from"/> meets a target at <paramref name="at"/> moving at

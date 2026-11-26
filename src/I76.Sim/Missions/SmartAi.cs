@@ -15,7 +15,13 @@ public enum SmartAi : uint
     GunLay = 1 << 0,
     /// <summary>Settle (T5): while laying, the fixed forward guns wait until the nose has held on the lead point a reaction time.</summary>
     Settle = 1 << 1,
-    All = GunLay | Settle,
+    /// <summary>Hill pursuit (N1): too far ends only within 30 m of height too, and too far's own route search costs steep steps.</summary>
+    HillPursuit = 1 << 2,
+    /// <summary>Climb-aware probe (N2): the avoidance probe's climb and cross-track limits from the grade the car can climb.</summary>
+    ClimbProbe = 1 << 3,
+    /// <summary>Ledge caution (N6): brake for a cliff's rim, never back over one, slow for a crest; too far's search keeps off steep faces.</summary>
+    LedgeCaution = 1 << 4,
+    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution,
 }
 
 /// <summary>The <see cref="SmartAi"/> rule as written in the settings and the dev hook: names, groups or a number.</summary>
@@ -25,12 +31,14 @@ public static class SmartAiNames
     public static readonly (string Name, SmartAi Bit)[] Bits =
     [
         ("gun_lay", SmartAi.GunLay), ("settle", SmartAi.Settle),
+        ("hill_pursuit", SmartAi.HillPursuit), ("climb_probe", SmartAi.ClimbProbe), ("ledge_caution", SmartAi.LedgeCaution),
     ];
 
     /// <summary>The groups of the research's catalogue: T lining up, N terrain, G coordination, D defence; and all, off.</summary>
     public static readonly (string Name, SmartAi Bits)[] Groups =
     [
         ("t", SmartAi.GunLay | SmartAi.Settle),
+        ("n", SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution),
         ("all", SmartAi.All), ("off", SmartAi.None), ("none", SmartAi.None),
     ];
 
