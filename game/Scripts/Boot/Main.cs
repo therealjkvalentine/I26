@@ -1206,6 +1206,9 @@ public partial class Main : Node3D
 		var setup = setupJob.GetAwaiter().GetResult();
 		MissionBuilder.Trace("spawn: sim world set up");
 		var world = setup.World;
+		// solid cliffs ([port] solid_cliffs; docs/deviations.md "Solid cliffs"): the player's setting as the mission starts, an input
+		// replay's recorded rule (a restored checkpoint or bug report goes on under its snapshot's rule instead: SimSession.Restore)
+		world.SolidCliffs = replay?.SolidCliffs ?? I76.Game.Shell.ShellSettings.Load().SolidCliffs;
 		_devStart = world.Player is { } startCar ? (startCar.Pos.X, startCar.Pos.Z, I76.Sim.Session.DevTools.HeadingOf(startCar.Rot.Forward)) : null;
 		// the session (the simulation's own objects: no engine resource) and the install's identity for its snapshots (the install's
 		// files read and hashed) made on a worker, the main thread's settings read here first
@@ -1268,7 +1271,7 @@ public partial class Main : Node3D
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
 			Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
 			Build = I76.Game.Boot.BuildInfo.Version, Install = session.Build.Install, Options = traceSettings.PlayOptions, Difficulty = traceSettings.Difficulty,
-			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai,
+			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai, SolidCliffs = world.SolidCliffs,
 		};
 		_reportRoster = null;
 		_reportTripPlus = null;

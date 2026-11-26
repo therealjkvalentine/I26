@@ -111,6 +111,15 @@ public sealed partial class ScriptHost : IFsmHost
     /// Single player only (co-op drops its humans' orders outside a cut-scene, <see cref="Order"/>).
     /// </summary>
     public bool ScriptDrove(Vehicle car) => Coop is null && _playerDrivenTick == FsmTick - 1 && Player?.Vehicle == car;
+
+    /// <summary>
+    /// The car follows one of the script's paths: its order is a goto, evade or race (the orders that take a path), whatever
+    /// state the AI has pushed on top of it (an avoidance or escape detour keeps the order). A human's car only while the
+    /// script drives it (<paramref name="scriptDrives"/>: a cut-scene, or an order outside one), since its order stays set
+    /// after the keys have it back. The solid-cliff rule leaves these cars the original's (<see cref="Vehicles.VehicleStep.FollowsScriptPath"/>).
+    /// </summary>
+    public bool FollowsScriptPath(Vehicle car, bool scriptDrives) =>
+        Of(car) is { } e && e.Order is AiOrder.Goto or AiOrder.Evade or AiOrder.Race && e.Path is { Count: > 0 } && (scriptDrives || !IsHumanEntity(e));
     /// <summary>The AI tactics table the Ptable binds (read from the install's executable, <see cref="I76.Formats.Exe.TacticsTable"/>); null: no AI orders in this world.</summary>
     public I76.Formats.Exe.PtEntry[]? Tactics { get; init; }
     /// <summary>

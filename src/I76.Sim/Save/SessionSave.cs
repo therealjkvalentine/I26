@@ -76,7 +76,8 @@ public sealed partial class SimSession
     public byte[] Snapshot(byte[]? host = null)
     {
         if (World.Rand.IsOracle) throw new NotSupportedException("a session on a rand oracle cannot be snapshotted");
-        return SnapshotHeader.Compose(Build ?? Unbuilt, Rate, World.Far, Ticks, host, SnapshotBody());
+        // the solid-cliff rule as it holds in the world (the mission start's, the host's, a restore's), whoever built the session
+        return SnapshotHeader.Compose((Build ?? Unbuilt) with { SolidCliffs = World.SolidCliffs }, Rate, World.Far, Ticks, host, SnapshotBody());
     }
 
     /// <summary>
@@ -167,6 +168,9 @@ public sealed partial class SimSession
         if (h.Rate.Label != Rate.Label || h.Rate.TickSeconds != Rate.TickSeconds)
             throw new SnapshotMismatchException($"the snapshot runs at {h.Rate.Label} Hz, the session at {Rate.Label} Hz");
         if (h.Far != World.Far) throw new SnapshotMismatchException($"the snapshot measures near and far by {h.Far}, the session by {World.Far}");
+        // the solid-cliff rule is the game's, not the build's: a restore goes on under the rule the snapshot was made in (a retry, a
+        // bookmark, a migrated host), whatever the setting is now
+        World.SolidCliffs = h.Build.SolidCliffs;
         return RestoreBody(h.Body(snapshot));
     }
 

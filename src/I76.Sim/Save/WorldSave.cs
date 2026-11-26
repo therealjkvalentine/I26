@@ -22,6 +22,11 @@ namespace I76.Sim
                 .Structural("the session's options, set by the build", nameof(VehicleStep.NetSession))
                 .Structural("a rule of the session: the player's wreck setting at each mission start, resume and restore, a network game's host option", nameof(VehicleStep.WrecksAreScenery))
                 .Structural("the session's cut-scene test, set by the session", nameof(VehicleStep.ScriptDrives))
+                .Structural("a rule of the session: the solid-cliff setting at each mission start, a restore's snapshot's (SessionBuild.SolidCliffs), a network game's host's",
+                    nameof(VehicleStep.SolidCliffs), "_cliffDeg", "CliffCos", "CliffTan")
+                .Structural("the session's scripted-path test, set by the session", nameof(VehicleStep.FollowsScriptPath))
+                .Transient("the solid-cliff rule's car of the substep under way, set at each substep's start", "_solidNow")
+                .Transient("the solid-cliff rule's counter, for tests and probes", nameof(VehicleStep.CliffBlocks))
                 .Transient("a per-tick output (sounds, the views), cleared at the next tick", nameof(VehicleStep.ObjectHits), nameof(VehicleStep.Impacts),
                     nameof(VehicleStep.CarHits), nameof(VehicleStep.Landings), nameof(VehicleStep.DriveOns), nameof(VehicleStep.Honks))
                 .Transient("the object pass's scratch list of the objects near the car, filled and read within the pass", "_near");

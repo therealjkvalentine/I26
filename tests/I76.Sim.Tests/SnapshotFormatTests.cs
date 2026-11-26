@@ -90,6 +90,37 @@ public class SnapshotFormatTests
         Assert.Equal(snap, b.Snapshot());
     }
 
+    /// <summary>
+    /// The solid-cliff rule (the play fork's, format 29) travels in the header, and a restore goes on under the snapshot's rule whatever
+    /// the session was built with (a checkpoint made with it on stays on after the setting is turned off, and the reverse).
+    /// </summary>
+    [Fact]
+    public void TheSolidCliffRuleTravelsInTheHeaderAndARestoreGoesOnUnderIt()
+    {
+        Assert.True(SnapshotHeader.CurrentVersion >= 29, "the solid-cliff rule is in format 29 and later");
+        var build = new SessionBuild { Mission = "t03", Install = 0x1234, Car = "vehscn.vcf" };
+        var on = World(1, build);
+        on.World.SolidCliffs = true;
+        Run(on, 10);
+        var snap = on.Snapshot();
+        Assert.True(SnapshotHeader.Read(snap).Build.SolidCliffs);
+        var back = World(2, build);
+        Assert.False(back.World.SolidCliffs);
+        back.Restore(snap);
+        Assert.True(back.World.SolidCliffs);
+        Assert.Equal(on.StateHash(), back.StateHash());
+        Assert.True(SnapshotHeader.Read(back.Snapshot()).Build.SolidCliffs);
+
+        var off = World(3, build);
+        Run(off, 10);
+        var offSnap = off.Snapshot();
+        Assert.False(SnapshotHeader.Read(offSnap).Build.SolidCliffs);
+        var turnedOn = World(4, build);
+        turnedOn.World.SolidCliffs = true;
+        turnedOn.Restore(offSnap);
+        Assert.False(turnedOn.World.SolidCliffs);
+    }
+
     /// <summary>Trip+'s rules (the play fork's, format 28) travel in the header, and a session built by other rules refuses the snapshot.</summary>
     [Fact]
     public void TripPlusRulesTravelInTheHeaderAndOtherRulesAreRefused()

@@ -202,6 +202,15 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
     /// </summary>
     public bool WrecksStaySolid { get => Step.WrecksAreScenery; set => Step.WrecksAreScenery = value; }
 
+    /// <summary>
+    /// The port's rule, off in the original (docs/deviations.md, "Solid cliffs"): terrain steeper than 60 degrees is a wall for
+    /// the players' cars and for computer cars driving freely, instead of lifting a car that runs into it onto the face
+    /// (<see cref="VehicleStep.SolidCliffs"/>). A car the mission's script has on one of its paths keeps the original's rule.
+    /// A rule of the session: the player's setting at a mission start, a restored snapshot's (<see cref="Save.SessionBuild.SolidCliffs"/>),
+    /// the host's in a network game.
+    /// </summary>
+    public bool SolidCliffs { get => Step.SolidCliffs; set => Step.SolidCliffs = value; }
+
     /// <summary>A human's car met a wreck that stays solid (the damage model's: the car is damaged as by scenery).</summary>
     public Action<Vehicle, Vehicle, Contact>? WreckContact { get; set; }
 

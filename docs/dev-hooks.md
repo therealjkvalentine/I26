@@ -255,7 +255,8 @@ tick,buttons,commands,steer,throttle,hash
 
 `car` is empty for the mission's own car; `melee` is present for an instant melee only. The game's recordings also name
 what else reaches the sim at the start: `build` (the version), `install` (the install's identity, as a snapshot's),
-`options` and `difficulty` (Play Options' flags and Difficulty Level), `physics` (Modern Physics) and `ai` (`--ai`); a
+`options` and `difficulty` (Play Options' flags and Difficulty Level), `physics` (Modern Physics), `ai` (`--ai`) and `cliffs` (`solid` or `original`,
+`[port] solid_cliffs`, which a replay in the game also plays under); a
 replay prints each of them that differs from the run it is in (`input replay: recorded under ...`), and a field a
 recording lacks (an older one, `i76 run`'s) is not compared. A Developer panel action that changes the game (a teleport,
 a restore, a repair, a swap, God mode) writes a `# dev ACTION tick N` row before tick N: a replay says the recording

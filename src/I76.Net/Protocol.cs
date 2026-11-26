@@ -19,7 +19,7 @@ public static class Protocol
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
     /// peer, which never says any, gets the layout it reads.
     /// </summary>
-    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid | PeerFeatures.LobbyRename;
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid | PeerFeatures.LobbyRename | PeerFeatures.SolidCliffs;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -117,6 +117,12 @@ public enum PeerFeatures : uint
     /// whose lobby says this bit (<see cref="LobbyState.Features"/>). Without it the name is the join's, changed on the form before joining.
     /// </summary>
     LobbyRename = 1 << 7,
+    /// <summary>
+    /// Solid cliffs (the port's rule, <see cref="I76.Sim.SimWorld.SolidCliffs"/>; docs/multiplayer.md "Solid cliffs"): the host's rule for
+    /// the whole game, which the accept's last byte tells a client that says this bit, so that its prediction of its own car steps as
+    /// the server's does. A peer without it predicts with the original's rule (the server's snapshots correct it).
+    /// </summary>
+    SolidCliffs = 1 << 8,
 }
 
 public enum MsgType : byte
@@ -433,7 +439,15 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         w.VarU((uint)Features);
         // (the fork's, after its features) wrecks stay solid in this game as the joiner arrives, for its prediction
         w.Bool(WrecksSolid);
+        // (the fork's, after the wreck rule) this game's solid-cliff rule, for the joiner's prediction
+        w.Bool(SolidCliffs);
     }
+
+    /// <summary>
+    /// The host's solid-cliff rule for this game (the fork's, appended after <see cref="WrecksSolid"/>; <see cref="PeerFeatures.SolidCliffs"/>):
+    /// off from an upstream host or an earlier fork build's.
+    /// </summary>
+    public bool SolidCliffs { get; init; }
 
     /// <summary>
     /// Wrecks stay solid in this game (the fork's, appended after <see cref="Features"/>; <see cref="PeerFeatures.WrecksSolid"/>): the
@@ -506,8 +520,9 @@ public sealed record JoinAccept(byte Slot, int CarSerial, string Arena, uint Ser
         string build = r.Remaining >= 1 ? BuildId.Clean(r.Str()) : "";
         var features = r.Remaining >= 1 ? (PeerFeatures)r.VarU() : PeerFeatures.None;
         bool wrecksSolid = r.Remaining >= 1 && r.Bool();
+        bool solidCliffs = r.Remaining >= 1 && r.Bool();
         return new JoinAccept(slot, car, arena, tick, def, team, max, limit, respawn, cars, dead, kind, goal, value, teams, hz, mapSize, mapCrc, terSize, terCrc, mapHash)
-            { Coop = coop, Cb = cb, Crosshair = crosshair, IgnitionStaysOn = ignition, Turrets1997 = turrets1997, Handicaps = handicaps, Build = build, Features = features, WrecksSolid = wrecksSolid };
+            { Coop = coop, Cb = cb, Crosshair = crosshair, IgnitionStaysOn = ignition, Turrets1997 = turrets1997, Handicaps = handicaps, Build = build, Features = features, WrecksSolid = wrecksSolid, SolidCliffs = solidCliffs };
     }
 
     /// <summary>The server's simulation rate, which every client runs at.</summary>
