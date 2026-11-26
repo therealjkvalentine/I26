@@ -217,27 +217,30 @@ public static class HdTextures
 
     private static Probed Probe(int worldSize, int carSize)
     {
-        HdSource? source;
-        HdSource[] worldChain = [], carChain = [];
         var env = System.Environment.GetEnvironmentVariable("I76_TEX_DIR") is { Length: > 0 } d ? Path.Combine(d, "world") : null;
         // a kind at 0 (1997) reads nothing, but the pack is still found (the rows are shown when one is there)
         var world = HdPackFolders.Chain(worldSize == 0 ? HdPackFolders.DefaultSize : worldSize, UserHas);
         var car = HdPackFolders.Chain(carSize == 0 ? HdPackFolders.DefaultSize : carSize, UserHas);
-        if (env is not null && Directory.Exists(env)) source = new HdDirSource(env);
-        else if (world.Length + car.Length > 0)
-        {
-            // one source per folder, shared by the two chains; the log's source is every folder, largest first
-            var folders = world.Concat(car).Distinct().OrderByDescending(HdPackFolders.SizeOf).ToArray();
-            var sources = folders.ToDictionary(f => f, f => HdPacks.Found.Get(f)!.Open());
-            source = folders.Length == 1 ? sources[folders[0]] : new HdChainSource(folders.Select(f => sources[f]));
-            worldChain = worldSize == 0 ? [] : [.. world.Select(f => sources[f])];
-            carChain = carSize == 0 ? [] : [.. car.Select(f => sources[f])];
-        }
-        else source = null;
-        if (world.Length + car.Length == 0 && source is { } one) { worldChain = worldSize == 0 ? [] : [one]; carChain = carSize == 0 ? [] : [one]; }
+        // one source per folder, shared by the two chains
+        var sources = world.Concat(car).Distinct().ToDictionary(f => f, f => HdPacks.Found.Get(f)!.Open());
+        var (source, worldChain, carChain) = Compose(env is not null && Directory.Exists(env) ? new HdDirSource(env) : null,
+            [.. sources.Keys.OrderByDescending(HdPackFolders.SizeOf).Select(f => sources[f])],
+            [.. world.Select(f => sources[f])], [.. car.Select(f => sources[f])], worldSize, carSize);
         GD.Print(source is null ? "HD textures: none (no I76_TEX_DIR/world, and no tex-world-Nx or tex-world folder or I26-HD-*.zip / i76-hd-*.zip holding one in the user folder or beside the program)"
             : $"HD textures: {source.Origin} ({source.Count} files); world {(worldSize == 0 ? "1997" : string.Join(" over ", world))}, cars and dash {(carSize == 0 ? "1997" : string.Join(" over ", car))}");
         return new Probed(source, worldChain, carChain);
+    }
+
+    /// <summary>
+    /// The source and the two kinds' chains from what was found: the dev folder (I76_TEX_DIR/world, or null) first in both, over the packs'
+    /// folders (all: every one, largest first, for the log; world and car: each kind's chain); a kind at 0 (1997) reads nothing.
+    /// </summary>
+    internal static (HdSource? Source, HdSource[] World, HdSource[] Car) Compose(HdSource? dev, HdSource[] all, HdSource[] world, HdSource[] car, int worldSize, int carSize)
+    {
+        HdSource? packs = all.Length switch { 0 => null, 1 => all[0], _ => new HdChainSource(all) };
+        HdSource? source = dev is null ? packs : packs is null ? dev : new HdChainSource([dev, packs]);
+        HdSource[] Chain(HdSource[] kind, int size) => size == 0 ? [] : dev is null ? kind : [dev, .. kind];
+        return (source, Chain(world, worldSize), Chain(car, carSize));
     }
 
     /// <summary>
