@@ -10,7 +10,25 @@ namespace I76.Game.Assets;
 /// </summary>
 public sealed class MaterialLibrary(TextureFactory textures)
 {
+    /// <summary>
+    /// Every material made, by key. Not shared between threads, like the rest of the library: the main thread's frames enumerate it (the
+    /// cockpit's panels and frames, OverrideTexture), so a worker adding to it while they run threw "Collection was modified" there (the
+    /// spawn's wreck prewarm did). A thread of its own fills a library nothing else can reach yet (a mission built under its briefing).
+    /// </summary>
     private readonly Dictionary<string, Material> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Debug builds: an error, once per library, when a material is asked for on a thread other than the main one and not one let do
+    /// engine work (MainThread.Here), the threads that share the library with the main thread's frames.
+    /// </summary>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private void CheckThread(string what)
+    {
+        if (MainThread.Here || _offThreadSeen) return;
+        _offThreadSeen = true;
+        GD.PushError($"material library: {what} on thread {System.Environment.CurrentManagedThreadId} beside the main thread's frames (not shared between threads)\n{new System.Diagnostics.StackTrace(1, false)}");
+    }
+    private bool _offThreadSeen;
     /// <summary>The materials of back-to-back faces: never drawn from both sides, where the pair's two faces would z-fight.</summary>
     private readonly HashSet<Material> _oneSided = [];
     private static Shader? _back, _backKey, _both, _open, _translucent, _back97, _both97, _open97, _translucent97, _translucentBack97;
@@ -48,6 +66,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool unlit = false, bool selfLit = false,
         bool retro = false)
     {
+        CheckThread("ForAnimated");
         var key = $"anim|{string.Join(",", frames)}|{mode}|{(car is null ? "" : "car")}" + (bothSides ? "|2" : "") + (unlit ? "|u" : "") + (selfLit ? "|s" : "") + (retro ? "|r" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
         if (ForTexture(frames[0], mode, car, prop, bothSides: bothSides, unlit: unlit, selfLit: selfLit, retro: retro) is not ShaderMaterial first)
@@ -116,6 +135,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// </summary>
     public ShaderMaterial? StripCopy(Material shared)
     {
+        CheckThread("StripCopy");
         if (shared is not ShaderMaterial s) return null;
         var copy = (ShaderMaterial)s.Duplicate();
         // a strip's frames have their own keys: frame 0's smooth outline is not theirs
@@ -147,6 +167,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>A material drawn from both sides: itself if it already is, is a back-to-back face's or is not an object material, else a copy, made once and kept.</summary>
     public Material BothSides(Material m)
     {
+        CheckThread("BothSides");
         if (m is not ShaderMaterial s || (s.Shader != Back && s.Shader != Back97) || _oneSided.Contains(m)) return m;
         var key = $"both|{s.GetInstanceId()}";
         if (_cache.TryGetValue(key, out var b)) return b;
@@ -221,6 +242,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         I76.Formats.Imaging.PropMaterial.Family prop = I76.Formats.Imaging.PropMaterial.Family.General, bool oneSided = false, bool bothSides = false,
         bool unlit = false, bool oneSided1997 = false, string? scheme = null, bool selfLit = false, bool retro = false)
     {
+        CheckThread("ForTexture");
         var key = (car is null ? $"{member}|{mode}" + (prop == I76.Formats.Imaging.PropMaterial.Family.General ? "" : $"|prop{(int)prop}") : $"{member}|{mode}|car") + (oneSided ? "|1" : "") + (bothSides ? "|2" : "") + (unlit ? "|u" : "")
             + (oneSided1997 ? "|f" : "") + (car is not null && scheme is not null ? "|p" + scheme : "") + (selfLit ? "|s" : "") + (retro ? "|r" : "");
         if (_cache.TryGetValue(key, out var m)) return m;
@@ -325,6 +347,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>Gives the body materials of a paint scheme (<paramref name="key"/>, <see cref="PaintMasks.KeyOf"/>) their masks; once per scheme, and for materials made later too.</summary>
     public void EnablePaint(string key, PaintMasks masks)
     {
+        CheckThread("EnablePaint");
         var ps = SchemeOf(key);
         if (ps.Masks is not null) return;
         ps.Masks = masks;
@@ -754,6 +777,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// </summary>
     public void OverrideTexture(string member, Texture2D texture, bool ownKey = false, bool? filtered = null)
     {
+        CheckThread("OverrideTexture");
         if (ownKey) _ownKey.Add(member);
         foreach (var sm in MadeForShaded(member))
         {
@@ -785,6 +809,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General, bool bothSides = false, bool oneSided = false, bool unlit = false,
         bool selfLit = false, bool retro = false)
     {
+        CheckThread("ForColour");
         prop &= PropMaps;
         bothSides &= !oneSided;
         var key = (prop ? $"#{r:x2}{g:x2}{b:x2}|prop{(int)family}" : $"#{r:x2}{g:x2}{b:x2}") + (bothSides ? "|2" : "") + (oneSided ? "|1" : "") + (unlit ? "|u" : "")
@@ -814,6 +839,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// </summary>
     public Material ForTread(byte r, byte g, byte b)
     {
+        CheckThread("ForTread");
         var key = $"tread|#{r:x2}{g:x2}{b:x2}";
         if (_cache.TryGetValue(key, out var m)) return m;
         var mat = new ShaderMaterial { Shader = Pick(Back) };
@@ -825,6 +851,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
     /// <summary>A wheel face's material (<see cref="ForTexture"/>'s) with the tyre's rubber matte and the hubcap's metal shining (modern look; a copy, kept with the rest).</summary>
     public Material ForWheelFace(Material face)
     {
+        CheckThread("ForWheelFace");
         if (face is not ShaderMaterial s) return face;
         var key = $"wheelface|{s.GetInstanceId()}";
         if (_cache.TryGetValue(key, out var m)) return m;

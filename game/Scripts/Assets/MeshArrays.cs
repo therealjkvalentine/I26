@@ -56,6 +56,9 @@ public static class MainThread
     /// </summary>
     [System.ThreadStatic] public static bool OwnsItsScene;
 
+    /// <summary>Whether the calling thread passes <see cref="Check"/>: the main thread, or one let do engine work (Allowed, OwnsItsScene).</summary>
+    public static bool Here => _id == 0 || System.Environment.CurrentManagedThreadId == _id || OwnsItsScene || Allowed;
+
     [System.Diagnostics.Conditional("DEBUG")]
     public static void Check(string what)
     {

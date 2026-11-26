@@ -195,14 +195,15 @@ public partial class DamageView : Node3D
             return _tyres[(def, slot, blown)] = mesh;
         }
 
-        public (ArrayMesh? Body, CarNode.LampMeshes Lamps) WreckLook(string def, bool modern, AssembledModel m)
+        /// <param name="lampsModel">The car's whole model the lamps are built from (<see cref="Assemble"/>'s), else assembled here.</param>
+        public (ArrayMesh? Body, CarNode.LampMeshes Lamps) WreckLook(string def, bool modern, AssembledModel m, AssembledModel? lampsModel = null)
         {
             string key = def + "|" + modern + "|" + string.Join(',', m.Parts.Select(p => p.NodeName));
             if (_wrecks.TryGetValue(key, out var look)) return look;
             // the wreck's texture frames do not depend on the car (CarNode.TexFrame, wrecked), so every car of the kind shares them
             var body = builder.Meshes!.Build(m, wheels: false, include: CarNode.BodyParts(m), bothSides: modern,
                 frameOf: t => DamageTextures.Zone(t) >= 0 ? (modern ? 2 : DamageTextures.WreckFrame) : 0);
-            var lamps = CarNode.BuildLamps(builder.Meshes, m, new ModelAssembler(builder.Vfs) { SkipParts = [] }.Assemble(def));
+            var lamps = CarNode.BuildLamps(builder.Meshes, m, lampsModel ?? new ModelAssembler(builder.Vfs) { SkipParts = [] }.Assemble(def));
             return _wrecks[key] = (body, lamps);
         }
 
@@ -212,18 +213,52 @@ public partial class DamageView : Node3D
         /// </summary>
         public void Prewarm(IEnumerable<string> defs, bool modern)
         {
-            foreach (var def in defs.Distinct(System.StringComparer.OrdinalIgnoreCase))
+            foreach (var _ in BuildSteps(Assemble(Wanted(defs, modern), modern), modern)) { }
+        }
+
+        /// <summary>The kinds of car among <paramref name="defs"/> whose burnt look is not made yet.</summary>
+        public List<string> Wanted(IEnumerable<string> defs, bool modern) =>
+            [.. defs.Distinct(System.StringComparer.OrdinalIgnoreCase).Where(d => !_prewarmed.Contains((d.ToLowerInvariant(), modern)))];
+
+        /// <summary>A kind of car's models for <see cref="BuildSteps"/>: its wreck's, and its whole model's for the lamps and for the tyres.</summary>
+        public sealed record Models(string Def, AssembledModel? Wreck, AssembledModel? Lamps, AssembledModel? Whole);
+
+        /// <summary>
+        /// The models <see cref="Prewarm"/> builds from, assembled: the archive read, no mesh, material or texture made, so on any thread
+        /// while the main thread goes on using the mission's kit.
+        /// </summary>
+        public List<Models> Assemble(IReadOnlyList<string> defs, bool modern)
+        {
+            var made = new List<Models>();
+            foreach (var def in defs)
             {
-                if (!_prewarmed.Add((def.ToLowerInvariant(), modern))) continue;
                 // as Rebuild will ask for it at the death of a car with nothing damaged before
                 var asm = new ModelAssembler(builder.Vfs) { PartCondition = _ => '1', SkipParts = [], Wrecked = true, WreckShape = modern };
+                try { made.Add(new Models(def, asm.Assemble(def), new ModelAssembler(builder.Vfs) { SkipParts = [] }.Assemble(def), builder.Assembler!.Assemble(def))); }
+                catch (System.Exception e) { GD.Print($"wreck prewarm {def}: {e.Message}"); made.Add(new Models(def, null, null, null)); }
+            }
+            return made;
+        }
+
+        /// <summary>
+        /// The meshes of <see cref="Prewarm"/> from <see cref="Assemble"/>'s models, a <c>null</c> after each car's wreck and after its
+        /// tyres: on the thread that owns the mission's kit (MeshBuilder, MaterialLibrary and TextureFactory are not shared between threads).
+        /// </summary>
+        public IEnumerable<object?> BuildSteps(List<Models> made, bool modern)
+        {
+            foreach (var (def, wreck, lamps, whole) in made)
+            {
+                if (!_prewarmed.Add((def.ToLowerInvariant(), modern)) || wreck is null) continue;
+                try { WreckLook(def, modern, wreck, lamps); }
+                catch (System.Exception e) { GD.Print($"wreck prewarm {def}: {e.Message}"); continue; }
+                yield return null;
                 try
                 {
-                    if (asm.Assemble(def) is { } m) WreckLook(def, modern, m);
-                    AssembledModel? whole = null;
-                    for (int slot = 0; slot < 6; slot++) TyreMesh(def, slot, true, ref whole);
+                    var model = whole;
+                    for (int slot = 0; slot < 6; slot++) TyreMesh(def, slot, true, ref model);
                 }
                 catch (System.Exception e) { GD.Print($"wreck prewarm {def}: {e.Message}"); }
+                yield return null;
             }
         }
     }
@@ -238,19 +273,32 @@ public partial class DamageView : Node3D
     public void PrewarmWrecks(IEnumerable<string> defs, bool modern) => WreckCache.Prewarm(defs, modern);
 
     /// <summary>
-    /// <see cref="Prewarm"/> in two halves for a mission attaching under its briefing: the wrecks' meshes (no node, nothing drawn) on a
-    /// worker, the fire's shared materials here; the kinds of car (the player's first) are read here, before the worker starts.
+    /// The wrecks' part of <see cref="Prewarm"/> for the spawn: their models assembled on a worker (the Task), then their meshes built by
+    /// the steps here, a car at a time (the steps wait for the worker first). The meshes were built on the worker too, but the mission's
+    /// materials and textures are the main thread's while its frames run: the cockpit enumerates the material cache every frame
+    /// (MaterialLibrary.OverrideTexture), which threw "Collection was modified" as the worker added the wrecks' materials (and a
+    /// Dictionary written by two threads can come apart). The kinds of car (the player's first) are read here, before the worker starts.
     /// </summary>
-    public System.Threading.Tasks.Task PrewarmWrecksBeside(CarNode? car, IEnumerable<string> others, bool modern)
+    public (System.Threading.Tasks.Task Assembling, IEnumerable<object?> Build) PrewarmWrecksBeside(CarNode? car, IEnumerable<string> others, bool modern)
     {
-        var mine = car is not null && !IsHeli(car) ? (car.Definition, car.Modern) : ((string, bool)?)null;
-        var defs = others.ToList();
         var cache = WreckCache;
-        return I76.Game.Boot.Beside.Run(() =>
+        var mine = car is not null && !IsHeli(car) ? (Def: car.Definition, car.Modern) : ((string Def, bool Modern)?)null;
+        var mineWanted = mine is { } p ? cache.Wanted([p.Def], p.Modern) : [];
+        var othersWanted = cache.Wanted(others.Where(d => mine is not { } q || q.Modern != modern || !d.Equals(q.Def, System.StringComparison.OrdinalIgnoreCase)), modern);
+        List<WreckMeshes.Models> mineMade = [], othersMade = [];
+        var job = I76.Game.Boot.Beside.Run(() =>
         {
-            if (mine is { } m) cache.Prewarm([m.Item1], m.Item2);
-            cache.Prewarm(defs, modern);
+            if (mine is { } m) mineMade = cache.Assemble(mineWanted, m.Modern);
+            othersMade = cache.Assemble(othersWanted, modern);
         });
+        return (job, Build());
+
+        IEnumerable<object?> Build()
+        {
+            job.GetAwaiter().GetResult();
+            if (mine is { } m) foreach (var step in cache.BuildSteps(mineMade, m.Modern)) yield return step;
+            foreach (var step in cache.BuildSteps(othersMade, modern)) yield return step;
+        }
     }
 
     /// <summary>The fire's shared materials (the other half of <see cref="Prewarm"/>).</summary>
