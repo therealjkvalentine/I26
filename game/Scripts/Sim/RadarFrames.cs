@@ -47,6 +47,9 @@ public sealed class RadarFrames
     private readonly Slot[] _slots = Enumerable.Range(0, Slots).Select(_ => new Slot()).ToArray();
     private long _use;
 
+    /// <summary>The pack's layers for the smooth sweep (Radar Sweep: Smooth), when it has them at the frames' scale; else null.</summary>
+    public RadarSweepArt? SweepArt { get; private set; }
+
     public Frame?[] Sweep { get; } = new Frame?[31];
     public Frame?[] Locked { get; } = new Frame?[31];
 
@@ -90,7 +93,7 @@ public sealed class RadarFrames
     /// <summary>The same frames (read only) with decode buffers of their own.</summary>
     private RadarFrames Again()
     {
-        var r = new RadarFrames { _hd = _hd };
+        var r = new RadarFrames { _hd = _hd, SweepArt = SweepArt };
         Sweep.CopyTo(r.Sweep, 0);
         Locked.CopyTo(r.Locked, 0);
         return r;
@@ -128,6 +131,8 @@ public sealed class RadarFrames
             if (i < 31) r.Sweep[i] = frames[i];
             else r.Locked[i - 31] = frames[i];
         }
+        // the smooth sweep's layers: only beside a pack's frames, at their size (the 1997 look and the originals have none)
+        if (textures.Hd && r.Sweep[0] is { W: > 256 } f0) r.SweepArt = RadarSweepArt.Load(f0.W, f0.H);
         return r;
     }
 

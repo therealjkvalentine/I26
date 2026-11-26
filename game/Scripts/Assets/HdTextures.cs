@@ -276,6 +276,16 @@ public static class HdTextures
         return null;
     }
 
+    /// <summary>A file of the cockpit's chain (the dash's: the dev folder, then the cars' and dash's packs) by its name, the first that has it, or null (a pack's zrads.json).</summary>
+    public static byte[]? ReadDash(string rel)
+    {
+        var s = State;
+        if (s.Source is null) return null;
+        foreach (var src in s.Car)
+            if (src.Read(rel) is { } b) return b;
+        return null;
+    }
+
     /// <summary>A file of <see cref="Read"/> decoded to RGBA8 (a .dds kept as stored), or null; touches no renderer, so it may run on a worker thread.</summary>
     public static Image? Decode(string rel, byte[] b)
     {

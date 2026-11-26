@@ -90,7 +90,7 @@
      "note": "the cars' painted two-tone edges and small lamps, after their lettering (2026-11-08, the Dover 2026-11-09)"},
     {"id": "radar", "tool": "radar-redraw.py", "writes": "pack", "only": "zradf*,zradb*,zrge,ztge",
      "args": ["pack", "{export}", "{pack}", "--style", "B", "--labels", "lock-range"],
-     "note": "the radar's 62 frames drawn again over the pack's own (style B, the lock-range labels) and the range plate's and lamp's sheets made from them, which go with them (2026-11-26)"},
+     "note": "the radar's 62 frames drawn again over the pack's own (style B, the lock-range labels) and the range plate's and lamp's sheets made from them, which go with them (2026-11-26); the smooth sweep's layers beside them (zrads_face, zrads_grid.png, zrads.json)"},
     {"id": "finish", "tool": "finish", "writes": "pack",
      "note": "pack.json, ATTRIBUTION.txt and FILES.sha256 from this recipe"}
   ]

@@ -271,6 +271,8 @@ public partial class Cockpit : Node
             foreach (var set in new[] { art.Wheel, art.ArmR, art.ArmL, art.ShotR, art.ShotL })
                 foreach (var t in set.Item2) t?.Dispose();
         Panels.Free();
+        _sweepGpu?.Dispose();
+        _sweepGpu = null;
         _radarLive?.Free();
         foreach (var d in _depth) d?.Free();
     }
@@ -1178,10 +1180,14 @@ public partial class Cockpit : Node
 
     private void Radar()
     {
+        _sweepSent.Clear();
+        _sweepSentWhole = false;
         RadarDraw();
+        // Radar Sweep: Smooth draws the beam or the cone on the GPU every frame, over the picture just sent (RadarSmooth)
+        if (_sweepDraw != SweepDraw.None) RadarSmooth();
         // the frames that may come next decoded ahead on a worker, once this frame's screen is drawn: the sweep's next step, or the
         // locked frame's neighbours
-        if (_radarAt >= 0) { _radarFrames.Ahead(_radarB[(_radarAt + 1) % 30]); _radarFrames.Ahead(_radarB[(_radarAt + 29) % 30]); }
+        else if (_radarAt >= 0) { _radarFrames.Ahead(_radarB[(_radarAt + 1) % 30]); _radarFrames.Ahead(_radarB[(_radarAt + 29) % 30]); }
         else if (_radarAt == -1) _radarFrames.Ahead(_radarF[I76.Sim.Weapons.RadarScope.NextSweep(_radarCur)]);
         if (DashStats.On) DashStats.RadarKept = _radarFrames.Kept;
     }
@@ -1195,11 +1201,18 @@ public partial class Cockpit : Node
     {
         _t += GetProcessDeltaTime();
         _radarAt = -2;
+        _sweepDraw = SweepDraw.None;
+        _sweepStepped = false;
         if (_radarMember is null || Combat is null) return;
         // the radar object (class 0x22) is built switched on at range 1 with the cockpit's radar part, special or not
         bool has = RadarOn;
         RadarFrames.Frame? frame;
         if (WeaponCamera() is { } cam) { UploadRadar(cam.GetData(), cam.GetWidth(), cam.GetHeight(), null); _radarDrawn.Forget(); return; }
+        // Radar Sweep: Smooth (the modern look, a pack with the sweep's layers): the face is the frame and the GPU draws the beam or
+        // the cone over it every frame; the steps, the pings and the blips run as ever. Into or out of it the screen is drawn whole
+        var face = has ? SweepFace() : null;
+        bool smooth = face is not null;
+        if (smooth != _sweepWas) { _radarRedraw = true; _sweepWas = smooth; }
         var locked = has ? Combat.RadarTarget.GetValueOrDefault(Car) : null;
         // a step already drawn with the frame before it (the late frame below): its pings were made then
         bool retry = false;
@@ -1212,19 +1225,22 @@ public partial class Cockpit : Node
             var d = Car.Rot.ToLocal(locked.Pos.ToVector3() - Car.Pos.ToVector3());
             _radarAt = I76.Sim.Weapons.RadarScope.LockedFrame(d.X, d.Z);
             _radarCur = _radarAt;   // written into the sweep's step: the ping window runs from where the sweep stopped, which resumes from here
-            frame = _radarB[_radarAt] ?? _radarF[30];
+            frame = smooth ? face : _radarB[_radarAt] ?? _radarF[30];
+            if (smooth) _sweepDraw = SweepDraw.Cone;
         }
         else
         {
             _radarAt = -1;
+            if (smooth) _sweepDraw = SweepDraw.Beam;
             retry = _radarLate && _t < _radarNext && !_radarRedraw;
-            if (_t < _radarNext && !_radarRedraw && !_radarLate) { RadarAhead(); return; }
+            if (_t < _radarNext && !_radarRedraw && !_radarLate) { if (!smooth) RadarAhead(); return; }
             if (!retry)
             {
                 _radarPrev = _radarCur;
-                while (_radarNext < _t) { _radarNext += 0.2; _radarCur = I76.Sim.Weapons.RadarScope.NextSweep(_radarCur); }
+                while (_radarNext < _t) { _radarNext += 0.2; _radarCur = I76.Sim.Weapons.RadarScope.NextSweep(_radarCur); _sweepStepped = true; }
+                if (RadarLog && _sweepStepped) GD.Print($"radar: step {_radarCur} at {_t:0.0000} s, frame {Godot.Engine.GetProcessFrames()} ({(smooth ? "smooth" : "stepped")})");
             }
-            frame = _radarF[_radarCur];
+            frame = smooth ? face : _radarF[_radarCur];
         }
         if (frame is null) return;
         bool redraw = _radarRedraw;
@@ -1244,6 +1260,7 @@ public partial class Cockpit : Node
         // a newly picked target's byte is 0 (the target pick and the GOG build's E/Q: the one it replaces goes back to 0x69)
         if (locked != _radarPicked)
         {
+            if (RadarLog) GD.Print($"radar: {(locked is null ? "target cleared" : "target picked")} at {_t:0.0000} s, frame {Godot.Engine.GetProcessFrames()}");
             if (_radarPicked is not null) _sweptAt.Remove(_radarPicked);
             if (locked is not null) _sweptAt[locked] = _t;
             _radarPicked = locked;
@@ -1318,7 +1335,7 @@ public partial class Cockpit : Node
             return;
         }
         if (_radarRects.Count == 0) return;
-        if (!ReferenceEquals(was, frame) && RadarFlip(bytes, was!, frame, w, h, k, range, led)) return;
+        if (!ReferenceEquals(was, frame) && !smooth && RadarFlip(bytes, was!, frame, w, h, k, range, led)) return;
         // after a flip the kept buffer is drawn only where it was sent: made whole again before an upload may send all of it
         if (_radarWorkStale) { RadarCompose(bytes, w, h, k, range, led, new Rect2I(0, 0, w, h)); _radarWorkStale = false; }
         foreach (var r in _radarRects) RadarCompose(bytes, w, h, k, range, led, r.Intersection(new Rect2I(0, 0, w, h)));
@@ -1516,12 +1533,124 @@ public partial class Cockpit : Node
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarUpload);
         // a frame of another size (the art made again at another scale, the weapon camera's) is a new picture in the same texture
         RadarScale = System.Math.Max(1, w / _radarBaseW);
+        bool all = _radarLive is null || rects is null || _radarLive.Width != w || _radarLive.Height != h;
         if (_radarLive is null) _radarLive = new LiveTexture(px, w, h);
-        else if (rects is null || _radarLive.Width != w || _radarLive.Height != h) _radarLive.Set(px, w, h);
-        else _radarLive.Update(px, rects);
-        if (DashStats.Verify) DashStats.Check("radar", _radarLive.Expected(px), _radarLive.ReadBack());
+        else if (all) _radarLive.Set(px, w, h);
+        else _radarLive.Update(px, rects!);
+        // what went up, for the smooth sweep's copy of the scope's window (RadarSmooth)
+        if (all) _sweepSentWhole = true;
+        else _sweepSent.AddRange(rects!);
+        if (DashStats.Verify && _sweepDraw == SweepDraw.None) DashStats.Check("radar", _radarLive.Expected(px), _radarLive.ReadBack());
         if (System.Environment.GetEnvironmentVariable("I76_PIT_DUMP") is { } dir && Godot.Engine.GetProcessFrames() >= 15 && !_radarDumped) { Godot.Image.CreateFromData(w, h, false, Godot.Image.Format.Rgba8, px).SavePng(System.IO.Path.Combine(dir, "radar.png")); _radarDumped = true; }
         if (!_radarBound) { Materials.OverrideTexture(_radarMember!, _radarLive.Texture); _radarBound = true; }
+    }
+
+    // ---- Radar Sweep: Smooth (RadarSweepRow): the beam and the lock cone drawn on the GPU every frame ----
+
+    private int _radarSweep = RadarSweepRow.Default;
+    /// <summary>Graphic Detail's Radar Sweep ([port] radar_sweep): Stepped, the original's frames, or Smooth; I76_RADAR_SWEEP over it.</summary>
+    public int RadarSweep { get => _radarSweep; set => _radarSweep = RadarSweepRow.Clamp(value); }
+    /// <summary>I76_RADAR_LOG=1: a line for each sweep step (its frame, the cockpit's clock, the mode).</summary>
+    private static readonly bool RadarLog = System.Environment.GetEnvironmentVariable("I76_RADAR_LOG") == "1";
+    private enum SweepDraw { None, Beam, Cone }
+    /// <summary>What the GPU draws over the screen this frame; whether the screen was smooth last frame; a sweep step this frame.</summary>
+    private SweepDraw _sweepDraw;
+    private bool _sweepWas, _sweepStepped;
+    private RadarSweepGpu? _sweepGpu;
+    private RadarSweepArt? _sweepFor;
+    /// <summary>What UploadRadar sent this frame (raw rows), or all of it.</summary>
+    private readonly List<Rect2I> _sweepSent = [];
+    private bool _sweepSentWhole;
+    /// <summary>The live texture the window's copy was last taken whole from (a new texture is redrawn whole first).</summary>
+    private Rid _sweepCopied;
+    /// <summary>The beam's last bearing and the cone's eased one (degrees clockwise from the front); whether the cone is held.</summary>
+    private double _sweepBearing, _coneBearing;
+    private bool _coneHeld;
+
+    /// <summary>
+    /// The face the screen is drawn on when the sweep is smooth (the modern look, the setting on, the frames' pack has the layers and
+    /// the GPU kernel runs), else null: the stepped frames.
+    /// </summary>
+    private RadarFrames.Frame? SweepFace()
+    {
+        if (_faithful || (RadarSweepRow.Hook ?? _radarSweep) != RadarSweepRow.Smooth || _radarFrames.SweepArt is not { } art) return null;
+        if (!ReferenceEquals(art, _sweepFor))
+        {
+            _sweepGpu?.Dispose();
+            _sweepGpu = RadarSweepGpu.Make(art);
+            _sweepFor = art;
+            _sweepCopied = default;
+            GD.Print(_sweepGpu is null ? "radar sweep: smooth asked for, but the kernel cannot run here (no RenderingDevice, or it did not compile): stepped"
+                : $"radar sweep: smooth, the pack's layers at {art.Params.Scale}x (window {art.Params.Box.Size.X}x{art.Params.Box.Size.Y} texels)");
+        }
+        return _sweepGpu is null ? null : art.Face;
+    }
+
+    /// <summary>
+    /// The smooth sweep's frame: the scope's window as just sent copied on the GPU, then drawn by the kernel with the beam at the
+    /// sweep's continuous angle (the stepped frame's at each step's instant, RadarSweepLaw) or the cone eased onto the target's bearing.
+    /// </summary>
+    private void RadarSmooth()
+    {
+        using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.RadarSweep);
+        if (_radarLive is not { } live || _sweepGpu is not { } gpu) return;
+        if (_sweepSentWhole) { gpu.Took(live, null); _sweepCopied = live.DeviceRid; }
+        else if (_sweepCopied != live.DeviceRid) { _radarRedraw = true; return; }   // a texture made since (a look's kept size shown): whole next frame
+        else if (_sweepSent.Count > 0) gpu.Took(live, _sweepSent);
+        var p = gpu.Art.Params;
+        double angle;
+        bool cone = _sweepDraw == SweepDraw.Cone;
+        if (!cone)
+        {
+            double phase = RadarSweepLaw.Phase(_radarCur, _t, _radarNext);
+            _sweepBearing = RadarSweepLaw.Bearing(phase, p.OffsetDeg);
+            angle = RadarSweepLaw.FileAngle(phase, p.OffsetDeg);
+            _coneHeld = false;
+            if (DashStats.Verify && _sweepStepped) SweepCheck(gpu, live, RadarSweepLaw.FileAngle(_radarCur, p.OffsetDeg), false, _radarF[_radarCur]);
+        }
+        else
+        {
+            if (Combat?.RadarTarget.GetValueOrDefault(Car) is not { } target) return;
+            var d = Car.Rot.ToLocal(target.Pos.ToVector3() - Car.Pos.ToVector3());
+            double want = RadarSweepLaw.TargetBearing(d.X, d.Z);
+            // a new lock swings the cone from where the beam was; then it follows the target's bearing, eased
+            if (!_coneHeld) { _coneBearing = ((_sweepBearing % 360) + 360) % 360; _coneHeld = true; }
+            _coneBearing = RadarSweepLaw.Ease(_coneBearing, want, GetProcessDeltaTime());
+            angle = RadarSweepLaw.ConeFileAngle(_coneBearing);
+            if (DashStats.Verify && _radarAt >= 0 && Godot.Engine.GetProcessFrames() % 30 == 0)
+                SweepCheck(gpu, live, RadarSweepLaw.ConeFileAngle(RadarSweepLaw.StepDegrees * _radarAt), true, _radarB[_radarAt]);
+        }
+        gpu.Draw(live, angle, cone);
+    }
+
+    /// <summary>
+    /// I76_DASH_STATS=verify: the kernel drawn at a step's own angle and read back, against the stepped frame of that step with the same
+    /// blips, plate and lamp drawn on it (CPU), over the scope's window; a line with the differences.
+    /// </summary>
+    private void SweepCheck(RadarSweepGpu gpu, LiveTexture live, double angle, bool cone, RadarFrames.Frame? stepped)
+    {
+        if (stepped is null || stepped.W != live.Width || stepped.H != live.Height || _radarWork is null) return;
+        if (!gpu.Draw(live, angle, cone) || live.ReadBack() is not { } back) return;
+        int w = live.Width, h = live.Height, k = System.Math.Max(1, w / _radarBaseW);
+        var mine = _radarWork;
+        _radarWork = new byte[w * h * 4];
+        RadarCompose(_radarFrames.Bytes(stepped), w, h, k, _radarDrawn.Range, _radarDrawn.Led, new Rect2I(0, 0, w, h));
+        var want = _radarWork;
+        _radarWork = mine;
+        var b = gpu.Art.Params.Box;
+        int n = 0, over2 = 0, over8 = 0, max = 0;
+        for (int y = b.Position.Y; y < b.End.Y; y++)
+            for (int x = b.Position.X; x < b.End.X; x++)
+            {
+                int i = (y * w + x) * 4, m = 0;
+                for (int c = 0; c < 3; c++) m = System.Math.Max(m, System.Math.Abs(back[i + c] - want[i + c]));
+                n++;
+                if (m > 2) over2++;
+                if (m > 8) over8++;
+                if (m > max) max = m;
+            }
+        string what = cone ? $"cone, locked frame {_radarAt} (zradb{_radarAt:000})" : $"beam, step {_radarCur} (zradf{_radarCur:000})";
+        GD.Print($"radar sweep check: {what} at {_t:0.000} s: {n} texels of the window, {over2} differ by more than 2, {over8} by more than 8, at most {max} (the stepped frame against the kernel at its angle)");
     }
 
     // ---- Toggle Weapon Cam: the turret's view in the radar screen ----

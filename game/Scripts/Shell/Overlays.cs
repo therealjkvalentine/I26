@@ -764,6 +764,11 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.MirrorHaze:
                 Row(r, line, "Mirror Haze", () => I76.Game.Sim.MirrorHazeRow.Names[I76.Game.Sim.MirrorHazeRow.Clamp(st.MirrorHaze)], () => I76.Game.Sim.MirrorHazeRow.Step(st));
                 break;
+            // [port] radar_sweep (RadarSweepRow): the radar's beam stepped as the original's or smooth, shown when a pack is there
+            case GraphicsRow.RadarSweep:
+                if (!I76.Game.Assets.HdTextures.Installed) return false;
+                Row(r, line, "Radar Sweep", () => I76.Game.Sim.RadarSweepRow.Names[I76.Game.Sim.RadarSweepRow.Clamp(st.RadarSweep)], () => I76.Game.Sim.RadarSweepRow.Step(st));
+                break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;

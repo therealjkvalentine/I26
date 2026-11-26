@@ -272,6 +272,15 @@ public sealed class LiveTexture
         _stripsFor = default;
     }
 
+    /// <summary>The GPU texture (invalid without a RenderingDevice): a copy's source.</summary>
+    public Rid DeviceRid => _rid;
+
+    /// <summary>A storage view of the full-size level, for a kernel that draws into it (the radar's smooth sweep); invalid without the levels' kernel.</summary>
+    public Rid StorageLevel0 => _levels > 1 && _views.Length > 0 ? _views[0] : default;
+
+    /// <summary>The levels under <paramref name="r"/> (raw rows) made again after a kernel drew into the full-size level.</summary>
+    public void LevelsUnder(Rect2I r) => Levels(System.Math.Max(0, r.Position.X), System.Math.Max(0, r.Position.Y), System.Math.Min(Width, r.End.X), System.Math.Min(Height, r.End.Y));
+
     /// <summary>The levels under the full-size rectangle [x0, x1) x [y0, y1) made again, each from the one above, by the kernel.</summary>
     private void Levels(int x0, int y0, int x1, int y1)
     {

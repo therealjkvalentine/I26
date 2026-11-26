@@ -28,14 +28,14 @@ public static partial class FrameSections
     {
         Sim, SimTick, Main, Cockpit, CockpitRadar, CockpitPanels, CockpitMirror, Hud, Overlays, Cameras, CombatView, DamageView, Smoke,
         ModernFx, SkidMarks, Vegetation, Terrain, Outside, Scenery, PlacedTrees, Tumbleweeds, Brush, Clutter, DropShadows, Lights,
-        SoftwareLook, CabClip, Voices, Feedback, Telemetry, Ui, Recorders, Physics, RadarUpload, LivePack, LiveSend, LiveLevels, RadarCompose, UiExt, UiWiggle, UiFps, UiStandBy, Count,
+        SoftwareLook, CabClip, Voices, Feedback, Telemetry, Ui, Recorders, Physics, RadarUpload, LivePack, LiveSend, LiveLevels, RadarCompose, UiExt, UiWiggle, UiFps, UiStandBy, RadarSweep, Count,
     }
 
     private static readonly string[] SecNames =
     [
         "sim", "sim.tick", "main", "cockpit", "cockpit.radar", "cockpit.panels", "cockpit.mirror", "hud", "overlays", "cameras", "combat",
         "damage", "smoke", "modernfx", "skids", "veg", "terrain", "outside", "scenery", "trees", "tumbleweeds", "brush", "clutter",
-        "dropshadows", "lights", "software", "cabclip", "voices", "feedback", "telemetry", "ui", "recorders", "physics.modern", "cockpit.radar.upload", "live.pack", "live.send", "live.levels", "cockpit.radar.compose", "ui.ext", "ui.wiggle", "ui.fps", "ui.standby",
+        "dropshadows", "lights", "software", "cabclip", "voices", "feedback", "telemetry", "ui", "recorders", "physics.modern", "cockpit.radar.upload", "live.pack", "live.send", "live.levels", "cockpit.radar.compose", "ui.ext", "ui.wiggle", "ui.fps", "ui.standby", "cockpit.radar.sweep",
     ];
 
     public static readonly string? Path = System.Environment.GetEnvironmentVariable("I76_FRAME_SECTIONS") is { Length: > 0 } p ? p : null;

@@ -857,7 +857,7 @@ public partial class Main : Node3D
 		}
 		I76.Game.Sim.OriginalBehavior.Apply(s);   // before the mirror: its far clip is one of them
 		I76.Game.Sim.DashLight.Refresh();   // [port] dash_light, live from the Developer panel
-		if (_pit is not null) { _pit.MirrorSetting = s.Graphics[0xd]; _pit.ApplySideMirrors(s); }
+		if (_pit is not null) { _pit.MirrorSetting = s.Graphics[0xd]; _pit.ApplySideMirrors(s); _pit.RadarSweep = s.RadarSweep; }
 		yield return null;
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
@@ -1881,6 +1881,7 @@ public partial class Main : Node3D
 			};
 			pit.MirrorSetting = I76.Game.Shell.ShellSettings.Load().Graphics[0xd];
 			pit.ApplySideMirrors(I76.Game.Shell.ShellSettings.Load());
+			pit.RadarSweep = I76.Game.Shell.ShellSettings.Load().RadarSweep;
 			node.Dash3D = I76.Game.Shell.ShellSettings.Load().Dash3D;
 			yield return null;
 			AddChild(pit);

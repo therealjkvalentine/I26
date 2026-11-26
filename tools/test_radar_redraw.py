@@ -227,8 +227,9 @@ class PackStepTests(unittest.TestCase):
         before = self.files(self.pack)
         written, s = self.run_step()
         self.assertEqual(s, 2)
-        self.assertEqual(len(written), 64)
-        self.assertTrue(all(f.endswith(".dds") for f in written))
+        self.assertEqual(len(written), 67)                                            # 62 frames, 2 sheets, the sweep's 3
+        self.assertTrue(all(f.endswith(".dds") for f in written if f.startswith(("zradf", "zradb", "zrge", "ztge"))))
+        self.assertEqual(sorted(f for f in written if f.startswith("zrads")), ["zrads.json", "zrads_face.dds", "zrads_grid.png"])
         self.assertEqual(len(os.listdir(os.path.join(self.pack, rr.BASE))), 62)      # the frames it started from
         for stem in ("zradf000", "zradb017"):
             self.assertEqual(rr.sha256_of(os.path.join(self.pack, rr.BASE, stem + ".dds")), before[stem + ".dds"])
@@ -283,6 +284,75 @@ class PackStepTests(unittest.TestCase):
         self.assertEqual(self.files(self.pack), before)
         self.assertFalse(os.path.exists(os.path.join(self.pack, rr.BASE)))
         self.assertEqual(sorted(os.listdir(out)), sorted(written + ["ATTRIBUTION.txt", "pack.json"]))
+
+
+class SmoothSweepTests(unittest.TestCase):
+    """The live sweep's layers and numbers (Radar Sweep: Smooth): drawn from them alone at a step's angle, the scope is the stepped
+    frame of that step; the angle law is the frames' own."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.spec = rr.load_spec(); cls.frames = rr.synthetic(cls.spec)
+        cls.g, _ = rr.measure(cls.frames, cls.spec)
+        cls.k = 4
+        cls.rd = rr.Redraw(cls.g, cls.spec, "B", None, cls.k, cls.up(cls.spec["frames"]["sweep"] % 30))
+        cls.layers = cls.rd.layers(); cls.p = cls.rd.sweep_params()
+        cls.face = cls.layers[rr.SWEEP_LAYERS["face"]]; cls.grid = cls.layers[rr.SWEEP_LAYERS["grid"]]
+
+    @classmethod
+    def up(cls, stem):
+        return np.repeat(np.repeat(cls.frames[stem], cls.k, 0), cls.k, 1)
+
+    def off_rim(self):
+        """Texels not on the face circle's one anti-aliased texel (where the layers' order leaves a level or two)."""
+        H, W = self.face.shape[:2]; k = self.k
+        Y, X = np.mgrid[0:H, 0:W]
+        r = np.hypot((X + 0.5) / k - self.p["face"]["centre"][0], (Y + 0.5) / k - self.p["face"]["centre"][1])
+        return np.abs(r - self.p["face"]["radius"]) > 0.3
+
+    def test_the_layers_at_a_steps_angle_are_its_stepped_frame(self):
+        keep = self.off_rim()
+        for kind in ("sweep", "locked"):
+            for f in (0, 4, 11, 17, 29):
+                stepped = self.rd.frame(self.up(self.spec["frames"][kind] % f), kind, f)
+                angle = rr.sweep_file_angle(self.p, f) if kind == "sweep" else rr.frame_angle(f)
+                smooth = rr.compose_smooth(self.face, self.grid, self.p, angle, locked=kind == "locked")
+                d = np.abs(stepped.astype(int) - smooth.astype(int)).max(-1)
+                self.assertLessEqual(int(d[keep].max()), 2, (kind, f))
+
+    def test_between_steps_the_beam_lies_between_them(self):
+        k = self.k; pv = np.array(self.p["pivot"])
+        a = self.p["sweep"]["step_deg"]
+        for f in (2, 13):
+            ang = rr.sweep_file_angle(self.p, f + 0.5)
+            self.assertAlmostEqual(ang, rr.sweep_file_angle(self.p, f) - a / 2, places=9)
+            sm = rr.compose_smooth(self.face, self.grid, self.p, ang)
+            u = np.array([math.cos(math.radians(ang)), math.sin(math.radians(ang))]); q = pv + u * 30
+            self.assertGreater(int(sm[int(q[1] * k), int(q[0] * k), 1]), 200)
+
+    def test_the_numbers(self):
+        p = self.p; sw = p["sweep"]
+        self.assertEqual((sw["frames"], sw["step_deg"], sw["step_s"], sw["deg_per_s"]), (30, 12.0, 0.2, 60.0))
+        self.assertEqual(sw["offset_deg"], self.g["sweep"]["offset_deg"])
+        for f in range(30): self.assertAlmostEqual(rr.sweep_file_angle(p, f), rr.frame_angle(f) + self.g["sweep"]["offset_deg"])
+        x0, y0, x1, y1 = p["layers"]["grid_box"]
+        self.assertEqual(self.grid.shape[:2], (y1 - y0, x1 - x0))
+        self.assertEqual(self.face.shape[:2], (128 * self.k, 256 * self.k))
+        self.assertEqual(p["size"], [256 * self.k, 128 * self.k])
+        self.assertEqual(p["afterglow"]["decay_s"], round(32 / 60, 4))
+        self.assertEqual(p["layers"]["off"], "zradf030")
+
+    def test_the_face_has_no_beam_grid_or_pip(self):
+        x0, y0, x1, y1 = self.p["layers"]["grid_box"]; k = self.k
+        cx, cy = self.p["face"]["centre"]; r = self.p["face"]["radius"] - 1
+        H, W = self.face.shape[:2]; Y, X = np.mgrid[0:H, 0:W]
+        inside = np.hypot((X + 0.5) / k - cx, (Y + 0.5) / k - cy) < r
+        self.assertTrue((self.face[inside][:, :3] == np.array(self.p["face"]["colour"])).all())
+        self.assertGreater(int(self.grid[..., 3].max()), 200)                        # the graticule is on its own layer
+
+    def test_style_a_writes_no_layers(self):
+        rd = rr.Redraw(self.g, self.spec, "A", None, self.k, self.up(self.spec["frames"]["sweep"] % 30))
+        self.assertFalse(rd.has_layers())
 
 
 class SpecTests(unittest.TestCase):
