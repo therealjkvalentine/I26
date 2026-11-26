@@ -4,11 +4,19 @@
     python tools/radar-redraw.py measure EXPORT_DIR [geometry.json]
     python tools/radar-redraw.py fit-labels EXPORT_DIR [fit.json]
     python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]   (frames, zrge.png, ztge.png)
+    python tools/radar-redraw.py pack    EXPORT_DIR PACK_DIR [--out DIR] [--scale N] [--style A|B] [--labels NAME]
     python tools/radar-redraw.py sheet   EXPORT_DIR UPSCALE_DIR OUT_DIR
     python tools/radar-redraw.py --self-check
 
 EXPORT_DIR is the folder `i76 export-textures` wrote (the originals, 256x128, as PNGs); UPSCALE_DIR a pack's upscale of the
-same frames (any whole multiple of 256 wide, PNG), whose bezel, knobs and wiring are kept. Everything is measured from the
+same frames (any whole multiple of 256 wide, PNG or .dds), whose bezel, knobs and wiring are kept. The defaults are the
+packs' choice: style B and the label set lock-range.
+
+`pack` is the HD recipes' step (tools/hd-recipes/world-4x.json, world-8x.json): it redraws a pack's own frames in place,
+in the pack's format (.dds: BC7 with the full mip chain, rows stored as EXPORT_DIR/bottom-up.txt says), writes zrge and
+ztge beside them (the two belong together), keeps the frames it started from in PACK_DIR/.radar-base/ (a second run starts
+from those, so it gives the same files) and names the redraw and its font in pack.json and ATTRIBUTION.txt (FILES.sha256
+made again when there is one). With --out DIR the pack is only read and the files go to DIR. Everything is measured from the
 original's pixels each run (nothing of the game's art is in the repository), then drawn again as vectors:
 
 - the scope: the 60 frames' per-pixel median is the clean grid and panel; the rings are circles fitted to its grid pixels, the
@@ -19,7 +27,7 @@ original's pixels each run (nothing of the game's art is in the repository), the
   and a fading afterglow behind it, a cone with soft edges).
 - the left panel's marks: the dotted arc round one knob, the ticks by the other, the knob pointers and the two small lettered
   rows, as dark blobs found in the median; they are erased from the upscale and drawn again as shapes, with a label set's words
-  set in a free font (tools/radar-redraw/radar.json names it; the tool downloads it into a cache, nothing is committed).
+  set in a free font (tools/radar-redraw/radar.json names it: B612, in tools/text-redraws/fonts/ with its licence).
 
 - the stamps: the range plate's and the contact lamp's sheets (zrge, ztge), which the game stamps over every frame, are
   written beside the frames: the redrawn frame's texels inside a disc about the frame's own scope or lamp, keyed outside,
@@ -910,8 +918,21 @@ class Redraw:
         return out
 
 
-def upscale_frame(upscale_dir, stem, s):
-    a = load_rgba(os.path.join(upscale_dir, stem + ".png"))
+def find_texture(folder, stem):
+    """folder/stem.png or .dds (the PNG first, as the game takes it), or None."""
+    for ext in (".png", ".dds"):
+        p = os.path.join(folder, stem + ext)
+        if os.path.exists(p): return p
+    return None
+
+
+def upscale_frame(upscale_dir, stem, s, bottom_up=frozenset()):
+    """A frame of the upscale in the export's rows: a PNG as it is, a .dds's top level (Pillow reads BC7) turned upright when
+    bottom-up.txt names it."""
+    p = find_texture(upscale_dir, stem)
+    if p is None: raise SystemExit(f"{stem}: neither .png nor .dds in {upscale_dir}")
+    a = load_rgba(p)
+    if p.endswith(".dds") and stem in bottom_up: a = np.ascontiguousarray(a[::-1])
     return resize_to(a, 256 * s, 128 * s)
 
 
@@ -921,23 +942,160 @@ def label_set_named(spec, name):
     raise SystemExit(f"no label set {name!r}: " + ", ".join(l["name"] for l in spec["label_sets"]))
 
 
-def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
+def all_stems(spec):
+    """The 62 frames' names, sweep then locked, each 0..30."""
+    fr = spec["frames"]; return [fr[kind] % i for kind in ("sweep", "locked") for i in range(fr["count"] + 1)]
+
+
+def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None):
+    """Yields (stem, RGBA, geometry) for the 62 frames (the export's rows) and then the two sheets (rows as shown, as the
+    export has them); load(stem) gives a frame's upscale at s in the export's rows."""
     frames = load_frames(export_dir, spec)
     if g is None: g, _ = measure(frames, spec, export_dir)
     ls = label_set_named(spec, ls_name)
-    off = spec["frames"]["sweep"] % spec["frames"]["count"]
-    rd = Redraw(g, spec, style, ls, s, upscale_frame(upscale_dir, off, s))
-    os.makedirs(out_dir, exist_ok=True)
+    rd = Redraw(g, spec, style, ls, s, load(spec["frames"]["sweep"] % spec["frames"]["count"]))
     for kind in ("sweep", "locked"):
         for i in range(spec["frames"]["count"] + 1):
             stem = spec["frames"][kind] % i
-            Image.fromarray(rd.frame(upscale_frame(upscale_dir, stem, s), kind, i)).save(os.path.join(out_dir, stem + ".png"))
+            yield stem, rd.frame(load(stem), kind, i), g
     # a .map's PNG upscale is read with its rows as shown (the game flips it to the stored order, HdTexture.Fit; only a .dds
     # is written bottom up), as the export is
     for name, sheet in rd.sprites().items():
-        Image.fromarray(sheet).save(os.path.join(out_dir, name + ".png"))
+        yield name, sheet, g
+
+
+def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
+    os.makedirs(out_dir, exist_ok=True)
+    bu = read_bottom_up(export_dir)
+    for stem, a, g in redraw_frames(export_dir, lambda st: upscale_frame(upscale_dir, st, s, bu), spec, s, style, ls_name, g):
+        Image.fromarray(a).save(os.path.join(out_dir, stem + ".png"))
     with open(os.path.join(out_dir, "radar-geometry.json"), "w") as f: json.dump(strip(g), f, indent=1)
     return g
+
+
+# ------------------------------------------------------------------------------------------------------------- the pack step
+
+BASE = ".radar-base"
+
+
+def read_bottom_up(export_dir):
+    p = os.path.join(export_dir, "bottom-up.txt")
+    if not os.path.exists(p): return frozenset()
+    with open(p) as f: return frozenset(l.strip().lower() for l in f if l.strip())
+
+
+def fonts_used(spec, ls):
+    return sorted({t.get("font", ls.get("font", spec["default_font"])) for t in ls.get("texts", [])})
+
+
+def font_credit(spec, name):
+    f = spec["fonts"][name]
+    return {"font": f.get("name", name), "by": f["by"], "license": f["license"], "source": f.get("source", f.get("url", ""))}
+
+
+def sha256_of(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 22), b""): h.update(b)
+    return h.hexdigest()
+
+
+def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
+    """src's pack.json (radar_redraw; the font in text_fonts) and ATTRIBUTION.txt (the font's line, in the file's own style)
+    written into dst; FILES.sha256 made again when dst is the pack itself and has one."""
+    ls = label_set_named(spec, ls_name); credits = [font_credit(spec, n) for n in fonts_used(spec, ls)]
+    pj = os.path.join(src, "pack.json")
+    if os.path.exists(pj):
+        with open(pj, encoding="utf-8", newline="") as f: raw = f.read()
+        meta = json.loads(raw); nl = "\r\n" if "\r\n" in raw else "\n"
+        fr = spec["frames"]; last = "%03d" % fr["count"]
+        meta["radar_redraw"] = {"tool": "tools/radar-redraw.py", "tool_sha256": sha256_of(os.path.abspath(__file__)),
+                                "spec": "tools/radar-redraw/radar.json", "spec_sha256": sha256_of(spec_path),
+                                "style": style, "labels": ls_name, "scale": s,
+                                "textures": ", ".join([fr["sweep"] % 0 + "-" + last, fr["locked"] % 0 + "-" + last]
+                                                      + sorted(p["sheet"] for p in spec["stamps"]["parts"].values())),
+                                "fonts": [c["font"] for c in credits]}
+        have = {f_.get("font") for f_ in meta.get("text_fonts", [])}
+        new = [c for c in credits if c["font"] not in have]
+        meta["text_fonts"] = meta.get("text_fonts", []) + new
+        if "lettering redrawn in " in meta.get("attribution", ""):      # the earlier packs' one-line credits
+            meta["attribution"] += "".join(f" | lettering redrawn in {c['font']} by {c['by']}, {c['license']}, {c['source']}" for c in new)
+        with open(os.path.join(dst, "pack.json.part"), "w", encoding="utf-8", newline="") as f:
+            f.write(json.dumps(meta, indent=2, ensure_ascii=False).replace("\n", nl) + nl)
+        os.replace(os.path.join(dst, "pack.json.part"), os.path.join(dst, "pack.json"))
+    at = os.path.join(src, "ATTRIBUTION.txt")
+    if os.path.exists(at):
+        with open(at, encoding="utf-8", newline="") as f: text = f.read()
+        nl = "\r\n" if "\r\n" in text else "\n"
+        lines = text.split(nl)
+        while lines and lines[-1] == "": lines.pop()
+        for c in credits:
+            if any(c["font"] + " " in l or c["font"] + ":" in l for l in lines): continue
+            head = [i for i, l in enumerate(lines) if l.startswith("Fonts the redrawn lettering")]
+            older = [i for i, l in enumerate(lines) if l.startswith("lettering redrawn in ")]
+            if head:                # tools/hd-pack.py finish's list: "- Face: by, licence, source" under its heading
+                i = head[0] + 1
+                while i < len(lines) and lines[i].startswith("- "): i += 1
+                lines.insert(i, f"- {c['font']}: {c['by']}, {c['license']}, {c['source']}")
+            elif older:             # the earlier packs' one line a face
+                lines.insert(older[-1] + 1, f"lettering redrawn in {c['font']} by {c['by']}, {c['license']}, {c['source']}")
+            else:
+                lines += ["", "Fonts the redrawn lettering was set in (rendered into the pictures; no font file is included):",
+                          f"- {c['font']}: {c['by']}, {c['license']}, {c['source']}"]
+        with open(os.path.join(dst, "ATTRIBUTION.txt.part"), "w", encoding="utf-8", newline="") as f: f.write(nl.join(lines) + nl)
+        os.replace(os.path.join(dst, "ATTRIBUTION.txt.part"), os.path.join(dst, "ATTRIBUTION.txt"))
+    if os.path.abspath(src) == os.path.abspath(dst) and os.path.exists(os.path.join(dst, "FILES.sha256")):
+        import importlib.util
+        sp = importlib.util.spec_from_file_location("hd_pack", os.path.join(HERE, "hd-pack.py"))
+        hp = importlib.util.module_from_spec(sp); sp.loader.exec_module(hp); hp.write_sums(dst)
+
+
+def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None):
+    """A pack's radar frames and sheets redrawn in its own format: in place (out None; the frames it starts from kept in
+    pack/.radar-base/, which later runs start from) or into out (the pack only read). Returns the files written and s."""
+    bu = read_bottom_up(export_dir)
+    base_dir = os.path.join(pack, BASE); dst = out or pack
+    src = {}
+    for stem in all_stems(spec):
+        p = find_texture(base_dir, stem) or find_texture(pack, stem)
+        if p is None: raise SystemExit(f"{stem}: not in {pack}")
+        src[stem] = p
+    if out is None:
+        os.makedirs(base_dir, exist_ok=True)
+        for stem, p in src.items():
+            if os.path.dirname(os.path.abspath(p)) != os.path.abspath(base_dir):
+                b = os.path.join(base_dir, os.path.basename(p))
+                try: os.link(p, b)                  # the pack's file is replaced below, never written into
+                except OSError:
+                    import shutil; shutil.copy2(p, b)
+                src[stem] = b
+    first = src[all_stems(spec)[0]]
+    if s is None:
+        with Image.open(first) as im: w = im.size[0]
+        if w % 256: raise SystemExit(f"{first}: {w} texels wide, not a whole multiple of 256")
+        s = w // 256
+    fmt = os.path.splitext(first)[1]
+    if fmt == ".dds":
+        import etcpak
+        sys.path.insert(0, HERE); import dds_mips
+    os.makedirs(dst, exist_ok=True)
+
+    def load(stem):
+        a = load_rgba(src[stem])
+        if src[stem].endswith(".dds") and stem in bu: a = np.ascontiguousarray(a[::-1])
+        return resize_to(a, 256 * s, 128 * s)
+    written = []
+    for stem, a, g in redraw_frames(export_dir, load, spec, s, style, ls_name):
+        path = os.path.join(dst, stem + fmt)
+        if fmt == ".dds": dds_mips.write_dds(path + ".part", np.ascontiguousarray(a[::-1] if stem in bu else a), etcpak)
+        else: Image.fromarray(a).save(path + ".part", format="PNG")
+        os.replace(path + ".part", path)
+        other = os.path.join(dst, stem + (".png" if fmt == ".dds" else ".dds"))
+        if out is None and os.path.exists(other): os.remove(other)
+        written.append(os.path.basename(path))
+    note_in_pack(pack, dst, spec, spec_path, style, ls_name, s)
+    return written, s
 
 
 def strip(g):
@@ -1100,12 +1258,13 @@ def self_check():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", nargs="?", choices=["measure", "render", "sheet", "fit-labels"])
+    ap.add_argument("cmd", nargs="?", choices=["measure", "render", "pack", "sheet", "fit-labels"])
     ap.add_argument("export", nargs="?"); ap.add_argument("upscale", nargs="?"); ap.add_argument("out", nargs="?")
     ap.add_argument("--spec", default=SPEC)
-    ap.add_argument("--scale", type=int, default=8)
-    ap.add_argument("--style", default="A")
-    ap.add_argument("--labels", default="marks-only")
+    ap.add_argument("--scale", type=int, default=None, help="texels a pixel (render: 8; pack: the pack's own)")
+    ap.add_argument("--style", default="B", help="A (the original's line and cone) or B (an afterglow; the packs')")
+    ap.add_argument("--labels", default="lock-range", help="a label set of the spec (lock-range: the packs')")
+    ap.add_argument("--out", dest="out_dir", help="pack: write the files here and leave the pack as it is")
     ap.add_argument("--self-check", action="store_true")
     a = ap.parse_args(argv)
     if a.self_check: return 0 if self_check() else 1
@@ -1128,7 +1287,12 @@ def main(argv=None):
         else: print(txt)
         return 0
     if a.cmd == "render":
-        render_all(a.export, a.upscale, a.out, spec, a.scale, a.style, a.labels)
+        render_all(a.export, a.upscale, a.out, spec, a.scale or 8, a.style, a.labels)
+        return 0
+    if a.cmd == "pack":
+        if not a.export or not a.upscale or a.out: ap.error("pack takes EXPORT_DIR and PACK_DIR (and --out DIR)")
+        files, s = pack_step(a.export, a.upscale, a.out_dir, spec, a.spec, a.style, a.labels, a.scale)
+        print(f"radar redrawn at {s}x, style {a.style}, labels {a.labels}: {len(files)} files into {a.out_dir or a.upscale}")
         return 0
     if a.cmd == "sheet":
         import importlib.util

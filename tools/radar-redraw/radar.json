@@ -316,15 +316,18 @@
  "default_font": "B612",
  "fonts": {
   "B612": {
-   "url": "https://github.com/google/fonts/raw/main/ofl/b612/B612-Bold.ttf",
-   "license_url": "https://github.com/google/fonts/raw/main/ofl/b612/OFL.txt",
+   "repo": "B612/B612-Bold.ttf",
+   "name": "B612",
    "license": "SIL OFL 1.1",
-   "by": "Airbus, Intactile Design, Nicolas Chauveau, Thomas Paillot, Jonathan Favre-Lamarine, Jean-Luc Vinot"
+   "by": "The B612 Project Authors (Airbus, Intactile Design, Nicolas Chauveau, Thomas Paillot, Jonathan Favre-Lamarine, Jean-Luc Vinot)",
+   "source": "https://github.com/google/fonts/tree/main/ofl/b612"
   },
   "DDINCondensed": {
    "repo": "DDINCondensed/D-DINCondensed-Bold.otf",
+   "name": "D-DIN Condensed Bold",
    "license": "SIL OFL 1.1",
-   "by": "Datto Inc."
+   "by": "Datto Inc.",
+   "source": "https://www.datto.com/fonts/d-din"
   }
  },
  "label_sets": [
@@ -347,11 +350,11 @@
       0
      ],
      "text": "100",
-     "cap": 2.0,
+     "cap": 1.8,
      "lift": 4.0,
      "width": 6.0,
      "y": 57.0,
-     "x": 19.2
+     "x": 20.0
     },
     {
      "mark": [
@@ -359,7 +362,7 @@
       1
      ],
      "text": "TGT",
-     "cap": 2.0,
+     "cap": 1.8,
      "lift": 4.0,
      "width": 6.0,
      "y": 55.5
@@ -370,12 +373,12 @@
       2
      ],
      "text": "600",
-     "cap": 2.0,
+     "cap": 1.8,
      "lift": 4.0,
      "width": 6.0,
      "y": 57.0,
-     "x": 39.0,
-     "note": "pulled in from the tick line: further out it would run into the scope bezel (x 43 at this height)"
+     "x": 37.7,
+     "note": "over its tick and pulled in from the tick line: the bezel's outer edge is at x 41.3 at this height, the ink ends at 40.0 (round 2's cap 2.0 at x 39.0 ran to 41.5, onto it)"
     },
     {
      "box": "under_lower",

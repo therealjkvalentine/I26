@@ -28,6 +28,7 @@ https://github.com/google/fonts (the font's folder; D-DIN Condensed Bold from Da
 | Arial Bold (**not shipped**: `"system": true`) | the system's fonts folder | Monotype | Control Configuration's page in the HD menu art (`shellbg16`: the title, CONTROLS, and the buttons' words), in the original's own face as every retyped menu page is; the tool takes the machine's `arialbd.ttf` (Windows' Fonts folder, the Microsoft core fonts elsewhere) and stops with a message if there is none |
 | Libre Caslon Text (variable, set to 550) | `LibreCaslonText/` | The Libre Caslon Text Project Authors (Pablo Impallari, Rodrigo Fuenzalida) | the Fletcher & Sons warehouse's name board (T08: `cy_1sg11`, a condensed old-style serif; Caslon's letter widths fall on the painted ones) |
 | Overpass (variable, set to its weight) | `Overpass/` | The Overpass Project Authors (Red Hat) | the US road signs' lettering (an open interpretation of the FHWA highway series): the drafting tool's candidate for road signs (`tools/draft-text-redraws.py`) |
+| B612 (Bold) | `B612/` | The B612 Project Authors (Airbus, Intactile Design) | the cockpit radar's panel labels (`tools/radar-redraw.py`: LOCK VOL, 100, TGT, 600, RANGE on `zradf*`/`zradb*`) |
 | Russo One | `RussoOne/` | Jovanny Lemonad, Reserved Font Name "Russo" | the damage display's labels (`zsye`), the DOVER and PALOMINO badges, the blue and white Dover's JEFF |
 
 `fonts.json` names each face's file, author, licence and source for the tool.

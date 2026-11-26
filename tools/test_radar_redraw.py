@@ -1,9 +1,10 @@
 """Tests of tools/radar-redraw.py (python -m unittest tools/test_radar_redraw.py). No game art: a made-up radar in the
-original's layout, and the spec's own entries. No network (the label sets with words are not drawn here)."""
-import importlib.util, math, os, unittest
+original's layout, and the spec's own entries. No network: the labels' font is in tools/text-redraws/fonts/."""
+import importlib.util, math, os, sys, unittest
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 _spec = importlib.util.spec_from_file_location("radar_redraw", os.path.join(HERE, "radar-redraw.py"))
 rr = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(rr)
 
@@ -157,7 +158,112 @@ class StampTests(unittest.TestCase):
         self.assertGreater(px[1], 140, px)
 
 
+try:
+    import etcpak
+except ImportError:
+    etcpak = None
+
+
+@unittest.skipIf(etcpak is None, "etcpak not installed")
+class PackStepTests(unittest.TestCase):
+    """The recipes' step on a made-up pack of .dds at 2x: in place, its own format and row order, the same files again on a
+    second run, the font named; and --out leaves the pack alone."""
+
+    def setUp(self):
+        import tempfile, dds_mips
+        from PIL import Image
+        self.dds = dds_mips
+        self.spec = rr.load_spec(); self.s = 2
+        self.tmp = tempfile.TemporaryDirectory(); d = self.tmp.name
+        self.export = os.path.join(d, "export"); self.pack = os.path.join(d, "tex-world-2x")
+        os.makedirs(self.export); os.makedirs(self.pack)
+        frames = rr.synthetic(self.spec)
+        for stem, a in frames.items(): Image.fromarray(a).save(os.path.join(self.export, stem + ".png"))
+        synthetic_sheets(frames, self.spec, self.export)
+        with open(os.path.join(self.export, "bottom-up.txt"), "w") as f: f.write("zradmask\nzrge\nztge\n")
+        for stem, a in frames.items():
+            dds_mips.write_dds(os.path.join(self.pack, stem + ".dds"), np.repeat(np.repeat(a, self.s, 0), self.s, 1), etcpak)
+        with open(os.path.join(self.pack, "pack.json"), "w", newline="") as f:
+            f.write('{\r\n  "name": "t",\r\n  "attribution": "m by x | lettering redrawn in Anton by y, SIL OFL 1.1, z",\r\n'
+                    '  "text_fonts": [\r\n    {"font": "Anton", "by": "y", "license": "SIL OFL 1.1", "source": "z"}\r\n  ]\r\n}')
+        with open(os.path.join(self.pack, "ATTRIBUTION.txt"), "w", newline="") as f:
+            f.write("m by x\nlettering redrawn in Anton by y, SIL OFL 1.1, z\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def files(self, d):
+        return {f: rr.sha256_of(os.path.join(d, f)) for f in sorted(os.listdir(d)) if os.path.isfile(os.path.join(d, f))}
+
+    def run_step(self, out=None):
+        return rr.pack_step(self.export, self.pack, out, self.spec, rr.SPEC, "B", "lock-range")
+
+    def test_in_place_in_the_packs_format_and_again_the_same(self):
+        before = self.files(self.pack)
+        written, s = self.run_step()
+        self.assertEqual(s, 2)
+        self.assertEqual(len(written), 64)
+        self.assertTrue(all(f.endswith(".dds") for f in written))
+        self.assertEqual(len(os.listdir(os.path.join(self.pack, rr.BASE))), 62)      # the frames it started from
+        for stem in ("zradf000", "zradb017"):
+            self.assertEqual(rr.sha256_of(os.path.join(self.pack, rr.BASE, stem + ".dds")), before[stem + ".dds"])
+        first = self.files(self.pack)
+        self.assertNotEqual(first["zradf007.dds"], before["zradf007.dds"])
+        self.run_step()
+        self.assertEqual(self.files(self.pack), first)                               # from .radar-base/: the same files
+        # the sheets stored bottom up as bottom-up.txt says: the lit 600 m plate (range_3, the sheet's foot as shown) first
+        z = self.dds.read_levels(os.path.join(self.pack, "zrge.dds"), upto=0)[0][0]
+        self.assertEqual(z.shape, (72 * s, 24 * s, 4))
+        self.assertGreater(int(z[12 * s, 7 * s, 1]), 200)
+        self.assertLess(int(z[(48 + 12) * s, 7 * s, 1]), 150)
+        self.assertEqual(int(z[0, 0, 3]), 0)
+        # a frame stays in the export's rows (not in bottom-up.txt): the corner scope low in the file, as the export has it
+        f = self.dds.read_levels(os.path.join(self.pack, "zradf000.dds"), upto=0)[0][0]
+        self.assertEqual(f.shape, (128 * s, 256 * s, 4))
+
+    def test_names_the_redraw_and_its_font_once(self):
+        import json
+        self.run_step(); self.run_step()
+        with open(os.path.join(self.pack, "pack.json"), encoding="utf-8", newline="") as f: raw = f.read()
+        self.assertIn("\r\n", raw)
+        meta = json.loads(raw)
+        self.assertEqual(meta["radar_redraw"]["style"], "B")
+        self.assertEqual(meta["radar_redraw"]["labels"], "lock-range")
+        self.assertEqual([f["font"] for f in meta["text_fonts"]], ["Anton", "B612"])
+        self.assertEqual(meta["attribution"].count("lettering redrawn in B612 "), 1)
+        with open(os.path.join(self.pack, "ATTRIBUTION.txt"), encoding="utf-8") as f: at = f.read().splitlines()
+        self.assertEqual([l for l in at if "B612" in l], [at[2]])
+        self.assertTrue(at[2].startswith("lettering redrawn in B612 by "))
+
+    def test_out_leaves_the_pack_as_it_was(self):
+        before = self.files(self.pack)
+        out = os.path.join(self.tmp.name, "stage")
+        written, _ = self.run_step(out)
+        self.assertEqual(self.files(self.pack), before)
+        self.assertFalse(os.path.exists(os.path.join(self.pack, rr.BASE)))
+        self.assertEqual(sorted(os.listdir(out)), sorted(written + ["ATTRIBUTION.txt", "pack.json"]))
+
+
 class SpecTests(unittest.TestCase):
+    def test_lock_range_labels_clear_the_bezel(self):
+        # the 600 sat on the scope's bezel (its outer edge at x 41.3 there, measured on the 8x pack); a clear pixel now
+        spec = rr.load_spec()
+        lead = {t["text"]: t for t in spec["label_sets"][0]["texts"]}
+        self.assertEqual({lead[w]["cap"] for w in ("100", "TGT", "600")}, {1.8})
+        cv = rr.Canvas(256, 128, 8, (12, 50, 48, 64))
+        t = lead["600"]; box = [t["x"] - t["width"] / 2, t["y"] - t["cap"] / 2, t["x"] + t["width"] / 2, t["y"] + t["cap"] / 2]
+        cov = rr.text_coverage(cv, t["text"], rr.font_file(spec["default_font"], spec), box, cap=t["cap"])
+        xs = np.nonzero(cov.max(0) > 0.05)[0]
+        self.assertLessEqual(12 + (xs.max() + 1) / 8, 41.3 - 1.0)
+        self.assertGreater(12 + xs.min() / 8, 34.0)              # still over its tick, right of TGT
+
+    def test_the_font_is_in_the_repository(self):
+        spec = rr.load_spec()
+        f = spec["fonts"][spec["default_font"]]
+        self.assertIn("repo", f)
+        self.assertTrue(os.path.exists(os.path.join(rr.REPO_FONTS, os.path.dirname(f["repo"]), "OFL.txt")))
+
+
     def test_lead_label_set_letters_the_game_ranges(self):
         spec = rr.load_spec()
         lead = spec["label_sets"][0]
