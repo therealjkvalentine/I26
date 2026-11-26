@@ -52,6 +52,10 @@ public partial class BrushImpacts : Node3D
     /// <summary>I76_BRUSH_DEBUG=1: a line twice a second of what the field holds.</summary>
     private static readonly bool Debug = System.Environment.GetEnvironmentVariable("I76_BRUSH_DEBUG") == "1";
     private int _frame, _rounds, _blasts;
+    /// <summary>I76_BUSH_FIRE=frame:x,z;...: at that frame of the plants' own (counted from the first they are drawn) the plant nearest game (x, z) set burning, for captures.</summary>
+    private static readonly string? FireHook = System.Environment.GetEnvironmentVariable("I76_BUSH_FIRE");
+    private List<(int Frame, float X, float Z)>? _fireHook;
+    private int _onFrames;
     private long _ticks;
     private int _burstsThisFrame;
     private readonly List<(GpuParticles3D P, double Until)> _bursts = [];
@@ -84,6 +88,19 @@ public partial class BrushImpacts : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", Vector4.Zero);
         _current = this;
         MakeLook();
+        if (FireHook is { Length: > 0 })
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            _fireHook = [];
+            foreach (var e in FireHook.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var fz = e.Split(':');
+                var xz = fz.Length == 2 ? fz[1].Split(',') : [];
+                if (xz.Length >= 2 && int.TryParse(fz[0], out int fr) && float.TryParse(xz[0], inv, out float hx) && float.TryParse(xz[1], inv, out float hz))
+                    _fireHook.Add((fr, hx, hz));
+            }
+            _rng.Seed = 76;   // a capture repeats
+        }
         // I76_BRUSH_FALL=shape[,base,per-speed]: the knock's curve (smooth, snap, topple) and time, for comparing them in captures
         if (System.Environment.GetEnvironmentVariable("I76_BRUSH_FALL") is { Length: > 0 } fall)
         {
@@ -210,6 +227,8 @@ public partial class BrushImpacts : Node3D
             return;
         }
         _on = true;
+        _onFrames++;
+        if (_fireHook is not null) FireHookStep();
         long t0 = Debug ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         // the field lies in the world root's frame (the map moves under a rebase of the origin; the field with it)
         _o = Veg.GlobalPosition;
@@ -394,7 +413,20 @@ public partial class BrushImpacts : Node3D
 
     // ---- fire ----
 
-    private void Ignite(Vector3 at, float radius, float flameChance)
+    private void FireHookStep()
+    {
+        foreach (var (fr, x, z) in _fireHook!)
+        {
+            if (fr != _onFrames) continue;
+            int had = _fires.Count;
+            var g = Veg.ToGlobal(new Vector3(x, 0, -z));
+            g.Y = Veg.GroundY(g) ?? g.Y;
+            Ignite(g, 2f, 1f, hook: true);
+            GD.Print(System.FormattableString.Invariant($"bush fire hook: frame {fr} at {x:0.0},{z:0.0}: {(_fires.Count > had ? $"plant at {Veg.ToLocal(_fires[^1].At).X:0.0},{Veg.ToLocal(_fires[^1].At).Y:0.0},{-Veg.ToLocal(_fires[^1].At).Z:0.0} radius {_fires[^1].Radius:0.00} height {_fires[^1].Height:0.00}" : "no plant")}"));
+        }
+    }
+
+    private void Ignite(Vector3 at, float radius, float flameChance, bool hook = false)
     {
         if (_fires.Count >= MaxFires) return;
         Veg.PlantsNear(at, radius, _near, 24);
@@ -410,8 +442,9 @@ public partial class BrushImpacts : Node3D
         }
         if (pick is not { } p) return;
         var f = new Fire { At = G(p.Root), Radius = MathF.Min(p.Radius, 1.5f), Height = MathF.Min(p.Height, 2.5f), Start = _t, Life = _rng.RandfRange(7f, 13f) };
-        bool flames = _fires.Count(x => x.Flames is not null) < MaxFlaming && _rng.Randf() < flameChance;
+        bool flames = hook || (_fires.Count(x => x.Flames is not null) < MaxFlaming && _rng.Randf() < flameChance);
         if (flames) { f.FlameFrom = _rng.RandfRange(0.3f, 1.2f); f.FlameTo = f.FlameFrom + _rng.RandfRange(3f, 6f); }
+        if (hook) { f.FlameFrom = 0.5; f.FlameTo = 6.5; f.Life = 11; }
         f.Smoke = Emitter(_smokeProc, _smokeMesh, 26, 3.2, f.At + Vector3.Up * f.Height * 0.5f, f.Radius * 0.6f);
         if (flames)
         {
