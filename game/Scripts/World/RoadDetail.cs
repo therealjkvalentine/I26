@@ -17,6 +17,43 @@ public static class RoadDetail
         _ => setting ? 1f : 0f,
     };
 
-    public static void Apply(bool setting) =>
-        RenderingServer.GlobalShaderParameterSet("i76_road_detail", Value(setting, System.Environment.GetEnvironmentVariable("I76_ROAD_DETAIL")));
+    /// <summary>
+    /// The parts of Road Detail beyond the surface (A, always on with the row), as bits of the global i76_road_style: n the night response
+    /// (the markings' retroreflection toward the lamps, glints on the stones under them), b the strong close-up asphalt, c the soft
+    /// wheel-track and oil bands and the sealant lines along the lanes (needs the road frame, baked when c is on), d a damp, glossier
+    /// night (a prototype only). On is n + c, Strong n + b + c. I76_ROAD_STYLE (letters, any order; "a" for none) overrides for a capture.
+    /// </summary>
+    public const int Night = 1, Strong = 2, Lanes = 4, Damp = 8;
+
+    /// <summary>The style for the row (on, strong) unless the environment names one.</summary>
+    public static int Style(string? env, bool on = true, bool strong = false)
+    {
+        if (env is null) return !on ? 0 : Night | Lanes | (strong ? Strong : 0);
+        int s = 0;
+        foreach (char c in env.ToLowerInvariant())
+            s |= c switch { 'n' => Night, 'b' => Strong, 'c' => Lanes, 'd' => Damp, _ => 0 };
+        return s;
+    }
+
+
+    /// <summary>
+    /// Whether a mission built now bakes the chunks' road frame: Road Detail on with the lanes (MissionBuilder). From the saved settings
+    /// and the environment, not <see cref="Apply"/>'s: a mission is built before its settings are applied at the spawn.
+    /// </summary>
+    public static bool WantsFrame
+    {
+        get
+        {
+            var s = I76.Game.Shell.ShellSettings.Load();
+            bool on = Value(s.RoadDetail, System.Environment.GetEnvironmentVariable("I76_ROAD_DETAIL")) > 0f;
+            return on && (Style(System.Environment.GetEnvironmentVariable("I76_ROAD_STYLE"), on, s.RoadDetailStrong) & Lanes) != 0;
+        }
+    }
+
+    public static void Apply(bool setting, bool strong = false)
+    {
+        float v = Value(setting, System.Environment.GetEnvironmentVariable("I76_ROAD_DETAIL"));
+        RenderingServer.GlobalShaderParameterSet("i76_road_detail", v);
+        RenderingServer.GlobalShaderParameterSet("i76_road_style", Style(System.Environment.GetEnvironmentVariable("I76_ROAD_STYLE"), v > 0f, strong));
+    }
 }

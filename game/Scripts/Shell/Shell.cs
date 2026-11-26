@@ -1499,6 +1499,8 @@ public sealed class ShellSettings
     public bool SmokeHaze { get; set; }
     /// <summary>The port's own: Graphic Detail's Road Detail (RoadDetailRow), the modern look's paved roads with a surface of their own near the camera (World/RoadDetail); [port] road_detail, written only when on. Off unless the player chose.</summary>
     public bool RoadDetail { get; set; }
+    /// <summary>Road Detail's Strong (RoadDetailRow): with <see cref="RoadDetail"/>, the larger, rougher aggregate; [port] road_detail_strong, written only when on.</summary>
+    public bool RoadDetailStrong { get; set; }
     /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
     public int HeatShimmer { get; set; }
     /// <summary>The port's own: Graphic Detail's Shimmer Strength (HeatStrengthRow: 0 Low, 1 Medium, 2 High, 3 Extreme); [port] heat_strength, written only when not Medium. Medium unless the player chose.</summary>
@@ -2128,6 +2130,7 @@ public sealed class ShellSettings
         s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
         s.SmokeHaze = (bool)c.GetValue("port", "smoke_haze", false);
         s.RoadDetail = (bool)c.GetValue("port", "road_detail", false);
+        s.RoadDetailStrong = s.RoadDetail && (bool)c.GetValue("port", "road_detail_strong", false);
         s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // no version step: a file without the key (before the row) has Medium, the strength it had
         s.HeatStrength = HeatStrengthRow.FromFile(c.HasSectionKey("port", "heat_strength") ? c.GetValue("port", "heat_strength").ToString() : null);
@@ -2377,6 +2380,7 @@ public sealed class ShellSettings
         if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
         if (SmokeHaze) c.SetValue("port", "smoke_haze", true);
         if (RoadDetail) c.SetValue("port", "road_detail", true);
+        if (RoadDetail && RoadDetailStrong) c.SetValue("port", "road_detail_strong", true);
         if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
         if (HeatStrength != HeatStrengthRow.Default) c.SetValue("port", "heat_strength", HeatStrengthRow.Word(HeatStrength));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);

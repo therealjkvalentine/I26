@@ -290,6 +290,10 @@ i76_road_detail={
 "type": "float",
 "value": 0.0
 }
+i76_road_style={
+"type": "int",
+"value": 0
+}
 i76_terrain_shade={
 "type": "sampler2D",
 "value": ""
