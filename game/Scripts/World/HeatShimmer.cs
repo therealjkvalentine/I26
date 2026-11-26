@@ -349,10 +349,7 @@ public partial class HeatShimmer : Node3D
     {
         if (_node == this) _node = null;
         var cam = GetViewport()?.GetCamera3D();
-        if (cam?.Compositor is { } c && c.CompositorEffects.Contains(_effect))
-        {
-            var list = c.CompositorEffects; list.Remove(_effect); c.CompositorEffects = list;
-        }
+        if (cam?.Compositor is not null) I76.Game.Sim.CompositorShare.Set(cam, _effect, false);
     }
 
     public override void _Process(double delta)
@@ -424,12 +421,7 @@ public partial class HeatShimmer : Node3D
     {
         // as last frame: no array copied out of the engine, but looked at again each second (another effect may have set the list)
         if (cam == _attachedCam && cam.Compositor == _attachedTo && _attachedTo is not null && ++_attachAge % 60 != 0) return;
-        if (cam.Compositor is null) cam.Compositor = new Compositor { CompositorEffects = [_effect] };
-        else
-        {
-            var list = cam.Compositor.CompositorEffects;
-            if (!list.Contains(_effect)) { list.Add(_effect); cam.Compositor.CompositorEffects = list; }
-        }
+        I76.Game.Sim.CompositorShare.Set(cam, _effect, true);
         (_attachedCam, _attachedTo) = (cam, cam.Compositor);
     }
 

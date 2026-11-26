@@ -140,8 +140,9 @@ public partial class SmokeLayer : Node3D
             var cam = i == 1 ? MirrorCamera : DoorMirrorCameras[i - 2];
             bool on = MirrorsDrawLayer && cam is not null && IsInstanceValid(cam) && cam.IsInsideTree();
             if (!on) { if (v.Quad is not null) v.Quad.Visible = false; continue; }
-            v.Comp ??= new Compositor { CompositorEffects = [new SmokeEffect(v)] };
-            if (cam!.Compositor != v.Comp) cam.Compositor = v.Comp;
+            // beside the camera's other effects (Mirror Rate Smooth's depth, MirrorDepth), not a compositor of its own over them
+            v.Effect ??= new SmokeEffect(v);
+            v.Slot.Keep(cam!, v.Effect, true);
             // its smoke's bits (the cockpit may have set the mask before the layer was up): its own quad, not the stand-in's puffs
             uint mask = MirrorMask(cam.CullMask, i);
             if (cam.CullMask != mask) cam.CullMask = mask;
@@ -159,7 +160,7 @@ public partial class SmokeLayer : Node3D
             // only in its own mirror's picture: a camera of another size (the weapon camera) that shows its layer draws nothing of it
             v.Mat!.SetShaderParameter(ViewSizeName, cam.GetViewport() is SubViewport sv ? (Vector2)sv.Size : Vector2.Zero);
             v.Quad.Visible = v.Version > 0 && total > 0;
-            if (Stats && i == 1 && (++_mirrorStat % 120) == 0) GD.Print($"smoke mirror: view {i} quad {v.Quad.Visible} mask {cam.CullMask:x} comp {cam.Compositor == v.Comp} puffs {total} targets {v.Size.X}x{v.Size.Y} version {v.Version} far {cam.Far:0} at {(cam.GetViewport() as SubViewport)?.Size}");
+            if (Stats && i == 1 && (++_mirrorStat % 120) == 0) GD.Print($"smoke mirror: view {i} quad {v.Quad.Visible} mask {cam.CullMask:x} comp {cam.Compositor?.CompositorEffects.Contains(v.Effect) == true} puffs {total} targets {v.Size.X}x{v.Size.Y} version {v.Version} far {cam.Far:0} at {(cam.GetViewport() as SubViewport)?.Size}");
         }
     }
     private static readonly StringName LayerName = "layer", ViewSizeName = "view_size";
@@ -212,7 +213,8 @@ public partial class SmokeLayer : Node3D
     private ShaderMaterial? _mat;
     private readonly Texture2Drd _t0 = new(), _t1 = new();
     private int _seen;
-    private Compositor? _compositor;
+    private CompositorEffect? _effect;
+    private readonly CompositorShare.Slot _mainSlot = new();
     private DirectionalLight3D? _sun;
     private static volatile bool _hasPuffs;
     private static readonly float[] CabInv = new float[16];
@@ -233,7 +235,7 @@ public partial class SmokeLayer : Node3D
         GetTree().NodeRemoved += OnNodeRemoved;
         _off = System.Environment.GetEnvironmentVariable("I76_SMOKE_LAYER") == "0";
         if (_off || RenderingServer.GetCurrentRenderingMethod() != "forward_plus" || RenderingServer.GetRenderingDevice() is null) { _failed = true; return; }
-        _compositor = new Compositor { CompositorEffects = [new SmokeEffect(Views[0])] };
+        _effect = new SmokeEffect(Views[0]);
         _mat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/smoke_layer.gdshader"), RenderPriority = (int)Material.RenderPriorityMin + 1 };
         _quad = new MeshInstance3D
         {
@@ -272,7 +274,7 @@ public partial class SmokeLayer : Node3D
             GatherLights(cam);
             return;
         }
-        if (cam is not null && cam.Compositor != _compositor) cam.Compositor = _compositor;
+        if (cam is not null && _effect is not null) _mainSlot.Keep(cam, _effect, true);   // beside the heat shimmer's
         if (Views[0].Version != _seen)
         {
             _seen = Views[0].Version;
@@ -549,7 +551,8 @@ public partial class SmokeLayer : Node3D
         public byte[] PuffBytes = [];
         public Godot.Collections.Array<RDUniform>? SetUniforms;
         // main thread
-        public Compositor? Comp;
+        public CompositorEffect? Effect;
+        public readonly CompositorShare.Slot Slot = new();
         public MeshInstance3D? Quad;
         public ShaderMaterial? Mat;
         public readonly Texture2Drd Tex = new();

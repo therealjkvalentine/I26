@@ -2119,6 +2119,10 @@ public partial class Cockpit : Node
         if (_warpPeriod == 0 || cam is null || _warpDrawn[mirror] is not { } then) return default;
         var now = WarpNone ? then : cam.GlobalTransform;   // I76_MIRROR_WARP=0: the overscan's crop alone, the picture as drawn
         var h = MirrorWarp.Homography(then.Basis, now.Basis, tan.Shown, tan.Drawn);
+        // the depth only once its effect runs on the camera and has made its texture: before, the texture is the engine's placeholder
+        // (a checkerboard), so the turn alone (MirrorWarp.DepthUsable)
+        bool usable = MirrorWarp.DepthUsable(_depthOn[mirror], _depth[mirror]?.Made == true);
+        if (!usable) depth = null;
         // the side cameras keep the car's own flank still (their depth, MirrorDepth); the move from the depth with I76_MIRROR_WARP=depth
         float attach = mirror > 0 && depth is not null && OwnSelfHook ? AttachMetres : 0f;
         return new(true, h, MirrorWarp.Turn(then.Basis, now.Basis), MirrorWarp.Shift(then, now.Origin), new(tan.Shown.X, tan.Shown.Y), new(tan.Drawn.X, tan.Drawn.Y),
@@ -2151,6 +2155,7 @@ public partial class Cockpit : Node
         if (_mirrorMat is null) return;
         if (_warpPeriod == 0 && !_warpWas) return;
         _warpWas = _warpPeriod > 0;
+        DepthPass();
         foreach (var d in _depth) d?.Sync();
         _rearWarp = WarpOf(0, _mirrorCam, _rearTan, _depth[0]?.Texture);
         SetWarp(_mirrorMat, _rearWarp);
@@ -2176,16 +2181,20 @@ public partial class Cockpit : Node
     /// </summary>
     private void DepthPass()
     {
-        Camera3D?[] cams = [_mirrorCam, _ownCams[0], _ownCams[1]];
         for (int i = 0; i < 3; i++)
         {
+            _depthOn[i] = false;
+            if ((i == 0 ? _mirrorCam : _ownCams[i - 1]) is not { } cam) continue;
             bool on = _warpPeriod > 0 && !_faithful && (WarpDepth || (i > 0 && OwnSelfHook));
-            if (cams[i] is not { } cam) continue;
             if (on && _depth[i] is null) _depth[i] = new MirrorDepth();
-            var want = on ? new Compositor { CompositorEffects = [_depth[i]!] } : null;
-            if (on != (cam.Compositor is not null)) cam.Compositor = want;
+            // in the camera's compositor beside the smoke layer's effect (CompositorShare), checked each frame (Warp)
+            if (_depth[i] is { } d) _depthOn[i] = _depthSlots[i].Keep(cam, d, on);
         }
     }
+
+    /// <summary>Each depth effect's place on its camera (rear, left, right), and whether it is in the camera's compositor.</summary>
+    private readonly CompositorShare.Slot[] _depthSlots = [new(), new(), new()];
+    private readonly bool[] _depthOn = new bool[3];
 
     // ---- Mirror Haze (MirrorHazeRow): the modern look's glass a little milky and soft ----
 

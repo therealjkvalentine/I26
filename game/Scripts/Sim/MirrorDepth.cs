@@ -32,6 +32,9 @@ public sealed partial class MirrorDepth : CompositorEffect
         if (_out.IsValid && Texture.TextureRdRid != _out) Texture.TextureRdRid = _out;
     }
 
+    /// <summary>Whether the texture holds a depth (the kernel has run and <see cref="Sync"/> handed it over): until then a material reads the engine's placeholder.</summary>
+    public bool Made => Texture.TextureRdRid.IsValid;
+
     public override void _RenderCallback(int effectCallbackType, RenderData renderData)
     {
         if (_failed || _setupFailed || effectCallbackType != (int)EffectCallbackTypeEnum.PostTransparent) return;
