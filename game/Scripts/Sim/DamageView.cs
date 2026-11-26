@@ -370,7 +370,10 @@ public partial class DamageView : Node3D
         // the modern wreck's shape (WreckShape) is open where its zones' damaged parts leave gaps: drawn from both sides, so its insides show
         car.SetBody(Builder.Meshes!.Build(m, wheels: false, include: CarNode.BodyParts(m), bothSides: car.Wrecked && car.Modern, frameOf: car.TexFrame));
         car.RefreshHood();
-        car.SetLamps(Builder.Meshes, m, new ModelAssembler(Builder.Vfs) { SkipParts = [] }.Assemble(car.Definition));
+        // the intact model the lamps are held against: the one kept for the car's kind (CarPartsCache: the same assembly), not
+        // assembled again at every change of a zone (1 to 13 ms a time on the main thread, in a fight several times a second)
+        var intact = Builder.CarParts.Has(car.Definition) ? Builder.CarParts.Get(car.Definition).Model : new ModelAssembler(Builder.Vfs) { SkipParts = [] }.Assemble(car.Definition);
+        car.SetLamps(Builder.Meshes, m, intact);
     }
 
     /// <summary>
