@@ -1,0 +1,45 @@
+# Grab the package and get back (T05's map): out east to the wreck, where a zone stands in for the pickup, then back to the
+# start with the gang behind you and 175 s on the clock (T05's, on the return leg). The win is T05's own rule: home with nobody
+# within 300 m.
+id: x05grab
+title: Grab and Go
+base: t05
+places:
+  wreck: [[10640, 44560]]                     # the pickup: beside T05's wreck
+  home:  [[8078, 44528]]                      # where the player starts
+  chase: [[10750, 44900], [10550, 44880]]     # the pursuers come down the road from the north lot
+  road:  [[10546, 44836], [10155, 44860], [9770, 44758], [9411, 44582], [9022, 44518], [8622, 44518], [8270, 44518], [8078, 44528]]
+                                              # the road back (no script uses it: a route for test drivers)
+objective:
+  template: deliver
+  pickup: {place: wreck, radius: 40}
+  home: {place: home, radius: 80}
+  clear: 300
+  deadline: 175                               # T05's clock, on the way back only
+  sleepers:                                   # T05's own cars, parked where T05 puts them
+    - {car: enemy10, wake: 250}               # the wreck's guards
+    - {car: enemy11, wake: 250}
+    - {car: enemy12, wake: 175}               # the hidden ambushers by the road
+    - {car: enemy13, wake: 175}
+    - {car: ENEMY8, wake: 175}
+    - {car: ENEMY7, wake: 200}                # the pincer pair
+    - {car: ENEMY9, wake: 200}
+  pursuit:
+    cars: [ENEMY2, ENEMY3, ENEMY4, ENEMY1]    # waiting in the lot north of the wreck
+    entry: chase
+    delay: 3
+    speed: 25
+  skill: 2
+radio:
+  trap: [14sta05]                             # got it, moving out
+  wave: [07sgc23]                             # the pursuers come in
+  win: [11sta08]                              # what took you so long
+text:
+  objectives:
+    - Drive east to the wreck and grab the package.
+    - (hidden)Bring it back to where you started, and hurry!
+    - (hidden)Don't lead anybody home.
+  failures:
+    - You should be more careful... try to stay alive.
+    - You can't just leave.
+    - Too slow. The package is worthless now.

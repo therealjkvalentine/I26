@@ -412,6 +412,8 @@ public sealed class LaunchOptions
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
         I76.Formats.Vfs.VoiceOverlay.Folder = I76.Formats.Vfs.VoiceOverlay.Resolve(o.Voices ?? System.Environment.GetEnvironmentVariable("I76_VOICES"), LocalRoot());
+        // the port's generated scenarios (docs/remix-missions.md): built into user://remix, found by name from here on
+        I76.Game.Shell.RemixScenarios.Ensure(o.Install);
         return o;
     }
 }

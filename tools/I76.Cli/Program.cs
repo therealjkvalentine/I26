@@ -35,6 +35,7 @@ using I76.Formats.Vfs;
 //   i76 [--install DIR] keysheet [input.map] [out.html]   the bindings as a printable page (default: the player's input.map, else the install's)
 //   i76 [--install DIR] [--nitro-install DIR] target-weight [--buffer 0.10] [--tsv OUT] [--md OUT] [--cars OUT] [MISSION...]   each trip mission's (and Nitro scenario's) opposition weight and a fair player car's budget (TargetWeightCommand)
 //   i76 [--install DIR] melee-sim [--minutes 10] [--seeds 1,2,3] [--tiers 1,1,3,3,5,5] [--mode off|auto|both]   bots of mixed skill with Handicaps off and Auto: kills, spread, level moves (docs/multiplayer.md "Auto handicap")
+//   i76 [--install DIR] [--remix-dir DIR] remix build SPEC.yaml... [--out DIR]   generated missions from remix descriptions (docs/remix-missions.md); run them with i76 --remix-dir DIR run STEM
 //   i76 [--install DIR] tick-bench t01|t05|t06|melee8|resim [--rate HZ] [--minutes 5] [--split] [--hashes FILE]   the sim's tick timed headless (docs/perf/tick-bench.md)
 
 var argv = args.ToList();
@@ -62,6 +63,10 @@ if (argv.Count == 0 || installDir is null)
     Console.Error.WriteLine("usage: i76 [--install DIR] verify|ls|cat|dump|mission|fsm-disasm ...  (or set I76_INSTALL)");
     return 2;
 }
+// --remix-dir DIR (or I76_REMIX_DIR): the folder of generated missions (i76 remix build), found by name like the install's
+int rdi = argv.IndexOf("--remix-dir");
+if (rdi >= 0) { GameInstall.UserMissionDir = argv[rdi + 1]; argv.RemoveRange(rdi, 2); }
+else if (Environment.GetEnvironmentVariable("I76_REMIX_DIR") is { Length: > 0 } rdEnv) GameInstall.UserMissionDir = rdEnv;
 var install = new GameInstall(installDir);
 var json = new JsonSerializerOptions { WriteIndented = true, IncludeFields = true };
 string Arg(int i) => argv.Count > i ? argv[i] : throw new ArgumentException($"{argv[0]} needs an argument");
@@ -682,6 +687,8 @@ switch (argv[0])
         return I76.Cli.PropSurvey.Run(install, argv);
     case "run":
         return I76.Cli.MissionRun.Run(install, argv);
+    case "remix":
+        return I76.Cli.RemixCommand.Run(install, argv);
     case "melee-sim":
         return I76.Cli.MeleeSim.Run(install, argv);
     case "tick-bench":

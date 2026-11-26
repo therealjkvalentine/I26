@@ -117,7 +117,11 @@ public sealed partial class MeleeScreen : ShellScreen
             AddDriver();
             Area = Math.Clamp(Area, 0, Arenas.Count - 1);
         }
-        else if (Mode == 1) Area = Math.Clamp(Area, 0, MeleeData.Scenarios.Length - 1);
+        else if (Mode == 1)
+        {
+            RemixScenarios.Ensure(Shell.Install.Root);   // the generated scenarios after the stock ones (docs/remix-missions.md)
+            Area = Math.Clamp(Area, 0, MeleeData.Scenarios.Length - 1);
+        }
         else NetEnter();
         _scroll = Mode is 7 or 8 ? 0 : Math.Clamp(Area - Rows + 1, 0, Math.Max(0, ListCount - Rows));
         Repaint();

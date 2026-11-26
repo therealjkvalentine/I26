@@ -1,0 +1,36 @@
+# The map driven backwards (T14's map): start at the county line and run 285 north to Spanner's truckstop, through the police
+# T14 parks along the road. Nothing of T14's own script runs: the exits are T14's, the cars wake as you pass.
+id: x14back
+title: Back to Spanner
+base: t14
+hour: 19
+start: {at: [6800, 40580], heading: 270}      # the county line, facing west down the road
+places:
+  truckstop: [[5420, 45180]]                  # the goal: Spanner's truckstop
+  road: [[6025, 40580], [5815, 40580], [5650, 40580], [5270, 41100], [5270, 42295], [5295, 43600], [5295, 44130], [5375, 44775], [5400, 45150]]
+                                              # T14's van route reversed (no script uses it: a route for test drivers)
+objective:
+  template: deliver
+  home: {place: truckstop, radius: 120}
+  clear: 400
+  sleepers:
+    - {car: cop4, wake: 450, siren: true}     # at the county line
+    - {car: cop5, wake: 450, siren: true}
+    - {car: cop6, wake: 450, siren: true}     # at the bend
+    - {car: cop7, wake: 450, siren: true}
+    - {car: cop2, wake: 450, siren: true}     # on 285
+    - {car: cop3, wake: 450, siren: true}
+    - {car: cop1, wake: 1200, siren: true}    # the welcome at the truckstop: out to meet you
+    - {car: swat1, wake: 1200}
+    - {car: swat2, wake: 1200}
+  skill: 2
+radio:
+  start: [07sgc23]                            # uh-oh: the sirens ahead
+  win: [10sta06]
+text:
+  objectives:
+    - Run 285 north back to Spanner's truckstop.
+    - Don't bring the cops home with you.
+  failures:
+    - You should be more careful... try to stay alive.
+    - You can't just leave.
