@@ -9,5 +9,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public static class ShaderNames
 {
-    public static readonly StringName SceneLight = "scene_light", SunView = "sun_view", Modern = "modern", Fade = "fade", Daylight = "daylight";
+    public static readonly StringName SceneLight = "scene_light", SunView = "sun_view", Modern = "modern", Fade = "fade", Daylight = "daylight", Age = "age";
+    /// <summary>A tracer's instance parameters (ModernFx.SetTracer, every round every frame).</summary>
+    public static readonly StringName TailFall = "tail_fall", Tail = "tail", Head = "head", Tint = "tint", Width = "width", Energy = "energy";
 }

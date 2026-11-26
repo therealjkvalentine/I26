@@ -1008,7 +1008,7 @@ public partial class CombatView : Node3D
             if (!IsInstanceValid(node) || !node.Visible) continue;
             float age = (float)((_t - start) / MuzzleLife);
             if (age >= 1f || !IsModern) node.Visible = false;
-            else node.SetInstanceShaderParameter("age", age);
+            else node.SetInstanceShaderParameter(ShaderNames.Age, age);
         }
 
         foreach (var (_, (light, far, cabin, until, cabinUntil)) in _muzzleLights)
