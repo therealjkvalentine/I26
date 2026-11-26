@@ -36,6 +36,11 @@ public sealed class RemixSpec
     public List<BindSpec> Remove { get; set; } = [];
     /// <summary>The stock leave-map threads dropped, by their exit path's label (a start beside an exit).</summary>
     public List<string> DropExits { get; set; } = [];
+    /// <summary>
+    /// The stock cars no kept thread and no template names (the base's mission threads drove them): remove (the default; they
+    /// would only stand where the base parked them) or keep (as decor).
+    /// </summary>
+    public string IdleCars { get; set; } = "remove";
     /// <summary>Gates (actor names: a stock actor or a bound placement) triggered (each trigger slides it the other way) at the template's moments.</summary>
     public GateSpec Gates { get; set; } = new();
     /// <summary>CB clips (sound file stems, the install's) played at the template's moments; the library's own pools (taunts, hit chatter, exits) run anyway.</summary>
@@ -99,12 +104,17 @@ public sealed class PursuitSpec
     /// <summary>Seconds after the trigger (the pickup, or the start when there is none).</summary>
     public int Delay { get; set; } = 3;
     public int Speed { get; set; } = 20;
+    /// <summary>Police cars' sirens on as they come in (tail).</summary>
+    public bool Siren { get; set; }
 }
 
 /// <summary>The objective template and its parameters (docs/remix-missions.md lists each template's).</summary>
 public sealed class ObjectiveSpec
 {
-    /// <summary>defend (attackers by several entries pick structures; lose when they are gone) or deliver (an optional pickup, then home with nobody near).</summary>
+    /// <summary>
+    /// defend (attackers by several entries pick structures; lose when they are gone), deliver (an optional pickup, then home
+    /// with nobody near), tail (lose the pursuers, then the hideout) or intercept (stop a convoy before its exit).
+    /// </summary>
     public string Template { get; set; } = "";
     // ---- defend ----
     public List<string> Defend { get; set; } = [];
@@ -129,10 +139,46 @@ public sealed class ObjectiveSpec
     public int Deadline { get; set; }
     /// <summary>pickup (the return leg only, T05's clock; the default with a pickup) or start (the whole run).</summary>
     public string? DeadlineFrom { get; set; }
-    // ---- both ----
+    // ---- tail ----
+    /// <summary>tail: the hideout, reached once the pursuers are lost; arriving with an enemy within <see cref="Clear"/> fails.</summary>
+    public ZoneSpec? Hideout { get; set; }
+    /// <summary>tail: lost means nobody hostile within the radius for the seconds.</summary>
+    public LostSpec? Lost { get; set; }
+    // ---- intercept ----
+    public ConvoySpec? Convoy { get; set; }
+    // ---- every template ----
     /// <summary>The enemies' skill tier (1 best .. 5), both driving and shooting.</summary>
     public int Skill { get; set; } = 2;
     public int Aggression { get; set; } = 1;
+}
+
+/// <summary>tail: when the pursuers count as lost.</summary>
+public sealed class LostSpec
+{
+    public int Radius { get; set; } = 500;
+    public int Seconds { get; set; } = 15;
+}
+
+/// <summary>intercept: a lead car driving a route to an exit, escorts keeping station on it, both turning on the player when alerted.</summary>
+public sealed class ConvoySpec
+{
+    /// <summary>The car that must not reach the exit (a cars or bind entry, or a stock actor).</summary>
+    public string Lead { get; set; } = "";
+    public List<string> Escorts { get; set; } = [];
+    /// <summary>The route the lead drives (a place of several points, or a stock path).</summary>
+    public string Route { get; set; } = "";
+    /// <summary>The zone whose reaching by the lead fails the mission (on a place: its first point).</summary>
+    public ZoneSpec? Exit { get; set; }
+    /// <summary>The route's speed, and once alerted (the player within <see cref="Alert"/> metres, or any of them shot).</summary>
+    public int Speed { get; set; } = 18;
+    public int AlertSpeed { get; set; } = 30;
+    public int Alert { get; set; } = 200;
+    /// <summary>Seconds from the start before it rolls.</summary>
+    public int Delay { get; set; } = 5;
+    /// <summary>Metres between the escorts' stations behind the lead.</summary>
+    public int Spacing { get; set; } = 20;
+    /// <summary>The escorts must die too (objective 2); false: the lead alone.</summary>
+    public bool KillEscorts { get; set; } = true;
 }
 
 public sealed class WaveSpec
@@ -145,6 +191,11 @@ public sealed class WaveSpec
 /// <summary>Gates triggered at the start, at the trap moment (defend: the arrival; deliver: the pickup) and at the win.</summary>
 public sealed class GateSpec
 {
+    /// <summary>
+    /// Seconds between two triggers of one gate: a gate ignores a trigger while it slides (GateMotion), so each gate's triggers
+    /// are queued and sent this far apart (longer than any stock gate's slide).
+    /// </summary>
+    public int Settle { get; set; } = 30;
     public List<string> Start { get; set; } = [];
     public List<string> Trap { get; set; } = [];
     public List<string> Win { get; set; } = [];

@@ -63,6 +63,24 @@ public sealed class ArenaSketch
     }
 
     /// <summary>
+    /// A sketch round given points (the port's map of a generated remix, docs/remix-missions.md): the region their span bounds,
+    /// each marked with an x (as a start is), the mission's roads and the given lines (a route) drawn as roads. Null when the
+    /// mission has no terrain under them.
+    /// </summary>
+    public static ArenaSketch? Around(MissionFile msn, TerrainTiles ter, IReadOnlyList<Vector2> marks, IReadOnlyList<Vector2[]> lines, int boxW, int boxH)
+    {
+        if (marks.Count == 0) return null;
+        var roads = msn.RoadSegments().Where(r => r.Points.Count > 1).Select(r => r.Points.Select(p => p.Raw.Length >= 24
+            ? new Vector2((Bin.F32(p.Raw, 0) + Bin.F32(p.Raw, 12)) / 2, (Bin.F32(p.Raw, 8) + Bin.F32(p.Raw, 20)) / 2)
+            : new Vector2(p.X, p.Z)).ToArray()).Concat(lines).ToList();
+        if (ter.Bounds() is var (r0, r1, _, _) && r1 < r0) return null;
+        return Build((sx, sz) => ter.Height(sx, sz), marks, [.. marks, .. lines.SelectMany(l => l)], roads, boxW, boxH);
+    }
+
+    /// <summary>Where each start (or mark) falls in the box, as fractions of its width and height (0,0 the top left).</summary>
+    public IReadOnlyList<Vector2> StartsInBox => _starts;
+
+    /// <summary>
     /// The sketch from heights (a sample's 12-bit height at global sample coordinates, null off the terrain; world height
     /// is a tenth of it) and world positions (X, Z): the starts, every placement (which with the starts bound the
     /// region drawn) and the roads' centre lines. Null when there is nothing to bound a region with.

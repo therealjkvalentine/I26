@@ -85,11 +85,14 @@ public class RemixMissionTests
             // the generated script decompiles and compiles back byte for byte, like a stock one
             var src = MissionScriptFile.Decompile(a.Mission, spec.Id).Script;
             Assert.Equal(a.Mission, MissionScriptFile.Compile(src, a.Mission));
-            // its own threads plus the base's library ones, and nothing of the base's own threads
+            // its own threads plus (some of) the base's library ones, and nothing of the base's own threads
             var stock = MissionScriptFile.Decompile(File.ReadAllBytes(basePath), spec.Base).Script;
             var own = stock.Threads.Count(t => int.Parse(t.Script[6..]) >= RemixBuilder.LibraryRoutines);
             Assert.True(own > 0, name);
-            Assert.Equal(stock.Threads.Count - own + RemixThreads(a.Source), src.Threads.Count);
+            int library = src.Threads.Count - RemixThreads(a.Source);
+            Assert.InRange(library, 1, stock.Threads.Count - own);
+            Assert.All(MissionScriptYaml.Read(a.Source).Threads.Where(t => !t.Name.StartsWith("rx_", StringComparison.Ordinal)),
+                t => Assert.True(int.Parse(t.Script[6..].Split('+')[0]) < RemixBuilder.LibraryRoutines, t.Name));
             // the text the build wrote is the text the game reads
             var text = ObjectiveText.Parse(a.Text);
             Assert.Equal(spec.Text.Objectives.Count, text.Objectives.Count);
@@ -115,10 +118,10 @@ public class RemixMissionTests
         var (built, errors) = RemixBuilder.BuildAll(install, specs, dir);
         Assert.Empty(errors);
         Assert.Empty(built);   // all current
-        var edited = specs[0].Yaml.Replace("skill: 2", "skill: 3");
-        Assert.NotEqual(specs[0].Yaml, edited);
+        var one = specs.First(x => x.Yaml.Contains("skill: 2"));
+        var edited = one.Yaml.Replace("skill: 2", "skill: 3");
         var spec = RemixSpec.Parse(edited);
-        Assert.NotEqual(RemixBuilder.Stamp(RemixSpec.Parse(specs[0].Yaml), File.ReadAllBytes(install.FindMission(spec.Base)!)),
+        Assert.NotEqual(RemixBuilder.Stamp(RemixSpec.Parse(one.Yaml), File.ReadAllBytes(install.FindMission(spec.Base)!)),
             RemixBuilder.Stamp(spec, File.ReadAllBytes(install.FindMission(spec.Base)!)));
         Assert.Equal(specs.Count, RemixBuilder.Listed(dir).Count);
     }
@@ -293,7 +296,7 @@ public class RemixMissionTests
             {
                 SnapshotRig.Tick(a);
                 SnapshotRig.TakeEvents(a);
-                if (a.Ticks == 700) snap = a.Snapshot();
+                if (a.Ticks == 200) snap = a.Snapshot();
             }
             var end = a.StateHash();
             int ticks = a.Ticks;
@@ -307,5 +310,95 @@ public class RemixMissionTests
             while (fresh.Ticks < ticks) { SnapshotRig.Tick(fresh); SnapshotRig.TakeEvents(fresh); }
             Assert.Equal(end, fresh.StateHash());
         }
+    }
+
+    private static I76.Sim.Collision.GateMotion FarmFence(MissionSetup setup) =>
+        setup.Entities.Where(e => e.Name == "afence5" && e.Static is not null).OrderByDescending(e => e.Position.X).First().Static!
+            .Nodes.First(n => n.Gate is not null).Gate!;
+
+    /// <summary>
+    /// Bug 6: a gate ignores a trigger while it slides (the original's GateMotion). Arriving at the farms while the east fence is
+    /// still opening from the start used to leave it open; the template's gate queue sends the trap's trigger once the slide is over.
+    /// </summary>
+    [Fact]
+    public void ATrapTriggeredWhileTheGateStillSlidesIsQueuedNotLost()
+    {
+        if (Built() is null) return;
+        var (s, setup) = Make("x07farm");
+        var g = FarmFence(setup);
+        var zone = PathStart("x07farm", "rx_farms");
+        Step(s, 20 * 3);
+        Assert.True(g.Moving, "the fence is still opening");
+        MovePlayer(setup, zone.X, zone.Z);
+        Step(s, 20);
+        Assert.NotEqual(0, s.Script!.Host.Objectives.Flags[0] & Objectives.Succeeded);   // arrived while it slides
+        Step(s, 20 * 60);
+        Assert.True(g.X == 0 && !g.Moving, $"shut behind the player: x {g.X} moving {g.Moving}");
+    }
+
+    /// <summary>Bug 8: the stock cars nothing drives any more are taken out; the ones a template names stay.</summary>
+    [Fact]
+    public void IdleStockCarsAreRemovedAndTheNamedOnesKept()
+    {
+        if (Built() is null) return;
+        var (_, farm) = Make("x07farm");
+        Assert.DoesNotContain(farm.Entities, e => e.Vehicle is not null && e.Name is "vcpolic3" or "t07cp01");   // T07's parked police
+        Assert.Equal(6, farm.Entities.Count(e => e.Vehicle is not null && e.Name is "vccameo1" or "vfpalmn1" or "vcgcour1" or "vcmanta1" or "vcvan1" or "vfpalmn2"));
+        var (_, back) = Make("x14back");
+        Assert.DoesNotContain(back.Entities, e => e.Vehicle is not null && e.Name is "vxbus1" or "vgoon1" or "vxktrac1");
+        Assert.Equal(7, back.Entities.Count(e => e.Vehicle is not null && e.Name.StartsWith("t14cp")));   // the sleepers
+    }
+
+    /// <summary>
+    /// Bug 11: a raider dead to friendly fire or its own mines is not the player's kill: it never starts a wave before the player
+    /// has arrived; once he has, a wave whose earlier waves are all dead starts however they died.
+    /// </summary>
+    [Fact]
+    public void ARaidersOwnDeathStartsNoWaveWithoutThePlayer()
+    {
+        if (Built() is null) return;
+        var (s, setup) = Make("x07farm");
+        var h = s.Script!.Host;
+        Step(s, 20 * 26);   // the first wave is out (25 s)
+        var first = setup.Entities.Where(e => e.Name is "vccameo1" or "vfpalmn1").ToList();
+        var second = setup.Entities.Where(e => e.Name is "vcgcour1" or "vcmanta1").ToList();
+        Assert.All(first, e => Assert.NotEqual(I76.Sim.Fsm.AiOrder.Hide, e.Order));
+        foreach (var e in first) h.Destroy(e);   // nobody's kill
+        Step(s, 20 * 10);
+        Assert.All(second, e => Assert.Equal(I76.Sim.Fsm.AiOrder.Hide, e.Order));   // no wave without the player
+        var zone = PathStart("x07farm", "rx_farms");
+        MovePlayer(setup, zone.X, zone.Z);
+        Step(s, 20 * 2);
+        Assert.All(second, e => Assert.NotEqual(I76.Sim.Fsm.AiOrder.Hide, e.Order));   // he is there and nobody is left: the next wave
+
+        // the player's kills: two of them start the second wave (at_kills 2)
+        var (k, ks) = Make("x07farm");
+        Step(k, 20 * 26);
+        var a = ks.Entities.First(e => e.Name == "vccameo1");
+        a.KilledByPlayer = true;
+        k.Script!.Host.Destroy(a);
+        Step(k, 20 * 5);
+        Assert.All(ks.Entities.Where(e => e.Name is "vcgcour1" or "vcmanta1"), e => Assert.Equal(I76.Sim.Fsm.AiOrder.Hide, e.Order));
+        var b = ks.Entities.First(e => e.Name == "vfpalmn1");
+        b.KilledByPlayer = true;
+        k.Script.Host.Destroy(b);
+        Step(k, 20 * 2);
+        Assert.All(ks.Entities.Where(e => e.Name is "vcgcour1" or "vcmanta1"), e => Assert.NotEqual(I76.Sim.Fsm.AiOrder.Hide, e.Order));
+    }
+
+    /// <summary>Bug 5: each remix carries the marks the port's map draws (its start and the template's places), and is known as a remix.</summary>
+    [Fact]
+    public void EveryRemixCarriesItsMapMarks()
+    {
+        if (Built() is null) return;
+        foreach (var (stem, labels) in new[] { ("x07farm", "START|DEFEND"), ("x05grab", "START / HOME|PICKUP"), ("x14back", "START|HOME") })
+        {
+            Assert.True(RemixMarks.IsRemix(stem), stem);
+            var m = RemixMarks.For(stem)!;
+            Assert.Equal(labels.Split('|'), m.Points.Select(p => p.Label));
+            var round = RemixMarks.Parse(m.ToText());
+            Assert.Equal(m.Points.Select(p => (p.Label, p.At)), round.Points.Select(p => (p.Label, p.At)));
+        }
+        Assert.False(RemixMarks.IsRemix("t07"));
     }
 }

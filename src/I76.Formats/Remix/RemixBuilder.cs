@@ -11,10 +11,12 @@ namespace I76.Formats.Remix;
 /// <summary>What a build makes: the mission file, its objective text, the script's source (for reading) and the build's stamp.</summary>
 public sealed record RemixOutput(string Stem, byte[] Mission, string Text, string Source, string Stamp)
 {
+    /// <summary>What the port's map (M) of the remix marks: <see cref="RemixMarks"/>' text.</summary>
+    public string Marks { get; init; } = "";
     public string MissionFile => Stem + ".msn";
     public string TextFile => Stem + ".npt";
 
-    /// <summary>Writes the files into <paramref name="dir"/> (never an install's folder): STEM.msn, STEM.npt, STEM.yaml, STEM.remix.</summary>
+    /// <summary>Writes the files into <paramref name="dir"/> (never an install's folder): STEM.msn, STEM.npt, STEM.yaml, STEM.marks, STEM.remix (last: the stamp says the rest is there).</summary>
     public IReadOnlyList<string> WriteTo(string dir)
     {
         Directory.CreateDirectory(dir);
@@ -23,6 +25,7 @@ public sealed record RemixOutput(string Stem, byte[] Mission, string Text, strin
         Put(MissionFile, Mission);
         Put(TextFile, Encoding.Latin1.GetBytes(Text));
         Put(Stem + ".yaml", Encoding.UTF8.GetBytes(Source));
+        Put(Stem + ".marks", Encoding.UTF8.GetBytes(Marks));
         Put(Stem + ".remix", Encoding.UTF8.GetBytes(Stamp));
         return o;
     }
@@ -38,7 +41,7 @@ public sealed record RemixOutput(string Stem, byte[] Mission, string Text, strin
 public static class RemixBuilder
 {
     /// <summary>The generator's version, in the stamp: a build by another version is made again.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
     /// <summary>The stock library's routines lead every mission's code: Interstate '76's 15, the Nitro Pack's 28 (docs/mission-scripts.md).</summary>
     public const int LibraryRoutines = 15, NitroLibraryRoutines = 28;
     public const string PathPrefix = "rx_";
@@ -119,14 +122,15 @@ public static class RemixBuilder
         Name13(w, 0x11, "");                        // nor the outro
         Name13(w, 0x45, spec.Id + ".npt");          // its own objective text
         doc.ArenaName = spec.Title;
-        var edited = doc.ToBytes();
 
         // ---- the script ----
         var src = Library(stock, spec, install.IsNitro);
+        var libraryThreads = src.Threads.ToList();
         foreach (var a in newActors) src.Actors.Add(a);
         var stockPlayer = stock.Actors.FirstOrDefault(a => a.Id is { } id && id.AsSpan().SequenceEqual(playerId))?.Key
             ?? throw new RemixError($"{spec.Base}'s script names no actor for the player's placement");
-        var ctx = new RemixTemplates.Context(spec, stockPlayer, n => Actor(n, actors, stock), n => Place(n, placeKeys), n => headings[Place(n, placeKeys)]);
+        var used = new HashSet<string>(StringComparer.Ordinal) { stockPlayer };
+        var ctx = new RemixTemplates.Context(spec, stockPlayer, n => { var k = Actor(n, actors, stock); used.Add(k); return k; }, n => Place(n, placeKeys), n => headings[Place(n, placeKeys)]);
         var fragment = RemixTemplates.Emit(ctx);
         foreach (var piece in fragment.Split("---\n", StringSplitOptions.RemoveEmptyEntries))
         {
@@ -135,6 +139,25 @@ public static class RemixBuilder
             catch (ScriptError ex) { throw new RemixError($"the template's source: {ex.Message}\n{piece}"); }
             Merge(src, part);
         }
+        // the stock cars nothing drives any more: the base's mission threads (dropped) did; they would only stand where it parked them
+        switch (spec.IdleCars)
+        {
+            case "keep": break;
+            case "remove":
+                var keep = new HashSet<string>(newActors.Select(a => Convert.ToHexString(a.Id!)), StringComparer.Ordinal);
+                foreach (var a in stock.Actors.Where(a => a.Id is not null && used.Contains(a.Key))) keep.Add(Convert.ToHexString(a.Id!));
+                var gone = doc.Objects.Where(o => o.ObjectType == 1 && o != player && !keep.Contains(Convert.ToHexString(o.Payload, 0, 8)))
+                    .Select(o => Convert.ToHexString(o.Payload, 0, 8)).ToHashSet(StringComparer.Ordinal);
+                doc.Objects.RemoveAll(o => o.ObjectType == 1 && gone.Contains(Convert.ToHexString(o.Payload, 0, 8)));
+                // and the library threads that watched them (a car's kill line, the ally's friendly-fire chatter): their car is gone
+                var goneKeys = stock.Actors.Where(a => a.Id is not null && gone.Contains(Convert.ToHexString(a.Id))).Select(a => a.Key).ToHashSet(StringComparer.Ordinal);
+                var globalsByName = src.Globals.GroupBy(g => g.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Value, StringComparer.Ordinal);
+                src.Threads.RemoveAll(t => libraryThreads.Contains(t) && (t.Named?.Select(x => x.Global) ?? t.Positional ?? [])
+                    .Any(g => globalsByName.TryGetValue(g, out var v) && v is { Kind: RefKind.Actor, Key: { } k } && goneKeys.Contains(k)));
+                break;
+            default: throw new RemixError($"idle_cars '{spec.IdleCars}': remove or keep");
+        }
+        var edited = doc.ToBytes();
         byte[] compiled;
         try { compiled = MissionScriptFile.Compile(src, edited); }
         catch (ScriptError ex) { throw new RemixError($"compiling: {ex.Message}"); }
@@ -142,8 +165,25 @@ public static class RemixBuilder
         var text = Text(spec.Text);
         var source = $"# generated by the remix builder from {spec.Id}'s description on {spec.Base}: not stock content, never in the repository\n"
             + MissionScriptYaml.Write(src);
-        return new RemixOutput(spec.Id.ToLowerInvariant(), compiled, text, source, Stamp(spec, bytes));
+        var marks = RemixMarks.Of(spec, new Vector2(player.Position.X, player.Position.Z), name => PlacePoints(name, placeKeys, doc),
+            name => actors.TryGetValue(name, out var key) ? newActors.FirstOrDefault(a => a.Key == key) is { } na ? Where(doc, na.Id!) : null
+                : stock.Actors.FirstOrDefault(a => a.Key == name) is { Id: { } sid } ? Where(doc, sid) : null);
+        return new RemixOutput(spec.Id.ToLowerInvariant(), compiled, text, source, Stamp(spec, bytes)) { Marks = marks.ToText() };
     }
+
+    /// <summary>A place's points (x, z), by its name in the description (a place, or a stock path's key).</summary>
+    private static IReadOnlyList<Vector2> PlacePoints(string name, Dictionary<string, string> keys, MapDocument doc)
+    {
+        if (!keys.TryGetValue(name, out var key)) return [];
+        var labels = MissionScriptDecompiler.Keys(doc.Paths.Select(p => p.Name));
+        int i = Array.IndexOf(labels, key);
+        if (i < 0) i = doc.Paths.FindIndex(p => p.Name.Equals(key, StringComparison.OrdinalIgnoreCase));
+        return i < 0 ? [] : [.. doc.Paths[i].Points.Select(p => new Vector2(p.X, p.Z))];
+    }
+
+    /// <summary>Where a placement stands (x, z), by its 8-byte id; null when it is gone.</summary>
+    private static Vector2? Where(MapDocument doc, byte[] id) =>
+        doc.Objects.FirstOrDefault(o => o.Payload.AsSpan(0, 8).SequenceEqual(id)) is { } o ? new Vector2(o.Position.X, o.Position.Z) : null;
 
     /// <summary>The stamp a build of this description on this base file carries: a build is current while it matches.</summary>
     public static string Stamp(RemixSpec spec, byte[] baseFile)

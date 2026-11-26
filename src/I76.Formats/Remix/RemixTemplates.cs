@@ -25,8 +25,10 @@ public static class RemixTemplates
     private static string SoundKey(string clip) => "rx_cb_" + clip.ToLowerInvariant();
 
     /// <summary>
-    /// What every template shares, as a document of its own (merged like the template's): the radio's clips in the sounds table
-    /// and the start's gates (a thread that triggers each once).
+    /// What every template shares, as a document of its own (merged like the template's): the radio's clips in the sounds table,
+    /// the gate queue and the start's gates and radio. A gate ignores a trigger while it slides (GateMotion: the original's), so
+    /// the templates never trigger one directly: each moment adds one to the gate's count of wanted triggers (rx_gwK), and a
+    /// thread per gate sends them one at a time, <see cref="GateSpec.Settle"/> seconds apart.
     /// </summary>
     private static string Common(Context c)
     {
@@ -39,16 +41,65 @@ public static class RemixTemplates
             y.Append("sounds:\n");
             foreach (var clip in clips) y.Append($"  {SoundKey(clip)}: {clip.ToLowerInvariant()}.wav\n");
         }
-        if (c.Spec.Gates.Start.Count > 0 || c.Spec.Radio.Start.Count > 0)
+        var gates = GateList(c);
+        if (gates.Count > 0)
         {
-            y.Append("scripts:\n  rx_start:\n    steps:\n      - do:\n");
-            foreach (var a in Gates(c, c.Spec.Gates.Start).Concat(Say(c.Spec.Radio.Start))) y.Append($"          - {a}\n");
-            y.Append("threads:\n  rx_start: {script: rx_start}\n");
+            if (c.Spec.Gates.Settle is < 1 or > 600) throw new RemixError($"gates: settle {c.Spec.Gates.Settle}: 1-600 seconds");
+            y.Append("globals:\n");
+            for (int k = 0; k < gates.Count; k++) y.Append($"  rx_g{k}: actor.{c.Actor(gates[k])}\n  rx_gw{k}: 0\n");
         }
+        bool start = c.Spec.Gates.Start.Count > 0 || c.Spec.Radio.Start.Count > 0;
+        if (gates.Count > 0 || start) y.Append("scripts:\n");
+        if (gates.Count > 0)
+            y.Append($$"""
+                  rx_gate:
+                    fields: [gate, want]
+                    variables: {done: 0, timer: null}
+                    steps:
+                      - repeat:
+                          - wait_until: done < want
+                            then:
+                              - triggerGate(gate)
+                              - inc(done)
+                              - startTimer(timer)
+                          - wait_until: timeGreater(timer, {{c.Spec.Gates.Settle}})
+
+                """);
+        if (start)
+        {
+            y.Append($"  rx_start:\n    fields: [{GateFields(c, lead: false)}]\n    steps:\n      - do:\n");
+            foreach (var a in Gates(c, c.Spec.Gates.Start).Concat(Say(c.Spec.Radio.Start))) y.Append($"          - {a}\n");
+        }
+        if (gates.Count > 0 || start) y.Append("threads:\n");
+        for (int k = 0; k < gates.Count; k++) y.Append($"  rx_gate{k}: {{script: rx_gate, args: {{gate: rx_g{k}, want: rx_gw{k}}}}}\n");
+        if (start) y.Append($"  rx_start: {{script: rx_start, args: {{{GateArgs(c, lead: false)}}}}}\n");
         return y.Length == 0 ? "" : y.Append("---\n").ToString();
     }
 
-    private static IEnumerable<string> Gates(Context c, IEnumerable<string> gates) => gates.Select(g => $"triggerGate(actor.{c.Actor(g)})");
+    /// <summary>Every gate a moment triggers, each once, in the order first named.</summary>
+    private static List<string> GateList(Context c) =>
+        [.. c.Spec.Gates.Start.Concat(c.Spec.Gates.Trap).Concat(c.Spec.Gates.Win).Distinct(StringComparer.Ordinal)];
+
+    /// <summary>The gate counters as a routine's fields (", gw0, gw1"; without the leading comma when <paramref name="lead"/> is false).</summary>
+    private static string GateFields(Context c, bool lead = true)
+    {
+        var f = string.Join(", ", GateList(c).Select((_, k) => $"gw{k}"));
+        return lead && f.Length > 0 ? ", " + f : f;
+    }
+
+    /// <summary>The gate counters bound in a thread's args.</summary>
+    private static string GateArgs(Context c, bool lead = true)
+    {
+        var f = string.Join(", ", GateList(c).Select((_, k) => $"gw{k}: rx_gw{k}"));
+        return lead && f.Length > 0 ? ", " + f : f;
+    }
+
+    /// <summary>A moment's gates: one more wanted trigger each (the gate's thread sends it when the gate is still).</summary>
+    private static IEnumerable<string> Gates(Context c, IEnumerable<string> gates)
+    {
+        var all = GateList(c);
+        return gates.Select(g => $"inc(gw{all.IndexOf(g)})");
+    }
 
     private static IEnumerable<string> Say(IEnumerable<string> clips) => clips.Select(k => $"cbPrior(sound.{SoundKey(k)}, 3)");
 
@@ -79,21 +130,30 @@ public static class RemixTemplates
         int mayLose = o.MayLose ?? n - 1;
         var y = new StringBuilder();
         y.Append("globals:\n");
-        y.Append($"  rx_user: actor.{c.Player}\n  rx_dead: 0\n  rx_lost: 0\n  rx_arrived: {(o.Arrive is null ? 1 : 0)}\n  rx_started: 0\n");
+        y.Append($"  rx_user: actor.{c.Player}\n  rx_dead: 0\n  rx_kills: 0\n  rx_lost: 0\n  rx_arrived: {(o.Arrive is null ? 1 : 0)}\n  rx_started: 0\n");
         if (o.Arrive is { } ar) y.Append($"  rx_zone: path.{c.Place(ar.Place)}\n");
         for (int i = 0; i < n; i++) y.Append($"  rx_s{i}: actor.{c.Actor(o.Defend[i])}\n");
         for (int i = 0; i < e; i++) y.Append($"  rx_e{i}: path.{c.Place(o.Entries[i])}\n  rx_h{i}: {N(c.Heading(o.Entries[i]))}\n");
+        // a wave starts at its kill count, counting the player's kills only (isGroovesFault), or, once the player has arrived, when
+        // every car of the waves before it is dead however it died (friendly fire, its own mines): a raider's own death never
+        // starts a wave without the player, and no wave waits for a kill that can no longer come
+        var before = o.Waves.Select((w, j) => o.Waves.Take(j).Sum(x => x.Cars.Count)).ToList();
         for (int i = 0; i < m; i++)
-            y.Append($"  rx_a{i}: actor.{c.Actor(cars[i].Car)}\n  rx_wt{i}: {N(cars[i].Wave.AtSeconds)}\n  rx_wk{i}: {N(cars[i].Wave.AtKills)}\n");
+            y.Append($"  rx_a{i}: actor.{c.Actor(cars[i].Car)}\n  rx_wt{i}: {N(cars[i].Wave.AtSeconds)}\n  rx_wk{i}: {N(cars[i].Wave.AtKills)}\n  rx_wb{i}: {N(before[o.Waves.IndexOf(cars[i].Wave)])}\n");
 
         y.Append("scripts:\n");
         var sFields = string.Join(", ", Enumerable.Range(0, n).Select(i => $"s{i}"));
         var eFields = string.Join(", ", Enumerable.Range(0, e).Select(i => $"e{i}, h{i}"));
         y.Append($$"""
               rx_raider:
-                fields: [car, user, dead, started, arrived, wtime, wkills, {{sFields}}, {{eFields}}]
+                fields: [car, user, dead, kills, started, arrived, wtime, wkills, wbefore, {{sFields}}, {{eFields}}]
                 variables: {timer: null, pick: null, target: null, entry: null, keep: null}
                 guards:
+                  - when: isDead(car) && isGroovesFault(car)
+                    then:
+                      - inc(dead)
+                      - inc(kills)
+                    goto: stop
                   - when: isDead(car)
                     then: inc(dead)
                     goto: stop
@@ -107,7 +167,7 @@ public static class RemixTemplates
                   - wait_until: started == 1
                     then: startTimer(timer)
                     while_waiting: hide(car)
-                  - wait_until: timeGreater(timer, wtime) && !(dead < wkills)
+                  - wait_until: timeGreater(timer, wtime) && (!(kills < wkills) || arrived == 1 && !(dead < wbefore))
                     then: startCar(car)
                     while_waiting: hide(car)
                   - wait:
@@ -167,9 +227,9 @@ public static class RemixTemplates
 
             """);
         // the controller: arrival (the trap shuts), the later waves' radio, the fails, the win
-        var later = o.Waves.Where(w => w.AtKills > 0).Select(w => w.AtKills).Distinct().Order().ToList();
+        var later = o.Waves.Select((w, j) => (w.AtKills, Before: before[j])).Where(w => w.AtKills > 0).ToList();
         var vars = string.Join(", ", new[] { "clock: null" }.Concat(later.Select((_, k) => $"wave{k}: 0")));
-        y.Append($"  rx_defend:\n    fields: [user, dead, lost, arrived, started{(o.Arrive is null ? "" : ", zone")}]\n    variables: {{{vars}}}\n    steps:\n");
+        y.Append($"  rx_defend:\n    fields: [user, dead, kills, lost, arrived, started{(o.Arrive is null ? "" : ", zone")}{GateFields(c)}]\n    variables: {{{vars}}}\n    steps:\n");
         y.Append("      - do:\n          - startTimer(clock)\n          - set(started, 1)\n");
         y.Append("      - wait:\n");
         y.Append("          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n");
@@ -184,8 +244,8 @@ public static class RemixTemplates
         if (c.Spec.Radio.Wave.Count > 0)
             for (int k = 0; k < later.Count; k++)
             {
-                // a wave's call when its kill count is reached (one clip a wave, in turn)
-                y.Append($"          - when: wave{k} == 0 && !(dead < {later[k]})\n");
+                // a wave's call as it starts (its kill count, or the waves before it gone; one clip a wave, in turn)
+                y.Append($"          - when: wave{k} == 0 && (!(kills < {later[k].AtKills}) || arrived == 1 && !(dead < {later[k].Before}))\n");
                 y.Append(Then(12, [$"set(wave{k}, 1)", .. Say([c.Spec.Radio.Wave[k % c.Spec.Radio.Wave.Count]])]));
                 y.Append("            goto: restart\n");
             }
@@ -195,11 +255,11 @@ public static class RemixTemplates
         y.Append("          - when: isCBEmpty()\n            then: successAll(3)\n            goto: stop\n");
 
         y.Append("threads:\n");
-        y.Append($"  rx_defend: {{script: rx_defend, args: {{user: rx_user, dead: rx_dead, lost: rx_lost, arrived: rx_arrived, started: rx_started{(o.Arrive is null ? "" : ", zone: rx_zone")}}}}}\n");
+        y.Append($"  rx_defend: {{script: rx_defend, args: {{user: rx_user, dead: rx_dead, kills: rx_kills, lost: rx_lost, arrived: rx_arrived, started: rx_started{(o.Arrive is null ? "" : ", zone: rx_zone")}{GateArgs(c)}}}}}\n");
         for (int i = 0; i < n; i++) y.Append($"  rx_lost{i}: {{script: rx_lost, args: {{s: rx_s{i}, lost: rx_lost}}}}\n");
         for (int i = 0; i < m; i++)
         {
-            var args = new List<string> { $"car: rx_a{i}", "user: rx_user", "dead: rx_dead", "started: rx_started", "arrived: rx_arrived", $"wtime: rx_wt{i}", $"wkills: rx_wk{i}" };
+            var args = new List<string> { $"car: rx_a{i}", "user: rx_user", "dead: rx_dead", "kills: rx_kills", "started: rx_started", "arrived: rx_arrived", $"wtime: rx_wt{i}", $"wkills: rx_wk{i}", $"wbefore: rx_wb{i}" };
             args.AddRange(Enumerable.Range(0, n).Select(k => $"s{k}: rx_s{k}"));
             args.AddRange(Enumerable.Range(0, e).SelectMany(k => new[] { $"e{k}: rx_e{k}", $"h{k}: rx_h{k}" }));
             y.Append($"  rx_raider{i}: {{script: rx_raider, args: {{{string.Join(", ", args)}}}}}\n");
@@ -293,7 +353,7 @@ public static class RemixTemplates
                   - wait_until: isDead(user)
                     while_waiting: attack(car, user, 1)
               rx_deliver:
-                fields: [user, have, home{{(pick ? ", pickup" : "")}}]
+                fields: [user, have, home{{(pick ? ", pickup" : "")}}{{GateFields(c)}}]
                 variables: {clock: null}
                 steps:
                   - do: startTimer(clock)
@@ -325,7 +385,7 @@ public static class RemixTemplates
         y.Append("          - when: isCBEmpty()\n            then: successAll(3)\n            goto: stop\n");
 
         y.Append("threads:\n");
-        y.Append($"  rx_deliver: {{script: rx_deliver, args: {{user: rx_user, have: rx_have, home: rx_home{(pick ? ", pickup: rx_pickup" : "")}}}}}\n");
+        y.Append($"  rx_deliver: {{script: rx_deliver, args: {{user: rx_user, have: rx_have, home: rx_home{(pick ? ", pickup: rx_pickup" : "")}{GateArgs(c)}}}}}\n");
         for (int i = 0; i < o.Sleepers.Count; i++) y.Append($"  rx_sleeper{i}: {{script: rx_sleeper, args: {{car: rx_z{i}, user: rx_user, have: rx_have, wake: rx_zw{i}, siren: rx_zs{i}}}}}\n");
         if (pu2 is not null)
         {

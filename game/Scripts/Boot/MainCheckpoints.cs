@@ -163,7 +163,8 @@ public partial class Main
         {
             GD.PrintErr($"checkpoint: the restore failed ({ex.Message}); the mission starts over");
             _checkpoint = null;
-            _resumeNotice = Checkpoint.Notice(Checkpoint.Problem.Unreadable);   // (another install or car; a version's was refused at the launch)
+            // (another install or car; a version's was refused at the launch; a remix rebuilt since is told as such)
+            _resumeNotice = Checkpoint.Notice(Checkpoint.RestoreProblem(ex, I76.Formats.Remix.RemixMarks.IsRemix(cp.Mission)));
             NextMission = _launch?.Mission ?? _opt.Mission;
             _restarting = true;
             Callable.From(() => GetTree().ReloadCurrentScene()).CallDeferred();

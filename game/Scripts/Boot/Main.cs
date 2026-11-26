@@ -666,22 +666,30 @@ public partial class Main : Node3D
 	{
 		Texture2D? pic;
 		string stem;
-		if (kind == MissionPicture.Kind.Map)
+		// a generated remix's map: the port's sketch with its own marks, never the base mission's painted ones (docs/remix-missions.md)
+		var remix = kind == MissionPicture.Kind.Map ? RemixMapPicture.For(_opt.Install, _opt.Mission, _mode1997) : null;
+		if (remix is not null) stem = "";
+		else if (kind == MissionPicture.Kind.Map)
 		{
 			// WRLD +0x79 names it; none ("No map specified for this mission"): nothing happens
 			if (_builder?.Settings?.Overview is not { Length: > 0 } name) return;
 			stem = System.IO.Path.GetFileNameWithoutExtension(name);
 		}
 		else stem = $"ZNPD6{DriverVariant()}01";
-		// the install's own first: no picture there, no map (an upscale alone does not make one)
-		if (Picture(stem) is not { } low) return;
-		var hd = HdPicture(stem, kind == MissionPicture.Kind.Map);
-		pic = hd ?? low;
+		Texture2D? hd = null;
+		if (remix is { } rm) pic = rm.Picture;
+		else
+		{
+			// the install's own first: no picture there, no map (an upscale alone does not make one)
+			if (Picture(stem) is not { } low) return;
+			hd = HdPicture(stem, kind == MissionPicture.Kind.Map);
+			pic = hd ?? low;
+		}
 		if (_net is null) GetTree().Paused = true;
 		if (GetNodeOrNull<AudioStreamPlayer>("Music") is { } music) music.ProcessMode = ProcessModeEnum.Always;
 		var layer = new CanvasLayer { Layer = 40, ProcessMode = ProcessModeEnum.Always, Name = "MissionPicture" };
 		Font? lee = null;
-		if (kind == MissionPicture.Kind.Notepad && _opt.Install is not null)
+		if ((kind == MissionPicture.Kind.Notepad || remix is not null) && _opt.Install is not null)
 		{
 			var f = new FontFile { Antialiasing = _mode1997 ? TextServer.FontAntialiasing.None : TextServer.FontAntialiasing.Gray };
 			if (f.LoadDynamicFont((new I76.Formats.Vfs.GameInstall(_opt.Install).FindFile("Lee_____.ttf") ?? System.IO.Path.Combine(_opt.Install, "Lee_____.ttf"))) == Error.Ok) lee = f;
@@ -692,6 +700,7 @@ public partial class Main : Node3D
 		var view = new MissionPicture
 		{
 			What = kind, Picture = pic, Objectives = objectives, Lee = lee,
+			Marks = remix?.Marks ?? [], Title = remix?.Title,
 			// the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
 			TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
 			Closed = k =>

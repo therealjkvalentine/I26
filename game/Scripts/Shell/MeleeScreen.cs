@@ -243,6 +243,14 @@ public sealed partial class MeleeScreen : ShellScreen
         {
             DrawListRow(Area, x0, Nitro && Hosting ? 130 : 109);
             for (int k = 0; k < Rows && _scroll + k < ListCount; k++) DrawListRow(_scroll + k, x0, ListRowY(k));
+            // the SCENARIO form's list runs past its six rows with the generated scenarios: say so beside its arrows, and a scroll bar
+            if (Mode == 1 && ListCount > Rows)
+            {
+                var (above, below) = MeleeData.ScrollHint(_scroll, Rows, ListCount);
+                if (above is not null) Frame.Text(_font, 40, 128, above);
+                if (below is not null) Frame.Text(_font, 40, 252, below);
+                DrawListBar();
+            }
         }
         if (Nitro && Hosting) DrawNitroHost();
         else if (Hosting) DrawHost();

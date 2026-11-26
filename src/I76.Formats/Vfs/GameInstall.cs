@@ -57,6 +57,10 @@ public sealed class GameInstall
     /// </summary>
     public static string? UserMissionDir { get; set; }
 
+    /// <summary>Whether a path lies in <see cref="UserMissionDir"/>: a generated mission, not the install's.</summary>
+    public static bool IsUserMission(string path) =>
+        UserMissionDir is { Length: > 0 } d && Path.GetFullPath(path).StartsWith(Path.GetFullPath(d).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>A file in <see cref="UserMissionDir"/> by case-insensitive name, or null.</summary>
     public static string? InUserMissionDir(string name) =>
         UserMissionDir is { } d && Directory.Exists(d) ? Directory.EnumerateFiles(d).FirstOrDefault(f => Path.GetFileName(f).Equals(name, StringComparison.OrdinalIgnoreCase)) : null;

@@ -12,7 +12,8 @@ public static class RemixCommand
 {
     public static int Run(GameInstall install, List<string> argv)
     {
-        if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR]"); return 2; }
+        if (argv.Count >= 3 && argv[1] == "map") return RemixMapDump.Run(install, argv);
+        if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
         var specs = new List<(string Name, string Yaml)>();

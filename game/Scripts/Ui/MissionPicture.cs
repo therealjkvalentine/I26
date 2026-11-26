@@ -29,6 +29,9 @@ public partial class MissionPicture : Control
     /// <summary>The notepad's lines: each objective's text and flags, in file order.</summary>
     public IReadOnlyList<(string Text, int Flags)> Objectives { get; init; } = [];
     public Font? Lee { get; init; }
+    /// <summary>A remix's map (RemixMapPicture): its marks on the 640 x 480 sheet, lettered in Lee, and its title over them.</summary>
+    public IReadOnlyList<(Vector2 At, string Label)> Marks { get; init; } = [];
+    public string? Title { get; init; }
     /// <summary>The key that closed it, to be acted on as usual.</summary>
     public required Action<InputEventKey> Closed { get; init; }
 
@@ -65,6 +68,7 @@ public partial class MissionPicture : Control
         float s = Mathf.Min(Size.X / 640f, Size.Y / 480f);
         var o = (Size - new Vector2(640, 480) * s) / 2;
         DrawTextureRect(Picture, new Rect2(o, new Vector2(640, 480) * s), false);
+        if (What == Kind.Map && Lee is not null && (Marks.Count > 0 || Title is not null)) { DrawMarks(o, s); return; }
         if (What != Kind.Notepad || Lee is null) return;
         int size = Mathf.Max(1, Mathf.RoundToInt(CellEm * s));
         float ascent = Lee.GetAscent(size);
@@ -85,6 +89,35 @@ public partial class MissionPicture : Control
                 y += Pitch;
             }
             y += Pitch;   // a blank line between objectives
+        }
+    }
+
+    /// <summary>
+    /// A remix map's lettering (the port's): the title over the sketch, a north arrow, and each mark ringed with its label beside it
+    /// (left of the ring when it would run off the sheet).
+    /// </summary>
+    private void DrawMarks(Vector2 o, float s)
+    {
+        var ink = RemixMapPicture.Ink;
+        int big = Mathf.Max(1, Mathf.RoundToInt(22 * s)), small = Mathf.Max(1, Mathf.RoundToInt(15 * s));
+        if (Title is { Length: > 0 } t)
+        {
+            float tw = Lee!.GetStringSize(t, HorizontalAlignment.Left, -1, big).X;
+            DrawString(Lee, o + new Vector2(320 * s - tw / 2, 40 * s), t, HorizontalAlignment.Left, -1, big, ink);
+        }
+        // north (+Z) is up on the sketch
+        var n0 = o + new Vector2(600, 44) * s;
+        DrawLine(n0, n0 + new Vector2(0, -24) * s, ink, Mathf.Max(1f, 1.5f * s));
+        DrawLine(n0 + new Vector2(0, -24) * s, n0 + new Vector2(-5, -16) * s, ink, Mathf.Max(1f, 1.5f * s));
+        DrawLine(n0 + new Vector2(0, -24) * s, n0 + new Vector2(5, -16) * s, ink, Mathf.Max(1f, 1.5f * s));
+        DrawString(Lee!, n0 + new Vector2(-24, -6) * s, "N", HorizontalAlignment.Left, -1, small, ink);
+        foreach (var (at, label) in Marks)
+        {
+            var p = o + at * s;
+            DrawArc(p, 9 * s, 0, Mathf.Tau, 24, ink, Mathf.Max(1f, 1.5f * s));
+            float lw = Lee!.GetStringSize(label, HorizontalAlignment.Left, -1, small).X;
+            var lp = at.X * s + 14 * s + lw > 630 * s ? p + new Vector2(-14 * s - lw, 5 * s) : p + new Vector2(14 * s, 5 * s);
+            DrawString(Lee, lp, label, HorizontalAlignment.Left, -1, small, ink);
         }
     }
 

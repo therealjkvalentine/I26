@@ -363,6 +363,9 @@ public sealed partial class MeleeHost : IModeHost
         Arena = arena.EndsWith(".msn", StringComparison.OrdinalIgnoreCase) ? arena[..^4] : arena;
         // a base arena is a .msn; Nitro's are .cbt, .rac and .cf2/.cf3/.cf4 (named with the extension)
         var msn = install.FindMission(Arena) ?? throw new FileNotFoundException($"no arena miss16/{Arena} in {o.Install}");
+        // the port's generated remix scenarios (docs/remix-missions.md) are single player: a client would need the file, and no
+        // network game lists them; one named here by mistake (a command line, a stale setting) is refused, never hosted
+        if (GameInstall.IsUserMission(msn)) throw new NotSupportedException($"{Arena} is a generated remix scenario: single player only");
         var world = new MissionWorld(Vfs, asm, msn);
         Map = MapFingerprint.Of(install, Arena);
         MapSet = MapFileSet.Resolve(install, Arena, Vfs);
