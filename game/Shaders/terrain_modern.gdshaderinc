@@ -165,6 +165,8 @@ uniform float sward_keep_lum = 0.6;    // how much of the ground's own lightness
 // the modern look's lighting calibration (Main.SolveLightingCalibration, LightingCalibration): the natural ground's colours
 // times this, so the sunlit ground shows the 1997 look's colour; (1, 1, 1) with [port] lighting_calibration=off
 global uniform vec3 i76_ground_tint;
+// the mood prototypes (Main.MoodApply, I76_MOOD sat=): the ground's saturation about its luminance; 1 (the default) leaves it
+global uniform float i76_mood_sat;
 
 #endif
 // The distance tiers (docs/perf/plan.md, item 3): 1 on, 0 the one tier everywhere (I76_TERRAIN_TIERS=0, for a measurement).
@@ -754,6 +756,7 @@ void fragment() {
 #endif
 #ifndef PAINTED_GROUND
 	ground *= i76_ground_tint;
+	if (i76_mood_sat != 1.0) ground = max(mix(vec3(dot(ground, vec3(0.2126, 0.7152, 0.0722))), ground, i76_mood_sat), vec3(0.0));
 	// the sward: a gentle shift toward dry grass where the grasses are dense (the map, smooth over its 4 m texels),
 	// varied broadly (tens of metres, no edges) and nothing finer, so it never reads as patches near the camera
 	if (i76_sward_tint.a > 0.0) {

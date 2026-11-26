@@ -467,6 +467,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// sky, the brightest sixth the clouds, the band between their shade.
     /// Luminances are linear, as the shader samples a source_color texture.
     /// </summary>
+    /// <summary><see cref="MeasureSky"/> for another image of a sky (the mood prototypes' upscales, Main.MoodApply).</summary>
+    public static SkyPalette MeasureSkyOf(Image img) => MeasureSky(img);
+
     private static SkyPalette MeasureSky(Image img)
     {
         img = (Image)img.Duplicate();

@@ -69,6 +69,14 @@ public partial class SoftwareLook : Node
         if (ws?.Ground is { Length: >= 8 } g && resolver.FindByStem(g[..4] + '2' + g[5..]) is { } gm && textures.Get(gm) is { } gt) { _ground = gt.Texture; GroundName = gm; }
         // the lookup off the main thread (64³ nearest searches, ~70 M distance sums)
         var palette = _palette;
+        // the mood prototypes: I76_PALETTE_GRADE_PAL=16 grades the modern look toward the 16-bit mission's own palette instead of
+        // the miss8 copy's (whose palette lacks the 16-bit sky's colours: T10's lilac sky goes grey-blue); a capture switch, the
+        // Software renderer is then graded by it too
+        if (System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_PAL") == "16" && fallbackPalette is not null && vfs.TryRead(fallbackPalette) is { Length: Palette.Size } p16)
+        {
+            palette = new Palette(p16);
+            GD.Print($"software look: the modern grade toward {fallbackPalette} (I76_PALETTE_GRADE_PAL=16)");
+        }
         _lutJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildLut(palette, 64, out _lutSide));
         if (GradeSoftness > 0) _softJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildSoftLut(palette, 64, GradeSoftness, out _softSide));
         if (_lum is not null)

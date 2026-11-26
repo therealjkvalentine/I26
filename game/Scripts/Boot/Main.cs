@@ -3182,7 +3182,7 @@ public partial class Main : Node3D
 	/// <summary>[port] lighting_calibration: off, the calibration under Filmic, or (on) under the card's curve with the sky in the texture's colours.</summary>
 	private enum Lighting { Off, Filmic, Card }
 
-	private static Lighting LightingOf(I76.Game.Shell.ShellSettings s) => !s.LightingCalibration ? Lighting.Off : s.LightingFilmic ? Lighting.Filmic : Lighting.Card;
+	private static Lighting LightingOf(I76.Game.Shell.ShellSettings s) => _moodCal ?? (!s.LightingCalibration ? Lighting.Off : s.LightingFilmic ? Lighting.Filmic : Lighting.Card);
 
 	private Lighting _lighting = Lighting.Card;
 	private I76.Formats.Imaging.LightingCalibration.Result _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
@@ -3377,7 +3377,7 @@ public partial class Main : Node3D
 		// the scenery's own night lights and its full-bright faces (StationLight): the faces as painted, through the exposure as the prelit art is
 		I76.Game.World.StationLight.Apply(night: _calibratedLight is { IsDay: false }, gain: 1f / (float)c.Exposure);
 		RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
-		RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);
+		RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);		MoodApply();   // the mood prototypes (MainMood.cs; nothing unless I76_MOOD or I76_SHOT_SEQ asks)
 	}
 
 	/// <summary>
@@ -5205,6 +5205,7 @@ public partial class Main : Node3D
 		}
 		for (int st = SpawnAiStages.Length - 1; st >= 0; st--)
 			if (_sim?.Session is { } sess && sess.Ticks >= SpawnAiStages[st].From && (!_spawnAiDone[st] || sess.Ticks <= SpawnAiStages[st].Until)) { _spawnAiDone[st] = true; ApplySpawnAi(SpawnAiStages[st].Places); break; }
+		ShotSeqFrame();   // capture hook: I76_SHOT_SEQ (MainMood.cs)
 		if (_frames >= 4) ApplyCapCam();
 		_frames++;
 		if (_net is not null && _launch is null or { Kind: I76.Game.Shell.GameKind.Multiplayer } && !_ended) { NetWatch(); NetReconfigureAnswers(); }
