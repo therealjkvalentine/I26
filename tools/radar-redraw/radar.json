@@ -873,5 +873,82 @@
     "under_inset": 2.4
    }
   ]
+ },
+ "glass": {
+  "note": "the scope's glass, over the beam, cone, graticule and pip (and in the live sweep's grid layer), under the game's blips, lamp and plate: the bezel's shadow (vignette from vignette_from of the face's radius), a soft sheen inside the rim at the top left as the player sees it (bearing 315, clockwise from the top), a faint glare inside it, and second-hand wear from the seed: smudges, fine scratches catching the light, dust settled at the rim. Lengths in original pixels; light's parts are the first of medium's. Its seed, level names and grime and dust colours are those of the panels' wear (tools/hud-redraw/hud.json distress): the same hand ages the radar's glass and the panels",
+  "default": "none",
+  "seed": 1976,
+  "vignette_from": 0.7,
+  "sheen": {
+   "bearing": 315,
+   "spread_deg": 38,
+   "inner": 0.62,
+   "outer": 0.95,
+   "glare_at": 0.42,
+   "glare_sigma": 0.2,
+   "glare_share": 0.3
+  },
+  "sheen_colour": [
+   225,
+   255,
+   225
+  ],
+  "smudge_colour": [
+   190,
+   215,
+   190
+  ],
+  "scratch_colour": [
+   215,
+   245,
+   215
+  ],
+  "dust_colour": [
+   178,
+   176,
+   162
+  ],
+  "max_smudges": 2,
+  "max_scratches": 14,
+  "max_dust": 90,
+  "levels": {
+   "light": {
+    "vignette": 0.16,
+    "sheen": 0.08,
+    "smudges": 1,
+    "smudge_alpha": 0.05,
+    "scratches": 7,
+    "scratch_alpha": [
+     0.05,
+     0.11
+    ],
+    "dust": 45,
+    "dust_alpha": [
+     0.12,
+     0.26
+    ]
+   },
+   "medium": {
+    "vignette": 0.26,
+    "sheen": 0.12,
+    "smudges": 2,
+    "smudge_alpha": 0.08,
+    "scratches": 14,
+    "scratch_alpha": [
+     0.07,
+     0.16
+    ],
+    "dust": 90,
+    "dust_alpha": [
+     0.16,
+     0.34
+    ]
+   }
+  },
+  "vignette_colour": [
+   26,
+   24,
+   14
+  ]
  }
 }

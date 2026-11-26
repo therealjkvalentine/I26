@@ -56,7 +56,7 @@
   },
   "distress": {
     "seed": 1976,
-    "default": "light",
+    "default": "medium",
     "colours": {"grime": [26, 24, 14], "metal": [150, 148, 138], "scratch": [178, 176, 162], "scratch_dark": [20, 20, 14]},
     "levels": {
       "0": null,
