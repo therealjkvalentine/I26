@@ -1497,6 +1497,8 @@ public sealed class ShellSettings
     public bool SmokeLighting { get; set; }
     /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
     public int HeatShimmer { get; set; }
+    /// <summary>The port's own: Graphic Detail's Shimmer Strength (HeatStrengthRow: 0 Low, 1 Medium, 2 High, 3 Extreme); [port] heat_strength, written only when not Medium. Medium unless the player chose.</summary>
+    public int HeatStrength { get; set; } = HeatStrengthRow.Default;
     /// <summary>
     /// The port's own: Graphic Detail's Terrain Shadows (TerrainShadowsRow: 0 Off, 1 On, 2 Fine; World/TerrainShade, the hills' own shadows
     /// baked from the drawn ground); [port] terrain_shadows, always written (off, on, fine). On unless the player chose; a file without the key is On.
@@ -2115,6 +2117,8 @@ public sealed class ShellSettings
         // no version step: a file without these keys has them off, as they were before they existed
         s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
         s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
+        // no version step: a file without the key (before the row) has Medium, the strength it had
+        s.HeatStrength = HeatStrengthRow.FromFile(c.HasSectionKey("port", "heat_strength") ? c.GetValue("port", "heat_strength").ToString() : null);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2357,6 +2361,7 @@ public sealed class ShellSettings
         if (Reflections) c.SetValue("port", "reflections", true);
         if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
         if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
+        if (HeatStrength != HeatStrengthRow.Default) c.SetValue("port", "heat_strength", HeatStrengthRow.Word(HeatStrength));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));

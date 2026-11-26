@@ -784,6 +784,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.HeatShimmer:
                 Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
                 break;
+            // [port] heat_strength (HeatStrengthRow): fire, ripple and mirage together; in a mission
+            case GraphicsRow.HeatStrength:
+                Row(r, line, HeatStrengthRow.Label, () => HeatStrengthRow.Names[HeatStrengthRow.Index(st)], () => HeatStrengthRow.Step(st));
+                break;
             // [port] terrain_shadows (TerrainShadowsRow): the modern look's, baked in a mission when chosen
             case GraphicsRow.TerrainShadows:
                 Row(r, line, TerrainShadowsRow.Label, () => TerrainShadowsRow.Names[TerrainShadowsRow.Index(st)], () => TerrainShadowsRow.Step(st));

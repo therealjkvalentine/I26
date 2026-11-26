@@ -67,7 +67,7 @@ public class HeatRowsTests(Xunit.Abstractions.ITestOutputHelper output)
     public void TheyAreLastOnEffectsAndResetPutsThemOff()
     {
         var adv = GraphicsPages.Rows[GraphicsPages.Effects];
-        Assert.Equal([GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer], adv[^2..]);
+        Assert.Equal([GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength], adv[^3..]);
         var s = new ShellSettings { SmokeLighting = true, HeatShimmer = HeatShimmerRow.Road };
         GraphicsPages.Reset(s, GraphicsPages.Effects);
         Assert.False(s.SmokeLighting);

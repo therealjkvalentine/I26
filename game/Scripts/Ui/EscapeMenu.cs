@@ -605,6 +605,7 @@ public sealed partial class EscapeMenu : Control
             // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's, live
             case GraphicsRow.SmokeLighting: return Setting(Cycle, SmokeLightingRow.Label, 0, 2, SmokeLightingRow.Names, SmokeLightingRow.Index, SmokeLightingRow.Put, apply: live);
             case GraphicsRow.HeatShimmer: return Setting(Cycle, HeatShimmerRow.Label, 0, 3, HeatShimmerRow.Names, HeatShimmerRow.Index, HeatShimmerRow.Put, apply: live);
+            case GraphicsRow.HeatStrength: return Setting(Cycle, HeatStrengthRow.Label, 0, HeatStrengthRow.Names.Length, HeatStrengthRow.Names, HeatStrengthRow.Index, HeatStrengthRow.Put, apply: live);
             // [port] terrain_shadows (TerrainShadowsRow): the modern look's, live (a bake starts on a worker and eases in)
             case GraphicsRow.TerrainShadows: return Setting(Cycle, TerrainShadowsRow.Label, 0, 3, TerrainShadowsRow.Names, TerrainShadowsRow.Index, TerrainShadowsRow.Put, apply: live);
             // Screen Resolution, Renderer, 3D Garage, Menu Width (the menu pages only): the shell's alone
