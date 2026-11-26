@@ -1364,15 +1364,17 @@ public partial class Main : Node3D
 		foreach (var step in damageView.ReadySteps()) yield return step;
 		_damageView = damageView;
 		MissionBuilder.Trace("spawn: damage view");
-		// the player's car's wreck and the other cars' (built once) on a worker, the fire's materials here
-		var wrecks = damageView.PrewarmWrecksBeside(_car, setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);
+		// the player's car's wreck and the other cars' (built once): their models assembled on a worker while the fire's materials are
+		// made here, their meshes built here after (the mission's materials are this thread's while its frames run: DamageView.PrewarmWrecksBeside)
+		var (wrecks, wrecksBuild) = damageView.PrewarmWrecksBeside(_car, setup.Cars.Where(c => !c.Item3.IsHeli).Select(c => c.Item2), _car?.Modern ?? true);
 		MissionBuilder.Trace("spawn: wrecks started");
 		yield return null;
 		if (_car is not null && I76.Game.Sim.WreckFire.Enabled) foreach (var step in I76.Game.Sim.WreckFire.Shared.InitSteps()) yield return step;
 		MissionBuilder.Trace("spawn: fire prewarmed");
 		MissionBuilder.Trace("spawn: car prewarmed");
 		yield return wrecks;
-		wrecks.GetAwaiter().GetResult();
+		MissionBuilder.Trace("spawn: wrecks assembled");
+		foreach (var step in wrecksBuild) yield return step;
 		MissionBuilder.Trace("spawn: wrecks prewarmed");
 		yield return null;
 		// the gates the script slides (type-7 nodes): their meshes follow the sim's colliders
@@ -1796,12 +1798,13 @@ public partial class Main : Node3D
 		static bool? Head(I76.Formats.Assembly.ModelPart p) => I76.Formats.Assembly.MirrorGlass.Side(p.NodeName);
 		// its painted glass a mesh of its own (the modern look's door mirrors with the moulding's outer edge rounded hide it where the
 		// housing's corners are cut away)
-		// the cockpit's meshes (no node, nothing drawn) built on a worker; the player's car held still meanwhile
+		// the cockpit's meshes (no node, nothing drawn) built here a few at a step, not on a worker: the mission's materials and textures
+		// are the main thread's while its frames run (they animate the scenery's textures from the material library every frame); the
+		// player's car held still meanwhile
 		var heads = new List<(Mesh Mesh, Mesh? Paint, bool Left)>();
 		ArrayMesh? cabin = null, ring1 = null, ring6 = null;
-		var cabinJob = I76.Game.Boot.Beside.Run(() =>
+		if (interior is not null)
 		{
-			if (interior is null) return;
 			foreach (var n in interior.Parts.Where(p => Head(p) is not null && !LowResTwin(interior, p.NodeName) && !Hood(p)).Select(p => p.NodeName).Distinct())
 			{
 				bool Part(I76.Formats.Assembly.ModelPart p) => p.NodeName == n && !LowResTwin(interior, p.NodeName) && !Hood(p);
@@ -1810,15 +1813,15 @@ public partial class Main : Node3D
 				if (paint is { } pm && pm.GetSurfaceCount() == 0) paint = null;
 				if (housing is null || housing.GetSurfaceCount() == 0) { housing = paint; paint = null; }
 				if (housing is not null) heads.Add((housing, paint, I76.Formats.Assembly.MirrorGlass.Side(n) == true));
+				yield return null;
 			}
 			heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
 			// a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
 			cabin = builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p));
+			yield return null;
 			ring1 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1'));
 			ring6 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6'));
-		});
-		yield return cabinJob;
-		cabinJob.GetAwaiter().GetResult();
+		}
 		MissionBuilder.Trace("spawn: cockpit meshes built");
 		yield return null;
 		node.AddCockpit(cabin, eye, ring1, ring6,
