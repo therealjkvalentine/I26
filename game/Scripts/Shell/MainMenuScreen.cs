@@ -83,6 +83,8 @@ public sealed class MainMenuScreen : ShellScreen
     /// <summary>MELEE's AUTO MELEE row is open (the switch guard checks that the hand-back opens it).</summary>
     public bool AutoOpen => !Nitro && _w.TryGetValue(1, out var a) && a.Selected && _w[2].Selected;
     /// <summary>The TRIP row is open (on a visit's Nitro menu: SCENARIOS, the character choice).</summary>
+    /// <summary>This menu comes after a won trip's credits: it offers the New Game Plus save once (<see cref="NewGamePlus"/>).</summary>
+    public bool OfferNewGamePlus { get; init; }
     public bool TripOpen => _w.TryGetValue(Nitro ? 2 : 13, out var t) && t.Selected;
     /// <summary>The port's entries shown now, by id (for the switch guard).</summary>
     public IReadOnlyList<int> PortShown => [.. _pShown.Select(b => b.Id)];
@@ -113,8 +115,8 @@ public sealed class MainMenuScreen : ShellScreen
                 _w[id] = new SpriteWidget(id, x, y, _bank, sprite, nb) { Hot = hot, NitroBank = true, Text = id == 0xe ? "LAN" : null };   // IPX is the LAN here
                 continue;
             }
-            // TRIP's banner on a Trip+ lap (the play fork's): the lap, in place of the original's words
-            if ((NetBanner.GetValueOrDefault(id) ?? (id == 13 && Shell.Trip.Plus.Lap > 1 ? $"TRIP+ LAP {Shell.Trip.Plus.Lap}" : null)) is { } words)
+            // TRIP's banner on a New Game Plus lap (the play fork's): the lap, in place of the original's words
+            if ((NetBanner.GetValueOrDefault(id) ?? (id == 13 && Shell.Trip.Plus.Lap > 1 ? NewGamePlus.Banner(Shell.Trip.Plus.Lap) : null)) is { } words)
             {
                 // a banner the size of the others (sprite 41's), its words drawn in place of a sprite
                 var nb = new SpriteWidget(-1, BannerX(Nitro ? 42 : 41), 460, _bank, Nitro ? 42 : 41);
@@ -134,6 +136,8 @@ public sealed class MainMenuScreen : ShellScreen
         Garage3D.GarageWarmup.Start(Shell, this);
         // what every mission start shares, made while the menu stands idle (after the garage's)
         MenuWarmup.Start(Shell, this);
+        // the play fork's New Game Plus offer, on the menu the credits return to after a T17 win (Shell.FirstScreen)
+        if (OfferNewGamePlus && !Nitro) OfferSave();
     }
 
     /// <summary>
@@ -403,13 +407,41 @@ public sealed class MainMenuScreen : ShellScreen
         Shell.Modal(new ConfirmPopup
         {
             // the receipt holds about 24 letters a line
-            Lines = ["DRIVE THE TRIP AGAIN?", $"YES: TRIP+ LAP {lap}, YOUR", "   CAR, TOUGHER ROAD.", "NO: START OVER."],
+            Lines = NewGamePlus.NewTripLines(lap),
             Answer = plus =>
             {
                 if (!plus) { StartOver(); return; }
                 Shell.Trip.StartTripPlus();
                 // the trip car whole; a trip that never had one (the developer switch on a fresh install) starts in the stock car
                 Shell.LaunchTrip(Shell.Trip.Inventory(Shell) ?? Shell.Trip.StockCar(Shell, "vppt01.vcf"));
+            },
+            Cancelled = Repaint,
+        });
+    }
+
+    /// <summary>
+    /// The New Game Plus offer after a won trip: YES writes a bookmark (Load Bookmark's "Scene 1. New Game+ Lap N") that starts
+    /// Scene 1 on the next lap in the trip car as it stands, beside the other bookmarks, and says where it is; the trip itself is not
+    /// changed and nothing starts. NO (or Esc) leaves the menu as it is: NEW TRIP still offers the lap.
+    /// </summary>
+    private void OfferSave()
+    {
+        int lap = Shell.Trip.Plus.NextLap;
+        Shell.Modal(new ConfirmPopup
+        {
+            Lines = NewGamePlus.OfferLines(lap),
+            Answer = yes =>
+            {
+                if (!yes) { Repaint(); return; }
+                var marks = Bookmarks.Load();
+                string stem = marks.NextStem();
+                marks.Entries.Add(NewGamePlus.Bookmark(lap, stem, (Shell.Settings.PlayOptions & 2) != 0));
+                marks.Entries.Sort((x, y) => string.CompareOrdinal(x.Stem, y.Stem));
+                // the car, its parts, the van's stock and the repair order, as the trip left them
+                if (Shell.Trip.Inventory(Shell) is { } inv) Bookmarks.WriteCar(stem, inv.Save());
+                marks.Save();
+                Repaint();
+                Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Closed = Repaint, Text = NewGamePlus.SavedNotice(lap) });
             },
             Cancelled = Repaint,
         });

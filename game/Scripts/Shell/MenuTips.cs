@@ -42,7 +42,7 @@ public static class MenuTips
         ["Reconfigure"] = "Reconfigure: back to the garage to change the car, then start the mission again.",
         ["Exit Game"] = "Exit Game: quit to the desktop.",
         ["Retry from Checkpoint"] = "Retry from Checkpoint: back to the last checkpoint kept, with the car and the scene as they were.",
-        ["Turn off Cheater Options"] = "Turn off the cheats (Unlimited Ammo, Armor and Chassis) so this win counts.",
+        ["Turn off Cheater Options"] = "Turn off the cheats (Unlimited Ammo, Armor and Chassis) so this win counts: salvage, the next scene, and after Scene 17 the New Game Plus save.",
         ["I'm a cheater"] = "Keep the cheats on: the trip will not advance.",
         ["I'm a swinger"] = "Back to Play Options to turn the cheats off.",
 

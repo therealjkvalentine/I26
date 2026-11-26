@@ -11,7 +11,7 @@ namespace I76.Cli;
 /// (a SimSession), nobody at the wheel, printing what the script does.
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
-///           [--record FILE] [--replay FILE] [--motion FILE] [--trip-plus LAP]
+///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
 /// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
@@ -43,8 +43,8 @@ public static class MissionRun
         var car = replay is not null ? replay.Car : ci >= 0 ? args[ci + 1] : roster is null ? null : "valepre1.vcf";
         int sdi = args.IndexOf("--seed");   // --seed N: the rand stream's start (the game takes the clock; here 1 without it)
         uint seed = replay?.Seed ?? (sdi >= 0 ? uint.Parse(args[sdi + 1]) : 1);
-        // --trip-plus LAP: a trip mission by that Trip+ lap's rules (1 the original's; the play fork's, docs/deviations.md "Trip+"); prints the enemies at the end
-        int tpi = args.IndexOf("--trip-plus");
+        // --new-game-plus LAP: a trip mission by that New Game Plus (Trip+) lap's rules (1 the original's; the play fork's, docs/deviations.md "New Game Plus"); prints the enemies at the end
+        int tpi = args.IndexOf("--new-game-plus") is >= 0 and var ngp ? ngp : args.IndexOf("--trip-plus");   // the older spelling too
         var tripPlus = tpi >= 0 && roster is null ? I76.Sim.Trip.TripPlusRules.ForLap(int.Parse(args[tpi + 1], CultureInfo.InvariantCulture)) : null;
         var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed), tripPlus: tripPlus);
         setup.Melee?.Start();

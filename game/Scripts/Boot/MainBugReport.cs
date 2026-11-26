@@ -235,10 +235,10 @@ public partial class Main
         if (melee) return null;
         if (_reportTripPlus is { } reported) return reported;
         if (_launch is { Kind: I76.Game.Shell.GameKind.Trip, TripPlus: { IsOff: false } rules }) return rules;
-        // I76_TRIP_PLUS=LAP (docs/dev-hooks.md): a trip mission started without the shell's rules (--mission t03, a capture's launch) plays by that lap's
+        // I76_NEW_GAME_PLUS=LAP (or the older I76_TRIP_PLUS; docs/dev-hooks.md): a trip mission started without the shell's rules (--mission t03, a capture's launch) plays by that lap's
         string m = (_opt.Mission ?? "").ToLowerInvariant();
         bool trip = m.Length == 3 && m[0] == 't' && char.IsDigit(m[1]) && char.IsDigit(m[2]) && _launch is null or { Kind: I76.Game.Shell.GameKind.Trip };
-        return trip && int.TryParse(System.Environment.GetEnvironmentVariable("I76_TRIP_PLUS"), out int lap) ? I76.Sim.Trip.TripPlusRules.ForLap(lap) : null;
+        return trip && int.TryParse(I76.Game.Shell.NewGamePlus.Env("I76_NEW_GAME_PLUS", "I76_TRIP_PLUS"), out int lap) ? I76.Sim.Trip.TripPlusRules.ForLap(lap) : null;
     }
 
     /// <summary>

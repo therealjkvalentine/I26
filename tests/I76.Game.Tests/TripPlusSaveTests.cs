@@ -117,3 +117,58 @@ public class TripPlusLapTests
         Assert.Equal(TripPlusRules.ForLap(lap), s.Active);
     }
 }
+
+/// <summary>New Game Plus's offer after a won trip (the play fork's): when it comes, the bookmark it saves, what loading it plays, and declining.</summary>
+public class NewGamePlusOfferTests
+{
+    [Fact]
+    public void TheOfferComesOnlyAfterAT17Win()
+    {
+        Assert.True(NewGamePlus.Offers(MissionResult.Won, 17));
+        Assert.False(NewGamePlus.Offers(MissionResult.Won, 16));
+        Assert.False(NewGamePlus.Offers(MissionResult.Quit, 17));
+        Assert.False(NewGamePlus.Offers(MissionResult.Reconfigure, 17));
+        Assert.False(NewGamePlus.Offers(MissionResult.FirstEntry, 17));
+    }
+
+    [Fact]
+    public void TheBookmarkStartsSceneOneOnTheNextLapUnderAPlainName()
+    {
+        var finished = new TripPlusSave().Won17();
+        var e = NewGamePlus.Bookmark(finished.NextLap, "save007", false);
+        Assert.Equal(1, e.Mission);
+        Assert.Equal(1, e.Scene);              // not "after a win": Scene 1 itself
+        Assert.Equal(0, e.State);
+        Assert.False(e.Checkpoint);            // no snapshot: the mission starts from its beginning
+        Assert.Equal(2, e.Lap);
+        Assert.Equal("save007", e.Stem);
+        Assert.Equal("Scene 1. New Game+ Lap 2", Bookmarks.Row(e, s => s.Length, 1000));
+        Assert.True(Bookmarks.Row(e, s => s.Length, 1000).Length <= 26, "the row's room: the lap must not be cut");
+        // loading it plays lap 2's rules (Bookmarks' Load: the trip's lap from the entry)
+        var loaded = finished.OnLap(e.Lap);
+        Assert.Equal(new TripPlusRules(1, -1, 4), loaded.Active);
+        // the next lap's save after a lap-2 win
+        Assert.Equal("New Game+ Lap 3", NewGamePlus.BookmarkName(loaded.Won17().NextLap));
+    }
+
+    [Fact]
+    public void DecliningKeepsTheFinishedTripSoNewTripStillOffersIt()
+    {
+        var finished = new TripPlusSave().Won17();
+        // NO changes nothing of the trip: the finished flag is what makes NEW TRIP ask
+        Assert.True(finished.Finished);
+        Assert.Equal(2, finished.NextLap);
+        Assert.Null(finished.Active);           // and the trip it left plays as it did
+    }
+
+    [Fact]
+    public void TheWordsFitTheReceiptAndSayWhatChanges()
+    {
+        foreach (var line in NewGamePlus.OfferLines(2).Concat(NewGamePlus.NewTripLines(4))) Assert.True(line.Length <= 26, line);
+        var offer = string.Join(" ", NewGamePlus.OfferLines(2));
+        Assert.Contains("NEW GAME PLUS", offer);
+        Assert.Contains("CAR, PARTS, STOCK", offer);
+        Assert.Contains("MORE ENEMIES", offer);
+        Assert.Equal("NEW GAME PLUS LAP 3", NewGamePlus.Banner(3));
+    }
+}
