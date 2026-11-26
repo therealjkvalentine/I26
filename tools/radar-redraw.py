@@ -1,0 +1,936 @@
+#!/usr/bin/env python3
+"""Redraw the cockpit radar's frames (zradf000-030, zradb000-030) for an HD pack, CPU only.
+
+    python tools/radar-redraw.py measure EXPORT_DIR [geometry.json]
+    python tools/radar-redraw.py fit-labels EXPORT_DIR [fit.json]
+    python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]
+    python tools/radar-redraw.py sheet   EXPORT_DIR UPSCALE_DIR OUT_DIR
+    python tools/radar-redraw.py --self-check
+
+EXPORT_DIR is the folder `i76 export-textures` wrote (the originals, 256x128, as PNGs); UPSCALE_DIR a pack's upscale of the
+same frames (any whole multiple of 256 wide, PNG), whose bezel, knobs and wiring are kept. Everything is measured from the
+original's pixels each run (nothing of the game's art is in the repository), then drawn again as vectors:
+
+- the scope: the 60 frames' per-pixel median is the clean grid and panel; the rings are circles fitted to its grid pixels, the
+  spokes lines fitted through them, the face the circle fitted to the green's edge; the small scope at the corner likewise.
+- the sweep (zradf): each frame's beam fitted as a line; all 30 meet at one pivot, frame f at 12f degrees plus a measured offset,
+  clockwise as the game shows it. The lock cone (zradb): its two edges fitted, the half-angle and how far behind the pivot they meet.
+  Style A draws them as the original does (a line, a cone, the original's colours); style B as a phosphor scope (a bright edge
+  and a fading afterglow behind it, a cone with soft edges).
+- the left panel's marks: the dotted arc round one knob, the ticks by the other, the knob pointers and the two small lettered
+  rows, as dark blobs found in the median; they are erased from the upscale and drawn again as shapes, with a label set's words
+  set in a free font (tools/radar-redraw/radar.json names it; the tool downloads it into a cache, nothing is committed).
+
+The game shows these frames with their rows flipped (ExtInstruments: the slot's y runs up; the scope's forward is +y in the
+file), so the spec's label positions are in the game's view (y down from the top as the player sees it) and lettering is set
+upright there. The game overlays blips, the LED and the range plate at fixed original pixels, so nothing here moves: the
+scope's rings, pivot and face stay where the original has them, scaled exactly.
+Needs Python 3.10+, numpy, scipy and Pillow.
+"""
+import argparse, json, math, os, sys, urllib.request
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from scipy import ndimage
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SPEC = os.path.join(HERE, "radar-redraw", "radar.json")
+REPO_FONTS = os.path.join(HERE, "text-redraws", "fonts")
+
+# palette colours the art uses (measured; the tool checks they are present)
+GREEN = (0, 69, 0)          # the scope's face
+GRID = (41, 41, 20)         # rings, spokes, the panel's printed marks
+PIP = (57, 115, 57)         # the centre pip
+OLIVE = (66, 72, 32)        # the panel
+
+
+def load_spec(path=SPEC):
+    with open(path, encoding="utf-8") as f: return json.load(f)
+
+
+# ------------------------------------------------------------------------------------------------------------- loading
+
+def load_rgba(path):
+    return np.asarray(Image.open(path).convert("RGBA"))
+
+
+def load_frames(export_dir, spec):
+    """{stem: rgba uint8} of the 62 frames (sweep and locked 0..29 and the radar-off 30 of each)."""
+    fr = spec["frames"]; out = {}
+    for kind in ("sweep", "locked"):
+        for i in range(fr["count"] + 1):
+            stem = fr[kind] % i
+            out[stem] = load_rgba(os.path.join(export_dir, stem + ".png"))
+    return out
+
+
+def stems(spec, kind):
+    fr = spec["frames"]; return [fr[kind] % i for i in range(fr["count"])]
+
+
+def is_col(a, c):
+    return (a[..., 0] == c[0]) & (a[..., 1] == c[1]) & (a[..., 2] == c[2])
+
+
+def median_of(frames, spec):
+    a = np.stack([frames[s] for s in stems(spec, "sweep") + stems(spec, "locked")]).astype(np.int16)
+    return np.median(a, 0).astype(np.uint8)
+
+
+# ------------------------------------------------------------------------------------------------------------- fitting
+# coordinates: continuous, pixel (row i, col j) has its centre at (j + 0.5, i + 0.5), in the file's own rows (top down)
+
+def fit_circle(X, Y):
+    """Algebraic circle fit, then the rms of the radial residuals."""
+    M = np.stack([X, Y, np.ones_like(X)], 1)
+    p = np.linalg.lstsq(M, -(X ** 2 + Y ** 2), rcond=None)[0]
+    cx, cy = -p[0] / 2, -p[1] / 2
+    r = math.sqrt(max(cx * cx + cy * cy - p[2], 1e-9))
+    res = np.hypot(X - cx, Y - cy) - r
+    return (float(cx), float(cy), float(r)), float(np.sqrt((res ** 2).mean()))
+
+
+def fit_rings(X, Y, c, bands):
+    """Circles through the points in each radial band about c: a common centre (least squares over all bands, each its own
+    radius), then each band's radius; returns centre, radii, per-ring rms."""
+    sel = []
+    for lo, hi in bands:
+        r = np.hypot(X - c[0], Y - c[1]); sel.append((r > lo) & (r < hi))
+    for _ in range(4):
+        # unknowns: cx, cy, and k_i = r_i^2 - cx^2 - cy^2 per band:  x^2 + y^2 = 2 cx x + 2 cy y + k_i
+        rows, rhs = [], []
+        for bi, s in enumerate(sel):
+            for x, y in zip(X[s], Y[s]):
+                row = [2 * x, 2 * y] + [0.0] * len(sel); row[2 + bi] = 1.0
+                rows.append(row); rhs.append(x * x + y * y)
+        p = np.linalg.lstsq(np.array(rows), np.array(rhs), rcond=None)[0]
+        c = (float(p[0]), float(p[1]))
+        radii = [math.sqrt(p[2 + i] + c[0] ** 2 + c[1] ** 2) for i in range(len(sel))]
+        # keep each band's points near its circle (drops strays)
+        tol = min([1.5] + [abs(a - b) / 2 for a, b in zip(radii, radii[1:])])
+        sel = [(np.abs(np.hypot(X - c[0], Y - c[1]) - R) < tol) for R in radii]
+    rms = [float(np.sqrt(((np.hypot(X[s] - c[0], Y[s] - c[1]) - R) ** 2).mean())) for s, R in zip(sel, radii)]
+    return c, [float(r) for r in radii], rms, [int(s.sum()) for s in sel]
+
+
+def fit_line_tls(P, w=None):
+    w = np.ones(len(P)) if w is None else w
+    mu = (P * w[:, None]).sum(0) / w.sum()
+    _, _, vt = np.linalg.svd((P - mu) * np.sqrt(w)[:, None], full_matrices=False)
+    return mu, vt[0]
+
+
+def fit_spokes(X, Y, c, angles, radii, near=1.6):
+    """Lines through the grid's spoke pixels near each angle (degrees, in the file's axes), ring bands left out."""
+    out = []
+    r = np.hypot(X - c[0], Y - c[1])
+    ring = np.zeros(len(X), bool)
+    for R in radii: ring |= np.abs(r - R) < 1.6
+    for a0 in angles:
+        u = np.array([math.cos(math.radians(a0)), math.sin(math.radians(a0))]); mu = np.array(c, float)
+        for _ in range(6):
+            n = np.array([-u[1], u[0]]); d = (X - mu[0]) * n[0] + (Y - mu[1]) * n[1]
+            s = (np.abs(d) < near) & (r > 3) & ~ring
+            P = np.stack([X[s], Y[s]], 1); mu, u = fit_line_tls(P)
+        n = np.array([-u[1], u[0]]); res = (P - mu) @ n; t = (P - mu) @ u
+        ang = math.degrees(math.atan2(u[1], u[0])) % 180
+        out.append({"angle": round(ang, 3), "through_centre": round(float((np.array(c) - mu) @ n), 3),
+                    "rms": round(float(res.std()), 3), "pixels": int(s.sum()),
+                    "px_per_length": round(float(s.sum() / max(t.max() - t.min(), 1)), 2),
+                    "extent": [round(float(t.min()), 1), round(float(t.max()), 1)]})
+    return out
+
+
+SWEEP_SHADES = {(57, 115, 57): 0.2, (63, 143, 63): 0.4, (82, 156, 82): 0.6, (99, 189, 99): 0.8, (126, 243, 126): 1.0}
+
+
+def measure(frames, spec):
+    """Everything the redraw needs, from the original's pixels."""
+    med = median_of(frames, spec)
+    g = {"note": "file coordinates (top-down rows, pixel centres at +0.5); the game shows the rows flipped"}
+    green = is_col(med, GREEN); grid = is_col(med, GRID)
+    lab, n = ndimage.label(green | grid)
+    sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1))
+    main = lab == (int(np.argmax(sizes)) + 1)
+    # the scope's face: a circle fitted to its outermost face pixels (the face's edge half a pixel further out)
+    disk = ndimage.binary_fill_holes(main)
+    edge = disk & ~ndimage.binary_erosion(disk)
+    ys, xs = np.nonzero(edge)
+    (fx, fy, fr), frms = fit_circle(xs + 0.5, ys + 0.5)
+    g["face"] = {"centre": [round(fx, 3), round(fy, 3)], "radius": round(fr + 0.5, 3), "rms": round(frms, 3), "pixels": int(len(xs))}
+    # the grid: rings and spokes
+    ys, xs = np.nonzero(grid & main); X, Y = xs + 0.5, ys + 0.5
+    c0 = (fx, fy)
+    sc = spec["scope"]
+    c, radii, rrms, rn = fit_rings(X, Y, c0, sc["ring_bands"])
+    spokes = fit_spokes(X, Y, c, sc["spoke_angles"], radii)
+    # the spokes' own crossing (least squares)
+    A = []; b = []
+    for s_ in spokes:
+        a = math.radians(s_["angle"]); n_ = np.array([-math.sin(a), math.cos(a)])
+        A.append(n_); b.append(n_ @ np.array(c) - s_["through_centre"])
+    cs = np.linalg.lstsq(np.array(A), np.array(b), rcond=None)[0]
+    g["grid"] = {"centre": [round(c[0], 3), round(c[1], 3)], "spoke_crossing": [round(float(cs[0]), 3), round(float(cs[1]), 3)],
+                 "rings": [{"radius": round(R, 3), "rms": round(e, 3), "pixels": k} for R, e, k in zip(radii, rrms, rn)],
+                 "spokes": spokes}
+    pip = is_col(med, PIP) & disk
+    ys, xs = np.nonzero(pip)
+    g["pip"] = {"centre": [float(xs.mean() + 0.5), float(ys.mean() + 0.5)], "pixels": int(len(xs))} if len(xs) else None
+    # the small scope at the corner: its own green, rings about its crosshair
+    ins = spec["inset"]; x0, y0, x1, y1 = ins["search"]
+    sub = np.zeros_like(main); sub[y0:y1, x0:x1] = True
+    ig = is_col(med, GRID) & sub; ign = is_col(med, GREEN) & sub
+    row = int(np.argmax(ig.sum(1))); col = int(np.argmax(ig.sum(0)))
+    ic = (col + 0.5, row + 0.5)
+    ys, xs = np.nonzero(ig); X, Y = xs + 0.5, ys + 0.5
+    keep = (np.abs(Y - ic[1]) > 0.6) & (np.abs(X - ic[0]) > 0.6)
+    icc, iradii, irms, irn = fit_rings(X[keep], Y[keep], ic, ins["ring_bands"])
+    # its face: about the rings' centre, out to its green's outer edge (the median of the outermost green per direction)
+    ys, xs = np.nonzero(ign); rg = np.hypot(xs + 0.5 - icc[0], ys + 0.5 - icc[1]); ag = np.degrees(np.arctan2(ys + 0.5 - icc[1], xs + 0.5 - icc[0]))
+    outer = [rg[(np.abs(angdiff(ag, a_)) < 10) & (rg < ins["max_radius"])].max() for a_ in range(-180, 180, 15)
+             if ((np.abs(angdiff(ag, a_)) < 10) & (rg < ins["max_radius"])).any()]
+    ix, iy, ir = icc[0], icc[1], float(np.median(outer)); irr = float(np.std(outer))
+    g["inset"] = {"cross": [ic[0], ic[1]], "centre": [round(icc[0], 3), round(icc[1], 3)],
+                  "rings": [{"radius": round(R, 3), "rms": round(e, 3), "pixels": k} for R, e, k in zip(iradii, irms, irn)],
+                  "face": {"centre": [round(ix, 3), round(iy, 3)], "radius": round(ir + 0.5, 3), "rms": round(irr, 3)},
+                  "cross_extent": [int(np.nonzero(ig[row])[0].min()), int(np.nonzero(ig[row])[0].max()) + 1,
+                                   int(np.nonzero(ig[:, col])[0].min()), int(np.nonzero(ig[:, col])[0].max()) + 1]}
+    g["sweep"] = measure_sweep(frames, med, spec, c)
+    g["cone"] = measure_cone(frames, med, spec, g["sweep"]["pivot"])
+    g["marks"] = measure_marks(med, spec)
+    return g, med
+
+
+def frame_angle(f, step=12.0):
+    """The beam's direction in the file's axes for frame f before the measured offset: frame 0 points +y (the car's front
+    once the game flips the rows), each frame 12 degrees on, clockwise in the game's view (anticlockwise in the file's)."""
+    return 90.0 - step * f
+
+
+def measure_sweep(frames, med, spec, c):
+    lines = []
+    for i, s in enumerate(stems(spec, "sweep")):
+        fr = frames[s]
+        w = np.zeros(fr.shape[:2])
+        for col, v in SWEEP_SHADES.items(): w[is_col(fr, col)] = v
+        w[is_col(med, PIP)] = 0
+        w[np.abs(fr.astype(int) - med).sum(-1) == 0] = 0
+        ys, xs = np.nonzero(w >= 0.6); P = np.stack([xs + 0.5, ys + 0.5], 1); ww = w[ys, xs]
+        k = np.hypot(P[:, 0] - c[0], P[:, 1] - c[1]) > 5
+        mu, u = fit_line_tls(P[k], ww[k])
+        for _ in range(3):
+            if (mu - np.array(c)) @ u < 0: u = -u
+            n = np.array([-u[1], u[0]]); k2 = k & (np.abs((P - mu) @ n) < 2.0)
+            mu, u = fit_line_tls(P[k2], ww[k2])
+        if (mu - np.array(c)) @ u < 0: u = -u
+        lines.append((mu, u))
+    A = np.array([[-u[1], u[0]] for _, u in lines]); b = np.array([np.array([-u[1], u[0]]) @ mu for mu, u in lines])
+    pv = np.linalg.lstsq(A, b, rcond=None)[0]
+    dist = A @ pv - b
+    dev = []
+    for i, (mu, u) in enumerate(lines):
+        a = math.degrees(math.atan2(mu[1] - pv[1], mu[0] - pv[0]))
+        dev.append(((a - frame_angle(i)) + 180) % 360 - 180)
+    # the beam's cross profile: mean brightness against the signed distance from its line (positive: behind the beam)
+    off = float(np.mean(dev)); prof = {}
+    for i, s in enumerate(stems(spec, "sweep")):
+        fr = frames[s]; d = np.abs(fr.astype(int) - med).sum(-1) > 0
+        a = math.radians(frame_angle(i) + off); u = np.array([math.cos(a), math.sin(a)]); n = np.array([-u[1], u[0]])
+        ys, xs = np.nonzero(d); P = np.stack([xs + 0.5, ys + 0.5], 1) - pv; t = P @ u; sd = P @ n
+        for k_ in np.nonzero((t > 6) & (t < 50))[0]:
+            prof.setdefault(round(sd[k_] * 2) / 2, []).append(fr[ys[k_], xs[k_], :3].mean())
+    profile = {str(k): round(float(np.mean(v)), 1) for k, v in sorted(prof.items()) if len(v) > 40}
+    lum_bg = float(np.mean(GREEN)); pk = max(profile.values())
+    above = [float(k) for k, v in profile.items() if v - lum_bg >= (pk - lum_bg) / 2]
+    return {"pivot": [round(float(pv[0]), 3), round(float(pv[1]), 3)], "line_rms": round(float(np.sqrt((dist ** 2).mean())), 3),
+            "offset_deg": round(off, 3), "offset_sd": round(float(np.std(dev)), 3),
+            "offset_range": [round(min(dev), 3), round(max(dev), 3)], "per_frame": [round(x, 3) for x in dev],
+            "profile": profile, "fwhm": round(max(above) - min(above) + 0.5, 2)}
+
+
+def measure_cone(frames, med, spec, pv):
+    pv = np.array(pv); halves = []; backs = []; skews = []
+    for i, s in enumerate(stems(spec, "locked")):
+        fr = frames[s]
+        d = (np.abs(fr.astype(int) - med).sum(-1) > 0) & ~is_col(fr, OLIVE) & ~is_col(med, PIP)
+        ys, xs = np.nonzero(d); P = np.stack([xs + 0.5, ys + 0.5], 1) - pv
+        a = math.radians(frame_angle(i)); u = np.array([math.cos(a), math.sin(a)]); n = np.array([-u[1], u[0]])
+        t = P @ u; sd = P @ n; sides = []
+        for sg in (1, -1):
+            pts = []
+            for t0 in np.arange(8, 50, 1.0):
+                sel = (np.abs(t - t0) < 0.51) & (sd * sg > -0.5)
+                if sel.any(): pts.append((t0, (sd[sel] * sg).max() + 0.5))
+            pts = np.array(pts); sides.append(np.polyfit(pts[:, 0], pts[:, 1], 1))
+        (a1, b1), (a2, b2) = sides
+        hw = [math.degrees(math.atan(a1)), math.degrees(math.atan(a2))]
+        halves.append(sum(hw) / 2); skews.append((hw[0] - hw[1]) / 2); backs.append((b1 + b2) / (a1 + a2))
+    lum = []
+    for s in stems(spec, "locked"):
+        fr = frames[s]; d = (np.abs(fr.astype(int) - med).sum(-1) > 0)
+        lum += [tuple(p) for p in fr[d][:, :3]]
+    from collections import Counter
+    return {"half_angle": round(float(np.mean(halves)), 3), "half_angle_sd": round(float(np.std(halves)), 3),
+            "apex_behind_pivot": round(float(np.mean(backs)), 2), "apex_sd": round(float(np.std(backs)), 2),
+            "skew_deg": round(float(np.mean(skews)), 3),
+            "colours": [[list(map(int, k)), v] for k, v in Counter(lum).most_common(4)]}
+
+
+def to_game_rows(a):
+    return a[::-1]
+
+
+def measure_marks(med, spec):
+    """The left panel's printed marks (small dark blobs) in the game's view (rows flipped), grouped by the spec's boxes;
+    and the knobs (their faces' circles and pointers)."""
+    mk = spec["marks"]; gm = to_game_rows(med).astype(int)
+    lum = gm[..., :3].mean(-1)
+    x0, y0, x1, y1 = mk["region"]
+    reg = np.zeros(lum.shape, bool); reg[y0:y1, x0:x1] = True
+    dark = reg & (lum < mk["dark_below"]) & ~is_col(gm, OLIVE)
+    lab, n = ndimage.label(dark, structure=np.ones((3, 3)))
+    blobs = []
+    for i in range(1, n + 1):
+        ys, xs = np.nonzero(lab == i)
+        if len(xs) > mk["max_blob"]: continue
+        blobs.append({"pixels": [[int(x), int(y)] for x, y in zip(xs, ys)], "centre": [float(xs.mean() + 0.5), float(ys.mean() + 0.5)],
+                      "box": [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1],
+                      "lum": float(lum[ys, xs].min())})
+    groups = {}
+    for name, box in mk["groups"].items():
+        bx0, by0, bx1, by1 = box
+        inside = [b for b in blobs if bx0 <= b["centre"][0] < bx1 and by0 <= b["centre"][1] < by1]
+        if not inside: groups[name] = {"blobs": [], "ink_box": None}; continue
+        ib = [min(b["box"][0] for b in inside), min(b["box"][1] for b in inside), max(b["box"][2] for b in inside), max(b["box"][3] for b in inside)]
+        cols = sorted({p[0] for b in inside for p in b["pixels"]})
+        runs = []
+        for x in cols:
+            if runs and x == runs[-1][1]: runs[-1][1] = x + 1
+            else: runs.append([x, x + 1])
+        groups[name] = {"blobs": inside, "ink_box": ib, "column_runs": runs}
+    knobs = []
+    for kb in mk["knobs"]:
+        bx0, by0, bx1, by1 = kb
+        # the knob's whole disc (its light face and black rim), its outline fitted; the face is the rim's width inside
+        sub = lum[by0:by1, bx0:bx1]
+        knob = np.zeros(lum.shape, bool); knob[by0:by1, bx0:bx1] = (sub > mk["face_above"]) | (sub < mk["rim_below"])
+        lab2, n2 = ndimage.label(knob); big = np.argmax(ndimage.sum(knob, lab2, range(1, n2 + 1))) + 1
+        knob = ndimage.binary_fill_holes(lab2 == big)
+        ys, xs = np.nonzero(knob & ~ndimage.binary_erosion(knob))
+        (cx, cy, r), rms = fit_circle(xs + 0.5, ys + 0.5)
+        r = r + 0.5 - mk["rim_width"]
+        yy, xx = np.mgrid[0:lum.shape[0], 0:lum.shape[1]] + 0.5
+        inface = np.hypot(xx - cx, yy - cy) < r - 0.5
+        ys, xs = np.nonzero(inface & (lum < mk["pointer_below"]))
+        P = np.stack([xs + 0.5, ys + 0.5], 1)
+        mu, u = fit_line_tls(P)
+        if (mu - np.array([cx, cy])) @ u < 0: u = -u
+        t = (P - np.array([cx, cy])) @ u
+        knobs.append({"centre": [round(cx, 3), round(cy, 3)], "radius": round(r, 3), "rms": round(rms, 3),
+                      "pointer": {"angle": round(math.degrees(math.atan2(u[1], u[0])), 2), "from": round(float(t.min()), 2),
+                                  "to": round(float(t.max()) + 0.5, 2), "pixels": [[int(x), int(y)] for x, y in zip(xs, ys)],
+                                  "offset": round(float((mu - np.array([cx, cy])) @ np.array([-u[1], u[0]])), 2)}})
+    # the dotted arc: a circle through its dots
+    arc = groups.get(mk["arc_group"])
+    arcfit = None
+    if arc and arc["blobs"]:
+        C = np.array([b["centre"] for b in arc["blobs"]])
+        (ax, ay, ar), arms = fit_circle(C[:, 0], C[:, 1])
+        angs = sorted(math.degrees(math.atan2(p[1] - ay, p[0] - ax)) for p in C)
+        arcfit = {"centre": [round(ax, 3), round(ay, 3)], "radius": round(ar, 3), "rms": round(arms, 3),
+                  "angles": [round(a, 2) for a in angs], "sizes": [len(b["pixels"]) for b in sorted(arc["blobs"], key=lambda b: math.atan2(b["centre"][1] - ay, b["centre"][0] - ax))]}
+    return {"groups": groups, "knobs": knobs, "arc": arcfit,
+            "panel_colour": [int(v) for v in np.median(gm[reg & is_col(gm, OLIVE)][:, :3], 0)]}
+
+
+# ------------------------------------------------------------------------------------------------------------- drawing
+# every shape is a coverage (0..1) on the target's texel grid; a texel's centre at ((j + 0.5) / S, (i + 0.5) / S) original px
+
+class Canvas:
+    def __init__(self, w, h, s, box=None):
+        """A window of the S-times picture: box (x0, y0, x1, y1) in original pixels (the whole picture by default)."""
+        self.s = s
+        x0, y0, x1, y1 = box or (0, 0, w, h)
+        self.box = (x0, y0, x1, y1)
+        self.X = (np.arange(int(x0 * s), int(x1 * s)) + 0.5)[None, :] / s
+        self.Y = (np.arange(int(y0 * s), int(y1 * s)) + 0.5)[:, None] / s
+
+    def aa(self, d):
+        """Coverage from a signed distance (original px, negative inside): one texel of soft edge."""
+        return np.clip(0.5 - d * self.s, 0, 1)
+
+    def disc(self, c, r):
+        return self.aa(np.hypot(self.X - c[0], self.Y - c[1]) - r)
+
+    def ring(self, c, r, w):
+        return self.aa(np.abs(np.hypot(self.X - c[0], self.Y - c[1]) - r) - w / 2)
+
+    def seg(self, p0, p1, w, cap=True):
+        p0 = np.array(p0, float); p1 = np.array(p1, float); d = p1 - p0; L = float(np.hypot(*d)); u = d / max(L, 1e-9)
+        t = (self.X - p0[0]) * u[0] + (self.Y - p0[1]) * u[1]
+        n = -(self.X - p0[0]) * u[1] + (self.Y - p0[1]) * u[0]
+        if cap:
+            tc = np.clip(t, 0, L); dist = np.hypot(t - tc, n)
+        else:
+            dist = np.maximum(np.abs(n), np.maximum(-t, t - L) + w / 2)
+        return self.aa(dist - w / 2)
+
+    def polar(self, c):
+        return np.hypot(self.X - c[0], self.Y - c[1]), np.degrees(np.arctan2(self.Y - c[1], self.X - c[0]))
+
+
+def over(img, cov, colour, alpha=1.0):
+    """img (h, w, 3 float) with colour laid over at coverage cov."""
+    a = (np.clip(cov, 0, 1) * alpha)[..., None]
+    img *= 1 - a; img += a * np.asarray(colour, float)
+    return img
+
+
+def angdiff(a, b):
+    return (a - b + 180) % 360 - 180
+
+
+def scope_face(g, spec, cv, style, frame=None, locked=False):
+    """The scope's face (original-pixel window cv) as colour and its coverage: face, grid, pip, beam or cone."""
+    st = spec["styles"][style]; sc = spec["scope"]
+    fc = g["face"]["centre"]; fr = g["face"]["radius"]
+    h, w = cv.Y.shape[0], cv.X.shape[1]
+    img = np.empty((h, w, 3)); img[:] = st.get("face", GREEN)
+    inside = cv.disc(fc, fr)
+    gc = g["grid"]["centre"]; pv = g["sweep"]["pivot"]
+    sw = g["sweep"]
+    # the afterglow and a soft cone lie under the graticule (style "glow_under_grid"); the beam's line always over it, as the original's
+    a0 = None if frame is None else frame_angle(frame) + (0 if locked else sw["offset_deg"])
+    under = st.get("glow_under_grid", False)
+    if a0 is not None and under:
+        if locked: cone(img, cv, g, st, a0)
+        else: beam(img, cv, g, st, a0, part="trail")
+    lw = sc["line_width"]
+    for R in g["grid"]["rings"]:
+        over(img, cv.ring(gc, R["radius"], lw), GRID)
+    for s_ in g["grid"]["spokes"]:
+        a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
+        L = fr + 2
+        over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False), GRID)
+    if g.get("pip") and frame is not None:
+        pc = g["pip"]["centre"]
+        over(img, cv.disc(pc, sc["pip_ring"]), OLIVE)
+        over(img, cv.disc(pc, sc["pip_radius"]), PIP)
+    elif g.get("pip"):
+        over(img, cv.disc(g["pip"]["centre"], sc["hub_radius"]), GRID)      # the radar-off frames: a dark 4x4 hub, no pip
+    if a0 is not None:
+        if locked and not under: cone(img, cv, g, st, a0)
+        if not locked: beam(img, cv, g, st, a0, part="line" if under else "all")
+    return img, inside
+
+
+def beam(img, cv, g, st, a0, part="all"):
+    pv = g["sweep"]["pivot"]; fr = g["face"]["radius"]
+    r, ang = cv.polar(pv)
+    b = st["beam"]
+    if b.get("trail_deg") and part in ("all", "trail"):
+        # afterglow behind the beam: behind is the side the beam has left, larger angles in the file's axes
+        behind = angdiff(ang, a0)
+        k = (behind > 0) & (behind < b["trail_deg"])
+        inten = np.where(k, b["trail_peak"] * np.exp(-np.clip(behind, 0, None) / b["trail_decay_deg"]), 0.0)
+        inten *= np.clip((r - 1.0) * 0.5, 0, 1)
+        over(img, inten, b["trail_colour"])
+    if part == "trail": return
+    u = np.array([math.cos(math.radians(a0)), math.sin(math.radians(a0))])
+    end = np.array(pv) + u * (fr + 1)
+    if b.get("glow_width"):
+        over(img, cv.seg(pv, end, b["glow_width"]), b["glow_colour"], b.get("glow_alpha", 0.5))
+    over(img, cv.seg(pv, end, b["width"]), b["edge_colour"])
+    over(img, cv.seg(pv, end, b["core_width"]), b["core_colour"])
+
+
+def cone(img, cv, g, st, a0):
+    pv = np.array(g["sweep"]["pivot"]); cn = g["cone"]; c = st["cone"]
+    half = cn["half_angle"]; back = cn["apex_behind_pivot"]
+    a = math.radians(a0 + cn.get("skew_deg", 0) * 0)
+    u = np.array([math.cos(a), math.sin(a)]); n = np.array([-u[1], u[0]])
+    X = cv.X - pv[0]; Y = cv.Y - pv[1]
+    t = X * u[0] + Y * u[1]; s = X * n[0] + Y * n[1]
+    th = math.radians(half)
+    # distance outside each edge (the edges meet "back" px behind the pivot)
+    d_edge = np.abs(s) * math.cos(th) - (t + back) * math.sin(th)
+    d = np.maximum(d_edge, -t)                       # starts at the pivot
+    soft = c.get("soft", 0)
+    if soft:
+        cov = np.clip(0.5 - d / soft, 0, 1); cov = cov * cov * (3 - 2 * cov)
+    else:
+        cov = cv.aa(d)
+    if c.get("rim_colour"):
+        over(img, cov, c["rim_colour"])
+        inner = cv.aa(d + c["rim"]) if not soft else np.clip(0.5 - (d + c["rim"]) / soft, 0, 1)
+        over(img, inner, c["fill"])
+    else:
+        over(img, cov, c["fill"])
+    if c.get("axis_colour"):
+        rel = np.clip(1 - np.abs(s) / np.maximum((t + back) * math.tan(th), 1e-3), 0, 1) * (t > 0)
+        over(img, rel ** 2, c["axis_colour"], c.get("axis_alpha", 0.5))
+
+
+def inset_face(g, spec, cv, style):
+    st = spec["styles"][style]; ins = g["inset"]; lw = spec["inset"]["line_width"]
+    h, w = cv.Y.shape[0], cv.X.shape[1]
+    img = np.empty((h, w, 3)); img[:] = st.get("face", GREEN)
+    fc = ins["face"]["centre"]; fr = ins["face"]["radius"]
+    inside = cv.disc(fc, fr)
+    for R in ins["rings"]: over(img, cv.ring(ins["centre"], R["radius"], lw), GRID)
+    cx, cy = ins["centre"]
+    over(img, cv.seg((cx - fr - 1, cy), (cx + fr + 1, cy), lw, cap=False), GRID)
+    over(img, cv.seg((cx, cy - fr - 1), (cx, cy + fr + 1), lw, cap=False), GRID)
+    return img, inside
+
+
+# ------------------------------------------------------------------------------------------------------------- the panel
+
+FONT_CACHE = os.environ.get("I76_RADAR_FONT_CACHE", os.path.join(os.path.expanduser("~"), ".cache", "i26-radar-fonts"))
+
+
+def font_file(name, spec):
+    """A face named in the spec's "fonts": downloaded once into the cache (its licence beside it), or one of
+    tools/text-redraws/fonts' faces."""
+    f = spec["fonts"][name]
+    if "repo" in f: return os.path.join(REPO_FONTS, f["repo"])
+    os.makedirs(FONT_CACHE, exist_ok=True)
+    path = os.path.join(FONT_CACHE, os.path.basename(f["url"]))
+    if not os.path.exists(path):
+        print(f"fetching {name} ({f['license']}) from {f['url']}")
+        urllib.request.urlretrieve(f["url"], path + ".part"); os.replace(path + ".part", path)
+        if f.get("license_url"):
+            try: urllib.request.urlretrieve(f["license_url"], os.path.join(FONT_CACHE, name + "-OFL.txt"))
+            except OSError: pass
+    return path
+
+
+def text_coverage(cv, text, font_path, box, cap=None, tracking=0.0):
+    """The text's coverage on cv, its ink fitted to box (x0, y0, x1, y1 original px, the game's view) by height (cap) and
+    centred; squeezed to the box's width if wider."""
+    ss = 4; s = cv.s
+    x0, y0, x1, y1 = box; bh = (y1 - y0) if cap is None else cap
+    px = 400
+    f = ImageFont.truetype(font_path, px)
+    # draw at a big size, letters spaced
+    chars = list(text); widths = [f.getlength(ch) for ch in chars]; trk = tracking * px
+    W = int(sum(widths) + trk * (len(chars) - 1) + px); H = int(px * 1.6)
+    im = Image.new("L", (W, H), 0); d = ImageDraw.Draw(im); x = px * 0.5
+    for ch, wd in zip(chars, widths):
+        d.text((x, px * 0.2), ch, font=f, fill=255); x += wd + trk
+    a = np.asarray(im, np.float32) / 255
+    ys, xs = np.nonzero(a > 0.02)
+    if not len(xs): return np.zeros((cv.Y.shape[0], cv.X.shape[1]))
+    # the cap band: the font's H
+    hb = f.getbbox("H", anchor="la")
+    capt, capb = px * 0.2 + hb[1], px * 0.2 + hb[3]
+    ix0, ix1 = xs.min(), xs.max() + 1
+    scale = bh / (capb - capt)                      # original px per drawn px
+    wpx = (ix1 - ix0) * scale
+    sx = min(1.0, (x1 - x0) / wpx) if wpx > 0 else 1.0
+    # target placement: cap band on [cy - bh/2, cy + bh/2], centred in x
+    cx = (x0 + x1) / 2; cy = (y0 + y1) / 2
+    # sample: for each target texel, its source position
+    gx = (cv.X - cx) / (scale * sx) + (ix0 + ix1) / 2
+    gy = (cv.Y - cy) / scale + (capt + capb) / 2
+    # supersampled lookup (bilinear on a pre-blurred source to avoid aliasing)
+    sigma = max(0.0, 0.5 / (scale * s) - 0.5)
+    if sigma > 0.3: a = ndimage.gaussian_filter(a, sigma)
+    cov = ndimage.map_coordinates(a, [np.broadcast_to(gy, (cv.Y.shape[0], cv.X.shape[1])).ravel(),
+                                      np.broadcast_to(gx, (cv.Y.shape[0], cv.X.shape[1])).ravel()], order=1, cval=0.0)
+    return cov.reshape(cv.Y.shape[0], cv.X.shape[1])
+
+
+def inpaint(img, mask, known=None):
+    """Fill the masked texels smoothly from the known texels round them (normalised convolution at falling scales: the
+    widest pass fills everything, the narrower ones bring the nearby surface's shade back)."""
+    out = img.copy(); kn = (~mask if known is None else known & ~mask).astype(float)
+    for sigma in (24, 12, 6, 3):
+        num = np.stack([ndimage.gaussian_filter(img[..., k] * kn, sigma) for k in range(img.shape[2])], -1)
+        den = ndimage.gaussian_filter(kn, sigma)[..., None]
+        ok = den[..., 0] > 0.02
+        upd = mask & ok
+        out[upd] = (num / np.maximum(den, 1e-6))[upd]
+    return out
+
+
+def lum_of(a):
+    return a[..., :3].mean(-1)
+
+
+def panel_patch(g, spec, label_set, base_game, s):
+    """The left panel's window (game view, S-times texels): the base's marks erased and drawn again; returns the patch,
+    its window (original px, game view) and the mask of texels changed."""
+    mk = spec["marks"]; gm = g["marks"]
+    x0, y0, x1, y1 = mk["region"]
+    cv = Canvas(base_game.shape[1] // s, base_game.shape[0] // s, s, (x0, y0, x1, y1))
+    win = base_game[int(y0 * s):int(y1 * s), int(x0 * s):int(x1 * s), :3].astype(float)
+    # what to erase: every measured mark's pixels, grown; the pointers on the knob faces
+    erase = np.zeros(win.shape[:2], bool)
+    grow = spec["marks"]["erase_grow"]
+    def stamp(pixels, grow_):
+        for (px_, py_) in pixels:
+            erase[...] |= (np.abs(cv.X - (px_ + 0.5)) <= 0.5 + grow_) & (np.abs(cv.Y - (py_ + 0.5)) <= 0.5 + grow_)
+    for name in mk["erase_groups"]:
+        for b in gm["groups"][name]["blobs"]: stamp(b["pixels"], grow)
+    # the upscale's soft ink round the marks: dark texels within a pixel of the erased ones go too; the fill reads only the
+    # surface (texels not darker than the panel's own shade)
+    panel_l = float(np.mean(gm["panel_colour"]))
+    wl = lum_of(win)
+    near = ndimage.binary_dilation(erase, iterations=max(1, int(round(mk["halo"] * s))))
+    erase |= near & (wl < panel_l - mk["halo_darker"])
+    patch = inpaint(win, erase, wl > panel_l - mk["halo_darker"])
+    knob_mask = np.zeros(win.shape[:2], bool)
+    if mk.get("redraw_pointers"):
+        for kn in gm["knobs"]:
+            pm = np.zeros(win.shape[:2], bool)
+            for (px_, py_) in kn["pointer"]["pixels"]:
+                pm |= (np.abs(cv.X - (px_ + 0.5)) <= 0.5 + mk["pointer_grow"]) & (np.abs(cv.Y - (py_ + 0.5)) <= 0.5 + mk["pointer_grow"])
+            face = cv.disc(kn["centre"], kn["radius"] - 0.6) > 0.5
+            pm &= face
+            # the knob's face is a smooth light: fill from the face round the old pointer only
+            pm |= face & ndimage.binary_dilation(pm, iterations=max(1, int(round(mk["halo"] * s)))) & (wl < mk["face_light"])
+            fill = inpaint(win, pm, face & (wl >= mk["face_light"])) if pm.any() else win
+            patch[pm] = fill[pm]; erase |= pm; knob_mask |= face
+    ink = spec["marks"]["ink"]
+    cov_all = np.zeros(win.shape[:2])
+    # the dotted arc: dots at the measured places, the ends larger
+    arc = gm["arc"]
+    if arc and mk.get("arc"):
+        am = mk["arc"]
+        angs = arc["angles"]
+        if am.get("even"):
+            a_lo, a_hi = angs[0], angs[-1]; angs = list(np.linspace(a_lo, a_hi, len(angs)))
+        for i, a in enumerate(angs):
+            end = i in (0, len(angs) - 1)
+            p = (arc["centre"][0] + arc["radius"] * math.cos(math.radians(a)), arc["centre"][1] + arc["radius"] * math.sin(math.radians(a)))
+            if end and am.get("end_wedge"):
+                # a short radial bar, as the original's larger end marks
+                u = np.array([math.cos(math.radians(a)), math.sin(math.radians(a))])
+                cov_all = np.maximum(cov_all, cv.seg(np.array(p) - u * am["end_len"] / 2, np.array(p) + u * am["end_len"] / 2, am["end_width"]))
+            else:
+                cov_all = np.maximum(cov_all, cv.disc(p, am["end_radius"] if end else am["dot_radius"]))
+    # ticks: straight strokes along each measured mark's long axis
+    for name in mk.get("tick_groups", []):
+        for b in gm["groups"][name]["blobs"]:
+            P = np.array(b["pixels"], float) + 0.5
+            if len(P) < 2:
+                cov_all = np.maximum(cov_all, cv.disc(P[0], mk["tick_width"] / 2)); continue
+            mu, u = fit_line_tls(P); t = (P - mu) @ u
+            L = max(t.max() - t.min(), 1.0) + mk["tick_extend"]
+            if mk.get("x_mark") and len(P) >= 5 and name == mk["x_mark"]:
+                c_ = mu; h_ = L / 2 * 0.75
+                cov_all = np.maximum(cov_all, cv.seg(c_ + np.array([-h_, -h_]) * 0.8, c_ + np.array([h_, h_]) * 0.8, mk["tick_width"]))
+                cov_all = np.maximum(cov_all, cv.seg(c_ + np.array([-h_, h_]) * 0.8, c_ + np.array([h_, -h_]) * 0.8, mk["tick_width"]))
+                continue
+            cov_all = np.maximum(cov_all, cv.seg(mu - u * L / 2, mu + u * L / 2, mk["tick_width"]))
+    # the knob pointers
+    if mk.get("redraw_pointers"):
+        for kn in gm["knobs"]:
+            a = math.radians(kn["pointer"]["angle"]); u = np.array([math.cos(a), math.sin(a)])
+            c_ = np.array(kn["centre"])
+            pc = np.maximum(np.zeros_like(cov_all), cv.seg(c_ + u * mk["pointer_from"], c_ + u * (kn["radius"] - mk["pointer_inset"]), mk["pointer_width"]))
+            patch = over(patch, pc, mk["pointer_colour"])
+            erase |= pc > 0
+    # the words
+    for t in label_set.get("texts", []):
+        grp = gm["groups"].get(t["box"]); box = t.get("at") or (grp["ink_box"] if grp else None)
+        if box is None: continue
+        if t.get("pad"): box = [box[0] - t["pad"][0], box[1] - t["pad"][1], box[2] + t["pad"][0], box[3] + t["pad"][1]]
+        cov = text_coverage(cv, t["text"], font_file(t.get("font", label_set.get("font", spec["default_font"])), spec), box,
+                            cap=t.get("cap"), tracking=t.get("tracking", 0.0))
+        cov_all = np.maximum(cov_all, cov)
+    # marks kept as the original paints them (no lettering asked for): each painted pixel a square, the squares blurred and
+    # cut at a level, so the blobs keep their places and sizes with a smooth outline
+    for name in label_set.get("blob_groups", []):
+        sq = np.zeros(win.shape[:2])
+        for b in gm["groups"][name]["blobs"]:
+            for (px_, py_) in b["pixels"]:
+                sq[(np.abs(cv.X - (px_ + 0.5)) <= 0.5) & (np.abs(cv.Y - (py_ + 0.5)) <= 0.5)] = 1.0
+        bl = ndimage.gaussian_filter(sq, mk["blob_sigma"] * s)
+        cov_all = np.maximum(cov_all, np.clip((bl - mk["blob_level"]) * 4 + 0.5, 0, 1))
+    patch = over(patch, cov_all, ink)
+    changed = erase | (cov_all > 0.002)
+    return patch, (x0, y0, x1, y1), changed
+
+
+# ------------------------------------------------------------------------------------------------------------- frames
+
+def flip_rows(a):
+    return np.ascontiguousarray(a[::-1])
+
+
+def resize_to(a, w, h):
+    if a.shape[1] == w and a.shape[0] == h: return a
+    return np.asarray(Image.fromarray(a).resize((w, h), Image.BOX if w < a.shape[1] else Image.LANCZOS))
+
+
+class Redraw:
+    """One label set and style at scale s: the static parts made once, each frame composited over its upscale."""
+
+    def __init__(self, g, spec, style, label_set, s, panel_base):
+        self.g, self.spec, self.style, self.s = g, spec, style, s
+        self.ls = label_set
+        H, W = 128, 256
+        fc = g["face"]["centre"]; fr = g["face"]["radius"]
+        m = spec["scope"]["window_margin"]
+        self.sbox = (math.floor(fc[0] - fr - m), math.floor(fc[1] - fr - m), math.ceil(fc[0] + fr + m), math.ceil(fc[1] + fr + m))
+        self.scv = Canvas(W, H, s, self.sbox)
+        ic = g["inset"]["face"]["centre"]; ir = g["inset"]["face"]["radius"]
+        self.ibox = (math.floor(ic[0] - ir - 1), math.floor(ic[1] - ir - 1), math.ceil(ic[0] + ir + 1), math.ceil(ic[1] + ir + 1))
+        self.icv = Canvas(W, H, s, self.ibox)
+        self.inset_img, self.inset_cov = inset_face(g, spec, self.icv, style)
+        self.inset_cov *= spec["inset"].get("blend", 1.0)
+        # the panel: worked in the game's view on one base frame, the same patch on every frame (no flicker from the upscale)
+        pg = flip_rows(panel_base)
+        if label_set is not None:
+            patch, box, changed = panel_patch(g, spec, label_set, pg, s)
+            x0, y0, x1, y1 = box
+            # back to the file's rows
+            self.panel = (flip_rows(patch), flip_rows(changed), (x0, H - y1, x1, H - y0))
+        else:
+            self.panel = None
+        self.cache = {}
+
+    def frame(self, base, kind, i):
+        """base: the upscale of this frame (s-times, RGBA uint8); kind 'sweep' | 'locked'; i 0..30 (30: radar off)."""
+        s = self.s; out = base.copy(); img = out[..., :3].astype(float)
+        if self.panel is not None:
+            patch, changed, (x0, y0, x1, y1) = self.panel
+            sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
+            reg = img[sl]; reg[changed] = patch[changed]
+        frame = None if i >= self.spec["frames"]["count"] else i
+        face, cov = scope_face(self.g, self.spec, self.scv, self.style, frame, kind == "locked")
+        x0, y0, x1, y1 = self.sbox
+        sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
+        a = cov[..., None]; img[sl] = img[sl] * (1 - a) + face * a
+        x0, y0, x1, y1 = self.ibox
+        sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
+        a = self.inset_cov[..., None]; img[sl] = img[sl] * (1 - a) + self.inset_img * a
+        out[..., :3] = np.clip(np.round(img), 0, 255).astype(np.uint8)
+        return out
+
+
+def upscale_frame(upscale_dir, stem, s):
+    a = load_rgba(os.path.join(upscale_dir, stem + ".png"))
+    return resize_to(a, 256 * s, 128 * s)
+
+
+def label_set_named(spec, name):
+    for ls in spec["label_sets"]:
+        if ls["name"] == name: return ls
+    raise SystemExit(f"no label set {name!r}: " + ", ".join(l["name"] for l in spec["label_sets"]))
+
+
+def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
+    frames = load_frames(export_dir, spec)
+    if g is None: g, _ = measure(frames, spec)
+    ls = label_set_named(spec, ls_name)
+    off = spec["frames"]["sweep"] % spec["frames"]["count"]
+    rd = Redraw(g, spec, style, ls, s, upscale_frame(upscale_dir, off, s))
+    os.makedirs(out_dir, exist_ok=True)
+    for kind in ("sweep", "locked"):
+        for i in range(spec["frames"]["count"] + 1):
+            stem = spec["frames"][kind] % i
+            Image.fromarray(rd.frame(upscale_frame(upscale_dir, stem, s), kind, i)).save(os.path.join(out_dir, stem + ".png"))
+    with open(os.path.join(out_dir, "radar-geometry.json"), "w") as f: json.dump(strip(g), f, indent=1)
+    return g
+
+
+def strip(g):
+    """The geometry without the per-pixel lists (for the report)."""
+    def walk(x):
+        if isinstance(x, dict): return {k: walk(v) for k, v in x.items() if k != "pixels"}
+        if isinstance(x, list): return [walk(v) for v in x]
+        return x
+    return walk(g)
+
+
+# ------------------------------------------------------------------------------------------------------------- label fit
+
+def area_matrix(n_out, n_in, start, length):
+    e = start + length * np.arange(n_in + 1) / n_in
+    s0, s1 = e[:-1][None, :], e[1:][None, :]
+    j = np.arange(n_out)[:, None]
+    return np.clip(np.minimum(s1, j + 1) - np.maximum(s0, j), 0, None)
+
+
+def word_fit(obs, box, text, font_path):
+    """Best correlation of the text, shrunk by area onto the observed window's texels (box in window coords), over small
+    shifts and widths: how well the painted blobs could be this word (a painter's downsample)."""
+    f = ImageFont.truetype(font_path, 120)
+    l, t, r, b = f.getbbox(text)
+    im = Image.new("L", (r - l + 8, b - t + 8)); ImageDraw.Draw(im).text((4 - l, 4 - t), text, font=f, fill=255)
+    cov = np.asarray(im, float) / 255; ys, xs = np.nonzero(cov > 0.05); cov = cov[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    x0, y0, x1, y1 = box; best = -2.0
+    for dx in np.arange(-1.0, 1.01, 0.5):
+        for dw in np.arange(-2, 2.01, 1.0):
+            for dy in (-0.5, 0, 0.5):
+                Ax = area_matrix(obs.shape[1], cov.shape[1], x0 + dx - dw / 2, (x1 - x0) + dw)
+                Ay = area_matrix(obs.shape[0], cov.shape[0], y0 + dy, (y1 - y0))
+                sm = Ay @ cov @ Ax.T
+                a = sm - sm.mean(); o = obs - obs.mean(); d = math.sqrt((a * a).sum() * (o * o).sum())
+                if d > 0: best = max(best, float((a * o).sum() / d))
+    return best
+
+
+def fit_labels(med, g, spec, words, baseline, fonts):
+    """Each candidate's fit to each lettered group, in both row orders, with the baseline words' spread (z = how far above
+    random words of the same kind of list the candidate sits)."""
+    out = {}
+    lum = med[..., :3].astype(float).mean(-1)
+    panel = float(np.mean(g["marks"]["panel_colour"]))
+    for grp in spec["marks"]["lettered_groups"]:
+        ib = g["marks"]["groups"][grp]["ink_box"]
+        if ib is None: continue
+        x0, y0, x1, y1 = ib; pad = 1
+        res = {}
+        for view in ("game", "file"):
+            L = lum[::-1] if view == "game" else lum
+            ry0, ry1 = (y0, y1) if view == "game" else (128 - y1, 128 - y0)
+            obs = np.clip((panel - L[ry0 - pad:ry1 + pad, x0 - pad:x1 + pad]) / max(panel - 34, 1), 0, 1)
+            box = (pad, pad, pad + x1 - x0, pad + y1 - y0)
+            sc = {w: max(word_fit(obs, box, w, fp) for fp in fonts) for w in sorted(set(words) | set(baseline))}
+            base = np.array([sc[w] for w in baseline])
+            mu, sd = float(base.mean()), float(base.std() or 1)
+            res[view] = {"baseline_mean": round(mu, 3), "baseline_sd": round(sd, 3), "baseline_max": round(float(base.max()), 3),
+                         "words": sorted(([w, round(sc[w], 3), round((sc[w] - mu) / sd, 2)] for w in words), key=lambda r: -r[1])}
+        out[grp] = res
+    return out
+
+
+# ------------------------------------------------------------------------------------------------------------- self-check
+
+def synthetic(spec):
+    """A made-up radar in the original's layout (not the game's art): a face, three rings, four spokes, a pip, a beam per
+    frame and a cone per locked frame, a panel with an arc of dots, ticks and two rows of marks, two knobs."""
+    W, H = 256, 128; cx, cy, R = 98.5, 65.0, 54.0
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    def base():
+        a = np.zeros((H, W, 4), np.uint8); a[..., 3] = 255; a[..., :3] = OLIVE
+        r = np.hypot(xx - cx, yy - cy)
+        a[r < R] = GREEN + (255,)
+        for rr in (13.0, 25.5, 40.0): a[(np.abs(r - rr) < 0.55) & (r < R)] = GRID + (255,)
+        a[(np.abs(xx - cx) < 0.5) & (r < R)] = GRID + (255,); a[(np.abs(yy - cy) <= 0.5) & (r < R)] = GRID + (255,)
+        for s_ in (1, -1): a[(np.abs((xx - cx) - s_ * (yy - cy)) < 0.6) & (r < R)] = GRID + (255,)
+        a[64:66, 98:100] = PIP + (255,)
+        ri = np.hypot(xx - 150.5, yy - 111.5)
+        a[ri < 10.5] = GREEN + (255,)
+        for rr in (6.0, 8.0): a[np.abs(ri - rr) < 0.5] = GRID + (255,)
+        a[111, 140:162] = GRID + (255,); a[101:122, 150] = GRID + (255,)
+        g = a[::-1].copy()                    # the panel drawn in the game's view, then flipped into the file's rows
+        for k, (kx, ky) in enumerate(((29.5, 30.5), (29.5, 76.5))):
+            rk = np.hypot(xx - kx, yy - ky); g[rk < 7] = (200, 200, 200, 255); g[(rk >= 7) & (rk < 9)] = (16, 16, 16, 255)
+            ang = math.radians(-135 if k == 0 else -45)
+            for t in np.arange(1.0, 6.0, 0.5):
+                g[int(ky + t * math.sin(ang)), int(kx + t * math.cos(ang))] = (16, 16, 16, 255)
+        for a_ in np.linspace(-158, -22, 7):
+            px_, py_ = 29.6 + 14.6 * math.cos(math.radians(a_)), 28.5 + 14.6 * math.sin(math.radians(a_))
+            g[int(py_), int(px_)] = GRID + (255,)
+        for x in range(16, 40):
+            if x % 3: g[46, x] = GRID + (255,)
+        for x in (27, 30, 34, 37): g[90, x] = GRID + (255,)
+        g[62, 21] = g[61, 20] = GRID + (255,); g[63, 37] = g[62, 38] = GRID + (255,)
+        return g[::-1].copy()
+    frames = {}
+    b = base()
+    for kind in ("sweep", "locked"):
+        for i in range(31):
+            a = b.copy()
+            if i < 30:
+                ang = math.radians(frame_angle(i) + (1.0 if kind == "sweep" else 0))
+                for t in np.arange(1, 53, 0.25):
+                    if kind == "sweep":
+                        for o in (-1, 0, 1):
+                            x = cx + 0.4 + t * math.cos(ang) - o * math.sin(ang); y = cy + t * math.sin(ang) + o * math.cos(ang)
+                            a[int(y), int(x)] = ((99, 189, 99) if o == 0 else (82, 156, 82)) + (255,)
+                    else:
+                        half = math.radians(6)
+                        for o in np.arange(-1, 1.01, 0.1):
+                            th = ang + o * half
+                            x = cx + 0.4 + t * math.cos(th); y = cy + t * math.sin(th)
+                            a[int(y), int(x)] = (82, 156, 82, 255)
+            frames[spec["frames"][kind] % i] = a
+    return frames
+
+
+def self_check():
+    spec = load_spec(); ok = True
+    frames = synthetic(spec)
+    g, med = measure(frames, spec)
+    def check(name, cond, detail):
+        nonlocal ok
+        print(("ok   " if cond else "FAIL ") + name + ": " + detail); ok &= bool(cond)
+    gc = g["grid"]["centre"]
+    check("grid centre", abs(gc[0] - 98.5) < 0.3 and abs(gc[1] - 65.0) < 0.3, str(gc))
+    radii = [r["radius"] for r in g["grid"]["rings"]]
+    check("ring radii", all(abs(a - b) < 0.4 for a, b in zip(radii, (13.0, 25.5, 40.0))), str(radii))
+    check("face radius", abs(g["face"]["radius"] - 54.0) < 0.6, str(g["face"]))
+    check("sweep offset", abs(g["sweep"]["offset_deg"] - 1.0) < 0.4, f'{g["sweep"]["offset_deg"]} sd {g["sweep"]["offset_sd"]}')
+    check("cone half-angle", 4.5 < g["cone"]["half_angle"] < 7.5, str(g["cone"]["half_angle"]))
+    check("inset", abs(g["inset"]["centre"][0] - 150.5) < 0.5 and abs(g["inset"]["centre"][1] - 111.5) < 0.5, str(g["inset"]["centre"]))
+    check("arc of dots", g["marks"]["arc"] is not None and len(g["marks"]["arc"]["angles"]) == 7, str(g["marks"]["arc"] and g["marks"]["arc"]["angles"]))
+    # a render at 2x over a nearest-neighbour "upscale": registration and untouched outside
+    s = 2
+    up = {k: np.repeat(np.repeat(v, s, 0), s, 1) for k, v in frames.items()}
+    ls = {"name": "marks-only", "texts": [], "blob_groups": ["under_lower"]}
+    rd = Redraw(g, spec, "A", ls, s, up[spec["frames"]["sweep"] % 30])
+    out = rd.frame(up[spec["frames"]["sweep"] % 7], "sweep", 7)
+    check("size", out.shape == up[spec["frames"]["sweep"] % 7].shape, str(out.shape))
+    far = np.zeros(out.shape[:2], bool); far[:, 170 * s:] = True
+    check("outside untouched", np.array_equal(out[far], up[spec["frames"]["sweep"] % 7][far]), "")
+    check("alpha untouched", np.array_equal(out[..., 3], up[spec["frames"]["sweep"] % 7][..., 3]), "")
+    # the beam lies along frame 7's angle from the pivot
+    pv = g["sweep"]["pivot"]; a = math.radians(frame_angle(7) + g["sweep"]["offset_deg"])
+    p = (pv[0] + 30 * math.cos(a), pv[1] + 30 * math.sin(a))
+    px_ = out[int(p[1] * s), int(p[0] * s), :3]
+    check("beam placed", px_[1] > 150, str(px_))
+    q = (pv[0] + 30 * math.cos(a + 0.4), pv[1] + 30 * math.sin(a + 0.4))
+    check("face off the beam", tuple(out[int(q[1] * s), int(q[0] * s), :3]) in (GREEN,) or out[int(q[1] * s), int(q[0] * s), 1] < 90, str(out[int(q[1] * s), int(q[0] * s), :3]))
+    print("self-check", "passed" if ok else "FAILED")
+    return ok
+
+
+# ------------------------------------------------------------------------------------------------------------- main
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("cmd", nargs="?", choices=["measure", "render", "sheet", "fit-labels"])
+    ap.add_argument("export", nargs="?"); ap.add_argument("upscale", nargs="?"); ap.add_argument("out", nargs="?")
+    ap.add_argument("--spec", default=SPEC)
+    ap.add_argument("--scale", type=int, default=8)
+    ap.add_argument("--style", default="A")
+    ap.add_argument("--labels", default="marks-only")
+    ap.add_argument("--self-check", action="store_true")
+    a = ap.parse_args(argv)
+    if a.self_check: return 0 if self_check() else 1
+    spec = load_spec(a.spec)
+    if a.cmd == "measure":
+        g, _ = measure(load_frames(a.export, spec), spec)
+        txt = json.dumps(strip(g), indent=1)
+        if a.upscale: open(a.upscale, "w").write(txt)
+        else: print(txt)
+        return 0
+    if a.cmd == "fit-labels":
+        frames = load_frames(a.export, spec); g, med = measure(frames, spec)
+        lf = spec["label_fit"]
+        base = [l.split("\t")[0].strip() for l in open(os.path.join(HERE, "radar-redraw", lf["baseline"]), encoding="utf-8") if l.strip() and not l.startswith("#")]
+        fonts = [os.path.join(REPO_FONTS, f) for f in lf["fonts"]]
+        words = sorted({w for w in lf["words"]} | {t["text"] for ls in spec["label_sets"] for t in ls.get("texts", [])})
+        res = fit_labels(med, g, spec, words, base, fonts)
+        txt = json.dumps(res, indent=1)
+        if a.upscale: open(a.upscale, "w").write(txt)
+        else: print(txt)
+        return 0
+    if a.cmd == "render":
+        render_all(a.export, a.upscale, a.out, spec, a.scale, a.style, a.labels)
+        return 0
+    if a.cmd == "sheet":
+        import importlib.util
+        sp = importlib.util.spec_from_file_location("radar_sheet", os.path.join(HERE, "radar-redraw", "sheet.py"))
+        mod = importlib.util.module_from_spec(sp); sp.loader.exec_module(mod)
+        return mod.sheet(sys.modules[__name__], a.export, a.upscale, a.out, spec)
+    ap.print_help(); return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

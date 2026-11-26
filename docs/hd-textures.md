@@ -425,6 +425,33 @@ about an hour of reading and a minute or two of fitting. Hand lettering, scripts
 type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
 `tools/text-redraws/fonts/README.md`.
 
+## The cockpit radar redrawn (option, not in the recipe)
+
+`tools/radar-redraw.py` draws the radar's 62 frames (`zradf000`-`030`, the sweep; `zradb000`-`030`, locked on a target)
+again over a pack's upscale, CPU only, as a candidate for the owner to pick from; the recipes do not run it yet. It
+measures everything from your own export (`i76 export-textures`): the 60 frames' per-pixel median is the clean grid and
+panel; the scope's three rings are circles fitted to its grid pixels (one centre), the four spokes lines through them, the
+face a circle fitted to the green's edge, the small scope at the corner likewise; each sweep frame's beam is a fitted line
+(all 30 meet at one pivot, frame f at 12f degrees plus a measured offset) and each lock cone's two edges are fitted. The
+scope is drawn again as anti-aliased vectors at the pack's scale in the original's colours, registered to the original's
+pixels, so the blips, the contact lamp and the range plate the game stamps at fixed pixels land where they did. Style A is
+the original's line and cone without the afterglow barbs; style B a phosphor scope (a fading afterglow behind the beam, a
+soft cone). The left panel's marks (the dotted arc, the ticks, the knob pointers and the two small lettered rows) are
+erased from the upscale and drawn again as shapes; a label set in `tools/radar-redraw/radar.json` sets words in a free
+font the tool downloads into a cache (B612, SIL OFL; nothing is committed), or keeps the painted blobs, cleaned. The
+painted words are three pixels high and one pixel high: `fit-labels` scores candidates against them and against a list of
+unrelated words, and none stands above chance, so the words are a choice, not a reading. The game shows the frames with
+their rows flipped, so the spec's panel positions are in the game's view and the lettering is set upright there.
+
+    python tools/radar-redraw.py measure EXPORT [geometry.json]
+    python tools/radar-redraw.py fit-labels EXPORT [fit.json]
+    python tools/radar-redraw.py render EXPORT UPSCALE OUT --scale 8 --style A --labels var-range
+    python tools/radar-redraw.py sheet EXPORT UPSCALE OUT        # the contact sheet: OUT/index.html
+    python -m unittest tools/test_radar_redraw.py
+
+UPSCALE is a folder of the pack's PNG frames (a family-masters folder); OUT of `render` can be dropped into a
+`tex-world-8x/` (PNG beats the 4x's .dds) or pointed at with `I76_TEX_DIR` (its `world/`) for a look in the game.
+
 ## Notes
 
 - `upscale-textures.py --from OLD_PACK --out NEW_DIR` repacks a pack of 4x PNGs made earlier into the game's `.dds` without
