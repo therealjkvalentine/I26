@@ -1314,6 +1314,10 @@ public sealed class ShellSettings
     /// </summary>
     public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
+    /// <summary>The port's own: Anti-Aliasing's SMAA over the +0x8 MSAA's Off or 2x ([port] screen_aa = smaa; AntiAliasingRow).</summary>
+    public bool Smaa { get; set; }
+    /// <summary>The port's own: Shadow Detail's Ultra over the +0x6 byte's High ([port] shadow_detail = ultra; ShadowDetailRow).</summary>
+    public bool ShadowUltra { get; set; }
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
     public int PlayOptions { get; set; }
@@ -2010,6 +2014,9 @@ public sealed class ShellSettings
         int? forkVersion = c.HasSectionKey("port", "fork_version") ? (int)c.GetValue("port", "fork_version") : null;
         int version = StepsDone(shellVersion, forkVersion);
         ReadGraphics(s.Graphics, (byte[])c.GetValue("shell", "graphics", s.Graphics), version);
+        // no version step: the bytes keep their meaning, the port's choices over them are keys (absent: none)
+        s.Smaa = AntiAliasingRow.FromFile(c.HasSectionKey("port", "screen_aa") ? c.GetValue("port", "screen_aa").ToString() : null);
+        s.ShadowUltra = ShadowDetailRow.FromFile(c.HasSectionKey("port", "shadow_detail") ? c.GetValue("port", "shadow_detail").ToString() : null);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
         (int, int)? Read(string section) => c.HasSectionKey(section, "play") || c.HasSectionKey(section, "difficulty")
@@ -2346,6 +2353,8 @@ public sealed class ShellSettings
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
         c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksWord(packs?.Sizes ?? [], packs?.Plain ?? false));
         c.SetValue("shell", "graphics", Graphics);
+        if (AntiAliasingRow.SmaaOn(this)) c.SetValue("port", "screen_aa", AntiAliasingRow.Word);
+        if (ShadowDetailRow.UltraOn(this)) c.SetValue("port", "shadow_detail", ShadowDetailRow.Word);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
         if (old is not null)
