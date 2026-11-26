@@ -12,7 +12,7 @@ namespace I76.Game.Tests;
 /// on, on Advanced after the rows before them; Heat Shimmer's "hot day" (HotDay) from the mission's light and palette; the smoke's light
 /// (SmokeLight.Colours) warm low in the sky, dim and blue at night, as bright as today's at noon. Without the engine.
 /// </summary>
-public class HeatRowsTests
+public class HeatRowsTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     [Fact]
     public void BothAreOffInAFreshBlockAndInAFileWithoutTheirKeys()
@@ -113,6 +113,66 @@ public class HeatRowsTests
         Assert.False(HotDay.Is(noon, new I76.Formats.Imaging.Palette(Palette(128, 128, 128))));
         Assert.False(HotDay.Is(noon, new I76.Formats.Imaging.Palette(Palette(120, 130, 160))));
         Assert.True(HotDay.Is(noon, null));   // no palette read: the sun decides
+        Assert.False(HotDay.Is(noon, null, "tp101sw6.map"));   // snow
+        Assert.True(HotDay.Is(noon, null, "tp041db6.map"));
+    }
+
+    /// <summary>The stock missions that are hot days at their own hour (where Fires + Road shows the road's ripple and mirage), listed.</summary>
+    [I76.Formats.Tests.InstallFact]
+    public void TheStockHotDays()
+    {
+        var install = I76.Formats.Tests.TestInstall.Install;
+        var vfs = I76.Formats.Tests.TestInstall.Vfs;
+        var hot = new List<string>();
+        foreach (var path in install.ListMissions(".msn").Order())
+        {
+            var m = new I76.Formats.Mission.MissionFile(path);
+            if (WorldSettings.Read(m) is not { } w) continue;
+            var light = Lighting.ForHour(w.Hour);
+            var pn = I76.Formats.Assembly.MissionWorld.ResolvePalette(vfs, m);
+            var pal = pn is not null && vfs.TryRead(pn) is { } pd ? new I76.Formats.Imaging.Palette(pd) : null;
+            bool h = HotDay.Is(light, pal, w.Ground);
+            output.WriteLine($"{System.IO.Path.GetFileNameWithoutExtension(path),-8} hour {w.Hour,2} sun {SmokeLight.Elevation(light),3:0} deg {(light.IsDay ? "day  " : "night")} {w.Ground,-13} warmth {(pal is null ? "none " : HotDay.Warmth(pal.Rgb).ToString("0.000"))} {(h ? "HOT" : "")}");
+            if (h) hot.Add(System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant());
+        }
+        output.WriteLine("hot days: " + string.Join(" ", hot));
+        // T05's and T01's afternoon on the plains, not M14's snow at nine, nor T02's dawn or M04's night
+        Assert.Contains("t05", hot); Assert.Contains("t01", hot);
+        Assert.DoesNotContain("m14", hot); Assert.DoesNotContain("t02", hot); Assert.DoesNotContain("m04", hot);
+    }
+
+    [Fact]
+    public void TheDeveloperPanelsNumbersChangeTheHotDayLiveAndResetToTheShipped()
+    {
+        try
+        {
+            HeatShimmer.Know(Lighting.ForHour(9), new I76.Formats.Imaging.Palette(Palette(170, 130, 90)));
+            Assert.True(HeatShimmer.HotDay);   // 35 degrees, warm
+            HotDay.MinElevation = 40; HeatShimmer.Reevaluate();
+            Assert.False(HeatShimmer.HotDay);
+            HeatTune.ForceHot = true; HeatShimmer.Reevaluate();
+            Assert.True(HeatShimmer.HotDay);
+            HeatTune.RoadNear = 120; HeatTune.Fire = 3;
+            Assert.Contains("road from 120 m", HeatTune.Line());
+            Assert.Contains("forced hot", HeatTune.Line());
+            HeatTune.Reset();
+            Assert.Equal(HeatShimmer.RoadNear, HeatTune.RoadNear);
+            Assert.Equal(1f, HeatTune.Fire);
+            Assert.Equal(HotDay.DefaultMinElevation, HotDay.MinElevation);
+            Assert.Null(HeatTune.ForceHot);
+            Assert.True(HeatShimmer.HotDay);
+        }
+        finally { HeatTune.Reset(); }
+    }
+
+    [Fact]
+    public void TheShimmerIsTwiceTheFirstVersions()
+    {
+        // the road's band from 75 m (the first version 150, a few pixels at the road's far end), the fires' bend out to 260 m (180)
+        Assert.Equal(75f, HeatShimmer.RoadNear);
+        Assert.Equal(260f, HeatShimmer.FireFar);
+        Assert.True(HeatShimmer.BandDegrees >= 2.5f);
+        Assert.Equal(1f, HeatShimmer.Scale);   // I76_HEAT_SCALE unset: the shipped strength
     }
 
     [Fact]

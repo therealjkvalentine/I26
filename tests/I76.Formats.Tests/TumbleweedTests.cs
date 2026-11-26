@@ -234,3 +234,78 @@ public class TumbleweedTests
         Assert.NotEqual(Positions(11), Positions(12));
     }
 }
+
+/// <summary>How see-through a rolling tumbleweed is: rays through its disc against its cards' cut-out alpha.</summary>
+public class TumbleweedLookTests(Xunit.Abstractions.ITestOutputHelper output)
+{
+    private static readonly Lazy<byte[]> Atlas = new(() => FoliageAtlas.Build());
+
+    /// <summary>
+    /// The share of parallel rays through the ball's disc (radius <paramref name="disc"/> about its centre, 2 m up) that hit no
+    /// card where the atlas, at mip <paramref name="level"/>, is at or over the cut, over <paramref name="views"/> directions.
+    /// </summary>
+    public static float SeeThrough(PlantMesh m, byte[] chain, int level = 0, float disc = 0.8f, int views = 24, int across = 48)
+    {
+        int off = 0;
+        for (int l = 0; l < level; l++) { var (lw, lh) = FoliageAtlas.LevelSize(l); off += lw * lh * 4; }
+        var (w, h) = FoliageAtlas.LevelSize(level);
+        var centre = new Vector3(0, 2, 0);
+        int through = 0, rays = 0;
+        var rng = new VegRng(99);
+        for (int v = 0; v < views; v++)
+        {
+            var d = Vector3.Normalize(new Vector3(rng.Bell(), rng.Bell(), rng.Bell()));
+            var a = Shapes.AnyPerpendicular(d);
+            var b = Vector3.Cross(d, a);
+            for (int j = 0; j < across; j++)
+                for (int i = 0; i < across; i++)
+                {
+                    float x = (i + 0.5f) / across * 2 - 1, y = (j + 0.5f) / across * 2 - 1;
+                    if (x * x + y * y > 1) continue;
+                    var o = centre + (a * x + b * y) * disc - d * 3;
+                    rays++;
+                    bool hit = false;
+                    for (int t = 0; t < m.Indices.Count && !hit; t += 3)
+                    {
+                        int i0 = m.Indices[t], i1 = m.Indices[t + 1], i2 = m.Indices[t + 2];
+                        var p0 = m.Positions[i0]; var e1 = m.Positions[i1] - p0; var e2 = m.Positions[i2] - p0;
+                        var pv = Vector3.Cross(d, e2);
+                        float det = Vector3.Dot(e1, pv);
+                        if (MathF.Abs(det) < 1e-9f) continue;
+                        var tv = o - p0;
+                        float u = Vector3.Dot(tv, pv) / det;
+                        if (u < 0 || u > 1) continue;
+                        var qv = Vector3.Cross(tv, e1);
+                        float vv = Vector3.Dot(d, qv) / det;
+                        if (vv < 0 || u + vv > 1) continue;
+                        var uv = m.Uvs[i0] * (1 - u - vv) + m.Uvs[i1] * u + m.Uvs[i2] * vv;
+                        int px = Math.Clamp((int)(uv.X * w), 0, w - 1), py = Math.Clamp((int)(uv.Y * h), 0, h - 1);
+                        hit = chain[off + (py * w + px) * 4 + 3] >= FoliageAtlas.AlphaCut * 255;
+                    }
+                    if (!hit) through++;
+                }
+        }
+        return through / (float)rays;
+    }
+
+    [Fact]
+    public void ARollingOneIsAnOpenTangle()
+    {
+        var chain = Atlas.Value;
+        for (int v = 0; v < 3; v++)
+        {
+            var m = SpeciesCatalog.RollingTumbleweed(VegHash.Mix(VegHash.Of("tumbleweed-rolling"), (ulong)v));
+            // the standing plant's dense cell on the same six cards, as the rolling ones were drawn before
+            var dense = SpeciesCatalog.RollingTumbleweed(VegHash.Mix(VegHash.Of("tumbleweed-rolling"), (ulong)v), dense: true);
+            float s0 = SeeThrough(m, chain), core = SeeThrough(m, chain, disc: 0.5f), s3 = SeeThrough(m, chain, level: 3);
+            float before = SeeThrough(dense, chain), beforeCore = SeeThrough(dense, chain, disc: 0.5f);
+            output.WriteLine($"variant {v}: {s0:0.000} of the disc see-through, {core:0.000} of its middle (mip 3: {s3:0.000}); the dense tangle {before:0.000}, {beforeCore:0.000}");
+            Assert.InRange(s0, SpeciesCatalog.RollingSeeThrough - 0.04f, SpeciesCatalog.RollingSeeThrough + 0.04f);
+            // open in the middle too, not a solid core with a lacy rim
+            Assert.InRange(core, s0 - 0.06f, s0 + 0.06f);
+            // the mips keep it (the atlas keeps each cell's cover down them): no thinning out or filling in far off
+            Assert.InRange(s3, s0 - 0.05f, s0 + 0.05f);
+            Assert.True(before < s0 - 0.1f, $"the dense tangle lets {before:0.000} through");
+        }
+    }
+}

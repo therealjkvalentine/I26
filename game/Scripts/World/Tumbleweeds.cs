@@ -35,10 +35,13 @@ public partial class TumbleweedNode : Node3D
     /// <summary>I76_TUMBLEWEEDS=N: this many whatever the biome and the setting say (0 none); unset: the biome's rate at the setting.</summary>
     private static readonly int? Override = int.TryParse(System.Environment.GetEnvironmentVariable("I76_TUMBLEWEEDS"), out int n) ? Math.Max(0, n) : null;
 
-    /// <summary>I76_TUMBLEWEED_AHEAD=D[,S]: the first one put D metres ahead and S to the right of the player's car as it drives off (of the camera, with no car moving), a second or more in (a capture hook: one to drive into, or to watch).</summary>
+    /// <summary>I76_TUMBLEWEED_AHEAD=D[,S[,T]]: the first one put D metres ahead and S to the right of the player's car as it drives off (of the camera, with no car moving), a second or more in, or T seconds in (a capture hook: one to drive into, or to watch).</summary>
     private static readonly float[]? Ahead = System.Environment.GetEnvironmentVariable("I76_TUMBLEWEED_AHEAD") is { Length: > 0 } a
-        ? [.. a.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)), 0f] : null;
+        ? [.. a.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)), 0f, 0f] : null;
     private bool _placed;
+
+    /// <summary>I76_TUMBLEWEED_DENSE=1: drawn with the standing plant's dense tangle and the old shade, as before the open tangle (a comparison hook).</summary>
+    private static readonly bool Dense = System.Environment.GetEnvironmentVariable("I76_TUMBLEWEED_DENSE") == "1";
 
     public string Stats => $"tumbleweeds: {_field.Count} (rate {_rate:0.##}), {_field.Bursts} burst, {_field.Snags} caught on shrubs, {_field.Respawns} started again, {_drawn} drawn, {_cost * 1000:0} us a frame, nearest {_nearest:0} m";
     private int _drawn;
@@ -54,7 +57,7 @@ public partial class TumbleweedNode : Node3D
         node._rate = region.Biome.Tumbleweeds * region.Density;
         var radius = new float[Variants];
         var meshes = new PlantMesh[Variants];
-        Parallel.For(0, Variants, v => meshes[v] = SpeciesCatalog.RollingTumbleweed(VegHash.Mix(VegHash.Of("tumbleweed-rolling"), (ulong)v)));
+        Parallel.For(0, Variants, v => meshes[v] = SpeciesCatalog.RollingTumbleweed(VegHash.Mix(VegHash.Of("tumbleweed-rolling"), (ulong)v), Dense));
         node._material = material;
         material.SetShaderParameter("rolling", true);
         material.SetShaderParameter("tier_in", Vector2.Zero);
@@ -118,7 +121,7 @@ public partial class TumbleweedNode : Node3D
         float dt = (float)delta;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         _field.Step(dt, eye, Cars(veg, dt));
-        if (Ahead is { } ahead && !_placed && _field.Time >= 1f)
+        if (Ahead is { } ahead && !_placed && _field.Time >= Math.Max(1f, ahead[2]))
         {
             // the capture hook: the first one ahead of the player's car along its motion (of the camera, with no car moving), on the ground
             var f = veg.ToLocal(cam.GlobalPosition - cam.GlobalTransform.Basis.Z) - l;
@@ -129,7 +132,7 @@ public partial class TumbleweedNode : Node3D
                 from = new System.Numerics.Vector2(_cars[0].Position.X, _cars[0].Position.Z);
                 dir = cv;
             }
-            if (dir.LengthSquared() > 1e-6f && (_carCount == 0 || dir != new System.Numerics.Vector2(f.X, -f.Z) || _field.Time >= 3f))
+            if (dir.LengthSquared() > 1e-6f && (_carCount == 0 || dir != new System.Numerics.Vector2(f.X, -f.Z) || _field.Time >= Math.Max(3f, ahead[2])))
             {
                 _placed = true;
                 var fw = System.Numerics.Vector2.Normalize(dir);
@@ -199,9 +202,9 @@ public partial class TumbleweedNode : Node3D
             buf[k + 4] = r10 * sx; buf[k + 5] = r11 * sy; buf[k + 6] = r12 * sz; buf[k + 7] = oy;
             buf[k + 8] = r20 * sx; buf[k + 9] = r21 * sy; buf[k + 10] = r22 * sz; buf[k + 11] = oz;
             buf[k + 12] = t.Fade; buf[k + 13] = t.Phase; buf[k + 14] = t.Radius * 2; buf[k + 15] = t.Phase * 2 - 1;
-            // its shade: darker and tighter on the ground, fainter and wider as it hops
+            // its shade: darker and tighter on the ground, fainter and wider as it hops; lighter by the light through its open tangle
             float above = MathF.Max(0, t.Position.Y - t.Radius - t.GroundY);
-            float shade = 0.5f * t.Fade * MathF.Exp(-2.2f * above);
+            float shade = 0.5f * (Dense ? 1 : 1 - SpeciesCatalog.RollingSeeThrough) * t.Fade * MathF.Exp(-2.2f * above);
             if (shade < 0.02f) return;
             float r = t.Radius * (1.25f + 0.35f * above);
             int j = shades++ * 16;

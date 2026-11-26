@@ -765,11 +765,20 @@ public static class SpeciesCatalog
     }
 
     /// <summary>
-    /// A tumbleweed broken off and rolling (World/Tumbleweeds.cs): a ball of radius 1 of the same tangle, six cards
-    /// whose faces point every way (an icosahedron's axes, turned at random), so it reads round from any side as it
-    /// turns; straw, dead and dry. Its occlusion is baked in the air (no ground under it: it rolls), centred 2 m up.
+    /// The share of the light through a rolling tumbleweed's disc (its radius 0.8 of 1) that passes between its stems, from
+    /// any side: an open tangle of twigs, the sky and the land showing through it (its cell's stems, FoliageAtlas.OpenTangleStems,
+    /// are counted to this). Cut out, not blended: no sorting, the same holes in its sun shadow.
     /// </summary>
-    public static PlantMesh RollingTumbleweed(ulong seed)
+    public const float RollingSeeThrough = 0.30f;
+
+    /// <summary>
+    /// A tumbleweed broken off and rolling (World/Tumbleweeds.cs): a ball of radius 1 of the tangle (its own, sparser cell:
+    /// <see cref="RollingSeeThrough"/>), six cards whose faces point every way (an icosahedron's axes, turned at random), so it
+    /// reads round from any side as it turns; straw, dead and dry. Its occlusion is baked in the air (no ground under it: it
+    /// rolls), centred 2 m up.
+    /// </summary>
+    /// <param name="dense">the standing plant's dense cell instead, as it was drawn before (a comparison: I76_TUMBLEWEED_DENSE)</param>
+    public static PlantMesh RollingTumbleweed(ulong seed, bool dense = false)
     {
         var rng = new VegRng(seed);
         var m = new PlantMesh();
@@ -783,7 +792,7 @@ public static class SpeciesCatalog
             var n = Vector3.Normalize(Vector3.Transform(a0, turn));
             var dir = Vector3.Normalize(Vector3.Cross(n, MathF.Abs(n.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX));
             float size = 2f * rng.Range(0.92f, 1.05f);
-            Shapes.Cards(m, centre - dir * (size * 0.5f), dir, n, size, AtlasCell.Tumbleweed, Vary(col, ref rng, 0.07f), 0.6f, centre, 1, lift: 0.5f, roundness: 0.8f);
+            Shapes.Cards(m, centre - dir * (size * 0.5f), dir, n, size, dense ? AtlasCell.Tumbleweed : AtlasCell.TumbleweedOpen, Vary(col, ref rng, 0.07f), 0.6f, centre, 1, lift: 0.5f, roundness: 0.8f);
         }
         PlantShading.Bake(m);
         return m;

@@ -42,21 +42,66 @@ public static class HeatSources
 }
 
 /// <summary>
+/// Heat Shimmer's numbers, live: the shipped values (twice the first version's), the I76_HEAT_ hooks over them, and the Developer panel's
+/// Heat shimmer group (Ui/DevHeat.cs) over both while a mission runs. Never saved: a new run starts from the shipped values. Read each
+/// frame (the pass's strengths and reach) and at a hot day's test; nothing else.
+/// </summary>
+public static class HeatTune
+{
+    public const float DefaultRoadNear = 75f, DefaultRippleDeg = 1.72f, DefaultMirageDeg = 2.29f, DefaultFireFull = 60f, DefaultFireFar = 260f;
+
+    /// <summary>The strengths (1 the shipped; I76_HEAT_SCALE times I76_HEAT_FIRE / ROAD / MIRAGE).</summary>
+    public static float Fire = HeatShimmer.EnvGain("I76_HEAT_FIRE"), Road = HeatShimmer.EnvGain("I76_HEAT_ROAD"), Mirage = HeatShimmer.EnvGain("I76_HEAT_MIRAGE");
+    /// <summary>Where the road's ripple and the mirage start (m; full at 2.6 and 2 times it).</summary>
+    public static float RoadNear = DefaultRoadNear;
+    /// <summary>The ripple's band: rays within this many degrees of level (full within a fifth of it).</summary>
+    public static float RippleDeg = DefaultRippleDeg;
+    /// <summary>The mirage's band: level ground seen under this many degrees (full under 0.3 of it).</summary>
+    public static float MirageDeg = DefaultMirageDeg;
+    /// <summary>The fires' bend full out to FireFull m and gone at FireFar; the columns' size (radius and height) times FireColumn.</summary>
+    public static float FireFull = DefaultFireFull, FireFar = DefaultFireFar, FireColumn = 1f;
+    /// <summary>The hot day forced (true or false) or found (null; I76_HEAT_HOT=1|0 sets it).</summary>
+    public static bool? ForceHot = EnvHot();
+    /// <summary>The Developer panel's group is up: the pass runs while the game is paused, so a change shows at once.</summary>
+    public static bool Live { get => _live; set { _live = value; HeatShimmer.Live(value); } }
+    private static bool _live;
+
+    private static bool? EnvHot() => System.Environment.GetEnvironmentVariable("I76_HEAT_HOT") switch { "1" => true, "0" => false, _ => null };
+
+    /// <summary>The numbers in one line, to hand back ("heat tune: ...").</summary>
+    public static string Line() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"heat tune: fire {Fire:0.##} road {Road:0.##} mirage {Mirage:0.##}; road from {RoadNear:0} m, ripple band {RippleDeg:0.##} deg, mirage band {MirageDeg:0.##} deg; fire full to {FireFull:0} m, gone at {FireFar:0} m, column x{FireColumn:0.##}; hot day: sun >= {HotDay.MinElevation:0} deg, warmth >= {HotDay.MinWarmth:0.###}, {(ForceHot is { } f ? (f ? "forced hot" : "forced not hot") : "found")}");
+
+    /// <summary>Back to the shipped values (and the hooks').</summary>
+    public static void Reset()
+    {
+        Fire = HeatShimmer.EnvGain("I76_HEAT_FIRE"); Road = HeatShimmer.EnvGain("I76_HEAT_ROAD"); Mirage = HeatShimmer.EnvGain("I76_HEAT_MIRAGE");
+        RoadNear = DefaultRoadNear; RippleDeg = DefaultRippleDeg; MirageDeg = DefaultMirageDeg;
+        FireFull = DefaultFireFull; FireFar = DefaultFireFar; FireColumn = 1f;
+        HotDay.MinElevation = HotDay.DefaultMinElevation; HotDay.MinWarmth = HotDay.DefaultMinWarmth;
+        ForceHot = EnvHot();
+        HeatShimmer.Reevaluate();
+    }
+}
+
+/// <summary>
 /// Graphic Detail's Heat Shimmer ([port] heat_shimmer, HeatShimmerRow), the modern look's, not the original's: the air over a fire bends
 /// what is behind it, and on a hot day (HotDay, Fires + Road) the air low over the far ground does too, with the road's mirage. One compute
 /// pass after the scene's transparent pass (a CompositorEffect on the main camera, beside the smoke layer's), over the screen's rectangle
 /// that holds something to bend: the colour there copied aside, then each pixel read back from a place nudged by scrolling noise.
 /// <list type="bullet">
 /// <item>Fires: each source a column rising from its flames; the ray's nearest point to the column's axis says how deep in it the pixel
-/// looks. The nudge is an angle (the same look at any resolution or render scale), fading out from 40 to 180 m, and only where the
+/// looks. The nudge is an angle (the same look at any resolution or render scale), fading out from 60 to 260 m, and only where the
 /// scene lies behind the column: the cockpit, a car in front, anything nearer is never bent, nor pulled into the bend.</item>
-/// <item>Road: by a hot day only, ground seen at a grazing angle (its normal from the depth) and level, from 150 m out, gets a fine
-/// vertical ripple; under about a degree and from 300 m, the mirage: the sky (or whatever lies farther) at the mirrored angle shows
-/// through, wavering.</item>
+/// <item>Road: by a hot day only, the far ground seen within about 1.7 degrees of level, from 75 m out, gets a fine vertical ripple;
+/// level ground under about 2 degrees and from 75 m (full from 150 m), the mirage: the sky (or whatever lies farther) at the mirrored
+/// angle shows through, wavering.</item>
 /// </list>
 /// The 3D view's own pass: the 2D dash and HUD are drawn after it, the mirrors and the weapon camera are other cameras and stay
 /// unbent. Forward+ only (Compatibility: none). Off, nothing is gathered and the effect is not in the frame.
-/// I76_HEAT_STATS=1 prints the sources and the rectangle every 2 s.
+/// The strengths are twice the first version's (the owner could barely see it: the road's band was a few pixels at the road's far end);
+/// I76_HEAT_SCALE=K scales all three (0.5 the first version's), I76_HEAT_ROAD/MIRAGE/FIRE each. I76_HEAT_STATS=1 prints the
+/// sources and the rectangle every 2 s.
 /// </summary>
 public partial class HeatShimmer : Node3D
 {
@@ -68,28 +113,54 @@ public partial class HeatShimmer : Node3D
     public static bool FiresOn => Setting >= 1 && !Look1997 && _supported;
     public static bool RoadOn => Setting >= 2 && !Look1997 && HotDay && _supported;
 
-    /// <summary>Road shimmer and mirage strengths (I76_HEAT_ROAD, I76_HEAT_MIRAGE, 0..2; 1 the shipped).</summary>
-    private static readonly float RoadGain = Env("I76_HEAT_ROAD", 1f), MirageGain = Env("I76_HEAT_MIRAGE", 1f), FireGain = Env("I76_HEAT_FIRE", 1f);
+    /// <summary>All of it (I76_HEAT_SCALE, 0..4; 1 the shipped, 0.5 the first version's), times the road shimmer, mirage and fires each (I76_HEAT_ROAD, I76_HEAT_MIRAGE, I76_HEAT_FIRE): HeatTune's starting strengths.</summary>
+    public static readonly float Scale = Env("I76_HEAT_SCALE", 1f);
+    public static float EnvGain(string name) => Env(name, 1f) * Scale;
     private static readonly bool Stats = System.Environment.GetEnvironmentVariable("I76_HEAT_STATS") == "1";
     /// <summary>I76_HEAT_DEBUG=1: the bend painted (red: how far a pixel is nudged, 4 px full; green: the mirage), to tune and check the masks.</summary>
     private static readonly bool Debug = System.Environment.GetEnvironmentVariable("I76_HEAT_DEBUG") is "1" or "2";
     private static readonly bool Debug2 = System.Environment.GetEnvironmentVariable("I76_HEAT_DEBUG") == "2";
-    /// <summary>I76_HEAT_HOT=1|0 forces the hot day on or off (captures).</summary>
-    private static readonly string? ForceHot = System.Environment.GetEnvironmentVariable("I76_HEAT_HOT");
 
     private static float Env(string name, float d) =>
         float.TryParse(System.Environment.GetEnvironmentVariable(name), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? Math.Clamp(v, 0f, 4f) : d;
 
     public static void Apply(int setting, bool look1997) { Setting = setting; Look1997 = look1997; }
 
-    public static void SetMission(I76.Formats.Mission.LightPreset light, I76.Formats.Imaging.Palette? palette)
+    /// <summary>The running mission's sun elevation (degrees), day or night, palette warmth (null: none read), ground family.</summary>
+    public static (float Sun, bool Day, float? Warmth, string? Ground) Mission { get; private set; }
+
+    public static void SetMission(I76.Formats.Mission.LightPreset light, I76.Formats.Imaging.Palette? palette, string? ground = null)
     {
-        HotDay = ForceHot is "1" ? true : ForceHot is "0" ? false : World.HotDay.Is(light, palette);
-        GD.Print($"heat shimmer: {(HotDay ? "a hot day" : "not a hot day")} (sun {I76.Game.Sim.SmokeLight.Elevation(light):0} deg, {(light.IsDay ? "day" : "night")}, palette warmth {(palette is null ? "none" : World.HotDay.Warmth(palette.Rgb).ToString("0.000"))})");
+        Know(light, palette, ground);
+        GD.Print($"heat shimmer: {Readout()}");
     }
 
-    private const int MaxSources = 16, UboFloats = 68 + MaxSources * 8;
-    private const float FireFar = 180f, RoadNear = 150f;
+    /// <summary>The mission's numbers kept and its hot day found (SetMission without the log line).</summary>
+    public static void Know(I76.Formats.Mission.LightPreset light, I76.Formats.Imaging.Palette? palette, string? ground = null)
+    {
+        Mission = (I76.Game.Sim.SmokeLight.Elevation(light), light.IsDay, palette is null ? null : World.HotDay.Warmth(palette.Rgb), ground);
+        Reevaluate();
+    }
+
+    /// <summary>The hot day again from the mission's numbers (the Developer panel changed the rule).</summary>
+    public static void Reevaluate()
+    {
+        var m = Mission;
+        HotDay = HeatTune.ForceHot ?? (!World.HotDay.Snow(m.Ground) && World.HotDay.Is(m.Day, m.Sun, m.Warmth ?? World.HotDay.MinWarmth));
+    }
+
+    /// <summary>"a hot day (sun 35 deg, day, palette warmth 0.493)".</summary>
+    public static string Readout()
+    {
+        var m = Mission;
+        return $"{(HotDay ? "a hot day" : "not a hot day")}{(HeatTune.ForceHot is null ? "" : " (forced)")} (sun {m.Sun:0} deg, {(m.Day ? "day" : "night")}, palette warmth {(m.Warmth is { } w ? w.ToString("0.000") : "none")}{(World.HotDay.Snow(m.Ground) ? ", snow" : "")})";
+    }
+
+    private const int MaxSources = 16, Header = 72, UboFloats = Header + MaxSources * 8;
+    /// <summary>Where the fires' bend is gone (it fades from FireFull), and where the road's ripple and mirage start (metres): the shipped, HeatTune's defaults.</summary>
+    public const float FireFull = HeatTune.DefaultFireFull, FireFar = HeatTune.DefaultFireFar, RoadNear = HeatTune.DefaultRoadNear;
+    /// <summary>The least angle either side of level the road's band takes (degrees): the mirage's mirrored sky, the nudge's reach.</summary>
+    public const float BandDegrees = 2.5f;
     private static bool _supported = true;
     private readonly ShimmerEffect _effect = new();
     private readonly List<HeatSource> _all = [];
@@ -108,8 +179,19 @@ public partial class HeatShimmer : Node3D
         if (RenderingServer.GetCurrentRenderingMethod() != "forward_plus" || RenderingServer.GetRenderingDevice() is null) _supported = false;
     }
 
+    private static HeatShimmer? _node;
+
+    /// <summary>The Developer panel's group up (HeatTune.Live): the pass on while the game is paused, so its changes show at once.</summary>
+    internal static void Live(bool on)
+    {
+        if (_node is { } n && IsInstanceValid(n)) n.ProcessMode = on ? ProcessModeEnum.Always : ProcessModeEnum.Inherit;
+    }
+
+    public override void _EnterTree() { _node = this; if (HeatTune.Live) ProcessMode = ProcessModeEnum.Always; }
+
     public override void _ExitTree()
     {
+        if (_node == this) _node = null;
         var cam = GetViewport()?.GetCamera3D();
         if (cam?.Compositor is { } c && c.CompositorEffects.Contains(_effect))
         {
@@ -128,8 +210,10 @@ public partial class HeatShimmer : Node3D
         var view = GetViewport().GetVisibleRect().Size;
         var eye = cam.GlobalPosition;
         HeatSources.Collect(_all);
+        if (HeatTune.FireColumn != 1f)
+            for (int i = 0; i < _all.Count; i++) _all[i] = _all[i] with { Radius = _all[i].Radius * HeatTune.FireColumn, FlameTop = _all[i].FlameTop * HeatTune.FireColumn, Height = _all[i].Height * HeatTune.FireColumn };
         // the nearest in front within reach
-        _all.RemoveAll(s => s.Base.DistanceTo(eye) > FireFar + s.Height || cam.IsPositionBehind(s.Base + Vector3.Up * s.Height * 0.5f) && s.Base.DistanceTo(eye) > s.Height + s.Radius * 3f);
+        _all.RemoveAll(s => s.Base.DistanceTo(eye) > HeatTune.FireFar + s.Height || cam.IsPositionBehind(s.Base + Vector3.Up * s.Height * 0.5f) && s.Base.DistanceTo(eye) > s.Height + s.Radius * 3f);
         _all.Sort((a, b) => a.Base.DistanceSquaredTo(eye).CompareTo(b.Base.DistanceSquaredTo(eye)));
         int n = Math.Min(_all.Count, MaxSources);
         Rect2? rect = null;
@@ -144,12 +228,12 @@ public partial class HeatShimmer : Node3D
                 int o = i * 4;
                 Src[o] = s.Base.X; Src[o + 1] = s.Base.Y; Src[o + 2] = s.Base.Z; Src[o + 3] = s.Radius;
                 o = MaxSources * 4 + i * 4;
-                Src[o] = s.FlameTop; Src[o + 1] = s.Height; Src[o + 2] = Math.Clamp(s.Strength, 0f, 1.5f) * FireGain; Src[o + 3] = (i * 0.618034f) % 1f;
+                Src[o] = s.FlameTop; Src[o + 1] = s.Height; Src[o + 2] = Math.Clamp(s.Strength, 0f, 1.5f) * HeatTune.Fire; Src[o + 3] = (i * 0.618034f) % 1f;
             }
             _count = n;
             _rect = r;
-            _road = road ? RoadGain : 0f;
-            _mirage = road ? MirageGain : 0f;
+            _road = road ? HeatTune.Road : 0f;
+            _mirage = road ? HeatTune.Mirage : 0f;
             _clock = (float)(_time % 4096.0);
             _right = cam.GlobalTransform.Basis.X;
         }
@@ -202,14 +286,16 @@ public partial class HeatShimmer : Node3D
         return hi.X > lo.X && hi.Y > lo.Y ? new Rect2(lo, hi - lo) : null;
     }
 
-    /// <summary>The band round the horizon the road shimmer and the mirage (and its mirrored sky) take: 2 degrees either side, across the view.</summary>
+    /// <summary>The band round the horizon the road shimmer and the mirage (and its mirrored sky) take: <see cref="BandDegrees"/> either side, across the view.</summary>
+    private static float Band() => Math.Max(BandDegrees, Math.Max(HeatTune.RippleDeg, HeatTune.MirageDeg) + 0.8f);
+
     private static Rect2? BandRect(Camera3D cam, Vector2 view)
     {
         var fwd = -cam.GlobalTransform.Basis.Z;
         float yaw = Mathf.Atan2(fwd.X, fwd.Z);
         float lo = float.MaxValue, hi = float.MinValue;
         for (int a = -8; a <= 8; a++)
-            foreach (float el in (float[])[-2f, 2f])
+            foreach (float el in (float[])[-Band(), Band()])
             {
                 float az = yaw + a * 0.2f, e = Mathf.DegToRad(el);
                 var d = new Vector3(Mathf.Sin(az) * Mathf.Cos(e), Mathf.Sin(e), Mathf.Cos(az) * Mathf.Cos(e));
@@ -273,7 +359,7 @@ public partial class HeatShimmer : Node3D
         lock (Lock)
         {
             rn = _rect; count = _count; road = _road; mirage = _mirage; clock = _clock; right = _right;
-            Array.Copy(Src, 0, Ubo, 68, MaxSources * 8);
+            Array.Copy(Src, 0, Ubo, Header, MaxSources * 8);
         }
         var camT = scene.GetCamTransform();
         var proj = scene.GetViewProjection(0);
@@ -283,7 +369,7 @@ public partial class HeatShimmer : Node3D
         Write(proj * view, Ubo.AsSpan(32, 16));
         // the pixels to bend, and round them the copy (as far as a nudge reaches)
         float focal = MathF.Abs(proj.Y.Y) * 0.5f * size.Y;
-        float most = Math.Max(2f, size.Y * 0.012f);
+        float most = Math.Max(2f, size.Y * 0.012f * Math.Max(1f, Scale));
         int margin = (int)MathF.Ceiling(most) + 3;
         int x0 = Math.Clamp((int)MathF.Floor(rn.Position.X * size.X), 0, size.X), y0 = Math.Clamp((int)MathF.Floor(rn.Position.Y * size.Y), 0, size.Y);
         int x1 = Math.Clamp((int)MathF.Ceiling(rn.End.X * size.X), 0, size.X), y1 = Math.Clamp((int)MathF.Ceiling(rn.End.Y * size.Y), 0, size.Y);
@@ -291,8 +377,10 @@ public partial class HeatShimmer : Node3D
         Ubo[48] = x0; Ubo[49] = y0; Ubo[50] = x1; Ubo[51] = y1;
         Ubo[52] = size.X; Ubo[53] = size.Y; Ubo[54] = 1f / size.X; Ubo[55] = 1f / size.Y;
         Ubo[56] = clock; Ubo[57] = count; Ubo[58] = road; Ubo[59] = mirage;
-        Ubo[60] = SmokeDepthReversed(proj) ? 1f : -1f; Ubo[61] = focal; Ubo[62] = RoadNear; Ubo[63] = most;
+        Ubo[60] = SmokeDepthReversed(proj) ? 1f : -1f; Ubo[61] = focal; Ubo[62] = HeatTune.RoadNear; Ubo[63] = most;
         Ubo[64] = right.X; Ubo[65] = right.Y; Ubo[66] = right.Z; Ubo[67] = Debug2 ? 2f : Debug ? 1f : 0f;
+        Ubo[68] = MathF.Sin(Mathf.DegToRad(HeatTune.RippleDeg)); Ubo[69] = MathF.Sin(Mathf.DegToRad(HeatTune.MirageDeg));
+        Ubo[70] = HeatTune.FireFull; Ubo[71] = Math.Max(HeatTune.FireFar, HeatTune.FireFull + 1f);
         System.Buffer.BlockCopy(Ubo, 0, UboBytes, 0, UboFloats * 4);
         rd.BufferUpdate(_ubo, 0, UboFloats * 4, UboBytes);
 
@@ -400,6 +488,7 @@ public partial class HeatShimmer : Node3D
             vec4 misc;    // clock (s), sources, road, mirage
             vec4 misc2;   // reversed z (+1), focal length (px), the road's near edge (m), the most a nudge moves (px)
             vec4 cam_right;
+            vec4 tune;    // the sines of the ripple's band and the mirage's, the fires' full and gone (m): HeatTune
             vec4 src_pos[16];   // foot xyz, radius
             vec4 src_par[16];   // flames' top, column height, strength, seed
         } u;
@@ -455,25 +544,26 @@ public partial class HeatShimmer : Node3D
                 if (y <= 0.0 || y >= H) continue;
                 float rad = a.w * (1.0 + 0.8 * y / H);
                 float m = 1.0 - smoothstep(0.3 * rad, rad, length(q.xz - a.xz));
-                m *= smoothstep(top * 0.35, top * 1.05, y) * (1.0 - smoothstep(H * 0.4, H, y));
-                m *= b.z * (1.0 - smoothstep(40.0, 180.0, t)) * smoothstep(1.5, 4.0, t);
+                // up to half the column at full (the first version 0.4), out to 60 m at full and gone at 260 (HeatTune.FireFull, FireFar)
+                m *= smoothstep(top * 0.35, top * 1.05, y) * (1.0 - smoothstep(H * 0.5, H, y));
+                m *= b.z * (1.0 - smoothstep(u.tune.z, u.tune.w, t)) * smoothstep(1.5, 4.0, t);
                 if (m <= 0.002) continue;
                 float s = dot(q - a.xyz, u.cam_right.xyz);
                 vec3 nc = vec3(s * 2.6, (y - clock * 2.4) * 2.0, clock * 1.1 + b.w * 37.0);
                 vec2 w = vec2(vnoise(nc), vnoise(nc + vec3(19.7, 7.3, 3.1))) * 2.0 - 1.0;
                 w += 0.5 * (vec2(vnoise(nc * 2.3 + 5.0), vnoise(nc * 2.3 + 11.0)) * 2.0 - 1.0);
-                off += w * m * 0.0024;
+                off += w * m * 0.0048;
                 t_near = min(t_near, t);
             }
 
-            // a hot day: the air low over the ground bends what is seen through it from 150 m out (the far ground, the foot of a
-            // mesa, the horizon's edge: rays within a degree of level), and level ground seen at a grazing angle shows the mirage
+            // a hot day: the air low over the ground bends what is seen through it from 75 m out (the far ground, the foot of a
+            // mesa, the horizon's edge: rays within 1.7 degrees of level), and level ground seen at a grazing angle shows the mirage
             float road = u.misc.z, mir = u.misc.w, mirage = 0.0;
             vec3 mcol = vec3(0.0);
             if (road > 0.0 || mir > 0.0) {
                 float elev = abs(dirW.y);   // the sine of the ray's angle to level
                 float far = smoothstep(u.misc2.z, u.misc2.z * 2.6, dist) * (1.0 + 0.6 * smoothstep(400.0, 2000.0, dist));
-                float band = (1.0 - smoothstep(0.003, 0.016, elev)) * far;
+                float band = (1.0 - smoothstep(0.2 * u.tune.x, u.tune.x, elev)) * far;
                 if (u.cam_right.w > 1.5) band = 0.0;
                 if (band > 0.0 && road > 0.0) {
                     // fine wavelets, wide and flat, climbing: their size an angle, but never under two pixels
@@ -481,7 +571,7 @@ public partial class HeatShimmer : Node3D
                     vec3 a = vec3(dirW.x * kh + clock * 0.35, dirW.y * kv - clock * 4.0, dirW.z * kh);
                     float r1 = vnoise(a) * 2.0 - 1.0;
                     float r2 = vnoise(a * vec3(2.1, 2.3, 2.1) + vec3(3.7, -clock * 3.0, 1.9)) * 2.0 - 1.0;
-                    float amp = max(0.0005, 0.9 / u.misc2.y);
+                    float amp = max(0.001, 1.8 / u.misc2.y);
                     off += vec2(0.35 * r2, r1 + 0.5 * r2) * band * road * amp;
                     t_near = min(t_near, u.misc2.z * 0.8);
                 }
@@ -493,8 +583,8 @@ public partial class HeatShimmer : Node3D
                     vec3 nW = normalize(mat3(u.invview) * cross(vx - vpos, vy - vpos));
                     float sin_inc = abs(dot(nW, dirW));
                     float level = smoothstep(0.95, 0.995, abs(nW.y));
-                    float mw = (1.0 - smoothstep(0.006, 0.02, sin_inc)) * level * smoothstep(u.misc2.z, u.misc2.z * 2.0, dist);
-                    if (u.cam_right.w > 1.5) { imageStore(color_out, p, vec4(1.0 - smoothstep(0.006, 0.02, sin_inc), level, smoothstep(u.misc2.z, u.misc2.z * 2.0, dist), 1.0)); return; }
+                    float mw = (1.0 - smoothstep(0.3 * u.tune.y, u.tune.y, sin_inc)) * level * smoothstep(u.misc2.z, u.misc2.z * 2.0, dist);
+                    if (u.cam_right.w > 1.5) { imageStore(color_out, p, vec4(1.0 - smoothstep(0.012, 0.04, sin_inc), level, smoothstep(u.misc2.z, u.misc2.z * 2.0, dist), 1.0)); return; }
                     if (mw > 0.0) {
                         // the ray bent back up off the hot layer: what lies at the mirrored angle, if it is farther than the ground
                         vec4 c = u.viewproj * vec4(dirW.x, -dirW.y, dirW.z, 0.0);
@@ -504,7 +594,8 @@ public partial class HeatShimmer : Node3D
                                 float kv = min(700.0, u.misc2.y / 3.0);
                                 float fl = vnoise(vec3(dirW.x * kv * 0.3 + clock * 0.3, dirW.y * kv - clock * 2.5, dirW.z * kv * 0.3 + 9.1));
                                 mcol = texture(src, muv).rgb;
-                                mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 1.0);
+                                // never quite a mirror: it wavers at any strength
+                                mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 0.6 + 0.35 * fl);
                             }
                         }
                     }

@@ -17,7 +17,7 @@ public static class SmokeLightingRow
 
 /// <summary>
 /// Heat Shimmer ([port] heat_shimmer, Graphic Detail > Effects, the modern look's): Off (the default), Fires (the air wobbling over fires,
-/// burning wrecks and flame streams) or Fires + Road (also a faint shimmer low over the ground far off on a hot day, and the road's mirage:
+/// burning wrecks and flame streams) or Fires + Road (also a shimmer low over the ground from 75 m out on a hot day, and the road's mirage:
 /// HeatShimmer, HotDay). Not in the original; the 1997 look is unchanged.
 /// </summary>
 public static class HeatShimmerRow

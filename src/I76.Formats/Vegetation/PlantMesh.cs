@@ -86,6 +86,8 @@ public enum AtlasCell
     RedFlowers = 20, IndianBlanket = 21, PricklyPoppy = 22, Horsemint = 23,
     Buffalograss = 24, Pickleweed = 25, AgaveBlade = 26, Candelilla = 27,
     PineSpray = 28,
+    /// <summary>The rolling tumbleweed's tangle: the same stems, fewer of them (FoliageAtlas.OpenTangleStems), so the ball is see-through.</summary>
+    TumbleweedOpen = 29,
 }
 
 /// <summary>
