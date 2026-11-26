@@ -29,7 +29,7 @@ public class SmartAiScopeSurvey(ITestOutputHelper output)
     internal static readonly float[] Marks = [60, 120, 240, 400];
 
     /// <summary>One run of <paramref name="mission"/> under <paramref name="rule"/>, the player as the summary says.</summary>
-    internal static Run Drive(SnapshotRig.Loaded l, string mission, SmartAi rule, uint seed, float seconds, string? label = null, bool keep = false)
+    internal static Run Drive(SnapshotRig.Loaded l, string mission, SmartAi rule, uint seed, float seconds, string? label = null, bool keep = false, Action<MissionSetup>? perTick = null)
     {
         var w = new MissionWorld(l.Vfs, l.Asm, l.Install.FindMission(mission)!);
         var setup = MissionSetup.Build(l.Vfs, w, l.Asm, null, rand: new CrtRand(seed), smartAi: rule);
@@ -107,6 +107,7 @@ public class SmartAiScopeSurvey(ITestOutputHelper output)
             if (protCar is not null && (mission != "t10" || step >= 2) && !h.View.Active && !protCar.Dead && protCar.Vehicle is { } pv)
                 input = driver.Next(input, player, pv, protCar.Path, h.Now);
             session.Tick([input]);
+            perTick?.Invoke(setup);
             setup.Combat.Events.Clear();
             setup.Damage.Events.Clear();
             for (int m = 0; m < Marks.Length; m++)

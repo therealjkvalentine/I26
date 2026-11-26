@@ -30,9 +30,12 @@ public sealed partial class Ptable
     /// </summary>
     private bool SmartVs(Entity e, SmartAi bit, Entity? t) => Smart(e, bit) && FightsHuman(e, t);
 
-    /// <summary>The target is a human's car, or the car has <see cref="SmartAi.AnyTarget"/>.</summary>
+    /// <summary>
+    /// The target is a human's car, or the car has <see cref="SmartAi.AnyTarget"/>, or the session is a melee
+    /// (<see cref="ScriptHost.MeleeSession"/>: every car a combatant, nothing protected; the owner's call).
+    /// </summary>
     private bool FightsHuman(Entity e, Entity? t) =>
-        ((host.SmartAi | e.SmartAi) & SmartAi.AnyTarget) != 0 || t?.Vehicle is { } tv && World.IsHuman(tv);
+        host.MeleeSession || ((host.SmartAi | e.SmartAi) & SmartAi.AnyTarget) != 0 || t?.Vehicle is { } tv && World.IsHuman(tv);
 
     /// <summary>The tier's share between the worst (setSkill 5, drive skill 0.4: 0) and the best (1: 1).</summary>
     private static float TierShare(Entity e) => System.Math.Clamp((e.Ai.Skill - 0.4f) / 0.6f, 0f, 1f);

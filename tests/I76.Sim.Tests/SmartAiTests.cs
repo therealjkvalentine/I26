@@ -503,6 +503,7 @@ public class SmartAiTests(ITestOutputHelper output)
     {
         if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.All) is not { } r) return;
         var (a, b) = (r.Ais[0], r.Ais[1]);
+        r.Host.MeleeSession = false;   // the rig is a melee: as a mission's host, where the rule scopes
         var pe = r.Host.Player!;
         for (int t = 0; t < Ticks(2); t++) Step(r);
         var p = r.Host.Ptable;
@@ -571,6 +572,7 @@ public class SmartAiTests(ITestOutputHelper output)
     {
         if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.All) is not { } r) return;
         var (a, b) = (r.Ais[0], r.Ais[1]);
+        r.Host.MeleeSession = false;   // as a mission's host
         var pe = r.Host.Player!;
         Place(r, a.Vehicle!, r.Centre, 0, 0);
         Place(r, b.Vehicle!, r.Centre + new Vector2(20, 70), 0, 0);
@@ -595,5 +597,47 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.True(lays[0] > 0 && lays[2] > 0, "never laid on the player");
         // the terrain group went on reading the chase whatever the target
         Assert.True(a.ChaseGapTime > 0, "the terrain group never ran");
+    }
+    // ---- a melee: smart against every target ----
+
+    /// <summary>
+    /// In a melee (the session's build has a roster) the fighting behaviours act against every target: two computer cars fighting
+    /// each other lay their guns on each other. In a mission (T03: Taurus and the defenders of the Bar-D, the player escorting him)
+    /// no car ever lays on a target that is not a human's car.
+    /// </summary>
+    [Fact]
+    public void InAMeleeTheyAreSmartAgainstEachOtherInAMissionOnlyAgainstThePlayer()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.All) is not { } r) return;
+        Assert.True(r.Host.MeleeSession);
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        // a goes for b, parked 70 m ahead (the melee orders nobody in the rig), eight times afresh (each a new tactic draw)
+        int lays = 0;
+        for (int k = 0; k < 8; k++)
+        {
+            Place(r, a.Vehicle!, r.Centre, 0, 0);
+            Place(r, b.Vehicle!, r.Centre + new Vector2(20, 70), 0, 0);
+            r.Host.Order(a, null, AiOrder.Sit, null, 0);
+            Step(r);
+            for (int t = 0; t < Ticks(3); t++)
+            {
+                Step(r, (a, b));
+                if (a.LayActive) lays++;
+            }
+        }
+        output.WriteLine($"melee: {lays} lay ticks computer against computer");
+        Assert.True(lays > 0, "no computer car laid on another in a melee");
+
+        var l = new SnapshotRig.Loaded(SnapshotRig.Install!);
+        int missionLays = 0, humanLays = 0;
+        var run = SmartAiScopeSurvey.Drive(l, "t03", SmartAi.All, 1, 240, perTick: setup =>
+        {
+            Assert.False(setup.Script!.Host.MeleeSession);
+            foreach (var e in setup.Entities)
+                if (e.LayActive) { if (e.OrderTarget?.Vehicle is { } tv && setup.World.IsHuman(tv)) humanLays++; else missionLays++; }
+        });
+        output.WriteLine($"T03: {humanLays} lay ticks on the player, {missionLays} on anything else; ally-on-enemy {run.AllyOnEnemy:0} s");
+        Assert.True(run.AllyOnEnemy > 0, "Taurus never fought");
+        Assert.Equal(0, missionLays);
     }
 }

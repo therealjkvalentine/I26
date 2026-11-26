@@ -77,6 +77,7 @@ public sealed partial class ScriptHost
             .Structural("Co-op Scaling's key cars and those with escorts, read from the mission's script by the mission build", nameof(_keyCars), nameof(_escorted))
             .Structural("Trip+'s rules (Posse's copy source, Sharp's offset), set by the mission build from the session's build", nameof(Solo), nameof(SkillOffset))
             .Structural("the smarter opponents' rule, set by the mission build from the session's build (a host migration adopts the host's)", nameof(SmartAi))
+            .Structural("a melee's host, not a mission's: set by the mission build from the session's build (its melee roster)", nameof(MeleeSession))
             .Derived("each car's entity, from the entities and their removal", nameof(_byVehicle))
             .Transient("the host's hooks", nameof(Logged), nameof(Movie), nameof(CarStarted), nameof(Salvaged));
         a.For<CoopGroup>()
