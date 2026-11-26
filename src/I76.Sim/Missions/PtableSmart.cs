@@ -43,7 +43,11 @@ public sealed partial class Ptable
         string name = NameOf(s);
         bool escape = EscapeStates.Contains(name);
         if (LayStates.Contains(name)) GunLay(e, t);
+        if (!e.LayActive && v.Gear > 0 && !escape)
+        {
             bool rear = false;
+            if (!rear && e.HoldLineUntil > Now && Smart(e, SmartAi.Unstick)) Steer(e, e.HoldLineHeading);
+        }
         return LedgeCaution(e, escape);
     }
 
@@ -53,6 +57,7 @@ public sealed partial class Ptable
         bool same = e.Depth >= 0 && e.Depth < e.Stack.Count && e.Stack[e.Depth] == s;
         if (!same) e.LayActive = false;
         if (back && same && t is not null) { PushBackAway(e, t); return; }
+        StuckTest(e, t);
     }
 
     /// <summary>
@@ -67,6 +72,7 @@ public sealed partial class Ptable
         e.Depth++;
         e.Stack.Add(back);
         S[back].Enter?.Invoke(e, t);
+        if (unstick) UnstickEnter(e, t);
         S[back].Tick(e, t);
     }
 
@@ -83,6 +89,7 @@ public sealed partial class Ptable
         if (!SmartOn(e) || !ReferenceEquals(e.NavPath, e.SnapshotPath)) return;
         search.SlopeCost = Smart(e, SmartAi.HillPursuit);
         search.FaceMargin = Smart(e, SmartAi.LedgeCaution);
+        if (Smart(e, SmartAi.Unstick) && e.BlockedUntil > Now) search.Blocked = (e.BlockedX, e.BlockedZ);
     }
 
     /// <summary>

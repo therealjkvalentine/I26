@@ -588,11 +588,13 @@ public sealed partial class Ptable
         BackOff(e);
         e.EscapeTimer = Now + 4f;
         e.BackHeading = Hdg(e);
+        e.Unsticking = false;
     }
 
     /// <summary>Stop rolling the old way, then floor it the new way, then hold a lock at cruise.</summary>
     private void BackAwayTick(Entity e, Entity? _)
     {
+        if (e.Unsticking && UnstickTick(e)) return;
         var v = e.Vehicle!;
         var at = Pos(e);
         e.BackFarthest = MathF.Max(e.BackFarthest, new Vector2(at.X - e.BackStart.X, at.Z - e.BackStart.Z).Length());
@@ -612,7 +614,7 @@ public sealed partial class Ptable
 
     /// <summary>termBK: the terrain under the car rose or fell 3, or turned 1.5 rad and stopped.</summary>
     private bool TermBackAway(Entity e, Entity? _) =>
-        MathF.Abs(e.BackHeight - GroundUnder(e)) > 3f || (MathF.Abs(Delta(Hdg(e), e.BackHeading)) >= 1.5f && e.Vehicle!.Speed < 1f);
+        MathF.Abs(e.BackHeight - GroundUnder(e)) > 3f || (MathF.Abs(Delta(Hdg(e), e.BackHeading)) >= 1.5f && e.Vehicle!.Speed < 1f) || UnstickDone(e);
 
     /// <summary>Reset the boxed-in ring, brake, gear back.</summary>
     private void BackAwayMatch(Entity e, Entity? _)
@@ -621,6 +623,8 @@ public sealed partial class Ptable
         e.StallTime = 0;
         Brake(e);
         FlipGear(e.Vehicle!);
+        UnstickForward(e, Now);
+        e.Unsticking = false;
     }
 
     // ---- 19 just do it ----

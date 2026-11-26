@@ -30,7 +30,7 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(SmartAi.None, SmartAiNames.Parse("off", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("t", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("gun_lay, settle", out _));
-        Assert.Equal(SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution, SmartAiNames.Parse("N", out _));
+        Assert.Equal(SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick, SmartAiNames.Parse("N", out _));
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("all", out _));
         Assert.Equal((SmartAi)3, SmartAiNames.Parse("3", out _));
         Assert.Equal((SmartAi)5, SmartAiNames.Parse("5", out _));
@@ -317,6 +317,51 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.False(p.RimInGear(a));
     }
 
+    // ---- N5 stuck recovery ----
+
+    /// <summary>
+    /// Stuck recovery: a car in forward gear asking to go that has not got 3 m in 3 s, 100 m from its target, backs away on an arc
+    /// (back_away pushed, the arc's goal 0.9 rad off the target's bearing since the car already points at it), the cell ahead kept
+    /// off for 30 s; within 30 m of the target (the fight) it is left alone. Then the car reverses, its nose swinging toward the goal.
+    /// </summary>
+    [Fact]
+    public void StuckRecoveryBacksOutOnAnArc()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.Unstick) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        for (int t = 0; t < Ticks(5); t++) Step(r);
+        var p = r.Host.Ptable;
+        void Wedge(float range)
+        {
+            Place(r, a.Vehicle!, r.Centre, 0, 0);
+            Place(r, b.Vehicle!, r.Centre + new Vector2(0, range), 0, 0);
+            r.Host.Order(a, b, AiOrder.Attack, null, 0);
+            while (a.Depth > 0) { a.Stack.RemoveAt(a.Stack.Count - 1); a.Depth--; }
+            a.Vehicle!.Gear = 1; a.Vehicle!.Throttle = 0.6f; a.Vehicle!.Flags &= ~VehicleFlags.Airborne;
+            a.ProgressAt = a.Position; a.ProgressTime = r.Host.Now - 3.1f; a.BlockedUntil = -1; a.Unsticking = false;
+        }
+        Wedge(20);
+        p.StuckTest(a, b);
+        Assert.Equal(0, a.Depth);
+        Wedge(100);
+        p.StuckTest(a, b);
+        Assert.Equal("back_away", p.NameOf(a.Stack[a.Depth]));
+        Assert.True(a.Unsticking);
+        Assert.Equal(0.9f, MathF.Abs(AiDriver.AngleDelta(0, a.UnstickHeading)), 2);
+        Assert.Equal(r.Host.Now + Ptable.BlockedFor, a.BlockedUntil, 3);
+        Assert.Equal((PathSearch.Round(r.Centre.X), PathSearch.Round(r.Centre.Y + 7f)), (a.BlockedX, a.BlockedZ));
+        var nose0 = HeadingOf(a.Vehicle!.Rot.Forward);
+        float back = 0;
+        for (int t = 0; t < Ticks(3); t++)
+        {
+            Step(r, (a, b));
+            back = MathF.Max(back, -Vector3.Dot(a.Position - new Vector3(r.Centre.X, a.Position.Y, r.Centre.Y), Vector3.UnitZ));
+        }
+        float turned = AiDriver.AngleDelta(nose0, HeadingOf(a.Vehicle!.Rot.Forward));
+        output.WriteLine($"backed {back:0.0} m, nose turned {turned:0.00} rad toward {a.UnstickHeading:0.00}");
+        Assert.True(back > 1f, $"backed {back} m");
+        Assert.True(MathF.Sign(turned) == MathF.Sign(AiDriver.AngleDelta(nose0, a.UnstickHeading)) && MathF.Abs(turned) > 0.1f, $"turned {turned}");
+    }
 
 
 

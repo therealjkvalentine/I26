@@ -21,7 +21,9 @@ public enum SmartAi : uint
     ClimbProbe = 1 << 3,
     /// <summary>Ledge caution (N6): brake for a cliff's rim, never back over one, slow for a crest; too far's search keeps off steep faces.</summary>
     LedgeCaution = 1 << 4,
-    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution,
+    /// <summary>Stuck recovery (N5): no progress while asking to go backs out on an arc toward the target, then forward; the cell is avoided a while.</summary>
+    Unstick = 1 << 5,
+    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick,
 }
 
 /// <summary>The <see cref="SmartAi"/> rule as written in the settings and the dev hook: names, groups or a number.</summary>
@@ -32,13 +34,14 @@ public static class SmartAiNames
     [
         ("gun_lay", SmartAi.GunLay), ("settle", SmartAi.Settle),
         ("hill_pursuit", SmartAi.HillPursuit), ("climb_probe", SmartAi.ClimbProbe), ("ledge_caution", SmartAi.LedgeCaution),
+        ("unstick", SmartAi.Unstick),
     ];
 
     /// <summary>The groups of the research's catalogue: T lining up, N terrain, G coordination, D defence; and all, off.</summary>
     public static readonly (string Name, SmartAi Bits)[] Groups =
     [
         ("t", SmartAi.GunLay | SmartAi.Settle),
-        ("n", SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution),
+        ("n", SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick),
         ("all", SmartAi.All), ("off", SmartAi.None), ("none", SmartAi.None),
     ];
 
