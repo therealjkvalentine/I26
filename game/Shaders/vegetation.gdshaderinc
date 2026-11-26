@@ -116,6 +116,11 @@ void vertex() {
 			float ny = -along * sin(th) + p.y * cos(th);
 			p.xz = side + way * (nh + shake);
 			p.y = max(ny, 0.04 * s);
+			// burnt through (the scorch's last part, only where it burned): it sinks into a low charred remnant, splaying a little
+			float burnt = smoothstep(0.6, 1.0, b.b) * (1.0 - stiff);
+			p.xz -= (push + vec2(flutter)) * burnt;   // a charred remnant stands still in the wind (its burnt-out patches hold their place)
+			p.y *= 1.0 - 0.4 * burnt;
+			p.xz *= 1.0 + 0.12 * burnt;
 			VERTEX = origin + p;
 			v_vary.y = b.b;
 		}
@@ -148,6 +153,12 @@ void fragment() {
 	// the tier cross-fade: the incoming tier keeps the pixels the outgoing one gives up
 	if (dither < 1.0 - v_tin || dither >= 1.0 - v_tout) discard;
 	vec4 tex = texture(atlas, UV);
+	// burnt through (brush impacts): the leaves and blades gone in patches of the world (no varying: nothing for the
+	// plants that never burned but this test), the charred twigs left
+	if (v_vary.y > 0.6 && UV2.y > 0.5) {
+		vec3 cell = floor((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz * 7.0);
+		if (fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453) < smoothstep(0.6, 1.0, v_vary.y) * 0.9) discard;
+	}
 	vec3 col = tex.rgb * COLOR.rgb * tint * (1.0 + 0.1 * v_vary.x);
 	// the base of a plant carries the ground's dust
 	col = mix(col, col * dust * 1.6, (1.0 - smoothstep(0.0, 0.18, v_sway)) * 0.45);

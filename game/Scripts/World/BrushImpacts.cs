@@ -52,16 +52,22 @@ public partial class BrushImpacts : Node3D
     /// <summary>I76_BRUSH_DEBUG=1: a line twice a second of what the field holds.</summary>
     private static readonly bool Debug = System.Environment.GetEnvironmentVariable("I76_BRUSH_DEBUG") == "1";
     private int _frame, _rounds, _blasts;
+    /// <summary>I76_BUSH_FIRE=frame:x,z;...: at that frame after the loading card the plant nearest game (x, z) set burning, for captures.</summary>
+    private static readonly string? FireHook = System.Environment.GetEnvironmentVariable("I76_BUSH_FIRE");
+    private List<(int Frame, float X, float Z)>? _fireHook;
+    private int _onFrames;
     private long _ticks;
     private int _burstsThisFrame;
     private readonly List<(GpuParticles3D P, double Until)> _bursts = [];
     private readonly Dictionary<ulong, (Vector3 P, double Leaves)> _cars = [];
     private readonly RandomNumberGenerator _rng = new();
 
-    private ParticleProcessMaterial _leafProc = null!, _strawProc = null!, _twigProc = null!, _smokeProc = null!, _flameProc = null!;
-    private QuadMesh _leafMesh = null!, _smokeMesh = null!, _flameMesh = null!;
+    private ParticleProcessMaterial _leafProc = null!, _strawProc = null!, _twigProc = null!, _smokeProc = null!, _flameProc = null!, _emberProc = null!;
+    private QuadMesh _leafMesh = null!, _smokeMesh = null!, _flameMesh = null!, _emberMesh = null!;
     private BoxMesh _twigMesh = null!;
-    private ShaderMaterial _leafMat = null!;
+    private ShaderMaterial _leafMat = null!, _smokeMat = null!;
+    private Vector3 _smokeLight = Vector3.One;
+    private static readonly StringName LightName = "light";
     private float _meshSize = -1;
 
     private sealed class Fire
@@ -69,8 +75,9 @@ public partial class BrushImpacts : Node3D
         public Vector3 At;
         public float Radius, Height;
         public double Start, Life, FlameFrom, FlameTo;
+        public BushFireLook Look;
         public GpuParticles3D Smoke = null!;
-        public GpuParticles3D? Flames;
+        public GpuParticles3D? Flames, Embers;
         public OmniLight3D? Light;
         public bool Ending;
     }
@@ -84,6 +91,19 @@ public partial class BrushImpacts : Node3D
         RenderingServer.GlobalShaderParameterSet("i76_veg_field_rect", Vector4.Zero);
         _current = this;
         MakeLook();
+        if (FireHook is { Length: > 0 })
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            _fireHook = [];
+            foreach (var e in FireHook.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var fz = e.Split(':');
+                var xz = fz.Length == 2 ? fz[1].Split(',') : [];
+                if (xz.Length >= 2 && int.TryParse(fz[0], out int fr) && float.TryParse(xz[0], inv, out float hx) && float.TryParse(xz[1], inv, out float hz))
+                    _fireHook.Add((fr, hx, hz));
+            }
+            _rng.Seed = 76;   // a capture repeats
+        }
         // I76_BRUSH_FALL=shape[,base,per-speed]: the knock's curve (smooth, snap, topple) and time, for comparing them in captures
         if (System.Environment.GetEnvironmentVariable("I76_BRUSH_FALL") is { Length: > 0 } fall)
         {
@@ -127,8 +147,10 @@ public partial class BrushImpacts : Node3D
         Leaves(at, Vector3.Up, grass: true, 12, 0.3f, 0, force: true);
         for (int i = had; i < _bursts.Count; i++) _warm.Add(_bursts[i].P);
         _bursts.RemoveRange(had, _bursts.Count - had);
-        _warm.Add(Emitter(_smokeProc, _smokeMesh, 26, 3.2, at, 0.5f));
-        _warm.Add(Emitter(_flameProc, _flameMesh, 48, 0.7, at, 0.5f));
+        var look = BushFire.For(1.4f, 2f);
+        _warm.Add(SmokeEmitter(look, at));
+        _warm.Add(FlameEmitter(look, at));
+        _warm.Add(EmberEmitter(look, at));
         foreach (var p in _warm) p.ProcessMode = ProcessModeEnum.Always;   // the tree is held still behind the card: these run
     }
 
@@ -210,12 +232,14 @@ public partial class BrushImpacts : Node3D
             return;
         }
         _on = true;
+        if (_fireHook is not null && !I76.Game.Ui.LoadProgress.Active && ++_onFrames > 0) FireHookStep();
         long t0 = Debug ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         // the field lies in the world root's frame (the map moves under a rebase of the origin; the field with it)
         _o = Veg.GlobalPosition;
         var cam = GetViewport().GetCamera3D().GlobalPosition;
         _field.Follow(cam.X - _o.X, cam.Z - _o.Z);
         Cars();
+        if (_fires.Count > 0) SmokeLit();
         Fires();
         _field.Decay(_dt);
         if (_field.Dirty)
@@ -394,7 +418,20 @@ public partial class BrushImpacts : Node3D
 
     // ---- fire ----
 
-    private void Ignite(Vector3 at, float radius, float flameChance)
+    private void FireHookStep()
+    {
+        foreach (var (fr, x, z) in _fireHook!)
+        {
+            if (fr != _onFrames) continue;
+            int had = _fires.Count;
+            var g = Veg.ToGlobal(new Vector3(x, 0, -z));
+            g.Y = Veg.GroundY(g) ?? g.Y;
+            Ignite(g, 2f, 1f, hook: true);
+            GD.Print(System.FormattableString.Invariant($"bush fire hook: frame {fr} at {x:0.0},{z:0.0}: {(_fires.Count > had ? $"plant at {Veg.ToLocal(_fires[^1].At).X:0.0},{Veg.ToLocal(_fires[^1].At).Y:0.0},{-Veg.ToLocal(_fires[^1].At).Z:0.0} radius {_fires[^1].Radius:0.00} height {_fires[^1].Height:0.00}" : "no plant")}"));
+        }
+    }
+
+    private void Ignite(Vector3 at, float radius, float flameChance, bool hook = false)
     {
         if (_fires.Count >= MaxFires) return;
         Veg.PlantsNear(at, radius, _near, 24);
@@ -410,29 +447,61 @@ public partial class BrushImpacts : Node3D
         }
         if (pick is not { } p) return;
         var f = new Fire { At = G(p.Root), Radius = MathF.Min(p.Radius, 1.5f), Height = MathF.Min(p.Height, 2.5f), Start = _t, Life = _rng.RandfRange(7f, 13f) };
-        bool flames = _fires.Count(x => x.Flames is not null) < MaxFlaming && _rng.Randf() < flameChance;
+        bool flames = hook || (_fires.Count(x => x.Flames is not null) < MaxFlaming && _rng.Randf() < flameChance);
         if (flames) { f.FlameFrom = _rng.RandfRange(0.3f, 1.2f); f.FlameTo = f.FlameFrom + _rng.RandfRange(3f, 6f); }
-        f.Smoke = Emitter(_smokeProc, _smokeMesh, 26, 3.2, f.At + Vector3.Up * f.Height * 0.5f, f.Radius * 0.6f);
+        if (hook) { f.FlameFrom = 0.5; f.FlameTo = 6.5; f.Life = 11; }
+        // sized to the plant (BushFire): a small flame in the crown, a thin smoke, a few embers off a big one
+        f.Look = BushFire.For(f.Radius, f.Height);
+        f.Smoke = SmokeEmitter(f.Look, f.At);
+        f.Smoke.AmountRatio = 0.5f;   // a smoulder's wisp; the flames' time thickens it
         if (flames)
         {
-            f.Flames = Emitter(_flameProc, _flameMesh, 48, 0.7, f.At + Vector3.Up * f.Height * 0.35f, f.Radius * 0.7f);
+            f.Flames = FlameEmitter(f.Look, f.At);
             f.Flames.Emitting = false;
-            f.Light = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 0, OmniRange = 7f, ShadowEnabled = false };
+            if (f.Look.Embers > 0) { f.Embers = EmberEmitter(f.Look, f.At); f.Embers.Emitting = false; }
+            f.Light = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 0, OmniRange = f.Look.LightRange, ShadowEnabled = false };
             AddChild(f.Light);
-            f.Light.GlobalPosition = f.At + Vector3.Up * (f.Height * 0.6f + 0.3f);
+            f.Light.GlobalPosition = f.At + Vector3.Up * (f.Height * 0.5f + 0.2f);
         }
         _fires.Add(f);
     }
 
-    private GpuParticles3D Emitter(ParticleProcessMaterial proc, Mesh mesh, int amount, double life, Vector3 at, float radius)
+    // a fire's emitters, placed from the plant's root: each its own copy of the process, sized to its plant
+
+    private GpuParticles3D SmokeEmitter(in BushFireLook l, Vector3 root)
     {
-        // a fire's own copy of the process: its plant's reach
-        var own = (ParticleProcessMaterial)proc.Duplicate();
-        own.EmissionSphereRadius = MathF.Max(radius, 0.3f);
+        var own = (ParticleProcessMaterial)_smokeProc.Duplicate();
+        own.EmissionBoxExtents = new Vector3(l.FlameSpreadX * 0.6f, l.FlameSpreadY * 0.5f, l.FlameSpreadX * 0.6f);
+        own.ScaleMin = l.SmokeSize * 0.85f; own.ScaleMax = l.SmokeSize * 1.2f;
+        float k = l.FlameSpeedMin / 0.45f;
+        own.InitialVelocityMin *= k; own.InitialVelocityMax *= k;
+        return Emitter(own, _smokeMesh, l.Smoke, BushFireLook.SmokeLife, root + Vector3.Up * l.SmokeHeight);
+    }
+
+    private GpuParticles3D FlameEmitter(in BushFireLook l, Vector3 root)
+    {
+        var own = (ParticleProcessMaterial)_flameProc.Duplicate();
+        own.EmissionBoxExtents = new Vector3(l.FlameSpreadX, l.FlameSpreadY, l.FlameSpreadX);
+        own.InitialVelocityMin = l.FlameSpeedMin; own.InitialVelocityMax = l.FlameSpeedMax;
+        own.Gravity = new Vector3(0, l.FlameLift, 0);
+        // the mesh is a unit card: the process's scale is the flame's width
+        own.ScaleMin = l.FlameWidth * 0.75f; own.ScaleMax = l.FlameWidth * 1.15f;
+        return Emitter(own, _flameMesh, l.Flames, BushFireLook.FlameLife, root + Vector3.Up * l.FlameBaseHeight);
+    }
+
+    private GpuParticles3D EmberEmitter(in BushFireLook l, Vector3 root)
+    {
+        var own = (ParticleProcessMaterial)_emberProc.Duplicate();
+        own.EmissionBoxExtents = new Vector3(l.FlameSpreadX * 0.7f, l.FlameSpreadY * 0.5f, l.FlameSpreadX * 0.7f);
+        return Emitter(own, _emberMesh, Math.Max(l.Embers, 1), BushFireLook.EmberLife, root + Vector3.Up * (l.FlameBaseHeight + l.FlameSpreadY));
+    }
+
+    private GpuParticles3D Emitter(ParticleProcessMaterial proc, Mesh mesh, int amount, double life, Vector3 at)
+    {
         var p = new GpuParticles3D
         {
-            ProcessMaterial = own, DrawPass1 = mesh, Amount = amount, Lifetime = life, LocalCoords = false,
-            VisibilityAabb = new Aabb(new Vector3(-6, -2, -6), new Vector3(12, 14, 12)), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            ProcessMaterial = proc, DrawPass1 = mesh, Amount = amount, Lifetime = life, LocalCoords = false,
+            VisibilityAabb = new Aabb(new Vector3(-4, -1, -4), new Vector3(8, 10, 8)), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
         AddChild(p);
         p.GlobalPosition = at;
@@ -445,22 +514,38 @@ public partial class BrushImpacts : Node3D
         for (int i = _fires.Count - 1; i >= 0; i--)
         {
             var f = _fires[i];
-            f.At = f.Smoke.GlobalPosition - Vector3.Up * f.Height * 0.5f;   // after a rebase too
+            f.At = f.Smoke.GlobalPosition - Vector3.Up * f.Look.SmokeHeight;   // after a rebase too
             double age = _t - f.Start;
             if (age >= f.Life + 3.5) { End(f, now: true); _fires.RemoveAt(i); continue; }
             if (age >= f.Life && !f.Ending) End(f, now: false);
             bool burning = f.Flames is not null && age >= f.FlameFrom && age < f.FlameTo;
             if (f.Flames is not null && f.Flames.Emitting != burning) f.Flames.Emitting = burning;
+            if (f.Embers is not null && f.Embers.Emitting != burning) f.Embers.Emitting = burning;
+            if (!f.Ending) f.Smoke.AmountRatio = burning ? 1f : 0.5f;
             if (f.Light is not null)
             {
                 float fl = burning ? Mathf.Clamp((float)(age - f.FlameFrom) * 2f, 0, 1) * Mathf.Clamp((float)(f.FlameTo - age), 0, 1) : 0;
-                f.Light.LightEnergy = fl * 1.8f * ModernFx.FxBright * (0.75f + 0.25f * MathF.Sin((float)_t * 23f + i) * MathF.Sin((float)_t * 7f));
+                f.Light.LightEnergy = fl * f.Look.LightEnergy * ModernFx.FxBright * (0.75f + 0.25f * MathF.Sin((float)_t * 23f + i) * MathF.Sin((float)_t * 7f));
             }
-            // the plant scorches as it smoulders, burnt black and slumped where it burns
-            float scorch = burning ? Mathf.Clamp((float)(age - f.FlameFrom) / 2.5f, 0.3f, 1f) : Mathf.Clamp((float)age / 6f, 0f, 0.35f);
-            _field.Stamp(f.At.X - _o.X, f.At.Z - _o.Z, f.Radius + 0.6f, burning ? 0.35f : 0, 0, scorch);
+            // the plant scorches as it smoulders; where it burns it chars, its leaves burn away and it sinks into a charred
+            // remnant where it stands (the vegetation shader, from the field's scorch)
+            float scorch = burning ? Mathf.Clamp((float)(age - f.FlameFrom) / 3f, 0.3f, 1f) : Mathf.Clamp((float)age / 6f, 0f, 0.35f);
+            _field.Stamp(f.At.X - _o.X, f.At.Z - _o.Z, f.Radius + 0.3f, 0, 0, scorch);
             if (burning) Ignite(f.At, 2.5f, 0f);   // a smoulder may catch beside it (no flames: capped)
         }
+    }
+
+    /// <summary>
+    /// The smoke takes the mission's light as the other smokes do: Smoke Lighting's sun and sky when it is on, else the one
+    /// level for the mission's smoke (SmokeLayer.SceneLight: 1 by day, down to a quarter at night), so it is no bright grey at night.
+    /// </summary>
+    private void SmokeLit()
+    {
+        var l = SmokeLight.On ? SmokeLight.Sun * 0.5f + SmokeLight.Ambient * 0.5f : System.Numerics.Vector3.One * SmokeLayer.SceneLight;
+        var v = new Vector3(Math.Min(l.X, 1f), Math.Min(l.Y, 1f), Math.Min(l.Z, 1f));
+        if (v == _smokeLight) return;
+        _smokeLight = v;
+        _smokeMat.SetShaderParameter(LightName, v);
     }
 
     private void End(Fire f, bool now)
@@ -468,11 +553,12 @@ public partial class BrushImpacts : Node3D
         f.Ending = true;
         if (now)
         {
-            f.Smoke.QueueFree(); f.Flames?.QueueFree(); f.Light?.QueueFree();
+            f.Smoke.QueueFree(); f.Flames?.QueueFree(); f.Embers?.QueueFree(); f.Light?.QueueFree();
             return;
         }
         f.Smoke.Emitting = false;
         if (f.Flames is not null) f.Flames.Emitting = false;
+        if (f.Embers is not null) f.Embers.Emitting = false;
         if (f.Light is not null) f.Light.LightEnergy = 0;
     }
 
@@ -584,6 +670,7 @@ public partial class BrushImpacts : Node3D
                     render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled;
                     global uniform float i76_fx_alpha;
                     uniform sampler2D soft : filter_linear;
+                    uniform vec3 light = vec3(1.0);
                     void vertex() {
                         mat4 m = mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
                         float s = length(MODEL_MATRIX[0].xyz);
@@ -591,22 +678,25 @@ public partial class BrushImpacts : Node3D
                     }
                     void fragment() {
                         float a = texture(soft, UV).a * COLOR.a * min(i76_fx_alpha, 1.0);
-                        ALBEDO = COLOR.rgb;
+                        ALBEDO = COLOR.rgb * light;
                         ALPHA = a;
                     }
                     """,
             },
         };
         smokeMat.SetShaderParameter("soft", soft);
+        _smokeMat = smokeMat;
         _smokeMesh = new QuadMesh { Size = Vector2.One, Material = smokeMat };
+        // a burning plant's thin smoke: a few soft grey puffs off the top of the crown, rising and spreading; sized per fire (BushFire)
         _smokeProc = new ParticleProcessMaterial
         {
-            Direction = Vector3.Up, Spread = 12, InitialVelocityMin = 0.8f, InitialVelocityMax = 1.6f, Gravity = new Vector3(0.25f, 0.35f, 0),
-            DampingMin = 0.2f, DampingMax = 0.5f, EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere, EmissionSphereRadius = 1f,
-            ScaleMin = 0.9f, ScaleMax = 1.5f, ScaleCurve = new CurveTexture { Curve = Curve((0, 0.5f), (1, 2.6f)) },
-            ColorRamp = Ramp((0, new Color(0.26f, 0.25f, 0.24f, 0)), (0.12f, new Color(0.27f, 0.26f, 0.25f, 0.45f)), (0.6f, new Color(0.36f, 0.35f, 0.34f, 0.25f)), (1, new Color(0.42f, 0.42f, 0.42f, 0))),
+            Direction = Vector3.Up, Spread = 8, InitialVelocityMin = 0.5f, InitialVelocityMax = 0.8f, Gravity = new Vector3(0.18f, 0.25f, 0),
+            DampingMin = 0.1f, DampingMax = 0.3f, EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box, EmissionBoxExtents = Vector3.One * 0.2f,
+            ScaleCurve = new CurveTexture { Curve = Curve((0, 0.5f), (1, 0.5f * BushFireLook.SmokeGrowth)) },
+            ColorRamp = Ramp((0, new Color(0.34f, 0.33f, 0.32f, 0)), (0.15f, new Color(0.38f, 0.37f, 0.36f, 0.2f)), (0.6f, new Color(0.46f, 0.45f, 0.44f, 0.11f)), (1, new Color(0.52f, 0.52f, 0.52f, 0))),
         };
-        // flames: additive soft cards licking up, yellow to red
+        // the flames: additive tongues standing up (a card turned about the vertical to the camera), each wavering as it
+        // rises and shrinks, yellow at the root to orange-red at the tip, gone before it leaves the crown's top
         var flameMat = new ShaderMaterial
         {
             Shader = new Shader
@@ -616,27 +706,82 @@ public partial class BrushImpacts : Node3D
                     render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
                     global uniform float i76_fx_alpha;
                     global uniform float i76_fx_bright;
-                    uniform sampler2D soft : filter_linear;
+                    varying float v_seed;
                     void vertex() {
-                        mat4 m = mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+                        vec3 pos = MODEL_MATRIX[3].xyz;
                         float s = length(MODEL_MATRIX[0].xyz);
-                        MODELVIEW_MATRIX = VIEW_MATRIX * m * mat4(vec4(s, 0, 0, 0), vec4(0, s * 1.6, 0, 0), vec4(0, 0, s, 0), vec4(0, 0, 0, 1));
+                        vec3 to_cam = INV_VIEW_MATRIX[3].xyz - pos;
+                        float steep = smoothstep(0.75, 0.97, abs(normalize(to_cam).y));
+                        vec3 up = normalize(mix(vec3(0.0, 1.0, 0.0), INV_VIEW_MATRIX[1].xyz, steep));
+                        vec3 right = normalize(cross(up, to_cam));
+                        vec3 fwd = cross(right, up);
+                        // the tongue's root a little below the particle, so it licks up from where it is born
+                        mat4 m = mat4(vec4(right * s, 0.0), vec4(up * s * 1.7, 0.0), vec4(fwd * s, 0.0), vec4(pos + up * s * 0.35, 1.0));
+                        MODELVIEW_MATRIX = VIEW_MATRIX * m;
+                        v_seed = fract(float(INSTANCE_ID) * 0.6180339);
+                    }
+                    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+                    float noise(vec2 p) {
+                        vec2 i = floor(p), f = fract(p);
+                        f = f * f * (3.0 - 2.0 * f);
+                        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
                     }
                     void fragment() {
-                        float a = texture(soft, UV).a;
-                        ALBEDO = COLOR.rgb * a * a * COLOR.a * 2.2 * i76_fx_bright * min(i76_fx_alpha, 1.0);
+                        float v = 1.0 - UV.y;
+                        float x = UV.x * 2.0 - 1.0;
+                        x += v * 0.3 * sin(v * 5.5 - TIME * 13.0 + v_seed * 40.0) + 0.12 * sin(TIME * 7.0 + v_seed * 17.0) * v;
+                        float hw = 0.95 * pow(max(1.0 - v, 0.0), 0.6) * (0.4 + 0.6 * smoothstep(0.0, 0.3, v));
+                        float body = pow(clamp(1.0 - abs(x) / max(hw, 1e-3), 0.0, 1.0), 1.4) * smoothstep(0.0, 0.2, v);
+                        // the tongue's edge and tip broken up by a noise rising through it
+                        float n = noise(vec2(UV.x * 3.0 + v_seed * 9.0, UV.y * 4.0 + TIME * 4.5 + v_seed * 5.0));
+                        float a = body * smoothstep(0.15, 0.75, body + n * 0.6 - v * 0.35);
+                        vec3 c = mix(vec3(0.9, 0.2, 0.03), vec3(1.0, 0.62, 0.2), body * (1.0 - v * 0.7));
+                        ALBEDO = c * COLOR.rgb * a * COLOR.a * 1.35 * i76_fx_bright * min(i76_fx_alpha, 1.0);
                     }
                     """,
             },
         };
-        flameMat.SetShaderParameter("soft", soft);
-        _flameMesh = new QuadMesh { Size = Vector2.One * 0.45f, Material = flameMat };
+        _flameMesh = new QuadMesh { Size = Vector2.One, Material = flameMat };
         _flameProc = new ParticleProcessMaterial
         {
-            Direction = Vector3.Up, Spread = 10, InitialVelocityMin = 1.2f, InitialVelocityMax = 2.6f, Gravity = new Vector3(0, 1.5f, 0),
-            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere, EmissionSphereRadius = 1f,
-            ScaleMin = 0.8f, ScaleMax = 1.4f, ScaleCurve = new CurveTexture { Curve = Curve((0, 1f), (1, 0.2f)) },
-            ColorRamp = Ramp((0, new Color(1f, 0.85f, 0.45f, 1)), (0.4f, new Color(1f, 0.5f, 0.15f, 0.9f)), (1, new Color(0.6f, 0.15f, 0.05f, 0))),
+            Direction = Vector3.Up, Spread = 6, Gravity = new Vector3(0, 1f, 0),
+            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box, EmissionBoxExtents = Vector3.One * 0.2f,
+            ScaleCurve = new CurveTexture { Curve = Curve((0, 0.55f), (0.25f, 1f), (1, 0.15f)) },
+            ColorRamp = Ramp((0, new Color(1f, 0.9f, 0.6f, 0)), (0.12f, new Color(1f, 0.85f, 0.5f, 0.9f)), (0.55f, new Color(1f, 0.55f, 0.2f, 0.7f)), (1, new Color(0.7f, 0.2f, 0.05f, 0))),
+        };
+        // the embers: a few hot sparks drifting up with the heat, slowing as they cool
+        var emberMat = new ShaderMaterial
+        {
+            Shader = new Shader
+            {
+                Code = """
+                    shader_type spatial;
+                    render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+                    global uniform float i76_fx_alpha;
+                    global uniform float i76_fx_bright;
+                    varying float v_seed;
+                    void vertex() {
+                        mat4 m = mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+                        float s = length(MODEL_MATRIX[0].xyz);
+                        MODELVIEW_MATRIX = VIEW_MATRIX * m * mat4(vec4(s, 0, 0, 0), vec4(0, s, 0, 0), vec4(0, 0, s, 0), vec4(0, 0, 0, 1));
+                        v_seed = fract(float(INSTANCE_ID) * 0.6180339);
+                    }
+                    void fragment() {
+                        float d = length(UV * 2.0 - 1.0);
+                        float a = 1.0 - smoothstep(0.15, 1.0, d);
+                        float flick = 0.65 + 0.35 * sin(TIME * 23.0 + v_seed * 60.0);
+                        ALBEDO = COLOR.rgb * a * COLOR.a * flick * 1.6 * i76_fx_bright * min(i76_fx_alpha, 1.0);
+                    }
+                    """,
+            },
+        };
+        _emberMesh = new QuadMesh { Size = Vector2.One * 0.035f, Material = emberMat };
+        _emberProc = new ParticleProcessMaterial
+        {
+            Direction = Vector3.Up, Spread = 14, InitialVelocityMin = 0.7f, InitialVelocityMax = 1.3f, Gravity = new Vector3(0.12f, 0.15f, 0),
+            DampingMin = 0.3f, DampingMax = 0.6f, EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box, EmissionBoxExtents = Vector3.One * 0.2f,
+            ScaleMin = 0.7f, ScaleMax = 1.2f, ScaleCurve = new CurveTexture { Curve = Curve((0, 1f), (1, 0.4f)) },
+            ColorRamp = Ramp((0, new Color(1f, 0.75f, 0.35f, 1)), (0.5f, new Color(1f, 0.45f, 0.12f, 0.8f)), (1, new Color(0.6f, 0.12f, 0.03f, 0))),
         };
     }
 
