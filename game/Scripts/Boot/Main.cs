@@ -1291,6 +1291,8 @@ public partial class Main : Node3D
 		I76.Game.Ui.DevSignals.Reset();
 		I76.Game.Ui.DevSignals.Watching = DevOn;
 		ShowSignals();
+		// behind the card with the game's sound held, the sim's tick 0 is the one AttachSteps runs (FirstTick), not its first frame here
+		if (_soundHeld && _net is null && !_resumed) _sim.AwaitFirstTick = true;
 		AddChild(_sim);
 		AddChild(new PausedClock { Owner = this, Name = "PausedClock" });
 		var playSettings = I76.Game.Shell.ShellSettings.Load();
@@ -2382,6 +2384,8 @@ public partial class Main : Node3D
 	}
 
 	private static bool _soundHeld;
+	/// <summary>The game's buses are held silent for a load (HoldGameSound): a voice line started meanwhile waits for the hold's end (SimDriver).</summary>
+	internal static bool GameSoundHeld => _soundHeld;
 
 	/// <summary>
 	/// The game's own buses (SFX, Voice, Cues: not the music, a movie's or the shaker's) silenced while a mission loads behind the

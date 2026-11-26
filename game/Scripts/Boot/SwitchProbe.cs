@@ -205,6 +205,8 @@ public partial class SwitchProbe : Node
                 _visitMission = m25.MissionName;
                 Check(Same(m25.InstallPath, _nitroDir) && new GameInstall(_nitroDir!).FindMission(m25.MissionName ?? "") is not null, $"Nitro mission {m25.MissionName} built from the Nitro install");
                 Check(NitroVisit.Active, "the visit lasts through the mission");
+                // the opening CB line (said at tick 0, behind the card) heard from its beginning when the hold on the game's sound ends
+                Check(I76.Game.Sim.SimDriver.LastHeldLineStart is { } lineAt && lineAt < 0.05f, $"the opening CB line starts at its beginning (at {I76.Game.Sim.SimDriver.LastHeldLineStart?.ToString("0.00") ?? "none held"} s)");
                 // the shared Graphic Detail (Anti-Aliasing, Render Scale) drawn the same after the hand-over as the base game draws it
                 var gs = I76.Game.Shell.ShellSettings.Load();
                 var vp = GetViewport();
