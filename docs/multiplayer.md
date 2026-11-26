@@ -1300,10 +1300,11 @@ the others' briefings (the owner: "cutscene skips for others once everyone is re
 
 The port's rule (docs/deviations.md "Smarter opponents"; `SmartAi`): the computer cars' extra behaviours. In a network game it is the
 host's: the listen host's own `[port] smart_ai` (or `I76_SMART_AI`), `i26-server --smart-ai LIST` (`ServerOptions.SmartAi`). The server
-runs every computer car (the AI fill, the bots, a co-op mission's enemies) and a client's mirror is never stepped, so the rule needs
-nothing on the wire and no feature bit: a player on upstream's build or an older fork build sees the same cars. It is part of the
-session's build in every savestate; a host migration's options carry it, and a successor whose own options say otherwise takes the
-savestate's (`MeleeHost.RestoreMigrated`).
+runs every computer car (the AI fill, the bots, a co-op mission's enemies) and a client's mirror is never stepped, so a player on
+upstream's build or an older fork build sees the same cars. As the solid-cliff rule, the join accept's last bytes tell a client that
+says the feature bit (`PeerFeatures.SmartAi`; `JoinAccept.SmartAi`, a VarU of the bits after the cliff rule's byte, read only if it is
+there; protocol 26 unchanged), which holds it in its mirror's session. It is in every savestate's build; a host migration's options
+carry it, and the successor's restore goes on under the savestate's rule whatever its own options say.
 
 ### Wrecks stay solid (the play fork's, `PeerFeatures.WrecksSolid`)
 

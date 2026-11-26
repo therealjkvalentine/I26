@@ -353,6 +353,8 @@ public class HostMigrationTests(ITestOutputHelper output)
         fresh.RestoreMigrated(state);
         Assert.Equal(SmartAi.All, fresh.Session.Build!.SmartAi);
         Assert.Equal(SmartAi.All, fresh.Setup.Melee!.Host.SmartAi);
+        // and the joiners hear it in the accept
+        Assert.Equal((uint)SmartAi.All, host.AcceptFor(host.Seats.First()).SmartAi);
         var (replayed, _) = fresh.ReplayMigrated(log, 0);
         Assert.Equal(log.Count, replayed);
         Assert.True(host.Session.StateHash() == fresh.Session.StateHash(), FirstDifference(Body(host.Session), Body(fresh.Session)));

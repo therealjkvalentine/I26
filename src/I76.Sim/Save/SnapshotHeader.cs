@@ -34,7 +34,10 @@ public sealed record SessionBuild
     /// and a restore goes on under it (<see cref="SimSession.Restore"/>), so it is not a difference <see cref="Differs"/> refuses.
     /// </summary>
     public bool SolidCliffs { get; init; }
-    /// <summary>The smarter opponents' rule (the play fork's, <see cref="Missions.SmartAi"/>): none, the original's AI. Format 30.</summary>
+    /// <summary>
+    /// The smarter opponents' rule held in the game (the play fork's, <see cref="Missions.SmartAi"/>, format 30; none, the original's AI): a
+    /// snapshot carries it and a restore goes on under it (<see cref="SimSession.Restore"/>), as the solid-cliff rule's.
+    /// </summary>
     public SmartAi SmartAi { get; init; }
 
     /// <summary>
@@ -129,7 +132,6 @@ public sealed record SessionBuild
         if (Coop is { } cs && cs.ExtraEnemies != other.Coop!.ExtraEnemies) return $"the snapshot's co-op scaling is {cs.ExtraEnemies} extra, the session's {other.Coop.ExtraEnemies}";
         if (Coop is { } cr && cr.RollingStart != other.Coop!.RollingStart) return $"the snapshot's co-op Rolling Start is {(cr.RollingStart ? "on" : "off")}, the session's is not";
         if ((TripPlus ?? Off) != (other.TripPlus ?? Off)) return $"the snapshot's Trip+ rules are {Describe(TripPlus)}, the session's {Describe(other.TripPlus)}";
-        if (SmartAi != other.SmartAi) return $"the snapshot's smarter opponents are {SmartAiNames.Describe(SmartAi)}, the session's {SmartAiNames.Describe(other.SmartAi)}";
         return null;
     }
 }

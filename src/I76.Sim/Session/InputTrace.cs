@@ -30,6 +30,8 @@ public sealed class InputTrace
     public string? Ai;
     /// <summary>The solid-cliff rule (<see cref="SimWorld.SolidCliffs"/>, the play fork's), where the recorder knew it.</summary>
     public bool? SolidCliffs;
+    /// <summary>The smarter opponents' rule (<see cref="Missions.SmartAi"/>, the play fork's), where the recorder knew it.</summary>
+    public Missions.SmartAi? SmartAi;
     /// <summary>The Developer panel's actions during the recording ("# dev" rows): a change no input made, so a replay leaves the recording there.</summary>
     public List<(int Tick, string Action)> Dev { get; } = [];
     public List<CarInput> Inputs { get; } = [];
@@ -60,6 +62,7 @@ public sealed class InputTrace
         if (ModernPhysics is { } mp) s.Append(" physics=").Append(mp ? "modern" : "original");
         if (Ai is { Length: > 0 } ai) s.Append(" ai=").Append(Word(ai));
         if (SolidCliffs is { } sc) s.Append(" cliffs=").Append(sc ? "solid" : "original");
+        if (SmartAi is { } sa) s.Append(" smart=").Append(((uint)sa).ToString(CultureInfo.InvariantCulture));
         return s.ToString();
     }
 
@@ -82,6 +85,7 @@ public sealed class InputTrace
         if (ModernPhysics is { } p && now.ModernPhysics is { } np && p != np) yield return $"physics {(p ? "modern" : "original")} (now {(np ? "modern" : "original")})";
         if (Ai is not null && now.Ai is not null && !Same(Word(Ai), Word(now.Ai))) yield return $"ai {Ai} (now {now.Ai})";
         if (SolidCliffs is { } c && now.SolidCliffs is { } nc && c != nc) yield return $"cliffs {(c ? "solid" : "original")} (now {(nc ? "solid" : "original")})";
+        if (SmartAi is { } sa && now.SmartAi is { } nsa && sa != nsa) yield return $"smarter opponents {Missions.SmartAiNames.Describe(sa)} (now {Missions.SmartAiNames.Describe(nsa)})";
     }
 
     /// <summary>A Developer panel action's row before tick <paramref name="tick"/>: <c># dev restore tick 300</c> (a comment to an older reader).</summary>
@@ -129,6 +133,7 @@ public sealed class InputTrace
                 case "physics": trace.ModernPhysics = v == "modern"; break;
                 case "ai": trace.Ai = v; break;
                 case "cliffs": trace.SolidCliffs = v == "solid"; break;
+                case "smart": trace.SmartAi = (Missions.SmartAi)uint.Parse(v, CultureInfo.InvariantCulture); break;
             }
         }
         while ((line = r.ReadLine()) is not null)

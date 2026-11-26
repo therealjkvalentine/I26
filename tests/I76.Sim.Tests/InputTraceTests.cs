@@ -56,6 +56,19 @@ public class InputTraceTests
         Assert.Empty(old.Differences(now));
     }
 
+    /// <summary>The smarter opponents' rule (the play fork's) is in the header as its bits, and a replay under another rule says so.</summary>
+    [Fact]
+    public void TheHeaderNamesTheSmarterOpponents()
+    {
+        var t = new InputTrace { Mission = "m01", Seed = 3, SmartAi = Missions.SmartAi.GunLay | Missions.SmartAi.Settle };
+        Assert.EndsWith(" smart=3", t.HeaderLine());
+        var back = RoundTrip(t);
+        Assert.Equal(t.SmartAi, back.SmartAi);
+        Assert.Empty(back.Differences(t));
+        Assert.Equal(["smarter opponents gun_lay,settle (now off)"], back.Differences(new InputTrace { Mission = "m01", Seed = 3, SmartAi = Missions.SmartAi.None }));
+        Assert.Null(RoundTrip(new InputTrace { Mission = "m01" }).SmartAi);
+    }
+
     /// <summary>The solid-cliff rule (the play fork's) is in the header when the recorder knew it, and a replay under the other rule says so.</summary>
     [Fact]
     public void TheHeaderNamesTheCliffRule()

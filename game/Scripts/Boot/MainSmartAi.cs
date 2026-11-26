@@ -19,8 +19,8 @@ public partial class Main
     }
 
     /// <summary>
-    /// The rule a single-player mission is built by: a checkpoint's retry's or a reopened bug report's (its snapshot's build, which the
-    /// restore requires), else the setting (<see cref="SmartAiSetting"/>).
+    /// The rule a single-player mission is built by: a checkpoint's retry's or a reopened bug report's (its snapshot's, which the restore
+    /// goes on under anyway), else the setting (<see cref="SmartAiSetting"/>). An input replay plays by its recorded rule instead.
     /// </summary>
     private I76.Sim.Missions.SmartAi SmartAiRule()
     {

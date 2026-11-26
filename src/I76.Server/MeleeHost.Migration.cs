@@ -73,13 +73,6 @@ public sealed partial class MeleeHost
             Session.Build = b with { Install = h.Build.Install };
         }
         if (Mode is CoopMode co && h.Build.Coop is { } seatCars) co.AdoptCars(seatCars.Cars);
-        // the smarter opponents are the host's rule: the successor plays by the old host's, whatever its own settings say
-        if (Session.Build is { } sb && sb.SmartAi != h.Build.SmartAi)
-        {
-            Log?.Invoke($"the host's smarter opponents ({I76.Sim.Missions.SmartAiNames.Describe(h.Build.SmartAi)}) go on in place of this one's ({I76.Sim.Missions.SmartAiNames.Describe(sb.SmartAi)})");
-            Session.Build = sb with { SmartAi = h.Build.SmartAi };
-            if ((Setup.Script?.Host ?? Setup.Melee?.Host) is { } host) host.SmartAi = h.Build.SmartAi;
-        }
         var res = Session.Restore(state);
         _seats.Clear();
         foreach (var (actor, d) in Mode.Restore(Session.Drivers, names ?? new Dictionary<int, string>()))

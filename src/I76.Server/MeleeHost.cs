@@ -794,6 +794,7 @@ public sealed partial class MeleeHost : IModeHost
             Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Options.Features,
             WrecksSolid = Setup.World.WrecksStaySolid,
             SolidCliffs = Setup.World.SolidCliffs,
+            SmartAi = (uint)((Setup.Script?.Host ?? Setup.Melee?.Host)?.SmartAi ?? I76.Sim.Missions.SmartAi.None),
         };
 
     /// <summary>The host asks for wrecks to stay solid and the game is one where they can: a co-op mission, a host that says the feature.</summary>

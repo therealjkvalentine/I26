@@ -1199,7 +1199,7 @@ public partial class Main : Node3D
 		// Trip+'s rules (the play fork's; docs/deviations.md "Trip+"): the trip launch's, or a reopened bug report's state's; null for the original's
 		var tripPlus = TripPlusRules(roster is not null);
 		// the smarter opponents (the play fork's; docs/deviations.md "Smarter opponents"): a retry's or a reopened report's, else the settings'
-		var smartAi = SmartAiRule();
+		var smartAi = replay?.SmartAi ?? SmartAiRule();
 		var setupJob = I76.Game.Boot.Beside.Run(() => I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, origin, script: scriptAi,
 			rand: new I76.Sim.Rng.CrtRand(randSeed), melee: roster,
 			// one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
@@ -1273,7 +1273,7 @@ public partial class Main : Node3D
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
 			Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
 			Build = I76.Game.Boot.BuildInfo.Version, Install = session.Build.Install, Options = traceSettings.PlayOptions, Difficulty = traceSettings.Difficulty,
-			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai, SolidCliffs = world.SolidCliffs,
+			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai, SolidCliffs = world.SolidCliffs, SmartAi = smartAi,
 		};
 		_reportRoster = null;
 		_reportTripPlus = null;
