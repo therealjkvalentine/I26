@@ -25,7 +25,7 @@ public partial class VegetationNode : Node3D
     private VegetationPlacer _placer = null!;
     // one material a kind of plant (Kind: the shrubs, the grass tufts, the ground layer's larger plants), which differ in how
     // far they reach, and per detail tier, which differ in the band they cross-fade in (TierBands); [kind][tier]
-    private readonly ShaderMaterial[][] _mats = [.. Enumerable.Range(0, 3).Select(_ => Enumerable.Range(0, 3).Select(_ => new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/vegetation.gdshader") }).ToArray())];
+    private readonly ShaderMaterial[][] _mats = [.. Enumerable.Range(0, 3).Select(_ => Enumerable.Range(0, 3).Select(_ => VegShaders.Make()).ToArray())];
     private ShaderMaterial _material => _mats[0][0];
     private ShaderMaterial _groundMaterial => _mats[1][0];
     private void Both(string p, Variant v) { foreach (var l in _mats) foreach (var m in l) m.SetShaderParameter(p, v); }

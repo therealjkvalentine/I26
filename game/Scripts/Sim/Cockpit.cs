@@ -1828,6 +1828,7 @@ public partial class Cockpit : Node
         bool rearWide = wide && (_sideRender != SideMirrorRender.Own || RearWideHook);
         float fov = rearWide ? sideFov : MirrorCameraSettings.FovDegrees;
         _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(rearWide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
+        I76.Game.Boot.LookFilters.Apply(_mirrorView, _faithful);
         _mirrorCam.Fov = fov;
         var rear = rearWide ? MirrorBands.Rear(fov) : (0f, 1f);
         MirrorBand = new Vector2(rear.Item1, rear.Item2);
@@ -2427,6 +2428,7 @@ public partial class Cockpit : Node
             if (_ownViews[i] is not { } vp || _ownCams[i] is not { } cam) continue;
             if (!on) { vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; continue; }
             bool left = i == 0;
+            I76.Game.Boot.LookFilters.Apply(vp, _faithful);
             cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
             cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u);

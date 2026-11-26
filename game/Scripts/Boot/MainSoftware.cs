@@ -45,6 +45,7 @@ public partial class Main
     private void ApplySoftware(I76.Game.Shell.ShellSettings? s = null)
     {
         s ??= I76.Game.Shell.ShellSettings.Load();
+        LookFilters.Apply(GetViewport(), _mode1997);
         // Crash Blur: the software renderer's double image on a big cockpit hit; I76_CRASH_BLUR=0/1 overrides
         bool softRenderer = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, soft1997 = _mode1997 && softRenderer;
         Wiggle.CrashBlur = EnvSwitch("I76_CRASH_BLUR") ?? I76.Sim.Views.CrashBlurMode.Resolve(s.CrashBlur);

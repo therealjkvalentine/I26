@@ -119,7 +119,8 @@ def gpu_state():
     try:
         out = subprocess.check_output(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,power.draw,temperature.gpu", "--format=csv,noheader,nounits"], text=True)
         u, m, p, t = [x.strip() for x in out.strip().split(",")]
-        return int(u), int(m), float(p), int(t)
+        # (newer drivers print the temperature with decimals: 52.91)
+        return int(float(u)), int(float(m)), float(p), int(float(t))
     except Exception:
         return -1, -1, -1.0, -1
 
