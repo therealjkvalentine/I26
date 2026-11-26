@@ -52,19 +52,37 @@ public sealed class MainMenuScreen : ShellScreen
         // MULTI MELEE's HOST / JOIN, and the connections under them: the port keeps IPX (the LAN) and INTERNET
         (10, 365, 368, 4, -1), (11, 415, 368, 8, -1), (0xe, 345, 395, 12, -1), (0xf, 396, 395, 16, -1),
     ];
-    // The port's own entries (docs/deviations.md "Nitro Pack under TRIP"): with a Nitro Pack install beside the base one, NITRO at the end
-    // of TRIP's row (the Nitro Pack's campaign, handed over in this window: Boot/NitroVisit.cs). On the Nitro side of such a visit, the
-    // main menu is the character choice: SCENARIOS' row open, no MELEE, and BACK where EXIT stands.
+    // The port's own entries (docs/deviations.md "Nitro Pack under AUTO MELEE"): with a Nitro Pack install beside the base one, NITRO in
+    // AUTO MELEE's row between SCENARIO and INSTANT MELEE (the Nitro Pack's campaign, handed over in this window: Boot/NitroVisit.cs). On
+    // the Nitro side of such a visit, the main menu is the character choice: SCENARIOS' row open, no MELEE, and BACK where EXIT stands.
     public const int NitroEntry = 101, BackEntry = 102;
-    /// <summary>TRIP's row: its sprites' top, and LOAD BOOKMARK's left (the last of the row; NITRO follows it).</summary>
-    public const int TripRowY = 340, LoadBookmarkX = 216;
+    /// <summary>AUTO MELEE's row: its top, SCENARIO's and INSTANT MELEE's left in the original's table, and the frame's right edge it keeps clear of.</summary>
+    public const int AutoRowY = 368, ScenarioX = 399, InstantX = 478, RowRightEdge = 636;
+
+    /// <summary>
+    /// AUTO MELEE's row with NITRO between SCENARIO and INSTANT MELEE: the three at the row's own gap (the original's between the two,
+    /// at least 4), NITRO's box less its lettering's margin each side; SCENARIO stays where it is unless the row would pass the frame's
+    /// right edge, when all three move left together. Returns the three boxes' left edges.
+    /// </summary>
+    public static (int Scenario, int Nitro, int Instant) AutoRowPlace(int scenarioWidth, int nitroBoxWidth, int instantWidth, int margin = 4)
+    {
+        int gap = Math.Max(4, InstantX - (ScenarioX + scenarioWidth));
+        int nitroInk = nitroBoxWidth - 2 * margin;
+        int total = scenarioWidth + gap + nitroInk + gap + instantWidth;
+        int sx = Math.Min(ScenarioX, RowRightEdge - total);
+        int nx = sx + scenarioWidth + gap - margin;
+        int ix = nx + margin + nitroInk + gap;
+        return (sx, nx, ix);
+    }
     private readonly Dictionary<int, PortButton> _p = [];
     private readonly List<PortButton> _pShown = [];
     private PortButton? _pHot;
     private string? _nitroDir;
     /// <summary>The Nitro side of a visit from the base menu (Boot/NitroVisit.cs).</summary>
     private bool Visit => Nitro && I76.Game.Boot.NitroVisit.Active;
-    /// <summary>The TRIP row is open (the switch guard checks that the hand-back opens it).</summary>
+    /// <summary>MELEE's AUTO MELEE row is open (the switch guard checks that the hand-back opens it).</summary>
+    public bool AutoOpen => !Nitro && _w.TryGetValue(1, out var a) && a.Selected && _w[2].Selected;
+    /// <summary>The TRIP row is open (on a visit's Nitro menu: SCENARIOS, the character choice).</summary>
     public bool TripOpen => _w.TryGetValue(Nitro ? 2 : 13, out var t) && t.Selected;
     /// <summary>The port's entries shown now, by id (for the switch guard).</summary>
     public IReadOnlyList<int> PortShown => [.. _pShown.Select(b => b.Id)];
@@ -107,7 +125,7 @@ public sealed class MainMenuScreen : ShellScreen
         }
         BuildPortEntries();
         Repaint();
-        if (!Nitro && I76.Game.Boot.NitroVisit.TakeReturnToTrip()) OpenTrip();
+        if (!Nitro && I76.Game.Boot.NitroVisit.TakeReturnToRow()) OpenAuto();
         // I76_LOAD_PROFILE: the shell's start-up, the engine's start to the main menu's first frame (docs/perf/loadtime.md)
         if (I76.Game.Boot.LoadProfiler.On)
             RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(() => GD.Print($"load-profile: main menu's first frame at {Time.GetTicksMsec()} ms from the engine's start")), (uint)GodotObject.ConnectFlags.OneShot);
@@ -130,12 +148,15 @@ public sealed class MainMenuScreen : ShellScreen
             _nitroDir = I76.Game.Boot.NitroVisit.FindNitro(Shell.Install.Root);
             if (_nitroDir is null) return;
             // the row's fourth button, after LOAD BOOKMARK with the gap the row keeps between NEW TRIP and LOAD BOOKMARK
-            int h = _bank[21]?.Height ?? 22;
-            int gap = Math.Max(4, LoadBookmarkX - (150 + (_bank[23]?.Width ?? 60)));
-            int x = LoadBookmarkX + (_bank[21]?.Width ?? 112) + gap - 4;   // (less the label box's margin: the lettering keeps the gap)
-            var bannerBox = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
+            // between SCENARIO and INSTANT MELEE, which move to make room (AutoRowPlace), their banners as before
+            int h = _bank[19]?.Height ?? 22;
             var nitro = RowLabel("NITRO");
-            _p[NitroEntry] = new PortButton(NitroEntry, new Rect2I(x, TripRowY, PortButton.WidthFor(nitro), h), nitro, bannerBox, "THE NITRO PACK'S CAMPAIGN, FROM ITS OWN INSTALL", grey);
+            int nw = PortButton.WidthFor(nitro);
+            var (sx, nx, ix) = AutoRowPlace(_bank[19]?.Width ?? 70, nw, _bank[9]?.Width ?? 100);
+            _w[9] = new SpriteWidget(9, sx, AutoRowY, _bank, 19, new SpriteWidget(-1, BannerX(40), 460, _bank, 40)) { Hot = 18 };
+            _w[4] = new SpriteWidget(4, ix, AutoRowY, _bank, 9, new SpriteWidget(-1, BannerX(39), 460, _bank, 39)) { Hot = 8 };
+            var bannerBox = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
+            _p[NitroEntry] = new PortButton(NitroEntry, new Rect2I(nx, AutoRowY, nw, h), nitro, bannerBox, "THE NITRO PACK'S CAMPAIGN, FROM ITS OWN INSTALL", grey);
             return;
         }
         if (!Visit) return;
@@ -165,13 +186,8 @@ public sealed class MainMenuScreen : ShellScreen
         _pHot = null;
     }
 
-    /// <summary>TRIP's row and the port's entries under it (also the hand-back's way in: the menu comes up with them open).</summary>
-    private void OpenTrip()
-    {
-        Hide([.. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]); Deselect(2);
-        Select(13); foreach (int r in TripRow) Show(r);
-        ShowPort(NitroEntry);
-    }
+    /// <summary>MELEE, then AUTO MELEE with NITRO in its row: the hand-back's way in (the menu comes up with the row that holds NITRO open).</summary>
+    private void OpenAuto() { Click(2); Click(1); }
 
     /// <summary>The background and the four top buttons, every row closed.</summary>
     public override void Repaint()
@@ -202,6 +218,7 @@ public sealed class MainMenuScreen : ShellScreen
         foreach (int id in keepTop) _w[id].Selected = true;
         foreach (int id in top) Show(id);
         foreach (var (id, sel) in keep) { _w[id].Selected = sel; Show(id); }
+        if (!Nitro && _w[1].Selected) ShowPort(NitroEntry);   // AUTO MELEE's row kept open: NITRO with it
         DrawEditorEntry();
     }
 
@@ -331,17 +348,21 @@ public sealed class MainMenuScreen : ShellScreen
         {
             case 0: Shell.Overlay(new OptionsScreen()); break;
             case 17: Shell.Quit(); break;                                           // overlay 8: no confirmation
-            case 13: OpenTrip(); break;
+            case 13:
+                Hide([.. MeleeRow, .. AutoRow, .. MultiRow, .. NetRow]); HidePort(); Deselect(2);
+                Select(13); foreach (int r in TripRow) Show(r);
+                break;
             case 2:
-                Hide([.. TripRow]); HidePort(); Deselect(13);
+                Hide([.. TripRow]); Deselect(13);
                 Select(2); foreach (int r in MeleeRow) Show(r);
                 break;
             case 1:
                 Hide([.. MultiRow, .. NetRow]); Deselect(15);
                 Select(1); foreach (int r in AutoRow) Show(r);
+                ShowPort(NitroEntry);
                 break;
             case 15:                                                                  // MULTI MELEE: HOST, JOIN
-                Hide([.. AutoRow]); Deselect(1);
+                Hide([.. AutoRow]); HidePort(); Deselect(1);
                 Select(15); foreach (int r in MultiRow) Show(r);
                 break;
             case 3 or 5:                                                              // HOST / JOIN: the connections
