@@ -16,6 +16,8 @@ uniform bool smooth_edge = false;
 // the view's columns the rear mirror shows (Cockpit.MirrorBand): the whole picture, or its middle with the side-view mirrors on
 uniform vec2 band = vec2(0.0, 1.0);
 
+#include "res://Shaders/mirror_view.gdshaderinc"
+
 float cut(float f) {
 	return clamp((f - 0.5) / max(fwidth(f), 1e-4) + 0.5, 0.0, 1.0);
 }
@@ -27,14 +29,14 @@ void fragment() {
 		vec2 e = texture(edge, auv).rg;
 		float g = cut(e.g), s = cut(e.r);
 		float glass = texture(art, auv).a >= 0.5 && e.g > 0.75 ? 0.0 : g;
-		COLOR = vec4(mix(texture(fill, auv).rgb, texture(view, vuv).rgb, glass), s);
+		COLOR = vec4(mix(texture(fill, auv).rgb, view_at(vuv), glass), s);
 	} else {
 		vec4 a = texture(art, auv);
 		vec4 surround = texelFetch(art, ivec2(0, 0), 0);
 		// within 0.1 of it: a pack's upscale (and its block compression) leaves the surround near, not exactly, the
 		// original's colour; the art's other colours are a third of the way across the cube or more
 		if (a.a >= 0.5 && distance(a.rgb, surround.rgb) < 0.1) discard;
-		vec3 v = faithful ? texture(view_nearest, vuv).rgb : texture(view, vuv).rgb;
+		vec3 v = faithful ? texture(view_nearest, vuv).rgb : view_at(vuv);
 		COLOR = vec4(a.a >= 0.5 ? a.rgb : v, 1.0);
 	}
 }

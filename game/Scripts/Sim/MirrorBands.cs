@@ -174,23 +174,27 @@ public static class MirrorsRow
 /// [port] mirror_rate, Graphic Detail's Mirror Rate row (the modern look's mirrors, the rear one and the side mirrors' own cameras):
 /// Alternate (the default, unwritten), the rear mirror every second frame as the original draws it and the side mirrors in turn on
 /// those frames (each every fourth, a side alone in view every second); Half, every mirror every second frame (both sides on the same
-/// frame); Full, every mirror every frame. The 1997 look keeps the original's every second frame.
+/// frame); Full, every mirror every frame; Smooth 1/2, 1/3, 1/4, every mirror every second, third or fourth frame in turn, the
+/// frames between re-projected (MirrorWarp). The 1997 look keeps the original's every second frame.
 /// </summary>
-public enum MirrorRate { Alternate, Half, Full }
+public enum MirrorRate { Alternate, Half, Full, Smooth2, Smooth3, Smooth4 }
 
 public static class MirrorRateRow
 {
-    public static readonly string[] Names = ["Alternate*", "Half", "Full*"];
+    public static readonly string[] Names = ["Alternate*", "Half", "Full*", "Smooth 1/2*", "Smooth 1/3*", "Smooth 1/4*"];
 
     public static MirrorRate Parse(string? word) => word?.Trim().ToLowerInvariant() switch
     {
         "half" => MirrorRate.Half,
         "full" => MirrorRate.Full,
+        "smooth2" => MirrorRate.Smooth2,
+        "smooth3" => MirrorRate.Smooth3,
+        "smooth4" => MirrorRate.Smooth4,
         _ => MirrorRate.Alternate,
     };
 
     /// <summary>The key's word; null for alternate, the default, which is not written.</summary>
-    public static string? Word(MirrorRate r) => r switch { MirrorRate.Half => "half", MirrorRate.Full => "full", _ => null };
+    public static string? Word(MirrorRate r) => r switch { MirrorRate.Half => "half", MirrorRate.Full => "full", MirrorRate.Smooth2 => "smooth2", MirrorRate.Smooth3 => "smooth3", MirrorRate.Smooth4 => "smooth4", _ => null };
 
     /// <summary>
     /// Whether a mirror is drawn this frame: <paramref name="tick"/> the original's every second frame; a side mirror under Alternate
