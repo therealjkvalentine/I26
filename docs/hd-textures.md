@@ -443,14 +443,38 @@ painted words are three pixels high and one pixel high: `fit-labels` scores cand
 unrelated words, and none stands above chance, so the words are a choice, not a reading. The game shows the frames with
 their rows flipped, so the spec's panel positions are in the game's view and the lettering is set upright there.
 
+The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a soft edge: `line_width` and `line_edge`
+in the spec (the edge a ramp a quarter pixel wide, two texels at 8x, so a line's outermost texels are partly covered).
+The lock cone is always drawn over the graticule (style B's sat under it, the grid's dark lines through it).
+
+The game stamps two small sheets over every frame at the layout's anchors: `zrge` (the range plate over the corner scope:
+`range_3` lit at 600 m, the default, `range_1` dark at 100 m) and `ztge` (the contact lamp: `radled_1` red while a car is
+listed, `radled_2` green). A pack's upscale of those sheets on their own does not continue the frame's upscale, so the
+stamp shows as a hard square at 4x and 8x; and the original's plate art (and its green lamp) lies one pixel higher than
+the frame paints its own. `render` therefore also writes `zrge.png` and `ztge.png`: each sprite is the redrawn frame's
+texels inside a disc about the frame's own corner scope (or lamp), keyed outside it, the lit faces drawn there from
+radial colour profiles measured on the original sprites; every frame carries the same texels inside the discs, so a stamp
+changes nothing past its lit face. The sheets belong with the frames they were made from (they carry those frames'
+texels). The PNGs are written with their rows as shown, as the export is (the game flips a `.map`'s PNG; only a `.dds`
+is stored bottom up). The game's stamping code is untouched; the 1997 look and a game without a pack draw the originals.
+
+The lead label set is `lock-range`: LOCK VOL between the knobs (the top knob as the lock tone's volume), and over the lower
+knob 100 (left tick), TGT (the X) and 600 (right tick, where the painted pointer rests: the default range), RANGE under
+it. 100 m and 600 m are the game's two radar ranges (R flips them); TGT is a story for the middle mark, not a state of R
+(the weapon camera in the radar screen, `RADAR_CAMERA_TOGGLE`, W, is a separate switch and needs a target and a turret).
+`lock-range-m` writes 100m / 600m, `owner-50-500` 50m / 500m (not the game's ranges); with the unit the right label sits
+close to the scope's bezel. The knob's painted pointer never moves.
+
     python tools/radar-redraw.py measure EXPORT [geometry.json]
     python tools/radar-redraw.py fit-labels EXPORT [fit.json]
-    python tools/radar-redraw.py render EXPORT UPSCALE OUT --scale 8 --style A --labels var-range
+    python tools/radar-redraw.py render EXPORT UPSCALE OUT --scale 8 --style A --labels lock-range
     python tools/radar-redraw.py sheet EXPORT UPSCALE OUT        # the contact sheet: OUT/index.html
     python -m unittest tools/test_radar_redraw.py
 
 UPSCALE is a folder of the pack's PNG frames (a family-masters folder); OUT of `render` can be dropped into a
-`tex-world-8x/` (PNG beats the 4x's .dds) or pointed at with `I76_TEX_DIR` (its `world/`) for a look in the game.
+`tex-world-8x/` (PNG beats the 4x's .dds) or pointed at with `I76_TEX_DIR` (its `world/`) for a look in the game. The
+dev folder is read only when no `tex-world-Nx` pack is in the user folder: for a look with the rest of the pack, copy
+the pack's files beside the redraw there and use a scratch user folder without one.
 
 ## Notes
 

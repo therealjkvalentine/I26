@@ -26,12 +26,14 @@
    90,
    135
   ],
-  "line_width": 1.0,
+  "line_width": 0.7,
   "spoke_widths": {},
   "pip_radius": 1.0,
   "pip_ring": 1.6,
   "hub_radius": 2.1,
-  "window_margin": 1.5
+  "window_margin": 1.5,
+  "line_edge": 0.25,
+  "line_note": "graticule lines 0.7 original px wide (round 1: 1.0), their outer edges a ramp line_edge px wide centred on the edge (2 texels at 8x): soft, the line's area kept"
  },
  "inset": {
   "search": [
@@ -50,9 +52,70 @@
     9.5
    ]
   ],
-  "line_width": 0.9,
+  "line_width": 0.7,
   "blend": 1.0,
-  "max_radius": 12.5
+  "max_radius": 12.5,
+  "line_edge": 0.25
+ },
+ "stamps": {
+  "note": "the sprites the game stamps over every frame (the cockpit layout's zrad.map block): sheets, their sprites' rows (rows as shown), the anchor and size (original px, game view). The redrawn sheets carry the frame's texels inside mask_radius of the frame's own corner scope / lamp and are keyed outside; lit faces from profiles measured on the original sprites",
+  "paste_hold": 0.25,
+  "paste_feather": 1.0,
+  "parts": {
+   "plate": {
+    "sheet": "zrge",
+    "sheet_size": [
+     24,
+     72
+    ],
+    "anchor": [
+     139,
+     4
+    ],
+    "size": [
+     24,
+     24
+    ],
+    "sprites": {
+     "range_1": 0,
+     "range_2": 24,
+     "range_3": 48
+    },
+    "dark": "range_1",
+    "mask_radius": 11.4,
+    "lit_max_radius": 11.3,
+    "edge": 0.3
+   },
+   "led": {
+    "sheet": "ztge",
+    "sheet_size": [
+     11,
+     22
+    ],
+    "anchor": [
+     150,
+     84
+    ],
+    "size": [
+     11,
+     11
+    ],
+    "sprites": {
+     "radled_1": 0,
+     "radled_2": 12
+    },
+    "dark": "radled_2",
+    "search": [
+     148,
+     82,
+     163,
+     97
+    ],
+    "mask_radius": 5.2,
+    "lit_max_radius": 4.6,
+    "edge": 0.3
+   }
+  }
  },
  "styles": {
   "A": {
@@ -247,7 +310,8 @@
   "pointer_from": 0.6,
   "halo": 1.2,
   "halo_darker": 8,
-  "face_light": 110
+  "face_light": 110,
+  "label_knob": 1
  },
  "default_font": "B612",
  "fonts": {
@@ -264,6 +328,195 @@
   }
  },
  "label_sets": [
+  {
+   "name": "lock-range",
+   "note": "the owner's lead: the top knob is the lock tone's volume (LOCK VOL), the lower the range: 100 (left tick), TGT (the X), 600 (right tick, where the pointer rests: the default) and RANGE on the one-pixel row. 100 m and 600 m are the game's two radar ranges (R); TGT is a design story, not a state of R (the radar camera is its own toggle, W)",
+   "texts": [
+    {
+     "box": "between",
+     "text": "LOCK VOL",
+     "cap": 2.6,
+     "pad": [
+      1,
+      0
+     ]
+    },
+    {
+     "mark": [
+      "ticks",
+      0
+     ],
+     "text": "100",
+     "cap": 2.0,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 57.0,
+     "x": 19.2
+    },
+    {
+     "mark": [
+      "ticks",
+      1
+     ],
+     "text": "TGT",
+     "cap": 2.0,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 55.5
+    },
+    {
+     "mark": [
+      "ticks",
+      2
+     ],
+     "text": "600",
+     "cap": 2.0,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 57.0,
+     "x": 39.0,
+     "note": "pulled in from the tick line: further out it would run into the scope bezel (x 43 at this height)"
+    },
+    {
+     "box": "under_lower",
+     "text": "RANGE",
+     "cap": 1.9,
+     "at": [
+      23.0,
+      89.55,
+      37.0,
+      91.45
+     ],
+     "note": "on the one-pixel row (y 90), centred under the knob (x 30) rather than on the row's own ink (x 27-39)"
+    }
+   ]
+  },
+  {
+   "name": "lock-range-m",
+   "note": "as lock-range with the unit: 100m / TGT / 600m (the game's real ranges)",
+   "texts": [
+    {
+     "box": "between",
+     "text": "LOCK VOL",
+     "cap": 2.6,
+     "pad": [
+      1,
+      0
+     ]
+    },
+    {
+     "mark": [
+      "ticks",
+      0
+     ],
+     "text": "100m",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 57.0,
+     "x": 18.8
+    },
+    {
+     "mark": [
+      "ticks",
+      1
+     ],
+     "text": "TGT",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 55.5
+    },
+    {
+     "mark": [
+      "ticks",
+      2
+     ],
+     "text": "600m",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 5.6,
+     "y": 57.0,
+     "x": 38.4,
+     "note": "pulled in from the tick line: further out it would run into the scope bezel (x 43 at this height)"
+    },
+    {
+     "box": "under_lower",
+     "text": "RANGE",
+     "cap": 1.9,
+     "at": [
+      23.0,
+      89.55,
+      37.0,
+      91.45
+     ],
+     "note": "on the one-pixel row (y 90), centred under the knob (x 30) rather than on the row's own ink (x 27-39)"
+    }
+   ]
+  },
+  {
+   "name": "owner-50-500",
+   "note": "the owner's literal words: 50m / TGT / 500m, RANGE under; NOT the game's ranges (100 m and 600 m)",
+   "texts": [
+    {
+     "box": "between",
+     "text": "LOCK VOL",
+     "cap": 2.6,
+     "pad": [
+      1,
+      0
+     ]
+    },
+    {
+     "mark": [
+      "ticks",
+      0
+     ],
+     "text": "50m",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 57.0,
+     "x": 18.8
+    },
+    {
+     "mark": [
+      "ticks",
+      1
+     ],
+     "text": "TGT",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 6.0,
+     "y": 55.5
+    },
+    {
+     "mark": [
+      "ticks",
+      2
+     ],
+     "text": "500m",
+     "cap": 1.7,
+     "lift": 4.0,
+     "width": 5.6,
+     "y": 57.0,
+     "x": 38.4,
+     "note": "pulled in from the tick line: further out it would run into the scope bezel (x 43 at this height)"
+    },
+    {
+     "box": "under_lower",
+     "text": "RANGE",
+     "cap": 1.9,
+     "at": [
+      23.0,
+      89.55,
+      37.0,
+      91.45
+     ],
+     "note": "on the one-pixel row (y 90), centred under the knob (x 30) rather than on the row's own ink (x 27-39)"
+    }
+   ]
+  },
   {
    "name": "var-range",
    "note": "fit rank 1: VAR RANGE is the best-scoring radar label between the knobs in both row orders (z 1.7, inside chance); the two-position knob = power (OFF ON z 1.6 in the 1-pixel row)",

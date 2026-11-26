@@ -3,7 +3,7 @@
 
     python tools/radar-redraw.py measure EXPORT_DIR [geometry.json]
     python tools/radar-redraw.py fit-labels EXPORT_DIR [fit.json]
-    python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]
+    python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]   (frames, zrge.png, ztge.png)
     python tools/radar-redraw.py sheet   EXPORT_DIR UPSCALE_DIR OUT_DIR
     python tools/radar-redraw.py --self-check
 
@@ -20,6 +20,10 @@ original's pixels each run (nothing of the game's art is in the repository), the
 - the left panel's marks: the dotted arc round one knob, the ticks by the other, the knob pointers and the two small lettered
   rows, as dark blobs found in the median; they are erased from the upscale and drawn again as shapes, with a label set's words
   set in a free font (tools/radar-redraw/radar.json names it; the tool downloads it into a cache, nothing is committed).
+
+- the stamps: the range plate's and the contact lamp's sheets (zrge, ztge), which the game stamps over every frame, are
+  written beside the frames: the redrawn frame's texels inside a disc about the frame's own scope or lamp, keyed outside,
+  the lit faces from profiles measured on the original sprites (EXPORT_DIR must hold zrge.png and ztge.png).
 
 The game shows these frames with their rows flipped (ExtInstruments: the slot's y runs up; the scope's forward is +y in the
 file), so the spec's label positions are in the game's view (y down from the top as the player sees it) and lettering is set
@@ -143,8 +147,8 @@ def fit_spokes(X, Y, c, angles, radii, near=1.6):
 SWEEP_SHADES = {(57, 115, 57): 0.2, (63, 143, 63): 0.4, (82, 156, 82): 0.6, (99, 189, 99): 0.8, (126, 243, 126): 1.0}
 
 
-def measure(frames, spec):
-    """Everything the redraw needs, from the original's pixels."""
+def measure(frames, spec, export_dir=None):
+    """Everything the redraw needs, from the original's pixels (the stamps' too where export_dir holds their sheets)."""
     med = median_of(frames, spec)
     g = {"note": "file coordinates (top-down rows, pixel centres at +0.5); the game shows the rows flipped"}
     green = is_col(med, GREEN); grid = is_col(med, GRID)
@@ -197,6 +201,7 @@ def measure(frames, spec):
     g["sweep"] = measure_sweep(frames, med, spec, c)
     g["cone"] = measure_cone(frames, med, spec, g["sweep"]["pivot"])
     g["marks"] = measure_marks(med, spec)
+    g["stamps"] = measure_stamps(export_dir, med, g, spec)
     return g, med
 
 
@@ -354,17 +359,19 @@ class Canvas:
         self.X = (np.arange(int(x0 * s), int(x1 * s)) + 0.5)[None, :] / s
         self.Y = (np.arange(int(y0 * s), int(y1 * s)) + 0.5)[:, None] / s
 
-    def aa(self, d):
-        """Coverage from a signed distance (original px, negative inside): one texel of soft edge."""
+    def aa(self, d, edge=None):
+        """Coverage from a signed distance (original px, negative inside): one texel of soft edge, or a ramp edge original
+        px wide centred on the boundary (the line's area kept: its outermost texels partly covered)."""
+        if edge: return np.clip(0.5 - d / max(edge, 1.0 / self.s), 0, 1)
         return np.clip(0.5 - d * self.s, 0, 1)
 
-    def disc(self, c, r):
-        return self.aa(np.hypot(self.X - c[0], self.Y - c[1]) - r)
+    def disc(self, c, r, edge=None):
+        return self.aa(np.hypot(self.X - c[0], self.Y - c[1]) - r, edge)
 
-    def ring(self, c, r, w):
-        return self.aa(np.abs(np.hypot(self.X - c[0], self.Y - c[1]) - r) - w / 2)
+    def ring(self, c, r, w, edge=None):
+        return self.aa(np.abs(np.hypot(self.X - c[0], self.Y - c[1]) - r) - w / 2, edge)
 
-    def seg(self, p0, p1, w, cap=True):
+    def seg(self, p0, p1, w, cap=True, edge=None):
         p0 = np.array(p0, float); p1 = np.array(p1, float); d = p1 - p0; L = float(np.hypot(*d)); u = d / max(L, 1e-9)
         t = (self.X - p0[0]) * u[0] + (self.Y - p0[1]) * u[1]
         n = -(self.X - p0[0]) * u[1] + (self.Y - p0[1]) * u[0]
@@ -372,7 +379,7 @@ class Canvas:
             tc = np.clip(t, 0, L); dist = np.hypot(t - tc, n)
         else:
             dist = np.maximum(np.abs(n), np.maximum(-t, t - L) + w / 2)
-        return self.aa(dist - w / 2)
+        return self.aa(dist - w / 2, edge)
 
     def polar(self, c):
         return np.hypot(self.X - c[0], self.Y - c[1]), np.degrees(np.arctan2(self.Y - c[1], self.X - c[0]))
@@ -401,16 +408,16 @@ def scope_face(g, spec, cv, style, frame=None, locked=False):
     # the afterglow and a soft cone lie under the graticule (style "glow_under_grid"); the beam's line always over it, as the original's
     a0 = None if frame is None else frame_angle(frame) + (0 if locked else sw["offset_deg"])
     under = st.get("glow_under_grid", False)
-    if a0 is not None and under:
-        if locked: cone(img, cv, g, st, a0)
-        else: beam(img, cv, g, st, a0, part="trail")
-    lw = sc["line_width"]
+    # the lock cone always over the graticule, as the original's (round 1's style B laid it under, the grid's dark lines through it)
+    if a0 is not None and under and not locked:
+        beam(img, cv, g, st, a0, part="trail")
+    lw = sc["line_width"]; le = sc.get("line_edge")
     for R in g["grid"]["rings"]:
-        over(img, cv.ring(gc, R["radius"], lw), GRID)
+        over(img, cv.ring(gc, R["radius"], lw, le), GRID)
     for s_ in g["grid"]["spokes"]:
         a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
         L = fr + 2
-        over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False), GRID)
+        over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False, edge=le), GRID)
     if g.get("pip") and frame is not None:
         pc = g["pip"]["centre"]
         over(img, cv.disc(pc, sc["pip_ring"]), OLIVE)
@@ -418,7 +425,7 @@ def scope_face(g, spec, cv, style, frame=None, locked=False):
     elif g.get("pip"):
         over(img, cv.disc(g["pip"]["centre"], sc["hub_radius"]), GRID)      # the radar-off frames: a dark 4x4 hub, no pip
     if a0 is not None:
-        if locked and not under: cone(img, cv, g, st, a0)
+        if locked: cone(img, cv, g, st, a0)
         if not locked: beam(img, cv, g, st, a0, part="line" if under else "all")
     return img, inside
 
@@ -471,16 +478,167 @@ def cone(img, cv, g, st, a0):
 
 
 def inset_face(g, spec, cv, style):
-    st = spec["styles"][style]; ins = g["inset"]; lw = spec["inset"]["line_width"]
+    st = spec["styles"][style]; ins = g["inset"]
     h, w = cv.Y.shape[0], cv.X.shape[1]
     img = np.empty((h, w, 3)); img[:] = st.get("face", GREEN)
     fc = ins["face"]["centre"]; fr = ins["face"]["radius"]
     inside = cv.disc(fc, fr)
-    for R in ins["rings"]: over(img, cv.ring(ins["centre"], R["radius"], lw), GRID)
-    cx, cy = ins["centre"]
-    over(img, cv.seg((cx - fr - 1, cy), (cx + fr + 1, cy), lw, cap=False), GRID)
-    over(img, cv.seg((cx, cy - fr - 1), (cx, cy + fr + 1), lw, cap=False), GRID)
+    inset_grid(img, cv, g, spec, lambda r: np.broadcast_to(np.array(GRID, float), r.shape + (3,)))
     return img, inside
+
+
+def inset_grid(img, cv, g, spec, colour_at):
+    """The corner scope's rings and crosshair over img, each texel's line colour colour_at(radius) (the lit plate's lines
+    follow its glow)."""
+    ins = g["inset"]; lw = spec["inset"]["line_width"]; le = spec["inset"].get("line_edge")
+    fr = ins["face"]["radius"]; cx, cy = ins["centre"]
+    r = np.hypot(cv.X - cx, cv.Y - cy) + np.zeros((cv.Y.shape[0], 1)); col = colour_at(r)
+    cov = np.zeros(r.shape)
+    for R in ins["rings"]: cov = np.maximum(cov, cv.ring(ins["centre"], R["radius"], lw, le))
+    cov = np.maximum(cov, cv.seg((cx - fr - 1, cy), (cx + fr + 1, cy), lw, cap=False, edge=le))
+    cov = np.maximum(cov, cv.seg((cx, cy - fr - 1), (cx, cy + fr + 1), lw, cap=False, edge=le))
+    a = cov[..., None]; img *= 1 - a; img += a * col
+    return img
+
+
+# ------------------------------------------------------------------------------------------------------------- the stamps
+# The game stamps two sprite sheets over every frame at the layout's anchors (the zrad.map block of the cockpit layout):
+# zrge.map's range plate (range_1 at 100 m, range_3 at 600 m; range_2 unused) over the corner scope, ztge.map's lamp
+# (radled_1 red with a car listed, radled_2 green without) over the frame's lamp. Their pixels are copied whole (alpha keyed
+# at one half), so a pack's upscale of the sheets on their own ends in a square whose edge does not continue the frame's
+# upscale; and the original's plate art sits one pixel higher than the frame's own corner scope. Redrawn: the sheets take
+# the redrawn frame's texels inside a disc about the frame's own scope (or lamp) and are keyed outside it, the lit faces
+# drawn there from radial profiles measured on the original sprites; every frame gets the same texels inside the discs, so
+# the stamp's edge is invisible whatever the state.
+
+def load_sheet(export_dir, name):
+    """A sprite sheet's export (the .map's rows as shown: i76 export-textures flips them) or None."""
+    p = os.path.join(export_dir, name + ".png")
+    return load_rgba(p) if os.path.exists(p) else None
+
+
+def stamp_offset(sprite, frame_gv, anchor, reach=2):
+    """Where the sprite's art lies against the frame's (game view): the (dx, dy) at which the sprite's pixels best equal the
+    frame's from anchor + (dx, dy), and how many differ there."""
+    h, w = sprite.shape[:2]; ax, ay = anchor; best = None
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            fr = frame_gv[ay + dy:ay + dy + h, ax + dx:ax + dx + w]
+            if fr.shape[:2] != (h, w): continue
+            d = int((np.abs(sprite[..., :3].astype(int) - fr[..., :3]).sum(-1) > 0).sum())
+            if best is None or d < best[0]: best = (d, dx, dy)
+    return best[1], best[2], best[0]
+
+
+def radial_profile(sprite, dark, centre, line_mask=None, step=1.0):
+    """The lit sprite's colour against the radius from centre (sprite px), over the pixels where it differs from the dark
+    one, the grid's line pixels apart: {"face": [[r, rgb]...], "line": [...], "extent": r}."""
+    h, w = sprite.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w] + 0.5
+    r = np.hypot(xx - centre[0], yy - centre[1])
+    lit = np.abs(sprite[..., :3].astype(int) - dark[..., :3]).sum(-1) > 0
+    lm = np.zeros((h, w), bool) if line_mask is None else line_mask(xx, yy, r)
+    out = {}
+    for name, sel in (("face", lit & ~lm), ("line", lit & lm)):
+        prof = []
+        for k in np.arange(0, r.max() + step, step):
+            m = sel & (r >= k) & (r < k + step)
+            if m.sum() >= 2: prof.append([round(float(k + step / 2), 2), [int(v) for v in np.median(sprite[m][:, :3], 0)]])
+        out[name] = prof
+    out["extent"] = round(float(np.percentile(r[lit], 97) + 0.5), 2) if lit.any() else 0.0
+    return out
+
+
+def measure_stamps(export_dir, med, g, spec):
+    """The sprites' placement against the frame and the lit faces' radial profiles (None without the sheets' export)."""
+    st = spec.get("stamps")
+    if not st or export_dir is None: return None
+    gv = to_game_rows(med); out = {}
+    ins = g["inset"]
+    for key, part in st["parts"].items():
+        sh = load_sheet(export_dir, part["sheet"])
+        if sh is None: return None
+        w, h = part["size"]
+        sprite = {n: sh[y:y + h, 0:w] for n, y in part["sprites"].items()}
+        ax, ay = part["anchor"]
+        for n in sprite:      # radled_2's last row lies past its sheet: the game leaves the frame's there
+            if sprite[n].shape[0] < h: sprite[n] = np.concatenate([sprite[n], gv[ay + sprite[n].shape[0]:ay + h, ax:ax + w]], 0)
+        dark = sprite[part["dark"]]
+        dx, dy, nd = stamp_offset(dark, gv, part["anchor"])
+        # the frame's own centre (game view): the corner scope's rings, or the lamp's green disc (its centroid)
+        if key == "plate":
+            c = (ins["centre"][0], 128 - ins["centre"][1]); face_r = ins["face"]["radius"]
+        else:
+            x0, y0, x1, y1 = part["search"]; sub = gv[y0:y1, x0:x1].astype(int)
+            m = sub[..., 1] > sub[..., 0] + 30
+            ys, xs = np.nonzero(m); c = (float(xs.mean() + 0.5 + x0), float(ys.mean() + 0.5 + y0))
+            face_r = math.sqrt(m.sum() / math.pi)
+        sc = (c[0] - part["anchor"][0] - dx, c[1] - part["anchor"][1] - dy)
+
+        def lines(xx, yy, r, sc=sc, key=key):
+            if key != "plate": return np.zeros(r.shape, bool)
+            m = (np.abs(xx - sc[0]) < 0.75) | (np.abs(yy - sc[1]) < 0.75)
+            for R in ins["rings"]: m |= np.abs(r - R["radius"]) < 0.75
+            return m
+        lit = {}
+        for n, a in sprite.items():
+            if n == part["dark"]: continue
+            # each lit sprite about its own centre: the middle of its coloured pixels that differ from the dark one (the
+            # original's lit lamp sits where the frame's does, its green one and both plates a pixel higher)
+            ai = a[..., :3].astype(int)
+            col = (np.abs(ai - dark[..., :3]).sum(-1) > 0) & (ai.max(-1) - ai.min(-1) > 40)
+            ys, xs = np.nonzero(col)
+            lc = ((xs.min() + xs.max() + 1) / 2, (ys.min() + ys.max() + 1) / 2) if len(xs) else sc
+            lit[n] = radial_profile(a, dark, lc, lines if key != "plate" else (lambda xx, yy, r, lc=lc: lines(xx, yy, r, lc)))
+            lit[n]["sprite_centre"] = [float(lc[0]), float(lc[1])]
+        out[key] = {"frame_centre": [round(c[0], 3), round(c[1], 3)], "face_radius": round(face_r, 3), "art_offset": [dx, dy],
+                    "differing_at_offset": nd, "sprite_centre": [round(sc[0], 3), round(sc[1], 3)], "lit": lit}
+    return out
+
+
+def interp_rgb(prof, r):
+    """A radial profile's colour at radii r (h, w): piecewise linear between its bins, held at the ends."""
+    xs = np.array([p[0] for p in prof]); cs = np.array([p[1] for p in prof], float)
+    return np.stack([np.interp(r, xs, cs[:, k]) for k in range(3)], -1)
+
+
+def stamp_centre_file(ms, key):
+    """A stamp's disc centre in the file's rows."""
+    c = ms[key]["frame_centre"]; return (c[0], 128 - c[1])
+
+
+def draw_sprites(rd, static_gv):
+    """The two sheets (rows as shown, RGBA) at rd.s from the static frame's texels (game view): every sprite the frame's
+    texels inside its disc, keyed outside; the lit ones with their face drawn from the measured profile."""
+    spec, g, s, ms = rd.spec, rd.g, rd.s, rd.stamps
+    out = {}
+    for key, part in spec["stamps"]["parts"].items():
+        m = ms[key]; w, h = part["size"]; ax, ay = part["anchor"]
+        sw, sh_ = part["sheet_size"]
+        sheet = np.zeros((sh_ * s, sw * s, 4), np.uint8)
+        cv = Canvas(256, 128, s, (ax, ay, ax + w, ay + h))
+        base = static_gv[ay * s:(ay + h) * s, ax * s:(ax + w) * s].astype(float)
+        c = m["frame_centre"]
+        r = np.hypot(cv.X - c[0], cv.Y - c[1]) + np.zeros((cv.Y.shape[0], 1))
+        keep = (r < part["mask_radius"]).astype(np.uint8) * 255
+        for name, y in part["sprites"].items():
+            img = base[..., :3].copy()
+            if name != part["dark"]:
+                lit = m["lit"][name]
+                R = min(lit["extent"], part["lit_max_radius"])
+                cov = cv.disc(c, R, part["edge"])
+                if lit["face"]: img = over(img, cov, interp_rgb(lit["face"], r))
+                if key == "plate":
+                    # the grid over the lit face in the lit lines' colours, the frame's dark lines outside the glow
+                    lc = (interp_rgb(lit["line"], r) if lit["line"] else img * 0.8) * cov[..., None] + np.array(GRID, float) * (1 - cov[..., None])
+                    gg = dict(g); gg["inset"] = dict(g["inset"], centre=list(c))
+                    lined = inset_grid(img.copy(), cv, gg, spec, lambda rr, lc=lc: lc)
+                    a = cv.disc(c, m["face_radius"])[..., None]; img = img * (1 - a) + lined * a
+            rows = min(h * s, sheet.shape[0] - y * s)
+            sheet[y * s:y * s + rows, :w * s, :3] = np.clip(np.round(img[:rows]), 0, 255).astype(np.uint8)
+            sheet[y * s:y * s + rows, :w * s, 3] = keep[:rows]
+        out[part["sheet"]] = sheet
+    return out
 
 
 # ------------------------------------------------------------------------------------------------------------- the panel
@@ -555,6 +713,25 @@ def inpaint(img, mask, known=None):
 
 def lum_of(a):
     return a[..., :3].mean(-1)
+
+
+def text_box(t, gm, mk):
+    """A label's box (original px, game view): its group's ink box ("box"), a given one ("at"), or ("mark": [group, n]) a
+    box centred "lift" px further out from the knob ("knob", index into the measured knobs) than the group's n-th mark from
+    the left, moved by "nudge", "width" wide and the cap high."""
+    if "mark" in t:
+        grp, n = t["mark"]
+        blobs = sorted(gm["groups"][grp]["blobs"], key=lambda b: b["centre"][0])
+        if n >= len(blobs): return None
+        p = np.array(blobs[n]["centre"]); k = np.array(gm["knobs"][t.get("knob", mk.get("label_knob", 1))]["centre"])
+        u = (p - k) / max(float(np.hypot(*(p - k))), 1e-6)
+        c = p + u * t.get("lift", 0.0) + np.array(t.get("nudge", [0.0, 0.0]))
+        if "x" in t: c[0] = t["x"]
+        if "y" in t: c[1] = t["y"]
+        w, h = t.get("width", 8.0), t.get("cap", 2.0)
+        return [float(c[0] - w / 2), float(c[1] - h / 2), float(c[0] + w / 2), float(c[1] + h / 2)]
+    grp = gm["groups"].get(t.get("box"))
+    return t.get("at") or (grp["ink_box"] if grp else None)
 
 
 def panel_patch(g, spec, label_set, base_game, s):
@@ -633,7 +810,7 @@ def panel_patch(g, spec, label_set, base_game, s):
             erase |= pc > 0
     # the words
     for t in label_set.get("texts", []):
-        grp = gm["groups"].get(t["box"]); box = t.get("at") or (grp["ink_box"] if grp else None)
+        box = text_box(t, gm, mk)
         if box is None: continue
         if t.get("pad"): box = [box[0] - t["pad"][0], box[1] - t["pad"][1], box[2] + t["pad"][0], box[3] + t["pad"][1]]
         cov = text_coverage(cv, t["text"], font_file(t.get("font", label_set.get("font", spec["default_font"])), spec), box,
@@ -690,9 +867,32 @@ class Redraw:
         else:
             self.panel = None
         self.cache = {}
+        # the stamps' discs: the same texels in every frame (the base frame's, redrawn), which the redrawn sheets carry too
+        self.stamps = g.get("stamps") if spec.get("stamps") else None
+        self.static = self.core(panel_base, "sweep", spec["frames"]["count"]) if self.stamps else None
+        if self.stamps:
+            st = spec["stamps"]; H_, W_ = self.static.shape[:2]
+            X = (np.arange(W_) + 0.5)[None, :] / s; Y = (np.arange(H_) + 0.5)[:, None] / s
+            self.paste = np.zeros((H_, W_))
+            for key, part in st["parts"].items():
+                cx, cy = stamp_centre_file(self.stamps, key)
+                r = np.hypot(X - cx, Y - cy)
+                self.paste = np.maximum(self.paste, np.clip((part["mask_radius"] + st["paste_hold"] + st["paste_feather"] - r) / st["paste_feather"], 0, 1))
+
+    def sprites(self):
+        """The range plate's and the lamp's sheets ({name: RGBA, rows as shown}), or {} without the stamps' measures."""
+        return draw_sprites(self, flip_rows(self.static)) if self.stamps else {}
 
     def frame(self, base, kind, i):
         """base: the upscale of this frame (s-times, RGBA uint8); kind 'sweep' | 'locked'; i 0..30 (30: radar off)."""
+        out = self.core(base, kind, i)
+        if self.stamps:
+            a = self.paste[..., None]
+            out[..., :3] = np.clip(np.round(out[..., :3] * (1 - a) + self.static[..., :3] * a), 0, 255).astype(np.uint8)
+        return out
+
+    def core(self, base, kind, i):
+        """The frame redrawn over its upscale, the stamps' discs as the upscale has them."""
         s = self.s; out = base.copy(); img = out[..., :3].astype(float)
         if self.panel is not None:
             patch, changed, (x0, y0, x1, y1) = self.panel
@@ -723,7 +923,7 @@ def label_set_named(spec, name):
 
 def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
     frames = load_frames(export_dir, spec)
-    if g is None: g, _ = measure(frames, spec)
+    if g is None: g, _ = measure(frames, spec, export_dir)
     ls = label_set_named(spec, ls_name)
     off = spec["frames"]["sweep"] % spec["frames"]["count"]
     rd = Redraw(g, spec, style, ls, s, upscale_frame(upscale_dir, off, s))
@@ -732,6 +932,10 @@ def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None
         for i in range(spec["frames"]["count"] + 1):
             stem = spec["frames"][kind] % i
             Image.fromarray(rd.frame(upscale_frame(upscale_dir, stem, s), kind, i)).save(os.path.join(out_dir, stem + ".png"))
+    # a .map's PNG upscale is read with its rows as shown (the game flips it to the stored order, HdTexture.Fit; only a .dds
+    # is written bottom up), as the export is
+    for name, sheet in rd.sprites().items():
+        Image.fromarray(sheet).save(os.path.join(out_dir, name + ".png"))
     with open(os.path.join(out_dir, "radar-geometry.json"), "w") as f: json.dump(strip(g), f, indent=1)
     return g
 
@@ -817,6 +1021,8 @@ def synthetic(spec):
         a[ri < 10.5] = GREEN + (255,)
         for rr in (6.0, 8.0): a[np.abs(ri - rr) < 0.5] = GRID + (255,)
         a[111, 140:162] = GRID + (255,); a[101:122, 150] = GRID + (255,)
+        rl = np.hypot(xx - 155.5, yy - 38.5)           # the contact lamp (game view 155.5, 89.5): a dark ring, a green disc
+        a[rl < 5.0] = GRID + (255,); a[rl < 3.6] = GREEN + (255,)
         g = a[::-1].copy()                    # the panel drawn in the game's view, then flipped into the file's rows
         for k, (kx, ky) in enumerate(((29.5, 30.5), (29.5, 76.5))):
             rk = np.hypot(xx - kx, yy - ky); g[rk < 7] = (200, 200, 200, 255); g[(rk >= 7) & (rk < 9)] = (16, 16, 16, 255)
@@ -905,7 +1111,7 @@ def main(argv=None):
     if a.self_check: return 0 if self_check() else 1
     spec = load_spec(a.spec)
     if a.cmd == "measure":
-        g, _ = measure(load_frames(a.export, spec), spec)
+        g, _ = measure(load_frames(a.export, spec), spec, a.export)
         txt = json.dumps(strip(g), indent=1)
         if a.upscale: open(a.upscale, "w").write(txt)
         else: print(txt)

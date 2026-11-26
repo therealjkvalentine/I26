@@ -37,7 +37,7 @@ def sheet(rr, export_dir, upscale_dir, out_dir, spec):
     os.makedirs(out_dir, exist_ok=True)
     f_big, f_mid = _font(rr, 26), _font(rr, 20); _font_small = _font(rr, 17)
     frames = rr.load_frames(export_dir, spec)
-    g, med = rr.measure(frames, spec)
+    g, med = rr.measure(frames, spec, export_dir)
     S = 8
     sets = spec["label_sets"]
     off = spec["frames"]["sweep"] % spec["frames"]["count"]
