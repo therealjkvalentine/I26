@@ -173,6 +173,38 @@ public class SmokeHazeTests
     }
 
     [Fact]
+    public void LongStartsDenserAndDarkerAndNormalIsUntouched()
+    {
+        bool was = SmokeHaze.Long;
+        try
+        {
+            SmokeHaze.Long = false;
+            foreach (float d in new[] { 0.3f, 0.42f, 0.84f }) Assert.Equal(d, SmokeHaze.StartDens(d));
+            foreach (float k in new[] { 0f, 0.08f, 0.4f, 1f }) Assert.Equal(k, SmokeHaze.StartDark(k));
+            Assert.Equal(0.65f, SmokeHaze.LayerCap(0.65f, false));
+            SmokeHaze.Long = true;
+            Assert.Equal(0.42f * SmokeHaze.DensBoost, SmokeHaze.StartDens(0.42f), 5);
+            Assert.True(SmokeHaze.StartDens(0.84f) <= 1f);
+            Assert.True(SmokeHaze.StartDark(0.08f) > 0.08f);
+            Assert.Equal(1f, SmokeHaze.StartDark(1f));
+            Assert.Equal(SmokeHaze.LongCap, SmokeHaze.LayerCap(0.65f, false));
+            Assert.Equal(0.5f, SmokeHaze.LayerCap(0.5f, true));   // the I76_SMOKE_CAP hook wins
+        }
+        finally { SmokeHaze.Long = was; }
+    }
+
+    [Fact]
+    public void ALoneHazeFadesOverTwoToThreeMinutesAndATrailStaysVisible()
+    {
+        Assert.InRange(SmokeHaze.HazeSeconds, 120f, 180f);
+        // a rocket trail's puff under Long (2.2 m, 0.42 boosted) is still several times the threshold half a minute on
+        float size = 2.2f, dens = 0.42f * SmokeHaze.DensBoost, k = SmokeHaze.Growth(size, dens);
+        float s = SmokeHaze.Grow(size, k, 30f);
+        Assert.True(SmokeHaze.Density(dens * size * size, s) > 3f * SmokeHaze.Threshold);
+        Assert.False(SmokeHaze.Retired(SmokeHaze.Density(dens * size * size, SmokeHaze.Grow(size, k, 60f))));
+    }
+
+    [Fact]
     public void TheShadersAgeHoldsAtOneAndCreepsOn()
     {
         Assert.Equal(1f, SmokeHaze.ShaderAge(0f, 4f));

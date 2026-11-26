@@ -1979,7 +1979,7 @@ public partial class Cockpit : Node
         OwnCameras(wide && _sideRender == SideMirrorRender.Own, quads);
         // the modern terrain's far tier for the mirror (TerrainNode.NearTierLayer left out: terrain_modern.gdshaderinc reads no
         // material, relief or asphalt for a camera without it), as for the shadow passes
-        _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF;
+        _mirrorCam.CullMask = SmokeLayer.MirrorMask((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF, 1);   // its smoke: the layer's own view (SmokeLayer)
         _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full (the modern look's default)
         _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
         DepthPass();
@@ -2721,6 +2721,7 @@ public partial class Cockpit : Node
                 vp.AddChild(cam);
                 AddChild(vp);
                 _ownViews[i] = vp; _ownCams[i] = cam;
+                SmokeLayer.DoorMirrorCameras[i] = cam;   // the mirrors' smoke (MirrorDraw) for the door mirrors too
             }
         _ownOn = on;
         if (on) Aim();
@@ -2735,7 +2736,7 @@ public partial class Cockpit : Node
             I76.Game.Boot.LookFilters.Apply(vp, _faithful);
             cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
-            cam.CullMask = ((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u);
+            cam.CullMask = SmokeLayer.MirrorMask(((_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF) | (OwnSelfHook ? CarNode.OwnBodyLayer : 0u), 2 + i);
             foreach (var g in _glass.Where(g => g.Left == left)) { g.Mat.SetShaderParameter("view", vp.GetTexture()); g.Mat.SetShaderParameter("band", new Vector2(0, 1)); }
             var sm = left ? _sideMatL : _sideMatR;
             if (sm is not null) { sm.SetShaderParameter("view", vp.GetTexture()); sm.SetShaderParameter("band", new Vector2(0, 1)); sm.SetShaderParameter("cylindrical", false); }

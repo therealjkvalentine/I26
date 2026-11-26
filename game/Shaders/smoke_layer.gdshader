@@ -9,9 +9,12 @@ render_mode unshaded, blend_premul_alpha, depth_test_disabled, depth_draw_never,
 #include "res://Shaders/smoke_cap.gdshaderinc"
 
 uniform sampler2D layer : filter_linear, repeat_disable;
+// a mirror's layer (SmokeLayer's mirror views): its picture's size; another camera that shows this quad (one of another size) draws nothing
+uniform vec2 view_size = vec2(0.0);
 
 void vertex() {
 	POSITION = vec4(VERTEX.xy * 2.0, 0.5, 1.0);
+	if (view_size.x > 0.0 && any(greaterThan(abs(VIEWPORT_SIZE - view_size), vec2(0.5)))) POSITION = vec4(2.0, 2.0, 2.0, 1.0);
 }
 
 void fragment() {
