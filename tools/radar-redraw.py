@@ -4,7 +4,7 @@
     python tools/radar-redraw.py measure EXPORT_DIR [geometry.json]
     python tools/radar-redraw.py fit-labels EXPORT_DIR [fit.json]
     python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]   (frames, zrge.png, ztge.png)
-    python tools/radar-redraw.py pack    EXPORT_DIR PACK_DIR [--out DIR] [--scale N] [--style A|B] [--labels NAME]
+    python tools/radar-redraw.py pack    EXPORT_DIR PACK_DIR [--out DIR] [--base DIR] [--scale N] [--style A|B] [--labels NAME]
     python tools/radar-redraw.py sheet   EXPORT_DIR UPSCALE_DIR OUT_DIR
     python tools/radar-redraw.py --self-check
 
@@ -16,18 +16,24 @@ packs' choice: style B and the label set lock-range.
 in the pack's format (.dds: BC7 with the full mip chain, rows stored as EXPORT_DIR/bottom-up.txt says), writes zrge and
 ztge beside them (the two belong together), keeps the frames it started from in PACK_DIR/.radar-base/ (a second run starts
 from those, so it gives the same files) and names the redraw and its font in pack.json and ATTRIBUTION.txt (FILES.sha256
-made again when there is one). With --out DIR the pack is only read and the files go to DIR. Everything is measured from the
+made again when there is one). With --out DIR the pack is only read and the files go to DIR. A pack whose pack.json names a
+redraw already and that has no .radar-base/ is refused: --base DIR gives the upscale's own frames (a backup) to start from.
+Everything is measured from the
 original's pixels each run (nothing of the game's art is in the repository), then drawn again as vectors:
 
 - the scope: the 60 frames' per-pixel median is the clean grid and panel; the rings are circles fitted to its grid pixels, the
   spokes lines fitted through them, the face the circle fitted to the green's edge; the small scope at the corner likewise.
 - the sweep (zradf): each frame's beam fitted as a line; all 30 meet at one pivot, frame f at 12f degrees plus a measured offset,
   clockwise as the game shows it. The lock cone (zradb): its two edges fitted, the half-angle and how far behind the pivot they meet.
-  Style A draws them as the original does (a line, a cone, the original's colours); style B as a phosphor scope (a bright edge
-  and a fading afterglow behind it, a cone with soft edges).
+  Style A draws them as the original does (a line, a cone, the original's colours); style B as a phosphor scope (a thin sharp
+  beam with a bright core and a fading afterglow behind it, a cone with soft edges, the graticule printed crisp over them).
 - the left panel's marks: the dotted arc round one knob, the ticks by the other, the knob pointers and the two small lettered
   rows, as dark blobs found in the median; they are erased from the upscale and drawn again as shapes, with a label set's words
-  set in a free font (tools/radar-redraw/radar.json names it: B612, in tools/text-redraws/fonts/ with its licence).
+  set in a free font (tools/radar-redraw/radar.json names it: B612, in tools/text-redraws/fonts/ with its licence), printed
+  by darkening the panel's own shade.
+- the edges: the scope's bezel ring, the wires (the cable and the red and orange twisted pair) and the body's bottom corners'
+  outline, curves fitted to the original's pixels and drawn again from the original's own colours measured along them (see
+  "the edges" below); the rest of the bezel, body and handles stay the upscale's.
 
 - the stamps: the range plate's and the contact lamp's sheets (zrge, ztge), which the game stamps over every frame, are
   written beside the frames: the redrawn frame's texels inside a disc about the frame's own scope or lamp, keyed outside,
@@ -210,6 +216,7 @@ def measure(frames, spec, export_dir=None):
     g["cone"] = measure_cone(frames, med, spec, g["sweep"]["pivot"])
     g["marks"] = measure_marks(med, spec)
     g["stamps"] = measure_stamps(export_dir, med, g, spec)
+    g["edges"] = measure_edges(med, spec, g)
     return g, med
 
 
@@ -411,28 +418,37 @@ def scope_face(g, spec, cv, style, frame=None, locked=False):
     h, w = cv.Y.shape[0], cv.X.shape[1]
     img = np.empty((h, w, 3)); img[:] = st.get("face", GREEN)
     inside = cv.disc(fc, fr)
-    gc = g["grid"]["centre"]; pv = g["sweep"]["pivot"]
+    gc = g["grid"]["centre"]
     sw = g["sweep"]
-    # the afterglow and a soft cone lie under the graticule (style "glow_under_grid"); the beam's line always over it, as the original's
     a0 = None if frame is None else frame_angle(frame) + (0 if locked else sw["offset_deg"])
+    over_all = st.get("grid_over", False)
     under = st.get("glow_under_grid", False)
-    # the lock cone always over the graticule, as the original's (round 1's style B laid it under, the grid's dark lines through it)
-    if a0 is not None and under and not locked:
-        beam(img, cv, g, st, a0, part="trail")
-    lw = sc["line_width"]; le = sc.get("line_edge")
-    for R in g["grid"]["rings"]:
-        over(img, cv.ring(gc, R["radius"], lw, le), GRID)
-    for s_ in g["grid"]["spokes"]:
-        a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
-        L = fr + 2
-        over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False, edge=le), GRID)
+    def graticule():
+        lw = sc["line_width"]; le = sc.get("line_edge")
+        for R in g["grid"]["rings"]:
+            over(img, cv.ring(gc, R["radius"], lw, le), GRID)
+        for s_ in g["grid"]["spokes"]:
+            a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
+            L = fr + 2
+            over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False, edge=le), GRID)
+    if over_all:
+        # style "grid_over": the afterglow, the beam and the cone first, the graticule printed crisp over all of them
+        if a0 is not None:
+            if locked: cone(img, cv, g, st, a0)
+            else: beam(img, cv, g, st, a0)
+        graticule()
+    else:
+        # the afterglow lies under the graticule ("glow_under_grid"); the beam's line and the lock cone over it, as the original's
+        if a0 is not None and under and not locked:
+            beam(img, cv, g, st, a0, part="trail")
+        graticule()
     if g.get("pip") and frame is not None:
         pc = g["pip"]["centre"]
         over(img, cv.disc(pc, sc["pip_ring"]), OLIVE)
         over(img, cv.disc(pc, sc["pip_radius"]), PIP)
     elif g.get("pip"):
         over(img, cv.disc(g["pip"]["centre"], sc["hub_radius"]), GRID)      # the radar-off frames: a dark 4x4 hub, no pip
-    if a0 is not None:
+    if a0 is not None and not over_all:
         if locked: cone(img, cv, g, st, a0)
         if not locked: beam(img, cv, g, st, a0, part="line" if under else "all")
     return img, inside
@@ -795,7 +811,7 @@ def panel_patch(g, spec, label_set, base_game, s):
             else:
                 cov_all = np.maximum(cov_all, cv.disc(p, am["end_radius"] if end else am["dot_radius"]))
     # ticks: straight strokes along each measured mark's long axis
-    for name in mk.get("tick_groups", []):
+    for name in label_set.get("tick_groups", mk.get("tick_groups", [])):
         for b in gm["groups"][name]["blobs"]:
             P = np.array(b["pixels"], float) + 0.5
             if len(P) < 2:
@@ -833,9 +849,376 @@ def panel_patch(g, spec, label_set, base_game, s):
                 sq[(np.abs(cv.X - (px_ + 0.5)) <= 0.5) & (np.abs(cv.Y - (py_ + 0.5)) <= 0.5)] = 1.0
         bl = ndimage.gaussian_filter(sq, mk["blob_sigma"] * s)
         cov_all = np.maximum(cov_all, np.clip((bl - mk["blob_level"]) * 4 + 0.5, 0, 1))
-    patch = over(patch, cov_all, ink)
+    if mk.get("ink_multiply") is not None:
+        # printed on the panel: the panel's own shade darkened, so its shading shows through the ink
+        a = np.clip(cov_all, 0, 1)[..., None]; patch = patch * (1 - a) + patch * mk["ink_multiply"] * a
+    else:
+        patch = over(patch, cov_all, ink)
     changed = erase | (cov_all > 0.002)
     return patch, (x0, y0, x1, y1), changed
+
+
+# ------------------------------------------------------------------------------------------------------------- the edges
+# The unit's outline, the scope's bezel ring and the wires, which the pack's upscale leaves wobbly and smeared: each is a
+# curve fitted to the original's pixels (a circle, the body's rounded rectangle, a wire's centreline) and its texels drawn
+# again from the original's own colours measured against that curve: a pixel's colour as a function of how far along the
+# curve it lies (t) and how far across (d), regressed over the pixels round it (normalised convolution, narrow across,
+# wide along) and looked up at each texel's (t, d). The shapes and the shading are the original's, the edges straight and
+# round again. Pixels that do not fit the band (a knob, a wire, the inset crossing it) are left out of the regression and
+# keep the layer below at their place. All in the game's view (rows as shown); the frames get the layer flipped back.
+
+def curve_circle(c, r, step=0.1):
+    n = max(64, int(2 * math.pi * r / step))
+    a = np.arange(n) / n * 2 * math.pi
+    N = np.stack([np.cos(a), np.sin(a)], 1)
+    return {"P": np.array(c, float) + N * r, "N": N, "T": a * r, "closed": True, "length": 2 * math.pi * r}
+
+
+def curve_rrect(box, rad, step=0.1):
+    """A rounded rectangle (x0, y0, x1, y1) with corner radius rad as a closed curve, normals outward."""
+    x0, y0, x1, y1 = box; P = []; N = []
+    def line(p, q, n):
+        L = math.hypot(q[0] - p[0], q[1] - p[1]); k = max(1, int(L / step))
+        for i in range(k):
+            f = i / k; P.append((p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f)); N.append(n)
+    def arc(c, a0):
+        k = max(4, int(math.pi / 2 * rad / step))
+        for i in range(k):
+            a = math.radians(a0 + 90 * i / k); u = (math.cos(a), math.sin(a))
+            P.append((c[0] + u[0] * rad, c[1] + u[1] * rad)); N.append(u)
+    line((x0 + rad, y0), (x1 - rad, y0), (0, -1)); arc((x1 - rad, y0 + rad), -90)
+    line((x1, y0 + rad), (x1, y1 - rad), (1, 0)); arc((x1 - rad, y1 - rad), 0)
+    line((x1 - rad, y1), (x0 + rad, y1), (0, 1)); arc((x0 + rad, y1 - rad), 90)
+    line((x0, y1 - rad), (x0, y0 + rad), (-1, 0)); arc((x0 + rad, y0 + rad), 180)
+    P = np.array(P); N = np.array(N, float)
+    T = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(P, axis=0).T))])
+    return {"P": P, "N": N, "T": T, "closed": True, "length": float(T[-1] + math.hypot(*(P[0] - P[-1])))}
+
+
+def curve_open(points, step=0.1):
+    """An open curve through points (a wire's smoothed centreline), resampled every step; normals to its left."""
+    P = np.asarray(points, float)
+    seg = np.hypot(*np.diff(P, axis=0).T); T = np.concatenate([[0], np.cumsum(seg)])
+    t = np.arange(0, T[-1], step)
+    Q = np.stack([np.interp(t, T, P[:, 0]), np.interp(t, T, P[:, 1])], 1)
+    D = np.gradient(Q, axis=0); D /= np.maximum(np.hypot(D[:, 0], D[:, 1]), 1e-9)[:, None]
+    return {"P": Q, "N": np.stack([-D[:, 1], D[:, 0]], 1), "T": t, "closed": False, "length": float(t[-1])}
+
+
+def curve_coords(cu, X, Y):
+    """(t, d) of points (X, Y): along the curve to its nearest point, and across it (along that point's normal)."""
+    from scipy.spatial import cKDTree
+    X, Y = np.broadcast_arrays(X, Y); sh = X.shape
+    Q = np.stack([X.ravel(), Y.ravel()], 1)
+    _, k = cKDTree(cu["P"]).query(Q)
+    d = ((Q - cu["P"][k]) * cu["N"][k]).sum(1)
+    t = cu["T"][k].copy()
+    if not cu["closed"]:      # past the ends: along the end's tangent
+        for e in (0, len(cu["T"]) - 1):
+            sel = k == e
+            tan = np.array([cu["N"][e][1], -cu["N"][e][0]])
+            t[sel] = cu["T"][e] + (Q[sel] - cu["P"][e]) @ tan
+    return t.reshape(sh), d.reshape(sh)
+
+
+class Band:
+    """The original's colours (premultiplied RGB and alpha) regressed over (t, d) about a curve, pixels that do not fit
+    left out (outlier: the largest channel difference, 0..255, from the band's own prediction)."""
+
+    def __init__(self, cu, gm, d_range, sigma_t, sigma_d, outlier=60.0, mask=None, iters=2, step_t=0.25, step_d=0.05):
+        self.cu = cu; self.d0, self.d1 = d_range; self.st, self.sd = step_t, step_d
+        H, W = gm.shape[:2]
+        yy, xx = np.mgrid[0:H, 0:W] + 0.5
+        t, d = curve_coords(cu, xx, yy)
+        sel = (d > self.d0 - 1) & (d < self.d1 + 1)
+        if mask is not None: sel &= mask
+        self.t_px, self.d_px = t, d
+        a = (gm[..., 3] > 0).astype(float)
+        self.V = np.concatenate([gm[..., :3] * a[..., None], a[..., None] * 255], -1)
+        self.nt = int(math.ceil(cu["length"] / step_t)) + 1
+        self.nd = int(math.ceil((self.d1 - self.d0 + 2) / step_d)) + 1
+        self.sig = (sigma_t / step_t, sigma_d / step_d)
+        self.outlier = np.zeros(sel.shape, bool)
+        use = sel
+        for _ in range(iters + 1):
+            self.fit(use)
+            # colour against colour where both are opaque (a step of the silhouette is the edge itself, not an outlier)
+            pr = self.at(t, d); pa = pr[..., 3] / 255
+            err = np.abs(pr[..., :3] / np.maximum(pa, 1e-3)[..., None] - self.V[..., :3]).max(-1)
+            self.outlier = sel & (err > outlier) & (pa > 0.6) & (self.V[..., 3] > 0)
+            use = sel & ~self.outlier
+        self.fit(use)
+        self.used = use
+
+    def fit(self, use):
+        it = np.round(self.t_px[use] / self.st).astype(int)
+        it = np.mod(it, self.nt - 1) if self.cu["closed"] else np.clip(it, 0, self.nt - 1)
+        id_ = np.clip(np.round((self.d_px[use] - (self.d0 - 1)) / self.sd).astype(int), 0, self.nd - 1)
+        grid = np.zeros((self.nt, self.nd, 5))
+        np.add.at(grid, (it, id_), np.concatenate([self.V[use], np.ones((int(use.sum()), 1))], 1))
+        mode = ("wrap" if self.cu["closed"] else "nearest", "nearest")
+        f = np.stack([ndimage.gaussian_filter(grid[..., k], self.sig, mode=mode) for k in range(5)], -1)
+        self.grid = f[..., :4] / np.maximum(f[..., 4:5], 1e-9)
+        self.weight = f[..., 4]
+
+    def at(self, t, d):
+        """Premultiplied RGB and alpha (0..255) at (t, d)."""
+        ti = t / self.st; di = (d - (self.d0 - 1)) / self.sd
+        if self.cu["closed"]: ti = np.mod(ti, self.nt - 1)
+        return np.stack([ndimage.map_coordinates(self.grid[..., k], [ti.ravel(), di.ravel()], order=1, mode="nearest").reshape(t.shape)
+                         for k in range(4)], -1)
+
+
+def soft_mask(px_mask, cv, feather):
+    """A mask of original pixels as a texel coverage on cv: each pixel a square, blurred by feather original px."""
+    x0, y0, x1, y1 = cv.box; s = cv.s
+    m = px_mask[int(y0):int(y1), int(x0):int(x1)].astype(float)
+    up = np.repeat(np.repeat(m, s, 0), s, 1)
+    if feather > 0: up = ndimage.gaussian_filter(up, feather * s)
+    return up[:cv.Y.shape[0], :cv.X.shape[1]]
+
+
+def band_layer(band, cv, edge_feather=0.3, keep_feather=0.4, alpha_gain=None):
+    """The band on cv's texels: RGB, alpha and coverage (inside its d range, off where the original's pixels did not
+    fit it)."""
+    t, d = curve_coords(band.cu, cv.X, cv.Y)
+    v = band.at(t, d)
+    a = v[..., 3] / 255
+    rgb = v[..., :3] / np.maximum(a, 1e-3)[..., None]
+    g = alpha_gain or cv.s
+    alpha = np.clip((a - 0.5) * g + 0.5, 0, 1)
+    cov = np.clip(np.minimum(d - band.d0, band.d1 - d) / edge_feather + 0.5, 0, 1)
+    out = ndimage.binary_dilation(band.outlier, np.ones((3, 3)))
+    cov = cov * (1 - np.clip(soft_mask(out, cv, keep_feather) * 1.5, 0, 1))
+    return np.clip(rgb, 0, 255), alpha, cov
+
+
+def fit_rrect(gm, guess, d_range, mask, bin_t=12.0):
+    """The body's rounded rectangle (x0, y0, x1, y1, radius): the one that makes the colours of its band most alike along
+    it (least spread of luminance in each (t, d) bin), from the spec's guess."""
+    from scipy.optimize import minimize
+    H, W = gm.shape[:2]
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    lum = (gm[..., :3].astype(float).mean(-1) * (gm[..., 3] > 0))[mask]
+    X, Y = xx[mask], yy[mask]
+    def cost(p):
+        cu = curve_rrect(p[:4], max(p[4], 1.0), 0.25)
+        t, d = curve_coords(cu, X, Y)
+        k = (d > d_range[0]) & (d < d_range[1])
+        key = (np.floor(t[k] / bin_t) * 1000 + np.floor((d[k] - d_range[0]) / 0.5)).astype(int)
+        u, inv, cnt = np.unique(key, return_inverse=True, return_counts=True)
+        L = lum[k]
+        s1 = np.bincount(inv, L); s2 = np.bincount(inv, L * L)
+        var = np.maximum(s2 / cnt - (s1 / cnt) ** 2, 0)
+        return float(np.sqrt(var).mean())
+    r = minimize(cost, np.array(guess, float), method="Nelder-Mead", options={"xatol": 0.02, "fatol": 0.005, "maxiter": 800})
+    return [round(float(v), 3) for v in r.x], float(r.fun), cost(np.array(guess, float))
+
+
+def wire_zone(shape, ez, g):
+    """The original pixels where the wires lie (game view): left of the body's left edge or below its bottom edge, inside
+    the spec's box, clear of the scope's bezel."""
+    H, W = shape
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    z = ez["zone"]; x0, y0, x1, y1 = z["box"]
+    fc = g["face"]["centre"]; fcg = (fc[0], H - fc[1])
+    return (((xx < z["left_of"]) | (yy > z["below"])) & (xx > x0) & (xx < x1) & (yy > y0) & (yy < y1)
+            & (np.hypot(xx - fcg[0], yy - fcg[1]) > g["face"]["radius"] + z["clear_of_scope"]))
+
+
+def wire_mask(gm, w, zone):
+    """A wire's pixels: its palette colours (or any grey), the largest connected piece inside the zone."""
+    a = gm.astype(int); op = a[..., 3] > 0
+    if w.get("grey"):
+        m = op & (np.abs(a[..., 0] - a[..., 1]) < 3) & (np.abs(a[..., 1] - a[..., 2]) < 3)
+    else:
+        m = np.zeros(op.shape, bool)
+        for c in w["colours"]: m |= op & is_col(a, c)
+    m &= zone
+    lab, n = ndimage.label(m, np.ones((3, 3)))
+    if n == 0: return m
+    sz = ndimage.sum(m, lab, range(1, n + 1))
+    return lab == (int(np.argmax(sz)) + 1)
+
+
+def geodesic(mask, start):
+    """Steps from start to every pixel of mask (8-connected), -1 outside."""
+    from collections import deque
+    d = np.full(mask.shape, -1, int); d[start] = 0; q = deque([start]); H, W = mask.shape
+    while q:
+        y, x = q.popleft()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                yy, xx = y + dy, x + dx
+                if 0 <= yy < H and 0 <= xx < W and mask[yy, xx] and d[yy, xx] < 0:
+                    d[yy, xx] = d[y, x] + 1; q.append((yy, xx))
+    return d
+
+
+def measure_wire(m, bin_px=2, smooth=0.05):
+    """A wire's centreline and width from its pixels: ordered from one end to the other (the pixels' steps from the far
+    end, in bins), each bin's centroid, a smoothing spline through them; the width is its pixels over its length."""
+    from scipy.interpolate import splprep, splev
+    ys, xs = np.nonzero(m)
+    if len(xs) < 8: return None
+    d = geodesic(m, (ys[0], xs[0])); e = np.unravel_index(int(np.argmax(d)), d.shape); d = geodesic(m, e)
+    pts = []
+    for k in range(0, int(d.max()) + 1, bin_px):
+        yy, xx = np.nonzero((d >= k) & (d < k + bin_px))
+        if len(xx): pts.append((xx.mean() + 0.5, yy.mean() + 0.5))
+    pts = np.array(pts)
+    if len(pts) < 4: return None
+    tck, _ = splprep([pts[:, 0], pts[:, 1]], s=len(pts) * smooth)
+    u = np.linspace(0, 1, max(20, len(pts) * 4))
+    x, y = splev(u, tck)
+    P = np.stack([x, y], 1)
+    L = float(np.hypot(*np.diff(P, axis=0).T).sum())
+    return {"points": [[round(float(a), 3), round(float(b), 3)] for a, b in P], "length": round(L, 2),
+            "width": round(float(m.sum()) / max(L, 1.0), 3), "pixels": int(m.sum()),
+            "fit_rms": round(float(np.sqrt(np.mean([np.min(np.hypot(P[:, 0] - px, P[:, 1] - py)) ** 2 for px, py in pts]))), 3)}
+
+
+def silhouette_points(op, box, side):
+    """The silhouette's pixel edges in box (game view) of a body corner whose outside lies to the given side ("left" or
+    "right") and below: the outer edge of the last opaque pixel of each row and each column."""
+    x0, y0, x1, y1 = box; P = []
+    for y in range(y0, y1):
+        if side == "left":
+            xs = [x for x in range(x0, x1) if op[y, x] and not op[y, x - 1]]
+            if xs: P.append((xs[-1], y + 0.5))
+        else:
+            xs = [x for x in range(x0, x1) if op[y, x] and not op[y, x + 1]]
+            if xs: P.append((xs[0] + 1, y + 0.5))
+    for x in range(x0, x1):
+        ys = [y for y in range(y0, y1) if op[y, x] and not op[y + 1, x]]
+        if ys: P.append((x + 0.5, ys[-1] + 1))
+    return np.array(P, float)
+
+
+def measure_edges(med, spec, g):
+    """The wires' centrelines and widths (game view); None without the spec's "edges"."""
+    ez = spec.get("edges")
+    if not ez: return None
+    gm = to_game_rows(med)
+    zone = wire_zone(gm.shape[:2], ez, g)
+    out = {"wires": {}, "corners": []}
+    op = gm[..., 3] > 0
+    for c in ez.get("corners", []):
+        P = silhouette_points(op, c["box"], c["side"])
+        if len(P) < 5: out["corners"].append(None); continue
+        (cx, cy, r), rms = fit_circle(P[:, 0], P[:, 1])
+        out["corners"].append({"centre": [round(cx, 3), round(cy, 3)], "radius": round(r, 3), "rms": round(rms, 3), "points": len(P)})
+    for w in ez.get("wires", []):
+        out["wires"][w["name"]] = measure_wire(wire_mask(gm, w, zone), w.get("bin", 2), w.get("smooth", 0.05))
+    return out
+
+
+def tube_coverage(cu, cv, width, ext=1.5):
+    """A tube of the given width along an open curve on cv (one-texel edge), its ends carried on ext px."""
+    t, d = curve_coords(cu, cv.X, cv.Y)
+    end = np.maximum(-t - ext, t - cu["length"] - ext)
+    return cv.aa(np.maximum(np.abs(d) - width / 2, end)), t, d
+
+
+def edge_layers(g, spec, med, s):
+    """The edge layers, bottom first, each (box, RGB, alpha, coverage, mode) in the game's view at s: the body's bottom
+    corners, the wires' zone cleared where the original is transparent, the cable, the twisted pair, then the bezel rings.
+    mode "all" lays the layer's colour and alpha; "silhouette" its alpha, and its colour only where the frame below was
+    transparent (the outline made round again, the upscale's own shading kept)."""
+    ez = spec.get("edges"); me = g.get("edges")
+    if not ez or me is None or med is None: return []
+    gm = to_game_rows(med); H, W = gm.shape[:2]
+    layers = []
+    for c, mc in zip(ez.get("corners", []), me.get("corners", [])):
+        if not mc: continue
+        band = Band(curve_circle(mc["centre"], mc["radius"]), gm, c["d"], c["sigma_t"], c["sigma_d"], c.get("outlier", 60))
+        R = mc["radius"] + c["d"][1] + 1; cx, cy = mc["centre"]
+        box = [max(int(math.floor(cx - R)), 0), max(int(math.floor(cy - R)), 0), min(int(math.ceil(cx + R)), W), min(int(math.ceil(cy + R)), H)]
+        cv = Canvas(W, H, s, box)
+        rgb, al, cov = band_layer(band, cv)
+        ang = np.degrees(np.arctan2(cv.Y - cy, cv.X - cx)); a0, a1 = c["arc"]
+        mid = (a0 + a1) / 2; half = (a1 - a0) / 2
+        cov = cov * np.clip((half - np.abs(angdiff(ang, mid))) / c.get("arc_feather", 6.0) + 0.5, 0, 1)
+        layers.append((box, rgb, al, cov, c.get("mode", "all")))
+    zone = wire_zone((H, W), ez, g)
+    z = ez["zone"]; zb = [int(v) for v in z["box"]]
+    cvz = Canvas(W, H, s, zb)
+    zs = soft_mask(zone, cvz, 0)
+    # the zone redrawn: transparent where the original is, the original's other pixels (the shadows beside the wires) in
+    # their own dark shade, the outline smoothed; the wires over that
+    op = gm[..., 3] > 0
+    wires = np.zeros(op.shape, bool)
+    for w in ez.get("wires", []): wires |= wire_mask(gm, w, zone)
+    rest = zone & op & ~wires
+    shade = np.median(gm[rest][:, :3], 0) if rest.any() else np.zeros(3)
+    a = np.clip((soft_mask(op, cvz, z["feather"]) - 0.5) * cvz.s + 0.5, 0, 1)
+    layers.append((zb, np.broadcast_to(shade.astype(float), zs.shape + (3,)), a, zs, "all"))
+    for w in ez.get("wires", []):
+        mw = me["wires"].get(w["name"])
+        if not mw: continue
+        cu = curve_open(mw["points"])
+        width = mw["width"] * w.get("width_scale", 1.0)
+        cov, t, d = tube_coverage(cu, cvz, width, w.get("extend", 1.5))
+        cov = cov * zs
+        m = wire_mask(gm, w, zone)
+        classes = w.get("classes") or {"all": None}
+        rgb = None; prob = []
+        for cname, cols in classes.items():
+            cm = m.copy()
+            if cols is not None:
+                cm = np.zeros(m.shape, bool)
+                for c in cols: cm |= m & is_col(gm.astype(int), c)
+            band = Band(cu, gm, (-width / 2 - 0.5, width / 2 + 0.5), w["sigma_t"], w["sigma_d"], outlier=1e9, mask=cm, iters=0)
+            v = band.at(t, d); col = v[..., :3] / np.maximum(v[..., 3:4] / 255, 1e-3)
+            pr = soft_mask(cm, cvz, w.get("class_sigma", 0.5))
+            prob.append((col, pr))
+        if len(prob) == 1:
+            rgb = prob[0][0]
+        else:
+            tot = sum(p for _, p in prob) + 1e-6
+            # the colour whose pixels are nearest wins, its edge a texel wide (the original's twist kept, its steps smoothed)
+            p0 = np.clip((prob[0][1] / tot - 0.5) * w.get("class_gain", 6) + 0.5, 0, 1)[..., None]
+            rgb = prob[0][0] * p0 + prob[1][0] * (1 - p0)
+        layers.append((zb, np.clip(rgb, 0, 255), np.ones(cov.shape), cov, "all"))
+    for r in ez.get("rings", []):
+        if r["circle"] == "face": c, R = g["face"]["centre"], g["face"]["radius"]
+        else: c, R = g["inset"]["face"]["centre"], g["inset"]["face"]["radius"]
+        cg = (c[0], H - c[1])
+        band = Band(curve_circle(cg, R), gm, (r["d"][0], r["d_free"]), r["sigma_t"], r["sigma_d"], r.get("outlier", 60))
+        box = [int(math.floor(cg[0] - R - r["d_free"] - 1)), int(math.floor(cg[1] - R - r["d_free"] - 1)),
+               int(math.ceil(cg[0] + R + r["d_free"] + 1)), int(math.ceil(cg[1] + R + r["d_free"] + 1))]
+        box = [max(box[0], 0), max(box[1], 0), min(box[2], W), min(box[3], H)]
+        cv = Canvas(W, H, s, box)
+        rgb, al, cov = band_layer(band, cv)
+        # the band's outer edge: d[1] over the panel, d_free where the original is transparent beyond the ring (the
+        # silhouette, its steps gone); arcs where another part takes over are left out
+        t, d = curve_coords(band.cu, cv.X, cv.Y)
+        free = ring_free(band, gm, r)
+        fr_t = np.interp(np.mod(t, band.cu["length"]), free[0], free[1])
+        d1 = r["d"][1] + (r["d_free"] - r["d"][1]) * fr_t
+        cov = cov * np.clip((d1 - d) / 0.3 + 0.5, 0, 1)
+        ang = np.degrees(np.arctan2(cv.Y - cg[1], cv.X - cg[0]))
+        if r.get("under_inset") is not None:      # the corner scope's ring lies over this one
+            ic = g["inset"]["face"]["centre"]; ir = g["inset"]["face"]["radius"] + r["under_inset"]
+            cov = cov * np.clip((np.hypot(cv.X - ic[0], cv.Y - (H - ic[1])) - ir) / 0.3 + 0.5, 0, 1)
+        for a0, a1 in r.get("skip", []):
+            mid = (a0 + a1) / 2; half = (a1 - a0) / 2
+            cov = cov * np.clip((np.abs(angdiff(ang, mid)) - half) / r.get("skip_feather", 4.0), 0, 1)
+        layers.append((box, rgb, al, cov, r.get("mode", "all")))
+    return layers
+
+
+def ring_free(band, gm, r, bin_px=2.0):
+    """Along a ring: 1 where the original is transparent just outside it (its silhouette), 0 over the panel, smoothed."""
+    H, W = gm.shape[:2]
+    t, d = band.t_px, band.d_px
+    sel = (d > r["d"][1] + 0.3) & (d < r["d_free"])
+    nb = int(math.ceil(band.cu["length"] / bin_px)) + 1
+    b = np.clip((t[sel] / bin_px).astype(int), 0, nb - 1)
+    tot = np.bincount(b, minlength=nb).astype(float)
+    clear = np.bincount(b, (gm[..., 3][sel] == 0).astype(float), minlength=nb)
+    f = ndimage.gaussian_filter1d(clear, 1.0, mode="wrap") / np.maximum(ndimage.gaussian_filter1d(tot, 1.0, mode="wrap"), 1e-6)
+    return np.arange(nb) * bin_px, np.clip((f - 0.3) / 0.4, 0, 1)
 
 
 # ------------------------------------------------------------------------------------------------------------- frames
@@ -852,8 +1235,13 @@ def resize_to(a, w, h):
 class Redraw:
     """One label set and style at scale s: the static parts made once, each frame composited over its upscale."""
 
-    def __init__(self, g, spec, style, label_set, s, panel_base):
+    def __init__(self, g, spec, style, label_set, s, panel_base, med=None):
         self.g, self.spec, self.style, self.s = g, spec, style, s
+        # the edges (wires, bezel rings): drawn once, game view, flipped into the file's rows; need the original's median
+        self.edges = []
+        for box, rgb, al, cov, mode in edge_layers(g, spec, med, s):
+            x0, y0, x1, y1 = box
+            self.edges.append(((x0, 128 - y1, x1, 128 - y0), flip_rows(rgb), flip_rows(al), flip_rows(cov), mode))
         self.ls = label_set
         H, W = 128, 256
         fc = g["face"]["centre"]; fr = g["face"]["radius"]
@@ -906,6 +1294,14 @@ class Redraw:
             patch, changed, (x0, y0, x1, y1) = self.panel
             sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
             reg = img[sl]; reg[changed] = patch[changed]
+        if self.edges:
+            alpha = out[..., 3].astype(float)
+            for (x0, y0, x1, y1), rgb, al, cov, mode in self.edges:
+                sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
+                cc = cov * np.clip(1 - alpha[sl] / 255, 0, 1) if mode == "silhouette" else cov
+                c = cc[..., None]; img[sl] = img[sl] * (1 - c) + rgb * c
+                alpha[sl] = alpha[sl] * (1 - cov) + al * 255 * cov
+            out[..., 3] = np.clip(np.round(alpha), 0, 255).astype(np.uint8)
         frame = None if i >= self.spec["frames"]["count"] else i
         face, cov = scope_face(self.g, self.spec, self.scv, self.style, frame, kind == "locked")
         x0, y0, x1, y1 = self.sbox
@@ -953,7 +1349,7 @@ def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None):
     frames = load_frames(export_dir, spec)
     if g is None: g, _ = measure(frames, spec, export_dir)
     ls = label_set_named(spec, ls_name)
-    rd = Redraw(g, spec, style, ls, s, load(spec["frames"]["sweep"] % spec["frames"]["count"]))
+    rd = Redraw(g, spec, style, ls, s, load(spec["frames"]["sweep"] % spec["frames"]["count"]), median_of(frames, spec))
     for kind in ("sweep", "locked"):
         for i in range(spec["frames"]["count"] + 1):
             stem = spec["frames"][kind] % i
@@ -1051,15 +1447,29 @@ def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
         hp = importlib.util.module_from_spec(sp); sp.loader.exec_module(hp); hp.write_sums(dst)
 
 
-def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None):
+def pack_redrawn(pack):
+    """pack.json names a radar redraw already (its frames are not the upscale's own)."""
+    pj = os.path.join(pack, "pack.json")
+    if not os.path.exists(pj): return False
+    with open(pj, encoding="utf-8") as f:
+        try: return "radar_redraw" in json.load(f)
+        except ValueError: return False
+
+
+def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, base=None):
     """A pack's radar frames and sheets redrawn in its own format: in place (out None; the frames it starts from kept in
-    pack/.radar-base/, which later runs start from) or into out (the pack only read). Returns the files written and s."""
+    pack/.radar-base/, which later runs start from) or into out (the pack only read). The redraw always starts from the
+    upscale's own frames: base (a folder holding them, e.g. a backup) when given, else pack/.radar-base/, else the pack's
+    frames, refused when pack.json says they are a redraw already. Returns the files written and s."""
     bu = read_bottom_up(export_dir)
     base_dir = os.path.join(pack, BASE); dst = out or pack
+    if base is None and not os.path.isdir(base_dir) and pack_redrawn(pack):
+        raise SystemExit(f"{pack}: its radar frames are a redraw already (pack.json has radar_redraw) and there is no "
+                         f"{BASE}; give the upscale's own frames with --base DIR")
     src = {}
     for stem in all_stems(spec):
-        p = find_texture(base_dir, stem) or find_texture(pack, stem)
-        if p is None: raise SystemExit(f"{stem}: not in {pack}")
+        p = (find_texture(base, stem) if base else None) or find_texture(base_dir, stem) or (None if base else find_texture(pack, stem))
+        if p is None: raise SystemExit(f"{stem}: not in {base or pack}")
         src[stem] = p
     if out is None:
         os.makedirs(base_dir, exist_ok=True)
@@ -1265,6 +1675,7 @@ def main(argv=None):
     ap.add_argument("--style", default="B", help="A (the original's line and cone) or B (an afterglow; the packs')")
     ap.add_argument("--labels", default="lock-range", help="a label set of the spec (lock-range: the packs')")
     ap.add_argument("--out", dest="out_dir", help="pack: write the files here and leave the pack as it is")
+    ap.add_argument("--base", help="pack: the upscale's own radar frames (a backup), when the pack's are a redraw already")
     ap.add_argument("--self-check", action="store_true")
     a = ap.parse_args(argv)
     if a.self_check: return 0 if self_check() else 1
@@ -1291,7 +1702,7 @@ def main(argv=None):
         return 0
     if a.cmd == "pack":
         if not a.export or not a.upscale or a.out: ap.error("pack takes EXPORT_DIR and PACK_DIR (and --out DIR)")
-        files, s = pack_step(a.export, a.upscale, a.out_dir, spec, a.spec, a.style, a.labels, a.scale)
+        files, s = pack_step(a.export, a.upscale, a.out_dir, spec, a.spec, a.style, a.labels, a.scale, a.base)
         print(f"radar redrawn at {s}x, style {a.style}, labels {a.labels}: {len(files)} files into {a.out_dir or a.upscale}")
         return 0
     if a.cmd == "sheet":

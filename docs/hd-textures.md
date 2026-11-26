@@ -446,26 +446,45 @@ face a circle fitted to the green's edge, the small scope at the corner likewise
 (all 30 meet at one pivot, frame f at 12f degrees plus a measured offset) and each lock cone's two edges are fitted. The
 scope is drawn again as anti-aliased vectors at the pack's scale in the original's colours, registered to the original's
 pixels, so the blips, the contact lamp and the range plate the game stamps at fixed pixels land where they did. Style B,
-the packs', is a phosphor scope: a bright beam with a fading afterglow behind it, a soft lock cone over the graticule;
-style A (`--style A`) is the original's line and cone without the afterglow barbs. The left panel's marks (the dotted arc,
-the ticks, the knob pointers and the two small lettered rows) are erased from the upscale and drawn again as shapes, and
-the label set's words are set in B612 Bold (SIL OFL 1.1, in `tools/text-redraws/fonts/B612/` with its licence; the pack's
-`pack.json` and `ATTRIBUTION.txt` name it). The painted words are three pixels high and one pixel high: `fit-labels`
+the packs', is a phosphor scope: a thin sharp beam (1.5 pixels, a bright core 0.7 wide, no halo) with a fading afterglow
+behind it and a soft lock cone, the graticule printed crisp over all three (`grid_over`); style A (`--style A`) is the
+original's line and cone without the afterglow barbs, over the graticule. The left panel's marks (the dotted arc, the
+ticks, the knob pointers and the two small lettered rows) are erased from the upscale and drawn again as shapes, and the
+label set's words are set in B612 Bold (SIL OFL 1.1, in `tools/text-redraws/fonts/B612/` with its licence; the pack's
+`pack.json` and `ATTRIBUTION.txt` name it), printed: the ink darkens the panel's own shade to 0.3 of it (`ink_multiply`),
+so the panel's shading shows through. The painted words are three pixels high and one pixel high: `fit-labels`
 scores candidates against them and against a list of unrelated words, and none stands above chance, so the words are a
 choice, not a reading. The game shows the frames with their rows flipped, so the spec's panel positions are in the game's
 view and the lettering is set upright there.
 
-The label set is `lock-range`: LOCK VOL between the knobs (the top knob as the lock tone's volume), and over the lower
-knob 100 (left tick), TGT (the X) and 600 (right tick, where the painted pointer rests: the default range), RANGE under
-it. 100 m and 600 m are the game's two radar ranges (R flips them); TGT is a story for the middle mark, not a state of R
-(the weapon camera in the radar screen, `RADAR_CAMERA_TOGGLE`, W, is a separate switch and needs a target and a turret).
-The three over the knob are 1.8 original pixels high; the 600 sits over its tick and ends 1.3 pixels short of the scope's
-bezel (the bezel's outer edge is at x 41.3 at that height). The spec keeps other sets for comparison (`--labels`:
-`lock-range-m` with the unit, `owner-50-500`, `var-range`, `gain-range`, `intensity`, `marks-only`). The knob's painted
-pointer never moves.
+The label set is `lock-range`: LOCK VOL between the knobs (the top knob as the lock tone's volume), and round the lower
+knob 100, TGT and 600 lettered in place of the painted left tick, X and right tick (the marks are erased, not drawn
+again: the words are the positions; the painted pointer rests on 600, the default range), RANGE under it. Every word is
+one cap height, 2.4 original pixels (LOCK VOL was 2.6, the three numbers 1.8). 100, TGT and 600 are centred on their
+marks, lifted 0.4 pixel out from the knob; the 600 is 0.8 pixel left of its tick so that it ends a pixel short of the
+scope's bezel (the bezel's outer edge is at x 41.0 on those rows). The two faint marks left of the knob (a dash and a dot,
+of no known meaning) are kept, cleaned. 100 m and 600 m are the game's two radar ranges (R flips them); TGT is a story for
+the middle mark, not a state of R (the weapon camera in the radar screen, `RADAR_CAMERA_TOGGLE`, W, is a separate switch and
+needs a target and a turret). The spec keeps other sets for comparison (`--labels`: `lock-range-m` with the unit,
+`owner-50-500`, `var-range`, `gain-range`, `intensity`, `marks-only`). The knob's painted pointer never moves.
 
-The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a soft edge: `line_width` and `line_edge`
-in the spec (the edge a ramp a quarter pixel wide, two texels at 8x, so a line's outermost texels are partly covered).
+The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a one-texel anti-aliased edge (crisp:
+`line_edge` null; rounds 2 and 3 used a quarter-pixel ramp).
+
+**The edges.** The pack's upscale leaves the unit's wires wobbly and smeared, the scope's bezel ring uneven with a
+stair-stepped silhouette at its foot, and the body's bottom corners notched. The step draws these again from the original's
+own pixels (the spec's `edges`): each is a curve fitted to the original (the bezel the face's circle; the wires a centreline
+through their pixels, ordered end to end, through a smoothing spline, the width their pixels over their length; the
+corners a circle fitted to the silhouette's pixel edges), and each texel's colour is the original's colour regressed
+along that curve (how far along it and how far across it: wide along, narrow across), so the shapes and shading are the
+original's and the edges are round and straight again. The cable and the red and orange twisted pair are tubes of their
+measured widths, each colour of the pair where the original has it; their zone (left of and below the body) is transparent
+where the original is, the rest of it the original's dark shade. The bezel ring is drawn from inside the face's edge to just
+past its dark outer line, further where the original is transparent beyond it (the silhouette); not at the top, where the
+original's ring runs into the body's top edge, nor under the corner scope's ring. The corners are drawn as an outline only
+(`mode` silhouette: their alpha, and colour only where the upscale was transparent), since a regressed bevel did not meet
+the upscale's straight sides. The body's straight edges, its top, the handles, the corner scope's ring and the lamp's
+housing stay the upscale's: they are clean there, and drawing them again would be guessing.
 
 The game stamps two small sheets over every frame at the layout's anchors: `zrge` (the range plate over the corner scope:
 `range_3` lit at 600 m, the default, `range_1` dark at 100 m) and `ztge` (the contact lamp: `radled_1` red while a car is
@@ -486,7 +505,10 @@ the pack's `.radar-base/` and starts from those when it runs again, so a second 
 `radar_redraw` (the tool's and the spec's SHA-256, the style, the label set, the scale) and B612 to `text_fonts` in
 `pack.json`, B612's line to `ATTRIBUTION.txt` (in the file's own style), and makes `FILES.sha256` again when the pack has
 one. `--out DIR` writes the 64 files with the amended `pack.json` and `ATTRIBUTION.txt` into DIR and leaves the pack as it
-was: the way to redraw a pack you already have (yours, or one unzipped from a release) without building it again.
+was: the way to redraw a pack you already have (yours, or one unzipped from a release) without building it again. A
+pack whose `pack.json` names a radar redraw already and that has no `.radar-base/` (a pack the staged files of an earlier
+round were copied into) is refused, since its frames are a redraw; `--base DIR` names a folder holding the upscale's own
+frames (a backup made before installing) to start from.
 
 **The radar for a pack you already have.** The packs released as 2026.11.23 predate this step. With the export of the
 quick route (or `hd-pack.py`'s work folder) and Python with `numpy scipy pillow etcpak`, in PowerShell:

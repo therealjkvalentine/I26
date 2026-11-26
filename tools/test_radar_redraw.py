@@ -37,22 +37,58 @@ class GeometryTests(unittest.TestCase):
 
 
 class LineTests(unittest.TestCase):
-    def test_grid_lines_are_thinner_with_soft_edges(self):
+    def test_grid_lines_are_crisp(self):
+        # round 2-3 drew a 0.25 px ramp; the owner asked for crisp lines with about a texel of anti-aliasing
         spec = rr.load_spec()
         sc = spec["scope"]
-        self.assertAlmostEqual(sc["line_width"], 0.7)            # round 1 drew 1.0
+        self.assertAlmostEqual(sc["line_width"], 0.7)
         self.assertAlmostEqual(spec["inset"]["line_width"], 0.7)
-        self.assertGreater(sc["line_edge"], 1 / 8)                # wider than one texel at 8x: a soft edge
-        cv = rr.Canvas(64, 64, 8)
-        cov = cv.seg((10, 20.0), (40, 20.0), sc["line_width"], cap=False, edge=sc["line_edge"])
-        col = cov[:, 25 * 8]
-        self.assertAlmostEqual(col.sum() / 8, sc["line_width"], delta=0.02)   # the line's area is its width
-        lit = col[col > 0]
-        self.assertTrue(0 < lit[0] < 0.5 and 0 < lit[-1] < 0.5, lit)          # its outermost texels partly covered
-        self.assertGreaterEqual((lit > 0.99).sum(), 3)                       # a solid core
-        # the round-1 edge (one texel) is still what no edge gives
-        hard = cv.seg((10, 20.0), (40, 20.0), 1.0, cap=False)[:, 25 * 8]
-        self.assertEqual(int((hard > 0.99).sum()), 8)
+        self.assertIsNone(sc.get("line_edge")); self.assertIsNone(spec["inset"].get("line_edge"))
+        for s in (8, 4):
+            cv = rr.Canvas(64, 64, s)
+            col = cv.seg((10, 20.0), (40, 20.0), sc["line_width"], cap=False, edge=sc["line_edge"])[:, 25 * s]
+            self.assertAlmostEqual(col.sum() / s, sc["line_width"], delta=0.02)        # the line's area is its width
+            self.assertLessEqual(int(((col > 0) & (col < 1)).sum()), 2, (s, col[col > 0]))   # one partial texel a side
+
+
+class GratOverTests(unittest.TestCase):
+    """Style B: the afterglow, the beam and the lock cone under the graticule, the graticule printed over them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.spec = rr.load_spec(); cls.frames = rr.synthetic(cls.spec)
+        cls.g, _ = rr.measure(cls.frames, cls.spec)
+        cls.k = 4
+        base = np.repeat(np.repeat(cls.frames[cls.spec["frames"]["sweep"] % 30], cls.k, 0), cls.k, 1)
+        cls.rd = rr.Redraw(cls.g, cls.spec, "B", None, cls.k, base)
+
+    def frame(self, kind, i):
+        return self.rd.frame(np.repeat(np.repeat(self.frames[self.spec["frames"][kind] % i], self.k, 0), self.k, 1), kind, i)
+
+    def test_the_grid_lies_over_the_cone(self):
+        k = self.k; f = self.frame("locked", 0)
+        gc = self.g["grid"]["centre"]; pv = self.g["sweep"]["pivot"]
+        # frame 0's cone points along +y in the file: the vertical spoke runs down its axis, dark over it
+        px = f[int((pv[1] + 20) * k), int(gc[0] * k), :3].astype(int)
+        self.assertLess(px[1], 60, px)
+        beside = f[int((pv[1] + 20) * k), int((gc[0] + 1.0) * k), :3].astype(int)
+        self.assertGreater(beside[1], 140, beside)
+
+    def test_the_grid_lies_over_the_beam_and_the_beam_is_thin(self):
+        k = self.k; f = self.frame("sweep", 3)
+        pv = np.array(self.g["sweep"]["pivot"]); a = math.radians(rr.frame_angle(3) + self.g["sweep"]["offset_deg"])
+        u = np.array([math.cos(a), math.sin(a)]); n = np.array([-u[1], u[0]])
+        gc = np.array(self.g["grid"]["centre"])
+        R = self.g["grid"]["rings"][1]["radius"]
+        on_ring = pv + u * ((gc - pv) @ u + math.sqrt(R * R - ((gc - pv) @ n) ** 2))
+        self.assertLess(int(f[int(on_ring[1] * k), int(on_ring[0] * k), 1]), 80)      # the ring crosses the beam, dark
+        p = pv + u * 20
+        self.assertGreater(int(f[int(p[1] * k), int(p[0] * k), 1]), 200)              # the beam's core
+        b = self.spec["styles"]["B"]["beam"]
+        self.assertLessEqual(b["width"], 1.6); self.assertNotIn("glow_width", b)        # thin, no halo round it
+        # across the beam: bright for little more than its width, the afterglow (one side only) dimmer
+        prof = [int(f[int(q[1] * k), int(q[0] * k), 1]) for q in (p + n * t for t in np.arange(-3, 3.01, 0.25))]
+        self.assertLessEqual(sum(v > 200 for v in prof), int(b["width"] / 0.25) + 1, prof)
 
 
 def synthetic_sheets(frames, spec, d):
@@ -146,17 +182,6 @@ class StampTests(unittest.TestCase):
         red = self.stamped(f, "radled_1")[int(89.5 * s), int(155.5 * s), :3]
         self.assertGreater(int(red[0]), 200)
 
-    def test_style_b_cone_covers_the_grid(self):
-        # round 1 laid style B's cone under the graticule: the grid's dark lines showed through it
-        k = 4
-        base = np.repeat(np.repeat(self.frames[self.spec["frames"]["sweep"] % 30], k, 0), k, 1)
-        rd = rr.Redraw(self.g, self.spec, "B", None, k, base)
-        f = rd.frame(np.repeat(np.repeat(self.frames[self.spec["frames"]["locked"] % 0], k, 0), k, 1), "locked", 0)
-        gc = self.g["grid"]["centre"]; pv = self.g["sweep"]["pivot"]
-        # frame 0's cone points along +y in the file: the vertical spoke runs down its axis
-        px = f[int((pv[1] + 20) * k), int(gc[0] * k), :3].astype(int)
-        self.assertGreater(px[1], 140, px)
-
 
 try:
     import etcpak
@@ -235,6 +260,22 @@ class PackStepTests(unittest.TestCase):
         self.assertEqual([l for l in at if "B612" in l], [at[2]])
         self.assertTrue(at[2].startswith("lettering redrawn in B612 by "))
 
+    def test_a_redrawn_pack_needs_the_upscales_frames(self):
+        # the owner's packs carry a redraw already (pack.json names it) without .radar-base: starting from those frames would
+        # redraw the redraw; the step refuses, and --base starts from the upscale's own frames
+        import shutil
+        out = os.path.join(self.tmp.name, "stage")
+        backup = os.path.join(self.tmp.name, "backup"); os.makedirs(backup)
+        for f in os.listdir(self.pack): shutil.copy2(os.path.join(self.pack, f), backup)
+        first, _ = self.run_step(out)
+        ref = self.files(out)
+        for f in first + ["pack.json"]: shutil.copy2(os.path.join(out, f), self.pack)   # installed, as the live packs are
+        with self.assertRaises(SystemExit): self.run_step(os.path.join(self.tmp.name, "again"))
+        again = os.path.join(self.tmp.name, "again2")
+        rr.pack_step(self.export, self.pack, again, self.spec, rr.SPEC, "B", "lock-range", base=backup)
+        got = self.files(again)
+        self.assertEqual({k: v for k, v in got.items() if k.endswith(".dds")}, {k: v for k, v in ref.items() if k.endswith(".dds")})
+
     def test_out_leaves_the_pack_as_it_was(self):
         before = self.files(self.pack)
         out = os.path.join(self.tmp.name, "stage")
@@ -245,17 +286,53 @@ class PackStepTests(unittest.TestCase):
 
 
 class SpecTests(unittest.TestCase):
-    def test_lock_range_labels_clear_the_bezel(self):
-        # the 600 sat on the scope's bezel (its outer edge at x 41.3 there, measured on the 8x pack); a clear pixel now
-        spec = rr.load_spec()
-        lead = {t["text"]: t for t in spec["label_sets"][0]["texts"]}
-        self.assertEqual({lead[w]["cap"] for w in ("100", "TGT", "600")}, {1.8})
-        cv = rr.Canvas(256, 128, 8, (12, 50, 48, 64))
-        t = lead["600"]; box = [t["x"] - t["width"] / 2, t["y"] - t["cap"] / 2, t["x"] + t["width"] / 2, t["y"] + t["cap"] / 2]
+    # the lower knob's marks as measured on the original (game view): the X, the left tick, the right tick; the knobs
+    MARKS = {"groups": {"ticks": {"blobs": [{"centre": [28.333, 60.167]}, {"centre": [21.5, 62.5]}, {"centre": [37.5, 63.5]}]},
+                        "between": {"ink_box": [15, 45, 40, 48]}, "under_lower": {"ink_box": [27, 90, 39, 91]}},
+             "knobs": [{"centre": [29.266, 31.022], "radius": 7.355}, {"centre": [29.963, 75.954], "radius": 6.461}]}
+
+    def ink(self, spec, t):
+        box = rr.text_box(t, self.MARKS, spec["marks"])
+        if t.get("pad"): box = [box[0] - t["pad"][0], box[1] - t["pad"][1], box[2] + t["pad"][0], box[3] + t["pad"][1]]
+        cv = rr.Canvas(256, 128, 8, (12, 40, 48, 96))
         cov = rr.text_coverage(cv, t["text"], rr.font_file(spec["default_font"], spec), box, cap=t["cap"])
-        xs = np.nonzero(cov.max(0) > 0.05)[0]
-        self.assertLessEqual(12 + (xs.max() + 1) / 8, 41.3 - 1.0)
-        self.assertGreater(12 + xs.min() / 8, 34.0)              # still over its tick, right of TGT
+        ys, xs = np.nonzero(cov > 0.05)
+        return 12 + xs.min() / 8, 40 + ys.min() / 8, 12 + (xs.max() + 1) / 8, 40 + (ys.max() + 1) / 8
+
+    def test_lock_range_labels_one_size_in_the_marks_places(self):
+        spec = rr.load_spec()
+        ls = spec["label_sets"][0]; lead = {t["text"]: t for t in ls["texts"]}
+        self.assertEqual(len({t["cap"] for t in ls["texts"]}), 1)                     # every word one cap height
+        self.assertGreater(lead["100"]["cap"], 1.8)                                   # larger than round 3's numbers
+        self.assertNotIn("ticks", ls["tick_groups"])                                  # the painted ticks and X not drawn
+        self.assertIn("ticks", spec["marks"]["erase_groups"])                         # but erased
+        boxes = {w: self.ink(spec, lead[w]) for w in lead}
+        # the blobs are sorted left to right by text_box: 100 on the left tick, TGT on the X, 600 on the right tick
+        for w, c in (("100", (21.5, 62.5)), ("TGT", (28.333, 60.167)), ("600", (37.5, 63.5))):
+            b = boxes[w]
+            self.assertLess(abs((b[0] + b[2]) / 2 - c[0]), 1.0, w)                   # where its mark was
+            self.assertLess(abs((b[1] + b[3]) / 2 - c[1]), 1.0, w)
+        # clear of the bezel (its outer edge at x 41.0 on these rows), of each other and of the knob's rim
+        self.assertLessEqual(boxes["600"][2], 41.0 - 1.0)
+        self.assertLessEqual(boxes["100"][2] + 0.8, boxes["TGT"][0])
+        self.assertLessEqual(boxes["TGT"][2] + 0.8, boxes["600"][0])
+        k = self.MARKS["knobs"][1]; rim = k["radius"] + spec["marks"]["rim_width"]
+        for w in ("100", "TGT", "600", "RANGE"):
+            b = boxes[w]; q = (min(max(k["centre"][0], b[0]), b[2]), min(max(k["centre"][1], b[1]), b[3]))
+            self.assertGreater(math.hypot(q[0] - k["centre"][0], q[1] - k["centre"][1]) - rim, 2.0, w)
+
+    def test_ink_is_printed_darker(self):
+        # the panel's shade darkened (printed, the panel showing through), darker than round 3's flat (30, 30, 15)
+        spec = rr.load_spec(); m = spec["marks"]["ink_multiply"]
+        self.assertTrue(0.2 <= m <= 0.4, m)
+        self.assertLess(max(rr.OLIVE) * m, 30)
+        frames = rr.synthetic(spec); g, _ = rr.measure(frames, spec)
+        base = np.repeat(np.repeat(frames[spec["frames"]["sweep"] % 30][::-1], 4, 0), 4, 1)
+        ls = {"name": "t", "texts": [{"text": "H", "cap": 4.0, "at": [26, 48, 34, 54]}], "tick_groups": []}
+        patch, (x0, y0, x1, y1), _ = rr.panel_patch(g, spec, ls, base, 4)
+        p = patch[(51 - y0) * 4 - 2:(51 - y0) * 4 + 2, (26 - x0) * 4:(34 - x0) * 4]
+        dark = p.reshape(-1, 3)[p.sum(-1).reshape(-1).argmin()]
+        self.assertTrue(np.allclose(dark, np.array(rr.OLIVE) * m, atol=4), dark)
 
     def test_the_font_is_in_the_repository(self):
         spec = rr.load_spec()
@@ -290,6 +367,52 @@ class SpecTests(unittest.TestCase):
     def test_no_font_files_beside_the_spec(self):
         d = os.path.join(HERE, "radar-redraw")
         self.assertFalse([f for f in os.listdir(d) if f.lower().endswith((".ttf", ".otf", ".png"))])
+
+
+
+class EdgeTests(unittest.TestCase):
+    """The edges: a ring's band keeps its profile with the silhouette's steps gone; a wire's centreline and width."""
+
+    def test_ring_band_keeps_the_profile_and_smooths_the_silhouette(self):
+        # a pixel-art ring (as the original's bezel): grey bands about a circle, transparent outside it
+        H, W = 128, 128; c = (64.3, 63.8); R = 40.0
+        yy, xx = np.mgrid[0:H, 0:W] + 0.5; r = np.hypot(xx - c[0], yy - c[1])
+        gm = np.zeros((H, W, 4), np.uint8); gm[r < R + 3] = (66, 72, 32, 255)
+        gm[(r >= R) & (r < R + 1)] = (50, 50, 50, 255); gm[(r >= R + 1) & (r < R + 2)] = (136, 136, 136, 255)
+        gm[(r >= R + 2) & (r < R + 3)] = (16, 16, 16, 255)
+        band = rr.Band(rr.curve_circle(c, R), gm, (-0.4, 4.0), 8.0, 0.12)
+        cv = rr.Canvas(W, H, 8, (0, 0, W, H))
+        rgb, al, cov = rr.band_layer(band, cv)
+        t, d = rr.curve_coords(band.cu, cv.X, cv.Y)
+        mid = np.abs(d - 1.5) < 0.2; out = d > 3.4; inn = (d > -0.3) & (d < 2.6)
+        self.assertGreater(rgb[mid][:, 0].mean(), 120)                     # the light band where it was
+        self.assertLess(al[out].max(), 0.05)                                 # transparent past the ring, all round
+        self.assertGreater(al[inn].min(), 0.95)
+        # the silhouette is a circle: the alpha edge's radius the same all round (the pixel steps gone)
+        edge = (al > 0.3) & (al < 0.7)
+        X = np.broadcast_to(cv.X, al.shape); Y = np.broadcast_to(cv.Y, al.shape)
+        re = np.hypot(X[edge] - c[0], Y[edge] - c[1])
+        self.assertLess(re.std(), 0.12, re.std())
+        self.assertAlmostEqual(float(re.mean()), R + 3, delta=0.25)
+
+    def test_wire_centreline_and_width(self):
+        # a 2-px wire along a sine, drawn in pixels: its fitted centreline lies on the curve, its width 2
+        H, W = 64, 120
+        yy, xx = np.mgrid[0:H, 0:W] + 0.5
+        f = lambda x: 30 + 8 * np.sin(x / 15)
+        m = (np.abs(yy - f(xx)) < 1.0 / np.cos(np.arctan(8 / 15 * np.cos(xx / 15)))) & (xx > 10) & (xx < 110)
+        w = rr.measure_wire(m)
+        P = np.array(w["points"])
+        inner = (P[:, 0] > 15) & (P[:, 0] < 105)
+        self.assertLess(np.abs(P[inner, 1] - f(P[inner, 0])).max(), 0.3)
+        self.assertAlmostEqual(w["width"], 2.0, delta=0.25)
+        cu = rr.curve_open(P); cv = rr.Canvas(W, H, 4)
+        cov, t, d = rr.tube_coverage(cu, cv, w["width"], ext=0.0)
+        self.assertAlmostEqual(cov.sum() / 16 / cu["length"], w["width"], delta=0.2)
+
+    def test_layers_without_the_original_do_nothing(self):
+        spec = rr.load_spec(); frames = rr.synthetic(spec); g, _ = rr.measure(frames, spec)
+        self.assertEqual(rr.edge_layers(g, spec, None, 2), [])
 
 
 if __name__ == "__main__":
