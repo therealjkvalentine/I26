@@ -58,6 +58,8 @@ public sealed partial class Ptable
         if (!same) e.LayActive = false;
         if (back && same && t is not null) { PushBackAway(e, t); return; }
         StuckTest(e, t);
+        ChaseReaim(e, t);
+        ChaseProgress(e, t);
     }
 
     /// <summary>
@@ -88,8 +90,8 @@ public sealed partial class Ptable
     private void SearchCosts(Entity e, PathSearch search)
     {
         if (!SmartOn(e) || !ReferenceEquals(e.NavPath, e.SnapshotPath)) return;
-        search.SlopeCost = Smart(e, SmartAi.HillPursuit);
-        search.FaceMargin = Smart(e, SmartAi.LedgeCaution);
+        search.SlopeCost = Smart(e, SmartAi.HillPursuit) && !TerrainFree(e);
+        search.FaceMargin = LedgeOn(e);
         if (Smart(e, SmartAi.Unstick) && e.BlockedUntil > Now) search.Blocked = (e.BlockedX, e.BlockedZ);
     }
 

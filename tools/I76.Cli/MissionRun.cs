@@ -166,7 +166,8 @@ public static class MissionRun
         {
             var (name, slice) = n.Split(':') is [var a, var b] ? (a, b.Split('-').Select(int.Parse).ToArray()) : (n, null);
             var pts = fsm?.Paths.FirstOrDefault(q => q.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Points ?? throw new ArgumentException($"no path {name}");
-            return slice is [var from, var to] ? pts.Skip(from).Take(to - from + 1) : pts;
+            // A-B with A after B: those points backwards
+            return slice is [var from, var to] ? from <= to ? pts.Skip(from).Take(to - from + 1) : pts.Skip(to).Take(from - to + 1).Reverse() : pts;
         }
         if (Environment.GetEnvironmentVariable("I76_RUN_ROUTE") is { } rte)
         {
@@ -177,12 +178,15 @@ public static class MissionRun
         }
         // I76_RUN_AIDRIVE=STEP[;STEP...]: once no scripted camera holds the view, the player's car driven by the AI's own orders, as a
         // script drives it, a step at a time: goto:PATH[:A-B][+PATH...],SPEED (until it arrives) or follow:NAME,F1,F2 (the first live
-        // car whose name contains NAME, at the offset follow's F1/F2 give: the script's follow(user, NAME, NAME, 0, F1, F2)). Goto and
+        // car whose name contains NAME, at the offset follow's F1/F2 give: the script's follow(user, NAME, NAME, 0, F1, F2)) or sit:S (held
+        // until mission second S). Goto and
         // follow are no attack: the smarter opponents' rule never acts on them, so the drive is the same with the rule on and off
         // until the computer cars touch it
         var aiSteps = new Queue<string>((Environment.GetEnvironmentVariable("I76_RUN_AIDRIVE") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries));
         List<System.Numerics.Vector3>? aiPath = null;
         string? aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null;
+        // the AI's steps under way (an I76_RUN_ESCORT waits for them to end, then takes the wheel)
+        bool aiDriving = aiStep is not null;
         if (aiStep is not null) session.FrameStarting += () =>
         {
             if (aiStep is null || h.View.Active || setup.World.Player is not { } ap || h.Of(ap) is not { Dead: false } me) return;
@@ -191,7 +195,13 @@ public static class MissionRun
             {
                 aiPath ??= rest[0].Split('+').SelectMany(Points).ToList();
                 h.Order(me, null, I76.Sim.Fsm.AiOrder.Goto, aiPath, float.Parse(rest[1], CultureInfo.InvariantCulture));
-                if (h.ConsumeArrived(me)) { Console.WriteLine($"{T()} aidrive: arrived"); aiPath = null; aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null; }
+                if (h.ConsumeArrived(me)) { Console.WriteLine($"{T()} aidrive: arrived"); aiPath = null; aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null; aiDriving = aiStep is not null; }
+            }
+            else if (kind == "sit")
+            {
+                // sit:S: held where it is (the AI's sit) until mission second S
+                h.Order(me, null, I76.Sim.Fsm.AiOrder.Sit, null, 0);
+                if (h.Now >= float.Parse(rest[0], CultureInfo.InvariantCulture)) { aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null; aiDriving = aiStep is not null; }
             }
             else if (kind == "follow" && setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(rest[0])) is { } lead)
                 h.Order(me, lead, I76.Sim.Fsm.AiOrder.Follow, null, 0, 0, float.Parse(rest[1], CultureInfo.InvariantCulture), float.Parse(rest[2], CultureInfo.InvariantCulture), lead);
@@ -266,7 +276,7 @@ public static class MissionRun
                 input.Steer = (short)(System.Math.Clamp(-err * 1.5f, -1f, 1f) * 32767);
                 input.Throttle = (short)(thr * 32767);
             }
-            if (escort is not null && (route is null || escortDriver.RouteDone) && setup.World.Player is { } ep && !h.View.Active && h.Now >= escortAt
+            if (escort is not null && (route is null || escortDriver.RouteDone) && !aiDriving && setup.World.Player is { } ep && !h.View.Active && h.Now >= escortAt
                 && setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(escort)) is { Vehicle: { } lead } leader)
                 input = escortDriver.Next(input, ep, lead, leader.Path, h.Now);
             if (route is not null && !(escortDriver.RouteDone && escort is not null) && setup.World.Player is { } rp && !h.View.Active && h.Now >= routeAt)

@@ -138,6 +138,9 @@ public class SmartAiTests(ITestOutputHelper output)
             Assert.Equal(-1f, e.BlockedUntil);
             Assert.Equal(-100f, e.LastDropAt);
             Assert.Equal(-1f, e.HoldLineUntil);
+            Assert.Equal(float.MaxValue, e.ChaseGap);
+            Assert.Equal(-1f, e.ChaseGapTime);
+            Assert.Equal(-1f, e.TerrainFreeUntil);
         }
     }
 

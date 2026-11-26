@@ -30,4 +30,12 @@ public sealed partial class Entity
     public float LastDropAt = -100;
     public float HoldLineUntil = -1;
     public float HoldLineHeading;
+
+    /// <summary>
+    /// The terrain group (N): the car's gap to its target when it last gained 20 m on it and when, and until when it drives without
+    /// the group's caution after chasing without a gain (<see cref="Ptable.ChasePenned"/>).
+    /// </summary>
+    public float ChaseGap = float.MaxValue;
+    public float ChaseGapTime = -1;
+    public float TerrainFreeUntil = -1;
 }

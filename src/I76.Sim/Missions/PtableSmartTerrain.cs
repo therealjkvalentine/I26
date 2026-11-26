@@ -6,9 +6,13 @@ namespace I76.Sim.Missions;
 /// <summary>The smarter opponents' terrain (group N): Hill pursuit (N1), the climb-aware probe (N2) and Ledge caution (N6).</summary>
 public sealed partial class Ptable
 {
-    /// <summary>Hill pursuit (N1): close again only within 30 m of height too, so a car far below its target does not flick between too far and its tactic.</summary>
+    /// <summary>
+    /// Hill pursuit (N1): below a target more than 30 m higher, close again only within 30 m of height too, so a car far below its
+    /// target does not flick between too far and its tactic. Not above one: the first rule also held a car more than 30 m above its
+    /// target in too far when it came within 180 m of it (T10's cops on the mesa over the canyon road, the van below them).
+    /// </summary>
     internal bool HillHeld(Entity e, Entity t) =>
-        Smart(e, SmartAi.HillPursuit) && !e.IsHeli && IsVehicle(t) && MathF.Abs(t.Position.Y - Pos(e).Y) > 30f;
+        Smart(e, SmartAi.HillPursuit) && !TerrainFree(e) && !e.IsHeli && IsVehicle(t) && t.Position.Y - Pos(e).Y > 30f;
 
     /// <summary>
     /// Climb-aware probe (N2): the grade the car can climb on the ground it is on, tan 28° to tan 35° by the surface's grip,
@@ -34,10 +38,11 @@ public sealed partial class Ptable
     /// </summary>
     internal bool LedgeCaution(Entity e, bool escape)
     {
-        if (!Smart(e, SmartAi.LedgeCaution)) return false;
+        if (!LedgeOn(e)) return false;
         var v = e.Vehicle!;
+        var p = Pos(e);
         if ((v.Flags & VehicleFlags.Airborne) != 0) return false;
-        var g = World.Ground; var p = Pos(e);
+        var g = World.Ground;
         // the way the car is moving (sliding back in forward gear too), or the gear's way at a standstill
         var vel = new Vector3(v.Vel.X, 0, v.Vel.Z);
         float sp = vel.Length();
@@ -104,7 +109,65 @@ public sealed partial class Ptable
         return null;
     }
 
+    /// <summary>
+    /// How long a car may chase with the terrain group (N) without gaining on its target before it gives the group's caution up,
+    /// and for how long. Ledge caution, Hill pursuit's slope costs and the face margin keep a car off cliffs; where the way to its
+    /// target is over one and the other way is beyond what a search reaches, they kept it from the target for good: T10's cops,
+    /// who follow the player up the dirt track onto the mesa over the canyon road, stayed up there, braking at the rim or searching
+    /// along it, for the rest of the mission while the van drove to Tatum (24 seeds at 24 Hz with solid cliffs: the cops' mean
+    /// distance to the van 807 m against the original's 651, penned 31 s a run against 11). No 20 m gained on the target in
+    /// <see cref="ChasePenned"/> s, 100 m or more from it and <see cref="ChaseBelow"/> m or more below the car, the car drives as the
+    /// original's for <see cref="ChaseRelease"/> s: over the rim, as the original's does. Never for a target above: a car climbing to
+    /// one gains slowly and gave the caution up on the slope (Jorczak's Peak, 24 seeds: 90 cars killed with the terrain group
+    /// against 51, the original's 110).
+    /// </summary>
+    public const float ChasePenned = 15f, ChaseRelease = 30f, ChaseBelow = 10f;
+
+    /// <summary>The terrain group's progress test (<see cref="ChasePenned"/>): the car's last gain on its target (the gap, and when).</summary>
+    private void ChaseProgress(Entity e, Entity? t)
+    {
+        if (t is null || !Smart(e, TerrainGroup)) return;
+        float gap = Dist(e, t);
+        if (gap < e.ChaseGap - 20f || e.ChaseGapTime > Now) { e.ChaseGap = gap; e.ChaseGapTime = Now; }
+        if (e.TerrainFreeUntil > Now || Now - e.ChaseGapTime < ChasePenned || gap < 100f || t.Position.Y > Pos(e).Y - ChaseBelow) return;
+        e.TerrainFreeUntil = Now + ChaseRelease;
+        e.ChaseGap = gap; e.ChaseGapTime = Now;
+    }
+
+    /// <summary>The terrain group's caution given up for now (<see cref="ChasePenned"/>).</summary>
+    private bool TerrainFree(Entity e) => e.TerrainFreeUntil > Now;
+
+    /// <summary>Ledge caution (N6) on for the car and not given up (<see cref="ChasePenned"/>).</summary>
+    internal bool LedgeOn(Entity e) => Smart(e, SmartAi.LedgeCaution) && !TerrainFree(e);
+
+    /// <summary>The terrain group (N): Hill pursuit, the climb-aware probe, Ledge caution, Stuck recovery.</summary>
+    private const SmartAi TerrainGroup = SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick;
+
+    /// <summary>How far the target must have gone from where too far's chase aims (and at least that share of the car's distance to it) for the chase to aim again.</summary>
+    public const float ReaimMoved = 100f, ReaimShare = 0.3f;
+
+    /// <summary>
+    /// With any terrain behaviour, too far's chase aims again at a target that has moved on. The original's too far aims its
+    /// searches at where the target was when the car went too far (<see cref="Entity.SnapshotPath"/>) until it is within 180 m
+    /// again; a car that drives the way faster (the climb-aware probe no longer stops it on a slope it can climb) gets there
+    /// sooner and follows the old aim off: T10's roadblock cops came down the dirt track behind the player and turned along the road
+    /// the other way, to where the player had been, while the van drove off (48 seeds at 24 Hz with solid cliffs, the van killed at
+    /// 265 s on the mean with the climb-aware probe against the original's 207). When the target is <see cref="ReaimMoved"/> m and
+    /// <see cref="ReaimShare"/> of the car's distance to it from that aim, the aim moves to it and a route under way is planned again.
+    /// </summary>
+    private void ChaseReaim(Entity e, Entity? t)
+    {
+        if (t is null || !Smart(e, TerrainGroup) || !ReferenceEquals(e.NavPath, e.SnapshotPath)) return;
+        string top = TopName(e);
+        if (top is not ("handle too far follow" or "handle too far search")) return;
+        var aim = e.SnapshotPath[0]; var at = t.Position;
+        float moved = new Vector2(at.X - aim.X, at.Z - aim.Z).Length();
+        if (moved < ReaimMoved || moved < ReaimShare * Dist(e, t)) return;
+        e.SnapshotPath[0] = at;
+        if (top == "handle too far follow") e.ReachedEnd = true;
+    }
+
     /// <summary>Ledge caution (N6) in back_away: a cliff's rim within 6 m the way the gear goes sends it to just do it (the other way) at once.</summary>
     internal bool RimInGear(Entity e) =>
-        Smart(e, SmartAi.LedgeCaution) && e.Vehicle is { } v && (v.Flags & VehicleFlags.Airborne) == 0 && CliffAt(Pos(e), Travel(e.Rot.Forward, v.Gear), 6f) is not null;
+        LedgeOn(e) && e.Vehicle is { } v && (v.Flags & VehicleFlags.Airborne) == 0 && CliffAt(Pos(e), Travel(e.Rot.Forward, v.Gear), 6f) is not null;
 }
