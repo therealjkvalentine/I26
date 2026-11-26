@@ -30,7 +30,7 @@ public static class GraphicsHelp
             : "Terrain detail: High (the default) adds the finest ground mesh near the car. About 1 ms, 6 % of a full-detail frame, over Low.",
         GraphicsRow.ShadowDetail => look1997
             ? "Shadow detail: the modern look's sun shadows (the 1997 look keeps the original's). No cost in the 1997 look."
-            : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more. Ultra is High with a shadow map twice as fine and smoother edges, for a fast graphics card.",
+            : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more. Ultra is High with a shadow map twice as fine and cleaner edges at a low sun, a few % more than High.",
         GraphicsRow.ExtInstruments => "Ext. instruments: the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost.",
         GraphicsRow.Mirrors => look1997
             ? "Mirrors: the original's small rear mirror, to 100 m (Rear + Left and All draw it alone: the 1997 look paints the door mirrors, as the original). Little cost in the 1997 look."
@@ -40,7 +40,7 @@ public static class GraphicsHelp
             : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half (in T05 at 3440x1440, about 84 fps from the graphics card against 98).",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges; SMAA is the modern look's only). Little cost in the 1997 look."
-            : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing, plant edges and shine too, for little cost, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer.",
+            : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing (thin poles and cut-out edges too) for a third of what 2x costs, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer.",
         GraphicsRow.FieldOfView => "Field of view: how wide the 3D view is. Monitor keeps the original's height and widens with the window; 90 is the original's width. Applies at once.",
         GraphicsRow.VSync => "VSync: waits for the screen's refresh, so the picture never tears. Off can feel quicker on a fast machine. Applies at once.",
         GraphicsRow.MaxFps => "Max FPS: a cap on the frames drawn a second; the game's own rate is unchanged. A cap saves power and heat. Applies at once.",
