@@ -272,6 +272,7 @@ public partial class Cockpit : Node
                 foreach (var t in set.Item2) t?.Dispose();
         Panels.Free();
         _radarLive?.Free();
+        foreach (var d in _depth) d?.Free();
     }
 
     /// <summary>The head looks back, in the car: the rear glance, or the look stick pushed round to the rear (the look-back rules' context, PadRules).</summary>
@@ -1827,9 +1828,17 @@ public partial class Cockpit : Node
         // (I76_MIRROR_REAR_WIDE=1 draws it wide as before, for a measurement)
         bool rearWide = wide && (_sideRender != SideMirrorRender.Own || RearWideHook);
         float fov = rearWide ? sideFov : MirrorCameraSettings.FovDegrees;
-        _mirrorView.Size = _faithful ? new Vector2I(256, 64) : new Vector2I(rearWide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
+        var shown = _faithful ? new Vector2I(256, 64) : new Vector2I(rearWide ? MirrorWidthOverride ?? MirrorBands.Width(fov, 1024) : 1024, 256);
+        // Mirror Rate's Smooth values (MirrorWarp): the render a little wider and taller than the glass, at the glass's pixels per degree
+        _warpPeriod = _faithful ? 0 : MirrorWarp.Period(_mirrorRate);
+        var (ow, oh) = MirrorWarp.Size(shown.X, shown.Y, MirrorWarp.Overscan(_warpPeriod));
+        _mirrorShown = shown;
+        _mirrorView.Size = new Vector2I(ow, oh);
         I76.Game.Boot.LookFilters.Apply(_mirrorView, _faithful);
-        _mirrorCam.Fov = fov;
+        float tx = MathF.Tan(fov * MathF.PI / 360f);
+        _rearTan = ((tx, tx * shown.Y / shown.X), (tx * ow / shown.X, tx * oh / shown.X));
+        _mirrorCam.Fov = ow == shown.X ? fov : 2f * MathF.Atan(_rearTan.Drawn.X) * 180f / MathF.PI;
+        _warpDrawn[0] = _warpDrawn[1] = _warpDrawn[2] = null;
         var rear = rearWide ? MirrorBands.Rear(fov) : (0f, 1f);
         MirrorBand = new Vector2(rear.Item1, rear.Item2);
         _mirrorMat.SetShaderParameter("band", MirrorBand);
@@ -1843,6 +1852,9 @@ public partial class Cockpit : Node
         _mirrorCam.CullMask = (_mirrorMode == 1 ? ~World.TerrainNode.TerrainLayer : 0xFFFFFu) & ~CarNode.CockpitLayer & ~SmokeLayer.QuadLayer & ~World.TerrainNode.NearTierLayer & ~CarNode.OwnBodyLayer & 0xFFFFF;
         _mirrorCam.Far = OriginalBehavior.MirrorFar(_faithful);   // [port] mirror_range: the original's 100 m, or Full (the modern look's default)
         _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
+        DepthPass();
+        ApplyHaze();
+        Warp();
     }
 
     /// <summary>
@@ -1921,12 +1933,150 @@ public partial class Cockpit : Node
         if (CullLog && rearBack) GD.Print($"mirror-cull: rear back in view at frame {Godot.Engine.GetFramesDrawn()}, drawn that frame");
         // Mirror Rate (MirrorRateRow): every second frame (Alternate, Half), or every frame (Full; I76_MIRROR_RATE=1 too)
         var rate = _faithful ? MirrorRate.Half : _mirrorRate;
-        _mirrorView.RenderTargetUpdateMode = !rear ? SubViewport.UpdateMode.Disabled
-            : MirrorRateRow.Draws(!_faithful && MirrorEveryFrame ? MirrorRate.Full : rate, _mirrorTick) || rearBack ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+        if (_warpPeriod > 0)
+        {
+            // Smooth (MirrorWarp): each mirror on its frame of the period, in turn; the glass re-projected on the frames between
+            _warpFrame++;
+            bool draw = rear && (MirrorWarp.Draws(_warpPeriod, _warpFrame, 0) || rearBack || _warpDrawn[0] is null);
+            _mirrorView.RenderTargetUpdateMode = draw ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+            if (draw) _warpDrawn[0] = _mirrorCam.GlobalTransform;
+        }
+        else
+            _mirrorView.RenderTargetUpdateMode = !rear ? SubViewport.UpdateMode.Disabled
+                : MirrorRateRow.Draws(!_faithful && MirrorEveryFrame ? MirrorRate.Full : rate, _mirrorTick) || rearBack ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
         OwnCamerasFrame(_mirrorTick, rate);
+        Warp();
         // the world's environment as it is now, about twice a second (the lighting calibration's solve ends after the mirror is made)
         if (_mirrorEnv is not null && _mirrorEnvSource is not null && _mirrorCam.Environment == _mirrorEnv && ++_mirrorSync % 30 == 0)
             SyncMirrorEnvironment(_mirrorEnvSource, _mirrorEnv);
+    }
+
+    // ---- Mirror Rate's Smooth values: the frames between a mirror's draws re-projected (MirrorWarp) ----
+
+    /// <summary>The draw period under Smooth (2, 3, 4), 0 otherwise; the frames counted under it; each camera's place at its last draw (rear, left, right).</summary>
+    private int _warpPeriod;
+    private long _warpFrame;
+    private readonly Transform3D?[] _warpDrawn = new Transform3D?[3];
+    /// <summary>The rear render's size as the glass shows it (the render is larger by the overscan), and the half tangents shown and drawn, the rear's and the side cameras'.</summary>
+    private Vector2I _mirrorShown = new(1024, 256);
+    private ((float X, float Y) Shown, (float X, float Y) Drawn) _rearTan = ((1, 1), (1, 1)), _ownTan = ((1, 1), (1, 1));
+    /// <summary>
+    /// The re-projection: the rear mirror for the camera's turn and move (the move from its render's depth, MirrorDepth, a compositor
+    /// effect on the camera), the side mirrors for the turn alone with the car's own flank held still (the move from their depth put
+    /// the ground beside the flank wrong and measured no better). I76_MIRROR_WARP=turn: the turn alone on the rear too; "0", the
+    /// schedule without any warp (the stale picture repeated, as Alternate shows it); both for comparisons.
+    /// </summary>
+    private static readonly string? WarpHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_WARP");
+    private static readonly bool WarpDepth = WarpHook is not ("turn" or "0"), WarpNone = WarpHook == "0";
+    /// <summary>Each mirror camera's depth effect (rear, left, right) under Smooth.</summary>
+    private readonly MirrorDepth?[] _depth = new MirrorDepth?[3];
+
+    private static readonly StringName SWarpOn = "warp_on", SViewWarp = "view_warp", SWarpDepth = "warp_depth", SWarpTurn = "warp_turn", SWarpShift = "warp_shift",
+        STanNow = "tan_now", STanThen = "tan_then", SViewDepth = "view_depth", SHazeVeil = "haze_veil", SHazeBlur = "haze_blur", SHazeTint = "haze_tint", SAttach = "attach_m", SViewScale = "view_scale";
+
+    /// <summary>One glass's re-projection this frame: off, or the homography and (with depth) the turn and move, the fields' tangents and the render holding the depth.</summary>
+    private readonly record struct WarpState(bool On, Basis H, Basis Turn, Vector3 Shift, Vector2 TanNow, Vector2 TanThen, Texture2D? Depth, bool Move, float Attach);
+
+    /// <summary>
+    /// Metres within which a door mirror camera's render is the car's own flank (MirrorWarp's attach rule): level and looking back from
+    /// beside the cab at a door's height, the ground first shows about 6 m out, the flank is within 5.
+    /// </summary>
+    private const float AttachMetres = 5f;
+
+    private WarpState WarpOf(int mirror, Camera3D? cam, ((float X, float Y) Shown, (float X, float Y) Drawn) tan, Texture2D? depth)
+    {
+        if (_warpPeriod == 0 || cam is null || _warpDrawn[mirror] is not { } then) return default;
+        var now = WarpNone ? then : cam.GlobalTransform;   // I76_MIRROR_WARP=0: the overscan's crop alone, the picture as drawn
+        var h = MirrorWarp.Homography(then.Basis, now.Basis, tan.Shown, tan.Drawn);
+        // the side cameras keep the car's own flank still (their depth, MirrorDepth); the move from the depth with I76_MIRROR_WARP=depth
+        float attach = mirror > 0 && depth is not null && OwnSelfHook ? AttachMetres : 0f;
+        return new(true, h, MirrorWarp.Turn(then.Basis, now.Basis), MirrorWarp.Shift(then, now.Origin), new(tan.Shown.X, tan.Shown.Y), new(tan.Drawn.X, tan.Drawn.Y),
+            depth, mirror == 0 && WarpDepth && depth is not null && !WarpNone, attach);
+    }
+
+    private void SetWarp(ShaderMaterial? m, in WarpState w)
+    {
+        if (m is null) return;
+        m.SetShaderParameter(SWarpOn, w.On);
+        if (!w.On) return;
+        m.SetShaderParameter(SViewWarp, w.H);
+        m.SetShaderParameter(SWarpDepth, w.Move);
+        m.SetShaderParameter(SAttach, w.Attach);
+        if (w.Depth is null) return;
+        m.SetShaderParameter(SViewScale, new Vector2(w.TanNow.X / w.TanThen.X, w.TanNow.Y / w.TanThen.Y));
+        m.SetShaderParameter(SWarpTurn, w.Turn);
+        m.SetShaderParameter(SWarpShift, w.Shift);
+        m.SetShaderParameter(STanNow, w.TanNow);
+        m.SetShaderParameter(STanThen, w.TanThen);
+        m.SetShaderParameter(SViewDepth, w.Depth);
+    }
+
+    private WarpState _rearWarp;
+    private bool _warpWas;
+
+    /// <summary>Each glass given its camera's re-projection for this frame (off outside Smooth: the shader's one test).</summary>
+    private void Warp()
+    {
+        if (_mirrorMat is null) return;
+        if (_warpPeriod == 0 && !_warpWas) return;
+        _warpWas = _warpPeriod > 0;
+        foreach (var d in _depth) d?.Sync();
+        _rearWarp = WarpOf(0, _mirrorCam, _rearTan, _depth[0]?.Texture);
+        SetWarp(_mirrorMat, _rearWarp);
+        for (int i = 0; i < 2; i++)
+        {
+            bool left = i == 0;
+            var w = _ownOn ? WarpOf(1 + i, _ownCams[i], _ownTan, _depth[1 + i]?.Texture) : _rearWarp;
+            SetWarp(left ? _sideMatL : _sideMatR, w);
+            foreach (var g in _glass) if (g.Left == left) SetWarp(g.Mat, w);
+        }
+    }
+
+    /// <summary>The 2D dash's mirror (slot 7) given the rear glass's re-projection and haze.</summary>
+    public void MirrorLookTo(ShaderMaterial m)
+    {
+        SetWarp(m, _rearWarp);
+        Haze(m);
+    }
+
+    /// <summary>
+    /// The depth effects (MirrorDepth) under Smooth: on the rear camera (its move re-projected) and the side cameras (their flank held
+    /// still); none otherwise.
+    /// </summary>
+    private void DepthPass()
+    {
+        Camera3D?[] cams = [_mirrorCam, _ownCams[0], _ownCams[1]];
+        for (int i = 0; i < 3; i++)
+        {
+            bool on = _warpPeriod > 0 && !_faithful && (WarpDepth || (i > 0 && OwnSelfHook));
+            if (cams[i] is not { } cam) continue;
+            if (on && _depth[i] is null) _depth[i] = new MirrorDepth();
+            var want = on ? new Compositor { CompositorEffects = [_depth[i]!] } : null;
+            if (on != (cam.Compositor is not null)) cam.Compositor = want;
+        }
+    }
+
+    // ---- Mirror Haze (MirrorHazeRow): the modern look's glass a little milky and soft ----
+
+    private int _mirrorHaze = MirrorHazeRow.Default;
+    /// <summary>I76_MIRROR_HAZE=0..2: the level instead of the setting's (captures).</summary>
+    private static readonly int? HazeHook = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_HAZE"), out int hh) ? MirrorHazeRow.Clamp(hh) : null;
+
+    private void Haze(ShaderMaterial? m)
+    {
+        if (m is null) return;
+        var (veil, blur, tint) = _faithful ? (0f, 0f, Vector3.One) : MirrorHazeRow.Of(HazeHook ?? _mirrorHaze);
+        m.SetShaderParameter(SHazeVeil, veil);
+        m.SetShaderParameter(SHazeBlur, blur);
+        m.SetShaderParameter(SHazeTint, new Color(tint.X, tint.Y, tint.Z));
+    }
+
+    private void ApplyHaze()
+    {
+        Haze(_mirrorMat);
+        Haze(_sideMatL);
+        Haze(_sideMatR);
+        foreach (var g in _glass) Haze(g.Mat);
     }
 
     // ---- side-view mirrors (the port's own, docs/deviations.md: two more glasses of the one render, MirrorBands) ----
@@ -1959,6 +2109,7 @@ public partial class Cockpit : Node
         _sideOverlap = s.SideMirrorOverlap;
         _sideRender = s.SideMirrorRender;
         _mirrorRate = s.MirrorRate;
+        _mirrorHaze = s.MirrorHaze;
         _rimOutSetting = s.SideMirrorRimOut;
         if (_roundSetting != s.MirrorRound || _glassRoundSetting != s.SideMirrorRound) { _roundSetting = s.MirrorRound; _glassRoundSetting = s.SideMirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
@@ -2146,7 +2297,7 @@ public partial class Cockpit : Node
             if (RoundGlass(g, share, rimOut) && _mirrorMode != 0)
                 foreach (var (paint, left) in Node3D.MirrorPaint) if (left == g.Left) paint.Visible = false;
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
-            var size = _mirrorView?.Size ?? new Vector2I(1024, 256);
+            var size = _mirrorView is null ? new Vector2I(1024, 256) : _mirrorShown;
             var band = MirrorBands.Glass(fov, _sideOverlap, g.Aspect, size.X / (float)size.Y, g.Left);
             g.Mat.SetShaderParameter("band", new Vector2(band.From, band.To));
             g.Mat.SetShaderParameter("hidden", _mirrorMode == 0);
@@ -2430,6 +2581,8 @@ public partial class Cockpit : Node
             if (_ownViews[i] is not { } vp || _ownCams[i] is not { } cam) continue;
             if (!on) { vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled; continue; }
             bool left = i == 0;
+            var (ow, oh) = MirrorWarp.Size(OwnCamera.Width, OwnCamera.Height, MirrorWarp.Overscan(_warpPeriod));
+            if (vp.Size != new Vector2I(ow, oh)) vp.Size = new Vector2I(ow, oh);
             I76.Game.Boot.LookFilters.Apply(vp, _faithful);
             cam.Far = OwnFar ?? OriginalBehavior.MirrorFar(_faithful);
             cam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
@@ -2468,13 +2621,17 @@ public partial class Cockpit : Node
             var at = _glass.FirstOrDefault(g => g.Left == left) is { Mesh: not null } g ? (g.Mesh.GetParent() is MeshInstance3D head && head != Node3D.CockpitMesh ? head.Transform * g.Centre : g.Centre)
                 : OwnCameraBase(left, null);
             at.X += left ? -OwnAim.Outboard : OwnAim.Outboard;
-            cam.Fov = OwnAim.Fov;
+            float tx = MathF.Tan(OwnAim.Fov * MathF.PI / 360f);
+            _ownTan = ((tx, tx * OwnCamera.Height / OwnCamera.Width), (tx * vp.Size.X / OwnCamera.Width, tx * vp.Size.Y / OwnCamera.Width));
+            cam.Fov = vp.Size.X == OwnCamera.Width ? OwnAim.Fov : 2f * MathF.Atan(_ownTan.Drawn.X) * 180f / MathF.PI;
             var forward = _aim[i].Forward;   // the engine's back is this frame's +Z: no mirroring of the forward's x
             var local = Transform3D.Identity.LookingAt(forward, Vector3.Up);
             cam.GlobalTransform = Node3D.GlobalTransform * new Transform3D(local.Basis, at);
             bool back = seen[i] && !_ownSeen[i] && !CullOff;
-            bool due = MirrorRateRow.Draws(rate == MirrorRate.Alternate && !OwnAlternate ? MirrorRate.Half : rate, draw, side: true, turn: _ownTurn == left, otherSeen: seen[left ? 1 : 0]);
+            bool due = _warpPeriod > 0 ? MirrorWarp.Draws(_warpPeriod, _warpFrame, 1 + i) || _warpDrawn[1 + i] is null
+                : MirrorRateRow.Draws(rate == MirrorRate.Alternate && !OwnAlternate ? MirrorRate.Half : rate, draw, side: true, turn: _ownTurn == left, otherSeen: seen[left ? 1 : 0]);
             vp.RenderTargetUpdateMode = seen[i] && (due || back) ? SubViewport.UpdateMode.Once : SubViewport.UpdateMode.Disabled;
+            if (_warpPeriod > 0 && vp.RenderTargetUpdateMode == SubViewport.UpdateMode.Once) _warpDrawn[1 + i] = cam.GlobalTransform;
             if (CullLog && vp.RenderTargetUpdateMode == SubViewport.UpdateMode.Once) _ownDrawn[i]++;
             if (CullLog && back) GD.Print($"mirror-cull: {(left ? "L" : "R")} back in view at frame {Godot.Engine.GetFramesDrawn()}, drawn that frame");
         }

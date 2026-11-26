@@ -1779,6 +1779,8 @@ public sealed class ShellSettings
     public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
     /// <summary>The port's own, Graphic Detail's Mirror Rate row (I76.Game.Sim.MirrorRateRow): how often the modern look's mirrors are drawn, alternate (the default: the rear every second frame, the side mirrors in turn), half (every mirror every second frame) or full (every frame) (shell.cfg [port] mirror_rate; written only when not alternate).</summary>
     public I76.Game.Sim.MirrorRate MirrorRate { get; set; } = I76.Game.Sim.MirrorRate.Alternate;
+    /// <summary>The port's own, Graphic Detail's Mirror Haze row (I76.Game.Sim.MirrorHazeRow): the modern look's mirror glass a little milky and soft, 0 off, 1 slight (the default), 2 more (shell.cfg [port] mirror_haze; written only when not slight, so a file from before it takes the default).</summary>
+    public int MirrorHaze { get; set; } = I76.Game.Sim.MirrorHazeRow.Default;
     /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0, the default, the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not 0).</summary>
     public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;
     /// <summary>The port's own, without a row: the modern look's door mirrors' glass with its corners rounded by that percent of its shorter side, at most (the moulding's even outer edge rounds them as far as its reach past the housing allows; I76.Game.Sim.GlassRound; 0 the glass's own corners, 50 round ends; shell.cfg [port] side_mirror_round; written only when not the default).</summary>
@@ -2235,6 +2237,7 @@ public sealed class ShellSettings
         // absent, auto (the door mirrors' own glass where the car has it); before it, absent was off; left, the driver's alone (the Side Mirrors row)
         s.SideMirrors = I76.Game.Sim.SideMirrorRow.Parse(c.GetValue("port", "side_mirrors", "auto").ToString());
         s.MirrorRate = I76.Game.Sim.MirrorRateRow.Parse(c.GetValue("port", "mirror_rate", "alternate").ToString());
+        s.MirrorHaze = I76.Game.Sim.MirrorHazeRow.Parse(c.GetValue("port", "mirror_haze", "").ToString());
         s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
         s.SideMirrorRound = Math.Clamp((int)c.GetValue("port", "side_mirror_round", I76.Game.Sim.GlassRound.DefaultShare), 0, I76.Game.Sim.GlassRound.MaxShare);
         s.SideMirrorRimOut = Math.Clamp((int)c.GetValue("port", "side_mirror_rim_out", I76.Game.Sim.GlassRound.DefaultRimOut), 0, I76.Game.Sim.GlassRound.MaxRimOut);
@@ -2464,6 +2467,7 @@ public sealed class ShellSettings
         OriginalRecipe.WriteChoice(c, "mirror_range", OriginalRecipe.MirrorRangeNames, MirrorRangeChoice);
         if (I76.Game.Sim.SideMirrorRow.Word(SideMirrors) is { } sideMirrors) c.SetValue("port", "side_mirrors", sideMirrors);
         if (I76.Game.Sim.MirrorRateRow.Word(MirrorRate) is { } mirrorRate) c.SetValue("port", "mirror_rate", mirrorRate);
+        if (I76.Game.Sim.MirrorHazeRow.Word(MirrorHaze) is { } mirrorHaze) c.SetValue("port", "mirror_haze", mirrorHaze);
         if (MirrorRound != I76.Game.Sim.MirrorRound.DefaultRadius) c.SetValue("port", "mirror_round", MirrorRound);
         if (SideMirrorRound != I76.Game.Sim.GlassRound.DefaultShare) c.SetValue("port", "side_mirror_round", SideMirrorRound);
         if (SideMirrorRimOut != I76.Game.Sim.GlassRound.DefaultRimOut) c.SetValue("port", "side_mirror_rim_out", SideMirrorRimOut);

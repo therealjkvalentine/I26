@@ -98,6 +98,8 @@ const vec3 KEY_GLASS = vec3(0.0, 0.35, 0.0);
 // and dark yellow where the glass reaches past the outline, so the outline shows under the glass too
 const vec3 KEY_GLASS_OUT = vec3(0.35, 0.35, 0.0);
 
+#include "res://Shaders/mirror_view.gdshaderinc"
+
 // the signed distance to a convex quad (negative inside), corners in order
 float sd_quad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
 	vec2 v[4] = vec2[4](a, b, c, d);
@@ -222,7 +224,7 @@ void fragment() {
 	if (pane) {
 		vec2 pv = (UV - view_box.xy) / (view_box.zw - view_box.xy);
 		vuv = vec2(view_x(pv.x), 1.0 - pv.y);
-		ALBEDO = texture(view, vuv).rgb;
+		ALBEDO = view_at(vuv);
 		ALPHA = 1.0;
 		if (pane_round && rim_round) {
 			vec2 p = vec2(UV.x * pane_aspect, UV.y);
@@ -264,7 +266,7 @@ void fragment() {
 		if (solid <= 0.0) discard;
 		// the frame's own colours where the art has its frame, the rear frame's mean colour where the rounded outline reaches past it
 		vec3 frame = mix(rim_colour, texture(fill, auv).rgb, cut(texture(edge, auv).r));
-		ALBEDO = mix(rim_key ? KEY : frame, texture(view, vuv).rgb, clamp(px - w + 0.5, 0.0, 1.0));
+		ALBEDO = mix(rim_key ? KEY : frame, view_at(vuv), clamp(px - w + 0.5, 0.0, 1.0));
 		ALPHA = solid;
 	} else if (smooth_edge && !faithful) {
 		vec2 e = texture(edge, auv).rg;
@@ -279,7 +281,7 @@ void fragment() {
 			float inner = rounded(sd_quad(p, inner_tl, inner_tr, inner_br, inner_bl) - inner_r);
 			glass = glass_from_shape ? inner : min(glass, inner);
 		}
-		ALBEDO = mix(rim_key && glass_from_shape ? KEY : texture(fill, auv).rgb, texture(view, vuv).rgb, glass);
+		ALBEDO = mix(rim_key && glass_from_shape ? KEY : texture(fill, auv).rgb, view_at(vuv), glass);
 		ALPHA = solid;
 	} else {
 		vec4 a = texture(art, auv);
@@ -288,7 +290,7 @@ void fragment() {
 		// within 0.1 of it: a pack's upscale (and its block compression) leaves the surround near, not exactly, the
 		// original's colour; the art's other colours are a third of the way across the cube or more
 		if (a.a >= 0.5 && distance(a.rgb, surround.rgb) < 0.1) discard;
-		vec3 v = faithful ? texture(view_nearest, vuv).rgb : texture(view, vuv).rgb;
+		vec3 v = faithful ? texture(view_nearest, vuv).rgb : view_at(vuv);
 		ALBEDO = a.a >= 0.5 ? a.rgb : v;
 		ALPHA = 1.0;
 	}

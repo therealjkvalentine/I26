@@ -23,6 +23,7 @@ public class GraphicsPagesTests
         GraphicsRow.ExtInstruments => s.Graphics[0xe],
         GraphicsRow.Mirrors => (s.Graphics[0xd], s.SideMirrors),
         GraphicsRow.MirrorRate => s.MirrorRate,
+        GraphicsRow.MirrorHaze => s.MirrorHaze,
         GraphicsRow.AntiAliasing => s.Graphics[0x8],
         GraphicsRow.VSync => s.VSync,
         GraphicsRow.MaxFps => s.MaxFps,
@@ -62,7 +63,7 @@ public class GraphicsPagesTests
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CabinsBehindGlass = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false; s.MenuWide = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
-        s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full;
+        s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full; s.MirrorHaze = 2;
         s.SmokeLighting = true; s.HeatShimmer = HeatShimmerRow.Road; s.TerrainShadows = TerrainShadowsRow.Fine;
         return s;
     }
@@ -99,7 +100,7 @@ public class GraphicsPagesTests
             GraphicsPages.Rows[GraphicsPages.Display]);
         Assert.Equal([GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
             GraphicsPages.Rows[GraphicsPages.World]);
-        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.Garage3D],
+        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.CarCockpit]);
         Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
             GraphicsPages.Rows[GraphicsPages.Effects]);

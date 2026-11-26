@@ -122,7 +122,7 @@ public class SideMirrorOptionTests
         Assert.Null(MirrorRateRow.Word(MirrorRate.Alternate));
         Assert.Equal(MirrorRate.Alternate, MirrorRateRow.Parse("nonsense"));
         Assert.Equal(MirrorRate.Alternate, new ShellSettings().MirrorRate);
-        Assert.Equal(["Alternate*", "Half", "Full*"], MirrorRateRow.Names);
+        Assert.Equal(["Alternate*", "Half", "Full*", "Smooth 1/2*", "Smooth 1/3*", "Smooth 1/4*"], MirrorRateRow.Names);
         var to = new ShellSettings();
         GraphicsPages.Copy(GraphicsRow.MirrorRate, new ShellSettings { MirrorRate = MirrorRate.Full }, to);
         Assert.Equal(MirrorRate.Full, to.MirrorRate);

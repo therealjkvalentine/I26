@@ -103,6 +103,7 @@ public partial class ExtInstruments : Control
         _mirrorMat.SetShaderParameter("edge", edge);
         _mirrorMat.SetShaderParameter("fill", fill);
         _mirrorMat.SetShaderParameter("smooth_edge", edge is not null && fill is not null);
+        pit.MirrorLookTo(_mirrorMat);   // Mirror Rate's Smooth re-projection and Mirror Haze, as the 3D glass's
     }
 
     /// <summary>The compass's slot (2) in the modern look, while its panel is drawn: the shader's rect over it.</summary>
