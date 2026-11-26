@@ -52,8 +52,9 @@ public static class Controls
 
     /// <summary>Where the pads come from: Godot's joypads (tests and tools may put their own).</summary>
     public static IPadSource PadSource { get; set; } = new GodotPads();
-    /// <summary>Whether the window has focus; without it the pads read centred and with every button up.</summary>
-    public static Func<bool> Focused { get; set; } = () => PadsAlwaysFocused || DisplayServer.WindowIsFocused();
+    /// <summary>Whether the window has focus; without it the pads read centred and with every button up (and get no rumble). A quiet
+    /// run's window never has it (I76_QUIET_WINDOW: the pads are the person's at the desktop).</summary>
+    public static Func<bool> Focused { get; set; } = () => PadsAlwaysFocused || (!I76.Game.Boot.QuietWindow.Active && DisplayServer.WindowIsFocused());
     /// <summary>I76_PAD_FOCUS=1 (a dev hook): the pads read as if the window had focus, for captures in a compositor with no seat (docs/dev-hooks.md).</summary>
     private static readonly bool PadsAlwaysFocused = System.Environment.GetEnvironmentVariable("I76_PAD_FOCUS") == "1";
     private static JoystickBank? _pads;

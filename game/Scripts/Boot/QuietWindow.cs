@@ -12,7 +12,8 @@ namespace I76.Game.Boot;
 /// a window of the size asked for (Godot's <c>--resolution</c>, else shell.cfg's Resolution, else 1280x720), not the desktop's
 /// borderless fullscreen, put at the bottom of the window stack, the foreground handed back to the window that had it; <c>min</c>:
 /// the same, minimised (Godot draws nothing while a window is minimised, so a <c>--screenshot</c> or frame-profile run is put behind instead). The pointer is never
-/// confined or captured (Main.UpdateMouseCapture). Windows does the stacking and the foreground through user32; elsewhere the window
+/// confined or captured (Main.UpdateMouseCapture), the pads are not read and the head tracker not opened (<see cref="DevicesLeftAlone"/>). The window is only
+/// moved once a script runs, after the engine has shown it: tools/quiet_run.py starts a run on a desktop of its own, so that nothing shows at all. Windows does the stacking and the foreground through user32; elsewhere the window
 /// is only made a window of that size (and minimised for <c>min</c>).
 /// </summary>
 public static class QuietWindow
@@ -54,6 +55,17 @@ public static class QuietWindow
     public static Mode Requested { get; private set; } = Parse(System.Environment.GetEnvironmentVariable("I76_QUIET_WINDOW"));
     public static bool Active => Requested != Mode.Off;
 
+    /// <summary>Whether the run leaves the person's devices alone: the pads read nothing and get no rumble, the head tracker opens no
+    /// socket. In a quiet run, unless I76_PAD_FOCUS=1 (a capture that drives a virtual pad).</summary>
+    public static bool LeavesDevices(Mode requested, string? padFocus) => requested != Mode.Off && padFocus != "1";
+    public static bool DevicesLeftAlone => LeavesDevices(Requested, System.Environment.GetEnvironmentVariable("I76_PAD_FOCUS"));
+
+    /// <summary>The log's note on the desktop the window is on: tools/quiet_run.py starts a run on a desktop of its own, never shown;
+    /// the person's is "Default".</summary>
+    public static string DesktopNote(string? name) => name is null or "" ? ""
+        : name.Equals("Default", StringComparison.OrdinalIgnoreCase) ? ", on the visible desktop (start test runs through tools/quiet-run.sh)"
+        : $", on desktop {name} (not shown)";
+
     /// <summary>The mode for a run: <c>min</c> is behind instead for a run that needs its frames drawn (a <c>--screenshot</c>, a frame profile),
     /// as Godot draws nothing in a minimised window and such a run would never end.</summary>
     public static Mode ForRun(Mode requested, bool needsFrames) => requested == Mode.Minimised && needsFrames ? Mode.Behind : requested;
@@ -86,7 +98,8 @@ public static class QuietWindow
         DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.Borderless, borderless);
         DisplayServer.WindowSetSize(new Vector2I(size.W, size.H));
         DisplayServer.WindowSetPosition(new Vector2I(pos.X, pos.Y));
-        GD.Print($"quiet window: {size.W}x{size.H} at {pos.X},{pos.Y}{(borderless ? " borderless" : "")}, {(Requested == Mode.Minimised ? "minimised" : "behind")}");
+        GD.Print($"quiet window: {size.W}x{size.H} at {pos.X},{pos.Y}{(borderless ? " borderless" : "")}, {(Requested == Mode.Minimised ? "minimised" : "behind")}"
+            + (OperatingSystem.IsWindows() ? DesktopNote(Win32.DesktopName()) : ""));
         if (OperatingSystem.IsWindows()) Win32.Retreat(Requested == Mode.Minimised);
         else if (Requested == Mode.Minimised) DisplayServer.WindowSetMode(DisplayServer.WindowMode.Minimized);
     }
@@ -108,6 +121,20 @@ public static class QuietWindow
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("user32.dll")] private static extern int GetWindowTextLengthW(IntPtr h);
         [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
+        [DllImport("user32.dll")] private static extern IntPtr GetThreadDesktop(uint thread);
+        [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetUserObjectInformationW(IntPtr h, int index, char[]? info, int length, out int needed);
+
+        /// <summary>The name of the desktop the game's windows are on (UOI_NAME), or null.</summary>
+        public static string? DesktopName()
+        {
+            try
+            {
+                var buf = new char[256];
+                return GetUserObjectInformationW(GetThreadDesktop(GetCurrentThreadId()), 2, buf, buf.Length * 2, out _) ? new string(buf).TrimEnd('\0') : null;
+            }
+            catch (Exception) { return null; }
+        }
 
         /// <summary>The engine's main window to the bottom of the stack without activating it (or minimised, not activated); if it holds the
         /// foreground, the window just under it (the one the person was using) gets it back first.</summary>
