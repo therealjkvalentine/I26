@@ -12,24 +12,30 @@ public static class NewGamePlus
     /// <summary>The player-facing name.</summary>
     public const string Name = "NEW GAME PLUS";
 
-    /// <summary>The menu's TRIP banner on a lap past the first.</summary>
-    public static string Banner(int lap) => $"{Name} LAP {lap}";
+    /// <summary>
+    /// The player's name for a lap (internal lap 2, 3, 4): the first time round is plain "NEW GAME PLUS", the second and third
+    /// "NEW GAME PLUS 2" and "NEW GAME PLUS 3". Lap 1, the original's trip, has none.
+    /// </summary>
+    public static string Title(int lap) => lap <= 2 ? Name : $"{Name} {lap - 1}";
 
-    /// <summary>The offer's bookmark's name: Load Bookmark lists it as "Scene 1. New Game+ Lap 2", short enough that the row keeps the lap.</summary>
-    public static string BookmarkName(int lap) => $"New Game+ Lap {lap}";
+    /// <summary>The menu's TRIP banner on a lap past the first.</summary>
+    public static string Banner(int lap) => Title(lap);
+
+    /// <summary>The offer's bookmark's name, as Load Bookmark lists it after "Scene 1. ": "New Game Plus", "New Game Plus 2" (both fit the row).</summary>
+    public static string BookmarkName(int lap) => lap <= 2 ? "New Game Plus" : $"New Game Plus {lap - 1}";
 
     /// <summary>The offer's bookmark: Scene 1 (not after a win), lap <paramref name="lap"/>, under <paramref name="stem"/>; its car is written beside it.</summary>
     public static Bookmarks.Entry Bookmark(int lap, string stem, bool noSalvage) => new(1, BookmarkName(lap), stem, 0, noSalvage, Lap: lap);
 
     /// <summary>
     /// The offer on the confirm receipt (about 24 letters a line): what it keeps and what changes, in the player's words.
-    /// Lap 2's rules; a later lap has more of each.
+    /// The first time round's rules; a later one has more of each.
     /// </summary>
     public static string[] OfferLines(int lap) =>
-        ["YOU FINISHED THE TRIP!", $"SAVE NEW GAME PLUS LAP {lap}?", "KEEPS CAR, PARTS, STOCK.", "MORE ENEMIES, SHARPER", "DRIVERS, BETTER SALVAGE."];
+        ["YOU FINISHED THE TRIP!", lap <= 2 ? "SAVE A NEW GAME PLUS?" : $"SAVE {Title(lap)}?", "KEEPS CAR, PARTS, STOCK.", "MORE ENEMIES, SHARPER", "DRIVERS, BETTER SALVAGE."];
 
     /// <summary>NEW TRIP's question once the trip is finished.</summary>
-    public static string[] NewTripLines(int lap) => ["DRIVE THE TRIP AGAIN?", $"YES: NEW GAME PLUS LAP {lap},", "   YOUR CAR, TOUGHER ROAD.", "NO: START OVER."];
+    public static string[] NewTripLines(int lap) => ["DRIVE THE TRIP AGAIN?", $"YES: {Title(lap)},", "   YOUR CAR, TOUGHER ROAD.", "NO: START OVER."];
 
     /// <summary>What the notice after YES says.</summary>
     public static string SavedNotice(int lap) => $"SAVED IN LOAD BOOKMARK: SCENE 1. {BookmarkName(lap).ToUpperInvariant()}";

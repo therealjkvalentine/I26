@@ -420,7 +420,7 @@ public sealed class MainMenuScreen : ShellScreen
     }
 
     /// <summary>
-    /// The New Game Plus offer after a won trip: YES writes a bookmark (Load Bookmark's "Scene 1. New Game+ Lap N") that starts
+    /// The New Game Plus offer after a won trip: YES writes a bookmark (Load Bookmark's "Scene 1. New Game Plus", then "New Game Plus 2" and on) that starts
     /// Scene 1 on the next lap in the trip car as it stands, beside the other bookmarks, and says where it is; the trip itself is not
     /// changed and nothing starts. NO (or Esc) leaves the menu as it is: NEW TRIP still offers the lap.
     /// </summary>
