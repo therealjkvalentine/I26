@@ -139,14 +139,22 @@ public partial class CoopNetTests(ITestOutputHelper output)
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private double _input, _frame;
 
-        public Player Join(string name, bool standby = false, string car = Protocol.MissionCar)
+        public Player Join(string name, bool standby = false, string car = Protocol.MissionCar) => Joined(Connect(name, standby, car));
+
+        /// <summary>Connects without waiting, so several players can ask in before the server starts the mission (it holds the start for games still loading).</summary>
+        public Player Connect(string name, bool standby = false, string car = Protocol.MissionCar)
         {
             var p = new Player(name, install);
             p.Client.Log += m => output.WriteLine($"[{name}] {m}");
             if (standby) { p.Standby = new MigrationStandby(install, m => output.WriteLine($"[{name}] {m}")); p.Client.Standby = p.Standby; }
             p.Client.Connect("127.0.0.1", Server.Port, name, car);
             Players.Add(p);
-            Assert.True(Wait(() => p.Client.State == ClientState.Joined && p.Mirror is not null), $"{name} did not join: {p.Client.State} {p.Client.Reason}");
+            return p;
+        }
+
+        public Player Joined(Player p)
+        {
+            Assert.True(Wait(() => p.Client.State == ClientState.Joined && p.Mirror is not null), $"{p.Name} did not join: {p.Client.State} {p.Client.Reason}");
             return p;
         }
 
@@ -307,8 +315,12 @@ public partial class CoopNetTests(ITestOutputHelper output)
     {
         if (HostTests.InstallDir is not { } install) return;
         using var g = Start(install, "t01", coopScale: 1);
-        var hal = g.Join("Hal");
-        var ann = g.Join("Ann");
+        // both ask in before either has loaded: a copy is made only if the second human is there when the script sets the cars going,
+        // which joining one after the other leaves to the machine's speed (it failed on a busy machine, in 1 baseline run of 3)
+        var hal = g.Connect("Hal");
+        var ann = g.Connect("Ann");
+        g.Joined(hal);
+        g.Joined(ann);
         List<int> Copies() => g.Server.Invoke(h => h.Setup.Script!.Host.Entities.Where(e => e.ExtraOf is not null && e.Vehicle is not null)
             .Select(e => e.Vehicle!.NetId & 0xffffff).ToList());
         Assert.True(g.Wait(() => Copies().Count > 0), "the server spawned no copy");
