@@ -1497,6 +1497,11 @@ public sealed class ShellSettings
     /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
     public int HeatShimmer { get; set; }
     /// <summary>
+    /// The port's own: Graphic Detail's Terrain Shadows (TerrainShadowsRow: 0 Off, 1 On, 2 Fine; World/TerrainShade, the hills' own shadows
+    /// baked from the drawn ground); [port] terrain_shadows, written only when not Off. Off unless the player chose.
+    /// </summary>
+    public int TerrainShadows { get; set; }
+    /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
@@ -2098,6 +2103,8 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
         s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
+        // no version step: a file without the key has it off, as it was before it existed (an unreleased build's terrain_shading is dropped)
+        s.TerrainShadows = TerrainShadowsRow.FromFile(c.HasSectionKey("port", "terrain_shadows") ? c.GetValue("port", "terrain_shadows").ToString() : null);
         // no version step: absent, off (the rows came after the keys they would read)
         s.Haze = AirRows.ClampHaze((int)c.GetValue("port", "haze", 0));
         s.Glow = AirRows.ClampGlow((int)c.GetValue("port", "glow", 0));
@@ -2340,6 +2347,7 @@ public sealed class ShellSettings
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
+        if (TerrainShadows != TerrainShadowsRow.Off) c.SetValue("port", "terrain_shadows", TerrainShadowsRow.Word(TerrainShadows));
         if (Haze != 0) c.SetValue("port", "haze", Haze);
         if (Glow != 0) c.SetValue("port", "glow", Glow);
         if (Reflections) c.SetValue("port", "reflections", true);

@@ -87,6 +87,9 @@ public static class GraphicsHelp
         GraphicsRow.HeatShimmer => look1997
             ? "Heat shimmer: the modern look's wobbling air over fires and hot roads. Not drawn in the 1997 look."
             : "Heat shimmer: the air wobbles over fires, burning wrecks and flame streams. Fires + Road adds, on hot days only, a faint shimmer low over the ground far ahead and the road's mirage. The 1997 game has none. About 0.1 ms a frame while something shimmers (3440x1440, 8x, 200 %, an RTX 5090), none when Off.",
+        GraphicsRow.TerrainShadows => look1997
+            ? "Terrain shadows: the modern look's baked hill shadows. Not drawn in the 1997 look."
+            : "Terrain shadows: the hills' and mesas' own shadows on the land, baked from the map and its sun as the mission loads: crisp and steady at any Shadow Detail, out to the horizon. Off leaves them to Shadow Detail (600 m at Low, 1500 m at High). Fine bakes twice as finely (more load time and video memory). By day only. About 1-2 % of a frame at 3440x1440 and 200 % scale, none measurable at 1920x1080.",
         _ => throw new ArgumentOutOfRangeException(nameof(row)),
     };
 

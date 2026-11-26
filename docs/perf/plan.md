@@ -167,7 +167,9 @@ few bursts and the wreck fire, which the modern look has with the setting off to
 tracers as bolts (0.00 ms against the line while firing both machine guns: the fire table), the smoke depth layer (0.0 ms
 with every car smoking at 40 % health: the smoke table; the smoke itself 0.1 ms GPU and 0.3 ms of nodes), the bass-shaker
 synth (main thread, within the ~0.3 ms the toggles can resolve), palette grade, car interiors, the 16x anisotropy of the
-paved roads (0.01 ms against 8x and 4x). Each is under 0.3 ms GPU at either resolution, which is the survey's resolution for
+paved roads (0.01 ms against 8x and 4x), the baked terrain shadows (World/TerrainShade, Terrain Shadows On, 2.5 m: the main view +0.13 ms at 3440x1440 with Render Scale
+200 % (opaque +0.09 ms) and +0.01 ms at 1920x1080 on the RTX 5090, T05 at dusk, three runs each; Off as main; a 7 MB texture on T05, 8 MB on
+T14, baked on a worker at load). Each is under 0.3 ms GPU at either resolution, which is the survey's resolution for
 a single feature (costs.md, Noise).
 
 ## A frame-time budget for future features

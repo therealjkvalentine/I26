@@ -782,6 +782,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.HeatShimmer:
                 Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
                 break;
+            // [port] terrain_shadows (TerrainShadowsRow): the modern look's, baked in a mission when chosen
+            case GraphicsRow.TerrainShadows:
+                Row(r, line, TerrainShadowsRow.Label, () => TerrainShadowsRow.Names[TerrainShadowsRow.Index(st)], () => TerrainShadowsRow.Step(st));
+                break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
                 Row(r, line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });

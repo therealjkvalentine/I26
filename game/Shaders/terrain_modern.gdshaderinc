@@ -169,6 +169,18 @@ global uniform vec3 i76_ground_tint;
 #endif
 // The distance tiers (docs/perf/plan.md, item 3): 1 on, 0 the one tier everywhere (I76_TERRAIN_TIERS=0, for a measurement).
 global uniform float i76_terrain_tiers;
+// The baked terrain shadows (World/TerrainShade.cs, by day): i76_terrain_shade's R the sun's margin over the terrain's horizon toward it
+// (0.5 the horizon, 0 and 1 -/+ edge.x radians), i76_terrain_sky's R the sky's share left open by the terrain round the point; the rect
+// is their corner (game frame x, z) and 1 / their size. on: x the strength (0 off), y the shadow map's reach (0 none), z the sky term's
+// strength, w a debug view (I76_TERRAIN_SHADE_DEBUG: 1 the sun's share, 2 the sky's, 3 where the shadow map is let through, unlit grey).
+// edge: x the margin's range, y the sun's radius (radians), z the sun texture's texel (metres), w the hand-over (TerrainShade.Combine:
+// 0 band, 1 fade, 2 nocast). band: x, y the band round the bake's edges where the map is held back (metres, plus metres a metre away).
+global uniform sampler2D i76_terrain_shade : filter_linear_mipmap, repeat_disable;
+global uniform sampler2D i76_terrain_sky : filter_linear_mipmap, repeat_disable;
+global uniform vec4 i76_terrain_shade_rect;
+global uniform vec4 i76_terrain_shade_on;
+global uniform vec4 i76_terrain_shade_edge;
+global uniform vec4 i76_terrain_shade_band;
 #include "res://Shaders/terrain_night.gdshaderinc"
 
 varying vec3 g_pos;     // game-frame position: sample * 5, height
@@ -177,6 +189,8 @@ varying vec3 g_broad;   // the surface's normal over a broad span (CUSTOM2: Terr
 varying vec2 road_uv;
 varying float v_road;   // the road's coverage and the surface's specular, from fragment() for light()
 varying float v_spec;
+varying float v_sun;    // the sun's share left by the baked terrain shadows, for light()
+varying float v_keep;   // how much of the shadow map's darkening light() lets through on the terrain (TerrainShade.Combine)
 
 // Level-of-detail morph (TerrainLodMesh, TerrainNode.Range): a vertex of level 0 to 3 carries where the next
 // coarser level has its point (CUSTOM0.xyz, chunk-local; CUSTOM0.w = level + 1, 0 for none) and that level's
@@ -626,6 +640,49 @@ void fragment() {
 	if (use_materials && procedural) { AO = ao; AO_LIGHT_AFFECT = 0.35; }
 	v_road = road;
 	v_spec = spec;
+	// the baked terrain shadows: the sun's share from its margin over the horizon, smoothed over the sun's disc (or the pixel, if wider:
+	// a far edge does not crawl), and the sky's share. light() takes the lesser of the shadow map and the bake, so a shadow both draw is
+	// darkened once; near the bake's edges the map's darkening is held back (band), there being the map's own blurred copy of the edge
+	v_sun = 1.0;
+	v_keep = 1.0;
+	if (i76_terrain_shade_on.x > 0.0) {
+		vec2 su = (g_pos.xz - i76_terrain_shade_rect.xy) * i76_terrain_shade_rect.zw;
+		float inside = step(0.0, su.x) * step(0.0, su.y) * step(su.x, 1.0) * step(su.y, 1.0) * i76_terrain_shade_on.x;
+		// a heightfield's bake is the ground's at each texel: on a cliff face (steeper than about 60 degrees) a point stands far above
+		// or below that, so the face is left to the shadow map and its own slope
+		float level = smoothstep(0.35, 0.55, abs(normalize(cross(dpx, dpy)).y));
+		float range = i76_terrain_shade_edge.x;
+		float m = (texture(i76_terrain_shade, su).r - 0.5) * 2.0 * range;
+		float fm = fwidth(m);
+		float w = max(i76_terrain_shade_edge.y, 0.5 * fm);
+		float lit = smoothstep(-w, w, m);
+		float mode = i76_terrain_shade_edge.w;
+		float reach = i76_terrain_shade_on.y;
+		float past = mode > 0.5 && mode < 1.5 && reach > 0.0 ? smoothstep(0.4 * reach, 0.8 * reach, dist) : 1.0;
+		v_sun = mix(1.0, lit, past * inside * level);
+		// the band: only within the shadow map's reach (past it the map darkens nothing); metres to the edge from the margin over its change
+		// across the pixel (fwidth) and the pixel's footprint on the ground
+		if (mode < 0.5 && dist < reach && abs(m) < range * 0.99) {
+			float edge = abs(m) * footprint / max(fm, 1e-7);
+			float band = i76_terrain_shade_band.x + i76_terrain_shade_band.y * dist;
+			v_keep = mix(1.0, smoothstep(band, 2.0 * band, edge), inside * level);
+		}
+		// the sky's light only: the share of the direct light the occlusion took (AO_LIGHT_AFFECT) is kept as it was
+		float skyb = texture(i76_terrain_sky, su).r;
+		float sky = mix(1.0, skyb, i76_terrain_shade_on.z * inside);
+		if (i76_terrain_shade_on.w > 0.5) {
+			float dview = i76_terrain_shade_on.w;
+			ALBEDO = vec3(0.0);
+			EMISSION = vec3(dview > 2.5 ? v_keep : dview > 1.5 ? skyb * inside : lit * inside);
+		}
+		if (sky < 1.0) {
+			bool had = use_materials && procedural;
+			float a0 = had ? ao : 1.0;
+			float aff = had ? 0.35 : 0.0;
+			AO = a0 * sky;
+			AO_LIGHT_AFFECT = aff * (1.0 - a0) / max(1.0 - AO, 1e-4);
+		}
+	}
 #ifdef I76_NIGHT_ROADS
 	// at night a road keeps i76_night_road of the ground's light (terrain_night.gdshaderinc): the sky's here, the moon's in light();
 	// the headlamps' and the other lamps' stay whole, so the occlusion must not touch the direct light on it
@@ -682,7 +739,7 @@ void fragment() {
 // Godot's own model as its forward renderer computes it for a shader that names no diffuse mode (Lambert diffuse, not the
 // Burley its documentation calls the default: Burley is compiled only when named, and lit the headlamps' grazing beam half as
 // bright again; Schlick-GGX specular with its F0 from the surface's specular, its visibility term and the light's own specular
-// amount), so the ground by moonlight is as the day shader's; the day keeps that shader and this function out of it.
+// amount), so the ground by moonlight is as the day shader's; the day's light() below is the same model with the baked terrain shading on the sun.
 float i76_schlick(float u) { float m = 1.0 - u; float m2 = m * m; return m2 * m2 * m; }
 void light() {
 	float share = LIGHT_IS_DIRECTIONAL ? mix(1.0, i76_night_road, v_road) : 1.0;
@@ -711,5 +768,24 @@ void light() {
 	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
 	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
 	SPECULAR_LIGHT += ndl * D * G * F * ATTENUATION * light_col * glint_hue * SPECULAR_AMOUNT * share;
+}
+#else
+// By day: the same model, the sun's light through the lesser of the shadow map (v_keep of its darkening) and the baked terrain shadows (v_sun, 1 without them).
+float i76_schlick(float u) { float m = 1.0 - u; float m2 = m * m; return m2 * m2 * m; }
+void light() {
+	float att = LIGHT_IS_DIRECTIONAL ? min(mix(1.0, ATTENUATION, v_keep), v_sun) : ATTENUATION;
+	vec3 h = normalize(VIEW + LIGHT);
+	float ndl = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	float ndv = max(dot(NORMAL, VIEW), 1e-4);
+	float ndh = clamp(dot(NORMAL, h), 0.0, 1.0);
+	float ldh = clamp(dot(LIGHT, h), 0.0, 1.0);
+	DIFFUSE_LIGHT += ndl * att * LIGHT_COLOR / PI;
+	float a = ROUGHNESS * ROUGHNESS;
+	float k = a / (1.0 - ndh * ndh + ndh * ndh * a * a);
+	float D = k * k / PI;
+	float G = 0.5 / mix(2.0 * ndl * ndv, ndl + ndv, a);
+	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
+	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
+	SPECULAR_LIGHT += ndl * D * G * F * att * LIGHT_COLOR * SPECULAR_AMOUNT;
 }
 #endif

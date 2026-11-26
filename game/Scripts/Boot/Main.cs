@@ -863,6 +863,7 @@ public partial class Main : Node3D
 		_shadowDetail = s.Graphics[0x6];
 		_shadowUltra = I76.Game.Shell.ShadowDetailRow.UltraOn(s);   // ShadowUltra.cs
 		_ambientOcclusion = s.AmbientOcclusion;
+		_terrainShadows = s.TerrainShadows;
 		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
 		I76.Game.Sim.SmokeLight.Apply(s.SmokeLighting, _mode1997);
 		I76.Game.World.HeatShimmer.Apply(s.HeatShimmer, _mode1997);
@@ -904,6 +905,7 @@ public partial class Main : Node3D
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
 	private bool _ambientOcclusion;
+	private int _terrainShadows;   // Terrain Shadows (TerrainShadowsRow), the port's, Advanced
 	// Haze, Glow and Reflections (the port's, Advanced; EnvExtras), Off by default
 	private int _haze, _glow;
 	private bool _reflections;
@@ -941,6 +943,7 @@ public partial class Main : Node3D
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
 		if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
+		World.TerrainShade.Set(World.TerrainShade.TexelFor(_terrainShadows), false, _sun.ShadowEnabled ? _sun.DirectionalShadowMaxDistance : 0f);
 		UpdateVegetation();
 	}
 
@@ -4072,6 +4075,7 @@ public partial class Main : Node3D
 		if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
 		_mode1997 = on;
 		I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
+		I76.Game.World.TerrainShade.Set(I76.Game.World.TerrainShade.TexelFor(_terrainShadows), on, _shadowDetail > 0 ? ShadowReach.For(_shadowDetail).Reach : 0f);
 		I76.Game.Sim.SmokeLight.SetLook1997(on);
 		I76.Game.World.HeatShimmer.Look1997 = on;
 		if (!sliced) _builder?.Terrain?.UseModern(!on);
@@ -5001,6 +5005,13 @@ public partial class Main : Node3D
 		using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Main);
 		if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
 		FrameLimiter.Pace();
+		I76.Game.World.TerrainShade.Poll(delta);   // the baked terrain shadows into their textures when the worker is done, eased in
+		// the terrain's shadow casters, which Terrain Shadows' NoCast hand-over (a hook's) takes out while its bake shows
+		if (I76.Game.World.TerrainShade.Mode == I76.Game.World.TerrainShade.Combine.NoCast && _builder?.Terrain is { } tcs && _sun is not null)
+		{
+			float casters = I76.Game.World.TerrainShade.TerrainCasts ? ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance) : 0f;
+			if (tcs.CasterReach != casters) tcs.CasterReach = casters;
+		}
 		StartErrors.Frame(GetTree());   // the start's engine errors, counted to a few seconds into the mission
 		UpdateMouseCapture();
 		// [port] wreck_solid follows the look in use and the key as they are now (F12, the Developer panel), between ticks
