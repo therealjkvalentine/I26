@@ -77,8 +77,8 @@ public static class RenderBackend
     /// row, <paramref name="started"/> the one this run started with (null: the command line chose), <paramref name="driver"/> the
     /// running driver. The setting unchanged since the start: Auto says what it picked ("Auto (Vulkan)"); a choice that did not start
     /// and fell back says so ("OpenGL (fallback)", the tooltip naming the one that failed); a choice the platform answers with another
-    /// driver without a failure (Vulkan on macOS runs Metal) names it ("Vulkan (Metal)"). A setting changed for the next start shows
-    /// as it is, the tooltip saying what runs now.
+    /// driver without a failure (Vulkan on macOS runs Metal) names it ("Vulkan (Metal)"). A setting changed for the next start says so
+    /// ("OpenGL (restart)", the menus' mark for a row that applies at the next start), the tooltip saying what runs now.
     /// </summary>
     public static (string Value, string? Note) RowText(RendererChoice shown, RendererChoice? started, string driver, bool d3d12Offered)
     {
@@ -88,7 +88,7 @@ public static class RenderBackend
         if (running is null) return (name, null);
         string now = $"Running now: {running}.";
         if (started is null) return (name, $"{now} The command line chose it.");
-        if (shown != started) return (name, $"{now} {name} from the next start.");
+        if (shown != started) return ($"{name} (restart)", $"{now} {name} from the next start.");
         if (shown == RendererChoice.Auto) return ($"Auto ({running})", $"Auto picked {running}.");
         if (ChoiceOf(driver) == shown) return (name, null);
         if (ChoiceOf(driver) is not null) return ($"{running} (fallback)", $"{name} did not start here: the game fell back to {running}.");

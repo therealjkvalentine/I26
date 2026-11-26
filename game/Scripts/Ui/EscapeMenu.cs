@@ -550,6 +550,29 @@ public sealed partial class EscapeMenu : Control
         switch (r)
         {
             // the original's rows in the graphics block
+            // the port's preset over the costly rows (QualityPreset): its word read back from the rows, a step sets every row of the next
+            // column, live; Done and Cancel commit or restore its rows
+            case GraphicsRow.Quality:
+                var qs = I76.Game.Assets.HdTextures.AvailableSizes;
+                bool qPacks = TextureRow.Offered(qs, qs.Length > 0 || I76.Game.Assets.HdTextures.Installed);
+                string[] custom = [.. QualityPreset.Names.Select(_ => QualityPreset.Custom)];
+                return new Item
+                {
+                    Flags = Cycle, Label = QualityPreset.Label, N = QualityPreset.Names.Length, Names = QualityPreset.Names,
+                    Cb = (it, m) =>
+                    {
+                        switch (m)
+                        {
+                            case 7: QualityPreset.Apply(Settings, it.Value, qs, qPacks); live(); break;
+                            case 8: QualityPreset.Copy(Settings, _snap); break;
+                            case 9: QualityPreset.Copy(_snap, Settings); live(); break;
+                        }
+                        // Custom shows on every step's place, the step from it going to Original
+                        int c = QualityPreset.Match(Settings, qs, qPacks);
+                        it.Value = c < 0 ? QualityPreset.Names.Length - 1 : c;
+                        it.Names = c < 0 ? custom : QualityPreset.Names;
+                    },
+                };
             case GraphicsRow.MonitorBrightness: return G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 11, null, 0xc);
             case GraphicsRow.TerrainDetail: return G(Cycle, "Terrain Detail", 2, ["Low", "High"], 0x2);
             case GraphicsRow.ShadowDetail: return Keyed(r, "Shadow Detail", ShadowDetailRow.Names, ShadowDetailRow.Index, ShadowDetailRow.Put, live);   // Ultra*: [port] shadow_detail over High
@@ -729,6 +752,8 @@ public sealed partial class EscapeMenu : Control
     /// <summary>MenuDone: msg 8 to every item but the buttons, then the parent — or the cheater warning from Play Options with a cheat on.</summary>
     private void Done()
     {
+        // the sheet's Done commits its pages' rows too: each read back first (the sheet's Reset or Quality may have set them since the page was shown)
+        if (_screen == _graphics) foreach (var it in _graphicsPages.SelectMany(p => p.Items)) if (it.Type != Button) it.Cb?.Invoke(it, 6);
         foreach (var it in Committed()) if (it.Type != Button) it.Cb?.Invoke(it, 8);
         if (_screen == _play && (Settings.PlayOptions & 0x1c) != 0) { Switch(_cheater); return; }
         Switch(_screen.Parent);
