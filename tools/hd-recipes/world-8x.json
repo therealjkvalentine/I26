@@ -56,6 +56,9 @@
     {"id": "radar", "tool": "radar-redraw.py", "writes": "pack", "only": "zradf*,zradb*,zrge,ztge",
      "args": ["pack", "{export}", "{pack}", "--style", "B", "--labels", "lock-range"],
      "note": "the radar's 62 frames drawn again over the pack's own (style B, the lock-range labels) and the range plate's and lamp's sheets made from them, which go with them (2026-11-26); the smooth sweep's layers beside them (zrads_face, zrads_grid.png, zrads.json)"},
+    {"id": "hud", "tool": "hud-redraw.py", "writes": "pack", "only": "zsy_,zsye,zwpe,zbk_,zbks_",
+     "args": ["pack", "{export}", "{pack}", "--distress", "light"],
+     "note": "the damage panel's wires drawn again as tubes fitted to the original's, and a light wear (grime, chipped paint, fine scratches, an uneven print) laid alike on the damage panel, its lights' every state and the counters' five housings, what the game stamps left as it is (2026-11-26; the level awaits the owner's pick from the contact sheet)"},
     {"id": "finish", "tool": "finish", "writes": "pack",
      "note": "pack.json, ATTRIBUTION.txt and FILES.sha256 from this recipe"}
   ]
