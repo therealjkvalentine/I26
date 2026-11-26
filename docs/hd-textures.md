@@ -81,6 +81,9 @@ It prints each command before it runs it (`--dry-run` prints them and stops), so
 4. Optional, as the shared packs have it: the cockpit radar drawn again over the pack's frames (`pip install scipy` first):
    `python tools/radar-redraw.py pack i26-hd-work/export PACK`, PACK the pack's folder
    ([The cockpit radar redrawn](#the-cockpit-radar-redrawn-step-13-of-the-recipe)).
+5. Optional, likewise: the damage panel's wires drawn again and a light wear on it and the weapon counters:
+   `python tools/hud-redraw.py pack i26-hd-work/export PACK`
+   ([The damage panel and counters redrawn](#the-damage-panel-and-counters-redrawn-step-14-of-the-recipe)).
 
 The pack goes to the game's own folder: `%APPDATA%\I26\tex-world-4x` on Windows, `~/.local/share/I26/tex-world-4x` on
 Linux, `~/Library/Application Support/I26/tex-world-4x` on macOS. `--out DIR` puts it elsewhere (then copy or move that
@@ -201,6 +204,11 @@ because the tool skips a texture already in `--out`):
    over the pack's own (style B, the lock-range labels) and writes the range plate's and contact lamp's sheets from them,
    which go with them: [The cockpit radar redrawn](#the-cockpit-radar-redrawn-step-13-of-the-recipe). CPU only, about a
    minute.
+14. **The damage panel and the counters** (2026-11-26), after the radar: `hud-redraw.py pack SRC PACK --distress medium`
+   draws the damage panel's wires again and lays a medium wear on it, its lights and the counters' housings (the radar step
+   lays the same wear on the radar, `--distress medium`, so the three units match):
+   [The damage panel and counters redrawn](#the-damage-panel-and-counters-redrawn-step-14-of-the-recipe). CPU only, under
+   a minute.
 
 **The 8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then
 offers 8x; 2.9 GB, 2,579 textures, about 0.5 GB more video memory, no difference in frame time). It needs the 8x masters of
@@ -212,7 +220,7 @@ step 2 (`MASTERS` below). Then:
 
 then the 4x pack's steps 8 to 11 with `--scale 8` (and `key-edge FIELDS 8`): the damage panel's cells (with `--x2-model
 2xHDCube_Compact.pth`), the frames, the lettering (61 of the specs have a texture in the 8x) and the cars' painted edges,
-then step 13, the radar, over the 8x's own frames.
+then steps 13 and 14, the radar and the damage panel, over the 8x's own files.
 The first is the graphics card part (about 15 minutes on a GTX 1080 Ti), the second and third the packing on the CPU
 (about half an hour on 8 cores). `--out` defaults to the user folder's `tex-world-8x/`; the mission maps (`zmap*`) stay at
 4x. The car list `tools/hd-8x-cars.txt` comes from `i76 car-table survey`, with the 23 lit brake lamp textures
@@ -468,6 +476,16 @@ the middle mark, not a state of R (the weapon camera in the radar screen, `RADAR
 needs a target and a turret). The spec keeps other sets for comparison (`--labels`: `lock-range-m` with the unit,
 `owner-50-500`, `var-range`, `gain-range`, `intensity`, `marks-only`). The knob's painted pointer never moves.
 
+**The glass** (`--glass none|light|medium`, the spec's `glass`; `none` the default, so a pack is unchanged until a level is
+chosen). The scope's glass drawn over the beam, the cone, the graticule and the pip, under the game's blips, lamp and plate: the
+bezel's shadow (darkening from 0.7 of the face's radius to its rim), a soft sheen inside the rim at the top left as the player
+sees it, with a faint glare inside it, and a little second-hand wear: one or two smudges (a soft uneven haze), fine bent
+scratches catching the light, dust settled at the rim. All of it is made from the spec's seed in original pixels, so it is the
+same at 4x and 8x and the same in every frame (it does not turn with the beam), and medium holds light's parts and adds more.
+It is printed into all 62 frames and into the live sweep's grid layer (`zrads_grid.png`, one layer over the face), so the
+stepped frames and Radar Sweep: Smooth show the same glass with no change to the game. `pack.json`'s `radar_redraw` names the
+level.
+
 The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a one-texel anti-aliased edge (crisp:
 `line_edge` null; rounds 2 and 3 used a quarter-pixel ramp).
 
@@ -559,6 +577,62 @@ The other commands, for working on the redraw:
 UPSCALE is a folder of a pack's frames (PNG or `.dds`, any whole multiple of 256 wide). For a look in the game without
 touching your pack, put `render`'s output (or `pack --out`'s) in a folder's `world/` and start the game with `I76_TEX_DIR`
 pointing at that folder: it is read first, over the installed pack.
+
+## The damage panel and counters redrawn (step 14 of the recipe)
+
+`tools/hud-redraw.py` works on five textures of a pack: `zsy_` (the damage panel, "Mr. Damage"), `zsye` (its lights: every
+part's five states), `zwpe` (the weapon counters' five housings) and `zbk_`, `zbks_` (the weapons' and specials' rails the
+housings hang on). CPU only; both world recipes run it after the radar, as their `hud` step:
+
+    python tools/hud-redraw.py pack EXPORT PACK --distress medium     # the packs' level (the owner's pick)
+
+**The wires.** The red and yellow wires hanging at the damage panel's sides are found in your export by their colours; each
+colour's pieces between the connectors are fitted as centrelines (ordered end to end, a smoothing spline: the radar's
+wire fit). A piece the other wire cuts is joined to the next one across the cut (ends within 6 pixels, only wire or air
+between, never through a connector), so the red runs on unbroken under the yellow: every red run is drawn under every
+yellow one (the owner's choice; the original paints the red over the yellow in two small places, about 4 pixels each, at
+the right side's lower crossing and at the left side's foot). Each run is drawn as insulated wire of its measured width
+(about 2 pixels): a matte cylinder lit from the top left in the original's dark and light shade of its colour, its width
+and line wandering a little along it (7 % and a seventh of a pixel), slightly dulled and mottled with age, a soft broad
+sheen along its top, grimed where it meets a connector or the panel, with a faint contact shadow under the yellow where it
+crosses the red and under both on a connector or the panel (`wires.look` in the spec). The upscale's own wire texels round
+them (red or yellow by hue) are taken out first: transparent where the original is, the body's or connector's colour
+where it is not. The connectors, the body, its bevel and the screws are the upscale's (they are clean in it).
+
+**The wear** (`tools/panel_distress.py`, `--distress 0|light|medium`, the spec's `distress`): grime gathered in the corners
+(where edges across and along meet) and mottled, small chips of paint along the art's strong edges (not on the lettering or
+the lights' lenses), a few fine hairline scratches (lighter, a fainter dark edge below; not across the wires or the lights),
+and printed lettering a little uneven (a few per cent fainter in patches, a few pin-holes). The words, their places and the
+shapes are never moved. Every random number comes from a fixed seed (the spec's 1976 and the unit's name) on a grid of 8
+texels a pixel, brought to the pack's scale, so every run and every machine makes the same files, and a 4x and an 8x pack
+the same pattern. `0` adds none (only the wires change; the other four files are the pack's own, not encoded again).
+
+**What the game stamps is left as it is, and the wear never flickers.** The damage panel's layer is made once over the
+panel as the game first shows it (every part stamped unlit at the layout's anchors, a row up where the game draws it so);
+the panel gets it outside the stamps' places, and each light's five cells on the sheet get the part of the same layer that
+lies under their place, so a light changing state changes only its lens, and the stamp's edge does not show. The tyres'
+four places share one cell, as the two arms' do: those cells carry the first place's layer, and round the others the panel's
+layer is blended into it over 4 pixels. Under the stamps the panel's texels are the pack's (the cells are opaque; the
+game never shows them). On a housing the diode, the label plate and the four counter windows (where the game draws its
+diode, its name plate and the drums) are the pack's texels exactly; one layer lies on all five housings (made over their
+median, so the screws' slots, the only difference, do not steer it). The game's stamping code is untouched; the 1997 look
+and a game without a pack draw the originals.
+
+**The radar too.** `radar-redraw.py pack ... --distress medium` (or `render`) lays the same wear on the radar's 62 frames,
+the smooth sweep's face and the stamps' sheets (one layer, made over the base frame; never on the scope's faces, which carry
+the glass instead). The recipes' radar step does (`--glass medium --distress medium`), so the three units match;
+`--distress` alone defaults to 0, which writes the files byte for byte as without it.
+
+`pack` keeps the files it started from in the pack's `.hud-base/` (a rerun starts from those and writes the same files;
+`hd-pack.py --only zsy_` takes them out with the texture) and names the redraw in `pack.json` (`hud_redraw`: the tool's,
+the wear's and the spec's SHA-256, the level, the seed, the scale). `--out DIR` writes the five files and the amended
+`pack.json` into DIR and leaves the pack as it is; a pack whose `pack.json` names a hud redraw already and has no
+`.hud-base/` is refused (`--base DIR`: the upscale's own files). No font is used. The other commands:
+
+    python tools/hud-redraw.py measure EXPORT [wires.json]          # the wires' pieces
+    python tools/hud-redraw.py render EXPORT UPSCALE OUT [--scale 8] [--distress light]   # PNGs, the export's rows
+    python tools/hud-redraw.py --self-check
+    python -m unittest tools/test_hud_redraw.py
 
 ## Notes
 

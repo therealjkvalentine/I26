@@ -1,0 +1,83 @@
+{
+  "note": "the damage panel (Mr. Damage) and the weapon counters' housings redrawn over a pack's own upscale (tools/hud-redraw.py). Coordinates are the original's pixels, rows as the game shows them (the export's rows). Anchors and cells are the cockpit layout's (vpit_1.elt: the zsy_.map, zsye.map, zbk_.map and zwpe.map blocks)",
+  "damage": {
+    "panel": "zsy_",
+    "sheet": "zsye",
+    "size": [256, 128],
+    "shown": [241, 123],
+    "note_shown": "ExtInstruments draws the panel's top-left 241 x 123 (the 2D dash and the external instruments); the 3D dash maps the same picture",
+    "sprites": {
+      "engine": {"size": [61, 12], "cells": [[0, 0], [61, 0], [122, 0], [183, 0], [244, 0]], "lettered": true},
+      "suspen": {"size": [61, 12], "cells": [[0, 13], [61, 13], [122, 13], [183, 13], [244, 13]], "lettered": true},
+      "brakes": {"size": [61, 12], "cells": [[0, 25], [61, 25], [122, 25], [183, 25], [244, 25]], "lettered": true},
+      "tire": {"size": [38, 12], "cells": [[0, 37], [61, 37], [122, 37], [183, 37], [244, 37]], "lettered": true},
+      "farm": {"size": [52, 9], "cells": [[238, 50], [238, 59], [238, 68], [238, 77], [238, 86]]},
+      "arm": {"size": [4, 46], "cells": [[156, 75], [160, 75], [164, 75], [168, 75], [172, 75]]},
+      "barm": {"size": [55, 4], "cells": [[0, 98], [0, 102], [0, 106], [0, 110], [0, 114]]},
+      "fchas": {"size": [35, 24], "cells": [[0, 50], [35, 50], [70, 50], [105, 50], [140, 50]]},
+      "rchas": {"size": [12, 40], "cells": [[177, 91], [189, 91], [201, 91], [213, 91], [225, 91]]},
+      "bchas": {"size": [31, 22], "cells": [[0, 75], [31, 75], [62, 75], [93, 75], [124, 75]]},
+      "lchas": {"size": [12, 40], "cells": [[177, 50], [189, 50], [201, 50], [213, 50], [225, 50]]}
+    },
+    "states": ["off", "grn", "ylw", "red", "drk"],
+    "note_parts": "anchor, sprite, as Cockpit.DamageParts draws them; each cell is drawn a row above its label when the label is not on the sheet's first row (CockpitPanels.RowsUp), on the sheet and on the panel. rarm and larm share the arm cells, the four tyres the tire cells: the first anchor of a shared sprite is the one whose surroundings the shared cell's wear continues; round the others the panel's wear is blended into it",
+    "parts": [
+      ["engine", [25, 34], "engine"], ["suspen", [25, 53], "suspen"], ["brakes", [25, 72], "brakes"],
+      ["fltire", [74, 9], "tire"], ["frtire", [180, 9], "tire"], ["rltire", [74, 98], "tire"], ["rrtire", [180, 98], "tire"],
+      ["farm", [120, 6], "farm"], ["fchas", [129, 17], "fchas"], ["larm", [116, 41], "arm"], ["lchas", [127, 42], "lchas"],
+      ["rarm", [173, 41], "arm"], ["rchas", [154, 42], "rchas"], ["barm", [119, 109], "barm"], ["bchas", [131, 82], "bchas"]
+    ],
+    "shared_blend": 4.0,
+    "lettering": [[184, 38, 224, 84]],
+    "note_lettering": "the maker's plate (MR.DAMAGE, by Rammo, (c) 1971: the packs' text redraw, tools/text-redraws/zsy_.json); the part names on the sheet's lettered cells",
+    "wires": {
+      "note": "the red and yellow wires hanging at the panel's sides: each colour's pieces (8-connected, between the connectors) fitted as centrelines through their pixels, drawn again as tubes of their measured widths shaded from the original's own colours along them (radar-redraw.py's Band). The upscale's wire texels (red or yellow by hue) are taken out round them first: transparent where the original is, the neighbouring colour where it is the body or a connector",
+      "zones": [[0, 0, 14, 76], [227, 0, 241, 50]],
+      "colours": {"red": [[122, 0, 24], [161, 0, 32]], "yellow": [[158, 154, 26], [204, 199, 34], [158, 98, 13]]},
+      "order": ["red", "yellow"],
+      "note_order": "the red runs under the yellow everywhere (the owner's choice, 2026-11-26); a piece cut by the other wire is joined to the next across the cut when their ends lie within join_reach px with only wire or air between",
+      "join_reach": 6.0,
+      "min_pixels": 6,
+      "bin": 2,
+      "smooth": 0.05,
+      "sigma_t": 2.5,
+      "sigma_d": 0.15,
+      "extend": 0.8,
+      "clear_reach": 1.6,
+      "hue_min": 45,
+      "hue_full": 80,
+      "look": {
+        "note": "insulated wire: a matte cylinder lit from the top left (light: x, y down the picture, z out of it), the original's dark and light shade of each colour; width_var / sag: how much the width (relative) and the line (px) wander along it; mottle and dull: age; sheen: a soft broad highlight along its top; grime where it meets a connector or the panel (reach px); shadows: offset (px, down-right) and blur of the contact shadow on the panel and connectors and under the yellow where it crosses the red",
+        "light": [-0.45, -0.6, 0.66],
+        "shades": {"red": [[122, 0, 24], [161, 0, 32]], "yellow": [[158, 154, 26], [204, 199, 34]]},
+        "ambient": 0.45, "dark_floor": 0.75, "rim": 0.78,
+        "width_var": 0.07, "width_px": 3.0, "sag": 0.14, "sag_px": 4.0,
+        "mottle": 0.05, "dull": 0.08,
+        "sheen": 0.16, "sheen_at": 0.55, "sheen_width": 0.22, "sheen_colour": [214, 208, 190],
+        "grime": 0.45, "grime_reach": 1.1, "grime_colour": [38, 33, 22],
+        "shadow_offset": [0.3, 0.4], "shadow_blur": 0.45, "shadow_panel": 0.35, "shadow_cross": 0.45
+      }
+    }
+  },
+  "weapons": {
+    "housing": "zwpe",
+    "size": [182, 24],
+    "variants": [[0, 0], [0, 24], [0, 48], [0, 72], [0, 96]],
+    "note": "the counters' housings (housing1..5, one chosen at random for each row of the weapons and specials panels): the same wear on all five; what the game stamps on a housing is left as the pack has it: the diode (18, 4, 14 x 16), the label plate (32, 1, 93 x 22) and the four counter windows (the modern look's drums a pixel left of the anchors: 126..162, 7..17)",
+    "stamped": [[18, 4, 32, 20], [32, 1, 125, 23], [126, 7, 162, 17]],
+    "rails": ["zbk_", "zbks_"],
+    "rail_size": [256, 128]
+  },
+  "distress": {
+    "seed": 1976,
+    "default": "medium",
+    "colours": {"grime": [26, 24, 14], "metal": [150, 148, 138], "scratch": [178, 176, 162], "scratch_dark": [20, 20, 14]},
+    "levels": {
+      "0": null,
+      "light": {"grime": 0.22, "mottle": 0.10, "wear": 0.35, "chip_threshold": 1.75, "scratches": 0.9, "scratch": 0.28, "scratch_len": 3.5,
+                "scratch_width": 0.3, "scratch_dark": 0.4, "ink": 0.10, "ink_pins": 0.45, "ink_rough": 0.35, "pin_threshold": 2.7},
+      "medium": {"grime": 0.36, "mottle": 0.14, "wear": 0.5, "chip_threshold": 1.4, "scratches": 1.8, "scratch": 0.4, "scratch_len": 4.0,
+                 "scratch_width": 0.35, "scratch_dark": 0.45, "ink": 0.18, "ink_pins": 0.65, "ink_rough": 0.55, "pin_threshold": 2.4}
+    }
+  }
+}

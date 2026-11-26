@@ -355,6 +355,71 @@ class SmoothSweepTests(unittest.TestCase):
         self.assertFalse(rd.has_layers())
 
 
+class GlassTests(unittest.TestCase):
+    """The scope's glass (spec glass, --glass): none changes nothing; a level lies inside the face only, the same in every frame,
+    over the beam; the live sweep's layers carry it, so the stepped frames and the smooth sweep agree with it on."""
+
+    @classmethod
+    def setUpClass(cls):
+        import copy
+        cls.base_spec = rr.load_spec(); cls.frames = rr.synthetic(cls.base_spec)
+        cls.g, _ = rr.measure(cls.frames, cls.base_spec)
+        cls.k = 2
+        def rd(level):
+            spec = copy.deepcopy(cls.base_spec)
+            if level is not None: spec["glass"]["use"] = level
+            return rr.Redraw(cls.g, spec, "B", None, cls.k, cls.up(spec["frames"]["sweep"] % 30))
+        cls.rd = {lv: rd(lv) for lv in (None, "none", "light", "medium")}
+
+    @classmethod
+    def up(cls, stem):
+        return np.repeat(np.repeat(cls.frames[stem], cls.k, 0), cls.k, 1)
+
+    def frame(self, level, kind, i):
+        return self.rd[level].frame(self.up(self.base_spec["frames"][kind] % i), kind, i)
+
+    def inside(self, shape, margin=0.0):
+        k = self.k; Y, X = np.mgrid[0:shape[0], 0:shape[1]]
+        c = self.g["face"]["centre"]; R = self.g["face"]["radius"]
+        return np.hypot((X + 0.5) / k - c[0], (Y + 0.5) / k - c[1]) < R + margin
+
+    def test_none_is_the_default_and_changes_nothing(self):
+        self.assertEqual(self.base_spec["glass"]["default"], "none")
+        for kind, i in (("sweep", 4), ("locked", 25), ("sweep", 30)):
+            self.assertTrue(np.array_equal(self.frame(None, kind, i), self.frame("none", kind, i)))
+
+    def test_a_level_changes_the_face_only_and_is_the_same_in_every_frame(self):
+        a, b = self.frame("light", "sweep", 30), self.frame("none", "sweep", 30)
+        diff = np.abs(a.astype(int) - b.astype(int)).max(-1) > 0
+        self.assertTrue(diff.any())
+        self.assertFalse((diff & ~self.inside(diff.shape, 1.0 / self.k)).any())         # nothing past the face's rim texel
+        self.assertTrue(np.array_equal(a[..., 3], b[..., 3]))
+        # the glass does not turn with the beam: two frames' differences from none agree away from both beams
+        d4 = self.frame("light", "sweep", 4).astype(int) - self.frame("none", "sweep", 4).astype(int)
+        d30 = a.astype(int) - b.astype(int)
+        quiet = (np.abs(self.frame("none", "sweep", 4).astype(int) - b.astype(int)).max(-1) == 0)
+        self.assertLessEqual(int(np.abs(d4 - d30)[quiet].max()), 1)
+
+    def test_medium_holds_light_and_more(self):
+        lv = self.base_spec["glass"]["levels"]
+        for k in ("smudges", "scratches", "dust"): self.assertGreaterEqual(lv["medium"][k], lv["light"][k])
+        n = self.frame("none", "sweep", 30).astype(int)
+        dl = np.abs(self.frame("light", "sweep", 30).astype(int) - n).sum(); dm = np.abs(self.frame("medium", "sweep", 30).astype(int) - n).sum()
+        self.assertGreater(dm, dl)
+
+    def test_the_layers_carry_the_glass(self):
+        rd = self.rd["medium"]; L = rd.layers(); p = rd.sweep_params()
+        face, grid = L[rr.SWEEP_LAYERS["face"]], L[rr.SWEEP_LAYERS["grid"]]
+        self.assertTrue(np.array_equal(face, self.rd["none"].layers()[rr.SWEEP_LAYERS["face"]]))      # the face stays clean
+        keep = ~(np.abs(np.hypot(*[(c + 0.5) / self.k - o for c, o in zip(np.mgrid[0:face.shape[0], 0:face.shape[1]][::-1], self.g["face"]["centre"])]) - self.g["face"]["radius"]) <= 0.3)
+        for kind, f in (("sweep", 4), ("sweep", 19), ("locked", 25)):
+            stepped = self.frame("medium", kind, f)
+            angle = rr.sweep_file_angle(p, f) if kind == "sweep" else rr.frame_angle(f)
+            smooth = rr.compose_smooth(face, grid, p, angle, locked=kind == "locked")
+            d = np.abs(stepped.astype(int) - smooth.astype(int)).max(-1)
+            self.assertLessEqual(int(d[keep].max()), 2, (kind, f))
+
+
 class SpecTests(unittest.TestCase):
     # the lower knob's marks as measured on the original (game view): the X, the left tick, the right tick; the knobs
     MARKS = {"groups": {"ticks": {"blobs": [{"centre": [28.333, 60.167]}, {"centre": [21.5, 62.5]}, {"centre": [37.5, 63.5]}]},

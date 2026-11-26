@@ -4,7 +4,7 @@
     python tools/radar-redraw.py measure EXPORT_DIR [geometry.json]
     python tools/radar-redraw.py fit-labels EXPORT_DIR [fit.json]
     python tools/radar-redraw.py render  EXPORT_DIR UPSCALE_DIR OUT_DIR [--scale 8] [--style A|B] [--labels NAME]   (frames, zrge.png, ztge.png)
-    python tools/radar-redraw.py pack    EXPORT_DIR PACK_DIR [--out DIR] [--base DIR] [--scale N] [--style A|B] [--labels NAME]
+    python tools/radar-redraw.py pack    EXPORT_DIR PACK_DIR [--out DIR] [--base DIR] [--scale N] [--style A|B] [--labels NAME] [--glass none|light|medium]
     python tools/radar-redraw.py sheet   EXPORT_DIR UPSCALE_DIR OUT_DIR
     python tools/radar-redraw.py --self-check
 
@@ -463,11 +463,12 @@ def scope_face(g, spec, cv, style, frame=None, locked=False, parts="all"):
     if a0 is not None and not over_all:
         if locked: cone(img, cv, g, st, a0)
         if not locked: beam(img, cv, g, st, a0, part="line" if under else "all")
+    draw_glass(paint, g, spec, cv)
     return img, inside
 
 
 def scope_grid(g, spec, cv):
-    """The live sweep's grid layer over the scope's window: the graticule and the pip as one layer (straight RGB, alpha),
+    """The live sweep's grid layer over the scope's window: the graticule, the pip and the glass as one layer (straight RGB, alpha),
     clipped to the face's circle, which laid over a face drawn with the beam or cone gives the frame style B draws."""
     h, w = cv.Y.shape[0], cv.X.shape[1]
     C = np.zeros((h, w, 3)); A = np.zeros((h, w))
@@ -476,9 +477,98 @@ def scope_grid(g, spec, cv):
         C[:] = C * (1 - c[..., None]) + c[..., None] * np.asarray(colour, float); A[:] = A * (1 - c) + c
     draw_graticule(paint, g, spec, cv)
     draw_pip(paint, g, spec, cv, on=True)
+    draw_glass(paint, g, spec, cv)
     inside = cv.disc(g["face"]["centre"], g["face"]["radius"])
     rgb = np.where(A[..., None] > 1e-6, C / np.maximum(A, 1e-6)[..., None], 0.0)
     return rgb, A * inside
+
+
+# ------------------------------------------------------------------------------------------------------------- the glass
+# The scope's glass (spec "glass", --glass LEVEL): a fixed soft sheen near the rim at the top left as the player sees it, a slight
+# darkening toward the bezel, and a little second-hand wear: fine scratches catching the light, a smudge or two, dust at the rim.
+# Every part is a coverage in original pixels from the spec's seed (the same at any scale, the same in every frame), painted over
+# the beam, the cone, the graticule and the pip; the game's blips, lamp and plate lie over it. In the live sweep it is part of the
+# grid layer (one layer over the face), so the stepped frames and the smooth sweep carry the same glass.
+
+def glass_level(spec):
+    """The glass's level as chosen (spec glass.use, set by --glass), or None."""
+    gl = spec.get("glass") or {}
+    use = gl.get("use", gl.get("default", "none"))
+    return None if use in (None, "none") else gl["levels"][use]
+
+
+def screen_bearing(X, Y, c):
+    """Degrees clockwise from the top of the screen about c (the frames' rows are shown flipped: the file's +y is up)."""
+    return np.degrees(np.arctan2(X - c[0], Y - c[1])) % 360
+
+
+def value_noise(rng, box, cell):
+    """A smooth noise field over box (original px), cells of `cell` px: (sample(X, Y) -> 0..1)."""
+    x0, y0, x1, y1 = box
+    nx = int(math.ceil((x1 - x0) / cell)) + 4; ny = int(math.ceil((y1 - y0) / cell)) + 4
+    grid = rng.random((ny, nx))
+    def sample(X, Y):
+        Xb, Yb = np.broadcast_arrays(X, Y)
+        return ndimage.map_coordinates(grid, [(Yb - y0) / cell + 1.5, (Xb - x0) / cell + 1.5], order=3, mode="nearest").clip(0, 1)
+    return sample
+
+
+def draw_glass(paint, g, spec, cv):
+    """The glass's parts as coverages handed to paint(cov, colour), in order: darkening, sheen, smudges, scratches, dust."""
+    lv = glass_level(spec)
+    if lv is None: return
+    gl = spec["glass"]; fc = np.array(g["face"]["centre"]); fr = g["face"]["radius"]
+    import zlib
+    rng = np.random.default_rng([int(gl["seed"]), zlib.crc32(b"zrad-glass")])   # seeded as the panels' wear is: the seed and the unit's name
+    X, Y = np.broadcast_arrays(cv.X, cv.Y)
+    r = np.hypot(X - fc[0], Y - fc[1]) / fr
+    def ss(a, b, x): t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
+    # the bezel's shadow on the glass
+    paint(lv["vignette"] * ss(gl["vignette_from"], 1.0, r) ** 1.5, gl.get("vignette_colour", (0, 0, 0)))
+    # the sheen: a soft crescent inside the rim at the top left (a fixed light), and a faint broad glare inside it
+    sh = gl["sheen"]
+    d = (screen_bearing(X, Y, fc) - sh["bearing"] + 180) % 360 - 180
+    crescent = np.exp(-0.5 * (d / sh["spread_deg"]) ** 2) * ss(sh["inner"], sh["inner"] + 0.18, r) * (1 - ss(sh["outer"] - 0.07, sh["outer"], r))
+    b = math.radians(sh["bearing"]); gc_ = fc + np.array([math.sin(b), math.cos(b)]) * sh["glare_at"] * fr
+    glare = np.exp(-0.5 * (np.hypot(X - gc_[0], Y - gc_[1]) / (sh["glare_sigma"] * fr)) ** 2)
+    paint(lv["sheen"] * np.maximum(crescent, sh["glare_share"] * glare), gl["sheen_colour"])
+    # every random draw is made whatever the level (the levels share one layout and add parts, so light lies inside medium)
+    box = (fc[0] - fr - 1, fc[1] - fr - 1, fc[0] + fr + 1, fc[1] + fr + 1)
+    noise = value_noise(rng, box, 1.3)
+    sm = []
+    for i in range(gl["max_smudges"]):
+        a = rng.uniform(0, 2 * math.pi); rr = math.sqrt(rng.uniform(0.05, 0.45)) * fr
+        sm.append((fc + np.array([math.cos(a), math.sin(a)]) * rr, rng.uniform(4.0, 7.5), rng.uniform(0.6, 1.0), rng.uniform(0.5, 0.9)))
+    sc = []
+    for i in range(gl["max_scratches"]):
+        a = rng.uniform(0, 2 * math.pi); rr = math.sqrt(rng.uniform(0, 0.8)) * fr
+        p = fc + np.array([math.cos(a), math.sin(a)]) * rr
+        th = rng.uniform(0, math.pi); L = rng.uniform(3, 15); bend = rng.uniform(-0.15, 0.15) * L
+        w = rng.uniform(0.12, 0.22); al = rng.uniform(0, 1)
+        sc.append((p, th, L, bend, w, al))
+    du = []
+    for i in range(gl["max_dust"]):
+        a = rng.uniform(0, 2 * math.pi); rim = rng.random() < 0.8
+        rr = (1 - rng.uniform(0, 0.17) ** 1.5 if rim else math.sqrt(rng.uniform(0, 0.8))) * fr
+        du.append((fc + np.array([math.cos(a), math.sin(a)]) * rr, rng.uniform(0.12, 0.33), rng.uniform(0, 1)))
+    # smudges: a soft haze, its density uneven (the noise), as a thumb leaves on glass
+    for c, rad, k, aspect in sm[:lv["smudges"]]:
+        q = np.hypot((X - c[0]) / aspect, Y - c[1]) / rad
+        paint(lv["smudge_alpha"] * k * np.exp(-2.5 * q * q) * (0.35 + 0.65 * noise(X, Y)), gl["smudge_colour"])
+    # scratches: thin bent lines catching the light, faint at their ends
+    lo, hi = lv["scratch_alpha"]
+    for p, th, L, bend, w, al in sc[:lv["scratches"]]:
+        u = np.array([math.cos(th), math.sin(th)]); n = np.array([-u[1], u[0]])
+        pts = [p + u * (t - 0.5) * L + n * bend * (1 - (2 * t - 1) ** 2) for t in np.linspace(0, 1, 7)]
+        cov = np.zeros(X.shape)
+        for k in range(6):
+            fade = math.sin(math.pi * (k + 0.5) / 6) ** 0.7
+            cov = np.maximum(cov, cv.seg(pts[k], pts[k + 1], w) * fade)
+        paint(cov * (lo + (hi - lo) * al), gl["scratch_colour"])
+    # dust: specks, most of them settled at the rim
+    lo, hi = lv["dust_alpha"]
+    for c, rad, al in du[:lv["dust"]]:
+        paint(cv.disc(c, rad) * (lo + (hi - lo) * al), gl["dust_colour"])
 
 
 def beam(img, cv, g, st, a0, part="all"):
@@ -1327,8 +1417,9 @@ def resize_to(a, w, h):
 class Redraw:
     """One label set and style at scale s: the static parts made once, each frame composited over its upscale."""
 
-    def __init__(self, g, spec, style, label_set, s, panel_base, med=None):
+    def __init__(self, g, spec, style, label_set, s, panel_base, med=None, distress=None):
         self.g, self.spec, self.style, self.s = g, spec, style, s
+        self.wear = None
         # the edges (wires, bezel rings): drawn once, game view, flipped into the file's rows; need the original's median
         self.edges = []
         for box, rgb, al, cov, mode in edge_layers(g, spec, med, s):
@@ -1356,6 +1447,9 @@ class Redraw:
         else:
             self.panel = None
         self.cache = {}
+        # the wear (tools/panel_distress.py, the damage panel's and the counters' layer): made once from the base frame as
+        # drawn so far, the same on every frame, the layers and the stamps' discs; not on the scopes' faces
+        if distress: self.wear = self.make_wear(panel_base, distress)
         # the stamps' discs: the same texels in every frame (the base frame's, redrawn), which the redrawn sheets carry too
         self.stamps = g.get("stamps") if spec.get("stamps") else None
         self.static = self.core(panel_base, "sweep", spec["frames"]["count"]) if self.stamps else None
@@ -1367,6 +1461,20 @@ class Redraw:
                 cx, cy = stamp_centre_file(self.stamps, key)
                 r = np.hypot(X - cx, Y - cy)
                 self.paste = np.maximum(self.paste, np.clip((part["mask_radius"] + st["paste_hold"] + st["paste_feather"] - r) / st["paste_feather"], 0, 1))
+
+    def make_wear(self, panel_base, distress):
+        """distress: (level, colours, seed) as tools/hud-redraw/hud.json's "distress" gives them; the maps in the file's rows."""
+        import panel_distress as pd
+        level, colours, seed = distress
+        if not level: return None
+        base = self.core(panel_base, "face", None)
+        gv = flip_rows(base); s = self.s; H, W = gv.shape[:2]
+        X = (np.arange(W) + 0.5)[None, :] / s; Y = (np.arange(H) + 0.5)[:, None] / s
+        m = (gv[..., 3] > 127).astype(float)
+        for c, r in ((self.g["face"]["centre"], self.g["face"]["radius"]), (self.g["inset"]["face"]["centre"], self.g["inset"]["face"]["radius"])):
+            m *= np.clip(np.hypot(X - c[0], Y - (128 - c[1])) - r - 0.3, 0, 1)
+        L = pd.make_layer(gv, s, level, seed, "radar", mask=m)
+        return {k: flip_rows(v) for k, v in L.items()}, colours
 
     def has_layers(self):
         """Whether the style can be drawn live from the layers: the graticule printed over the beam and cone (grid_over)."""
@@ -1417,6 +1525,9 @@ class Redraw:
                 c = cc[..., None]; img[sl] = img[sl] * (1 - c) + rgb * c
                 alpha[sl] = alpha[sl] * (1 - cov) + al * 255 * cov
             out[..., 3] = np.clip(np.round(alpha), 0, 255).astype(np.uint8)
+        if self.wear is not None:
+            import panel_distress as pd
+            pd.apply_float(img, self.wear[0], self.wear[1], s=s)
         frame = None if i is None or i >= self.spec["frames"]["count"] else i
         face, cov = scope_face(self.g, self.spec, self.scv, self.style, frame, kind == "locked", parts="face" if kind == "face" else "all")
         x0, y0, x1, y1 = self.sbox
@@ -1458,13 +1569,13 @@ def all_stems(spec):
     fr = spec["frames"]; return [fr[kind] % i for kind in ("sweep", "locked") for i in range(fr["count"] + 1)]
 
 
-def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None):
+def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None, distress=None):
     """Yields (stem, RGBA, geometry) for the 62 frames (the export's rows) and then the two sheets (rows as shown, as the
     export has them); load(stem) gives a frame's upscale at s in the export's rows."""
     frames = load_frames(export_dir, spec)
     if g is None: g, _ = measure(frames, spec, export_dir)
     ls = label_set_named(spec, ls_name)
-    rd = Redraw(g, spec, style, ls, s, load(spec["frames"]["sweep"] % spec["frames"]["count"]), median_of(frames, spec))
+    rd = Redraw(g, spec, style, ls, s, load(spec["frames"]["sweep"] % spec["frames"]["count"]), median_of(frames, spec), distress)
     for kind in ("sweep", "locked"):
         for i in range(spec["frames"]["count"] + 1):
             stem = spec["frames"][kind] % i
@@ -1480,10 +1591,10 @@ def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None):
         yield SWEEP_LAYERS["params"], rd.sweep_params(), g
 
 
-def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
+def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None, distress=None):
     os.makedirs(out_dir, exist_ok=True)
     bu = read_bottom_up(export_dir)
-    for stem, a, g in redraw_frames(export_dir, lambda st: upscale_frame(upscale_dir, st, s, bu), spec, s, style, ls_name, g):
+    for stem, a, g in redraw_frames(export_dir, lambda st: upscale_frame(upscale_dir, st, s, bu), spec, s, style, ls_name, g, distress):
         if isinstance(a, dict): write_params(os.path.join(out_dir, stem), a)
         else: Image.fromarray(a).save(os.path.join(out_dir, stem + ".png"))
     with open(os.path.join(out_dir, "radar-geometry.json"), "w") as f: json.dump(strip(g), f, indent=1)
@@ -1518,7 +1629,7 @@ def sha256_of(path):
     return h.hexdigest()
 
 
-def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
+def note_in_pack(src, dst, spec, spec_path, style, ls_name, s, distress_name="0"):
     """src's pack.json (radar_redraw; the font in text_fonts) and ATTRIBUTION.txt (the font's line, in the file's own style)
     written into dst; FILES.sha256 made again when dst is the pack itself and has one."""
     ls = label_set_named(spec, ls_name); credits = [font_credit(spec, n) for n in fonts_used(spec, ls)]
@@ -1530,10 +1641,14 @@ def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
         meta["radar_redraw"] = {"tool": "tools/radar-redraw.py", "tool_sha256": sha256_of(os.path.abspath(__file__)),
                                 "spec": "tools/radar-redraw/radar.json", "spec_sha256": sha256_of(spec_path),
                                 "style": style, "labels": ls_name, "scale": s,
+                                "glass": (spec.get("glass") or {}).get("use", (spec.get("glass") or {}).get("default", "none")),
                                 "textures": ", ".join([fr["sweep"] % 0 + "-" + last, fr["locked"] % 0 + "-" + last]
                                                       + sorted(p["sheet"] for p in spec["stamps"]["parts"].values())
                                                       + ([SWEEP_LAYERS[k] for k in ("face", "grid", "params")] if spec["styles"][style].get("grid_over") else [])),
                                 "fonts": [c["font"] for c in credits]}
+        if distress_name not in (None, "0"):
+            meta["radar_redraw"]["distress"] = distress_name
+            meta["radar_redraw"]["distress_sha256"] = sha256_of(os.path.join(HERE, "panel_distress.py"))
         have = {f_.get("font") for f_ in meta.get("text_fonts", [])}
         new = [c for c in credits if c["font"] not in have]
         meta["text_fonts"] = meta.get("text_fonts", []) + new
@@ -1583,7 +1698,7 @@ def pack_redrawn(pack):
         except ValueError: return False
 
 
-def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, base=None):
+def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, base=None, distress=None, distress_name="0"):
     """A pack's radar frames and sheets redrawn in its own format: in place (out None; the frames it starts from kept in
     pack/.radar-base/, which later runs start from) or into out (the pack only read). The redraw always starts from the
     upscale's own frames: base (a folder holding them, e.g. a backup) when given, else pack/.radar-base/, else the pack's
@@ -1623,7 +1738,7 @@ def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, ba
         if src[stem].endswith(".dds") and stem in bu: a = np.ascontiguousarray(a[::-1])
         return resize_to(a, 256 * s, 128 * s)
     written = []
-    for stem, a, g in redraw_frames(export_dir, load, spec, s, style, ls_name):
+    for stem, a, g in redraw_frames(export_dir, load, spec, s, style, ls_name, distress=distress):
         if isinstance(a, dict):
             write_params(os.path.join(dst, stem), a); written.append(stem); continue
         # the grid layer always a PNG: its one-texel lines and their alpha kept exactly (BC7 would blotch them); small
@@ -1640,7 +1755,7 @@ def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, ba
         other = os.path.join(dst, stem + (".png" if fmt == ".dds" else ".dds"))
         if out is None and os.path.exists(other): os.remove(other)
         written.append(os.path.basename(path))
-    note_in_pack(pack, dst, spec, spec_path, style, ls_name, s)
+    note_in_pack(pack, dst, spec, spec_path, style, ls_name, s, distress_name)
     return written, s
 
 
@@ -1802,6 +1917,15 @@ def self_check():
 
 # ------------------------------------------------------------------------------------------------------------- main
 
+def distress_of(name):
+    """(level, colours, seed) of tools/hud-redraw/hud.json's wear level name (the damage panel's and counters'), None for 0."""
+    if name in (None, "0"): return None
+    with open(os.path.join(HERE, "hud-redraw", "hud.json"), encoding="utf-8") as f: d = json.load(f)["distress"]
+    if name not in d["levels"]: raise SystemExit(f"no wear level {name!r}: " + ", ".join(d["levels"]))
+    if HERE not in sys.path: sys.path.insert(0, HERE)
+    return (d["levels"][name], d["colours"], d["seed"])
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", nargs="?", choices=["measure", "render", "pack", "sheet", "fit-labels"])
@@ -1810,12 +1934,19 @@ def main(argv=None):
     ap.add_argument("--scale", type=int, default=None, help="texels a pixel (render: 8; pack: the pack's own)")
     ap.add_argument("--style", default="B", help="A (the original's line and cone) or B (an afterglow; the packs')")
     ap.add_argument("--labels", default="lock-range", help="a label set of the spec (lock-range: the packs')")
+    ap.add_argument("--glass", default=None, help="the scope's glass: none, light or medium (the spec's glass.default when not given)")
     ap.add_argument("--out", dest="out_dir", help="pack: write the files here and leave the pack as it is")
     ap.add_argument("--base", help="pack: the upscale's own radar frames (a backup), when the pack's are a redraw already")
+    ap.add_argument("--distress", default="0", help="render, pack: the damage panel's wear laid on the unit too (0, light, medium: "
+                    "tools/hud-redraw/hud.json's levels); 0, the packs' choice, adds none")
     ap.add_argument("--self-check", action="store_true")
     a = ap.parse_args(argv)
     if a.self_check: return 0 if self_check() else 1
     spec = load_spec(a.spec)
+    if a.glass is not None:
+        if a.glass != "none" and a.glass not in spec["glass"]["levels"]: ap.error(f"--glass: none or one of {', '.join(spec['glass']['levels'])}")
+        spec["glass"]["use"] = a.glass
+    distress = distress_of(a.distress)
     if a.cmd == "measure":
         g, _ = measure(load_frames(a.export, spec), spec, a.export)
         txt = json.dumps(strip(g), indent=1)
@@ -1834,12 +1965,13 @@ def main(argv=None):
         else: print(txt)
         return 0
     if a.cmd == "render":
-        render_all(a.export, a.upscale, a.out, spec, a.scale or 8, a.style, a.labels)
+        render_all(a.export, a.upscale, a.out, spec, a.scale or 8, a.style, a.labels, distress=distress)
         return 0
     if a.cmd == "pack":
         if not a.export or not a.upscale or a.out: ap.error("pack takes EXPORT_DIR and PACK_DIR (and --out DIR)")
-        files, s = pack_step(a.export, a.upscale, a.out_dir, spec, a.spec, a.style, a.labels, a.scale, a.base)
-        print(f"radar redrawn at {s}x, style {a.style}, labels {a.labels}: {len(files)} files into {a.out_dir or a.upscale}")
+        files, s = pack_step(a.export, a.upscale, a.out_dir, spec, a.spec, a.style, a.labels, a.scale, a.base, distress, a.distress)
+        wear = "" if a.distress == "0" else f", wear {a.distress}"
+        print(f"radar redrawn at {s}x, style {a.style}, labels {a.labels}{wear}: {len(files)} files into {a.out_dir or a.upscale}")
         return 0
     if a.cmd == "sheet":
         import importlib.util
