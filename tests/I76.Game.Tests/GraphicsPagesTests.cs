@@ -52,6 +52,7 @@ public class GraphicsPagesTests
         GraphicsRow.Haze => s.Haze,
         GraphicsRow.Glow => s.Glow,
         GraphicsRow.Reflections => s.Reflections,
+        GraphicsRow.Quality => null,   // derived from the rows (QualityPreset)
         _ => throw new ArgumentOutOfRangeException(nameof(r)),
     };
 
@@ -95,7 +96,7 @@ public class GraphicsPagesTests
     [Fact]
     public void TheSheetHas1997ModeAndTheOriginalsRowsLeadTheirPages()
     {
-        Assert.Equal([GraphicsRow.Look1997], GraphicsPages.Rows[GraphicsPages.Sheet]);
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.Quality], GraphicsPages.Rows[GraphicsPages.Sheet]);
         Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
             GraphicsPages.Original);
         Assert.Equal([GraphicsPages.Display, GraphicsPages.Display, GraphicsPages.World, GraphicsPages.World, GraphicsPages.World, GraphicsPages.CarCockpit, GraphicsPages.CarCockpit],
@@ -147,22 +148,22 @@ public class GraphicsPagesTests
     }
 
     /// <summary>
-    /// The sheet: 1997 Mode on its first line (the switch between the looks), a blank line, the four entries, the frame rate on the
-    /// last; the pad's the same from row 1 (1997 Mode, a blank row, the entries on rows 3 to 6), the frame rate on row 14.
+    /// The sheet: 1997 Mode and Quality on its first lines, a blank line, the four entries, the frame rate on the last; the pad's the
+    /// same from row 1 (the entries on rows 4 to 7), the frame rate on row 14.
     /// </summary>
     [Fact]
-    public void TheSheetIs1997ModeOverTheEntries()
+    public void TheSheetIs1997ModeAndQualityOverTheEntries()
     {
-        Assert.Equal(2, GraphicsPages.FirstEntryLine);
+        Assert.Equal(3, GraphicsPages.FirstEntryLine);
         foreach (bool fps in new[] { true, false })
         {
-            var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 1, fps);
-            Assert.Equal((0, 1, false), (shell.LineOf(0), shell.Shown, shell.Scrolls));
-            Assert.Equal([2, 3, 4, 5], shell.Entries);
+            var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 2, fps);
+            Assert.Equal((0, 1, 2, false), (shell.LineOf(0), shell.LineOf(1), shell.Shown, shell.Scrolls));
+            Assert.Equal([3, 4, 5, 6], shell.Entries);
             Assert.Equal(fps ? 13 : -1, shell.Fps);
-            var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 1, fps);
-            Assert.Equal((1, 1, false), (pad.LineOf(0), pad.Shown, pad.Scrolls));
-            Assert.Equal([3, 4, 5, 6], pad.Entries);
+            var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 2, fps);
+            Assert.Equal((1, 2, 2, false), (pad.LineOf(0), pad.LineOf(1), pad.Shown, pad.Scrolls));
+            Assert.Equal([4, 5, 6, 7], pad.Entries);
             Assert.Equal(fps ? 14 : -1, pad.Fps);
             foreach (int r in pad.Entries) Assert.DoesNotContain(r, GraphicsLayout.PadButtons);
         }

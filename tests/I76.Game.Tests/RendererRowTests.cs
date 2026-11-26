@@ -42,13 +42,13 @@ public class RendererRowTests(ITestOutputHelper output)
         Assert.Equal("Vulkan (Metal)", RenderBackend.RowText(RendererChoice.Vulkan, RendererChoice.Vulkan, "metal", false).Value);
 
     [Fact]
-    public void ASettingChangedForTheNextStartShowsAsItIs()
+    public void ASettingChangedForTheNextStartIsMarkedRestart()
     {
         var (value, note) = RenderBackend.RowText(RendererChoice.OpenGL, RendererChoice.Auto, "vulkan", true);
-        Assert.Equal("OpenGL", value);
+        Assert.Equal("OpenGL (restart)", value);
         Assert.Equal("Running now: Vulkan. OpenGL from the next start.", note);
         // and back to Auto from a start on OpenGL: not "Auto (OpenGL)", which would say what Auto picks
-        Assert.Equal("Auto", RenderBackend.RowText(RendererChoice.Auto, RendererChoice.OpenGL, "opengl3", true).Value);
+        Assert.Equal("Auto (restart)", RenderBackend.RowText(RendererChoice.Auto, RendererChoice.OpenGL, "opengl3", true).Value);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class RendererRowTests(ITestOutputHelper output)
         int labelEnd = 200 + f.Measure("Renderer");
         int x = Math.Max(397, labelEnd + 16);
         string[] values = ["Auto", "Vulkan", "D3D12", "OpenGL", "Auto (Vulkan)", "Auto (D3D12)", "Auto (OpenGL)", "Auto (Metal)",
-            "Vulkan (fallback)", "D3D12 (fallback)", "OpenGL (fallback)", "Vulkan (Metal)", "D3D12 (Metal)", "OpenGL (Metal)"];
+            "Vulkan (fallback)", "D3D12 (fallback)", "OpenGL (fallback)", "Auto (restart)", "Vulkan (restart)", "D3D12 (restart)", "OpenGL (restart)", "Vulkan (Metal)", "D3D12 (Metal)", "OpenGL (Metal)"];
         foreach (var v in values)
         {
             int at = Math.Min(x, 461 - f.Measure(v));

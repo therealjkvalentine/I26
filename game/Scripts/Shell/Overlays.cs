@@ -824,6 +824,13 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
             // from the next start or mission), the sheet's own row over the pages' entries (its palette grade for the modern look is on Effects)
+            // the port's preset over the costly rows (QualityPreset): its word read back from them, a click the next column, each row
+            // set and applied as its own click would
+            case GraphicsRow.Quality:
+                var qs = I76.Game.Assets.HdTextures.AvailableSizes;
+                bool qPacks = TextureRow.Offered(qs, qs.Length > 0 || I76.Game.Assets.HdTextures.Installed);
+                Row(r, line, QualityPreset.Label, () => QualityPreset.Word(st, qs, qPacks), () => { QualityPreset.Step(st, qs, qPacks); Apply(QualityPreset.Rows); });
+                break;
             case GraphicsRow.Look1997:
                 string[] modes = ["Off" + mark, "3D Card", "Software"];
                 Row(r, line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
@@ -844,10 +851,13 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
     }
 
     /// <summary>A page's live rows applied after Reset or Cancel put them back (a click applies its own); the graphics block's bytes apply in a mission.</summary>
-    private void Apply(int page)
+    private void Apply(int page) => Apply(GraphicsPages.Rows[page]);
+
+    /// <summary>Rows' live parts applied after something other than their own click set them (Reset, Cancel, the Quality preset).</summary>
+    private void Apply(IEnumerable<GraphicsRow> rows)
     {
         var st = Shell.Settings;
-        foreach (var r in GraphicsPages.Rows[page])
+        foreach (var r in rows)
             switch (r)
             {
                 case GraphicsRow.Resolution: I76.Game.Boot.WindowApplier.Apply(st); break;
