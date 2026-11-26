@@ -31,6 +31,7 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("t", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("gun_lay, settle", out _));
         Assert.Equal(SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick, SmartAiNames.Parse("N", out _));
+        Assert.Equal(SmartAi.Positions, SmartAiNames.Parse("g", out _));
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("all", out _));
         Assert.Equal((SmartAi)3, SmartAiNames.Parse("3", out _));
         Assert.Equal((SmartAi)5, SmartAiNames.Parse("5", out _));
@@ -363,6 +364,42 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.True(MathF.Sign(turned) == MathF.Sign(AiDriver.AngleDelta(nose0, a.UnstickHeading)) && MathF.Abs(turned) > 0.1f, $"turned {turned}");
     }
 
+    // ---- G1 waiting cars take positions ----
+
+    /// <summary>
+    /// Three cars on a player whose attacker cap is 1: with Positions the two waiting ones hold slots behind the player's quarters,
+    /// spending far less of their time in its forward cone than the original's flee-and-return.
+    /// </summary>
+    [Fact]
+    public void WaitingCarsTakePositionsOutOfTheGunCone()
+    {
+        float Exposure(SmartAi rule)
+        {
+            var r = Make(["vppirna1.vcf", "vppirna1.vcf", "vppirna1.vcf"], rule)!;
+            var pe = r.Host.Player!;
+            pe.MaxAttackers = 1;
+            Place(r, r.Player, r.Centre, 0, 0);
+            for (int k = 0; k < r.Ais.Count; k++) Place(r, r.Ais[k].Vehicle!, r.Centre + new Vector2(MathF.Sin(2.1f * k), MathF.Cos(2.1f * k)) * 150f, 0, 0);
+            int deck = 0, inCone = 0;
+            for (int t = 0; t < Ticks(40); t++)
+            {
+                Step(r, r.Ais.Select(e => (e, pe)).ToArray());
+                foreach (var e in r.Ais)
+                {
+                    if (e.Depth < 0 || r.Host.Ptable.NameOf(e.Stack[e.Depth]) != "tactic on deck") continue;
+                    deck++;
+                    var d = e.Position - r.Player.Pos.ToVector3();
+                    if (MathF.Abs(AiDriver.AngleDelta(HeadingOf(r.Player.Rot.Forward), MathF.Atan2(d.X, d.Z))) < MathF.PI / 4 && d.Length() < 150) inCone++;
+                }
+            }
+            output.WriteLine($"{rule}: {deck} on-deck ticks, {inCone} of them in the player's forward cone");
+            Assert.True(deck > 0, "nobody went on deck");
+            return inCone / (float)deck;
+        }
+        if (SnapshotRig.Install is null) return;
+        float stock = Exposure(SmartAi.None), smart = Exposure(SmartAi.Positions);
+        Assert.True(smart < stock, $"in the cone {smart:P0} with positions against {stock:P0}");
+    }
 
 
 }

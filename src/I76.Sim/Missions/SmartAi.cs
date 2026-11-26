@@ -23,7 +23,9 @@ public enum SmartAi : uint
     LedgeCaution = 1 << 4,
     /// <summary>Stuck recovery (N5): no progress while asking to go backs out on an arc toward the target, then forward; the cell is avoided a while.</summary>
     Unstick = 1 << 5,
-    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick,
+    /// <summary>Waiting cars take positions (G1, with P1's offset slot): a car on deck holds a slot round the target, out of its gun cone.</summary>
+    Positions = 1 << 6,
+    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick | Positions,
 }
 
 /// <summary>The <see cref="SmartAi"/> rule as written in the settings and the dev hook: names, groups or a number.</summary>
@@ -35,6 +37,7 @@ public static class SmartAiNames
         ("gun_lay", SmartAi.GunLay), ("settle", SmartAi.Settle),
         ("hill_pursuit", SmartAi.HillPursuit), ("climb_probe", SmartAi.ClimbProbe), ("ledge_caution", SmartAi.LedgeCaution),
         ("unstick", SmartAi.Unstick),
+        ("positions", SmartAi.Positions),
     ];
 
     /// <summary>The groups of the research's catalogue: T lining up, N terrain, G coordination, D defence; and all, off.</summary>
@@ -42,6 +45,7 @@ public static class SmartAiNames
     [
         ("t", SmartAi.GunLay | SmartAi.Settle),
         ("n", SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick),
+        ("g", SmartAi.Positions),
         ("all", SmartAi.All), ("off", SmartAi.None), ("none", SmartAi.None),
     ];
 
