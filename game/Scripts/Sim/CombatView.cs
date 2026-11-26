@@ -13,6 +13,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public partial class CombatView : Node3D
 {
+    private readonly HashSet<Round> _liveRounds = [];
     public required Combat Combat { get; init; }
     public required Func<System.Numerics.Vector3> Origin { get; init; }
     public Assets.AudioBank? Audio { get; init; }
@@ -1064,7 +1065,8 @@ public partial class CombatView : Node3D
             _models.Add(mm);
         }
         for (int i = rounds.Count; i < _models.Count; i++) _models[i].Visible = false;
-        var live = new HashSet<Round>();
+        var live = _liveRounds;   // kept from frame to frame (a new set a frame was garbage every frame)
+        live.Clear();
         for (int i = 0; i < System.Math.Max(_pool.Count, _streaks.Count); i++)
         {
             var body = i < _pool.Count ? _pool[i] : null;
