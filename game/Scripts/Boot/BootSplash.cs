@@ -143,7 +143,10 @@ public static class BootSplash
         if (!faithful && hdPath is not null && HdAssets.LoadImage(hdPath) is { } hd)
         {
             hd.Convert(Image.Format.Rgb8);
-            if (hd.GetWidth() != W || hd.GetHeight() != H) hd.Resize(W, H, Image.Interpolation.Lanczos);
+            // 1440 tall; a card wider than 4:3 (a widescreen one, or one padded with black) keeps its own width to height, so
+            // the 4:3 middle is not squashed (the TextureRect centres it by its aspect)
+            int w = WideWidth(hd.GetWidth(), hd.GetHeight());
+            if (hd.GetWidth() != w || hd.GetHeight() != H) hd.Resize(w, H, Image.Interpolation.Lanczos);
             return (hd, null);
         }
         var pcx = Pcx.Parse(System.IO.File.ReadAllBytes(path));
@@ -158,6 +161,10 @@ public static class BootSplash
         img.Resize(W, H, Image.Interpolation.Lanczos);
         return (img, line);
     }
+
+    /// <summary>The HD card's width at 1440 tall: 1920 for a 4:3 card (or one narrower), else its own width to height kept.</summary>
+    public static int WideWidth(int width, int height) =>
+        height <= 0 || width * 3 <= height * 4 + 3 ? W : (int)System.Math.Round((double)width * H / height);
 
     /// <summary>A path below the root, matched one component at a time without regard to case.</summary>
     private static string? Find(string root, params string[] parts)

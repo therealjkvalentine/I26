@@ -1323,6 +1323,8 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
+    /// <summary>The port's own: Graphic Detail's Menu Width, the widescreen menu pack's sides beside the menu pages in a window wider than 4:3 (Wide, the default) or the pages alone (4:3); [port] menu_width. The row shows only with that pack installed.</summary>
+    public bool MenuWide { get; set; } = true;
     /// <summary>The port's own: HiFi Audio's sounds and movie tracks in place of the original's (Audio Control, shown only when a pack is installed); on unless the player turned it off. Stored as [port] hd_sounds, its first name.</summary>
     public bool HiFiAudio { get; set; } = true;
     /// <summary>
@@ -1987,6 +1989,7 @@ public sealed class ShellSettings
         }
         var s = Read(SettingsFile.From(cfg), BuildRules.ReadText(), I76.Game.Assets.HdTextures.PacksFound);
         HdAssets.Enabled = s.HdMenuArt;
+        WideMenus.Enabled = s.MenuWide;
         I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
@@ -2015,6 +2018,8 @@ public sealed class ShellSettings
         s.ModernPhysics = (bool)c.GetValue("port", "modern_physics", false);
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
+        // no version step: Menu Width is Wide unless the file says 4:3
+        s.MenuWide = MenuWidthRow.FromFile(c.HasSectionKey("port", "menu_width") ? c.GetValue("port", "menu_width").ToString() : null);
         // no version step: world_textures and car_textures when the file has them; a file from before them has hd_textures (absent, the
         // menu art's switch, which turned the textures off too before they had a row), the dash's and the cars' sizes or the older
         // single hd_texture_size, read as HdTextures.FromFile says; a saved size is kept, whatever the first start would pick
@@ -2335,6 +2340,7 @@ public sealed class ShellSettings
         if (DevFps) c.SetValue("port", "dev_fps", true);
         if (!MenuFps) c.SetValue("port", "menu_fps", false);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
+        if (!MenuWide) c.SetValue("port", "menu_width", MenuWidthRow.Word(MenuWide));
         if (!HiFiAudio) c.SetValue("port", "hd_sounds", false);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));

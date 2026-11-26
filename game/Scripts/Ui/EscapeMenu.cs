@@ -597,7 +597,7 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.PaletteGrade: return Setting(Cycle, "1997 Palette Grade", 0, 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: live);
             // the software renderer's double image on a big cockpit hit (the original's in the 1997 look, smooth in the modern look), live
             case GraphicsRow.CrashBlur: return Setting(Cycle, "Crash Blur", 0, 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: live);
-            // Screen Resolution, Renderer, 3D Garage: the shell's alone
+            // Screen Resolution, Renderer, 3D Garage, Menu Width (the menu pages only): the shell's alone
             default: return null;
         }
     }
