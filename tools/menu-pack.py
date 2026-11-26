@@ -4,6 +4,7 @@ player's own install, by the recipe tools/hd-recipes/menu.json, and compare a bu
 
     python tools/menu-pack.py export --install DIR EXPORT          everything the pack is made from (`i76 menu-export`)
     python tools/menu-pack.py build [EXPORT | --install DIR] --out DIR [--only GLOB] [--steps a,b] [--world-export DIR] [--work DIR]
+    python tools/menu-pack.py build --nitro NITRO_EXPORT --base-export EXPORT --base-pack TEX_MENU|ZIP --out DIR [--only GLOB]
     python tools/menu-pack.py verify DIR --against RELEASE.zip [--report FILE]
     python tools/menu-pack.py list-steps
 
@@ -28,6 +29,13 @@ The steps, in the order the released pack was made (each recipe step's "note" sa
               the inventory title (pages 1, 3, 30, sprite 36_6), the field salvage lines re-set to the next page's print
   maps        tools/menu-maps.py (the mission maps, from the world texture export: --world-export)
   finish      shellbg.json, pads.json, sprites/sprites.json, pack.json, ATTRIBUTION.txt
+With --nitro the recipe's "nitro" section is run instead, for the Nitro Pack's own menu art (the game reads it from the pack's
+nitro/ folder, by database.tvf's own record and sprite numbers): NITRO_EXPORT is `menu-export` of a Nitro install with
+I76_NATIVE=1 (`menu-pack.py export --nitro --install NITRO_DIR NITRO_EXPORT` runs it so). Only what Nitro changed is made:
+the pages it redrew (the section's "pages"; the others are the base game's, which the game shows from the base pack) and the
+sprites whose picture is in no base bank; a sprite the base game has too is the base pack's finished file (--base-pack, a
+built tex-menu or a release zip) under its Nitro name, found by its pixels in the base export (--base-export). DIR/tex-menu
+then holds nitro/ only: copy it into a menu pack's folder beside its other files.
 Needs Python 3.10+, numpy, Pillow (with WebP), scipy, opencv-python-headless, scikit-image, potracer, resvg-py, and for the
 model torch and spandrel (a CUDA build for an NVIDIA card; the CPU works, slowly). The lettering uses Windows' Arial
 (arial.ttf, arialbd.ttf, ariali.ttf from the system's font folder, as the released pack did): elsewhere the build stops at
@@ -158,19 +166,19 @@ def pad_original(export, name):
         im[338:] = main[338:im.shape[0]]
     return im
 
-def pictures(export):
-    """{pack file: (kind, source)}: every picture the base makes, from the export."""
+def pictures(export, prefix=""):
+    """{pack file: (kind, source)}: every picture the base makes, from the export (named under prefix: "nitro/")."""
     out = {}
     for p in sorted(glob.glob(os.path.join(export, "bg", "bg*.ppm"))):
-        n = int(os.path.basename(p)[2:4]); out[f"shellbg{n}.webp"] = ("bg", n)
+        n = int(os.path.basename(p)[2:4]); out[f"{prefix}shellbg{n}.webp"] = ("bg", n)
     for p in sorted(glob.glob(os.path.join(export, "pad", "*.ppm"))):
-        n = os.path.basename(p)[:-4]; out[f"6{n}.webp"] = ("pad", n)
+        n = os.path.basename(p)[:-4]; out[f"{prefix}6{n}.webp"] = ("pad", n)
     for p in sorted(glob.glob(os.path.join(export, "load", "*.ppm"))):
         n = os.path.basename(p)[:-4]; out[f"nitro/load/{n}.webp"] = ("load", n)
     for d in sorted(glob.glob(os.path.join(export, "bank", "*")), key=lambda d: int(os.path.basename(d))):
         b = int(os.path.basename(d))
         for p in sorted(glob.glob(os.path.join(d, "*.ppm"))):
-            i = int(os.path.basename(p)[:-4]); out[f"sprites/{b}_{i}.webp"] = ("bank", (b, i))
+            i = int(os.path.basename(p)[:-4]); out[f"{prefix}sprites/{b}_{i}.webp"] = ("bank", (b, i))
     return out
 
 def original(export, kind, src):
@@ -199,7 +207,35 @@ def matches(rel, globs):
     return any(fnmatch.fnmatch(rel, g) for g in globs)
 
 def page_of(rel):
+    rel = os.path.basename(rel)
     return int(rel[7:-5]) if rel.startswith("shellbg") and rel[7:-5].isdigit() else None
+
+def is_sprite(rel):
+    return rel.startswith("sprites/") or "/sprites/" in rel
+
+def picture_key(rgba):
+    """A picture's identity: its size and texels (a sprite's key as transparent)."""
+    return hashlib.sha256(str(rgba.shape).encode() + rgba.tobytes()).hexdigest()
+
+def nitro_pictures(export, base_export, section):
+    """The Nitro Pack's own pictures ({pack file: (kind, source)} under nitro/) and the sprites it shares with the base game
+    ({nitro pack file: base pack file}): the pages the section names, and each sprite by whether its picture (size and texels)
+    is one of the base export's sprites. Sprites matching "leave_to_base" are neither: the game shows the base game's own."""
+    nitro = pictures(export, "nitro/")
+    pages = {f"nitro/shellbg{n}.webp" for n in section["pages"]}
+    base = {}
+    for rel, (kind, src) in pictures(base_export).items():
+        if kind == "bank": base.setdefault(picture_key(original(base_export, kind, src)), rel)
+    own, shared = {}, {}
+    for rel, (kind, src) in nitro.items():
+        if kind == "bg":
+            if rel in pages: own[rel] = (kind, src)
+        elif kind == "bank":
+            same = base.get(picture_key(original(export, kind, src)))
+            if same and matches(rel, section.get("leave_to_base", [])): continue
+            if same: shared[rel] = same
+            else: own[rel] = (kind, src)
+    return own, shared
 
 
 # ---- steps ----
@@ -209,7 +245,9 @@ class Build:
         self.a = args; self.r = recipe; self.export = args.export
         self.pack = os.path.join(args.out, "tex-menu"); self.work = args.work or os.path.join(args.out, "work")
         self.only = [g.strip() for g in args.only.split(",")] if args.only else ["*"]
-        self.pics = pictures(self.export)
+        self.nitro = getattr(args, "nitro", False); self.shared = {}
+        if self.nitro: self.pics, self.shared = nitro_pictures(self.export, args.base_export, recipe["nitro"])
+        else: self.pics = pictures(self.export)
         if not self.pics: sys.exit(f"{self.export}: no bg/, pad/, load/ or bank/ (run: menu-pack.py export --install DIR {self.export})")
         self._model = None; self.log = []
         os.makedirs(self.pack, exist_ok=True); os.makedirs(self.work, exist_ok=True)
@@ -309,7 +347,7 @@ class Build:
         for rel in self.files(step):
             dst = os.path.join(self.pack, rel)
             if not os.path.exists(dst): continue
-            cur = read_rgba(dst) if rel.startswith("sprites/") else read_rgb(dst)
+            cur = read_rgba(dst) if is_sprite(rel) else read_rgb(dst)
             out = fn(cur, self.orig(rel), dict(step.get("args", {}), rel=rel), self.ctx())
             save_webp(out, dst, self.enc(step)); n += 1
         return n
@@ -326,7 +364,7 @@ class Build:
                 if not matches(rel, self.only) or rel not in self.pics: continue
                 dst = os.path.join(self.pack, rel)
                 if not os.path.exists(dst): continue
-                sprite = rel.startswith("sprites/")
+                sprite = is_sprite(rel)
                 px = read_rgba(dst) if sprite else np.dstack([read_rgb(dst), np.full(Image.open(dst).size[::-1], 255, np.uint8)])
                 out = tr.apply_ops(px, self.orig(rel), spec["ops"], table=table, ctx=self.ctx())
                 enc = dict(self.r["encodings"][spec.get("encoding", step.get("encoding", "lossy"))])
@@ -345,14 +383,36 @@ class Build:
             n = page_of(rel); shutil.copy2(os.path.join(self.export, "bg", f"bg{n:02d}.ppm"), bg)
             shutil.copy2(os.path.join(self.pack, rel), pk)
         with open(os.path.join(pk, "shellbg.json"), "w", encoding="utf-8") as f:
-            json.dump({str(page_of(r)): {"file": r, "affine": [4.0, 0.0, 4.0, 0.0]} for r in files}, f)
+            json.dump({str(page_of(r)): {"file": os.path.basename(r), "affine": [4.0, 0.0, 4.0, 0.0]} for r in files}, f)
         pages = ",".join(str(page_of(r)) for r in files)
         cmd = [sys.executable, os.path.join(HERE, step["tool"]), bg, "--pack", pk] + [a.replace("{pages}", pages) for a in step.get("args", [])]
         print("  " + " ".join(cmd), flush=True)
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode: sys.exit(f"{step['tool']} failed:\n{r.stdout}\n{r.stderr}")
-        for rel in files: shutil.copy2(os.path.join(pk, rel), os.path.join(self.pack, rel))
+        for rel in files: shutil.copy2(os.path.join(pk, os.path.basename(rel)), os.path.join(self.pack, rel))
         return len(files)
+
+    def step_reuse(self, step):
+        """The sprites Nitro shares with the base game: the base pack's finished file (--base-pack: a folder or a zip) under
+        the Nitro name, as it is (its lettering and line art kept)."""
+        src = self.a.base_pack; z = zipfile.ZipFile(src) if src.lower().endswith(".zip") else None
+        names = {}
+        if z:
+            for n in z.namelist():
+                if n.startswith("tex-menu/") and not n.endswith("/"): names[n[len("tex-menu/"):]] = n
+        n = 0
+        for rel, base_rel in sorted(self.shared.items()):
+            if not matches(rel, self.only): continue
+            dst = os.path.join(self.pack, rel); os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if z:
+                if base_rel not in names: sys.exit(f"{src}: no {base_rel}")
+                with open(dst, "wb") as f: f.write(z.read(names[base_rel]))
+            else:
+                p = os.path.join(src, base_rel)
+                if not os.path.exists(p): sys.exit(f"{src}: no {base_rel}")
+                shutil.copy2(p, dst)
+            n += 1
+        return n
 
     def step_maps(self, step):
         if not self.a.world_export:
@@ -371,6 +431,7 @@ class Build:
 
     def step_finish(self, step):
         """The json files the game reads (affine [ax, bx, ay, by]: picture = a * original + b), pack.json, ATTRIBUTION.txt."""
+        if self.nitro: return self.finish_nitro(step)
         aff = [4.0, 0.0, 4.0, 0.0]
         bg = {str(src): {"file": rel, "affine": aff} for rel, (k, src) in self.pics.items() if k == "bg"}
         pads = {src: {"file": rel, "affine": aff} for rel, (k, src) in self.pics.items() if k == "pad"}
@@ -392,6 +453,33 @@ class Build:
         with open(os.path.join(self.pack, "pack.json"), "w", encoding="utf-8") as f: json.dump(info, f, indent=2)
         with open(os.path.join(self.pack, "ATTRIBUTION.txt"), "w", encoding="utf-8") as f: f.write("\n".join(self.r["attribution"]) + "\n")
         return 5
+
+    def finish_nitro(self, step):
+        """nitro/shellbg.json and nitro/sprites/sprites.json (keyed by database.tvf's own numbers, as the game reads them) for
+        every picture the folder holds, and nitro/nitro-pack.json saying what made it. The base pack's pack.json is left alone."""
+        aff = [4.0, 0.0, 4.0, 0.0]; root = os.path.join(self.pack, "nitro")
+        bg = {str(src): {"file": os.path.basename(rel), "affine": aff} for rel, (k, src) in self.pics.items()
+              if k == "bg" and os.path.exists(os.path.join(self.pack, rel))}
+        spr = {}
+        for rel in list(self.pics) + list(self.shared):
+            if not is_sprite(rel) or not os.path.exists(os.path.join(self.pack, rel)): continue
+            key = os.path.basename(rel)[:-5]; b, i = (int(x) for x in key.split("_"))
+            o = original(self.export, "bank", (b, i))
+            spr[key] = {"file": key + ".webp", "affine": aff, "size": [o.shape[1], o.shape[0]]}
+        def dump(obj, p):
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f: json.dump(obj, f, indent=1)
+        dump(dict(sorted(bg.items(), key=lambda kv: int(kv[0]))), os.path.join(root, "shellbg.json"))
+        dump(dict(sorted(spr.items(), key=lambda kv: tuple(int(x) for x in kv[0].split("_")))), os.path.join(root, "sprites", "sprites.json"))
+        info = dict(self.r["nitro"]["pack"])
+        info["date"] = time.strftime("%Y-%m-%d")
+        info["recipe"] = {"file": "tools/hd-recipes/menu.json", "section": "nitro", "sha256": sha256(self.a.recipe)}
+        info["built_with"] = versions()
+        info["pages"] = sorted(int(k) for k in bg)
+        info["sprites"] = {"own": sum(1 for r in self.pics if is_sprite(r)), "from_base_pack": len(self.shared)}
+        info["steps"] = [{"id": s["id"], "note": s.get("note", "")} for s in self.r["nitro"]["steps"]]
+        with open(os.path.join(root, "nitro-pack.json"), "w", encoding="utf-8") as f: json.dump(info, f, indent=2)
+        return 3
 
 
 def versions():
@@ -415,16 +503,18 @@ def build(args):
         if not args.install: sys.exit("build needs the export folder, or --install DIR to make one")
         args.export = os.path.join(args.work or os.path.join(args.out, "work"), "export")
         if not os.path.exists(os.path.join(args.export, "manifest.json")):
-            e = argparse.Namespace(install=args.install, out=args.export, pad_palette=None)
+            e = argparse.Namespace(install=args.install, out=args.export, pad_palette=None, nitro=args.nitro)
             if export(e): sys.exit("menu-export failed")
     if not args.world_export:
         # the world pack's export beside this work folder (tools/hd-pack.py's layout), for the maps
         w = os.path.dirname(os.path.abspath(args.work or os.path.join(args.out, "work")))
         for c in (os.path.join(w, "world-4x", "export"), os.path.join(w, "export")):
             if glob.glob(os.path.join(c, "zmap*.png")): args.world_export = c; break
+    if args.nitro and not (args.export and args.base_export and args.base_pack):
+        sys.exit("build --nitro needs NITRO_EXPORT, --base-export (the base game's export) and --base-pack (a built tex-menu or a release zip)")
     b = Build(args, recipe)
     want = set(args.steps.split(",")) if args.steps else None
-    for step in recipe["steps"]:
+    for step in (recipe["nitro"]["steps"] if args.nitro else recipe["steps"]):
         if want and step["id"] not in want and step.get("group") not in want: continue
         t0 = time.time()
         fn = getattr(b, "step_" + step["kind"])
@@ -508,8 +598,13 @@ def export(args):
     cli = os.environ.get("I76_CLI")
     cmd = ([cli] if cli else ["dotnet", "run", "--project", os.path.join(HERE, "I76.Cli"), "--"]) + ["--install", args.install, "menu-export", args.out]
     if args.pad_palette: cmd += ["--pad-palette", args.pad_palette]
+    env = None
+    if getattr(args, "nitro", False):
+        # a Nitro database by its own numbers (I76_NATIVE=1), the recipe's banks
+        with open(RECIPE, encoding="utf-8") as f: ex = json.load(f)["nitro"]["export"]
+        env = dict(os.environ, **ex["env"]); cmd += ex["args"]
     print(" ".join(cmd), flush=True)
-    return subprocess.call(cmd)
+    return subprocess.call(cmd, env=env)
 
 
 def main():
@@ -517,6 +612,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("export", help="run `i76 menu-export`"); e.add_argument("out"); e.add_argument("--install", required=True)
     e.add_argument("--pad-palette")
+    e.add_argument("--nitro", action="store_true", help="a Nitro install: its database by its own numbers (the recipe's nitro export)")
     b = sub.add_parser("build", help="make the pack from an export")
     b.add_argument("export", nargs="?", help="the folder `i76 menu-export` wrote"); b.add_argument("--out", required=True); b.add_argument("--work")
     b.add_argument("--install", help="the game's folder: export it first into WORK/export (when EXPORT is not given)")
@@ -526,6 +622,9 @@ def main():
     b.add_argument("--models-dir", default=os.path.join(os.path.expanduser("~/.cache"), "i26", "models"))
     b.add_argument("--device", default="auto", help="cuda, cpu or auto")
     b.add_argument("--recipe", default=RECIPE)
+    b.add_argument("--nitro", action="store_true", help="the recipe's nitro section: the Nitro Pack's own pages and sprites, under nitro/")
+    b.add_argument("--base-export", help="with --nitro: the base game's export (which sprites Nitro shares with it)")
+    b.add_argument("--base-pack", help="with --nitro: the base menu pack (a tex-menu folder or a release zip) the shared sprites come from")
     v = sub.add_parser("verify", help="compare a build with a released zip"); v.add_argument("pack"); v.add_argument("--against", required=True)
     v.add_argument("--report"); v.add_argument("--only"); v.add_argument("--worst", type=int, default=20)
     sub.add_parser("list-steps", help="the recipe's steps")
@@ -534,8 +633,10 @@ def main():
     if args.cmd == "build": build(args)
     if args.cmd == "verify": sys.exit(verify(args))
     if args.cmd == "list-steps":
-        for s in json.load(open(RECIPE, encoding="utf-8"))["steps"]:
-            print(f"{s['id']:<14} {s['kind']:<6} {', '.join(s.get('files', ['*']))[:60]:<60} {s.get('note', '')[:80]}")
+        r = json.load(open(RECIPE, encoding="utf-8"))
+        for name, steps in (("", r["steps"]), ("nitro ", r["nitro"]["steps"])):
+            for s in steps:
+                print(f"{name + s['id']:<20} {s['kind']:<6} {', '.join(s.get('files', ['*']))[:60]:<60} {s.get('note', '')[:80]}")
 
 
 if __name__ == "__main__":

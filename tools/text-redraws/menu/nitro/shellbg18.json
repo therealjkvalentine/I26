@@ -1,0 +1,25 @@
+{
+ "textures": ["nitro/shellbg18"],
+ "note": "Nitro's NULLMODEM MELEE•HOST EVENT FORM (database.tvf record 18): the printed words set again in Arial Bold as the base pack's shellbg22 (its runs kept where Nitro's form has the same words in the same place; the rest are Nitro's own)",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [99, 83, 55], "runs": [
+   {"text": "NULLMODEM MELEE•HOST EVENT FORM", "rect": [228, 8, 625, 30]},
+   {"text": "LOCAL DRIVER", "rect": [57, 26, 166, 43]},
+   {"text": "RENAME", "rect": [170, 43, 217, 61], "fill": "flat"},
+   {"text": "WEAPONS", "rect": [506, 42, 574, 57]},
+   {"text": "DRIVER:", "rect": [224, 61, 278, 76]},
+   {"text": "PARTS", "rect": [519, 160, 563, 176]},
+   {"text": "MAKE / MODEL:", "rect": [226, 402, 324, 418]},
+   {"text": "VARIANT:", "rect": [227, 422, 287, 437]},
+   {"text": "CONFIGURE CHASSIS", "rect": [454, 418, 621, 440]},
+   {"text": "GAME TYPE", "rect": [12, 69, 99, 86]},
+   {"text": "AREA OF PLAY", "rect": [61, 97, 169, 115]},
+   {"text": "OPTIONS", "rect": [79, 285, 147, 303]},
+   {"text": "WEAPON RESTRICTIONS", "rect": [49, 312, 177, 325]},
+   {"text": "GAME OPTIONS", "rect": [71, 331, 154, 345]},
+   {"text": "SEND", "rect": [278, 454, 320, 470]},
+   {"text": "CANCEL", "rect": [533, 454, 593, 470]}
+  ]}
+ ]
+}

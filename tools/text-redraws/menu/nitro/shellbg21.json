@@ -1,0 +1,21 @@
+{
+ "textures": ["nitro/shellbg21"],
+ "note": "Nitro's SCENARIO•DRIVER ENTRY FORM (database.tvf record 21, the form a scenario starts from): the printed words set again in Arial Bold; the right-hand column's runs are the base AUTO MELEE form's (shellbg25), where Nitro kept the same words in the same place. The pencilled hint is left as drawn",
+ "encoding": "lossy",
+ "ops": [
+  {"op": "retype", "colour": [99, 83, 55], "runs": [
+   {"text": "SCENARIO•DRIVER ENTRY FORM", "rect": [237, 5, 617, 33]},
+   {"text": "CHARACTER", "rect": [63, 24, 162, 45]},
+   {"text": "SCENARIOS", "rect": [68, 75, 156, 92]},
+   {"text": "RECOMMENDED VEHICLES", "rect": [14, 286, 210, 307]},
+   {"text": "WEAPONS", "rect": [506, 42, 574, 57]},
+   {"text": "DRIVER:", "rect": [224, 61, 278, 76]},
+   {"text": "PARTS", "rect": [519, 160, 563, 176]},
+   {"text": "MAKE / MODEL:", "rect": [226, 402, 324, 418]},
+   {"text": "VARIANT:", "rect": [227, 422, 287, 437]},
+   {"text": "CONFIGURE CHASSIS", "rect": [454, 418, 621, 440]},
+   {"text": "ENTER AREA", "rect": [254, 452, 349, 472]},
+   {"text": "CANCEL", "rect": [530, 452, 596, 472]}
+  ]}
+ ]
+}
