@@ -2059,7 +2059,7 @@ public partial class Cockpit : Node
     // ---- Mirror Haze (MirrorHazeRow): the modern look's glass a little milky and soft ----
 
     private int _mirrorHaze = MirrorHazeRow.Default;
-    /// <summary>I76_MIRROR_HAZE=0..2: the level instead of the setting's (captures).</summary>
+    /// <summary>I76_MIRROR_HAZE=0..3 (off, low, med, high): the level instead of the setting's (captures).</summary>
     private static readonly int? HazeHook = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_HAZE"), out int hh) ? MirrorHazeRow.Clamp(hh) : null;
 
     private void Haze(ShaderMaterial? m)

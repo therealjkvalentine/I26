@@ -1779,7 +1779,7 @@ public sealed class ShellSettings
     public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
     /// <summary>The port's own, Graphic Detail's Mirror Rate row (I76.Game.Sim.MirrorRateRow): how often the modern look's mirrors are drawn, alternate (the default: the rear every second frame, the side mirrors in turn), half (every mirror every second frame) or full (every frame) (shell.cfg [port] mirror_rate; written only when not alternate).</summary>
     public I76.Game.Sim.MirrorRate MirrorRate { get; set; } = I76.Game.Sim.MirrorRate.Alternate;
-    /// <summary>The port's own, Graphic Detail's Mirror Haze row (I76.Game.Sim.MirrorHazeRow): the modern look's mirror glass a little milky and soft, 0 off, 1 slight (the default), 2 more (shell.cfg [port] mirror_haze; written only when not slight, so a file from before it takes the default).</summary>
+    /// <summary>The port's own, Graphic Detail's Mirror Haze row (I76.Game.Sim.MirrorHazeRow): the modern look's mirror glass a little milky and soft, 0 off, 1 low (the default), 2 med, 3 high (shell.cfg [port] mirror_haze: off, med, high; written only when not low, so a file from before it takes the default; the first release's slight reads as low, more as high).</summary>
     public int MirrorHaze { get; set; } = I76.Game.Sim.MirrorHazeRow.Default;
     /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0, the default, the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not 0).</summary>
     public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;

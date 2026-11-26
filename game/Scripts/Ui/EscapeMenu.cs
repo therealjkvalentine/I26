@@ -560,7 +560,7 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Mirrors", I76.Game.Sim.MirrorsRow.Names, I76.Game.Sim.MirrorsRow.Index, I76.Game.Sim.MirrorsRow.Put, live);
             // [port] mirror_rate (MirrorRateRow: Alternate, Half, Full), live
             case GraphicsRow.MirrorRate: return Setting(Cycle, "Mirror Rate", 0, I76.Game.Sim.MirrorRateRow.Names.Length, I76.Game.Sim.MirrorRateRow.Names, s => (int)s.MirrorRate, (s, v) => s.MirrorRate = (I76.Game.Sim.MirrorRate)v, apply: live);
-            // [port] mirror_haze (MirrorHazeRow: Off, Slight, More), live
+            // [port] mirror_haze (MirrorHazeRow: Off, Low, Med, High), live
             case GraphicsRow.MirrorHaze: return Setting(Cycle, "Mirror Haze", 0, I76.Game.Sim.MirrorHazeRow.Names.Length, I76.Game.Sim.MirrorHazeRow.Names, s => I76.Game.Sim.MirrorHazeRow.Clamp(s.MirrorHaze), (s, v) => s.MirrorHaze = v, apply: live);
             // [port] draw_distance in the mission's look (VisibilityRange: Far the original's 600 m, Max* 20 km), live
             case GraphicsRow.VisibilityRange:
