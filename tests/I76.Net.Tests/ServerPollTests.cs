@@ -40,7 +40,8 @@ public class ServerPollTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.NotNull(why);
         Assert.Contains("armour beyond what a car can carry", why);
         // the largest total an int holds is not refused for its size (whatever else the garage's check says of it)
-        var big = VariantTests.Custom(host.Vfs, c => { c.Armour = [int.MaxValue - 4, 0, 0, 0]; c.Chassis = [1, 1, 1, 1]; });
+        // (the ninth field counts in the total too, and the stock vppirna1.vcf's is not 0)
+        var big = VariantTests.Custom(host.Vfs, c => { c.Armour = [int.MaxValue - 4, 0, 0, 0]; c.Chassis = [1, 1, 1, 1]; c.Ninth = 0; });
         CarConfigCheck.Check(host.Vfs, PartsDatabase.Build(host.Vfs), "vppirna", big, out var error);
         output.WriteLine($"at the limit: {(error.Length == 0 ? "taken" : error)}");
         Assert.DoesNotContain("beyond what a car can carry", error);

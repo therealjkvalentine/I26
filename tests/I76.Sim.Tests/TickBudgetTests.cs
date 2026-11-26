@@ -27,15 +27,39 @@ public class TickBudgetTests
     /// tick's StateHash, and the StateHash after ticks 0, 200, ..., 1000 (to say where a change first shows). The window
     /// ends before the first tick at which two machines were seen to differ on the same code (docs/perf/tick-bench.md,
     /// "Two machines"): T05's tick 1153.
+    /// Recorded again on 2026-11-26 (main 1cb0c5ce) on a stock install: the first record was made on an install whose addon\
+    /// held garage-saved copies of vppirna1.vcf and the like (the player's car of these missions, not in the install identity),
+    /// and every later change to what the sim computes moves these (the upstream merge of 2026-11-18 moved T05's and T06's at
+    /// tick 0, the smarter A.I. of 2026-11-25 T01's). A change that is meant to leave the sim alone keeps them; one that changes it on purpose records them again.
     /// </summary>
     private const int Ticks = 1100;
 
     private static readonly Dictionary<string, (ulong Install, ulong Chain, ulong[] Every200)> Recorded = new()
     {
-        ["t01"] = (0x8b239626afba8769UL, 0xa1a0b1d6cbffd45cUL, [0x06df1a5bafa27492UL, 0xa15b5506086fd218UL, 0x7fdfb1cfe8b197d3UL, 0x9168aa4757adae5bUL, 0xf8d944f3999d5644UL, 0xcb83802dc2e0470fUL]),
-        ["t05"] = (0xa723cc84a0765255UL, 0x404d284d28b314e9UL, [0xa2018cb3ebbbbecdUL, 0xc60dae67e8341354UL, 0xcb97cd5c248bfff2UL, 0x25ddd16706594a91UL, 0xacb36af3a017f748UL, 0xfe51afb575cf633dUL]),
-        ["t06"] = (0x60c4190c3a0bd095UL, 0xabbe5be13bf9f03cUL, [0xa29b32ccc6456dcdUL, 0x1eeeb7482f1d35c5UL, 0x9519cbdb6adaf5cfUL, 0xdb6f52557e393a47UL, 0xc06a3ec96d4d1cfaUL, 0x590b0fa0127bfc14UL]),
+        ["t01"] = (0x8b239626afba8769UL, 0x57ec2406c05bc3f9UL, [0x635a94d56429fd61UL, 0xf4436dda9d6b9abeUL, 0x6df801b9df77b556UL, 0x85523977b9b31553UL, 0x2c1209d252459f07UL, 0x2fb785ce410f5194UL]),
+        ["t05"] = (0xa723cc84a0765255UL, 0x5d862317bca74f5eUL, [0x56b8dfa360f72f25UL, 0x57d690f2f5c71bccUL, 0x97e168f622ce1d0bUL, 0x56c6d2753ebc0720UL, 0x4297863c1d617558UL, 0x0ee14c52975ac3aeUL]),
+        ["t06"] = (0x60c4190c3a0bd095UL, 0x4894692ca71a7996UL, [0xbfb679933afa151aUL, 0x9874c5d7fc2546b3UL, 0x94530efb8c292b55UL, 0xdc78f5389d65c653UL, 0xf503e6be6bb02a49UL, 0xfb72b31327b9aa59UL]),
     };
+
+    /// <summary>
+    /// The cars the hashes were recorded with (<see cref="Cars"/>): the install identity is the archive and the mission's files,
+    /// and a car the garage saved into addon\ (vppirna1.vcf and the like) stands in for the archive's without changing it.
+    /// </summary>
+    private const ulong RecordedCars = 0x4ffc9a5da479848dUL;
+
+    /// <summary>An FNV-1a hash over every car file the VFS resolves, by name and bytes.</summary>
+    internal static ulong Cars(AssetVfs vfs)
+    {
+        ulong h = 14695981039346656037UL;
+        void Add(ReadOnlySpan<byte> b) { foreach (byte x in b) { h ^= x; h *= 1099511628211UL; } }
+        // (the files on disk and in the archive: not AssetVfs.Addon, which the process's other tests fill as they go)
+        foreach (var n in vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase) && vfs.Locate(n) is not AssetSource.Memory).Select(n => n.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal))
+        {
+            Add(System.Text.Encoding.ASCII.GetBytes(n));
+            Add(vfs.Read(n));
+        }
+        return h;
+    }
 
     private static (SimSession Session, MissionSetup Setup)? Mission(string name)
     {
@@ -44,6 +68,7 @@ public class TickBudgetTests
         if (install.FindMission(name) is not { } path) return null;
         if (SessionBuild.InstallIdentity(install, name) != Recorded[name].Install) return null;   // not the install the hashes are of
         var vfs = new AssetVfs(install);
+        if (Cars(vfs) != RecordedCars) return null;   // nor its cars
         var asm = new ModelAssembler(vfs);
         var setup = MissionSetup.Build(vfs, new MissionWorld(vfs, asm, path), asm, null, melee: null, rand: new CrtRand(1));
         var session = new SimSession(setup, rate: SimRate.R20);
