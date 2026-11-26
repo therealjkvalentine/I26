@@ -41,6 +41,9 @@ public static class GraphicsHelp
         GraphicsRow.MirrorHaze => look1997
             ? "Mirror haze: the modern look's mirror glass a little milky. The 1997 look's mirror is the original's."
             : "Mirror haze: the mirrors' glass a touch milky, as no mirror is perfect or perfectly clean, so it does not look quite like the view through the windscreen. Slight (the default) barely seen, More a little more, Off the clear glass. A flat veil, the same all over the glass. Little cost; Off none.",
+        GraphicsRow.RadarSweep => look1997
+            ? "Radar sweep: the modern look's smooth radar beam. The 1997 look's radar is the original's 30 painted frames."
+            : "Radar sweep: Stepped (the default) is the original's: the beam jumps 12 degrees five times a second through 30 painted frames, and the lock cone points at the nearest 12 degrees. Smooth turns the beam every frame at the same speed and points the cone right at the target, drawn on the graphics card from the texture pack's radar layers (a pack made with them; otherwise it stays stepped). No cost to speak of; Smooth also saves the uploads of the stepped frames.",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges; SMAA is the modern look's only). Little cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing (thin poles and cut-out edges too) for a third of what 2x costs, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer.",

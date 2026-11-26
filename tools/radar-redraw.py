@@ -411,47 +411,74 @@ def angdiff(a, b):
     return (a - b + 180) % 360 - 180
 
 
-def scope_face(g, spec, cv, style, frame=None, locked=False):
-    """The scope's face (original-pixel window cv) as colour and its coverage: face, grid, pip, beam or cone."""
-    st = spec["styles"][style]; sc = spec["scope"]
+def draw_graticule(paint, g, spec, cv):
+    """The scope's rings and spokes as coverages, each handed to paint(cov, colour)."""
+    sc = spec["scope"]; gc = g["grid"]["centre"]; fr = g["face"]["radius"]
+    lw = sc["line_width"]; le = sc.get("line_edge")
+    for R in g["grid"]["rings"]:
+        paint(cv.ring(gc, R["radius"], lw, le), GRID)
+    for s_ in g["grid"]["spokes"]:
+        a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
+        L = fr + 2
+        paint(cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False, edge=le), GRID)
+
+
+def draw_pip(paint, g, spec, cv, on=True):
+    """The centre pip (radar on) or the radar-off frames' dark 4x4 hub."""
+    if not g.get("pip"): return
+    sc = spec["scope"]; pc = g["pip"]["centre"]
+    if on:
+        paint(cv.disc(pc, sc["pip_ring"]), OLIVE)
+        paint(cv.disc(pc, sc["pip_radius"]), PIP)
+    else:
+        paint(cv.disc(pc, sc["hub_radius"]), GRID)
+
+
+def scope_face(g, spec, cv, style, frame=None, locked=False, parts="all"):
+    """The scope's face (original-pixel window cv) as colour and its coverage: face, grid, pip, beam or cone.
+    parts "face": the face's colour alone (the live sweep's face layer: no graticule, pip, beam or cone)."""
+    st = spec["styles"][style]
     fc = g["face"]["centre"]; fr = g["face"]["radius"]
     h, w = cv.Y.shape[0], cv.X.shape[1]
     img = np.empty((h, w, 3)); img[:] = st.get("face", GREEN)
     inside = cv.disc(fc, fr)
-    gc = g["grid"]["centre"]
+    if parts == "face": return img, inside
     sw = g["sweep"]
     a0 = None if frame is None else frame_angle(frame) + (0 if locked else sw["offset_deg"])
     over_all = st.get("grid_over", False)
     under = st.get("glow_under_grid", False)
-    def graticule():
-        lw = sc["line_width"]; le = sc.get("line_edge")
-        for R in g["grid"]["rings"]:
-            over(img, cv.ring(gc, R["radius"], lw, le), GRID)
-        for s_ in g["grid"]["spokes"]:
-            a = math.radians(s_["angle"]); u = np.array([math.cos(a), math.sin(a)])
-            L = fr + 2
-            over(img, cv.seg(np.array(gc) - u * L, np.array(gc) + u * L, sc.get("spoke_widths", {}).get(str(int(round(s_["angle"]))), lw), cap=False, edge=le), GRID)
+    paint = lambda cov, colour: over(img, cov, colour)
     if over_all:
         # style "grid_over": the afterglow, the beam and the cone first, the graticule printed crisp over all of them
         if a0 is not None:
             if locked: cone(img, cv, g, st, a0)
             else: beam(img, cv, g, st, a0)
-        graticule()
+        draw_graticule(paint, g, spec, cv)
     else:
         # the afterglow lies under the graticule ("glow_under_grid"); the beam's line and the lock cone over it, as the original's
         if a0 is not None and under and not locked:
             beam(img, cv, g, st, a0, part="trail")
-        graticule()
-    if g.get("pip") and frame is not None:
-        pc = g["pip"]["centre"]
-        over(img, cv.disc(pc, sc["pip_ring"]), OLIVE)
-        over(img, cv.disc(pc, sc["pip_radius"]), PIP)
-    elif g.get("pip"):
-        over(img, cv.disc(g["pip"]["centre"], sc["hub_radius"]), GRID)      # the radar-off frames: a dark 4x4 hub, no pip
+        draw_graticule(paint, g, spec, cv)
+    draw_pip(paint, g, spec, cv, on=frame is not None)
     if a0 is not None and not over_all:
         if locked: cone(img, cv, g, st, a0)
         if not locked: beam(img, cv, g, st, a0, part="line" if under else "all")
     return img, inside
+
+
+def scope_grid(g, spec, cv):
+    """The live sweep's grid layer over the scope's window: the graticule and the pip as one layer (straight RGB, alpha),
+    clipped to the face's circle, which laid over a face drawn with the beam or cone gives the frame style B draws."""
+    h, w = cv.Y.shape[0], cv.X.shape[1]
+    C = np.zeros((h, w, 3)); A = np.zeros((h, w))
+    def paint(cov, colour):
+        c = np.clip(cov, 0, 1)
+        C[:] = C * (1 - c[..., None]) + c[..., None] * np.asarray(colour, float); A[:] = A * (1 - c) + c
+    draw_graticule(paint, g, spec, cv)
+    draw_pip(paint, g, spec, cv, on=True)
+    inside = cv.disc(g["face"]["centre"], g["face"]["radius"])
+    rgb = np.where(A[..., None] > 1e-6, C / np.maximum(A, 1e-6)[..., None], 0.0)
+    return rgb, A * inside
 
 
 def beam(img, cv, g, st, a0, part="all"):
@@ -499,6 +526,71 @@ def cone(img, cv, g, st, a0):
     if c.get("axis_colour"):
         rel = np.clip(1 - np.abs(s) / np.maximum((t + back) * math.tan(th), 1e-3), 0, 1) * (t > 0)
         over(img, rel ** 2, c["axis_colour"], c.get("axis_alpha", 0.5))
+
+
+# ------------------------------------------------------------------------------------------------------------- the live sweep
+# The game's Radar Sweep: Smooth draws the scope each frame from three files beside the 62 frames instead of swapping them:
+# zrads_face (the frame with nothing on the scope's face but its green), zrads_grid (the graticule and the pip over the scope's
+# window) and zrads.json (the numbers below). Its shader draws, over the face's circle, the afterglow and the beam at a
+# continuous angle (or the lock cone at the target's true bearing), then the grid layer, then the game's blips, lamp and plate.
+# compose_smooth is the same drawing in numpy (the reference the tests hold the stepped frames to). docs/hd-textures.md.
+
+SWEEP_LAYERS = {"face": "zrads_face", "grid": "zrads_grid", "params": "zrads.json"}
+SWEEP_FORMAT = 1
+
+
+def sweep_params(g, spec, style, s, sbox):
+    st = spec["styles"][style]; fr = spec["frames"]
+    x0, y0, x1, y1 = sbox
+    b = st["beam"]; c = st["cone"]
+    beam_p = {k: b[k] for k in ("width", "core_width", "edge_colour", "core_colour") if k in b}
+    for k in ("glow_width", "glow_colour", "glow_alpha"):
+        if k in b: beam_p[k] = b[k]
+    cone_p = {"half_angle": g["cone"]["half_angle"], "apex_behind_pivot": g["cone"]["apex_behind_pivot"]}
+    cone_p.update({k: c[k] for k in ("fill", "soft", "axis_colour", "axis_alpha", "rim", "rim_colour") if k in c})
+    step = 360.0 / fr["count"]
+    return {
+        "format": SWEEP_FORMAT,
+        "what": "the live radar sweep's numbers (tools/radar-redraw.py, docs/hd-textures.md)",
+        "style": style, "scale": s, "size": [256 * s, 128 * s],
+        "layers": {"face": SWEEP_LAYERS["face"], "grid": SWEEP_LAYERS["grid"], "off": fr["sweep"] % fr["count"],
+                   "grid_box": [int(x0 * s), int(y0 * s), int(x1 * s), int(y1 * s)]},
+        "face": {"centre": g["face"]["centre"], "radius": g["face"]["radius"], "colour": list(st.get("face", GREEN))},
+        "pivot": g["sweep"]["pivot"],
+        "sweep": {"frames": fr["count"], "step_deg": step, "step_s": 0.2, "deg_per_s": step / 0.2,
+                  "offset_deg": g["sweep"]["offset_deg"], "direction": "clockwise on screen"},
+        "beam": dict(beam_p, length=g["face"]["radius"] + 1),
+        "afterglow": {"span_deg": b.get("trail_deg", 0), "peak": b.get("trail_peak", 0), "decay_deg": b.get("trail_decay_deg", 1),
+                      "decay_s": round(b.get("trail_decay_deg", 1) / (step / 0.2), 4), "colour": b.get("trail_colour", [0, 0, 0])},
+        "cone": cone_p,
+    }
+
+
+def sweep_file_angle(p, phase):
+    """The beam's direction in the file's axes at a continuous sweep phase (frame index; f + the share of the step gone)."""
+    return frame_angle(phase, p["sweep"]["step_deg"]) + p["sweep"]["offset_deg"]
+
+
+def compose_smooth(face, grid, p, angle, locked=False):
+    """The live sweep drawn from the layers and the numbers alone (the game's shader, in numpy): the face, over its circle the
+    afterglow and beam at file angle `angle` (or the lock cone along it), the grid layer over that. RGBA uint8, the frames' rows."""
+    s = p["scale"]; gx0, gy0, gx1, gy1 = p["layers"]["grid_box"]
+    cv = Canvas(256, 128, s, (gx0 / s, gy0 / s, gx1 / s, gy1 / s))
+    G = np.asarray(p["face"]["colour"], float)
+    gg = {"sweep": {"pivot": p["pivot"]}, "face": {"radius": p["face"]["radius"]}, "cone": p["cone"]}
+    b = p["beam"]; ag = p["afterglow"]
+    st = {"beam": dict({k: v for k, v in b.items() if k != "length"}, trail_deg=ag["span_deg"], trail_peak=ag["peak"],
+                       trail_decay_deg=ag["decay_deg"], trail_colour=ag["colour"]), "cone": p["cone"]}
+    img = np.empty((gy1 - gy0, gx1 - gx0, 3)); img[:] = G
+    if locked: cone(img, cv, gg, st, angle)
+    else: beam(img, cv, gg, st, angle)
+    inside = cv.disc(p["face"]["centre"], p["face"]["radius"])
+    out = face.copy(); reg = out[gy0:gy1, gx0:gx1]
+    rgb = reg[..., :3].astype(float) + inside[..., None] * (img - G)
+    ga = grid[..., 3:4].astype(float) / 255
+    rgb = rgb * (1 - ga) + grid[..., :3].astype(float) * ga
+    reg[..., :3] = np.clip(np.round(rgb), 0, 255).astype(np.uint8)
+    return out
 
 
 def inset_face(g, spec, cv, style):
@@ -1243,6 +1335,7 @@ class Redraw:
             x0, y0, x1, y1 = box
             self.edges.append(((x0, 128 - y1, x1, 128 - y0), flip_rows(rgb), flip_rows(al), flip_rows(cov), mode))
         self.ls = label_set
+        self.panel_base = panel_base
         H, W = 128, 256
         fc = g["face"]["centre"]; fr = g["face"]["radius"]
         m = spec["scope"]["window_margin"]
@@ -1275,6 +1368,28 @@ class Redraw:
                 r = np.hypot(X - cx, Y - cy)
                 self.paste = np.maximum(self.paste, np.clip((part["mask_radius"] + st["paste_hold"] + st["paste_feather"] - r) / st["paste_feather"], 0, 1))
 
+    def has_layers(self):
+        """Whether the style can be drawn live from the layers: the graticule printed over the beam and cone (grid_over)."""
+        return bool(self.spec["styles"][self.style].get("grid_over"))
+
+    def layers(self):
+        """The live sweep's layers ({name: RGBA, the frames' rows}): the face (the whole frame, radar on, with no beam, cone,
+        afterglow, graticule or pip; the stamps' discs as every frame has them) and the grid (the graticule and the pip over the
+        scope's window, alpha their coverage inside the face's circle)."""
+        out = self.core(self.panel_base, "face", None)
+        if self.stamps:
+            a = self.paste[..., None]
+            out[..., :3] = np.clip(np.round(out[..., :3] * (1 - a) + self.static[..., :3] * a), 0, 255).astype(np.uint8)
+        rgb, al = scope_grid(self.g, self.spec, self.scv)
+        grid = np.zeros(al.shape + (4,), np.uint8)
+        grid[..., :3] = np.clip(np.round(rgb), 0, 255).astype(np.uint8)
+        grid[..., 3] = np.clip(np.round(al * 255), 0, 255).astype(np.uint8)
+        return {SWEEP_LAYERS["face"]: out, SWEEP_LAYERS["grid"]: grid}
+
+    def sweep_params(self):
+        """The fitted numbers the game's live sweep needs (docs/hd-textures.md's format; zrads.json in a pack)."""
+        return sweep_params(self.g, self.spec, self.style, self.s, self.sbox)
+
     def sprites(self):
         """The range plate's and the lamp's sheets ({name: RGBA, rows as shown}), or {} without the stamps' measures."""
         return draw_sprites(self, flip_rows(self.static)) if self.stamps else {}
@@ -1302,8 +1417,8 @@ class Redraw:
                 c = cc[..., None]; img[sl] = img[sl] * (1 - c) + rgb * c
                 alpha[sl] = alpha[sl] * (1 - cov) + al * 255 * cov
             out[..., 3] = np.clip(np.round(alpha), 0, 255).astype(np.uint8)
-        frame = None if i >= self.spec["frames"]["count"] else i
-        face, cov = scope_face(self.g, self.spec, self.scv, self.style, frame, kind == "locked")
+        frame = None if i is None or i >= self.spec["frames"]["count"] else i
+        face, cov = scope_face(self.g, self.spec, self.scv, self.style, frame, kind == "locked", parts="face" if kind == "face" else "all")
         x0, y0, x1, y1 = self.sbox
         sl = (slice(int(y0 * s), int(y1 * s)), slice(int(x0 * s), int(x1 * s)))
         a = cov[..., None]; img[sl] = img[sl] * (1 - a) + face * a
@@ -1358,13 +1473,19 @@ def redraw_frames(export_dir, load, spec, s, style, ls_name, g=None):
     # is written bottom up), as the export is
     for name, sheet in rd.sprites().items():
         yield name, sheet, g
+    # the live sweep's layers and numbers (a style whose graticule lies over the beam and cone: B)
+    if rd.has_layers():
+        for name, layer in rd.layers().items():
+            yield name, layer, g
+        yield SWEEP_LAYERS["params"], rd.sweep_params(), g
 
 
 def render_all(export_dir, upscale_dir, out_dir, spec, s, style, ls_name, g=None):
     os.makedirs(out_dir, exist_ok=True)
     bu = read_bottom_up(export_dir)
     for stem, a, g in redraw_frames(export_dir, lambda st: upscale_frame(upscale_dir, st, s, bu), spec, s, style, ls_name, g):
-        Image.fromarray(a).save(os.path.join(out_dir, stem + ".png"))
+        if isinstance(a, dict): write_params(os.path.join(out_dir, stem), a)
+        else: Image.fromarray(a).save(os.path.join(out_dir, stem + ".png"))
     with open(os.path.join(out_dir, "radar-geometry.json"), "w") as f: json.dump(strip(g), f, indent=1)
     return g
 
@@ -1410,7 +1531,8 @@ def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
                                 "spec": "tools/radar-redraw/radar.json", "spec_sha256": sha256_of(spec_path),
                                 "style": style, "labels": ls_name, "scale": s,
                                 "textures": ", ".join([fr["sweep"] % 0 + "-" + last, fr["locked"] % 0 + "-" + last]
-                                                      + sorted(p["sheet"] for p in spec["stamps"]["parts"].values())),
+                                                      + sorted(p["sheet"] for p in spec["stamps"]["parts"].values())
+                                                      + ([SWEEP_LAYERS[k] for k in ("face", "grid", "params")] if spec["styles"][style].get("grid_over") else [])),
                                 "fonts": [c["font"] for c in credits]}
         have = {f_.get("font") for f_ in meta.get("text_fonts", [])}
         new = [c for c in credits if c["font"] not in have]
@@ -1445,6 +1567,11 @@ def note_in_pack(src, dst, spec, spec_path, style, ls_name, s):
         import importlib.util
         sp = importlib.util.spec_from_file_location("hd_pack", os.path.join(HERE, "hd-pack.py"))
         hp = importlib.util.module_from_spec(sp); sp.loader.exec_module(hp); hp.write_sums(dst)
+
+
+def write_params(path, p):
+    with open(path + ".part", "w", encoding="utf-8", newline="\n") as f: f.write(json.dumps(p, indent=1) + "\n")
+    os.replace(path + ".part", path)
 
 
 def pack_redrawn(pack):
@@ -1497,7 +1624,16 @@ def pack_step(export_dir, pack, out, spec, spec_path, style, ls_name, s=None, ba
         return resize_to(a, 256 * s, 128 * s)
     written = []
     for stem, a, g in redraw_frames(export_dir, load, spec, s, style, ls_name):
-        path = os.path.join(dst, stem + fmt)
+        if isinstance(a, dict):
+            write_params(os.path.join(dst, stem), a); written.append(stem); continue
+        # the grid layer always a PNG: its one-texel lines and their alpha kept exactly (BC7 would blotch them); small
+        f_ = ".png" if stem == SWEEP_LAYERS["grid"] else fmt
+        path = os.path.join(dst, stem + f_)
+        if f_ != fmt:
+            Image.fromarray(a).save(path + ".part", format="PNG"); os.replace(path + ".part", path)
+            other = os.path.join(dst, stem + ".dds")
+            if out is None and os.path.exists(other): os.remove(other)
+            written.append(os.path.basename(path)); continue
         if fmt == ".dds": dds_mips.write_dds(path + ".part", np.ascontiguousarray(a[::-1] if stem in bu else a), etcpak)
         else: Image.fromarray(a).save(path + ".part", format="PNG")
         os.replace(path + ".part", path)

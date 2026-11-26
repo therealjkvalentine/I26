@@ -7,6 +7,7 @@ public enum GraphicsRow
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
+    RadarSweep,
 }
 
 /// <summary>
@@ -38,14 +39,14 @@ public static class GraphicsPages
         [GraphicsRow.Look1997],
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
-        [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
+        [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
         [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
     /// <summary>
-    /// Rows a page shows only with a pack installed (the texture rows with a world pack, Menu Width with the widescreen menu pack).
+    /// Rows a page shows only with a pack installed (the texture rows and Radar Sweep with a world pack, Menu Width with the widescreen menu pack).
     /// </summary>
-    public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
+    public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.RadarSweep];
 
     /// <summary>The original's sheet's rows the port honours, in grxdet1.map's order (now on Display, World and Car &amp; Cockpit).</summary>
     public static readonly GraphicsRow[] Original =
@@ -158,6 +159,7 @@ public static class GraphicsPages
             case GraphicsRow.Mirrors: t.Graphics[0xd] = f.Graphics[0xd]; t.SideMirrors = f.SideMirrors; break;
             case GraphicsRow.MirrorRate: t.MirrorRate = f.MirrorRate; break;
             case GraphicsRow.MirrorHaze: t.MirrorHaze = f.MirrorHaze; break;
+            case GraphicsRow.RadarSweep: t.RadarSweep = f.RadarSweep; break;
             case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; t.Smaa = f.Smaa; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;

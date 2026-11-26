@@ -504,11 +504,37 @@ the pack's `.radar-base/` and starts from those when it runs again, so a second 
 --only zradf007` takes that frame out of `.radar-base/` too, so the rebuilt upscale is the one redrawn). It adds
 `radar_redraw` (the tool's and the spec's SHA-256, the style, the label set, the scale) and B612 to `text_fonts` in
 `pack.json`, B612's line to `ATTRIBUTION.txt` (in the file's own style), and makes `FILES.sha256` again when the pack has
-one. `--out DIR` writes the 64 files with the amended `pack.json` and `ATTRIBUTION.txt` into DIR and leaves the pack as it
+one. `--out DIR` writes the 67 files (the 64 and the sweep's three) with the amended `pack.json` and `ATTRIBUTION.txt` into DIR and leaves the pack as it
 was: the way to redraw a pack you already have (yours, or one unzipped from a release) without building it again. A
 pack whose `pack.json` names a radar redraw already and that has no `.radar-base/` (a pack the staged files of an earlier
 round were copied into) is refused, since its frames are a redraw; `--base DIR` names a folder holding the upscale's own
 frames (a backup made before installing) to start from.
+
+**The live sweep's layers** (Graphic Detail's Radar Sweep: Smooth, docs/playing.md). With style B (`grid_over`) `pack` also
+writes three files the game draws the scope from every frame instead of swapping the 30 sweep frames:
+
+| File | What |
+|---|---|
+| `zrads_face` (the pack's format: `.dds` BC7 with mips, or `.png`) | the whole frame at the frames' size and rows, the radar on, with nothing on the scope's face but its green: no beam, afterglow, cone, graticule or pip. The panel, bezel, wires and the stamps' discs are the frames'. |
+| `zrads_grid.png` (always PNG: its one-texel lines and their alpha exact) | the graticule (rings and spokes) and the centre pip over the scope's window only (`grid_box`), straight RGB with alpha their coverage, clipped to the face's circle |
+| `zrads.json` | the fitted numbers, below |
+
+`zrads.json` (`format` 1; lengths in original pixels, a texel's centre at `(j + 0.5) / scale`; angles in degrees in the
+frames' file axes, `atan2(y, x)` with y down the stored rows, which the game shows flipped): `scale`, `size` (the frames'
+texels), `layers` (`face`, `grid`, `off`: the radar-off face is the stepped set's `zradf030`; `grid_box`: x0, y0, x1, y1 of
+the scope's window in texels), `face` (`centre`, `radius`, `colour`: the green; the face's edge is the coverage
+`clamp(0.5 - (distance - radius) * scale, 0, 1)`), `pivot` (the beam's), `sweep` (`frames` 30, `step_deg` 12, `step_s` 0.2,
+`deg_per_s` 60, `offset_deg` the fitted 1.078, clockwise on screen: frame f's beam lies at file angle `90 - 12 f +
+offset_deg`, bearing `12 f - offset_deg`; the smooth beam takes f continuous, the frame shown plus the share of its step
+gone), `beam` (`width` 1.5, `core_width` 0.7, `edge_colour`, `core_colour`, `length` the face's radius + 1, from the pivot),
+`afterglow` (`span_deg` 150 behind the beam, `peak` 0.62, `decay_deg` 32, i.e. `decay_s` 0.533 at 60 degrees a second,
+`colour`; faded in over the pivot's first pixels), `cone` (`half_angle` 5.94 and `apex_behind_pivot` 13.4 fitted, `fill`,
+`soft` 2.2, `axis_colour`, `axis_alpha`; frame f's cone lies on bearing 12 f exactly). The drawing, in this order: the face;
+over its circle the afterglow, then the beam's edge and core (or the cone with its axis); the grid layer over that; then the
+game's blips, lamp and range plate. `compose_smooth` in the tool is that drawing in numpy, and the tests hold it to the
+stepped frames: at a step's own angle the scope is the stepped frame of that step to within 2 levels off the face's one
+anti-aliased rim texel. Style A (the graticule under the beam) writes no layers. Older packs have none, and the game keeps
+the stepped frames for them.
 
 **The radar for a pack you already have.** The packs released as 2026.11.23 predate this step. With the export of the
 quick route (or `hd-pack.py`'s work folder) and Python with `numpy scipy pillow etcpak`, in PowerShell:
@@ -520,7 +546,7 @@ then, with the game closed, copy each folder's files over the pack's: `Copy-Item
 and the same for `radar-4x` (Linux: `cp radar-8x/* ~/.local/share/I26/tex-world-8x/`). Each takes about a minute. Without `--out` the pack is changed
 in place (the frames it had kept in `.radar-base/`). For a release archive: unzip it, run `pack` on the unzipped
 `tex-world-4x` (or `-8x`) in place, which also makes its `FILES.sha256` again, and zip it with `hd-pack.py release`.
-`hd-pack.py verify` against the 2026.11.23 archives lists the 64 radar files as changed by the `radar` step.
+`hd-pack.py verify` against the 2026.11.23 archives lists the 64 radar files as changed by the `radar` step (and the sweep's three as new).
 
 The other commands, for working on the redraw:
 
