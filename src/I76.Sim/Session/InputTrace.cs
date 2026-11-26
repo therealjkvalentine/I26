@@ -28,6 +28,8 @@ public sealed class InputTrace
     public int? Options, Difficulty;
     public bool? ModernPhysics;
     public string? Ai;
+    /// <summary>The solid-cliff rule (<see cref="SimWorld.SolidCliffs"/>, the play fork's), where the recorder knew it.</summary>
+    public bool? SolidCliffs;
     /// <summary>The Developer panel's actions during the recording ("# dev" rows): a change no input made, so a replay leaves the recording there.</summary>
     public List<(int Tick, string Action)> Dev { get; } = [];
     public List<CarInput> Inputs { get; } = [];
@@ -57,6 +59,7 @@ public sealed class InputTrace
         if (Difficulty is { } d) s.Append(" difficulty=").Append(d.ToString(CultureInfo.InvariantCulture));
         if (ModernPhysics is { } mp) s.Append(" physics=").Append(mp ? "modern" : "original");
         if (Ai is { Length: > 0 } ai) s.Append(" ai=").Append(Word(ai));
+        if (SolidCliffs is { } sc) s.Append(" cliffs=").Append(sc ? "solid" : "original");
         return s.ToString();
     }
 
@@ -78,6 +81,7 @@ public sealed class InputTrace
         if (Difficulty is { } d && now.Difficulty is { } nd && d != nd) yield return $"Difficulty {d} (now {nd})";
         if (ModernPhysics is { } p && now.ModernPhysics is { } np && p != np) yield return $"physics {(p ? "modern" : "original")} (now {(np ? "modern" : "original")})";
         if (Ai is not null && now.Ai is not null && !Same(Word(Ai), Word(now.Ai))) yield return $"ai {Ai} (now {now.Ai})";
+        if (SolidCliffs is { } c && now.SolidCliffs is { } nc && c != nc) yield return $"cliffs {(c ? "solid" : "original")} (now {(nc ? "solid" : "original")})";
     }
 
     /// <summary>A Developer panel action's row before tick <paramref name="tick"/>: <c># dev restore tick 300</c> (a comment to an older reader).</summary>
@@ -124,6 +128,7 @@ public sealed class InputTrace
                 case "difficulty": trace.Difficulty = int.Parse(v, CultureInfo.InvariantCulture); break;
                 case "physics": trace.ModernPhysics = v == "modern"; break;
                 case "ai": trace.Ai = v; break;
+                case "cliffs": trace.SolidCliffs = v == "solid"; break;
             }
         }
         while ((line = r.ReadLine()) is not null)

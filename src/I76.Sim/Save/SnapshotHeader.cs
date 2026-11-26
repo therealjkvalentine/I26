@@ -29,6 +29,11 @@ public sealed record SessionBuild
     public CoopSetup? Coop { get; init; }
     /// <summary>Trip+'s rules (the play fork's: Posse, Sharp, Loot up), null for the original's trip (and every other game). Format 28.</summary>
     public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
+    /// <summary>
+    /// The solid-cliff rule held in the game (<see cref="SimWorld.SolidCliffs"/>; the play fork's, format 29): a snapshot carries it,
+    /// and a restore goes on under it (<see cref="SimSession.Restore"/>), so it is not a difference <see cref="Differs"/> refuses.
+    /// </summary>
+    public bool SolidCliffs { get; init; }
 
     /// <summary>
     /// What identifies the install for a snapshot: the profile, the archive's size, and the mission file's and
@@ -67,6 +72,7 @@ public sealed record SessionBuild
         if (Coop is { } c) { w.VarU((ulong)c.Cars.Count); foreach (var car in c.Cars) w.Str(car); w.F32(c.RespawnDelay); w.F32(c.DamageFactor); w.Int(c.ExtraEnemies); w.Bool(c.RollingStart); }
         w.Bool(TripPlus is not null);   // format 28 (the fork's)
         if (TripPlus is { } tp) { w.Int(tp.Copies); w.Int(tp.SkillOffset); w.Int(tp.SalvageOffset); }
+        w.Bool(SolidCliffs);   // format 29 (the fork's)
     }
 
     internal static SessionBuild Read(SaveReader r)
@@ -92,7 +98,8 @@ public sealed record SessionBuild
             coop = new CoopSetup(cars) { RespawnDelay = r.F32(), DamageFactor = r.F32(), ExtraEnemies = r.Int(), RollingStart = r.Bool() };
         }
         I76.Sim.Trip.TripPlusRules? tripPlus = r.Bool() ? new(r.Int(), r.Int(), r.Int()) : null;
-        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop, TripPlus = tripPlus };
+        bool solidCliffs = r.Bool();
+        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop, TripPlus = tripPlus, SolidCliffs = solidCliffs };
     }
 
     /// <summary>No Trip+ rule: a build without them and one with all three at 0 play the same.</summary>
@@ -132,7 +139,7 @@ public sealed record SnapshotHeader(int Version, SessionBuild Build, SimRate Rat
     /// The format's version. Any change to what a snapshot holds or how it is laid out bumps it; a snapshot of
     /// another version is refused (docs/savestate.md).
     /// </summary>
-    public const int CurrentVersion = 28;
+    public const int CurrentVersion = 29;
 
     public static SnapshotHeader Read(byte[] data)
     {

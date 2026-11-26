@@ -56,6 +56,19 @@ public class InputTraceTests
         Assert.Empty(old.Differences(now));
     }
 
+    /// <summary>The solid-cliff rule (the play fork's) is in the header when the recorder knew it, and a replay under the other rule says so.</summary>
+    [Fact]
+    public void TheHeaderNamesTheCliffRule()
+    {
+        var t = new InputTrace { Mission = "t05", Seed = 3, SolidCliffs = true };
+        Assert.EndsWith(" cliffs=solid", t.HeaderLine());
+        var back = RoundTrip(t);
+        Assert.True(back.SolidCliffs);
+        Assert.Empty(back.Differences(t));
+        Assert.Equal(["cliffs solid (now original)"], back.Differences(new InputTrace { Mission = "t05", Seed = 3, SolidCliffs = false }));
+        Assert.Null(RoundTrip(new InputTrace { Mission = "t05" }).SolidCliffs);
+    }
+
     [Fact]
     public void ADeveloperPanelActionIsARowOfItsOwnThatAReplayKnows()
     {

@@ -185,6 +185,9 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     public void Step(Vehicle v, float dt, bool isPlayer)
     {
         Damage?.Timer(v, dt);     // once per substep before the step
+        // solid cliffs (the session's rule) for this car this substep: not for a car the mission's script has on one of its paths
+        _solidNow = SolidCliffs && FollowsScriptPath?.Invoke(v) != true;
+        var (pose0, rot0) = (v.Pos, v.Rot);   // the wall test's start: before the contact response's move, which can carry the car on into a face
         Collide(v, dt);
         Rollover(v);
         // A dying (0x8000) or dead (0x20) car brakes, every substep
@@ -195,6 +198,13 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
 
         var oldFlags = v.Flags;
         var flags = Forces(v, dt, isPlayer, out var signedSpeed, out var accel);
+        if (_solidNow && (flags & VehicleFlags.Airborne) == 0 && CliffWall(v, pose0, rot0))
+        {
+            // stopped at the face: the substep's moves undone, the response's and the forces' (a landing on the face stays in the air);
+            // the velocity is kept, and the face answers next substep
+            (v.Pos, v.Rot) = (pose0, rot0);
+            if ((oldFlags & VehicleFlags.Airborne) != 0) flags = (flags & ~VehicleFlags.JustLanded) | VehicleFlags.Airborne;
+        }
         v.Accel = accel;
         v.Speed = MathF.Abs(signedSpeed);
         // landing: was airborne, now down, not dead -- the 35 m fall kill, else landing damage
@@ -235,6 +245,8 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         {
             // the forces' airborne return clears the slide bit: the marks end
             v.Flags = flags & ~VehicleFlags.Sliding;
+            // solid cliffs: a car in the air is kept out of a face as on the ground, so that it does not land with its wheels deep in one
+            if (_solidNow && v.Rot.Up.Y > 0.1f) CliffPushOut(v);
             Skid(v.RearLeft, false);
             Skid(v.RearRight, false);
             foreach (var w in (ReadOnlySpan<Wheel>)[v.FrontRight, v.FrontLeft, v.RearRight, v.RearLeft]) Suspension(v, w, true, 0, 0);   // locked, surface 0 in flight; the middle pair too
@@ -953,13 +965,189 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         }
     }
 
-    private static bool Hit(Vehicle v, int corner, Vector3 p, float t, Vector3 pointVel, IGround tg)
+    private bool Hit(Vehicle v, int corner, Vector3 p, float t, Vector3 pointVel, IGround tg)
     {
+        var n = tg.BareNormal(p.X, p.Z);
+        // solid cliffs: on a face steeper than the threshold the contact takes the face's own normal (the bilinear height's), not
+        // the cell's fixed triangle, which on a face across the grid can be the flat half's and lets the car on into the face
+        if (_solidNow && FaceNormal(p.X, p.Z) is var fn && fn.Y < CliffCos) n = fn;
         v.Rec = new Contact
         {
-            Hit = true, Other = null, T = t, C = v.Corners[corner], RelVel = -pointVel, N = tg.BareNormal(p.X, p.Z),
+            Hit = true, Other = null, T = t, C = v.Corners[corner], RelVel = -pointVel, N = n,
         };
         return true;
+    }
+
+    /// <summary>
+    /// The session's rule <see cref="SimWorld.SolidCliffs"/> (the port's, off in the original; docs/deviations.md "Solid cliffs"):
+    /// terrain steeper than <see cref="CliffAngle"/> is a wall. Four parts, each only for a car the rule covers (every car but one
+    /// <see cref="FollowsScriptPath"/> names):
+    /// (a) a hull point's terrain contact on such a face takes the face's own normal (the bilinear height's, the true local slope)
+    /// rather than the cell's fixed triangle's, which on a face across the 5 m grid can be the flat half's or lean the wrong way;
+    /// (b) after the forces, a wheel whose ground rose faster than the threshold slope over the wheel's travel has run into a
+    /// wall: the substep's moves are undone and the face is recorded as a terrain contact, answered on the next substep by the
+    /// original's static impulse and collision damage (<see cref="CliffWall"/>);
+    /// (c) in the attitude step a wheel under such a face lifts the car 0.3 m at most (<see cref="CliffLift"/>);
+    /// (d) a hull point inside such a face is pushed back out along it, on the ground and in the air (<see cref="CliffPushOut"/>).
+    /// Off, every substep is the original's.
+    /// </summary>
+    public bool SolidCliffs { get; set; }
+
+    /// <summary>
+    /// The solid-cliff rule's threshold, degrees from level (60: the measured choice, docs/deviations.md "Solid cliffs"; a
+    /// slope of 60 degrees or less still lifts the car onto it as the original does). Tests and probes may set another.
+    /// </summary>
+    public float CliffAngle
+    {
+        get => _cliffDeg;
+        set { _cliffDeg = value; CliffCos = MathF.Cos(value * MathF.PI / 180); CliffTan = MathF.Tan(value * MathF.PI / 180); }
+    }
+    private float _cliffDeg = DefaultCliffAngle;
+    private float CliffCos = MathF.Cos(DefaultCliffAngle * MathF.PI / 180), CliffTan = MathF.Tan(DefaultCliffAngle * MathF.PI / 180);
+    public const float DefaultCliffAngle = 60;
+
+    /// <summary>
+    /// Whether this car follows one of the mission's scripted paths (a goto, evade or race order of the mission script, any
+    /// avoidance or escape state the AI pushes on its way included; set by the session, <see cref="Session.SimSession"/>):
+    /// such a car keeps the original's rule under <see cref="SolidCliffs"/>, so a stock path that climbs a face only by the
+    /// original's lift (S05's exit1a, T02's 1stplace, T03's firstplace) is still driven. Null: no car is exempt.
+    /// </summary>
+    public Func<Vehicle, bool>? FollowsScriptPath { get; set; }
+
+    /// <summary>The rule holds for the car in the substep under way (set at the substep's start).</summary>
+    private bool _solidNow;
+
+    /// <summary>The wall contacts the solid-cliff rule has made since the counter was last cleared (for tests and probes; not saved).</summary>
+    public int CliffBlocks { get; set; }
+
+    /// <summary>The normal of the bilinear height itself at (x, z) (the surface the wheels and hull points meet).</summary>
+    private Vector3 FaceNormal(double x, double z)
+    {
+        const double e = 0.05;
+        float dx = (ground.BareHeight(x + e, z) - ground.BareHeight(x - e, z)) / (float)(2 * e);
+        float dz = (ground.BareHeight(x, z + e) - ground.BareHeight(x, z - e)) / (float)(2 * e);
+        return Vector3.Normalize(new Vector3(-dx, 1, -dz));
+    }
+
+    /// <summary>The steepest rise of the bare ground along a wheel's travel from a to b, in four pieces (rise over run; 0 for no travel).</summary>
+    private float SteepestAlong(Vector3 a, Vector3 b)
+    {
+        float run = new Vector2(b.X - a.X, b.Z - a.Z).Length() / 4;
+        if (run < 1e-3f) return 0;
+        float steepest = 0, h = ground.BareHeight(a.X, a.Z);
+        for (int k = 1; k <= 4; k++)
+        {
+            var p = Vector3.Lerp(a, b, k / 4f);
+            float hk = ground.BareHeight(p.X, p.Z);
+            steepest = MathF.Max(steepest, (hk - h) / run);
+            h = hk;
+        }
+        return steepest;
+    }
+
+    /// <summary>
+    /// The solid-cliff wall test after the forces moved the car: a wheel whose ground (the query the suspension makes) rose since
+    /// the last substep by more than 0.3 m + a slope of the threshold over the wheel's own horizontal travel (or by more than 0.3 m
+    /// where the ground under it, or a stretch of its travel, is itself steeper than the threshold: at speed the travel takes in
+    /// the flat before the foot), and which that ground would lift by more than 0.3 m, ran into a wall. The face's normal (the
+    /// bilinear height's, or straight back along the travel where the face is not itself that steep) is recorded as a terrain
+    /// contact for the next substep.
+    /// </summary>
+    private bool CliffWall(Vehicle v, I76.Sim.Math.Double3 pos0, Rows rot0)
+    {
+        var p0 = pos0.ToVector3();
+        var p1 = v.Pos.ToVector3();
+        ReadOnlySpan<Wheel> wheels = [v.FrontLeft, v.FrontRight, v.RearLeft, v.RearRight];
+        float worst = 0; Vector3 n = default, c = default;
+        foreach (var w in wheels)
+        {
+            var a = p0 + rot0.ToWorld(w.Mount);
+            var b = p1 + v.Rot.ToWorld(w.Mount);
+            float g = ground.Query(b.X, b.Y, b.Z).Height;
+            float pen = g - (b.Y - w.Rest);
+            // terrain only: a deck or ramp under the wheel is the drive-on rule's (lifted onto it within 3 m, as the original)
+            if (pen <= 0.3f || MathF.Abs(g - ground.BareHeight(b.X, b.Z)) > 0.01f) continue;
+            float travel = new Vector2(b.X - a.X, b.Z - a.Z).Length();
+            float rise = g - w.Ground;
+            float over = rise - (0.3f + travel * CliffTan);
+            // on the face itself (its true local slope, or a stretch of the travel, steeper than the threshold) any rise of more than
+            // 0.3 m is the wall's: at speed the travel takes in the flat before the foot, and the slope over all of it lets the wheel up
+            var fn = FaceNormal(b.X, b.Z);
+            if (fn.Y < CliffCos || SteepestAlong(a, b) > CliffTan) over = MathF.Max(over, rise - 0.3f);
+            if (over <= worst) continue;
+            worst = over;
+            var back = new Vector3(a.X - b.X, 0, a.Z - b.Z);
+            n = fn.Y < CliffCos || back.LengthSquared() < 1e-8f ? fn : Vector3.Normalize(back);
+            c = w.Mount;
+        }
+        if (worst <= 0) return false;
+        CliffBlocks++;
+        if (!v.Rec.Hit && Vector3.Dot(v.Vel, n) < 0)
+            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = c, RelVel = -v.Vel, N = n };
+        return true;
+    }
+
+    /// <summary>
+    /// The solid-cliff rule's limit on the attitude step's lift: a wheel more than 0.3 m under ground that is a face (steeper there
+    /// than the threshold, or rising from under the car's origin to the wheel faster than a slope of the threshold) lifts the car by
+    /// 0.3 m at most, so that a wheel that has got into a face does not put the car on it; the other wheels lift it as the
+    /// original's do (<paramref name="lift"/> is the original's, the deepest wheel's).
+    /// </summary>
+    private float CliffLift(Vehicle v, Vector3 pos, float lift, ReadOnlySpan<(Wheel W, float Bottom)> wheels)
+    {
+        if (lift <= 0.3f) return lift;
+        float g0 = ground.BareHeight(pos.X, pos.Z), capped = float.MinValue;
+        bool any = false;
+        foreach (var (w, bottom) in wheels)
+        {
+            float pen = w.Ground - bottom;
+            if (pen > 0.3f)
+            {
+                var q = pos + v.Rot.ToWorld(w.Mount);
+                float reach = new Vector2(q.X - pos.X, q.Z - pos.Z).Length();
+                bool terrain = MathF.Abs(w.Ground - ground.BareHeight(q.X, q.Z)) <= 0.01f;   // a deck's or ramp's lift is the drive-on rule's
+                if (terrain && (FaceNormal(q.X, q.Z).Y < CliffCos || w.Ground - g0 > 0.3f + reach * CliffTan)) { pen = 0.3f; any = true; }
+            }
+            capped = MathF.Max(capped, pen);
+        }
+        if (!any) return lift;
+        CliffBlocks++;
+        return capped;
+    }
+
+    /// <summary>
+    /// The solid-cliff rule inside the attitude step, and for a car in the air after its forces: a hull point more than 0.3 m inside
+    /// the terrain where the ground is a face (steeper there than the threshold, or rising from under the car's origin to the point
+    /// faster than a slope of the threshold: not a hump under the car) is pushed back out horizontally along the face's normal, at
+    /// most 1 m a substep, and the face recorded as a terrain contact.
+    /// </summary>
+    private void CliffPushOut(Vehicle v)
+    {
+        var pos = v.Pos.ToVector3();
+        float g0 = ground.BareHeight(pos.X, pos.Z);
+        float best = 0; Vector3 bestN = default, bestC = default, dir = default;
+        foreach (var c in v.Corners)
+        {
+            var q = pos + v.Rot.ToWorld(c);
+            float g = ground.BareHeight(q.X, q.Z);
+            float pen = g - q.Y;
+            if (pen <= 0.3f) continue;
+            var n = FaceNormal(q.X, q.Z);
+            float reach = new Vector2(q.X - pos.X, q.Z - pos.Z).Length();
+            // a face: the ground at the point is itself steeper than the threshold, or it rises from under the origin faster than that
+            if (n.Y >= CliffCos && g - g0 <= 0.3f + reach * CliffTan) continue;
+            var h = new Vector2(n.X, n.Z);
+            float sin = h.Length();
+            var d = n.Y < CliffCos && sin > 1e-4f ? new Vector3(h.X / sin, 0, h.Y / sin) : Vector3.Normalize(new Vector3(pos.X - q.X, 0, pos.Z - q.Z));
+            float tan = n.Y < CliffCos ? sin / n.Y : CliffTan;
+            float s = MathF.Min(1f, pen / tan + 0.05f);
+            if (s > best) { best = s; bestN = n.Y < CliffCos ? n : d; bestC = c; dir = d; }
+        }
+        if (best <= 0) return;
+        v.Pos += dir * best;
+        CliffBlocks++;
+        if (!v.Rec.Hit && Vector3.Dot(v.Vel, bestN) < 0)
+            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = bestC, RelVel = -v.Vel, N = bestN };
     }
 
     /// <summary>
@@ -1255,6 +1443,11 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         if (inverted) { fl = Corner(v.BoxX[0], v.BoxZ[3]); fr = Corner(v.BoxX[3], v.BoxZ[3]); rl = Corner(v.BoxX[0], v.BoxZ[0]); rr = Corner(v.BoxX[3], v.BoxZ[0]); }
         else { fl = C(v.FrontLeft); fr = C(v.FrontRight); rl = C(v.RearLeft); rr = C(v.RearRight); }
         float lift = MathF.Max(MathF.Max(v.FrontLeft.Ground - fl, v.FrontRight.Ground - fr), MathF.Max(v.RearLeft.Ground - rl, v.RearRight.Ground - rr));
+        if (_solidNow && !rejoin && !inverted)
+        {
+            lift = CliffLift(v, pos, lift, [(v.FrontLeft, fl), (v.FrontRight, fr), (v.RearLeft, rl), (v.RearRight, rr)]);
+            CliffPushOut(v);
+        }
 
         float pitch = 0, roll = 0;
         int mask = 0;

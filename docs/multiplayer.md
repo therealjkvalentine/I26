@@ -1311,6 +1311,16 @@ byte is there) and from the wreck rule message (64, one byte, reliable ordered, 
 `ClientWorld.Advance` sets the mirror's world from `MeleeClient.WrecksSolid` for the prediction. No protocol version change: an
 upstream peer is sent neither the message nor anything it reads differently.
 
+### Solid cliffs (the play fork's, `PeerFeatures.SolidCliffs`)
+
+The port's rule (docs/deviations.md "Solid cliffs"; `SimWorld.SolidCliffs`): terrain steeper than 60 degrees is a wall for the players' cars and for computer
+cars driving freely; a computer car on one of a co-op mission script's paths keeps the original's rule. In a network game it is the host's, for the whole game,
+in a melee and in co-op: the listen host's own `[port] solid_cliffs`, `i26-server --solid-cliffs` (`ServerOptions.SolidCliffs`, which a host migration's options
+carry; the successor's restore also takes it from the savestate's header). A client learns it from the join accept's last byte (`JoinAccept.SolidCliffs`,
+after the wreck rule's: read only if the byte is there) and `ClientWorld` sets its mirror's world from it, so the prediction of its own car steps as the
+server's does. A player on upstream's build or an earlier fork build reads no such byte and predicts with the original's rule; the server's snapshots
+correct its car (it is not turned off for them, unlike the wreck rule, since the server alone decides where every car is). No protocol version change.
+
 ### On to the next mission (the play fork's, `PeerFeatures.CoopNext`)
 
 Upstream's co-op game is over with its mission: to play on, the host hosts again and everyone joins and readies again (upstream #197; the

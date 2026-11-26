@@ -1766,6 +1766,13 @@ public sealed class ShellSettings
     /// <summary>Wrecks stay solid as these settings have it now: the choice, or the look's (Original in the 1997 look, Drawn in the modern one).</summary>
     public bool WrecksStaySolid => I76.Formats.Shell.LookChoice.Resolve(WreckSolidChoice, Look1997) == I76.Formats.Shell.LookChoice.Updated;
     /// <summary>
+    /// The port's own, without a row: terrain steeper than 60 degrees is a wall for the player's car (and the other humans' and the
+    /// computer cars driving freely) rather than lifting a car that runs into it onto the face ([port] solid_cliffs=on, written only
+    /// when on; I76.Sim.SimWorld.SolidCliffs; docs/deviations.md "Solid cliffs"). Off, the original's, in both looks. A rule of the
+    /// simulation, taken at each mission start: offline the player's, in a network game the host's.
+    /// </summary>
+    public bool SolidCliffs { get; set; }
+    /// <summary>
     /// The port's own, without a row: the 1997 sky's clouds, 0 Original (a second step a tick with the full mirror up, as the original's, which
     /// drifts them twice as fast then), 1 Steady, the default in both looks ([port] sky_drift, written when original; docs/deviations.md "Sky scroll").
     /// </summary>
@@ -2132,6 +2139,7 @@ public sealed class ShellSettings
         s.MenuWarmup = string.Equals(c.GetValue("port", "menu_warmup", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
+        s.SolidCliffs = string.Equals(c.GetValue("port", "solid_cliffs", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.LoadUnderBriefing = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "load_under_briefing", true).ToString());
         s.MovieDecode = I76.Formats.Video.MovieDecode.Parse(c.HasSectionKey("port", I76.Formats.Video.MovieDecode.Key) ? c.GetValue("port", I76.Formats.Video.MovieDecode.Key).ToString() : null);
@@ -2356,6 +2364,7 @@ public sealed class ShellSettings
         if (MenuWarmup) c.SetValue("port", "menu_warmup", "on");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
+        if (SolidCliffs) c.SetValue("port", "solid_cliffs", "on");
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (!LoadUnderBriefing) c.SetValue("port", "load_under_briefing", false);
         if (MovieDecode != I76.Formats.Video.MovieDecode.Default) c.SetValue("port", I76.Formats.Video.MovieDecode.Key, I76.Formats.Video.MovieDecode.Name(MovieDecode));

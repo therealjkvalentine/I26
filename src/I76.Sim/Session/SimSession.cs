@@ -87,6 +87,7 @@ public sealed partial class SimSession
         Options = options ?? SessionOptions.SinglePlayer;
         World.Far = Options.Far;
         World.Step.ScriptDrives = CutsceneOf;   // the keys' lock is the pull's gate too
+        World.Step.FollowsScriptPath = FollowsScriptPath;   // the solid-cliff rule's exemption
         // isKeypress latches the key for the frame: every thread polling it this tick sees it
         if (script is not null) script.Host.SkipKey = () => _skip;
         if (script?.Melee is { } melee) melee.PlayerRenewed += Renewed;
@@ -146,6 +147,14 @@ public sealed partial class SimSession
     /// So does the script driving the player's car outside a cut-scene, for the frame after it did (ScriptHost.ScriptDrove).
     /// </summary>
     public bool CutsceneOf(Vehicle car) => Cutscene || Script?.Host is { } h && (h.PersonalSceneOf(car) || h.ScriptDrove(car));
+
+    /// <summary>
+    /// The car follows one of the mission script's paths (<see cref="ScriptHost.FollowsScriptPath"/>), which the solid-cliff rule
+    /// leaves to the original's (<see cref="SimWorld.SolidCliffs"/>): a computer car on a goto, evade or race order, detours
+    /// included, or a human's car the script drives along one. A melee's bots plan their own ways and are never exempt.
+    /// </summary>
+    public bool FollowsScriptPath(Vehicle car) =>
+        Script is { Melee: null, Host: var h } && h.FollowsScriptPath(car, World.IsHuman(car) && CutsceneOf(car));
 
     /// <summary>A human driver for <paramref name="car"/>, fed inputs[n] for the n-th added; the car takes the player's rules.</summary>
     public Driver AddDriver(Vehicle car)
