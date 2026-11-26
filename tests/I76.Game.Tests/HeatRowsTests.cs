@@ -169,7 +169,7 @@ public class HeatRowsTests(Xunit.Abstractions.ITestOutputHelper output)
     public void TheShimmerIsTwiceTheFirstVersions()
     {
         // the road's band from 75 m (the first version 150, a few pixels at the road's far end), the fires' bend out to 260 m (180)
-        Assert.Equal(75f, HeatShimmer.RoadNear);
+        Assert.Equal(200f, HeatShimmer.RoadNear);   // IJ moved it in to 75 m; the owner then wanted it farther: 200 m (HeatGroundTests)
         Assert.Equal(260f, HeatShimmer.FireFar);
         Assert.True(HeatShimmer.BandDegrees >= 2.5f);
         Assert.Equal(1f, HeatShimmer.Scale);   // I76_HEAT_SCALE unset: the shipped strength
