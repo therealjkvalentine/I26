@@ -42,7 +42,7 @@ public static class MenuTips
         ["Reconfigure"] = "Reconfigure: back to the garage to change the car, then start the mission again.",
         ["Exit Game"] = "Exit Game: quit to the desktop.",
         ["Retry from Checkpoint"] = "Retry from Checkpoint: back to the last checkpoint kept, with the car and the scene as they were.",
-        ["Turn off Cheater Options"] = "Turn off the cheats (Unlimited Ammo, Armor and Chassis) so this win counts.",
+        ["Turn off Cheater Options"] = "Turn off the cheats (Unlimited Ammo, Armor and Chassis) so this win counts: salvage, the next scene, and after Scene 17 the New Game Plus save.",
         ["I'm a cheater"] = "Keep the cheats on: the trip will not advance.",
         ["I'm a swinger"] = "Back to Play Options to turn the cheats off.",
 
@@ -73,6 +73,9 @@ public static class MenuTips
         ["Unlim. Ordnance"] ="Unlimited ordnance: no cap on mines, oil and fire left on the road (the original keeps 160 of a kind). Single player only.",
         ["Melee A.I."] = "Melee A.I.: how well an Instant Melee's computer cars drive at first: Normal (the original's), your Difficulty Level's, Easy or Hard.",
         ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
+        // the fork's game rules: the session's build takes them as a mission starts, so a change in a mission shows from the next one
+        ["Solid Cliffs"] = "Solid cliffs: a cliff steeper than 60 degrees stops your car like a wall, and computer cars driving freely too. Off, the original's: a car is lifted up the face. The fork's own. From the next mission start; online, the host's.",
+        ["Smart A.I."] = "Smart A.I.: the computer cars aim their fixed guns at you, climb after you, keep off cliff edges, back out when stuck, wait their turn out of your sights and use mines and rear guns on a chaser. Off is the original's A.I.; Custom, some of these (the Developer panel). The fork's own. From the next mission start; online, the host's.",
         ["Skip Intro Movies"] = "Skip intro movies: the game starts at the main menu, without the intro and the opening credits. Briefings, outros and cut-scenes still play.",
 
         // ---- Controls (the port's sheet: force feedback, head tracking, then the mouse and the key map)

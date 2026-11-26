@@ -20,18 +20,19 @@ public sealed class SalvagePool
     /// <summary>The groups in creation order, as the engine's list: one per type and name, so four 14in tyres are a group of their own.</summary>
     private readonly List<(int Type, List<SalvageItem> Items)> _groups = [];
     public bool Disabled { get; }
-    /// <summary>The clamp's level: the next mission's number + 1.</summary>
+    /// <summary>The clamp's level: the next mission's number + 1 (+ Trip+'s Loot up offset, the play fork's).</summary>
     public int Level { get; }
     /// <summary>The game kind from the mission stem: t → 2 trip, s/p → 3, m/n → 1.</summary>
     public int Kind { get; }
     private readonly string _stem;
 
-    public SalvagePool(string missionStem, bool noSalvageManagement = false)
+    /// <param name="levelOffset">Trip+'s Loot up (the play fork's; docs/deviations.md "Trip+"): added to the mission number the clamp reads; 0 the original's.</param>
+    public SalvagePool(string missionStem, bool noSalvageManagement = false, int levelOffset = 0)
     {
         _stem = missionStem.ToLowerInvariant();
         Disabled = noSalvageManagement;
         int number = _stem.Length > 1 && int.TryParse(new string(_stem.Skip(1).TakeWhile(char.IsDigit).ToArray()), out int n) ? n : 39;
-        Level = number + 1;
+        Level = number + 1 + levelOffset;
         Kind = _stem.Length > 0 ? _stem[0] switch { 't' => 2, 's' or 'p' => 3, 'm' or 'n' => 1, _ => 0 } : 0;
     }
 

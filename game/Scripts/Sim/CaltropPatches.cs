@@ -13,6 +13,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public partial class CaltropPatches : Node3D
 {
+    private readonly HashSet<Round> _liveRounds = [];
     public const int MaxPatches = 400, PerPatch = 32;
     /// <summary>A spike's length (m): well over a real jack's (#104: 0.14 m was lost on dirt from the chase camera), so it reads from afar.</summary>
     private const float Spike = 0.2f;
@@ -96,7 +97,8 @@ public partial class CaltropPatches : Node3D
         _mmi.Visible = true;
         if (!_anchored) { _anchor = Origin(); _anchored = true; }
         Position = toGodot(_anchor);
-        var live = new HashSet<Round>();
+        var live = _liveRounds;   // kept from frame to frame (a new set a frame was garbage every frame)
+        live.Clear();
         foreach (var r in rounds)
         {
             if (r.Kind != 0xe) continue;

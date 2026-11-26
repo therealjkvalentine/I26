@@ -76,7 +76,11 @@ public sealed partial class SimSession
     public byte[] Snapshot(byte[]? host = null)
     {
         if (World.Rand.IsOracle) throw new NotSupportedException("a session on a rand oracle cannot be snapshotted");
-        return SnapshotHeader.Compose(Build ?? Unbuilt, Rate, World.Far, Ticks, host, SnapshotBody());
+        // the solid-cliff rule as it holds in the world (the mission start's, the host's, a restore's), whoever built the session
+        // and the smarter opponents' rule as the AI holds it (the build's, the host's, a restore's)
+        var built = (Build ?? Unbuilt) with { SolidCliffs = World.SolidCliffs };
+        if (Script?.Host is { } sh) built = built with { SmartAi = sh.SmartAi };
+        return SnapshotHeader.Compose(built, Rate, World.Far, Ticks, host, SnapshotBody());
     }
 
     /// <summary>
@@ -167,6 +171,12 @@ public sealed partial class SimSession
         if (h.Rate.Label != Rate.Label || h.Rate.TickSeconds != Rate.TickSeconds)
             throw new SnapshotMismatchException($"the snapshot runs at {h.Rate.Label} Hz, the session at {Rate.Label} Hz");
         if (h.Far != World.Far) throw new SnapshotMismatchException($"the snapshot measures near and far by {h.Far}, the session by {World.Far}");
+        // the solid-cliff rule is the game's, not the build's: a restore goes on under the rule the snapshot was made in (a retry, a
+        // bookmark, a migrated host), whatever the setting is now
+        World.SolidCliffs = h.Build.SolidCliffs;
+        // the smarter opponents' rule likewise (the AI's, the session's rule as the snapshot was made)
+        if (Script?.Host is { } sh) sh.SmartAi = h.Build.SmartAi & Missions.SmartAi.All;
+        if (Build is { } b) Build = b with { SmartAi = h.Build.SmartAi };
         return RestoreBody(h.Body(snapshot));
     }
 
@@ -196,7 +206,8 @@ public sealed partial class SimSession
             if (!byId.TryGetValue(id, out var v))
             {
                 // a melee's cars, and a co-op game's copies of its enemy cars (Co-op Scaling), are made as the mission runs
-                var make = Melee is { } mg ? (Func<string, Vehicle>)(d => mg.Build(d, player)) : Script?.Host.Coop?.BuildEnemy;
+                // (and in single player Trip+'s Posse's, the play fork's)
+                var make = Melee is { } mg ? (Func<string, Vehicle>)(d => mg.Build(d, player)) : Script?.Host.Coop?.BuildEnemy ?? Script?.Host.Solo?.BuildEnemy;
                 if (make is null || def is null) throw r.Mismatch($"car {id:x} ({def}) is not in the rebuilt mission, which makes no cars as it runs");
                 v = make(def);
                 v.NetId = id;

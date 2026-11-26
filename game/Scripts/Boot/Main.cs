@@ -338,6 +338,7 @@ public partial class Main : Node3D
 		ExitWatchdog.Install(GetTree());
 		HitchWatch.Install(GetTree());
 		FrameSections.Install(GetTree());
+		GcPacer.Install();
 		MusicProbe.Install(GetTree());
 		Controls.InstallDir = _opt.Install;
 		GameKeys.InstallDir = _opt.Install;
@@ -860,8 +861,12 @@ public partial class Main : Node3D
 		yield return null;
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
+		_shadowUltra = I76.Game.Shell.ShadowDetailRow.UltraOn(s);   // ShadowUltra.cs
 		_ambientOcclusion = s.AmbientOcclusion;
 		_terrainShading = s.TerrainShading;
+		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
+		I76.Game.Sim.SmokeLight.Apply(s.SmokeLighting, _mode1997);
+		I76.Game.World.HeatShimmer.Apply(s.HeatShimmer, _mode1997);
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
@@ -900,6 +905,10 @@ public partial class Main : Node3D
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
 	private bool _ambientOcclusion, _terrainShading = true;
+	// Haze, Glow and Reflections (the port's, Advanced; EnvExtras), Off by default
+	private int _haze, _glow;
+	private bool _reflections;
+	private AerialHaze? _aerialHaze;
 
 	/// <summary>
 	/// The modern look's quality settings (docs/perf/plan.md): Shadow Detail Low is the sun's shadow map in two splits to
@@ -917,6 +926,7 @@ public partial class Main : Node3D
 		var (splits, reach) = ShadowReach.For(_shadowDetail);
 		_sun.DirectionalShadowMode = splits == 4 ? DirectionalLight3D.ShadowMode.Parallel4Splits : DirectionalLight3D.ShadowMode.Parallel2Splits;
 		_sun.DirectionalShadowMaxDistance = reach;
+		ApplyShadowUltra();   // ShadowUltra.cs
 		UpdateDrops();
 		MissionBuilder.Trace("quality: shadows");
 		yield return null;
@@ -924,7 +934,11 @@ public partial class Main : Node3D
 		if (_builder?.Terrain is { } t) t.FinestLevel = _terrainDetail > 0 ? 0 : 1;
 		if (_msaaAhead is not null) _msaaAhead = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
 		else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
+		World.VegShaders.SetCoverage(World.VegShaders.CoverageFor(_antialias));   // the plants' alpha-to-coverage at 4x and 8x
 		RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
+		EnvExtras.Apply(_modernEnv, _glow, _reflections, _lighting == Lighting.Card ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
+		if (EnvExtras.HazeLevel(_haze) > 0 && _aerialHaze is null) { AddChild(_aerialHaze = AerialHaze.Create()); ApplyDrawDistance(); }
+		if (_aerialHaze is not null) _aerialHaze.Level = _haze;
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
 		if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
@@ -1198,14 +1212,21 @@ public partial class Main : Node3D
 		// the simulation's world (no engine calls) on a worker: under a playing briefing the main thread goes on drawing it meanwhile
 		var origin = _origin;
 		bool scriptAi = _opt.Ai == "script";
+		// Trip+'s rules (the play fork's; docs/deviations.md "Trip+"): the trip launch's, or a reopened bug report's state's; null for the original's
+		var tripPlus = TripPlusRules(roster is not null);
+		// the smarter opponents (the play fork's; docs/deviations.md "Smarter opponents"): a retry's or a reopened report's, else the settings'
+		var smartAi = replay?.SmartAi ?? SmartAiRule();
 		var setupJob = I76.Game.Boot.Beside.Run(() => I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, origin, script: scriptAi,
 			rand: new I76.Sim.Rng.CrtRand(randSeed), melee: roster,
 			// one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
-			seed: unchecked((int)randSeed)));
+			seed: unchecked((int)randSeed), tripPlus: tripPlus, smartAi: smartAi));
 		yield return setupJob;
 		var setup = setupJob.GetAwaiter().GetResult();
 		MissionBuilder.Trace("spawn: sim world set up");
 		var world = setup.World;
+		// solid cliffs ([port] solid_cliffs; docs/deviations.md "Solid cliffs"): the player's setting as the mission starts, an input
+		// replay's recorded rule (a restored checkpoint or bug report goes on under its snapshot's rule instead: SimSession.Restore)
+		world.SolidCliffs = replay?.SolidCliffs ?? I76.Game.Shell.ShellSettings.Load().SolidCliffs;
 		_devStart = world.Player is { } startCar ? (startCar.Pos.X, startCar.Pos.Z, I76.Sim.Session.DevTools.HeadingOf(startCar.Rot.Forward)) : null;
 		// the session (the simulation's own objects: no engine resource) and the install's identity for its snapshots (the install's
 		// files read and hashed) made on a worker, the main thread's settings read here first
@@ -1215,7 +1236,7 @@ public partial class Main : Node3D
 		{
 			// what the mission was built from, which its snapshots carry and a restore checks (docs/savestate.md)
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(),
-			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster,
+			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster, TripPlus = tripPlus, SmartAi = smartAi,
 		};
 		string? installDir = _opt.Install, missionName = _opt.Mission ?? "";
 		I76.Sim.Session.SimSession session = null!;
@@ -1233,7 +1254,7 @@ public partial class Main : Node3D
 		if (_launch is { Kind: I76.Game.Shell.GameKind.Trip } tl && tl.Mission.StartsWith("t", System.StringComparison.OrdinalIgnoreCase))
 		{
 			if (tl.State is { } carState && world.Player is { } tp) carState.Apply(tp);
-			_salvage = new I76.Sim.Trip.SalvagePool(tl.Mission, tl.NoSalvage);
+			_salvage = new I76.Sim.Trip.SalvagePool(tl.Mission, tl.NoSalvage, tripPlus?.SalvageOffset ?? 0);   // Trip+'s Loot up
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
@@ -1268,9 +1289,10 @@ public partial class Main : Node3D
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(), Car = string.IsNullOrEmpty(requested) ? null : requested,
 			Seed = randSeed, Rate = session.Rate.Label, Melee = roster,
 			Build = I76.Game.Boot.BuildInfo.Version, Install = session.Build.Install, Options = traceSettings.PlayOptions, Difficulty = traceSettings.Difficulty,
-			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai,
+			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai, SolidCliffs = world.SolidCliffs, SmartAi = smartAi,
 		};
 		_reportRoster = null;
+		_reportTripPlus = null;
 		// the last seconds of the player's inputs, for a bug report's inputs.csv ([port] bug_report_inputs; a few kilobytes)
 		if (traceSettings.BugReportInputs) _sim.Inputs = new InputRing(thisRun, System.Math.Max(1, (int)System.Math.Round(InputRing.Seconds / session.TickSeconds)));
 		if (replay is not null)
@@ -1293,6 +1315,8 @@ public partial class Main : Node3D
 		I76.Game.Ui.DevSignals.Reset();
 		I76.Game.Ui.DevSignals.Watching = DevOn;
 		ShowSignals();
+		// behind the card with the game's sound held, the sim's tick 0 is the one AttachSteps runs (FirstTick), not its first frame here
+		if (_soundHeld && _net is null && !_resumed) _sim.AwaitFirstTick = true;
 		AddChild(_sim);
 		AddChild(new PausedClock { Owner = this, Name = "PausedClock" });
 		var playSettings = I76.Game.Shell.ShellSettings.Load();
@@ -1357,6 +1381,14 @@ public partial class Main : Node3D
 			foreach (var (so, gp) in setup.PlacementOf)
 				foreach (var n in so.Nodes) if (n.Gate is { } g) gateOf[(gp, n.Name)] = g;
 			if (gateOf.Count > 0) gateScenery.GateShift = (gp, name) => gateOf.TryGetValue((gp, name), out var g) ? g.Shift : default;
+		}
+		// Trip+'s Posse makes copies of enemy cars as the script sets them going (the play fork's): each gets its node then
+		if (setup.Script?.Host.Solo is { } posse)
+		{
+			posse.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
+			// the copies the script's first frame already made (an enemy ordered at once: T01's, T03's)
+			foreach (var v in world.Vehicles.ToList())
+				if (!carNodes.ContainsKey(v) && setup.Script.Host.Of(v) is { ExtraOf: not null } && v.Definition is { Length: > 0 } cd) carNodes[v] = MakeNode(v, cd);
 		}
 		// a melee builds its cars as it goes: the roster now and every wave, a fresh car on a regen pad
 		if (setup.Melee is { } melee)
@@ -2179,6 +2211,7 @@ public partial class Main : Node3D
 		StartErrors.Loaded();
 		FrameProfiler.MarkLoaded();
 		RenderScale.Refresh();   // Render Scale's video memory cap with the mission's textures in
+		GD.Print($"view at play: {RenderScale.Describe(GetViewport(), _msaaAhead)}");   // (the multisampling as it applies at the briefing's end)
 		MissionBuilder.Trace("first tick: render scale");
 		yield return null;
 		// the mission's frame rate for the main menu's estimate (Graphic Detail's last line)
@@ -2383,6 +2416,8 @@ public partial class Main : Node3D
 	}
 
 	private static bool _soundHeld;
+	/// <summary>The game's buses are held silent for a load (HoldGameSound): a voice line started meanwhile waits for the hold's end (SimDriver).</summary>
+	internal static bool GameSoundHeld => _soundHeld;
 
 	/// <summary>
 	/// The game's own buses (SFX, Voice, Cues: not the music, a movie's or the shaker's) silenced while a mission loads behind the
@@ -2534,7 +2569,7 @@ public partial class Main : Node3D
 	[
 		"terrain_faithful", "sky_dome", "sky_fog", "sky_modern", "horizon_terrain", "horizon_rim", "horizon_near", "road",
 		"terrain_modern", "terrain_modern_night", "outside_1997", "object_translucent", "object_back", "object_back_key",
-		"object_disabled", "object_open", "drop_shadow_soft", "vegetation", "vegetation_shade",
+		"object_disabled", "object_open", "drop_shadow_soft", "vegetation", "vegetation_a2c", "vegetation_shade",
 		// and those the rest of the load makes under the briefing (the views, the cockpit, the effects): loaded here, on the still card
 		"horizon_ring_depth", "cockpit_mirror", "mirror_rim", "binocular_mask", "drop_shadow_1997", "tracer", "tracer_line_1997", "muzzle_flash",
 		"fire_patch", "fireball_tail", "flipbook", "damage_smoke", "damage_smoke_modern", "smoke_layer", "skid_mark", "headlight_glare", "rotor_disc",
@@ -3697,6 +3732,7 @@ public partial class Main : Node3D
 			}
 		}
 		if (_horizon is not null) _horizon.Visible = !_mode1997 && !original;
+		if (_aerialHaze is not null) { _aerialHaze.Ring = _horizon; _aerialHaze.Allowed = !_mode1997 && !original; }
 		ApplyFade1997();
 		ApplyEditorOutside();
 		if (_modernEnv?.Sky?.SkyMaterial is ShaderMaterial sky && _horizon is not null && _horizon.IsInsideTree())
@@ -3940,7 +3976,7 @@ public partial class Main : Node3D
 			long until = System.Diagnostics.Stopwatch.GetTimestamp() + (long)(WalkBudgetMs * System.Diagnostics.Stopwatch.Frequency / 1000);
 			bool Visit(Node n)
 			{
-				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadow)) return false;
+				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadowName)) return false;
 				if (n is MeshInstance3D { Visible: true, Mesh: { } m } mi)
 				{
 					_sceneryNext.Add((m, mi.GlobalTransform, true));
@@ -4039,6 +4075,8 @@ public partial class Main : Node3D
 		_mode1997 = on;
 		I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
 		I76.Game.World.TerrainShade.Set(I76.Game.World.TerrainShade.Wanted(_terrainShading, _shadowDetail), on, ShadowReach.For(_shadowDetail).Reach);
+		I76.Game.Sim.SmokeLight.SetLook1997(on);
+		I76.Game.World.HeatShimmer.Look1997 = on;
 		if (!sliced) _builder?.Terrain?.UseModern(!on);
 		else if (_builder?.Terrain is { } terrain)
 			foreach (var step in terrain.UseModernSteps(!on, SliceMs))
@@ -4063,11 +4101,13 @@ public partial class Main : Node3D
 		// The 1997 look's sun casts none, so a change to it keeps the modern look's once they are set: going back to the modern look then
 		// changes nothing, where the two changes back cost the first frame about 0.13 s at 3440x1440)
 		bool shadowsSet = !on || _shadowFilterSet is null;
-		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : RenderingServer.ShadowQuality.SoftLow);
+		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : ShadowUltra.Filter(_shadowUltra));
 		// crisp: a bigger atlas, no blur and a shorter reach, so the near texels are fine
-		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
+		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : ShadowUltra.Atlas(_shadowUltra), true);
 		if (shadowsSet) _shadowFilterSet = _atlasSet = on;
-		_sun.ShadowBlur = on ? 0f : 1f;
+		if (shadowsSet && !on) _ultraSent = _shadowUltra;
+		_sun.ShadowBlur = on ? 0f : ShadowUltra.Blur(_shadowUltra);
+		_sun.DirectionalShadowBlendSplits = !on && ShadowUltra.Blend(_shadowUltra);
 		_sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
 		MissionBuilder.Trace("look: shadows, draw distance");
 		if (sliced) yield return null;

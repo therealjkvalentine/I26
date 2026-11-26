@@ -27,6 +27,18 @@ public sealed record SessionBuild
     public MeleeRules? Rules { get; init; }
     /// <summary>A co-op story mission's seats (their cars), respawn delay, damage factor, scaling and Rolling Start; null for single player.</summary>
     public CoopSetup? Coop { get; init; }
+    /// <summary>Trip+'s rules (the play fork's: Posse, Sharp, Loot up), null for the original's trip (and every other game). Format 28.</summary>
+    public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
+    /// <summary>
+    /// The solid-cliff rule held in the game (<see cref="SimWorld.SolidCliffs"/>; the play fork's, format 29): a snapshot carries it,
+    /// and a restore goes on under it (<see cref="SimSession.Restore"/>), so it is not a difference <see cref="Differs"/> refuses.
+    /// </summary>
+    public bool SolidCliffs { get; init; }
+    /// <summary>
+    /// The smarter opponents' rule held in the game (the play fork's, <see cref="Missions.SmartAi"/>, format 30; none, the original's AI): a
+    /// snapshot carries it and a restore goes on under it (<see cref="SimSession.Restore"/>), as the solid-cliff rule's.
+    /// </summary>
+    public SmartAi SmartAi { get; init; }
 
     /// <summary>
     /// What identifies the install for a snapshot: the profile, the archive's size, and the mission file's and
@@ -63,6 +75,10 @@ public sealed record SessionBuild
         }
         w.Bool(Coop is not null);
         if (Coop is { } c) { w.VarU((ulong)c.Cars.Count); foreach (var car in c.Cars) w.Str(car); w.F32(c.RespawnDelay); w.F32(c.DamageFactor); w.Int(c.ExtraEnemies); w.Bool(c.RollingStart); }
+        w.Bool(TripPlus is not null);   // format 28 (the fork's)
+        if (TripPlus is { } tp) { w.Int(tp.Copies); w.Int(tp.SkillOffset); w.Int(tp.SalvageOffset); }
+        w.Bool(SolidCliffs);   // format 29 (the fork's)
+        w.U32((uint)SmartAi);   // format 30 (the fork's)
     }
 
     internal static SessionBuild Read(SaveReader r)
@@ -87,8 +103,17 @@ public sealed record SessionBuild
             for (int i = 0; i < n; i++) cars.Add(r.Str());
             coop = new CoopSetup(cars) { RespawnDelay = r.F32(), DamageFactor = r.F32(), ExtraEnemies = r.Int(), RollingStart = r.Bool() };
         }
-        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop };
+        I76.Sim.Trip.TripPlusRules? tripPlus = r.Bool() ? new(r.Int(), r.Int(), r.Int()) : null;
+        bool solidCliffs = r.Bool();
+        var smart = (SmartAi)r.U32();
+        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop, TripPlus = tripPlus, SolidCliffs = solidCliffs, SmartAi = smart };
     }
+
+    /// <summary>No Trip+ rule: a build without them and one with all three at 0 play the same.</summary>
+    private static readonly I76.Sim.Trip.TripPlusRules Off = new(0, 0, 0);
+
+    private static string Describe(I76.Sim.Trip.TripPlusRules? t) =>
+        t is null || t.IsOff ? "off" : $"{t.Copies} cop{(t.Copies == 1 ? "y" : "ies")}, skill {t.SkillOffset:+0;-0;0}, salvage {t.SalvageOffset:+0;-0;0}";
 
     /// <summary>Why a session built from <paramref name="other"/> cannot take this build's snapshot, or null.</summary>
     internal string? Differs(SessionBuild other)
@@ -106,6 +131,7 @@ public sealed record SessionBuild
         if (Coop is { } cd && cd.DamageFactor != other.Coop!.DamageFactor) return $"the snapshot's co-op damage is x{cd.DamageFactor}, the session's x{other.Coop.DamageFactor}";
         if (Coop is { } cs && cs.ExtraEnemies != other.Coop!.ExtraEnemies) return $"the snapshot's co-op scaling is {cs.ExtraEnemies} extra, the session's {other.Coop.ExtraEnemies}";
         if (Coop is { } cr && cr.RollingStart != other.Coop!.RollingStart) return $"the snapshot's co-op Rolling Start is {(cr.RollingStart ? "on" : "off")}, the session's is not";
+        if ((TripPlus ?? Off) != (other.TripPlus ?? Off)) return $"the snapshot's Trip+ rules are {Describe(TripPlus)}, the session's {Describe(other.TripPlus)}";
         return null;
     }
 }
@@ -120,7 +146,7 @@ public sealed record SnapshotHeader(int Version, SessionBuild Build, SimRate Rat
     /// The format's version. Any change to what a snapshot holds or how it is laid out bumps it; a snapshot of
     /// another version is refused (docs/savestate.md).
     /// </summary>
-    public const int CurrentVersion = 27;
+    public const int CurrentVersion = 30;
 
     public static SnapshotHeader Read(byte[] data)
     {

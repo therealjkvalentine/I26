@@ -31,6 +31,7 @@ public static class DevTips
         "sky_speed" => "How fast the clouds drift, in percent of the earlier rate, in both looks. 50 by default; 0 holds them still.",
         "death_orbit_speed" => "How fast the camera circles after your car is destroyed and at a network match's end, in percent of the original's 8 degrees a tick: 100 is the original's speed, 25 by default, 0 holds the view still.",
         "wreck_solid" => "A destroyed computer car's wreck: drawn, it goes on stopping your car and rounds for as long as it is drawn, standing where it is; original, you drive through it once its 10 s wreck timer has ended. Computer cars pass through either way. Look follows the look in use. Online it is the host's.",
+        "solid_cliffs" => "Steep cliffs: on, a face steeper than 60 degrees stops your car (and computer cars driving freely) like a wall; off, the original lifts a car that runs into it up the face. Cars on a mission's scripted path keep the original's rule. Takes effect at the next mission start. Online it is the host's.",
         "helicopter_hearing" => "A helicopter's rotor: far, heard loud overhead, clearly at medium range and faintly out to 2 km, the highs fading first; original, a car engine's sound, gone past 600 m. Look follows the look in use.",
         "music_tracks" => "Mission music plays disc tracks 2 to 14 in turn, as the original; all goes on into the title and ending tracks.",
         "garage_radio" => "The 3D garage: the menu music goes on, as the original's, or a boombox on the bench plays mission tracks.",
@@ -98,6 +99,21 @@ public static class DevTips
         "sway_snap" => "The original head sway: a height within 0.005 of its target jumps there at once, which shakes the dash by up to a pixel while coasting through a curve. False eases every frame. Live.",
         "log_file" =>"Writes logs/godot<date>.log in the user folder from the next start, for bug reports.",
         "bug_report_inputs" => "Keeps the last ten seconds of your inputs in memory for a bug report's inputs.csv (a few kilobytes). Next mission.",
+        _ => null,
+    };
+
+    /// <summary>The tip for a Smart A.I. check box of the Settings section, by its behaviour's key word (I76.Sim.Missions.SmartAiNames.Bits); null for a word without one.</summary>
+    public static string? SmartAiBit(string name) => name switch
+    {
+        "gun_lay" => "Gun lay: in reach of a loaded fixed forward gun, a computer car swings its nose onto your lead point.",
+        "settle" => "Settle: with gun lay, the fixed guns wait until the nose has held on you a reaction time.",
+        "hill_pursuit" => "Hill pursuit: a computer car climbs after a target above or below it instead of creeping under it.",
+        "climb_probe" => "Climb probe: gentle and side slopes no longer read as walls to a computer car's look ahead.",
+        "ledge_caution" => "Ledge caution: a computer car brakes for a cliff's rim or a crest and never backs over one.",
+        "unstick" => "Unstick: a wedged computer car backs out on an arc toward you and tries another line.",
+        "positions" => "Positions: cars waiting their turn hold a place round you, out of your gun cone.",
+        "drop_chased" => "Drop when chased: a car you tail lays its mines or oil in front of you and holds its line.",
+        "rear_guns" => "Rear guns: a car with a loaded rear gun keeps a chaser behind it.",
         _ => null,
     };
 

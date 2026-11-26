@@ -28,12 +28,27 @@ public sealed partial class ScriptHost
     /// <summary>The copies of an original (living or not), in the order they were made.</summary>
     public IEnumerable<Entity> ExtrasOf(Entity original) => Entities.Where(x => x.ExtraOf == original && !x.Removed);
 
+    /// <summary>
+    /// What makes and places the copies: a co-op game's group under Co-op Scaling, or in single player Trip+'s Posse (<see cref="SoloCopies"/>).
+    /// <paramref name="Cap"/> is the most copies a car gets (co-op: one per human past the first, up to it; Trip+: exactly it).
+    /// </summary>
+    private readonly record struct CopySource(int Cap, bool CopyKeyCars, Func<string, Vehicle>? Build, Func<string, I76.Formats.Imaging.ResprayPaint.PaintRef?>? Scheme,
+        IReadOnlyList<IReadOnlyList<System.Numerics.Vector3>>? Paths, Action<Vehicle, string> Spawned, string Tag);
+
+    /// <summary>The copies' source, or null when nothing is copied (the original's mission).</summary>
+    private CopySource? Copying =>
+        Coop is { ExtraEnemies: > 0 } c ? new(c.ExtraEnemies, c.CopyKeyCars, c.BuildEnemy, c.SchemePaint, c.Paths, c.RaiseSpawned, "co-op")
+        : Coop is null && Solo is { Count: > 0 } s ? new(s.Count, false, s.BuildEnemy, null, s.Paths, s.RaiseSpawned, "trip+") : null;
+
+    /// <summary>Enemy cars are copied in this mission (Co-op Scaling or Trip+'s Posse).</summary>
+    public bool CopiesOn => Coop is { ExtraEnemies: > 0 } || Coop is null && Solo is { Count: > 0 };
+
     /// <summary>The entity and, for an original under Co-op Scaling, its living copies: what a setting the script gives it applies to.</summary>
     private IEnumerable<Entity> WithExtras(object o)
     {
         var e = E(o);
         yield return e;
-        if (Coop is not { ExtraEnemies: > 0 } || e.ExtraOf is not null || _escorted.ContainsKey(e)) yield break;   // an escort keeps its own settings
+        if (!CopiesOn || e.ExtraOf is not null || _escorted.ContainsKey(e)) yield break;   // an escort keeps its own settings
         foreach (var x in ExtrasOf(e).ToList()) if (!x.Dead) yield return x;
     }
 
@@ -49,8 +64,9 @@ public sealed partial class ScriptHost
     {
         _keyCars.Clear();
         _escorted.Clear();
-        if (Coop is not { ExtraEnemies: > 0 } c) return;
-        var a = CoopKeyCars.Analyze(fsmPayload, i => i >= 0 && i < vm.Actors.Count && vm.Actors[i].Handle is { } h && IsPlayerHandle(h));
+        if (Copying is not { } c) return;
+        // the player's actor: in co-op the group's handle; in single player (Trip+) the player's entity
+        var a = CoopKeyCars.Analyze(fsmPayload, i => i >= 0 && i < vm.Actors.Count && vm.Actors[i].Handle is { } h && (IsPlayerHandle(h) || Coop is null && ReferenceEquals(h, Player)));
         foreach (var (i, why) in a.Key)
             if (i >= 0 && i < vm.Actors.Count && vm.Actors[i].Handle is Entity e && !IsHumanEntity(e)) _keyCars[e] = _keyCars.GetValueOrDefault(e) | why;
         if (!c.CopyKeyCars) FindEscorted(mission);
@@ -89,15 +105,15 @@ public sealed partial class ScriptHost
     /// </summary>
     private void OrderExtras(Entity e, Entity? target, AiOrder order, IReadOnlyList<System.Numerics.Vector3>? path, float speed, int followFlag, float f1, float f2, object? reference)
     {
-        if (Coop is not { ExtraEnemies: > 0 } c || e.ExtraOf is not null) return;
+        if (Copying is not { } c || e.ExtraOf is not null) return;
         if (!e.Scaled)
         {
             e.Scaled = true;
-            int n = System.Math.Min(c.Seats.Count(s => s.Present) - 1, c.ExtraEnemies);
+            int n = Coop is { } g ? System.Math.Min(g.Seats.Count(s => s.Present) - 1, c.Cap) : c.Cap;
             if (_escorted.TryGetValue(e, out var rule)) { SpawnEscorts(c, e, rule, n); return; }
             if (!Scalable(e))
             {
-                if (_keyCars.TryGetValue(e, out var why)) Log($"co-op: {e.Name} is a car the mission is about ({why}): no extras");
+                if (_keyCars.TryGetValue(e, out var why)) Log($"{c.Tag}: {e.Name} is a car the mission is about ({why}): no extras");
                 return;
             }
             for (int k = 0; k < n; k++) SpawnExtra(c, e, k + 1);
@@ -140,12 +156,12 @@ public sealed partial class ScriptHost
         name.LastIndexOf('+') is var i and > 0 && int.TryParse(name.AsSpan(i + 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int k) && k > 0 ? k : 0;
 
     /// <summary>A copy of the original's car beside it, facing and moving as it does, its AI settings the original's (with coop_copy_key_cars in a paint and a name of its own).</summary>
-    private void SpawnExtra(CoopGroup c, Entity e, int k)
+    private void SpawnExtra(CopySource c, Entity e, int k)
     {
         var o = e.Vehicle!;
-        if (c.BuildEnemy is null || o.Definition is not { Length: > 0 } def) return;
-        var v = c.BuildEnemy(def);
-        v.Paint = c.CopyKeyCars ? ExtraPaint.For(k, o.Paint, c.SchemePaint?.Invoke(def)) : o.Paint;
+        if (c.Build is null || o.Definition is not { Length: > 0 } def) return;
+        var v = c.Build(def);
+        v.Paint = c.CopyKeyCars ? ExtraPaint.For(k, o.Paint, c.Scheme?.Invoke(def)) : o.Paint;
         v.Rot = o.Rot;
         v.Pos = SpawnSpace.Beside(World, o, v, c.Paths);
         v.Vel = o.Vel;
@@ -155,15 +171,18 @@ public sealed partial class ScriptHost
         var x = new Entity(c.CopyKeyCars ? ExtraName(e.Name, k) : e.Name, [], e.Type, e.ObjectFlags) { Vehicle = v, ExtraOf = e, Scaled = true };
         Add(x);
         SetSkill(x, e.SkillA, e.SkillB);
+        // Trip+ (single player): the copy drives and shoots as its original does, also when the script never gave the original a
+        // setSkill (its tables at the AI's default, not the entity's 3, which a co-op copy takes as upstream does)
+        if (Coop is null) { x.Ai.Skill = e.Ai.Skill; x.Ai.AccelFactor = e.Ai.AccelFactor; x.Ai.FireAccuracy = e.Ai.FireAccuracy; x.Ai.FireSkill = e.Ai.FireSkill; }
         x.Aggression = e.Aggression; x.Avoid = e.Avoid; x.MaxAttackers = e.MaxAttackers; x.Lights = e.Lights; x.Siren = e.Siren;
-        Log($"co-op: {e.Name} has extra {k} beside it ({v.Paint?.Primary?.Hex ?? "factory"})");
-        c.RaiseSpawned(v, def);
+        Log($"{c.Tag}: {e.Name} has extra {k} beside it ({v.Paint?.Primary?.Hex ?? "factory"})");
+        c.Spawned(v, def);
     }
 
     /// <summary>The script teleported an original: its living copies (or escorts) come along beside it.</summary>
     private void TeleportExtras(Entity e)
     {
-        if (Coop is not { ExtraEnemies: > 0 } c || e.ExtraOf is not null || e.Vehicle is not { } o) return;
+        if (Copying is not { } c || e.ExtraOf is not null || e.Vehicle is not { } o) return;
         foreach (var x in ExtrasOf(e).ToList())
             if (!x.Dead && x.Vehicle is { } v)
             {
@@ -181,7 +200,7 @@ public sealed partial class ScriptHost
     /// </summary>
     internal void ExtrasFrame()
     {
-        if (Coop is not { ExtraEnemies: > 0 }) return;
+        if (!CopiesOn) return;
         var slots = new Dictionary<Entity, int>();
         foreach (var x in Entities.Where(x => x.ExtraOf is not null && !x.Removed).ToList())
         {

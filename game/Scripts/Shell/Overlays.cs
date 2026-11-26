@@ -257,7 +257,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
     // in the value column's right end: the labels run up to the column's rule
     protected override int MarkX => 458;
     private int _savedFlags;
-    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997, _savedSkipIntro;
+    private bool _savedAutoReverse, _savedModern, _savedCheckpoints, _savedHidden, _savedTurrets, _savedCb, _savedUpdate, _savedCrosshair, _savedEquipTips, _savedBriefing, _savedTurrets1997, _savedSkipIntro, _savedSolidCliffs;
+    private string _savedSmartAi = "";
     private int _savedOrdnance;
     private I76.Sim.Missions.MeleeAiSkill _savedMeleeAi;
     private bool _savedSteering;
@@ -288,16 +289,20 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
 
     /// <summary>
     /// The port's rows, in the list's order after the original's (a check row, or a value row stepped by a click): upstream's, then
-    /// the play fork's own (Unlim. Ordnance, Melee A.I., Equip. Tooltips). Force Feedback, Rumble and Rumble Strength are the Controls
+    /// the play fork's own (Unlim. Ordnance, Melee A.I., Equip. Tooltips, Solid Cliffs, Smart A.I.). Force Feedback, Rumble and Rumble Strength are the Controls
     /// sheet's (<see cref="ControlsMenuScreen"/>), with Wheel Strength, and so are Head Tracking, its sensitivity and the opentrack rows.
     /// </summary>
     public static readonly string[] PortRows =
     [
         "Hidden Wpns & Cars", "Modern Physics", "Simulation Rate", "Checkpoints", "Auto Reverse", "Map Downloads",
         "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
-        "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips",
+        "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips", SolidCliffsRow, SmartAiRow,
         SkipIntroRow,
     ];
+    /// <summary>The fork's Solid Cliffs row (<see cref="ShellSettings.SolidCliffs"/>): Off or On, from the next mission start.</summary>
+    public const string SolidCliffsRow = "Solid Cliffs";
+    /// <summary>The fork's Smart A.I. row (<see cref="ShellSettings.SmartAiText"/>): Off, On (every behaviour) or Custom (some, the Developer panel's), from the next mission start.</summary>
+    public const string SmartAiRow = "Smart A.I.";
     /// <summary>The port's Skip Intro Movies row (<see cref="ShellSettings.SkipIntro"/>), in the front end's and the mission menu's Play Options.</summary>
     public const string SkipIntroRow = "Skip Intro Movies";
 
@@ -326,6 +331,8 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         _savedTurrets1997 = s.Turrets1997;
         _savedSteering = s.AssistedSteering;
         _savedSkipIntro = s.SkipIntro;
+        _savedSolidCliffs = s.SolidCliffs;
+        _savedSmartAi = s.SmartAiText;
         bool nitro = Shell.Install.IsNitro;
         (List.Top, List.Shown) = ListLines(nitro);
 
@@ -344,7 +351,10 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         {
             Listed(Add(222, 0, label, null), slot);
             Listed(TipLine(Add(205, 0, () => "", click, Small, w: 300, h: 12), label, -3), slot, 1);
-            Listed(Add(398, 0, value, null), slot, 2);
+            // a long value ("Custom*") ends short of the scroll mark rather than running under it
+            var shown = Add(398, 0, value, null);
+            shown.Right = 455;
+            Listed(shown, slot, 2);
             slot++;
         }
         // the original's six check rows (Nitro's sheet: Arcade Phys. and Unlim. Wiper Fluid; the salvage-management and cheat rows
@@ -387,8 +397,14 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
             () => ShellSettings.MeleeAiNames[Math.Clamp((int)s.MeleeAi, 0, ShellSettings.MeleeAiNames.Length - 1)]);
         // Equip. Tooltips: the garage's part lists explain each part in a tooltip (PartTips); off shows none there
         Toggle(PortRows[15], () => s.EquipmentTips, () => s.EquipmentTips = !s.EquipmentTips);
+        // Solid Cliffs (docs/deviations.md): a face steeper than 60 degrees is a wall; from the next mission start, online the host's
+        Step(PortRows[16], () => s.SolidCliffs = !s.SolidCliffs, () => ShellSettings.SolidCliffsRowNames[s.SolidCliffs ? 1 : 0]);
+        // Smart A.I. (docs/deviations.md "Smarter opponents"): Off or On, every behaviour; Custom when the Developer panel's check boxes
+        // set some but not all (a click goes to Off). From the next mission start; online the host's
+        Step(PortRows[17], () => s.SetSmartAi(ShellSettings.SmartAiRowNext(ShellSettings.SmartAiRowIndex(s.SmartAi))),
+            () => ShellSettings.SmartAiRowNames[ShellSettings.SmartAiRowIndex(s.SmartAi)]);
         // Skip Intro Movies: the next start goes straight to the menu (briefings, outros and cut-scenes still play)
-        Toggle(PortRows[16], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
+        Toggle(PortRows[18], () => s.SkipIntro, () => s.SkipIntro = !s.SkipIntro);
         Add(350, 438, "Done", Done, Small);
         Add(402, 438, "Cancel", Cancel, Small);
     }
@@ -432,6 +448,7 @@ public sealed class PlayOptionsScreen : ScrollingOverlayScreen
         var s = Shell.Settings;
         s.CbVoice = _savedCb; s.UpdateCheck = _savedUpdate; s.ChaseCrosshair = _savedCrosshair; s.BriefingWhileLoading = _savedBriefing; s.Turrets1997 = _savedTurrets1997;
         s.MeleeAi = _savedMeleeAi; s.OrdnanceLimit = _savedOrdnance; s.EquipmentTips = _savedEquipTips; s.SkipIntro = _savedSkipIntro;
+        s.SolidCliffs = _savedSolidCliffs; s.SmartAiText = _savedSmartAi;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering = _savedSteering;
         s.PlayOptions = _savedFlags; s.AutoReverse = _savedAutoReverse; s.ModernPhysics = _savedModern; s.Checkpoints = _savedCheckpoints;
         s.SimRate = _savedRate; s.MapDownloads = _savedDownloads; s.HiddenContent = _savedHidden; s.UnlimTurrets = _savedTurrets;   // the difficulty is not restored
@@ -676,7 +693,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 ByteRow(r, line, "Terrain Detail", 0x2, ["Low", "High"]);
                 break;
             case GraphicsRow.ShadowDetail:
-                ByteRow(r, line, "Shadow Detail", 0x6, ["Off", "Low", "High"]);
+                Row(r, line, "Shadow Detail", () => ShadowDetailRow.Names[ShadowDetailRow.Index(st)], () => ShadowDetailRow.Step(st));   // Ultra*: [port] shadow_detail over High
                 break;
             case GraphicsRow.ExtInstruments:
                 ByteRow(r, line, "Ext. Instrum. Disp.", 0xe, ["Off", "On"]);
@@ -687,7 +704,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             // the port's MSAA in +0x8, a byte no screen of the original showed
             case GraphicsRow.AntiAliasing:
-                ByteRow(r, line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
+                Row(r, line, "Anti-Aliasing", () => AntiAliasingRow.Names[AntiAliasingRow.Index(st)], () => AntiAliasingRow.Step(st));   // SMAA*: [port] screen_aa over Off or 2x
                 break;
             // [port] world_textures and car_textures (TextureRow): 1997 or a size, shown when a pack is there; both to or from 1997 at
             // once (Main's ApplyGraphics swaps the pictures), a size from the next mission
@@ -701,6 +718,11 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                     I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
                     I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
                 });
+                break;
+            // [port] menu_width (MenuWidthRow): the widescreen menu pack's sides beside the pages, shown only with that pack; from the next page shown
+            case GraphicsRow.MenuWidth:
+                if (!MenuWidthRow.Offered(WideMenus.Installed)) return false;
+                Row(r, line, MenuWidthRow.Label, () => MenuWidthRow.Names[MenuWidthRow.Index(st)], () => { MenuWidthRow.Step(st); WideMenus.Enabled = st.MenuWide; });
                 break;
             // the frame rate limiter and vsync: drawing only, the simulation keeps the Play Options rate; both live (the engine's, so the shell shows it too)
             case GraphicsRow.VSync:
@@ -742,6 +764,23 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
+                break;
+            // the modern look's aerial haze, glow and screen-space reflections (AirRows; Reflections only with Ambient Occlusion On); in a mission
+            case GraphicsRow.Haze:
+                Row(r, line, "Haze", () => AirRows.HazeNames[AirRows.ClampHaze(st.Haze)], () => AirRows.StepHaze(st));
+                break;
+            case GraphicsRow.Glow:
+                Row(r, line, "Glow", () => AirRows.GlowNames[AirRows.ClampGlow(st.Glow)], () => AirRows.StepGlow(st));
+                break;
+            case GraphicsRow.Reflections:
+                Row(r, line, "Reflections", () => AirRows.ReflectionWord(st), () => AirRows.StepReflections(st));
+                break;
+            // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's; apply in a mission
+            case GraphicsRow.SmokeLighting:
+                Row(r, line, SmokeLightingRow.Label, () => SmokeLightingRow.Names[SmokeLightingRow.Index(st)], () => SmokeLightingRow.Step(st));
+                break;
+            case GraphicsRow.HeatShimmer:
+                Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
                 break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
@@ -791,6 +830,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsPages.Advanced:
                 I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
                 I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
+                WideMenus.Enabled = st.MenuWide;
                 I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
                 I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
                 I76.Game.Boot.RenderScale.Apply(st);
@@ -900,6 +940,8 @@ public sealed class ConfirmPopup : ShellScreen
 {
     public required string[] Lines { get; init; }
     public required Action<bool> Answer { get; init; }
+    /// <summary>Esc (the pad's B and Start) when it is not an answer: closes the dialog and calls this instead of answering No (the port's, for a NO that does something).</summary>
+    public Action? Cancelled { get; init; }
     /// <summary>Where each line goes, when the caller places them itself (the garage's "Groove…" at (225, 180), (215, 200), (265, 220)).</summary>
     public Vector2I[]? At { get; init; }
     public override bool EscapeOpensOptions => false;
@@ -928,7 +970,8 @@ public sealed class ConfirmPopup : ShellScreen
         if (!yes && !no) return;
         Frame.Restore(115, 130, 428, 238);
         Shell.Modal(null);
-        Answer(yes);
+        if (esc && Cancelled is { } cancelled) cancelled();
+        else Answer(yes);
     }
 }
 

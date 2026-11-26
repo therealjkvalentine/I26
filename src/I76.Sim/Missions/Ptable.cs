@@ -124,6 +124,8 @@ public sealed partial class Ptable
     private void Tick(Entity e, Entity? target, int s)
     {
         S[s].Tick(e, target);
+        bool smart = SmartOn(e), back = smart && SmartSteer(e, target, s);
+        int s0 = s;
         for (int guard = 0; guard < 64; guard++)
         {
             int next = -1;
@@ -140,6 +142,7 @@ public sealed partial class Ptable
             }
             else host.Log("Ptable stack overflow");
         }
+        if (smart) SmartAfter(e, target, s0, back);
     }
 
     /// <summary>
@@ -156,6 +159,7 @@ public sealed partial class Ptable
         if (agg is < 0 or > 4) { host.Log("calc_sum - agg out of bounds"); agg = System.Math.Clamp(agg, 0, 4); }
         var R = S[s].Rules[r].Data;
         var w = R.Weights[agg].ToArray();
+        if (SmartOn(e)) FavourRearGuns(e, R.Options, w);
         int sum = w.Sum();
         int tries = 0;
         while (sum > 0)
@@ -176,7 +180,8 @@ public sealed partial class Ptable
     {
         var at = order == AiOrder.Follow ? (e.FollowFlag != 0 ? e.FollowRef : null) : target;
         if (at is null || at == e) return;
-        host.FireAt(e, at);
+        if (SmartOn(e)) SmartFire(e, at);
+        else host.FireAt(e, at);
     }
 
     // ---- the per-frame globals the game rolls after the FSM tick ----
@@ -392,6 +397,7 @@ public sealed partial class Ptable
                 return 0;
             }
             e.Search = search = PathSearch.Begin(new Vector2(p.X, p.Z), goal, Bridges);
+            SearchCosts(e, search);
         }
         if (!search.Step(World.Ground, e.Avoid)) return 1;
         SetWaypoints(e, RoadRoute.BuildWaypoints(host.Roads, World.Ground, search.Chain(), Bridges, e.DetourLimit));

@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
-    RenderScale, ShowFps, Renderer, Garage3D,
+    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer,
 }
 
 /// <summary>
@@ -28,9 +28,16 @@ public static class GraphicsPages
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
             GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
-        [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+        [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.Vegetation,
+            GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D,
+            GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
+
+    /// <summary>
+    /// Rows a page shows only with a pack installed (the texture rows with a world pack, Menu Width with the widescreen menu pack).
+    /// Advanced holds more rows than its lines (Haze, Glow, Reflections, Smoke Lighting and Heat Shimmer came after it was full) and scrolls the rest.
+    /// </summary>
+    public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
 
     /// <summary>The original's rows: the sheet's first seven.</summary>
     public const int OriginalRows = 7;
@@ -114,12 +121,12 @@ public static class GraphicsPages
             case GraphicsRow.VisibilityRange: t.DrawDistanceChoice = f.DrawDistanceChoice; break;
             case GraphicsRow.MonitorBrightness: t.Graphics[0xc] = f.Graphics[0xc]; break;
             case GraphicsRow.TerrainDetail: t.Graphics[0x2] = f.Graphics[0x2]; break;
-            case GraphicsRow.ShadowDetail: t.Graphics[0x6] = f.Graphics[0x6]; break;
+            case GraphicsRow.ShadowDetail: t.Graphics[0x6] = f.Graphics[0x6]; t.ShadowUltra = f.ShadowUltra; break;
             case GraphicsRow.ExtInstruments: t.Graphics[0xe] = f.Graphics[0xe]; break;
             // one row over two keys (MirrorsRow): the rear mirror's mode and [port] side_mirrors
             case GraphicsRow.Mirrors: t.Graphics[0xd] = f.Graphics[0xd]; t.SideMirrors = f.SideMirrors; break;
             case GraphicsRow.MirrorRate: t.MirrorRate = f.MirrorRate; break;
-            case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; break;
+            case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; t.Smaa = f.Smaa; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;
             case GraphicsRow.RenderScale: t.RenderScale = f.RenderScale; break;
@@ -130,9 +137,15 @@ public static class GraphicsPages
             case GraphicsRow.CarTextures: t.CarTextures = f.CarTextures; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
             case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
+            case GraphicsRow.Haze: t.Haze = f.Haze; break;
+            case GraphicsRow.Glow: t.Glow = f.Glow; break;
+            case GraphicsRow.Reflections: t.Reflections = f.Reflections; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
+            case GraphicsRow.MenuWidth: t.MenuWide = f.MenuWide; break;
+            case GraphicsRow.SmokeLighting: t.SmokeLighting = f.SmokeLighting; break;
+            case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
             case GraphicsRow.PaletteGrade: t.PaletteGrade = f.PaletteGrade; break;
@@ -227,4 +240,24 @@ public static class TextureRow
 
     /// <summary>A click: the next size, past the last back to 1997.</summary>
     public static void Step(ShellSettings s, GraphicsRow r, int[] available) => Put(s, r, available, (Index(s, r, available) + 1) % Sizes(r, available).Length);
+}
+
+/// <summary>
+/// Menu Width ([port] menu_width): with the widescreen menu pack installed (tex-menu-wide, WideMenus), Wide* draws the pack's sides
+/// beside the menu pages in a window wider than 4:3 (the default) and 4:3 the pages alone between bars, as without the pack. Shown
+/// only with the pack. The pages, their hotspots and everything on them stay where they are either way; the 1997 look is unchanged.
+/// </summary>
+public static class MenuWidthRow
+{
+    public static readonly string[] Names = ["4:3", "Wide" + ShellSettings.PortMark];
+    public const string Label = "Menu Width";
+
+    public static bool Offered(bool packInstalled) => packInstalled;
+    public static int Index(ShellSettings s) => s.MenuWide ? 1 : 0;
+    public static void Put(ShellSettings s, int v) => s.MenuWide = v != 0;
+    public static void Step(ShellSettings s) => s.MenuWide = !s.MenuWide;
+
+    /// <summary>The file's word: "4:3" turns it off; anything else (or none) is Wide.</summary>
+    public static bool FromFile(string? word) => word?.Trim() != "4:3";
+    public static string Word(bool wide) => wide ? "wide" : "4:3";
 }

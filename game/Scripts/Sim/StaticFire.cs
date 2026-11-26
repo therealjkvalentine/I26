@@ -49,6 +49,9 @@ public partial class StaticFire : Node3D
             Position = new Vector3(0, 0.9f * _k, 0), Name = "Glow", Visible = false,
         };
         AddChild(_light);
+        // Heat Shimmer's column over it (the original's props burn forever)
+        float hh = height, ww = width;
+        I76.Game.World.HeatSources.Add(this, () => new I76.Game.World.HeatSource(GlobalPosition, ww * 0.45f, hh * 0.85f, hh * 3.5f + 4f, 1f));
     }
 
     private static ShaderMaterial? _mat;

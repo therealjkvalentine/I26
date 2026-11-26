@@ -11,7 +11,7 @@ namespace I76.Cli;
 /// (a SimSession), nobody at the wheel, printing what the script does.
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
-///           [--record FILE] [--replay FILE] [--motion FILE]
+///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
 /// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
@@ -43,7 +43,10 @@ public static class MissionRun
         var car = replay is not null ? replay.Car : ci >= 0 ? args[ci + 1] : roster is null ? null : "valepre1.vcf";
         int sdi = args.IndexOf("--seed");   // --seed N: the rand stream's start (the game takes the clock; here 1 without it)
         uint seed = replay?.Seed ?? (sdi >= 0 ? uint.Parse(args[sdi + 1]) : 1);
-        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed));
+        // --new-game-plus LAP: a trip mission by that New Game Plus (Trip+) lap's rules (1 the original's; the play fork's, docs/deviations.md "New Game Plus"); prints the enemies at the end
+        int tpi = args.IndexOf("--new-game-plus") is >= 0 and var ngp ? ngp : args.IndexOf("--trip-plus");   // the older spelling too
+        var tripPlus = tpi >= 0 && roster is null ? I76.Sim.Trip.TripPlusRules.ForLap(int.Parse(args[tpi + 1], CultureInfo.InvariantCulture)) : null;
+        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed), tripPlus: tripPlus);
         setup.Melee?.Start();
         if (setup.Script is not { } script) { Console.WriteLine("no script"); return 1; }
         int ri = args.IndexOf("--rate");   // --rate HZ: 20 (default), 24, 25, 28, 30, 40 or 60
@@ -278,6 +281,18 @@ public static class MissionRun
             Console.WriteLine(diverged < 0 ? $"replay: {compared} ticks compared, every state hash equal; last {session.StateHash():x16}" : $"replay: diverged at tick {diverged} of {compared} compared");
         var pl = setup.World.Player!;
         Console.WriteLine($"{T()} end: player at {pl.Pos.X:0},{pl.Pos.Z:0} speed {pl.Speed:0.0} flags 0x{(uint)pl.Flags:x} order {setup.Entities.FirstOrDefault(e => e.Vehicle == pl)?.Order}; {Describe(h.Objectives)}; {script.Vm?.Threads.Count(t => t.Finished) ?? 0} threads finished");
+        if (tpi >= 0)
+        {
+            // the enemies as the run left them: the script's own and the copies, and the AI tiers their tables are at (drive/shoot)
+            var foes = h.Entities.Where(e => e.Vehicle is not null && !h.IsHumanEntity(e) && e.Team != 0 && e.Team != (h.Player?.Team ?? 1)).ToList();
+            static int TierOf(float[] t, float v) => Array.IndexOf(t, v);
+            var tiers = foes.Where(e => e.Vehicle is { IsEmplacement: false })
+                .GroupBy(e => $"{TierOf(I76.Sim.Ai.AiBlock.DriveSkill, e.Ai.Skill)}/{TierOf(I76.Sim.Ai.AiBlock.Accuracy, e.Ai.FireAccuracy)}")
+                .OrderBy(g => g.Key).Select(g => $"{g.Key} x{g.Count()}");
+            Console.WriteLine($"trip+: rules {(tripPlus is { } tr ? $"{tr.Copies} cop{(tr.Copies == 1 ? "y" : "ies")}, skill {tr.SkillOffset:+0;-0;0}, salvage {tr.SalvageOffset:+0;-0;0}" : "off")}; " +
+                $"enemies {foes.Count(e => e.ExtraOf is null)} of the mission's ({foes.Count(e => e.ExtraOf is null && e.Vehicle is { IsHeli: false, IsEmplacement: false })} ground cars, {h.KeyCars.Count} key) + {foes.Count(e => e.ExtraOf is not null)} copies/escorts, " +
+                $"{foes.Count(e => e.Dead)} dead; tiers (drive/shoot) {string.Join(", ", tiers)}");
+        }
         return diverged < 0 ? 0 : 2;
     }
 

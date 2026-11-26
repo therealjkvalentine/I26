@@ -65,6 +65,7 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(game[0], exe)
             self.assertEqual(game[game.index("--") + 1:], ["--install", inst, "--export-textures", a.export])
             self.assertIn("--windowed", game[:game.index("--")])
+            self.assertEqual(game[game.index("--audio-driver") + 1], "Dummy", "an export plays no sound")
             self.assertTrue(up[1].endswith("upscale-textures.py") and up[2] == a.export)
             self.assertEqual(up[3:], ["--out", os.path.join(d, "pack"), "--device", "cpu", "--only", "pp11*"])
             self.assertTrue(rd[1].endswith("text-redraws.py") and rd[2] == a.export)

@@ -18,7 +18,8 @@ public sealed class Bookmarks
     private const string Path = "user://saves/bookmarks.cfg";
 
     /// <param name="Checkpoint">The port's: saved in the mission with its checkpoint (bookmark_saveNNN.snap); Load resumes there.</param>
-    public sealed record Entry(int Mission, string Name, string Stem, int State, bool NoSalvage, bool Checkpoint = false)
+    /// <param name="Lap">The play fork's Trip+ lap the bookmark was saved on (bookmarks.cfg "lap", written past lap 1); Load plays on by that lap's rules.</param>
+    public sealed record Entry(int Mission, string Name, string Stem, int State, bool NoSalvage, bool Checkpoint = false, int Lap = 1)
     {
         /// <summary>"Scene %d. " — one on when the entry was saved after a win.</summary>
         public int Scene => Mission + (State == 1 ? 1 : 0);
@@ -78,7 +79,7 @@ public sealed class Bookmarks
         if (c.Load(Path) != Error.Ok) return b;
         foreach (var sec in c.GetSections())
             b.Entries.Add(new Entry((int)c.GetValue(sec, "mission", 1), (string)c.GetValue(sec, "name", ""), sec,
-                (int)c.GetValue(sec, "state", 0), (bool)c.GetValue(sec, "nosalvage", false), (bool)c.GetValue(sec, "checkpoint", false)));
+                (int)c.GetValue(sec, "state", 0), (bool)c.GetValue(sec, "nosalvage", false), (bool)c.GetValue(sec, "checkpoint", false), (int)c.GetValue(sec, "lap", 1)));
         b.Entries.Sort((x, y) => string.CompareOrdinal(x.Stem, y.Stem));
         return b;
     }
@@ -93,6 +94,7 @@ public sealed class Bookmarks
             c.SetValue(e.Stem, "state", e.State);
             c.SetValue(e.Stem, "nosalvage", e.NoSalvage);
             if (e.Checkpoint) c.SetValue(e.Stem, "checkpoint", true);
+            if (e.Lap > 1) c.SetValue(e.Stem, "lap", e.Lap);
         }
         DirAccess.MakeDirRecursiveAbsolute("user://saves");
         c.Save(Path);
@@ -371,7 +373,7 @@ public sealed class SaveBookmarkScreen : BookmarkScreen
     private void Write(string stem)
     {
         Marks.Entries.RemoveAll(e => e.Stem == stem);
-        Marks.Entries.Add(new Bookmarks.Entry(Shell.Trip.Mission, _name, stem, 0, (Shell.Settings.PlayOptions & 2) != 0));
+        Marks.Entries.Add(new Bookmarks.Entry(Shell.Trip.Mission, _name, stem, 0, (Shell.Settings.PlayOptions & 2) != 0, Lap: Shell.Trip.Plus.Lap));
         Marks.Entries.Sort((x, y) => string.CompareOrdinal(x.Stem, y.Stem));
         // the .cmp: the car, its parts (the garage's current lists, the field salvage still waiting) and its repair order
         if (Shell.Trip.Inventory(Shell) is { } inv) Bookmarks.WriteCar(stem, inv.Save());
@@ -412,6 +414,7 @@ public sealed class LoadBookmarkScreen : BookmarkScreen
         Shell.Trip.Mission = e.Scene;
         Shell.Trip.Highest = Math.Max(Shell.Trip.Highest, e.Scene);
         Shell.Trip.FromBookmark = true;
+        if (e.Lap != Shell.Trip.Plus.Lap) Shell.Trip.Plus = Shell.Trip.Plus.OnLap(e.Lap);   // the bookmark's Trip+ lap and its rules
         // the saved car and parts replace the trip's (a bookmark from before they were kept leaves them as they are)
         var car = Bookmarks.ReadCar(e.Stem, Shell.Parts, Shell.Vfs);
         if (car is not null) Shell.Trip.SetInventory(car);

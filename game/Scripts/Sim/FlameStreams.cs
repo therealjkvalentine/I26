@@ -76,7 +76,16 @@ public partial class FlameStreams : Node3D
                     : Coords.ToGodot(f.Cross[i] - origin);
             pts.Add((f, p));
         }
-        if (modern) { _modern.Update(delta, pts); return; }
+        if (modern)
+        {
+            // Heat Shimmer over the streams: a few of each one's cross-sections
+            if (I76.Game.World.HeatSources.Wanted)
+                foreach (var (f, p) in pts)
+                    for (int s = 1; s < f.Count; s += Math.Max(1, f.Count / 4))
+                        I76.Game.World.HeatSources.Point(new((p[s * 3] + p[s * 3 + 1] + p[s * 3 + 2]) / 3f, 0.4f + 0.05f * s, 0.2f, 2.5f, 0.7f));
+            _modern.Update(delta, pts);
+            return;
+        }
         foreach (int part in (int[])[1, 2, 3])
             foreach (var group in pts.GroupBy(x => x.F.Style))
             {

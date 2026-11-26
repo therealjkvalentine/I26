@@ -37,6 +37,8 @@ public sealed class RadarFrames
         public Frame? Frame;
         public byte[] Bytes = [];
         public System.Threading.Tasks.Task? Pending;
+        /// <summary>The worker decoding into it while <see cref="Pending"/> runs (its priority raised when the main thread must wait for it).</summary>
+        public volatile System.Threading.Thread? Worker;
         public long Used;
     }
 
@@ -152,17 +154,22 @@ public sealed class RadarFrames
             // in bands on the pool's threads: the frame is wanted this frame
             System.Threading.Tasks.Parallel.For(0, 8, k => Bc7.Decode(blocks, f.W, f.H, bytes, bh * k / 8, bh * (k + 1) / 8));
         }
-        else s.Pending?.Wait();
+        else Await(s);
         s.Pending = null;
         s.Used = ++_use;
         return s.Bytes;
     }
 
-    /// <summary>Starts decoding <paramref name="f"/> on a worker thread, unless a buffer holds it.</summary>
+    /// <summary>
+    /// Starts decoding <paramref name="f"/> on a worker thread, unless a buffer holds it or every buffer is being decoded into: a frame
+    /// asked for ahead is never waited for (a target's bearing swinging fast asked for a new neighbour every few frames, and the main thread
+    /// waited for the oldest of four decodes to free its buffer, behind workers below its own priority: frames of 70-115 ms on a busy
+    /// processor). It is asked for again the next frame.
+    /// </summary>
     public void Ahead(Frame? f)
     {
         if (f?.Blocks is not { } blocks || Find(f) is not null) return;
-        var s = Free(f);
+        if (Free(f, wait: false) is not { } s) return;
         var bytes = s.Bytes;
         s.Pending = System.Threading.Tasks.Task.Run(() =>
         {
@@ -170,9 +177,18 @@ public sealed class RadarFrames
             var t = System.Threading.Thread.CurrentThread;
             var was = t.Priority;
             t.Priority = System.Threading.ThreadPriority.BelowNormal;
+            s.Worker = t;
             try { Bc7.Decode(blocks, f.W, f.H, bytes, 0, f.H / 4); }
-            finally { t.Priority = was; }
+            finally { s.Worker = null; t.Priority = was; }
         });
+    }
+
+    /// <summary>Waits for the slot's decode, its worker raised to the main thread's priority meanwhile (the main thread needs it now).</summary>
+    private static void Await(Slot s)
+    {
+        if (s.Pending is not { IsCompleted: false } task) return;
+        try { if (s.Worker is { } w) w.Priority = System.Threading.ThreadPriority.Normal; } catch (System.Threading.ThreadStateException) { }
+        task.Wait();
     }
 
     /// <summary>Whether <paramref name="f"/>'s RGBA is there without waiting: kept whole, or decoded into a buffer.</summary>
@@ -184,15 +200,23 @@ public sealed class RadarFrames
         return null;
     }
 
-    /// <summary>The least recently used buffer not being decoded into, given to <paramref name="f"/> (sized for it).</summary>
-    private Slot Free(Frame f)
+    /// <summary>
+    /// The least recently used buffer not being decoded into, given to <paramref name="f"/> (sized for it); with every buffer busy, the oldest
+    /// once its decode is done, or null without <paramref name="wait"/>.
+    /// </summary>
+    private Slot? Free(Frame f, bool wait = true)
     {
         Slot? best = null;
         foreach (var s in _slots)
             if (s.Pending is null || s.Pending.IsCompleted)
                 if (best is null || s.Used < best.Used) best = s;
         // every buffer busy: the oldest, once its decode is done
-        if (best is null) { best = _slots.MinBy(s => s.Used)!; best.Pending!.Wait(); }
+        if (best is null)
+        {
+            if (!wait) return null;
+            best = _slots.MinBy(s => s.Used)!;
+            Await(best);
+        }
         best.Pending = null;
         best.Frame = f;
         best.Used = ++_use;

@@ -202,6 +202,7 @@ public sealed partial class Ptable
     /// <summary>Tactic on deck: flee or wait on the side while the attacker roster is full.</summary>
     private void OnDeckTick(Entity e, Entity? t)
     {
+        if (SmartOn(e) && TakePosition(e, t)) return;
         float d = Dist(e, t!);
         if (d < 50f) { e.OnDeckMode = 0; e.TacticDeadline = Now + 4f + Rand() % 5; }
         else if (d > 160f) { e.OnDeckMode = 1; e.TacticDeadline = Now + 4f + Rand() % 5; }

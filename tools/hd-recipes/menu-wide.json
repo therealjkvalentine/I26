@@ -1,0 +1,876 @@
+{
+ "note": "The widescreen menu pack (tex-menu-wide): per page how its sides were made. Built by tools/menu-wide.py from the masters (the image model's own outputs, kept in the pack's release, not here) and the 4:3 menu pack. The model calls cannot be repeated byte for byte (no seed; the model changes under its name); everything after them is deterministic and recorded here: the canvas, the prompt as sent, the affine that aligns the master (found once by template matching and ECC, then pinned), the seam treatment and the upscaler. docs/hd-textures.md, The widescreen menu pack.",
+ "pack": {
+  "name": "I26 Wide",
+  "version": "0.1.0",
+  "date": "2026-11-25",
+  "min_engine": "1.2",
+  "aspect": "16:9 and 21:9 sides for the 4:3 menu pack's pages (the 4:3 page itself is the 4:3 pack's, untouched)",
+  "licence": "non-commercial; derived from Interstate '76 art, requires an owned copy of the game; the sides were drawn by an image model (Gemini 3 Pro Image, Google) from the 4:3 pages",
+  "models": [
+   "gemini-3-pro-image (Google; the sides, as masters)",
+   "4xTextures_GTAV_rgt-s_dither (Philip Hofmann, CC-BY-4.0; the sides re-upscaled)"
+  ],
+  "attribution": [
+   "I26 Wide: the sides of the 4:3 menu pack's pages for 16:9 and 21:9 windows.",
+   "The sides were drawn by Gemini 3 Pro Image (Google), given each 4:3 page; its outputs carry Google's SynthID watermark.",
+   "They were re-upscaled through 4xTextures_GTAV_rgt-s_dither by Philip Hofmann (CC BY 4.0, https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither), the 4:3 pack's own model.",
+   "Derived from Interstate '76 art: non-commercial, for owners of the game, with I26.",
+   "Recipe: tools/hd-recipes/menu-wide.json in the I26 fork's repository; the masters are in this pack's release."
+  ]
+ },
+ "height": 1920,
+ "layers": {
+  "16x9": {
+   "width": 3414,
+   "over": "4x3"
+  },
+  "21x9": {
+   "width": 4588,
+   "over": "16x9"
+  }
+ },
+ "upscale": {
+  "model": "4xTextures_GTAV_rgt-s_dither",
+  "tile": 128,
+  "pad": 16,
+  "precision": "float32",
+  "context": 65
+ },
+ "seam": {
+  "name": "S4",
+  "flow": {
+   "preset": "DIS medium",
+   "band_min": 48,
+   "band_div": 3,
+   "sigma_rows": 96,
+   "clip": 8
+  },
+  "membrane": {
+   "cols": 2,
+   "sigma": 1.0
+  }
+ },
+ "borrow": {
+  "equal": 1.5
+ },
+ "pad": {
+  "cols": 4
+ },
+ "fingerprint": {
+  "cols": 4,
+  "bands": 16,
+  "tolerance": 8
+ },
+ "encoding": {
+  "quality": 95,
+  "method": 6
+ },
+ "pages": {
+  "shellbg1": {
+   "what": "Build and repair form (the trip's garage)",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P3",
+     "prompt": "This is the background of a 1970s video game menu: a printed 1970s auto shop form (\"BUILD AND REPAIR FORM\") on aged ochre manila paper. It is being widened from 4:3 to 16:9 for widescreen monitors. The image is the full 16:9 canvas (2048 x 1152): the middle part, from x 256 to x 1792, is the real original artwork and stays exactly as it is, same position and scale; the smooth blurred colour bands at the left (x 0-256) and right (x 1792-2048) are only placeholders, to be painted over, so that the picture continues seamlessly across the two vertical joins. The finished picture: one continuous sheet of aged ochre manila paper filling the whole width. In the new areas the paper simply continues outward with exactly the same ochre colour, brightness, fibre grain and fine scan noise as the paper next to the joins, with only faint mottled stains like the ones it already has. The form's printing stops where it stops now: the new areas are blank paper. No lines, no boxes, no rules, no text, no numbers, no second form, no sheet edge, no fold, no shadow, no vignette, no border.",
+     "pick": "P3 v1 of 3",
+     "why": "plain paper, no sheet edge (round 3)",
+     "master": "shellbg1/16x9/pro__P3__v1.png",
+     "master_sha256": "23ceab5d78a035e1fa5e7d2596c6633837985dcda0d3f0e77cf7e8bc982f237e",
+     "affine": [
+      [
+       0.750040100597,
+       2.2920971e-05,
+       -0.205552780742
+      ],
+      [
+       -1.8708458e-05,
+       0.749982476072,
+       -0.109750515855
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper",
+     "master": "shellbg1/21x9/pro__P2__v1.png",
+     "master_sha256": "ca797025ec32bf1ebb73333c57b59171a9fa8c2a0321be7fc2628dae7bc08868",
+     "affine": [
+      [
+       0.856984508525,
+       1.6703055e-05,
+       -0.061527701759
+      ],
+      [
+       9.189727e-06,
+       0.855910712756,
+       -0.119224035439
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg2": {
+   "what": "Chassis configuration form (the melee garage)",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P3",
+     "prompt": "This is the background of a 1970s video game menu: a printed 1970s form (\"CHASSIS CONFIGURATION FORM\") on aged ochre manila paper with a few faint coffee stains. It is being widened from 4:3 to 16:9 for widescreen monitors. The image is the full 16:9 canvas (2048 x 1152): the middle part, from x 256 to x 1792, is the real original artwork and stays exactly as it is, same position and scale; the smooth blurred colour bands at the left (x 0-256) and right (x 1792-2048) are only placeholders, to be painted over, so that the picture continues seamlessly across the two vertical joins. The finished picture: one continuous sheet of aged ochre manila paper filling the whole width. In the new areas the paper simply continues outward with exactly the same ochre colour, brightness, fibre grain and fine scan noise as the paper next to the joins, with only faint mottled stains like the ones it already has. The form's printing stops where it stops now: the new areas are blank paper. No lines, no boxes, no rules, no text, no numbers, no second form, no sheet edge, no fold, no shadow, no vignette, no border.",
+     "pick": "P3 v1 of 3",
+     "why": "plain paper with faint stains (round 3)",
+     "master": "shellbg2/16x9/pro__P3__v1.png",
+     "master_sha256": "503042f7d73f4d92d566fa7926bd8814db20b49c24eecc5766b0ab96b1fc2cb4",
+     "affine": [
+      [
+       0.750057359048,
+       2.103552e-05,
+       -0.214187908531
+      ],
+      [
+       3.289459e-06,
+       0.749982476736,
+       -0.118489209995
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint coffee stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper; v2 drew dark blobs at the right",
+     "master": "shellbg2/21x9/pro__P2__v1.png",
+     "master_sha256": "8a1855be363193b6fb9266b21eaa595847c0db8ed18fb3a1b9a4b3a0e298cb55",
+     "affine": [
+      [
+       0.856968165228,
+       -2.8151136e-05,
+       -0.01734803763
+      ],
+      [
+       2.3321163e-05,
+       0.855910609925,
+       -0.145242685197
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg3": {
+   "what": "Car/van inventory and field salvage",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P3",
+     "prompt": "This is the background of a 1970s video game menu: a printed 1970s inventory form (\"CAR / VAN INVENTORY\" and \"FIELD SALVAGE\") on aged ochre manila paper with a faint coffee-ring stain. It is being widened from 4:3 to 16:9 for widescreen monitors. The image is the full 16:9 canvas (2048 x 1152): the middle part, from x 256 to x 1792, is the real original artwork and stays exactly as it is, same position and scale; the smooth blurred colour bands at the left (x 0-256) and right (x 1792-2048) are only placeholders, to be painted over, so that the picture continues seamlessly across the two vertical joins. The finished picture: one continuous sheet of aged ochre manila paper filling the whole width. In the new areas the paper simply continues outward with exactly the same ochre colour, brightness, fibre grain and fine scan noise as the paper next to the joins, with only faint mottled stains like the ones it already has. The form's printing stops where it stops now: the new areas are blank paper. No lines, no boxes, no rules, no text, no numbers, no second form, no sheet edge, no fold, no shadow, no vignette, no border.",
+     "pick": "P3 v1 of 3",
+     "why": "the coffee-ring stain carries across the right join (round 3)",
+     "master": "shellbg3/16x9/pro__P3__v1.png",
+     "master_sha256": "362635a29b37f837ce298a0a96c549ab65d5d996e811b961ddee85aff0b2d550",
+     "affine": [
+      [
+       0.750027001885,
+       9.472578e-06,
+       -0.185796701454
+      ],
+      [
+       6.65719e-07,
+       0.74999937416,
+       -0.1093544248
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains; the faint coffee-ring stain near the right edge continues as the same faint ring. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "one faint coffee ring continues; v2 repeated the ring",
+     "master": "shellbg3/21x9/pro__P2__v1.png",
+     "master_sha256": "78aba9c51802f52ed7e03cd36603c630e393a460c06f0de79b4e77f6d91b4adb",
+     "affine": [
+      [
+       0.856990534898,
+       4.8696048e-05,
+       -0.104905907892
+      ],
+      [
+       2.688059e-06,
+       0.85583491638,
+       -0.084271204517
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg4": {
+   "what": "Parts catalog",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg5": {
+   "what": "Auto melee single player form (no screen of the port shows it)",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this 16:9 picture are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of warm yellow-orange paper, just wider (16:9). The paper simply continues to the new left and right edges, same colour and mottled grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 3",
+     "why": "the mottled stains continue softly; v2 drew darker blotches, P3 was flatter",
+     "master": "shellbg5/16x9/pro__P2__v1.png",
+     "master_sha256": "3741c9a23ce2b657577883bd3018596612e89511d585d04a7ef50ad26eece5c1",
+     "affine": [
+      [
+       0.750053201285,
+       1.0657337e-05,
+       -0.241531196365
+      ],
+      [
+       2.5767134e-05,
+       0.749981135971,
+       -0.144217789523
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of warm yellow-orange paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same soft mottled stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "soft mottling; v2 matched the page less well (0.87)",
+     "master": "shellbg5/21x9/pro__P2__v1.png",
+     "master_sha256": "74b164a2db707f5d14637ad646ac8737e7cb5ba893fa22e97eb61e293a82168e",
+     "affine": [
+      [
+       0.856950395321,
+       3.8580548e-05,
+       -0.049783427898
+      ],
+      [
+       2.0526911e-05,
+       0.855860996101,
+       -0.16461569312
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg6": {
+   "what": "Joe's Fish Shack pad: Options Menu",
+   "class": "model",
+   "kind": "illustrated (cut objects named in the prompt)",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this 16:9 picture are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same top-down photo of a diner counter, just wider (16:9). The speckled granite counter continues to both new edges. On the left, the slice of burnt toast and its white plate continue to the left edge. On the right, the white saucer under the coffee cup, the metal spoon lying on the saucer's edge, the coffee spill and the spoon handle at the bottom right continue to the right edge. No new objects, no text.",
+     "pick": "P2 v2 of 3",
+     "why": "the toast completed as a whole slice on a round plate, the cup's handle, the spoon's handle off the right edge, granite in the original's rendering (round 3)",
+     "master": "shellbg6/16x9/pro__P2__v2.png",
+     "master_sha256": "e37a0172aa5b229262f1070b12786f6222cb46868c3f2d91ac8e83b27fe9614f",
+     "affine": [
+      [
+       0.749992132627,
+       -3.3804966e-05,
+       -0.097540924174
+      ],
+      [
+       -7.942807e-06,
+       0.750052843599,
+       -0.144221131191
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same top-down photo of a diner counter, just wider (21:9). The speckled granite counter continues to both new edges. On the left, the round white plate under the slice of burnt toast continues as the same circle, its rim curving round at the left. On the right, the coffee spill fades out, and the metal spoon's handle and the knife handle at the bottom right continue off the right edge. No new objects (no extra cups, plates, food, cutlery or bullets), no text.",
+     "pick": "P2 v1 of 2",
+     "why": "the plate completed round the toast, the spill fades out, no new objects; strategy B",
+     "master": "shellbg6/21x9/pro__P2__v1.png",
+     "master_sha256": "c3b8034cabe562632c07b257b4dd031dff7f148ec1057650068ac561ad89ceca",
+     "affine": [
+      [
+       0.857104762386,
+       0.000187111366,
+       -0.412610770435
+      ],
+      [
+       -0.000388531806,
+       0.848200106117,
+       7.332510874212
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg7": {
+   "what": "Joe's pad: Audio Control",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg8": {
+   "what": "Joe's pad: Exit Game",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg9": {
+   "what": "Joe's pad: Graphic Detail",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg10": {
+   "what": "Joe's pad: Play Options",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg11": {
+   "what": "Joe's pad: Save Bookmark",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg12": {
+   "what": "Joe's pad: Load Bookmark",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg13": {
+   "what": "Credits (black)",
+   "class": "pad",
+   "why": "the edges are one colour (each row's outer columns repeated)"
+  },
+  "shellbg14": {
+   "what": "Mission select burst page (no screen of the port shows it)",
+   "class": "model",
+   "kind": "illustrated (cut objects named in the prompt)",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P3",
+     "prompt": "This is the background of a 1970s video game menu: a mission select page: the Interstate '76 logo and lists of missions in white lettering over a soft orange, red and yellow radial blur burst. It is being widened from 4:3 to 16:9 for widescreen monitors. The image is the full 16:9 canvas (2064 x 1152): the middle part, from x 264 to x 1800, is the real original artwork and stays exactly as it is, same position and scale; the smooth blurred colour bands at the left (x 0-264) and right (x 1800-2064) are only placeholders, to be painted over, so that the picture continues seamlessly across the two vertical joins. The finished picture: the same radial burst, wider. In the new areas the orange, red and yellow streaks keep radiating outward from the same centre, with the same colours, softness and fine grain as next to the joins. The lettering stops where it stops now: the new areas hold no words, no numbers, no logo and no new objects; no border, no vignette.",
+     "pick": "P3 v1 of 3",
+     "why": "the burst's streaks keep radiating; both P2 runs redrew the page (match 0.42) and left horizontal streaks at the right join",
+     "master": "shellbg14/16x9/pro__P3__v1.png",
+     "master_sha256": "51688dcfa4baa70b3771b959387cd5705592632d14a2f4c9923ebde31ccbb908",
+     "affine": [
+      [
+       0.750020830664,
+       -2.9288496e-05,
+       -0.179788375552
+      ],
+      [
+       4.4513206e-05,
+       0.749945642765,
+       -0.19325411849
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same background, just wider (21:9): a soft orange, red and yellow radial blur burst whose streaks radiate outward from the middle. The burst continues to the new left and right edges with the same streaks, colours and softness. No text, no logo, no new objects.",
+     "pick": "P2 v1 of 2",
+     "why": "the streaks keep radiating; no artefacts",
+     "master": "shellbg14/21x9/pro__P2__v1.png",
+     "master_sha256": "65842ded0208052e03a18047fa80fd519d391c1fcab5c375d5b02ef7086af944",
+     "affine": [
+      [
+       0.85186131428,
+       -0.010612786987,
+       17.721020591873
+      ],
+      [
+       -0.000802502079,
+       0.845790191112,
+       8.021939432897
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg15": {
+   "what": "Tad's Auto Salvage card on brown (no screen of the port shows it)",
+   "class": "pad",
+   "why": "the brown round the card is one flat colour"
+  },
+  "shellbg16": {
+   "what": "Controls form",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg17": {
+   "what": "Melee car form, a 408x406 picture at the frame's top left",
+   "class": "skip",
+   "why": "not a full page (a 408x406-texel picture at the frame's top left; its right edge is inside the frame) and no screen of the port shows it"
+  },
+  "shellbg18": {
+   "what": "Net melee entry roster",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg19": {
+   "what": "Net melee host event form",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this 16:9 picture are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (16:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 3",
+     "why": "plain paper, no ghost rules (round 3)",
+     "master": "shellbg19/16x9/pro__P2__v1.png",
+     "master_sha256": "292badad915b25c6510828cb23b866b9f80d834435cce004ac091b69e0e2d1fa",
+     "affine": [
+      [
+       0.750034423032,
+       2.38832e-05,
+       -0.196348770916
+      ],
+      [
+       -7.234591e-06,
+       0.750031427635,
+       -0.140492068832
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper; strategy B",
+     "master": "shellbg19/21x9/pro__P2__v1.png",
+     "master_sha256": "9cb053aefe41fa7a7afc42c3227a8431990971aa7fe58b26721c0e47ea5573fa",
+     "affine": [
+      [
+       0.857016786279,
+       -1.8506936e-05,
+       -0.077014185832
+      ],
+      [
+       1.884827e-06,
+       0.855924671123,
+       -0.176522948575
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg20": {
+   "what": "Modem melee host event form",
+   "class": "borrow",
+   "from": "shellbg24",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg21": {
+   "what": "Modem melee driver entry form",
+   "class": "borrow",
+   "from": "shellbg24",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg22": {
+   "what": "Nullmodem melee host event form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg23": {
+   "what": "Nullmodem melee driver entry form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg24": {
+   "what": "Auto melee driver entry form",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this 16:9 picture are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (16:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 3",
+     "why": "plain paper (round 3)",
+     "master": "shellbg24/16x9/pro__P2__v1.png",
+     "master_sha256": "9755476f583f1f6ddd50e43c0eb5e290f2624fbee02da3a90ad3e71493809d07",
+     "affine": [
+      [
+       0.750042425919,
+       -1.1722861e-05,
+       -0.184634469967
+      ],
+      [
+       5.56641e-06,
+       0.750037060932,
+       -0.155732899091
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v2 of 2",
+     "why": "plain paper",
+     "master": "shellbg24/21x9/pro__P2__v2.png",
+     "master_sha256": "ded6117cb88340261f1d8ecf2609da3561167c03a8ce5b3432c82ab082157df7",
+     "affine": [
+      [
+       0.856983691282,
+       -5.454426e-06,
+       -0.054591894399
+      ],
+      [
+       -1.0817099e-05,
+       0.855872099656,
+       -0.071221296055
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg25": {
+   "what": "Auto melee driver entry form (scenarios)",
+   "class": "borrow",
+   "from": "shellbg24",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg26": {
+   "what": "Main menu logo on black",
+   "class": "pad",
+   "why": "the edges are one colour (each row's outer columns repeated)"
+  },
+  "shellbg27": {
+   "what": "Choose your vehicle (before T17)",
+   "class": "model",
+   "kind": "illustrated (cut objects named in the prompt)",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this 16:9 picture are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same scene, just wider (16:9): a flat picture of a desert depot with three vehicles, hung as a panel on the back wall of a plain room seen in perspective. On the left, beyond the panel's left edge, the dark charcoal-grey wall continues to the new left edge, and the light grey floor with its dark diagonal band continues along the bottom. On the right, the white side wall continues to the new right edge, with its grey shadow at the top and the white floor at the bottom. The picture panel itself does not get wider. No new objects, no text.",
+     "pick": "P2 v1 of 3",
+     "why": "both walls and the floor's diagonals continue in perspective; v2's left floor band fades out",
+     "master": "shellbg27/16x9/pro__P2__v1.png",
+     "master_sha256": "24cd6649e2e8c5d4b41eee13ec064d65671014f23cdde049e51bc3b92978a15b",
+     "affine": [
+      [
+       0.750089530464,
+       5.2861259e-05,
+       -0.380015521007
+      ],
+      [
+       -0.000302326799,
+       0.750124274974,
+       0.213756246678
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same scene, just wider (21:9): a picture of a desert depot hung as a panel on the back wall of a plain room seen in perspective. On the left, the dark charcoal-grey wall continues to the new left edge and the light grey floor along the bottom continues. On the right, the white side wall continues to the new right edge, with its grey shadow at the top and the white floor at the bottom. The picture panel does not get wider. No new objects, no text.",
+     "pick": "P2 v1 of 2",
+     "why": "the walls and floor continue in perspective",
+     "master": "shellbg27/21x9/pro__P2__v1.png",
+     "master_sha256": "fb7d32fbd90a94efd4d24e67ef73d32f8975644a21e99a74a6fd87e2deb955d0",
+     "affine": [
+      [
+       0.856948044158,
+       -1.3209989e-05,
+       -0.082659921026
+      ],
+      [
+       7.6071072e-05,
+       0.85654082942,
+       -0.534934422244
+      ]
+     ]
+    }
+   }
+  },
+  "shellbg28": {
+   "what": "Standings",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg29": {
+   "what": "Build and repair form under the no-salvage notice",
+   "class": "model",
+   "kind": "plain paper",
+   "layers": {
+    "16x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "16:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P3",
+     "prompt": "This is the background of a 1970s video game menu: a printed 1970s auto shop form (\"BUILD AND REPAIR FORM\", filled in by hand) on faded khaki paper, dimmed under a notice box. It is being widened from 4:3 to 16:9 for widescreen monitors. The image is the full 16:9 canvas (2064 x 1152): the middle part, from x 264 to x 1800, is the real original artwork and stays exactly as it is, same position and scale; the smooth blurred colour bands at the left (x 0-264) and right (x 1800-2064) are only placeholders, to be painted over, so that the picture continues seamlessly across the two vertical joins. The finished picture: one continuous sheet of paper filling the whole width. In the new areas the paper simply continues outward with exactly the same colour, brightness, fibre grain and fine scan noise as the paper next to the joins, with only faint mottled stains like the ones it already has. The form's printing stops where it stops now: the new areas are blank paper. No lines, no boxes, no rules, no text, no numbers, no second form, no sheet edge, no fold, no shadow, no vignette, no border.",
+     "pick": "P3 v1 of 3",
+     "why": "even mottled khaki paper; P2 v2 drew grey blotches",
+     "master": "shellbg29/16x9/pro__P3__v1.png",
+     "master_sha256": "c01cd3c678117ced120b47f482db10035ea8709e066f2a4efbd3dd20c0a851cf",
+     "affine": [
+      [
+       0.7500209668,
+       -1.5588472e-05,
+       -0.144262502584
+      ],
+      [
+       -1.3475521e-05,
+       0.749977291598,
+       -0.068087039868
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of faded khaki paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint mottled stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "even khaki paper",
+     "master": "shellbg29/21x9/pro__P2__v1.png",
+     "master_sha256": "56ccda5bcf20445cb85be1a1d5e039c2b9b7b43826126c6e2b4e5c6506a9ef01",
+     "affine": [
+      [
+       0.857031190287,
+       2.1666255e-05,
+       -0.148121722365
+      ],
+      [
+       2.6406484e-05,
+       0.855897570173,
+       -0.139219575975
+      ]
+     ]
+    }
+   },
+   "membrane": {
+    "inset": 8,
+    "cols": 4,
+    "why": "the page's outer 4 texel columns on the left are a grey border; fitted to the paper inside it"
+   }
+  },
+  "shellbg30": {
+   "what": "Car/van inventory, no field salvage (mission 5)",
+   "class": "borrow",
+   "from": "shellbg3",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "shellbg31": {
+   "what": "You are unconscious (black)",
+   "class": "pad",
+   "why": "the edges are one colour (each row's outer columns repeated)"
+  },
+  "shellbg32": {
+   "what": "Joe's pad: Modem Setup",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg2": {
+   "what": "Nitro: parts catalog",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg7": {
+   "what": "Nitro: Joe's pad, Play Options",
+   "class": "borrow",
+   "from": "shellbg6",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg12": {
+   "what": "Nitro: controls form",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg14": {
+   "what": "Nitro: net melee entry roster",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg15": {
+   "what": "Nitro: net melee host event form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg16": {
+   "what": "Nitro: modem melee host event form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg17": {
+   "what": "Nitro: modem melee driver entry form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg18": {
+   "what": "Nitro: nullmodem melee host event form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg19": {
+   "what": "Nitro: nullmodem melee driver entry form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg21": {
+   "what": "Nitro: scenario driver entry form",
+   "class": "borrow",
+   "from": "shellbg19",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg22": {
+   "what": "Nitro: main menu logo on black",
+   "class": "pad",
+   "why": "the edges are one colour (each row's outer columns repeated)"
+  },
+  "nitro/shellbg23": {
+   "what": "Nitro: combat standings",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg24": {
+   "what": "Nitro: CTF standings",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  },
+  "nitro/shellbg25": {
+   "what": "Nitro: race standings",
+   "class": "borrow",
+   "from": "shellbg1",
+   "why": "the same art at the edges (verified by pixels)"
+  }
+ }
+}

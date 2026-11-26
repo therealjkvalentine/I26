@@ -127,18 +127,18 @@ public sealed partial class ScriptHost
         _escorted.Count > 0 && Of(attacker) is { ExtraOf: { } o } && o.Vehicle == victim && _escorted.ContainsKey(o);
 
     /// <summary>The escorts of a key car, made the first time the script orders it: as many as Co-op Scaling would copy it.</summary>
-    private void SpawnEscorts(CoopGroup c, Entity e, CoopEscorts.Rule r, int n)
+    private void SpawnEscorts(CopySource c, Entity e, CoopEscorts.Rule r, int n)
     {
         for (int k = 1; k <= n; k++) SpawnEscort(c, e, r, k);
-        Log($"co-op: {e.Name} is escorted by {n}");
+        Log($"{c.Tag}: {e.Name} is escorted by {n}");
     }
 
     /// <summary>An escort beside the car, facing and moving as it does, on its team, its settings the rule's.</summary>
-    private void SpawnEscort(CoopGroup c, Entity e, CoopEscorts.Rule rule, int k)
+    private void SpawnEscort(CopySource c, Entity e, CoopEscorts.Rule rule, int k)
     {
         var r = rule.For(k);
-        if (c.BuildEnemy is null || e.Vehicle is not { } o) return;
-        var v = c.BuildEnemy(r.Car);
+        if (c.Build is null || e.Vehicle is not { } o) return;
+        var v = c.Build(r.Car);
         v.Rot = o.Rot;
         v.Pos = SpawnSpace.Beside(World, o, v, c.Paths);
         v.Vel = o.Vel;
@@ -150,8 +150,8 @@ public sealed partial class ScriptHost
         SetSkill(x, r.DriveSkill, r.ShootSkill);
         SetAggression(x, r.Agg);
         x.Lights = e.Lights;
-        Log($"co-op: {e.Name} has escort {k} ({r.Car})");
-        c.RaiseSpawned(v, r.Car);
+        Log($"{c.Tag}: {e.Name} has escort {k} ({r.Car})");
+        c.Spawned(v, r.Car);
     }
 
     /// <summary>

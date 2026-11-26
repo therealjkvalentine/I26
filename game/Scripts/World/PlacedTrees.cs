@@ -29,7 +29,7 @@ public partial class PlacedTrees : Node3D
     }
 
     private readonly Dictionary<string, Kind?> _kinds = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ShaderMaterial[] _mats = [.. Enumerable.Range(0, 3).Select(_ => new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/vegetation.gdshader") })];
+    private readonly ShaderMaterial[] _mats = [.. Enumerable.Range(0, 3).Select(_ => VegShaders.Make())];
     private bool _shown;
 
     public PlacedTrees()

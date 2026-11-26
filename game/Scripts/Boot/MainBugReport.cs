@@ -102,11 +102,11 @@ public partial class Main
             RenderBackend.Describe() + (RenderBackend.VideoMemoryMb is { } vram ? $", video memory {vram} MiB" : ""),
             $"window: {win.X}x{win.Y} {DisplayServer.WindowGetMode().ToString().ToLowerInvariant()}, screen {screen.X}x{screen.Y}, render scale {RenderScale.Percents[System.Math.Clamp(settings.RenderScale, 0, RenderScale.Percents.Length - 1)]} %{(RenderScale.Held is { } held ? $" (held at {held} %: video memory)" : "")}, "
                 + $"vsync {(settings.VSync ? "on" : "off")}, max fps {I76.Sim.Views.FrameLimit.Names[System.Math.Clamp(settings.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)]}, "
-                + $"anti-aliasing {RenderScale.AntiAliasing[System.Math.Clamp(settings.Graphics[0x8], 0, RenderScale.AntiAliasing.Length - 1)]}",
+                + $"anti-aliasing {I76.Game.Shell.AntiAliasingRow.Names[I76.Game.Shell.AntiAliasingRow.Index(settings)]}",
             $"look: {(_mode1997 ? (settings.SoftwareRenderer ? "1997 (software renderer)" : "1997") : "modern")}, renderer setting {settings.Renderer}, "
                 + $"world textures {I76.Game.Assets.HdTextures.Word(I76.Game.Assets.HdTextures.WorldSize)}, car and dash textures {I76.Game.Assets.HdTextures.Word(I76.Game.Assets.HdTextures.CarSize)}, "
                 + $"menu art {(I76.Game.Shell.HdAssets.Enabled && I76.Game.Shell.HdAssets.Source is not null ? "HD" : "the install's")}",
-            $"shadow detail {settings.Graphics[0x6]}, terrain detail {settings.Graphics[0x2]}, ambient occlusion {(settings.AmbientOcclusion ? "on" : "off")}, vegetation {settings.Vegetation}, "
+            $"shadow detail {settings.Graphics[0x6]}{(I76.Game.Shell.ShadowDetailRow.UltraOn(settings) ? " (ultra)" : "")}, terrain detail {settings.Graphics[0x2]}, ambient occlusion {(settings.AmbientOcclusion ? "on" : "off")}, vegetation {settings.Vegetation}, "
                 + $"visibility range {(settings.DrawDistanceChoice is { } dd ? dd.ToString(inv) : "follows the look")}, quiet window {(QuietWindow.Active ? "on" : "off")}",
             $"input: {(Controls.PadSource.Read().Count > 0 ? "a pad or wheel is connected" : "keyboard and mouse")}, force feedback {I76.Game.Shell.ShellSettings.ForceFeedbackNames[System.Math.Clamp(settings.ForceFeedbackMode, 0, 3)]}",
         });
@@ -223,6 +223,24 @@ public partial class Main
     /// <summary>A report's roster of an auto melee, for the session the reopened state is restored into (SpawnCarSteps).</summary>
     private static System.Collections.Generic.List<string>? _reportRoster;
 
+    /// <summary>A report's Trip+ rules (the play fork's), for the session the reopened state is restored into (SpawnCarSteps).</summary>
+    private static I76.Sim.Trip.TripPlusRules? _reportTripPlus;
+
+    /// <summary>
+    /// The Trip+ rules a mission is built by (the play fork's; docs/deviations.md "Trip+"): a reopened report's, else a trip launch's
+    /// (single player: never a melee, a network or a co-op game). Null, the original's.
+    /// </summary>
+    private I76.Sim.Trip.TripPlusRules? TripPlusRules(bool melee)
+    {
+        if (melee) return null;
+        if (_reportTripPlus is { } reported) return reported;
+        if (_launch is { Kind: I76.Game.Shell.GameKind.Trip, TripPlus: { IsOff: false } rules }) return rules;
+        // I76_NEW_GAME_PLUS=LAP (or the older I76_TRIP_PLUS; docs/dev-hooks.md): a trip mission started without the shell's rules (--mission t03, a capture's launch) plays by that lap's
+        string m = (_opt.Mission ?? "").ToLowerInvariant();
+        bool trip = m.Length == 3 && m[0] == 't' && char.IsDigit(m[1]) && char.IsDigit(m[2]) && _launch is null or { Kind: I76.Game.Shell.GameKind.Trip };
+        return trip && int.TryParse(I76.Game.Shell.NewGamePlus.Env("I76_NEW_GAME_PLUS", "I76_TRIP_PLUS"), out int lap) ? I76.Sim.Trip.TripPlusRules.ForLap(lap) : null;
+    }
+
     /// <summary>
     /// --bug-report-open ZIP: the report's mission and car as its snapshot names them, its state restored once the mission is
     /// built (a checkpoint's retry's path, at the snapshot's tick rate). A network or co-op state cannot be rebuilt here: the
@@ -252,6 +270,7 @@ public partial class Main
         _opt.Ai = b.Script ? "script" : "off";
         _opt.Melee = b.Melee is not null;
         _reportRoster = b.Melee?.ToList();
+        _reportTripPlus = b.TripPlus;
         if (b.Rules?.Network == true || b.Coop is not null)
         {
             GD.PrintErr($"--bug-report-open: the state is a {(b.Coop is not null ? "co-op" : "network")} game's, which cannot be rebuilt here; {b.Mission} starts without it");

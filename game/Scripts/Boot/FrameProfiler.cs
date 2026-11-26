@@ -147,6 +147,8 @@ public partial class FrameProfiler : Node
         Add("vram_tex_mb", Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576.0);
         Add("vram_video_mb", Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576.0);
         Add("t_ms", now - _firstMeasured);
+        if (Views) AddViews();
+        if (Census && !_censusDone && now - _firstMeasured > 2000) { _censusDone = true; DrawCensus(); }
         _simMs = 0;
         if (_runMs > 0 && !_quitting && (now - _firstMeasured >= _runMs || _died))
         {
@@ -158,6 +160,106 @@ public partial class FrameProfiler : Node
         }
         int n = _series["gpu.total"].Count;
         if (n % _every == 0) GD.Print($"frame-profile: {n} frames, " + Line(k => k is "gpu.total" or "gpu.viewport" or "cpu.render" or "cpu.wall" or "cpu.nodes" or "cpu.sim" || k.StartsWith("gpu.") && Median(_series[k]) >= 0.05));
+    }
+
+    /// <summary>I76_FRAME_PROFILE_VIEWS=1: each viewport's objects, primitives and draw calls, seen and in its shadow passes, as columns (where the frame's draws come from).</summary>
+    private static readonly bool Views = System.Environment.GetEnvironmentVariable("I76_FRAME_PROFILE_VIEWS") == "1";
+    private readonly List<(string Name, Rid Vp)> _views = [];
+    private int _viewsAt = -1000;
+
+    private void AddViews()
+    {
+        if (_frames - _viewsAt >= 120)
+        {
+            _viewsAt = _frames;
+            _views.Clear();
+            _views.Add(("root", GetViewport().GetViewportRid()));
+            foreach (var n in GetTree().Root.FindChildren("*", "SubViewport", true, false))
+                if (n is SubViewport sv && !sv.Disable3D) { _views.Add((sv.Name, sv.GetViewportRid())); RenderingServer.ViewportSetMeasureRenderTime(sv.GetViewportRid(), true); }
+        }
+        foreach (var (name, vp) in _views)
+        {
+            if (!vp.IsValid) continue;
+            Add($"v.{name}.draws", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Visible, RenderingServer.ViewportRenderInfo.DrawCallsInFrame));
+            Add($"v.{name}.objs", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Visible, RenderingServer.ViewportRenderInfo.ObjectsInFrame));
+            Add($"v.{name}.prims_k", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Visible, RenderingServer.ViewportRenderInfo.PrimitivesInFrame) / 1000.0);
+            Add($"v.{name}.sh_draws", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Shadow, RenderingServer.ViewportRenderInfo.DrawCallsInFrame));
+            Add($"v.{name}.sh_prims_k", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Shadow, RenderingServer.ViewportRenderInfo.PrimitivesInFrame) / 1000.0);
+            // the renderer's own measure of the view: its culling and command recording on the main thread, and its time on the card
+            Add($"v.{name}.cpu_ms", RenderingServer.ViewportGetMeasuredRenderTimeCpu(vp));
+            Add($"v.{name}.gpu_ms", RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp));
+        }
+    }
+
+    /// <summary>
+    /// I76_FRAME_PROFILE_CENSUS=1: once, 2 s into the window, the visible geometry in the main camera's frustum (an AABB test, as the
+    /// engine's culling before its occlusion and visibility ranges) counted by kind: nodes, surfaces (a draw each, before the engine's
+    /// own instancing of repeats), shadow casters, and how many distinct mesh+material pairs (what the engine can instance).
+    /// </summary>
+    private static readonly bool Census = System.Environment.GetEnvironmentVariable("I76_FRAME_PROFILE_CENSUS") == "1";
+    private bool _censusDone;
+
+    private void DrawCensus()
+    {
+        var cam = GetViewport().GetCamera3D();
+        if (cam is null) return;
+        var planes = cam.GetFrustum();
+        var rows = new SortedDictionary<string, CensusRow>();
+        void Walk(Node n, string kind)
+        {
+            if (n is Node3D n3 && !n3.Visible) return;
+            if (n is SubViewport) return;
+            string k = kind;
+            if (n is GeometryInstance3D gi)
+            {
+                k = CensusKind(n, kind);
+                var box = gi.GlobalTransform * gi.GetAabb();
+                bool inside = true;
+                foreach (var p in planes)
+                {
+                    // the box's corner farthest along the plane's normal (planes point out of the frustum)
+                    var c = box.Position + new Vector3(p.Normal.X < 0 ? box.Size.X : 0, p.Normal.Y < 0 ? box.Size.Y : 0, p.Normal.Z < 0 ? box.Size.Z : 0);
+                    if (p.DistanceTo(c) > 0) { inside = false; break; }
+                }
+                if (inside && (gi.Layers & cam.CullMask) != 0)
+                {
+                    var r = rows.TryGetValue(k, out var e) ? e : rows[k] = new CensusRow();
+                    int surfaces = 1;
+                    if (gi is MeshInstance3D mi && mi.Mesh is { } mesh)
+                    {
+                        surfaces = mesh.GetSurfaceCount();
+                        for (int s = 0; s < surfaces; s++)
+                        {
+                            var mat = mi.MaterialOverride ?? mi.GetSurfaceOverrideMaterial(s) ?? mesh.SurfaceGetMaterial(s);
+                            r.Pairs.Add((mesh.GetRid().Id, mat?.GetRid().Id ?? 0));
+                        }
+                    }
+                    else if (gi is MultiMeshInstance3D mm && mm.Multimesh?.Mesh is { } m2) { surfaces = m2.GetSurfaceCount(); r.Pairs.Add((m2.GetRid().Id, mm.MaterialOverride?.GetRid().Id ?? 0)); }
+                    if (r.Nodes == 0) r.Example = n.GetPath();
+                    r.Nodes++; r.Surfaces += surfaces;
+                    if (gi.CastShadow != GeometryInstance3D.ShadowCastingSetting.Off) r.Casters += surfaces;
+                }
+            }
+            foreach (var c in n.GetChildren()) Walk(c, k);
+        }
+        Walk(GetTree().Root, "root");
+        var sb = new System.Text.StringBuilder("frame-census: kind nodes surfaces casters distinct-pairs (main camera's frustum)\n");
+        foreach (var (k, r) in rows.OrderByDescending(kv => kv.Value.Surfaces))
+            sb.Append($"frame-census: {k,-40} {r.Nodes,6} {r.Surfaces,6} {r.Casters,6} {r.Pairs.Count,6}\n");
+        GD.Print(sb.ToString().TrimEnd());
+    }
+
+    private sealed class CensusRow { public int Nodes, Surfaces, Casters; public string Example = ""; public readonly HashSet<(ulong, ulong)> Pairs = []; }
+
+    /// <summary>A node's kind for the census: the first named ancestor below the mission's roots, its digits dropped (chunk_12_40 is chunk).</summary>
+    private static string CensusKind(Node n, string parentKind)
+    {
+        string Strip(string s) => new string(s.Where(ch => !char.IsDigit(ch)).ToArray()).TrimEnd('_', '-', '@');
+        var path = n.GetPath().ToString().Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // root/Main/<a>/<b>/...: keep three levels below Main
+        int i = Array.IndexOf(path, "Main");
+        var parts = (i >= 0 ? path.Skip(i + 1) : path.Skip(1)).Take(3).Select(Strip);
+        return string.Join("/", parts) + ":" + n.GetClass();
     }
 
     /// <summary>The previous frame's captured timestamps into this frame's passes; returns the GPU span of them all.</summary>

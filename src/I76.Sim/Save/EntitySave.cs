@@ -24,7 +24,9 @@ public sealed partial class Entity
                 nameof(EscapeTimer), nameof(AvoidSkip), nameof(AvoidSpeed), nameof(BackSteer), nameof(AvoidStart), nameof(ImpactTime), nameof(Obstacle),
                 nameof(AvoidSteer), nameof(BackHeading), nameof(BackHeight), nameof(ClearanceRing), nameof(StallTime), nameof(BackStart), nameof(BackFarthest), nameof(PlanStamp), nameof(SnapshotPath),
                 nameof(WaypointBridge), nameof(Search), nameof(Controls), nameof(ControlDone), nameof(ScriptDriven), nameof(Lights), nameof(Siren),
-                nameof(CoopAim), nameof(KillerSeat), nameof(ExtraOf), nameof(Scaled));
+                nameof(CoopAim), nameof(KillerSeat), nameof(ExtraOf), nameof(Scaled),
+                nameof(SmartAi), nameof(LayActive), nameof(LayAlignedAt), nameof(ProgressAt), nameof(ProgressTime), nameof(Unsticking), nameof(UnstickHeading),
+                nameof(BlockedX), nameof(BlockedZ), nameof(BlockedUntil), nameof(LastDropAt), nameof(HoldLineUntil), nameof(HoldLineHeading));
         a.For<AiBlock>().Saved(nameof(AiBlock.Skill), nameof(AiBlock.AccelFactor), nameof(AiBlock.CommandSpeed), nameof(AiBlock.FireAccuracy), nameof(AiBlock.FireSkill));
         a.For<RoadPos>().Saved(nameof(RoadPos.Idx), nameof(RoadPos.Dir), nameof(RoadPos.Band), nameof(RoadPos.Cls), nameof(RoadPos.A960), nameof(RoadPos.Off),
             nameof(RoadPos.Heading), nameof(RoadPos.Seg));
@@ -60,6 +62,9 @@ public sealed partial class Entity
         w.VarU((ulong)Controls.Count);
         foreach (var c in Controls) { w.F32(c.BrAccel); w.F32(c.Steer); w.F32(c.Reverse); w.Int(c.EBrake); }
         w.Bool(ControlDone); w.Bool(ScriptDriven); w.Bool(Lights); w.Bool(Siren); w.Ent(CoopAim); w.Int(KillerSeat); w.Ent(ExtraOf); w.Bool(Scaled);
+        // the smarter opponents (format 29, the fork's)
+        w.U32((uint)SmartAi); w.Bool(LayActive); w.F32(LayAlignedAt); w.V3(ProgressAt); w.F32(ProgressTime); w.Bool(Unsticking); w.F32(UnstickHeading);
+        w.Int(BlockedX); w.Int(BlockedZ); w.F32(BlockedUntil); w.F32(LastDropAt); w.F32(HoldLineUntil); w.F32(HoldLineHeading);
     }
 
     private static int IndexOf(IReadOnlyList<RoadPiece> pieces, RoadPiece p)
@@ -95,5 +100,7 @@ public sealed partial class Entity
         Controls.Clear();
         for (int k = r.Count(); k > 0; k--) Controls.Enqueue((r.F32(), r.F32(), r.F32(), r.Int()));
         ControlDone = r.Bool(); ScriptDriven = r.Bool(); Lights = r.Bool(); Siren = r.Bool(); CoopAim = r.Ent(); KillerSeat = r.Int(); ExtraOf = r.Ent(); Scaled = r.Bool();
+        SmartAi = (SmartAi)r.U32(); LayActive = r.Bool(); LayAlignedAt = r.F32(); ProgressAt = r.V3(); ProgressTime = r.F32(); Unsticking = r.Bool(); UnstickHeading = r.F32();
+        BlockedX = r.Int(); BlockedZ = r.Int(); BlockedUntil = r.F32(); LastDropAt = r.F32(); HoldLineUntil = r.F32(); HoldLineHeading = r.F32();
     }
 }

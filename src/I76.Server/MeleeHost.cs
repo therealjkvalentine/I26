@@ -197,6 +197,18 @@ public sealed record ServerOptions
     /// turns it off while one without it plays, and tells the others. A melee has no such wreck (they leave the world, a player's is hidden).
     /// </summary>
     public bool WrecksStaySolid { get; init; }
+    /// <summary>
+    /// Solid cliffs (the port's rule, off in the original; the host's own <c>[port] solid_cliffs</c>, i26-server's --solid-cliffs;
+    /// docs/deviations.md "Solid cliffs"): terrain steeper than 60 degrees is a wall for the players' cars and computer cars driving
+    /// freely, in a melee and in co-op, for the whole game. The accept tells each client (<see cref="JoinAccept.SolidCliffs"/>) for its
+    /// prediction; a migrated game keeps the rule its savestate was made under.
+    /// </summary>
+    public bool SolidCliffs { get; init; }
+    /// The smarter opponents (the play fork's; docs/deviations.md "Smarter opponents"): the host's rule for its computer cars, the
+    /// network melee's AI fill, its bots and a co-op mission's enemies (the server runs the AI; a client's mirror never does). It is part
+    /// of the session's build, so a successor host takes it with the savestate. i26-server's --smart-ai, a listen host's [port] smart_ai.
+    /// </summary>
+    public SmartAi SmartAi { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
@@ -371,6 +383,7 @@ public sealed partial class MeleeHost : IModeHost
         Setup = Mode.Setup;
         Setup.Combat.TurretSlew1997 = o.Turrets1997;
         Setup.World.WrecksStaySolid = WrecksSolidAsked;
+        Setup.World.SolidCliffs = o.SolidCliffs;
         Mode.Start(this);
         Session = new SimSession(Setup, SessionOptions.Network, o.Rate)
         {
@@ -780,6 +793,8 @@ public sealed partial class MeleeHost : IModeHost
             Coop = Mode.JoinState(s), Cb = Options.AllowCb, Crosshair = Options.AllowCrosshair, IgnitionStaysOn = Options.IgnitionStaysOn, Turrets1997 = Options.Turrets1997,
             Handicaps = Options.Handicaps, Build = BuildId.Current, Features = Options.Features,
             WrecksSolid = Setup.World.WrecksStaySolid,
+            SolidCliffs = Setup.World.SolidCliffs,
+            SmartAi = (uint)((Setup.Script?.Host ?? Setup.Melee?.Host)?.SmartAi ?? I76.Sim.Missions.SmartAi.None),
         };
 
     /// <summary>The host asks for wrecks to stay solid and the game is one where they can: a co-op mission, a host that says the feature.</summary>

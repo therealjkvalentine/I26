@@ -105,6 +105,25 @@ public class SettingsWithoutARowTests
         OriginalBehavior.Apply(new ShellSettings());
     }
 
+    /// <summary>[port] solid_cliffs: off (the original's) in both looks unless the file says on; written only when on.</summary>
+    [Fact]
+    public void SolidCliffsIsOffUnlessTheFileSaysOn()
+    {
+        var s = new ShellSettings();
+        Assert.False(s.SolidCliffs);
+        Assert.False(s.Write(null).HasSectionKey("port", "solid_cliffs"));
+        s.Look1997 = false;
+        Assert.False(ShellSettings.Read(s.Write(null)).SolidCliffs);
+        foreach (var (word, on) in new[] { ("on", true), ("ON", true), ("off", false), ("yes", false) })
+        {
+            var f = new ShellSettings().Write(null);
+            f.SetValue("port", "solid_cliffs", word);
+            var read = ShellSettings.Read(f);
+            Assert.Equal(on, read.SolidCliffs);
+            Assert.Equal(on, read.Write(null).HasSectionKey("port", "solid_cliffs"));
+        }
+    }
+
     /// <summary>
     /// [port] wreck_solid: follows the look (the original's wreck timer in the 1997 look, solid while drawn in the modern one) until the
     /// file says original or drawn; written only when chosen. It is the session's rule offline and never touches a network game's.
@@ -243,6 +262,8 @@ public class SettingsWithoutARowTests
             (I76.Sim.Views.CrashBlurMode.Names, ["On"]),
             (I76.Sim.Views.MouseLook.Names, ["Off"]),
             (I76.Game.Boot.RenderScale.AntiAliasing, ["Off", "2x", "4x"]),
+            (AntiAliasingRow.Names, ["Off", "2x", "4x"]),
+            (ShadowDetailRow.Names, ["Off", "Low", "High"]),
             (VisibilityRange.Names, ["Far"]),
             // World Textures and Car & Dash Textures: 1997, the install's own, is the original's
             (TextureRow.Names(new ShellSettings { WorldTextures = 4 }, GraphicsRow.WorldTextures, [8, 4]), ["1997"]),

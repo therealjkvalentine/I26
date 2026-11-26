@@ -83,7 +83,8 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
 
     /// <summary>
     /// A co-op game's escorted cars under Co-op Scaling (the port's; docs/deviations.md, <see cref="Missions.CoopSetup.EscortHealth"/>):
-    /// what a car the mission fails on losing takes is scaled by this, 1 / 1.5 with Extra Enemies on. 1 everywhere else.
+    /// what a car the mission fails on losing takes is scaled by this, 1 / 1.5 with Extra Enemies on (and in single player with
+    /// Trip+'s Posse on, the play fork's). 1 everywhere else.
     /// </summary>
     public float EscortFactor { get; set; } = 1f;
 
@@ -102,11 +103,11 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
 
     /// <summary>
     /// The factor on what <paramref name="v"/> takes: <see cref="CoopDamageFactor"/> on a co-op human's car,
-    /// <see cref="EscortFactor"/> on a co-op escorted car, else 1.
+    /// <see cref="EscortFactor"/> on an escorted car (co-op, or Trip+), else 1.
     /// </summary>
     private float IncomingFactor(Vehicle v) =>
-        !World.Coop ? 1f
-        : World.IsHuman(v) ? CoopDamageFactor
+        World.Coop && World.IsHuman(v) ? CoopDamageFactor
+        // an escorted car's (set only with enemy copies on: Co-op Scaling, or in single player Trip+'s Posse)
         : EscortFactor != 1f && Escorted is { } esc && esc(v) ? EscortFactor : 1f;
 
     /// <summary>

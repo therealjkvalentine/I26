@@ -51,7 +51,7 @@ def commands(args):
     if not os.path.exists(os.path.join(args.export, "bottom-up.txt")):
         game = ["--install", args.install] if args.install else []
         steps.append(("export the install's textures (the game opens a small window and closes it when done)",
-                      [args.game or "i26", "--windowed", "--resolution", "640x480", "--", *game, "--export-textures", args.export]))
+                      [args.game or "i26", "--windowed", "--resolution", "640x480", "--audio-driver", "Dummy", "--", *game, "--export-textures", args.export]))
     up = [sys.executable, os.path.join(HERE, "upscale-textures.py"), args.export]
     rd = [sys.executable, os.path.join(HERE, "text-redraws.py"), args.export]
     if args.out: up += ["--out", args.out]; rd += ["--pack", args.out]

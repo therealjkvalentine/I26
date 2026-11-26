@@ -27,10 +27,13 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     public TripStart? TripStart { get; init; }
     /// <summary>A checkpoint bookmark's checkpoint (its file's bytes): the mission resumes there (docs/savestate.md). The game reads it, and drops it if it cannot be used.</summary>
     public byte[]? Resume { get; init; }
+    /// <summary>Trip+'s rules for a trip launch (the play fork's; docs/deviations.md "Trip+"); null, the original's trip.</summary>
+    public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
 }
 
 /// <summary>The trip at a mission's launch: the mission number (trip.cfg's) and the car with its parts (the bookmark .cmp body, <see cref="I76.Sim.Trip.TripInventory.Save"/>).</summary>
-public sealed record TripStart(int Mission, string Car);
+/// <param name="Lap">The Trip+ lap (the play fork's): 1 the original's trip.</param>
+public sealed record TripStart(int Mission, string Car, int Lap = 1);
 
 /// <summary>
 /// A network melee from the MULTI MELEE forms (melee modes 3/4 host, 7/8
@@ -532,11 +535,20 @@ public partial class Shell : CanvasLayer
             return ChassisForm.Create(this, new MeleeChassis(gmi, gvi, n => { }, () => { }));
         // test hook: I76_SHELL_START=playoptions opens the Play Options sheet
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "playoptions") return new PlayOptionsScreen();
+        // test hook: I76_SHELL_START=won17 comes up as a won T17 does after its credits (the play fork's New Game Plus offer), the trip
+        // finished; a trip with no car yet gets T16's stock car to keep
+        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "won17")
+        {
+            Trip.Mission = 17;
+            if (Trip.Inventory(this) is null) Trip.StockCar(this, "vppt16.vcf");
+            Trip.Finish();
+            return new MainMenuScreen { OfferNewGamePlus = NewGamePlus.Offers(MissionResult.Won, Trip.Mission) };
+        }
         // test hook: I76_SHELL_START=router comes up as if the trip's current mission had just been won
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "router")
         {
             // with the finished mission's .fsi salvage, as a win with nothing killed hands back
-            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0);
+            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0, Trip.Plus.Active?.SalvageOffset ?? 0);
             var items = pool.Finish(Vfs.TryRead, Rand);
             Trip.Won();
             if (Trip.Inventory(this) is { } inv) { inv.MissionWon(null, items, Parts, Rand); Trip.Save(); }
@@ -572,7 +584,10 @@ public partial class Shell : CanvasLayer
             switch (LastResult)
             {
                 case MissionResult.Won when Trip.Mission >= 17:
-                    return new CreditsScreen { Then = () => new MainMenuScreen() };
+                    Trip.Finish();   // the trip is finished (the play fork's record, for Trip+)
+                    // a won trip offers its New Game Plus save on the menu the credits return to (once: this menu alone)
+                    bool offer = NewGamePlus.Offers(LastResult, Trip.Mission);
+                    return new CreditsScreen { Then = () => new MainMenuScreen { OfferNewGamePlus = offer } };
                 case MissionResult.Won:
                     // T04 is a dream: with salvage management on, the original front end's main loop reloads trip4.spc (the car as it left the garage
                     // after T03) instead of taking the mission's damage (state 1, N == 4)
@@ -713,7 +728,8 @@ public partial class Shell : CanvasLayer
         I76.Formats.Vfs.AssetVfs.Addon["vehscn.vcf"] = inv.ToCar().ToVcf();
         Launch(new ShellLaunch(Trip.Stem, GameKind.Trip, "vehscn.vcf")
         {
-            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save()), Resume = resume,
+            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save(), Trip.Plus.Lap), Resume = resume,
+            TripPlus = Trip.Plus.Active,
         });
     }
 
@@ -1188,6 +1204,8 @@ public sealed class TripState
     private const string Path = "user://saves/trip.cfg", InventoryPath = "user://saves/trip_car.json";
     public int Mission { get; set; } = 1;
     public int Highest { get; set; } = 1;
+    /// <summary>trip.cfg's Trip+ part (the play fork's): finished, the lap and its rules.</summary>
+    public TripPlusSave Plus { get; set; } = new();
     private I76.Sim.Trip.TripInventory? _inventory;
     private bool _inventoryRead;
     /// <summary>The trip came from a bookmark this session: no tutorial voices or questions.</summary>
@@ -1223,9 +1241,13 @@ public sealed class TripState
     {
         var t = new TripState();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return t;
-        t.Mission = (int)c.GetValue("trip", "mission", 1);
-        t.Highest = (int)c.GetValue("trip", "highest", 1);
+        if (c.Load(Path) == Error.Ok)
+        {
+            t.Mission = (int)c.GetValue("trip", "mission", 1);
+            t.Highest = (int)c.GetValue("trip", "highest", 1);
+            t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
+        }
+        if (t.Plus.Hooked(NewGamePlus.Env("I76_NEW_GAME_PLUS", "I76_TRIP_PLUS")) is { } hooked) t.Plus = hooked;   // docs/dev-hooks.md (the older spelling too)
         return t;
     }
 
@@ -1235,6 +1257,7 @@ public sealed class TripState
         var c = new ConfigFile();
         c.SetValue("trip", "mission", Mission);
         c.SetValue("trip", "highest", Highest);
+        foreach (var (s, k, v) in Plus.Entries()) c.SetValue(s, k, v switch { bool b => b, int i => i, _ => v.ToString() ?? "" });
         c.Save(Path);
         if (_inventory is null) return;
         using var f = Godot.FileAccess.Open(InventoryPath, Godot.FileAccess.ModeFlags.Write);
@@ -1246,6 +1269,15 @@ public sealed class TripState
 
     /// <summary>A won trip mission: the number advances at the next launch (the original front end's 0xc001 exit).</summary>
     public void Won() { Mission = Math.Min(17, Mission + 1); Highest = Math.Max(Highest, Mission); Save(); }
+
+    /// <summary>NEW TRIP's START OVER (and NEW TRIP before the trip is finished): T01 on lap 1, the original's trip; the car is the caller's (the stock car).</summary>
+    public void StartOver() { Plus = Plus.OnLap(1); New(); }
+
+    /// <summary>NEW TRIP's TRIP+ (the play fork's): T01 on the next lap, its rules the table's; the trip car (trip_car.json) is kept whole.</summary>
+    public void StartTripPlus() { Plus = Plus.OnLap(Plus.NextLap); New(); }
+
+    /// <summary>A T17 win (before the credits): the trip is finished, and this lap with it (the play fork's record, for Trip+).</summary>
+    public void Finish() { Plus = Plus.Won17(); Save(); }
 
     /// <summary>Quit out of a mission (state 2): the trip stays where it was.</summary>
     public void Quit() => Save();
@@ -1282,6 +1314,10 @@ public sealed class ShellSettings
     /// </summary>
     public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
+    /// <summary>The port's own: Anti-Aliasing's SMAA over the +0x8 MSAA's Off or 2x ([port] screen_aa = smaa; AntiAliasingRow).</summary>
+    public bool Smaa { get; set; }
+    /// <summary>The port's own: Shadow Detail's Ultra over the +0x6 byte's High ([port] shadow_detail = ultra; ShadowDetailRow).</summary>
+    public bool ShadowUltra { get; set; }
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
     public int PlayOptions { get; set; }
@@ -1291,6 +1327,8 @@ public sealed class ShellSettings
     public bool ModernPhysics { get; set; }
     /// <summary>The port's own: the HD Menu Pack's upscaled art in the modern look ([port] hd_menu_art, no row); on unless the file says false.</summary>
     public bool HdMenuArt { get; set; } = true;
+    /// <summary>The port's own: Graphic Detail's Menu Width, the widescreen menu pack's sides beside the menu pages in a window wider than 4:3 (Wide, the default) or the pages alone (4:3); [port] menu_width. The row shows only with that pack installed.</summary>
+    public bool MenuWide { get; set; } = true;
     /// <summary>The port's own: HiFi Audio's sounds and movie tracks in place of the original's (Audio Control, shown only when a pack is installed); on unless the player turned it off. Stored as [port] hd_sounds, its first name.</summary>
     public bool HiFiAudio { get; set; } = true;
     /// <summary>
@@ -1448,6 +1486,16 @@ public sealed class ShellSettings
     /// feature (docs/perf/costs.md: 29 % of a full-detail frame at 3440x1440, most of it the depth pre-pass drawing every surface's normals).
     /// </summary>
     public bool AmbientOcclusion { get; set; }
+    /// <summary>The port's own: the modern look's added aerial haze (Graphic Detail's Haze, AirRows: 0 Off, 1 Light, 2 Southwest; [port] haze, written when not Off).</summary>
+    public int Haze { get; set; }
+    /// <summary>The port's own: the modern look's glow on lamps, flashes and fire (Graphic Detail's Glow, AirRows: 0 Off, 1 Lamps; [port] glow, written when not Off).</summary>
+    public int Glow { get; set; }
+    /// <summary>The port's own: the modern look's screen-space reflections, drawn only with Ambient Occlusion On (Graphic Detail's Reflections, AirRows; [port] reflections, written when on).</summary>
+    public bool Reflections { get; set; }
+    /// <summary>The port's own: Graphic Detail's Smoke Lighting (SmokeLightingRow), the modern look's smoke and dust lit by the sun's colour and direction and the sky's; [port] smoke_lighting, written only when on. Off unless the player chose.</summary>
+    public bool SmokeLighting { get; set; }
+    /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
+    public int HeatShimmer { get; set; }
     /// <summary>
     /// The port's own: the modern look's baked terrain shading (World/TerrainShade: the terrain's own sun shadows past the shadow map and
     /// its sky occlusion), with Shadow Detail Low or High; [port] terrain_shading, written only when off. On unless the player chose.
@@ -1519,12 +1567,45 @@ public sealed class ShellSettings
     public bool HeadTrackPosition { get; set; }
     /// <summary>Where opentrack is ([port] opentrack_path: the program, its folder or its .app; empty: the usual places, <see cref="I76.Game.OpenTrack.Find"/>).</summary>
     public string OpenTrackPath { get; set; } = "";
+    /// <summary>
+    /// The smarter opponents ([port] smart_ai, written only when set; docs/deviations.md "Smarter opponents"): the computer cars'
+    /// behaviours the original does not have, as written (names, groups or a number: <see cref="I76.Sim.Missions.SmartAiNames.Parse"/>);
+    /// empty, the original's AI. A rule of the simulation: offline the player's, in a network game the host's.
+    /// </summary>
+    public string SmartAiText { get; set; } = "";
+    /// <summary>The bits of <see cref="SmartAiText"/> (unknown words add none).</summary>
+    public I76.Sim.Missions.SmartAi SmartAi => I76.Sim.Missions.SmartAiNames.Parse(SmartAiText, out _);
+
+    /// <summary>
+    /// Sets the rule as Play Options' Smart A.I. row and the Developer panel's check boxes write it: none leaves the key out, every
+    /// behaviour is "all", some are their names (<see cref="I76.Sim.Missions.SmartAiNames.Describe"/>).
+    /// </summary>
+    public void SetSmartAi(I76.Sim.Missions.SmartAi bits)
+    {
+        bits &= I76.Sim.Missions.SmartAi.All;
+        SmartAiText = bits == I76.Sim.Missions.SmartAi.None ? "" : bits == I76.Sim.Missions.SmartAi.All ? "all" : I76.Sim.Missions.SmartAiNames.Describe(bits);
+    }
+
+    /// <summary>Play Options' Smart A.I. values: Off (the original's AI), On (every behaviour), Custom (some, set on the Developer panel; a click does not step to it).</summary>
+    public static readonly string[] SmartAiRowNames = ["Off", "On" + PortMark, "Custom" + PortMark];
+
+    /// <summary>The Smart A.I. row's value for a rule: 0 Off, 1 On, 2 Custom.</summary>
+    public static int SmartAiRowIndex(I76.Sim.Missions.SmartAi bits) =>
+        (bits & I76.Sim.Missions.SmartAi.All) switch { I76.Sim.Missions.SmartAi.None => 0, I76.Sim.Missions.SmartAi.All => 1, _ => 2 };
+
+    /// <summary>The Smart A.I. row's next value from <paramref name="index"/> (Off to On; On and Custom to Off).</summary>
+    public static I76.Sim.Missions.SmartAi SmartAiRowNext(int index) => index == 0 ? I76.Sim.Missions.SmartAi.All : I76.Sim.Missions.SmartAi.None;
+
+    /// <summary>Play Options' Solid Cliffs values: Off (the original's) and On.</summary>
+    public static readonly string[] SolidCliffsRowNames = ["Off", "On" + PortMark];
     /// <summary>The Controls sheet's Opentrack Auto ([port] opentrack_auto, written only when on): a mission with Head Tracking on starts opentrack when none runs, and the game closes the one it started when it exits.</summary>
     public bool OpenTrackAuto { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>
     public bool LogFile { get; set; }
     /// <summary>The port's own: a bug report's inputs.csv, the last seconds of the player's inputs kept in memory while a mission runs ([port] bug_report_inputs; on, written when off; Boot/BugReport.cs).</summary>
     public bool BugReportInputs { get; set; } = true;
+    /// <summary>The play fork's developer switch [port] new_game_plus_unlocked (written only when on; trip_plus_unlocked read too): NEW TRIP offers New Game Plus before the trip is finished (docs/deviations.md "New Game Plus").</summary>
+    public bool TripPlusUnlocked { get; set; }
     /// <summary>The port's own: Graphic Detail's Renderer (Auto, Vulkan, D3D12, OpenGL; shell.cfg [port] renderer, written only when not Auto). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.StartupSettings"/>).</summary>
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
@@ -1737,6 +1818,13 @@ public sealed class ShellSettings
     /// <summary>Wrecks stay solid as these settings have it now: the choice, or the look's (Original in the 1997 look, Drawn in the modern one).</summary>
     public bool WrecksStaySolid => I76.Formats.Shell.LookChoice.Resolve(WreckSolidChoice, Look1997) == I76.Formats.Shell.LookChoice.Updated;
     /// <summary>
+    /// The port's own, without a row: terrain steeper than 60 degrees is a wall for the player's car (and the other humans' and the
+    /// computer cars driving freely) rather than lifting a car that runs into it onto the face ([port] solid_cliffs=on, written only
+    /// when on; I76.Sim.SimWorld.SolidCliffs; docs/deviations.md "Solid cliffs"). Off, the original's, in both looks. A rule of the
+    /// simulation, taken at each mission start: offline the player's, in a network game the host's.
+    /// </summary>
+    public bool SolidCliffs { get; set; }
+    /// <summary>
     /// The port's own, without a row: the 1997 sky's clouds, 0 Original (a second step a tick with the full mirror up, as the original's, which
     /// drifts them twice as fast then), 1 Steady, the default in both looks ([port] sky_drift, written when original; docs/deviations.md "Sky scroll").
     /// </summary>
@@ -1920,6 +2008,7 @@ public sealed class ShellSettings
         }
         var s = Read(SettingsFile.From(cfg), BuildRules.ReadText(), I76.Game.Assets.HdTextures.PacksFound);
         HdAssets.Enabled = s.HdMenuArt;
+        WideMenus.Enabled = s.MenuWide;
         I76.Game.Assets.HiFiAudio.Enabled = s.HiFiAudio;
         I76.Game.Sim.SimDriver.AssistedSteering = s.AssistedSteering;
         I76.Game.Assets.HdTextures.WorldSize = s.WorldTextures;
@@ -1940,6 +2029,9 @@ public sealed class ShellSettings
         int? forkVersion = c.HasSectionKey("port", "fork_version") ? (int)c.GetValue("port", "fork_version") : null;
         int version = StepsDone(shellVersion, forkVersion);
         ReadGraphics(s.Graphics, (byte[])c.GetValue("shell", "graphics", s.Graphics), version);
+        // no version step: the bytes keep their meaning, the port's choices over them are keys (absent: none)
+        s.Smaa = AntiAliasingRow.FromFile(c.HasSectionKey("port", "screen_aa") ? c.GetValue("port", "screen_aa").ToString() : null);
+        s.ShadowUltra = ShadowDetailRow.FromFile(c.HasSectionKey("port", "shadow_detail") ? c.GetValue("port", "shadow_detail").ToString() : null);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
         (int, int)? Read(string section) => c.HasSectionKey(section, "play") || c.HasSectionKey(section, "difficulty")
@@ -1948,6 +2040,8 @@ public sealed class ShellSettings
         s.ModernPhysics = (bool)c.GetValue("port", "modern_physics", false);
         // version 4 added the HD menu art switch: older files have none, so it is on
         s.HdMenuArt = HdAssets.FromFile(c.HasSectionKey("port", "hd_menu_art") ? (bool)c.GetValue("port", "hd_menu_art") : null, version);
+        // no version step: Menu Width is Wide unless the file says 4:3
+        s.MenuWide = MenuWidthRow.FromFile(c.HasSectionKey("port", "menu_width") ? c.GetValue("port", "menu_width").ToString() : null);
         // no version step: world_textures and car_textures when the file has them; a file from before them has hd_textures (absent, the
         // menu art's switch, which turned the textures off too before they had a row), the dash's and the cars' sizes or the older
         // single hd_texture_size, read as HdTextures.FromFile says; a saved size is kept, whatever the first start would pick
@@ -2010,6 +2104,13 @@ public sealed class ShellSettings
         // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
         s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
         s.TerrainShading = (bool)c.GetValue("port", "terrain_shading", true);
+        // no version step: absent, off (the rows came after the keys they would read)
+        s.Haze = AirRows.ClampHaze((int)c.GetValue("port", "haze", 0));
+        s.Glow = AirRows.ClampGlow((int)c.GetValue("port", "glow", 0));
+        s.Reflections = (bool)c.GetValue("port", "reflections", false);
+        // no version step: a file without these keys has them off, as they were before they existed
+        s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
+        s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2079,6 +2180,7 @@ public sealed class ShellSettings
         s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
         s.HeadTrackSource = I76.Game.HeadTrackSources.Parse((string)c.GetValue("port", "head_track_source", "auto"));
         s.OpenTrackPath = (string)c.GetValue("port", "opentrack_path", "");
+        s.SmartAiText = c.GetValue("port", "smart_ai", "").ToString();
         s.OpenTrackAuto = (bool)c.GetValue("port", "opentrack_auto", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
         // no version step: absent, off (upstream's default; the fork's earlier default, the cap, was left out of the file, so an
@@ -2104,6 +2206,7 @@ public sealed class ShellSettings
         s.MenuWarmup = string.Equals(c.GetValue("port", "menu_warmup", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.GarageRadio = string.Equals(c.GetValue("port", "garage_radio", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.MovieIgnition = string.Equals(c.GetValue("port", "movie_ignition", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
+        s.SolidCliffs = string.Equals(c.GetValue("port", "solid_cliffs", "off").ToString(), "on", StringComparison.OrdinalIgnoreCase);
         s.BriefingWhileLoading = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "briefing_while_loading", true).ToString());
         s.LoadUnderBriefing = I76.Game.Boot.BriefingOverlap.Parse(c.GetValue("port", "load_under_briefing", true).ToString());
         s.MovieDecode = I76.Formats.Video.MovieDecode.Parse(c.HasSectionKey("port", I76.Formats.Video.MovieDecode.Key) ? c.GetValue("port", I76.Formats.Video.MovieDecode.Key).ToString() : null);
@@ -2171,6 +2274,8 @@ public sealed class ShellSettings
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
         s.BugReportInputs = (bool)c.GetValue("port", "bug_report_inputs", true);
+        // no version step: absent, it is off; trip_plus_unlocked is the key's older name, still read
+        s.TripPlusUnlocked = (bool)c.GetValue("port", "new_game_plus_unlocked", false) || (bool)c.GetValue("port", "trip_plus_unlocked", false);
         // no version step: absent, it is off (players never see the panel); developer_tools is the key's older name, still read
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
@@ -2242,6 +2347,11 @@ public sealed class ShellSettings
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
         if (!TerrainShading) c.SetValue("port", "terrain_shading", false);
+        if (Haze != 0) c.SetValue("port", "haze", Haze);
+        if (Glow != 0) c.SetValue("port", "glow", Glow);
+        if (Reflections) c.SetValue("port", "reflections", true);
+        if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
+        if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));
@@ -2266,11 +2376,14 @@ public sealed class ShellSettings
         if (DevFps) c.SetValue("port", "dev_fps", true);
         if (!MenuFps) c.SetValue("port", "menu_fps", false);
         c.SetValue("port", "hd_menu_art", HdMenuArt);
+        if (!MenuWide) c.SetValue("port", "menu_width", MenuWidthRow.Word(MenuWide));
         if (!HiFiAudio) c.SetValue("port", "hd_sounds", false);
         c.SetValue("port", "world_textures", I76.Game.Assets.HdTextures.Word(WorldTextures));
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
         c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksWord(packs?.Sizes ?? [], packs?.Plain ?? false));
         c.SetValue("shell", "graphics", Graphics);
+        if (AntiAliasingRow.SmaaOn(this)) c.SetValue("port", "screen_aa", AntiAliasingRow.Word);
+        if (ShadowDetailRow.UltraOn(this)) c.SetValue("port", "shadow_detail", ShadowDetailRow.Word);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
         if (old is not null)
@@ -2310,6 +2423,7 @@ public sealed class ShellSettings
         if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);
         if (HeadTrackSource != I76.Game.HeadTrackSource.Auto) c.SetValue("port", "head_track_source", I76.Game.HeadTrackSources.Key(HeadTrackSource));
         if (OpenTrackPath.Length > 0) c.SetValue("port", "opentrack_path", OpenTrackPath);
+        if (SmartAiText.Length > 0) c.SetValue("port", "smart_ai", SmartAiText);
         if (OpenTrackAuto) c.SetValue("port", "opentrack_auto", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
         // always: upstream reads an absent key as off, a fork build from before upstream's default as the cap
@@ -2327,6 +2441,7 @@ public sealed class ShellSettings
         if (MenuWarmup) c.SetValue("port", "menu_warmup", "on");
         if (GarageRadio) c.SetValue("port", "garage_radio", "on");
         if (MovieIgnition) c.SetValue("port", "movie_ignition", "on");
+        if (SolidCliffs) c.SetValue("port", "solid_cliffs", "on");
         if (!BriefingWhileLoading) c.SetValue("port", "briefing_while_loading", false);
         if (!LoadUnderBriefing) c.SetValue("port", "load_under_briefing", false);
         if (MovieDecode != I76.Formats.Video.MovieDecode.Default) c.SetValue("port", I76.Formats.Video.MovieDecode.Key, I76.Formats.Video.MovieDecode.Name(MovieDecode));
@@ -2386,6 +2501,7 @@ public sealed class ShellSettings
 
         if (LogFile) c.SetValue("port", "log_file", true);
         if (!BugReportInputs) c.SetValue("port", "bug_report_inputs", false);
+        if (TripPlusUnlocked) c.SetValue("port", "new_game_plus_unlocked", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         return c;
     }

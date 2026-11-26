@@ -322,6 +322,44 @@ public class HostMigrationTests(ITestOutputHelper output)
         Assert.True(host.Session.StateHash() == fresh.Session.StateHash(), FirstDifference(Body(host.Session), Body(fresh.Session)));
     }
 
+    /// <summary>
+    /// The smarter opponents are the host's rule and part of the session's build: a successor whose own settings differ restores the
+    /// host's savestate and goes on by the host's rule (the computer cars it runs now), exactly as the host's game would have.
+    /// </summary>
+    [Fact]
+    public void ASuccessorTakesTheHostsSmarterOpponents()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var o = new ServerOptions { Install = install, Arena = "m01", Ai = 3, SmartAi = SmartAi.All };
+        var host = new MeleeHost(o);
+        Assert.Equal(SmartAi.All, host.Session.Build!.SmartAi);
+        var a = host.Join("a", "vppirna1.vcf", 0);
+        uint t = 0;
+        var log = new List<LoggedTick>();
+        void Tick()
+        {
+            t++;
+            a.Inputs.Add(new InputMessage(t, [new CarInput { Buttons = CarButtons.ThrottleUp }]));
+            host.Step();
+            var inputs = new CarInput[host.Session.Drivers.Max(d => d.Slot) + 1];
+            foreach (var d in host.Session.Drivers) inputs[d.Slot] = d.Input;
+            log.Add(new LoggedTick(host.Tick, inputs, false));
+        }
+        for (int k = 0; k < 200; k++) Tick();
+        var state = host.Session.Snapshot();
+        log.Clear();
+        for (int k = 0; k < 100; k++) Tick();
+        var fresh = new MeleeHost(o with { SmartAi = SmartAi.None });
+        fresh.RestoreMigrated(state);
+        Assert.Equal(SmartAi.All, fresh.Session.Build!.SmartAi);
+        Assert.Equal(SmartAi.All, fresh.Setup.Melee!.Host.SmartAi);
+        // and the joiners hear it in the accept
+        Assert.Equal((uint)SmartAi.All, host.AcceptFor(host.Seats.First()).SmartAi);
+        var (replayed, _) = fresh.ReplayMigrated(log, 0);
+        Assert.Equal(log.Count, replayed);
+        Assert.True(host.Session.StateHash() == fresh.Session.StateHash(), FirstDifference(Body(host.Session), Body(fresh.Session)));
+    }
+
     private static byte[] Body(SimSession s) =>
         (byte[])typeof(SimSession).GetMethod("SnapshotBody", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(s, [false])!;
 
@@ -503,13 +541,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// Bots across host migrations: the host leaves (quits or drops), the first successor plays on a while with the bots acting
     /// (fighting, dying, coming back, leaving for a joiner), then it leaves too and the next takes over.
     /// </summary>
-    [Theory]
-    [InlineData(2, 0, false, true)]
-    [InlineData(3, 2, false, false)]
-    [InlineData(3, 2, true, true)]
-    [InlineData(1, 0, true, false)]
-    [InlineData(3, 1, false, true, 5, true)]
-    [InlineData(3, 0, true, false, 5, false)]
+    // The rows run as one test each in HostMigrationShards.cs (xUnit runs a class's tests one after another, so rows in one class would add up to minutes).
     public void BotsSurviveTwoMigrationsAndPlayOn(int bots, int ai, bool restricted, bool graceful, int maxPlayers = 8, bool teams = false)
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -560,10 +592,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// The new host's game ends and its next round begins with the bots again (they are built afresh from the options the
     /// savestate carried), the players carried on, and the game goes on.
     /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Load", "Sensitive")]   // wall-clock timing: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
+    // The rows run as one test each in HostMigrationShards.cs (xUnit runs a class's tests one after another, so rows in one class would add up to minutes).
     public void TheNewHostsNextRoundHasTheBotsToo(bool restricted)
     {
         if (HostTests.InstallDir is not { } install) return;

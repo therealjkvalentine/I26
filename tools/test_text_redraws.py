@@ -125,6 +125,16 @@ class CompositorTests(unittest.TestCase):
         self.assertEqual(tr.relax_passes(4), 24)
         self.assertEqual(tr.relax_passes(8), 96)
 
+    def test_the_fixes_self_check(self):
+        self.assertTrue(tr.fixes_check())
+
+    def test_the_fix_specs_load_apart_from_the_lettering(self):
+        fixes = tr.load_specs(os.path.join(tr.SPECS, "fixes"))
+        self.assertEqual(sorted(t for _, t, _ in fixes), ["ca_1lt_6", "fg_1pmf1", "fn_1pmf1", "fp_1pmf1", "fs_1pmf1", "hb_1bdf1", "hj_1bdf1"])
+        self.assertTrue(all(sp.get("kind") == "fix" for _, _, sp in fixes))
+        self.assertFalse(any(sp.get("kind") == "fix" for _, _, sp in tr.load_specs()), "the lettering run does not apply them")
+        self.assertEqual(sorted(t for _, t, _ in tr.load_specs(os.path.join(tr.SPECS, "fixes"), "hb_*, ca_1lt_6")), ["ca_1lt_6", "hb_1bdf1"])
+
     def test_self_check(self):
         self.assertTrue(tr.self_check())
 

@@ -320,9 +320,17 @@ public sealed partial class MissionSetup
     /// stands in formation beside and behind it, every one a human (<see cref="SimWorld.Humans"/>), and the script's
     /// player is the group (<see cref="ScriptHost.Coop"/>). Null for single player; ignored for a melee.
     /// </param>
+    /// <param name="tripPlus">
+    /// Trip+'s rules (the play fork's; docs/deviations.md "Trip+"): Posse's copies (<see cref="SoloCopies"/>) and Sharp's skill offset
+    /// (<see cref="ScriptHost.SkillOffset"/>) in a scripted single-player mission. Null (or off) for the original's; ignored for a
+    /// co-op game and a melee. Loot up's salvage offset is the game's (<see cref="Trip.SalvagePool"/>).
+    /// </param>
+    /// <param name="smartAi">
+    /// The smarter opponents' rule (the play fork's; docs/deviations.md "Smarter opponents"): <see cref="SmartAi.None"/>, the original's AI.
+    /// </param>
     public static MissionSetup Build(AssetVfs vfs, MissionWorld w, ModelAssembler asm, string? requested = null,
         System.Numerics.Vector3 origin = default, bool script = true, CrtRand? rand = null, IReadOnlyList<string>? melee = null,
-        MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null)
+        MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null, Trip.TripPlusRules? tripPlus = null, SmartAi smartAi = SmartAi.None)
     {
         if (melee is not null) coop = null;
         var carFiles = new CarFiles(vfs);   // the mission's car files, for the cars built again in play (VehicleFactory reads through it)
@@ -554,10 +562,32 @@ public sealed partial class MissionSetup
                     SchemePaint = vcf => schemePaints.TryGetValue(vcf, out var sp) ? sp : schemePaints[vcf] = ExtraPaint.SchemeOf(vfs, vcf),
                 };
             }
+            // Trip+ (single player only): Posse's copies, made as Co-op Scaling's are, and Sharp's offset on the enemies' default tiers
+            // before the script's first setSkill
+            else if (tripPlus is { IsOff: false } tp && coop is null)
+            {
+                if (tp.Copies > 0)
+                    host.Solo = new SoloCopies
+                    {
+                        Count = System.Math.Clamp(tp.Copies, 0, CoopSetup.MaxExtraEnemies),
+                        Paths = program.Paths.Select(x => (IReadOnlyList<System.Numerics.Vector3>)x.Points).ToList(),
+                        BuildEnemy = vcf =>
+                        {
+                            using var cached = carFiles.Use();
+                            var v = VehicleFactory.Create(vfs, vcf);
+                            if (v.Build is { } b) v.Health = I76.Sim.Damage.VehicleDamage.Create(v, b, false, rand);
+                            if (night) v.Flags |= VehicleFlags.Lights;
+                            return v;
+                        },
+                    };
+                host.SkillOffset = System.Math.Clamp(tp.SkillOffset, -4, 4);
+                host.ApplySkillOffsetAtBuild();
+            }
             ms = new MissionScript(program, host, rand, seed, nitroDriver, i76Lines);
             MarkTaurus(ms.Vm!.Actors);
             host.FindKeyCars(w.Mission.FsmPayload(), ms.Vm, w.Mission.Name);
         }
+        if (ms is not null) ms.Host.SmartAi = smartAi & SmartAi.All;
         // the explosion templates in the original's load order (the first file with a key keeps it): the startup three, then
         // each scenery object's SDFC file in ODEF order, then the LDEF links'. Weapon effects register as first used; no
         // stock weapon effect shares a key with another file.
@@ -630,10 +660,10 @@ public sealed partial class MissionSetup
             // never hurt each other (CoopExtras)
             if (host.Escorted.Count > 0 || host.Coop is { ExtraEnemies: > 0, CopyKeyCars: true })
                 damage.Spared = (v, a) => host.SparedByEscort(v, a) || host.Coop is { CopyKeyCars: true } && host.Spares(v, a);
-            // with Extra Enemies on, the cars the mission fails on losing take less (CoopSetup.EscortHealth): derived from the build alone
-            if (host.Coop is { ExtraEnemies: > 0 } && coop is not null && ms.Vm is { } vm && host.Escorts(vm) is { Count: > 0 } escorts)
+            // with Extra Enemies (or Trip+'s Posse) on, the cars the mission fails on losing take less (CoopSetup.EscortHealth): derived from the build alone
+            if (host.CopiesOn && ms.Vm is { } vm && host.Escorts(vm) is { Count: > 0 } escorts)
             {
-                damage.EscortFactor = coop.EscortDamageFactor;
+                damage.EscortFactor = 1f / CoopSetup.EscortHealth;
                 damage.Escorted = v => host.Of(v) is { } e && escorts.Contains(e);
             }
             if (game is not null) { damage.KilledBy += game.Credit; game.Explode = damage.Destroy; }

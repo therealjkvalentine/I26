@@ -220,8 +220,9 @@ public static class DevSettings
 
     /// <summary>
     /// Keys that have a menu row but are offered here too: Graphic Detail's Visibility Range (draw_distance, with "look" to go back to
-    /// following the look), World Textures and Car &amp; Dash Textures (with the 3x and 2x the rows do not offer), Show FPS (dev_fps), and Hood Gloss level by level (the rows step in fives), the
-    /// file's 0..100 on a slider. Not in docs/playing.md's table of settings without a row.
+    /// following the look), World Textures and Car &amp; Dash Textures (with the 3x and 2x the rows do not offer), Show FPS (dev_fps), Hood Gloss level by level (the rows step in fives), the
+    /// file's 0..100 on a slider, and Play Options' Solid Cliffs. Not in docs/playing.md's table of settings without a row. Play Options'
+    /// Smart A.I. is the Smart A.I. group's check boxes (<see cref="SmartAiGroup"/>), one a behaviour.
     /// </summary>
     private static readonly int[] WorldSizes = [0, 4, 3, 2], CarSizes = [0, 8, 4, 3, 2];
     private static readonly string[] WorldWords = ["1997", "4x" + M, "3x" + M, "2x" + M], CarWords = ["1997", "8x" + M, "4x" + M, "3x" + M, "2x" + M];
@@ -238,6 +239,8 @@ public static class DevSettings
             s => I76.Game.Assets.HdTextures.CarSize = s.CarTextures,
             Offered: v => v == 0 || I76.Game.Assets.HdTextures.AvailableSizes.Contains(CarSizes[v])),
         new("dev_fps", FalseTrue, s => s.DevFps ? 1 : 0, (s, v) => s.DevFps = v != 0, DevWhen.Live),
+        // Play Options' Solid Cliffs
+        new("solid_cliffs", ["off", "on" + M], s => s.SolidCliffs ? 1 : 0, (s, v) => s.SolidCliffs = v != 0, DevWhen.NextMission),
         new("hood_gloss", [.. Enumerable.Range(I76.Sim.Views.PaintFinish.Min, I76.Sim.Views.PaintFinish.Max + 1).Select(v => v == I76.Sim.Views.PaintFinish.Original ? $"{v}" : $"{v}{M}")],
             s => I76.Sim.Views.PaintFinish.Clamp(s.HoodGloss), (s, v) => s.HoodGloss = v, DevWhen.Live,
             s => I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(s.HoodGloss), Slider: true),
@@ -309,6 +312,8 @@ public static class DevSettings
         }
         legend.AddChild(new Label { Text = "(* the port's)" });
         col.AddChild(legend);
+        // Smart A.I.'s behaviours first, a check box each (the keys' grid below is long)
+        SmartAiGroup(col, settings, changed);
         var grid = DevScale.Grid(new GridContainer { Columns = 4 }, 8, 4);
         foreach (var e in All.Concat(WithRow).Concat(Elsewhere)) Add(grid, e);
         col.AddChild(grid);
@@ -359,6 +364,36 @@ public static class DevSettings
         }
     }
 
+    /// <summary>The smart_ai key as the Smart A.I. group's line on the panel: the key's own and how it reads now (the panel's message for a change).</summary>
+    public static readonly DevSetting SmartAiKey = new("smart_ai", ["off", "on" + M, "custom" + M], s => ShellSettings.SmartAiRowIndex(s.SmartAi), (_, _) => { }, DevWhen.NextMission);
+
+    /// <summary>
+    /// The Smart A.I. group (Play Options' Smart A.I., [port] smart_ai; docs/deviations.md "Smarter opponents"): a check box a behaviour
+    /// (I76.Sim.Missions.SmartAiNames.Bits), so one can be tried alone. A tick writes the key as the row does (all of them "all", none
+    /// leaves it out, some their names: the row shows Custom); from the next mission start.
+    /// </summary>
+    private static void SmartAiGroup(VBoxContainer col, ShellSettings settings, Action<ShellSettings, DevSetting>? changed)
+    {
+        var head = new Label { Text = "Smart A.I. (Play Options' row; the fork's; next mission)", TooltipText = I76.Game.Shell.MenuTips.Of(PlayOptionsScreen.SmartAiRow) ?? "" };
+        head.AddThemeColorOverride("font_color", WhenColour(DevWhen.NextMission));
+        col.AddChild(head);
+        var grid = DevScale.Grid(new GridContainer { Columns = 3 }, 8, 4);
+        foreach (var (name, bit) in I76.Sim.Missions.SmartAiNames.Bits)
+        {
+            var box = new CheckBox { Text = name, FocusMode = Control.FocusModeEnum.None, TooltipText = DevTips.SmartAiBit(name) ?? name,
+                ButtonPressed = (settings.SmartAi & bit) != 0 };
+            box.Toggled += on =>
+            {
+                var bits = settings.SmartAi;
+                settings.SetSmartAi(on ? bits | bit : bits & ~bit);
+                settings.Save();
+                changed?.Invoke(settings, SmartAiKey);
+            };
+            grid.AddChild(box);
+        }
+        col.AddChild(grid);
+    }
+
     /// <summary>A key of many steps as a slider over its values with the value beside it: dragging applies each step as it passes.</summary>
     private static Control SliderFor(DevSetting e, ShellSettings settings, Action<ShellSettings, DevSetting>? changed)
     {
@@ -383,6 +418,7 @@ public static class DevSettings
     }
 
     /// <summary>The panel's line for a change: the key, its value as the file writes it, and when it shows.</summary>
-    public static string Line(DevSetting e, ShellSettings s) =>
-        $"{e.Key} = {e.Values[Math.Clamp(e.Get(s), 0, e.Values.Length - 1)].TrimEnd('*')} ({WhenText(e.When)})";
+    public static string Line(DevSetting e, ShellSettings s) => e == SmartAiKey
+        ? $"{e.Key} = {(s.SmartAiText.Length > 0 ? s.SmartAiText : "off")} ({WhenText(e.When)})"
+        : $"{e.Key} = {e.Values[Math.Clamp(e.Get(s), 0, e.Values.Length - 1)].TrimEnd('*')} ({WhenText(e.When)})";
 }
