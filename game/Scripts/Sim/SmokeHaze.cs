@@ -28,7 +28,25 @@ public static class SmokeHaze
     public const float Threshold = 0.022f;
 
     /// <summary>Seconds a lone puff of any density takes, after its own life, to thin to <see cref="Threshold"/> (merged ones, holding more smoke, last longer).</summary>
-    public const float HazeSeconds = 75f;
+    public const float HazeSeconds = 150f;
+
+    /// <summary>Long's puffs start denser than Normal's (wrecks, damage smoke, trails, the explosions' haze): their density times this.</summary>
+    public const float DensBoost = 1.35f;
+
+    /// <summary>Long's puffs start darker: their darkness (0 steam white .. 1 oily black) moved this far toward black.</summary>
+    public const float DarkShift = 0.25f;
+
+    /// <summary>Long's smoke layer caps a column's opacity here (Normal's 0.65), so the denser start shows in a thick column.</summary>
+    public const float LongCap = 0.8f;
+
+    /// <summary>A puff's starting density: Normal's as it is, Long's <see cref="DensBoost"/> times it (at most 1).</summary>
+    public static float StartDens(float dens) => On ? MathF.Min(dens * DensBoost, 1f) : dens;
+
+    /// <summary>A puff's starting darkness: Normal's as it is, Long's moved <see cref="DarkShift"/> of the way to black.</summary>
+    public static float StartDark(float dark) => On ? dark + (1f - dark) * DarkShift : dark;
+
+    /// <summary>The smoke layer's cap on a column's opacity: <paramref name="normal"/> (the I76_SMOKE_CAP hook's or 0.65), Long's higher unless the hook set it.</summary>
+    public static float LayerCap(float normal, bool hooked) => On && !hooked ? MathF.Max(normal, LongCap) : normal;
 
     /// <summary>The time a merged puff takes to hand its smoke over.</summary>
     public const float AbsorbSeconds = 1.5f;

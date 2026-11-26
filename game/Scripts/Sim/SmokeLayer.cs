@@ -22,6 +22,7 @@ public partial class SmokeLayer : Node3D
     public static bool Active => _enabled && !_failed;
     /// <summary>The most opaque a column of smoke gets (0..1).</summary>
     public static float Cap { get; } = float.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_CAP"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float c) ? Math.Clamp(c, 0f, 1f) : 0.65f;
+    private static readonly bool CapHooked = System.Environment.GetEnvironmentVariable("I76_SMOKE_CAP") is { Length: > 0 };
     public static float SceneLight { get; set; } = 1f;
     /// <summary>The composite quad's layer, which the mirror's and the weapon camera's cull masks leave out (they have no layer to composite).</summary>
     public const uint QuadLayer = 1u << 7;
@@ -29,6 +30,42 @@ public partial class SmokeLayer : Node3D
     public const uint MirrorLayer = 1u << 8;
     /// <summary>The rear-view mirror's camera, which the layer's compositor does not run on (set by Cockpit).</summary>
     public static Camera3D? MirrorCamera { get; set; }
+    /// <summary>The door mirrors' cameras (left, right; set by Cockpit): they show the mirror's puffs too, the rear mirror on or off.</summary>
+    public static readonly Camera3D?[] DoorMirrorCameras = new Camera3D?[2];
+
+    /// <summary>
+    /// Where the mirrors look from this frame: the first mirror camera there is (rear, then the doors; all ride on the car), its far clip;
+    /// null without one. The smokes pick the mirrors' puffs by distance from here, not by the main view's depth (which leaves out
+    /// everything behind the car, what the mirrors show).
+    /// </summary>
+    public static (Vector3 Eye, float Far, Camera3D Cam, Vector3 Back)? MirrorEye()
+    {
+        foreach (var c in (ReadOnlySpan<Camera3D?>)[MirrorCamera, DoorMirrorCameras[0], DoorMirrorCameras[1]])
+            if (c is not null && GodotObject.IsInstanceValid(c) && c.IsInsideTree()) return (c.GlobalPosition, c.Far, c, -c.GlobalBasis.Z);   // (the rear mirror looks back; a door's back and out)
+        return null;
+    }
+
+    /// <summary>
+    /// A puff for the mirrors (the MultiMesh buffer layout) at <paramref name="o"/>: as the main view would draw it, a haze puff's density
+    /// eased by its distance from the mirror's eye as the main view's is by its depth. False: out of the mirrors' reach.
+    /// </summary>
+    public static bool MirrorPuff(float[] to, int o, Vector3 at, float size, float life, float dens, float dark, float seed, bool haze, float reach, (Vector3 Eye, float Far, Camera3D Cam, Vector3 Back) eye)
+    {
+        float dist = at.DistanceTo(eye.Eye), far = MathF.Min(reach, eye.Far);
+        if (dist < SmokeWindow.Near || dist > far + size * 0.5f) return false;
+        // what lies ahead of the car no mirror shows: left out (a puff reaching back past the mirrors' plane is kept)
+        if ((at - eye.Eye).Dot(eye.Back) < -(size + 3f)) return false;
+        if (haze) dens *= SmokeHaze.Near(dist, size) * SmokeHaze.Far(dist, far);
+        if (dens < 0.002f) return false;
+        to[o] = size; to[o + 1] = 0; to[o + 2] = 0; to[o + 3] = at.X;
+        to[o + 4] = 0; to[o + 5] = size; to[o + 6] = 0; to[o + 7] = at.Y;
+        to[o + 8] = 0; to[o + 9] = 0; to[o + 10] = size; to[o + 11] = at.Z;
+        to[o + 12] = life; to[o + 13] = dens; to[o + 14] = dark; to[o + 15] = seed;
+        return true;
+    }
+
+    /// <summary>The cap on a column's opacity now (the layer's, Smoke Linger Long's higher), for the mirrors' puffs to match.</summary>
+    public static float CapNow => SmokeHaze.LayerCap(Cap, CapHooked);
 
     // room for every smoke's pool at the longest [port] smoke_linger (SmokeLinger: the pools grow with it)
     private const int Capacity = 30000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12 + 8;
@@ -62,14 +99,104 @@ public partial class SmokeLayer : Node3D
                 d[q + 8] = tint.X; d[q + 9] = tint.Y; d[q + 10] = tint.Z; d[q + 11] = SmokeHaze.Soft(buf[o], SoftDistance);   // a wide haze (Smoke Linger Long) meets the scene more softly
             }
             Slots[owner] = (slot.Data, count);
+            // nothing for the main view now: nothing for the mirrors either, unless the smoke hands them their own after this (SubmitMirror)
+            if (count == 0 && MirrorSlots.TryGetValue(owner, out var m)) MirrorSlots[owner] = (m.Data, 0);
         }
+    }
+
+    /// <summary>
+    /// A smoke's puffs for the mirrors this frame (the same layout as <see cref="Submit"/>): every puff within the mirrors' reach of the car,
+    /// whichever way the main view looks (SmokeLayer.MirrorPuff); the rear and door mirrors draw them through the same layer as the main view.
+    /// </summary>
+    public static void SubmitMirror(object owner, float[] buf, int count, System.Numerics.Vector3 tint)
+    {
+        lock (Lock) Fill(MirrorSlots, owner, buf, count, tint);
+    }
+
+    private static readonly Dictionary<object, (float[] Data, int Count)> MirrorSlots = [];
+
+    /// <summary>The mirrors draw the real smoke layer (the default); I76_MIRROR_SMOKE=billows: the thinner stand-in (MirrorDraw), as before.</summary>
+    public static bool MirrorsDrawLayer => Active && !MirrorBillowsHook;
+    private static readonly bool MirrorBillowsHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_SMOKE") == "billows";
+
+    /// <summary>The layers of the mirrors' composite quads (rear, door left, door right).</summary>
+    public static readonly uint[] MirrorQuadLayers = [1u << 10, 1u << 11, 1u << 12];
+    public const uint MirrorQuads = (1u << 10) | (1u << 11) | (1u << 12);
+
+    /// <summary>A mirror camera's cull mask with its smoke: its own composite quad (view 1 rear, 2 and 3 the doors), or the stand-in's puffs.</summary>
+    public static uint MirrorMask(uint mask, int view) =>
+        MirrorsDrawLayer ? (mask & ~MirrorLayer & ~MirrorQuads) | MirrorQuadLayers[view - 1] : (mask & ~MirrorQuads) | MirrorLayer;
+
+    /// <summary>The mirrors' layers: each mirror camera there is gets the layer's compositor and a composite quad of its own.</summary>
+    private void MirrorViews()
+    {
+        int total;
+        lock (Lock) { total = 0; foreach (var s in MirrorSlots.Values) total += s.Count; }
+        _mirrorAbOff = MirrorAb && (long)(System.Diagnostics.Stopwatch.GetTimestamp() * 1000.0 / System.Diagnostics.Stopwatch.Frequency / 1500) % 2 == 1;
+        if (_mirrorAbOff) total = 0;
+        for (int i = 1; i < Views.Length; i++)
+        {
+            var v = Views[i];
+            var cam = i == 1 ? MirrorCamera : DoorMirrorCameras[i - 2];
+            bool on = MirrorsDrawLayer && cam is not null && IsInstanceValid(cam) && cam.IsInsideTree();
+            if (!on) { if (v.Quad is not null) v.Quad.Visible = false; continue; }
+            v.Comp ??= new Compositor { CompositorEffects = [new SmokeEffect(v)] };
+            if (cam!.Compositor != v.Comp) cam.Compositor = v.Comp;
+            // its smoke's bits (the cockpit may have set the mask before the layer was up): its own quad, not the stand-in's puffs
+            uint mask = MirrorMask(cam.CullMask, i);
+            if (cam.CullMask != mask) cam.CullMask = mask;
+            if (v.Quad is null)
+            {
+                v.Mat = new ShaderMaterial { Shader = _mat!.Shader, RenderPriority = (int)Material.RenderPriorityMin + 1 };
+                v.Quad = new MeshInstance3D
+                {
+                    Name = $"SmokeCompositeMirror{i}", Mesh = new QuadMesh { Size = Vector2.One }, MaterialOverride = v.Mat, Visible = false, Layers = MirrorQuadLayers[i - 1],
+                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, CustomAabb = new Aabb(new Vector3(-1e6f, -1e6f, -1e6f), new Vector3(2e6f, 2e6f, 2e6f)),
+                };
+                AddChild(v.Quad);
+            }
+            if (v.Version != v.Seen) { v.Seen = v.Version; v.Tex.TextureRdRid = v.T0; v.Mat!.SetShaderParameter(LayerName, v.Tex); }
+            // only in its own mirror's picture: a camera of another size (the weapon camera) that shows its layer draws nothing of it
+            v.Mat!.SetShaderParameter(ViewSizeName, cam.GetViewport() is SubViewport sv ? (Vector2)sv.Size : Vector2.Zero);
+            v.Quad.Visible = v.Version > 0 && total > 0;
+            if (Stats && i == 1 && (++_mirrorStat % 120) == 0) GD.Print($"smoke mirror: view {i} quad {v.Quad.Visible} mask {cam.CullMask:x} comp {cam.Compositor == v.Comp} puffs {total} targets {v.Size.X}x{v.Size.Y} version {v.Version} far {cam.Far:0} at {(cam.GetViewport() as SubViewport)?.Size}");
+        }
+    }
+    private static readonly StringName LayerName = "layer", ViewSizeName = "view_size";
+    private static int _mirrorStat;
+    /// <summary>The mirrors' layers' size, 1/N of their pictures (I76_MIRROR_SMOKE_SCALE, 2 as the main view's by default).</summary>
+    private static readonly int MirrorScale = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_SMOKE_SCALE"), out int ms) && ms >= 1 ? ms : 2;
+    /// <summary>I76_MIRROR_SMOKE_AB=1: the mirrors' smoke drawn in alternate 1.5 s spans of the stopwatch (FrameProfiler's clock), for its cost within one run.</summary>
+    private static readonly bool MirrorAb = System.Environment.GetEnvironmentVariable("I76_MIRROR_SMOKE_AB") == "1";
+    private static volatile bool _mirrorAbOff;
+
+    private static void Fill(Dictionary<object, (float[] Data, int Count)> slots, object owner, float[] buf, int count, System.Numerics.Vector3 tint)
+    {
+        slots.TryGetValue(owner, out var slot);
+        if (slot.Data is null || slot.Data.Length < count * Floats)
+        {
+            int need = Math.Max(count, 256) * Floats, at = Spare.FindIndex(a => a.Length >= need);
+            if (at >= 0) { slot.Data = Spare[at]; Spare.RemoveAt(at); } else slot.Data = new float[need];
+        }
+        for (int j = 0; j < count; j++)
+        {
+            int o = j * 16, q = j * Floats;
+            var d = slot.Data;
+            d[q] = buf[o + 3]; d[q + 1] = buf[o + 7]; d[q + 2] = buf[o + 11]; d[q + 3] = buf[o];
+            d[q + 4] = buf[o + 12]; d[q + 5] = buf[o + 13]; d[q + 6] = buf[o + 14]; d[q + 7] = buf[o + 15];
+            d[q + 8] = tint.X; d[q + 9] = tint.Y; d[q + 10] = tint.Z; d[q + 11] = SmokeHaze.Soft(buf[o], SoftDistance);   // a wide haze (Smoke Linger Long) meets the scene more softly
+        }
+        slots[owner] = (slot.Data, count);
     }
 
     /// <summary>A smoke that leaves the tree: its slot is dropped (it holds the smoke, and what the smoke holds, as long as it is in the table).</summary>
     public static void Release(object owner)
     {
         lock (Lock)
+        {
             if (Slots.Remove(owner, out var slot) && slot.Data is { } data && Spare.Count < MaxSpare) Spare.Add(data);
+            if (MirrorSlots.Remove(owner, out var ms) && ms.Data is { } md && Spare.Count < MaxSpare) Spare.Add(md);
+        }
     }
 
     /// <summary>The arrays of smokes released, kept for the next ones (at most <see cref="MaxSpare"/>).</summary>
@@ -84,8 +211,6 @@ public partial class SmokeLayer : Node3D
     private MeshInstance3D? _quad;
     private ShaderMaterial? _mat;
     private readonly Texture2Drd _t0 = new(), _t1 = new();
-    private static Rid _rid0, _rid1;
-    private static int _version;
     private int _seen;
     private Compositor? _compositor;
     private DirectionalLight3D? _sun;
@@ -108,7 +233,7 @@ public partial class SmokeLayer : Node3D
         GetTree().NodeRemoved += OnNodeRemoved;
         _off = System.Environment.GetEnvironmentVariable("I76_SMOKE_LAYER") == "0";
         if (_off || RenderingServer.GetCurrentRenderingMethod() != "forward_plus" || RenderingServer.GetRenderingDevice() is null) { _failed = true; return; }
-        _compositor = new Compositor { CompositorEffects = [new SmokeEffect()] };
+        _compositor = new Compositor { CompositorEffects = [new SmokeEffect(Views[0])] };
         _mat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/smoke_layer.gdshader"), RenderPriority = (int)Material.RenderPriorityMin + 1 };
         _quad = new MeshInstance3D
         {
@@ -140,7 +265,7 @@ public partial class SmokeLayer : Node3D
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         using var _view = Hitch.Time(Hitch.Phase.Views);
         var cam = GetViewport().GetCamera3D();
-        if (cam is not null && (cam.CullMask & MirrorLayer) != 0) cam.CullMask &= ~MirrorLayer;   // the mirror's own puffs (MirrorDraw) are for the mirror's camera alone
+        if (cam is not null && (cam.CullMask & (MirrorLayer | MirrorQuads)) != 0) cam.CullMask &= ~(MirrorLayer | MirrorQuads);   // the mirrors' own smoke is for their cameras alone
         if (_off || _failed || _quad is null)
         {
             // no layer (the Compatibility renderer, or I76_SMOKE_LAYER=0): the smokes draw themselves, lit by these lights
@@ -148,20 +273,21 @@ public partial class SmokeLayer : Node3D
             return;
         }
         if (cam is not null && cam.Compositor != _compositor) cam.Compositor = _compositor;
-        if (_version != _seen)
+        if (Views[0].Version != _seen)
         {
-            _seen = _version;
-            _t0.TextureRdRid = _rid0; _t1.TextureRdRid = _rid1;
+            _seen = Views[0].Version;
+            _t0.TextureRdRid = Views[0].T0; _t1.TextureRdRid = Views[0].T1;
             _mat!.SetShaderParameter("layer", _t0);
             RenderingServer.GlobalShaderParameterSet("i76_smoke", _t1);
             _ready = true;
-            GD.Print($"smoke layer: on, {_size.X}x{_size.Y}, cap {Cap}");
+            GD.Print($"smoke layer: on, {Views[0].Size.X}x{Views[0].Size.Y}, cap {Cap}");
         }
         int total;
         lock (Lock) { total = 0; foreach (var s in Slots.Values) total += s.Count; }
         _hasPuffs = total > 0;
-        RenderingServer.GlobalShaderParameterSet(SmokeCapName, _ready && total > 0 ? Cap : 0f);
+        RenderingServer.GlobalShaderParameterSet(SmokeCapName, _ready && total > 0 ? SmokeHaze.LayerCap(Cap, CapHooked) : 0f);   // Smoke Linger Long's columns may be denser
         _quad.Visible = _ready && total > 0;
+        MirrorViews();
         _sun ??= SceneSun.Of(this);
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;
         var cabHalf = World.CabClip.Half;
@@ -403,19 +529,40 @@ public partial class SmokeLayer : Node3D
         """;
 
     private static readonly Rid[] _shaders = new Rid[2], _pipelines = new Rid[2], _dShaders = new Rid[2], _dPipelines = new Rid[2];
-    private static Rid _fbD, _dRd, _dSet, _dSetDepth, _setDist;
-    private static int _dSetVariant = -1;
-    private static Rid _sampler, _noiseSampler, _ubo, _ssbo, _fb, _t0Rd, _t1Rd;
-    private static Vector2I _size, _depthFor;
+    private static Rid _sampler, _noiseSampler;
     private static long _fbFormat = -1, _dFbFormat = -1;
     private static readonly float[] Ubo = new float[UboFloats];
     private static float[] _flat = new float[Capacity * Floats];
-    private static bool _cleared = true;
+
+    /// <summary>
+    /// One camera's layer: the main view's (0), the rear mirror's (1), the door mirrors' (2, 3). Its own targets, buffers and uniform sets on
+    /// the render thread; its own compositor, composite quad and material on the main thread. The mirrors draw the same smoke as the main
+    /// view, picked by distance from them (SubmitMirror), the same shaders, cap and lighting.
+    /// </summary>
+    private sealed class View
+    {
+        public int Index;
+        public Rid T0, T1, D, Fb, FbD, Ubo, Ssbo, Set, SetDepth, SetNoise, SetDist, DSet, DSetDepth, SamplesOf;
+        public int SetVariant = -1, DSetVariant = -1, Made, Version;
+        public Vector2I Size;
+        public bool Cleared = true;
+        public byte[] PuffBytes = [];
+        public Godot.Collections.Array<RDUniform>? SetUniforms;
+        // main thread
+        public Compositor? Comp;
+        public MeshInstance3D? Quad;
+        public ShaderMaterial? Mat;
+        public readonly Texture2Drd Tex = new();
+        public int Seen;
+    }
+    private static readonly View[] Views = [new() { Index = 0 }, new() { Index = 1 }, new() { Index = 2 }, new() { Index = 3 }];
 
     private sealed partial class SmokeEffect : CompositorEffect
     {
-        public SmokeEffect()
+        private readonly View _v;
+        public SmokeEffect(View v)
         {
+            _v = v;
             EffectCallbackType = EffectCallbackTypeEnum.PostOpaque;
             Enabled = true;
         }
@@ -425,12 +572,12 @@ public partial class SmokeLayer : Node3D
             if (_failed) return;
             // the multisampled depth's build of the shader is not there (the backend refused it): the engine's resolved copy then
             AccessResolvedDepth = !_msaaOk;
-            try { Render(renderData); }
+            try { Render(renderData, _v); }
             catch (Exception e) { _failed = true; GD.PrintErr($"smoke layer: {e}"); }
         }
     }
 
-    private static void Render(RenderData renderData)
+    private static void Render(RenderData renderData, View v)
     {
         var rd = RenderingServer.GetRenderingDevice();
         if (rd is null) return;
@@ -438,19 +585,22 @@ public partial class SmokeLayer : Node3D
         int count = 0;
         lock (Lock)
         {
-            foreach (var s in Slots.Values)
+            foreach (var s in (v.Index == 0 ? Slots : MirrorSlots).Values)
             {
                 int n = Math.Min(s.Count, Capacity - count);
                 Array.Copy(s.Data, 0, _flat, count * Floats, n * Floats);
                 count += n;
             }
         }
-        if (count == 0 && _cleared) return;
+        if (v.Index > 0 && _mirrorAbOff) count = 0;
+        if (count == 0 && v.Cleared) return;
         var full = buffers.GetInternalSize();
         if (full.X <= 0 || full.Y <= 0) return;
-        var size = new Vector2I(Math.Max(1, full.X / Scale), Math.Max(1, full.Y / Scale));
+        int scale = v.Index == 0 ? Scale : MirrorScale;   // the mirrors' layers coarser: small pictures, and three of them
+        var size = new Vector2I(Math.Max(1, full.X / scale), Math.Max(1, full.Y / scale));
         if (!_shaders[0].IsValid && !Setup(rd)) return;
-        if (size != _size || !_t0Rd.IsValid) MakeTargets(rd, size);
+        if (!v.Ubo.IsValid) { v.Ubo = rd.UniformBufferCreate(UboFloats * 4); v.Ssbo = rd.StorageBufferCreate((uint)(Capacity * Floats * 4)); }
+        if (size != v.Size || !v.T0.IsValid) MakeTargets(rd, v, size);
         // with MSAA the layer reads the multisampled depth itself, the nearest of each texel's samples, not the engine's resolved
         // copy: read after the opaque pass that copy was empty on Apple GPUs (Metal and MoltenVK alike) and at times in patches elsewhere
         int samples = SmokeDepth.Samples(buffers.GetMsaa3D());
@@ -464,8 +614,8 @@ public partial class SmokeLayer : Node3D
         // (D3D12 and Vulkan alike take the most it has), and a read past them is undefined
         if (samples > 1)
         {
-            if (depth != _samplesOf) { _samplesOf = depth; _made = (int)(rd.TextureGetFormat(depth)?.Samples ?? RenderingDevice.TextureSamples.Samples1); }
-            samples = SmokeDepth.Samples(buffers.GetMsaa3D(), _made);
+            if (depth != v.SamplesOf) { v.SamplesOf = depth; v.Made = (int)(rd.TextureGetFormat(depth)?.Samples ?? RenderingDevice.TextureSamples.Samples1); }
+            samples = SmokeDepth.Samples(buffers.GetMsaa3D(), v.Made);
         }
 
         // the camera: view, projection (as the scene's own shaders see it: clip y down), their inverses, the cab box, the sun
@@ -491,62 +641,62 @@ public partial class SmokeLayer : Node3D
         Ubo[83] = DepthView ? 1f : 0f;
         Ubo[93] = DepthPass ? 1f : 0f;
         bool reversed = SmokeDepth.NearerIsLarger(proj);
-        if (reversed != _reversed) { _reversed = reversed; GD.Print($"smoke layer: scene depth {(reversed ? "reversed" : "forward")}, {buffers.GetMsaa3D()}, {full.X}x{full.Y}"); }
+        if (v.Index == 0 && reversed != _reversed) { _reversed = reversed; GD.Print($"smoke layer: scene depth {(reversed ? "reversed" : "forward")}, {buffers.GetMsaa3D()}, {full.X}x{full.Y}"); }
         Ubo[88] = 1f / size.X; Ubo[89] = 1f / size.Y; Ubo[90] = samples; Ubo[91] = reversed ? 1f : -1f;
-        if (Stats) Measure(count, camT, proj, full);
+        if (Stats && v.Index == 0) Measure(count, camT, proj, full);
         System.Buffer.BlockCopy(Ubo, 0, _uboBytes, 0, UboFloats * 4);
-        rd.BufferUpdate(_ubo, 0, UboFloats * 4, _uboBytes);
+        rd.BufferUpdate(v.Ubo, 0, UboFloats * 4, _uboBytes);
         if (count > 0)
         {
             // grown, never remade to the exact size: a fight's count changes every frame, and a new array each time was most of the frame's garbage
-            if (_puffBytes.Length < count * Floats * 4) _puffBytes = new byte[count * Floats * 4];
-            System.Buffer.BlockCopy(_flat, 0, _puffBytes, 0, count * Floats * 4);
-            rd.BufferUpdate(_ssbo, 0, (uint)(count * Floats * 4), _puffBytes);
+            if (v.PuffBytes.Length < count * Floats * 4) v.PuffBytes = new byte[count * Floats * 4];
+            System.Buffer.BlockCopy(_flat, 0, v.PuffBytes, 0, count * Floats * 4);
+            rd.BufferUpdate(v.Ssbo, 0, (uint)(count * Floats * 4), v.PuffBytes);
         }
 
         // the uniform set is kept from frame to frame (it was made and freed every frame, four engine objects with
         // it) until the scene's depth texture or the noise is another, or the engine has dropped it with a texture it read
         var noise = RenderingServer.TextureGetRdTexture(DamageSmoke.Noise.GetRid());
-        if (!_set.IsValid || depth != _setDepth || noise != _setNoise || variant != _setVariant || _dRd != _setDist || !rd.UniformSetIsValid(_set))
+        if (!v.Set.IsValid || depth != v.SetDepth || noise != v.SetNoise || variant != v.SetVariant || v.D != v.SetDist || !rd.UniformSetIsValid(v.Set))
         {
-            if (_set.IsValid && rd.UniformSetIsValid(_set)) rd.FreeRid(_set);
-            _setDepth = depth; _setNoise = noise; _setVariant = variant; _setDist = _dRd;
-            _setUniforms ??= [Buf(0, RenderingDevice.UniformType.UniformBuffer, _ubo), Buf(1, RenderingDevice.UniformType.StorageBuffer, _ssbo), Tex(2, _noiseSampler, noise), Tex(3, _sampler, depth), Tex(4, _sampler, _dRd)];
-            _setUniforms[4].ClearIds(); _setUniforms[4].AddId(_sampler); _setUniforms[4].AddId(_dRd);
-            _setUniforms[2].ClearIds(); _setUniforms[2].AddId(_noiseSampler); _setUniforms[2].AddId(noise);
-            _setUniforms[3].ClearIds(); _setUniforms[3].AddId(_sampler); _setUniforms[3].AddId(depth);
-            _set = rd.UniformSetCreate(_setUniforms, _shaders[variant], 0);
+            if (v.Set.IsValid && rd.UniformSetIsValid(v.Set)) rd.FreeRid(v.Set);
+            v.SetDepth = depth; v.SetNoise = noise; v.SetVariant = variant; v.SetDist = v.D;
+            v.SetUniforms ??= [Buf(0, RenderingDevice.UniformType.UniformBuffer, v.Ubo), Buf(1, RenderingDevice.UniformType.StorageBuffer, v.Ssbo), Tex(2, _noiseSampler, noise), Tex(3, _sampler, depth), Tex(4, _sampler, v.D)];
+            v.SetUniforms[4].ClearIds(); v.SetUniforms[4].AddId(_sampler); v.SetUniforms[4].AddId(v.D);
+            v.SetUniforms[2].ClearIds(); v.SetUniforms[2].AddId(_noiseSampler); v.SetUniforms[2].AddId(noise);
+            v.SetUniforms[3].ClearIds(); v.SetUniforms[3].AddId(_sampler); v.SetUniforms[3].AddId(depth);
+            v.Set = rd.UniformSetCreate(v.SetUniforms, _shaders[variant], 0);
         }
         // a release build of the engine draws without checking the pipeline and the uniforms are there (a debug build refuses
         // the draw): a draw without either is the GPU's to fault on, so none then, and the layer stays clear
         // the depth pass's own set (the uniforms and the scene's depth)
-        if (!_dSet.IsValid || depth != _dSetDepth || variant != _dSetVariant || !rd.UniformSetIsValid(_dSet))
+        if (!v.DSet.IsValid || depth != v.DSetDepth || variant != v.DSetVariant || !rd.UniformSetIsValid(v.DSet))
         {
-            if (_dSet.IsValid && rd.UniformSetIsValid(_dSet)) rd.FreeRid(_dSet);
-            _dSetDepth = depth; _dSetVariant = variant;
-            _dSet = _dShaders[variant].IsValid ? rd.UniformSetCreate([Buf(0, RenderingDevice.UniformType.UniformBuffer, _ubo), Tex(3, _sampler, depth)], _dShaders[variant], 0) : default;
+            if (v.DSet.IsValid && rd.UniformSetIsValid(v.DSet)) rd.FreeRid(v.DSet);
+            v.DSetDepth = depth; v.DSetVariant = variant;
+            v.DSet = _dShaders[variant].IsValid ? rd.UniformSetCreate([Buf(0, RenderingDevice.UniformType.UniformBuffer, v.Ubo), Tex(3, _sampler, depth)], _dShaders[variant], 0) : default;
         }
-        bool drawable = _pipelines[variant].IsValid && _set.IsValid && rd.UniformSetIsValid(_set) && _dPipelines[variant].IsValid && _dSet.IsValid && rd.UniformSetIsValid(_dSet);
+        bool drawable = _pipelines[variant].IsValid && v.Set.IsValid && rd.UniformSetIsValid(v.Set) && _dPipelines[variant].IsValid && v.DSet.IsValid && rd.UniformSetIsValid(v.DSet);
         if (!drawable && !_toldUndrawable) { _toldUndrawable = true; GD.PrintErr($"smoke layer: no {(variant == 1 ? "multisampled " : "")}pipeline or uniform set; no smoke drawn"); }
-        if (Timed) rd.CaptureTimestamp("Smoke Layer");
+        if (Timed) rd.CaptureTimestamp(v.Index == 0 ? "Smoke Layer" : "Smoke Layer Mirror");
         if (count > 0 && drawable && DepthPass)
         {
-            var dd = rd.DrawListBegin(_fbD, RenderingDevice.DrawFlags.ClearColorAll, DistClear);
+            var dd = rd.DrawListBegin(v.FbD, RenderingDevice.DrawFlags.ClearColorAll, DistClear);
             rd.DrawListBindRenderPipeline(dd, _dPipelines[variant]);
-            rd.DrawListBindUniformSet(dd, _dSet, 0);
+            rd.DrawListBindUniformSet(dd, v.DSet, 0);
             rd.DrawListDraw(dd, false, 1, 3);
             rd.DrawListEnd();
         }
-        var dl = rd.DrawListBegin(_fb, RenderingDevice.DrawFlags.ClearColorAll, ClearColors);
+        var dl = rd.DrawListBegin(v.Fb, RenderingDevice.DrawFlags.ClearColorAll, ClearColors);
         if (count > 0 && drawable)
         {
             rd.DrawListBindRenderPipeline(dl, _pipelines[variant]);
-            rd.DrawListBindUniformSet(dl, _set, 0);
+            rd.DrawListBindUniformSet(dl, v.Set, 0);
             rd.DrawListDraw(dl, false, (uint)count, 4);
         }
         rd.DrawListEnd();
-        _cleared = count == 0;
-        if (Timed) rd.CaptureTimestamp("< Smoke Layer");
+        v.Cleared = count == 0;
+        if (Timed) rd.CaptureTimestamp(v.Index == 0 ? "< Smoke Layer" : "< Smoke Layer Mirror");
     }
 
     /// <summary>
@@ -585,16 +735,10 @@ public partial class SmokeLayer : Node3D
     }
 
     private static readonly byte[] _uboBytes = new byte[UboFloats * 4];
-    private static byte[] _puffBytes = [];
-    private static Rid _set, _setDepth, _setNoise;
-    private static int _setVariant = -1;
-    private static Godot.Collections.Array<RDUniform>? _setUniforms;
     private static readonly Color[] ClearColors = [new Color(0, 0, 0, 0), new Color(0, 0, 0, 0)], DistClear = [new Color(0, 0, 0, 0)];
     private static bool? _reversed;
     private static bool _toldUndrawable;
     /// <summary>The multisampled depth texture last asked, and the samples it was made with (RenderingDevice.TextureSamples).</summary>
-    private static Rid _samplesOf;
-    private static int _made;
     /// <summary>The multisampled depth's build of the shader and its pipeline were made: with MSAA the layer reads the multisampled depth.</summary>
     private static volatile bool _msaaOk = true;
 
@@ -680,7 +824,7 @@ public partial class SmokeLayer : Node3D
     /// layout, 16 floats each) are counted in a coarse grid of the camera's screen, and each puff's density is divided down
     /// where many lie on one spot, so a column seen end-on thins toward the cap instead of going solid.
     /// </summary>
-    public static void Thin(float[] buf, int count, Camera3D? cam)
+    public static void Thin(float[] buf, int count, Camera3D? cam, float budget = ThinBudget)
     {
         if (cam is null || count == 0) return;
         const int W = 24, H = 14;
@@ -700,7 +844,7 @@ public partial class SmokeLayer : Node3D
             cell[at[j]] += buf[j * 16 + 13] * ThinAlpha(buf[j * 16]) ;
         }
         for (int j = 0; j < count; j++)
-            if (at[j] >= 0) buf[j * 16 + 13] *= Math.Min(1f, ThinBudget / Math.Max(cell[at[j]], 1e-3f));
+            if (at[j] >= 0) buf[j * 16 + 13] *= Math.Min(1f, budget / Math.Max(cell[at[j]], 1e-3f));
     }
 
     private const float ThinBudget = 0.4f;
@@ -749,45 +893,43 @@ public partial class SmokeLayer : Node3D
         }
         _sampler = rd.SamplerCreate(new RDSamplerState { MinFilter = RenderingDevice.SamplerFilter.Nearest, MagFilter = RenderingDevice.SamplerFilter.Nearest, RepeatU = RenderingDevice.SamplerRepeatMode.ClampToEdge, RepeatV = RenderingDevice.SamplerRepeatMode.ClampToEdge });
         _noiseSampler = rd.SamplerCreate(new RDSamplerState { MinFilter = RenderingDevice.SamplerFilter.Linear, MagFilter = RenderingDevice.SamplerFilter.Linear, RepeatU = RenderingDevice.SamplerRepeatMode.Repeat, RepeatV = RenderingDevice.SamplerRepeatMode.Repeat });
-        _ubo = rd.UniformBufferCreate(UboFloats * 4);
-        _ssbo = rd.StorageBufferCreate((uint)(Capacity * Floats * 4));
         return true;
     }
 
-    private static void MakeTargets(RenderingDevice rd, Vector2I size)
+    private static void MakeTargets(RenderingDevice rd, View v, Vector2I size)
     {
-        if (_fb.IsValid) rd.FreeRid(_fb);
-        if (_fbD.IsValid) rd.FreeRid(_fbD);
-        if (_dRd.IsValid) rd.FreeRid(_dRd);
-        if (_t0Rd.IsValid) rd.FreeRid(_t0Rd);
-        if (_t1Rd.IsValid) rd.FreeRid(_t1Rd);
+        if (v.Fb.IsValid) rd.FreeRid(v.Fb);
+        if (v.FbD.IsValid) rd.FreeRid(v.FbD);
+        if (v.D.IsValid) rd.FreeRid(v.D);
+        if (v.T0.IsValid) rd.FreeRid(v.T0);
+        if (v.T1.IsValid) rd.FreeRid(v.T1);
         var fmt = new RDTextureFormat
         {
             Width = (uint)size.X, Height = (uint)size.Y, Format = RenderingDevice.DataFormat.R16G16B16A16Sfloat,
             UsageBits = RenderingDevice.TextureUsageBits.ColorAttachmentBit | RenderingDevice.TextureUsageBits.SamplingBit,
         };
-        _t0Rd = rd.TextureCreate(fmt, new RDTextureView());
-        _t1Rd = rd.TextureCreate(fmt, new RDTextureView());
-        _fb = rd.FramebufferCreate([_t0Rd, _t1Rd]);
-        _dRd = rd.TextureCreate(new RDTextureFormat
+        v.T0 = rd.TextureCreate(fmt, new RDTextureView());
+        v.T1 = rd.TextureCreate(fmt, new RDTextureView());
+        v.Fb = rd.FramebufferCreate([v.T0, v.T1]);
+        v.D = rd.TextureCreate(new RDTextureFormat
         {
             Width = (uint)size.X, Height = (uint)size.Y, Format = RenderingDevice.DataFormat.R32Sfloat,
             UsageBits = RenderingDevice.TextureUsageBits.ColorAttachmentBit | RenderingDevice.TextureUsageBits.SamplingBit,
         }, new RDTextureView());
-        _fbD = rd.FramebufferCreate([_dRd]);
-        var dFormat = rd.FramebufferGetFormat(_fbD);
+        v.FbD = rd.FramebufferCreate([v.D]);
+        var dFormat = rd.FramebufferGetFormat(v.FbD);
         if (dFormat != _dFbFormat || !_dPipelines[0].IsValid)
         {
             var plain = new RDPipelineColorBlendState();
             plain.Attachments.Add(new RDPipelineColorBlendStateAttachment());
-            for (int v = 0; v < 2; v++)
+            for (int k = 0; k < 2; k++)
             {
-                if (_dPipelines[v].IsValid) rd.FreeRid(_dPipelines[v]);
-                _dPipelines[v] = _dShaders[v].IsValid ? rd.RenderPipelineCreate(_dShaders[v], dFormat, -1, RenderingDevice.RenderPrimitive.Triangles, new RDPipelineRasterizationState(), new RDPipelineMultisampleState(), new RDPipelineDepthStencilState(), plain) : default;
+                if (_dPipelines[k].IsValid) rd.FreeRid(_dPipelines[k]);
+                _dPipelines[k] = _dShaders[k].IsValid ? rd.RenderPipelineCreate(_dShaders[k], dFormat, -1, RenderingDevice.RenderPrimitive.Triangles, new RDPipelineRasterizationState(), new RDPipelineMultisampleState(), new RDPipelineDepthStencilState(), plain) : default;
             }
             _dFbFormat = dFormat;
         }
-        var fbFormat = rd.FramebufferGetFormat(_fb);
+        var fbFormat = rd.FramebufferGetFormat(v.Fb);
         if (fbFormat != _fbFormat || !_pipelines[0].IsValid)
         {
             var blend = new RDPipelineColorBlendState();
@@ -798,18 +940,17 @@ public partial class SmokeLayer : Node3D
                     SrcColorBlendFactor = RenderingDevice.BlendFactor.One, DstColorBlendFactor = RenderingDevice.BlendFactor.OneMinusSrcAlpha, ColorBlendOp = RenderingDevice.BlendOperation.Add,
                     SrcAlphaBlendFactor = RenderingDevice.BlendFactor.One, DstAlphaBlendFactor = RenderingDevice.BlendFactor.OneMinusSrcAlpha, AlphaBlendOp = RenderingDevice.BlendOperation.Add,
                 });
-            for (int v = 0; v < 2; v++)
+            for (int k = 0; k < 2; k++)
             {
-                if (_pipelines[v].IsValid) rd.FreeRid(_pipelines[v]);
-                _pipelines[v] = _shaders[v].IsValid ? rd.RenderPipelineCreate(_shaders[v], fbFormat, -1, RenderingDevice.RenderPrimitive.TriangleStrips, new RDPipelineRasterizationState(), new RDPipelineMultisampleState(), new RDPipelineDepthStencilState(), blend) : default;
+                if (_pipelines[k].IsValid) rd.FreeRid(_pipelines[k]);
+                _pipelines[k] = _shaders[k].IsValid ? rd.RenderPipelineCreate(_shaders[k], fbFormat, -1, RenderingDevice.RenderPrimitive.TriangleStrips, new RDPipelineRasterizationState(), new RDPipelineMultisampleState(), new RDPipelineDepthStencilState(), blend) : default;
             }
             if (!_pipelines[1].IsValid && _msaaOk) { _msaaOk = false; GD.PrintErr("smoke layer: no pipeline for the multisampled depth's shader; the engine's resolved depth then"); }
             _fbFormat = fbFormat;
         }
-        _size = size;
-        _cleared = false;
-        _rid0 = _t0Rd; _rid1 = _t1Rd;
-        _version++;
+        v.Size = size;
+        v.Cleared = false;
+        v.Version++;
     }
 }
 
@@ -871,7 +1012,7 @@ public sealed class MirrorDraw
 
     private float[] _key = [];
     private int[] _idx = [];
-    private static readonly StringName SceneLightName = "scene_light", SunViewName = "sun_view";
+    private static readonly StringName SceneLightName = "scene_light", SunViewName = "sun_view", ACapName = "a_cap";
 
     public MirrorDraw(Node parent, int capacity, System.Numerics.Vector3 tint)
     {
@@ -892,12 +1033,14 @@ public sealed class MirrorDraw
     /// <summary>The puffs this frame (the MultiMesh buffer layout, far to near), as the mirror's camera sees them.</summary>
     public void Update(float[] src, int count, float sceneLight)
     {
-        var cam = SmokeLayer.MirrorCamera;
-        if (cam is null || !GodotObject.IsInstanceValid(cam) || count == 0 || (cam.GetViewport() as SubViewport)?.RenderTargetUpdateMode == SubViewport.UpdateMode.Disabled)
+        // any mirror camera (the rear's, or a door's with the rear mirror off); kept between the mirrors' updates (Mirror Rate draws a mirror
+        // every few frames: emptied on the frames it was not drawn, it came out empty whenever this ran before the cockpit asked for a draw)
+        if (SmokeLayer.MirrorEye() is not { } eye || count == 0)
         {
             _mm.VisibleInstanceCount = 0;
             return;
         }
+        var cam = eye.Cam;
         count = Math.Min(count, _buf.Length / 16);
         // the mirror looks backward: its far-to-near order is the reverse of the main camera's more often than not, so sort by its own depth
         var ct = cam.GlobalTransform;
@@ -910,7 +1053,10 @@ public sealed class MirrorDraw
         }
         Array.Sort(key, idx, 0, count);
         for (int j = 0; j < count; j++) Array.Copy(src, idx[j] * 16, _buf, j * 16, 16);
-        SmokeLayer.Thin(_buf, count, cam);
+        // thinned where puffs pile up to the main layer's cap, each puff capped at it too: as dense as the main view draws the same smoke
+        float cap = SmokeLayer.CapNow;
+        SmokeLayer.Thin(_buf, count, cam, cap);
+        _mat.SetShaderParameter(ACapName, cap);
         _mat.SetShaderParameter(SceneLightName, sceneLight);
         _sun ??= SceneSun.Of(_node);
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;

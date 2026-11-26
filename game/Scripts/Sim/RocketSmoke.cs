@@ -36,7 +36,23 @@ public partial class RocketSmoke : Node3D
     private MultiMesh _mm = null!;
     private ShaderMaterial _mat = null!;
     private DirectionalLight3D? _sun;
-    private readonly float[] _buf = new float[Cap * 16];
+    private readonly float[] _buf = new float[Cap * 16], _mirrorBuf = new float[Cap * 16];
+
+    /// <summary>The mirrors' puffs: every live puff in their reach (the main view's set leaves out what is behind the car; SmokeLayer.MirrorPuff).</summary>
+    private int MirrorPuffs(System.Numerics.Vector3 org)
+    {
+        if (SmokeLayer.MirrorEye() is not { } eye) return 0;
+        int n = 0;
+        for (int i = 0; i < Cap; i++)
+        {
+            ref var p = ref _pool[i];
+            if (!p.Live) continue;
+            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
+            var at = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
+            if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, Mathf.Lerp(Start, p.End, e), lf, p.Dens, SmokeHaze.StartDark(0.08f), p.Seed, false, SmokeWindow.ModernTrailFar, eye)) n++;
+        }
+        return n;
+    }
     private readonly float[] _key = new float[Cap];
     private readonly int[] _idx = new int[Cap];
     private static readonly System.Numerics.Vector3 Wind = new(I76.Formats.Vegetation.Wind.Direction.X * I76.Formats.Vegetation.Wind.Breeze, 0f, I76.Formats.Vegetation.Wind.Direction.Y * I76.Formats.Vegetation.Wind.Breeze);
@@ -102,7 +118,7 @@ public partial class RocketSmoke : Node3D
             Live = true, X = g.X + (r1 - 0.5f) * 0.12f, Y = g.Y + (r2 - 0.5f) * 0.12f, Z = g.Z + (r3 - 0.5f) * 0.12f,
             // a little of the rocket's wake, then the breeze; it rises as it cools
             Vx = vel.X * 0.02f + (r4 - 0.5f) * 0.5f + Wind.X * 0.6f, Vy = 0.35f + 0.5f * r2, Vz = vel.Z * 0.02f + (r1 - 0.5f) * 0.5f + Wind.Z * 0.6f,
-            Age = age, Life = Life * (0.85f + 0.3f * r3) * linger, End = End * scale * (0.8f + 0.4f * r4), Dens = dens, Seed = r1,
+            Age = age, Life = Life * (0.85f + 0.3f * r3) * linger, End = End * scale * (0.8f + 0.4f * r4), Dens = SmokeHaze.StartDens(dens), Seed = r1,   // Smoke Linger Long: denser from the start
         };
     }
 
@@ -120,7 +136,7 @@ public partial class RocketSmoke : Node3D
             if ((p.Age += dt) >= p.Life)
             {
                 // Smoke Linger Long: the trail hangs on in the damage smoke's haze, which spreads, merges and thins it (SmokeHaze)
-                if (SmokeHaze.On) DamageSmoke.Adopt(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), new System.Numerics.Vector3(p.Vx, p.Vy, p.Vz), p.End, p.Dens, Dark, p.Seed, p.Life);
+                if (SmokeHaze.On) DamageSmoke.Adopt(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), new System.Numerics.Vector3(p.Vx, p.Vy, p.Vz), p.End, p.Dens, SmokeHaze.StartDark(Dark), p.Seed, p.Life);
                 p.Live = false; continue;
             }
             p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
@@ -154,15 +170,16 @@ public partial class RocketSmoke : Node3D
             buf[o] = size; buf[o + 1] = 0; buf[o + 2] = 0; buf[o + 3] = (float)(p.X - org.X);
             buf[o + 4] = 0; buf[o + 5] = size; buf[o + 6] = 0; buf[o + 7] = (float)(p.Y - org.Y);
             buf[o + 8] = 0; buf[o + 9] = 0; buf[o + 10] = size; buf[o + 11] = -(float)(p.Z - org.Z);
-            buf[o + 12] = lf; buf[o + 13] = p.Dens; buf[o + 14] = 0.08f; buf[o + 15] = p.Seed;
+            buf[o + 12] = lf; buf[o + 13] = p.Dens; buf[o + 14] = SmokeHaze.StartDark(0.08f); buf[o + 15] = p.Seed;
         }
         if (SmokeLayer.Active)
         {
             // the smoke layer draws them, capped (SmokeLayer.cs)
             SmokeLayer.SceneLight = SceneLight;
             SmokeLayer.Submit(this, buf, cnt, Tint);
-            _mirror ??= new MirrorDraw(this, Cap, Tint);
-            _mirror.Update(buf, cnt, SceneLight);
+            int mn = MirrorPuffs(org);
+            if (SmokeLayer.MirrorsDrawLayer) { SmokeLayer.SubmitMirror(this, _mirrorBuf, mn, Tint); _mirror?.Update(_mirrorBuf, 0, SceneLight); }
+            else { _mirror ??= new MirrorDraw(this, Cap, Tint); _mirror.Update(_mirrorBuf, mn, SceneLight); }
             _mm.VisibleInstanceCount = 0;
             return;
         }

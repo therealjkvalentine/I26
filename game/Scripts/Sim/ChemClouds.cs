@@ -217,8 +217,9 @@ public partial class ChemClouds : Node3D
             // the smoke layer draws them, capped (SmokeLayer.cs)
             SmokeLayer.SceneLight = SceneLight;
             SmokeLayer.Submit(this, _buf, _order.Count, new System.Numerics.Vector3(Tint.X, Tint.Y, Tint.Z));
-            _mirror ??= new MirrorDraw(this, CapModern, Tint);
-            _mirror.Update(_buf, _order.Count, SceneLight);
+            // the mirrors: the main view's cloud (it lies about where the round landed, in front or behind) through their own layers
+            if (SmokeLayer.MirrorsDrawLayer) { SmokeLayer.SubmitMirror(this, _buf, _order.Count, new System.Numerics.Vector3(Tint.X, Tint.Y, Tint.Z)); _mirror?.Update(_buf, 0, SceneLight); }
+            else { _mirror ??= new MirrorDraw(this, CapModern, Tint); _mirror.Update(_buf, _order.Count, SceneLight); }
             _mmNew.VisibleInstanceCount = 0;
             return;
         }

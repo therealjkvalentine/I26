@@ -76,7 +76,26 @@ public partial class DamageSmoke : Node3D
     // drawn over it, one in front under it. Each slab's custom AABB is a small box at its mean puff, so it sorts at its own depth.
     private static readonly float[] SlabFar = [6f, 12f, 20f, 34f, 60f, float.MaxValue];   // metres from the camera: each slab's far edge, the nearest first
     private MirrorDraw? _mirror;
-    private readonly float[] _layerBuf = new float[CapM * 16];
+    private readonly float[] _layerBuf = new float[CapM * 16], _mirrorBuf = new float[CapM * 16];
+
+    /// <summary>The mirrors' puffs: every live puff in their reach, drawn as the main view draws it (SmokeLayer.MirrorPuff).</summary>
+    private int MirrorPuffs(System.Numerics.Vector3 org)
+    {
+        if (SmokeLayer.MirrorEye() is not { } eye) return 0;
+        float threshold = SmokeHaze.Threshold * _pressure;
+        int n = 0;
+        for (int i = 0; i < CapM; i++)
+        {
+            ref var p = ref _mp[i];
+            if (!p.Live) continue;
+            var at = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
+            float lf, size, dens;
+            if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = SmokeHaze.Visible(p.Dens, threshold) * SmokeHaze.In(p.Age - p.Life - p.Wait, p.FadeIn); }
+            else { lf = p.Age / p.Life; float e = 1f - (1f - lf) * (1f - lf); size = Mathf.Lerp(0.8f, p.End, e); dens = p.Dens; }
+            if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, size, lf, dens, p.Dark, p.Seed, p.Haze, p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar, eye)) n++;
+        }
+        return n;
+    }
     private readonly MultiMesh[] _slabMm = new MultiMesh[SlabFar.Length];
     private readonly float[][] _slabBuf = new float[SlabFar.Length][];
     private ShaderMaterial _matM = null!;
@@ -577,6 +596,8 @@ public partial class DamageSmoke : Node3D
         };
         // [port] smoke_linger: the whole life longer, so it swells and erodes away over the longer time
         p.Life = Math.Min(p.Life, 4f) * SmokeLinger.Factor;
+        // Smoke Linger Long: denser and darker from the start (Normal unchanged)
+        p.Dens = SmokeHaze.StartDens(p.Dens); p.Dark = SmokeHaze.StartDark(p.Dark);
     }
 
     private void HideBillows() { foreach (var m in _slabMm) m.VisibleInstanceCount = 0; }
@@ -640,8 +661,10 @@ public partial class DamageSmoke : Node3D
             SmokeLayer.SceneLight = SceneLight;
             HideBillows();
             SmokeLayer.Submit(this, _layerBuf, cnt, System.Numerics.Vector3.One);
-            _mirror ??= new MirrorDraw(this, CapM, System.Numerics.Vector3.One);
-            _mirror.Update(_layerBuf, cnt, SceneLight);
+            // the mirrors: the same layer from their cameras (or, with I76_MIRROR_SMOKE=billows, the stand-in)
+            int mn = MirrorPuffs(org);
+            if (SmokeLayer.MirrorsDrawLayer) { SmokeLayer.SubmitMirror(this, _mirrorBuf, mn, System.Numerics.Vector3.One); _mirror?.Update(_mirrorBuf, 0, SceneLight); }
+            else { _mirror ??= new MirrorDraw(this, CapM, System.Numerics.Vector3.One); _mirror.Update(_mirrorBuf, mn, SceneLight); }
             return;
         }
         SmokeLayer.Thin(_layerBuf, cnt, cam);
