@@ -131,7 +131,7 @@ public sealed class ClientWorld
         setup.World.SolidCliffs = accept.SolidCliffs && (accept.Features & PeerFeatures.SolidCliffs) != 0;   // and its cliff rule, the game's for good
         // and its smarter opponents (the mirror never runs the AI: held so the mirror's session is built as the host's)
         if ((accept.Features & PeerFeatures.SmartAi) != 0 && (setup.Script?.Host ?? setup.Melee?.Host) is { } mirrorHost)
-            mirrorHost.SmartAi = (SmartAi)accept.SmartAi & SmartAi.All;
+            mirrorHost.SmartAi = (SmartAi)accept.SmartAi & SmartAi.Known;
         _cars = cars ?? new MeleeMirrorCars(setup.Melee ?? throw new ArgumentException("the mirror must be set up as a network melee"));
         // the session numbers the structures (and a mission's own cars) as the server's does; it is never ticked
         Session = new SimSession(setup, SessionOptions.Network, accept.Rate) { IgnitionStaysOn = accept.IgnitionStaysOn };   // the host's rule, for the prediction

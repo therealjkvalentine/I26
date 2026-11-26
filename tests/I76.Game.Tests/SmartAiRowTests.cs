@@ -51,7 +51,10 @@ public class SmartAiRowTests
     {
         Assert.Equal(0, ShellSettings.SmartAiRowIndex(SmartAi.None));
         Assert.Equal(1, ShellSettings.SmartAiRowIndex(SmartAi.All));
-        foreach (var (_, bit) in SmartAiNames.Bits)
+        // any_target is no behaviour: alone it is Off, with every behaviour (the rule's first form) Custom
+        Assert.Equal(0, ShellSettings.SmartAiRowIndex(SmartAi.AnyTarget));
+        Assert.Equal(2, ShellSettings.SmartAiRowIndex(SmartAi.All | SmartAi.AnyTarget));
+        foreach (var (_, bit) in SmartAiNames.Bits.Where(b => (b.Bit & SmartAi.All) != 0))
         {
             Assert.Equal(2, ShellSettings.SmartAiRowIndex(bit));
             Assert.Equal(2, ShellSettings.SmartAiRowIndex(SmartAi.All & ~bit));
@@ -83,6 +86,12 @@ public class SmartAiRowTests
         var back = RoundTrip(s);
         Assert.Equal(SmartAi.GunLay | SmartAi.Unstick, back.SmartAi);
         Assert.Equal("Custom*", ShellSettings.SmartAiRowNames[ShellSettings.SmartAiRowIndex(back.SmartAi)]);
+        // the Developer panel's any_target box with every behaviour: the rule's first form, "everything"
+        s.SetSmartAi(SmartAi.All | SmartAi.AnyTarget);
+        Assert.Equal("everything", (string)s.Write(null).GetValue("port", "smart_ai"));
+        Assert.Equal(SmartAi.All | SmartAi.AnyTarget, RoundTrip(s).SmartAi);
+        s.SetSmartAi(SmartAi.GunLay | SmartAi.AnyTarget);
+        Assert.Equal(SmartAi.GunLay | SmartAi.AnyTarget, RoundTrip(s).SmartAi);
     }
 
     /// <summary>The key as written by hand before the row: "all", names, groups and "off" read as they did.</summary>
@@ -95,6 +104,8 @@ public class SmartAiRowTests
     [InlineData("gun_lay,settle", 2)]
     [InlineData("t n g d", 1)]
     [InlineData("511", 1)]
+    [InlineData("everything", 2)]
+    [InlineData("any_target", 0)]
     public void AKeyWrittenByHandShowsOnTheRow(string word, int index)
     {
         var f = new ShellSettings().Write(null);

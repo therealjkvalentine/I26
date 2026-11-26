@@ -22,7 +22,10 @@ public sealed partial class Ptable
     /// </summary>
     internal void GunLay(Entity e, Entity? t)
     {
-        if (!Smart(e, SmartAi.GunLay) || t?.Vehicle is not { } tv || e.Vehicle is not { } v || (v.Flags & VehicleFlags.Airborne) != 0) return;
+        if (!Smart(e, SmartAi.GunLay)) return;
+        // only against a human's car (SmartVs): at anything else the settle clock stops, so a switch back starts it afresh
+        if (!FightsHuman(e, t)) { e.LayAlignedAt = -1; return; }
+        if (t?.Vehicle is not { } tv || e.Vehicle is not { } v || (v.Flags & VehicleFlags.Airborne) != 0) return;
         var w = ForwardWeapons(e).FirstOrDefault(x => x.Ammo != 0 && x.Hp > 0 && LayGun(x));
         if (w is null) { e.LayAlignedAt = -1; return; }
         float k = TierShare(e), d = Dist(e, t);

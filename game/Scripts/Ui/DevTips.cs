@@ -115,6 +115,7 @@ public static class DevTips
         "positions" => "Positions: cars waiting their turn hold a place round you, out of your gun cone.",
         "drop_chased" => "Drop when chased: a car you tail lays its mines or oil in front of you and holds its line.",
         "rear_guns" => "Rear guns: a car with a loaded rear gun keeps a chaser behind it.",
+        "any_target" => "Any target: gun lay, settle, positions, drops and rear guns also against what you protect, allies and other computer cars (the first Smart A.I.). Off, only against you.",
         _ => null,
     };
 
