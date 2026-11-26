@@ -298,6 +298,18 @@ i76_terrain_shade_on={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+i76_terrain_sky={
+"type": "sampler2D",
+"value": ""
+}
+i76_terrain_shade_edge={
+"type": "vec4",
+"value": Vector4(0.06, 0.0047, 2.5, 0)
+}
+i76_terrain_shade_band={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 i76_object_tint={
 "type": "vec3",
 "value": Vector3(1, 1, 1)

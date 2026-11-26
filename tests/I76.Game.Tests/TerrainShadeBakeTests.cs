@@ -1,50 +1,92 @@
 using System.Linq;
 using System.Numerics;
+using I76.Game.Shell;
 using I76.Game.World;
 using Xunit;
 
 namespace I76.Game.Tests;
 
-/// <summary>The modern look's baked terrain shading (TerrainShadeBake) on made-up heightfields.</summary>
+/// <summary>The modern look's baked terrain shadows (TerrainShadeBake) on made-up heightfields, and the Terrain Shadows row.</summary>
 public class TerrainShadeBakeTests
 {
-    private const float Texel = 5f;
+    private const float Texel = 2.5f;
 
-    private static TerrainShadeBake.Grid Flat(int w, int d, float h = 0) { var a = new float[w * d]; Array.Fill(a, h); return new(a, w, d, Texel); }
+    private static TerrainShadeBake.Grid Flat(int w, int d, float h = 0, float texel = Texel) { var a = new float[w * d]; Array.Fill(a, h); return new(a, w, d, texel); }
 
     /// <summary>A sun over +x (the presets' azimuth) at <paramref name="deg"/> degrees.</summary>
     private static Vector3 Sun(float deg) => new(MathF.Cos(deg * MathF.PI / 180), MathF.Sin(deg * MathF.PI / 180), 0);
 
-    /// <summary>A wall 20 m high, one texel thick, across the grid at x = 60: its shadow falls toward -x, as long as the sun's elevation makes it.</summary>
-    [Theory]
-    [InlineData(15f)]   // presets 2 and 7 (dawn, dusk): 75 degrees from the zenith
-    [InlineData(35f)]   // preset 3
-    [InlineData(45f)]   // preset 5
-    public void AWallCastsAShadowAsLongAsTheSunsElevationMakesIt(float deg)
+    /// <summary>The margin as the shader reads it back from its byte, then its share (a pixel no wider than the sun's disc).</summary>
+    private static float[] Shares(float[] margin) => TerrainShadeBake.PackMargin(margin).Select(b => TerrainShadeBake.Lit(TerrainShadeBake.UnpackMargin(b))).ToArray();
+
+    /// <summary>The horizon crossing between texels along a row, from the linearly interpolated margin (where the shader's edge lies), in texels.</summary>
+    private static float Crossing(float[] m, int row, int from, int to)
     {
-        var g = Flat(100, 8);
-        const int wall = 60;
+        for (int x = from; x > to; x--)
+            if (m[row + x - 1] >= 0 && m[row + x] < 0) return x - 1 + m[row + x - 1] / (m[row + x - 1] - m[row + x]);
+        return float.NaN;
+    }
+
+    /// <summary>
+    /// A wall 20 m high, one texel thick, across the grid: its shadow falls toward -x as long as the sun's elevation makes it, and the
+    /// edge, interpolated from the margins, lies within a tenth of a texel of it (a line, not a texel's step).
+    /// </summary>
+    [Theory]
+    [InlineData(15f, 2.5f)]   // presets 2 and 7 (dawn, dusk)
+    [InlineData(35f, 2.5f)]   // preset 3
+    [InlineData(45f, 1.25f)]  // preset 5
+    [InlineData(20f, 5f)]
+    public void AWallCastsAShadowAsLongAsTheSunsElevationMakesItToATenthOfATexel(float deg, float texel)
+    {
+        var g = Flat(200, 8, texel: texel);
+        const int wall = 170;
         const float height = 20f;
         for (int z = 0; z < g.D; z++) g.H[z * g.W + wall] = height;
-        var sun = TerrainShadeBake.Sun(g, Sun(deg));
-        float length = (height - TerrainShadeBake.SunBias) / MathF.Tan(deg * MathF.PI / 180);
+        var m = TerrainShadeBake.Margin(g, Sun(deg));
+        float length = (height - TerrainShadeBake.SunBias * texel) / MathF.Tan(deg * MathF.PI / 180);
         int row = 4 * g.W;
-        // the half-lit point, between texels
-        float cross = float.NaN;
-        for (int x = wall - 1; x > 0; x--)
-            if (sun[row + x - 1] >= 0.5f && sun[row + x] < 0.5f)
-            {
-                float a = sun[row + x - 1], b = sun[row + x];
-                cross = (x - 1 + (0.5f - a) / (b - a));
-                break;
-            }
+        float cross = Crossing(m, row, wall - 1, 0);
         Assert.False(float.IsNaN(cross), "no edge");
-        Assert.InRange((wall - cross) * Texel, length - Texel, length + Texel);
-        // dark well inside it (past the blur's texel at the wall's foot), lit well past it and on the sun's side
-        Assert.True(sun[row + wall - 2] < 0.02f);
-        Assert.True(sun[row + wall - Math.Max(2, (int)(0.7f * length / Texel))] < 0.02f);
-        Assert.True(sun[row + Math.Max(0, wall - (int)(1.3f * length / Texel) - 3)] > 0.98f);
-        for (int x = wall + 1; x < g.W; x++) Assert.Equal(1f, sun[row + x]);
+        Assert.InRange((wall - cross) * texel, length - 0.1f * texel, length + 0.1f * texel);
+        var lit = Shares(m);
+        Assert.True(lit[row + wall - 2] < 0.01f);
+        Assert.True(lit[row + Math.Max(0, wall - (int)(1.3f * length / texel) - 3)] > 0.99f);
+        for (int x = wall + 1; x < g.W; x++) Assert.Equal(1f, lit[row + x]);
+    }
+
+    /// <summary>The penumbra is the sun's disc seen from the ground: the distance to the ridge times the disc's angle, so it grows with that distance.</summary>
+    [Fact]
+    public void ThePenumbraGrowsWithTheDistanceToTheRidge()
+    {
+        float Width(float height)
+        {
+            var g = Flat(4000, 3, texel: 0.5f);
+            const int wall = 3990;
+            for (int z = 0; z < g.D; z++) g.H[z * g.W + wall] = height;
+            var m = TerrainShadeBake.Margin(g, Sun(15));
+            // metres between the shares 0.9 and 0.1 along the middle row, the margin interpolated as the shader's filter does
+            float At(float share)
+            {
+                for (int x = wall - 1; x > 0; x--)
+                {
+                    float a = m[g.W + x - 1], b = m[g.W + x];
+                    for (int k = 0; k < 16; k++)
+                    {
+                        float t0 = k / 16f, t1 = (k + 1) / 16f;
+                        float la = TerrainShadeBake.Lit(a + (b - a) * t0), lb = TerrainShadeBake.Lit(a + (b - a) * t1);
+                        if (la >= share && lb < share) return (x - 1 + t0 + (la - share) / (la - lb) / 16) * g.Texel;
+                    }
+                }
+                return float.NaN;
+            }
+            return MathF.Abs(At(0.1f) - At(0.9f));
+        }
+        float near = Width(10), far = Width(100);
+        Assert.InRange(far / near, 8f, 12f);
+        // the disc's angle at the ridge's distance along the ray, laid on the level ground at the sun's elevation (100 m high at 15 degrees:
+        // 386 m along the ray; 0.1 to 0.9 of a smoothstep is 0.58 of its width): 8.1 m
+        float expect = 0.58f * 386 * 2 * TerrainShadeBake.SunRadius / MathF.Sin(15 * MathF.PI / 180);
+        Assert.InRange(far, 0.9f * expect, 1.1f * expect);
     }
 
     [Fact]
@@ -52,7 +94,7 @@ public class TerrainShadeBakeTests
     {
         var g = Flat(40, 30, 123.4f);
         foreach (float deg in new[] { 15f, 20f, 35f, 80f })
-            Assert.All(TerrainShadeBake.Sun(g, Sun(deg)), v => Assert.Equal(1f, v));
+            Assert.All(Shares(TerrainShadeBake.Margin(g, Sun(deg))), v => Assert.Equal(1f, v));
         Assert.All(TerrainShadeBake.Sky(g), v => Assert.Equal(1f, v, 5));
     }
 
@@ -61,15 +103,23 @@ public class TerrainShadeBakeTests
     {
         var g = Flat(10, 10);
         g.H[55] = 50;
-        Assert.All(TerrainShadeBake.Sun(g, new Vector3(1, -0.1f, 0)), v => Assert.Equal(0f, v));
-        Assert.All(TerrainShadeBake.Sun(g, new Vector3(0, 1, 0)), v => Assert.Equal(1f, v));
+        Assert.All(Shares(TerrainShadeBake.Margin(g, new Vector3(1, -0.1f, 0))), v => Assert.Equal(0f, v));
+        Assert.All(Shares(TerrainShadeBake.Margin(g, new Vector3(0, 1, 0))), v => Assert.Equal(1f, v));
+    }
+
+    [Fact]
+    public void TheMarginSurvivesItsByteToATenthOfTheSunsRadius()
+    {
+        for (float m = -TerrainShadeBake.MarginRange; m <= TerrainShadeBake.MarginRange; m += 0.0013f)
+            Assert.InRange(TerrainShadeBake.UnpackMargin(TerrainShadeBake.PackMargin([m])[0]) - m, -0.1f * TerrainShadeBake.SunRadius, 0.1f * TerrainShadeBake.SunRadius);
+        Assert.Equal(0, TerrainShadeBake.PackMargin([-1f])[0]);
+        Assert.Equal(255, TerrainShadeBake.PackMargin([1f])[0]);
     }
 
     [Fact]
     public void APitIsLessOpenToTheSkyThanThePlain()
     {
-        var g = Flat(60, 60, 100);
-        // a pit 40 m across and 20 m deep in the middle
+        var g = Flat(60, 60, 100, 5f);
         for (int z = 26; z < 34; z++)
             for (int x = 26; x < 34; x++)
                 g.H[z * g.W + x] = 80;
@@ -77,8 +127,17 @@ public class TerrainShadeBakeTests
         float pit = sky[30 * g.W + 30], plain = sky[5 * g.W + 5];
         Assert.Equal(1f, plain, 5);
         Assert.True(pit < 0.8f, $"pit {pit}");
-        // the walls' foot less open than the middle of the floor
         Assert.True(sky[30 * g.W + 26] < pit, $"foot {sky[30 * g.W + 26]}, middle {pit}");
+    }
+
+    [Fact]
+    public void CoarseningAveragesBlocks()
+    {
+        var g = Flat(8, 4);
+        for (int i = 0; i < g.H.Length; i++) g.H[i] = i % 8;
+        var c = TerrainShadeBake.Coarsen(g, 4);
+        Assert.Equal((2, 1, 10f), (c.W, c.D, c.Texel));
+        Assert.Equal([1.5f, 5.5f], c.H);
     }
 
     /// <summary>The hull's horizons are the brute-force maximum over every texel ahead, in each of the eight directions.</summary>
@@ -115,12 +174,11 @@ public class TerrainShadeBakeTests
         var rnd = new Random(1997);
         var g = Flat(300, 200);
         for (int i = 0; i < g.H.Length; i++) g.H[i] = (float)(rnd.NextDouble() * 15 + 40 * Math.Sin(i % 300 * 0.05) * Math.Cos(i / 300 * 0.07));
-        byte[] Bake() => TerrainShadeBake.Pack(TerrainShadeBake.Sun(g, Sun(20)), TerrainShadeBake.SkyCoarse(g, 2));
+        byte[] Bake() => TerrainShadeBake.PackMargin(TerrainShadeBake.Margin(g, Sun(20))).Concat(TerrainShadeBake.Pack(TerrainShadeBake.Sky(TerrainShadeBake.Coarsen(g, 4)))).ToArray();
         var a = Bake();
         for (int run = 0; run < 3; run++) Assert.Equal(a, Bake());
-        // an azimuth off the grid's lines (the march) too
         var off = new Vector3(0.8f, 0.4f, 0.45f);
-        Assert.Equal(TerrainShadeBake.Sun(g, off), TerrainShadeBake.Sun(g, off));
+        Assert.Equal(TerrainShadeBake.Margin(g, off), TerrainShadeBake.Margin(g, off));
     }
 
     /// <summary>The march an azimuth off the grid's lines takes agrees with the sweep's horizons for one on them (a sun turned a hair off +x).</summary>
@@ -129,13 +187,46 @@ public class TerrainShadeBakeTests
     {
         var g = Flat(80, 6);
         for (int z = 0; z < g.D; z++) { g.H[z * g.W + 50] = 30; g.H[z * g.W + 51] = 30; }
-        var swept = TerrainShadeBake.Sun(g, Sun(20));
-        var marched = TerrainShadeBake.Sun(g, new Vector3(Sun(20).X, Sun(20).Y, 0.01f));
+        var swept = Shares(TerrainShadeBake.Margin(g, Sun(20)));
+        var marched = Shares(TerrainShadeBake.Margin(g, new Vector3(Sun(20).X, Sun(20).Y, 0.01f)));
         for (int x = 0; x < g.W; x++) Assert.InRange(marched[3 * g.W + x] - swept[3 * g.W + x], -0.1f, 0.1f);
+    }
+
+    /// <summary>The texture's place: at 2.5 m two texels a sample, their centres a quarter sample either side of it, the corner half a sample before the first.</summary>
+    [Fact]
+    public void ThePlacementCentresTexelsAboutTheSamples()
+    {
+        var p = new TerrainShadeBake.Placement(-2.5f, -2.5f, 640, 640, 256, 256, 0.5, 0, 0);
+        Assert.Equal(2.5f, p.Texel);
+        Assert.Equal((-0.25, -0.25), p.Centre(0, 0));
+        Assert.Equal((0.25, 0.25), p.Centre(1, 1));
+    }
+
+    /// <summary>Terrain Shadows: off in a fresh block and in a file without the key, written only when on, an unknown word off.</summary>
+    [Fact]
+    public void TheRowIsOffUnlessChosenAndSurvivesTheFile()
+    {
+        var s = new ShellSettings();
+        Assert.Equal(TerrainShadowsRow.Off, s.TerrainShadows);
+        Assert.False(s.Write(null).HasSectionKey("port", "terrain_shadows"));
+        Assert.Equal(TerrainShadowsRow.Off, ShellSettings.Read(ShellFileCompatTests.Parse(ShellFileCompatTests.ForkMainFile)).TerrainShadows);
+        foreach (var (v, word) in new[] { (TerrainShadowsRow.On, "on"), (TerrainShadowsRow.Fine, "fine") })
+        {
+            var file = new ShellSettings { TerrainShadows = v }.Write(null);
+            Assert.Equal(word, file.GetValue("port", "terrain_shadows").ToString());
+            Assert.Equal(v, ShellSettings.Read(file).TerrainShadows);
+        }
+        Assert.Equal(TerrainShadowsRow.Off, TerrainShadowsRow.FromFile("lots"));
+        Assert.Equal(TerrainShadowsRow.Fine, TerrainShadowsRow.FromFile(" Fine "));
+        Assert.Equal(["Off", "On" + ShellSettings.PortMark, "Fine" + ShellSettings.PortMark], TerrainShadowsRow.Names);
+        TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.On, s.TerrainShadows);
+        TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.Fine, s.TerrainShadows);
+        TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.Off, s.TerrainShadows);
+        Assert.Equal((0f, 2.5f, 1.25f), (TerrainShadowsRow.Texel(0), TerrainShadowsRow.Texel(1), TerrainShadowsRow.Texel(2)));
     }
 }
 
-/// <summary>The bake on every stock map: its size, and its time on the build's worker against the load's budget (TerrainShade).</summary>
+/// <summary>The bake on every stock map from the drawn surface: its size and time at 2.5 and 1.25 m (TerrainShade runs it on a worker).</summary>
 public class TerrainShadeBakeMapTests(Xunit.Abstractions.ITestOutputHelper log)
 {
     [I76.Formats.Tests.InstallFact]
@@ -149,19 +240,22 @@ public class TerrainShadeBakeMapTests(Xunit.Abstractions.ITestOutputHelper log)
             var world = new I76.Formats.Assembly.MissionWorld(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), f);
             var settings = I76.Formats.Mission.WorldSettings.Read(world.Mission);
             var light = I76.Formats.Mission.Lighting.ForHour(settings?.Hour ?? 12);
-            var p = TerrainShadeBake.PlacementFor(world.Terrain);
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var g = TerrainShadeBake.HeightsFor(world, p);
-            long th = sw.ElapsedMilliseconds;
-            var sun = TerrainShadeBake.Sun(g, light.Direction);
-            long ts = sw.ElapsedMilliseconds;
-            var sky = TerrainShadeBake.SkyCoarse(g, 2);
-            long tk = sw.ElapsedMilliseconds;
-            TerrainShadeBake.Pack(sun, sky);
-            long t = sw.ElapsedMilliseconds;
-            worst = Math.Max(worst, t);
-            log.WriteLine($"{Path.GetFileNameWithoutExtension(f),-8} {(light.IsDay ? "day  " : "night")} {p.W,5} x {p.D,-5} step {p.Step}  heights {th,4} ms  sun {ts - th,4} ms  sky {tk - ts,4} ms  total {t,4} ms  mean sun {sun.Average():0.000} sky {sky.Average():0.000}");
+            // the drawn surface as TerrainNode.SurfaceFor makes it (without its cache, an engine path)
+            var surf = new I76.Formats.Assembly.TerrainSurface(world.Terrain, I76.Formats.Assembly.TerrainSurface.Seeds(world).ToList(), world.Outside, world.Footprints(), I76.Formats.Assembly.TerrainSurface.Links(world));
+            foreach (float texel in new[] { 2.5f, 1.25f })
+            {
+                var p = TerrainShadeBake.PlacementFor(world.Terrain, texel);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var g = TerrainShadeBake.HeightsFor(surf, p);
+                long th = sw.ElapsedMilliseconds;
+                var m = TerrainShadeBake.Margin(g, light.Direction);
+                long ts = sw.ElapsedMilliseconds;
+                var sky = TerrainShadeBake.Sky(TerrainShadeBake.Coarsen(g, Math.Max(1, (int)MathF.Round(TerrainShadeBake.SkyTexel / p.Texel))));
+                long t = sw.ElapsedMilliseconds;
+                if (texel == 2.5f) worst = Math.Max(worst, t);
+                log.WriteLine($"{Path.GetFileNameWithoutExtension(f),-8} {(light.IsDay ? "day  " : "night")} {p.W,5} x {p.D,-5} {p.Texel,4} m  heights {th,5} ms  sun {ts - th,4} ms  sky {t - ts,4} ms  total {t,5} ms  {p.W * (long)p.D * 4 / 3 / 1024 / 1024} MiB");
+            }
         }
-        Assert.True(worst < 300, $"worst {worst} ms");
+        Assert.True(worst < 2000, $"worst {worst} ms");
     }
 }

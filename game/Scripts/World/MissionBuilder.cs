@@ -1004,9 +1004,10 @@ public sealed class MissionBuilder(AssetVfs vfs)
         }
         // the plants' sward texture on the ground's global before the chunks' materials are made (VegetationNode.UpdateSward fills it)
         if (VegetationSetting is { } vegSetting) VegetationNode.ReserveSward(world, Settings?.Ground, vegSetting);
-        // the modern look's baked terrain shading (TerrainShade): its texture reserved before the materials, baked on a worker meanwhile
-        // (none in the map editor, whose ground changes under it)
-        TerrainShade.Start(world, Light, bake: !I76.Game.Editor.EditorSession.Active);
+        // the modern look's baked terrain shadows (TerrainShade): their textures' stand-ins on the globals before the materials are made, baked on a
+        // worker from the drawn surface when Terrain Shadows is on (none in the map editor, whose ground changes under it)
+        var shadeTerrain = Terrain;
+        TerrainShade.Start(world, Light, () => early is { } e ? e.Result.Surface : shadeTerrain?.Surface ?? TerrainNode.SurfaceFor(world), bake: !I76.Game.Editor.EditorSession.Active);
         Stage("terrain build");
         Terrain.Build(world);
         if (I76.Game.Editor.SwitchTimer.On) GD.Print($"switch: terrain content {world.Terrain.ContentHash():x16}");
