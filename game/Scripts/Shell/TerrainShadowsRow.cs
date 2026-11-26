@@ -1,7 +1,7 @@
 namespace I76.Game.Shell;
 
 /// <summary>
-/// Terrain Shadows ([port] terrain_shadows, Graphic Detail > Advanced, the modern look's): the hills' own shadows on the land baked from
+/// Terrain Shadows ([port] terrain_shadows, Graphic Detail > World, the modern look's): the hills' own shadows on the land baked from
 /// the drawn ground and the mission's sun as it loads (World/TerrainShade), at every distance and every Shadow Detail, crisp where the
 /// ground meets its shadow and softening with the distance to the ridge that casts it. On is the default; Off leaves the land's own shadows to the
 /// shadow map (to 600 m at Shadow Detail Low, 1500 m at High). On (the default) bakes at 2.5 m, Fine at 1.25 m. By day only; the 1997 look is unchanged.

@@ -88,7 +88,7 @@ folder there yourself). `--only "pp11*,cb_1bd*"` does a few textures first, to s
 
 ### Check that it worked
 
-Start the game in the modern look (the default; F12 switches looks). **Options > Graphic Detail > Advanced** now has
+Start the game in the modern look (the default; F12 switches looks). **Options > Graphic Detail** (its World and Car & Cockpit pages) now has
 **World Textures** and **Car & Dash Textures** rows reading **4x**: they only appear when a pack is found. With the
 game started with `-- --log`, its log (`logs/godot.log` in the user folder) has lines like
 `HD textures: .../I26/tex-world-4x/ (N files); world tex-world-4x, cars and dash tex-world-4x` at the start and
@@ -315,7 +315,7 @@ the pop-ups' printed words are the model's as in the base pack. Widescreen pages
 An optional pack for windows wider than 4:3: the **sides** of the menu pack's pages, so a page fills a 16:9 window (and, with
 its ultrawide layer, a 21:9 one) instead of sitting between black bars. It holds no page: the game puts the 4:3 pack's own page
 in the middle, untouched, and the strips beside it when it loads the page, so the hotspots, the words and everything the game
-draws on a page stay exactly where they were (the sides are decoration only). Graphic Detail > Advanced has a **Menu Width** row
+draws on a page stay exactly where they were (the sides are decoration only). Graphic Detail > Display has a **Menu Width** row
 (Wide\*, the default, or 4:3) when the pack is installed; the 1997 look never uses it.
 
 **Its layout.** `tex-menu-wide/wide.json` lists the layers (`16x9`: 3414x1920, 427 texels added on each side of the 2560x1920

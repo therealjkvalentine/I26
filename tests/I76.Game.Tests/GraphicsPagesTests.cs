@@ -5,7 +5,8 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order, the port's most used under
-/// them, and every other port row on Advanced, each page fitting the sheet's lines with one to spare; Reset puts back a page's own
+/// them, and every other port row on Advanced or Effects, each page fitting the sheet's lines without scrolling (GraphicsLayout, on
+/// the shell's sheet and the in-game pad); Reset puts back a page's own
 /// rows and no other's (the sheet's the original's whole block), and the snapshot Cancel restores from carries every row. Visibility
 /// Range, World Textures and Car &amp; Dash Textures, the rows over keys of their own. Without the engine.
 /// </summary>
@@ -80,41 +81,159 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), Rear Mirror as Mirrors, then the port's most used.</summary>
+    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), Rear Mirror as Mirrors: the sheet is the original's.</summary>
     [Fact]
-    public void TheSheetKeepsTheOriginalsRowsInTheirOrder() => Assert.Equal(
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
-         GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
+    public void TheSheetIsTheOriginalsRowsInTheirOrder() => Assert.Equal(
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
         GraphicsPages.Rows[GraphicsPages.Sheet]);
 
-    /// <summary>One page under the sheet, Advanced (Look and Display until round 5): 1997 Mode first, its palette grade after it.</summary>
+    /// <summary>
+    /// Four pages under the sheet, by what a row changes (one Advanced page of twenty rows until it outgrew the sheet; four pages
+    /// before round 5, then Look, Display and Camera): Display (1997 Mode first), World, Car &amp; Cockpit, Effects.
+    /// </summary>
     [Fact]
-    public void ThePageIsAdvanced()
+    public void ThePagesAreDisplayWorldCarAndEffects()
     {
-        Assert.Equal(["Graphic Detail", "Advanced"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.Vegetation,
-            GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D,
-            GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
-            GraphicsPages.Rows[GraphicsPages.Advanced]);
+        Assert.Equal(["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"], GraphicsPages.Names);
+        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+            GraphicsPages.Rows[GraphicsPages.Display]);
+        Assert.Equal([GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+            GraphicsPages.Rows[GraphicsPages.World]);
+        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.Garage3D],
+            GraphicsPages.Rows[GraphicsPages.CarCockpit]);
+        Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
+            GraphicsPages.Rows[GraphicsPages.Effects]);
+        Assert.Equal(GraphicsPages.Display, GraphicsPages.FirstPage);
+        Assert.Equal(GraphicsPages.Display, GraphicsPages.PageNamed("advanced"));
+        Assert.Equal(GraphicsPages.CarCockpit, GraphicsPages.PageNamed("Car"));
+        Assert.Equal(GraphicsPages.Effects, GraphicsPages.PageNamed("effects"));
+        Assert.Equal(-1, GraphicsPages.PageNamed("look"));
+    }
+
+    /// <summary>The sheet's seven rows, a blank line, the four entries, a blank line, the frame rate; the pad (no Screen Resolution) the same a row lower, the frame rate on row 14.</summary>
+    [Fact]
+    public void TheSheetsEntriesSitUnderABlankLine()
+    {
+        Assert.Equal(GraphicsPages.OriginalRows, GraphicsPages.Rows[GraphicsPages.Sheet].Length);
+        Assert.Equal(GraphicsPages.OriginalRows + 1, GraphicsPages.FirstEntryLine);
+        var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 7, fps: true);
+        Assert.Equal([8, 9, 10, 11], shell.Entries);
+        Assert.Equal(13, shell.Fps);
+        var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 6, fps: true);
+        Assert.Equal((6, false), (pad.Shown, pad.Scrolls));
+        Assert.Equal([8, 9, 10, 11], pad.Entries);
+        Assert.Equal(14, pad.Fps);
+    }
+
+    // ---- the layout: every page at every row count it can have, on both menus ----
+
+    /// <summary>Every row count a page can show: all its rows, and down to all but the rows shown only with a pack (and the rows the pad leaves out).</summary>
+    public static IEnumerable<object[]> PageCounts()
+    {
+        for (int p = 0; p < GraphicsPages.Names.Length; p++)
+        {
+            int all = GraphicsPages.Rows[p].Length, fewest = all - GraphicsPages.Rows[p].Count(r => GraphicsPages.PackRows.Contains(r)) - 3;
+            for (int n = Math.Max(1, fewest); n <= all; n++)
+                foreach (bool fps in new[] { false, true }) yield return [p, n, fps];
+        }
     }
 
     /// <summary>
-    /// Each page fits the sheet's fourteen lines with at least one to spare (the frame-rate estimate's): the sheet with Advanced's entry
-    /// under its eleven rows and a blank line, Advanced with its name. Advanced has twenty rows, three of them shown only with a pack
-    /// (the texture rows, Menu Width): it scrolls the rows past its thirteen lines (both menus' scrolling lists), seven with all three.
+    /// The shell's sheet: every row on its own ruled line inside the row area (from the sheet's first line to the line over the
+    /// buttons), each line once, none on the heading, an entry's or the frame rate's line; the entries and the frame-rate line inside
+    /// the area too; every row on screen without scrolling (each page fits).
     /// </summary>
-    [Fact]
-    public void EveryPageFitsTheSheetsLinesWithOneToSpare()
+    [Theory]
+    [MemberData(nameof(PageCounts))]
+    public void TheShellsRowsSitOnTheirOwnLinesInsideTheSheet(int page, int rows, bool fps)
     {
-        Assert.Equal(11, GraphicsPages.Rows[GraphicsPages.Sheet].Length);
-        Assert.Equal(GraphicsPages.Rows[GraphicsPages.Sheet].Length + 1, GraphicsPages.FirstEntryLine);
-        int sheetLast = GraphicsPages.FirstEntryLine + (GraphicsPages.Rows.Length - 1) - 1;
-        Assert.True(sheetLast < GraphicsPages.Lines - 1, "the sheet has no line to spare");
-        // Advanced fills the sheet's lines with the texture rows shown (Mirror Rate's line): the shell's page leaves out the frame-rate
-        // line when its rows reach it, and shows it without a pack
-        Assert.Equal(Enumerable.Range(1, 20), GraphicsPages.LinesOf(GraphicsPages.Advanced));
-        foreach (var pack in GraphicsPages.PackRows) Assert.Contains(pack, GraphicsPages.Rows[GraphicsPages.Advanced]);
-        Assert.Equal(7, GraphicsPages.Rows[GraphicsPages.Advanced].Length - (GraphicsPages.Lines - GraphicsPages.FirstRowLine));
+        var place = GraphicsLayout.Shell(page, rows, fps);
+        Assert.False(place.Scrolls, $"{GraphicsPages.Names[page]} with {rows} rows scrolls");
+        var used = new List<int>();
+        if (page != GraphicsPages.Sheet) used.Add(GraphicsPages.HeadingLine);
+        for (int k = 0; k < rows; k++) used.Add(place.LineOf(k));
+        used.AddRange(place.Entries);
+        if (place.Fps >= 0) used.Add(place.Fps);
+        Assert.Equal(used.Count, used.Distinct().Count());
+        foreach (int line in used)
+        {
+            Assert.InRange(line, 0, GraphicsPages.Lines - 1);
+            // a line's rectangle (its tooltip zone, 2 px over the text, the pitch high) ends above the buttons' foot line
+            int top = GraphicsLayout.LineY(line) - 2, bottom = top + GraphicsLayout.LineH;
+            Assert.True(top >= GraphicsLayout.ListY - 2 && bottom <= GraphicsLayout.ButtonY, $"line {line} ({top}..{bottom}) leaves the row area");
+        }
+        // the rows at the original's pitch, from the first line, in order
+        for (int k = 1; k < rows; k++) Assert.Equal(GraphicsLayout.LineH, GraphicsLayout.LineY(place.LineOf(k)) - GraphicsLayout.LineY(place.LineOf(k - 1)));
+        // the entries under the rows, the frame rate last, with the blank line over it on a page
+        if (place.Entries.Length > 0) Assert.True(place.Entries[0] > place.LineOf(rows - 1));
+        if (place.Fps >= 0) Assert.Equal(GraphicsPages.Lines - 1, place.Fps);
+        if (place.Fps >= 0 && page != GraphicsPages.Sheet) Assert.True(place.LineOf(rows - 1) < place.Fps - 1, "no blank line over the frame rate");
+        Assert.Equal(fps, place.Fps >= 0);
+    }
+
+    /// <summary>
+    /// The in-game pad: every row on its own pad row 1 to 14, never on a button's pair (15 to 17: the bug where Advanced's rows past
+    /// the fourteenth sat over Reset, Done and Cancel), the entries and the frame-rate line on rows of their own; every row on the pad.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PageCounts))]
+    public void ThePadsRowsSitOnTheirOwnRows(int page, int rows, bool fps)
+    {
+        // the pad's sheet has no Screen Resolution (the window is the shell's): one row fewer
+        if (page == GraphicsPages.Sheet && rows > GraphicsPages.Rows[GraphicsPages.Sheet].Length - 1) return;
+        var place = GraphicsLayout.Pad(page, rows, fps);
+        Assert.False(place.Scrolls, $"{GraphicsPages.Names[page]} with {rows} rows scrolls on the pad");
+        var used = new List<int>();
+        for (int k = 0; k < rows; k++) used.Add(place.LineOf(k));
+        used.AddRange(place.Entries);
+        if (place.Fps >= 0) used.Add(place.Fps);
+        Assert.Equal(used.Count, used.Distinct().Count());
+        foreach (int r in used)
+        {
+            Assert.InRange(r, 1, GraphicsLayout.PadRows);
+            Assert.DoesNotContain(r, GraphicsLayout.PadButtons);
+        }
+        Assert.Equal(fps, place.Fps >= 0);
+    }
+
+    /// <summary>
+    /// More rows than lines (none today) scroll as one list over the lines, every row reachable: the list shows its lines' worth and
+    /// scrolls through the rest, never onto the entries, the frame rate or the buttons.
+    /// </summary>
+    [Theory]
+    [InlineData(GraphicsPages.Display, 20, true)]
+    [InlineData(GraphicsPages.World, 30, false)]
+    [InlineData(GraphicsPages.Sheet, 14, true)]
+    public void RowsPastTheLinesScrollAndAllAreReachable(int page, int rows, bool fps)
+    {
+        foreach (var place in new[] { GraphicsLayout.Shell(page, rows, fps), GraphicsLayout.Pad(page, rows, fps) })
+        {
+            Assert.True(place.Scrolls);
+            var list = new ScrollRows<object> { Top = place.First, Shown = place.Shown, LineH = 1 };
+            var items = Enumerable.Range(0, rows).Select(_ => new object()).ToArray();
+            for (int k = 0; k < rows; k++) list.Add(items[k], k);
+            var seen = new HashSet<object>();
+            do foreach (var (it, y, shows) in list.Layout())
+                {
+                    if (!shows) continue;
+                    seen.Add(it);
+                    Assert.InRange(y, place.First, place.First + place.Shown - 1);
+                    Assert.DoesNotContain(y, place.Entries);
+                    Assert.NotEqual(place.Fps, y);
+                }
+            while (list.ScrollBy(1));
+            Assert.Equal(rows, seen.Count);
+        }
+    }
+
+    /// <summary>The shell's page room with the frame-rate line (eleven rows) against each page's rows, all packs shown: three lines or more to spare on every page.</summary>
+    [Fact]
+    public void EachPageHasRoomToSpare()
+    {
+        int room = GraphicsLayout.Shell(GraphicsPages.Display, 99, fps: true).Shown;
+        Assert.Equal(11, room);
+        for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
+            Assert.True(room - GraphicsPages.Rows[p].Length >= 3, $"{GraphicsPages.Names[p]} has {GraphicsPages.Rows[p].Length} rows");
     }
 
     [Fact]
@@ -143,7 +262,10 @@ public class GraphicsPagesTests
 
     [Theory]
     [InlineData(GraphicsPages.Sheet)]
-    [InlineData(GraphicsPages.Advanced)]
+    [InlineData(GraphicsPages.Display)]
+    [InlineData(GraphicsPages.World)]
+    [InlineData(GraphicsPages.CarCockpit)]
+    [InlineData(GraphicsPages.Effects)]
     public void ResetPutsBackThePagesRowsAlone(int page)
     {
         var s = Changed();
@@ -154,12 +276,14 @@ public class GraphicsPagesTests
             Assert.Equal(Read(r, GraphicsPages.PageOf(r) == page ? defaults : was), Read(r, s));
     }
 
-    /// <summary>The sheet's Reset is the original's (the graphics block back to the default profile, the bytes no row shows too, Anti-Aliasing's with them) with its port rows: Screen Resolution back to Desktop and Visibility Range back to following the look.</summary>
+    /// <summary>The sheet's Reset is the original's (the graphics block back to the default profile, the bytes no row shows too, but Anti-Aliasing's, Display's row) with its port rows: Screen Resolution back to Desktop and Visibility Range back to following the look.</summary>
     [Fact]
     public void TheSheetsResetIsTheDefaultProfile()
     {
         var s = Changed();
         GraphicsPages.Reset(s, GraphicsPages.Sheet);
+        for (int i = 0; i < 16; i++) Assert.Equal(i == 0x8 ? Changed().Graphics[i] : ShellSettings.DefaultGraphics[i], s.Graphics[i]);
+        GraphicsPages.Reset(s, GraphicsPages.Display);
         Assert.Equal(ShellSettings.DefaultGraphics, s.Graphics);
         Assert.Equal("", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
@@ -175,7 +299,7 @@ public class GraphicsPagesTests
         Assert.Equal("1280x720", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
         Assert.Equal(ShellSettings.DefaultGraphics[0xc], s.Graphics[0xc]);
-        Assert.Equal(ShellSettings.DefaultGraphics[0x8], s.Graphics[0x8]);
+        Assert.Equal(Changed().Graphics[0x8], s.Graphics[0x8]);   // Display's
     }
 
     [Fact]
@@ -209,10 +333,10 @@ public class GraphicsPagesTests
     public void APagesCopyLeavesTheOthersAlone()
     {
         var to = new ShellSettings();
-        GraphicsPages.Copy(GraphicsPages.Advanced, Changed(), to);
+        GraphicsPages.Copy(GraphicsPages.Effects, Changed(), to);
         var defaults = new ShellSettings();
         foreach (var r in AllRows)
-            Assert.Equal(Read(r, GraphicsPages.PageOf(r) == GraphicsPages.Advanced ? Changed() : defaults), Read(r, to));
+            Assert.Equal(Read(r, GraphicsPages.PageOf(r) == GraphicsPages.Effects ? Changed() : defaults), Read(r, to));
     }
 
     // ---- Visibility Range ----
@@ -251,16 +375,16 @@ public class GraphicsPagesTests
 
     // ---- Ambient Occlusion ----
 
-    /// <summary>Its own row on Advanced, Off for a first start; Advanced's Reset puts it back and the snapshot (Cancel) carries it.</summary>
+    /// <summary>Its own row on World, Off for a first start; World's Reset puts it back and the snapshot (Cancel) carries it.</summary>
     [Fact]
     public void AmbientOcclusionIsALookRowOffByDefault()
     {
-        Assert.Equal(GraphicsPages.Advanced, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
+        Assert.Equal(GraphicsPages.World, GraphicsPages.PageOf(GraphicsRow.AmbientOcclusion));
         Assert.False(new ShellSettings().AmbientOcclusion);
         var s = new ShellSettings { AmbientOcclusion = true };
         var snap = GraphicsPages.CopyAll(s, new ShellSettings());
         Assert.True(snap.AmbientOcclusion);
-        GraphicsPages.Reset(s, GraphicsPages.Advanced);
+        GraphicsPages.Reset(s, GraphicsPages.World);
         Assert.False(s.AmbientOcclusion);
         GraphicsPages.CopyAll(snap, s);
         Assert.True(s.AmbientOcclusion);
