@@ -506,7 +506,7 @@ public sealed partial class MissionSetup
         MeleeGame? game = null;
         if (melee is not null)
         {
-            var host = new ScriptHost(world, entities, new Objectives(text ?? new ObjectiveText([], [])), Length) { Tactics = I76.Formats.Exe.TacticsTable.For(vfs.Install) };
+            var host = new ScriptHost(world, entities, new Objectives(text ?? new ObjectiveText([], [])), Length) { Tactics = I76.Formats.Exe.TacticsTable.For(vfs.Install), MeleeSession = true };
             game = new MeleeGame
             {
                 World = world, Host = host, Rand = rand, Roster = melee, PlayerCar = def, Rules = meleeRules ?? MeleeRules.SinglePlayer,

@@ -109,4 +109,12 @@ public sealed partial class ScriptHost
     /// session's build, the host's in a network game; <see cref="SmartAi.None"/>, the original's AI.
     /// </summary>
     public SmartAi SmartAi { get; set; }
+
+    /// <summary>
+    /// The host runs a melee (single-player or network: the session's build has a roster), not a mission with a script. In a melee
+    /// the smarter opponents' fighting behaviours act against every target (<see cref="SmartAi.AnyTarget"/>'s way): every car there
+    /// is a combatant and nothing is protected. Set by the mission build; a mission (trip, Nitro, a scenario, a remix) keeps them
+    /// against a human's car only.
+    /// </summary>
+    public bool MeleeSession { get; set; }
 }
