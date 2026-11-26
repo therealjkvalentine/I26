@@ -131,7 +131,7 @@ public class ScrollRowsTests
              "Unlim. Turrets", "CB Voice", "Check for Updates", "Chase Crosshair", "Load During Briefing", "Turrets", "Keyboard Steering Assist",
              // the play fork's own rows after upstream's (Force Feedback, Rumble and Rumble Strength are the Controls sheet's, and
              // so are head tracking and the opentrack rows)
-             "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips",
+             "Unlim. Ordnance", "Melee A.I.", "Equip. Tooltips", "Solid Cliffs", "Smart A.I.",
              "Skip Intro Movies"],
             PlayOptionsScreen.PortRows);
     }

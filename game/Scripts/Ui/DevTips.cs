@@ -102,6 +102,21 @@ public static class DevTips
         _ => null,
     };
 
+    /// <summary>The tip for a Smart A.I. check box of the Settings section, by its behaviour's key word (I76.Sim.Missions.SmartAiNames.Bits); null for a word without one.</summary>
+    public static string? SmartAiBit(string name) => name switch
+    {
+        "gun_lay" => "Gun lay: in reach of a loaded fixed forward gun, a computer car swings its nose onto your lead point.",
+        "settle" => "Settle: with gun lay, the fixed guns wait until the nose has held on you a reaction time.",
+        "hill_pursuit" => "Hill pursuit: a computer car climbs after a target above or below it instead of creeping under it.",
+        "climb_probe" => "Climb probe: gentle and side slopes no longer read as walls to a computer car's look ahead.",
+        "ledge_caution" => "Ledge caution: a computer car brakes for a cliff's rim or a crest and never backs over one.",
+        "unstick" => "Unstick: a wedged computer car backs out on an arc toward you and tries another line.",
+        "positions" => "Positions: cars waiting their turn hold a place round you, out of your gun cone.",
+        "drop_chased" => "Drop when chased: a car you tail lays its mines or oil in front of you and holds its line.",
+        "rear_guns" => "Rear guns: a car with a loaded rear gun keeps a chaser behind it.",
+        _ => null,
+    };
+
     /// <summary>The tip for a control of the panels, by its label (a button's or check box's text, or a picker's or field's name).</summary>
     public static string? Control(string label) => label switch
     {
