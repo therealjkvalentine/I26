@@ -45,8 +45,8 @@ public sealed partial class Ptable
         if (LayStates.Contains(name)) GunLay(e, t);
         if (!e.LayActive && v.Gear > 0 && !escape)
         {
-            bool rear = false;
-            if (!rear && e.HoldLineUntil > Now && Smart(e, SmartAi.Unstick)) Steer(e, e.HoldLineHeading);
+            bool rear = DefendStates.Contains(name) && RearLay(e, t);
+            if (!rear && e.HoldLineUntil > Now && (Smart(e, SmartAi.DropChased) || Smart(e, SmartAi.Unstick))) Steer(e, e.HoldLineHeading);
         }
         return LedgeCaution(e, escape);
     }
@@ -81,6 +81,7 @@ public sealed partial class Ptable
     {
         if (SettleHolds(e)) host.FireAt(e, at, w => !LayGun(w));
         else host.FireAt(e, at);
+        DropWhenChased(e, at);
     }
 
     /// <summary>The smarter opponents' costs on a search too far starts (its own one-point path), and a stuck car's cell.</summary>

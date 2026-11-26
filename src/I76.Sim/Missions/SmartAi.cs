@@ -25,7 +25,11 @@ public enum SmartAi : uint
     Unstick = 1 << 5,
     /// <summary>Waiting cars take positions (G1, with P1's offset slot): a car on deck holds a slot round the target, out of its gun cone.</summary>
     Positions = 1 << 6,
-    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick | Positions,
+    /// <summary>Drop when chased (D1): a dropper fires at a chaser closing in the rear cone, and the car holds its line to make it count.</summary>
+    DropChased = 1 << 7,
+    /// <summary>Rear guns (D2): a car with a loaded rear gun keeps a chaser in its rear cone and favours the tactic that does.</summary>
+    RearGuns = 1 << 8,
+    All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick | Positions | DropChased | RearGuns,
 }
 
 /// <summary>The <see cref="SmartAi"/> rule as written in the settings and the dev hook: names, groups or a number.</summary>
@@ -38,6 +42,7 @@ public static class SmartAiNames
         ("hill_pursuit", SmartAi.HillPursuit), ("climb_probe", SmartAi.ClimbProbe), ("ledge_caution", SmartAi.LedgeCaution),
         ("unstick", SmartAi.Unstick),
         ("positions", SmartAi.Positions),
+        ("drop_chased", SmartAi.DropChased), ("rear_guns", SmartAi.RearGuns),
     ];
 
     /// <summary>The groups of the research's catalogue: T lining up, N terrain, G coordination, D defence; and all, off.</summary>
@@ -46,6 +51,7 @@ public static class SmartAiNames
         ("t", SmartAi.GunLay | SmartAi.Settle),
         ("n", SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick),
         ("g", SmartAi.Positions),
+        ("d", SmartAi.DropChased | SmartAi.RearGuns),
         ("all", SmartAi.All), ("off", SmartAi.None), ("none", SmartAi.None),
     ];
 

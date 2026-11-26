@@ -31,7 +31,7 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("t", out _));
         Assert.Equal(SmartAi.GunLay | SmartAi.Settle, SmartAiNames.Parse("gun_lay, settle", out _));
         Assert.Equal(SmartAi.HillPursuit | SmartAi.ClimbProbe | SmartAi.LedgeCaution | SmartAi.Unstick, SmartAiNames.Parse("N", out _));
-        Assert.Equal(SmartAi.Positions, SmartAiNames.Parse("g", out _));
+        Assert.Equal(SmartAi.Positions | SmartAi.DropChased | SmartAi.RearGuns, SmartAiNames.Parse("g+d", out _));
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("all", out _));
         Assert.Equal((SmartAi)3, SmartAiNames.Parse("3", out _));
         Assert.Equal((SmartAi)5, SmartAiNames.Parse("5", out _));
@@ -40,6 +40,7 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(["bogus"], bad);
         Assert.Equal("off", SmartAiNames.Describe(SmartAi.None));
         Assert.Equal("gun_lay,settle", SmartAiNames.Describe(SmartAi.GunLay | SmartAi.Settle));
+        Assert.Equal("gun_lay,rear_guns", SmartAiNames.Describe(SmartAi.GunLay | SmartAi.RearGuns));
         foreach (var (name, bit) in SmartAiNames.Bits) Assert.Equal(bit, SmartAiNames.Parse(SmartAiNames.Describe(bit), out _));
     }
 
@@ -401,5 +402,64 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.True(smart < stock, $"in the cone {smart:P0} with positions against {stock:P0}");
     }
 
+    // ---- D1 drop when chased, D2 rear guns ----
 
+    /// <summary>A chaser 20 m behind and closing gets the dropper with Drop when chased; one beside or falling back does not; off, never.</summary>
+    [Fact]
+    public void DropWhenChasedLaysInFrontOfAClosingChaser()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"]) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        var drop = a.Vehicle!.Armory!.Weapons.First(w => w.Def.Class == 6);
+        for (int t = 0; t < Ticks(2); t++) Step(r);
+        // the gate alone (the order's own tail would drop first): the cars placed again after the order's tick
+        bool Drops(SmartAi bits, Vector2 chaser, float chaserSpeed)
+        {
+            a.SmartAi = bits;
+            r.Host.Order(a, b, AiOrder.Attack, null, 0);
+            a.LastDropAt = -100; a.HoldLineUntil = -1;
+            Place(r, a.Vehicle!, r.Centre, 0, 15);
+            a.Vehicle!.Gear = 1;
+            a.Vehicle!.Flags &= ~VehicleFlags.Airborne;
+            Place(r, b.Vehicle!, chaser, 0, chaserSpeed);
+            drop.Trigger = false;
+            r.Host.Ptable.DropWhenChased(a, b);
+            return drop.Trigger;
+        }
+        Assert.True(Drops(SmartAi.DropChased, r.Centre - new Vector2(0, 20), 20));
+        Assert.True(a.HoldLineUntil > r.Host.Now);
+        Assert.False(Drops(SmartAi.None, r.Centre - new Vector2(0, 20), 20));
+        Assert.False(Drops(SmartAi.DropChased, r.Centre - new Vector2(0, 20), 10));     // falling back
+        Assert.False(Drops(SmartAi.DropChased, r.Centre + new Vector2(20, 0), 20));     // beside
+        Assert.False(Drops(SmartAi.DropChased, r.Centre - new Vector2(0, 70), 30));     // too far
+    }
+
+    /// <summary>With Rear guns a car with a loaded rear gun and its target behind steers its tail at it, and weighs dirt_miner double in the draw.</summary>
+    [Fact]
+    public void RearGunsKeepTheChaserInTheRearCone()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"]) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        if (!a.Vehicle!.Armory!.Weapons.Any(w => w.Style != 3 && w.TurretPivot is null && w.BaseRot.Forward.Z < -0.96f && w.Def.Class is 1 or 2 or 4))
+        { output.WriteLine("this Piranha has no fixed rear gun"); return; }
+        Place(r, a.Vehicle!, r.Centre, 0, 15);
+        a.Vehicle!.Gear = 1;
+        // the chaser 30 m behind and 8 m to the right: the tail must swing right, so the nose left
+        Place(r, b.Vehicle!, r.Centre + new Vector2(8, -30), 0, 15);
+        r.Host.Order(a, b, AiOrder.Attack, null, 0);
+        var p = r.Host.Ptable;
+        a.SmartAi = SmartAi.None;
+        Assert.False(p.RearLay(a, b));
+        a.SmartAi = SmartAi.RearGuns;
+        a.Vehicle!.Steer = 0;
+        Assert.True(p.RearLay(a, b));
+        float steerLeft = a.Vehicle!.Steer;
+        Place(r, b.Vehicle!, r.Centre + new Vector2(-8, -30), 0, 15);
+        Assert.True(p.RearLay(a, b));
+        Assert.True(MathF.Sign(steerLeft) == -MathF.Sign(a.Vehicle!.Steer) && steerLeft != 0, $"steer {steerLeft} then {a.Vehicle!.Steer}");
+        int miner = Array.FindIndex(r.Host.Tactics!, d => d.Name == "dirt_miner");
+        int[] options = [1, miner, 3], weights = [10, 10, 10];
+        p.FavourRearGuns(a, options, weights);
+        Assert.Equal([10, 20, 10], weights);
+    }
 }
