@@ -655,3 +655,23 @@ frames; that scene's frame (9.4 / 14.2 ms) did not change.
 - Not changed: the first shots' effects in a fight (20-37 ms once, the engine making nodes and pipelines), the rest of a damage
   rebuild (the body's assembly and meshes, 3-17 ms: a worker could make them, but the damaged look would then appear a frame or
   two later than the tick that caused it).
+
+### Before and after, and the settings that would buy more
+
+Main against the round's branch, back to back pairs on the development machine (3-5 runs a side; runs with the machine's other
+load over 25 % left out; medians):
+
+| Scene | fps | 1 % low | worst young collection | collections a minute | main thread kB a frame |
+|---|---|---|---|---|---|
+| T01 start, owner's settings | 154 -> 153 | 102 -> 100 | 4.7 -> 3.3 ms | 36 -> 27 | 167 -> 8 |
+| T05 route, owner's settings | 121 -> 121 | 77 -> 77 | 8.0 -> 5.6 ms | 32 -> 28 | 174 -> 11 |
+| M01 melee, 1920x1080 2x | 321 -> 321 | 128 -> 143 | 8.5 -> 5.0 ms | 75 -> 30 | 176 -> 12 |
+| T05 route, 1920x1080 2x | 210 -> 211 | 105 -> 109 | 7.3 -> 5.6 ms | 52 -> 34 | 172 -> 10 |
+
+The average does not move: the owner's frame is the card's, and the round's changes are the main thread's. What moves is the
+collections' pauses and, where the main thread sets the frame (1920x1080), the 1 % low. The worst frame of each window (24-38 ms)
+is unchanged: it is a spike inside the engine's draw, not in our scripts.
+
+On the owner's settings the card's frame is set by the settings, measured in T01's start (two runs each, the main view's GPU time):
+Ambient Occlusion off 151 -> 190 fps (4.98 -> 3.50 ms), Render Scale 150 % 192 fps, 100 % 255 fps, Mirror Rate Alternate (the
+default) 166 fps, Anti-Aliasing 4x 165 fps, Shadow Detail Low 163 fps. None is changed; each is the player's choice.
