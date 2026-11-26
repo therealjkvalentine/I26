@@ -384,6 +384,67 @@ public static class MirrorAim
     /// </summary>
     public static bool HeadTurned(string? word) => string.Equals(word?.Trim(), "turned", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// [port] side_mirror_tilt_right / side_mirror_tilt_left: with the heads where the art places them, each door mirror's glass alone
+    /// turned that many degrees toward the driver inside its housing (Tilt), as an adjustable glass pivots in its shell. The Piranha's
+    /// right glass is seen 79 degrees off its face from the seat, a sliver: DefaultTiltRight turns it toward the driver; the left
+    /// glasses (60 and 48 degrees off) stay as the art sets them by default.
+    /// </summary>
+    public const int DefaultTiltRight = 15, DefaultTiltLeft = 0, MaxTilt = 45;
+
+    /// <summary>The glass's tilt in degrees for a setting: none with the head turned (the whole head faces the driver then), else the setting within 0..MaxTilt.</summary>
+    public static int GlassTilt(bool headTurned, int setting) => headTurned ? 0 : Math.Clamp(setting, 0, MaxTilt);
+
+    /// <summary>I76_MIRROR_TILT=L,R: each glass's tilt in degrees in place of the settings (a review sheet), within 0..MaxTilt; null unset or unreadable.</summary>
+    public static (int L, int R)? TiltOverride(string? hook)
+    {
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        return hook?.Split(',') is { Length: 2 } s && float.TryParse(s[0], System.Globalization.NumberStyles.Float, c, out float l) && float.TryParse(s[1], System.Globalization.NumberStyles.Float, c, out float r)
+            ? ((int)Math.Clamp(MathF.Round(l), 0, MaxTilt), (int)Math.Clamp(MathF.Round(r), 0, MaxTilt)) : null;
+    }
+
+    /// <summary>The angle of a rotation, degrees (0 to 180).</summary>
+    public static float AngleDegrees(System.Numerics.Quaternion q)
+    {
+        float w = Math.Clamp(MathF.Abs(System.Numerics.Quaternion.Normalize(q).W), 0f, 1f);
+        return 2f * MathF.Acos(w) * 180f / MathF.PI;
+    }
+
+    /// <summary>
+    /// The glass's tilt: <paramref name="degrees"/> about the axis of <paramref name="full"/> (Turn's, which would face the whole head
+    /// to the driver), at most that turn's own angle; none for 0 or less.
+    /// </summary>
+    public static System.Numerics.Quaternion Tilt(System.Numerics.Quaternion full, float degrees)
+    {
+        full = System.Numerics.Quaternion.Normalize(full);
+        if (full.W < 0) full = -full;
+        float angle = AngleDegrees(full);
+        if (degrees <= 0 || angle < 1e-3f) return System.Numerics.Quaternion.Identity;
+        var axis = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(full.X, full.Y, full.Z));
+        return System.Numerics.Quaternion.CreateFromAxisAngle(axis, MathF.Min(degrees, angle) * MathF.PI / 180f);
+    }
+
+    /// <summary>
+    /// What the tilted glass turns about: the corner of the pane that the tilt about its middle would bring nearest the eye (toward it
+    /// most along the eye's ray), so turned about that corner the rest of the glass swings back into its housing, never out of it.
+    /// Seen from the seat that corner is the glass's outer end, the end of the housing (the Piranha's right: its outboard foot), and
+    /// the glass widens from it over the housing's side, inside the housing's outline.
+    /// </summary>
+    public static System.Numerics.Vector3 TiltPivot(IReadOnlyList<System.Numerics.Vector3> corners, System.Numerics.Quaternion tilt, System.Numerics.Vector3 eye)
+    {
+        var mid = corners.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / Math.Max(1, corners.Count);
+        var toEye = System.Numerics.Vector3.Normalize(eye - mid);
+        return corners.MaxBy(p => System.Numerics.Vector3.Dot(System.Numerics.Vector3.Transform(p - mid, tilt) - (p - mid), toEye));
+    }
+
+    /// <summary>The pane's faces turned by <paramref name="tilt"/> about <paramref name="pivot"/>.</summary>
+    public static List<System.Numerics.Vector3[]> Tilted(IEnumerable<System.Numerics.Vector3[]> faces, System.Numerics.Quaternion tilt, System.Numerics.Vector3 pivot) =>
+        [.. faces.Select(f => f.Select(p => pivot + System.Numerics.Vector3.Transform(p - pivot, tilt)).ToArray())];
+
+    /// <summary>How many degrees off its face a glass of normal <paramref name="normal"/> at <paramref name="centre"/> is seen from <paramref name="eye"/>.</summary>
+    public static float OffFace(System.Numerics.Vector3 eye, System.Numerics.Vector3 centre, System.Numerics.Vector3 normal) =>
+        MathF.Acos(Math.Clamp(MathF.Abs(System.Numerics.Vector3.Dot(System.Numerics.Vector3.Normalize(centre - eye), System.Numerics.Vector3.Normalize(normal))), 0f, 1f)) * 180f / MathF.PI;
+
     /// <summary>The shortest rotation taking unit <paramref name="a"/> to unit <paramref name="b"/>.</summary>
     public static System.Numerics.Quaternion Between(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
     {

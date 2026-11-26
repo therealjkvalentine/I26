@@ -71,6 +71,9 @@ public static class DevSettings
     private static readonly string[] GlassRoundNames = [.. GlassRoundSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     /// <summary>[port] side_mirror_rim_out's values offered: the door mirrors' moulding's outer edge, in its own widths past the housing's outline (0 the housing's straight outline).</summary>
     public static readonly int[] RimOutSteps = [0, 1, 2, 3, 4];
+    /// <summary>[port] side_mirror_tilt_right / _left's values offered: degrees the door mirror's glass turns toward the driver inside its housing (MirrorAim.Tilt).</summary>
+    public static readonly int[] TiltSteps = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
+    private static string[] TiltNames(int dflt) => [.. TiltSteps.Select(d => d == dflt ? $"{d}" : $"{d}{M}")];
     private static readonly string[] RimOutNames = [.. RimOutSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
@@ -126,6 +129,8 @@ public static class DevSettings
         new("mirror_round", MirrorRoundNames, s => Nearest(MirrorRoundSteps, s.MirrorRound), (s, v) => s.MirrorRound = MirrorRoundSteps[v], DevWhen.Live),
         new("side_mirror_round", GlassRoundNames, s => Nearest(GlassRoundSteps, s.SideMirrorRound), (s, v) => s.SideMirrorRound = GlassRoundSteps[v], DevWhen.Live),
         new("side_mirror_head", ["art", "turned" + M], s => s.SideMirrorHeadTurned ? 1 : 0, (s, v) => s.SideMirrorHeadTurned = v == 1, DevWhen.NextMission),
+        new("side_mirror_tilt_right", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltRight), s => Nearest(TiltSteps, s.SideMirrorTiltRight), (s, v) => s.SideMirrorTiltRight = TiltSteps[v], DevWhen.NextMission),
+        new("side_mirror_tilt_left", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltLeft), s => Nearest(TiltSteps, s.SideMirrorTiltLeft), (s, v) => s.SideMirrorTiltLeft = TiltSteps[v], DevWhen.NextMission),
         new("side_mirror_rim_out", RimOutNames, s => Nearest(RimOutSteps, s.SideMirrorRimOut), (s, v) => s.SideMirrorRimOut = RimOutSteps[v], DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),

@@ -1802,6 +1802,9 @@ public sealed class ShellSettings
     public int SideMirrorRimOut { get; set; } = I76.Game.Sim.GlassRound.DefaultRimOut;
     /// <summary>The port's own, without a row: the modern look's door mirrors' heads where the original's art places them, as the 1997 look draws them (false, the default), or turned to face the driver (I76.Game.Sim.MirrorAim.HeadTurned; shell.cfg [port] side_mirror_head = art / turned; written only when turned).</summary>
     public bool SideMirrorHeadTurned { get; set; }
+    /// <summary>The port's own, without a row: with the heads where the art places them, each door mirror's glass alone turned that many degrees toward the driver inside its housing, the housing unchanged (I76.Game.Sim.MirrorAim.Tilt; shell.cfg [port] side_mirror_tilt_right, 15 by default, and side_mirror_tilt_left, 0; 0 to 45, at most the turn that faces the whole head to the driver; written only when not the default).</summary>
+    public int SideMirrorTiltRight { get; set; } = I76.Game.Sim.MirrorAim.DefaultTiltRight;
+    public int SideMirrorTiltLeft { get; set; } = I76.Game.Sim.MirrorAim.DefaultTiltLeft;
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -2263,6 +2266,8 @@ public sealed class ShellSettings
         s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
         s.SideMirrorRound = Math.Clamp((int)c.GetValue("port", "side_mirror_round", I76.Game.Sim.GlassRound.DefaultShare), 0, I76.Game.Sim.GlassRound.MaxShare);
         s.SideMirrorHeadTurned = I76.Game.Sim.MirrorAim.HeadTurned(c.GetValue("port", "side_mirror_head", "").ToString());
+        s.SideMirrorTiltRight = Math.Clamp((int)c.GetValue("port", "side_mirror_tilt_right", I76.Game.Sim.MirrorAim.DefaultTiltRight), 0, I76.Game.Sim.MirrorAim.MaxTilt);
+        s.SideMirrorTiltLeft = Math.Clamp((int)c.GetValue("port", "side_mirror_tilt_left", I76.Game.Sim.MirrorAim.DefaultTiltLeft), 0, I76.Game.Sim.MirrorAim.MaxTilt);
         s.SideMirrorRimOut = Math.Clamp((int)c.GetValue("port", "side_mirror_rim_out", I76.Game.Sim.GlassRound.DefaultRimOut), 0, I76.Game.Sim.GlassRound.MaxRimOut);
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
@@ -2501,6 +2506,8 @@ public sealed class ShellSettings
         if (SideMirrorRound != I76.Game.Sim.GlassRound.DefaultShare) c.SetValue("port", "side_mirror_round", SideMirrorRound);
         if (SideMirrorRimOut != I76.Game.Sim.GlassRound.DefaultRimOut) c.SetValue("port", "side_mirror_rim_out", SideMirrorRimOut);
         if (SideMirrorHeadTurned) c.SetValue("port", "side_mirror_head", "turned");
+        if (SideMirrorTiltRight != I76.Game.Sim.MirrorAim.DefaultTiltRight) c.SetValue("port", "side_mirror_tilt_right", SideMirrorTiltRight);
+        if (SideMirrorTiltLeft != I76.Game.Sim.MirrorAim.DefaultTiltLeft) c.SetValue("port", "side_mirror_tilt_left", SideMirrorTiltLeft);
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);

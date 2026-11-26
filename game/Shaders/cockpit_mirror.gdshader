@@ -31,6 +31,18 @@ uniform vec2 band_angles = vec2(0.0);
 uniform float fov_tan = 1.0;
 // a door mirror's own glass (MirrorGlass): the band's view over the whole face (pane), UV the glass as the driver sees it (0..1 left to right, foot to top)
 uniform bool pane = false;
+// a door mirror's glass tilted in its housing (MirrorAim.Tilt): drawn on the head's own faces as the eye sees it, each pixel's picture
+// coordinates where the eye's ray meets the tilted glass's plane (decal_o + U decal_a + V decal_b, U the shader's u times
+// pane_aspect, in the mesh's frame); nothing outside the glass's outline (pane_hull), so it shows only inside the housing's
+// outline, at any angle. glass_key (I76_SIDE_MIRROR_KEY): its picture flat green and its moulding magenta, to count its pixels
+uniform bool decal = false;
+uniform vec3 decal_o;
+uniform vec3 decal_a;
+uniform vec3 decal_b;
+uniform bool glass_key = false;
+varying vec3 decal_vo;
+varying vec3 decal_va;
+varying vec3 decal_vb;
 // a door mirror's glass rounded (GlassRound, [port] side_mirror_round): in the pane's units (u times pane_aspect, v), the core's
 // convex corners counter-clockwise, its radius; the view inside the rounded shape less the rim's width, the rim's moulding (shaded
 // as mirror_rim.gdshader's) from there to the rounded shape, and the moulding's dark in the corners outside it
@@ -187,6 +199,11 @@ vec2 screen_px(vec3 local, mat4 modelview, mat4 projection, vec2 viewport) {
 
 void vertex() {
 	px_per_unit = 0.0;
+	if (decal) {
+		decal_vo = (MODELVIEW_MATRIX * vec4(decal_o, 1.0)).xyz;
+		decal_va = mat3(MODELVIEW_MATRIX) * decal_a;
+		decal_vb = mat3(MODELVIEW_MATRIX) * decal_b;
+	}
 	if ((pane && rim_round) || (glass_from_shape && round_corners)) {
 		// the scale across the outline at eight points round the glass's box (its edges' middles and corners), averaged, weighed
 		// by how far they are on screen (fading out over 3 % of the window past its edge): the mean width a band of even
@@ -221,13 +238,27 @@ void fragment() {
 	if (hidden) discard;
 	vec2 auv = art_uv(UV);
 	vec2 vuv = vec2(view_x(UV.x), 1.0 - UV.y);
+	vec2 puv = UV;
+	float decal_in = 1.0;
+	if (decal) {
+		// the eye's ray through this pixel (from the camera, the view's origin) onto the tilted glass's plane
+		vec3 n = cross(decal_va, decal_vb);
+		float den = dot(n, VERTEX);
+		if (abs(den) < 1e-9) discard;
+		vec3 h = VERTEX * (dot(n, decal_vo) / den) - decal_vo;
+		float aa = dot(decal_va, decal_va), ab = dot(decal_va, decal_vb), bb = dot(decal_vb, decal_vb);
+		float ha = dot(h, decal_va), hb = dot(h, decal_vb), det = aa * bb - ab * ab;
+		puv = vec2((ha * bb - hb * ab) / det / pane_aspect, (hb * aa - ha * ab) / det);
+		decal_in = rounded(sd_hull(vec2(puv.x * pane_aspect, puv.y)));
+		if (decal_in <= 0.0) discard;
+	}
 	if (pane) {
-		vec2 pv = (UV - view_box.xy) / (view_box.zw - view_box.xy);
+		vec2 pv = (puv - view_box.xy) / (view_box.zw - view_box.xy);
 		vuv = vec2(view_x(pv.x), 1.0 - pv.y);
 		ALBEDO = view_at(vuv);
 		ALPHA = 1.0;
 		if (pane_round && rim_round) {
-			vec2 p = vec2(UV.x * pane_aspect, UV.y);
+			vec2 p = vec2(puv.x * pane_aspect, puv.y);
 			float sdo = sd_ocore(p) - pane_or;
 			float sd = ring_from_outer ? sdo : sd_core(p) - pane_r;
 			// screen pixels in from the ring's outer edge: the outline's distance over its gradient on screen
@@ -250,12 +281,14 @@ void fragment() {
 			ALPHA = rim_dark ? max(solid, hull_in) : solid;
 			if (ALPHA <= 0.0) discard;
 		} else if (pane_round) {
-			float sd = sd_core(vec2(UV.x * pane_aspect, UV.y)) - pane_r;
+			float sd = sd_core(vec2(puv.x * pane_aspect, puv.y)) - pane_r;
 			// the moulding across the rim: 0 at the rounded shape's edge, 1 at the glass's
 			float t = clamp(-sd / rim_w, 0.0, 1.0);
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
-			ALBEDO = mix(rim_key ? KEY : rim_colour * shade, ALBEDO, rounded(sd + rim_w));
-		}
+			if (glass_key) ALBEDO = vec3(0.0, 1.0, 0.0);
+			ALBEDO = mix(rim_key || glass_key ? vec3(1.0, 0.0, 1.0) * (glass_key ? 1.0 : 0.5) : rim_colour * shade, ALBEDO, rounded(sd + rim_w));
+		} else if (glass_key) ALBEDO = vec3(0.0, 1.0, 0.0);
+		ALPHA = min(ALPHA, decal_in);
 	} else if (smooth_edge && !faithful && glass_from_shape && round_corners) {
 		// the added glasses: the rounded outline, the frame frame_t of the art's pixels wide at the glass's scale as seen and that
 		// many screen pixels all round (the art's own outline and its frame's narrow foot not used)
