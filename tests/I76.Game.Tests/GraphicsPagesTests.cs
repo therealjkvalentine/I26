@@ -132,7 +132,7 @@ public class GraphicsPagesTests
         Assert.Equal(I76.Sim.Views.CrashBlurMode.On, s.CrashBlur);
         Assert.Equal(1, s.Vegetation);
         Assert.False(s.AmbientOcclusion);
-        Assert.Equal(TerrainShadowsRow.Off, s.TerrainShadows);
+        Assert.Equal(TerrainShadowsRow.On, s.TerrainShadows);
         Assert.True(s.VSync);
         Assert.Equal(I76.Sim.Views.FrameLimit.Unlimited, s.MaxFps);
         Assert.Equal(I76.Sim.Views.MouseLook.Normal, s.MouseCamera);

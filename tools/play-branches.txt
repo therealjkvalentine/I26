@@ -953,3 +953,6 @@ feat/terrain-bake-2                   # section IB: the owner: "if we're pre-ren
 
 # IC. The car spawn no longer builds meshes on a worker while frames draw (2026-11-26; lane on Opus 5.5; i26-scratch/matrace)
 fix/material-cache-race               # section IC: "Collection was modified" from MaterialLibrary.MadeForShaded under the cockpit's compass, seen twice in silent runs: with --drive and in melee the spawn's workers (the cockpit's meshes, the wrecks' prewarm) added materials while the main thread enumerated the cache. Both builds moved to main-thread steps (the models still assembled on workers); debug builds report a material asked for off the main thread. No lock (it would deadlock on a renderer call). Not run: network spawns, a trip from the shell, the garage, with an HD pack.
+
+# ID. Terrain Shadows is On by default in the modern look; the volume row of the deviations corrected (2026-11-26; lane on Sonnet 5.5)
+feat/terrain-shadows-default-on       # section ID: the owner on the baked terrain shadows: "looks great to me". An absent key reads On and the key is always written, so a chosen Off stays (a file that had Off under section IB carries no key and turns On once). Reset goes to On. docs/deviations.md's Audio Control row now says what 0e64c0b4 does. Not looked at: the row and Reset on the page.
