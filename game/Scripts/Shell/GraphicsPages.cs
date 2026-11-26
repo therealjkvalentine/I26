@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
-    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth,
+    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections,
 }
 
 /// <summary>
@@ -29,12 +29,12 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
             GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
         [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
     ];
 
     /// <summary>
-    /// Rows a page shows only with a pack installed (the texture rows with a world pack, Menu Width with the widescreen menu pack):
-    /// Advanced holds one more row than its lines and scrolls by one only when every one of them is there.
+    /// Rows a page shows only with a pack installed (the texture rows with a world pack, Menu Width with the widescreen menu pack).
+    /// Advanced holds more rows than its lines (Haze, Glow and Reflections came after it was full) and scrolls the rest.
     /// </summary>
     public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
 
@@ -136,6 +136,9 @@ public static class GraphicsPages
             case GraphicsRow.CarTextures: t.CarTextures = f.CarTextures; break;
             case GraphicsRow.Vegetation: t.Vegetation = f.Vegetation; break;
             case GraphicsRow.AmbientOcclusion: t.AmbientOcclusion = f.AmbientOcclusion; break;
+            case GraphicsRow.Haze: t.Haze = f.Haze; break;
+            case GraphicsRow.Glow: t.Glow = f.Glow; break;
+            case GraphicsRow.Reflections: t.Reflections = f.Reflections; break;
             case GraphicsRow.FieldOfView: t.FieldOfView = f.FieldOfView; break;
             case GraphicsRow.HoodGloss: t.HoodGloss = f.HoodGloss; break;
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;

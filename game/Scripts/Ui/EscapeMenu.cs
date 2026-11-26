@@ -583,7 +583,14 @@ public sealed partial class EscapeMenu : Control
             // the modern look's plants, live
             case GraphicsRow.Vegetation: return Setting(Cycle, "Vegetation", 0, 3, ["Off", "Low" + mark, "High" + mark], s => s.Vegetation, (s, v) => s.Vegetation = v, apply: live);
             // the modern look's SSAO ([port] ambient_occlusion), live
-            case GraphicsRow.AmbientOcclusion: return Setting(Cycle, "Ambient Occlusion", 0, 2, ["Off", "On" + mark], s => s.AmbientOcclusion ? 1 : 0, (s, v) => s.AmbientOcclusion = v != 0, apply: live);
+            case GraphicsRow.AmbientOcclusion: return Setting(Cycle, "Ambient Occlusion", 0, 2, ["Off", "On" + mark], s => s.AmbientOcclusion ? 1 : 0, (s, v) => s.AmbientOcclusion = v != 0, apply: live, changed: () => _reflections?.Cb?.Invoke(_reflections, 6));
+            // the modern look's aerial haze, glow and screen-space reflections (AirRows), live; Reflections reads Needs AO and keeps its
+            // value while Ambient Occlusion is Off
+            case GraphicsRow.Haze: return Setting(Cycle, "Haze", 0, AirRows.HazeNames.Length, AirRows.HazeNames, s => AirRows.ClampHaze(s.Haze), (s, v) => s.Haze = v, apply: live);
+            case GraphicsRow.Glow: return Setting(Cycle, "Glow", 0, AirRows.GlowNames.Length, AirRows.GlowNames, s => AirRows.ClampGlow(s.Glow), (s, v) => s.Glow = v, apply: live);
+            case GraphicsRow.Reflections:
+                return _reflections = Keyed(r, "Reflections", AirRows.ReflectionNames, s => s.Reflections ? 1 : 0, (s, v) => { if (s.AmbientOcclusion) s.Reflections = v != 0; }, live,
+                    s => s.AmbientOcclusion ? AirRows.ReflectionNames : [AirRows.NeedsAo, AirRows.NeedsAo]);
             // the main 3D views' field of view (ViewFov: Monitor, or degrees across the window; the 2D dash, mirror and binoculars keep their own), live
             case GraphicsRow.FieldOfView: return Setting(Cycle, "Field of View", 0, I76.Sim.Views.ViewFov.Names.Length, I76.Sim.Views.ViewFov.Names, s => s.FieldOfView, (s, v) => s.FieldOfView = v, apply: live);
             // the modern look's car paint and cockpit hood: 0 (Matte, the default) to 100 (Gloss) in fives, Satin at 50, live: the shell's Hood Gloss row
@@ -1171,6 +1178,8 @@ public sealed partial class EscapeMenu : Control
 
     /// <summary>Graphic Detail's items and the rows they are (GraphicsHelp has their tooltips; every other item's is MenuTips', by its label).</summary>
     private readonly Dictionary<Item, GraphicsRow> _rowOf = [];
+    /// <summary>The Reflections row, whose words follow Ambient Occlusion's (AirRows.NeedsAo while it is Off).</summary>
+    private Item? _reflections;
     private Item? _hover;
     private Vector2 _pointer;
     /// <summary>The mouse moved last (the tooltip by the pointer, for the row under it); else the keys or the pad (beside the selected row).</summary>

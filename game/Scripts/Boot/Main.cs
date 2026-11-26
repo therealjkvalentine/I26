@@ -861,6 +861,7 @@ public partial class Main : Node3D
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
 		_ambientOcclusion = s.AmbientOcclusion;
+		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
@@ -899,6 +900,10 @@ public partial class Main : Node3D
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
 	private bool _ambientOcclusion;
+	// Haze, Glow and Reflections (the port's, Advanced; EnvExtras), Off by default
+	private int _haze, _glow;
+	private bool _reflections;
+	private AerialHaze? _aerialHaze;
 
 	/// <summary>
 	/// The modern look's quality settings (docs/perf/plan.md): Shadow Detail Low is the sun's shadow map in two splits to
@@ -925,6 +930,9 @@ public partial class Main : Node3D
 		else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
 		World.VegShaders.SetCoverage(World.VegShaders.CoverageFor(_antialias));   // the plants' alpha-to-coverage at 4x and 8x
 		RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
+		EnvExtras.Apply(_modernEnv, _glow, _reflections, _lighting == Lighting.Card ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
+		if (EnvExtras.HazeLevel(_haze) > 0 && _aerialHaze is null) { AddChild(_aerialHaze = AerialHaze.Create()); ApplyDrawDistance(); }
+		if (_aerialHaze is not null) _aerialHaze.Level = _haze;
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
 		if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
@@ -3717,6 +3725,7 @@ public partial class Main : Node3D
 			}
 		}
 		if (_horizon is not null) _horizon.Visible = !_mode1997 && !original;
+		if (_aerialHaze is not null) { _aerialHaze.Ring = _horizon; _aerialHaze.Allowed = !_mode1997 && !original; }
 		ApplyFade1997();
 		ApplyEditorOutside();
 		if (_modernEnv?.Sky?.SkyMaterial is ShaderMaterial sky && _horizon is not null && _horizon.IsInsideTree())

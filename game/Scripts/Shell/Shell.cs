@@ -1482,6 +1482,12 @@ public sealed class ShellSettings
     /// feature (docs/perf/costs.md: 29 % of a full-detail frame at 3440x1440, most of it the depth pre-pass drawing every surface's normals).
     /// </summary>
     public bool AmbientOcclusion { get; set; }
+    /// <summary>The port's own: the modern look's added aerial haze (Graphic Detail's Haze, AirRows: 0 Off, 1 Light, 2 Southwest; [port] haze, written when not Off).</summary>
+    public int Haze { get; set; }
+    /// <summary>The port's own: the modern look's glow on lamps, flashes and fire (Graphic Detail's Glow, AirRows: 0 Off, 1 Lamps; [port] glow, written when not Off).</summary>
+    public int Glow { get; set; }
+    /// <summary>The port's own: the modern look's screen-space reflections, drawn only with Ambient Occlusion On (Graphic Detail's Reflections, AirRows; [port] reflections, written when on).</summary>
+    public bool Reflections { get; set; }
     /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
@@ -2081,6 +2087,10 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
         s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
+        // no version step: absent, off (the rows came after the keys they would read)
+        s.Haze = AirRows.ClampHaze((int)c.GetValue("port", "haze", 0));
+        s.Glow = AirRows.ClampGlow((int)c.GetValue("port", "glow", 0));
+        s.Reflections = (bool)c.GetValue("port", "reflections", false);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2316,6 +2326,9 @@ public sealed class ShellSettings
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
+        if (Haze != 0) c.SetValue("port", "haze", Haze);
+        if (Glow != 0) c.SetValue("port", "glow", Glow);
+        if (Reflections) c.SetValue("port", "reflections", true);
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));
