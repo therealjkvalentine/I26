@@ -92,6 +92,7 @@ public partial class Cockpit : Node
         OpenTrackLauncher.AutoStart(shellSettings);   // Opentrack Auto: opentrack started when none runs (docs/playing.md)
         _roundSetting = shellSettings.MirrorRound;
         _glassRoundSetting = shellSettings.SideMirrorRound;
+        _headTurned = shellSettings.SideMirrorHeadTurned;
         yield return null;
         // the mirror's edge field and fill (arithmetic on its pictures) on a worker, its viewport and material here
         if (Resolver.FindByStem("zmiri101") is { } mirrorMember)
@@ -1854,6 +1855,7 @@ public partial class Cockpit : Node
         _mirrorCam.Environment = _mirrorMode == 1 ? _mirrorFlat : MirrorEnvironment();
         DepthPass();
         ApplyHaze();
+        ApplyAa();
         Warp();
     }
 
@@ -2079,6 +2081,20 @@ public partial class Cockpit : Node
         foreach (var g in _glass) Haze(g.Mat);
     }
 
+    // ---- Mirror AA (MirrorAaRow): the mirror renders' own anti-aliasing (a SubViewport takes none from the main view) ----
+
+    private int _mirrorAa = MirrorAaRow.Default, _viewMsaa;
+    private bool _viewSmaa;
+    /// <summary>I76_MIRROR_AA=0..6 (off, 2x, 4x, 8x, smaa, 2x+smaa, as view): the choice instead of the setting's (captures).</summary>
+    private static readonly int? AaHook = int.TryParse(System.Environment.GetEnvironmentVariable("I76_MIRROR_AA"), out int ah) ? MirrorAaRow.Clamp(ah) : null;
+
+    private void ApplyAa()
+    {
+        var aa = MirrorAaRow.Of(AaHook ?? _mirrorAa, _faithful, I76.Game.Boot.RenderBackend.Compatibility, _viewMsaa, _viewSmaa);
+        if (_mirrorView is not null) MirrorAaRow.Apply(_mirrorView, aa);
+        foreach (var vp in _ownViews) if (vp is not null) MirrorAaRow.Apply(vp, aa);
+    }
+
     // ---- side-view mirrors (the port's own, docs/deviations.md: two more glasses of the one render, MirrorBands) ----
 
     private MeshInstance3D? _sideL, _sideR;
@@ -2110,6 +2126,7 @@ public partial class Cockpit : Node
         _sideRender = s.SideMirrorRender;
         _mirrorRate = s.MirrorRate;
         _mirrorHaze = s.MirrorHaze;
+        (_mirrorAa, _viewMsaa, _viewSmaa) = (s.MirrorAa, s.Graphics[0x8], I76.Game.Shell.AntiAliasingRow.SmaaOn(s));
         _rimOutSetting = s.SideMirrorRimOut;
         if (_roundSetting != s.MirrorRound || _glassRoundSetting != s.SideMirrorRound) { _roundSetting = s.MirrorRound; _glassRoundSetting = s.SideMirrorRound; RoundCorners(); }
         _sideYaw = float.NaN;
@@ -2481,7 +2498,10 @@ public partial class Cockpit : Node
     private readonly (Transform3D Turn, Vector3 Forward)[] _aim = [(Transform3D.Identity, OwnCamera.ForwardGodot(true, OwnCamera.YawDegrees, OwnCamera.PitchDegrees)), (Transform3D.Identity, OwnCamera.ForwardGodot(false, OwnCamera.YawDegrees, OwnCamera.PitchDegrees))];
     /// <summary>The same turns in game axes, about their pivots, for the glass's picture as the driver sees it.</summary>
     private readonly (System.Numerics.Quaternion Q, System.Numerics.Vector3 Pivot)[] _aimTurn = [(System.Numerics.Quaternion.Identity, default), (System.Numerics.Quaternion.Identity, default)];
-    private bool _aimed;    private static readonly (bool Art, float InwardL, float InwardR) AimHook = MirrorAim.Hook(System.Environment.GetEnvironmentVariable("I76_MIRROR_AIM"));
+    private bool _aimed;
+    /// <summary>[port] side_mirror_head (MirrorAim.HeadTurned): the heads turned to the driver; false, the default, the art's place. Read with the cockpit (the glass is made once).</summary>
+    private bool _headTurned;
+    private static readonly (bool Art, float InwardL, float InwardR) AimHook = MirrorAim.Hook(System.Environment.GetEnvironmentVariable("I76_MIRROR_AIM"));
 
     /// <summary>
     /// Each side mirror aimed from the driver's eye (MirrorAim): the picture back along the side with the flank a sliver at its inner
@@ -2504,7 +2524,7 @@ public partial class Cockpit : Node
             float inward = left ? AimHook.InwardL : AimHook.InwardR;
             float yaw = AimHook.Art ? OwnAim.Yaw : MirrorAim.YawDegrees(left, cam, left ? -body.Position.X : body.End.X, -body.End.Z, OwnAim.Fov, 2 * inward);
             var turn = Transform3D.Identity;
-            if (!AimHook.Art && pane is not null && Node3D.MirrorHeads.FirstOrDefault(h => h.Left == left).Mesh is { Mesh: { } hm })
+            if (!AimHook.Art && _headTurned && pane is not null && Node3D.MirrorHeads.FirstOrDefault(h => h.Left == left).Mesh is { Mesh: { } hm })
             {
                 // about the glass's middle, as a door mirror's glass turns in its housing: the glass stays where the art puts it (the
                 // right one clear of the windscreen pillar; turned about the head's middle it went in behind it) and the housing behind it

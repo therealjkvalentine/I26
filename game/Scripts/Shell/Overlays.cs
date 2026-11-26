@@ -764,6 +764,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.MirrorHaze:
                 Row(r, line, "Mirror Haze", () => I76.Game.Sim.MirrorHazeRow.Names[I76.Game.Sim.MirrorHazeRow.Clamp(st.MirrorHaze)], () => I76.Game.Sim.MirrorHazeRow.Step(st));
                 break;
+            // [port] mirror_aa (MirrorAaRow): the modern look's mirror renders' anti-aliasing
+            case GraphicsRow.MirrorAa:
+                Row(r, line, "Mirror AA", () => I76.Game.Sim.MirrorAaRow.Names[I76.Game.Sim.MirrorAaRow.Clamp(st.MirrorAa)], () => I76.Game.Sim.MirrorAaRow.Step(st));
+                break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;

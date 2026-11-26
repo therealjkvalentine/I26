@@ -41,6 +41,9 @@ public static class GraphicsHelp
         GraphicsRow.MirrorHaze => look1997
             ? "Mirror haze: the modern look's mirror glass a little milky. The 1997 look's mirror is the original's."
             : "Mirror haze: the mirrors' glass a touch milky, as no mirror is perfect or perfectly clean, so it does not look quite like the view through the windscreen. Low (the default) barely seen, Med a little more, High about three times Low, Off the clear glass. A flat veil, the same all over the glass. Little cost; Off none.",
+        GraphicsRow.MirrorAa => look1997
+            ? "Mirror AA: the modern look's mirrors' anti-aliasing. The 1997 look's mirror is the original's, without any."
+            : "Mirror AA: smooths jagged edges in the mirrors' pictures, which the main view's Anti-Aliasing does not reach. Off (the default) is the mirrors as they were; SMAA smooths poles, wires and the horizon for little cost; 2x, 4x and 8x are MSAA in the mirrors' renders, 8x the dearest; As View follows the Anti-Aliasing row.",
         GraphicsRow.AntiAliasing => look1997
             ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges; SMAA is the modern look's only). Little cost in the 1997 look."
             : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing (thin poles and cut-out edges too) for a third of what 2x costs, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer.",
