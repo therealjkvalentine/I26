@@ -27,10 +27,13 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     public TripStart? TripStart { get; init; }
     /// <summary>A checkpoint bookmark's checkpoint (its file's bytes): the mission resumes there (docs/savestate.md). The game reads it, and drops it if it cannot be used.</summary>
     public byte[]? Resume { get; init; }
+    /// <summary>Trip+'s rules for a trip launch (the play fork's; docs/deviations.md "Trip+"); null, the original's trip.</summary>
+    public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
 }
 
 /// <summary>The trip at a mission's launch: the mission number (trip.cfg's) and the car with its parts (the bookmark .cmp body, <see cref="I76.Sim.Trip.TripInventory.Save"/>).</summary>
-public sealed record TripStart(int Mission, string Car);
+/// <param name="Lap">The Trip+ lap (the play fork's): 1 the original's trip.</param>
+public sealed record TripStart(int Mission, string Car, int Lap = 1);
 
 /// <summary>
 /// A network melee from the MULTI MELEE forms (melee modes 3/4 host, 7/8
@@ -532,11 +535,20 @@ public partial class Shell : CanvasLayer
             return ChassisForm.Create(this, new MeleeChassis(gmi, gvi, n => { }, () => { }));
         // test hook: I76_SHELL_START=playoptions opens the Play Options sheet
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "playoptions") return new PlayOptionsScreen();
+        // test hook: I76_SHELL_START=won17 comes up as a won T17 does after its credits (the play fork's New Game Plus offer), the trip
+        // finished; a trip with no car yet gets T16's stock car to keep
+        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "won17")
+        {
+            Trip.Mission = 17;
+            if (Trip.Inventory(this) is null) Trip.StockCar(this, "vppt16.vcf");
+            Trip.Finish();
+            return new MainMenuScreen { OfferNewGamePlus = NewGamePlus.Offers(MissionResult.Won, Trip.Mission) };
+        }
         // test hook: I76_SHELL_START=router comes up as if the trip's current mission had just been won
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") == "router")
         {
             // with the finished mission's .fsi salvage, as a win with nothing killed hands back
-            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0);
+            var pool = new I76.Sim.Trip.SalvagePool(Trip.Stem, (Settings.PlayOptions & 2) != 0, Trip.Plus.Active?.SalvageOffset ?? 0);
             var items = pool.Finish(Vfs.TryRead, Rand);
             Trip.Won();
             if (Trip.Inventory(this) is { } inv) { inv.MissionWon(null, items, Parts, Rand); Trip.Save(); }
@@ -572,7 +584,10 @@ public partial class Shell : CanvasLayer
             switch (LastResult)
             {
                 case MissionResult.Won when Trip.Mission >= 17:
-                    return new CreditsScreen { Then = () => new MainMenuScreen() };
+                    Trip.Finish();   // the trip is finished (the play fork's record, for Trip+)
+                    // a won trip offers its New Game Plus save on the menu the credits return to (once: this menu alone)
+                    bool offer = NewGamePlus.Offers(LastResult, Trip.Mission);
+                    return new CreditsScreen { Then = () => new MainMenuScreen { OfferNewGamePlus = offer } };
                 case MissionResult.Won:
                     // T04 is a dream: with salvage management on, the original front end's main loop reloads trip4.spc (the car as it left the garage
                     // after T03) instead of taking the mission's damage (state 1, N == 4)
@@ -713,7 +728,8 @@ public partial class Shell : CanvasLayer
         I76.Formats.Vfs.AssetVfs.Addon["vehscn.vcf"] = inv.ToCar().ToVcf();
         Launch(new ShellLaunch(Trip.Stem, GameKind.Trip, "vehscn.vcf")
         {
-            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save()), Resume = resume,
+            State = inv.State(), NoSalvage = (Settings.PlayOptions & 2) != 0, TripStart = new TripStart(Trip.Mission, inv.Save(), Trip.Plus.Lap), Resume = resume,
+            TripPlus = Trip.Plus.Active,
         });
     }
 
@@ -1188,6 +1204,8 @@ public sealed class TripState
     private const string Path = "user://saves/trip.cfg", InventoryPath = "user://saves/trip_car.json";
     public int Mission { get; set; } = 1;
     public int Highest { get; set; } = 1;
+    /// <summary>trip.cfg's Trip+ part (the play fork's): finished, the lap and its rules.</summary>
+    public TripPlusSave Plus { get; set; } = new();
     private I76.Sim.Trip.TripInventory? _inventory;
     private bool _inventoryRead;
     /// <summary>The trip came from a bookmark this session: no tutorial voices or questions.</summary>
@@ -1223,9 +1241,13 @@ public sealed class TripState
     {
         var t = new TripState();
         var c = new ConfigFile();
-        if (c.Load(Path) != Error.Ok) return t;
-        t.Mission = (int)c.GetValue("trip", "mission", 1);
-        t.Highest = (int)c.GetValue("trip", "highest", 1);
+        if (c.Load(Path) == Error.Ok)
+        {
+            t.Mission = (int)c.GetValue("trip", "mission", 1);
+            t.Highest = (int)c.GetValue("trip", "highest", 1);
+            t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
+        }
+        if (t.Plus.Hooked(NewGamePlus.Env("I76_NEW_GAME_PLUS", "I76_TRIP_PLUS")) is { } hooked) t.Plus = hooked;   // docs/dev-hooks.md (the older spelling too)
         return t;
     }
 
@@ -1235,6 +1257,7 @@ public sealed class TripState
         var c = new ConfigFile();
         c.SetValue("trip", "mission", Mission);
         c.SetValue("trip", "highest", Highest);
+        foreach (var (s, k, v) in Plus.Entries()) c.SetValue(s, k, v switch { bool b => b, int i => i, _ => v.ToString() ?? "" });
         c.Save(Path);
         if (_inventory is null) return;
         using var f = Godot.FileAccess.Open(InventoryPath, Godot.FileAccess.ModeFlags.Write);
@@ -1246,6 +1269,15 @@ public sealed class TripState
 
     /// <summary>A won trip mission: the number advances at the next launch (the original front end's 0xc001 exit).</summary>
     public void Won() { Mission = Math.Min(17, Mission + 1); Highest = Math.Max(Highest, Mission); Save(); }
+
+    /// <summary>NEW TRIP's START OVER (and NEW TRIP before the trip is finished): T01 on lap 1, the original's trip; the car is the caller's (the stock car).</summary>
+    public void StartOver() { Plus = Plus.OnLap(1); New(); }
+
+    /// <summary>NEW TRIP's TRIP+ (the play fork's): T01 on the next lap, its rules the table's; the trip car (trip_car.json) is kept whole.</summary>
+    public void StartTripPlus() { Plus = Plus.OnLap(Plus.NextLap); New(); }
+
+    /// <summary>A T17 win (before the credits): the trip is finished, and this lap with it (the play fork's record, for Trip+).</summary>
+    public void Finish() { Plus = Plus.Won17(); Save(); }
 
     /// <summary>Quit out of a mission (state 2): the trip stays where it was.</summary>
     public void Quit() => Save();
@@ -1520,6 +1552,8 @@ public sealed class ShellSettings
     public bool LogFile { get; set; }
     /// <summary>The port's own: a bug report's inputs.csv, the last seconds of the player's inputs kept in memory while a mission runs ([port] bug_report_inputs; on, written when off; Boot/BugReport.cs).</summary>
     public bool BugReportInputs { get; set; } = true;
+    /// <summary>The play fork's developer switch [port] new_game_plus_unlocked (written only when on; trip_plus_unlocked read too): NEW TRIP offers New Game Plus before the trip is finished (docs/deviations.md "New Game Plus").</summary>
+    public bool TripPlusUnlocked { get; set; }
     /// <summary>The port's own: Graphic Detail's Renderer (Auto, Vulkan, D3D12, OpenGL; shell.cfg [port] renderer, written only when not Auto). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.StartupSettings"/>).</summary>
     public I76.Game.Boot.RendererChoice Renderer { get; set; }
     /// <summary>A co-op seat is in the mission's own car (the default) rather than the player's pick on the melee forms' car panel.</summary>
@@ -2165,6 +2199,8 @@ public sealed class ShellSettings
         // no version step: absent, it is off. The override file is what Godot reads; the setting is the player's word for it
         s.LogFile = (bool)c.GetValue("port", "log_file", false);
         s.BugReportInputs = (bool)c.GetValue("port", "bug_report_inputs", true);
+        // no version step: absent, it is off; trip_plus_unlocked is the key's older name, still read
+        s.TripPlusUnlocked = (bool)c.GetValue("port", "new_game_plus_unlocked", false) || (bool)c.GetValue("port", "trip_plus_unlocked", false);
         // no version step: absent, it is off (players never see the panel); developer_tools is the key's older name, still read
         s.DeveloperTools = DeveloperWord(c.GetValue("port", "developer", false).ToString()) || DeveloperWord(c.GetValue("port", "developer_tools", false).ToString());
         s.DevFps = (bool)c.GetValue("port", "dev_fps", false);
@@ -2379,6 +2415,7 @@ public sealed class ShellSettings
 
         if (LogFile) c.SetValue("port", "log_file", true);
         if (!BugReportInputs) c.SetValue("port", "bug_report_inputs", false);
+        if (TripPlusUnlocked) c.SetValue("port", "new_game_plus_unlocked", true);
         if (Renderer != I76.Game.Boot.RendererChoice.Auto) c.SetValue("port", "renderer", Renderer.ToString());
         return c;
     }

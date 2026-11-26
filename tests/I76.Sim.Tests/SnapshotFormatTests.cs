@@ -90,6 +90,33 @@ public class SnapshotFormatTests
         Assert.Equal(snap, b.Snapshot());
     }
 
+    /// <summary>Trip+'s rules (the play fork's, format 28) travel in the header, and a session built by other rules refuses the snapshot.</summary>
+    [Fact]
+    public void TripPlusRulesTravelInTheHeaderAndOtherRulesAreRefused()
+    {
+        Assert.True(SnapshotHeader.CurrentVersion >= 28, "Trip+'s rules are in format 28 and later");
+        var rules = new I76.Sim.Trip.TripPlusRules(1, -1, 4);
+        var build = new SessionBuild { Mission = "t03", Install = 0x1234, Car = "vehscn.vcf", TripPlus = rules };
+        var s = World(1, build);
+        Run(s, 10);
+        var snap = s.Snapshot();
+        Assert.Equal(rules, SnapshotHeader.Read(snap).Build.TripPlus);
+        string Why(SessionBuild b) => Assert.Throws<SnapshotMismatchException>(() => World(2, b).Restore(snap)).Message;
+        Assert.Contains("Trip+", Why(build with { TripPlus = null }));
+        Assert.Contains("Trip+", Why(build with { TripPlus = rules with { Copies = 2 } }));
+        Assert.Contains("Trip+", Why(build with { TripPlus = rules with { SkillOffset = -2 } }));
+        Assert.Contains("Trip+", Why(build with { TripPlus = rules with { SalvageOffset = 0 } }));
+        World(3, build).Restore(snap);   // the same rules take it
+        // the original's trip: no rules and rules all at 0 are the same game
+        var plain = new SessionBuild { Mission = "t03", Install = 0x1234, Car = "vehscn.vcf" };
+        var ps = World(1, plain);
+        Run(ps, 10);
+        var psnap = ps.Snapshot();
+        Assert.Null(SnapshotHeader.Read(psnap).Build.TripPlus);
+        World(4, plain with { TripPlus = new(0, 0, 0) }).Restore(psnap);
+        Assert.Contains("Trip+", Assert.Throws<SnapshotMismatchException>(() => World(5, build).Restore(psnap)).Message);
+    }
+
     [Fact]
     public void TheHeaderSaysWhatToBuildAndCarriesTheHostsData()
     {

@@ -201,8 +201,8 @@ public sealed partial class ScriptHost
     public HashSet<Entity> Escorts(Fsm.FsmVm vm)
     {
         var set = new HashSet<Entity>();
-        if (Coop is null) return set;
-        foreach (int i in vm.EscortSlots)
+        if (Coop is null && Solo is null) return set;   // single player: only under Trip+'s Posse
+        foreach (int i in vm.FailOnDeathSlots())
             if (vm.Actors[i].Handle is Entity { Vehicle: { Emplacement: null } } e && !IsHumanEntity(e) && e.Team != 2 && e.ExtraOf is null) set.Add(e);
         return set;
     }

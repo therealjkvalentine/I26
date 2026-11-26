@@ -1196,10 +1196,12 @@ public partial class Main : Node3D
 		// the simulation's world (no engine calls) on a worker: under a playing briefing the main thread goes on drawing it meanwhile
 		var origin = _origin;
 		bool scriptAi = _opt.Ai == "script";
+		// Trip+'s rules (the play fork's; docs/deviations.md "Trip+"): the trip launch's, or a reopened bug report's state's; null for the original's
+		var tripPlus = TripPlusRules(roster is not null);
 		var setupJob = I76.Game.Boot.Beside.Run(() => I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, origin, script: scriptAi,
 			rand: new I76.Sim.Rng.CrtRand(randSeed), melee: roster,
 			// one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
-			seed: unchecked((int)randSeed)));
+			seed: unchecked((int)randSeed), tripPlus: tripPlus));
 		yield return setupJob;
 		var setup = setupJob.GetAwaiter().GetResult();
 		MissionBuilder.Trace("spawn: sim world set up");
@@ -1213,7 +1215,7 @@ public partial class Main : Node3D
 		{
 			// what the mission was built from, which its snapshots carry and a restore checks (docs/savestate.md)
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(),
-			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster,
+			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster, TripPlus = tripPlus,
 		};
 		string? installDir = _opt.Install, missionName = _opt.Mission ?? "";
 		I76.Sim.Session.SimSession session = null!;
@@ -1231,7 +1233,7 @@ public partial class Main : Node3D
 		if (_launch is { Kind: I76.Game.Shell.GameKind.Trip } tl && tl.Mission.StartsWith("t", System.StringComparison.OrdinalIgnoreCase))
 		{
 			if (tl.State is { } carState && world.Player is { } tp) carState.Apply(tp);
-			_salvage = new I76.Sim.Trip.SalvagePool(tl.Mission, tl.NoSalvage);
+			_salvage = new I76.Sim.Trip.SalvagePool(tl.Mission, tl.NoSalvage, tripPlus?.SalvageOffset ?? 0);   // Trip+'s Loot up
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
@@ -1269,6 +1271,7 @@ public partial class Main : Node3D
 			ModernPhysics = _opt.ModernPhysics || traceSettings.ModernPhysics, Ai = _opt.Ai,
 		};
 		_reportRoster = null;
+		_reportTripPlus = null;
 		// the last seconds of the player's inputs, for a bug report's inputs.csv ([port] bug_report_inputs; a few kilobytes)
 		if (traceSettings.BugReportInputs) _sim.Inputs = new InputRing(thisRun, System.Math.Max(1, (int)System.Math.Round(InputRing.Seconds / session.TickSeconds)));
 		if (replay is not null)
@@ -1357,6 +1360,14 @@ public partial class Main : Node3D
 			foreach (var (so, gp) in setup.PlacementOf)
 				foreach (var n in so.Nodes) if (n.Gate is { } g) gateOf[(gp, n.Name)] = g;
 			if (gateOf.Count > 0) gateScenery.GateShift = (gp, name) => gateOf.TryGetValue((gp, name), out var g) ? g.Shift : default;
+		}
+		// Trip+'s Posse makes copies of enemy cars as the script sets them going (the play fork's): each gets its node then
+		if (setup.Script?.Host.Solo is { } posse)
+		{
+			posse.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
+			// the copies the script's first frame already made (an enemy ordered at once: T01's, T03's)
+			foreach (var v in world.Vehicles.ToList())
+				if (!carNodes.ContainsKey(v) && setup.Script.Host.Of(v) is { ExtraOf: not null } && v.Definition is { Length: > 0 } cd) carNodes[v] = MakeNode(v, cd);
 		}
 		// a melee builds its cars as it goes: the roster now and every wave, a fresh car on a regen pad
 		if (setup.Melee is { } melee)
