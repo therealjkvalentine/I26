@@ -17,6 +17,27 @@ public static class RoadDetail
         _ => setting ? 1f : 0f,
     };
 
-    public static void Apply(bool setting) =>
+    /// <summary>
+    /// The prototypes on top of On, for the owner to pick from (I76_ROAD_STYLE, letters, any order; none: today's On), as bits of the global
+    /// i76_road_style: n the night response (retroreflective markings and glints on the stones under the lamps), b stronger close-up asphalt,
+    /// c wear lanes, an oil streak and sealant lines along the lanes (needs the road frame, baked only then), d a damp, glossier night.
+    /// </summary>
+    public const int Night = 1, Strong = 2, Lanes = 4, Damp = 8;
+
+    public static int Style(string? env)
+    {
+        int s = 0;
+        foreach (char c in (env ?? "").ToLowerInvariant())
+            s |= c switch { 'n' => Night, 'b' => Strong, 'c' => Lanes, 'd' => Damp, _ => 0 };
+        return s;
+    }
+
+    /// <summary>Whether the chunks' road frame is to be baked (the wear-lane prototype, c).</summary>
+    public static bool WantsFrame => (Style(System.Environment.GetEnvironmentVariable("I76_ROAD_STYLE")) & Lanes) != 0;
+
+    public static void Apply(bool setting)
+    {
         RenderingServer.GlobalShaderParameterSet("i76_road_detail", Value(setting, System.Environment.GetEnvironmentVariable("I76_ROAD_DETAIL")));
+        RenderingServer.GlobalShaderParameterSet("i76_road_style", Style(System.Environment.GetEnvironmentVariable("I76_ROAD_STYLE")));
+    }
 }

@@ -318,6 +318,25 @@ public sealed class MissionBuilder(AssetVfs vfs)
         return img;
     }
 
+    /// <summary>
+    /// Road Detail's road frame for each chunk a road quad crosses (RoadRaster.BakeFrame at 256 texels a chunk, 0.625 m; mipmapped,
+    /// uncompressed): the wear-lane prototype's across-road position and axis (terrain_modern.gdshaderinc, road_detail()).
+    /// </summary>
+    private static Dictionary<(int, int), ImageTexture> BakeRoadFrames(List<RoadRaster.FlatQuad> flat, List<(int X0, int Z0)> origins)
+    {
+        const int res = 256;
+        var index = new RoadRaster.Index(flat, [], TerrainNode.Chunk * 5f);
+        var made = new System.Collections.Concurrent.ConcurrentDictionary<(int, int), Image>();
+        System.Threading.Tasks.Parallel.ForEach(origins, o =>
+        {
+            if (RoadRaster.BakeFrame(flat, new System.Numerics.Vector2(o.X0 * 5f, o.Z0 * 5f), TerrainNode.Chunk * 5f, res, index) is not { } px) return;
+            var img = Image.CreateFromData(res, res, false, Image.Format.Rgba8, px);
+            img.GenerateMipmaps();
+            made[o] = img;
+        });
+        return made.ToDictionary(kv => kv.Key, kv => ImageTexture.CreateFromImage(kv.Value));
+    }
+
     /// <summary>The bake cache in user data (user://cache/terrain); null with I76_BAKE_CACHE=0.</summary>
     public static BakeCache? Cache { get; } = System.Environment.GetEnvironmentVariable("I76_BAKE_CACHE") == "0" ? null
         : new BakeCache(ProjectSettings.GlobalizePath("user://cache/terrain"));
@@ -866,6 +885,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
         }
         Stage("road bake");
         var layers = huge ? [] : BakeRoadLayers([.. flat, .. fills], pieceTris, roadTex, bakeOrigins);
+        // Road Detail's road frame (across-road position and axis, RoadRaster.BakeFrame) for the wear-lane prototype only (RoadDetail.WantsFrame);
+        // not for a map that streams its chunks
+        var frames = huge || !RoadDetail.WantsFrame ? null : BakeRoadFrames([.. flat, .. fills], bakeOrigins);
         var layers97 = huge || packRoads || origins97.Count == 0 ? [] : BakeRoadLayers(flat, pieceTris, roadTex, origins97);
         var layersSw = huge || packRoads ? [] : SoftwareLayers();
         // with a pack's roads the 1997 look's layers are baked from the originals the first time that look is drawn: exactly the layers a
@@ -948,6 +970,11 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 m.SetShaderParameter("road_layer", t);
                 m.SetShaderParameter("has_road", true);
+                if (frames is not null && frames.TryGetValue((x0, z0), out var fr))
+                {
+                    m.SetShaderParameter("road_frame", fr);
+                    m.SetShaderParameter("has_road_frame", true);
+                }
             }
             if (cavities)
             {

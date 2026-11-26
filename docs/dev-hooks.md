@@ -389,6 +389,7 @@ the car's `VehicleFlags` in hex).
 | `I76_GROUND_MATERIALS` | tuning | `0`: procedural ground only (and a painted ground without the asphalt scan). |
 | `I76_ROAD_GRAIN` | capture | `1` or `0`: the modern look's paved roads with or without the asphalt grain near the camera for the run, whatever `[port] road_grain` says (docs/playing.md, "Settings without a row"; before and after captures at road level). |
 | `I76_ROAD_DETAIL` | capture | `1` or `0`: Graphic Detail's Road Detail on or off for the run, whatever `[port] road_detail` says (World/RoadDetail; before and after captures). |
+| `I76_ROAD_STYLE` | capture | Road Detail's prototypes over On, for choosing between them (World/RoadDetail.Style; letters, any order; none: today's On): `n` the night response (the markings' retroreflection toward the lamps, the stones' glints under them), `b` stronger close-up asphalt (larger aggregate, 2.2x relief, 1.6x contrast), `c` wheel-track wear, an oil streak down each lane and sealant lines along the lanes (bakes the chunks' road frame, RoadRaster.BakeFrame), `d` a damp, glossier road at night (the night shader only). Needs Road Detail On (`I76_ROAD_DETAIL=1`). |
 | `I76_GROUND_PAINT` | tuning | `0`: a painted ground (M15's parking lot, GroundMarkings) drawn as fitted noise like a natural one. |
 | `I76_MAT_COMPRESS` | tuning | `0`: uncompressed material arrays (editor builds only). |
 | `I76_PROP_MAPS` | tuning | `0`: no material maps on scenery. |

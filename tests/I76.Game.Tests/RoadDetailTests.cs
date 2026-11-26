@@ -64,6 +64,26 @@ public class RoadDetailTests
     public void TheEnvironmentOverridesTheSettingForACapture(bool setting, string? env, float want)
         => Assert.Equal(want, RoadDetail.Value(setting, env));
 
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData("", 0)]
+    [InlineData("n", RoadDetail.Night)]
+    [InlineData("NB", RoadDetail.Night | RoadDetail.Strong)]
+    [InlineData("c d x", RoadDetail.Lanes | RoadDetail.Damp)]
+    public void ThePrototypesAreLettersForBits(string? env, int want) => Assert.Equal(want, RoadDetail.Style(env));
+
+    [Fact]
+    public void ThePrototypesStayOffUnlessAsked()
+    {
+        // the global is 0 (today's On) by default, and the night response only touches lamps' light (not the sun's or the moon's)
+        Assert.Matches(new Regex(@"i76_road_style=\{\s*""type"": ""int"",\s*""value"": 0\s*\}"), Game("project.godot"));
+        var s = Game("Shaders", "terrain_modern.gdshaderinc");
+        Assert.Equal(2, Regex.Matches(s, @"if \(!LIGHT_IS_DIRECTIONAL\) road_lamp\(").Count);
+        // the damp prototype is the night shader's only
+        int damp = s.IndexOf("if (s_damp)", StringComparison.Ordinal);
+        Assert.True(damp > 0 && s.LastIndexOf("#ifdef I76_NIGHT_ROADS", damp, StringComparison.Ordinal) > s.LastIndexOf("#endif", damp, StringComparison.Ordinal));
+    }
+
     [Fact]
     public void OnlyTheModernTerrainReadsItBehindTheGlobal()
     {

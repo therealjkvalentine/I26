@@ -171,6 +171,8 @@ global uniform vec3 i76_ground_tint;
 global uniform float i76_terrain_tiers;
 // Road Detail (Graphic Detail > World; World/RoadDetail.cs): 1 on, 0 off (road_detail(), below).
 global uniform float i76_road_detail;
+uniform float road_retro = 0.6;                      // the markings' retroreflection against their diffuse light, inside the lobe
+uniform float road_glint = 1.5;                      // the stones' glint under the lamps
 // The baked terrain shadows (World/TerrainShade.cs, by day): i76_terrain_shade's R the sun's margin over the terrain's horizon toward it
 // (0.5 the horizon, 0 and 1 -/+ edge.x radians), i76_terrain_sky's R the sky's share left open by the terrain round the point; the rect
 // is their corner (game frame x, z) and 1 / their size. on: x the strength (0 off), y the shadow map's reach (0 none), z the sky term's
@@ -191,6 +193,8 @@ varying vec3 g_broad;   // the surface's normal over a broad span (CUSTOM2: Terr
 varying vec2 road_uv;
 varying float v_road;   // the road's coverage and the surface's specular, from fragment() for light()
 varying float v_spec;
+varying float v_retro;  // Road Detail's night response (road_detail()): how much retroreflective marking, and stone glint, for light()
+varying float v_glint;
 varying float v_sun;    // the sun's share left by the baked terrain shadows, for light()
 varying float v_keep;   // how much of the shadow map's darkening light() lets through on the terrain (TerrainShade.Combine)
 
@@ -383,9 +387,21 @@ uniform vec3 road_detail_yellow = vec3(0.39, 0.37, 0.03);  // the yellow dash's 
 uniform float road_detail_wear = 0.35;               // how far the chips take a light band back toward the asphalt
 uniform float road_detail_shoulder = 0.8;            // how much of the dirt strip beside the asphalt gives way to the ground
 uniform float road_detail_rough = 0.93;              // paved road's roughness
+// The prototypes over On for the owner to choose from (RoadDetail.Style, I76_ROAD_STYLE): bits of i76_road_style. 1 night: the markings'
+// glass beads send the lamps' light back toward them (retroreflection, light()) and the exposed stones glint under the lamps; 2 strong:
+// larger aggregate, more relief and contrast up close; 4 lanes: wheel-track wear, an oil streak down each lane's middle and wandering
+// sealant lines along the lanes, from the road frame (MissionBuilder.BakeRoadFrames); 8 damp: a glossier, darker road at night.
+global uniform int i76_road_style;
+uniform sampler2D road_frame : filter_linear_mipmap, repeat_disable;  // R across the road (0 right, 1 left), GB its axis as a doubled angle, A cover
+uniform bool has_road_frame = false;
 
 void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float tier_mid, inout float dirt, inout vec3 rc,
-		inout float cover, inout float rough, inout float spec, inout vec3 agrad) {
+		inout float cover, inout float rough, inout float spec, inout vec3 agrad, out vec2 night) {
+	night = vec2(0.0);
+	int style = i76_road_style;
+	bool s_night = (style & 1) != 0, s_strong = (style & 2) != 0, s_lanes = (style & 4) != 0 && has_road_frame, s_damp = (style & 8) != 0;
+	vec4 fr = has_road_frame ? texture(road_frame, uv) : vec4(0.0);
+	float fw_u = fwidth(fr.r);
 	// ---- in uniform control flow: the derivatives ----
 	float L = lum_lin(lc.rgb);
 	float lo = road_detail_bands.x, hi = road_detail_bands.y;
@@ -401,6 +417,14 @@ void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float ti
 	rough = mix(rough, road_detail_rough, paved);
 	if (cover <= 0.0 || tier_mid >= 1.0) return;
 	float keep = 1.0 - tier_mid;
+	float lod = log2(1.25 * res / chunk_units);
+	vec4 wide = textureLod(road_layer, uv, lod);
+	if (s_night) {
+		// what the lamps send back: thin light lines (an edge line is much lighter than the 1.25 m around it; the wide centre band is not)
+		// and the yellow dashes
+		float wl = clamp((lum_lin(wide.rgb) - lo) / (hi - lo), 0.0, 1.0);
+		night.x = max(light * smoothstep(0.1, 0.3, light - wl), yel) * paved * keep;
+	}
 
 	// ---- the markings: steepened where a texel covers more than about two pixels ----
 	float near_k = (1.0 - smoothstep(0.35, 0.8, px)) * paved;
@@ -433,8 +457,6 @@ void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float ti
 	rough = mix(rough, 0.72, seal);
 
 	// ---- the dirt strip beside the asphalt: the layer's coloured texels with grey near them (read broad), given to the ground ----
-	float lod = log2(1.25 * res / chunk_units);
-	vec4 wide = textureLod(road_layer, uv, lod);
 	float wmax = max(wide.r, max(wide.g, wide.b));
 	float ratio = (wmax - min(wide.r, min(wide.g, wide.b))) / max(wmax, 1e-4);
 	// (by the hue's share of the colour, not the linear spread: the pack's strip is a dark brown, 0.05 apart, which `dirt` counts as asphalt)
@@ -447,18 +469,58 @@ void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float ti
 		cover *= 1.0 - shoulder * road_detail_shoulder * (0.55 + 0.45 * smoothstep(-1.0, 1.0, sn)) * keep;
 	}
 
+#ifdef I76_NIGHT_ROADS
+	if (s_damp) {
+		// dew or a little damp: darker, and smooth enough for the lamps and the moon to sheen on it (the night shader only)
+		rc *= 1.0 - 0.2 * paved;
+		rough = mix(rough, 0.38, paved * keep);
+		spec = mix(spec, 0.6, paved * keep);
+	}
+#endif
+	// ---- along the lanes (the road frame): wheel-track wear, an oil streak, sealant lines ----
+	if (s_lanes && fr.a > 0.5 && dist < 300.0) {
+		float u = fr.r;
+		vec2 c2 = fr.gb * 2.0 - 1.0;
+		float ang = 0.5 * atan(c2.y, c2.x);
+		vec2 ax = vec2(cos(ang), sin(ang)), pp = vec2(-ax.y, ax.x);
+		// noise stretched along the road: 8 m along to 1 m across
+		vec2 q = vec2(dot(p, ax) * 0.125, dot(p, pp));
+		float along = octave(q, 1.0, vec2(1.0, 0.0), vec2(2.7, 6.1), footprint).x / 0.4;
+		float along2 = octave(q, 0.37, vec2(0.6, 0.8), vec2(8.3, 1.4), footprint).x / 0.4;
+		// the texture's lanes sit at u 0.19-0.39 and 0.61-0.81: the wheels run 0.085 either side of each lane's middle (0.29, 0.71)
+		float dl = min(abs(u - 0.29), abs(u - 0.71));
+		float track = 1.0 - smoothstep(0.03, 0.065, abs(dl - 0.085));
+		float centre = 1.0 - smoothstep(0.012, 0.045, dl);
+		float k = paved * keep;
+		rc *= 1.0 - 0.13 * track * (0.7 + 0.3 * along) * k;
+		rough = mix(rough, rough - 0.08, track * k);
+		float oil = centre * smoothstep(-0.5, 0.6, along + 0.5 * along2) * k;
+		rc *= 1.0 - 0.3 * oil;
+		rough = mix(rough, 0.7, oil);
+		spec = mix(spec, 0.35, oil);
+		// sealant: a dark wandering line along each lane's inner edge, in stretches
+		float wander = 0.018 * along2;
+		float dseal = min(abs(u - 0.405 - wander), abs(u - 0.595 + wander));
+		float sw = 0.006;
+		float sl = (1.0 - smoothstep(sw, sw + max(fw_u, 1e-4), dseal)) * clamp(sw / max(fw_u, 1e-4), 0.0, 1.0) * smoothstep(0.0, 0.6, along) * k;
+		rc *= 1.0 - 0.55 * sl;
+		rough = mix(rough, 0.6, sl);
+	}
 	// ---- near the camera: grain, stones, cracks ----
 	float af = (1.0 - smoothstep(road_detail_fade.x, road_detail_fade.y, dist)) * paved * (1.0 - brown) * keep;
 	if (af <= 0.0) return;
-	vec3 o1 = octave(p, 0.011, vec2(0.857, 0.515), vec2(1.3, 7.1), footprint);
-	vec3 o2 = octave(p, 0.029, vec2(-0.391, 0.920), vec2(6.6, 2.4), footprint);
-	vec3 o3 = octave(p, 0.083, vec2(0.28, -0.96), vec2(3.9, 9.9), footprint);
+	float sz = s_strong ? 1.5 : 1.0;   // the strong prototype: larger aggregate, more relief and contrast
+	vec3 o1 = octave(p, 0.011 * sz, vec2(0.857, 0.515), vec2(1.3, 7.1), footprint);
+	vec3 o2 = octave(p, 0.029 * sz, vec2(-0.391, 0.920), vec2(6.6, 2.4), footprint);
+	vec3 o3 = octave(p, 0.083 * sz, vec2(0.28, -0.96), vec2(3.9, 9.9), footprint);
 	float g = (0.55 * o1.x + 0.45 * o2.x + 0.35 * o3.x) / 0.4;
 	// exposed stones: the high points of the two finer octaves, a lighter grey, their mean taken back out so the road keeps its tone
 	float st = smoothstep(0.3, 0.7, o2.x + 0.6 * o1.x);
-	rc *= 1.0 + af * (road_detail_grain * g + road_detail_stones * (st - 0.1));
+	float gain = s_strong ? 1.6 : 1.0;
+	rc *= 1.0 + af * gain * (road_detail_grain * g + road_detail_stones * (st - 0.1));
 	agrad += (vec3(o1.y, 0.0, o1.z) * road_detail_relief.x + vec3(o2.y, 0.0, o2.z) * road_detail_relief.y
-	        + vec3(o3.y, 0.0, o3.z) * road_detail_relief.z) * af;
+	        + vec3(o3.y, 0.0, o3.z) * road_detail_relief.z) * af * (s_strong ? 2.2 : 1.0);
+	if (s_night) night.y = st * af;
 	// hairline cracks: the zero crossings of an octave pair, only where the broad field lets them, never drawn thinner than a pixel
 	// (narrower than that they fade in proportion instead of widening)
 	vec3 c1 = octave(p, 0.7, vec2(0.96, 0.28), vec2(2.2, 4.4), footprint), c2 = octave(p, 0.23, vec2(-0.28, 0.96), vec2(5.8, 0.6), footprint);
@@ -701,6 +763,7 @@ void fragment() {
 	float road_relief = 0.15;    // how much of the ground's relief shows through the road
 	float paved = 0.0;           // how much of the ground is paved road (asphalt): laid flat, with none of the ground's bumps
 	vec3 agrad = vec3(0.0);      // the aggregate's relief on paved road
+	vec2 rnight = vec2(0.0);     // Road Detail's night response: the markings' retroreflection, the stones' glint (light())
 	if (has_road) {
 		// asphalt (grey) against dirt tracks (coloured)
 		float sat = max(road_col.r, max(road_col.g, road_col.b)) - min(road_col.r, min(road_col.g, road_col.b));
@@ -711,7 +774,7 @@ void fragment() {
 		vec3 rc = road_col.rgb * mix(asphalt_tone, 1.0, dirt) * clamp(1.0 + grain * mix(road_grain.x, road_grain.y, dirt), 0.6, 1.4);
 		float r_rough = mix(asphalt_shine.x, dirt_road_shine.x, dirt), r_spec = mix(asphalt_shine.y, dirt_road_shine.y, dirt);
 #ifndef PAINTED_GROUND
-		if (i76_road_detail > 0.0) road_detail(g_pos.xz, road_uv, road_col, dist, footprint, tier_mid, dirt, rc, road, r_rough, r_spec, agrad);
+		if (i76_road_detail > 0.0) road_detail(g_pos.xz, road_uv, road_col, dist, footprint, tier_mid, dirt, rc, road, r_rough, r_spec, agrad, rnight);
 #endif
 		ground = mix(ground, rc, road);
 		rough = mix(rough, r_rough, road);
@@ -720,7 +783,10 @@ void fragment() {
 		road_relief = mix(0.25, 0.6, dirt);
 		paved = road * (1.0 - dirt);
 		agrad *= road;
+		rnight *= road;
 	}
+	v_retro = rnight.x;
+	v_glint = rnight.y;
 #ifndef PAINTED_GROUND
 	if (has_asphalt && paved > 0.0 && dist < asphalt_fade.y && tier_mid < 1.0) {
 		float af = (1.0 - smoothstep(asphalt_fade.x, asphalt_fade.y, dist)) * (1.0 - tier_mid);
@@ -854,6 +920,20 @@ void fragment() {
 	if (i76_night_ground > 0.0) EMISSION += i76_night_ground_light(ALBEDO, world_n, -VERTEX.z) * (1.0 - road);
 }
 
+// Road Detail's night response for a lamp (not the sun or the moon): a marking's glass beads send light back toward its source, in a
+// lobe a few degrees wide, so to a driver behind his own headlamps the lines glow well past where the asphalt has gone dark; the exposed
+// stones catch a lamp in small, sharp glints. retro and glint (v_retro, v_glint) are 0 unless the night prototype is on.
+void road_lamp(float retro, float glint, vec3 nrm, vec3 view, vec3 lgt, float ndl, vec3 lc, inout vec3 diffuse, inout vec3 specular) {
+	if (retro > 0.0) diffuse += retro * road_retro * smoothstep(0.9962, 0.99996, dot(lgt, view)) * step(0.0, dot(nrm, lgt)) * lc / PI;
+	if (glint > 0.0) {
+		vec3 h = normalize(view + lgt);
+		float ndh = clamp(dot(nrm, h), 0.0, 1.0);
+		const float a2 = 0.0081;   // roughness 0.3
+		float dd = a2 / (PI * pow(ndh * ndh * (a2 - 1.0) + 1.0, 2.0));
+		specular += glint * road_glint * 0.04 * ndl * dd * lc;
+	}
+}
+
 #ifdef I76_NIGHT_ROADS
 // Under a night preset (terrain_modern_night.gdshader): the moon's light on a road at its share, the lamps' whole. Otherwise
 // Godot's own model as its forward renderer computes it for a shader that names no diffuse mode (Lambert diffuse, not the
@@ -888,6 +968,7 @@ void light() {
 	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
 	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
 	SPECULAR_LIGHT += ndl * D * G * F * ATTENUATION * light_col * glint_hue * SPECULAR_AMOUNT * share;
+	if (!LIGHT_IS_DIRECTIONAL) road_lamp(v_retro, v_glint, NORMAL, VIEW, LIGHT, ndl, ATTENUATION * light_col, DIFFUSE_LIGHT, SPECULAR_LIGHT);
 }
 #else
 // By day: the same model, the sun's light through the lesser of the shadow map (v_keep of its darkening) and the baked terrain shadows (v_sun, 1 without them).
@@ -907,5 +988,6 @@ void light() {
 	vec3 f0 = mix(vec3(0.16 * v_spec * v_spec), ALBEDO, METALLIC);
 	vec3 F = f0 + (clamp(dot(f0, vec3(50.0 * 0.33)), METALLIC, 1.0) - f0) * i76_schlick(ldh);
 	SPECULAR_LIGHT += ndl * D * G * F * att * LIGHT_COLOR * SPECULAR_AMOUNT;
+	if (!LIGHT_IS_DIRECTIONAL) road_lamp(v_retro, v_glint, NORMAL, VIEW, LIGHT, ndl, att * LIGHT_COLOR, DIFFUSE_LIGHT, SPECULAR_LIGHT);
 }
 #endif
