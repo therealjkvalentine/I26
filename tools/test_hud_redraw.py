@@ -133,23 +133,50 @@ class DamageTests(unittest.TestCase):
 
 
 class WireTests(unittest.TestCase):
-    def test_pieces_widths_and_order(self):
-        spec = hr.load_spec(); wz = spec["damage"]["wires"]
+    """Round 2: the red runs on under the yellow where they cross (one run, no break), every red under every yellow."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.spec = hr.load_spec(); wz = cls.wz = cls.spec["damage"]["wires"]
         p = np.zeros((128, 256, 4), np.uint8)
         red, yel = wz["colours"]["red"], wz["colours"]["yellow"]
-        # a red wire down x 4-5 and a yellow one crossing over it (the yellow painted last where they meet)
+        # a red wire down x 4-5, painted first, and a yellow one crossing it, painted over it: the red is cut in two
         for y in range(5, 60): p[y, 4] = (*red[0], 255); p[y, 5] = (*red[1], 255)
-        for y in range(5, 60):
-            x = 1 + int(round(10 * (y - 5) / 55)); p[y, x] = (*yel[0], 255); p[y, x + 1] = (*yel[1], 255)
-        pieces = hr.measure_wires(p, wz)
-        self.assertGreaterEqual(len(pieces), 2)
-        for q in pieces: self.assertAlmostEqual(q["width"], 2.0, delta=0.6)
-        self.assertEqual(pieces[-1]["colour"], "yellow")            # on top where they cross, as painted
-        out = hr.redraw_wires(up(p, 4), p, wz, 4, pieces)
-        # the red tube's middle row is red, its texels left and right of it clear
-        row = out[30 * 4 + 2]
-        self.assertGreater(int(row[4 * 4 + 4, 0]), 100); self.assertLess(int(row[4 * 4 + 4, 1]), 60)
-        self.assertEqual(int(row[13 * 4, 3]), 0)
+        for y in range(24, 40):
+            x = y - 24; p[y, x] = (*yel[0], 255); p[y, x + 1] = (*yel[1], 255)
+        # and a connector block the red runs into at the foot: no join is made through it
+        p[60:66, 2:9] = (67, 67, 67, 255)
+        for y in range(66, 80): p[y, 4] = (*red[0], 255); p[y, 5] = (*red[1], 255)
+        cls.p = p
+        cls.runs = hr.measure_wires(p, wz)
+        cls.out = hr.redraw_wires(up(p, 4), p, wz, 4, cls.runs)
+
+    def test_the_red_is_one_run_across_the_crossing_but_not_through_a_connector(self):
+        reds = [r for r in self.runs if r["colour"] == "red"]
+        self.assertEqual(len(reds), 2)                               # above the connector (joined) and below it
+        self.assertEqual(sorted(r["joins"] for r in reds), [0, 1])
+        for r in self.runs: self.assertAlmostEqual(r["width"], 2.0, delta=0.6)
+
+    def test_every_red_under_every_yellow(self):
+        names = [r["colour"] for r in self.runs]
+        self.assertEqual(names, sorted(names, key=["red", "yellow"].index))
+        # where they cross (y 29, x 5) the texel shows the yellow
+        px = self.out[29 * 4 + 2, 5 * 4 + 4]
+        self.assertGreater(int(px[1]), 90)                           # yellow: green high, not the red's
+
+    def test_the_red_shows_on_both_sides_of_the_crossing_and_air_beside_it(self):
+        for y in (10, 52):
+            row = self.out[y * 4 + 2]
+            self.assertGreater(int(row[5 * 4, 0]), 80); self.assertLess(int(row[5 * 4, 1]), 60)
+        self.assertEqual(int(self.out[30 * 4, 14 * 4, 3]), 0)
+
+    def test_shaded_and_reproducible(self):
+        # a matte cylinder: lighter on its lit (upper left) side than at its far edge; the same bytes every run
+        again = hr.redraw_wires(up(self.p, 4), self.p, self.wz, 4, self.runs)
+        self.assertTrue(np.array_equal(again, self.out))
+        row = self.out[20 * 4 + 2, 3 * 4:7 * 4].astype(int)
+        lit = row[:, 0][row[:, 3] > 200]
+        self.assertGreater(int(lit.max()) - int(lit.min()), 20)
 
 
 class HousingTests(unittest.TestCase):

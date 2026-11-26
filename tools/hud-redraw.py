@@ -15,9 +15,10 @@ the export each run.
 
 - The wires: the red and yellow wires at the damage panel's sides are found in the original by colour, each colour's
   pieces between the connectors fitted as centrelines (radar-redraw.py's measure_wire: ordered end to end, a smoothing
-  spline), drawn again as tubes of their measured widths, shaded from the original's own colours regressed along them
-  (radar-redraw.py's Band), the one on top where two cross as the original has it. The upscale's own wire texels (red or
-  yellow by hue) round them are taken out first.
+  spline), a piece the other wire cuts joined to the next across the cut, and drawn again as insulated wire: the red
+  under the yellow everywhere, each a matte cylinder in the original's two shades of its colour, its width and line
+  varying a little, a soft sheen along its top, grimed where it meets a connector or the panel, with faint contact
+  shadows. The upscale's own wire texels (red or yellow by hue) round them are taken out first.
 - The wear (tools/panel_distress.py): a layer of grime, chipped paint along the art's edges, a few fine scratches and a
   slightly uneven print on the lettering, made from a fixed seed, at the spec's level (0 = none). It is made once per unit
   and laid the same on every state: the damage panel's layer is made over the panel as the game first shows it (every part
@@ -70,6 +71,12 @@ def level_of(spec, name):
 
 
 # ------------------------------------------------------------------------------------------------------------- the wires
+# Round 2 (the owner: "the red wire should run continuously behind the yellow one and look more worn and real"): each colour's
+# pieces that the other wire cuts (an end of one within a few pixels of an end of the next, nothing but wire or air between)
+# are joined into one run; every red run is drawn under every yellow one; each run is an insulated wire shaded as a matte
+# cylinder lit from the top left in the original's two shades of its colour, its width and its line varying a little along it,
+# a soft sheen along its top, dulled and grimed where it meets a connector or the panel, with a faint contact shadow under the
+# yellow where it crosses the red and under both where they lie on the panel or a connector.
 
 def is_col(a, c): return (a[..., 0] == c[0]) & (a[..., 1] == c[1]) & (a[..., 2] == c[2])
 
@@ -87,56 +94,106 @@ def wire_pixels(orig, wz):
     return out
 
 
+def zone_of(wz, xs, ys):
+    return next(i for i, (x0, y0, x1, y1) in enumerate(wz["zones"]) if x0 <= xs.mean() < x1 and y0 <= ys.mean() < y1)
+
+
+def piece_ends(m):
+    """The two ends of a piece of pixels (the far ends of its geodesic), as pixel centres."""
+    ys, xs = np.nonzero(m)
+    d = rr.geodesic(m, (ys[0], xs[0])); e1 = np.unravel_index(int(np.argmax(d)), d.shape)
+    d = rr.geodesic(m, e1); e2 = np.unravel_index(int(np.argmax(d)), d.shape)
+    return [(e1[1] + 0.5, e1[0] + 0.5), (e2[1] + 0.5, e2[0] + 0.5)]
+
+
+def bridge_clear(orig, wires_any, p, q):
+    """Whether the straight gap from p to q crosses only wire pixels or air (not a connector or the body)."""
+    n = int(math.ceil(math.hypot(q[0] - p[0], q[1] - p[1]) * 3)) + 2
+    for t in np.linspace(0, 1, n):
+        x, y = p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+        i, j = int(y), int(x)
+        if orig[i, j, 3] > 0 and not wires_any[i, j]: return False
+    return True
+
+
 def measure_wires(orig, wz):
-    """The wires' pieces: colour, zone, centreline points, width, length and pixels (8-connected pieces of one colour)."""
-    pieces = []
-    for name, m in wire_pixels(orig, wz).items():
-        lab, n = ndimage.label(m, np.ones((3, 3)))
-        for k in range(1, n + 1):
-            pm = lab == k
-            if pm.sum() < wz["min_pixels"]: continue
-            w = rr.measure_wire(pm, wz["bin"], wz["smooth"])
-            if w is None: continue
-            ys, xs = np.nonzero(pm)
-            zi = next(i for i, (x0, y0, x1, y1) in enumerate(wz["zones"]) if x0 <= xs.mean() < x1 and y0 <= ys.mean() < y1)
-            pieces.append({"colour": name, "zone": zi, "mask": pm, **w})
-    return order_pieces(pieces, orig, wz)
-
-
-def order_pieces(pieces, orig, wz):
-    """Drawing order: where two pieces of different colours overlap, the one whose colour the original shows there last."""
-    H, W = orig.shape[:2]
-    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    """The wires' runs: colour, zone, centreline points, width, length and pixels. Each colour's 8-connected pieces, those
+    the other colour cuts joined across the cut (ends within join_reach px, only wire or air between: never through a
+    connector or the body), in drawing order: every red run, then every yellow one."""
     cols = wire_pixels(orig, wz)
-    reach = []
-    for p in pieces:
-        cu = rr.curve_open(p["points"])
-        t, d = rr.curve_coords(cu, xx, yy)
-        reach.append((np.abs(d) <= p["width"] / 2 + 0.6) & (t > -0.5) & (t < cu["length"] + 0.5))
-    score = [0] * len(pieces)
-    for i in range(len(pieces)):
-        for j in range(i + 1, len(pieces)):
-            if pieces[i]["colour"] == pieces[j]["colour"]: continue
-            ov = reach[i] & reach[j]
-            a = int((ov & cols[pieces[i]["colour"]]).sum()); b = int((ov & cols[pieces[j]["colour"]]).sum())
-            if a > b: score[i] += 1; score[j] -= 1
-            elif b > a: score[j] += 1; score[i] -= 1
-    order = sorted(range(len(pieces)), key=lambda k: (score[k], k))
-    return [pieces[k] for k in order]
+    wires_any = np.zeros(orig.shape[:2], bool)
+    for m in cols.values(): wires_any |= m
+    runs = []
+    for name in wz["order"]:
+        lab, n = ndimage.label(cols[name], np.ones((3, 3)))
+        parts = [lab == k for k in range(1, n + 1) if (lab == k).sum() >= 2]
+        ends = [piece_ends(m) for m in parts]
+        # join across the other wire: union of pieces whose nearest ends are close with a clear gap
+        parent = list(range(len(parts)))
+        def root(i):
+            while parent[i] != i: i = parent[i]
+            return i
+        bridges = []
+        for i in range(len(parts)):
+            for j in range(i + 1, len(parts)):
+                best = min(((math.hypot(p[0] - q[0], p[1] - q[1]), p, q) for p in ends[i] for q in ends[j]), key=lambda v: v[0])
+                if best[0] <= wz["join_reach"] and bridge_clear(orig, wires_any, best[1], best[2]):
+                    parent[root(i)] = root(j); bridges.append((i, j, best[1], best[2]))
+        groups = {}
+        for i in range(len(parts)): groups.setdefault(root(i), []).append(i)
+        for members in groups.values():
+            m = np.zeros(orig.shape[:2], bool)
+            for i in members: m |= parts[i]
+            px = int(m.sum())
+            if px < wz["min_pixels"]: continue
+            joined = m.copy()
+            for i, j, p, q in bridges:
+                if i in members:
+                    L = math.hypot(q[0] - p[0], q[1] - p[1])
+                    for t in np.linspace(0, 1, int(L * 4) + 2):
+                        x, y = p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+                        joined[int(y), int(x)] = True
+            w = rr.measure_wire(joined, wz["bin"], wz["smooth"])
+            if w is None: continue
+            # the width from the wire's own pixels over its length less the bridged gaps
+            gaps = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for i, j, p, q in bridges if i in members)
+            w["width"] = round(px / max(w["length"] - gaps, 1.0), 3)
+            ys, xs = np.nonzero(m)
+            runs.append({"colour": name, "zone": zone_of(wz, xs, ys), "mask": m, "joins": len(members) - 1, **w})
+    return runs
 
 
 def up_px(mask, s):
     return np.repeat(np.repeat(mask, s, 0), s, 1)
 
 
-def redraw_wires(up, orig, wz, s, pieces=None):
+def along_noise(seed, key, length, sigma_px, n_per_px=8):
+    """A smooth noise along a run (-1..1 roughly), a function of the distance along it in original px."""
+    import zlib
+    rng = np.random.default_rng([int(seed), zlib.crc32(key.encode())])
+    k = max(int((length + 8) * n_per_px), 16)
+    v = ndimage.gaussian_filter1d(rng.standard_normal(k), sigma_px * n_per_px, mode="nearest")
+    v /= max(v.std(), 1e-9)
+    return lambda t: np.interp(np.asarray(t) + 4, np.arange(k) / n_per_px, v)
+
+
+def soft_shadow(cov, s, offset_px, blur_px):
+    """A coverage moved down-right by offset_px and blurred: the shadow a wire casts on what lies under it."""
+    sh = ndimage.shift(cov, (offset_px[1] * s, offset_px[0] * s), order=1, mode="constant")
+    return ndimage.gaussian_filter(sh, blur_px * s)
+
+
+def redraw_wires(up, orig, wz, s, pieces=None, seed=1976):
     """The panel's upscale (RGBA uint8 at s, rows as shown) with its wires drawn again; pieces from measure_wires."""
     if pieces is None: pieces = measure_wires(orig, wz)
     H, W = orig.shape[:2]
+    st = wz["look"]
     out = up.astype(float)
     wires = np.zeros((H, W), bool)
     for m in wire_pixels(orig, wz).values(): wires |= m
     clear_px = (orig[..., 3] == 0) | wires          # where the original shows a wire or nothing
+    solid_px = (orig[..., 3] > 0) & ~wires           # a connector or the body: where the wires meet something
+    L2 = np.array(st["light"][:2], float); Lz = float(st["light"][2]); nrm = math.sqrt((L2 ** 2).sum() + Lz * Lz); L2 /= nrm; Lz /= nrm
     for zi, (x0, y0, x1, y1) in enumerate(wz["zones"]):
         sl = (slice(y0 * s, y1 * s), slice(x0 * s, x1 * s))
         reg = out[sl]
@@ -147,27 +204,72 @@ def redraw_wires(up, orig, wz, s, pieces=None):
         hue = np.maximum(r - g, np.minimum(r, g) - b)
         k = pd.smoothstep(wz["hue_min"], wz["hue_full"], hue) * near * (reg[..., 3] > 0)
         cl = up_px(clear_px[y0:y1, x0:x1], s)
-        # on the body or a connector: its own colour from the texels round it that are not wire
         keep = (k < 0.05) & (reg[..., 3] > 127)
         wgt = keep.astype(float)
         fill = np.stack([ndimage.gaussian_filter(reg[..., c] * wgt, 0.6 * s) for c in range(3)], -1) / np.maximum(ndimage.gaussian_filter(wgt, 0.6 * s), 1e-6)[..., None]
         kb = (k * ~cl)[..., None]
         reg[..., :3] = reg[..., :3] * (1 - kb) + fill * kb
         reg[..., 3] = reg[..., 3] * (1 - k * cl)
-        # the tubes, bottom first, held to where the original shows a wire or nothing (a wire ends at its connector)
         cv = rr.Canvas(W, H, s, (x0, y0, x1, y1))
         allowed = np.clip((ndimage.gaussian_filter(cl.astype(float), 0.3 * s) - 0.5) * 2.5 + 0.5, 0, 1)
-        for p in pieces:
-            if p["zone"] != zi: continue
-            cu = rr.curve_open(p["points"])
-            cov, t, d = rr.tube_coverage(cu, cv, p["width"], wz["extend"])
-            cov = cov * allowed
-            band = rr.Band(cu, orig, (-p["width"] / 2 - 0.5, p["width"] / 2 + 0.5), wz["sigma_t"], wz["sigma_d"], outlier=1e9, mask=p["mask"], iters=0)
-            v = band.at(t, d); col = v[..., :3] / np.maximum(v[..., 3:4] / 255, 1e-3)
-            a0 = reg[..., 3:4] / 255; c = cov[..., None]
-            na = a0 * (1 - c) + c
-            reg[..., :3] = (np.clip(col, 0, 255) * c + reg[..., :3] * a0 * (1 - c)) / np.maximum(na, 1e-6)
-            reg[..., 3] = na[..., 0] * 255
+        # how near each texel is to a connector or the body (original px), for the grime where the wires meet them
+        near_solid = ndimage.distance_transform_edt(~up_px(solid_px[y0:y1, x0:x1], s)) / s
+        runs = [p for p in pieces if p["zone"] == zi]
+        layers = []
+        for idx, p in enumerate(runs):
+            key = f"{p['colour']}-{zi}-{idx}"
+            P = np.asarray(p["points"], float)
+            # the line sags a touch off the fitted one (a fraction of a pixel), its ends held where the original has them
+            T = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(P, axis=0).T))])
+            sag = along_noise(seed, key + "sag", T[-1], st["sag_px"]) (T) * st["sag"] * np.sin(np.pi * np.clip(T / max(T[-1], 1e-6), 0, 1))
+            D = np.gradient(P, axis=0); D /= np.maximum(np.hypot(D[:, 0], D[:, 1]), 1e-9)[:, None]
+            P = P + np.stack([-D[:, 1], D[:, 0]], 1) * sag[:, None]
+            cu = rr.curve_open(P)
+            t, d = rr.curve_coords(cu, cv.X, cv.Y)
+            from scipy.spatial import cKDTree
+            _, ki = cKDTree(cu["P"]).query(np.stack([np.broadcast_to(cv.X, t.shape).ravel(), np.broadcast_to(cv.Y, t.shape).ravel()], 1))
+            Nk = cu["N"][ki].reshape(t.shape + (2,))
+            half = p["width"] / 2 * (1 + st["width_var"] * along_noise(seed, key + "w", cu["length"], st["width_px"])(t))
+            end = np.maximum(-t - wz["extend"], t - cu["length"] - wz["extend"])
+            cov = cv.aa(np.maximum(np.abs(d) - half, end)) * allowed
+            # the cross-section: a matte cylinder lit from the top left
+            x = np.clip(d / np.maximum(half, 1e-6), -1, 1); z = np.sqrt(np.clip(1 - x * x, 0, 1))
+            lam = np.clip(x * (Nk[..., 0] * L2[0] + Nk[..., 1] * L2[1]) + z * Lz, 0, 1)
+            dark, light = (np.asarray(c, float) for c in st["shades"][p["colour"]])
+            shade = st["ambient"] + (1 - st["ambient"]) * lam
+            col = dark[None, None] * st["dark_floor"] + (light - dark * st["dark_floor"])[None, None] * shade[..., None]
+            col *= (st["rim"] + (1 - st["rim"]) * z)[..., None]
+            # age: a slight dulling (toward grey) mottled along and across it
+            mot = 1 + st["mottle"] * along_noise(seed, key + "m", cu["length"], 1.2)(t + 0.7 * d)
+            grey = col.mean(-1, keepdims=True)
+            col = (col * (1 - st["dull"]) + grey * st["dull"]) * mot[..., None]
+            # the soft sheen along the top (where the surface faces the light most), faint and broad
+            xs_ = np.clip(Nk[..., 0] * L2[0] + Nk[..., 1] * L2[1], -1, 1) * st["sheen_at"]
+            sheen = st["sheen"] * np.exp(-0.5 * ((x - xs_) / st["sheen_width"]) ** 2) * (0.7 + 0.3 * along_noise(seed, key + "s", cu["length"], 2.0)(t))
+            col = col * (1 - sheen[..., None]) + np.asarray(st["sheen_colour"], float) * sheen[..., None]
+            # dulled and grimed where it meets a connector or the panel
+            gr = st["grime"] * np.exp(-near_solid / st["grime_reach"])
+            g_ = gr[..., None]
+            col = col * (1 - g_) + (col.mean(-1, keepdims=True) * 0.4 + np.asarray(st["grime_colour"], float) * 0.6) * g_
+            layers.append((p["colour"], cov, np.clip(col, 0, 255)))
+        # contact shadows: every wire on what is solid under it (a connector, the body), then each yellow run on what lies
+        # under it (the red, the panel); then the wires themselves, red under yellow
+        allc = sum((c for _, c, _ in layers), np.zeros(reg.shape[:2]))
+        a0 = reg[..., 3] / 255
+        sh = np.clip(soft_shadow(np.clip(allc, 0, 1), s, st["shadow_offset"], st["shadow_blur"]), 0, 1) * st["shadow_panel"] * a0
+        reg[..., :3] *= (1 - sh)[..., None]
+        for colour in wz["order"]:
+            these = [(c, col) for name, c, col in layers if name == colour]
+            if not these: continue
+            if colour != wz["order"][0]:
+                cc = np.clip(sum(c for c, _ in these), 0, 1)
+                sh = np.clip(soft_shadow(cc, s, st["shadow_offset"], st["shadow_blur"]), 0, 1) * st["shadow_cross"] * (reg[..., 3] / 255)
+                reg[..., :3] *= (1 - sh)[..., None]
+            for c, col in these:
+                a = reg[..., 3:4] / 255; cc = c[..., None]
+                na = a * (1 - cc) + cc
+                reg[..., :3] = (col * cc + reg[..., :3] * a * (1 - cc)) / np.maximum(na, 1e-6)
+                reg[..., 3] = na[..., 0] * 255
         out[sl] = reg
     return np.clip(np.round(out), 0, 255).astype(np.uint8)
 
@@ -261,7 +363,7 @@ def redraw_damage(orig_panel, up_panel, up_sheet, spec, s, level):
     cell its place's)."""
     d = spec["damage"]; ds = spec["distress"]
     pieces = measure_wires(orig_panel, d["wires"])
-    panel = redraw_wires(up_panel, orig_panel, d["wires"], s, pieces)
+    panel = redraw_wires(up_panel, orig_panel, d["wires"], s, pieces, ds["seed"])
     sheet = up_sheet.copy()
     L, comp = damage_layer(panel, up_sheet, spec, s, level, pieces)
     if L is None: return panel, sheet

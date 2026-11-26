@@ -588,10 +588,16 @@ housings hang on). CPU only; both world recipes run it after the radar, as their
 
 **The wires.** The red and yellow wires hanging at the damage panel's sides are found in your export by their colours; each
 colour's pieces between the connectors are fitted as centrelines (ordered end to end, a smoothing spline: the radar's
-wire fit) and drawn again as tubes of their measured widths (about 2 pixels), shaded from the original's own colours
-regressed along them, the one on top where two cross as the original paints it. The upscale's own wire texels round them
-(red or yellow by hue) are taken out first: transparent where the original is, the body's or connector's colour where it
-is not. The connectors, the body, its bevel and the screws are the upscale's (they are clean in it).
+wire fit). A piece the other wire cuts is joined to the next one across the cut (ends within 6 pixels, only wire or air
+between, never through a connector), so the red runs on unbroken under the yellow: every red run is drawn under every
+yellow one (the owner's choice; the original paints the red over the yellow in two small places, about 4 pixels each, at
+the right side's lower crossing and at the left side's foot). Each run is drawn as insulated wire of its measured width
+(about 2 pixels): a matte cylinder lit from the top left in the original's dark and light shade of its colour, its width
+and line wandering a little along it (7 % and a seventh of a pixel), slightly dulled and mottled with age, a soft broad
+sheen along its top, grimed where it meets a connector or the panel, with a faint contact shadow under the yellow where it
+crosses the red and under both on a connector or the panel (`wires.look` in the spec). The upscale's own wire texels round
+them (red or yellow by hue) are taken out first: transparent where the original is, the body's or connector's colour
+where it is not. The connectors, the body, its bevel and the screws are the upscale's (they are clean in it).
 
 **The wear** (`tools/panel_distress.py`, `--distress 0|light|medium`, the spec's `distress`): grime gathered in the corners
 (where edges across and along meet) and mottled, small chips of paint along the art's strong edges (not on the lettering or

@@ -34,6 +34,9 @@
       "note": "the red and yellow wires hanging at the panel's sides: each colour's pieces (8-connected, between the connectors) fitted as centrelines through their pixels, drawn again as tubes of their measured widths shaded from the original's own colours along them (radar-redraw.py's Band). The upscale's wire texels (red or yellow by hue) are taken out round them first: transparent where the original is, the neighbouring colour where it is the body or a connector",
       "zones": [[0, 0, 14, 76], [227, 0, 241, 50]],
       "colours": {"red": [[122, 0, 24], [161, 0, 32]], "yellow": [[158, 154, 26], [204, 199, 34], [158, 98, 13]]},
+      "order": ["red", "yellow"],
+      "note_order": "the red runs under the yellow everywhere (the owner's choice, 2026-11-26); a piece cut by the other wire is joined to the next across the cut when their ends lie within join_reach px with only wire or air between",
+      "join_reach": 6.0,
       "min_pixels": 6,
       "bin": 2,
       "smooth": 0.05,
@@ -42,7 +45,18 @@
       "extend": 0.8,
       "clear_reach": 1.6,
       "hue_min": 45,
-      "hue_full": 80
+      "hue_full": 80,
+      "look": {
+        "note": "insulated wire: a matte cylinder lit from the top left (light: x, y down the picture, z out of it), the original's dark and light shade of each colour; width_var / sag: how much the width (relative) and the line (px) wander along it; mottle and dull: age; sheen: a soft broad highlight along its top; grime where it meets a connector or the panel (reach px); shadows: offset (px, down-right) and blur of the contact shadow on the panel and connectors and under the yellow where it crosses the red",
+        "light": [-0.45, -0.6, 0.66],
+        "shades": {"red": [[122, 0, 24], [161, 0, 32]], "yellow": [[158, 154, 26], [204, 199, 34]]},
+        "ambient": 0.45, "dark_floor": 0.75, "rim": 0.78,
+        "width_var": 0.07, "width_px": 3.0, "sag": 0.14, "sag_px": 4.0,
+        "mottle": 0.05, "dull": 0.08,
+        "sheen": 0.16, "sheen_at": 0.55, "sheen_width": 0.22, "sheen_colour": [214, 208, 190],
+        "grime": 0.45, "grime_reach": 1.1, "grime_colour": [38, 33, 22],
+        "shadow_offset": [0.3, 0.4], "shadow_blur": 0.45, "shadow_panel": 0.35, "shadow_cross": 0.45
+      }
     }
   },
   "weapons": {
