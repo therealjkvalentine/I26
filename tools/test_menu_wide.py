@@ -36,6 +36,12 @@ class Geometry(unittest.TestCase):
         self.assertLess(g["ih"], g["ch"]); self.assertGreater(g["y0"], 0)
         self.assertGreaterEqual((g["cw"] - g["iw"]) / 2 * H / g["ih"], 587)
 
+    def test_side_regions_are_whole_native_texels_with_the_context(self):
+        r = {"upscale": {"context": 65}}
+        self.assertEqual(mw.region_width(r, 427), 492)
+        self.assertEqual(mw.region_width(r, 587), 652)
+        self.assertEqual(mw.region_width(r, 293), 360)
+
     def test_layers_and_their_sides(self):
         r = {"height": H, "layers": {"21x9": {"width": 4588, "over": "16x9"}, "16x9": {"width": 3414, "over": "4x3"}}}
         self.assertEqual(mw.layer_info(r, "16x9"), (3414, H, 427, "4x3"))

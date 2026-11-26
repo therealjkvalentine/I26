@@ -334,6 +334,10 @@ the middle of a wide page can never be anything but the 4:3 pack's.
   art's own size and up again through the 4:3 pack's upscaler (4xTextures_GTAV_rgt-s_dither, the same tiles), so it has the
   pack's grain; then a Poisson membrane that makes the side meet the page's edge exactly, its low frequencies spreading far,
   its fine detail a few texels. The join is the page's own edge: not one texel of the page is redrawn.
+  The 21:9 layer was made the same way from each page's finished 16:9 page (the model given the whole 16:9 page as the
+  middle, its 21:9 canvas 2.357:1, so the page is made a little smaller with thin bands above and below to fill too, cropped
+  after): compared on five pages with extending in two smaller steps and with one step from the 4:3 page, this one call gave
+  no invented objects or streaks and keeps the 16:9 sides, which the 21:9 strips go outside.
 - `borrow`: the page is printed on the same art as another at its edges (the forms are one paper scan; Joe's pads one counter),
   checked by pixels; it takes that page's sides, the membrane fitted again to its own edge (or the very same file when the two
   edges agree within 1.5 levels). Every form shares the sides of the form it matches best, so the sides do not change as you

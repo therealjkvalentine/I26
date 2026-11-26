@@ -437,6 +437,11 @@ class Upscaler:
 
 # ---- one page, one layer ----
 
+def region_width(recipe, side):
+    """The side region the upscaler redraws: the side and at least CONTEXT px of the inner page, whole native texels."""
+    return -(-(side + recipe["upscale"]["context"]) // REGION_MULT) * REGION_MULT
+
+
 def model_sides_prepare(recipe, spec, inner, layer, masters):
     """The master warped into the layer's frame and flow-corrected; the side regions to upscale. (canf, regions, info)"""
     c = cv(); W, H, side, _ = layer_info(recipe, layer)
@@ -455,8 +460,8 @@ def model_sides_prepare(recipe, spec, inner, layer, masters):
     info["drift"] = round(float(np.abs(can[:, side:side + inner.shape[1]].astype(int) - inner.astype(int)).mean()), 2)
     fx, fy = local_flow(inner, can, side, recipe["seam"]["flow"])
     canf = apply_flow(can, fx, fy)
-    reg = side + recipe["upscale"]["context"]
-    assert reg % REGION_MULT == 0 and H % REGION_MULT == 0, "side regions must be whole native texels"
+    reg = region_width(recipe, side)
+    assert H % REGION_MULT == 0, "the height must be whole native texels"
     nat = lambda a: np.asarray(Image.fromarray(np.ascontiguousarray(a)).resize((reg // REGION_MULT, H // REGION_MULT), Image.BOX))
     return canf, [nat(canf[:, :reg]), nat(canf[:, W - reg:])], info
 
@@ -476,7 +481,7 @@ def _edge_cols(a, x0, cw, which, m):
 
 
 def model_sides_finish(recipe, inner, layer, canf, ups, m=None):
-    W, H, side, _ = layer_info(recipe, layer); reg = side + recipe["upscale"]["context"]; cw = inner.shape[1]
+    W, H, side, _ = layer_info(recipe, layer); reg = region_width(recipe, side); cw = inner.shape[1]
     nat = canf.copy(); nat[:, :reg] = ups[0]; nat[:, W - reg:] = ups[1]
     m = m or membrane_params(recipe, None)
     L = membrane(nat[:, :side], edge_residual(_edge_cols(inner, 0, cw, "L", m), _edge_cols(nat, side, cw, "L", m), m["sigma"]), "L")

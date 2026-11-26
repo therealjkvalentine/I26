@@ -97,6 +97,32 @@
        -0.109750515855
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper",
+     "master": "shellbg1/21x9/pro__P2__v1.png",
+     "master_sha256": "ca797025ec32bf1ebb73333c57b59171a9fa8c2a0321be7fc2628dae7bc08868",
+     "affine": [
+      [
+       0.856984508525,
+       1.6703055e-05,
+       -0.061527701759
+      ],
+      [
+       9.189727e-06,
+       0.855910712756,
+       -0.119224035439
+      ]
+     ]
     }
    }
   },
@@ -130,6 +156,32 @@
        -0.118489209995
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint coffee stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper; v2 drew dark blobs at the right",
+     "master": "shellbg2/21x9/pro__P2__v1.png",
+     "master_sha256": "8a1855be363193b6fb9266b21eaa595847c0db8ed18fb3a1b9a4b3a0e298cb55",
+     "affine": [
+      [
+       0.856968165228,
+       -2.8151136e-05,
+       -0.01734803763
+      ],
+      [
+       2.3321163e-05,
+       0.855910609925,
+       -0.145242685197
+      ]
+     ]
     }
    }
   },
@@ -161,6 +213,32 @@
        6.65719e-07,
        0.74999937416,
        -0.1093544248
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains; the faint coffee-ring stain near the right edge continues as the same faint ring. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "one faint coffee ring continues; v2 repeated the ring",
+     "master": "shellbg3/21x9/pro__P2__v1.png",
+     "master_sha256": "78aba9c51802f52ed7e03cd36603c630e393a460c06f0de79b4e77f6d91b4adb",
+     "affine": [
+      [
+       0.856990534898,
+       4.8696048e-05,
+       -0.104905907892
+      ],
+      [
+       2.688059e-06,
+       0.85583491638,
+       -0.084271204517
       ]
      ]
     }
@@ -202,6 +280,32 @@
        -0.144217789523
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of warm yellow-orange paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same soft mottled stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "soft mottling; v2 matched the page less well (0.87)",
+     "master": "shellbg5/21x9/pro__P2__v1.png",
+     "master_sha256": "74b164a2db707f5d14637ad646ac8737e7cb5ba893fa22e97eb61e293a82168e",
+     "affine": [
+      [
+       0.856950395321,
+       3.8580548e-05,
+       -0.049783427898
+      ],
+      [
+       2.0526911e-05,
+       0.855860996101,
+       -0.16461569312
+      ]
+     ]
     }
    }
   },
@@ -233,6 +337,32 @@
        -7.942807e-06,
        0.750052843599,
        -0.144221131191
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same top-down photo of a diner counter, just wider (21:9). The speckled granite counter continues to both new edges. On the left, the round white plate under the slice of burnt toast continues as the same circle, its rim curving round at the left. On the right, the coffee spill fades out, and the metal spoon's handle and the knife handle at the bottom right continue off the right edge. No new objects (no extra cups, plates, food, cutlery or bullets), no text.",
+     "pick": "P2 v1 of 2",
+     "why": "the plate completed round the toast, the spill fades out, no new objects; strategy B",
+     "master": "shellbg6/21x9/pro__P2__v1.png",
+     "master_sha256": "c3b8034cabe562632c07b257b4dd031dff7f148ec1057650068ac561ad89ceca",
+     "affine": [
+      [
+       0.857104762386,
+       0.000187111366,
+       -0.412610770435
+      ],
+      [
+       -0.000388531806,
+       0.848200106117,
+       7.332510874212
       ]
      ]
     }
@@ -309,6 +439,32 @@
        -0.19325411849
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "telea",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same background, just wider (21:9): a soft orange, red and yellow radial blur burst whose streaks radiate outward from the middle. The burst continues to the new left and right edges with the same streaks, colours and softness. No text, no logo, no new objects.",
+     "pick": "P2 v1 of 2",
+     "why": "the streaks keep radiating; no artefacts",
+     "master": "shellbg14/21x9/pro__P2__v1.png",
+     "master_sha256": "65842ded0208052e03a18047fa80fd519d391c1fcab5c375d5b02ef7086af944",
+     "affine": [
+      [
+       0.85186131428,
+       -0.010612786987,
+       17.721020591873
+      ],
+      [
+       -0.000802502079,
+       0.845790191112,
+       8.021939432897
+      ]
+     ]
     }
    }
   },
@@ -362,6 +518,32 @@
        -7.234591e-06,
        0.750031427635,
        -0.140492068832
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same ochre and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "plain paper; strategy B",
+     "master": "shellbg19/21x9/pro__P2__v1.png",
+     "master_sha256": "9cb053aefe41fa7a7afc42c3227a8431990971aa7fe58b26721c0e47ea5573fa",
+     "affine": [
+      [
+       0.857016786279,
+       -1.8506936e-05,
+       -0.077014185832
+      ],
+      [
+       1.884827e-06,
+       0.855924671123,
+       -0.176522948575
       ]
      ]
     }
@@ -421,6 +603,32 @@
        -0.155732899091
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of aged ochre paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v2 of 2",
+     "why": "plain paper",
+     "master": "shellbg24/21x9/pro__P2__v2.png",
+     "master_sha256": "ded6117cb88340261f1d8ecf2609da3561167c03a8ce5b3432c82ab082157df7",
+     "affine": [
+      [
+       0.856983691282,
+       -5.454426e-06,
+       -0.054591894399
+      ],
+      [
+       -1.0817099e-05,
+       0.855872099656,
+       -0.071221296055
+      ]
+     ]
     }
    }
   },
@@ -465,6 +673,32 @@
        0.213756246678
       ]
      ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same scene, just wider (21:9): a picture of a desert depot hung as a panel on the back wall of a plain room seen in perspective. On the left, the dark charcoal-grey wall continues to the new left edge and the light grey floor along the bottom continues. On the right, the white side wall continues to the new right edge, with its grey shadow at the top and the white floor at the bottom. The picture panel does not get wider. No new objects, no text.",
+     "pick": "P2 v1 of 2",
+     "why": "the walls and floor continue in perspective",
+     "master": "shellbg27/21x9/pro__P2__v1.png",
+     "master_sha256": "fb7d32fbd90a94efd4d24e67ef73d32f8975644a21e99a74a6fd87e2deb955d0",
+     "affine": [
+      [
+       0.856948044158,
+       -1.3209989e-05,
+       -0.082659921026
+      ],
+      [
+       7.6071072e-05,
+       0.85654082942,
+       -0.534934422244
+      ]
+     ]
     }
    }
   },
@@ -502,6 +736,32 @@
        -1.3475521e-05,
        0.749977291598,
        -0.068087039868
+      ]
+     ]
+    },
+    "21x9": {
+     "method": "model",
+     "model": "gemini-3-pro-image",
+     "date": "2026-11-25",
+     "aspect": "21:9",
+     "size": "2K",
+     "canvas": "mirror",
+     "pattern": "P2",
+     "prompt": "The blurry bands at the left and right of this picture (and the thin ones at its top and bottom, if any) are placeholders; the middle is the original picture, keep it as it is. The finished picture is the same sheet of faded khaki paper, just wider (21:9). The paper simply continues to the new left and right edges, same colour and grain, with the same faint mottled stains. No lines, no boxes, no text, no second form, no sheet edge.",
+     "pick": "P2 v1 of 2",
+     "why": "even khaki paper",
+     "master": "shellbg29/21x9/pro__P2__v1.png",
+     "master_sha256": "56ccda5bcf20445cb85be1a1d5e039c2b9b7b43826126c6e2b4e5c6506a9ef01",
+     "affine": [
+      [
+       0.857031190287,
+       2.1666255e-05,
+       -0.148121722365
+      ],
+      [
+       2.6406484e-05,
+       0.855897570173,
+       -0.139219575975
       ]
      ]
     }
