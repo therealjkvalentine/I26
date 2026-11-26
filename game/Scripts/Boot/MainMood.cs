@@ -40,7 +40,7 @@ public partial class Main
 
     private static Lighting? CalOf(Dictionary<string, string> m) => m.TryGetValue("cal", out var c) ? c switch { "off" => Lighting.Off, "card" => Lighting.Card, "filmic" => Lighting.Filmic, _ => null } : null;
 
-    private static Dictionary<string, string> ParseMood(string s)
+    public static Dictionary<string, string> ParseMood(string s)
     {
         var d = new Dictionary<string, string>();
         foreach (var kv in s.Split('&', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries))
@@ -54,10 +54,10 @@ public partial class Main
 
     private static Color? MoodRgb(string s) => s.Split(',') is [var r, var g, var b] ? new Color(MoodF(r), MoodF(g), MoodF(b)) : null;
 
-    private static float Luma(Color c) { var l = c.SrgbToLinear(); return 0.2126f * l.R + 0.7152f * l.G + 0.0722f * l.B; }
+    public static float Luma(Color c) { var l = c.SrgbToLinear(); return 0.2126f * l.R + 0.7152f * l.G + 0.0722f * l.B; }
 
     /// <summary>A colour (sRGB) with the linear luminance of <paramref name="like"/>.</summary>
-    private static Color AtLumaOf(Color c, Color like)
+    public static Color AtLumaOf(Color c, Color like)
     {
         float k = Luma(like) / Mathf.Max(Luma(c), 1e-5f);
         var l = c.SrgbToLinear();
