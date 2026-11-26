@@ -12,7 +12,7 @@ namespace I76.Cli;
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
 ///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP] [--smart-ai LIST] [--solid-cliffs] [--track FILE]
-///           [--kill NAME@S[;...]] [--destroy NAME@S[;...]] [--wreck NAME@S[;...]]
+///           [--kill NAME@S[;...]] [--crash NAME@S[;...]] [--destroy NAME@S[;...]] [--wreck NAME@S[;...]]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
 /// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
@@ -134,9 +134,14 @@ public static class MissionRun
         int di = args.IndexOf("--destroy");
         var destroys = di >= 0 ? args[di + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
             .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
-        // --kill NAME@S[;...]: at mission second S the first live car whose name contains NAME is destroyed (the script's destroy's way)
+        // --kill NAME@S[;...]: at mission second S the first live car whose name contains NAME is destroyed (the script's destroy's way),
+        // counted as the player's kill (isGroovesFault); --destroy's is nobody's
         int kli = args.IndexOf("--kill");
         var kills = kli >= 0 ? args[kli + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
+            .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
+        // --crash NAME@S[;...]: as --kill, but nobody's kill (a car dead to friendly fire or its own mines)
+        int cri = args.IndexOf("--crash");
+        var crashes = cri >= 0 ? args[cri + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
             .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
         // --wreck NAME@S[;...]: at mission second S the first live structure whose name contains NAME is shot to pieces: every node,
         // then the root, takes a round larger than its hit points (gunfire's way: the script's destroy leaves a type 2 root standing)
@@ -250,9 +255,17 @@ public static class MissionRun
                 Console.WriteLine($"{T()} wrecked {we.Name}{(ws.Destroyed ? "" : " (still standing)")}");
                 wrecks.RemoveAt(wk);
             }
+            for (int ck = crashes.Count - 1; ck >= 0; ck--)
+            {
+                if (h.Now < crashes[ck].At || setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(crashes[ck].Name)) is not { } ce) continue;
+                h.Destroy(ce);
+                Console.WriteLine($"{T()} crash {ce.Name} (nobody's kill)");
+                crashes.RemoveAt(ck);
+            }
             for (int kk = kills.Count - 1; kk >= 0; kk--)
             {
                 if (h.Now < kills[kk].At || setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(kills[kk].Name)) is not { } ke) continue;
+                ke.KilledByPlayer = true;   // the player's fight, as the scripted kill stands for it (isGroovesFault)
                 h.Destroy(ke);
                 Console.WriteLine($"{T()} kill {ke.Name}");
                 kills.RemoveAt(kk);

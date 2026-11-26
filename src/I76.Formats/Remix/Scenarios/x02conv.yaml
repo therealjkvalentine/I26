@@ -1,0 +1,35 @@
+# Stop the convoy (T02's map): the Leadsled gang rolls north up the winding road to Levelland, the lead car in front and its
+# two wingmen keeping station behind. Catch them before they get there; once you are close (or start shooting) they speed up
+# and the wingmen turn on you. T02's road and its own gang cars, nothing else of T02.
+id: x02conv
+title: Levelland Run
+base: t02
+hour: 7
+start: {at: [8735, 45370], heading: 340}      # south of the crossroads, facing north up the road
+places:
+  levelland: [[8150, 49350]]                  # the convoy's exit: the end of the gang's road at Levelland
+objective:
+  template: intercept
+  convoy:
+    lead: ledsled                             # T02's gang leader
+    escorts: [wingman1, wingman2]
+    route: leveland                           # T02's own route north to Levelland
+    exit: {place: levelland, radius: 120}
+    speed: 22
+    alert_speed: 34
+    alert: 250
+    delay: 6
+  skill: 3
+radio:
+  start: [01sgc07]                            # got it
+  wave: [12sgc08]                             # they've seen you
+  trap: [gdsgc16]                             # the lead's down
+  win: [gdsgc32]                              # the last of them
+text:
+  objectives:
+    - Stop the Leadsled gang's lead car before it gets to Levelland.
+    - (hidden)Take out his two wingmen.
+  failures:
+    - You should be more careful... try to stay alive.
+    - You can't just leave.
+    - They made it to Levelland. Too late now.

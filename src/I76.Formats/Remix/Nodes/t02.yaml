@@ -1,0 +1,24 @@
+# T02's map (2 x 8.6 km, north-south): the long winding road up to Levelland. Coordinates read off the map (i76 remix map t02).
+base: t02
+hour: 7
+lot: [8003, 41803]                  # the south end, where T02 starts: out of every job's way
+starts:
+  - {name: south, at: [8735, 45370], heading: 340}
+  - {name: crossroads_w, at: [7600, 46130], heading: 90}
+  - {name: levelland, at: [8300, 49420], heading: 180}
+nodes:
+  - {name: racetrack, kinds: [pickup], at: [8930, 44470]}
+  - {name: watertank, kinds: [pickup], at: [8570, 43650]}
+  - {name: bends, kinds: [pickup, hideout], at: [8240, 48205]}
+  - {name: levelland, kinds: [home, hideout], at: [8150, 49350]}
+  - {name: south, kinds: [home], at: [8735, 45370]}
+  - {name: welman, kinds: [hideout, pickup], at: [8985, 43300]}
+entries:
+  - {name: south, at: [[8950, 44990], [8830, 45240]]}
+  - {name: west, at: [[7300, 46130], [7500, 46130]]}
+  - {name: east, at: [[9600, 46130], [9400, 46130]]}
+  - {name: north, at: [[8280, 49765], [8280, 49440]]}
+  - {name: midroad, at: [[8605, 46900], [8605, 46700]]}
+routes:
+  - {name: leveland, path: leveland, park: [8605, 46480], heading: 0, exit: [8150, 49350]}
+  - {name: south, points: [[8605, 46400], [8620, 45800], [8755, 45340], [8950, 44900], [8985, 44400], [8985, 43800], [8985, 43300]], heading: 180}

@@ -21,6 +21,16 @@ public sealed class MeleeData
 
     public static string[] DriverNames => I76.Formats.Shell.MeleeDrivers.Names;
 
+    /// <summary>
+    /// The scroll hint of a list longer than its rows (the port's: the SCENARIO form's list holds the generated scenarios after the
+    /// stock seven): how many rows lie above the shown ones and how many below, each null when none.
+    /// </summary>
+    public static (string? Above, string? Below) ScrollHint(int scroll, int rows, int count)
+    {
+        int above = Math.Clamp(scroll, 0, Math.Max(0, count)), below = Math.Max(0, count - scroll - rows);
+        return (above > 0 ? $"{above} more above" : null, below > 0 ? $"{below} more below" : null);
+    }
+
     /// <summary>A model: its stem, make and model, the variants' names (variant n is Variants[n − 1]) and how many of them are stock.</summary>
     public sealed record Model(int Id, string Stem, string MakeModel, List<string> Variants, int Base, int? ArtId = null, bool HiddenModel = false)
     {

@@ -38,7 +38,7 @@ public sealed record Checkpoint(string Mission, byte[] Snapshot, byte[]? Salvage
     }
 
     /// <summary>Why a kept checkpoint cannot be used.</summary>
-    public enum Problem { None, OtherVersion, Unreadable }
+    public enum Problem { None, OtherVersion, Unreadable, RemixChanged }
 
     /// <summary>
     /// A checkpoint bookmark's file back, or null with why: the snapshot's format version is checked (SnapshotHeader.Read)
@@ -104,7 +104,18 @@ public sealed record Checkpoint(string Mission, byte[] Snapshot, byte[]? Salvage
     }
 
     /// <summary>What the player is told, once, when a bookmark's checkpoint cannot be used and the mission starts from its beginning.</summary>
-    public static string Notice(Problem problem) => problem == Problem.OtherVersion
-        ? "This checkpoint is from another version;\nthe mission starts from the beginning."
-        : "This checkpoint could not be restored;\nthe mission starts from the beginning.";
+    public static string Notice(Problem problem) => problem switch
+    {
+        Problem.OtherVersion => "This checkpoint is from another version;\nthe mission starts from the beginning.",
+        Problem.RemixChanged => "This scenario has been rebuilt since the checkpoint;\nthe mission starts from the beginning.",
+        _ => "This checkpoint could not be restored;\nthe mission starts from the beginning.",
+    };
+
+    /// <summary>
+    /// Why a checkpoint's restore was refused, for the notice: a generated remix (docs/remix-missions.md) refuses a snapshot of an
+    /// earlier build of itself (its description changed, so its mission file and the install identity did), which is told as such;
+    /// anything else is the general refusal.
+    /// </summary>
+    public static Problem RestoreProblem(Exception ex, bool remix) =>
+        remix && ex is I76.Sim.Save.SnapshotMismatchException ? Problem.RemixChanged : Problem.Unreadable;
 }

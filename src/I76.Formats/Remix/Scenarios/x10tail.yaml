@@ -1,0 +1,46 @@
+# Lose the tail on 380 (T10's map): the police come up behind you east of the roadblock. Shake them (nobody within 500 m for
+# 12 s, or nobody left), then get to the hideout in Tatum at the west end without leading anybody in. T10's roadblock fence
+# is open from the start; the roadblock's cops and the two at the billboard wake as you pass.
+id: x10tail
+title: Tatum Tail
+base: t10
+hour: 21
+start: {at: [6600, 47720], heading: 270}      # on 380 east of the roadblock, facing west
+gates:
+  start: [gate]                               # T10's roadblock fence opens
+places:
+  chase: [[7050, 47720], [6950, 47720]]       # the police come in behind you, heading west
+  tatum: [[820, 47950]]                       # the hideout: the town at the west end
+  road: [[6000, 47720], [5300, 47718], [4500, 47715], [3830, 47715], [2500, 47720], [1900, 47440], [1300, 47900], [820, 47950]]
+                                              # 380 west to Tatum (no script uses it: a route for test drivers)
+objective:
+  template: tail
+  hideout: {place: tatum, radius: 120}
+  lost: {radius: 500, seconds: 12}
+  clear: 500
+  deadline: 360
+  pursuit:
+    cars: [cop2, cop4, cop5]                  # T10's roadblock cops, brought round behind you
+    entry: chase
+    delay: 4
+    speed: 25
+    siren: true
+  sleepers:
+    - {car: cop1, wake: 400, siren: true}     # still at the roadblock
+    - {car: cop3, wake: 400, siren: true}
+    - {car: cop6, wake: 250, siren: true}     # at the billboard
+    - {car: cop7, wake: 250, siren: true}
+  skill: 2
+radio:
+  start: [07sgc23]                            # sirens behind
+  trap: [gdsgc74]                             # lost them
+  win: [14sta06]                              # safe
+text:
+  objectives:
+    - Shake the cops off your tail.
+    - (hidden)Get to the hideout in Tatum without leading anybody in.
+  failures:
+    - You should be more careful... try to stay alive.
+    - You can't just leave.
+    - Too slow. The hideout's been cleared out.
+    - You led them right to us.

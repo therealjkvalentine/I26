@@ -8,6 +8,7 @@
     <EmbeddedResource Include="Imaging/CarMasks.bin" LogicalName="CarMasks.bin" Condition="Exists('Imaging/CarMasks.bin')" />
     <EmbeddedResource Include="Fsm/mission-script.schema.json" LogicalName="mission-script.schema.json" />
     <EmbeddedResource Include="Remix/Scenarios/*.yaml" LogicalName="remix/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Remix/Nodes/*.yaml" LogicalName="remix-nodes/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="I76.Formats.Tests" />

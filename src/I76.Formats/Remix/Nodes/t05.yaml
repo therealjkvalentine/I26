@@ -1,0 +1,25 @@
+# T05's map (the oil-well country, roads every way out): coordinates read off the map (i76 remix map t05).
+base: t05
+lot: [10720, 45930]                 # T05's own lot north of the wreck
+starts:
+  - {name: west_road, at: [8078, 44528], heading: 90}
+  - {name: fisher, at: [6455, 43350], heading: 0}
+  - {name: crossing, at: [9475, 44020], heading: 270}
+nodes:
+  - {name: wreck, kinds: [pickup], at: [10640, 44560]}
+  - {name: middle, kinds: [pickup], at: [8380, 44020]}
+  - {name: south_bend, kinds: [pickup, hideout], at: [9830, 43560]}
+  - {name: watch, kinds: [pickup], at: [6700, 43920]}
+  - {name: west_road, kinds: [home], at: [8078, 44528]}
+  - {name: fisher, kinds: [home, hideout], at: [6455, 43335]}
+  - {name: south_road, kinds: [home, hideout], at: [8560, 42800]}
+  - {name: east_cross, kinds: [hideout], at: [10600, 44880]}
+entries:
+  - {name: north_lot, at: [[10750, 44900], [10550, 44880]]}
+  - {name: north_road, at: [[10395, 45580], [10450, 45300]]}
+  - {name: east, at: [[11500, 44880], [11300, 44880]]}
+  - {name: south, at: [[8560, 42300], [8560, 42500]]}
+  - {name: northwest, at: [[6340, 44815], [6570, 44660]]}
+  - {name: west_mid, at: [[7300, 43910], [7505, 43910]]}
+routes:
+  - {name: road_380, points: [[11900, 44880], [11000, 44880], [10500, 44880], [10000, 44840], [9530, 44645], [9000, 44530], [8500, 44530], [8000, 44530], [7650, 44560]], heading: 270}
