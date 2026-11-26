@@ -591,3 +591,67 @@ Debug code was not optimised. Optimised (`Directory.Build.props`), interleaved o
 
 A frame 19 % faster at the median and the main thread's own code a third quicker; the card's time is unchanged. An export
 (ExportRelease) was already optimised. `dotnet build -p:Optimize=false` gives code a debugger steps through line by line.
+
+## The main thread's garbage and slow frames (round 8)
+
+A fresh look at the frame on the development machine that replaced the desktop (a 32-thread processor, an RTX 5090, 3440x1440), on
+main 9cdfa8a2, with the owner's settings (the modern look, Anti-Aliasing 8x, Render Scale 200 %, Ambient Occlusion on, Shadow and
+Terrain Detail High, both mirrors every frame, the world's textures 4x, the cars' and dash's 8x) and with 1920x1080, Anti-Aliasing 2x,
+Render Scale 100 %. The machine was shared with other lanes' builds, captures and benchmarks all night; the GPU lock was held by
+other lanes most of the time. The CPU-side figures below (the main thread's sections, allocations, collections) do not depend on
+that; frame rates do, and are given with the other drawing processes seen during each run. The scratch notes of the lane hold the
+full tables (`I76_FRAME_SECTIONS`, `I76_FRAME_PROFILE_VIEWS`, `I76_GC_LOG`; allocation stacks from `dotnet-trace` with the runtime's
+allocation ticks).
+
+### What bounds the frame here
+
+- **The owner's settings are bound by the card.** T01's start in the cockpit: 6.3 ms of GPU a frame (the main view 5.1: depth
+  pre-pass 1.7, opaque 1.7, shadows 0.7, MSAA resolve 0.5, sky 0.5, transparent 0.5, SSAO 0.4; the rear mirror 0.6, the door mirror
+  0.6), the GPU 88-98 % busy, about 140 fps. The depth pre-pass costs as much as the opaque pass because Ambient Occlusion makes it
+  write normals (round 1's item 1): that and 8x MSAA on a 6880x2880 buffer are the owner's frame.
+- **1920x1080 at 2x is bound by the main thread's draw.** The main view's GPU time is 1.2 ms, the frame 4-5 ms: the engine's
+  culling and command recording for the main view (about 1 ms), the two mirrors (0.7 ms each with Mirror Rate Full) and the scripts
+  (0.8-1.5 ms). 1,800 draws in the main view, 600-700 in each mirror, each view also rendering its own shadow splits.
+- **The slow frames** (the 1 % lows, 30-70 fps against 120-230 fps averages) were, before this round, a young garbage collection
+  every 1-2 s (2-9 ms each, every one a slow frame), then single bursts: a car's damage rebuild (5-30 ms), the radar waiting for a
+  frame's decode (once 70-115 ms on a loaded processor), every skid mark rebuilt at once (6-48 ms), the first shots' effects.
+
+### Garbage
+
+The main thread allocated 167-183 kB a frame on main. Nine tenths of it was the gunsight ring (ReticleArt), rebuilt every frame as a
+triangle mesh in new lists and arrays. Removing it alone made the collections ten times rarer but each one far longer: a young
+collection's pause here is set by what survives it and by the older objects written to since the last one, not by the garbage, and
+a steady 1.5-2 MB a second survived. Most of that was StringNames made from string literals every frame (`SetShaderParameter("fade",
+...)` once a skid strip a frame, the smokes' scene light and sun direction, the tracers' six instance parameters, the drop shadows'
+group test on every scenery node): a StringName is finalizable and tracked by the bindings, so every one survives its first
+collection. And the runtime's own young budget (48 MB on this machine) lets 10-20 s pass between collections once the garbage is
+gone. So the round does three things: no garbage where it is easy (the ring's buffers kept, the smoke layer's puff buffer kept, the
+rounds' live sets kept), no StringName made in a per-frame path (ShaderNames), and a young collection every 8 MB allocated, made just
+after the frame's draw is handed to the renderer (GcPacer; only while a mission is going, at most two a second).
+
+M01, eight cars fighting, 1920x1080, 40-60 s windows (the lane's diagnostic runs; pauses from `I76_GC_LOG`):
+
+| Build | main thread kB a frame | young collections | pause each | promoted each |
+|---|---|---|---|---|
+| main | 167-183 | every 1.1 s | 2-9 ms | 1.6-1.8 MB |
+| the ring's buffers kept | 9-28 | every 9-11 s | 28-63 ms | 10-27 MB |
+| + no per-frame StringNames, smoke buffers kept | 20 (the profiler's own lists included) | every 14-23 s | 11-27 ms | 3-13 MB |
+| + young collections every 8 MB (the round as merged) | 20 | every 2-3 s | 2-3 ms (gen 1: 3-6 ms) | 0.4-2 MB |
+| (for comparison: DOTNET_GCgen0size=8 MB, no pacer) | 20 | every 2 s | 1-2.5 ms (gen 1: 4-5 ms) | 0.3-2 MB |
+
+On the GTX 1080 Ti desktop (the farm's cockpit bench, 3 runs a side) the young collections fell from 1.7-1.8 to 0.46-0.50 per 100
+frames; that scene's frame (9.4 / 14.2 ms) did not change.
+
+### Bursts
+
+- **The radar waiting for a decode** (Cockpit, RadarFrames). With a target held, the locked frame's neighbours are decoded ahead each
+  frame; a bearing swinging fast asked for a new one every few frames, and with all four buffers being decoded into, the main thread
+  waited for the oldest decode, which runs below its priority. A frame asked for ahead with no buffer free is now skipped (asked for
+  again the next frame), and a decode the main thread must have now is raised to normal priority while it waits.
+- **A car's damage rebuild** (DamageView.Rebuild, every change of a damage zone: several a second in a fight) assembled the intact car
+  again to hold its lamps against, 1-13 ms of a 5-30 ms rebuild. The car-parts cache's copy of the same assembly is used.
+- **Skid marks** summed, for every point of a strip, the length to the strip's end: quadratic in its points, and every strip is rebuilt
+  at once when the floating origin moves. The sum now stops where the end fade is whole; the fade is the same bit for bit.
+- Not changed: the first shots' effects in a fight (20-37 ms once, the engine making nodes and pipelines), the rest of a damage
+  rebuild (the body's assembly and meshes, 3-17 ms: a worker could make them, but the damaged look would then appear a frame or
+  two later than the tick that caused it).
