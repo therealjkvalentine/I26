@@ -175,8 +175,14 @@ public static class GlassRound
 
     // ---- the moulding's outer edge rounded too ([port] side_mirror_rim_out) ----
 
-    /// <summary>[port] side_mirror_rim_out's default: the moulding's outer edge this many of its widths before the halving (MirrorRim.OuterShare) beyond the rounded glass's outline.</summary>
-    public const int DefaultRimOut = 2;
+    /// <summary>
+    /// [port] side_mirror_rim_out's default: 0, the housing's own outline (the moulding's dark filling the rounded glass's corners out
+    /// to the housing's straight edge), so the housing reads as the 1997 look draws it and only the glass inside it is rounded. It was
+    /// RoundedRimOut (sections GF to IJ), whose ring stands past the housing and cuts its corners away; the key still offers it.
+    /// </summary>
+    public const int DefaultRimOut = 0;
+    /// <summary>The rounded outer edge reviewed for the turned heads: this many of the moulding's widths before the halving (MirrorRim.OuterShare) beyond the rounded glass's outline.</summary>
+    public const int RoundedRimOut = 2;
     /// <summary>The largest growth offered, in the moulding's widths.</summary>
     public const int MaxRimOut = 6;
 

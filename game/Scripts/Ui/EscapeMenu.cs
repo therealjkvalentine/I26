@@ -550,6 +550,29 @@ public sealed partial class EscapeMenu : Control
         switch (r)
         {
             // the original's rows in the graphics block
+            // the port's preset over the costly rows (QualityPreset): its word read back from the rows, a step sets every row of the next
+            // column, live; Done and Cancel commit or restore its rows
+            case GraphicsRow.Quality:
+                var qs = I76.Game.Assets.HdTextures.AvailableSizes;
+                bool qPacks = TextureRow.Offered(qs, qs.Length > 0 || I76.Game.Assets.HdTextures.Installed);
+                string[] custom = [.. QualityPreset.Names.Select(_ => QualityPreset.Custom)];
+                return new Item
+                {
+                    Flags = Cycle, Label = QualityPreset.Label, N = QualityPreset.Names.Length, Names = QualityPreset.Names,
+                    Cb = (it, m) =>
+                    {
+                        switch (m)
+                        {
+                            case 7: QualityPreset.Apply(Settings, it.Value, qs, qPacks); live(); break;
+                            case 8: QualityPreset.Copy(Settings, _snap); break;
+                            case 9: QualityPreset.Copy(_snap, Settings); live(); break;
+                        }
+                        // Custom shows on every step's place, the step from it going to Original
+                        int c = QualityPreset.Match(Settings, qs, qPacks);
+                        it.Value = c < 0 ? QualityPreset.Names.Length - 1 : c;
+                        it.Names = c < 0 ? custom : QualityPreset.Names;
+                    },
+                };
             case GraphicsRow.MonitorBrightness: return G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 11, null, 0xc);
             case GraphicsRow.TerrainDetail: return G(Cycle, "Terrain Detail", 2, ["Low", "High"], 0x2);
             case GraphicsRow.ShadowDetail: return Keyed(r, "Shadow Detail", ShadowDetailRow.Names, ShadowDetailRow.Index, ShadowDetailRow.Put, live);   // Ultra*: [port] shadow_detail over High
@@ -560,12 +583,14 @@ public sealed partial class EscapeMenu : Control
                 return Keyed(r, "Mirrors", I76.Game.Sim.MirrorsRow.Names, I76.Game.Sim.MirrorsRow.Index, I76.Game.Sim.MirrorsRow.Put, live);
             // [port] mirror_rate (MirrorRateRow: Alternate, Half, Full), live
             case GraphicsRow.MirrorRate: return Setting(Cycle, "Mirror Rate", 0, I76.Game.Sim.MirrorRateRow.Names.Length, I76.Game.Sim.MirrorRateRow.Names, s => (int)s.MirrorRate, (s, v) => s.MirrorRate = (I76.Game.Sim.MirrorRate)v, apply: live);
-            // [port] mirror_haze (MirrorHazeRow: Off, Slight, More), live
             // [port] radar_sweep (RadarSweepRow: Stepped, Smooth), live; shown when a pack is there
             case GraphicsRow.RadarSweep:
                 if (!I76.Game.Assets.HdTextures.Installed) return null;
                 return Setting(Cycle, "Radar Sweep", 0, I76.Game.Sim.RadarSweepRow.Names.Length, I76.Game.Sim.RadarSweepRow.Names, s => I76.Game.Sim.RadarSweepRow.Clamp(s.RadarSweep), (s, v) => s.RadarSweep = v, apply: live);
+            // [port] mirror_haze (MirrorHazeRow: Off, Low, Med, High), live
             case GraphicsRow.MirrorHaze: return Setting(Cycle, "Mirror Haze", 0, I76.Game.Sim.MirrorHazeRow.Names.Length, I76.Game.Sim.MirrorHazeRow.Names, s => I76.Game.Sim.MirrorHazeRow.Clamp(s.MirrorHaze), (s, v) => s.MirrorHaze = v, apply: live);
+            // [port] mirror_aa (MirrorAaRow: Off, 2x, 4x, 8x, SMAA, 2x+SMAA, As View), live
+            case GraphicsRow.MirrorAa: return Setting(Cycle, "Mirror AA", 0, I76.Game.Sim.MirrorAaRow.Names.Length, I76.Game.Sim.MirrorAaRow.Names, s => I76.Game.Sim.MirrorAaRow.Clamp(s.MirrorAa), (s, v) => s.MirrorAa = v, apply: live);
             // [port] draw_distance in the mission's look (VisibilityRange: Far the original's 600 m, Max* 20 km), live
             case GraphicsRow.VisibilityRange:
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
@@ -738,6 +763,8 @@ public sealed partial class EscapeMenu : Control
     /// <summary>MenuDone: msg 8 to every item but the buttons, then the parent — or the cheater warning from Play Options with a cheat on.</summary>
     private void Done()
     {
+        // the sheet's Done commits its pages' rows too: each read back first (the sheet's Reset or Quality may have set them since the page was shown)
+        if (_screen == _graphics) foreach (var it in _graphicsPages.SelectMany(p => p.Items)) if (it.Type != Button) it.Cb?.Invoke(it, 6);
         foreach (var it in Committed()) if (it.Type != Button) it.Cb?.Invoke(it, 8);
         if (_screen == _play && (Settings.PlayOptions & 0x1c) != 0) { Switch(_cheater); return; }
         Switch(_screen.Parent);

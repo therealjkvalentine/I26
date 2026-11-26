@@ -93,23 +93,31 @@ public static class MirrorWarp
 /// [port] mirror_haze, Graphic Detail's Mirror Haze (the modern look's): the mirrors' glass a touch milky, as no mirror is perfect or
 /// perfectly clean, so the glass does not look exactly like the landscape through the windscreen: a flat veil over the whole glass
 /// (the blacks lifted a little, the contrast a little less, a faint warm-grey tint) and the slightest softening; no gradient or
-/// pattern. Off, Slight (the default, asked for on: barely seen), More. The 1997 look's mirror is the original's, never hazed.
+/// pattern. Off, Low (the default, asked for on: barely seen), Med, High. The 1997 look's mirror is the original's, never hazed.
 /// </summary>
 public static class MirrorHazeRow
 {
-    public static readonly string[] Names = ["Off", "Slight*", "More*"];
+    public static readonly string[] Names = ["Off", "Low*", "Med*", "High*"];
     public const int Default = 1;
     public static int Clamp(int v) => Math.Clamp(v, 0, Names.Length - 1);
-    /// <summary>The key's word; null for slight, the default, which is not written.</summary>
-    public static string? Word(int v) => Clamp(v) switch { 0 => "off", 2 => "more", _ => null };
-    public static int Parse(string? word) => word?.Trim().ToLowerInvariant() switch { "off" => 0, "more" => 2, _ => Default };
+    /// <summary>The key's word; null for low, the default, which is not written.</summary>
+    public static string? Word(int v) => Clamp(v) switch { 0 => "off", 2 => "med", 3 => "high", _ => null };
+    /// <summary>Reads the key; the first release's words read forward (slight was today's Low, more today's High).</summary>
+    public static int Parse(string? word) => word?.Trim().ToLowerInvariant() switch
+    {
+        "off" => 0,
+        "med" or "medium" => 2,
+        "high" or "more" => 3,
+        _ => Default,   // low, slight, absent, unknown
+    };
     public static void Step(I76.Game.Shell.ShellSettings s) => s.MirrorHaze = (Clamp(s.MirrorHaze) + 1) % Names.Length;
 
     /// <summary>The veil's share (of the tint mixed flat over the picture), the softening's radius in the render's texels, the veil's colour (sRGB, as the shader's source_color takes it).</summary>
     public static (float Veil, float Blur, Vector3 Tint) Of(int level) => Clamp(level) switch
     {
-        1 => (0.012f, 0.35f, Tint),
-        2 => (0.035f, 0.6f, Tint),
+        1 => (0.012f, 0.35f, Tint),    // Low: the first release's Slight
+        2 => (0.023f, 0.475f, Tint),   // Med: halfway
+        3 => (0.035f, 0.6f, Tint),     // High: the first release's More
         _ => (0f, 0f, Vector3.One),
     };
 

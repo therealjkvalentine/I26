@@ -20,91 +20,97 @@ public static class GraphicsHelp
     /// <summary>The tooltip for a row in a look (every row has one).</summary>
     public static string Text(GraphicsRow row, bool look1997) => row switch
     {
-        GraphicsRow.Resolution => "Screen resolution: Desktop is borderless fullscreen at the desktop's size; a size is a window of that size. Applies at once.",
-        GraphicsRow.MonitorBrightness => "Monitor brightness: raise it for a dark screen or TV, lower it if blacks look grey. Applies at once.",
+        GraphicsRow.Resolution => "Screen resolution (display mode, fullscreen or window): Desktop is borderless fullscreen at the desktop's size; a size is a window of that size. Applies at once.",
+        GraphicsRow.MonitorBrightness => "Monitor brightness (gamma): raise it for a dark screen or TV, lower it if blacks look grey. Applies at once.",
         GraphicsRow.VisibilityRange => look1997
-            ? "Visibility range: Far is the original's 600 m, 2.3 km fades into the horizon from 1.7 km, Max the whole map. Little cost in the 1997 look."
-            : "Visibility range: Far is the original's 600 m, 2.3 km fades into the sky from 1.7 km, Max the whole map. Under 3 % of a full-detail frame at Max, but some 800 more draw calls.",
+            ? "Visibility range (draw distance): Far is the original's 600 m, 2.3 km fades into the horizon from 1.7 km, Max the whole map. Little cost in the 1997 look."
+            : "Visibility range (draw distance): Far is the original's 600 m, 2.3 km fades into the sky from 1.7 km, Max the whole map. Under 3 % of a full-detail frame at Max, but some 800 more draw calls. Applies at once.",
         GraphicsRow.TerrainDetail => look1997
-            ? "Terrain detail: the modern look's finest ground mesh. No cost in the 1997 look."
-            : "Terrain detail: High (the default) adds the finest ground mesh near the car. About 1 ms, 6 % of a full-detail frame, over Low.",
+            ? "Terrain detail (ground mesh detail): the modern look's finest ground mesh. No cost in the 1997 look."
+            : "Terrain detail (ground mesh detail): High (the default) adds the finest ground mesh near the car. About 1 ms, 6 % of a full-detail frame, over Low. Applies at once.",
         GraphicsRow.ShadowDetail => look1997
-            ? "Shadow detail: the modern look's sun shadows (the 1997 look keeps the original's). No cost in the 1997 look."
-            : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more. Ultra is High with a shadow map twice as fine and cleaner edges at a low sun, a few % more than High.",
-        GraphicsRow.ExtInstruments => "Ext. instruments: the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost.",
+            ? "Shadow detail (shadow quality): the modern look's sun shadows (the 1997 look keeps the original's). No cost in the 1997 look."
+            : "Shadow detail (shadow quality): the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more. Ultra is High with a shadow map twice as fine and cleaner edges at a low sun, a few % more than High. Applies at once.",
+        GraphicsRow.ExtInstruments => "Ext. instruments (HUD panels): the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost. Applies at once.",
         GraphicsRow.Mirrors => look1997
             ? "Mirrors: the original's small rear mirror, to 100 m (Rear + Left and All draw it alone: the 1997 look paints the door mirrors, as the original). Little cost in the 1997 look."
-            : "Mirrors: Rear is the rear-view mirror; Rear + Left adds the driver's door mirror, All both door mirrors where the car has them (the Piranha's two, the CC cars' left one). The rear mirror is up to 17 % of a full-detail frame, a door mirror in view about 4 %; a mirror out of view is not drawn. At 3440x1440 in T05 the graphics card alone could draw about 116 fps with Off, 105 with Rear, 98 with All. The original's 100 m reach is on the Developer panel.",
+            : "Mirrors: Rear is the rear-view mirror; Rear + Left adds the driver's door mirror, All both door mirrors where the car has them (the Piranha's two, the CC cars' left one). The rear mirror is up to 17 % of a full-detail frame, a door mirror in view about 4 %; a mirror out of view is not drawn. At 3440x1440 in T05 the graphics card alone could draw about 116 fps with Off, 105 with Rear, 98 with All. The original's 100 m reach is on the Developer panel. Applies at once.",
         GraphicsRow.MirrorRate => look1997
             ? "Mirror rate: how often the modern look's mirrors are drawn. The 1997 look draws its mirror every second frame, as the original."
-            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half (in T05 at 3440x1440, about 84 fps from the graphics card against 98). Smooth 1/2, 1/3 and 1/4 draw each mirror every second, third or fourth frame in turn and move its last picture with the car's turn on the frames between, so the glass keeps up with a turn at less cost; cars moving in it update at the lower rate.",
+            : "Mirror rate: Alternate (the default) draws the rear mirror every second frame and the side mirrors in turn; Half every mirror every second frame; Full every frame, smoothest. Full is about 9 % of a full-detail frame over Half (in T05 at 3440x1440, about 84 fps from the graphics card against 98). Smooth 1/2, 1/3 and 1/4 draw each mirror every second, third or fourth frame in turn and move its last picture with the car's turn on the frames between, so the glass keeps up with a turn at less cost; cars moving in it update at the lower rate. Applies at once.",
         GraphicsRow.MirrorHaze => look1997
-            ? "Mirror haze: the modern look's mirror glass a little milky. The 1997 look's mirror is the original's."
-            : "Mirror haze: the mirrors' glass a touch milky, as no mirror is perfect or perfectly clean, so it does not look quite like the view through the windscreen. Slight (the default) barely seen, More a little more, Off the clear glass. A flat veil, the same all over the glass. Little cost; Off none.",
+            ? "Mirror haze (mirror dirt, glass tint): the modern look's mirror glass a little milky. The 1997 look's mirror is the original's."
+            : "Mirror haze (mirror dirt, glass tint): the mirrors' glass a touch milky, as no mirror is perfect or perfectly clean, so it does not look quite like the view through the windscreen. Low (the default) barely seen, Med a little more, High about three times Low, Off the clear glass. A flat veil, the same all over the glass. Little cost; Off none. Applies at once.",
         GraphicsRow.RadarSweep => look1997
-            ? "Radar sweep: the modern look's smooth radar beam. The 1997 look's radar is the original's 30 painted frames."
-            : "Radar sweep: Stepped (the default) is the original's: the beam jumps 12 degrees five times a second through 30 painted frames, and the lock cone points at the nearest 12 degrees. Smooth turns the beam every frame at the same speed and points the cone right at the target, drawn on the graphics card from the texture pack's radar layers (a pack made with them; otherwise it stays stepped). No cost to speak of; Smooth also saves the uploads of the stepped frames.",
+            ? "Radar sweep (radar animation): the modern look's smooth radar beam. The 1997 look's radar is the original's 30 painted frames."
+            : "Radar sweep (radar animation): Stepped (the default) is the original's: the beam jumps 12 degrees five times a second through 30 painted frames, and the lock cone points at the nearest 12 degrees. Smooth turns the beam every frame at the same speed and points the cone right at the target, drawn on the graphics card from the texture pack's radar layers (a pack made with them; otherwise it stays stepped). No cost to speak of; Smooth also saves the uploads of the stepped frames. Applies at once.",
+        GraphicsRow.MirrorAa => look1997
+            ? "Mirror AA (mirror anti-aliasing): the modern look's mirrors' anti-aliasing. The 1997 look's mirror is the original's, without any."
+            : "Mirror AA (mirror anti-aliasing): smooths jagged edges in the mirrors' pictures, which the main view's Anti-Aliasing does not reach. Off (the default) is the mirrors as they were; SMAA smooths poles, wires and the horizon for little cost; 2x, 4x and 8x are MSAA in the mirrors' renders: 2x about 2 % of a light frame, 8x about 9 %, as much again as the mirrors themselves; As View follows the Anti-Aliasing row. Applies at once.",
         GraphicsRow.AntiAliasing => look1997
-            ? "Anti-aliasing: smooths jagged edges in the modern look (and the 1997 look's polygon edges; SMAA is the modern look's only). Little cost in the 1997 look."
-            : "Anti-aliasing: smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing (thin poles and cut-out edges too) for a third of what 2x costs, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer.",
-        GraphicsRow.FieldOfView => "Field of view: how wide the 3D view is. Monitor keeps the original's height and widens with the window; 90 is the original's width. Applies at once.",
-        GraphicsRow.VSync => "VSync: waits for the screen's refresh, so the picture never tears. Off can feel quicker on a fast machine. Applies at once.",
-        GraphicsRow.MaxFps => "Max FPS: a cap on the frames drawn a second; the game's own rate is unchanged. A cap saves power and heat. Applies at once.",
+            ? "Anti-aliasing (AA): smooths jagged edges in the modern look (and the 1997 look's polygon edges; SMAA is the modern look's only). Little cost in the 1997 look."
+            : "Anti-aliasing (AA): smooths jagged edges. 4x is about 12 % of a full-detail frame, 2x (the default) about 9 %. SMAA smooths edges after drawing (thin poles and cut-out edges too) for a third of what 2x costs, a touch softer; 2x+SMAA adds it to 2x. Not on the OpenGL renderer. Applies at once.",
+        GraphicsRow.FieldOfView => "Field of view (FOV): how wide the 3D view is. Monitor keeps the original's height and widens with the window; 90 is the original's width. Applies at once.",
+        GraphicsRow.VSync => "VSync (vertical sync): waits for the screen's refresh, so the picture never tears. Off can feel quicker on a fast machine. Applies at once.",
+        GraphicsRow.MaxFps => "Max FPS (frame rate limit, frame cap): a cap on the frames drawn a second; the game's own rate is unchanged. A cap saves power and heat. Applies at once.",
         GraphicsRow.Look1997 => "1997 mode: draw the game as the original did, with a 3D card of the day or in its software renderer. Off is the modern look. From the next mission (on resume in one).",
         GraphicsRow.PaletteGrade => look1997
             ? "1997 palette grade: the modern look's colours moved toward the mission's 256-colour palette. The 1997 look has them already."
-            : "1997 palette grade: the modern look in the original's colours, each moved toward the mission's 256-colour palette. Little cost.",
-        GraphicsRow.CrashBlur => "Crash blur: the double image a big hit leaves in the cockpit, as the original's software renderer drew it. Off for none.",
+            : "1997 palette grade: the modern look in the original's colours, each moved toward the mission's 256-colour palette. Little cost. Applies at once.",
+        GraphicsRow.CrashBlur => "Crash blur: the double image a big hit leaves in the cockpit, as the original's software renderer drew it. Off for none. Applies at once.",
         GraphicsRow.WorldTextures => look1997
             ? "World textures: the ground, buildings and props from the texture pack, for the modern look. The 1997 look always draws the install's own."
-            : "World textures: the ground, buildings and props. 1997 is the install's own; 4x the pack's upscales, no frame cost (the whole 4x pack takes about 0.7 GB of video memory)." + PacksFound(),
+            : "World textures: the ground, buildings and props. 1997 is the install's own; 4x the pack's upscales, no frame cost (the whole 4x pack takes about 0.7 GB of video memory). Applies at once." + PacksFound(),
         GraphicsRow.CarTextures => look1997
             ? "Car & dash textures: the cars and your dash and gauges from the texture pack, for the modern look. The 1997 look always draws the install's own."
-            : "Car & dash textures: the cars and your dash and gauges. 1997 is the install's own, 4x the pack; 8x is sharper up close for about 0.5 GB more video memory (most of it the dash), no frame cost. From the next mission." + PacksFound(),
+            : "Car & dash textures: the cars and your dash and gauges. 1997 is the install's own, 4x the pack; 8x is sharper up close for about 0.5 GB more video memory (most of it the dash), no frame cost. 1997 and the pack switch at once; between 4x and 8x from the next mission." + PacksFound(),
         GraphicsRow.Vegetation => look1997
-            ? "Vegetation: the modern look's shrubs and grass. No cost in the 1997 look."
-            : "Vegetation: shrubs and grass on the ground. About 4 % of a full-detail frame at High.",
+            ? "Vegetation (foliage, grass): the modern look's shrubs and grass. No cost in the 1997 look."
+            : "Vegetation (foliage, grass): shrubs and grass on the ground. About 4 % of a full-detail frame at High. Applies at once.",
         GraphicsRow.AmbientOcclusion => look1997
-            ? "Ambient occlusion: the modern look's contact shadows. No cost in the 1997 look."
-            : "Ambient occlusion: contact shadows under cars and shrubs. About 29 % of a full-detail frame.",
+            ? "Ambient occlusion (SSAO): the modern look's contact shadows. No cost in the 1997 look."
+            : "Ambient occlusion (SSAO): contact shadows under cars and shrubs. About 29 % of a full-detail frame. Applies at once.",
         GraphicsRow.Haze => look1997
-            ? "Haze: the modern look's air over the distance. No cost in the 1997 look."
-            : "Haze: air over the distance, as in photographs of the desert: from 600 m the far ground and mesas pale toward the sky's horizon colour. Off (the default) is the original's clear air; Light a little, Southwest more. About 0.1 to 0.25 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing.",
+            ? "Haze (distance fog): the modern look's air over the distance. No cost in the 1997 look."
+            : "Haze (distance fog): air over the distance, as in photographs of the desert: from 600 m the far ground and mesas pale toward the sky's horizon colour. Off (the default) is the original's clear air; Light a little, Southwest more. About 0.1 to 0.25 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing. Applies at once.",
         GraphicsRow.Glow => look1997
-            ? "Glow: the modern look's bloom round lamps and fire. No cost in the 1997 look."
-            : "Glow: Lamps puts a soft bloom round the brightest things only (lamps, muzzle flashes, fire and explosions), mostly seen at night; the sky, the sunlit ground and the dash do not glow. Off (the default) as the original. About 0.3 ms (the glow pass) to 0.6 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing.",
+            ? "Glow (bloom): the modern look's bloom round lamps and fire. No cost in the 1997 look."
+            : "Glow (bloom): Lamps puts a soft bloom round the brightest things only (lamps, muzzle flashes, fire and explosions), mostly seen at night; the sky, the sunlit ground and the dash do not glow. Off (the default) as the original. About 0.3 ms (the glow pass) to 0.6 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing. Applies at once.",
         GraphicsRow.Reflections => look1997
-            ? "Reflections: the modern look's screen-space reflections. No cost in the 1997 look."
-            : "Reflections: glass, and glossy paint with Hood Gloss up, mirror what is on screen (other cars, the road, buildings) instead of the sky alone. Only with Ambient Occlusion On, whose pass it shares. About 0.4 ms over Ambient Occlusion at 3440x1440 with Render Scale 200 % on a fast card; little to see in most scenes.",
+            ? "Reflections (SSR): the modern look's screen-space reflections. No cost in the 1997 look."
+            : "Reflections (SSR): glass, and glossy paint with Hood Gloss up, mirror what is on screen (other cars, the road, buildings) instead of the sky alone. Only with Ambient Occlusion On, whose pass it shares. About 0.4 ms over Ambient Occlusion at 3440x1440 with Render Scale 200 % on a fast card; little to see in most scenes. Applies at once.",
         GraphicsRow.HoodGloss => look1997
             ? "Hood gloss: the modern look's shine on the cars' paint and your hood. Not drawn in the 1997 look."
-            : "Hood gloss: how much the cars' paint and your hood shine, from Matte (0, the original's flat paint) to Gloss (100, a full clear coat); 5 is the default sheen. No frame cost.",
+            : "Hood gloss: how much the cars' paint and your hood shine, from Matte (0, the original's flat paint) to Gloss (100, a full clear coat); 5 is the default sheen. No frame cost. Applies at once.",
         GraphicsRow.RenderScale => look1997
-            ? "Render scale: the modern look's 3D view drawn smaller or larger than the window. Not used in the 1997 look."
-            : "Render scale: the 3D view drawn at 50 to 200 % of the window (the menus and gauges stay sharp). Under 100 % is faster and softer, over it sharper and much slower."
+            ? "Render scale (resolution scale; supersampling over 100 %): the modern look's 3D view drawn smaller or larger than the window. Not used in the 1997 look."
+            : "Render scale (resolution scale; supersampling over 100 %): the 3D view drawn at 50 to 200 % of the window (the menus and gauges stay sharp). Under 100 % is faster and softer, over it sharper and much slower. Applies at once."
                 + (I76.Game.Boot.RenderScale.HeldNote is { Length: > 0 } held ? $" Now {held}: over it the view would not fit the card's video memory." : ""),
-        GraphicsRow.ShowFps => "Show FPS: the frame rate and frame time in the window's top right corner, over the menus and the game.",
-        GraphicsRow.Renderer => "Renderer: Vulkan, Direct3D 12 (Windows) or OpenGL; Auto picks. Try another if the game will not start or draws wrongly. From the next start.",
-        GraphicsRow.Garage3D => "3D garage: Configure Chassis drawn as a 3D garage with your car in it; Off is the original's flat 2D form.",
-        GraphicsRow.MenuWidth => "Menu width: Wide fills a widescreen window with the widescreen menu pack's art beside each menu page; 4:3 shows the pages alone between black bars. The page itself is the same either way.",
+        GraphicsRow.ShowFps => "Show FPS (FPS counter): the frame rate and frame time in the window's top right corner, over the menus and the game. Applies at once.",
+        GraphicsRow.Renderer => "Renderer: Vulkan, Direct3D 12 (Windows) or OpenGL; Auto picks. Try another if the game will not start or draws wrongly. From the next start: the row says (restart) until then.",
+        GraphicsRow.Garage3D => "3D garage: Configure Chassis drawn as a 3D garage with your car in it; Off is the original's flat 2D form. Applies at once.",
+        GraphicsRow.MenuWidth => "Menu width: Wide fills a widescreen window with the widescreen menu pack's art beside each menu page; 4:3 shows the pages alone between black bars. The page itself is the same either way. Applies at once.",
         GraphicsRow.SmokeLighting => look1997
             ? "Smoke lighting: the modern look's smoke and dust lit by the sun and sky. Not drawn in the 1997 look."
-            : "Smoke lighting: smoke and dust take the sun's colour and direction and the sky's light, so smoke at dusk is warm on the sun's side and dark on the other, and smoke at night is dim. Off is one even light. No measurable frame cost.",
+            : "Smoke lighting: smoke and dust take the sun's colour and direction and the sky's light, so smoke at dusk is warm on the sun's side and dark on the other, and smoke at night is dim. Off is one even light. No measurable frame cost. Applies at once.",
         GraphicsRow.SmokeLinger => look1997
-            ? "Smoke linger: how long the modern look's smoke hangs in the air. The 1997 look's puffs are the original's."
-            : "Smoke linger: Long lets the smoke of damaged cars, burning wrecks, rocket and mortar trails and explosions hang on after it has risen, slowly widening and thinning to a faint haze that drifts with the wind and fades away over a minute or more. Normal (the default) ends each puff as before. About 0.05 ms a frame with seven smoking cars in view at 1920x1080 on low settings, 0.2 to 0.4 ms at 3440x1440 with Render Scale 200 % (an RTX 5090); none when Normal.",
+            ? "Smoke linger (smoke duration): how long the modern look's smoke hangs in the air. The 1997 look's puffs are the original's."
+            : "Smoke linger (smoke duration): Long lets the smoke of damaged cars, burning wrecks, rocket and mortar trails and explosions hang on after it has risen, slowly widening and thinning to a faint haze that drifts with the wind and fades away over a minute or more. Normal (the default) ends each puff as before. About 0.05 ms a frame with seven smoking cars in view at 1920x1080 on low settings, 0.2 to 0.4 ms at 3440x1440 with Render Scale 200 % (an RTX 5090); none when Normal. Applies at once.",
         GraphicsRow.HeatShimmer => look1997
             ? "Heat shimmer: the modern look's wobbling air over fires and hot roads. Not drawn in the 1997 look."
-            : "Heat shimmer: the air wobbles over fires, burning wrecks and flame streams. Fires + Road adds, on hot days only, a shimmer at the horizon and over the far ground (strongest where the far land meets the sky) and the road's mirage; Shimmer Strength sets how strong. The 1997 game has none. About 0.1 ms a frame while something shimmers (3440x1440, 8x, 200 %, an RTX 5090), none when Off.",
+            : "Heat shimmer: the air wobbles over fires, burning wrecks and flame streams. Fires + Road adds, on hot days only, a shimmer at the horizon and over the far ground (strongest where the far land meets the sky) and the road's mirage; Shimmer Strength sets how strong. The 1997 game has none. About 0.1 ms a frame while something shimmers (3440x1440, 8x, 200 %, an RTX 5090), none when Off. Applies at once.",
         GraphicsRow.HeatStrength => look1997
-            ? "Shimmer strength: how strongly the modern look's heat shimmer bends the air. Not drawn in the 1997 look."
-            : "Shimmer strength: how strongly Heat Shimmer bends the air, over fires and, on a hot day, at the horizon and the road's mirage, all together. Medium by default; Low is half of it, High and Extreme stronger. Nothing while Heat Shimmer is Off, and no cost of its own.",
+            ? "Shimmer strength (heat haze strength): how strongly the modern look's heat shimmer bends the air. Not drawn in the 1997 look."
+            : "Shimmer strength (heat haze strength): how strongly Heat Shimmer bends the air, over fires and, on a hot day, at the horizon and the road's mirage, all together. Medium by default; Low is half of it, High and Extreme stronger. Nothing while Heat Shimmer is Off, and no cost of its own. Applies at once.",
         GraphicsRow.TerrainShadows => look1997
             ? "Terrain shadows: the modern look's baked hill shadows. Not drawn in the 1997 look."
-            : "Terrain shadows: the hills' and mesas' own shadows on the land, baked from the map and its sun as the mission loads: crisp and steady at any Shadow Detail, out to the horizon. On by default. Off leaves them to Shadow Detail (600 m at Low, 1500 m at High). Fine bakes twice as finely (more load time and video memory). By day only. About 1-2 % of a frame at 3440x1440 and 200 % scale, none measurable at 1920x1080.",
+            : "Terrain shadows: the hills' and mesas' own shadows on the land, baked from the map and its sun as the mission loads: crisp and steady at any Shadow Detail, out to the horizon. On by default. Off leaves them to Shadow Detail (600 m at Low, 1500 m at High). Fine bakes twice as finely (more load time and video memory). By day only. About 1-2 % of a frame at 3440x1440 and 200 % scale, none measurable at 1920x1080. Applies at once (a new bake eases in).",
         GraphicsRow.RoadDetail => look1997
-            ? "Road detail: the modern look's surface on the paved roads. Not drawn in the 1997 look."
-            : "Road detail: the paved roads get a surface of their own near the camera (aggregate grain and stones, fine cracks, sealed patches, crisper and slightly worn lane lines, broad lighter and darker stretches down a long straight, the dirt verge blended into the ground), made in the shader; the road's layout, colours and markings stay the original's. Off (the default) draws the roads' own textures alone. A few extra noise reads on road pixels near the camera; Off costs nothing.",
+            ? "Road detail (road surface quality): the modern look's surface on the paved roads. Not drawn in the 1997 look."
+            : "Road detail (road surface quality): the paved roads get a surface of their own near the camera (aggregate grain and stones, fine cracks, sealed patches, crisper and slightly worn lane lines, broad lighter and darker stretches down a long straight, the dirt verge blended into the ground), made in the shader; the road's layout, colours and markings stay the original's. Off (the default) draws the roads' own textures alone. A few extra noise reads on road pixels near the camera; Off costs nothing. Applies at once.",
+        GraphicsRow.Quality => look1997
+            ? "Quality (graphics preset): sets the modern look's costly rows at once. The 1997 look draws none of them."
+            : "Quality (graphics preset): Original is the original game's look in the modern renderer, Balanced the defaults, High and Ultra more for a strong graphics card. It sets Render Scale, Anti-Aliasing, Shadow Detail, Terrain Shadows, Road Detail, Visibility Range, the textures, Vegetation, Ambient Occlusion, Reflections, Haze, Mirror Rate, Mirror AA, Glow, Smoke Linger, Smoke Lighting and Heat Shimmer; Custom when they match none. The line at the foot estimates the frame rate. Applies at once.",
         _ => throw new ArgumentOutOfRangeException(nameof(row)),
     };
 
