@@ -147,7 +147,11 @@ public class VariantTests
         var own = Enumerable.Range(4, 6).Select(n => $"vppirna{n}.vcf").First(n => !vfs.Exists(n));
         Assert.NotNull(host.CheckJoin(own, [1, 2, 3]));
         Assert.NotNull(host.CheckJoin(own, new byte[5000]));
-        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Armour[0] = 99999)));
+        // armour past the model's stock total joins (a guideline since fix/car-armour-guideline, docs/multiplayer.md), reported;
+        // a negative zone is impossible
+        Assert.Null(host.CheckJoin(own, Custom(vfs, c => c.Armour[0] = 99999)));
+        Assert.True(I76.Sim.Trip.CarConfigCheck.ArmourOverStock > 0);
+        Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Armour[0] = -1)));
         Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Weapons.Add((77, "cannon.gdf")))));
         Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Weapons[0] = (c.Weapons[0].Hardpoint, "nosuchgun"))));
         Assert.NotNull(host.CheckJoin(own, Custom(vfs, c => c.Vdf = "vcgcour.vdf")));
