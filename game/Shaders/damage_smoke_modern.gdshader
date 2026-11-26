@@ -14,6 +14,9 @@ uniform vec3 sun_view = vec3(0.3, 0.8, 0.5);   // toward the sun, in view space
 uniform vec3 fog_col = vec3(0.5, 0.55, 0.6);
 uniform float a_cap = 0.25;   // without the smoke layer (SmokeLayer.cs: Compatibility renderer): no one puff is more opaque than this
 uniform vec3 tint = vec3(1.0);   // the chemical cloud's green (ChemClouds); white for the damage smoke
+// Smoke Lighting (SmokeLight): the sun's light (rgb; w 1 when on) and the sky's, in place of scene_light's one white level
+global uniform vec4 i76_smoke_sun;
+global uniform vec3 i76_smoke_amb;
 
 // the scene's nearest lamps, as the smoke layer has them (SmokeLayer.Lights): per light position and range, spot axis and
 // angle (0: a point light), colour times energy and attenuation; the layer's own pass does the same lighting in GLSL
@@ -75,6 +78,11 @@ void fragment() {
 	base = mix(base, base * vec3(1.35, 1.0, 0.75) + vec3(0.004, 0.002, 0.0), v_c.z * fract(seed * 7.13));   // charcoal to brown-grey
 	base *= (0.8 + 0.4 * n) * tint;
 	vec3 col = base * lit * scene_light;
+	if (i76_smoke_sun.w > 0.0) {
+		// the sphere's normal with the quad's up as the view's up (UV's y runs down), so the side toward the sun is the lit one
+		float hs = dot(normalize(vec3(d.x, -d.y, sqrt(max(1.0 - rad * rad, 0.05))) + vec3((n - 0.5) * 0.5)), normalize(sun_view)) * 0.5 + 0.5;
+		col = base * (i76_smoke_amb * mix(0.25, 0.04, v_c.z) + i76_smoke_sun.rgb * mix(hs * hs, 2.6 * pow(hs, 3.0), v_c.z));
+	}
 	col += mix(vec3(0.7), vec3(0.14), pow(v_c.z, 0.7)) * tint * v_lit * (0.8 + 0.4 * n);
 	float depth = texture(depth_tex, SCREEN_UV).r;
 	vec4 vp = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, i76_ndc_depth(depth), 1.0);

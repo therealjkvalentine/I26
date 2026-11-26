@@ -765,6 +765,13 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;
+            // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's; apply in a mission
+            case GraphicsRow.SmokeLighting:
+                Row(r, line, SmokeLightingRow.Label, () => SmokeLightingRow.Names[SmokeLightingRow.Index(st)], () => SmokeLightingRow.Step(st));
+                break;
+            case GraphicsRow.HeatShimmer:
+                Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
+                break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
                 Row(r, line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });

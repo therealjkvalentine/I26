@@ -83,6 +83,9 @@ public partial class WreckFire : Node3D
             Position = new Vector3(0, b.Size.Y * 0.5f + 0.6f, 0), Name = "Glow",
         };
         AddChild(_light);
+        // Heat Shimmer's column over it: strong while the flames burn, a little while the hull is hot
+        I76.Game.World.HeatSources.Add(this, () => _gone >= 0 || !_wasModern ? null
+            : new I76.Game.World.HeatSource(GlobalPosition, Mathf.Max(_width, _length) * 0.4f, 1.8f, 10f, Mathf.Max(Flames(_age), 0.3f * (HeldHeat ?? Heat(_age)))));
         Follow();
         Apply();
     }
