@@ -27,7 +27,7 @@ public static class FoliageAtlas
             (AtlasCell.SandSage, SandSage), (AtlasCell.ShinOak, ShinOak), (AtlasCell.GrayOak, GrayOak), (AtlasCell.OcotilloLeaf, OcotilloLeaf),
             (AtlasCell.RedFlowers, RedFlowers), (AtlasCell.IndianBlanket, IndianBlanket), (AtlasCell.PricklyPoppy, PricklyPoppy), (AtlasCell.Horsemint, Horsemint),
             (AtlasCell.Buffalograss, Buffalograss), (AtlasCell.Pickleweed, Pickleweed), (AtlasCell.AgaveBlade, AgaveBlade), (AtlasCell.Candelilla, Candelilla),
-            (AtlasCell.PineSpray, PineSpray),
+            (AtlasCell.PineSpray, PineSpray), (AtlasCell.TumbleweedOpen, TumbleweedOpen),
         };
         System.Threading.Tasks.Parallel.ForEach(painters, p =>
         {
@@ -40,7 +40,7 @@ public static class FoliageAtlas
 
     public static bool IsFoliage(AtlasCell c) => c is AtlasCell.Creosote or AtlasCell.Mesquite or AtlasCell.Saltbush or AtlasCell.Tamarisk or AtlasCell.Willow
         or AtlasCell.Tumbleweed or AtlasCell.YuccaFlowers or AtlasCell.Forb or AtlasCell.Panicle or AtlasCell.GrassTuft
-        or (>= AtlasCell.SandSage and <= AtlasCell.Candelilla) or AtlasCell.PineSpray;
+        or (>= AtlasCell.SandSage and <= AtlasCell.Candelilla) or AtlasCell.PineSpray or AtlasCell.TumbleweedOpen;
 
     /// <summary>The size of mip level <paramref name="level"/> (each halves, never under 1).</summary>
     public static (int W, int H) LevelSize(int level) => (Math.Max(1, Width >> level), Math.Max(1, Height >> level));
@@ -451,11 +451,45 @@ public static class FoliageAtlas
         }
     }
 
-    private static void Tumbleweed(Canvas c, VegRng rng)
+    private static void Tumbleweed(Canvas c, VegRng rng) => Tangle(c, rng, 170);
+
+    /// <summary>
+    /// The rolling tumbleweed's cell (SpeciesCatalog.RollingTumbleweed): this many stems, most curling round the ball rather than
+    /// through its middle, where its six cards stack, so about <see cref="SpeciesCatalog.RollingSeeThrough"/> of the light through
+    /// its disc passes, in the middle as at the rim (the standing plant's 170 through the middle, six deep, let through 18 %, and
+    /// under 1 % at the centre: it read as a solid ball).
+    /// </summary>
+    public const int OpenTangleStems = 74;
+
+    private static void TumbleweedOpen(Canvas c, VegRng rng)
+    {
+        var a0 = Rgb(196, 166, 116); var a1 = Rgb(160, 104, 78);
+        for (int i = 0; i < OpenTangleStems; i++)
+        {
+            var col = Jit(Mix(a0, a1, rng.Float()), ref rng, 0.08f);
+            if (rng.Float() < 0.1f)
+            {
+                // one in ten across the middle, as the standing plant's
+                float ang = rng.Range(0, MathF.Tau), r = 118 * MathF.Pow(rng.Float(), 0.35f);
+                float ang2 = ang + rng.Range(1.2f, 2.4f) * (rng.Float() < 0.5f ? -1 : 1), r2 = 118 * MathF.Pow(rng.Float(), 0.35f);
+                c.Curve(128 + MathF.Cos(ang) * r, 128 + MathF.Sin(ang) * r, 128 + rng.Range(-40, 40), 128 + rng.Range(-40, 40),
+                    128 + MathF.Cos(ang2) * r2, 128 + MathF.Sin(ang2) * r2, 1.8f, 1.2f, col);
+                continue;
+            }
+            // the others an arc of 50-115 degrees round the middle, bowed in a little or out
+            float b0 = rng.Range(0, MathF.Tau), span = rng.Range(0.9f, 2.0f) * (rng.Float() < 0.5f ? -1 : 1);
+            float q0 = 118 * MathF.Pow(rng.Float(), 0.25f), q1 = 118 * MathF.Pow(rng.Float(), 0.25f);
+            float mid = b0 + span * 0.5f, rc = (q0 + q1) * 0.5f * rng.Range(0.4f, 1.1f);
+            c.Curve(128 + MathF.Cos(b0) * q0, 128 + MathF.Sin(b0) * q0, 128 + MathF.Cos(mid) * rc, 128 + MathF.Sin(mid) * rc,
+                128 + MathF.Cos(b0 + span) * q1, 128 + MathF.Sin(b0 + span) * q1, 1.8f, 1.2f, col);
+        }
+    }
+
+    private static void Tangle(Canvas c, VegRng rng, int stems)
     {
         // a round tangle of thin curling stems, straw to reddish, see-through
         var a0 = Rgb(196, 166, 116); var a1 = Rgb(160, 104, 78);
-        for (int i = 0; i < 170; i++)
+        for (int i = 0; i < stems; i++)
         {
             float ang = rng.Range(0, MathF.Tau), r = 118 * MathF.Pow(rng.Float(), 0.35f);
             float x0 = 128 + MathF.Cos(ang) * r, y0 = 128 + MathF.Sin(ang) * r;

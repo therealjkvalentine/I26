@@ -554,9 +554,15 @@ the side it was on, spinning (7-16 rad/s), with three smaller torn clumps (0.4-0
 along at 55-90% of the car's speed, slowing quickly in the air, bouncing, fading out over 1-2.4 s; a new one starts
 upwind. Nothing touches the car.
 
-**Look.** A rolling one is its own mesh (`SpeciesCatalog.RollingTumbleweed`): six cards of the tumbleweed's painted
+**Look.** A rolling one is its own mesh (`SpeciesCatalog.RollingTumbleweed`): six cards of a painted
 tangle facing every way (an icosahedron's axes, turned at random), so it reads round from any side as it turns, straw
-and dry, its occlusion baked in the air (no ground under it); three variants. It is drawn with the ground layer's
+and dry, its occlusion baked in the air (no ground under it); three variants. The tangle is its own atlas cell
+(`TumbleweedOpen`): 74 stems (the standing plant's cell has 170), most curling round the middle rather than through
+it, so about 30 % of the light through its disc passes between the stems (`SpeciesCatalog.RollingSeeThrough`), in the
+middle as at the rim and at every mip level (`TumbleweedLookTests`, rays against the cut-out alpha). The standing
+plant's tangle on the same six cards let 17-19 % through, under 1 % in the middle: it read as a solid ball. It is cut
+out, not blended, so it needs no sorting, takes alpha-to-coverage at 4x and 8x like the plants, and its sun shadow has
+the same holes; its ground shade is 0.7 of the old. It is drawn with the ground layer's
 material (`rolling`: no sway, no parting round cars, no dust at its foot; its fade from the instance) in one MultiMesh
 a variant, the pieces in them too, with a soft shade under each (the plants' shade quad, fainter and wider as it hops,
 gone by 90 m); on High they cast sun shadows.
@@ -573,7 +579,8 @@ the small plants). T16's flat at `1652,50137` with `I76_FREECAM=1657.5,10,50128.
 free camera waits for a mission's intro to end, so give it time (`I76_SHOT_FPS=30 I76_SHOT_FRAMES=900`);
 `--cam x,y,z,yaw,pitch` takes over at once. `I76_VEG_GALLERY_TIER=1` (or 2) shows the middle (far) meshes.
 `I76_VEG_STATS=1` prints the placement's cell counts and the plants near the camera.
-`I76_TUMBLEWEEDS=N` rolls that many tumbleweeds wherever there are plants, and `I76_TUMBLEWEED_AHEAD=D[,S]` puts the
-first D metres ahead of the player's car (S to its right) as it drives off: T01 with
+`I76_TUMBLEWEEDS=N` rolls that many tumbleweeds wherever there are plants, and `I76_TUMBLEWEED_AHEAD=D[,S[,T]]` puts the
+first D metres ahead of the player's car (S to its right) as it drives off (of the camera with no car moving; T seconds
+in at the earliest, after a melee's opening view: M01 with `I76_FREECAM` and `T=12`): T01 with
 `--drive --chase`, `I76_TUMBLEWEED_AHEAD=12,-1`, `I76_CAP_CAM=0,2.5,8,0,-8` and `I76_SHOT_FPS=30` drives into it at
 about frame 55.
