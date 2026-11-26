@@ -80,7 +80,7 @@ public partial class SkidMarks : Node3D
             _seen = true; _modern = modern;
             if (!first) Restyle(modern);
             _active.Clear();
-            _mat.SetShaderParameter("modern", modern);
+            _mat.SetShaderParameter(ShaderNames.Modern, modern);
         }
         var o = Origin();
         if (o != _origin) { _origin = o; foreach (var s in _strips) s.Dirty = true; }
@@ -94,7 +94,7 @@ public partial class SkidMarks : Node3D
             if (s.Key is null && s.P.Count == 0) { if (s.Dirty) Rebuild(s); continue; }
             float age = _t - s.Born;
             if (age > life) { s.Clear(); Rebuild(s); continue; }
-            if (modern) s.Node?.SetInstanceShaderParameter("fade", Mathf.Clamp((life - age) / FadeModern, 0f, 1f));
+            if (modern) s.Node?.SetInstanceShaderParameter(ShaderNames.Fade, Mathf.Clamp((life - age) / FadeModern, 0f, 1f));
             if (s.Dirty) Rebuild(s);
         }
     }

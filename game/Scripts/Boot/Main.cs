@@ -3960,7 +3960,7 @@ public partial class Main : Node3D
 			long until = System.Diagnostics.Stopwatch.GetTimestamp() + (long)(WalkBudgetMs * System.Diagnostics.Stopwatch.Frequency / 1000);
 			bool Visit(Node n)
 			{
-				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadow)) return false;
+				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadowName)) return false;
 				if (n is MeshInstance3D { Visible: true, Mesh: { } m } mi)
 				{
 					_sceneryNext.Add((m, mi.GlobalTransform, true));

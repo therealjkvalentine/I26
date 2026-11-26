@@ -254,8 +254,8 @@ public partial class DamageSmoke : Node3D
         foreach (var f in _fires) f?.Set(false, false);   // the 1997 look: the original's own flame planes
         HideBillows();
         if (!_have1997) return;
-        _mat.SetShaderParameter("modern", modern);
-        _mat.SetShaderParameter("scene_light", SceneLight);
+        _mat.SetShaderParameter(ShaderNames.Modern, modern);
+        _mat.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
         int cap = modern ? CapModern : Cap1997;
         // the original ran this once a frame, and its frame was the sim step: so once a sim tick, with the tick as dt
         int steps = SimClock.Take(ref _lastTick);
@@ -299,7 +299,7 @@ public partial class DamageSmoke : Node3D
     {
         double dt = Math.Min(delta, 0.25);
         _clock += dt;
-        _matM.SetShaderParameter("scene_light", SceneLight);
+        _matM.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
         foreach (var (v, car) in Cars)
         {
             if (!IsInstanceValid(car) || !car.IsInsideTree() || !car.IsVisibleInTree()) continue;
@@ -475,7 +475,7 @@ public partial class DamageSmoke : Node3D
         var org = Origin();
         _sun ??= SceneSun.Of(this);
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;
-        _matM.SetShaderParameter("sun_view", ct.Basis.Inverse() * toSun);
+        _matM.SetShaderParameter(ShaderNames.SunView, ct.Basis.Inverse() * toSun);
         int cnt = 0;
         for (int i = 0; i < CapM; i++)
         {

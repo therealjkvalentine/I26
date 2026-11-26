@@ -108,7 +108,7 @@ public partial class RocketSmoke : Node3D
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
         float dt = (float)Math.Min(delta, 0.25);
-        _mat.SetShaderParameter("scene_light", SceneLight);
+        _mat.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
         var cam = GetViewport().GetCamera3D();
         int live = 0;
         for (int i = 0; i < Cap; i++)
@@ -125,7 +125,7 @@ public partial class RocketSmoke : Node3D
         var org = Origin();
         _sun ??= SceneSun.Of(this);
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;
-        _mat.SetShaderParameter("sun_view", ct.Basis.Inverse() * toSun);
+        _mat.SetShaderParameter(ShaderNames.SunView, ct.Basis.Inverse() * toSun);
         int cnt = 0;
         for (int i = 0; i < Cap; i++)
         {

@@ -151,7 +151,7 @@ public partial class ChemClouds : Node3D
 
     private void Modern(IReadOnlyList<Round> rounds, Func<System.Numerics.Vector3, Vector3> toGodot, double dt)
     {
-        _matNew.SetShaderParameter("scene_light", SceneLight);
+        _matNew.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
         var live = new HashSet<Round>();
         foreach (var r in rounds)
         {

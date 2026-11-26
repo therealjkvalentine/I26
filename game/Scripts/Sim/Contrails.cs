@@ -202,7 +202,7 @@ public partial class Contrails : Node3D
         _im.ClearSurfaces();
         _t = Time.GetTicksMsec() / 1000f;
         _fire ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cluster_fire.gdshader") };
-        _fire.SetShaderParameter("daylight", SceneLight);
+        _fire.SetShaderParameter(ShaderNames.Daylight, SceneLight);
         var origin = Origin();
         var cam = GetViewport().GetCamera3D()?.GlobalPosition ?? Vector3.Zero;
         bool begun = false;

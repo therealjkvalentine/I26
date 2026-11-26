@@ -36,6 +36,8 @@ public partial class ScenerySpawner : Node3D
 
     /// <summary>The group of the nodes the drop shadows leave out (Main.Casters): the cards, which the original never casts (keyed faces are skipped), and the placed trees.</summary>
     public const string NoDropShadow = "i76_no_drop_shadow";
+    /// <summary><see cref="NoDropShadow"/> made once, for the drop shadows' walk over every scenery node (a string makes a new StringName each call).</summary>
+    public static readonly StringName NoDropShadowName = NoDropShadow;
 
     /// <summary>
     /// Where the burning wrecks' smoke rises (game coordinates, absolute): the base of the smoke faces of a model that draws
