@@ -28,7 +28,7 @@ public static class SmokeHaze
     public const float Threshold = 0.022f;
 
     /// <summary>Seconds a lone puff of any density takes, after its own life, to thin to <see cref="Threshold"/> (merged ones, holding more smoke, last longer).</summary>
-    public const float HazeSeconds = 45f;
+    public const float HazeSeconds = 75f;
 
     /// <summary>The time a merged puff takes to hand its smoke over.</summary>
     public const float AbsorbSeconds = 1.5f;

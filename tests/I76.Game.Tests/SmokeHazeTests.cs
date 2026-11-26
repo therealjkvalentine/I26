@@ -61,7 +61,8 @@ public class SmokeHazeTests
     public void AGrowingPuffKeepsItsSmokeAndThinsAsTheInverseOfItsArea(float size, float dens)
     {
         float k = SmokeHaze.Growth(size, dens), mass = dens * size * size, s = size, lastGrowth = float.MaxValue;
-        for (int i = 1; i <= 450; i++)
+        int steps = (int)MathF.Round(SmokeHaze.HazeSeconds / 0.1f);
+        for (int i = 1; i <= steps; i++)
         {
             float before = s;
             s = SmokeHaze.Grow(s, k, 0.1f);
