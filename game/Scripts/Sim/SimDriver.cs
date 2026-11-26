@@ -519,7 +519,8 @@ public partial class SimDriver : Node
         if (AutoReverse && Player?.Sim is { ObjectClass: 1 } car && (car.Flags & I76.Sim.Vehicles.VehicleFlags.Dead) == 0)
         {
             var raw = input;
-            input = (_autoReverse ??= new I76.Sim.Session.AutoReverse(Session.Rate)).Apply(input, car.Gear < 0, System.Numerics.Vector3.Dot(car.Vel, car.Rot.Forward), car.Throttle);
+            input = (_autoReverse ??= new I76.Sim.Session.AutoReverse(Session.Rate)).Apply(input, car.Gear < 0, System.Numerics.Vector3.Dot(car.Vel, car.Rot.Forward), car.Throttle,
+                (car.Flags & I76.Sim.Vehicles.VehicleFlags.EngineOn) != 0);
             const CarButtons pedals = CarButtons.ThrottleUp | CarButtons.ThrottleDown;
             _arNeutral = !input.Has(CarButtons.Analog) && (raw.Buttons & pedals) != 0 && (input.Buttons & pedals) == 0;
             _arSwapped = !_arNeutral && (input.Has(CarButtons.Analog) ? raw.Throttle != input.Throttle : (raw.Buttons & pedals) != (input.Buttons & pedals));

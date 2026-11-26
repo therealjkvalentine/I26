@@ -25,11 +25,14 @@ public sealed class AutoReverse
     /// <param name="reversing">The car is in reverse gear.</param>
     /// <param name="forwardSpeed">Velocity along the car's heading, negative when rolling backwards.</param>
     /// <param name="throttle">The car's throttle as the last tick left it (−1 full brake … 1 full throttle).</param>
-    public CarInput Apply(CarInput input, bool reversing, float forwardSpeed, float throttle = 0f)
+    /// <param name="engineOn">The car's engine runs. Off, the keys pass as pressed: the brake key brakes (swapped, it would be an
+    /// accelerator with no engine behind it, and the car would roll on) and accelerate does nothing.</param>
+    public CarInput Apply(CarInput input, bool reversing, float forwardSpeed, float throttle = 0f, bool engineOn = true)
     {
         if (_hold > 0) _hold--;
         bool lifted = _lifted;
         _lifted = false;
+        if (!engineOn) return input;
         // a pad's throttle axis counts as the keys past a tenth of its travel (the triggers' accelerate and brake), and a swap flips its sign
         bool analog = input.Has(CarButtons.Analog);
         bool up = analog ? input.Throttle > AnalogDead : input.Has(CarButtons.ThrottleUp);
