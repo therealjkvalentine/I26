@@ -14,8 +14,8 @@ namespace I76.Game.Boot;
 /// with I26/i76 and I26/nitro symlinks).
 ///
 /// Then the Nitro visit (Boot/NitroVisit.cs), or only it when the game starts on the base install without the chooser (I76_INSTALL
-/// the base game, I76_NITRO_INSTALL the Nitro Pack): base menu, TRIP (its new entry) -> NITRO -> the Nitro character choice ->
-/// TAURUS -> the scenario form -> ENTER AREA -> the mission, ended as won -> the base menu with TRIP open (the mission marked done in
+/// the base game, I76_NITRO_INSTALL the Nitro Pack): base menu, MELEE > AUTO MELEE (its new entry) -> NITRO -> the Nitro character choice ->
+/// TAURUS -> the scenario form -> ENTER AREA -> the mission, ended as won -> the base menu with MELEE > AUTO MELEE open (the mission marked done in
 /// Nitro's progress) -> NITRO -> BACK -> the base menu; at each hand-over the install in use, the input
 /// tables' install, the settings' game, the addon overlay, the carried music and the visit's own state are checked.
 /// </summary>
@@ -37,7 +37,7 @@ public partial class SwitchProbe : Node
     private readonly List<string> _fails = [];
     private string? _baseDir, _nitroDir, _visitMission;
     private int _switches;
-    private const int VisitStart = 20, VisitBaseOnly = 40;
+    private const int VisitStart = 20, VisitBaseOnly = 60;
 
     private void Check(bool ok, string what)
     {
@@ -157,22 +157,26 @@ public partial class SwitchProbe : Node
                 Check(!s7.Install.IsNitro && Same(M!.InstallPath, _baseDir) && Same(Controls.InstallDir, _baseDir), "base menu again on the base install");
                 Shot("7_base_menu_again");
                 _step = VisitStart; _wait = 0; break;
-            // the Nitro visit: the base menu's TRIP row with its new entries
+            // the Nitro visit: the base menu's MELEE > AUTO MELEE row with NITRO
             case VisitStart:
                 if (Menu is null || !Wait(240)) return;   // (the start's boot picture faded out)
-                Point(new Vector2I(200, 300), true);   // TRIP
-                Next(); break;
+                Point(new Vector2I(430, 305), true);   // MELEE
+                _step = VisitStart + 20; _wait = 0; break;
+            case VisitStart + 20:
+                if (!Wait(10)) return;
+                Point(new Vector2I(470, 350), true);   // AUTO MELEE
+                _step = VisitStart + 1; _wait = 0; break;
             case VisitStart + 1:
                 if (!Wait(10)) return;
-                Check(Menu is { TripOpen: true }, "TRIP opens");
+                Check(Menu is { AutoOpen: true }, "MELEE > AUTO MELEE opens");
                 _nitroDir = NitroVisit.FindNitro(_baseDir!);
                 if (_nitroDir is null && Ch is null && GameSwitch.Count == 0)
                 {
-                    // the base game alone: TRIP as today, no NITRO
-                    Check(Menu!.PortShown.Count == 0 && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: TRIP as today, no NITRO");
+                    // the base game alone: AUTO MELEE's row as today, no NITRO
+                    Check(Menu!.PortShown.Count == 0 && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: AUTO MELEE as today, no NITRO");
                     _step = VisitBaseOnly; _wait = 0; return;
                 }
-                Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "TRIP shows NITRO (a Nitro install found)");
+                Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "AUTO MELEE shows NITRO (a Nitro install found)");
                 if (EntryAt(MainMenuScreen.NitroEntry) is { } n21) Point(n21, false);   // lit, with its banner
                 Next(); break;
             case VisitStart + 2:
@@ -201,15 +205,24 @@ public partial class SwitchProbe : Node
                 _visitMission = m25.MissionName;
                 Check(Same(m25.InstallPath, _nitroDir) && new GameInstall(_nitroDir!).FindMission(m25.MissionName ?? "") is not null, $"Nitro mission {m25.MissionName} built from the Nitro install");
                 Check(NitroVisit.Active, "the visit lasts through the mission");
+                // the opening CB line (said at tick 0, behind the card) heard from its beginning when the hold on the game's sound ends
+                Check(I76.Game.Sim.SimDriver.LastHeldLineStart is { } lineAt && lineAt < 0.05f, $"the opening CB line starts at its beginning (at {I76.Game.Sim.SimDriver.LastHeldLineStart?.ToString("0.00") ?? "none held"} s)");
+                // the shared Graphic Detail (Anti-Aliasing, Render Scale) drawn the same after the hand-over as the base game draws it
+                var gs = I76.Game.Shell.ShellSettings.Load();
+                var vp = GetViewport();
+                var aa = RenderScale.Msaa(gs.Graphics[0x8], RenderBackend.Compatibility);
+                float scale = RenderScale.HeldPercent is { } held ? held / 100f : RenderScale.Scale(gs.RenderScale);
+                GD.Print($"switch-test: view {RenderScale.Describe(vp)}");
+                Check(vp.Msaa3D == aa && System.Math.Abs(vp.Scaling3DScale - scale) < 0.01f, $"the Nitro mission's view has the settings' {aa} and {scale:0.##}x scale (has {vp.Msaa3D}, {vp.Scaling3DScale:0.##}x)");
                 Shot("v4_nitro_mission");
                 m25.EndForProbe(won: true);
                 Next(); break;
-            // the mission's end: back to the base menu, TRIP open, the mission marked done in Nitro's own progress
+            // the mission's end: back to the base menu, MELEE > AUTO MELEE open, the mission marked done in Nitro's own progress
             case VisitStart + 6:
                 if (Sh is not { Install.IsNitro: false } || Menu is null || !Wait(60)) return;
                 CheckHandOver(_baseDir, false, "after the mission");
                 Check(!NitroVisit.Active, "the visit is over");
-                Check(Menu!.TripOpen && Menu.PortShown.Contains(MainMenuScreen.NitroEntry), "the base menu with TRIP open");
+                Check(Menu!.AutoOpen && Menu.PortShown.Contains(MainMenuScreen.NitroEntry), "the base menu with MELEE > AUTO MELEE open");
                 var done = NitroProgress.Load(new GameInstall(_nitroDir!)).Data.Characters.SelectMany(c => c.Missions).FirstOrDefault(x => x.Stem.Equals(_visitMission, StringComparison.OrdinalIgnoreCase));
                 Check(done is { Done: true }, $"{_visitMission} marked done in user://saves/nitro/scenario.dat");
                 Shot("v5_base_after_mission");
@@ -227,7 +240,7 @@ public partial class SwitchProbe : Node
             case VisitStart + 9:
                 if (Sh is not { Install.IsNitro: false } || Menu is null || !Wait(60)) return;
                 CheckHandOver(_baseDir, false, "after BACK");
-                Check(!NitroVisit.Active && Menu!.TripOpen, "BACK: the base menu with TRIP open");
+                Check(!NitroVisit.Active && Menu!.AutoOpen, "BACK: the base menu with MELEE > AUTO MELEE open");
                 Shot("v7_base_after_back");
                 Finish();
                 _step = 200; break;

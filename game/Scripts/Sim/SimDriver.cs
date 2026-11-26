@@ -84,6 +84,24 @@ public partial class SimDriver : Node
     /// <summary>The skip key (Esc): the script sees it on the next tick (isKeypress).</summary>
     public bool SkipLatch { set { if (value) _commands.Push(CarCommands.Skip); } }
     private AudioStreamPlayer? _cb;
+    /// <summary>The CB line on the air waits for the load's hold on the game's sound to end (<see cref="HookScript"/>).</summary>
+    private bool _cbHeld;
+
+    private static float LineOffset(double nowMs, double startedMs) => CbLineStart.Offset(nowMs, startedMs);
+
+    /// <summary>Where the last line held through a load started, in seconds into it (the switch guard: 0 is its beginning); null, none was held.</summary>
+    public static float? LastHeldLineStart { get; private set; }
+
+    /// <summary>The held CB line, once the hold is off: from the point the radio's clock has reached in it (at the hold's end, its start).</summary>
+    private void StartHeldLine()
+    {
+        _cbHeld = false;
+        if (_cb is null || Script?.Host.Cb is not { Current: { } line } cb) return;
+        float at = LineOffset(cb.NowMs, line.StartedMs);
+        _cb.Play(at);
+        LastHeldLineStart = at;
+        GD.Print($"cb: {line.Name} held through the load, playing from {at:0.00} s (radio {cb.NowMs:0} ms, line from {line.StartedMs:0} ms, tick {Session.Ticks})");
+    }
     private readonly bool _debugPlayer = System.Environment.GetEnvironmentVariable("I76_DEBUG_PLAYER") is not null;
     private int _ticks;
     /// <summary>Sim ticks run since the mission started (the original's frames, at the fixed step).</summary>
@@ -239,8 +257,12 @@ public partial class SimDriver : Node
         h.Logged += m => GD.Print($"[script {h.Now:0.00}] {m}");
         _cb = new AudioStreamPlayer { Name = "CbRadio", Bus = "Voice" };
         AddChild(_cb);
-        h.Cb.Started += l => { if (Audio?.Get(l.Name) is { } s) { _cb.Stream = s; _cb.Play(); } };
-        h.Cb.Cut += _ => _cb.Stop();
+        LastHeldLineStart = null;   // (this mission's)
+        // a line started while a load holds the game's sound (Main.GameSoundHeld: the buses at -80 dB behind the card, before tick 0
+        // too, where the tree is not yet paused) waits for the hold's end, then plays from where the sim has got to in it; started at
+        // once it played on silent and was heard from part-way through (Nitro P01's opening line lost its first 1.7 s)
+        h.Cb.Started += l => { if (Audio?.Get(l.Name) is { } s) { _cb.Stream = s; if (CbLineStart.Waits(I76.Game.Boot.Main.GameSoundHeld)) _cbHeld = true; else _cb.Play(); } };
+        h.Cb.Cut += _ => { _cbHeld = false; _cb.Stop(); };
         h.Objectives.Sound += n => Player?.OneShot(Audio?.Get(n));
     }
 
@@ -563,8 +585,16 @@ public partial class SimDriver : Node
     /// <summary>Runs tick 0 now (from Main._Ready), before anything is drawn.</summary>
     public void FirstTick()
     {
+        AwaitFirstTick = false;
         if (!_started && Remote is null) _Process(0);
     }
+
+    /// <summary>
+    /// The sim waits for <see cref="FirstTick"/> instead of ticking from its first frame in the tree: set by Main for a load behind the
+    /// card that holds the game's sound, whose spawn steps run frames with the tree going. Ticking there, the missions ran their first
+    /// second or two unseen and unheard (Nitro P01's opening CB line said at tick 0 and played silent under the hold).
+    /// </summary>
+    public bool AwaitFirstTick { get; set; }
 
     /// <summary>
     /// A session restored from a checkpoint goes on from where it was: no tick 0, the cars drawn where they are (no slide from the
@@ -580,7 +610,7 @@ public partial class SimDriver : Node
         if (Script?.Host.Cb is { Current: { } line } cb && _cb is not null && Audio?.Get(line.Name) is { } stream)
         {
             _cb.Stream = stream;
-            _cb.Play((float)System.Math.Max(0, (cb.NowMs - line.StartedMs) / 1000.0));
+            _cb.Play(LineOffset(cb.NowMs, line.StartedMs));
         }
     }
 
@@ -616,6 +646,7 @@ public partial class SimDriver : Node
 
     public override void _Process(double delta)
     {
+        if (_cbHeld && !I76.Game.Boot.Main.GameSoundHeld) StartHeldLine();
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Sim);
         if (FpsLog) LogFrames(delta);
         if (Remote is { } remote)
@@ -643,6 +674,8 @@ public partial class SimDriver : Node
             return;
         }
         if (!_hooked) HookScript();
+        // a load behind the card: no ticks of its own before Main's tick 0 (FirstTick), however many frames the spawn's steps take
+        if (AwaitFirstTick && !_started) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
         if (Player is { } held && (Hold || DevFrozen)) held.Ahead = null;
         if (Hold) { Alpha = 1; foreach (var c in Cars) c.Place(1, Origin()); return; }
         // the Developer panel's Freeze: no ticks (Step runs them one at a time); its time scale paces the ticks against the wall clock

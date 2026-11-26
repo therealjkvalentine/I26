@@ -176,6 +176,13 @@ public static class RenderScale
         Set(root);
     }
 
+    /// <summary>The Render Scale held lower for video memory now, in percent (null: drawn as chosen).</summary>
+    public static int? HeldPercent => _held;
+
+    /// <summary>The main view's anti-aliasing and 3D scale as drawn now, and the Render Scale asked for (the log's "view at play" line).</summary>
+    public static string Describe(Viewport vp, Viewport.Msaa? pending = null) =>
+        $"msaa {pending ?? vp.Msaa3D}, 3D scale {vp.Scaling3DScale:0.###} ({vp.Scaling3DMode}), {vp.GetVisibleRect().Size.X:0}x{vp.GetVisibleRect().Size.Y:0}, Render Scale {Percents[System.Math.Clamp(_choice, 0, Percents.Length - 1)]} %{(_held is { } h ? $" held at {h} %" : "")}, cap {(_cap?.ToString() ?? "auto")}";
+
     /// <summary>The step [port] target_fps draws (FrameTarget), under the player's own: applied with the same cap.</summary>
     public static void Draw(int step)
     {
