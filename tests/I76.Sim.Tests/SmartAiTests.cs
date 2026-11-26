@@ -319,6 +319,29 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.False(p.RimInGear(a));
     }
 
+    /// <summary>
+    /// Ledge caution leaves a 7 m bank be (a fall of more than 2.5 m in a step, but nothing like a cliff's below it): a car driving
+    /// at it 10 m ahead keeps its throttle and one backing toward it is not sent the other way. The first rule braked for every such
+    /// bank and road cut, and a car chasing the escorted van in T14 backed away from one and drove at it again (SmartAiChaseTests).
+    /// </summary>
+    [Fact]
+    public void LedgeCautionLetsABankBe()
+    {
+        float edge = (60 * 128 + 64) * 5f;
+        if (Make(["vppirna1.vcf"], height: (x, z) => z < edge ? 12f : 5f) is not { } r) return;
+        var a = r.Ais[0]; var v = a.Vehicle!;
+        Place(r, v, new Vector2(r.Centre.X, edge - 12f), 0, 12);
+        v.Gear = 1;
+        r.Host.Order(a, r.Host.Player!, AiOrder.Attack, null, 0);
+        a.SmartAi = SmartAi.LedgeCaution;
+        v.Throttle = 0.9f;
+        Assert.False(r.Host.Ptable.LedgeCaution(a, false));
+        Assert.Equal(0.9f, v.Throttle);
+        Place(r, v, new Vector2(r.Centre.X, edge - 4f), MathF.PI, 0);
+        v.Gear = -1;
+        Assert.False(r.Host.Ptable.RimInGear(a));
+    }
+
     // ---- N5 stuck recovery ----
 
     /// <summary>

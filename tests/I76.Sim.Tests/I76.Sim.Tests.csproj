@@ -14,6 +14,10 @@
     <None Include="data/*.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <!-- the headless escort the CLI's run drives (I76_RUN_ESCORT), for the smarter opponents' chase measure -->
+    <Compile Include="../../tools/I76.Cli/EscortDriver.cs" Link="EscortDriver.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/I76.Sim/I76.Sim.csproj" />
     <ProjectReference Include="../../src/I76.Editor/I76.Editor.csproj" />
   </ItemGroup>

@@ -11,7 +11,7 @@ namespace I76.Cli;
 /// (a SimSession), nobody at the wheel, printing what the script does.
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
-///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP]
+///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP] [--smart-ai LIST] [--solid-cliffs] [--track FILE]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
 /// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
@@ -46,14 +46,23 @@ public static class MissionRun
         // --new-game-plus LAP: a trip mission by that New Game Plus (Trip+) lap's rules (1 the original's; the play fork's, docs/deviations.md "New Game Plus"); prints the enemies at the end
         int tpi = args.IndexOf("--new-game-plus") is >= 0 and var ngp ? ngp : args.IndexOf("--trip-plus");   // the older spelling too
         var tripPlus = tpi >= 0 && roster is null ? I76.Sim.Trip.TripPlusRules.ForLap(int.Parse(args[tpi + 1], CultureInfo.InvariantCulture)) : null;
-        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed), tripPlus: tripPlus);
+        // --smart-ai LIST: the smarter opponents' rule (the play fork's; names, groups or a number, as [port] smart_ai); a replay's own rule wins
+        int sai = args.IndexOf("--smart-ai");
+        var smartAi = replay?.SmartAi ?? (sai >= 0 ? SmartAiNames.Parse(args[sai + 1], out _) : SmartAi.None);
+        var setup = MissionSetup.Build(vfs, w, asm, car, melee: roster, rand: new I76.Sim.Rng.CrtRand(seed), tripPlus: tripPlus, smartAi: smartAi);
+        // --solid-cliffs: the port's solid-cliff rule (docs/deviations.md "Solid cliffs"; [port] solid_cliffs=on); a replay's own rule wins
+        setup.World.SolidCliffs = replay?.SolidCliffs ?? args.Contains("--solid-cliffs");
         setup.Melee?.Start();
         if (setup.Script is not { } script) { Console.WriteLine("no script"); return 1; }
         int ri = args.IndexOf("--rate");   // --rate HZ: 20 (default), 24, 25, 28, 30, 40 or 60
         var session = new SimSession(setup, rate: replay is not null ? SimRate.FromLabel(replay.Rate) : ri >= 0 ? SimRate.FromLabel(int.Parse(args[ri + 1])) : null);
         float Tick = session.TickSeconds;
         int rci = args.IndexOf("--record");
-        var record = rci >= 0 ? new InputTrace { Mission = mission.ToLowerInvariant(), Car = car, Seed = seed, Rate = session.Rate.Label, Melee = roster } : null;
+        var record = rci >= 0 ? new InputTrace { Mission = mission.ToLowerInvariant(), Car = car, Seed = seed, Rate = session.Rate.Label, Melee = roster, SmartAi = smartAi, SolidCliffs = setup.World.SolidCliffs } : null;
+        // --track FILE: a row every 10 ticks for each live computer car: position, speed, order, its target and the distance to it, the top state
+        int tki = args.IndexOf("--track");
+        using var track = tki >= 0 ? new StreamWriter(args[tki + 1]) : null;
+        track?.WriteLine("t	name	x	y	z	speed	throttle	gear	order	target	dist	player	state");
         int moi = args.IndexOf("--motion");
         using var motion = moi >= 0 ? new StreamWriter(args[moi + 1]) : null;
         motion?.WriteLine(MotionTrace.Columns);
@@ -87,7 +96,7 @@ public static class MissionRun
         {
             foreach (var (label, _, handle) in script.Vm!.Actors) Console.WriteLine($"  actor {label} = {(handle as Entity)?.Name}");
             // each thread's start and its arguments, as argLocal reaches them (-2 the last), an actor's label where one fits
-            if (Environment.GetEnvironmentVariable("I76_RUN_ACTORS") == "paths") { int pi = 0; foreach (var pa in script.Vm.PathsDebug) Console.WriteLine($"  nav {pi++}: {string.Join(" ", pa.Select(q => $"({q.X:0},{q.Z:0})"))}"); }
+            if (Environment.GetEnvironmentVariable("I76_RUN_ACTORS") == "paths") { int pi = 0; var pnames = w.Mission.ReadFsmProgram()?.Paths; foreach (var pa in script.Vm.PathsDebug) Console.WriteLine($"  nav {pi} {pnames?[pi++].Name}: {string.Join(" ", pa.Select(q => $"({q.X:0},{q.Z:0})"))}"); }
             foreach (var t in script.Vm.Threads)
             {
                 int td = t.Fp - 1;
@@ -135,6 +144,58 @@ public static class MissionRun
         bool cam = false;
         int depth = 0;
         int lever = setup.World.Player?.DriveState ?? 3;
+        // I76_RUN_ESCORT=NAME[,GAP][@S]: from mission second S (once no scripted camera holds the view) the player's car keeps GAP
+        // (default 20) behind the first live car whose name contains NAME, along the way that car drove (an escort played by hand);
+        // a negative GAP leads: that far ahead of it along its ordered path
+        string? escort = null; float escortAt = 0, escortGap = 20;
+        if (Environment.GetEnvironmentVariable("I76_RUN_ESCORT") is { } esc)
+        {
+            var ea = esc.Split('@'); var en = ea[0].Split(',');
+            escort = en[0];
+            if (en.Length > 1) escortGap = float.Parse(en[1], CultureInfo.InvariantCulture);
+            if (ea.Length > 1) escortAt = float.Parse(ea[1], CultureInfo.InvariantCulture);
+        }
+        var escortDriver = new EscortDriver(escortGap);
+        // I76_RUN_ROUTE=PATH[:A-B][+PATH...][,SPEED][@S]: from mission second S (no scripted camera) the player's car drives the script's
+        // named paths' points in turn at up to SPEED (default 40), then stops, or escorts as I76_RUN_ESCORT says: a drive a player
+        // would make (T10's lure to the jump)
+        List<System.Numerics.Vector3>? route = null; float routeAt = 0, routeSpeed = 40;
+        var fsm = w.Mission.ReadFsmProgram();
+        // each PATH[:A-B], points A to B of the script's named path
+        IEnumerable<System.Numerics.Vector3> Points(string n)
+        {
+            var (name, slice) = n.Split(':') is [var a, var b] ? (a, b.Split('-').Select(int.Parse).ToArray()) : (n, null);
+            var pts = fsm?.Paths.FirstOrDefault(q => q.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Points ?? throw new ArgumentException($"no path {name}");
+            return slice is [var from, var to] ? pts.Skip(from).Take(to - from + 1) : pts;
+        }
+        if (Environment.GetEnvironmentVariable("I76_RUN_ROUTE") is { } rte)
+        {
+            var ra = rte.Split('@'); var rn = ra[0].Split(',');
+            route = rn[0].Split('+').SelectMany(Points).ToList();
+            if (rn.Length > 1) routeSpeed = float.Parse(rn[1], CultureInfo.InvariantCulture);
+            if (ra.Length > 1) routeAt = float.Parse(ra[1], CultureInfo.InvariantCulture);
+        }
+        // I76_RUN_AIDRIVE=STEP[;STEP...]: once no scripted camera holds the view, the player's car driven by the AI's own orders, as a
+        // script drives it, a step at a time: goto:PATH[:A-B][+PATH...],SPEED (until it arrives) or follow:NAME,F1,F2 (the first live
+        // car whose name contains NAME, at the offset follow's F1/F2 give: the script's follow(user, NAME, NAME, 0, F1, F2)). Goto and
+        // follow are no attack: the smarter opponents' rule never acts on them, so the drive is the same with the rule on and off
+        // until the computer cars touch it
+        var aiSteps = new Queue<string>((Environment.GetEnvironmentVariable("I76_RUN_AIDRIVE") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries));
+        List<System.Numerics.Vector3>? aiPath = null;
+        string? aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null;
+        if (aiStep is not null) session.FrameStarting += () =>
+        {
+            if (aiStep is null || h.View.Active || setup.World.Player is not { } ap || h.Of(ap) is not { Dead: false } me) return;
+            var (kind, rest) = aiStep.Split(':', 2) is [var k, var r] ? (k, r.Split(',')) : (aiStep, Array.Empty<string>());
+            if (kind == "goto")
+            {
+                aiPath ??= rest[0].Split('+').SelectMany(Points).ToList();
+                h.Order(me, null, I76.Sim.Fsm.AiOrder.Goto, aiPath, float.Parse(rest[1], CultureInfo.InvariantCulture));
+                if (h.ConsumeArrived(me)) { Console.WriteLine($"{T()} aidrive: arrived"); aiPath = null; aiStep = aiSteps.Count > 0 ? aiSteps.Dequeue() : null; }
+            }
+            else if (kind == "follow" && setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(rest[0])) is { } lead)
+                h.Order(me, lead, I76.Sim.Fsm.AiOrder.Follow, null, 0, 0, float.Parse(rest[1], CultureInfo.InvariantCulture), float.Parse(rest[2], CultureInfo.InvariantCulture), lead);
+        };
         int frames = replay is not null && !timed ? replay.Count : (int)(seconds / Tick);
         for (int f = 0; f < frames; f++)
         {
@@ -205,6 +266,11 @@ public static class MissionRun
                 input.Steer = (short)(System.Math.Clamp(-err * 1.5f, -1f, 1f) * 32767);
                 input.Throttle = (short)(thr * 32767);
             }
+            if (escort is not null && (route is null || escortDriver.RouteDone) && setup.World.Player is { } ep && !h.View.Active && h.Now >= escortAt
+                && setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(escort)) is { Vehicle: { } lead } leader)
+                input = escortDriver.Next(input, ep, lead, leader.Path, h.Now);
+            if (route is not null && !(escortDriver.RouteDone && escort is not null) && setup.World.Player is { } rp && !h.View.Active && h.Now >= routeAt)
+                input = escortDriver.Route(input, rp, route, routeSpeed, h.Now);
             int tick = session.Ticks;
             if (replay is not null) input = replay.At(tick);
             session.Tick([input]);
@@ -218,6 +284,14 @@ public static class MissionRun
                     if (want != hash && diverged < 0) { diverged = tick; Console.WriteLine($"{T()} replay: tick {tick} state hash {hash:x16}, recorded {want:x16}"); }
                 }
             }
+            if (track is not null && f % 10 == 0 && setup.World.Player is { } trp)
+                foreach (var e in setup.Entities.Where(e => e.Vehicle is { } tv && tv != trp && !e.Dead && !e.Removed))
+                {
+                    var v = e.Vehicle!;
+                    var tg = e.Order == I76.Sim.Fsm.AiOrder.Follow ? e.FollowRef ?? e.OrderTarget : e.OrderTarget;
+                    string top = e.Depth >= 0 && e.Depth < e.Stack.Count ? h.Ptable.NameOf(e.Stack[e.Depth]) : "";
+                    track.WriteLine(FormattableString.Invariant($"{h.Now:0.00}	{e.Name}	{v.Pos.X:0.0}	{v.Pos.Y:0.0}	{v.Pos.Z:0.0}	{v.Speed:0.0}	{v.Throttle:0.00}	{v.Gear}	{e.Order}	{tg?.Name}	{(tg is null ? -1 : System.Numerics.Vector3.Distance(tg.Position, e.Position)):0.0}	{System.Numerics.Vector3.Distance(trp.Pos.ToVector3(), e.Position):0.0}	{top}"));
+                }
             if (motion is not null && setup.World.Player is { } mp) motion.WriteLine(MotionTrace.Row(tick, (tick + 1) * Tick, mp));
             shots += setup.Combat.Events.Count(e => e is I76.Sim.Weapons.ShotFired);
             foreach (var sf in setup.Combat.Events.OfType<I76.Sim.Weapons.ShotFired>()) shotsBy[sf.Shooter] = shotsBy.GetValueOrDefault(sf.Shooter) + 1;
