@@ -102,8 +102,10 @@ public static class GraphicsHelp
         return I76.Game.Assets.HdPacks.RowNote() is { Length: > 0 } n ? " " + n : "";
     }
 
-    /// <summary>The sheet's entry for the Advanced page.</summary>
-    public const string AdvancedEntry = "Advanced: 1997 Mode and its palette, the texture packs, the modern look's extras, render scale and the start-up rows.";
+    /// <summary>The sheet's entries for the pages.</summary>
+    public const string AdvancedEntry = "Advanced: 1997 Mode and its palette, the texture packs, the mirrors' rate, render scale, the frame counter and the start-up rows.";
+    public const string EffectsEntry = "Effects: the modern look's extras in the world: plants, terrain shadows, ambient occlusion, reflections, haze, glow, paint gloss, smoke lighting and heat shimmer.";
+    public static string Entry(int page) => page == GraphicsPages.Effects ? EffectsEntry : AdvancedEntry;
 
     /// <summary>The Esc menu's frame-rate line (FrameRateEstimate's LiveFps): paused in single player, the game running on in a network game.</summary>
     public static string MeasuredFps(bool net, double? play = null) => (net

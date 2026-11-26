@@ -93,17 +93,17 @@ public class AirRowsTests
         Assert.True(s.Reflections);
     }
 
-    /// <summary>The rows are Advanced's, Reflections under Ambient Occlusion; Reset on Advanced puts all three back Off.</summary>
+    /// <summary>The rows are Effects', Reflections under Ambient Occlusion; Reset on Effects puts all three back Off.</summary>
     [Fact]
-    public void TheRowsAreAdvancedsAndResetTurnsThemOff()
+    public void TheRowsAreEffectsAndResetTurnsThemOff()
     {
-        var adv = GraphicsPages.Rows[GraphicsPages.Advanced];
-        foreach (var r in new[] { GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.Reflections }) Assert.Equal(GraphicsPages.Advanced, GraphicsPages.PageOf(r));
+        var adv = GraphicsPages.Rows[GraphicsPages.Effects];
+        foreach (var r in new[] { GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.Reflections }) Assert.Equal(GraphicsPages.Effects, GraphicsPages.PageOf(r));
         Assert.Equal(Array.IndexOf(adv, GraphicsRow.AmbientOcclusion) + 1, Array.IndexOf(adv, GraphicsRow.Reflections));
         var s = new ShellSettings { Haze = 2, Glow = 1, Reflections = true, AmbientOcclusion = true };
         var snap = GraphicsPages.CopyAll(s, new ShellSettings());
         Assert.Equal((2, 1, true), (snap.Haze, snap.Glow, snap.Reflections));
-        GraphicsPages.Reset(s, GraphicsPages.Advanced);
+        GraphicsPages.Reset(s, GraphicsPages.Effects);
         Assert.Equal((0, 0, false), (s.Haze, s.Glow, s.Reflections));
         GraphicsPages.Reset(s, GraphicsRow.Haze);
         Assert.Equal(0, s.Haze);

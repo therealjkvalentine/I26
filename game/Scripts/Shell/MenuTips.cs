@@ -119,6 +119,7 @@ public static class MenuTips
         ["Restore Defaults"] = "Restore defaults: the mouse's settings and buttons back to their defaults.",
 
         ["Advanced..."] = GraphicsHelp.AdvancedEntry,
+        ["Effects..."] = GraphicsHelp.EffectsEntry,
 
         // ---- the pages' buttons
         ["Reset"] = GraphicsHelp.Reset,

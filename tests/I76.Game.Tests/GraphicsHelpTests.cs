@@ -20,6 +20,9 @@ public class GraphicsHelpTests
             foreach (var r in page) Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Text(r, false)));
         Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.AdvancedEntry));
         Assert.Equal(GraphicsHelp.AdvancedEntry, MenuTips.Of("Advanced..."));
+        Assert.Equal(GraphicsHelp.EffectsEntry, MenuTips.Of("Effects..."));
+        for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
+            Assert.Equal(GraphicsHelp.Entry(p), MenuTips.Of(GraphicsPages.Names[p] + "..."));
     }
 
     [Theory]

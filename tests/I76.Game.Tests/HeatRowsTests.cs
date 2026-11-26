@@ -64,12 +64,12 @@ public class HeatRowsTests
     }
 
     [Fact]
-    public void TheyAreLastOnAdvancedAndResetPutsThemOff()
+    public void TheyAreLastOnEffectsAndResetPutsThemOff()
     {
-        var adv = GraphicsPages.Rows[GraphicsPages.Advanced];
+        var adv = GraphicsPages.Rows[GraphicsPages.Effects];
         Assert.Equal([GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer], adv[^2..]);
         var s = new ShellSettings { SmokeLighting = true, HeatShimmer = HeatShimmerRow.Road };
-        GraphicsPages.Reset(s, GraphicsPages.Advanced);
+        GraphicsPages.Reset(s, GraphicsPages.Effects);
         Assert.False(s.SmokeLighting);
         Assert.Equal(HeatShimmerRow.Off, s.HeatShimmer);
         var t = new ShellSettings();

@@ -1,7 +1,7 @@
 namespace I76.Game.Shell;
 
 /// <summary>
-/// Smoke Lighting ([port] smoke_lighting, Graphic Detail > Advanced, the modern look's): On lights the smoke and dust by the mission's sun
+/// Smoke Lighting ([port] smoke_lighting, Graphic Detail > Effects, the modern look's): On lights the smoke and dust by the mission's sun
 /// (its colour as its height gives it, warm low in the sky, and its direction) and the sky's ambient colour, so a dusk's smoke is warm on the
 /// sun's side and dark on the other and a night's is dim and blue rather than a bright grey. Off (the default) keeps today's white light,
 /// one level for the mission (SmokeLight). The original's smoke is unlit sprites; the 1997 look is unchanged either way.
@@ -16,7 +16,7 @@ public static class SmokeLightingRow
 }
 
 /// <summary>
-/// Heat Shimmer ([port] heat_shimmer, Graphic Detail > Advanced, the modern look's): Off (the default), Fires (the air wobbling over fires,
+/// Heat Shimmer ([port] heat_shimmer, Graphic Detail > Effects, the modern look's): Off (the default), Fires (the air wobbling over fires,
 /// burning wrecks and flame streams) or Fires + Road (also a faint shimmer low over the ground far off on a hot day, and the road's mirage:
 /// HeatShimmer, HotDay). Not in the original; the 1997 look is unchanged.
 /// </summary>
