@@ -16,6 +16,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public partial class Contrails : Node3D
 {
+    private readonly HashSet<Round> _liveRounds = [];
     public required Func<System.Numerics.Vector3> Origin { get; init; }
     public required Func<string, Texture2D?> Texture { get; init; }
 
@@ -80,7 +81,8 @@ public partial class Contrails : Node3D
     {
         // the original's per-frame rules (a stamp, four segments gone) run once a sim tick, not once a render frame
         int steps = SimClock.Take(ref _lastTick);
-        var live = new HashSet<Round>();
+        var live = _liveRounds;   // kept from frame to frame (a new set a frame was garbage every frame)
+        live.Clear();
         for (int ri = 0; ri < rounds.Count; ri++)
         {
             var r = rounds[ri];
@@ -202,7 +204,7 @@ public partial class Contrails : Node3D
         _im.ClearSurfaces();
         _t = Time.GetTicksMsec() / 1000f;
         _fire ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/cluster_fire.gdshader") };
-        _fire.SetShaderParameter("daylight", SceneLight);
+        _fire.SetShaderParameter(ShaderNames.Daylight, SceneLight);
         var origin = Origin();
         var cam = GetViewport().GetCamera3D()?.GlobalPosition ?? Vector3.Zero;
         bool begun = false;

@@ -239,12 +239,12 @@ public partial class ModernFx : Node3D
 
     public static void SetTracer(MeshInstance3D m, Vector3 tail, Vector3 head, Color tint, float width, float energy, float fall = 2f)
     {
-        m.SetInstanceShaderParameter("tail_fall", fall);
-        m.SetInstanceShaderParameter("tail", tail);
-        m.SetInstanceShaderParameter("head", head);
-        m.SetInstanceShaderParameter("tint", tint);
-        m.SetInstanceShaderParameter("width", width);
-        m.SetInstanceShaderParameter("energy", energy);
+        m.SetInstanceShaderParameter(ShaderNames.TailFall, fall);
+        m.SetInstanceShaderParameter(ShaderNames.Tail, tail);
+        m.SetInstanceShaderParameter(ShaderNames.Head, head);
+        m.SetInstanceShaderParameter(ShaderNames.Tint, tint);
+        m.SetInstanceShaderParameter(ShaderNames.Width, width);
+        m.SetInstanceShaderParameter(ShaderNames.Energy, energy);
     }
 
     // ---- bursts ----
@@ -403,7 +403,7 @@ public partial class ModernFx : Node3D
     {
         m.SetInstanceShaderParameter("age", age);
         m.SetInstanceShaderParameter("seed", seed);
-        m.SetInstanceShaderParameter("energy", energy);
+        m.SetInstanceShaderParameter(ShaderNames.Energy, energy);
     }
 
     /// <summary>A whiff of gun smoke left in the air at the muzzle, blown forward and spreading.</summary>

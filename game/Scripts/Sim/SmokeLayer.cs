@@ -47,7 +47,12 @@ public partial class SmokeLayer : Node3D
         lock (Lock)
         {
             Slots.TryGetValue(owner, out var slot);
-            if (slot.Data is null || slot.Data.Length < count * Floats) slot.Data = new float[Math.Max(count, 256) * Floats];
+            if (slot.Data is null || slot.Data.Length < count * Floats)
+            {
+                // a released smoke's array when one is large enough (a rocket's smoke comes and goes with the rocket)
+                int need = Math.Max(count, 256) * Floats, at = Spare.FindIndex(a => a.Length >= need);
+                if (at >= 0) { slot.Data = Spare[at]; Spare.RemoveAt(at); } else slot.Data = new float[need];
+            }
             for (int j = 0; j < count; j++)
             {
                 int o = j * 16, q = j * Floats;
@@ -61,7 +66,15 @@ public partial class SmokeLayer : Node3D
     }
 
     /// <summary>A smoke that leaves the tree: its slot is dropped (it holds the smoke, and what the smoke holds, as long as it is in the table).</summary>
-    public static void Release(object owner) { lock (Lock) Slots.Remove(owner); }
+    public static void Release(object owner)
+    {
+        lock (Lock)
+            if (Slots.Remove(owner, out var slot) && slot.Data is { } data && Spare.Count < MaxSpare) Spare.Add(data);
+    }
+
+    /// <summary>The arrays of smokes released, kept for the next ones (at most <see cref="MaxSpare"/>).</summary>
+    private static readonly List<float[]> Spare = [];
+    private const int MaxSpare = 16;
 
     private const float SoftDistance = 1.5f;
     /// <summary>I76_SMOKE_DEPTH_VIEW=1: the layer draws each puff as a square showing the scene's depth as the layer reads it (a cycle of hues for each doubling of the distance, red where the scene is nearer than the puff), to check its depth test on a new GPU or backend.</summary>
@@ -417,7 +430,8 @@ public partial class SmokeLayer : Node3D
         rd.BufferUpdate(_ubo, 0, UboFloats * 4, _uboBytes);
         if (count > 0)
         {
-            if (_puffBytes.Length != count * Floats * 4) _puffBytes = new byte[count * Floats * 4];
+            // grown, never remade to the exact size: a fight's count changes every frame, and a new array each time was most of the frame's garbage
+            if (_puffBytes.Length < count * Floats * 4) _puffBytes = new byte[count * Floats * 4];
             System.Buffer.BlockCopy(_flat, 0, _puffBytes, 0, count * Floats * 4);
             rd.BufferUpdate(_ssbo, 0, (uint)(count * Floats * 4), _puffBytes);
         }
