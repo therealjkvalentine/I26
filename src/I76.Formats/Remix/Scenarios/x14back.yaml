@@ -13,6 +13,7 @@ objective:
   template: deliver
   home: {place: truckstop, radius: 120}
   clear: 400
+  deadline: 360                               # from the start: Spanner won't wait all night
   sleepers:
     - {car: cop4, wake: 450, siren: true}     # at the county line
     - {car: cop5, wake: 450, siren: true}
@@ -29,8 +30,9 @@ radio:
   win: [10sta06]
 text:
   objectives:
-    - Run 285 north back to Spanner's truckstop.
+    - Run 285 north back to Spanner's truckstop before he closes up.
     - Don't bring the cops home with you.
   failures:
     - You should be more careful... try to stay alive.
     - You can't just leave.
+    - Too slow. Spanner closed up and went home.

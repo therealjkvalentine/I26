@@ -92,7 +92,7 @@ map, 3 too slow.
 |---|---|---|---|
 | `x07farm` | 380 Farm Raid | T07 | Six raiders in three waves (25 s; at 2 and at 4 kills) come for the three farmsteads T07 places between its roadblocks, by T07's own wave entries (`jump1`, `jump2`) and two from the north and the ridge. T07's east fence opens at the start and slides shut behind the player at the farms; the west roadblock opens at the win. |
 | `x05grab` | Grab and Go | T05 | Out east to the wreck (a zone), back to the start with four pursuers teleported in behind and 175 s on the clock; T05's guards, roadside ambushers and pincer pair wait where T05 parks them. Home with nobody within 300 m. |
-| `x14back` | Back to Spanner | T14 | T14 driven backwards: from the county line up 285 to Spanner's truckstop past T14's police, which wake as the player passes (sirens on); the truckstop's cop and SWAT vans come out to meet him. Home with nobody within 400 m. |
+| `x14back` | Back to Spanner | T14 | T14 driven backwards: from the county line up 285 to Spanner's truckstop past T14's police, which wake as the player passes (sirens on); the truckstop's cop and SWAT vans come out to meet him. Home within 6 minutes with nobody within 400 m. |
 
 ## Playing them
 
