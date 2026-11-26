@@ -573,13 +573,13 @@ public sealed class AudioScreen : OverlayScreen
 }
 
 /// <summary>
-/// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The sheet keeps the original's rows the port honours, in
-/// the original's order and words and, under a blank line, the entries for the port's pages, Display, World, Car &amp; Cockpit and
-/// Effects (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back, each row
-/// on its own ruled line (<see cref="GraphicsLayout"/>). Reset puts the page's rows back (the sheet's: the default profile, as the
-/// original's); Done and Cancel, on any page, save or restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>). A
-/// page whose rows overflowed its lines would scroll them (upstream's scrolling list, <see cref="ScrollRows{T}"/>, its mark past
-/// the values); none does.
+/// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The original has one sheet of rows; the fork's sheet holds
+/// only the entries for the pages, Display, World, Car &amp; Cockpit and Effects (<see cref="GraphicsPages"/>), each row, the original's
+/// too, on its page; a page is the same sheet with its name on the first line, its rows under it and a Back, each row on its own
+/// ruled line (<see cref="GraphicsLayout"/>). Reset on a page puts its rows back; on the sheet every page's (the original's rows and
+/// the block to the default profile, as the original's Reset); Done and Cancel, on any page, save or restore every page. Every row
+/// has a tooltip (<see cref="GraphicsHelp"/>). A page whose rows overflowed its lines would scroll them (upstream's scrolling list,
+/// <see cref="ScrollRows{T}"/>, its mark past the values); none does.
 /// </summary>
 public sealed class GraphicsScreen : ScrollingOverlayScreen
 {
@@ -623,7 +623,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
             if (PortRow(r, line)) line++;
         }
-        // the rows' lines (GraphicsLayout): on the sheet down to the entries, on a page down to the blank line over the frame rate's;
+        // the rows' lines (GraphicsLayout): on the sheet none (only the entries), on a page down to the blank line over the frame rate's;
         // rows past them would scroll there
         var place = GraphicsLayout.Shell(Page, line - _firstLine, Shell.Settings.MenuFps);
         (List.Top, List.Shown) = (LineY(place.First), GraphicsLayout.Shell(Page, GraphicsPages.Lines, Shell.Settings.MenuFps).Shown);
@@ -642,7 +642,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             var fps = Add(200, LineY(place.Fps), () => Shell.Settings.Look1997 ? "" : I76.Game.Ui.FpsLabels.Estimated(Estimate(record)), null);
             Tip(fps, () => Shell.Settings.Look1997 ? null : GraphicsHelp.EstimatedFps(record), RowX0, RowX1, -2, LineH);
         }
-        Tip(Add(288, GraphicsLayout.ButtonY, "Reset", Reset, Small), () => GraphicsHelp.Reset);
+        Tip(Add(288, GraphicsLayout.ButtonY, "Reset", Reset, Small), () => Page == GraphicsPages.Sheet ? GraphicsHelp.ResetAll : GraphicsHelp.Reset);
         Add(350, GraphicsLayout.ButtonY, "Done", Done, Small);
         Add(402, GraphicsLayout.ButtonY, "Cancel", Cancel, Small);
     }
@@ -844,7 +844,8 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
     private void Reset()
     {
         GraphicsPages.Reset(Shell.Settings, Page);
-        Apply(Page);
+        // the sheet's Reset is every page's
+        for (int p = 0; p < GraphicsPages.Names.Length; p++) if (Page == GraphicsPages.Sheet || p == Page) Apply(p);
     }
 
     private void Back() => Shell.Overlay(new GraphicsScreen { Snapshot = _saved });

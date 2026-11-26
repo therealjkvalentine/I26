@@ -1,6 +1,6 @@
 namespace I76.Game.Shell;
 
-/// <summary>A row of Graphic Detail: the original's rows the port honours (on the sheet, in the original's order) and the port's own (on the pages; the shell's sheet has them all, the in-game pad the ones a mission can take).</summary>
+/// <summary>A row of Graphic Detail: the original's rows the port honours and the port's own, each on one page (the shell's pages have them all, the in-game pad's the ones a mission can take).</summary>
 public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
@@ -10,19 +10,20 @@ public enum GraphicsRow
 }
 
 /// <summary>
-/// Graphic Detail's pages (the port's): the sheet is the original's, its rows in the original's order and words (grxdet1.map: Screen
-/// Resolution, Monitor Brightness, Visibility Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the
-/// 1997 renderer's own detail rows are gone; Rear Mirror is Mirrors, the rear mirror and the port's door mirrors in one row,
-/// MirrorsRow), then under a blank line an entry for each of the port's pages, by what a row changes: Display (the look and the
-/// frame: 1997 Mode, anti-aliasing, render scale, the frame rate, the renderer, the menus' width), World (the world's textures, plants,
-/// shadows, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view, the car's and the dash's textures, the paint, the
-/// mirrors' rate, the 3D garage) and Effects (the modern look's grade and its effects: palette grade, crash blur, glow, smoke
-/// lighting, heat shimmer). Each page fits one sheet without scrolling, with room to spare and the frame-rate line under a blank
-/// line (<see cref="GraphicsLayout"/>). (One Advanced page held every port row from round 5; at twenty rows it scrolled on the main
-/// menu and its last rows were drawn over the in-game pad's buttons.) A page is the same sheet with its name, its rows and a way
-/// back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and
-/// the shell's snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the tests
-/// check the table, the layout and the copies without one.
+/// Graphic Detail's pages (the port's). The original has one sheet (grxdet1.map: Screen Resolution, Monitor Brightness, Visibility
+/// Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the 1997 renderer's own detail rows are gone;
+/// Rear Mirror is Mirrors, the rear mirror and the port's door mirrors in one row, MirrorsRow). In the fork the sheet holds only an
+/// entry for each page, by what a row changes, and every row, the original's too, is on the page it belongs to: Display (the window
+/// and the frame: Screen Resolution, Monitor Brightness, 1997 Mode, anti-aliasing, render scale, the frame rate, the renderer, the
+/// menus' width), World (what is drawn of the world: Visibility Range, Terrain Detail, Shadow Detail beside the terrain's shadows,
+/// textures, plants, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view and the car: field of view, Ext. Instrum.
+/// Disp., Mirrors beside the mirrors' rate and haze, the car's and the dash's textures, the paint, the 3D garage) and Effects (the
+/// modern look's grade and its effects). The original's rows lead their pages in the original's order. Each page fits one sheet
+/// without scrolling, with the frame-rate line under a blank line (<see cref="GraphicsLayout"/>). (Until the owner's playtest the
+/// sheet kept the original's seven rows over the entries; upstream's PR keeps them there.) A page is the same sheet with its name,
+/// its rows and a way back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and
+/// Reset, Cancel and the shell's snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine
+/// here: the tests check the table, the layout and the copies without one.
 /// </summary>
 public static class GraphicsPages
 {
@@ -30,13 +31,13 @@ public static class GraphicsPages
     /// <summary>The first of the port's pages (the sheet's first entry).</summary>
     public const int FirstPage = Display;
     public static readonly string[] Names = ["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"];
-    /// <summary>Each page's rows in order; the sheet's are the original's, as the original has them.</summary>
+    /// <summary>Each page's rows in order, the most used first and related rows together; the sheet has none, only the pages' entries.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
-        [GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
-        [GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
-        [GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.Garage3D],
+        [],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+        [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+        [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
         [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
@@ -45,22 +46,23 @@ public static class GraphicsPages
     /// </summary>
     public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
 
-    /// <summary>The original's rows: the sheet's seven.</summary>
-    public const int OriginalRows = 7;
+    /// <summary>The original's sheet's rows the port honours, in grxdet1.map's order (now on Display, World and Car &amp; Cockpit).</summary>
+    public static readonly GraphicsRow[] Original =
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors];
 
     /// <summary>Rows with a blank line over them on the shell's sheet (none).</summary>
     public static readonly GraphicsRow[] BlankBefore = [];
 
-    /// <summary>The graphics block's bytes that are a page's row, not the sheet's: Anti-Aliasing's (+0x8, the port's MSAA in a byte no screen of the original showed), Display's.</summary>
-    public static readonly int[] PageBytes = [0x8];
+    /// <summary>
+    /// The graphics block's bytes a row owns (Terrain Detail +0x2, Shadow Detail +0x6, Anti-Aliasing +0x8, Monitor Brightness +0xc,
+    /// Mirrors +0xd, Ext. Instrum. Disp. +0xe); the rest, the 1997 renderer's detail rows the port does not show, are the sheet's own.
+    /// </summary>
+    public static readonly int[] RowBytes = [0x2, 0x6, 0x8, 0xc, 0xd, 0xe];
 
     /// <summary>The sheet's lines: fourteen, 23 px apart from y 118 on the shell's sheet, the pad's rows 1 to 14.</summary>
     public const int Lines = 14;
-    /// <summary>
-    /// The sheet's first page entry: its line (0-based), under a blank line under the sheet's rows where the sheet has one to give
-    /// (the shell's sheet's last line is the frame-rate estimate).
-    /// </summary>
-    public static int FirstEntryLine => Math.Min(Rows[Sheet].Length + 1, Lines - Rows.Length);
+    /// <summary>The sheet's first page entry: its line (0-based), the sheet's first (the sheet has no rows of its own).</summary>
+    public static int FirstEntryLine => Rows[Sheet].Length == 0 ? 0 : Math.Min(Rows[Sheet].Length + 1, Lines - Rows.Length);
     /// <summary>A page on the shell's sheet: its name on the first line, its rows from the next; the pad prints the name over the art's title and starts its rows on row 1.</summary>
     public const int HeadingLine = 0, FirstRowLine = 1;
 
@@ -94,14 +96,18 @@ public static class GraphicsPages
     }
 
     /// <summary>
-    /// A page's rows copied from one settings block to another. The sheet's take the graphics block with them (the original's Reset and
-    /// Cancel treat it whole) but for the bytes a page owns (<see cref="PageBytes"/>, none now).
+    /// A page's rows copied from one settings block to another; the sheet's, the graphics block's bytes no row shows (the original's
+    /// Reset and Cancel treat the block whole: with every page's rows that is the whole block).
     /// </summary>
     public static void Copy(int page, ShellSettings from, ShellSettings to)
     {
-        if (page == Sheet)
-            for (int i = 0; i < 16; i++) if (Array.IndexOf(PageBytes, i) < 0) to.Graphics[i] = from.Graphics[i];
+        if (page == Sheet) CopyUnshownBytes(from, to);
         foreach (var r in Rows[page]) Copy(r, from, to);
+    }
+
+    private static void CopyUnshownBytes(ShellSettings from, ShellSettings to)
+    {
+        for (int i = 0; i < 16; i++) if (Array.IndexOf(RowBytes, i) < 0) to.Graphics[i] = from.Graphics[i];
     }
 
     /// <summary>Every page's rows copied (the shell's snapshot on opening, and Cancel's restore from it).</summary>
@@ -111,18 +117,27 @@ public static class GraphicsPages
         return to;
     }
 
-    /// <summary>Reset on a page: its rows to the defaults (the sheet's the default profile, as the original's Reset).</summary>
-    public static void Reset(ShellSettings s, int page) => Copy(page, new ShellSettings(), s);
+    /// <summary>
+    /// Reset: on a page its rows to the defaults; on the sheet every page's (the original's sheet's rows and the whole graphics block
+    /// to the default profile, as the original's Reset, and every port row to its default).
+    /// </summary>
+    public static void Reset(ShellSettings s, int page)
+    {
+        if (page == Sheet) CopyAll(new ShellSettings(), s);
+        else Copy(page, new ShellSettings(), s);
+    }
 
     /// <summary>Reset of one row: the in-game pad's pages, which offer only some of a page's rows, reset only those.</summary>
     public static void Reset(ShellSettings s, GraphicsRow row) => Copy(row, new ShellSettings(), s);
 
-    /// <summary>Reset on the in-game pad's page: the rows it offers (on the sheet with the graphics block, as the shell's, but not the window, which the pad does not show).</summary>
+    /// <summary>
+    /// Reset on the in-game pad: the rows it offers (on the sheet every page's offered rows and the graphics block's bytes no row shows,
+    /// as the shell's, but not the window, the renderer or the menus, which the pad does not show and its Cancel could not put back).
+    /// </summary>
     public static void Reset(ShellSettings s, int page, IEnumerable<GraphicsRow> offered)
     {
         var d = new ShellSettings();
-        if (page == Sheet)
-            for (int i = 0; i < 16; i++) if (Array.IndexOf(PageBytes, i) < 0) s.Graphics[i] = d.Graphics[i];
+        if (page == Sheet) CopyUnshownBytes(d, s);
         foreach (var r in offered) Copy(r, d, s);
     }
 
@@ -199,7 +214,7 @@ public static class GraphicsLayout
     }
 
     /// <summary>
-    /// The shell's sheet: the sheet's rows from line 0 down to the entries' (<see cref="GraphicsPages.FirstEntryLine"/>), a page's from
+    /// The shell's sheet: the entries from <see cref="GraphicsPages.FirstEntryLine"/> (line 0: the sheet has no rows), a page's rows from
     /// line 1 under its name, with a blank line over the frame-rate line on the last (<paramref name="fps"/>, [port] menu_fps).
     /// </summary>
     public static Place Shell(int page, int rows, bool fps)
@@ -216,7 +231,7 @@ public static class GraphicsLayout
     }
 
     /// <summary>
-    /// The in-game pad: the sheet's rows from row 1, a blank row, the entries, the frame-rate line on row 14; a page's rows from row 1
+    /// The in-game pad: the sheet's entries from row 1 (under its rows and a blank row, had it rows), the frame-rate line on row 14; a page's rows from row 1
     /// (its name is the pad's title), the frame-rate line on row 14.
     /// </summary>
     public static Place Pad(int page, int rows, bool fps)
@@ -224,7 +239,8 @@ public static class GraphicsLayout
         int entries = page == GraphicsPages.Sheet ? GraphicsPages.Names.Length - GraphicsPages.FirstPage : 0;
         int room = PadRows - (fps ? 1 : 0) - (entries > 0 ? entries + 1 : 0);
         int shown = Math.Min(rows, room);
-        return new(1, shown, rows > room, [.. Enumerable.Range(1 + shown + 1, entries)], fps ? PadRows : -1);
+        // the entries from row 1 on a sheet without rows (the fork's), else under a blank row under them
+        return new(1, shown, rows > room, [.. Enumerable.Range(shown > 0 ? 1 + shown + 1 : 1, entries)], fps ? PadRows : -1);
     }
 }
 
