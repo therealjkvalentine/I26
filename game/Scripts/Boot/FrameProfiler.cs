@@ -175,7 +175,7 @@ public partial class FrameProfiler : Node
             _views.Clear();
             _views.Add(("root", GetViewport().GetViewportRid()));
             foreach (var n in GetTree().Root.FindChildren("*", "SubViewport", true, false))
-                if (n is SubViewport sv && !sv.Disable3D) _views.Add((sv.Name, sv.GetViewportRid()));
+                if (n is SubViewport sv && !sv.Disable3D) { _views.Add((sv.Name, sv.GetViewportRid())); RenderingServer.ViewportSetMeasureRenderTime(sv.GetViewportRid(), true); }
         }
         foreach (var (name, vp) in _views)
         {
@@ -185,6 +185,9 @@ public partial class FrameProfiler : Node
             Add($"v.{name}.prims_k", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Visible, RenderingServer.ViewportRenderInfo.PrimitivesInFrame) / 1000.0);
             Add($"v.{name}.sh_draws", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Shadow, RenderingServer.ViewportRenderInfo.DrawCallsInFrame));
             Add($"v.{name}.sh_prims_k", RenderingServer.ViewportGetRenderInfo(vp, RenderingServer.ViewportRenderInfoType.Shadow, RenderingServer.ViewportRenderInfo.PrimitivesInFrame) / 1000.0);
+            // the renderer's own measure of the view: its culling and command recording on the main thread, and its time on the card
+            Add($"v.{name}.cpu_ms", RenderingServer.ViewportGetMeasuredRenderTimeCpu(vp));
+            Add($"v.{name}.gpu_ms", RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp));
         }
     }
 
