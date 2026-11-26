@@ -18,7 +18,7 @@ namespace I76.Game.Boot;
 ///   ambtint=zenith|R,G,B  the sky's light tinted toward that colour at its own luminance (ambtintk= how far, 1)
 ///   sun=R,G,B|cloud|white the sun's colour (sRGB); cloud: the sky texture's lit-cloud colour at the default's luminance; sune=X its energy times X
 ///   sat=X                 the map's ground and the distant ring at X times their saturation (about their luminance)
-///   exp=X                 the tonemap exposure times X
+///   exp=X                 the tonemap exposure times X; con=X Godot's contrast adjustment after the tonemap (1 none)
 ///   lut=PATH              a 3D colour LUT (PNG strip N²×N: x = r + b·N, y = g) as the colour correction (display values in, display values out)
 ///   radchroma=X           how much colour the sky's light on the scene keeps (sky_modern radiance_chroma)
 ///
@@ -170,6 +170,8 @@ public partial class Main
         _sun.LightEnergy *= MoodNum("sune", 1f);
         RenderingServer.GlobalShaderParameterSet("i76_mood_sat", MoodNum("sat", 1f));
         _modernEnv.TonemapExposure *= MoodNum("exp", 1f);
+        // a contrast about mid-grey after the tonemap (Godot's adjustment): the brights brighter and the darks darker together
+        _modernEnv.AdjustmentContrast = MoodNum("con", 1f);
         if (_mood.TryGetValue("lut", out var lut) && MoodLut(lut) is { } t3)
         {
             _modernEnv.AdjustmentEnabled = true;
