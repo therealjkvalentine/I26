@@ -108,8 +108,8 @@ public static class MirrorHazeRow
     /// <summary>The veil's share (of the tint mixed flat over the picture), the softening's radius in the render's texels, the veil's colour (sRGB, as the shader's source_color takes it).</summary>
     public static (float Veil, float Blur, Vector3 Tint) Of(int level) => Clamp(level) switch
     {
-        1 => (0.035f, 0.4f, Tint),
-        2 => (0.08f, 0.7f, Tint),
+        1 => (0.012f, 0.35f, Tint),
+        2 => (0.035f, 0.6f, Tint),
         _ => (0f, 0f, Vector3.One),
     };
 

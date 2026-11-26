@@ -1961,27 +1961,37 @@ public partial class Cockpit : Node
     private Vector2I _mirrorShown = new(1024, 256);
     private ((float X, float Y) Shown, (float X, float Y) Drawn) _rearTan = ((1, 1), (1, 1)), _ownTan = ((1, 1), (1, 1));
     /// <summary>
-    /// I76_MIRROR_WARP: unset, the turn alone (timewarp); "depth", the move too from each render's depth (MirrorDepth, a compositor effect per camera);
-    /// "0", the schedule without the warp (the stale picture repeated, as Alternate shows it), for comparisons.
+    /// The re-projection: the rear mirror for the camera's turn and move (the move from its render's depth, MirrorDepth, a compositor
+    /// effect on the camera), the side mirrors for the turn alone with the car's own flank held still (the move from their depth put
+    /// the ground beside the flank wrong and measured no better). I76_MIRROR_WARP=turn: the turn alone on the rear too; "0", the
+    /// schedule without any warp (the stale picture repeated, as Alternate shows it); both for comparisons.
     /// </summary>
     private static readonly string? WarpHook = System.Environment.GetEnvironmentVariable("I76_MIRROR_WARP");
-    private static readonly bool WarpDepth = WarpHook == "depth", WarpNone = WarpHook == "0";
-    /// <summary>Each mirror camera's depth effect (rear, left, right) while I76_MIRROR_WARP=depth and Smooth are on.</summary>
+    private static readonly bool WarpDepth = WarpHook is not ("turn" or "0"), WarpNone = WarpHook == "0";
+    /// <summary>Each mirror camera's depth effect (rear, left, right) under Smooth.</summary>
     private readonly MirrorDepth?[] _depth = new MirrorDepth?[3];
 
     private static readonly StringName SWarpOn = "warp_on", SViewWarp = "view_warp", SWarpDepth = "warp_depth", SWarpTurn = "warp_turn", SWarpShift = "warp_shift",
-        STanNow = "tan_now", STanThen = "tan_then", SViewDepth = "view_depth", SHazeVeil = "haze_veil", SHazeBlur = "haze_blur", SHazeTint = "haze_tint";
+        STanNow = "tan_now", STanThen = "tan_then", SViewDepth = "view_depth", SHazeVeil = "haze_veil", SHazeBlur = "haze_blur", SHazeTint = "haze_tint", SAttach = "attach_m", SViewScale = "view_scale";
 
     /// <summary>One glass's re-projection this frame: off, or the homography and (with depth) the turn and move, the fields' tangents and the render holding the depth.</summary>
-    private readonly record struct WarpState(bool On, Basis H, Basis Turn, Vector3 Shift, Vector2 TanNow, Vector2 TanThen, Texture2D? Depth);
+    private readonly record struct WarpState(bool On, Basis H, Basis Turn, Vector3 Shift, Vector2 TanNow, Vector2 TanThen, Texture2D? Depth, bool Move, float Attach);
+
+    /// <summary>
+    /// Metres within which a door mirror camera's render is the car's own flank (MirrorWarp's attach rule): level and looking back from
+    /// beside the cab at a door's height, the ground first shows about 6 m out, the flank is within 5.
+    /// </summary>
+    private const float AttachMetres = 5f;
 
     private WarpState WarpOf(int mirror, Camera3D? cam, ((float X, float Y) Shown, (float X, float Y) Drawn) tan, Texture2D? depth)
     {
         if (_warpPeriod == 0 || cam is null || _warpDrawn[mirror] is not { } then) return default;
         var now = WarpNone ? then : cam.GlobalTransform;   // I76_MIRROR_WARP=0: the overscan's crop alone, the picture as drawn
         var h = MirrorWarp.Homography(then.Basis, now.Basis, tan.Shown, tan.Drawn);
-        return WarpDepth ? new(true, h, MirrorWarp.Turn(then.Basis, now.Basis), MirrorWarp.Shift(then, now.Origin), new(tan.Shown.X, tan.Shown.Y), new(tan.Drawn.X, tan.Drawn.Y), depth)
-            : new(true, h, Basis.Identity, Vector3.Zero, Vector2.One, Vector2.One, null);
+        // the side cameras keep the car's own flank still (their depth, MirrorDepth); the move from the depth with I76_MIRROR_WARP=depth
+        float attach = mirror > 0 && depth is not null && OwnSelfHook ? AttachMetres : 0f;
+        return new(true, h, MirrorWarp.Turn(then.Basis, now.Basis), MirrorWarp.Shift(then, now.Origin), new(tan.Shown.X, tan.Shown.Y), new(tan.Drawn.X, tan.Drawn.Y),
+            depth, mirror == 0 && WarpDepth && depth is not null && !WarpNone, attach);
     }
 
     private void SetWarp(ShaderMaterial? m, in WarpState w)
@@ -1990,8 +2000,10 @@ public partial class Cockpit : Node
         m.SetShaderParameter(SWarpOn, w.On);
         if (!w.On) return;
         m.SetShaderParameter(SViewWarp, w.H);
-        m.SetShaderParameter(SWarpDepth, w.Depth is not null);
+        m.SetShaderParameter(SWarpDepth, w.Move);
+        m.SetShaderParameter(SAttach, w.Attach);
         if (w.Depth is null) return;
+        m.SetShaderParameter(SViewScale, new Vector2(w.TanNow.X / w.TanThen.X, w.TanNow.Y / w.TanThen.Y));
         m.SetShaderParameter(SWarpTurn, w.Turn);
         m.SetShaderParameter(SWarpShift, w.Shift);
         m.SetShaderParameter(STanNow, w.TanNow);
@@ -2027,13 +2039,16 @@ public partial class Cockpit : Node
         Haze(m);
     }
 
-    /// <summary>The depth effects for Smooth with I76_MIRROR_WARP=depth, one on each mirror camera (MirrorDepth); none otherwise.</summary>
+    /// <summary>
+    /// The depth effects (MirrorDepth) under Smooth: on the rear camera (its move re-projected) and the side cameras (their flank held
+    /// still); none otherwise.
+    /// </summary>
     private void DepthPass()
     {
-        bool on = _warpPeriod > 0 && WarpDepth && !_faithful;
         Camera3D?[] cams = [_mirrorCam, _ownCams[0], _ownCams[1]];
         for (int i = 0; i < 3; i++)
         {
+            bool on = _warpPeriod > 0 && !_faithful && (WarpDepth || (i > 0 && OwnSelfHook));
             if (cams[i] is not { } cam) continue;
             if (on && _depth[i] is null) _depth[i] = new MirrorDepth();
             var want = on ? new Compositor { CompositorEffects = [_depth[i]!] } : null;
