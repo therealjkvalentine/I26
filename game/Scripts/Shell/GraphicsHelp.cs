@@ -61,6 +61,15 @@ public static class GraphicsHelp
         GraphicsRow.AmbientOcclusion => look1997
             ? "Ambient occlusion: the modern look's contact shadows. No cost in the 1997 look."
             : "Ambient occlusion: contact shadows under cars and shrubs. About 29 % of a full-detail frame.",
+        GraphicsRow.Haze => look1997
+            ? "Haze: the modern look's air over the distance. No cost in the 1997 look."
+            : "Haze: air over the distance, as in photographs of the desert: from 600 m the far ground and mesas pale toward the sky's horizon colour. Off (the default) is the original's clear air; Light a little, Southwest more. About 0.1 to 0.25 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing.",
+        GraphicsRow.Glow => look1997
+            ? "Glow: the modern look's bloom round lamps and fire. No cost in the 1997 look."
+            : "Glow: Lamps puts a soft bloom round the brightest things only (lamps, muzzle flashes, fire and explosions), mostly seen at night; the sky, the sunlit ground and the dash do not glow. Off (the default) as the original. About 0.3 ms (the glow pass) to 0.6 ms at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing.",
+        GraphicsRow.Reflections => look1997
+            ? "Reflections: the modern look's screen-space reflections. No cost in the 1997 look."
+            : "Reflections: glass, and glossy paint with Hood Gloss up, mirror what is on screen (other cars, the road, buildings) instead of the sky alone. Only with Ambient Occlusion On, whose pass it shares. About 0.4 ms over Ambient Occlusion at 3440x1440 with Render Scale 200 % on a fast card; little to see in most scenes.",
         GraphicsRow.HoodGloss => look1997
             ? "Hood gloss: the modern look's shine on the cars' paint and your hood. Not drawn in the 1997 look."
             : "Hood gloss: how much the cars' paint and your hood shine, from Matte (0, the original's flat paint) to Gloss (100, a full clear coat); 5 is the default sheen. No frame cost.",

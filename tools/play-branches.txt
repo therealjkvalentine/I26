@@ -935,3 +935,6 @@ chore/test-speed                      # section HV: the owner: "split, make more
 
 # HW. Modern look: Anti-Aliasing gains SMAA and 2x+SMAA, Shadow Detail gains Ultra (2026-11-26; lane on Opus 5.5)
 feat/gfx-aa-shadows                   # section HW: the owner: "run the rest of the graphic detail options" (fidelity research steps 4 and 5). Defaults unchanged; the old graphics bytes keep their meaning ([port] screen_aa, shadow_detail carry the new values, so an older build reads SMAA as Off/2x and Ultra as High). Not run: the OpenGL and D3D12 renderers; the frame-rate estimate does not know the new values.
+
+# HX. Modern look: Haze, Glow and Reflections rows on Advanced, Off by default (2026-11-26; lane on Opus 5.5)
+feat/gfx-env                          # section HX: fidelity research steps 7, 8 and 10. Haze Off / Light / Southwest from 600 m with the horizon ring's own haze function; Glow Off / Lamps (threshold above sunlit ground); Reflections only with Ambient Occlusion On (little to see at the default Hood Gloss: the owner's call whether to keep the row). Advanced scrolls.

@@ -63,6 +63,7 @@ uniform vec2 dirt_road_shine = vec2(0.96, 0.08);
 
 uniform float debug_tint = 0.0;   // I76_HORIZON_TINT=1: the ring drawn magenta (to see where it shows)
 #include "res://Shaders/terrain_night.gdshaderinc"
+#include "res://Shaders/haze.gdshaderinc"
 
 varying vec3 g_pos;    // centre-relative, game frame
 varying vec3 g_nrm;
@@ -198,8 +199,7 @@ void fragment() {
 
 	// ---- haze toward the sky's horizon, in this direction ----
 	vec3 view_w = normalize((INV_VIEW_MATRIX * vec4(VERTEX, 0.0)).xyz);
-	float sun = max(dot(view_w, normalize(sprite_dir)), 0.0);
-	vec3 haze_col = horizon_color + vec3(1.0, 0.85, 0.6) * (pow(sun, 8.0) * 0.18 + pow(sun, 64.0) * 0.35) * light_strength;
+	vec3 haze_col = i76_haze_colour(view_w, horizon_color, sprite_dir, light_strength);
 	float t = max(dist - haze_start, 0.0) / haze_reach;
 	float f = clamp(1.0 - (1.0 - haze_floor) * exp(-t * t), 0.0, 1.0);
 	f = max(f, smoothstep(far_clip * 0.75, far_clip * 0.98, dist));

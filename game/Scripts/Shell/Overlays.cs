@@ -765,6 +765,16 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;
+            // the modern look's aerial haze, glow and screen-space reflections (AirRows; Reflections only with Ambient Occlusion On); in a mission
+            case GraphicsRow.Haze:
+                Row(r, line, "Haze", () => AirRows.HazeNames[AirRows.ClampHaze(st.Haze)], () => AirRows.StepHaze(st));
+                break;
+            case GraphicsRow.Glow:
+                Row(r, line, "Glow", () => AirRows.GlowNames[AirRows.ClampGlow(st.Glow)], () => AirRows.StepGlow(st));
+                break;
+            case GraphicsRow.Reflections:
+                Row(r, line, "Reflections", () => AirRows.ReflectionWord(st), () => AirRows.StepReflections(st));
+                break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:
                 Row(r, line, "Field of View", () => I76.Sim.Views.ViewFov.Names[Math.Clamp(st.FieldOfView, 0, I76.Sim.Views.ViewFov.Names.Length - 1)], () => { st.FieldOfView = (st.FieldOfView + 1) % I76.Sim.Views.ViewFov.Names.Length; I76.Sim.Views.ViewFov.Apply(st.FieldOfView); });
