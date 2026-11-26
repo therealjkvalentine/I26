@@ -66,4 +66,19 @@ public class QuietWindowTests
         Assert.Equal(QuietWindow.Mode.Behind, QuietWindow.ForRun(QuietWindow.Mode.Behind, needsFrames: true));
         Assert.Equal(QuietWindow.Mode.Off, QuietWindow.ForRun(QuietWindow.Mode.Off, needsFrames: true));
     }
+
+    [Fact] public void AQuietRunLeavesThePersonsDevicesAlone()
+    {
+        Assert.True(QuietWindow.LeavesDevices(QuietWindow.Mode.Behind, null));
+        Assert.True(QuietWindow.LeavesDevices(QuietWindow.Mode.Minimised, "0"));
+        Assert.False(QuietWindow.LeavesDevices(QuietWindow.Mode.Behind, "1"));   // I76_PAD_FOCUS=1: a capture driving a virtual pad
+        Assert.False(QuietWindow.LeavesDevices(QuietWindow.Mode.Off, null));     // the normal start: the pads are the player's
+    }
+
+    [Fact] public void TheLogSaysWhichDesktopTheWindowIsOn()
+    {
+        Assert.Equal(", on desktop i26-quiet-12-1 (not shown)", QuietWindow.DesktopNote("i26-quiet-12-1"));
+        Assert.Contains("visible desktop", QuietWindow.DesktopNote("Default"));
+        Assert.Equal("", QuietWindow.DesktopNote(null));
+    }
 }

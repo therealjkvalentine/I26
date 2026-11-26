@@ -54,7 +54,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | Variable | Kind | What it does |
 |---|---|---|
 | `I76_PAD_AXES` | capture | `lx,ly,rx,ry,lt,rt` (stick axes -1..1, triggers 0..1): the Pad Dead Zones screen shows these in place of a pad, so its gauges can be captured without one (docs/joystick.md). |
-| `I76_PAD_FOCUS` | capture | `1`: the pads read as if the window had focus (a capture compositor has no seat, so the window never does). With a virtual joystick made through `/dev/uinput`, this is how the joystick screen is captured; see docs/joystick.md. |
+| `I76_PAD_FOCUS` | capture | `1`: the pads read as if the window had focus, in a quiet run too (`I76_QUIET_WINDOW` otherwise leaves them and the head tracker alone) (a capture compositor has no seat, so the window never does). With a virtual joystick made through `/dev/uinput`, this is how the joystick screen is captured; see docs/joystick.md. |
 | `I76_GAME_KEYS` | capture | Scripted key presses in a mission, `"escape@40;down@44;enter@48"` or `kp8@20-300` (held). Runs while the tree is paused too. |
 | `I76_MOUSE` | capture | Scripted mouse motion in a mission, `"60@300,0;80@0,-40"` (frame@dx,dy): the Mouse Camera orbit, with `--drive`; `"40@w2;80@w-3"` turns the wheel (positive up: nearer) for the external view on screen (F2/F3/F9 chase, F4/F5, F6, F7/F8, F10, F11; not the cockpit); `"320@c571,619"` clicks the left button at that window pixel (pressed that frame, released the next; runs while the tree is paused, for the Developer panel's buttons). |
 | `I76_CURSOR_LOG` | test | Logs each change of the mouse mode (`[cursor] Captured -> Visible`), from the one function that sets it (`Main.ApplyCursor`, state from `CursorPolicy`). With `I76_MOUSE` set the window counts as focused. |
@@ -193,7 +193,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | Variable | Kind | What it does |
 |---|---|---|
 | `--skip-cutscenes`, `--mute` | test | Command-line switches (after `--`) for unattended runs: `--skip-cutscenes` skips a single-player mission's skippable scripted camera scenes as Esc would, when they start (a network game still follows its host); `--mute` mutes the master audio bus for the run, leaving the saved audio levels alone. |
-| `I76_QUIET_WINDOW` | capture/test | `1` (or `on`): the game starts in a window behind the others and never takes the screen, the keyboard or the pointer, for test runs and captures on a desktop someone is using (`Boot/QuietWindow.cs`). The window is the size asked for: Godot's `--resolution WxH`, else shell.cfg's Resolution, else 1280x720 (never the desktop's borderless fullscreen); one as large as the screen's usable area or larger (a desktop-sized measurement window, 3440x1440 here) is borderless at the screen's corner and draws at full cost (frame-cost GPU time within run-to-run noise of the borderless fullscreen's). On Windows the window goes to the bottom of the stack without activating, and the foreground is handed back to the window under it: the engine shows (and may activate) its window before any script runs, so for under a second at the start the window is in front, then it is behind for the rest of the run. The pointer is never confined or captured (the menus' Mouse In Window and the Mouse Camera are left out; `I76_MOUSE`'s scripted motion still orbits). `min`: the same, minimised; Godot draws nothing while a window is minimised, so a `--screenshot` or `I76_FRAME_PROFILE` run is put behind instead (it would never finish). `0`, `off` or unset: the normal start. Pass `--windowed --resolution WxH` to the engine too, so the window is never fullscreen even for the moment before the hook runs. `tools/frame-cost/bench.py` (and `matrix.py`), `tools/shot.sh` set it unless it is set already (`I76_QUIET_WINDOW=0` for the old start). macOS and Linux: the window size and `min` only (unverified). |
+| `I76_QUIET_WINDOW` | capture/test | `1` (or `on`): the game starts in a window behind the others and never takes the screen, the keyboard or the pointer, for test runs and captures on a desktop someone is using (`Boot/QuietWindow.cs`). The window is the size asked for: Godot's `--resolution WxH`, else shell.cfg's Resolution, else 1280x720 (never the desktop's borderless fullscreen); one as large as the screen's usable area or larger (a desktop-sized measurement window, 3440x1440 here) is borderless at the screen's corner and draws at full cost (frame-cost GPU time within run-to-run noise of the borderless fullscreen's). On Windows the window goes to the bottom of the stack without activating, and the foreground is handed back to the window under it: the engine shows (and may activate) its window before any script runs, so for under a second at the start the window is in front, then it is behind for the rest of the run. The pointer is never confined or captured (the menus' Mouse In Window and the Mouse Camera are left out; `I76_MOUSE`'s scripted motion still orbits). `min`: the same, minimised; Godot draws nothing while a window is minimised, so a `--screenshot` or `I76_FRAME_PROFILE` run is put behind instead (it would never finish). `0`, `off` or unset: the normal start. Godot shows its window (fullscreen, in front) before the hook runs, whatever `--windowed` says: on Windows start test runs through `tools/quiet-run.sh` (Quiet runs, below), which puts the whole run on a desktop of its own; the log line `quiet window: ...` names the desktop. The pads read nothing (no rumble either) and the head tracker opens no socket in a quiet run, unless `I76_PAD_FOCUS=1`. `tools/frame-cost/bench.py` (and `matrix.py`), `tools/shot.sh` set it unless it is set already (`I76_QUIET_WINDOW=0` for the old start). macOS and Linux: the window size and `min` only (unverified). |
 | `--voices LANG\|FOLDER`, `I76_VOICES` | test | The voice overlay: the sound files of `voices/LANG` in the user folder (or of that folder) are read over the install's of the same name (`VoiceOverlay`); `en`, `off`, `0` and an absent folder mean none. |
 | `--music-extra FOLDER\|off`, `I76_MUSIC_EXTRA`, `I76_MUSIC_EXTRA_EVERY` | test | The player's own songs in the mission music (`ExtraMusic`): the folder (default `music-extra` in the user folder), and N, one song start in N (1 to 20, default 3). Log lines `music-extra: N songs` and `music: track T (your own song)`. |
 | `I76_END_MISSION` | test | `win@frame` or `fail@frame` (or `win@8s`: once the mission has run that many seconds of its own time, whatever frames its load took): end the mission as the script would (on a network co-op listen host, the server's mission: every player gets the end). |
@@ -243,14 +243,34 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | (`i76 airtime`, `i76 ground`) | test | `i76 airtime MISSION "x,z x,z ..." [--speed S] [--rate HZ] [--seconds N]`: the player's car alone driven round a route, a row a tick with its airborne flag; `i76 ground MISSION FILE.csv` adds the ground under each row's x,y,z. |
 | `I76_NATIVE` | debug | `1`: `i76 bg` reads a Nitro database by its own record numbers. |
 
-A screenshot run on a desktop someone is using (Windows; the console executable shows the log), which leaves the person's window in front:
+### Quiet runs (Windows)
+
+Every test, capture or benchmark launch of the game on a Windows desktop someone is using goes through `tools/quiet-run.sh`
+(Git Bash; `python tools/quiet_run.py` is the same, and scripts import `quiet_run.run`, as `tools/frame-cost/bench.py` does):
 
 ```
-set I76_QUIET_WINDOW=1
-Godot_v4.7.2-stable_mono_win64_console.exe --path game --windowed --resolution 1280x720 -- --install "%I76_INSTALL%" --mute --skip-movies --mission t01 --drive --screenshot out.png --quit-after 300
+GODOT=/path/to/Godot_v4.7.2-stable_mono_win64_console.exe tools/quiet-run.sh --appdata "$SCRATCH/appdata" --log out.log \
+    --path game --resolution 1280x720 -- --install "$I76_INSTALL" --mute --skip-movies --mission t01 --drive --screenshot out.png --quit-after 300
 ```
 
-(bash: `I76_QUIET_WINDOW=1 "$GODOT" --path game --windowed --resolution 1280x720 -- ...`). The screenshot is the game's own frame, whole and correct with the window behind others.
+The run starts on a Win32 desktop of its own (`CreateDesktop`, one per run, gone when it ends): its window, any console or crash
+dialog, its focus and its stacking live there, so it never takes the foreground, never shows over another window, never flashes on
+the taskbar and gets no key or mouse event. The GPU still draws and presents every frame (screenshots, `I76_FRAME_PROFILE`, benchmarks:
+the same frames, at the same rate, as a visible window). The launcher also adds what a run must have: `--audio-driver Dummy` before
+the `--` (another driver is refused), `I76_QUIET_WINDOW=1` (kept if set to `min` or `behind`; an off value is turned on, since a
+window that is not quiet confines the pointer, and `ClipCursor` reaches the person's desktop from any desktop), a scratch user folder
+(`--appdata DIR`, else the caller's `APPDATA` when it is not the live one, else `%TEMP%\i26-quiet\appdata`; the live roaming folder is
+refused), stdin from NUL, no error boxes, and a job: `--timeout S` (default 900; 0 for none) or the launcher's own end kills the run's
+processes and nobody else's. `--log FILE` takes the output; the exit code is the game's (124 on the timeout). Godot's `--headless`
+runs (`--import`) can go through it too. Elsewhere than Windows it runs the command as it is (tools/shot.sh is the Linux way).
+
+Measured on Windows 11 with a 3440x1440 screen (docs/perf; a watcher polling the foreground, the stacking and the cursor clip every
+10 ms): a run started directly, even with `I76_QUIET_WINDOW=1` and `--windowed --resolution 1280x720`, shows its window at the
+desktop's size (the project's borderless fullscreen; Godot 4.7 does not take `--windowed` over `display/window/size/mode`) on top of
+everything for 0.5 to 1 s until the hook runs, and takes the keyboard focus whenever Windows lets it (when the person has not typed or
+clicked for a while); a plain window's `Input.mouse_mode` confine clips the person's pointer even from another desktop. Through the
+launcher: no foreground change, no window on the person's desktop, no cursor clip, in every case tried (1280x720, 3440x1440, the
+1997 look, a frame profile, a crash, `--headless --import`).
 
 ### Input traces
 

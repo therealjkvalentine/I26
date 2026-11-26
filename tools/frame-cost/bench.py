@@ -11,9 +11,10 @@ in results.tsv (end time, config, res, rep, scene, the GPU's state before the ru
 the profile's result line, start and end times). The game runs in an isolated user folder under the output folder (the
 APPDATA override: Godot's user:// on Windows): make it once with FRAME_COST_APPDATA pointing at a folder holding I26/ with
 junctions to the live user folder's tex-world-Nx/, tex-menu/, cache/ and copies of shader_cache/ and build-rules.cfg
-(nothing is written to the player's data). The game starts in the quiet window (I76_QUIET_WINDOW=1 unless the caller's environment or
---env sets it; 0 is the old borderless fullscreen in front): a window of exactly --res behind the others, a desktop-sized one borderless
-at the screen's corner, so a run never takes the screen or the keyboard from someone at the desktop. shell.cfg is written from BASE plus --cfg before each run. Before a run it
+(nothing is written to the player's data). On Windows each run goes through tools/quiet_run.py (docs/dev-hooks.md, Quiet runs): on a
+desktop of its own, so it never takes the screen, the keyboard or the pointer from someone at the desktop, in the quiet window
+(I76_QUIET_WINDOW=1, or min/behind from the environment or --env; an off value is not honoured there): a window of exactly --res,
+a desktop-sized one borderless at the screen's corner; a timeout kills that run's processes only. shell.cfg is written from BASE plus --cfg before each run. Before a run it
 waits for the GPU to be under 10 % with no other Godot or compute process, samples other GPU users every 2 s during the run
 (the row's `others` column: rerun a row that is not 0), and leaves GAP_S idle after each run for other lanes' idle checks.
 
@@ -29,6 +30,8 @@ starts the game above normal priority, so the processes of the same priority oth
 main thread as they would to a game on a player's machine.
 """
 import argparse, os, re, subprocess, sys, time, datetime, shutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import quiet_run   # tools/quiet_run.py
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("FRAME_COST_OUT") or os.path.join(os.environ.get("TEMP", HERE), "frame-cost")
@@ -37,7 +40,7 @@ GAME = os.environ.get("FRAME_COST_GAME") or os.path.normpath(os.path.join(HERE, 
 INSTALL = os.environ.get("I76_INSTALL", "")
 APPDATA = os.environ.get("FRAME_COST_APPDATA") or os.path.join(OUT, "appdata")
 CFG = os.path.join(APPDATA, "I26", "shell.cfg")
-QUIET = os.environ.get("I76_QUIET_WINDOW", "1")   # the game's window behind the others by default (docs/dev-hooks.md); 0: fullscreen in front
+QUIET = os.environ.get("I76_QUIET_WINDOW", "1")   # the game's window behind the others by default (docs/dev-hooks.md); 0: fullscreen in front (not on Windows: quiet_run.py)
 GAP_S = 20   # idle seconds left after each run for the other lanes' idle checks
 
 # Everything on: the modern look with every port feature at its costliest offered value.
@@ -200,7 +203,7 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
     # the quiet window (I76_QUIET_WINDOW, docs/dev-hooks.md), the default: a window of exactly RES behind the others, never the foreground
     # (a desktop-sized one is borderless at the screen's corner, drawn at full cost); I76_QUIET_WINDOW=0 for the old start in front
     quiet = env_over.get("I76_QUIET_WINDOW", QUIET)
-    if quiet not in ("", "0"):
+    if quiet not in ("", "0") or os.name == "nt":   # (quiet_run.py turns an off value on)
         engine += ["--windowed", "--resolution", res]
     game = ["--install", INSTALL, "--mute"] + SCENES[scene] + (["--1997"] if look1997 else []) + extra
     env = dict(os.environ)
@@ -243,11 +246,12 @@ def run_once(name, res, rep, scene, cfg_over, graphics_over, env_over, extra, sk
         log.flush()
         try:
             flags = getattr(subprocess, "ABOVE_NORMAL_PRIORITY_CLASS", 0) if os.environ.get("FRAME_COST_PRIORITY") == "above" else 0
-            proc = subprocess.run(engine + ["--"] + game, stdout=log, stderr=subprocess.STDOUT, env=env, timeout=timeout, creationflags=flags)
-            code = proc.returncode
+            if os.name == "nt":   # through tools/quiet_run.py: a desktop of its own, a job that a timeout kills (only this run)
+                code = quiet_run.run(engine + ["--"] + game, env=env, stdout=log, timeout=timeout, flags=flags)
+            else:
+                code = subprocess.run(engine + ["--"] + game, stdout=log, stderr=subprocess.STDOUT, env=env, timeout=timeout).returncode
         except subprocess.TimeoutExpired:
             code = "timeout"
-            subprocess.run(["taskkill", "/IM", os.path.basename(GODOT), "/F"], capture_output=True)
     stop.set(); th.join()
     wall = time.time() - t0
     res_line = ""; died = False
