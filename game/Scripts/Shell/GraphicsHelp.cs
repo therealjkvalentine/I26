@@ -84,6 +84,9 @@ public static class GraphicsHelp
         GraphicsRow.SmokeLighting => look1997
             ? "Smoke lighting: the modern look's smoke and dust lit by the sun and sky. Not drawn in the 1997 look."
             : "Smoke lighting: smoke and dust take the sun's colour and direction and the sky's light, so smoke at dusk is warm on the sun's side and dark on the other, and smoke at night is dim. Off is one even light. No measurable frame cost.",
+        GraphicsRow.SmokeLinger => look1997
+            ? "Smoke linger: how long the modern look's smoke hangs in the air. The 1997 look's puffs are the original's."
+            : "Smoke linger: Long lets the smoke of damaged cars, burning wrecks, rocket and mortar trails and explosions hang on after it has risen, slowly widening and thinning to a faint haze that drifts with the wind and fades away over about a minute. Normal (the default) ends each puff as before. About 0.1 to 0.3 ms a frame with several burning wrecks in view (3440x1440, 8x, 200 %, an RTX 5090), none when Normal.",
         GraphicsRow.HeatShimmer => look1997
             ? "Heat shimmer: the modern look's wobbling air over fires and hot roads. Not drawn in the 1997 look."
             : "Heat shimmer: the air wobbles over fires, burning wrecks and flame streams. Fires + Road adds, on hot days only, a faint shimmer low over the ground far ahead and the road's mirage. The 1997 game has none. About 0.1 ms a frame while something shimmers (3440x1440, 8x, 200 %, an RTX 5090), none when Off.",
@@ -109,7 +112,7 @@ public static class GraphicsHelp
         "Display: 1997 Mode, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
         "World: the world's textures, plants, terrain shadows, ambient occlusion, reflections and haze (the modern look's).",
         "Car & Cockpit: the field of view, the car and dash textures, the paint's gloss, how often the mirrors are drawn and the 3D garage.",
-        "Effects: the modern look's palette grade, crash blur, glow, smoke lighting and heat shimmer.",
+        "Effects: the modern look's palette grade, crash blur, glow, smoke linger, smoke lighting and heat shimmer.",
     ];
     public static string Entry(int page) => Entries[page];
 

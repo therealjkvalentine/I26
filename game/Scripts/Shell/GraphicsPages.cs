@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
-    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows,
+    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, SmokeLinger,
 }
 
 /// <summary>
@@ -17,7 +17,7 @@ public enum GraphicsRow
 /// frame: 1997 Mode, anti-aliasing, render scale, the frame rate, the renderer, the menus' width), World (the world's textures, plants,
 /// shadows, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view, the car's and the dash's textures, the paint, the
 /// mirrors' rate, the 3D garage) and Effects (the modern look's grade and its effects: palette grade, crash blur, glow, smoke
-/// lighting, heat shimmer). Each page fits one sheet without scrolling, with room to spare and the frame-rate line under a blank
+/// linger, smoke lighting, heat shimmer). Each page fits one sheet without scrolling, with room to spare and the frame-rate line under a blank
 /// line (<see cref="GraphicsLayout"/>). (One Advanced page held every port row from round 5; at twenty rows it scrolled on the main
 /// menu and its last rows were drawn over the in-game pad's buttons.) A page is the same sheet with its name, its rows and a way
 /// back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and
@@ -37,7 +37,7 @@ public static class GraphicsPages
         [GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.Garage3D],
-        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
+        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
     /// <summary>
@@ -160,6 +160,7 @@ public static class GraphicsPages
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             case GraphicsRow.MenuWidth: t.MenuWide = f.MenuWide; break;
             case GraphicsRow.SmokeLighting: t.SmokeLighting = f.SmokeLighting; break;
+            case GraphicsRow.SmokeLinger: t.SmokeHaze = f.SmokeHaze; break;
             case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             case GraphicsRow.TerrainShadows: t.TerrainShadows = f.TerrainShadows; break;
             // one row: off, the original's 3D card or its software renderer
