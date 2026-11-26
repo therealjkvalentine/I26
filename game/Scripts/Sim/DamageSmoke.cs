@@ -63,7 +63,10 @@ public partial class DamageSmoke : Node3D
     private int _liveM;
     // game axes (x, up, z), m/s: light and the same everywhere, the wind the plants sway in and the tumbleweeds roll before
     private static readonly Vector3 Wind = new(I76.Formats.Vegetation.Wind.Direction.X * I76.Formats.Vegetation.Wind.Breeze, 0f, I76.Formats.Vegetation.Wind.Direction.Y * I76.Formats.Vegetation.Wind.Breeze);
-    private struct MPuff { public bool Live, Far; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift; }
+    // Haze: past its life under Smoke Linger Long (SmokeHaze): S its size, K its growth (area a second), Mass its smoke (density times
+    // area), Into the puff it is handing its smoke to (-1 none) and Mass0 what it had when it began to; an adopted one (Adopt) Waits
+    // that long in the haze, unseen and still, then shows over FadeIn
+    private struct MPuff { public bool Live, Far, Haze; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift, S, K, Mass, Mass0, Wait, FadeIn; public int Into; }
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
@@ -78,7 +81,12 @@ public partial class DamageSmoke : Node3D
     private readonly float[][] _slabBuf = new float[SlabFar.Length][];
     private ShaderMaterial _matM = null!;
     private DirectionalLight3D? _sun;
-    private readonly float[] _keyM = new float[CapM];
+    private readonly float[] _keyM = new float[CapM], _shown = new float[CapM];
+    private static readonly bool Stats = System.Environment.GetEnvironmentVariable("I76_SMOKE_STATS") == "1";
+    /// <summary>I76_SMOKE_HAZE_AB=1: the haze is drawn in alternate 1.5 s spans of the stopwatch (FrameProfiler's clock), for its cost measured within one run.</summary>
+    private static readonly bool HazeAb = System.Environment.GetEnvironmentVariable("I76_SMOKE_HAZE_AB") == "1";
+    private const double AbMs = 1500;
+    private int _statN;
     private readonly int[] _idxM = new int[CapM];
     private readonly List<(float Depth, int I)> _order = [];
 
@@ -331,12 +339,22 @@ public partial class DamageSmoke : Node3D
             }
         }
         StaticSmokers(dt);
-        int liveM = 0;
+        int liveM = 0, haze = 0;
+        bool hazeOn = SmokeHaze.On;
+        float threshold = SmokeHaze.Threshold * _pressure;
         for (int i = 0; i < CapM; i++)
         {
             ref var p = ref _mp[i];
             if (!p.Live) continue;
-            if ((p.Age += (float)dt) >= p.Life) { p.Live = false; continue; }
+            if ((p.Age += (float)dt) >= p.Life)
+            {
+                // Smoke Linger Long: past its life the puff spreads on as a thinning haze (SmokeHaze), and goes only once it is faint
+                if (!hazeOn) { p.Live = false; continue; }
+                if (!p.Haze) { p.Haze = true; p.S = p.End; p.K = SmokeHaze.Growth(p.End, p.Dens); p.Mass = p.Mass0 = p.Dens * p.End * p.End; p.Into = -1; }
+                if (!HazeStep(i, ref p, (float)dt, threshold)) { p.Live = false; continue; }
+                liveM++; haze++;
+                continue;
+            }
             liveM++;
             float lf = p.Age / p.Life;
             // rises and slows, and the car's push bleeds off into the wind: the trail streams back
@@ -347,7 +365,76 @@ public partial class DamageSmoke : Node3D
             p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
         }
         _liveM = liveM;
+        _hazeLive = haze;
+        if (hazeOn && haze > 1) Merge();
         DrawModern();
+    }
+
+    // ---- Smoke Linger Long (SmokeHaze): the puffs past their life ----
+    private float _pressure = 1f;
+    private int _hazeLive, _mergeFrame;
+    private readonly Dictionary<int, int> _cells = [];
+
+    /// <summary>A haze puff's step: it grows, thins with its smoke kept, hands smoke on if it is merging, drifts and cools. False: it is gone.</summary>
+    private bool HazeStep(int i, ref MPuff p, float dt, float threshold)
+    {
+        if (p.Age - p.Life < p.Wait) return true;   // adopted, not yet out (an explosion's smoke sprite still shows)
+        p.S = SmokeHaze.Grow(p.S, p.K, dt);
+        if (p.Into >= 0)
+        {
+            // merging on in turn: to where that one goes
+            for (int hop = 0; hop < 8 && _mp[p.Into].Live && _mp[p.Into].Haze && _mp[p.Into].Into >= 0 && _mp[p.Into].Into != i; hop++) p.Into = _mp[p.Into].Into;
+            ref var q = ref _mp[p.Into];
+            if (!q.Live || !q.Haze || p.Into == i) p.Into = -1;
+            else
+            {
+                float dm = MathF.Min(p.Mass, p.Mass0 * dt / SmokeHaze.AbsorbSeconds);
+                var at = new System.Numerics.Vector3((float)q.X, (float)q.Y, (float)q.Z);
+                SmokeHaze.Absorb(ref at, ref q.S, ref q.Mass, new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), p.S, dm);
+                q.X = at.X; q.Y = at.Y; q.Z = at.Z;
+                float w = dm / q.Mass;   // the smoke's drift and colour come with it
+                q.Vx += (p.Vx - q.Vx) * w; q.Vy += (p.Vy - q.Vy) * w; q.Vz += (p.Vz - q.Vz) * w;
+                q.Dark += (p.Dark - q.Dark) * w;
+                q.K += p.K * dm / MathF.Max(p.Mass0, 1e-6f);   // and its spreading: the merged puff thins over the same time as its parts would
+                q.Dens = SmokeHaze.Density(q.Mass, q.S);
+                p.Mass -= dm;
+                if (p.Mass <= p.Mass0 * 0.02f) return false;   // handed over: nothing of it left to see
+            }
+        }
+        p.Dens = SmokeHaze.Density(p.Mass, p.S);
+        if (p.Into < 0 && SmokeHaze.Retired(p.Dens, threshold)) return false;
+        // it rises less as it cools, and goes with the wind
+        p.Vy -= p.Vy * MathF.Min(1f, dt / SmokeHaze.CoolSeconds);
+        float k = MathF.Min(1f, 0.9f * dt);
+        p.Vx += (Wind.X - p.Vx) * k; p.Vz += (Wind.Z - p.Vz) * k;
+        p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
+        return true;
+    }
+
+    /// <summary>
+    /// Haze puffs of a size class (SmokeHaze.Level) in one cell of that class's grid, nearer than SmokeHaze.MergeReach of the larger's
+    /// size, merge: the one with less smoke hands it to the other. The grid is shifted by half a cell every other frame, so a pair on a
+    /// cell's edge meets the next frame.
+    /// </summary>
+    private void Merge()
+    {
+        _cells.Clear();
+        float shift = (++_mergeFrame & 1) * 0.5f;
+        for (int i = 0; i < CapM; i++)
+        {
+            ref var p = ref _mp[i];
+            if (!p.Live || !p.Haze || p.Into >= 0 || p.Age - p.Life < p.Wait) continue;
+            int level = SmokeHaze.Level(p.S);
+            float cell = MathF.Pow(2f, level);
+            int key = HashCode.Combine(level, (int)Math.Floor(p.X / cell + shift), (int)Math.Floor(p.Y / cell + shift), (int)Math.Floor(p.Z / cell + shift));
+            if (!_cells.TryGetValue(key, out int j)) { _cells[key] = i; continue; }
+            ref var q = ref _mp[j];
+            double dx = p.X - q.X, dy = p.Y - q.Y, dz = p.Z - q.Z;
+            float reach = SmokeHaze.MergeReach * MathF.Max(p.S, q.S);
+            if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+            if (p.Mass > q.Mass) { q.Into = i; q.Mass0 = q.Mass; _cells[key] = i; }
+            else { p.Into = j; p.Mass0 = p.Mass; }
+        }
     }
 
     private readonly Dictionary<int, double> _staticCarry = [];
@@ -403,6 +490,9 @@ public partial class DamageSmoke : Node3D
         EmitModern(Coords.ToGame(car.GlobalTransform * new Vector3(ox, oy, -oz)) + Origin() + shift, v.Vel, level, back, 1f);
     }
 
+    /// <summary>The floating origin in game axes as the current smoke has it (Adopt's places are in game axes).</summary>
+    public static System.Numerics.Vector3 OriginNow => Current?.Origin() ?? default;
+
     /// <summary>The smoke being drawn in the current mission, for the burning wrecks (WreckFire) to feed.</summary>
     public static DamageSmoke? Current { get; private set; }
     private readonly Dictionary<object, double> _burnCarry = [];
@@ -422,13 +512,39 @@ public partial class DamageSmoke : Node3D
         return true;
     }
 
+    /// <summary>
+    /// Smoke Linger Long (SmokeHaze): another smoke's puff taken on into this haze when its own life ends: a rocket's or a mortar
+    /// round's trail (RocketSmoke), an explosion's smoke (ModernFx). <paramref name="at"/> and <paramref name="vel"/> in game axes;
+    /// <paramref name="size"/> and <paramref name="dens"/> as the puff was last drawn, <paramref name="life"/> its own life (the shader's
+    /// age goes on from it); it waits <paramref name="wait"/> s unseen, then shows over <paramref name="fadeIn"/> s (0: at once, as it
+    /// was). Nothing when Normal, in the 1997 look, or past the budget's count.
+    /// </summary>
+    public static void Adopt(System.Numerics.Vector3 at, System.Numerics.Vector3 vel, float size, float dens, float dark, float seed, float life, float wait = 0f, float fadeIn = 0f, bool far = false)
+    {
+        if (Current is not { _ready: true, _modern: true } s || !SmokeHaze.On || dens <= SmokeHaze.Threshold || s._hazeLive >= SmokeHaze.CountBudget * 2) return;
+        int pool = CapM;
+        s._mnext %= pool;
+        for (int tries = 0; tries < 64 && s._mp[s._mnext].Live && s._mp[s._mnext].Haze; tries++) s._mnext = (s._mnext + 1) % pool;
+        ref var p = ref s._mp[s._mnext];
+        s._mnext = (s._mnext + 1) % pool;
+        life = MathF.Max(life, 0.5f);
+        p = new MPuff
+        {
+            Live = true, Far = far, Haze = true, X = at.X, Y = at.Y, Z = at.Z, Vx = vel.X, Vy = vel.Y, Vz = vel.Z, Age = life, Life = life,
+            End = size, S = size, Dens = dens, Dark = dark, Seed = seed, Lift = 1f, K = SmokeHaze.Growth(size, dens), Mass = dens * size * size,
+            Into = -1, Wait = wait, FadeIn = fadeIn,
+        };
+        p.Mass0 = p.Mass;
+        s._hazeLive++;
+    }
+
     /// <summary>The wreck is done: forget its carry.</summary>
     public void Extinguish(object key) => _burnCarry.Remove(key);
 
     /// <summary>Every puff gone at once: the rehearsal of a burning wreck behind the loading card leaves none of its smoke to rise from a whole car.</summary>
     public void Clear()
     {
-        Array.Clear(_pool); Array.Clear(_mp); _burnCarry.Clear(); _liveM = 0;
+        Array.Clear(_pool); Array.Clear(_mp); _burnCarry.Clear(); _liveM = 0; _hazeLive = 0; _pressure = 1f;
         if (_ready) { SmokeLayer.Submit(this, _layerBuf, 0, System.Numerics.Vector3.One); HideBillows(); _mm.VisibleInstanceCount = 0; }   // and what was handed to the layer, which would show for one more frame
     }
 
@@ -445,8 +561,12 @@ public partial class DamageSmoke : Node3D
         float dens = (level < 1 ? Mathf.Lerp(0.3f, 0.6f, level) : Mathf.Lerp(0.6f, 0.5f, level - 1)) * 1.4f;
         float sizeMul = level < 1 ? Mathf.Lerp(0.7f, 1f, level) : Mathf.Lerp(1f, 1.3f, level - 1);
         sizeMul *= SizeBoost * (1f + 0.5f * (lift - 1f) / 1.6f);
+        int pool = SmokeHaze.On ? CapM : SmokeLinger.Pool(CapBase);
+        // under Smoke Linger Long the ring passes over the haze (a haze puff is not cut short for a new one; the merging keeps them few)
+        _mnext %= pool;
+        for (int tries = 0; tries < 64 && _mp[_mnext].Live && _mp[_mnext].Haze; tries++) _mnext = (_mnext + 1) % pool;
         ref var p = ref _mp[_mnext];
-        _mnext = (_mnext + 1) % SmokeLinger.Pool(CapBase);   // the oldest recycled once the linger's share of the pool is full
+        _mnext = (_mnext + 1) % pool;   // the oldest recycled once the linger's share of the pool is full
         // only a little of the car's velocity: the rest it leaves behind. Spawned along the frame's travel
         p = new MPuff
         {
@@ -477,26 +597,42 @@ public partial class DamageSmoke : Node3D
         var toSun = _sun is null ? new Vector3(0.3f, 0.8f, 0.5f) : _sun.GlobalTransform.Basis.Z;
         _matM.SetShaderParameter(ShaderNames.SunView, ct.Basis.Inverse() * toSun);
         int cnt = 0;
+        float tanHalf = MathF.Tan(Mathf.DegToRad(cam.Fov) * 0.5f), aspect = GetViewport().GetVisibleRect().Size.Aspect(), cover = 0f;
+        float threshold = SmokeHaze.Threshold * _pressure;
         for (int i = 0; i < CapM; i++)
         {
             ref var p = ref _mp[i];
             if (!p.Live) continue;
             var gp = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float depth = -ct.Basis.Z.Dot(gp - ct.Origin);
-            if (!SmokeWindow.Drawn(depth, cam.Near, p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar)) continue;
+            float far = p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar;
+            if (!SmokeWindow.Drawn(depth, cam.Near, far)) continue;
+            if (p.Haze)
+            {
+                if (HazeAb && (long)(System.Diagnostics.Stopwatch.GetTimestamp() * 1000.0 / System.Diagnostics.Stopwatch.Frequency / AbMs) % 2 == 1) continue;
+                // the haze's density as drawn: easing out at the threshold, by the camera and toward the far end of its reach
+                float shown = SmokeHaze.Visible(p.Dens, threshold) * SmokeHaze.Near(depth, p.S) * SmokeHaze.Far(depth, far) * SmokeHaze.In(p.Age - p.Life - p.Wait, p.FadeIn);
+                if (shown < 0.002f) continue;
+                _shown[i] = shown;
+                cover += SmokeHaze.Cover(p.S, depth, tanHalf, aspect);
+            }
             _keyM[cnt] = -depth; _idxM[cnt++] = i;   // ascending -depth: far to near
         }
+        // the budget: over it the threshold rises, eased, so the faintest haze fades out first
+        _pressure = SmokeHaze.Ease(_pressure, SmokeHaze.Pressure(cover, _hazeLive), (float)GetProcessDeltaTime());
+        if (Stats && _hazeLive > 0 && (_statN++ % 60) == 0) GD.Print($"smoke haze: {_hazeLive} haze puffs of {_liveM}, cover {cover:0.00} screens, pressure {_pressure:0.00}");
         Array.Sort(_keyM, _idxM, 0, cnt);
         // MultiMesh buffer layout: 12 transform floats (3 rows of basis x,y,z,origin), then the custom data colour
         for (int j = 0; j < cnt; j++)
         {
             ref var p = ref _mp[_idxM[j]];
-            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
-            float size = Mathf.Lerp(0.8f, p.End, e);
+            float lf, size, dens;
+            if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = _shown[_idxM[j]]; }
+            else { lf = p.Age / p.Life; float e = 1f - (1f - lf) * (1f - lf); size = Mathf.Lerp(0.8f, p.End, e); dens = p.Dens; }
             int o = j * 16;
             _layerBuf[o] = size; _layerBuf[o + 3] = (float)(p.X - org.X);
             _layerBuf[o + 7] = (float)(p.Y - org.Y); _layerBuf[o + 11] = -(float)(p.Z - org.Z);
-            _layerBuf[o + 12] = lf; _layerBuf[o + 13] = p.Dens; _layerBuf[o + 14] = p.Dark; _layerBuf[o + 15] = p.Seed;
+            _layerBuf[o + 12] = lf; _layerBuf[o + 13] = dens; _layerBuf[o + 14] = p.Dark; _layerBuf[o + 15] = p.Seed;
         }
         if (SmokeLayer.Active)
         {
@@ -529,8 +665,7 @@ public partial class DamageSmoke : Node3D
             ref var p = ref _mp[_idxM[j]];
             float px = (float)(p.X - org.X), py = (float)(p.Y - org.Y), pz = -(float)(p.Z - org.Z);
             while (slab > 0 && -_keyM[j] <= SlabFar[slab - 1]) Flush();
-            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
-            float size = Mathf.Lerp(0.8f, p.End, e);
+            float lf = _layerBuf[j * 16 + 12], size = _layerBuf[j * 16];
             var buf = _slabBuf[slab];
             int o = n++ * 16;
             buf[o] = size; buf[o + 1] = 0; buf[o + 2] = 0; buf[o + 3] = px;

@@ -137,6 +137,17 @@ public partial class SimDriver : Node
     private readonly bool _targetLog = System.Environment.GetEnvironmentVariable("I76_TARGET_LOG") is { Length: > 0 } and not "0";
     // I76_HOLD_HARDPOINT=N: keep hardpoint key N (1-5) down, for off-screen captures
     private readonly int _holdHardpoint = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HOLD_HARDPOINT"), out int hk) && hk is >= 1 and <= 5 ? hk : 0;
+    // I76_HOLD_HARDPOINT="N@from-to;...": hardpoint N held over those sim ticks only (a single round or a short volley, for a capture)
+    private static readonly (int N, int From, int To)[] HoldWindows = [.. (System.Environment.GetEnvironmentVariable("I76_HOLD_HARDPOINT") ?? "")
+        .Split(';', StringSplitOptions.RemoveEmptyEntries).Select(e => e.Split('@', '-'))
+        .Where(p => p.Length == 3 && int.TryParse(p[0], out _) && int.TryParse(p[1], out _) && int.TryParse(p[2], out _))
+        .Select(p => (int.Parse(p[0]), int.Parse(p[1]), int.Parse(p[2])))];
+    private bool HardpointHeld(int n)
+    {
+        if (_holdHardpoint == n) return true;
+        foreach (var w in HoldWindows) if (w.N == n && Ticks >= w.From && Ticks <= w.To) return true;
+        return false;
+    }
     private bool _hooked;
     private readonly DriveTest? _test = DriveTest.FromEnvironment();
 
@@ -493,7 +504,7 @@ public partial class SimDriver : Node
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
         if (HoldFire || Controls.Down("weapon_fire")) b |= CarButtons.Fire;
         for (int i = 0; i < 5; i++)
-            if (Controls.Down(HardpointKeys[i]) || _holdHardpoint == i + 1) b |= (CarButtons)((uint)CarButtons.Hardpoint1 << i);
+            if (Controls.Down(HardpointKeys[i]) || HardpointHeld(i + 1)) b |= (CarButtons)((uint)CarButtons.Hardpoint1 << i);
         if (Controls.Down("HONK_HORN")) b |= CarButtons.Horn;
         if (InCockpit?.Invoke() == true)
         {
@@ -571,7 +582,7 @@ public partial class SimDriver : Node
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
         if (HoldFire || Controls.Down("weapon_fire")) b |= CarButtons.Fire;
         for (int i = 0; i < 5; i++)
-            if (Controls.Down(HardpointKeys[i]) || _holdHardpoint == i + 1) b |= (CarButtons)((uint)CarButtons.Hardpoint1 << i);
+            if (Controls.Down(HardpointKeys[i]) || HardpointHeld(i + 1)) b |= (CarButtons)((uint)CarButtons.Hardpoint1 << i);
         if (Controls.Down("HONK_HORN")) b |= CarButtons.Horn;
         if (InCockpit?.Invoke() == true && (Controls.Down(I76.Formats.Input.PistolKeys.Left) || Controls.Down(I76.Formats.Input.PistolKeys.Right))) b |= CarButtons.Pistol;
         var now = new CarInput { Buttons = b };

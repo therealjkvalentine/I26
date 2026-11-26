@@ -786,6 +786,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.SmokeLighting:
                 Row(r, line, SmokeLightingRow.Label, () => SmokeLightingRow.Names[SmokeLightingRow.Index(st)], () => SmokeLightingRow.Step(st));
                 break;
+            // [port] smoke_haze (SmokeLingerRow): the modern look's; applies in a mission
+            case GraphicsRow.SmokeLinger:
+                Row(r, line, SmokeLingerRow.Label, () => SmokeLingerRow.Names[SmokeLingerRow.Index(st)], () => SmokeLingerRow.Step(st));
+                break;
             case GraphicsRow.HeatShimmer:
                 Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
                 break;

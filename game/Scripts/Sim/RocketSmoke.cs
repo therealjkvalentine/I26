@@ -17,6 +17,8 @@ public partial class RocketSmoke : Node3D
     public float SceneLight { get; set; } = 1f;
     /// <summary>The smoke's colour (a multiplier on the grey): white for rockets, darker for the Ball O'Flame's sooty tail.</summary>
     public System.Numerics.Vector3 Tint { get; init; } = System.Numerics.Vector3.One;
+    /// <summary>The darkness its haze takes on under Smoke Linger Long (the damage smoke's shade for this tint: 0.08 as drawn here for white).</summary>
+    private float Dark => Tint.X >= 0.99f ? 0.08f : 0.55f;
 
     /// <summary>The pool's base size, used up to SmokeLinger's share of it (longer lives keep more puffs in the air); made for the longest linger.</summary>
     private const int CapBase = 2400;
@@ -115,7 +117,12 @@ public partial class RocketSmoke : Node3D
         {
             ref var p = ref _pool[i];
             if (!p.Live) continue;
-            if ((p.Age += dt) >= p.Life) { p.Live = false; continue; }
+            if ((p.Age += dt) >= p.Life)
+            {
+                // Smoke Linger Long: the trail hangs on in the damage smoke's haze, which spreads, merges and thins it (SmokeHaze)
+                if (SmokeHaze.On) DamageSmoke.Adopt(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), new System.Numerics.Vector3(p.Vx, p.Vy, p.Vz), p.End, p.Dens, Dark, p.Seed, p.Life);
+                p.Live = false; continue;
+            }
             p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
             live++;
         }

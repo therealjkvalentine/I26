@@ -532,6 +532,14 @@ public partial class ModernFx : Node3D
                 sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.2f; sm.FadeOut = 0.6f; sm.Opacity = 0.6f;
                 sm.Velocity = new Vector3(GD.Randf() - 0.5f, 2.2f + GD.Randf() * 1.5f, GD.Randf() - 0.5f);
                 sm.Node.SetInstanceShaderParameter("tint", smoke.Lerp(Colors.White, 0.2f) * 1.6f);
+                // Smoke Linger Long (SmokeHaze): the damage smoke's haze takes over as the sprite fades, where it has risen to, and hangs on
+                if (SmokeHaze.On)
+                {
+                    float lifeS = (float)sm.Life, from = 0.4f * lifeS, seen = (float)(sm.Start - _t) + from;
+                    var g = Coords.ToGame(sm.At + sm.Velocity * from) + DamageSmoke.OriginNow;
+                    float lum = smoke.R * 0.3f + smoke.G * 0.59f + smoke.B * 0.11f;
+                    DamageSmoke.Adopt(g, Coords.ToGame(sm.Velocity), size * Mathf.Lerp(1.3f, 3.2f, 0.4f), 0.32f, Mathf.Clamp(1f - lum, 0.15f, 0.8f), GD.Randf(), lifeS, seen, 0.6f * lifeS);
+                }
             }
         var l = new OmniLight3D { LightColor = new Color(1f, 0.65f, 0.3f), LightEnergy = 6f * fire, OmniRange = size * 5f, ShadowEnabled = false };
         AddChild(l);

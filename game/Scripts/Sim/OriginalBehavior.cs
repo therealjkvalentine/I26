@@ -56,6 +56,7 @@ public static class OriginalBehavior
         HeadlampThrow.Percent = s.HeadlampThrow;
         MuzzleReach.Percent = s.MuzzleReach;
         SmokeLinger.Percent = s.SmokeLinger;
+        SmokeHaze.Long = s.SmokeHaze;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 

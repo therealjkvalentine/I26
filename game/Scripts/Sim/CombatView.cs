@@ -1137,6 +1137,13 @@ public partial class CombatView : Node3D
                 _smoke.Emit(r, headSim - dirSim * 1.2f, step / SimClock.Tick);
                 _smoking.Add(r);
             }
+            // Smoke Linger Long (SmokeHaze): a mortar shell leaves a thin smoke trail to hang in the air (the 1997 look draws the
+            // original's contrail behind it; the modern look none otherwise)
+            if (modern && r.Kind is 4 or 5 or 7 && SmokeHaze.On)
+            {
+                _smoke.Emit(r, headSim - dirSim * 0.5f, step / SimClock.Tick, 0.6f, 0.26f);
+                _smoking.Add(r);
+            }
             if (body is null) continue;
             // the round itself: a bar along its flight (in the modern look only rockets keep a body, and the guns' line with MG Tracers Original)
             body.Visible = model is null && (!modern || rocket || lineMg);

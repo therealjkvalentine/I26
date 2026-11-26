@@ -7,7 +7,7 @@ public enum GraphicsRow
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
-    RadarSweep,
+    RadarSweep, SmokeLinger,
 }
 
 /// <summary>
@@ -40,7 +40,7 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
-        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
+        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
     /// <summary>
@@ -179,6 +179,7 @@ public static class GraphicsPages
             case GraphicsRow.Garage3D: t.Garage3D = f.Garage3D; break;
             case GraphicsRow.MenuWidth: t.MenuWide = f.MenuWide; break;
             case GraphicsRow.SmokeLighting: t.SmokeLighting = f.SmokeLighting; break;
+            case GraphicsRow.SmokeLinger: t.SmokeHaze = f.SmokeHaze; break;
             case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             case GraphicsRow.TerrainShadows: t.TerrainShadows = f.TerrainShadows; break;
             // one row: off, the original's 3D card or its software renderer

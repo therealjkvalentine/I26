@@ -68,7 +68,7 @@ void fragment() {
 	float a = smoothstep(erode, erode + mix(0.7, 0.35, v_c.z), shape + 0.12);
 	a *= smoothstep(0.0, 0.04, life);
 	a *= 1.0 - smoothstep(0.7, 0.98, rad);   // the noise can lift the shape past the quad's edge: never let it reach it
-	a *= v_c.y * (1.0 - 0.35 * life) * (0.55 + 0.9 * n);   // lumpy inside as well
+	a *= v_c.y * (1.0 - 0.35 * min(life, 1.0)) * (0.55 + 0.9 * n);   // lumpy inside as well; past 1 the haze of Smoke Linger Long (SmokeHaze)
 	if (a < 0.004) discard;   // most of a quad's corners: no lighting, no depth read
 	// fake sphere normal, half-lambert from the sun
 	vec3 nrm = normalize(vec3(d.x, d.y, sqrt(max(1.0 - rad * rad, 0.05))) + vec3((n - 0.5) * 0.5));

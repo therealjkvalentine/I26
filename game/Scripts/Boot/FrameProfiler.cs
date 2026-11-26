@@ -67,10 +67,11 @@ public partial class FrameProfiler : Node
     private double _simMs, _nodesMs, _start, _lastWall;
 
     /// <summary>The order passes print in; anything else lands in "other".</summary>
-    private static readonly string[] Passes = ["shadows", "depth", "ssao", "opaque", "sky", "msaa", "transparent", "post", "setup", "2d", "other"];
+    private static readonly string[] Passes = ["shadows", "depth", "ssao", "opaque", "sky", "msaa", "transparent", "post", "setup", "2d", "smoke", "other"];
 
     private static string PassOf(string name) => name switch
     {
+        "Smoke Layer" => "smoke",   // SmokeLayer's own passes, timed with --gpu-profile
         _ when name.Contains("Shadow") && !name.StartsWith("Setup") => "shadows",
         _ when name.Contains("Depth Pre-Pass") => "depth",
         _ when name.Contains("SSAO") || name.Contains("SSIL") => "ssao",
@@ -125,7 +126,7 @@ public partial class FrameProfiler : Node
         double gpuTotal = ReadTimestamps();
         bool warm = _skipMs > 0 && now - (_loadedAt > 0 ? _loadedAt : _start) < _skipMs;
         if (_frames <= _skip || warm) { _simMs = 0; _gc0 = GC.CollectionCount(0); return; }
-        if (_firstMeasured == 0) _firstMeasured = now;
+        if (_firstMeasured == 0) { _firstMeasured = now; GD.Print($"frame-profile: window starts at stopwatch {now:0.0} ms"); }   // t_ms + this: the clock of an in-run A | B (I76_SMOKE_HAZE_AB)
         int n0 = _frames - _skip - 1;   // frames measured before this one: the collections so far, per 100 frames
         foreach (var p in Passes) Add("gpu." + p, _frame.GetValueOrDefault(p));
         foreach (var (k, v) in _frame) if (k.StartsWith("vp")) Add("gpu." + k, v);

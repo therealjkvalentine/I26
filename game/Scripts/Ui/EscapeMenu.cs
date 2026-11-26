@@ -611,6 +611,8 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.CrashBlur: return Setting(Cycle, "Crash Blur", 0, 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: live);
             // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's, live
             case GraphicsRow.SmokeLighting: return Setting(Cycle, SmokeLightingRow.Label, 0, 2, SmokeLightingRow.Names, SmokeLightingRow.Index, SmokeLightingRow.Put, apply: live);
+            // [port] smoke_haze (SmokeLingerRow): the modern look's, live (the haze starts with the puffs that end after it)
+            case GraphicsRow.SmokeLinger: return Setting(Cycle, SmokeLingerRow.Label, 0, 2, SmokeLingerRow.Names, SmokeLingerRow.Index, SmokeLingerRow.Put, apply: live);
             case GraphicsRow.HeatShimmer: return Setting(Cycle, HeatShimmerRow.Label, 0, 3, HeatShimmerRow.Names, HeatShimmerRow.Index, HeatShimmerRow.Put, apply: live);
             // [port] terrain_shadows (TerrainShadowsRow): the modern look's, live (a bake starts on a worker and eases in)
             case GraphicsRow.TerrainShadows: return Setting(Cycle, TerrainShadowsRow.Label, 0, 3, TerrainShadowsRow.Names, TerrainShadowsRow.Index, TerrainShadowsRow.Put, apply: live);
