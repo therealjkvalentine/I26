@@ -31,6 +31,10 @@ public static class GcPacer
         RenderingServer.FramePostDraw += AfterDraw;
     }
 
+    /// <summary>At most one paced collection in this long (seconds): a burst of allocation (a load's workers) is left to the runtime.</summary>
+    private const double MinInterval = 0.5;
+    private static double _at;
+
     private static void AfterDraw()
     {
         long now = System.GC.GetTotalAllocatedBytes(false);
@@ -38,6 +42,11 @@ public static class GcPacer
         // a collection the runtime made by itself since: count from there
         if (count != _seen) { _seen = count; _last = now; return; }
         if (now - _last < (long)(BudgetMb * 1048576)) return;
+        // only in play: a mission's build (its workers allocate hundreds of MB) is left to the runtime's own schedule
+        if (I76.Game.World.MissionBuilder.LastStage != "mission going") return;
+        double t = System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
+        if (t - _at < MinInterval) return;
+        _at = t;
         System.GC.Collect(0, System.GCCollectionMode.Forced, blocking: true, compacting: false);
         _seen = System.GC.CollectionCount(0);
         _last = System.GC.GetTotalAllocatedBytes(false);
