@@ -202,15 +202,26 @@ public class TerrainShadeBakeTests
         Assert.Equal((0.25, 0.25), p.Centre(1, 1));
     }
 
-    /// <summary>Terrain Shadows: off in a fresh block and in a file without the key, written only when on, an unknown word off.</summary>
+    /// <summary>Terrain Shadows: On in a fresh block and in a file without the key (older files), every value written (an explicit Off kept), an unknown word Off.</summary>
     [Fact]
-    public void TheRowIsOffUnlessChosenAndSurvivesTheFile()
+    public void TheRowIsOnUnlessChosenOffAndSurvivesTheFile()
     {
         var s = new ShellSettings();
-        Assert.Equal(TerrainShadowsRow.Off, s.TerrainShadows);
-        Assert.False(s.Write(null).HasSectionKey("port", "terrain_shadows"));
-        Assert.Equal(TerrainShadowsRow.Off, ShellSettings.Read(ShellFileCompatTests.Parse(ShellFileCompatTests.ForkMainFile)).TerrainShadows);
-        foreach (var (v, word) in new[] { (TerrainShadowsRow.On, "on"), (TerrainShadowsRow.Fine, "fine") })
+        Assert.Equal(TerrainShadowsRow.On, s.TerrainShadows);
+        var fresh = s.Write(null);
+        Assert.Equal("on", fresh.GetValue("port", "terrain_shadows").ToString());
+        Assert.Equal(TerrainShadowsRow.On, ShellSettings.Read(fresh).TerrainShadows);
+        // older files (the key absent) get On; the default file is the same
+        var old = ShellFileCompatTests.Parse(ShellFileCompatTests.ForkMainFile);
+        Assert.False(old.HasSectionKey("port", "terrain_shadows"));
+        Assert.Equal(TerrainShadowsRow.On, ShellSettings.Read(old).TerrainShadows);
+        // a player who chose Off stays Off through write and read, and the other settings are not touched
+        var off = new ShellSettings { TerrainShadows = TerrainShadowsRow.Off, SmokeLighting = true }.Write(null);
+        Assert.Equal("off", off.GetValue("port", "terrain_shadows").ToString());
+        var back = ShellSettings.Read(off);
+        Assert.Equal(TerrainShadowsRow.Off, back.TerrainShadows);
+        Assert.True(back.SmokeLighting);
+        foreach (var (v, word) in new[] { (TerrainShadowsRow.On, "on"), (TerrainShadowsRow.Fine, "fine"), (TerrainShadowsRow.Off, "off") })
         {
             var file = new ShellSettings { TerrainShadows = v }.Write(null);
             Assert.Equal(word, file.GetValue("port", "terrain_shadows").ToString());
@@ -219,9 +230,9 @@ public class TerrainShadeBakeTests
         Assert.Equal(TerrainShadowsRow.Off, TerrainShadowsRow.FromFile("lots"));
         Assert.Equal(TerrainShadowsRow.Fine, TerrainShadowsRow.FromFile(" Fine "));
         Assert.Equal(["Off", "On" + ShellSettings.PortMark, "Fine" + ShellSettings.PortMark], TerrainShadowsRow.Names);
-        TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.On, s.TerrainShadows);
         TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.Fine, s.TerrainShadows);
         TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.Off, s.TerrainShadows);
+        TerrainShadowsRow.Step(s); Assert.Equal(TerrainShadowsRow.On, s.TerrainShadows);
         Assert.Equal((0f, 2.5f, 1.25f), (TerrainShadowsRow.Texel(0), TerrainShadowsRow.Texel(1), TerrainShadowsRow.Texel(2)));
     }
 }
