@@ -9,7 +9,9 @@
 // (fading in, a burst piece fading out, by the same dither), and nothing sways, parts round a car or carries dust at its foot.
 shader_type spatial;
 #include "res://Shaders/cab_clip.gdshaderinc"
-render_mode cull_disabled, world_vertex_coords;
+// alpha-to-coverage (with MSAA): a card's edge covers the samples its alpha does, so leaves and blades stop sparkling at their
+// edges; without MSAA the cut is the scissor's at half, as before
+render_mode cull_disabled, world_vertex_coords, alpha_to_coverage;
 
 uniform sampler2D atlas : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 // the mission's light on the land: a small pull toward its ground colour, and dust on the lowest parts
@@ -154,8 +156,12 @@ void fragment() {
 	// scorched by a fire (brush impacts): charred toward black, the leaves first
 	col = mix(col, vec3(0.045, 0.04, 0.035), v_vary.y * (0.7 + 0.25 * UV2.y));
 	ALBEDO = col;
-	ALPHA = tex.a;
+	// the opaque pipeline kept by the scissor (object.gdshaderinc's keyed faces): the alpha's edge at half, one screen pixel wide,
+	// handed to alpha-to-coverage; at or over half it is the same cut as the scissor alone
+	ALPHA = clamp((tex.a - 0.5) / max(fwidth(tex.a), 1e-4) + 0.5, 0.0, 1.0);
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
+	ALPHA_ANTIALIASING_EDGE = 0.0;
+	ALPHA_TEXTURE_COORDINATE = vec2(0.0);
 	// the authored normals either side (Godot turns them round on back faces): foliage and blades shade as their crown or tuft
 	if (!FRONT_FACING) NORMAL = -NORMAL;
 	ROUGHNESS = 0.82;

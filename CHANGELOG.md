@@ -109,6 +109,7 @@ Network games use upstream's protocol 26: this version plays with upstream's 0.1
 - The cockpit radar beeps steadily while you hold a target, as the original's does: every listed car between where the sweep stopped and your target pings (the radar was silent while a target was held). Each ping is the radar sample's one voice, so the sweep's pings no longer overlap (#154).
 
 ### New
+- Modern look: the sky's colour gradients at dawn, dusk and night are drawn without banding (the frame is dithered after the tonemap, the mirrors too), and the shrubs' and grass's leaf edges are smoothed by the Anti-Aliasing row's multisampling, so they no longer sparkle as they sway. The 1997 look is unchanged.
 - Interstate '76's main menu: when the Nitro Pack is installed too, TRIP's row has NITRO after LOAD BOOKMARK, which goes straight to the Nitro Pack's character choice and scenario forms in the same window (no chooser, intro or restart) and plays its missions as the Nitro Pack's own menu does, with its progress; BACK, or a mission's end, returns to Interstate '76's menu with TRIP open.
 - Head tracking reads opentrack's FreeTrack output on Windows as well as its UDP output, so opentrack's default profile works without an I26 profile, and Head Tracking, Head Track Sens. and the Opentrack rows are on the Controls sheet, which the Esc menu opens in a mission, instead of Play Options.
 - Map editor: the surface table, so a map can have ice and ground that damages cars, and the surface map can be seen.
