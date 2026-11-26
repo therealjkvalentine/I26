@@ -67,7 +67,9 @@ public partial class DamageView : Node3D
         // Smoke Lighting's and Heat Shimmer's mission (the modern look's; off by default)
         SmokeLight.SetMission(Builder.Light, Builder.SkyAverage);
         I76.Game.World.HeatShimmer.SetMission(Builder.Light, Builder.ActPalette, Builder.Settings?.Ground);
-        AddChild(new I76.Game.World.HeatShimmer { Name = "HeatShimmer" });
+        I76.Game.World.HeatShimmer.Sky = Builder.SkyAverage.SrgbToLinear();
+        I76.Game.World.HeatShimmer.SetRoads(Builder.RoadQuads, Builder.RoadPieceTris, Builder.RoadTextures);
+        AddChild(new I76.Game.World.HeatShimmer { Name = "HeatShimmer", Origin = Origin });
         yield return null;
         AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });
         SetProcess(true);
