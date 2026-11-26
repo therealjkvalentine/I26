@@ -31,13 +31,16 @@ public class TyreChoiceWheelTests
         {
             var db = PartsDatabase.Build(vfs);
             var tyres = db.Parts.Where(p => p.Type == 5 && !p.IsEmpty).ToList();
-            foreach (var n in vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order())
+            // every car is checked alone (its own inventory and its own scratch car in the overlay), so the cars run side by side
+            var names = vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order().ToList();
+            Parallel.For(0, names.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 12) }, ni =>
             {
+                var n = names[ni];
                 var stock = TripCar.FromVcf(vfs.Read(n), c => VehicleFactory.EngineCompId(vfs, c));
-                if (!Named(stock.Wdf[0]) || !vfs.Exists(stock.Vdf)) continue;
+                if (!Named(stock.Wdf[0]) || !vfs.Exists(stock.Vdf)) return;
                 var baseModel = new ModelAssembler(vfs).Assemble(n);
-                if (baseModel is null) continue;
-                cars++;
+                if (baseModel is null) return;
+                Interlocked.Increment(ref cars);
                 foreach (var tyre in tyres)
                 {
                     var inv = TripInventory.FromCar(stock, db, vfs);
@@ -60,7 +63,7 @@ public class TyreChoiceWheelTests
                         Assert.Equal(vfs.Exists(want) ? want : stock.Wdf[axle], car.Wdf[axle], ignoreCase: true);
                     }
                     // and the model built from the file the shell writes
-                    const string Scratch = "zztyre.vcf";
+                    string Scratch = $"zztyre{ni}.vcf";
                     AssetVfs.Addon[Scratch] = car.ToVcf();
                     try
                     {
@@ -71,9 +74,9 @@ public class TyreChoiceWheelTests
                             Assert.True(m.WheelGeos[slot].Intact.Name == g.Intact.Name, $"{n} with {tyre.Stem}: slot {slot} draws {m.WheelGeos[slot].Intact.Name}, the car's own is {g.Intact.Name}");
                     }
                     finally { AssetVfs.Addon.TryRemove(Scratch, out _); }
-                    picks++;
+                    Interlocked.Increment(ref picks);
                 }
-            }
+            });
         }
         Assert.True(cars > 60 && picks > 1000, $"{cars} cars, {picks} picks");
     }

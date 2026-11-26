@@ -139,14 +139,22 @@ public partial class CoopNetTests(ITestOutputHelper output)
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private double _input, _frame;
 
-        public Player Join(string name, bool standby = false, string car = Protocol.MissionCar)
+        public Player Join(string name, bool standby = false, string car = Protocol.MissionCar) => Joined(Connect(name, standby, car));
+
+        /// <summary>Connects without waiting, so several players can ask in before the server starts the mission (it holds the start for games still loading).</summary>
+        public Player Connect(string name, bool standby = false, string car = Protocol.MissionCar)
         {
             var p = new Player(name, install);
             p.Client.Log += m => output.WriteLine($"[{name}] {m}");
             if (standby) { p.Standby = new MigrationStandby(install, m => output.WriteLine($"[{name}] {m}")); p.Client.Standby = p.Standby; }
             p.Client.Connect("127.0.0.1", Server.Port, name, car);
             Players.Add(p);
-            Assert.True(Wait(() => p.Client.State == ClientState.Joined && p.Mirror is not null), $"{name} did not join: {p.Client.State} {p.Client.Reason}");
+            return p;
+        }
+
+        public Player Joined(Player p)
+        {
+            Assert.True(Wait(() => p.Client.State == ClientState.Joined && p.Mirror is not null), $"{p.Name} did not join: {p.Client.State} {p.Client.Reason}");
             return p;
         }
 
@@ -196,9 +204,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     /// player's leave-map warning is that player's alone, and the player comes back beside a teammate; a destroyed player
     /// comes back after the delay; the mission's end (a failure, as failAllObj lands one) reaches everyone, and the game ends.
     /// </summary>
-    [Theory]
-    [InlineData("i76", "t01")]
-    [InlineData("nitro", "p01")]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void AStoryMissionPlaysOverTheNetwork(string game, string mission)
     {
         if (InstallFor(game) is not { } install) return;
@@ -304,13 +310,17 @@ public partial class CoopNetTests(ITestOutputHelper output)
     /// A car the server spawns mid-mission (a Co-op Scaling copy: no client built it with the mission) is damaged on the
     /// client as on the server: its health bar goes down with each hit, not white until it dies (#194).
     /// </summary>
-    [Fact]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void ACarSpawnedMidMissionShowsItsDamageOnTheClient()
     {
         if (HostTests.InstallDir is not { } install) return;
         using var g = Start(install, "t01", coopScale: 1);
-        var hal = g.Join("Hal");
-        var ann = g.Join("Ann");
+        // both ask in before either has loaded: a copy is made only if the second human is there when the script sets the cars going,
+        // which joining one after the other leaves to the machine's speed (it failed on a busy machine, in 1 baseline run of 3)
+        var hal = g.Connect("Hal");
+        var ann = g.Connect("Ann");
+        g.Joined(hal);
+        g.Joined(ann);
         List<int> Copies() => g.Server.Invoke(h => h.Setup.Script!.Host.Entities.Where(e => e.ExtraOf is not null && e.Vehicle is not null)
             .Select(e => e.Vehicle!.NetId & 0xffffff).ToList());
         Assert.True(g.Wait(() => Copies().Count > 0), "the server spawned no copy");
@@ -334,7 +344,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     /// A gate the script slides: the client's colliders (the ones its car is predicted against) follow the snapshots, so the
     /// predicted car meets the gate where the host's does, not at its old place.
     /// </summary>
-    [Fact]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void AGateTheScriptSlidesMovesTheClientsColliderToo()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -362,7 +372,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     /// ticking (no timer, nobody hurt), the clients draw on nothing. Another player's copy being over does not end it; the host's
     /// does, for everyone, and the game goes on. A player who joins during it has it too.
     /// </summary>
-    [Fact]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void AMovieStandsTheGameStillForEveryoneUntilTheHostsCopyIsOver()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -442,9 +452,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     }
 
     /// <summary>Eight players in one story mission (the most it takes): each in its own seat and car, none on another, the ninth turned away, and the mission's end reaches all eight.</summary>
-    [Theory]
-    [InlineData("i76", "t01")]
-    [InlineData("nitro", "p01")]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void EightPlayersShareAStoryMission(string game, string mission)
     {
         if (InstallFor(game) is not { } install) return;
@@ -474,11 +482,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     /// group come from the savestate, and the host's inputs after it, replayed in a mission built afresh, hash the same as
     /// the host's game.
     /// </summary>
-    [Theory]
-    [InlineData("i76", "t01", false)]
-    [InlineData("nitro", "p01", false)]
-    [InlineData("i76", "t01", true)]
-    [InlineData("nitro", "p01", true)]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void TheSuccessorsReplayOfAMissionIsTheHostsGame(string game, string mission, bool chosenCars)
     {
         if (InstallFor(game) is not { } install) return;
@@ -641,7 +645,7 @@ public partial class CoopNetTests(ITestOutputHelper output)
     }
 
     /// <summary>Velocity's intro over the network: the bus and the other cars the cut-scene shows stay on the ground, on the server and as a client draws them.</summary>
-    [Fact]
+    // Runs as a separate class (CoopNetShards.cs): xUnit runs one class's tests one after another.
     public void CarsInViewOfTheIntroStayOnTheGroundOnTheClient()
     {
         if (Nitro is not { } install) return;

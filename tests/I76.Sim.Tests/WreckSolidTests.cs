@@ -359,18 +359,22 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>Every car file of the install as the wreck, the rule on: the Piranha as the player's car and as a computer's.</summary>
-    [Fact]
+    // Runs as a separate class (WreckSolidShards.cs): xUnit runs one class's tests one after another.
     public void TheSweepOverEveryCarOfTheInstallWithWrecksStayingSolid()
     {
         if (InstallDir is null) return;
         var vfs = new AssetVfs(new GameInstall(InstallDir));
-        var rows = new List<Outcome>();
-        foreach (var vcf in vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase))
+        var cars = vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToList();
+        // every car is its own set of cases (a fresh rig and fixed seeds each), so the cars run side by side; the rows keep the car order
+        var perCar = new List<Outcome>[cars.Count];
+        Parallel.For(0, cars.Count, new ParallelOptions { MaxDegreeOfParallelism = System.Math.Clamp(Environment.ProcessorCount / 2, 1, 12) }, ci =>
         {
+            var vcf = cars[ci];
+            var carRows = perCar[ci] = [];
             Vehicle probe;
             try { probe = VehicleFactory.Create(vfs, vcf); }
-            catch (Exception) { continue; }
-            if (probe.IsHeli || probe.IsEmplacement || probe.ObjectClass != 1 || probe.Build is null) continue;
+            catch (Exception) { return; }
+            if (probe.IsHeli || probe.IsEmplacement || probe.ObjectClass != 1 || probe.Build is null) return;
             foreach (var death in new[] { Death.Destroyed, Death.Driver, Death.Shot })
                 foreach (bool human in new[] { true, false })
                     foreach (float age in new[] { 7.5f, 11f, 30f })
@@ -380,24 +384,29 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
                                 var player = VehicleFactory.Create(vfs, "vppirna1.vcf");
                                 var victim = VehicleFactory.Create(vfs, vcf);
                                 victim.Health = VehicleDamage.Create(victim, victim.Build!, false, new CrtRand(7));
-                                rows.Add(Run(new Case(vcf, death, age, h + (death == Death.Driver ? 1 : 0), s, Solid: true, Human: human), player, victim));
+                                carRows.Add(Run(new Case(vcf, death, age, h + (death == Death.Driver ? 1 : 0), s, Solid: true, Human: human), player, victim));
                             }
-        }
+        });
+        var rows = perCar.SelectMany(r => r).ToList();
         output.WriteLine($"{rows.Select(r => r.Case.Body).Distinct().Count()} car files");
         Report("install-solid", rows);
         AssertWrecksStaySolid(rows);
     }
 
     /// <summary>Every car file of the install as the wreck, the player's car the Piranha.</summary>
-    [Fact]
+    // Runs as a separate class (WreckSolidShards.cs): xUnit runs one class's tests one after another.
     public void TheSweepOverEveryCarOfTheInstall()
     {
         if (InstallDir is null) return;
         var vfs = new AssetVfs(new GameInstall(InstallDir));
-        var rows = new List<Outcome>();
-        var skipped = new List<string>();
-        foreach (var vcf in vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase))
+        var cars = vfs.Names.Where(n => n.EndsWith(".vcf", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToList();
+        // every car is its own set of cases (a fresh rig and fixed seeds each), so the cars run side by side; the rows keep the car order
+        var perCar = new List<Outcome>[cars.Count];
+        var skippedBy = new string?[cars.Count];
+        Parallel.For(0, cars.Count, new ParallelOptions { MaxDegreeOfParallelism = System.Math.Clamp(Environment.ProcessorCount / 2, 1, 12) }, ci =>
         {
+            var vcf = cars[ci];
+            var carRows = perCar[ci] = [];
             Vehicle Make()
             {
                 var v = VehicleFactory.Create(vfs, vcf);
@@ -405,8 +414,8 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
             }
             Vehicle probe;
             try { probe = Make(); }
-            catch (Exception e) { skipped.Add($"{vcf} ({e.GetType().Name})"); continue; }
-            if (probe.IsHeli || probe.IsEmplacement || probe.ObjectClass != 1 || probe.Build is null) { skipped.Add($"{vcf} (class {probe.ObjectClass})"); continue; }
+            catch (Exception e) { skippedBy[ci] = $"{vcf} ({e.GetType().Name})"; return; }
+            if (probe.IsHeli || probe.IsEmplacement || probe.ObjectClass != 1 || probe.Build is null) { skippedBy[ci] = $"{vcf} (class {probe.ObjectClass})"; return; }
             foreach (var death in new[] { Death.Destroyed, Death.Driver, Death.Shot, Death.Moving, Death.Oiled })
                 foreach (float age in new[] { 3f, 7.5f, 11f, 30f })
                     for (int h = 0; h < 8; h += 2)
@@ -415,9 +424,11 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
                             var player = VehicleFactory.Create(vfs, "vppirna1.vcf");
                             var victim = Make();
                             victim.Health = VehicleDamage.Create(victim, victim.Build!, false, new CrtRand(7));
-                            rows.Add(Run(new Case(vcf, death, age, h + (death == Death.Driver ? 1 : 0), s), player, victim));
+                            carRows.Add(Run(new Case(vcf, death, age, h + (death == Death.Driver ? 1 : 0), s), player, victim));
                         }
-        }
+        });
+        var rows = perCar.SelectMany(r => r).ToList();
+        var skipped = skippedBy.Where(x => x is not null).ToList();
         output.WriteLine($"{rows.Select(r => r.Case.Body).Distinct().Count()} car files; not cars: {string.Join(", ", skipped)}");
         Report("install", rows);
         AssertTheOriginalsRule(rows);
