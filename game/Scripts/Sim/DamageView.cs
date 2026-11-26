@@ -66,7 +66,7 @@ public partial class DamageView : Node3D
         AddChild(new SmokeLayer { Name = "SmokeLayer" });   // the modern look's smoke is drawn and composited there, capped
         // Smoke Lighting's and Heat Shimmer's mission (the modern look's; off by default)
         SmokeLight.SetMission(Builder.Light, Builder.SkyAverage);
-        I76.Game.World.HeatShimmer.SetMission(Builder.Light, Builder.ActPalette);
+        I76.Game.World.HeatShimmer.SetMission(Builder.Light, Builder.ActPalette, Builder.Settings?.Ground);
         AddChild(new I76.Game.World.HeatShimmer { Name = "HeatShimmer" });
         yield return null;
         AddChild(new DamageSmoke { Cars = Cars, Builder = Builder, Origin = Origin, SceneLight = SceneLight, Alpha = Alpha, Name = "DamageSmoke" });

@@ -168,6 +168,8 @@ public partial class DevPanel : Control
         col.AddChild(Row(_freeze, Button("Step 1 tick", () => Say(Host.DevStep(1))), Button("Step 10", () => Say(Host.DevStep(10))), new Label { Text = "speed", TooltipText = DevTips.Control("speed") ?? "", MouseFilter = MouseFilterEnum.Stop }, _scale));
 
         // the devices' signals over the last seconds before the panel opened, and the settings without a row (docs/playing.md)
+        // Heat Shimmer's numbers, live and never saved (DevHeat), at the column's top: the tuning the owner asked for, in view at once
+        DevHeat.Build(col2, Say);
         col2.AddChild(Heading($"Signals (the last {DevSignals.Window:0} s)"));
         var shown = new CheckBox { Text = "show over the game when this panel is closed", TooltipText = DevTips.Control("show over the game when this panel is closed") ?? "", ButtonPressed = Host.DevSignalsShown };
         shown.Toggled += on => Host.DevSignalsShown = on;
