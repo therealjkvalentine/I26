@@ -88,7 +88,7 @@ public class PanelAspectTests
             if (PanelAspect.Of(interior, "zsy_", Size("zsy_").W, Size("zsy_").H, Hi) is { } sys) Assert.InRange(sys.Aspect, 0.95f, 1.05f);
         }
         Assert.True(cars > 20, $"{cars} cars with a specials panel");
-        var piranha = new ModelAssembler(vfs) { Detail = '5' }.Assemble("vppirna4.vcf")!;
+        var piranha = new ModelAssembler(vfs) { Detail = '5' }.Assemble("vppirna1.vcf")!;
         Assert.Equal(1.629f, PanelAspect.Of(piranha, "zbks_", 256, 128, p => p.NodeName.EndsWith('6'))!.Value.Aspect, 0.002f);
     }
 }

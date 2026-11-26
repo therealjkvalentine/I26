@@ -30,7 +30,7 @@ public class TickBudgetTests
     /// Recorded again on 2026-11-26 (main 1cb0c5ce) on a stock install: the first record was made on an install whose addon\
     /// held garage-saved copies of vppirna1.vcf and the like (the player's car of these missions, not in the install identity),
     /// and every later change to what the sim computes moves these (the upstream merge of 2026-11-18 moved T05's and T06's at
-    /// tick 0). A change that is meant to leave the sim alone keeps them; one that changes it on purpose records them again.
+    /// tick 0, the smarter A.I. of 2026-11-25 T01's). A change that is meant to leave the sim alone keeps them; one that changes it on purpose records them again.
     /// </summary>
     private const int Ticks = 1100;
 
