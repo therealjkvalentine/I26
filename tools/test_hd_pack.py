@@ -81,6 +81,22 @@ class Steps(unittest.TestCase):
         self.assertNotEqual(k1, b.key(dict(st, args=["b"])))
         self.assertEqual(k2, b.key(dict(st, note="words")), "the note is not part of the key")
 
+class Menu(unittest.TestCase):
+    def test_menu_runs_menu_pack_build_with_the_common_options_and_the_world_export(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            ex = os.path.join(d, "world-export"); os.makedirs(ex)
+            open(os.path.join(ex, "bottom-up.txt"), "w").close()
+            a = args(work=os.path.join(d, "w"), out=os.path.join(d, "o"), export=ex, only="shellbg30.webp", list_steps=False)
+            r = json.load(open(os.path.join(hp.RECIPES, "menu.json"), encoding="utf-8"))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out): hp.delegate("menu", r, a)
+            cmd = out.getvalue()
+            self.assertIn("menu-pack.py build --install i", cmd)
+            for want in ("--work " + os.path.join(d, "w", "menu"), "--out " + os.path.join(d, "o"), "--device cpu", "--models-dir m",
+                         "--world-export " + ex, "--only shellbg30.webp"):
+                self.assertIn(want, cmd)
+
 class Finish(unittest.TestCase):
     def test_finish_writes_the_packs_papers(self):
         with tempfile.TemporaryDirectory() as d:

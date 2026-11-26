@@ -125,6 +125,15 @@ def sha256(path, cache={}):
     return cache[path]
 
 
+def read_recipe(path):
+    """The recipe, its "models" (the files it uses) resolved from tools/hd-recipes/models.json, the one list of pinned models,
+    by each pin's "model" name (the name the steps use)."""
+    with open(path, encoding="utf-8") as f: recipe = json.load(f)
+    with open(os.path.join(os.path.dirname(os.path.abspath(path)), "models.json"), encoding="utf-8") as f: pins = json.load(f)["models"]
+    recipe["models"] = {pins[file]["model"]: dict(pins[file], file=file) for file in recipe["models"]}
+    return recipe
+
+
 def model_path(recipe, name, models_dir):
     """The model file, found in models_dir (or downloaded from the recipe's url) and checked against its SHA-256."""
     info = recipe["models"][name]
@@ -401,7 +410,7 @@ def versions():
 
 
 def build(args):
-    with open(args.recipe, encoding="utf-8") as f: recipe = json.load(f)
+    recipe = read_recipe(args.recipe)
     if not args.export:
         if not args.install: sys.exit("build needs the export folder, or --install DIR to make one")
         args.export = os.path.join(args.work or os.path.join(args.out, "work"), "export")

@@ -38,6 +38,12 @@
       "page": "https://github.com/Venomalia/HDcube/releases/tag/4.0",
       "zip": "4xHDcube4Compact.zip", "member": "Models/HDcube/4xHDcube-Alpha.pth",
       "size": 2500870, "sha256": "1781430c1613a037aed1f4eb7493118bff030e0fd5a2bbff641d9bf23f990d88"
+    },
+    "RealESRGAN_x4plus_anime_6B.pth": {
+      "model": "RealESRGAN_x4plus_anime_6B", "by": "Xintao Wang et al. (Real-ESRGAN)", "license": "BSD-3-Clause", "commercial": true,
+      "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+      "page": "https://github.com/xinntao/Real-ESRGAN",
+      "size": 17938799, "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da"
     }
   },
   "archives": {

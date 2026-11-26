@@ -100,12 +100,14 @@ Set both rows to **1997**, or press F12 for the 1997 look (which always draws th
 
 The quick route runs one model over everything. The packs shared in our testing (release 2026.11.23) took more steps, each
 written down below in the order they were really run. Nothing in them was painted by hand: every step is a command or a
-small spec in this repository, and the models are pinned by their SHA-256 in `tools/hd-recipes/models.json` (the tools
-refuse a model file of the same name with another hash). What was manual is which textures each step covers: those choices
+small spec in this repository, and the models are pinned by their SHA-256 in `tools/hd-recipes/models.json`, one list for
+the world and the menu packs (the tools refuse a model file of the same name with another hash). What was manual is which
+textures each step covers: those choices
 are the name lists in `tools/hd-recipes/lists/`.
 
 **In one command.** `tools/hd-pack.py` runs the steps below from their recipes, `tools/hd-recipes/world-4x.json` and
-`world-8x.json` (the menu pack's `menu.json` has its own runner, which `hd-pack.py menu` calls):
+`world-8x.json` (the menu pack's `menu.json` has its own runner, `tools/menu-pack.py build`, which `hd-pack.py menu` runs
+with the same options: see [The HD menu art](#the-hd-menu-art-tex-menu)):
 
     python tools/hd-pack.py world-4x --install "C:\GOG Games\Interstate 76" --work i26-hd-work --out i26-hd-packs
     python tools/hd-pack.py all --install DIR --work i26-hd-work --out i26-hd-packs      the 4x, the 8x and the menu pack
@@ -177,7 +179,9 @@ because the tool skips a texture already in `--out`):
 9. **The steering wheel's and the arms' frames**: `key-edge` as in step 6 for `zswls*,zhl45*,zhr45*,zsl45*,zsr45*` (270),
    then `--recut FIELDS --recut-edge 0.9`.
 10. **Lettering and the other fixes**: `text-redraws.py SRC --pack PACK`: the 113 lettered textures set again from free fonts
-   (the specs in `tools/text-redraws/`), and the three fixes that are specs of the same tool: the pumps' counters
+   (the specs in `tools/text-redraws/`; specs accepted since the release, such as the road signs of
+   [Fixing a lettered texture](#fixing-a-lettered-texture), letter more, so a rebuild differs from the release on those),
+   and the three fixes that are specs of the same tool: the pumps' counters
    (`from-original`), the barn doors' braces (`bands`: `hb_1bdf1`, `hj_1bdf1`, drawn as straight bands fitted to the
    original) and the factory forecourt's border (`border-recolour`: `ca_1lt_6`, a colour slip in the original's outer texels).
    Run it after every step that rewrote a lettered texture, after deleting the pack's `.text-base/` copies of those.
@@ -216,11 +220,21 @@ install by one tool and a recipe, `tools/hd-recipes/menu.json`, which lists ever
 **What it needs, on top of the quick route's:** the .NET 8 SDK (for the export, `tools/I76.Cli`), `pip install scipy
 opencv-python-headless scikit-image potracer resvg-py`, the models `4xTextures_GTAV_rgt-s_dither.pth` (the quick route's) and
 `RealESRGAN_x4plus_anime_6B.pth` (by Xintao Wang et al., BSD-3-Clause, 18 MB: the fire photo inside the mission select
-page's logo); the tool downloads each into `--models-dir` and checks its SHA-256, and **Windows' Arial** (`arial.ttf`, `arialbd.ttf`,
+page's logo); the tool downloads each into `--models-dir` and checks its SHA-256 against `tools/hd-recipes/models.json`
+(the recipe names the files, the pins are there), and **Windows' Arial** (`arial.ttf`, `arialbd.ttf`,
 `ariali.ttf` in the system's Fonts folder): the pages' printed words are set again in it, as in the shared pack. Arial is
 not free to share, so it is not in this repository; on Linux or macOS set `I26_ARIAL_DIR` to a folder with those three files
 from a Windows copy you own, or the lettering step stops and says so. The mission maps also need the world export the quick
 route makes (`i26-hd-work/export`).
+
+In one command, beside the world packs (the export of the menus in `i26-hd-work\menu\export`, the world export the maps
+need in `i26-hd-work\export`, made first when it is not there yet; the pack in `i26-hd-packs	ex-menu`):
+
+```powershell
+.venv\Scripts\python tools\hd-pack.py menu --install "C:\GOG Games\Interstate 76" --work i26-hd-work --out i26-hd-packs
+```
+
+or the two steps by hand:
 
 ```powershell
 .venv\Scripts\python tools\menu-pack.py export --install "C:\GOG Games\Interstate 76" i26-hd-work\menu-export
@@ -246,7 +260,8 @@ inventory pages' title, the field salvage lines re-set), **maps** (`menu-maps.py
 
 **Fixing something:** the lettering is data. A misspelt or misplaced word on a page is a run in that page's spec (its
 words and the rectangle round them in the original's 640x480 texels); edit it and rebuild just that page:
-`menu-pack.py build EXPORT --out DIR --only shellbg4.webp`. The model's output is kept in `DIR\work`, so a rebuild runs
+`menu-pack.py build EXPORT --out DIR --only shellbg4.webp` (or `hd-pack.py menu ... --only shellbg4.webp`). The model's
+output is kept in `DIR\work`, so a rebuild runs
 no model for a picture whose input is unchanged, and every step that names the page runs again from the model's picture.
 `--only` takes globs of pack files (`sprites/36_*`, `6*.webp`, `nitro/load/*`). The spec ops are text-redraws.py's
 (`erase`, `text`, ... above) plus the menu's: `retype`, `reset` (a line fitted to the original's print), `key-marks` and
@@ -309,12 +324,12 @@ batches, and you read the words and approve each one from a contact sheet. Every
    the owner's note and what changed on each (`"owner"` and `"change"` in its `batch.json`); `--prev` then adds the
    earlier round's redraw beside the new one, with that note.
 6. **Accept**: `python tools/draft-text-redraws.py accept BATCH decisions.json` copies the approved specs into
-   `tools/text-redraws/` (`signs-`, `plates-` or `dash-<texture>.json`). Run `text-redraws.py SRC --pack PACK` to letter
-   a pack with them, and `python -m unittest tools/test_text_redraws.py` to check them.
+   `tools/text-redraws/` (`signs-`, `plates-` or `dash-<texture>.json`). Run `text-redraws.py SRC --pack PACK --only
+   STEM` to letter a pack you have with them (or rebuild the texture through its recipe: `hd-pack.py world-4x ... --only
+   STEM`), and `python -m unittest tools/test_text_redraws.py` to check them.
 
-Small print nobody can read (a plate's state line, a garage's list of services) can be guessed with
-`tools/guess-small-text.py`, which scores word options against the texels. A guessed line's spec says so in its note,
-with the confidence. A batch of 30 takes about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
+Small print nobody can read (a plate's state line, a garage's list of services) stays `"keep"`. A batch of 30 takes
+about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
 type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
 `tools/text-redraws/fonts/README.md`.
 

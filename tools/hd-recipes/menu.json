@@ -1,28 +1,7 @@
 {
  "name": "menu",
- "note": "The HD menu art (tex-menu) as released in 2026.11.23 (pack 'I26 4:3' 0.0.3): run by tools/menu-pack.py build. Steps in the order the release's files were made; each note names what it reproduces.",
- "models": {
-  "4xTextures_GTAV_rgt-s_dither": {
-   "file": "4xTextures_GTAV_rgt-s_dither.pth",
-   "url": "https://github.com/Phhofm/models/releases/download/4xTextures_GTAV_rgt-s_dither/4xTextures_GTAV_rgt-s_dither.pth",
-   "page": "https://openmodeldb.info/models/4x-Textures-GTAV-rgt-s-dither",
-   "size": 135994918,
-   "sha256": "49e4b4aaac843839219d509242298c9e9b1a5d5294e9bad1154f05aa732a6a09",
-   "by": "Philip Hofmann (Phhofm)",
-   "licence": "CC-BY-4.0",
-   "commercial": true
-  },
-  "RealESRGAN_x4plus_anime_6B": {
-   "file": "RealESRGAN_x4plus_anime_6B.pth",
-   "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
-   "page": "https://github.com/xinntao/Real-ESRGAN",
-   "size": 17938799,
-   "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
-   "by": "Xintao Wang et al. (Real-ESRGAN)",
-   "licence": "BSD-3-Clause",
-   "commercial": true
-  }
- },
+ "note": "The HD menu art (tex-menu) as released in 2026.11.23 (pack 'I26 4:3' 0.0.3): run by tools/menu-pack.py build. 'models' names the model files it uses, pinned (url, size, SHA-256, licence) in models.json; the steps name a model by its 'model' there. Steps in the order the release's files were made; each note names what it reproduces.",
+ "models": ["4xTextures_GTAV_rgt-s_dither.pth", "RealESRGAN_x4plus_anime_6B.pth"],
  "base": {
   "model": "4xTextures_GTAV_rgt-s_dither",
   "tile": 128,

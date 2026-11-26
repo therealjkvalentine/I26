@@ -13,8 +13,8 @@ textures it covers: globs or @lists/FILE, relative to tools/hd-recipes), "writes
 "pack" for a step that changes the pack in place), "reads" (the steps whose output it uses), "device" (gpu: it gets
 --device) and "models" (pinned in tools/hd-recipes/models.json; a missing one is downloaded, a wrong one refused). A step
 {"id": ..., "from": "world-4x"} is that recipe's step, shared (the export, the masters, the masks). A recipe may instead
-name its own "runner": [script, args...], called with --install, --work, --out, --device, --models-dir and --only (the
-menu pack: tools/menu-pack.py build).
+name its own "runner": [script, args...], run with --install, --work (WORK/<recipe>), --out, --device, --models-dir,
+--only and --world-export (WORK/export, made first if missing, or --export): the menu pack, tools/menu-pack.py build.
 
 A step marked "resume" (the masters) keeps its stage when its key changes and runs over it, the tool skipping what it
 has: delete the stage to make it again. Placeholders: {export}, {masters} (WORK/masters, or --masters-from), {work}, {pack} (OUT/<the recipe's pack>), {models},
@@ -381,10 +381,21 @@ def write_sums(pack):
         for n in first + [x for x in files if x not in first]: f.write(f"{sha256_file(os.path.join(pack, n)).hexdigest()}  {n}\n")
 
 def delegate(name, r, a):
-    """A recipe with its own runner (the menu pack's tools/menu-pack.py build), called with the common options."""
+    """A recipe with its own runner (the menu pack's tools/menu-pack.py build), run with the common options: the same
+    --install, --models-dir, --device and --only, its work folder WORK/<name>, its pack OUT/tex-menu beside the others. The
+    menu's mission maps are made from the world export, so that is made first in WORK/export as world-4x makes it (or
+    --export names it). --list-steps prints the runner's steps."""
     run = r.get("runner") or [f"{name}-pack.py", "build"]
-    argv = [sys.executable, os.path.join(HERE, run[0])] + run[1:] + ["--install", a.install, "--work", os.path.join(os.path.abspath(a.work), name),
-                                                                       "--out", os.path.abspath(a.out), "--device", a.device, "--models-dir", a.models_dir]
+    script = os.path.join(HERE, run[0])
+    if a.list_steps:
+        subprocess.run([sys.executable, script, "list-steps"]); return
+    world = Build(a, load_recipe("world-4x"))
+    if not os.path.exists(os.path.join(world.export, "bottom-up.txt")):
+        if a.export: sys.exit(f"--export {a.export}: no bottom-up.txt (not a texture export)")
+        print(f"\n[export] the world export, the mission maps' input, in {world.export}"); world.do_export()
+    argv = [sys.executable, script] + run[1:] + ["--install", a.install, "--work", os.path.join(os.path.abspath(a.work), name),
+                                                 "--out", os.path.abspath(a.out), "--device", a.device, "--models-dir", a.models_dir,
+                                                 "--world-export", world.export]
     if a.only: argv += ["--only", a.only]
     print("    " + subprocess.list2cmdline(argv))
     if not a.dry_run:

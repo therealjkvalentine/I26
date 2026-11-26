@@ -422,10 +422,10 @@ class ModelPins(unittest.TestCase):
                 ut.check_model(good); ut.check_model(other)                    # pinned and right; not pinned
                 with self.assertRaises(SystemExit): ut.check_model(bad)
             finally: ut.PINS = old; ut._checked.clear()
-    def test_the_repositorys_pins_name_the_six_models(self):
+    def test_the_repositorys_pins_name_every_model_the_tool_credits(self):
         import json
         with open(ut.PINS) as f: m = json.load(f)["models"]
-        self.assertEqual(set(ut.MODELS), set(m), "every model the tool credits is pinned")
+        self.assertLessEqual(set(ut.MODELS), set(m), "every model the tool credits is pinned (the menu pack's too are)")
         self.assertTrue(all(len(v["sha256"]) == 64 and v["size"] > 0 for v in m.values()))
 
 if __name__ == "__main__":

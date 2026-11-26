@@ -121,7 +121,7 @@ class PackTests(unittest.TestCase):
             self.assertEqual(set(pics), {"shellbg1.webp", "6mainmn1.webp", "sprites/36_6.webp", "nitro/load/p01load.webp"})
             self.assertEqual(mp.original(ex, *pics["sprites/36_6.webp"])[0, 0, 3], 0)
             args = type("A", (), {"export": ex, "out": os.path.join(tmp, "out"), "work": None, "only": None, "recipe": mp.RECIPE})()
-            b = mp.Build(args, json.load(open(mp.RECIPE, encoding="utf-8")))
+            b = mp.Build(args, mp.read_recipe(mp.RECIPE))
             b.step_finish({})
             sj = json.load(open(os.path.join(b.pack, "sprites", "sprites.json")))
             self.assertEqual(sj["36_6"], {"file": "36_6.webp", "affine": [4.0, 0.0, 4.0, 0.0], "size": [5, 6]})
@@ -165,7 +165,7 @@ class PackTests(unittest.TestCase):
         finally: shutil.rmtree(tmp, ignore_errors=True)
 
     def test_recipe_is_complete(self):
-        r = json.load(open(mp.RECIPE, encoding="utf-8"))
+        r = mp.read_recipe(mp.RECIPE)
         kinds = {"base", "inset", "tool", "specs", "run", "maps", "finish"}
         self.assertTrue(all(s["kind"] in kinds for s in r["steps"]))
         self.assertEqual([s["id"] for s in r["steps"]][0], "base")
