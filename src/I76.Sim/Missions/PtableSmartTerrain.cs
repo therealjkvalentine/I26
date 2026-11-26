@@ -24,12 +24,13 @@ public sealed partial class Ptable
     }
 
     /// <summary>
-    /// Ledge caution (N6), on the ground: a cliff edge (a fall of more than 2.5 m from one 2.5 m step to the next) along the way the car
-    /// is moving, within its braking distance and 10 m more, is braked for so that the car stops 3 m short of it, in any state, the
-    /// escapes too (a car backing away or sliding off a rim fell 30 to 80 m in the play fork's probe on Jorczak's Peak, more of them
-    /// with Hill pursuit). Outside the escapes, above 8 m/s in forward gear, it also goes no faster than keeps the car within a metre of
-    /// the ground ahead launched along the slope it is on (v² ≤ g·d² / 2·drop at each 2.5 m out), so it slows for a crest instead of
-    /// flying it. Never faster than the state asked. True when the car, stopped at a rim the state asks it on over, should back away.
+    /// Ledge caution (N6), on the ground: a cliff edge (a fall of more than 2.5 m from one 2.5 m step to the next, with the ground
+    /// <see cref="CliffDrop"/> or more below the rim within 15 m past it) along the way the car is moving, within its braking distance and
+    /// 10 m more, is braked for so that the car stops 3 m short of it, in any state, the escapes too (a car backing away or sliding off a
+    /// rim fell 30 to 80 m in the play fork's probe on Jorczak's Peak, more of them with Hill pursuit). Outside the escapes, above 8 m/s
+    /// in forward gear, it also goes no faster than keeps the car within <see cref="CrestHop"/> of the ground ahead launched along the
+    /// slope it is on (v² ≤ g·d² / 2·drop at each 2.5 m out), so it slows for a crest it would fly off instead of flying it. Never faster
+    /// than the state asked. True when the car, stopped at a rim the state asks it on over, should back away.
     /// </summary>
     internal bool LedgeCaution(Entity e, bool escape)
     {
@@ -41,7 +42,7 @@ public sealed partial class Ptable
         var vel = new Vector3(v.Vel.X, 0, v.Vel.Z);
         float sp = vel.Length();
         var dir = sp > 1f ? vel / sp : Travel(e.Rot.Forward, v.Gear);
-        const float decel = 6f, hop = 1f;
+        const float decel = 6f, hop = CrestHop;
         float look = MathF.Min(60f, sp * sp / (2 * decel) + 10f), cap2 = float.MaxValue;
         float h0 = g.BareHeight(p.X, p.Z);
         if (CliffAt(p, dir, look) is { } edge) cap2 = 2 * decel * MathF.Max(0f, edge - 3f);
@@ -71,7 +72,20 @@ public sealed partial class Ptable
         return false;
     }
 
-    /// <summary>How far along <paramref name="dir"/> from <paramref name="p"/>, within <paramref name="reach"/>, the ground first falls more than 2.5 m in one 2.5 m step (a cliff's rim); null for none.</summary>
+    /// <summary>
+    /// How deep the ground past a rim must fall for Ledge caution to brake for it, and how far the crest test lets a car fly above
+    /// the ground. The first rule (any fall of 2.5 m in a step, a metre's hop) braked for every steep bank, ditch and crest: a car
+    /// chasing one that drives on fell behind, and backed away from banks and drove at them again (T14, the cops and SWAT vans after
+    /// the escorted van, 30 seeds at 24 Hz with solid cliffs: mean gap 377 m against the original's 336, within 60 m of the target
+    /// 12.4 % of the time against 15.5; with these 331 m and 15.1 %). Jorczak's Peak (24 seeds, 7 cars climbing to the player on the
+    /// summit): cars killed 110 with the original's AI, 43 with the terrain group by the first rule, 51 with these.
+    /// </summary>
+    public const float CliffDrop = 10f, CrestHop = 6f;
+
+    /// <summary>
+    /// How far along <paramref name="dir"/> from <paramref name="p"/>, within <paramref name="reach"/>, the ground first falls more than
+    /// 2.5 m in one 2.5 m step with the ground <see cref="CliffDrop"/> or more below that rim within 15 m past it (a cliff's rim); null for none.
+    /// </summary>
     private float? CliffAt(Vector3 p, Vector3 dir, float reach)
     {
         var g = World.Ground;
@@ -79,7 +93,12 @@ public sealed partial class Ptable
         for (float d = 2.5f; d <= reach; d += 2.5f)
         {
             float h = g.BareHeight(p.X + dir.X * d, p.Z + dir.Z * d);
-            if (prev - h > 2.5f) return d - 2.5f;
+            if (prev - h > 2.5f)
+            {
+                float low = h;
+                for (float k = d + 2.5f; k <= d + 15f && prev - low < CliffDrop; k += 2.5f) low = MathF.Min(low, g.BareHeight(p.X + dir.X * k, p.Z + dir.Z * k));
+                if (prev - low >= CliffDrop) return d - 2.5f;
+            }
             prev = h;
         }
         return null;
