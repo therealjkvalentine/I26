@@ -169,6 +169,8 @@ global uniform vec3 i76_ground_tint;
 #endif
 // The distance tiers (docs/perf/plan.md, item 3): 1 on, 0 the one tier everywhere (I76_TERRAIN_TIERS=0, for a measurement).
 global uniform float i76_terrain_tiers;
+// Road Detail (Graphic Detail > World; World/RoadDetail.cs): 1 on, 0 off (road_detail(), below).
+global uniform float i76_road_detail;
 // The baked terrain shadows (World/TerrainShade.cs, by day): i76_terrain_shade's R the sun's margin over the terrain's horizon toward it
 // (0.5 the horizon, 0 and 1 -/+ edge.x radians), i76_terrain_sky's R the sky's share left open by the terrain round the point; the rect
 // is their corner (game frame x, z) and 1 / their size. on: x the strength (0 off), y the shadow map's reach (0 none), z the sky term's
@@ -358,6 +360,119 @@ vec3 sample_rock(vec3 p, vec3 dpx, vec3 dpy, vec3 w, float k, vec2 k2, out vec4 
 	alb /= ws; rao /= ws;
 	return g / ws;
 }
+
+#ifndef PAINTED_GROUND
+// Road Detail (Graphic Detail > World, [port] road_detail; World/RoadDetail.cs): the paved roads' surface made from the baked noise
+// (GroundNoise.NoiseTexture), no texture of its own. The road layer keeps the original's road textures at 6.4 texels a metre (12.8 with
+// a pack), so under the wheels a texel is 8-16 cm and the asphalt is a smear beside ground drawn from material scans. Over the layer's
+// colour (its hue, layout and markings kept) this lays aggregate grain and exposed stones with their relief (fading as the noise's mips
+// settle: nothing finer than a pixel is drawn), hairline cracks and darker sealed patches in places, broad lighter and darker stretches
+// that break the textures' 10-quad cycle down a straight, the light bands' and the yellow dashes' edges steepened where a layer texel
+// covers several pixels (crisp up close, the layer's own filtering once a texel is under a pixel, so no crawl) and chipped, and the dirt
+// strip the textures carry beside the asphalt given raggedly to the ground instead of ending in a hard edge. Dry asphalt: rough, its
+// exposed stones a little smoother. Off (i76_road_detail 0) none of it is read.
+uniform vec2 road_detail_fade = vec2(40.0, 120.0);   // metres: grain, stones and cracks whole to the first, not read from the second
+uniform float road_detail_grain = 0.08;              // the albedo's swing per unit of the fine noise
+uniform float road_detail_stones = 0.16;             // exposed light aggregate
+uniform vec3 road_detail_relief = vec3(0.0011, 0.0022, 0.0035);  // metres of height per unit of the three grain octaves
+uniform float road_detail_cracks = 0.45;             // a crack's darkening
+uniform float road_detail_patches = 0.15;            // a sealed patch's darkening
+uniform float road_detail_broad = 0.07;              // the broad stretches' swing
+uniform vec2 road_detail_bands = vec2(0.07, 0.30);   // linear luminance of the asphalt and of the light bands (edge lines, centre band)
+uniform vec3 road_detail_yellow = vec3(0.39, 0.37, 0.03);  // the yellow dash's colour over the band it sits on (linear)
+uniform float road_detail_wear = 0.35;               // how far the chips take a light band back toward the asphalt
+uniform float road_detail_shoulder = 0.8;            // how much of the dirt strip beside the asphalt gives way to the ground
+uniform float road_detail_rough = 0.93;              // paved road's roughness
+
+void road_detail(vec2 p, vec2 uv, vec4 lc, float dist, float footprint, float tier_mid, inout float dirt, inout vec3 rc,
+		inout float cover, inout float rough, inout float spec, inout vec3 agrad) {
+	// ---- in uniform control flow: the derivatives ----
+	float L = lum_lin(lc.rgb);
+	float lo = road_detail_bands.x, hi = road_detail_bands.y;
+	float light = clamp((L - lo) / (hi - lo), 0.0, 1.0);
+	float yel = clamp((min(lc.r, lc.g) - lc.b) / 0.34, 0.0, 1.0);
+	float fw_light = fwidth(light), fw_yel = fwidth(yel);
+	float res = float(textureSize(road_layer, 0).x);
+	float px = footprint / chunk_units * res;            // layer texels a pixel covers
+	// bright, saturated paint (the yellow dash) is not a dirt road
+	dirt *= 1.0 - smoothstep(0.2, 0.35, L);
+	float paved = 1.0 - dirt;
+	// dry asphalt is rough all the way out: the layer's even 0.8 put a wet-looking glare down the road toward a low sun
+	rough = mix(rough, road_detail_rough, paved);
+	if (cover <= 0.0 || tier_mid >= 1.0) return;
+	float keep = 1.0 - tier_mid;
+
+	// ---- the markings: steepened where a texel covers more than about two pixels ----
+	float near_k = (1.0 - smoothstep(0.35, 0.8, px)) * paved;
+	if (near_k > 0.0) {
+		// chips: the asphalt showing through the paint in small flakes and thinner patches
+		float wn = octave(p, 0.045, vec2(-0.6, 0.8), vec2(6.2, 3.1), footprint).x / 0.4
+		         + 0.7 * octave(p, 0.19, vec2(0.96, -0.28), vec2(2.8, 8.8), footprint).x / 0.4
+		         + 0.6 * octave(p, 2.9, vec2(-0.28, -0.96), vec2(9.4, 4.6), footprint).x / 0.4;
+		float chip = 1.0 - road_detail_wear * smoothstep(0.5, 1.4, wn);
+		float c = clamp(0.5 + (light - 0.5) / max(fw_light, 0.12), 0.0, 1.0);
+		float cy = clamp(0.5 + (yel - 0.5) / max(fw_yel, 0.12), 0.0, 1.0);
+		c = mix(light, c * mix(1.0, chip, step(0.5, light)), near_k);
+		cy = mix(yel, cy * chip, near_k);
+		float L2 = max(L + (c - light) * (hi - lo), 0.0);
+		rc *= L2 / max(L, 1e-4);
+		rc = max(rc + (cy - yel) * road_detail_yellow, vec3(0.0));
+	}
+
+	// ---- broad stretches: lighter and darker over tens of metres ----
+	vec3 b1 = octave(p, 19.0, vec2(0.34, 0.94), vec2(5.1, 2.9), footprint);
+	float broad = b1.x / 0.4 + 0.6 * octave(p, 57.0, vec2(-0.91, 0.41), vec2(1.7, 8.3), footprint).x / 0.4;
+	rc *= 1.0 + road_detail_broad * broad * paved * keep;
+
+	// sealed patches: darker, smoother blotches a metre or a few across, in places (the edge anti-aliased over the pixel)
+	vec3 t1 = octave(p, 2.7, vec2(0.8, -0.6), vec2(3.3, 1.9), footprint), t2 = octave(p, 0.9, vec2(-0.6, -0.8), vec2(7.2, 5.5), footprint);
+	float tv = (t1.x + 0.45 * t2.x) / 0.4 + 0.35 * b1.x / 0.4;
+	float taa = max(length(t1.yz + 0.45 * t2.yz) / 0.4 * footprint, 0.05);
+	float seal = smoothstep(1.2 - taa, 1.2 + taa, tv) * paved * keep;
+	rc *= 1.0 - road_detail_patches * seal;
+	rough = mix(rough, 0.72, seal);
+
+	// ---- the dirt strip beside the asphalt: the layer's coloured texels with grey near them (read broad), given to the ground ----
+	float lod = log2(1.25 * res / chunk_units);
+	vec4 wide = textureLod(road_layer, uv, lod);
+	float wmax = max(wide.r, max(wide.g, wide.b));
+	float ratio = (wmax - min(wide.r, min(wide.g, wide.b))) / max(wmax, 1e-4);
+	// (by the hue's share of the colour, not the linear spread: the pack's strip is a dark brown, 0.05 apart, which `dirt` counts as asphalt)
+	float lmax = max(lc.r, max(lc.g, lc.b));
+	float brown = smoothstep(0.45, 0.7, (lmax - min(lc.r, min(lc.g, lc.b))) / max(lmax, 1e-4)) * (1.0 - smoothstep(0.2, 0.35, L));
+	float shoulder = brown * (1.0 - smoothstep(0.55, 0.75, ratio));
+	if (shoulder > 0.0) {
+		float sn = octave(p, 0.42, vec2(0.6, 0.8), vec2(4.1, 6.6), footprint).x / 0.4
+		         + 0.6 * octave(p, 0.13, vec2(-0.8, 0.6), vec2(8.8, 2.2), footprint).x / 0.4;
+		cover *= 1.0 - shoulder * road_detail_shoulder * (0.55 + 0.45 * smoothstep(-1.0, 1.0, sn)) * keep;
+	}
+
+	// ---- near the camera: grain, stones, cracks ----
+	float af = (1.0 - smoothstep(road_detail_fade.x, road_detail_fade.y, dist)) * paved * (1.0 - brown) * keep;
+	if (af <= 0.0) return;
+	vec3 o1 = octave(p, 0.011, vec2(0.857, 0.515), vec2(1.3, 7.1), footprint);
+	vec3 o2 = octave(p, 0.029, vec2(-0.391, 0.920), vec2(6.6, 2.4), footprint);
+	vec3 o3 = octave(p, 0.083, vec2(0.28, -0.96), vec2(3.9, 9.9), footprint);
+	float g = (0.55 * o1.x + 0.45 * o2.x + 0.35 * o3.x) / 0.4;
+	// exposed stones: the high points of the two finer octaves, a lighter grey, their mean taken back out so the road keeps its tone
+	float st = smoothstep(0.3, 0.7, o2.x + 0.6 * o1.x);
+	rc *= 1.0 + af * (road_detail_grain * g + road_detail_stones * (st - 0.1));
+	agrad += (vec3(o1.y, 0.0, o1.z) * road_detail_relief.x + vec3(o2.y, 0.0, o2.z) * road_detail_relief.y
+	        + vec3(o3.y, 0.0, o3.z) * road_detail_relief.z) * af;
+	// hairline cracks: the zero crossings of an octave pair, only where the broad field lets them, never drawn thinner than a pixel
+	// (narrower than that they fade in proportion instead of widening)
+	vec3 c1 = octave(p, 0.7, vec2(0.96, 0.28), vec2(2.2, 4.4), footprint), c2 = octave(p, 0.23, vec2(-0.28, 0.96), vec2(5.8, 0.6), footprint);
+	float cv = (c1.x + 0.35 * c2.x) / 0.4;
+	float cw = length(c1.yz + 0.35 * c2.yz) / 0.4 * footprint;
+	float width = 0.06;
+	float crack = (1.0 - smoothstep(0.0, max(width, cw), abs(cv))) * clamp(width / max(cw, 1e-4), 0.0, 1.0);
+	crack *= smoothstep(0.2, 0.8, b1.x / 0.4 + 0.5 * t1.x / 0.4) * af * (1.0 - seal);
+	rc *= 1.0 - road_detail_cracks * crack;
+	// dry asphalt: rough, the stones a little smoother (a faint sparkle toward a low sun), the cracks rougher
+	rough = mix(rough, clamp(road_detail_rough + 0.05 * g - 0.18 * st + 0.08 * crack, 0.6, 1.0), af);
+	spec = mix(spec, 0.25, af * st);
+}
+#endif
 
 void fragment() {
 	vec3 w = pow(abs(normalize(g_nrm)), vec3(triplanar_sharpness));
@@ -585,6 +700,7 @@ void fragment() {
 #endif
 	float road_relief = 0.15;    // how much of the ground's relief shows through the road
 	float paved = 0.0;           // how much of the ground is paved road (asphalt): laid flat, with none of the ground's bumps
+	vec3 agrad = vec3(0.0);      // the aggregate's relief on paved road
 	if (has_road) {
 		// asphalt (grey) against dirt tracks (coloured)
 		float sat = max(road_col.r, max(road_col.g, road_col.b)) - min(road_col.r, min(road_col.g, road_col.b));
@@ -593,14 +709,18 @@ void fragment() {
 		road = clamp(road - (hb - 0.5) * road_edge * 4.0 * road * (1.0 - road), 0.0, 1.0);
 		// the ground's grain carried into the road near the camera: aggregate in asphalt, ruts and stones in dirt
 		vec3 rc = road_col.rgb * mix(asphalt_tone, 1.0, dirt) * clamp(1.0 + grain * mix(road_grain.x, road_grain.y, dirt), 0.6, 1.4);
+		float r_rough = mix(asphalt_shine.x, dirt_road_shine.x, dirt), r_spec = mix(asphalt_shine.y, dirt_road_shine.y, dirt);
+#ifndef PAINTED_GROUND
+		if (i76_road_detail > 0.0) road_detail(g_pos.xz, road_uv, road_col, dist, footprint, tier_mid, dirt, rc, road, r_rough, r_spec, agrad);
+#endif
 		ground = mix(ground, rc, road);
-		rough = mix(rough, mix(asphalt_shine.x, dirt_road_shine.x, dirt), road);
-		spec = mix(spec, mix(asphalt_shine.y, dirt_road_shine.y, dirt), road);
+		rough = mix(rough, r_rough, road);
+		spec = mix(spec, r_spec, road);
 		ao = mix(ao, mix(1.0, ao, 0.5 * dirt), road);
 		road_relief = mix(0.25, 0.6, dirt);
 		paved = road * (1.0 - dirt);
+		agrad *= road;
 	}
-	vec3 agrad = vec3(0.0);   // the aggregate's relief on paved road
 #ifndef PAINTED_GROUND
 	if (has_asphalt && paved > 0.0 && dist < asphalt_fade.y && tier_mid < 1.0) {
 		float af = (1.0 - smoothstep(asphalt_fade.x, asphalt_fade.y, dist)) * (1.0 - tier_mid);
@@ -621,7 +741,7 @@ void fragment() {
 		ground *= mix(1.0, clamp(1.0 + asphalt_grain * l + asphalt_wear * wear, 0.5, 1.6), af * paved);
 		vec2 s1 = transpose(r1) * (slope(n1) * vec2(1.0, -1.0)), s2 = transpose(r2) * (slope(n2) * vec2(1.0, -1.0));
 		vec2 s = mix(s1, s2, b);
-		agrad = vec3(s.x, 0.0, s.y) * asphalt_bump * af * paved;
+		agrad += vec3(s.x, 0.0, s.y) * asphalt_bump * af * paved;
 		rough = mix(rough, mix(n1.z, n2.z, b), 0.5 * af * paved);
 	}
 #endif
