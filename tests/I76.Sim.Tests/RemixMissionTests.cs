@@ -286,7 +286,7 @@ public class RemixMissionTests
     public void ARemixRunIsDeterministicAndASnapshotRestoresIntoARebuiltMission()
     {
         if (Built() is null) return;
-        foreach (var mission in new[] { "x07farm", "x05grab" })
+        foreach (var mission in new[] { "x07farm", "x05grab", "x10tail", "x02conv" })
         {
             var l = new SnapshotRig.Loaded(SnapshotRig.Install!);
             var b = SnapshotRig.BuildOf(l.Dir, mission, "vppirna1.vcf");
@@ -391,7 +391,8 @@ public class RemixMissionTests
     public void EveryRemixCarriesItsMapMarks()
     {
         if (Built() is null) return;
-        foreach (var (stem, labels) in new[] { ("x07farm", "START|DEFEND"), ("x05grab", "START / HOME|PICKUP"), ("x14back", "START|HOME") })
+        foreach (var (stem, labels) in new[] { ("x07farm", "START|DEFEND"), ("x05grab", "START / HOME|PICKUP"), ("x14back", "START|HOME"),
+            ("x10tail", "START|HIDEOUT"), ("x02conv", "START|CONVOY|EXIT") })
         {
             Assert.True(RemixMarks.IsRemix(stem), stem);
             var m = RemixMarks.For(stem)!;
@@ -399,6 +400,67 @@ public class RemixMissionTests
             var round = RemixMarks.Parse(m.ToText());
             Assert.Equal(m.Points.Select(p => (p.Label, p.At)), round.Points.Select(p => (p.Label, p.At)));
         }
+        Assert.Single(RemixMarks.For("x02conv")!.Lines);   // the convoy's route
         Assert.False(RemixMarks.IsRemix("t07"));
+    }
+
+    /// <summary>Lose the tail: the hideout counts only once the pursuers are lost; arriving with one near fails (led them home).</summary>
+    [Fact]
+    public void TatumTailIsWonOnlyOnceThePursuitIsLost()
+    {
+        if (Built() is null) return;
+        var hide = PathStart("x10tail", "rx_tatum");
+        var (s, setup) = Make("x10tail");
+        Step(s, 20 * 6);   // the pursuers are in, behind the start
+        var cops = setup.Entities.Where(e => e.Vehicle is not null && e.Name is "t10cp02" or "t10cp03" && e.Order != I76.Sim.Fsm.AiOrder.Hide).ToList();
+        Assert.Equal(3, cops.Count);
+        // at the hideout with one of them alongside: led them home (failure 4)
+        MovePlayer(setup, hide.X, hide.Z);
+        cops[0].Vehicle!.Pos = new Double3(hide.X + 80, setup.Ground.BareHeight(hide.X + 80, hide.Z), hide.Z);
+        cops[0].Vehicle!.Vel = default;
+        Step(s, 20 * 10);
+        Assert.False(s.Script!.Result);
+        Assert.Equal(4, FailLine(s));
+
+        // the pursuers dead: lost (objective 1) after the quiet seconds, then the hideout wins
+        var (w, ws) = Make("x10tail");
+        var wh = w.Script!.Host;
+        Step(w, 20 * 6);
+        foreach (var e in ws.Entities.Where(e => e.Vehicle is not null && e.Name.StartsWith("t10cp") && e.Order != I76.Sim.Fsm.AiOrder.Hide).ToList()) wh.Destroy(e);
+        Step(w, 20 * 5);
+        Assert.Equal(0, wh.Objectives.Flags[0] & Objectives.Succeeded);   // not yet: 12 quiet seconds
+        Step(w, 20 * 12);
+        Assert.NotEqual(0, wh.Objectives.Flags[0] & Objectives.Succeeded);
+        MovePlayer(ws, hide.X, hide.Z);
+        Step(w, 20 * 10);
+        Assert.True(w.Script.Result);
+    }
+
+    /// <summary>Intercept: the convoy reaching its exit fails (line 3); the lead and its escorts dead win.</summary>
+    [Fact]
+    public void LevellandRunFailsWhenTheConvoyGetsThroughAndWinsWhenItDies()
+    {
+        if (Built() is null) return;
+        var exit = PathStart("x02conv", "rx_levelland");
+        var (s, setup) = Make("x02conv");
+        Step(s, 20 * 8);
+        var lead = setup.Entities.First(e => e.Name == "t02fr03");
+        Assert.Equal(I76.Sim.Fsm.AiOrder.Goto, lead.Order);   // rolling after its delay
+        lead.Vehicle!.Pos = new Double3(exit.X, setup.Ground.BareHeight(exit.X, exit.Z), exit.Z);
+        lead.Vehicle!.Vel = default;
+        Step(s, 20 * 10);
+        Assert.False(s.Script!.Result);
+        Assert.Equal(3, FailLine(s));
+
+        var (w, ws) = Make("x02conv");
+        var h = w.Script!.Host;
+        Step(w, 20 * 8);
+        h.Destroy(ws.Entities.First(e => e.Name == "t02fr03"));
+        Step(w, 20);
+        Assert.NotEqual(0, h.Objectives.Flags[0] & Objectives.Succeeded);
+        Assert.Null(w.Script.Result);   // the wingmen still to go
+        foreach (var e in ws.Entities.Where(e => e.Name is "t02fy01" or "t02fy03").ToList()) h.Destroy(e);
+        Step(w, 20 * 10);
+        Assert.True(w.Script.Result);
     }
 }

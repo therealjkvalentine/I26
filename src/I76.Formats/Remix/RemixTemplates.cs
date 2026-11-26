@@ -17,7 +17,9 @@ public static class RemixTemplates
     {
         "defend" => Defend(c),
         "deliver" => Deliver(c),
-        var t => throw new RemixError($"objective template '{t}': defend or deliver"),
+        "tail" => Tail(c),
+        "intercept" => Intercept(c),
+        var t => throw new RemixError($"objective template '{t}': defend, deliver, tail or intercept"),
     });
 
     private static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
@@ -395,6 +397,233 @@ public static class RemixTemplates
                 y.Append($"  rx_pursuer{i}: {{script: rx_pursuer, args: {{car: rx_p{i}, user: rx_user, have: rx_have, entry: rx_pentry, heading: rx_ph, delay: rx_pdelay, speed: rx_pspeed, dx: rx_px{i}, dz: rx_pz{i}, first: rx_pf{i}}}}}\n");
             y.Insert(y.ToString().IndexOf("scripts:\n", StringComparison.Ordinal), globals);
         }
+        return y.ToString();
+    }
+
+    /// <summary>
+    /// Lose the tail (the design list's lose-the-tail, a "lost them" phase before home): pursuers teleported in behind an entry
+    /// (and sleepers that wake as the player passes) chase him. They are lost once nobody hostile has been within the lost radius
+    /// for the lost seconds (dead ones count as lost); they then give up, each parking where it is and chasing again only while
+    /// the player is within half that radius. The hideout counts only after that, with nobody within clear (default the lost
+    /// radius); reaching it with an enemy that near fails: he led them home. Objectives: 1 lose them, 2 the hideout. Failures:
+    /// 1 death, 2 left the map, then 3 too slow (with a deadline, from the start) and led them home (3 without a deadline, 4 with).
+    /// </summary>
+    private static string Tail(Context c)
+    {
+        var o = c.Spec.Objective;
+        if (o.Hideout is not { } hide) throw new RemixError("tail: needs hideout");
+        var lost = o.Lost ?? new LostSpec();
+        if (lost.Radius < 50 || lost.Seconds < 1) throw new RemixError("tail: lost needs a radius of 50 m or more and 1 s or more");
+        if (o.Pursuit is null && o.Sleepers.Count == 0) throw new RemixError("tail: needs pursuit or sleepers");
+        if (o.Pursuit is { Cars.Count: 0 }) throw new RemixError("tail: pursuit needs cars");
+        int clear = o.Clear > 0 ? o.Clear : lost.Radius;
+        int led = o.Deadline > 0 ? 4 : 3;
+        if (c.Spec.Text.Objectives.Count < 2) throw new RemixError("tail: two objective lines (lose them, the hideout)");
+        if (c.Spec.Text.Failures.Count < led) throw new RemixError($"tail: {led} failure lines ({(o.Deadline > 0 ? "3 too slow, 4" : "3")} led them home)");
+        int near = Math.Max(50, lost.Radius / 2);
+        var y = new StringBuilder("globals:\n");
+        y.Append($"  rx_user: actor.{c.Player}\n  rx_lost: 0\n  rx_hide: path.{c.Place(hide.Place)}\n  rx_near: {N(near)}\n  rx_far: {N(lost.Radius)}\n");
+        for (int i = 0; i < o.Sleepers.Count; i++) y.Append($"  rx_z{i}: actor.{c.Actor(o.Sleepers[i].Car)}\n  rx_zw{i}: {N(o.Sleepers[i].Wake)}\n  rx_zs{i}: {(o.Sleepers[i].Siren ? 1 : 0)}\n");
+        var pu = o.Pursuit;
+        if (pu is not null)
+        {
+            int hd = c.Heading(pu.Entry);
+            y.Append($"  rx_pentry: path.{c.Place(pu.Entry)}\n  rx_ph: {N(hd)}\n  rx_pdelay: {N(pu.Delay)}\n  rx_pspeed: {N(pu.Speed)}\n  rx_psiren: {(pu.Siren ? 1 : 0)}\n");
+            double r = hd * Math.PI / 180;
+            for (int i = 0; i < pu.Cars.Count; i++)
+                y.Append($"  rx_p{i}: actor.{c.Actor(pu.Cars[i])}\n  rx_px{i}: {N((int)Math.Round(-Math.Sin(r) * 1200 * i))}\n  rx_pz{i}: {N((int)Math.Round(-Math.Cos(r) * 1200 * i))}\n  rx_pf{i}: {(i == 0 ? 1 : 0)}\n");
+        }
+        // what a woken car does: chase until they are lost, then park, and chase only while the player is near again
+        string Hunt() => """
+                  - wait_until: lost == 1
+                    while_waiting: attack(car, user, 1)
+                  - repeat:
+                      - wait_until: isWithin(car, user, near) || isAttacked(car)
+                        while_waiting: sit(car)
+                      - wait_until: '!isWithin(car, user, far)'
+                        while_waiting: attack(car, user, 1)
+
+            """;
+        var call = string.Concat(Say(c.Spec.Radio.Wave.Take(1)).Select(a => $"\n              - {a}"));
+        int quietFrom = (pu?.Delay ?? 0) + 3;   // the pursuers are in before the lost clock starts
+        y.Append($$"""
+            scripts:
+              rx_tsleeper:
+                fields: [car, user, lost, wake, siren, near, far]
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, {{o.Skill}}, {{o.Skill}})
+                      - setAgg(car, {{o.Aggression}})
+                    while_waiting: hide(car)
+                  - wait_until: isWithin(car, user, wake) || isAttacked(car)
+                    then:
+                      - startCar(car)
+                      - setSiren(car, siren)
+                    while_waiting: hide(car)
+
+            """);
+        y.Append(Hunt());
+        y.Append($$"""
+              rx_tpursuer:
+                fields: [car, user, lost, entry, heading, delay, speed, dx, dz, first, siren, near, far]
+                variables: {timer: null}
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, {{o.Skill}}, {{o.Skill}})
+                      - setAgg(car, {{o.Aggression}})
+                      - startTimer(timer)
+                    while_waiting: hide(car)
+                  - wait_until: timeGreater(timer, delay)
+                    then:
+                      - startCar(car)
+                      - teleportOffset(car, entry, speed, heading, dx, dz)
+                      - setSiren(car, siren)
+                    while_waiting: hide(car)
+                  - wait:
+                      - when: first == 1
+                        then:
+                          - set(first, 0){{call}}
+                      - when: 'true'
+
+            """);
+        y.Append(Hunt());
+        y.Append($$"""
+              rx_quiet:
+                fields: [user, lost]
+                variables: {quiet: null}
+                steps:
+                  - do: startTimer(quiet)
+                  - wait_until: timeGreater(quiet, {{quietFrom}})
+                  - id: rx_near
+                    wait_until: '!isWithinEnemy(user, {{lost.Radius}})'
+                    then: startTimer(quiet)
+                  - wait:
+                      - when: isWithinEnemy(user, {{lost.Radius}})
+                        goto: rx_near
+                      - when: timeGreater(quiet, {{lost.Seconds}})
+                        then: set(lost, 1)
+                        goto: stop
+              rx_tail:
+                fields: [user, lost, hide{{GateFields(c)}}]
+                variables: {clock: null}
+                steps:
+                  - do: startTimer(clock)
+
+            """);
+        string Fails() =>
+            "      - wait:\n          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n"
+            + (o.Deadline > 0 ? $"          - when: timeGreater(clock, {o.Deadline})\n            then: failAllObj(6, 3)\n            goto: stop\n" : "")
+            + $"          - when: isWithinNav(hide, user, {hide.Radius}) && isWithinEnemy(user, {clear})\n            then: failAllObj(6, {led})\n            goto: stop\n";
+        y.Append(Fails());
+        y.Append("          - when: lost == 1\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append(Fails());
+        y.Append($"          - when: isWithinNav(hide, user, {hide.Radius})\n" + Then(12, new[] { "success(2)" }.Concat(Gates(c, c.Spec.Gates.Win)).Concat(Say(c.Spec.Radio.Win))));
+        y.Append("      - wait:\n          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n");
+        y.Append("          - when: isCBEmpty()\n            then: successAll(3)\n            goto: stop\n");
+
+        y.Append("threads:\n");
+        y.Append($"  rx_tail: {{script: rx_tail, args: {{user: rx_user, lost: rx_lost, hide: rx_hide{GateArgs(c)}}}}}\n");
+        y.Append("  rx_quiet: {script: rx_quiet, args: {user: rx_user, lost: rx_lost}}\n");
+        for (int i = 0; i < o.Sleepers.Count; i++)
+            y.Append($"  rx_tsleeper{i}: {{script: rx_tsleeper, args: {{car: rx_z{i}, user: rx_user, lost: rx_lost, wake: rx_zw{i}, siren: rx_zs{i}, near: rx_near, far: rx_far}}}}\n");
+        if (pu is not null)
+            for (int i = 0; i < pu.Cars.Count; i++)
+                y.Append($"  rx_tpursuer{i}: {{script: rx_tpursuer, args: {{car: rx_p{i}, user: rx_user, lost: rx_lost, entry: rx_pentry, heading: rx_ph, delay: rx_pdelay, speed: rx_pspeed, dx: rx_px{i}, dz: rx_pz{i}, first: rx_pf{i}, siren: rx_psiren, near: rx_near, far: rx_far}}}}\n");
+        return y.ToString();
+    }
+
+    /// <summary>
+    /// Intercept a convoy (the design list's convoy ambush): the lead drives a route to its exit, the escorts keeping station
+    /// behind it; once alerted (the player within the alert radius, the lead or an escort shot, or the lead dead) the lead speeds
+    /// up and the escorts turn on the player. The lead reaching its exit fails. Objectives: 1 the lead dead, 2 the escorts dead
+    /// (with kill_escorts). Failures: 1 death, 2 left the map, 3 the convoy got through.
+    /// </summary>
+    private static string Intercept(Context c)
+    {
+        var o = c.Spec.Objective;
+        if (o.Convoy is not { } cv || cv.Lead.Length == 0 || cv.Route.Length == 0 || cv.Exit is not { } exit)
+            throw new RemixError("intercept: needs convoy with lead, route and exit");
+        bool esc = cv.KillEscorts && cv.Escorts.Count > 0;
+        int n = cv.Escorts.Count;
+        if (c.Spec.Text.Objectives.Count < (esc ? 2 : 1)) throw new RemixError($"intercept: {(esc ? 2 : 1)} objective lines (the lead{(esc ? ", the escorts" : "")})");
+        if (c.Spec.Text.Failures.Count < 3) throw new RemixError("intercept: failure line 3 (the convoy got through)");
+        if (cv.Speed < 1 || cv.AlertSpeed < cv.Speed) throw new RemixError("intercept: speed 1 or more, alert_speed no less");
+        var y = new StringBuilder("globals:\n");
+        y.Append($"  rx_user: actor.{c.Player}\n  rx_lead: actor.{c.Actor(cv.Lead)}\n  rx_route: path.{c.Place(cv.Route)}\n  rx_exit: path.{c.Place(exit.Place)}\n  rx_alert: 0\n  rx_edead: 0\n");
+        // stations: in pairs behind the lead, either side of its track (metres in the lead's frame, +z ahead)
+        for (int i = 0; i < n; i++)
+            y.Append($"  rx_c{i}: actor.{c.Actor(cv.Escorts[i])}\n  rx_cx{i}: {N(n == 1 ? 0 : i % 2 == 0 ? -4 : 4)}\n  rx_cz{i}: {N(-cv.Spacing * (i / 2 + 1))}\n");
+        y.Append($$"""
+            scripts:
+              rx_lead:
+                fields: [car, user, route, alert]
+                variables: {timer: null}
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, {{o.Skill}}, {{o.Skill}})
+                      - setAgg(car, {{o.Aggression}})
+                      - startCar(car)
+                      - startTimer(timer)
+                  - wait_until: timeGreater(timer, {{cv.Delay}})
+                    while_waiting: sit(car)
+                  - wait_until: alert == 1 || isAttacked(car) || isWithin(car, user, {{cv.Alert}})
+                    then: set(alert, 1)
+                    while_waiting: goto(car, route, {{cv.Speed}})
+                  - wait_until: isDead(user)
+                    while_waiting: goto(car, route, {{cv.AlertSpeed}})
+              rx_escort:
+                fields: [car, lead, user, alert, edead, dx, dz]
+                guards:
+                  - when: isDead(car)
+                    then: inc(edead)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, {{o.Skill}}, {{o.Skill}})
+                      - setAgg(car, {{o.Aggression}})
+                      - startCar(car)
+                  - wait_until: alert == 1 || isAttacked(car) || isDead(lead)
+                    then: set(alert, 1)
+                    while_waiting: follow(car, lead, user, 0, dx, dz)
+                  - wait_until: isDead(user)
+                    while_waiting: attack(car, user, 1)
+              rx_intercept:
+                fields: [user, lead, exit, alert, edead{{GateFields(c)}}]
+                variables: {said: 0}
+                steps:
+
+            """);
+        y.Append("      - wait:\n          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n");
+        y.Append($"          - when: '!isDead(lead) && isWithinNav(exit, lead, {exit.Radius})'\n            then: failAllObj(6, 3)\n            goto: stop\n");
+        var down = new List<string> { "success(1)" };
+        if (esc) down.Add("reveal(2)");
+        down.AddRange(Say(c.Spec.Radio.Trap));
+        if (!esc) down.AddRange(Gates(c, c.Spec.Gates.Win).Concat(Say(c.Spec.Radio.Win)));
+        y.Append("          - when: isDead(lead)\n" + Then(12, down));
+        if (c.Spec.Radio.Wave.Count > 0)
+            y.Append("          - when: alert == 1 && said == 0\n" + Then(12, ["set(said, 1)", .. Say(c.Spec.Radio.Wave.Take(1))]) + "            goto: restart\n");
+        if (esc)
+        {
+            y.Append("      - wait:\n          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n");
+            y.Append($"          - when: '!(edead < {n})'\n" + Then(12, new[] { "success(2)" }.Concat(Gates(c, c.Spec.Gates.Win)).Concat(Say(c.Spec.Radio.Win))));
+        }
+        y.Append("      - wait:\n          - when: isDead(user)\n            then: failAllObj(6, 1)\n            goto: stop\n");
+        y.Append("          - when: isCBEmpty()\n            then: successAll(3)\n            goto: stop\n");
+
+        y.Append("threads:\n");
+        y.Append($"  rx_intercept: {{script: rx_intercept, args: {{user: rx_user, lead: rx_lead, exit: rx_exit, alert: rx_alert, edead: rx_edead{GateArgs(c)}}}}}\n");
+        y.Append("  rx_lead: {script: rx_lead, args: {car: rx_lead, user: rx_user, route: rx_route, alert: rx_alert}}\n");
+        for (int i = 0; i < n; i++)
+            y.Append($"  rx_escort{i}: {{script: rx_escort, args: {{car: rx_c{i}, lead: rx_lead, user: rx_user, alert: rx_alert, edead: rx_edead, dx: rx_cx{i}, dz: rx_cz{i}}}}}\n");
         return y.ToString();
     }
 }
