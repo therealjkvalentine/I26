@@ -468,6 +468,16 @@ the middle mark, not a state of R (the weapon camera in the radar screen, `RADAR
 needs a target and a turret). The spec keeps other sets for comparison (`--labels`: `lock-range-m` with the unit,
 `owner-50-500`, `var-range`, `gain-range`, `intensity`, `marks-only`). The knob's painted pointer never moves.
 
+**The glass** (`--glass none|light|medium`, the spec's `glass`; `none` the default, so a pack is unchanged until a level is
+chosen). The scope's glass drawn over the beam, the cone, the graticule and the pip, under the game's blips, lamp and plate: the
+bezel's shadow (darkening from 0.7 of the face's radius to its rim), a soft sheen inside the rim at the top left as the player
+sees it, with a faint glare inside it, and a little second-hand wear: one or two smudges (a soft uneven haze), fine bent
+scratches catching the light, dust settled at the rim. All of it is made from the spec's seed in original pixels, so it is the
+same at 4x and 8x and the same in every frame (it does not turn with the beam), and medium holds light's parts and adds more.
+It is printed into all 62 frames and into the live sweep's grid layer (`zrads_grid.png`, one layer over the face), so the
+stepped frames and Radar Sweep: Smooth show the same glass with no change to the game. `pack.json`'s `radar_redraw` names the
+level.
+
 The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a one-texel anti-aliased edge (crisp:
 `line_edge` null; rounds 2 and 3 used a quarter-pixel ramp).
 
