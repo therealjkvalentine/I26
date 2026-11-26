@@ -17,7 +17,7 @@ public sealed partial class Ptable
     /// </summary>
     private bool TakePosition(Entity e, Entity? t)
     {
-        if (!Smart(e, SmartAi.Positions) || t?.Vehicle is not { } tv) return false;
+        if (!SmartVs(e, SmartAi.Positions, t) || t?.Vehicle is not { } tv) return false;
         int index = 0;
         foreach (var o in host.Entities)
         {

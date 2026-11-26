@@ -159,7 +159,7 @@ public sealed partial class Ptable
         if (agg is < 0 or > 4) { host.Log("calc_sum - agg out of bounds"); agg = System.Math.Clamp(agg, 0, 4); }
         var R = S[s].Rules[r].Data;
         var w = R.Weights[agg].ToArray();
-        if (SmartOn(e)) FavourRearGuns(e, R.Options, w);
+        if (SmartOn(e)) FavourRearGuns(e, target, R.Options, w);
         int sum = w.Sum();
         int tries = 0;
         while (sum > 0)

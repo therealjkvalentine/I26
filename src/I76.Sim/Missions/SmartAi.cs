@@ -5,7 +5,9 @@ namespace I76.Sim.Missions;
 /// is the original's AI. A session rule (<see cref="ScriptHost.SmartAi"/>, from the session's build: <see cref="Save.SessionBuild.SmartAi"/>),
 /// the host's in a network game; a car may carry more of its own (<see cref="Entity.SmartAi"/>, a hook for a top skill tier). Each
 /// behaviour acts only while the car's order is an attack (its tactics, on deck, too far and the escapes they push), so scripted gotos,
-/// follows, races and evades drive as the original's. None changes grip, power or damage: only what the AI decides.
+/// follows, races and evades drive as the original's. The fighting ones (<see cref="SmartAiNames.Offence"/>) act only while the car's
+/// target is a human's car, unless <see cref="AnyTarget"/> is on: against an escorted van, an ally, a building or another computer car
+/// it fights as the original's. None changes grip, power or damage: only what the AI decides.
 /// </summary>
 [Flags]
 public enum SmartAi : uint
@@ -30,6 +32,13 @@ public enum SmartAi : uint
     /// <summary>Rear guns (D2): a car with a loaded rear gun keeps a chaser in its rear cone and favours the tactic that does.</summary>
     RearGuns = 1 << 8,
     All = GunLay | Settle | HillPursuit | ClimbProbe | LedgeCaution | Unstick | Positions | DropChased | RearGuns,
+    /// <summary>
+    /// Against any target (the rule's first form): the fighting behaviours (<see cref="SmartAiNames.Offence"/>) also act while the
+    /// car's target is not a human's car (an escorted van, an ally, a building, another computer car). Not one of <see cref="All"/>.
+    /// </summary>
+    AnyTarget = 1 << 9,
+    /// <summary>Every bit the rule knows: the behaviours and <see cref="AnyTarget"/>.</summary>
+    Known = All | AnyTarget,
 }
 
 /// <summary>The <see cref="SmartAi"/> rule as written in the settings and the dev hook: names, groups or a number.</summary>
@@ -43,7 +52,16 @@ public static class SmartAiNames
         ("unstick", SmartAi.Unstick),
         ("positions", SmartAi.Positions),
         ("drop_chased", SmartAi.DropChased), ("rear_guns", SmartAi.RearGuns),
+        ("any_target", SmartAi.AnyTarget),
     ];
+
+    /// <summary>
+    /// The fighting behaviours (aim, firing discipline, the rear-gun tactic draw, attack positions, drops and rear guns): only while the
+    /// car's target is a human's car, unless <see cref="SmartAi.AnyTarget"/> is on, so the missions' balance between the computer cars
+    /// and what the player protects stays the original's. The terrain group (hill pursuit, the climb-aware probe, ledge caution, stuck
+    /// recovery) keeps a car from looking broken and acts whatever its target.
+    /// </summary>
+    public const SmartAi Offence = SmartAi.GunLay | SmartAi.Settle | SmartAi.Positions | SmartAi.DropChased | SmartAi.RearGuns;
 
     /// <summary>The groups of the research's catalogue: T lining up, N terrain, G coordination, D defence; and all, off.</summary>
     public static readonly (string Name, SmartAi Bits)[] Groups =
@@ -53,11 +71,12 @@ public static class SmartAiNames
         ("g", SmartAi.Positions),
         ("d", SmartAi.DropChased | SmartAi.RearGuns),
         ("all", SmartAi.All), ("off", SmartAi.None), ("none", SmartAi.None),
+        ("everything", SmartAi.All | SmartAi.AnyTarget),
     ];
 
     /// <summary>
     /// A list of key words, group letters or numbers (decimal or 0x hex) separated by commas, spaces, '+' or '|'; the bits of all.
-    /// Words it does not know go to <paramref name="unknown"/> and add nothing; bits past <see cref="SmartAi.All"/> are dropped.
+    /// Words it does not know go to <paramref name="unknown"/> and add nothing; bits past <see cref="SmartAi.Known"/> are dropped.
     /// </summary>
     public static SmartAi Parse(string? text, out List<string> unknown)
     {
@@ -75,12 +94,12 @@ public static class SmartAiNames
             if (i >= 0) { bits |= Groups[i].Bits; continue; }
             unknown.Add(raw);
         }
-        return bits & SmartAi.All;
+        return bits & SmartAi.Known;
     }
 
     /// <summary>The bits as key words ("off" for none).</summary>
     public static string Describe(SmartAi bits) =>
-        (bits & SmartAi.All) == SmartAi.None ? "off" : string.Join(",", Bits.Where(b => (bits & b.Bit) != 0).Select(b => b.Name));
+        (bits & SmartAi.Known) == SmartAi.None ? "off" : string.Join(",", Bits.Where(b => (bits & b.Bit) != 0).Select(b => b.Name));
 }
 
 public sealed partial class ScriptHost

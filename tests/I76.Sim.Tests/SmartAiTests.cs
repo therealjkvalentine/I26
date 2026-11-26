@@ -35,7 +35,9 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.Equal(SmartAi.All, SmartAiNames.Parse("all", out _));
         Assert.Equal((SmartAi)3, SmartAiNames.Parse("3", out _));
         Assert.Equal((SmartAi)5, SmartAiNames.Parse("5", out _));
-        Assert.Equal(SmartAi.All, SmartAiNames.Parse("0xffffffff", out _));
+        Assert.Equal(SmartAi.Known, SmartAiNames.Parse("0xffffffff", out _));
+        Assert.Equal(SmartAi.All | SmartAi.AnyTarget, SmartAiNames.Parse("everything", out _));
+        Assert.Equal(SmartAi.All | SmartAi.AnyTarget, SmartAiNames.Parse("all,any_target", out _));
         Assert.Equal(SmartAi.Settle, SmartAiNames.Parse("settle,bogus", out var bad));
         Assert.Equal(["bogus"], bad);
         Assert.Equal("off", SmartAiNames.Describe(SmartAi.None));
@@ -200,7 +202,7 @@ public class SmartAiTests(ITestOutputHelper output)
         var p = r.Host.Ptable;
         bool Lays(SmartAi bits, float bearing, float range, out float steer, float speed = 12)
         {
-            a.SmartAi = bits; a.LayActive = false;
+            a.SmartAi = bits | SmartAi.AnyTarget; a.LayActive = false;   // b is a computer car: any target
             Place(r, a.Vehicle!, r.Centre, 0, 10);
             a.Vehicle!.Gear = 1;
             Place(r, b.Vehicle!, r.Centre + new Vector2(MathF.Sin(bearing), MathF.Cos(bearing)) * range, MathF.PI / 2, speed);
@@ -441,7 +443,7 @@ public class SmartAiTests(ITestOutputHelper output)
         // the gate alone (the order's own tail would drop first): the cars placed again after the order's tick
         bool Drops(SmartAi bits, Vector2 chaser, float chaserSpeed)
         {
-            a.SmartAi = bits;
+            a.SmartAi = bits | SmartAi.AnyTarget;   // b is a computer car: any target
             r.Host.Order(a, b, AiOrder.Attack, null, 0);
             a.LastDropAt = -100; a.HoldLineUntil = -1;
             Place(r, a.Vehicle!, r.Centre, 0, 15);
@@ -476,7 +478,7 @@ public class SmartAiTests(ITestOutputHelper output)
         var p = r.Host.Ptable;
         a.SmartAi = SmartAi.None;
         Assert.False(p.RearLay(a, b));
-        a.SmartAi = SmartAi.RearGuns;
+        a.SmartAi = SmartAi.RearGuns | SmartAi.AnyTarget;   // b is a computer car: any target
         a.Vehicle!.Steer = 0;
         Assert.True(p.RearLay(a, b));
         float steerLeft = a.Vehicle!.Steer;
@@ -485,7 +487,113 @@ public class SmartAiTests(ITestOutputHelper output)
         Assert.True(MathF.Sign(steerLeft) == -MathF.Sign(a.Vehicle!.Steer) && steerLeft != 0, $"steer {steerLeft} then {a.Vehicle!.Steer}");
         int miner = Array.FindIndex(r.Host.Tactics!, d => d.Name == "dirt_miner");
         int[] options = [1, miner, 3], weights = [10, 10, 10];
-        p.FavourRearGuns(a, options, weights);
+        p.FavourRearGuns(a, b, options, weights);
         Assert.Equal([10, 20, 10], weights);
+    }
+
+    // ---- the fighting behaviours only against a human's car ----
+
+    /// <summary>
+    /// The fighting behaviours (gun lay, settle, positions, drops, rear guns) act only while the car's target is a human's car (a
+    /// co-op teammate's too); against another computer car (an ally, an escorted van) the car fights as the original's, and the
+    /// settle clock stops so that a switch back starts it afresh. With any_target, as the rule's first form, against anything.
+    /// </summary>
+    [Fact]
+    public void TheFightingBehavioursActOnlyAgainstAHumansCar()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.All) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        var pe = r.Host.Player!;
+        for (int t = 0; t < Ticks(2); t++) Step(r);
+        var p = r.Host.Ptable;
+        bool Lays(Entity target)
+        {
+            Place(r, a.Vehicle!, r.Centre, 0, 10);
+            a.Vehicle!.Gear = 1;
+            Place(r, target.Vehicle!, r.Centre + new Vector2(MathF.Sin(0.87f), MathF.Cos(0.87f)) * 60, MathF.PI / 2, 12);
+            r.Host.Order(a, target, AiOrder.Attack, null, 0);
+            a.LayActive = false;
+            p.GunLay(a, target);
+            return a.LayActive;
+        }
+        Assert.True(Lays(pe));
+        a.LayAlignedAt = r.Host.Now;
+        Assert.False(Lays(b));
+        Assert.Equal(-1f, a.LayAlignedAt);
+        Assert.True(Lays(pe));
+        // any human: a co-op teammate's car counts
+        r.Setup.World.Humans.Add(b.Vehicle!);
+        Assert.True(Lays(b));
+        r.Setup.World.Humans.Remove(b.Vehicle!);
+        // the rule's first form
+        a.SmartAi = SmartAi.AnyTarget;
+        Assert.True(Lays(b));
+        a.SmartAi = SmartAi.None;
+
+        // drop when chased: the chaser 20 m behind and closing
+        var drop = a.Vehicle!.Armory!.Weapons.First(w => w.Def.Class == 6);
+        bool Drops(Entity chaser)
+        {
+            r.Host.Order(a, chaser, AiOrder.Attack, null, 0);
+            a.LastDropAt = -100; a.HoldLineUntil = -1;
+            Place(r, a.Vehicle!, r.Centre, 0, 15);
+            a.Vehicle!.Gear = 1;
+            a.Vehicle!.Flags &= ~VehicleFlags.Airborne;
+            Place(r, chaser.Vehicle!, r.Centre - new Vector2(0, 20), 0, 20);
+            drop.Trigger = false;
+            p.DropWhenChased(a, chaser);
+            return drop.Trigger;
+        }
+        Assert.True(Drops(pe));
+        Assert.False(Drops(b));
+        Assert.Equal(-1f, a.HoldLineUntil);
+
+        // the rear-gun tactic draw
+        int miner = Array.FindIndex(r.Host.Tactics!, d => d.Name == "dirt_miner");
+        int[] options = [1, miner, 3], vsB = [10, 10, 10], vsPlayer = [10, 10, 10];
+        r.Host.Order(a, b, AiOrder.Attack, null, 0);
+        p.FavourRearGuns(a, b, options, vsB);
+        Assert.Equal([10, 10, 10], vsB);
+        if (a.Vehicle!.Armory!.Weapons.Any(w => w.Ammo != 0 && w.Hp > 0 && w.Style != 3 && w.TurretPivot is null && w.BaseRot.Forward.Z < -0.96f && w.Def.Class is 1 or 2 or 4))
+        {
+            r.Host.Order(a, pe, AiOrder.Attack, null, 0);
+            p.FavourRearGuns(a, pe, options, vsPlayer);
+            Assert.Equal([10, 20, 10], vsPlayer);
+        }
+    }
+
+    /// <summary>
+    /// A car whose target switches mid-fight between the player and another computer car lays its guns on the player only, from
+    /// the frame of the switch, in either direction; the terrain group keeps acting on both targets.
+    /// </summary>
+    [Fact]
+    public void ATargetSwitchSwitchesTheFightingBehavioursCleanly()
+    {
+        if (Make(["vppirna1.vcf", "vppirna1.vcf"], SmartAi.All) is not { } r) return;
+        var (a, b) = (r.Ais[0], r.Ais[1]);
+        var pe = r.Host.Player!;
+        Place(r, a.Vehicle!, r.Centre, 0, 0);
+        Place(r, b.Vehicle!, r.Centre + new Vector2(20, 70), 0, 0);
+        Place(r, r.Player, r.Centre + new Vector2(-20, 70), 0, 0);
+        int[] lays = new int[4], ticks = new int[4];
+        for (int phase = 0; phase < 4; phase++)
+        {
+            var target = phase % 2 == 0 ? pe : b;
+            for (int t = 0; t < Ticks(8); t++)
+            {
+                Step(r, (a, target));
+                ticks[phase]++;
+                if (a.LayActive) lays[phase]++;
+                if (target == b)
+                {
+                    Assert.False(a.LayActive, $"laid on the computer car in phase {phase}");
+                    Assert.Equal(-1f, a.LayAlignedAt);
+                }
+            }
+        }
+        output.WriteLine($"lay ticks: player {lays[0]}/{ticks[0]}, computer {lays[1]}, player {lays[2]}, computer {lays[3]}");
+        Assert.True(lays[0] > 0 && lays[2] > 0, "never laid on the player");
+        // the terrain group went on reading the chase whatever the target
+        Assert.True(a.ChaseGapTime > 0, "the terrain group never ran");
     }
 }

@@ -587,7 +587,7 @@ public sealed partial class MissionSetup
             MarkTaurus(ms.Vm!.Actors);
             host.FindKeyCars(w.Mission.FsmPayload(), ms.Vm, w.Mission.Name);
         }
-        if (ms is not null) ms.Host.SmartAi = smartAi & SmartAi.All;
+        if (ms is not null) ms.Host.SmartAi = smartAi & SmartAi.Known;
         // the explosion templates in the original's load order (the first file with a key keeps it): the startup three, then
         // each scenery object's SDFC file in ODEF order, then the LDEF links'. Weapon effects register as first used; no
         // stock weapon effect shares a key with another file.

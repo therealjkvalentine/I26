@@ -22,7 +22,7 @@ public sealed partial class Ptable
     /// </summary>
     internal void DropWhenChased(Entity e, Entity t)
     {
-        if (!Smart(e, SmartAi.DropChased) || t.Vehicle is not { } tv || e.Vehicle is not { Armory: { } a } v) return;
+        if (!SmartVs(e, SmartAi.DropChased, t) || t.Vehicle is not { } tv || e.Vehicle is not { Armory: { } a } v) return;
         if (v.Gear < 1f || (v.Flags & VehicleFlags.Airborne) != 0 || Now < e.LastDropAt + 1f) return;
         var rel = t.Position - Pos(e);
         var r2 = new Vector2(rel.X, rel.Z);
@@ -49,7 +49,7 @@ public sealed partial class Ptable
     /// </summary>
     internal bool RearLay(Entity e, Entity? t)
     {
-        if (!Smart(e, SmartAi.RearGuns) || t?.Vehicle is not { } tv || e.Vehicle is not { Armory: { } a } v) return false;
+        if (!SmartVs(e, SmartAi.RearGuns, t) || t?.Vehicle is not { } tv || e.Vehicle is not { Armory: { } a } v) return false;
         var w = a.Weapons.FirstOrDefault(RearGun);
         if (w is null) return false;
         float d = Dist(e, t);
@@ -64,9 +64,9 @@ public sealed partial class Ptable
     }
 
     /// <summary>Rear guns (D2) in the tactic draw: dirt_miner (which runs ahead of the target) weighs twice as much for a car with a loaded rear gun.</summary>
-    internal void FavourRearGuns(Entity e, int[] options, int[] weights)
+    internal void FavourRearGuns(Entity e, Entity? t, int[] options, int[] weights)
     {
-        if (!Smart(e, SmartAi.RearGuns) || e.Vehicle?.Armory is not { } a || !a.Weapons.Any(RearGun)) return;
+        if (!SmartVs(e, SmartAi.RearGuns, t) || e.Vehicle?.Armory is not { } a || !a.Weapons.Any(RearGun)) return;
         for (int i = 0; i < options.Length && i < weights.Length; i++)
             if (NameOf(options[i]) == "dirt_miner") weights[i] *= 2;
     }

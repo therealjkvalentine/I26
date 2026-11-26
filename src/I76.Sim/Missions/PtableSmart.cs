@@ -7,7 +7,8 @@ namespace I76.Sim.Missions;
 /// The smarter opponents (the play fork's; <see cref="Missions.SmartAi"/>, docs/deviations.md "Smarter opponents"): behaviours the
 /// original's AI does not have, each behind its own bit, all off by default. With no bit on nothing here runs, draws a random
 /// number or writes a field, so the original's AI is unchanged. Each acts only while the car's order is an attack (its tactics, on
-/// deck, too far and the escapes they push) and never on a human's car; each changes only what the AI asks of the car. The
+/// deck, too far and the escapes they push) and never on a human's car, the fighting ones only against a human's car
+/// (<see cref="SmartVs"/>); each changes only what the AI asks of the car. The
 /// behaviours are in PtableSmart*.cs, one file a group; here are the switch and the hooks the state machine calls.
 /// </summary>
 public sealed partial class Ptable
@@ -20,6 +21,18 @@ public sealed partial class Ptable
     /// <summary>The bit is on for this car, and its order is an attack (a scripted goto, follow, race or evade keeps the original's driving).</summary>
     private bool Smart(Entity e, SmartAi bit) =>
         ((host.SmartAi | e.SmartAi) & bit) != 0 && e.Order is { } o && IsAttack((int)o) && e.Vehicle is { } v && !World.IsHuman(v);
+
+    /// <summary>
+    /// A fighting bit (<see cref="SmartAiNames.Offence"/>) on for this car, as <see cref="Smart"/>, and its target a human's car (any
+    /// human in co-op), or <see cref="SmartAi.AnyTarget"/> on. Against an escorted van, an ally, a building or another computer car the
+    /// car fights as the original's: the missions were balanced on the original's AI against what the player protects. A target
+    /// switch switches it the next frame (it reads the target, nothing kept).
+    /// </summary>
+    private bool SmartVs(Entity e, SmartAi bit, Entity? t) => Smart(e, bit) && FightsHuman(e, t);
+
+    /// <summary>The target is a human's car, or the car has <see cref="SmartAi.AnyTarget"/>.</summary>
+    private bool FightsHuman(Entity e, Entity? t) =>
+        ((host.SmartAi | e.SmartAi) & SmartAi.AnyTarget) != 0 || t?.Vehicle is { } tv && World.IsHuman(tv);
 
     /// <summary>The tier's share between the worst (setSkill 5, drive skill 0.4: 0) and the best (1: 1).</summary>
     private static float TierShare(Entity e) => System.Math.Clamp((e.Ai.Skill - 0.4f) / 0.6f, 0f, 1f);
@@ -46,7 +59,10 @@ public sealed partial class Ptable
         if (!e.LayActive && v.Gear > 0 && !escape)
         {
             bool rear = DefendStates.Contains(name) && RearLay(e, t);
-            if (!rear && e.HoldLineUntil > Now && (Smart(e, SmartAi.DropChased) || Smart(e, SmartAi.Unstick))) Steer(e, e.HoldLineHeading);
+            // a drop's line (set with the drop's time) only while the fight is still with a human's car; Stuck recovery's forward leg always
+            if (!rear && e.HoldLineUntil > Now
+                && (e.HoldLineUntil == e.LastDropAt + 2f ? SmartVs(e, SmartAi.DropChased, t) : Smart(e, SmartAi.DropChased) || Smart(e, SmartAi.Unstick)))
+                Steer(e, e.HoldLineHeading);
         }
         return LedgeCaution(e, escape);
     }

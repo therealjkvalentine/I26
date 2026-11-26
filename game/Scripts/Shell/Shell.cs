@@ -1587,12 +1587,13 @@ public sealed class ShellSettings
 
     /// <summary>
     /// Sets the rule as Play Options' Smart A.I. row and the Developer panel's check boxes write it: none leaves the key out, every
-    /// behaviour is "all", some are their names (<see cref="I76.Sim.Missions.SmartAiNames.Describe"/>).
+    /// behaviour is "all" ("everything" with any_target too, the rule's first form), some are their names (<see cref="I76.Sim.Missions.SmartAiNames.Describe"/>).
     /// </summary>
     public void SetSmartAi(I76.Sim.Missions.SmartAi bits)
     {
-        bits &= I76.Sim.Missions.SmartAi.All;
-        SmartAiText = bits == I76.Sim.Missions.SmartAi.None ? "" : bits == I76.Sim.Missions.SmartAi.All ? "all" : I76.Sim.Missions.SmartAiNames.Describe(bits);
+        bits &= I76.Sim.Missions.SmartAi.Known;
+        SmartAiText = bits == I76.Sim.Missions.SmartAi.None ? "" : bits == I76.Sim.Missions.SmartAi.All ? "all"
+            : bits == I76.Sim.Missions.SmartAi.Known ? "everything" : I76.Sim.Missions.SmartAiNames.Describe(bits);
     }
 
     /// <summary>Play Options' Smart A.I. values: Off (the original's AI), On (every behaviour), Custom (some, set on the Developer panel; a click does not step to it).</summary>
@@ -1600,7 +1601,7 @@ public sealed class ShellSettings
 
     /// <summary>The Smart A.I. row's value for a rule: 0 Off, 1 On, 2 Custom.</summary>
     public static int SmartAiRowIndex(I76.Sim.Missions.SmartAi bits) =>
-        (bits & I76.Sim.Missions.SmartAi.All) switch { I76.Sim.Missions.SmartAi.None => 0, I76.Sim.Missions.SmartAi.All => 1, _ => 2 };
+        (bits & I76.Sim.Missions.SmartAi.Known) switch { I76.Sim.Missions.SmartAi.None or I76.Sim.Missions.SmartAi.AnyTarget => 0, I76.Sim.Missions.SmartAi.All => 1, _ => 2 };
 
     /// <summary>The Smart A.I. row's next value from <paramref name="index"/> (Off to On; On and Custom to Off).</summary>
     public static I76.Sim.Missions.SmartAi SmartAiRowNext(int index) => index == 0 ? I76.Sim.Missions.SmartAi.All : I76.Sim.Missions.SmartAi.None;

@@ -175,7 +175,7 @@ public sealed partial class SimSession
         // bookmark, a migrated host), whatever the setting is now
         World.SolidCliffs = h.Build.SolidCliffs;
         // the smarter opponents' rule likewise (the AI's, the session's rule as the snapshot was made)
-        if (Script?.Host is { } sh) sh.SmartAi = h.Build.SmartAi & Missions.SmartAi.All;
+        if (Script?.Host is { } sh) sh.SmartAi = h.Build.SmartAi & Missions.SmartAi.Known;
         if (Build is { } b) Build = b with { SmartAi = h.Build.SmartAi };
         return RestoreBody(h.Body(snapshot));
     }

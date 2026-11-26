@@ -75,7 +75,7 @@ public static class MenuTips
         ["Equip. Tooltips"] = "Equipment tooltips: rest the pointer on a part in the garage, the inventory or the salvage lists to see what it does in the game. Off shows none there.",
         // the fork's game rules: the session's build takes them as a mission starts, so a change in a mission shows from the next one
         ["Solid Cliffs"] = "Solid cliffs: a cliff steeper than 60 degrees stops your car like a wall, and computer cars driving freely too. Off, the original's: a car is lifted up the face. The fork's own. From the next mission start; online, the host's.",
-        ["Smart A.I."] = "Smart A.I.: the computer cars aim their fixed guns at you, climb after you, keep off cliff edges, back out when stuck, wait their turn out of your sights and use mines and rear guns on a chaser. Off is the original's A.I.; Custom, some of these (the Developer panel). The fork's own. From the next mission start; online, the host's.",
+        ["Smart A.I."] = "Smart A.I.: computer cars aim their fixed guns at you, climb after you, keep off cliffs, back out when stuck, wait their turn out of your sights and use mines and rear guns on a chaser; only you get the smart fighting. Off is the original's A.I.; Custom, some of these (the Developer panel). The fork's own. From the next mission start; online, the host's.",
         ["Skip Intro Movies"] = "Skip intro movies: the game starts at the main menu, without the intro and the opening credits. Briefings, outros and cut-scenes still play.",
 
         // ---- Controls (the port's sheet: force feedback, head tracking, then the mouse and the key map)
