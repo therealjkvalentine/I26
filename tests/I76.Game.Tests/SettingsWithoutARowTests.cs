@@ -262,6 +262,8 @@ public class SettingsWithoutARowTests
             (I76.Sim.Views.CrashBlurMode.Names, ["On"]),
             (I76.Sim.Views.MouseLook.Names, ["Off"]),
             (I76.Game.Boot.RenderScale.AntiAliasing, ["Off", "2x", "4x"]),
+            (AntiAliasingRow.Names, ["Off", "2x", "4x"]),
+            (ShadowDetailRow.Names, ["Off", "Low", "High"]),
             (VisibilityRange.Names, ["Far"]),
             // World Textures and Car & Dash Textures: 1997, the install's own, is the original's
             (TextureRow.Names(new ShellSettings { WorldTextures = 4 }, GraphicsRow.WorldTextures, [8, 4]), ["1997"]),

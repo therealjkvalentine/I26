@@ -543,7 +543,7 @@ public sealed partial class EscapeMenu : Control
     /// <summary>One of Graphic Detail's rows as a pad item (its row set by the page), or null for a row the pad does not offer: the shell's window, start-up and garage rows, and HD Textures with no pack.</summary>
     private Item? PortRow(GraphicsRow r)
     {
-        string[] offOn = ["Off", "On"], offLowHigh = ["Off", "Low", "High"];
+        string[] offOn = ["Off", "On"];
         string mark = ShellSettings.PortMark;
         Action live = () => { Live?.Invoke(Settings); _fps.Changed(); };
         Item G(int flags, string label, int n, string[]? names, int at) =>
@@ -553,7 +553,7 @@ public sealed partial class EscapeMenu : Control
             // the original's rows in the graphics block
             case GraphicsRow.MonitorBrightness: return G(Numeric | Min1 | WrapAround | OneIsNumber, "Monitor Brightness", 11, null, 0xc);
             case GraphicsRow.TerrainDetail: return G(Cycle, "Terrain Detail", 2, ["Low", "High"], 0x2);
-            case GraphicsRow.ShadowDetail: return G(Cycle, "Shadow Detail", 3, offLowHigh, 0x6);
+            case GraphicsRow.ShadowDetail: return Keyed(r, "Shadow Detail", ShadowDetailRow.Names, ShadowDetailRow.Index, ShadowDetailRow.Put, live);   // Ultra*: [port] shadow_detail over High
             case GraphicsRow.ExtInstruments: return G(Cycle, "Ext. Instrum. Disp.", 2, offOn, 0xe);
             // the original's Rear Mirror (+0xd) and [port] side_mirrors in one row (MirrorsRow: Off, Rear, Rear + Left, All; the rear's
             // Low and an on set by hand are kept unless the row is changed), live
@@ -565,7 +565,7 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.VisibilityRange:
                 return Keyed(r, "Visibility Range", VisibilityRange.Names, s => VisibilityRange.Index(s, Faithful), (s, v) => VisibilityRange.Put(s, Faithful, v), live);
             // the port's MSAA in +0x8 (the shell's list, 8x too), live
-            case GraphicsRow.AntiAliasing: return G(Cycle, "Anti-Aliasing", I76.Game.Boot.RenderScale.AntiAliasing.Length, I76.Game.Boot.RenderScale.AntiAliasing, 0x8);
+            case GraphicsRow.AntiAliasing: return Keyed(r, "Anti-Aliasing", AntiAliasingRow.Names, AntiAliasingRow.Index, AntiAliasingRow.Put, live);   // SMAA*: [port] screen_aa over Off or 2x
             // [port] world_textures and car_textures (TextureRow): 1997 or a size when a pack is there; both to or from 1997 live, a size from the next mission
             case GraphicsRow.WorldTextures:
             case GraphicsRow.CarTextures:

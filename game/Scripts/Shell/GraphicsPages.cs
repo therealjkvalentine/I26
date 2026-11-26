@@ -120,12 +120,12 @@ public static class GraphicsPages
             case GraphicsRow.VisibilityRange: t.DrawDistanceChoice = f.DrawDistanceChoice; break;
             case GraphicsRow.MonitorBrightness: t.Graphics[0xc] = f.Graphics[0xc]; break;
             case GraphicsRow.TerrainDetail: t.Graphics[0x2] = f.Graphics[0x2]; break;
-            case GraphicsRow.ShadowDetail: t.Graphics[0x6] = f.Graphics[0x6]; break;
+            case GraphicsRow.ShadowDetail: t.Graphics[0x6] = f.Graphics[0x6]; t.ShadowUltra = f.ShadowUltra; break;
             case GraphicsRow.ExtInstruments: t.Graphics[0xe] = f.Graphics[0xe]; break;
             // one row over two keys (MirrorsRow): the rear mirror's mode and [port] side_mirrors
             case GraphicsRow.Mirrors: t.Graphics[0xd] = f.Graphics[0xd]; t.SideMirrors = f.SideMirrors; break;
             case GraphicsRow.MirrorRate: t.MirrorRate = f.MirrorRate; break;
-            case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; break;
+            case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; t.Smaa = f.Smaa; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;
             case GraphicsRow.RenderScale: t.RenderScale = f.RenderScale; break;

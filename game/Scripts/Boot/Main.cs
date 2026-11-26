@@ -860,6 +860,7 @@ public partial class Main : Node3D
 		yield return null;
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
+		_shadowUltra = I76.Game.Shell.ShadowDetailRow.UltraOn(s);   // ShadowUltra.cs
 		_ambientOcclusion = s.AmbientOcclusion;
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
@@ -916,6 +917,7 @@ public partial class Main : Node3D
 		var (splits, reach) = ShadowReach.For(_shadowDetail);
 		_sun.DirectionalShadowMode = splits == 4 ? DirectionalLight3D.ShadowMode.Parallel4Splits : DirectionalLight3D.ShadowMode.Parallel2Splits;
 		_sun.DirectionalShadowMaxDistance = reach;
+		ApplyShadowUltra();   // ShadowUltra.cs
 		UpdateDrops();
 		MissionBuilder.Trace("quality: shadows");
 		yield return null;
@@ -4082,11 +4084,13 @@ public partial class Main : Node3D
 		// The 1997 look's sun casts none, so a change to it keeps the modern look's once they are set: going back to the modern look then
 		// changes nothing, where the two changes back cost the first frame about 0.13 s at 3440x1440)
 		bool shadowsSet = !on || _shadowFilterSet is null;
-		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : RenderingServer.ShadowQuality.SoftLow);
+		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : ShadowUltra.Filter(_shadowUltra));
 		// crisp: a bigger atlas, no blur and a shorter reach, so the near texels are fine
-		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
+		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : ShadowUltra.Atlas(_shadowUltra), true);
 		if (shadowsSet) _shadowFilterSet = _atlasSet = on;
-		_sun.ShadowBlur = on ? 0f : 1f;
+		if (shadowsSet && !on) _ultraSent = _shadowUltra;
+		_sun.ShadowBlur = on ? 0f : ShadowUltra.Blur(_shadowUltra);
+		_sun.DirectionalShadowBlendSplits = !on && ShadowUltra.Blend(_shadowUltra);
 		_sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
 		MissionBuilder.Trace("look: shadows, draw distance");
 		if (sliced) yield return null;

@@ -693,7 +693,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 ByteRow(r, line, "Terrain Detail", 0x2, ["Low", "High"]);
                 break;
             case GraphicsRow.ShadowDetail:
-                ByteRow(r, line, "Shadow Detail", 0x6, ["Off", "Low", "High"]);
+                Row(r, line, "Shadow Detail", () => ShadowDetailRow.Names[ShadowDetailRow.Index(st)], () => ShadowDetailRow.Step(st));   // Ultra*: [port] shadow_detail over High
                 break;
             case GraphicsRow.ExtInstruments:
                 ByteRow(r, line, "Ext. Instrum. Disp.", 0xe, ["Off", "On"]);
@@ -704,7 +704,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             // the port's MSAA in +0x8, a byte no screen of the original showed
             case GraphicsRow.AntiAliasing:
-                ByteRow(r, line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
+                Row(r, line, "Anti-Aliasing", () => AntiAliasingRow.Names[AntiAliasingRow.Index(st)], () => AntiAliasingRow.Step(st));   // SMAA*: [port] screen_aa over Off or 2x
                 break;
             // [port] world_textures and car_textures (TextureRow): 1997 or a size, shown when a pack is there; both to or from 1997 at
             // once (Main's ApplyGraphics swaps the pictures), a size from the next mission
