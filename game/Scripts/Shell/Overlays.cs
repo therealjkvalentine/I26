@@ -693,7 +693,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 ByteRow(r, line, "Terrain Detail", 0x2, ["Low", "High"]);
                 break;
             case GraphicsRow.ShadowDetail:
-                ByteRow(r, line, "Shadow Detail", 0x6, ["Off", "Low", "High"]);
+                Row(r, line, "Shadow Detail", () => ShadowDetailRow.Names[ShadowDetailRow.Index(st)], () => ShadowDetailRow.Step(st));   // Ultra*: [port] shadow_detail over High
                 break;
             case GraphicsRow.ExtInstruments:
                 ByteRow(r, line, "Ext. Instrum. Disp.", 0xe, ["Off", "On"]);
@@ -704,7 +704,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             // the port's MSAA in +0x8, a byte no screen of the original showed
             case GraphicsRow.AntiAliasing:
-                ByteRow(r, line, "Anti-Aliasing", 0x8, I76.Game.Boot.RenderScale.AntiAliasing);
+                Row(r, line, "Anti-Aliasing", () => AntiAliasingRow.Names[AntiAliasingRow.Index(st)], () => AntiAliasingRow.Step(st));   // SMAA*: [port] screen_aa over Off or 2x
                 break;
             // [port] world_textures and car_textures (TextureRow): 1997 or a size, shown when a pack is there; both to or from 1997 at
             // once (Main's ApplyGraphics swaps the pictures), a size from the next mission
@@ -764,6 +764,23 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
+                break;
+            // the modern look's aerial haze, glow and screen-space reflections (AirRows; Reflections only with Ambient Occlusion On); in a mission
+            case GraphicsRow.Haze:
+                Row(r, line, "Haze", () => AirRows.HazeNames[AirRows.ClampHaze(st.Haze)], () => AirRows.StepHaze(st));
+                break;
+            case GraphicsRow.Glow:
+                Row(r, line, "Glow", () => AirRows.GlowNames[AirRows.ClampGlow(st.Glow)], () => AirRows.StepGlow(st));
+                break;
+            case GraphicsRow.Reflections:
+                Row(r, line, "Reflections", () => AirRows.ReflectionWord(st), () => AirRows.StepReflections(st));
+                break;
+            // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's; apply in a mission
+            case GraphicsRow.SmokeLighting:
+                Row(r, line, SmokeLightingRow.Label, () => SmokeLightingRow.Names[SmokeLightingRow.Index(st)], () => SmokeLightingRow.Step(st));
+                break;
+            case GraphicsRow.HeatShimmer:
+                Row(r, line, HeatShimmerRow.Label, () => HeatShimmerRow.Names[HeatShimmerRow.Index(st)], () => HeatShimmerRow.Step(st));
                 break;
             // the main 3D views' field of view: Monitor (the original's height, the width from the window) or degrees across the window (the original's 90); the 2D dash, mirror and binoculars keep their own, live
             case GraphicsRow.FieldOfView:

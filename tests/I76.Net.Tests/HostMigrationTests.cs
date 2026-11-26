@@ -541,13 +541,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// Bots across host migrations: the host leaves (quits or drops), the first successor plays on a while with the bots acting
     /// (fighting, dying, coming back, leaving for a joiner), then it leaves too and the next takes over.
     /// </summary>
-    [Theory]
-    [InlineData(2, 0, false, true)]
-    [InlineData(3, 2, false, false)]
-    [InlineData(3, 2, true, true)]
-    [InlineData(1, 0, true, false)]
-    [InlineData(3, 1, false, true, 5, true)]
-    [InlineData(3, 0, true, false, 5, false)]
+    // The rows run as one test each in HostMigrationShards.cs (xUnit runs a class's tests one after another, so rows in one class would add up to minutes).
     public void BotsSurviveTwoMigrationsAndPlayOn(int bots, int ai, bool restricted, bool graceful, int maxPlayers = 8, bool teams = false)
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -598,10 +592,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// The new host's game ends and its next round begins with the bots again (they are built afresh from the options the
     /// savestate carried), the players carried on, and the game goes on.
     /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Load", "Sensitive")]   // wall-clock timing: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
+    // The rows run as one test each in HostMigrationShards.cs (xUnit runs a class's tests one after another, so rows in one class would add up to minutes).
     public void TheNewHostsNextRoundHasTheBotsToo(bool restricted)
     {
         if (HostTests.InstallDir is not { } install) return;

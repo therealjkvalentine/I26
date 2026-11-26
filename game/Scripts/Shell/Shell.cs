@@ -1314,6 +1314,10 @@ public sealed class ShellSettings
     /// </summary>
     public static readonly byte[] DefaultGraphics = [5, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 3, 2, 1, 1];
     public byte[] Graphics { get; } = (byte[])DefaultGraphics.Clone();
+    /// <summary>The port's own: Anti-Aliasing's SMAA over the +0x8 MSAA's Off or 2x ([port] screen_aa = smaa; AntiAliasingRow).</summary>
+    public bool Smaa { get; set; }
+    /// <summary>The port's own: Shadow Detail's Ultra over the +0x6 byte's High ([port] shadow_detail = ultra; ShadowDetailRow).</summary>
+    public bool ShadowUltra { get; set; }
     public byte[] Audio { get; } = [8, 8, 8, 8];
     /// <summary>Bit 0x01 Arcade Phys., 0x02 No Salv. Manag., 0x04 Unlim. Ammo, 0x08 Armor, 0x10 Chas. Rein., 0x20 Wiper Fluid.</summary>
     public int PlayOptions { get; set; }
@@ -1482,6 +1486,16 @@ public sealed class ShellSettings
     /// feature (docs/perf/costs.md: 29 % of a full-detail frame at 3440x1440, most of it the depth pre-pass drawing every surface's normals).
     /// </summary>
     public bool AmbientOcclusion { get; set; }
+    /// <summary>The port's own: the modern look's added aerial haze (Graphic Detail's Haze, AirRows: 0 Off, 1 Light, 2 Southwest; [port] haze, written when not Off).</summary>
+    public int Haze { get; set; }
+    /// <summary>The port's own: the modern look's glow on lamps, flashes and fire (Graphic Detail's Glow, AirRows: 0 Off, 1 Lamps; [port] glow, written when not Off).</summary>
+    public int Glow { get; set; }
+    /// <summary>The port's own: the modern look's screen-space reflections, drawn only with Ambient Occlusion On (Graphic Detail's Reflections, AirRows; [port] reflections, written when on).</summary>
+    public bool Reflections { get; set; }
+    /// <summary>The port's own: Graphic Detail's Smoke Lighting (SmokeLightingRow), the modern look's smoke and dust lit by the sun's colour and direction and the sky's; [port] smoke_lighting, written only when on. Off unless the player chose.</summary>
+    public bool SmokeLighting { get; set; }
+    /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
+    public int HeatShimmer { get; set; }
     /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
@@ -2010,6 +2024,9 @@ public sealed class ShellSettings
         int? forkVersion = c.HasSectionKey("port", "fork_version") ? (int)c.GetValue("port", "fork_version") : null;
         int version = StepsDone(shellVersion, forkVersion);
         ReadGraphics(s.Graphics, (byte[])c.GetValue("shell", "graphics", s.Graphics), version);
+        // no version step: the bytes keep their meaning, the port's choices over them are keys (absent: none)
+        s.Smaa = AntiAliasingRow.FromFile(c.HasSectionKey("port", "screen_aa") ? c.GetValue("port", "screen_aa").ToString() : null);
+        s.ShadowUltra = ShadowDetailRow.FromFile(c.HasSectionKey("port", "shadow_detail") ? c.GetValue("port", "shadow_detail").ToString() : null);
         var a = (byte[])c.GetValue("shell", "audio", s.Audio);
         if (a.Length == 4) Array.Copy(a, s.Audio, 4);
         (int, int)? Read(string section) => c.HasSectionKey(section, "play") || c.HasSectionKey(section, "difficulty")
@@ -2081,6 +2098,13 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
         s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
+        // no version step: absent, off (the rows came after the keys they would read)
+        s.Haze = AirRows.ClampHaze((int)c.GetValue("port", "haze", 0));
+        s.Glow = AirRows.ClampGlow((int)c.GetValue("port", "glow", 0));
+        s.Reflections = (bool)c.GetValue("port", "reflections", false);
+        // no version step: a file without these keys has them off, as they were before they existed
+        s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
+        s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2316,6 +2340,11 @@ public sealed class ShellSettings
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
+        if (Haze != 0) c.SetValue("port", "haze", Haze);
+        if (Glow != 0) c.SetValue("port", "glow", Glow);
+        if (Reflections) c.SetValue("port", "reflections", true);
+        if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
+        if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));
@@ -2346,6 +2375,8 @@ public sealed class ShellSettings
         c.SetValue("port", "car_textures", I76.Game.Assets.HdTextures.Word(CarTextures));
         c.SetValue("port", "texture_packs", I76.Game.Assets.HdTextures.PacksWord(packs?.Sizes ?? [], packs?.Plain ?? false));
         c.SetValue("shell", "graphics", Graphics);
+        if (AntiAliasingRow.SmaaOn(this)) c.SetValue("port", "screen_aa", AntiAliasingRow.Word);
+        if (ShadowDetailRow.UltraOn(this)) c.SetValue("port", "shadow_detail", ShadowDetailRow.Word);
         c.SetValue("shell", "audio", Audio);
         // the other game's flags and difficulty stay as the file has them
         if (old is not null)

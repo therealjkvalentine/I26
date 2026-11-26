@@ -137,6 +137,26 @@ public class RadarFramesTests
         Assert.True(r.Ready(r.Sweep[1]!));
     }
 
+    /// <summary>
+    /// A frame asked for ahead with every buffer being decoded into is not waited for (the main thread had waited behind four decodes below its
+    /// priority: frames of 70-115 ms with the 8x dash on a busy processor); it is decoded when it is asked for again, and its texels are the same.
+    /// </summary>
+    [Fact]
+    public void AheadNeverWaitsForABusyBuffer()
+    {
+        var r = new RadarFrames();
+        var blocks = new byte[6][];
+        for (int i = 0; i < 6; i++) r.Sweep[i] = RadarFrames.Compressed(2048, 1024, blocks[i] = Blocks(2048, 1024, 10 + i));   // the 8x dash's size
+        for (int i = 0; i < 4; i++) r.Ahead(r.Sweep[i]);   // four decodes under way: every buffer busy
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        r.Ahead(r.Sweep[4]);
+        long ms = sw.ElapsedMilliseconds;
+        bool started = r.Ready(r.Sweep[0]!) && r.Ready(r.Sweep[1]!) && r.Ready(r.Sweep[2]!) && r.Ready(r.Sweep[3]!);
+        if (!started) Assert.True(ms < 5, $"the fifth frame ahead waited {ms} ms");
+        Assert.Equal(Expected(r.Sweep[4]!, blocks[4]), r.Bytes(r.Sweep[4]!));
+        Assert.Equal(Expected(r.Sweep[1]!, blocks[1]), r.Bytes(r.Sweep[1]!));
+    }
+
     [Fact]
     public void AFrameKeptWholeIsGivenAsItIs()
     {

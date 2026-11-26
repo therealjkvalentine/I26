@@ -338,6 +338,7 @@ public partial class Main : Node3D
 		ExitWatchdog.Install(GetTree());
 		HitchWatch.Install(GetTree());
 		FrameSections.Install(GetTree());
+		GcPacer.Install();
 		MusicProbe.Install(GetTree());
 		Controls.InstallDir = _opt.Install;
 		GameKeys.InstallDir = _opt.Install;
@@ -860,7 +861,11 @@ public partial class Main : Node3D
 		yield return null;
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
+		_shadowUltra = I76.Game.Shell.ShadowDetailRow.UltraOn(s);   // ShadowUltra.cs
 		_ambientOcclusion = s.AmbientOcclusion;
+		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
+		I76.Game.Sim.SmokeLight.Apply(s.SmokeLighting, _mode1997);
+		I76.Game.World.HeatShimmer.Apply(s.HeatShimmer, _mode1997);
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
@@ -899,6 +904,10 @@ public partial class Main : Node3D
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
 	private bool _ambientOcclusion;
+	// Haze, Glow and Reflections (the port's, Advanced; EnvExtras), Off by default
+	private int _haze, _glow;
+	private bool _reflections;
+	private AerialHaze? _aerialHaze;
 
 	/// <summary>
 	/// The modern look's quality settings (docs/perf/plan.md): Shadow Detail Low is the sun's shadow map in two splits to
@@ -916,6 +925,7 @@ public partial class Main : Node3D
 		var (splits, reach) = ShadowReach.For(_shadowDetail);
 		_sun.DirectionalShadowMode = splits == 4 ? DirectionalLight3D.ShadowMode.Parallel4Splits : DirectionalLight3D.ShadowMode.Parallel2Splits;
 		_sun.DirectionalShadowMaxDistance = reach;
+		ApplyShadowUltra();   // ShadowUltra.cs
 		UpdateDrops();
 		MissionBuilder.Trace("quality: shadows");
 		yield return null;
@@ -925,6 +935,9 @@ public partial class Main : Node3D
 		else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
 		World.VegShaders.SetCoverage(World.VegShaders.CoverageFor(_antialias));   // the plants' alpha-to-coverage at 4x and 8x
 		RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
+		EnvExtras.Apply(_modernEnv, _glow, _reflections, _lighting == Lighting.Card ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
+		if (EnvExtras.HazeLevel(_haze) > 0 && _aerialHaze is null) { AddChild(_aerialHaze = AerialHaze.Create()); ApplyDrawDistance(); }
+		if (_aerialHaze is not null) _aerialHaze.Level = _haze;
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
 		if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
@@ -3717,6 +3730,7 @@ public partial class Main : Node3D
 			}
 		}
 		if (_horizon is not null) _horizon.Visible = !_mode1997 && !original;
+		if (_aerialHaze is not null) { _aerialHaze.Ring = _horizon; _aerialHaze.Allowed = !_mode1997 && !original; }
 		ApplyFade1997();
 		ApplyEditorOutside();
 		if (_modernEnv?.Sky?.SkyMaterial is ShaderMaterial sky && _horizon is not null && _horizon.IsInsideTree())
@@ -3960,7 +3974,7 @@ public partial class Main : Node3D
 			long until = System.Diagnostics.Stopwatch.GetTimestamp() + (long)(WalkBudgetMs * System.Diagnostics.Stopwatch.Frequency / 1000);
 			bool Visit(Node n)
 			{
-				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadow)) return false;
+				if (!IsInstanceValid(n) || n == sc2.Markers || n == sc2.RoadPieces || n.IsInGroup(ScenerySpawner.NoDropShadowName)) return false;
 				if (n is MeshInstance3D { Visible: true, Mesh: { } m } mi)
 				{
 					_sceneryNext.Add((m, mi.GlobalTransform, true));
@@ -4058,6 +4072,8 @@ public partial class Main : Node3D
 		if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
 		_mode1997 = on;
 		I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
+		I76.Game.Sim.SmokeLight.SetLook1997(on);
+		I76.Game.World.HeatShimmer.Look1997 = on;
 		if (!sliced) _builder?.Terrain?.UseModern(!on);
 		else if (_builder?.Terrain is { } terrain)
 			foreach (var step in terrain.UseModernSteps(!on, SliceMs))
@@ -4082,11 +4098,13 @@ public partial class Main : Node3D
 		// The 1997 look's sun casts none, so a change to it keeps the modern look's once they are set: going back to the modern look then
 		// changes nothing, where the two changes back cost the first frame about 0.13 s at 3440x1440)
 		bool shadowsSet = !on || _shadowFilterSet is null;
-		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : RenderingServer.ShadowQuality.SoftLow);
+		if (shadowsSet && _shadowFilterSet != on) RenderingServer.DirectionalSoftShadowFilterSetQuality(on ? RenderingServer.ShadowQuality.Hard : ShadowUltra.Filter(_shadowUltra));
 		// crisp: a bigger atlas, no blur and a shorter reach, so the near texels are fine
-		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : 4096, true);
+		if (shadowsSet && _atlasSet != on) RenderingServer.DirectionalShadowAtlasSetSize(on ? 8192 : ShadowUltra.Atlas(_shadowUltra), true);
 		if (shadowsSet) _shadowFilterSet = _atlasSet = on;
-		_sun.ShadowBlur = on ? 0f : 1f;
+		if (shadowsSet && !on) _ultraSent = _shadowUltra;
+		_sun.ShadowBlur = on ? 0f : ShadowUltra.Blur(_shadowUltra);
+		_sun.DirectionalShadowBlendSplits = !on && ShadowUltra.Blend(_shadowUltra);
 		_sun.DirectionalShadowMaxDistance = on ? 600 : ShadowReach.For(_shadowDetail).Reach;   // the modern look's: ApplyModernQuality's
 		MissionBuilder.Trace("look: shadows, draw distance");
 		if (sliced) yield return null;

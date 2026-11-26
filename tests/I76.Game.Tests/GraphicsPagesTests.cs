@@ -36,9 +36,14 @@ public class GraphicsPagesTests
         GraphicsRow.HoodGloss => s.HoodGloss,
         GraphicsRow.Garage3D => s.Garage3D,
         GraphicsRow.MenuWidth => s.MenuWide,
+        GraphicsRow.SmokeLighting => s.SmokeLighting,
+        GraphicsRow.HeatShimmer => s.HeatShimmer,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
         GraphicsRow.CrashBlur => s.CrashBlur,
+        GraphicsRow.Haze => s.Haze,
+        GraphicsRow.Glow => s.Glow,
+        GraphicsRow.Reflections => s.Reflections,
         _ => throw new ArgumentOutOfRangeException(nameof(r)),
     };
 
@@ -51,11 +56,12 @@ public class GraphicsPagesTests
         s.VSync = false; s.MaxFps = I76.Sim.Views.FrameLimit.Unlimited + 1; s.RenderScale = I76.Game.Boot.RenderScale.Default + 1;
         s.Renderer = I76.Game.Boot.RendererChoice.OpenGL; s.LogFile = true; s.DevFps = true;
         s.WorldTextures = 2; s.CarTextures = 3;
-        s.Vegetation = 2; s.AmbientOcclusion = true;
+        s.Vegetation = 2; s.AmbientOcclusion = true; s.Haze = 2; s.Glow = 1; s.Reflections = true;
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CabinsBehindGlass = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false; s.MenuWide = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
         s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full;
+        s.SmokeLighting = true; s.HeatShimmer = HeatShimmerRow.Road;
         return s;
     }
 
@@ -86,14 +92,15 @@ public class GraphicsPagesTests
     {
         Assert.Equal(["Graphic Detail", "Advanced"], GraphicsPages.Names);
         Assert.Equal([GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth, GraphicsRow.Vegetation,
-            GraphicsRow.AmbientOcclusion, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
+            GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow, GraphicsRow.MirrorRate, GraphicsRow.HoodGloss, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D,
+            GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
             GraphicsPages.Rows[GraphicsPages.Advanced]);
     }
 
     /// <summary>
     /// Each page fits the sheet's fourteen lines with at least one to spare (the frame-rate estimate's): the sheet with Advanced's entry
-    /// under its eleven rows and a blank line, Advanced with its name. Advanced has fourteen rows, three of them shown only with a pack
-    /// (the texture rows, Menu Width): it fills the lines with any one of those missing and scrolls by one line with all three.
+    /// under its eleven rows and a blank line, Advanced with its name. Advanced has nineteen rows, three of them shown only with a pack
+    /// (the texture rows, Menu Width): it scrolls the rows past its thirteen lines (both menus' scrolling lists), six with all three.
     /// </summary>
     [Fact]
     public void EveryPageFitsTheSheetsLinesWithOneToSpare()
@@ -104,13 +111,9 @@ public class GraphicsPagesTests
         Assert.True(sheetLast < GraphicsPages.Lines - 1, "the sheet has no line to spare");
         // Advanced fills the sheet's lines with the texture rows shown (Mirror Rate's line): the shell's page leaves out the frame-rate
         // line when its rows reach it, and shows it without a pack
-        Assert.Equal(Enumerable.Range(1, 14), GraphicsPages.LinesOf(GraphicsPages.Advanced));
-        foreach (var missing in GraphicsPages.PackRows)
-        {
-            Assert.Contains(missing, GraphicsPages.Rows[GraphicsPages.Advanced]);
-            int shown = GraphicsPages.Rows[GraphicsPages.Advanced].Count(r => r != missing);
-            Assert.True(GraphicsPages.FirstRowLine + shown - 1 < GraphicsPages.Lines, $"Advanced without {missing} does not fit");
-        }
+        Assert.Equal(Enumerable.Range(1, 19), GraphicsPages.LinesOf(GraphicsPages.Advanced));
+        foreach (var pack in GraphicsPages.PackRows) Assert.Contains(pack, GraphicsPages.Rows[GraphicsPages.Advanced]);
+        Assert.Equal(6, GraphicsPages.Rows[GraphicsPages.Advanced].Length - (GraphicsPages.Lines - GraphicsPages.FirstRowLine));
     }
 
     [Fact]

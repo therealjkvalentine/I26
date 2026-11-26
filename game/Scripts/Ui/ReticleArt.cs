@@ -97,11 +97,21 @@ public static class ReticleArt
     /// </summary>
     public static void Draw(CanvasItem ci, Shape s, Func<Vector2, Vector2?> map)
     {
+        if (Build(s, map) is { } m) RenderingServer.CanvasItemAddTriangleArray(ci.GetCanvasItem(), m.Index, m.Point, m.Colour);
+    }
+
+    /// <summary>
+    /// The triangles <see cref="Draw"/> hands the renderer, or null when nothing is drawn. The arrays are kept and reused by the next call (the
+    /// main thread's): read or hand them on before building again.
+    /// </summary>
+    public static (int[] Index, Vector2[] Point, Color[] Colour)? Build(Shape s, Func<Vector2, Vector2?> map)
+    {
         var c = map(Vector2.Zero); var ex = map(Vector2.Right); var ey = map(Vector2.Down);
-        if (c is not { } c0 || ex is not { } x0 || ey is not { } y0) return;
+        if (c is not { } c0 || ex is not { } x0 || ey is not { } y0) return null;
         float unit = ((x0 - c0).Length() + (y0 - c0).Length()) * 0.5f;   // screen pixels to a half tile
-        if (unit < 2f) return;
-        var mesh = new Mesh();
+        if (unit < 2f) return null;
+        var mesh = Shared;
+        mesh.Clear();
         float band = s.RingOut - s.RingIn;
         for (int k = 0; k < 4; k++)
         {
@@ -111,16 +121,23 @@ public static class ReticleArt
             int m = (upright ? s.Upright : s.Level).Length;
             // rows: the inner end, and under the ring's middle; columns: the measured points over the tick's width
             if (!mesh.Grid(2, m, false, (i, j) => map(d * (i == 0 ? s.TickIn : s.RingIn + band * 0.5f) + side * s.TickHalf * (2f * j / (m - 1) - 1f)),
-                    (i, j) => s.TickGreyAt(upright, j / (m - 1f)))) return;
+                    (i, j) => s.TickGreyAt(upright, j / (m - 1f)))) return null;
         }
         int n = Math.Clamp((int)(unit * 1.2f), 2 * s.Steps, 360);
         if (!mesh.Grid(n, s.Across, true, (i, j) =>
             {
                 float a = Mathf.Tau * i / n;
                 return map(new Vector2(MathF.Cos(a), MathF.Sin(a)) * (s.RingIn + band * j / (s.Across - 1)));
-            }, (i, j) => s.GreyAt(Mathf.Tau * i / n, j / (s.Across - 1f)))) return;
-        RenderingServer.CanvasItemAddTriangleArray(ci.GetCanvasItem(), [.. mesh.Index], [.. mesh.Point], [.. mesh.Colour]);
+            }, (i, j) => s.GreyAt(Mathf.Tau * i / n, j / (s.Across - 1f)))) return null;
+        return mesh.Arrays();
     }
+
+    /// <summary>
+    /// The one mesh every draw builds in (the main thread's, and each draw hands its triangles to the renderer before it returns): its lists and
+    /// arrays are kept from frame to frame, so the ring redrawn every frame allocates nothing once their sizes have settled (it was about 160 kB a
+    /// frame at 3440x1440, most of the main thread's garbage).
+    /// </summary>
+    private static readonly Mesh Shared = new();
 
     /// <summary>Triangles with a grey at each vertex, built as grids whose edges fade out over a screen pixel.</summary>
     private sealed class Mesh
@@ -128,6 +145,22 @@ public static class ReticleArt
         public readonly List<Vector2> Point = [];
         public readonly List<Color> Colour = [];
         public readonly List<int> Index = [];
+        private Vector2[] _grid = [];
+        private int[] _index = [];
+        private Vector2[] _point = [];
+        private Color[] _colour = [];
+
+        public void Clear() { Point.Clear(); Colour.Clear(); Index.Clear(); }
+
+        /// <summary>The triangles as arrays of exactly their length (the renderer takes whole arrays), kept while the length stays the same.</summary>
+        public (int[], Vector2[], Color[]) Arrays()
+        {
+            if (_index.Length != Index.Count) _index = new int[Index.Count];
+            if (_point.Length != Point.Count) _point = new Vector2[Point.Count];
+            if (_colour.Length != Colour.Count) _colour = new Color[Colour.Count];
+            Index.CopyTo(_index); Point.CopyTo(_point); Colour.CopyTo(_colour);
+            return (_index, _point, _colour);
+        }
 
         /// <summary>
         /// A grid of <paramref name="rows"/> by <paramref name="cols"/> points (<paramref name="at"/>, in canvas pixels; a null fails the grid) shaded
@@ -136,26 +169,27 @@ public static class ReticleArt
         /// </summary>
         public bool Grid(int rows, int cols, bool closed, Func<int, int, Vector2?> at, Func<int, int, float> grey)
         {
-            var p = new Vector2[rows, cols];
+            if (_grid.Length < rows * cols) _grid = new Vector2[rows * cols];
+            var p = _grid;
             for (int i = 0; i < rows; i++)
                 for (int j = 0; j < cols; j++)
                 {
                     if (at(i, j) is not { } q) return false;
-                    p[i, j] = q;
+                    p[i * cols + j] = q;
                 }
             int cap = closed ? 0 : 1, nc = cols + 2, b = Point.Count;
-            var along = closed ? Vector2.Zero : (p[1, 0] - p[0, 0]).Normalized();
+            var along = closed ? Vector2.Zero : (p[cols] - p[0]).Normalized();
             for (int i = -cap; i < rows; i++)
             {
                 int r = Math.Max(i, 0);
-                var across = p[r, cols - 1] - p[r, 0];
+                var across = p[r * cols + cols - 1] - p[r * cols];
                 float w = across.Length();
                 var dir = w > 1e-4f ? across / w : Vector2.Zero;
                 float pull = Math.Min(0.5f, w * 0.25f);
                 for (int j = -1; j <= cols; j++)
                 {
                     int jj = Math.Clamp(j, 0, cols - 1);
-                    var q = p[r, jj];
+                    var q = p[r * cols + jj];
                     if (j == 0) q += dir * pull; else if (j == cols - 1) q -= dir * pull;
                     if (j < 0) q -= dir * 0.5f; else if (j >= cols) q += dir * 0.5f;
                     float alpha = j < 0 || j >= cols ? 0f : 1f;

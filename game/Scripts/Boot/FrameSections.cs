@@ -182,6 +182,7 @@ public static partial class FrameSections
                 for (int i = 0; i < (int)Sec.Count; i++) _rows[o + c++] = Bytes[i] / 1024.0;
                 _stages[_n] = I76.Game.World.MissionBuilder.LastStage;
                 _n++;
+                if (GcLog && System.GC.CollectionCount(0) != _g0) LogGc(Ms(_start - _first));
             }
             Reset(now);
             if (_runMs > 0 && (Ms(now - _first) >= _runMs || FrameProfiler.Died))
@@ -189,6 +190,22 @@ public static partial class FrameSections
                 if (FrameProfiler.Died) GD.Print("frame-sections: the player's car destroyed: the window ends there");
                 Write();
                 GetTree().Quit();
+            }
+        }
+
+        /// <summary>I76_GC_LOG=1 (with the sections on): a gc-info line for each collection in the window: its generation, pause, what it promoted, the heap after.</summary>
+        private static readonly bool GcLog = System.Environment.GetEnvironmentVariable("I76_GC_LOG") == "1";
+
+        private static void LogGc(double tMs)
+        {
+            foreach (var kind in new[] { System.GCKind.Ephemeral, System.GCKind.FullBlocking, System.GCKind.Background })
+            {
+                var i = System.GC.GetGCMemoryInfo(kind);
+                if (i.Index == 0) continue;
+                double pause = 0;
+                foreach (var p in i.PauseDurations) pause += p.TotalMilliseconds;
+                var gens = i.GenerationInfo;
+                GD.Print(string.Create(CultureInfo.InvariantCulture, $"gc-info: t {tMs / 1000:0.0} s kind {kind} #{i.Index} gen {i.Generation} pause {pause:0.0} ms promoted {i.PromotedBytes / 1048576.0:0.0} MB heap {i.HeapSizeBytes / 1048576.0:0} MB, gen0 {gens[0].SizeBeforeBytes / 1048576.0:0.0}->{gens[0].SizeAfterBytes / 1048576.0:0.0} gen1 {gens[1].SizeBeforeBytes / 1048576.0:0.0}->{gens[1].SizeAfterBytes / 1048576.0:0.0} gen2 {gens[2].SizeAfterBytes / 1048576.0:0} loh {gens[3].SizeAfterBytes / 1048576.0:0} MB, pinned {i.PinnedObjectsCount}, concurrent {i.Concurrent}"));
             }
         }
 

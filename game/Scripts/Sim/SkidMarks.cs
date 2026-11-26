@@ -80,7 +80,7 @@ public partial class SkidMarks : Node3D
             _seen = true; _modern = modern;
             if (!first) Restyle(modern);
             _active.Clear();
-            _mat.SetShaderParameter("modern", modern);
+            _mat.SetShaderParameter(ShaderNames.Modern, modern);
         }
         var o = Origin();
         if (o != _origin) { _origin = o; foreach (var s in _strips) s.Dirty = true; }
@@ -94,7 +94,7 @@ public partial class SkidMarks : Node3D
             if (s.Key is null && s.P.Count == 0) { if (s.Dirty) Rebuild(s); continue; }
             float age = _t - s.Born;
             if (age > life) { s.Clear(); Rebuild(s); continue; }
-            if (modern) s.Node?.SetInstanceShaderParameter("fade", Mathf.Clamp((life - age) / FadeModern, 0f, 1f));
+            if (modern) s.Node?.SetInstanceShaderParameter(ShaderNames.Fade, Mathf.Clamp((life - age) / FadeModern, 0f, 1f));
             if (s.Dirty) Rebuild(s);
         }
     }
@@ -275,6 +275,17 @@ public partial class SkidMarks : Node3D
         return p with { Y = _drawn.Height(p.X, p.Z) };
     }
 
+    /// <summary>
+    /// The modern mark's fade toward its end at point <paramref name="k"/>: by the length from there to the last point, summed only while
+    /// under <see cref="End"/> (beyond it the fade is whole, and further steps only add).
+    /// </summary>
+    public static float EndTaper(IReadOnlyList<SN.Vector3> p, int k)
+    {
+        float toEnd = 0;
+        for (int j = k; j < p.Count - 1 && toEnd < End; j++) { var d = p[j + 1] - p[j]; toEnd += MathF.Sqrt(d.X * d.X + d.Z * d.Z); }
+        return Mathf.SmoothStep(0f, 1f, Mathf.Clamp(toEnd / End, 0f, 1f));
+    }
+
     private void Rebuild(Strip s)
     {
         s.Dirty = false;
@@ -314,10 +325,14 @@ public partial class SkidMarks : Node3D
                 if (k > 0) { var d = s.P[k] - s.P[k - 1]; along += MathF.Sqrt(d.X * d.X + d.Z * d.Z); }
                 var c = s.P[k];
                 var col = s.C[k];
-                float toEnd = 0;
-                for (int j = k; j < n - 1; j++) { var d = s.P[j + 1] - s.P[j]; toEnd += MathF.Sqrt(d.X * d.X + d.Z * d.Z); }
                 float ta = s.NoStartTaper ? 1f : Mathf.SmoothStep(0f, 1f, Mathf.Clamp(along / Start, 0f, 1f));
-                if (s.Ended && !s.NoEndTaper) ta *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp(toEnd / End, 0f, 1f));
+                if (s.Ended && !s.NoEndTaper)
+                {
+                    // the length to the strip's end, summed only as far as the taper reaches: past End the taper is whole whatever the rest
+                    // adds (each step adds a length, never less), so the result is the full sum's; summed to the end for every point it was
+                    // quadratic in the strip's points (every strip rebuilt at once when the floating origin moved: frames of 6-48 ms)
+                    ta *= EndTaper(s.P, k);
+                }
                 col.A *= ta;
                 vs.Add(G(new SN.Vector3(c.X - rx, c.Y, c.Z - rz), LiftModern)); vs.Add(G(new SN.Vector3(c.X + rx, c.Y, c.Z + rz), LiftModern));
                 cs.Add(col); cs.Add(col);
@@ -330,7 +345,7 @@ public partial class SkidMarks : Node3D
             idx.Add(i); idx.Add(i + 1); idx.Add(i + 2);
             idx.Add(i + 1); idx.Add(i + 3); idx.Add(i + 2);
         }
-        var arrays = new Godot.Collections.Array();
+        using var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
         arrays[(int)Mesh.ArrayType.Vertex] = vs.ToArray();
         arrays[(int)Mesh.ArrayType.Color] = cs.ToArray();

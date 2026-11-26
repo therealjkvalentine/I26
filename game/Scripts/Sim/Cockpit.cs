@@ -1871,6 +1871,8 @@ public partial class Cockpit : Node
         me.AdjustmentBrightness = we.AdjustmentBrightness;
         me.AdjustmentColorCorrection = we.AdjustmentColorCorrection;
         me.SsaoEnabled = false;
+        me.SsrEnabled = false;     // Reflections and Glow are the main view's (EnvExtras): not drawn in a mirror's picture
+        me.GlowEnabled = false;
         float far = _mirrorCam?.Far ?? MirrorCameraSettings.FarMetres;
         bool fog = MirrorFog && far <= MirrorCameraSettings.FarMetres + 1f;
         me.FogEnabled = fog;

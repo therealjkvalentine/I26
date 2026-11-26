@@ -276,6 +276,6 @@ public partial class NapalmModern : Node3D
     public override void _Process(double delta)
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Smoke);
-        _smoke.SetShaderParameter("scene_light", SceneLight);
+        _smoke.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
     }
 }

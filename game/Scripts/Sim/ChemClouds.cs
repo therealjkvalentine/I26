@@ -12,6 +12,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public partial class ChemClouds : Node3D
 {
+    private readonly HashSet<Round> _liveRounds = [];
     public required Func<string, Image?> Texture { get; init; }
     public float SceneLight { get; set; } = 1f;
 
@@ -151,8 +152,9 @@ public partial class ChemClouds : Node3D
 
     private void Modern(IReadOnlyList<Round> rounds, Func<System.Numerics.Vector3, Vector3> toGodot, double dt)
     {
-        _matNew.SetShaderParameter("scene_light", SceneLight);
-        var live = new HashSet<Round>();
+        _matNew.SetShaderParameter(ShaderNames.SceneLight, SceneLight);
+        var live = _liveRounds;   // kept from frame to frame (a new set a frame was garbage every frame)
+        live.Clear();
         foreach (var r in rounds)
         {
             if (r.Kind != 0x16 || !r.Settled) continue;

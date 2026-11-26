@@ -102,11 +102,11 @@ public partial class Main
             RenderBackend.Describe() + (RenderBackend.VideoMemoryMb is { } vram ? $", video memory {vram} MiB" : ""),
             $"window: {win.X}x{win.Y} {DisplayServer.WindowGetMode().ToString().ToLowerInvariant()}, screen {screen.X}x{screen.Y}, render scale {RenderScale.Percents[System.Math.Clamp(settings.RenderScale, 0, RenderScale.Percents.Length - 1)]} %{(RenderScale.Held is { } held ? $" (held at {held} %: video memory)" : "")}, "
                 + $"vsync {(settings.VSync ? "on" : "off")}, max fps {I76.Sim.Views.FrameLimit.Names[System.Math.Clamp(settings.MaxFps, 0, I76.Sim.Views.FrameLimit.Names.Length - 1)]}, "
-                + $"anti-aliasing {RenderScale.AntiAliasing[System.Math.Clamp(settings.Graphics[0x8], 0, RenderScale.AntiAliasing.Length - 1)]}",
+                + $"anti-aliasing {I76.Game.Shell.AntiAliasingRow.Names[I76.Game.Shell.AntiAliasingRow.Index(settings)]}",
             $"look: {(_mode1997 ? (settings.SoftwareRenderer ? "1997 (software renderer)" : "1997") : "modern")}, renderer setting {settings.Renderer}, "
                 + $"world textures {I76.Game.Assets.HdTextures.Word(I76.Game.Assets.HdTextures.WorldSize)}, car and dash textures {I76.Game.Assets.HdTextures.Word(I76.Game.Assets.HdTextures.CarSize)}, "
                 + $"menu art {(I76.Game.Shell.HdAssets.Enabled && I76.Game.Shell.HdAssets.Source is not null ? "HD" : "the install's")}",
-            $"shadow detail {settings.Graphics[0x6]}, terrain detail {settings.Graphics[0x2]}, ambient occlusion {(settings.AmbientOcclusion ? "on" : "off")}, vegetation {settings.Vegetation}, "
+            $"shadow detail {settings.Graphics[0x6]}{(I76.Game.Shell.ShadowDetailRow.UltraOn(settings) ? " (ultra)" : "")}, terrain detail {settings.Graphics[0x2]}, ambient occlusion {(settings.AmbientOcclusion ? "on" : "off")}, vegetation {settings.Vegetation}, "
                 + $"visibility range {(settings.DrawDistanceChoice is { } dd ? dd.ToString(inv) : "follows the look")}, quiet window {(QuietWindow.Active ? "on" : "off")}",
             $"input: {(Controls.PadSource.Read().Count > 0 ? "a pad or wheel is connected" : "keyboard and mouse")}, force feedback {I76.Game.Shell.ShellSettings.ForceFeedbackNames[System.Math.Clamp(settings.ForceFeedbackMode, 0, 3)]}",
         });
