@@ -45,6 +45,13 @@ public static class MirrorWarp
         return b * Turn(then, now) * a;
     }
 
+    /// <summary>
+    /// Whether a glass re-projects with its camera's depth (MirrorDepth): only while the depth effect is in the camera's compositor and
+    /// its texture has been made. Otherwise the turn alone: an unmade texture reads as the engine's placeholder, a checkerboard of
+    /// 0 and 1 metres, which put flat blocks of a single texel over the glass.
+    /// </summary>
+    public static bool DepthUsable(bool attached, bool made) => attached && made;
+
     /// <summary>The turn from the camera's frame now to its frame then: a direction seen now, in the camera's frame as it was.</summary>
     public static Basis Turn(Basis then, Basis now) => then.Transposed() * now;
 
