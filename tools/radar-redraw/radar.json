@@ -32,8 +32,8 @@
   "pip_ring": 1.6,
   "hub_radius": 2.1,
   "window_margin": 1.5,
-  "line_edge": 0.25,
-  "line_note": "graticule lines 0.7 original px wide (round 1: 1.0), their outer edges a ramp line_edge px wide centred on the edge (2 texels at 8x): soft, the line's area kept"
+  "line_edge": null,
+  "line_note": "graticule lines 0.7 original px wide; line_edge null: a one-texel anti-aliased edge (crisp; round 2-3 used a 0.25 px ramp)"
  },
  "inset": {
   "search": [
@@ -55,7 +55,7 @@
   "line_width": 0.7,
   "blend": 1.0,
   "max_radius": 12.5,
-  "line_edge": 0.25
+  "line_edge": null
  },
  "stamps": {
   "note": "the sprites the game stamps over every frame (the cockpit layout's zrad.map block): sheets, their sprites' rows (rows as shown), the anchor and size (original px, game view). The redrawn sheets carry the frame's texels inside mask_radius of the frame's own corner scope / lamp and are keyed outside; lit faces from profiles measured on the original sprites",
@@ -154,33 +154,25 @@
    }
   },
   "B": {
-   "note": "phosphor: a bright edge and an afterglow fading behind it (the side the beam has left), a soft-edged cone; the glow under the graticule",
+   "note": "phosphor: a thin sharp beam with a bright core and an afterglow fading behind it (the side the beam has left), a soft-edged cone; the graticule printed crisp over all of them (grid_over)",
    "face": [
     0,
     69,
     0
    ],
-   "glow_under_grid": true,
    "beam": {
-    "width": 2.2,
+    "width": 1.5,
     "edge_colour": [
-     110,
-     235,
-     110
+     120,
+     240,
+     120
     ],
-    "core_width": 1.0,
+    "core_width": 0.7,
     "core_colour": [
-     205,
+     225,
      255,
-     205
+     225
     ],
-    "glow_width": 5.0,
-    "glow_colour": [
-     80,
-     230,
-     80
-    ],
-    "glow_alpha": 0.3,
     "trail_deg": 150,
     "trail_peak": 0.62,
     "trail_decay_deg": 32,
@@ -203,7 +195,8 @@
      150
     ],
     "axis_alpha": 0.45
-   }
+   },
+   "grid_over": true
   }
  },
  "marks": {
@@ -311,7 +304,9 @@
   "halo": 1.2,
   "halo_darker": 8,
   "face_light": 110,
-  "label_knob": 1
+  "label_knob": 1,
+  "ink_multiply": 0.3,
+  "ink_note": "ink_multiply: the printed marks and words darken the panel's own shade to this fraction (printed, its shading showing through); without it they are laid in the flat ink colour"
  },
  "default_font": "B612",
  "fonts": {
@@ -333,12 +328,12 @@
  "label_sets": [
   {
    "name": "lock-range",
-   "note": "the owner's lead: the top knob is the lock tone's volume (LOCK VOL), the lower the range: 100 (left tick), TGT (the X), 600 (right tick, where the pointer rests: the default) and RANGE on the one-pixel row. 100 m and 600 m are the game's two radar ranges (R); TGT is a design story, not a state of R (the radar camera is its own toggle, W)",
+   "note": "the owner's lead: the top knob is the lock tone's volume (LOCK VOL), the lower the range: 100, TGT and 600 lettered in place of the painted left tick, X and right tick (the pointer rests on 600: the default), RANGE on the one-pixel row; every word one cap height (2.4 px; LOCK VOL was 2.6, the others 1.8-1.9). 100 m and 600 m are the game's two radar ranges (R); TGT is a design story, not a state of R (the radar camera is its own toggle, W); 100, TGT and 600 lifted 0.4 px out from the knob, along the line from its centre",
    "texts": [
     {
      "box": "between",
      "text": "LOCK VOL",
-     "cap": 2.6,
+     "cap": 2.4,
      "pad": [
       1,
       0
@@ -350,11 +345,10 @@
       0
      ],
      "text": "100",
-     "cap": 1.8,
-     "lift": 4.0,
-     "width": 6.0,
-     "y": 57.0,
-     "x": 20.0
+     "cap": 2.4,
+     "width": 12.0,
+     "note": "centred on the left tick the word replaces",
+     "lift": 0.4
     },
     {
      "mark": [
@@ -362,10 +356,10 @@
       1
      ],
      "text": "TGT",
-     "cap": 1.8,
-     "lift": 4.0,
-     "width": 6.0,
-     "y": 55.5
+     "cap": 2.4,
+     "width": 12.0,
+     "note": "centred on the X",
+     "lift": 0.4
     },
     {
      "mark": [
@@ -373,25 +367,30 @@
       2
      ],
      "text": "600",
-     "cap": 1.8,
-     "lift": 4.0,
-     "width": 6.0,
-     "y": 57.0,
-     "x": 37.7,
-     "note": "over its tick and pulled in from the tick line: the bezel's outer edge is at x 41.3 at this height, the ink ends at 40.0 (round 2's cap 2.0 at x 39.0 ran to 41.5, onto it)"
+     "cap": 2.4,
+     "width": 12.0,
+     "nudge": [
+      -0.8,
+      0.0
+     ],
+     "note": "on the right tick, lifted 0.4 px out from the knob like the others and 0.8 px left: the scope bezel's outer edge is at x 41.0 on these rows, the ink must end a pixel short of it (a test checks)",
+     "lift": 0.4
     },
     {
      "box": "under_lower",
      "text": "RANGE",
-     "cap": 1.9,
+     "cap": 2.4,
      "at": [
-      23.0,
-      89.55,
-      37.0,
-      91.45
+      20.0,
+      89.3,
+      40.0,
+      91.7
      ],
      "note": "on the one-pixel row (y 90), centred under the knob (x 30) rather than on the row's own ink (x 27-39)"
     }
+   ],
+   "tick_groups": [
+    "left_marks"
    ]
   },
   {
@@ -670,6 +669,209 @@
    "100 600",
    "LO HI",
    "NEAR FAR"
+  ]
+ },
+ "edges": {
+  "note": "the unit's wires and the bezel rings drawn again from the original's own colours about fitted curves (radar-redraw.py, the edges). Game view. zone: where the wires lie, left of the body's left edge (x 7) or below its bottom edge (y 102), in box, clear of the scope's bezel by clear_of_scope px; the original's transparent pixels there are cleared (the upscale's smeared alpha gone), the wires drawn over",
+  "corners": [
+   {
+    "box": [
+     7,
+     90,
+     17,
+     102
+    ],
+    "side": "left",
+    "d": [
+     -5.5,
+     2.0
+    ],
+    "arc": [
+     90,
+     180
+    ],
+    "arc_feather": 6.0,
+    "sigma_t": 3.0,
+    "sigma_d": 0.12,
+    "note": "the body's bottom left corner: a circle fitted to the silhouette's pixel edges in box, its bevel drawn again over the quarter arc (degrees, game view, 90 = down, 180 = left), the straight sides past it left as they are. mode silhouette: only the outline is made round (alpha), the upscale's shading kept (the regressed bevel did not meet the upscale's straight sides)",
+    "mode": "silhouette"
+   },
+   {
+    "box": [
+     157,
+     88,
+     168,
+     102
+    ],
+    "side": "right",
+    "d": [
+     -5.5,
+     2.0
+    ],
+    "arc": [
+     0,
+     90
+    ],
+    "arc_feather": 6.0,
+    "sigma_t": 3.0,
+    "sigma_d": 0.12,
+    "note": "the body's bottom right corner, likewise",
+    "mode": "silhouette"
+   }
+  ],
+  "zone": {
+   "left_of": 7.0,
+   "below": 102.0,
+   "box": [
+    0,
+    40,
+    70,
+    116
+   ],
+   "clear_of_scope": 3.5,
+   "feather": 0.3
+  },
+  "wires": [
+   {
+    "name": "cable",
+    "grey": true,
+    "sigma_t": 3.0,
+    "sigma_d": 0.15,
+    "bin": 2,
+    "smooth": 0.05,
+    "extend": 1.5,
+    "note": "the dark grey cable round the left side and under the body: one tube, its width its pixels over its length, its shading regressed along it"
+   },
+   {
+    "name": "pair",
+    "colours": [
+     [
+      161,
+      0,
+      32
+     ],
+     [
+      209,
+      0,
+      41
+     ],
+     [
+      122,
+      0,
+      24
+     ],
+     [
+      227,
+      136,
+      28
+     ],
+     [
+      158,
+      98,
+      13
+     ],
+     [
+      80,
+      47,
+      27
+     ],
+     [
+      171,
+      68,
+      0
+     ],
+     [
+      176,
+      139,
+      68
+     ],
+     [
+      115,
+      40,
+      40
+     ]
+    ],
+    "classes": {
+     "red": [
+      [
+       161,
+       0,
+       32
+      ],
+      [
+       209,
+       0,
+       41
+      ],
+      [
+       122,
+       0,
+       24
+      ]
+     ],
+     "orange": [
+      [
+       227,
+       136,
+       28
+      ],
+      [
+       158,
+       98,
+       13
+      ],
+      [
+       80,
+       47,
+       27
+      ],
+      [
+       171,
+       68,
+       0
+      ],
+      [
+       176,
+       139,
+       68
+      ],
+      [
+       115,
+       40,
+       40
+      ]
+     ]
+    },
+    "sigma_t": 3.0,
+    "sigma_d": 0.15,
+    "bin": 2,
+    "smooth": 0.05,
+    "extend": 1.5,
+    "class_sigma": 0.5,
+    "class_gain": 6,
+    "note": "the red and orange twisted pair: one tube; which colour each texel is follows the original's pixels (smoothed), each colour shaded as the original shades it"
+   }
+  ],
+  "rings": [
+   {
+    "circle": "face",
+    "d": [
+     -0.4,
+     3.4
+    ],
+    "d_free": 5.0,
+    "sigma_t": 8.0,
+    "sigma_d": 0.12,
+    "skip": [
+     [
+      -100,
+      -80
+     ]
+    ],
+    "skip_feather": 4.0,
+    "note": "the scope's bezel: from just inside the face's edge out to d (over the panel) or d_free (where the original is transparent beyond: the silhouette at the bottom). skip (degrees, game view, 0 = right, -90 = up): the top, where the original's ring runs into the body's top edge; under_inset: left out within the corner scope's face radius plus this, where its ring lies over the bezel",
+    "under_inset": 2.4
+   }
   ]
  }
 }
