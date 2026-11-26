@@ -95,7 +95,7 @@ public static class GraphicsHelp
             : "Terrain shadows: the hills' and mesas' own shadows on the land, baked from the map and its sun as the mission loads: crisp and steady at any Shadow Detail, out to the horizon. On by default. Off leaves them to Shadow Detail (600 m at Low, 1500 m at High). Fine bakes twice as finely (more load time and video memory). By day only. About 1-2 % of a frame at 3440x1440 and 200 % scale, none measurable at 1920x1080.",
         GraphicsRow.RoadDetail => look1997
             ? "Road detail: the modern look's surface on the paved roads. Not drawn in the 1997 look."
-            : "Road detail: the paved roads get a surface of their own near the camera (aggregate grain and stones, fine cracks, sealed patches, crisper and slightly worn lane lines, broad lighter and darker stretches down a long straight, the dirt verge blended into the ground), made in the shader; the road's layout, colours and markings stay the original's. Off (the default) draws the roads' own textures alone. About 0.1 ms a frame at 3440x1440 with Render Scale 200 % on a fast card; Off costs nothing.",
+            : "Road detail: the paved roads get a surface of their own near the camera (aggregate grain and stones, fine cracks, sealed patches, crisper and slightly worn lane lines, broad lighter and darker stretches down a long straight, the dirt verge blended into the ground), made in the shader; the road's layout, colours and markings stay the original's. Off (the default) draws the roads' own textures alone. A few extra noise reads on road pixels near the camera; Off costs nothing.",
         _ => throw new ArgumentOutOfRangeException(nameof(row)),
     };
 
