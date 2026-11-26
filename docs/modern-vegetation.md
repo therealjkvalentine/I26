@@ -491,8 +491,20 @@ reads; hidden with the plants in the 1997 look; shell.cfg `[port] brush_impacts=
 - **Fire.** A fire near a leafy plant (stiffness under 0.6: not the cacti, yuccas and succulents) can set it smouldering
   for 7 to 13 s, and now and then burning for 3 to 6 s of that, scorched and slumped where it burns: a flame thrower's
   stream where it lands (0.8 a second), a fire drop's pool (0.15), a burning wreck (0.12 times its flames), a blast with
-  fire in it (two tries at one half). At most 6 at once, 3 of them in flame, each with a warm flickering light. The
-  smoke, flames and leaves follow `effects_size`, `effects_brightness` and `effects_opacity`.
+  fire in it (two tries at one half). At most 6 at once, 3 of them in flame. The fire is sized to its plant
+  (`BushFire.For`, from the crown's reach r and height h, both capped): 8 to 20 flame tongues (8 + 12 u, u = r h / 2.8 m²,
+  0 for a tuft to 1 for a big mesquite), each a card turned about the vertical to the camera, 0.16 to 0.46 m wide and 1.7
+  times as tall, born in a box of half 0.4 r by 0.2 h at 0.3 h, rising 0.45 to 0.9 m/s (times h / 1.2 m, 0.45 to 1.6)
+  for 0.5 s, wavering and broken up by a rising noise, yellow at the root to orange-red at the tip, so the flame stands
+  about the plant's own height inside its crown (it was 48 round cards whatever the plant, sprayed over a sphere of the
+  crown's size and rising 2 m above it: glowing balls flying off); 6 to 14 thin grey smoke puffs (3.2 s, 0.45 + 0.5 r m
+  growing threefold; half as many while it only smoulders; it was 26 dark puffs up to 4 m across); embers only off a
+  plant of u 0.15 or more, 1 to 5, 3.5 cm, drifting up at about 1 m/s for 1.6 s; a warm flickering light of energy
+  0.5 + 0.6 u over 2.5 + 2 h / 1.2 m (it was 1.8 over 7 m). As it burns the plant chars toward black; burnt through (the
+  field's scorch over 0.6) its leaves and blades go in patches (`vegetation.gdshaderinc`, a 14 cm cell of the plant's
+  own frame each) and it sinks to 60 % of its height, splaying a little, leaving the charred twigs where it stood (it
+  was laid over sideways a third of the way, and stood up again green-black). The leaves follow `effects_size`; the
+  smoke and flames are sized to the plant, and all of them follow `effects_brightness` and `effects_opacity`.
 
 Measured (T01 as an Instant Melee arena, High, 1280 x 960, the player firing the MG along the roadside, frames 300 to 900,
 frame profiler medians, 3 runs each way alternated on one machine): GPU 2.94 ms on against 2.90 off (+0.05), the main
