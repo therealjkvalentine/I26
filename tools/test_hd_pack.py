@@ -62,6 +62,19 @@ class Steps(unittest.TestCase):
         b2 = hp.Build(args(export=self.exp), {"pack": "tex-world-4x", "steps": []})
         self.assertEqual(b2.selection({"id": "x", "only": "zswls*"}), (None, "zswls*"))
 
+    def test_only_keeps_what_an_earlier_step_wrote_into_the_same_stage(self):
+        steps = [{"id": "pumps", "tool": "upscale-textures.py", "writes": "pumps-4x", "args": []},
+                 {"id": "pump-counters", "tool": "text-redraws.py", "writes": "pumps-4x", "args": []}]
+        b = hp.Build(args(export=self.exp, only="aa11ftl1", work=os.path.join(self.d.name, "w"), out=os.path.join(self.d.name, "o"),
+                          dry_run=False), {"pack": "tex-world-4x", "steps": steps})
+        stage = os.path.join(b.work, "pumps-4x"); os.makedirs(stage)
+        b.run_cmd = lambda argv, stdout=None, env=None: open(os.path.join(stage, "aa11ftl1.png"), "w").close() if "upscale-textures.py" in argv[-1] else None
+        open(os.path.join(stage, "aa11ftl1.png"), "w").close()
+        b.step(steps[0])
+        b.run_cmd = lambda argv, stdout=None, env=None: None
+        b.step(steps[1])
+        self.assertTrue(os.path.exists(os.path.join(stage, "aa11ftl1.png")), "the counters step works on the pumps step's picture")
+
     def test_placeholders_and_names_as_arguments(self):
         b = hp.Build(args(export=self.exp), {"pack": "tex-world-4x", "steps": []})
         masks = os.path.join(self.d.name, "masks"); os.makedirs(masks)

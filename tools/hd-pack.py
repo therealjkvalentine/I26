@@ -184,13 +184,15 @@ class Build:
         in_place = writes == "pack"
         if not in_place:
             stage = self.stage_dir(st)
+            earlier = [x["id"] for x in self.r["steps"][:self.r["steps"].index(st)] if x.get("writes") == writes]
             if self.user_only is None:
-                earlier = [x["id"] for x in self.r["steps"][:self.r["steps"].index(st)] if x.get("writes") == writes]
                 stale = any(r in self.reran for r in st.get("reads", [])) or any(e in self.reran for e in earlier)
                 if self.state.get(sid) == k and os.path.exists(stage) and not stale:
                     print("    up to date"); self.install(st, None); return
                 if not earlier and os.path.exists(stage) and not st.get("resume") and not self.a.dry_run: shutil.rmtree(stage)
-            else:
+            elif not any(e in self.reran for e in earlier):
+                # --only: the names out of the stage, unless a step before this one wrote them there in this run (the pumps'
+                # counters work on the pumps step's pictures)
                 for n in names: drop(stage, n, self.a.dry_run)
             if not self.a.dry_run: os.makedirs(stage, exist_ok=True)
             self.reran.add(sid)
